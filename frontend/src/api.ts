@@ -614,6 +614,58 @@ export interface CustomerIssueIllegalRecordFilterOptionsResponse {
   milestoneTitles: OptionItemResponse[];
 }
 
+export type CustomerIssueRecordTopic = 'cc-product' | 'delay';
+
+export interface CustomerIssueRecordRowResponse {
+  issueId: number;
+  issueIid: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  issueState: string;
+  severityLevel: string;
+  priorityLevel: string;
+  bugStatus: string;
+  category: string;
+  reasonCategory: string;
+  milestoneTitle: string;
+  authorName: string;
+  assigneeName: string;
+  moduleNames: string;
+  delayIssue: boolean;
+  delayReason: string;
+  delayCause: string;
+  responseDelayed: boolean;
+  resolveDelayed: boolean;
+  illegal: boolean;
+  illegalReason: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  closedAt?: string | null;
+  labels: string[];
+}
+
+export interface CustomerIssueRecordListResponse {
+  records: CustomerIssueRecordRowResponse[];
+  total: number;
+  page: number;
+  size: number;
+  sortField: string;
+  sortOrder: 'asc' | 'desc';
+}
+
+export interface CustomerIssueRecordFilterOptionsResponse {
+  projectNames: OptionItemResponse[];
+  moduleNames: OptionItemResponse[];
+  reasonCategories: OptionItemResponse[];
+  severityLevels: OptionItemResponse[];
+  priorityLevels: OptionItemResponse[];
+  issueStates: OptionItemResponse[];
+  bugStatuses: OptionItemResponse[];
+  categories: OptionItemResponse[];
+  milestoneTitles: OptionItemResponse[];
+}
+
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -1039,6 +1091,74 @@ export const api = {
       );
       return request<StatisticBoardRuleExplanationResponse>(
         `/api/customer-issues/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
+      );
+    },
+    getCustomerIssueRecords(params: {
+      topic: CustomerIssueRecordTopic;
+      projectId?: string | number | null;
+      keyword?: string;
+      issueIid?: string;
+      title?: string;
+      projectName?: string;
+      moduleName?: string;
+      reasonCategory?: string;
+      severityLevel?: string;
+      priorityLevel?: string;
+      issueState?: string;
+      bugStatus?: string;
+      category?: string;
+      milestoneTitle?: string;
+      createdAtStart?: string;
+      createdAtEnd?: string;
+      updatedAtStart?: string;
+      updatedAtEnd?: string;
+      page?: number;
+      size?: number;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }) {
+      const query = new URLSearchParams({
+        topic: params.topic,
+        page: String(params.page ?? 1),
+        size: String(params.size ?? 20),
+        ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
+        ...(params.keyword ? { keyword: params.keyword } : {}),
+        ...(params.issueIid ? { issueIid: params.issueIid } : {}),
+        ...(params.title ? { title: params.title } : {}),
+        ...(params.projectName ? { projectName: params.projectName } : {}),
+        ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+        ...(params.reasonCategory ? { reasonCategory: params.reasonCategory } : {}),
+        ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
+        ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
+        ...(params.issueState ? { issueState: params.issueState } : {}),
+        ...(params.bugStatus ? { bugStatus: params.bugStatus } : {}),
+        ...(params.category ? { category: params.category } : {}),
+        ...(params.milestoneTitle ? { milestoneTitle: params.milestoneTitle } : {}),
+        ...(params.createdAtStart ? { createdAtStart: params.createdAtStart } : {}),
+        ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
+        ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
+        ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
+        ...(params.sortBy ? { sortBy: params.sortBy } : {}),
+        ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
+      });
+      return request<CustomerIssueRecordListResponse>(`/api/customer-issues/records?${query.toString()}`);
+    },
+    getCustomerIssueRecordFilterOptions(topic: CustomerIssueRecordTopic, projectId?: string | number | null) {
+      const query = new URLSearchParams({
+        topic,
+        ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+      });
+      return request<CustomerIssueRecordFilterOptionsResponse>(
+        `/api/customer-issues/records/filter-options?${query.toString()}`,
+      );
+    },
+    getCustomerIssueRecordRuleExplanation(topic: CustomerIssueRecordTopic, projectId?: string | number | null) {
+      const query = new URLSearchParams({
+        topic,
+        ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+      });
+      return request<StatisticBoardRuleExplanationResponse>(
+        `/api/customer-issues/records/rule-explanation?${query.toString()}`,
       );
     },
     getStatisticBoardRealtimeStatus(boardKey: string) {

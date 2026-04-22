@@ -13,6 +13,7 @@ import CodeReviewIllegalRuleConfigView from './views/CodeReviewIllegalRuleConfig
 import ReviewDataManagementView from './views/ReviewDataManagementView.vue';
 import SystemTestIssueSearchView from './views/SystemTestIssueSearchView.vue';
 import CustomerIssueIllegalRecordsView from './views/CustomerIssueIllegalRecordsView.vue';
+import CustomerIssueRecordsView from './views/CustomerIssueRecordsView.vue';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -56,6 +57,30 @@ const statisticBoardQueryKeys = [
   'filterGroup',
   'filterLogic',
   'projectId',
+];
+
+const customerIssueRecordQueryKeys = [
+  'page',
+  'pageSize',
+  'sortBy',
+  'sortOrder',
+  'projectId',
+  'keyword',
+  'issueIid',
+  'title',
+  'projectName',
+  'moduleName',
+  'reasonCategory',
+  'severityLevel',
+  'priorityLevel',
+  'issueState',
+  'bugStatus',
+  'category',
+  'milestoneTitle',
+  'createdAtStart',
+  'createdAtEnd',
+  'updatedAtStart',
+  'updatedAtEnd',
 ];
 
 const routes: RouteRecordRaw[] = [
@@ -334,8 +359,30 @@ const routes: RouteRecordRaw[] = [
       persistedQueryKeys: ['projectId'],
     },
   },
-  buildPlaceholderRoute('/customer-issues/cc-product-issues', 'customer-issues', 'customer-issues-cc-product-issues'),
-  buildPlaceholderRoute('/customer-issues/delay-issues', 'customer-issues', 'customer-issues-delay-issues'),
+  {
+    path: '/customer-issues/cc-product-issues',
+    component: CustomerIssueRecordsView,
+    meta: {
+      moduleKey: 'customer-issues',
+      pageKey: 'customer-issues-cc-product-issues',
+      title: pageByKey.get('customer-issues-cc-product-issues')!.label,
+      description: pageByKey.get('customer-issues-cc-product-issues')!.description,
+      allowedQueryKeys: customerIssueRecordQueryKeys,
+      persistedQueryKeys: ['projectId'],
+    },
+  },
+  {
+    path: '/customer-issues/delay-issues',
+    component: CustomerIssueRecordsView,
+    meta: {
+      moduleKey: 'customer-issues',
+      pageKey: 'customer-issues-delay-issues',
+      title: pageByKey.get('customer-issues-delay-issues')!.label,
+      description: pageByKey.get('customer-issues-delay-issues')!.description,
+      allowedQueryKeys: customerIssueRecordQueryKeys,
+      persistedQueryKeys: ['projectId'],
+    },
+  },
   buildPlaceholderRoute('/customer-issues/response-efficiency', 'customer-issues', 'customer-issues-response-efficiency'),
   buildPlaceholderRoute('/customer-issues/issue-by-function', 'customer-issues', 'customer-issues-issue-by-function'),
   {
