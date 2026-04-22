@@ -201,7 +201,7 @@ export const modules: ShellModule[] = [
       {
         key: 'customer-issues-home',
         label: '缺陷汇总',
-        description: '对齐老平台客户问题统计下的缺陷汇总入口。',
+        description: '展示客户问题范围下的多级统计表头与模块维度缺陷汇总。',
         path: '/customer-issues/home',
       },
       {
@@ -213,7 +213,7 @@ export const modules: ShellModule[] = [
       {
         key: 'customer-issues-defect-cause',
         label: '缺陷原因分析',
-        description: '对齐老平台客户问题统计下的缺陷原因分析入口。',
+        description: '展示客户问题在模块维度下的缺陷原因归类统计，并支持按原因下钻明细。',
         path: '/customer-issues/defect-cause',
       },
       {

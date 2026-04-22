@@ -201,6 +201,68 @@ class StatisticBoardControllerTest {
   }
 
   @Test
+  void shouldLoadCustomerIssueDefectSummaryBoard() {
+    StatisticBoardResponse response = controller.getBoard("customer-issue-defect-summary", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-summary");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名称");
+    assertThat(response.definition().filters()).extracting("key")
+        .containsExactly("projectName", "moduleName", "severityLevel", "priorityLevel");
+    assertThat(response.definition().columnGroups()).extracting("key")
+        .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
+    assertThat(response.meta().columnCount()).isEqualTo(38);
+  }
+
+  @Test
+  void shouldLoadCustomerIssueDefectSummaryRuleExplanation() {
+    StatisticBoardRuleExplanationResponse response =
+        controller.getRuleExplanation("customer-issue-defect-summary", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.boardKey()).isEqualTo("customer-issue-defect-summary");
+    assertThat(response.supported()).isTrue();
+    assertThat(response.version()).isNotBlank();
+    assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
+    assertThat(response.metricDefinitions()).extracting("key")
+        .containsExactly("level1", "priority-summary", "summary", "new-issue", "legacy");
+  }
+
+  @Test
+  void shouldLoadCustomerIssueDefectCauseBoard() {
+    StatisticBoardResponse response = controller.getBoard("customer-issue-defect-cause", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-cause");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块");
+    assertThat(response.definition().filters()).isEmpty();
+    assertThat(response.definition().columnGroups()).extracting("key")
+        .containsExactly("requirement-problem", "implementation-problem", "environment-problem", "summary");
+    assertThat(response.meta().columnCount()).isEqualTo(7);
+  }
+
+  @Test
+  void shouldLoadCustomerIssueDefectCauseRuleExplanation() {
+    StatisticBoardRuleExplanationResponse response =
+        controller.getRuleExplanation("customer-issue-defect-cause", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.boardKey()).isEqualTo("customer-issue-defect-cause");
+    assertThat(response.supported()).isTrue();
+    assertThat(response.version()).isNotBlank();
+    assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
+    assertThat(response.metricDefinitions()).extracting("key")
+        .containsExactly(
+            "requirement_understanding",
+            "new_requirement",
+            "implementation_logic",
+            "environment_deployment",
+            "algorithm_mechanism",
+            "other_reason",
+            "total");
+  }
+
+  @Test
   void shouldLoadMirrorTableOverviewRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
         controller.getRuleExplanation("mirror-table-overview", Map.of()).getData();
