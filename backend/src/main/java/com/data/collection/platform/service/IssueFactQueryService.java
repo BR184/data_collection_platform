@@ -25,8 +25,10 @@ public class IssueFactQueryService extends AbstractFactQueryService {
   private void applyCommonFilters(StringBuilder sql, List<Object> args, Map<String, String> filters) {
     appendEq(sql, args, "project_id", filters.get("projectId"), Long::parseLong);
     appendContains(sql, args, "project_name", filters.get("projectName"));
+    appendContains(sql, args, "milestone_title", filters.get("milestoneTitle"));
     appendContains(sql, args, "testing_phase", filters.get("testingPhase"));
     appendContains(sql, args, "module_names", filters.get("moduleName"));
+    appendContains(sql, args, "function_name", filters.get("functionName"));
     appendEq(sql, args, "severity_level", filters.get("severityLevel"), value -> value);
     appendEq(sql, args, "priority_level", filters.get("priorityLevel"), value -> value);
   }

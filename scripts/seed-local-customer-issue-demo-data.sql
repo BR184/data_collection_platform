@@ -164,11 +164,11 @@ insert into ods_gitlab_issues (
     closed_at
 )
 values
-    (92501, 'customer issue sample 1', 3201, 325, timestamp '2026-04-12 10:00:00', timestamp '2026-04-13 09:00:00', 'valid customer issue sample with template reply', 32501, 1201, false, 2, 0, 0, timestamp '2026-04-13 09:00:00', timestamptz '2026-04-13 09:00:00+08'),
-    (92502, 'customer issue sample 2', 3202, 325, timestamp '2026-04-14 10:30:00', timestamp '2026-04-15 11:00:00', 'valid customer issue sample with delay label', 32501, 1202, false, 1, 0, 0, timestamp '2026-04-15 11:00:00', null),
-    (92503, 'customer issue sample 3', 3201, 325, timestamp '2026-04-16 14:00:00', timestamp '2026-04-17 09:30:00', 'illegal sample without template reply', 32502, 1203, false, 1, 0, 0, timestamp '2026-04-17 09:30:00', null),
-    (92504, 'customer issue sample 4', 3202, 325, timestamp '2026-04-18 09:15:00', timestamp '2026-04-18 16:00:00', 'illegal sample without module label', 32502, 1204, false, 1, 0, 0, timestamp '2026-04-18 16:00:00', null),
-    (92505, 'customer issue sample 5', 3201, 325, timestamp '2026-04-19 11:00:00', timestamp '2026-04-20 10:00:00', 'valid customer issue sample with new requirement reason', 32502, 1205, false, 2, 0, 0, timestamp '2026-04-20 10:00:00', timestamptz '2026-04-20 10:00:00+08')
+    (92501, '[Drawing Export] customer issue sample 1', 3201, 325, timestamp '2026-04-12 10:00:00', timestamp '2026-04-13 09:00:00', 'valid customer issue sample with template reply', 32501, 1201, false, 2, 0, 0, timestamp '2026-04-13 09:00:00', timestamptz '2026-04-13 09:00:00+08'),
+    (92502, '[Sketch Constraint] customer issue sample 2', 3202, 325, timestamp '2026-04-14 10:30:00', timestamp '2026-04-15 11:00:00', 'valid customer issue sample with delay label', 32501, 1202, false, 1, 0, 0, timestamp '2026-04-15 11:00:00', null),
+    (92503, '[Platform Login] customer issue sample 3', 3201, 325, timestamp '2026-04-16 14:00:00', timestamp '2026-04-17 09:30:00', 'illegal sample without template reply', 32502, 1203, false, 1, 0, 0, timestamp '2026-04-17 09:30:00', null),
+    (92504, '[Module Tagging] customer issue sample 4', 3202, 325, timestamp '2026-04-18 09:15:00', timestamp '2026-04-18 16:00:00', 'illegal sample without module label', 32502, 1204, false, 1, 0, 0, timestamp '2026-04-18 16:00:00', null),
+    (92505, '[Field Mapping] customer issue sample 5', 3201, 325, timestamp '2026-04-19 11:00:00', timestamp '2026-04-20 10:00:00', 'valid customer issue sample with new requirement reason', 32502, 1205, false, 2, 0, 0, timestamp '2026-04-20 10:00:00', timestamptz '2026-04-20 10:00:00+08')
 on conflict (id) do update
 set title = excluded.title,
     author_id = excluded.author_id,

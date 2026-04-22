@@ -80,6 +80,9 @@ public class IssueFact {
   @TableField("module_names")
   private String moduleNames;
 
+  @TableField("function_name")
+  private String functionName;
+
   @TableField("testing_phase")
   private String testingPhase;
 

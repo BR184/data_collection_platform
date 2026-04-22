@@ -62,6 +62,10 @@ public final class IssueFactNormalizationRules {
         IssueClassificationRules.DELAY_REASON_TOKENS);
   }
 
+  public static String normalizeFunctionName(String title) {
+    return IssueFunctionRules.normalizeFunctionName(title);
+  }
+
   public static String normalizePrimaryModuleName(List<String> labels) {
     List<String> modules = normalizeModuleNames(labels);
     return modules.isEmpty() ? null : modules.get(0);

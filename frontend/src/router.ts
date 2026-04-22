@@ -396,7 +396,19 @@ const routes: RouteRecordRaw[] = [
       persistedQueryKeys: ['projectId'],
     },
   },
-  buildPlaceholderRoute('/customer-issues/issue-by-function', 'customer-issues', 'customer-issues-issue-by-function'),
+  {
+    path: '/customer-issues/issue-by-function',
+    component: StatisticBoardPage,
+    meta: {
+      moduleKey: 'customer-issues',
+      pageKey: 'customer-issues-issue-by-function',
+      title: pageByKey.get('customer-issues-issue-by-function')!.label,
+      description: pageByKey.get('customer-issues-issue-by-function')!.description,
+      allowedQueryKeys: statisticBoardQueryKeys,
+      allowedQueryPrefixes: ['filters.'],
+      persistedQueryKeys: ['projectId'],
+    },
+  },
   {
     path: '/system-settings/mirror-settings',
     component: MirrorSettingsView,

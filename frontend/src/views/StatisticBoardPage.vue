@@ -24,6 +24,9 @@ const boardKey = computed(() => {
   if (route.meta.pageKey === 'customer-issues-response-efficiency') {
     return 'customer-issue-response-efficiency';
   }
+  if (route.meta.pageKey === 'customer-issues-issue-by-function') {
+    return 'customer-issue-by-function';
+  }
   if (route.meta.pageKey === 'question-metrics-phase-statistics') {
     return 'system-test-phase-statistics';
   }

@@ -446,6 +446,7 @@ public class FactBuildService {
     fact.setModuleName(moduleNames.isEmpty() ? null : moduleNames.get(0));
     fact.setPrimaryModuleName(moduleNames.isEmpty() ? null : moduleNames.get(0));
     fact.setModuleNames(String.join(", ", moduleNames));
+    fact.setFunctionName(IssueFactNormalizationRules.normalizeFunctionName(title));
     fact.setTestingPhase(testingPhase);
     fact.setSeverityLevel(severityLevel);
     fact.setSeverityAlias(IssueFactNormalizationRules.normalizeSeverityAlias(labels));
