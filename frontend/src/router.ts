@@ -12,6 +12,7 @@ import CodeReviewIllegalRecordsView from './views/CodeReviewIllegalRecordsView.v
 import CodeReviewIllegalRuleConfigView from './views/CodeReviewIllegalRuleConfigView.vue';
 import ReviewDataManagementView from './views/ReviewDataManagementView.vue';
 import SystemTestIssueSearchView from './views/SystemTestIssueSearchView.vue';
+import CustomerIssueIllegalRecordsView from './views/CustomerIssueIllegalRecordsView.vue';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -286,7 +287,40 @@ const routes: RouteRecordRaw[] = [
       persistedQueryKeys: ['projectId'],
     },
   },
-  buildPlaceholderRoute('/customer-issues/illegal-records', 'customer-issues', 'customer-issues-illegal-records'),
+  {
+    path: '/customer-issues/illegal-records',
+    component: CustomerIssueIllegalRecordsView,
+    meta: {
+      moduleKey: 'customer-issues',
+      pageKey: 'customer-issues-illegal-records',
+      title: pageByKey.get('customer-issues-illegal-records')!.label,
+      description: pageByKey.get('customer-issues-illegal-records')!.description,
+      allowedQueryKeys: [
+        'page',
+        'pageSize',
+        'sortBy',
+        'sortOrder',
+        'projectId',
+        'keyword',
+        'issueIid',
+        'title',
+        'projectName',
+        'moduleName',
+        'illegalReason',
+        'severityLevel',
+        'priorityLevel',
+        'issueState',
+        'bugStatus',
+        'category',
+        'milestoneTitle',
+        'createdAtStart',
+        'createdAtEnd',
+        'updatedAtStart',
+        'updatedAtEnd',
+      ],
+      persistedQueryKeys: ['projectId'],
+    },
+  },
   {
     path: '/customer-issues/defect-cause',
     component: StatisticBoardPage,
