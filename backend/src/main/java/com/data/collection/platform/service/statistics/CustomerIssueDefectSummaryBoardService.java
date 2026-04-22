@@ -20,6 +20,8 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSampl
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
+import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
@@ -59,6 +61,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
              coalesce(author_name,'') as author_name, created_at_source as created_at,
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(issue_state,'opened') as issue_state, coalesce(testing_phase,'') as testing_phase,
+             coalesce(milestone_title,'') as milestone_title,
              coalesce(system_test_label,'') as system_test_label, coalesce(severity_level,'') as severity_level,
              coalesce(priority_level,'') as priority_level, coalesce(is_excluded,false) as is_excluded,
              coalesce(exclusion_reason,'') as exclusion_reason, coalesce(is_fixed,false) as is_fixed,
@@ -75,18 +78,21 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
+  private final CustomerIssueScopeProfile customerIssueScopeProfile;
 
   public CustomerIssueDefectSummaryBoardService(
       JsonUtils jsonUtils,
       GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
-      IssueFactQueryService issueFactQueryService) {
+      IssueFactQueryService issueFactQueryService,
+      CustomerIssueScopeProfile customerIssueScopeProfile) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
+    this.customerIssueScopeProfile = customerIssueScopeProfile;
   }
 
   @Override
@@ -320,13 +326,14 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
-    List<IssueSource> scoped = initial.stream().filter(IssueSource::inCustomerIssueScope).toList();
+    List<IssueSource> scoped =
+        initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
     return new RuleFlowSnapshot(
         valid,
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已经归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定客户问题范围", "先排除命中系统测试或回归测试口径的议题，保留剩余 issue_fact 作为当前客户问题统计范围。", scoped, initial.size()),
+            step("scope-filter", "限定客户问题范围", "按客户问题 scope profile 收口 issue_fact：排除系统测试/回归测试口径，并优先识别 CC_Product 与创建时间边界。", scoped, initial.size()),
             step("exclude-invalid-issues", "排除无效数据", "剔除 issue_fact.is_excluded = true 的议题，避免异常样本干扰汇总结果。", valid, scoped.size()),
             new StatisticRuleFlowStep(
                 "module-expand",
@@ -672,12 +679,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       boolean legacy,
       List<String> moduleNames,
       List<String> labels) {
-    boolean inCustomerIssueScope() {
-      return !inSystemTestScope();
-    }
-
-    boolean inSystemTestScope() {
-      return hasScope(testingPhase) || hasScope(systemTestLabel) || labels.stream().anyMatch(this::hasScope);
+    IssueScopeContext scopeContext() {
+      return new IssueScopeContext(projectId, projectName, null, testingPhase, systemTestLabel, createdAt, labels);
     }
 
     boolean isClosed() {

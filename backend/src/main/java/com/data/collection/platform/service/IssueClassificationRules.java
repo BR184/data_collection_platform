@@ -1,10 +1,7 @@
 package com.data.collection.platform.service;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 final class IssueClassificationRules {
   static final Map<String, List<String>> REASON_CATEGORY_TOKENS = IssueRuleSupport.ordered(
@@ -32,7 +29,7 @@ final class IssueClassificationRules {
   }
 
   static String normalizeReasonCategory(List<String> labels, String notesText) {
-    String fromLatestNote = normalizeReasonCategoryFromLatestNote(notesText);
+    String fromLatestNote = templateSnapshot(notesText).normalizedReasonCategory();
     if (fromLatestNote != null) {
       return fromLatestNote;
     }
@@ -110,51 +107,18 @@ final class IssueClassificationRules {
   }
 
   static boolean hasTemplateReply(String notesText) {
-    return IssueRuleSupport.containsToken(notesText, TEMPLATE_HEADER_TOKENS);
+    return templateSnapshot(notesText).hasTemplateReply();
   }
 
   static int latestReasonCategoryCount(String notesText) {
-    String latestNote = latestReasonNote(notesText);
-    if (latestNote == null) {
-      return 0;
-    }
-    return matchedReasonCategories(latestNote).size();
-  }
-
-  private static String normalizeReasonCategoryFromLatestNote(String notesText) {
-    String latestNote = latestReasonNote(notesText);
-    if (latestNote == null) {
-      return null;
-    }
-    Set<String> categories = matchedReasonCategories(latestNote);
-    return categories.size() == 1 ? categories.iterator().next() : null;
-  }
-
-  private static String latestReasonNote(String notesText) {
-    if (notesText == null || notesText.isBlank()) {
-      return null;
-    }
-    String[] notes = notesText.split("\\R---\\R");
-    for (int i = notes.length - 1; i >= 0; i--) {
-      String candidate = notes[i];
-      if (!matchedReasonCategories(candidate).isEmpty()) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  private static Set<String> matchedReasonCategories(String text) {
-    Set<String> categories = new LinkedHashSet<>();
-    for (Map.Entry<String, List<String>> entry : REASON_CATEGORY_TOKENS.entrySet()) {
-      if (IssueRuleSupport.containsToken(text, entry.getValue())) {
-        categories.add(entry.getKey());
-      }
-    }
-    return categories;
+    return templateSnapshot(notesText).latestReasonCategoryCount();
   }
 
   private static boolean isLevel1(List<String> labels) {
     return "LEVEL1".equals(IssueLabelRules.normalizeSeverityLevel(labels));
+  }
+
+  private static IssueTemplateSnapshot templateSnapshot(String notesText) {
+    return IssueTemplateParsingSupport.parse(notesText, REASON_CATEGORY_TOKENS, TEMPLATE_HEADER_TOKENS);
   }
 }

@@ -17,9 +17,11 @@ import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
+import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.IssueFactQueryService;
+import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
@@ -55,8 +57,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, title, project_id, project_name,
-             coalesce(author_name,'') as author_name, updated_at_source as updated_at,
-             closed_at_source as closed_at, coalesce(issue_state,'opened') as issue_state,
+             coalesce(author_name,'') as author_name, created_at_source as created_at,
+             updated_at_source as updated_at, closed_at_source as closed_at,
+             coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
              coalesce(reason_category,'') as reason_category,
@@ -88,18 +91,21 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
+  private final CustomerIssueScopeProfile customerIssueScopeProfile;
 
   public CustomerIssueDefectCauseBoardService(
       JsonUtils jsonUtils,
       GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
-      IssueFactQueryService issueFactQueryService) {
+      IssueFactQueryService issueFactQueryService,
+      CustomerIssueScopeProfile customerIssueScopeProfile) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
+    this.customerIssueScopeProfile = customerIssueScopeProfile;
   }
 
   @Override
@@ -256,13 +262,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
-    List<IssueSource> scoped = initial.stream().filter(IssueSource::inCustomerIssueScope).toList();
+    List<IssueSource> scoped =
+        initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
     List<IssueSource> withReason = scoped.stream().filter(IssueSource::hasReasonCategory).toList();
     return new RuleFlowSnapshot(
         withReason,
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已经归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定客户问题范围", "先排除命中系统测试或回归测试口径的议题，保留剩余 issue_fact 作为当前客户问题统计范围。", scoped, initial.size()),
+            step("scope-filter", "限定客户问题范围", "按客户问题 scope profile 收口 issue_fact：排除系统测试/回归测试口径，并优先识别 CC_Product 与创建时间边界。", scoped, initial.size()),
             step("reason-category-filter", "保留已识别原因", "只保留 issue_fact.reason_category 非空的议题，避免把未归因数据混入原因分析。", withReason, scoped.size())));
   }
 
@@ -488,12 +495,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       String reasonCategory,
       List<String> moduleNames,
       List<String> labels) {
-    boolean inCustomerIssueScope() {
-      return !inSystemTestScope();
-    }
-
-    boolean inSystemTestScope() {
-      return hasScope(testingPhase) || hasScope(systemTestLabel) || labels.stream().anyMatch(this::hasScope);
+    IssueScopeContext scopeContext() {
+      return new IssueScopeContext(null, projectName, null, testingPhase, systemTestLabel, null, labels);
     }
 
     boolean hasReasonCategory() {

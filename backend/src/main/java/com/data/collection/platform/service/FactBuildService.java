@@ -64,6 +64,67 @@ public class FactBuildService {
         i.iid as issue_iid,
         i.project_id,
         p.name as project_name,
+        coalesce(milestone.title, '') as milestone_title,
+        i.title,
+        coalesce(author.name, '') as author_name,
+        i.created_at,
+        i.updated_at,
+        coalesce(i.updated_at, i.created_at) as ods_updated_at,
+        i.closed_at,
+        i.state_id,
+        labels.label_titles,
+        coalesce(notes.notes_text, '') as notes_text
+      from ods_gitlab_issues i
+      left join ods_gitlab_projects p
+        on p.id = i.project_id
+       and coalesce(p.mirror_deleted, false) = false
+      left join ods_gitlab_milestones milestone
+        on milestone.id = i.milestone_id
+       and coalesce(milestone.mirror_deleted, false) = false
+      left join ods_gitlab_users author
+        on author.id = i.author_id
+       and coalesce(author.mirror_deleted, false) = false
+      left join issue_labels labels
+        on labels.issue_id = i.id
+      left join issue_notes notes
+        on notes.issue_id = i.id
+      where coalesce(i.mirror_deleted, false) = false
+      """;
+
+  private static final String ISSUE_SOURCE_SQL_FALLBACK = """
+      with distinct_issue_labels as (
+        select distinct
+               ll.target_id as issue_id,
+               nullif(btrim(l.title), '') as title
+          from ods_gitlab_label_links ll
+          join ods_gitlab_labels l
+            on l.id = ll.label_id
+           and coalesce(l.mirror_deleted, false) = false
+         where coalesce(ll.mirror_deleted, false) = false
+           and ll.target_type = 'Issue'
+           and l.title is not null
+           and l.title <> ''
+      ),
+      issue_labels as (
+        select issue_id,
+               array_agg(title order by lower(title)) as label_titles
+          from distinct_issue_labels
+         group by issue_id
+      ),
+      issue_notes as (
+        select n.noteable_id as issue_id,
+               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text
+          from ods_gitlab_notes n
+         where coalesce(n.mirror_deleted, false) = false
+           and n.noteable_type = 'Issue'
+         group by n.noteable_id
+      )
+      select
+        i.id as issue_id,
+        i.iid as issue_iid,
+        i.project_id,
+        p.name as project_name,
+        '' as milestone_title,
         i.title,
         coalesce(author.name, '') as author_name,
         i.created_at,
@@ -231,13 +292,9 @@ public class FactBuildService {
 
   public FactBuildResponse rebuildIssueFacts(boolean full) {
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince();
-    String sql = ISSUE_SOURCE_SQL + (changedSince == null ? "" : " and coalesce(i.updated_at, i.created_at) > ?");
     try {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
-      List<IssueFact> facts =
-          changedSince == null
-              ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar))
-              : jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar), Timestamp.valueOf(changedSince));
+      List<IssueFact> facts = loadIssueFacts(changedSince, calendar);
       batchUpsertIssueFacts(facts);
       return new FactBuildResponse(
           "issue",
@@ -248,6 +305,44 @@ public class FactBuildService {
       log.warn("Failed to rebuild issue facts", e);
       throw e;
     }
+  }
+
+  private List<IssueFact> loadIssueFacts(
+      LocalDateTime changedSince,
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar) {
+    try {
+      return queryIssueFacts(ISSUE_SOURCE_SQL, changedSince, calendar);
+    } catch (DataAccessException error) {
+      if (!isMilestoneQueryFallbackAllowed(error)) {
+        throw error;
+      }
+      log.warn("Issue fact build fallback activated because milestone join is unavailable", error);
+      return queryIssueFacts(ISSUE_SOURCE_SQL_FALLBACK, changedSince, calendar);
+    }
+  }
+
+  private List<IssueFact> queryIssueFacts(
+      String baseSql,
+      LocalDateTime changedSince,
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar) {
+    String sql = baseSql + (changedSince == null ? "" : " and coalesce(i.updated_at, i.created_at) > ?");
+    return changedSince == null
+        ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar))
+        : jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar), Timestamp.valueOf(changedSince));
+  }
+
+  private boolean isMilestoneQueryFallbackAllowed(DataAccessException error) {
+    String message =
+        error.getMostSpecificCause() == null
+            ? error.getMessage()
+            : error.getMostSpecificCause().getMessage();
+    if (!StringUtils.hasText(message)) {
+      return false;
+    }
+    String normalized = message.toLowerCase(Locale.ROOT);
+    return normalized.contains("ods_gitlab_milestones")
+        || normalized.contains("milestone_id")
+        || normalized.contains("milestone");
   }
 
   public FactBuildResponse rebuildMergeRequestFacts(boolean full) {
@@ -342,6 +437,7 @@ public class FactBuildService {
     fact.setIssueIid(rs.getLong("issue_iid"));
     fact.setTitle(title);
     fact.setIssueState(closed ? "closed" : "opened");
+    fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
     fact.setAuthorName(defaultText(rs.getString("author_name")));
     fact.setCreatedAtSource(createdAt);
     fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at")));
