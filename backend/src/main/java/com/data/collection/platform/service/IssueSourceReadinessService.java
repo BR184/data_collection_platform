@@ -118,18 +118,75 @@ public class IssueSourceReadinessService {
 
   public IssueSourceReadinessResponse getReadiness() {
     List<String> warnings = new ArrayList<>();
+    long projectCount = safeCount(PROJECT_COUNT_SQL, "ods_gitlab_projects", warnings);
+    long issueCount = safeCount(ISSUE_COUNT_SQL, "ods_gitlab_issues", warnings);
+    long milestoneCount = safeCount(MILESTONE_COUNT_SQL, "ods_gitlab_milestones", warnings);
+    long issuesWithMilestoneCount =
+        safeCount(ISSUES_WITH_MILESTONE_SQL, "ods_gitlab_issues.milestone_id", warnings);
+    long customerProjectCount =
+        safeCount(CUSTOMER_PROJECT_COUNT_SQL, "customer issue projects", warnings);
+    long customerProjectIssueCount =
+        safeCount(CUSTOMER_PROJECT_ISSUE_COUNT_SQL, "customer issue project matches", warnings);
+    long customerLabelIssueCount =
+        safeCount(CUSTOMER_LABEL_ISSUE_COUNT_SQL, "customer issue labels", warnings);
+    long systemTestIssueCount =
+        safeCount(SYSTEM_TEST_ISSUE_COUNT_SQL, "system test labels", warnings);
+    appendBusinessWarnings(
+        warnings,
+        projectCount,
+        issueCount,
+        milestoneCount,
+        issuesWithMilestoneCount,
+        customerProjectCount,
+        customerProjectIssueCount,
+        customerLabelIssueCount,
+        systemTestIssueCount);
     return new IssueSourceReadinessResponse(
         LocalDateTime.now(),
-        safeCount(PROJECT_COUNT_SQL, "ods_gitlab_projects", warnings),
-        safeCount(ISSUE_COUNT_SQL, "ods_gitlab_issues", warnings),
-        safeCount(MILESTONE_COUNT_SQL, "ods_gitlab_milestones", warnings),
-        safeCount(ISSUES_WITH_MILESTONE_SQL, "ods_gitlab_issues.milestone_id", warnings),
-        safeCount(CUSTOMER_PROJECT_COUNT_SQL, "customer issue projects", warnings),
-        safeCount(CUSTOMER_PROJECT_ISSUE_COUNT_SQL, "customer issue project matches", warnings),
-        safeCount(CUSTOMER_LABEL_ISSUE_COUNT_SQL, "customer issue labels", warnings),
-        safeCount(SYSTEM_TEST_ISSUE_COUNT_SQL, "system test labels", warnings),
+        projectCount,
+        issueCount,
+        milestoneCount,
+        issuesWithMilestoneCount,
+        customerProjectCount,
+        customerProjectIssueCount,
+        customerLabelIssueCount,
+        systemTestIssueCount,
         safeTopProjects(warnings),
         List.copyOf(warnings));
+  }
+
+  private void appendBusinessWarnings(
+      List<String> warnings,
+      long projectCount,
+      long issueCount,
+      long milestoneCount,
+      long issuesWithMilestoneCount,
+      long customerProjectCount,
+      long customerProjectIssueCount,
+      long customerLabelIssueCount,
+      long systemTestIssueCount) {
+    if (projectCount == 0) {
+      warnings.add("ODS 中还没有任何项目数据，事实层无法建立稳定口径。");
+    }
+    if (issueCount == 0) {
+      warnings.add("ODS 中还没有任何 Issue 数据，issue_fact 重建不会产出有效记录。");
+    }
+    if (milestoneCount == 0) {
+      warnings.add("ODS 中没有 milestone 数据，客户问题和版本维度统计目前无法验证 milestone 口径。");
+    } else if (issuesWithMilestoneCount == 0) {
+      warnings.add("当前 ODS Issue 都没有关联 milestone，客户问题页面会缺少 milestone 维度。");
+    }
+    if (customerProjectCount == 0 && customerProjectIssueCount == 0) {
+      warnings.add("当前 ODS 中没有识别到 CC_Product 项目或其 Issue，客户问题模块预计继续为空。");
+    } else if (customerProjectIssueCount == 0) {
+      warnings.add("已识别到客户问题项目，但项目下还没有 Issue 数据。");
+    }
+    if (customerLabelIssueCount == 0) {
+      warnings.add("当前没有带客户问题特征标签的 Issue，若后续规则依赖标签需补充样本。");
+    }
+    if (systemTestIssueCount == 0) {
+      warnings.add("当前没有系统测试/回归测试标签 Issue，系统测试模块也无法完成验收。");
+    }
   }
 
   private long safeCount(String sql, String metricName, List<String> warnings) {

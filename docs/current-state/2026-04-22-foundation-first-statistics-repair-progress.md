@@ -34,6 +34,10 @@
   - `CustomerIssueDefectSummaryBoardService`
   - `CustomerIssueDefectCauseBoardService`
   - scope 判断不再丢失 `projectId / milestoneTitle / createdAt`
+- 新增本地客户问题最小 demo 源数据脚本：
+  - `scripts/seed-local-customer-issue-demo-data.sql`
+  - 只写 ODS 表，不直接写 `issue_fact`
+  - 用于补齐 `CC_Product / milestone / 客户问题模板回复` 这一条本地演示链路
 
 ## 2. 这轮修复的意义
 
@@ -92,6 +96,10 @@
   - `IssueFactNormalizationRulesTest`
 - 后端编译：
   - `mvn -q -DskipTests compile`
+- 客户问题 demo 脚本回滚验证：
+  - `scripts/seed-local-customer-issue-demo-data.sql`
+  - 已通过 PostgreSQL 容器内 `psql -f` 回滚验证
+  - 当前脚本可执行，但本轮没有直接写入本地数据库
 
 说明：
 
