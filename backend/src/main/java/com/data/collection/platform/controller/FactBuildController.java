@@ -3,8 +3,10 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
+import com.data.collection.platform.entity.IssueSourceReadinessResponse;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
+import com.data.collection.platform.service.IssueSourceReadinessService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,12 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class FactBuildController {
   private final FactBuildService factBuildService;
   private final IssueFactDiagnosticsService issueFactDiagnosticsService;
+  private final IssueSourceReadinessService issueSourceReadinessService;
 
   public FactBuildController(
       FactBuildService factBuildService,
-      IssueFactDiagnosticsService issueFactDiagnosticsService) {
+      IssueFactDiagnosticsService issueFactDiagnosticsService,
+      IssueSourceReadinessService issueSourceReadinessService) {
     this.factBuildService = factBuildService;
     this.issueFactDiagnosticsService = issueFactDiagnosticsService;
+    this.issueSourceReadinessService = issueSourceReadinessService;
   }
 
   @PostMapping("/rebuild")
@@ -41,5 +46,11 @@ public class FactBuildController {
   public ApiResponse<IssueFactDiagnosticsResponse> getIssueDiagnostics() {
     IssueFactDiagnosticsResponse response = issueFactDiagnosticsService.getDiagnostics();
     return ApiResponse.success("Issue Fact 验收诊断已生成", response);
+  }
+
+  @GetMapping("/issue-source-readiness")
+  public ApiResponse<IssueSourceReadinessResponse> getIssueSourceReadiness() {
+    IssueSourceReadinessResponse response = issueSourceReadinessService.getReadiness();
+    return ApiResponse.success("Issue 源数据就绪度诊断已生成", response);
   }
 }

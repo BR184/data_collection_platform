@@ -418,6 +418,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         text(rs.getString("title"), ""),
         rs.getLong("project_id"),
         text(rs.getString("project_name"), "未命名项目"),
+        text(rs.getString("milestone_title"), ""),
         text(rs.getString("author_name"), ""),
         time(rs.getTimestamp("created_at")),
         time(rs.getTimestamp("updated_at")),
@@ -658,6 +659,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       String title,
       Long projectId,
       String projectName,
+      String milestoneTitle,
       String authorName,
       LocalDateTime createdAt,
       LocalDateTime updatedAt,
@@ -680,7 +682,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       List<String> moduleNames,
       List<String> labels) {
     IssueScopeContext scopeContext() {
-      return new IssueScopeContext(projectId, projectName, null, testingPhase, systemTestLabel, createdAt, labels);
+      return new IssueScopeContext(
+          projectId, projectName, milestoneTitle, testingPhase, systemTestLabel, createdAt, labels);
     }
 
     boolean isClosed() {

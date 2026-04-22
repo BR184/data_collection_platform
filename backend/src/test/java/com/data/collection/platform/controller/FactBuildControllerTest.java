@@ -10,8 +10,10 @@ import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.IssueFactCountBreakdownResponse;
 import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueFactScopeDiagnosticsResponse;
+import com.data.collection.platform.entity.IssueSourceReadinessResponse;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
+import com.data.collection.platform.service.IssueSourceReadinessService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,7 @@ class FactBuildControllerTest {
 
   @Mock private FactBuildService factBuildService;
   @Mock private IssueFactDiagnosticsService issueFactDiagnosticsService;
+  @Mock private IssueSourceReadinessService issueSourceReadinessService;
 
   private MockMvc mockMvc;
 
@@ -34,7 +37,8 @@ class FactBuildControllerTest {
   void setUp() {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
-                new FactBuildController(factBuildService, issueFactDiagnosticsService))
+                new FactBuildController(
+                    factBuildService, issueFactDiagnosticsService, issueSourceReadinessService))
             .build();
   }
 
@@ -82,5 +86,29 @@ class FactBuildControllerTest {
         .andExpect(jsonPath("$.data.overall.totalCount").value(20))
         .andExpect(jsonPath("$.data.customerIssue.withMilestoneTitleCount").value(6))
         .andExpect(jsonPath("$.data.customerIssueProjects[0].label").value("CC_Product"));
+  }
+
+  @Test
+  void shouldLoadIssueSourceReadiness() throws Exception {
+    when(issueSourceReadinessService.getReadiness())
+        .thenReturn(
+            new IssueSourceReadinessResponse(
+                LocalDateTime.of(2026, 4, 22, 16, 20),
+                2,
+                15,
+                3,
+                7,
+                1,
+                6,
+                4,
+                5,
+                List.of(new IssueFactCountBreakdownResponse("325", "CC_Product", 6)),
+                List.of()));
+
+    mockMvc.perform(get("/api/facts/issue-source-readiness"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.customerProjectIssueCount").value(6))
+        .andExpect(jsonPath("$.data.topIssueProjects[0].label").value("CC_Product"));
   }
 }

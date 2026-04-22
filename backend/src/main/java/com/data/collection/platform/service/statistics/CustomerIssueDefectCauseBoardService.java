@@ -381,8 +381,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         rs.getLong("id"),
         rs.getInt("iid"),
         text(rs.getString("title"), ""),
+        rs.getLong("project_id"),
         text(rs.getString("project_name"), "未命名项目"),
+        text(rs.getString("milestone_title"), ""),
         text(rs.getString("author_name"), ""),
+        time(rs.getTimestamp("created_at")),
         time(rs.getTimestamp("updated_at")),
         time(rs.getTimestamp("closed_at")),
         text(rs.getString("issue_state"), "opened"),
@@ -485,8 +488,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       Long id,
       Integer iid,
       String title,
+      Long projectId,
       String projectName,
+      String milestoneTitle,
       String authorName,
+      LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt,
       String issueState,
@@ -496,7 +502,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       List<String> moduleNames,
       List<String> labels) {
     IssueScopeContext scopeContext() {
-      return new IssueScopeContext(null, projectName, null, testingPhase, systemTestLabel, null, labels);
+      return new IssueScopeContext(
+          projectId, projectName, milestoneTitle, testingPhase, systemTestLabel, createdAt, labels);
     }
 
     boolean hasReasonCategory() {
