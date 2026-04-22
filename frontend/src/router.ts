@@ -383,7 +383,19 @@ const routes: RouteRecordRaw[] = [
       persistedQueryKeys: ['projectId'],
     },
   },
-  buildPlaceholderRoute('/customer-issues/response-efficiency', 'customer-issues', 'customer-issues-response-efficiency'),
+  {
+    path: '/customer-issues/response-efficiency',
+    component: StatisticBoardPage,
+    meta: {
+      moduleKey: 'customer-issues',
+      pageKey: 'customer-issues-response-efficiency',
+      title: pageByKey.get('customer-issues-response-efficiency')!.label,
+      description: pageByKey.get('customer-issues-response-efficiency')!.description,
+      allowedQueryKeys: statisticBoardQueryKeys,
+      allowedQueryPrefixes: ['filters.'],
+      persistedQueryKeys: ['projectId'],
+    },
+  },
   buildPlaceholderRoute('/customer-issues/issue-by-function', 'customer-issues', 'customer-issues-issue-by-function'),
   {
     path: '/system-settings/mirror-settings',
