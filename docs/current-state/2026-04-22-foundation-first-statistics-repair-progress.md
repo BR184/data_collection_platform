@@ -3,11 +3,11 @@
 更新时间：2026-04-22  
 适用项目：`D:\projects\data_collection_platform`
 
-## 1. 本轮完成内容
+## 1. 本轮已完成
 
-本轮开始按“先修地基，再建楼”的顺序推进统计链路修复，当前已经完成第一批基础能力落地：
+本轮继续按“先修地基，再建楼”的顺序推进，已经落下来的基础能力有：
 
-- 新增 issue 域 scope/profile 抽象：
+- 新增 issue 域 `scope/profile` 抽象：
   - `SystemTestScopeProfile`
   - `CustomerIssueScopeProfile`
   - `IssueScopeContext`
@@ -15,66 +15,67 @@
 - 新增 issue 模板解析基础组件：
   - `IssueTemplateParsingSupport`
   - `IssueTemplateSnapshot`
-- `FactBuildService` 已开始补齐客户问题所需的事实字段写入：
-  - 优先尝试从 `ods_gitlab_milestones` 回填 `issue_fact.milestone_title`
-  - 若本地镜像库缺少 milestone 相关结构，则自动回退到旧查询，避免重建链路直接报错
-- 客户问题已落地的两张统计板已不再使用“页面内部写死范围判断”的方式：
+- `FactBuildService` 已开始正式回填客户问题所需的关键事实字段：
+  - 优先从 `ods_gitlab_milestones` 回填 `issue_fact.milestone_title`
+  - 如果本地镜像库缺少 milestone 相关表结构，则自动回退到兼容查询，避免整条重建链路失败
+- 已落地的客户问题统计板开始改为消费统一 `CustomerIssueScopeProfile`，不再把“客户问题 = 非系统测试剩余集”直接写死在页面服务里：
   - `CustomerIssueDefectSummaryBoardService`
   - `CustomerIssueDefectCauseBoardService`
-  - 两者已改为消费 `CustomerIssueScopeProfile`
-- 新增基础单测：
-  - `IssueScopeProfileTest`
+- 新增事实层验收诊断能力：
+  - `GET /api/facts/issue-diagnostics`
+  - 输出 `issue_fact` 的 overall / system-test / customer-issue 三个 scope 汇总
+  - 输出原因归类分布、客户问题项目分布
+  - 可直接用于判断 `reason_category`、`milestone_title`、模板回复、SLA 标记等覆盖情况
 
-## 2. 当前修复意义
+## 2. 这轮修复的意义
 
-这轮不是新增页面，而是把原先散落在多个 service 中的业务域判断开始往底层收。
+这一轮不是继续铺页面，而是把之前散落在多个 service 里的业务口径和验收判断，开始往事实层和底层 profile 收。
 
 修复后的变化是：
 
-- `客户问题 = 非系统测试剩余集` 这条临时逻辑，已经不再直接写在客户问题统计服务里
-- 模板回复和解决时限解析不再完全散在多个规则类里，开始收敛到统一模板解析支撑层
-- `issue_fact` 的 `milestone_title` 开始真正进入构建链路，而不是只有表字段和 mapper、没有事实写入
+- 客户问题口径开始从“页面里临时判断”转向“统一 scope/profile”
+- 模板回复、原因归类、SLA 规则开始共享同一套模板解析支撑
+- `issue_fact.milestone_title` 开始真正进入构建链路，而不是只有表字段、没有写入
+- 事实层现在有了一个可以直接观察的数据验收入口，不必每次都靠页面空表来反推问题
 
-## 3. 当前仍未完成的部分
+## 3. 当前还没补完的地基
 
-虽然地基已经起步，但还没有完成全部基础治理。
+虽然基础已经往前走了一步，但还没有彻底收口，当前仍待继续完成的内容有：
 
-当前仍待继续完成的关键内容：
-
-- 将更多 issue 域服务切换到统一 scope/profile
-- 继续补强 `CustomerIssueScopeProfile` 的真实口径识别
+- 把更多 issue 域服务切换到统一 `scope/profile`
+- 继续补强 `CustomerIssueScopeProfile` 的真实业务口径：
   - `CC_Product`
   - 创建时间下界
   - milestone 维度
-- 将模板解析结果进一步沉入更多事实字段
-- 为事实层增加可验收的检查能力
-- 在事实层稳定后再继续落：
+- 继续把模板解析结果沉淀到更多事实字段
+- 为 `merge_request_fact` 补对应的验收和观测能力
+- 在事实层稳定后，再继续实现：
   - `客户问题 -> 缺陷非法数据`
   - `系统测试 -> 非法数据`
 
-## 4. 已验证情况
+## 4. 本轮验证
 
 本轮已完成如下验证：
 
 - 后端单测：
-  - `IssueFactNormalizationRulesTest`
+  - `IssueFactDiagnosticsServiceTest`
+  - `FactBuildControllerTest`
   - `IssueScopeProfileTest`
-  - `StatisticBoardControllerTest`
+  - `IssueFactNormalizationRulesTest`
 - 后端编译：
   - `mvn -q -DskipTests compile`
 
 说明：
 
-- 本地测试过程中仍能看到既有的 `ods_gitlab_label_links` 缺表告警，这是当前本地环境已有问题，不是本轮新引入的问题
-- 本轮命令已成功退出，说明新增的地基修复代码能够正常通过编译与目标测试
+- 本地测试日志里仍能看到既有的 `ods_gitlab_label_links` 缺表告警，这属于当前本地环境已有问题，不是本轮新引入的问题
+- 上述测试和编译已经成功通过，说明事实层诊断接口这条链路是可用的
 
 ## 5. 下一步建议
 
-下一步应继续沿当前主方案推进，不建议中途切回“先做页面”路线。
+下一步继续按当前主方案推进，不建议中途切回“先做页面”的节奏。
 
-推荐继续顺序：
+推荐顺序：
 
-1. 扩大 scope/profile 在 issue 域服务中的覆盖面
-2. 继续完善 `FactBuildService` 与模板解析结果沉淀
-3. 为事实层补验收与观测能力
-4. 再开始实现 `客户问题 -> 缺陷非法数据`
+1. 用 `/api/facts/issue-diagnostics` 对当前本地数据做一次真实验收，确认客户问题 scope 的实际覆盖情况
+2. 继续补强 `CustomerIssueScopeProfile` 和事实层字段沉淀
+3. 在事实层口径更稳定后，再实现 `客户问题 -> 缺陷非法数据`

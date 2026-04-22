@@ -1,12 +1,19 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.IssueFactCountBreakdownResponse;
+import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
+import com.data.collection.platform.entity.IssueFactScopeDiagnosticsResponse;
 import com.data.collection.platform.service.FactBuildService;
+import com.data.collection.platform.service.IssueFactDiagnosticsService;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,14 +25,17 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @ExtendWith(MockitoExtension.class)
 class FactBuildControllerTest {
 
-  @Mock
-  private FactBuildService factBuildService;
+  @Mock private FactBuildService factBuildService;
+  @Mock private IssueFactDiagnosticsService issueFactDiagnosticsService;
 
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
-    mockMvc = MockMvcBuilders.standaloneSetup(new FactBuildController(factBuildService)).build();
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(
+                new FactBuildController(factBuildService, issueFactDiagnosticsService))
+            .build();
   }
 
   @Test
@@ -51,5 +61,26 @@ class FactBuildControllerTest {
         .andExpect(jsonPath("$.data.scope").value("issue"))
         .andExpect(jsonPath("$.data.full").value(true))
         .andExpect(jsonPath("$.data.affectedRows").value(6));
+  }
+
+  @Test
+  void shouldLoadIssueFactDiagnostics() throws Exception {
+    when(issueFactDiagnosticsService.getDiagnostics())
+        .thenReturn(
+            new IssueFactDiagnosticsResponse(
+                LocalDateTime.of(2026, 4, 22, 16, 10),
+                new IssueFactScopeDiagnosticsResponse("overall", "全部 Issue Fact", 20, 8, 6, 5, 2, 1),
+                new IssueFactScopeDiagnosticsResponse("system-test", "系统测试", 6, 4, 0, 3, 1, 0),
+                new IssueFactScopeDiagnosticsResponse("customer-issue", "客户问题", 14, 4, 6, 2, 1, 1),
+                List.of(new IssueFactCountBreakdownResponse("环境部署问题", "环境部署问题", 3)),
+                List.of(new IssueFactCountBreakdownResponse("需求理解偏差", "需求理解偏差", 2)),
+                List.of(new IssueFactCountBreakdownResponse("CC_Product", "CC_Product", 14))));
+
+    mockMvc.perform(get("/api/facts/issue-diagnostics"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.overall.totalCount").value(20))
+        .andExpect(jsonPath("$.data.customerIssue.withMilestoneTitleCount").value(6))
+        .andExpect(jsonPath("$.data.customerIssueProjects[0].label").value("CC_Product"));
   }
 }
