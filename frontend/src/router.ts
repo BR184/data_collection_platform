@@ -439,7 +439,6 @@ const routes: RouteRecordRaw[] = [
       persistedQueryKeys: ['projectId'],
     },
   },
-  buildPlaceholderRoute('/system-settings/module-management', 'system-settings', 'module-management'),
   {
     path: '/system-settings/testing-phase-definition',
     component: TestingPhaseDefinitionView,

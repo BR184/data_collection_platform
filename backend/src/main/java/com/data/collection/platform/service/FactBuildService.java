@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
 import com.data.collection.platform.mapper.IssueFactMapper;
 import com.data.collection.platform.mapper.MergeRequestFactMapper;
+import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
 import java.math.BigDecimal;
 import java.sql.Array;
 import java.sql.ResultSet;
@@ -270,14 +271,17 @@ public class FactBuildService {
   private final JdbcTemplate jdbcTemplate;
   private final IssueFactMapper issueFactMapper;
   private final MergeRequestFactMapper mergeRequestFactMapper;
+  private final ModuleDictionaryService moduleDictionaryService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
       IssueFactMapper issueFactMapper,
-      MergeRequestFactMapper mergeRequestFactMapper) {
+      MergeRequestFactMapper mergeRequestFactMapper,
+      ModuleDictionaryService moduleDictionaryService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
+    this.moduleDictionaryService = moduleDictionaryService;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -294,7 +298,8 @@ public class FactBuildService {
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince();
     try {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
-      List<IssueFact> facts = loadIssueFacts(changedSince, calendar);
+      ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+      List<IssueFact> facts = loadIssueFacts(changedSince, calendar, moduleDictionary);
       batchUpsertIssueFacts(facts);
       return new FactBuildResponse(
           "issue",
@@ -309,26 +314,28 @@ public class FactBuildService {
 
   private List<IssueFact> loadIssueFacts(
       LocalDateTime changedSince,
-      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar) {
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
+      ModuleDictionary moduleDictionary) {
     try {
-      return queryIssueFacts(ISSUE_SOURCE_SQL, changedSince, calendar);
+      return queryIssueFacts(ISSUE_SOURCE_SQL, changedSince, calendar, moduleDictionary);
     } catch (DataAccessException error) {
       if (!isMilestoneQueryFallbackAllowed(error)) {
         throw error;
       }
       log.warn("Issue fact build fallback activated because milestone join is unavailable", error);
-      return queryIssueFacts(ISSUE_SOURCE_SQL_FALLBACK, changedSince, calendar);
+      return queryIssueFacts(ISSUE_SOURCE_SQL_FALLBACK, changedSince, calendar, moduleDictionary);
     }
   }
 
   private List<IssueFact> queryIssueFacts(
       String baseSql,
       LocalDateTime changedSince,
-      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar) {
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
+      ModuleDictionary moduleDictionary) {
     String sql = baseSql + (changedSince == null ? "" : " and coalesce(i.updated_at, i.created_at) > ?");
     return changedSince == null
-        ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar))
-        : jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar), Timestamp.valueOf(changedSince));
+        ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary))
+        : jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary), Timestamp.valueOf(changedSince));
   }
 
   private boolean isMilestoneQueryFallbackAllowed(DataAccessException error) {
@@ -349,10 +356,11 @@ public class FactBuildService {
     LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince();
     String sql = MERGE_REQUEST_SOURCE_SQL + (changedSince == null ? "" : " and coalesce(mr.updated_at, mr.created_at) > ?");
     try {
+      ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
       List<MergeRequestFact> facts =
           changedSince == null
-              ? jdbcTemplate.query(sql, this::mapMergeRequestFact)
-              : jdbcTemplate.query(sql, this::mapMergeRequestFact, Timestamp.valueOf(changedSince));
+              ? jdbcTemplate.query(sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary))
+              : jdbcTemplate.query(sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary), Timestamp.valueOf(changedSince));
       batchUpsertMergeRequestFacts(facts);
       return new FactBuildResponse(
           "merge-request",
@@ -411,14 +419,20 @@ public class FactBuildService {
     return result;
   }
 
-  private IssueFact mapIssueFact(ResultSet rs, Map<PhaseCalendarKey, PhaseCalendarEntry> calendar) throws SQLException {
+  private IssueFact mapIssueFact(
+      ResultSet rs,
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
+      ModuleDictionary moduleDictionary) throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
     String title = defaultText(rs.getString("title"));
     String notesText = defaultText(rs.getString("notes_text"), "");
     boolean closed = isClosed(rs);
     LocalDateTime createdAt = toLocalDateTime(rs.getTimestamp("created_at"));
     String testingPhase = IssueFactNormalizationRules.normalizeTestingPhase(labels);
-    List<String> moduleNames = IssueFactNormalizationRules.normalizeModuleNames(labels);
+    List<String> moduleNames =
+        moduleDictionary.normalizeIssueModules(
+            rs.getLong("project_id"),
+            IssueFactNormalizationRules.normalizeModuleNames(labels));
     String severityLevel = IssueFactNormalizationRules.normalizeSeverityLevel(labels);
     String priorityLevel = IssueFactNormalizationRules.normalizePriorityLevel(labels);
     int resolveSlaDays = IssueFactNormalizationRules.resolveSlaDays(notesText);
@@ -491,7 +505,8 @@ public class FactBuildService {
     return fact;
   }
 
-  private MergeRequestFact mapMergeRequestFact(ResultSet rs, int rowNum) throws SQLException {
+  private MergeRequestFact mapMergeRequestFact(
+      ResultSet rs, int rowNum, ModuleDictionary moduleDictionary) throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
     MergeRequestFact fact = new MergeRequestFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
@@ -513,7 +528,10 @@ public class FactBuildService {
     fact.setOwnerName(defaultText(rs.getString("owner_name")));
     fact.setReviewerNames(defaultText(rs.getString("reviewer_names")));
     fact.setAssigneeNames(defaultText(rs.getString("assignee_names")));
-    fact.setModuleName(defaultText(rs.getString("module_name")));
+    fact.setModuleName(
+        moduleDictionary.normalizeMergeRequestModule(
+            rs.getLong("project_id"),
+            defaultText(rs.getString("module_name"))));
     fact.setLabelNames(String.join(", ", labels));
     fact.setCreatedAtSource(toLocalDateTime(rs.getTimestamp("created_at")));
     fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at")));

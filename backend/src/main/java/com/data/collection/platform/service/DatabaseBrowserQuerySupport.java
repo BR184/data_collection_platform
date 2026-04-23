@@ -34,7 +34,7 @@ final class DatabaseBrowserQuerySupport {
     }
     boolean allowed = definition.columns().stream().anyMatch(column -> column.isSortable() && Objects.equals(column.getKey(), sortField));
     if (!allowed) {
-      throw new BizException("褰撳墠鎺掑簭瀛楁涓嶅厑璁镐娇鐢?");
+      throw new BizException("当前排序字段不允许使用");
     }
     return sortField;
   }
@@ -45,7 +45,7 @@ final class DatabaseBrowserQuerySupport {
     }
     String normalized = sortOrder.trim().toLowerCase(Locale.ROOT);
     if (!Objects.equals(normalized, "asc") && !Objects.equals(normalized, "desc")) {
-      throw new BizException("褰撳墠鎺掑簭鏂瑰悜涓嶅厑璁镐娇鐢?");
+      throw new BizException("当前排序方向不允许使用");
     }
     return normalized;
   }

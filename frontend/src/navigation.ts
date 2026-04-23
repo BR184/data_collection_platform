@@ -42,7 +42,6 @@ export type PageKey =
   | 'customer-issues-issue-by-function'
   | 'mirror-settings'
   | 'database-browser'
-  | 'module-management'
   | 'testing-phase-definition';
 
 export interface ShellPage {
@@ -260,12 +259,6 @@ export const modules: ShellModule[] = [
         label: '数据库查看',
         description: '快速浏览本地平台数据库中的核心业务表数据。',
         path: '/system-settings/database-browser',
-      },
-      {
-        key: 'module-management',
-        label: '模块管理',
-        description: '预留模块与菜单配置能力。',
-        path: '/system-settings/module-management',
       },
       {
         key: 'testing-phase-definition',

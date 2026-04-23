@@ -21,7 +21,7 @@ final class DatabaseBrowserCollectionTableDefinitions {
             column("id", "ID"),
             column("gitlab_base_url", "GitLab 来源地址"),
             column("project_id", "Project ID"),
-            column("request_iid", "请求类型 IID"),
+            column("request_iid", "请求 IID"),
             column("resource_type", "资源类型"),
             column("resource_id", "资源编号"),
             column("template_code", "模板编码"),
