@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import type { StatisticCellData, StatisticColumnGroup, StatisticColumnLeaf, StatisticRowData } from '../../api';
+import type { StatisticCellData, StatisticColumnGroup, StatisticColumnLeaf, StatisticRowData } from '../../types/api';
 import type { SortDirection } from '../statistic-board-sorting';
 
 defineProps<{

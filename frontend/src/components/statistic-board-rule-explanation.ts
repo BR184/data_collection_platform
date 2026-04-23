@@ -1,4 +1,4 @@
-import type { StatisticBoardRuleExplanationResponse } from '../api';
+import type { StatisticBoardRuleExplanationResponse } from '../types/api';
 
 interface RuleFlowStepLike {
   inputCount: number;

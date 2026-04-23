@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Edit, Refresh, WarningFilled } from '@element-plus/icons-vue';
-import { api, type DatabaseTableOption, type DatabaseTableRowsResponse } from '../api';
+import { api } from '../api';
+import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import SmartSelect from './base/SmartSelect.vue';
 import BaseSearchInput from './base/BaseSearchInput.vue';

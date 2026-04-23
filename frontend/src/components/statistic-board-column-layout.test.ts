@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { StatisticColumnGroup, StatisticRowData } from '../api';
+import type { StatisticColumnGroup, StatisticRowData } from '../types/api';
 import {
   columnMinWidth,
   columnResizable,

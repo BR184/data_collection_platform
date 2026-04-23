@@ -7,7 +7,7 @@ import type {
   StatisticBoardRuleExplanationResponse,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
-} from '../api';
+} from '../types/api';
 import { request } from './request';
 
 export const issueRecordsApi = {

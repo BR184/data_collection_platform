@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef } from 'vue';
-import { flattenStatisticColumnLeavesFromGroup, type StatisticColumnGroup } from '../api';
+import { flattenStatisticColumnLeavesFromGroup, type StatisticColumnGroup } from '../types/api';
 
 export function useStatisticViewSettings(
   columnGroups: ComputedRef<StatisticColumnGroup[]>,

@@ -6,14 +6,14 @@ import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
-import {
-  api,
-  type CodeReviewIllegalRecordFilterOptionsResponse,
-  type CodeReviewIllegalRecordRowResponse,
-  type RealtimeWorkspaceStatusResponse,
-  type StatisticFilterField,
-  type StatisticBoardRuleExplanationResponse,
-} from '../api';
+import { api } from '../api';
+import type {
+  CodeReviewIllegalRecordFilterOptionsResponse,
+  CodeReviewIllegalRecordRowResponse,
+  RealtimeWorkspaceStatusResponse,
+  StatisticFilterField,
+  StatisticBoardRuleExplanationResponse,
+} from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';

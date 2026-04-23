@@ -33,7 +33,9 @@
   - split testing-phase APIs into `api-client/testing-phases-api.ts`
   - split collect-form APIs into `api-client/collect-forms-api.ts`
   - removed the corresponding legacy method blocks from the large `api.ts` aggregate
-  - left `api.ts` as a compatibility aggregate and shared type home for now
+  - moved shared frontend API DTOs and statistic-board helpers into `types/api.ts`
+  - changed `api-client` modules and pure type/helper consumers to depend on `types/api.ts`
+  - left `api.ts` as a compatibility aggregate for request-capable pages
   - kept the existing `api` aggregate export compatible with current pages
   - added `useRuleExplanationPanel` and migrated customer-issue record pages to shared rule-panel loading behavior
 - Kept the existing direction that is already correct:

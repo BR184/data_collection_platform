@@ -2,7 +2,7 @@ import type {
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
   ReviewDataSummaryResponse,
-} from '../api';
+} from '../types/api';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableTagValue } from '../types/record-table';
 
 export interface ReviewDataSummaryCard {

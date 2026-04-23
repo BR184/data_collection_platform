@@ -4,13 +4,13 @@ import { ElMessage } from 'element-plus';
 import { InfoFilled } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import {
-  api,
-  type CustomerIssueRecordFilterOptionsResponse,
-  type CustomerIssueRecordRowResponse,
-  type CustomerIssueRecordTopic,
-  type StatisticBoardRuleExplanationResponse,
-} from '../api';
+import { api } from '../api';
+import type {
+  CustomerIssueRecordFilterOptionsResponse,
+  CustomerIssueRecordRowResponse,
+  CustomerIssueRecordTopic,
+  StatisticBoardRuleExplanationResponse,
+} from '../types/api';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';

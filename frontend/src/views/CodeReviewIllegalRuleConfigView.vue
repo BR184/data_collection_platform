@@ -5,10 +5,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRoute, useRouter } from 'vue-router';
 import CodeReviewRuleConfigEditor from '../components/rule-config/CodeReviewRuleConfigEditor.vue';
 import CodeReviewRuleConfigPreview from '../components/rule-config/CodeReviewRuleConfigPreview.vue';
-import {
-  api,
-  type CodeReviewIllegalRecordFilterOptionsResponse,
-} from '../api';
+import { api } from '../api';
+import type { CodeReviewIllegalRecordFilterOptionsResponse } from '../types/api';
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from '../types/code-review-rule-config';
 import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
 import {

@@ -1,4 +1,4 @@
-import type { CollectFormDetailResponse, CollectFormNotificationPayloadResponse } from '../api';
+import type { CollectFormDetailResponse, CollectFormNotificationPayloadResponse } from '../types/api';
 import { request } from './request';
 
 export const collectFormsApi = {

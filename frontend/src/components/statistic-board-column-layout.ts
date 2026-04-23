@@ -2,8 +2,8 @@ import type {
   StatisticColumnGroup,
   StatisticColumnLeaf,
   StatisticRowData,
-} from '../api';
-import { flattenStatisticColumnLeavesFromGroup } from '../api';
+} from '../types/api';
+import { flattenStatisticColumnLeavesFromGroup } from '../types/api';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
 
 export function applyOrderedColumnsToGroup(group: StatisticColumnGroup, orderedLeafColumns: StatisticColumnLeaf[]): StatisticColumnGroup | null {

@@ -1,4 +1,4 @@
-import type { StatisticRuleMetricDefinition } from '../../api';
+import type { StatisticRuleMetricDefinition } from '../../types/api';
 
 export interface ReviewDataRuleFieldDefinition {
   key: string;

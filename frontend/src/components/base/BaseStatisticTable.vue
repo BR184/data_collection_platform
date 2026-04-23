@@ -8,8 +8,8 @@ import type {
   StatisticColumnGroup,
   StatisticColumnLeaf,
   StatisticRowData,
-} from '../../api';
-import { flattenStatisticColumnLeavesFromGroup } from '../../api';
+} from '../../types/api';
+import { flattenStatisticColumnLeavesFromGroup } from '../../types/api';
 import type { StatisticBoardUiHooks } from '../statistic-board-ui';
 import { ROW_LABEL_SORT_KEY, type SortDirection } from '../statistic-board-sorting';
 

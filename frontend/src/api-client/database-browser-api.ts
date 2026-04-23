@@ -1,4 +1,4 @@
-import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../api';
+import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
 import { request } from './request';
 
 export const databaseBrowserApi = {

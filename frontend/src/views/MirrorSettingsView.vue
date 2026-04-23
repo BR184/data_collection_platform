@@ -2,18 +2,18 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Refresh, Tools } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import {
-  api,
-  type GitlabSyncConfig,
-  type GitlabSyncLog,
-  type GitlabSyncTask,
-  type MirrorPurgeResult,
-  type MirrorPurgeScope,
-  type MirrorStatusResponse,
-  type SyncProgress,
-  type SyncSubmissionResponse,
-  type TableWhitelistOption,
-} from '../api';
+import { api } from '../api';
+import type {
+  GitlabSyncConfig,
+  GitlabSyncLog,
+  GitlabSyncTask,
+  MirrorPurgeResult,
+  MirrorPurgeScope,
+  MirrorStatusResponse,
+  SyncProgress,
+  SyncSubmissionResponse,
+  TableWhitelistOption,
+} from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 

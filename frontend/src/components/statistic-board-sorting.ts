@@ -1,4 +1,4 @@
-import type { StatisticColumnLeaf, StatisticRowData } from '../api';
+import type { StatisticColumnLeaf, StatisticRowData } from '../types/api';
 
 export type SortDirection = 'default' | 'asc' | 'desc';
 

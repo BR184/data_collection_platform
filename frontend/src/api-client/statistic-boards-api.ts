@@ -4,7 +4,7 @@ import type {
   StatisticBoardRuleExplanationResponse,
   StatisticDetailResponse,
   StatisticFilterGroup,
-} from '../api';
+} from '../types/api';
 import { request } from './request';
 
 export interface StatisticBoardQueryParams {

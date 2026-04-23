@@ -3,12 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
-import {
-  api,
-  type TestingPhaseDefinitionResponse,
-  type TestingPhaseDefinitionSaveRequest,
-  type TestingPhaseProjectOptionResponse,
-} from '../api';
+import { api } from '../api';
+import type {
+  TestingPhaseDefinitionResponse,
+  TestingPhaseDefinitionSaveRequest,
+  TestingPhaseProjectOptionResponse,
+} from '../types/api';
 
 interface FilterForm {
   projectId: string;

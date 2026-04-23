@@ -18,18 +18,18 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
-import {
-  api,
-  type ReviewDataFilterOptionsResponse,
-  type ReviewDataProblemItemResponse,
-  type ReviewDataProblemItemSaveRequest,
-  type ReviewDataRecordDetailResponse,
-  type ReviewDataRecordRowResponse,
-  type ReviewDataRecordSaveRequest,
-  type ReviewDataSummaryResponse,
-  type StatisticFilterField,
-  type StatisticFilterGroup,
-} from '../api';
+import { api } from '../api';
+import type {
+  ReviewDataFilterOptionsResponse,
+  ReviewDataProblemItemResponse,
+  ReviewDataProblemItemSaveRequest,
+  ReviewDataRecordDetailResponse,
+  ReviewDataRecordRowResponse,
+  ReviewDataRecordSaveRequest,
+  ReviewDataSummaryResponse,
+  StatisticFilterField,
+  StatisticFilterGroup,
+} from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import {
   buildFilterGroupFromRouteQuery,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SmartSelect from './base/SmartSelect.vue';
-import type { StatisticFilterField, StatisticFilterOperator } from '../api';
+import type { StatisticFilterField, StatisticFilterOperator } from '../types/api';
 import type { RecordTableFilterOption } from '../types/record-table';
 import {
   createFilterConditionDraft,

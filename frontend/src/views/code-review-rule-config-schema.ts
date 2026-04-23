@@ -1,4 +1,4 @@
-import type { CodeReviewIllegalRecordFilterOptionsResponse } from '../api';
+import type { CodeReviewIllegalRecordFilterOptionsResponse } from '../types/api';
 import type { CodeReviewRuleFieldDefinition } from '../types/code-review-rule-config';
 
 export function buildCodeReviewRuleFields(

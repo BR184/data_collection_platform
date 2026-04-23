@@ -1,4 +1,4 @@
-import type { StatisticFilterField, StatisticFilterGroup, StatisticFilterOperator } from '../api';
+import type { StatisticFilterField, StatisticFilterGroup, StatisticFilterOperator } from '../types/api';
 
 export interface StatisticFilterConditionDraft {
   id: string;

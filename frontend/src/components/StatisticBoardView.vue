@@ -6,8 +6,8 @@ import { useRoute, useRouter } from 'vue-router';
 import BaseStatisticTable from './base/BaseStatisticTable.vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
+import { api } from '../api';
 import {
-  api,
   flattenStatisticColumnLeaves,
   flattenStatisticColumnLeavesFromGroup,
   type StatisticBoardRuleExplanationResponse,
@@ -17,7 +17,7 @@ import {
   type StatisticDetailColumn,
   type StatisticDetailResponse,
   type StatisticRowData,
-} from '../api';
+} from '../types/api';
 import {
   defaultVisibleColumnKeys,
   loadStatisticBoardViewPrefs,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { StatisticFilterField } from '../api';
+import type { StatisticFilterField } from '../types/api';
 import {
   createFilterConditionDraft,
   createEmptyFilterGroup,

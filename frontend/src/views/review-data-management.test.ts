@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../api';
+import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../types/api';
 import {
   buildProblemItemTableRows,
   buildReviewDataExportCsv,

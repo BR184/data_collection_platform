@@ -2,11 +2,11 @@
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import {
-  api,
-  type SystemTestIssueSearchFilterOptionsResponse,
-  type SystemTestIssueSearchRowResponse,
-} from '../api';
+import { api } from '../api';
+import type {
+  SystemTestIssueSearchFilterOptionsResponse,
+  SystemTestIssueSearchRowResponse,
+} from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type {
   RecordTableActiveFilterTag,

@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { ElForm, ElMessage } from 'element-plus';
 import type { FormRules } from 'element-plus';
-import type { ReviewDataFilterOptionsResponse, ReviewDataProblemItemSaveRequest } from '../../api';
+import type { ReviewDataFilterOptionsResponse, ReviewDataProblemItemSaveRequest } from '../../types/api';
 import SmartSelect from '../../components/base/SmartSelect.vue';
 import type { ReviewProblemItemFormModel } from '../review-data-management';
 

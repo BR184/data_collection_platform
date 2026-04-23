@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { StatisticColumnLeaf, StatisticRowData } from '../api';
+import type { StatisticColumnLeaf, StatisticRowData } from '../types/api';
 import {
   clearSortState,
   nextColumnSortState,

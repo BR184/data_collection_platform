@@ -6,7 +6,7 @@ import type {
   ReviewDataRecordListResponse,
   ReviewDataRecordSaveRequest,
   StatisticFilterGroup,
-} from '../api';
+} from '../types/api';
 import { request } from './request';
 
 export const reviewDataApi = {

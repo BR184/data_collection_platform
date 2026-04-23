@@ -2,7 +2,8 @@
 import { ElMessage } from 'element-plus';
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { api, type CollectFormDetailResponse } from '../api';
+import { api } from '../api';
+import type { CollectFormDetailResponse } from '../types/api';
 
 const route = useRoute();
 

@@ -1,4 +1,4 @@
-import { flattenStatisticColumnLeavesFromGroup, type StatisticBoardDefinition } from '../api';
+import { flattenStatisticColumnLeavesFromGroup, type StatisticBoardDefinition } from '../types/api';
 
 const STORAGE_PREFIX = 'stat-board-view:';
 

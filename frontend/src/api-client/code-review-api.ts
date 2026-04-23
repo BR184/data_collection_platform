@@ -5,7 +5,7 @@ import type {
   RealtimeWorkspaceStatusResponse,
   StatisticBoardRuleExplanationResponse,
   StatisticFilterGroup,
-} from '../api';
+} from '../types/api';
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from '../types/code-review-rule-config';
 import { request } from './request';
 

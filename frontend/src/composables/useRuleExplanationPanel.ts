@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import type { StatisticBoardRuleExplanationResponse } from '../api';
+import type { StatisticBoardRuleExplanationResponse } from '../types/api';
 
 interface UseRuleExplanationPanelOptions {
   load: () => Promise<StatisticBoardRuleExplanationResponse>;

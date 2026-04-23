@@ -1,5 +1,5 @@
 import type { LocationQuery } from 'vue-router';
-import type { StatisticFilterGroup, StatisticFilterOperator } from '../api';
+import type { StatisticFilterGroup, StatisticFilterOperator } from '../types/api';
 import type { SortDirection } from './statistic-board-sorting';
 import {
   createEmptyFilterGroup,
