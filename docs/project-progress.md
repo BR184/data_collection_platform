@@ -57,6 +57,8 @@
   - added `feature-manifest.ts` to centralize page query contracts and statistic-board page-to-board mappings
   - switched `router.ts` route meta assembly to the shared page-route manifest helper
   - removed the `StatisticBoardPage.vue` local `pageKey -> boardKey` hardcoded branch chain and switched it to the shared manifest
+  - moved shell module/page metadata into `feature-manifest.ts` so `navigation.ts` is now only a compatibility re-export
+  - switched `App.vue` and the regular shell routes to consume the manifest directly instead of duplicating module/page definitions
   - kept the external collect-form route and not-found route as explicit local exceptions because they are not regular shell pages
 - Kept the existing direction that is already correct:
   - fact-first architecture

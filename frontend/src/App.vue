@@ -2,7 +2,7 @@
 import { Loading } from '@element-plus/icons-vue';
 import { computed } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
-import { modules, moduleByKey } from './navigation';
+import { modules, moduleByKey } from './feature-manifest';
 import { routerState } from './router-state';
 
 const route = useRoute();

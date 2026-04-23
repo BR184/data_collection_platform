@@ -2,8 +2,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import StatisticBoardView from '../components/StatisticBoardView.vue';
-import { getStatisticBoardKey } from '../feature-manifest';
-import type { PageKey } from '../navigation';
+import { getStatisticBoardKey, type PageKey } from '../feature-manifest';
 
 const route = useRoute();
 

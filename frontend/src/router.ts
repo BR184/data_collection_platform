@@ -1,6 +1,5 @@
 import { createRouter, createWebHashHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router';
-import { type ModuleKey, type PageKey } from './navigation';
-import { buildPageRouteMeta } from './feature-manifest';
+import { buildPageRouteMeta, getPagePath, type ModuleKey, type PageKey } from './feature-manifest';
 import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
 
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
@@ -30,14 +29,20 @@ declare module 'vue-router' {
   }
 }
 
-function buildPlaceholderRoute(path: string, moduleKey: ModuleKey, pageKey: PageKey): RouteRecordRaw {
+function buildShellRoute(pageKey: PageKey, component: RouteRecordRaw['component']): RouteRecordRaw {
+  const path = getPagePath(pageKey);
+  if (!path) {
+    throw new Error(`Missing path for page key: ${pageKey}`);
+  }
   return {
     path,
-    component: ModulePlaceholderView,
-    meta: buildPageRouteMeta(moduleKey, pageKey, {
-      persistedQueryKeys: ['projectId'],
-    }),
+    component,
+    meta: buildPageRouteMeta(pageKey),
   };
+}
+
+function buildPlaceholderRoute(pageKey: PageKey): RouteRecordRaw {
+  return buildShellRoute(pageKey, ModulePlaceholderView);
 }
 
 const routes: RouteRecordRaw[] = [
@@ -48,7 +53,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/external/code-review-form',
     component: CollectFormView,
-    meta: buildPageRouteMeta('code-review', 'code-review-illegal-records', {
+    meta: buildPageRouteMeta('code-review-illegal-records', {
       title: '代码走查表单',
       description: '通过独立链接打开的代码走查表单页面。',
       standalone: true,
@@ -57,112 +62,76 @@ const routes: RouteRecordRaw[] = [
     }),
   },
   {
-    path: '/quality-board/home',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('quality-board', 'quality-board-home'),
+    ...buildShellRoute('quality-board-home', StatisticBoardPage),
   },
-  buildPlaceholderRoute('/quality-board/rd-quality-board', 'quality-board', 'quality-board-rd-quality-board'),
-  buildPlaceholderRoute('/quality-board/other-board', 'quality-board', 'quality-board-other-board'),
+  buildPlaceholderRoute('quality-board-rd-quality-board'),
+  buildPlaceholderRoute('quality-board-other-board'),
   {
-    path: '/review-data/home',
-    component: ReviewDataManagementView,
-    meta: buildPageRouteMeta('review-data', 'review-data-home'),
+    ...buildShellRoute('review-data-home', ReviewDataManagementView),
   },
   {
     path: '/code-review/home',
     redirect: '/code-review/illegal-records',
   },
   {
-    path: '/code-review/illegal-records',
-    component: CodeReviewIllegalRecordsView,
-    meta: buildPageRouteMeta('code-review', 'code-review-illegal-records'),
+    ...buildShellRoute('code-review-illegal-records', CodeReviewIllegalRecordsView),
   },
   {
     path: '/code-review/illegal-records/rule-config',
     component: CodeReviewIllegalRuleConfigView,
-    meta: buildPageRouteMeta('code-review', 'code-review-illegal-records', {
+    meta: buildPageRouteMeta('code-review-illegal-records', {
       title: '代码走查规则配置',
       description: '配置当前用户自己的代码走查判定规则，并即时查看结果预览。',
     }),
   },
-  buildPlaceholderRoute('/code-review/multi-board', 'code-review', 'code-review-multi-board'),
-  buildPlaceholderRoute('/integration-test/home', 'integration-test', 'integration-test-home'),
+  buildPlaceholderRoute('code-review-multi-board'),
+  buildPlaceholderRoute('integration-test-home'),
   {
-    path: '/question-metrics/home',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('question-metrics', 'question-metrics-home'),
+    ...buildShellRoute('question-metrics-home', StatisticBoardPage),
   },
-  buildPlaceholderRoute('/question-metrics/multi-board', 'question-metrics', 'question-metrics-multi-board'),
+  buildPlaceholderRoute('question-metrics-multi-board'),
   {
-    path: '/question-metrics/delay-analysis',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('question-metrics', 'question-metrics-delay-analysis'),
+    ...buildShellRoute('question-metrics-delay-analysis', StatisticBoardPage),
   },
-  buildPlaceholderRoute('/question-metrics/illegal-records', 'question-metrics', 'question-metrics-illegal-records'),
+  buildPlaceholderRoute('question-metrics-illegal-records'),
   {
-    path: '/question-metrics/defect-cause',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('question-metrics', 'question-metrics-defect-cause'),
+    ...buildShellRoute('question-metrics-defect-cause', StatisticBoardPage),
   },
   {
-    path: '/question-metrics/phase-statistics',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('question-metrics', 'question-metrics-phase-statistics'),
+    ...buildShellRoute('question-metrics-phase-statistics', StatisticBoardPage),
   },
   {
-    path: '/question-metrics/issue-search',
-    component: SystemTestIssueSearchView,
-    meta: buildPageRouteMeta('question-metrics', 'question-metrics-issue-search'),
+    ...buildShellRoute('question-metrics-issue-search', SystemTestIssueSearchView),
   },
   {
-    path: '/customer-issues/home',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-home'),
+    ...buildShellRoute('customer-issues-home', StatisticBoardPage),
   },
   {
-    path: '/customer-issues/illegal-records',
-    component: CustomerIssueIllegalRecordsView,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-illegal-records'),
+    ...buildShellRoute('customer-issues-illegal-records', CustomerIssueIllegalRecordsView),
   },
   {
-    path: '/customer-issues/defect-cause',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-defect-cause'),
+    ...buildShellRoute('customer-issues-defect-cause', StatisticBoardPage),
   },
   {
-    path: '/customer-issues/cc-product-issues',
-    component: CustomerIssueRecordsView,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-cc-product-issues'),
+    ...buildShellRoute('customer-issues-cc-product-issues', CustomerIssueRecordsView),
   },
   {
-    path: '/customer-issues/delay-issues',
-    component: CustomerIssueRecordsView,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-delay-issues'),
+    ...buildShellRoute('customer-issues-delay-issues', CustomerIssueRecordsView),
   },
   {
-    path: '/customer-issues/response-efficiency',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-response-efficiency'),
+    ...buildShellRoute('customer-issues-response-efficiency', StatisticBoardPage),
   },
   {
-    path: '/customer-issues/issue-by-function',
-    component: StatisticBoardPage,
-    meta: buildPageRouteMeta('customer-issues', 'customer-issues-issue-by-function'),
+    ...buildShellRoute('customer-issues-issue-by-function', StatisticBoardPage),
   },
   {
-    path: '/system-settings/mirror-settings',
-    component: MirrorSettingsView,
-    meta: buildPageRouteMeta('system-settings', 'mirror-settings'),
+    ...buildShellRoute('mirror-settings', MirrorSettingsView),
   },
   {
-    path: '/system-settings/database-browser',
-    component: DatabaseBrowserView,
-    meta: buildPageRouteMeta('system-settings', 'database-browser'),
+    ...buildShellRoute('database-browser', DatabaseBrowserView),
   },
   {
-    path: '/system-settings/testing-phase-definition',
-    component: TestingPhaseDefinitionView,
-    meta: buildPageRouteMeta('system-settings', 'testing-phase-definition'),
+    ...buildShellRoute('testing-phase-definition', TestingPhaseDefinitionView),
   },
   {
     path: '/:pathMatch(.*)*',
