@@ -22,6 +22,12 @@
   - kept existing board definitions, detail schema, and aggregation behavior unchanged for safety
   - removed direct service dependencies on mirror sync / realtime workspace / fact rebuild / raw issue_fact query services
   - removed obsolete local JDBC fact SQL and mapper code from both defect-summary services
+- Started phase-four frontend decoupling:
+  - moved the common request wrapper into `api-client/request.ts`
+  - split mirror sync APIs into `api-client/mirror-api.ts`
+  - split statistic-board APIs into `api-client/statistic-boards-api.ts`
+  - kept the existing `api` aggregate export compatible with current pages
+  - added `useRuleExplanationPanel` and migrated customer-issue record pages to shared rule-panel loading behavior
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

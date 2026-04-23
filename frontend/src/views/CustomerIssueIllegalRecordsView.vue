@@ -10,6 +10,7 @@ import {
   type CustomerIssueIllegalRecordRowResponse,
   type StatisticBoardRuleExplanationResponse,
 } from '../api';
+import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 
@@ -37,12 +38,20 @@ const pageInitialized = ref(false);
 const filterOptionsLoaded = ref(false);
 const advancedVisible = ref(false);
 const detailVisible = ref(false);
-const ruleExplanationVisible = ref(false);
-const ruleExplanationLoading = ref(false);
 const selectedRow = ref<CustomerIssueIllegalRecordRowResponse | null>(null);
-const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
+
+const {
+  ruleExplanation,
+  ruleExplanationLoading,
+  ruleExplanationVisible,
+  resetRuleExplanation,
+  openRuleExplanation,
+} = useRuleExplanationPanel({
+  load: () => api.getCustomerIssueIllegalRecordRuleExplanation(projectId.value || undefined),
+  fallback: (reason) => createFallbackRuleExplanation(reason),
+});
 
 const filterOptions = ref<CustomerIssueIllegalRecordFilterOptionsResponse>({
   projectNames: [],
@@ -262,17 +271,6 @@ async function loadFilterOptions() {
   filterOptions.value = await api.getCustomerIssueIllegalRecordFilterOptions(projectId.value || undefined);
 }
 
-async function loadRuleExplanation() {
-  ruleExplanationLoading.value = true;
-  try {
-    ruleExplanation.value = await api.getCustomerIssueIllegalRecordRuleExplanation(projectId.value || undefined);
-  } catch {
-    ruleExplanation.value = createFallbackRuleExplanation('规则说明加载失败，请稍后重试。');
-  } finally {
-    ruleExplanationLoading.value = false;
-  }
-}
-
 async function loadTableData() {
   const response = await api.getCustomerIssueIllegalRecords({
     projectId: route.query.projectId as string | undefined,
@@ -316,7 +314,7 @@ bindLoader(async () => {
 watch(
   projectId,
   async () => {
-    ruleExplanation.value = null;
+    resetRuleExplanation();
     try {
       await loadFilterOptions();
       filterOptionsLoaded.value = true;
@@ -403,12 +401,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
-async function openRuleExplanation() {
-  ruleExplanationVisible.value = true;
-  if (!ruleExplanation.value && !ruleExplanationLoading.value) {
-    await loadRuleExplanation();
-  }
-}
 </script>
 
 <template>

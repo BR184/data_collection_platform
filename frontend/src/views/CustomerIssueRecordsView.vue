@@ -11,6 +11,7 @@ import {
   type CustomerIssueRecordTopic,
   type StatisticBoardRuleExplanationResponse,
 } from '../api';
+import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 
@@ -38,10 +39,7 @@ const pageInitialized = ref(false);
 const filterOptionsLoaded = ref(false);
 const advancedVisible = ref(false);
 const detailVisible = ref(false);
-const ruleExplanationVisible = ref(false);
-const ruleExplanationLoading = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
-const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
@@ -70,6 +68,17 @@ const pageDescription = computed(() =>
 const emptyDescription = computed(() =>
   isDelayTopic.value ? '当前筛选条件下没有延期问题。' : '当前筛选条件下没有 CC_PRODUCT 议题。',
 );
+
+const {
+  ruleExplanation,
+  ruleExplanationLoading,
+  ruleExplanationVisible,
+  resetRuleExplanation,
+  openRuleExplanation,
+} = useRuleExplanationPanel({
+  load: () => api.getCustomerIssueRecordRuleExplanation(topic.value, projectId.value || undefined),
+  fallback: (reason) => createFallbackRuleExplanation(reason),
+});
 
 const filterValues = computed<Record<string, unknown>>(() => {
   const createdStart = String(route.query.createdAtStart ?? '');
@@ -285,17 +294,6 @@ async function loadFilterOptions() {
   filterOptions.value = await api.getCustomerIssueRecordFilterOptions(topic.value, route.query.projectId as string | undefined);
 }
 
-async function loadRuleExplanation() {
-  ruleExplanationLoading.value = true;
-  try {
-    ruleExplanation.value = await api.getCustomerIssueRecordRuleExplanation(topic.value, projectId.value || undefined);
-  } catch {
-    ruleExplanation.value = createFallbackRuleExplanation('规则说明加载失败，请稍后重试。');
-  } finally {
-    ruleExplanationLoading.value = false;
-  }
-}
-
 async function loadTableData() {
   const response = await api.getCustomerIssueRecords({
     topic: topic.value,
@@ -340,7 +338,7 @@ bindLoader(async () => {
 watch(
   [topic, projectId],
   async () => {
-    ruleExplanation.value = null;
+    resetRuleExplanation();
     try {
       await loadFilterOptions();
       filterOptionsLoaded.value = true;
@@ -427,12 +425,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
-async function openRuleExplanation() {
-  ruleExplanationVisible.value = true;
-  if (!ruleExplanation.value && !ruleExplanationLoading.value) {
-    await loadRuleExplanation();
-  }
-}
 </script>
 
 <template>

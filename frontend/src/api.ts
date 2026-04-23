@@ -1,4 +1,7 @@
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from './types/code-review-rule-config';
+import { mirrorApi } from './api-client/mirror-api';
+import { request } from './api-client/request';
+import { statisticBoardsApi } from './api-client/statistic-boards-api';
 
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
@@ -697,143 +700,9 @@ export interface CustomerIssueRecordFilterOptionsResponse {
 }
 
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
-  const rawText = await response.text();
-  let payload: any = null;
-  try {
-    payload = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    payload = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(payload?.message || rawText || `Request failed: ${response.status}`);
-  }
-
-  if (payload && typeof payload === 'object' && 'success' in payload) {
-    if (!payload.success) {
-      throw new Error(payload.message || 'Request failed');
-    }
-    return payload.data as T;
-  }
-
-  return payload as T;
-}
-
 export const api = {
-  getStatus() {
-    return request<MirrorStatusResponse>('/api/gitlab-sync/status');
-  },
-  getWebhookRegistrationStatus() {
-    return request<GitlabWebhookRegistrationStatus>('/api/gitlab-sync/webhook-registration-status');
-  },
-  getWhitelistOptions() {
-    return request<TableWhitelistOption[]>('/api/gitlab-sync/whitelist-options');
-  },
-  saveConfig(config: GitlabSyncConfig) {
-    return request<GitlabSyncConfig>('/api/gitlab-sync/config', {
-      method: 'PUT',
-      body: JSON.stringify(config),
-    });
-  },
-  testConnection() {
-    return request<{ success: boolean; message: string }>('/api/gitlab-sync/test-connection', {
-      method: 'POST',
-    });
-  },
-  startFullSync() {
-    return request<SyncSubmissionResponse>('/api/gitlab-sync/full-sync', {
-      method: 'POST',
-    });
-  },
-  startIncrementalSync() {
-    return request<SyncSubmissionResponse>('/api/gitlab-sync/incremental-sync', {
-      method: 'POST',
-    });
-  },
-  registerWebhook() {
-    return request<GitlabWebhookRegistrationStatus>('/api/gitlab-sync/register-webhook', {
-      method: 'POST',
-    });
-  },
-  cancelSync() {
-    return request<{ accepted: boolean; taskId?: number; status?: string }>('/api/gitlab-sync/cancel', {
-      method: 'POST',
-    });
-  },
-  purgeMirrorData(scope: MirrorPurgeScope) {
-    return request<MirrorPurgeResult>('/api/gitlab-sync/purge', {
-      method: 'POST',
-      body: JSON.stringify({ scope }),
-    });
-  },
-  getStatisticBoard(boardKey: string, params?: { filters?: Record<string, string>; filterGroup?: StatisticFilterGroup | null }) {
-    const searchParams = new URLSearchParams(params?.filters ?? {});
-    if (params?.filterGroup && params.filterGroup.conditions.length) {
-      searchParams.set('filterGroup', JSON.stringify(params.filterGroup));
-    }
-    const queryString = searchParams.toString();
-    return request<StatisticBoardResponse>(
-      `/api/statistic-boards/${boardKey}${queryString ? `?${queryString}` : ''}`,
-    );
-  },
-  getStatisticBoardDetails(
-    boardKey: string,
-    params: {
-      rowKey: string;
-      columnKey: string;
-      page?: number;
-      size?: number;
-      sortField?: string;
-      sortOrder?: string;
-      filters?: Record<string, string>;
-      filterGroup?: StatisticFilterGroup | null;
-    },
-  ) {
-    const query = new URLSearchParams({
-      rowKey: params.rowKey,
-      columnKey: params.columnKey,
-      page: String(params.page ?? 1),
-      size: String(params.size ?? 10),
-      ...(params.sortField ? { sortField: params.sortField } : {}),
-      ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
-      ...(params.filters ?? {}),
-    });
-    if (params.filterGroup && params.filterGroup.conditions.length) {
-      query.set('filterGroup', JSON.stringify(params.filterGroup));
-    }
-    return request<StatisticDetailResponse>(`/api/statistic-boards/${boardKey}/details?${query.toString()}`);
-  },
-  getStatisticBoardRuleExplanation(
-    boardKey: string,
-    params?: { filters?: Record<string, string>; filterGroup?: StatisticFilterGroup | null },
-  ) {
-    const searchParams = new URLSearchParams(params?.filters ?? {});
-    if (params?.filterGroup && params.filterGroup.conditions.length) {
-      searchParams.set('filterGroup', JSON.stringify(params.filterGroup));
-    }
-    const queryString = searchParams.toString();
-    return request<StatisticBoardRuleExplanationResponse>(
-      `/api/statistic-boards/${boardKey}/rule-explanation${queryString ? `?${queryString}` : ''}`,
-    );
-  },
-  async exportStatisticBoard(boardKey: string, params?: { filters?: Record<string, string>; filterGroup?: StatisticFilterGroup | null }) {
-    const searchParams = new URLSearchParams(params?.filters ?? {});
-    if (params?.filterGroup && params.filterGroup.conditions.length) {
-      searchParams.set('filterGroup', JSON.stringify(params.filterGroup));
-    }
-    const queryString = searchParams.toString();
-    const response = await fetch(`/api/statistic-boards/${boardKey}/export${queryString ? `?${queryString}` : ''}`);
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Export failed: ${response.status}`);
-    }
-    return response.text();
-  },
+  ...mirrorApi,
+  ...statisticBoardsApi,
   getDatabaseTables() {
     return request<DatabaseTableOption[]>('/api/database-browser/tables');
   },
@@ -1232,14 +1101,6 @@ export const api = {
       return request<StatisticBoardRuleExplanationResponse>(
         `/api/customer-issues/records/rule-explanation?${query.toString()}`,
       );
-    },
-    getStatisticBoardRealtimeStatus(boardKey: string) {
-      return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/status`);
-    },
-    refreshStatisticBoardRealtime(boardKey: string) {
-      return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/refresh`, {
-        method: 'POST',
-      });
     },
     getCollectFormDetail(params: {
       gitlabBaseUrl: string;
