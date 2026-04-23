@@ -40,7 +40,6 @@ const rows = ref<CustomerIssueIllegalRecordRowResponse[]>([]);
 const total = ref(0);
 const pageInitialized = ref(false);
 const filterOptionsLoaded = ref(false);
-const advancedVisible = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueIllegalRecordRowResponse | null>(null);
 const projectId = computed(() => String(route.query.projectId ?? ''));
@@ -67,140 +66,6 @@ const filterOptions = ref<CustomerIssueIllegalRecordFilterOptionsResponse>({
   bugStatuses: [],
   categories: [],
   milestoneTitles: [],
-});
-
-const filterValues = computed<Record<string, unknown>>(() => {
-  const createdStart = String(route.query.createdAtStart ?? '');
-  const createdEnd = String(route.query.createdAtEnd ?? '');
-  const updatedStart = String(route.query.updatedAtStart ?? '');
-  const updatedEnd = String(route.query.updatedAtEnd ?? '');
-  return {
-    keyword: String(route.query.keyword ?? ''),
-    illegalReason: String(route.query.illegalReason ?? ''),
-    moduleName: String(route.query.moduleName ?? ''),
-    updatedAtRange: updatedStart && updatedEnd ? [updatedStart, updatedEnd] : [],
-    issueIid: String(route.query.issueIid ?? ''),
-    title: String(route.query.title ?? ''),
-    projectName: String(route.query.projectName ?? ''),
-    severityLevel: String(route.query.severityLevel ?? ''),
-    priorityLevel: String(route.query.priorityLevel ?? ''),
-    issueState: String(route.query.issueState ?? ''),
-    bugStatus: String(route.query.bugStatus ?? ''),
-    category: String(route.query.category ?? ''),
-    milestoneTitle: String(route.query.milestoneTitle ?? ''),
-    createdAtRange: createdStart && createdEnd ? [createdStart, createdEnd] : [],
-  };
-});
-
-function allOption(label: string) {
-  return { label, value: '' };
-}
-
-const primaryFilters = computed<RecordTableFilterField[]>(() => [
-  {
-    key: 'illegalReason',
-    label: '非法原因',
-    type: 'select',
-    width: 180,
-    options: [allOption('全部非法原因'), ...filterOptions.value.illegalReasons],
-  },
-  {
-    key: 'moduleName',
-    label: '模块',
-    type: 'select',
-    width: 180,
-    options: [allOption('全部模块'), ...filterOptions.value.moduleNames],
-  },
-  {
-    key: 'updatedAtRange',
-    label: '更新时间',
-    type: 'daterange',
-    width: 280,
-    startPlaceholder: '开始日期',
-    endPlaceholder: '结束日期',
-  },
-  {
-    key: 'keyword',
-    label: '关键字',
-    type: 'input',
-    width: 260,
-    placeholder: '搜索编号、标题、模块、非法原因',
-  },
-]);
-
-const advancedFilters = computed<RecordTableFilterField[]>(() => [
-  { key: 'issueIid', label: '议题编号', type: 'input', placeholder: '输入议题编号' },
-  { key: 'title', label: '标题', type: 'input', placeholder: '输入标题关键字' },
-  {
-    key: 'projectName',
-    label: '项目',
-    type: 'select',
-    options: [allOption('全部项目'), ...filterOptions.value.projectNames],
-  },
-  {
-    key: 'severityLevel',
-    label: '严重程度',
-    type: 'select',
-    options: [allOption('全部严重程度'), ...filterOptions.value.severityLevels],
-  },
-  {
-    key: 'priorityLevel',
-    label: '优先级',
-    type: 'select',
-    options: [allOption('全部优先级'), ...filterOptions.value.priorityLevels],
-  },
-  {
-    key: 'issueState',
-    label: '状态',
-    type: 'select',
-    options: [allOption('全部状态'), ...filterOptions.value.issueStates],
-  },
-  {
-    key: 'bugStatus',
-    label: '缺陷状态',
-    type: 'select',
-    options: [allOption('全部缺陷状态'), ...filterOptions.value.bugStatuses],
-  },
-  {
-    key: 'category',
-    label: '分类',
-    type: 'select',
-    options: [allOption('全部分类'), ...filterOptions.value.categories],
-  },
-  {
-    key: 'milestoneTitle',
-    label: '里程碑',
-    type: 'select',
-    options: [allOption('全部里程碑'), ...filterOptions.value.milestoneTitles],
-  },
-  {
-    key: 'createdAtRange',
-    label: '创建时间',
-    type: 'daterange',
-    width: 280,
-    startPlaceholder: '开始日期',
-    endPlaceholder: '结束日期',
-  },
-]);
-
-const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
-  const values = filterValues.value;
-  const tags: RecordTableActiveFilterTag[] = [];
-  appendTag(tags, 'illegalReason', '非法原因', values.illegalReason);
-  appendTag(tags, 'moduleName', '模块', values.moduleName);
-  appendRangeTag(tags, 'updatedAtRange', '更新时间', values.updatedAtRange);
-  appendTag(tags, 'keyword', '关键字', values.keyword);
-  appendTag(tags, 'issueIid', '议题编号', values.issueIid);
-  appendTag(tags, 'title', '标题', values.title);
-  appendTag(tags, 'projectName', '项目', values.projectName);
-  appendTag(tags, 'severityLevel', '严重程度', values.severityLevel);
-  appendTag(tags, 'priorityLevel', '优先级', values.priorityLevel);
-  appendTag(tags, 'issueState', '状态', values.issueState);
-  appendTag(tags, 'bugStatus', '缺陷状态', values.bugStatus);
-  appendTag(tags, 'category', '分类', values.category);
-  appendTag(tags, 'milestoneTitle', '里程碑', values.milestoneTitle);
-  appendRangeTag(tags, 'createdAtRange', '创建时间', values.createdAtRange);
-  return tags;
 });
 
 const conditionFilterFields = computed<StatisticFilterField[]>(() =>
@@ -250,18 +115,6 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
 const ruleFinalCount = computed(() => ruleSteps.value.at(-1)?.outputCount ?? 0);
-
-function appendTag(tags: RecordTableActiveFilterTag[], key: string, label: string, value: unknown) {
-  if (value) {
-    tags.push({ key, label, value: String(value) });
-  }
-}
-
-function appendRangeTag(tags: RecordTableActiveFilterTag[], key: string, label: string, value: unknown) {
-  if (Array.isArray(value) && value.length === 2) {
-    tags.push({ key, label, value: `${value[0]} ~ ${value[1]}` });
-  }
-}
 
 function normalizeIssueState(value: string) {
   return value === 'closed' ? '已关闭' : value === 'opened' ? '未关闭' : value || '-';
@@ -345,20 +198,6 @@ watch(
   },
   { immediate: true },
 );
-
-async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
-  if (payload.key === 'updatedAtRange') {
-    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
-    await patchQuery({ page: 1, updatedAtStart: start || null, updatedAtEnd: end || null });
-    return;
-  }
-  if (payload.key === 'createdAtRange') {
-    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
-    await patchQuery({ page: 1, createdAtStart: start || null, createdAtEnd: end || null });
-    return;
-  }
-  await patchQuery({ page: 1, [payload.key]: Array.isArray(payload.value) ? payload.value[0] ?? null : payload.value });
-}
 
 async function handleReset() {
   resetDraft();

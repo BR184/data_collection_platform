@@ -47,6 +47,9 @@
   - added `useConditionFilterGroupState` to centralize filter-draft initialization, route sync, and query-patch generation
   - migrated code-review illegal records to the shared condition-filter state flow without changing its page contract
   - migrated review-data management to the same condition-filter state flow while keeping keyword search and summary loading behavior stable
+  - removed the leftover legacy filter-state shells from customer-issue issue-record and illegal-record pages
+  - merged code-review illegal-record active filter tags into the shared condition-filter state while preserving personal rule tags
+  - finished the phase-four page-controller convergence on the current reusable record-table pages without changing backend contracts
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles
