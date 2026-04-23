@@ -16,6 +16,12 @@
   - expanded `IssueFactRecord` / repository to cover board-specific issue_fact semantics
   - added shared runtime support for issue_fact statistic boards
   - added reusable summary-board support models for later service migration
+- Continued phase-three migration on defect-summary boards:
+  - switched system-test / customer-issue defect summary boards to shared realtime refresh support
+  - switched both boards to read issue facts through `IssueFactBoardRuntimeSupport`
+  - kept existing board definitions, detail schema, and aggregation behavior unchanged for safety
+  - removed direct service dependencies on mirror sync / realtime workspace / fact rebuild / raw issue_fact query services
+  - removed obsolete local JDBC fact SQL and mapper code from both defect-summary services
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

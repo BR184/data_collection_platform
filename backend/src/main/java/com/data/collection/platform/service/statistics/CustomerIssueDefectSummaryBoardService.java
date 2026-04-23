@@ -18,29 +18,20 @@ import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
-import com.data.collection.platform.service.FactBuildService;
-import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueScopeContext;
-import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
-import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -56,43 +47,16 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
-  private static final String FACT_SQL = """
-      select issue_id as id, issue_iid as iid, title, project_id, project_name,
-             coalesce(author_name,'') as author_name, created_at_source as created_at,
-             updated_at_source as updated_at, closed_at_source as closed_at,
-             coalesce(issue_state,'opened') as issue_state, coalesce(testing_phase,'') as testing_phase,
-             coalesce(milestone_title,'') as milestone_title,
-             coalesce(system_test_label,'') as system_test_label, coalesce(severity_level,'') as severity_level,
-             coalesce(priority_level,'') as priority_level, coalesce(is_excluded,false) as is_excluded,
-             coalesce(exclusion_reason,'') as exclusion_reason, coalesce(is_fixed,false) as is_fixed,
-             coalesce(delay_issue,false) as delay_issue, coalesce(is_regression,false) as is_regression,
-             coalesce(is_crash,false) as is_crash, coalesce(is_level1_other,false) as is_level1_other,
-             coalesce(is_illegal,false) as is_illegal, coalesce(illegal_reason,'') as illegal_reason,
-             coalesce(is_legacy,false) as is_legacy, coalesce(module_names,'') as module_names,
-             coalesce(label_names,'') as label_names
-        from issue_fact
-       where deleted = false
-      """;
-
-  private final GitlabMirrorSyncService gitlabMirrorSyncService;
-  private final RealtimeWorkspaceService realtimeWorkspaceService;
-  private final FactBuildService factBuildService;
-  private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
+  private final IssueFactBoardRuntimeSupport runtimeSupport;
 
   public CustomerIssueDefectSummaryBoardService(
       JsonUtils jsonUtils,
-      GitlabMirrorSyncService gitlabMirrorSyncService,
-      RealtimeWorkspaceService realtimeWorkspaceService,
-      FactBuildService factBuildService,
-      IssueFactQueryService issueFactQueryService,
-      CustomerIssueScopeProfile customerIssueScopeProfile) {
+      CustomerIssueScopeProfile customerIssueScopeProfile,
+      IssueFactBoardRuntimeSupport runtimeSupport) {
     super(jsonUtils);
-    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
-    this.realtimeWorkspaceService = realtimeWorkspaceService;
-    this.factBuildService = factBuildService;
-    this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
+    this.runtimeSupport = runtimeSupport;
   }
 
   @Override
@@ -297,12 +261,12 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   @Override
   public RealtimeWorkspaceStatusResponse getRealtimeStatus() {
-    return realtimeWorkspaceService.getStatus(BOARD_KEY);
+    return runtimeSupport.getRealtimeStatus(BOARD_KEY);
   }
 
   @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
-    return realtimeWorkspaceService.requestRefresh(BOARD_KEY, this::refreshMirrorForRealtimeView);
+    return runtimeSupport.requestRealtimeRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }
 
   @Override
@@ -371,75 +335,49 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = withoutReservedFilters(filters);
-    Long projectId = parseLong(queryFilters.get("projectId"));
     try {
-      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
-      return facts.isEmpty() ? List.of() : facts;
-    } catch (DataAccessException e) {
+      return runtimeSupport
+          .loadFacts(
+              withoutReservedFilters(filters),
+              source -> customerIssueScopeProfile.matches(source.scopeContext()))
+          .stream()
+          .map(this::toIssueSource)
+          .toList();
+    } catch (Exception e) {
       log.warn("Failed to load issue facts", e);
       return List.of();
     }
   }
 
-  private void refreshMirrorForRealtimeView() {
-    try {
-      gitlabMirrorSyncService.refreshTablesOnDemand(REALTIME_REFRESH_TABLES, BOARD_KEY);
-      factBuildService.rebuildIssueFacts(false);
-    } catch (Exception e) {
-      log.warn("On-demand mirror refresh for {} failed", BOARD_KEY, e);
-    }
-  }
-
-  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters) {
-    List<IssueSource> facts = loadSourcesFromFact(projectId, filters);
-    if (!facts.isEmpty()) {
-      return facts;
-    }
-    factBuildService.rebuildIssueFacts(true);
-    return loadSourcesFromFact(projectId, filters);
-  }
-
-  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters) {
-    Map<String, String> mergedFilters = new LinkedHashMap<>();
-    if (filters != null) {
-      mergedFilters.putAll(filters);
-    }
-    if (projectId != null) {
-      mergedFilters.put("projectId", String.valueOf(projectId));
-    }
-    return issueFactQueryService.query(FACT_SQL, mergedFilters, this::mapIssueFact);
-  }
-
-  private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
+  private IssueSource toIssueSource(StatisticIssueFactSource source) {
     return new IssueSource(
-        rs.getLong("id"),
-        rs.getInt("iid"),
-        text(rs.getString("title"), ""),
-        rs.getLong("project_id"),
-        text(rs.getString("project_name"), "未命名项目"),
-        text(rs.getString("milestone_title"), ""),
-        text(rs.getString("author_name"), ""),
-        time(rs.getTimestamp("created_at")),
-        time(rs.getTimestamp("updated_at")),
-        time(rs.getTimestamp("closed_at")),
-        text(rs.getString("issue_state"), "opened"),
-        text(rs.getString("testing_phase"), ""),
-        text(rs.getString("system_test_label"), ""),
-        text(rs.getString("severity_level"), ""),
-        text(rs.getString("priority_level"), ""),
-        rs.getBoolean("is_excluded"),
-        text(rs.getString("exclusion_reason"), ""),
-        rs.getBoolean("is_fixed"),
-        rs.getBoolean("delay_issue"),
-        rs.getBoolean("is_regression"),
-        rs.getBoolean("is_crash"),
-        rs.getBoolean("is_level1_other"),
-        rs.getBoolean("is_illegal"),
-        text(rs.getString("illegal_reason"), ""),
-        rs.getBoolean("is_legacy"),
-        split(rs.getString("module_names")),
-        split(rs.getString("label_names")));
+        source.id(),
+        source.iid(),
+        source.title(),
+        source.projectId(),
+        source.projectName(),
+        source.milestoneTitle(),
+        source.authorName(),
+        source.createdAt(),
+        source.updatedAt(),
+        source.closedAt(),
+        source.issueState(),
+        source.testingPhase(),
+        source.systemTestLabel(),
+        source.severityLevel(),
+        source.priorityLevel(),
+        source.excluded(),
+        "",
+        source.fixed(),
+        source.delayIssue(),
+        source.regression(),
+        source.crash(),
+        source.level1Other(),
+        false,
+        "",
+        source.legacy(),
+        source.moduleNames(),
+        source.labels());
   }
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
@@ -499,36 +437,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         };
     comparator = comparator.thenComparing(IssueSource::iid);
     return SortSupport.applyDirection(comparator, "ascending".equalsIgnoreCase(sortOrder));
-  }
-
-  private Long parseLong(String value) {
-    try {
-      return StringUtils.hasText(value) ? Long.parseLong(value.trim()) : null;
-    } catch (NumberFormatException e) {
-      return null;
-    }
-  }
-
-  private String text(String value, String fallback) {
-    return StringUtils.hasText(value) ? value.trim() : fallback;
-  }
-
-  private LocalDateTime time(java.sql.Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String value : raw.split(",")) {
-      String trimmed = value == null ? "" : value.trim();
-      if (!trimmed.isEmpty()) {
-        values.add(trimmed);
-      }
-    }
-    return List.copyOf(values);
   }
 
   private static String count(long value) {
