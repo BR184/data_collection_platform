@@ -22,7 +22,7 @@
 功能名识别规则：
 
 - 优先支持老平台口径：标题开头 `【功能名】`
-- 本地 demo 兼容 ASCII：标题开头 `[Function Name]`
+- 本地 demo 当前使用中文标题：标题开头 `【功能名】`
 
 新增统计板：
 
@@ -58,7 +58,7 @@
 
 已更新 `scripts/seed-local-customer-issue-demo-data.sql`：
 
-- demo issue 标题加入 `[Drawing Export]` 等功能名前缀
+- demo issue 标题加入 `【工程图导出】` 等中文功能名前缀
 - 数据仍只写 ODS，不直接写 `issue_fact`
 - 重建事实后由 `FactBuildService` 提取 `function_name`
 
@@ -74,9 +74,9 @@ docker exec qa-flex-postgres psql -U qaflex -d qaflex -f /tmp/seed-local-custome
 - 后端编译通过：`mvn -q -DskipTests compile`
 - 前端构建通过：`npm run build`，仅保留既有 chunk size warning
 - `POST /api/facts/rebuild?scope=issue&full=true` 成功，重建 `396` 条 issue fact
-- demo 项目 `projectId=325` 的 5 条客户问题均已生成 `function_name`
+- demo 项目 `projectId=325` 的 5 条客户问题均已生成中文 `function_name`
 - `GET /api/statistic-boards/customer-issue-by-function?projectId=325` 成功返回 5 条功能行 + 总计行
-- 下钻 `平台||Platform Login / total` 成功返回 demo 议题 `#1203`
+- 下钻 `平台||平台登录 / total` 成功返回 demo 议题 `#1203`
 
 ## 6. 下一步
 

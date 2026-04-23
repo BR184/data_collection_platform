@@ -29,8 +29,8 @@ insert into ods_gitlab_users (
     color_mode_id
 )
 values
-    (3201, 'customer.qa@example.com', 'local-seed', 0, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'customer issue qa', false, 100, 'customer_issue_qa', true, false, 'active', 1, false, false, false, 48, false, false, 1),
-    (3202, 'customer.owner@example.com', 'local-seed', 0, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'customer issue owner', false, 100, 'customer_issue_owner', true, false, 'active', 1, false, false, false, 48, false, false, 1)
+    (3201, 'customer.qa@example.com', 'local-seed', 0, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '客户问题测试员', false, 100, 'customer_issue_qa', true, false, 'active', 1, false, false, false, 48, false, false, 1),
+    (3202, 'customer.owner@example.com', 'local-seed', 0, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '客户问题负责人', false, 100, 'customer_issue_owner', true, false, 'active', 1, false, false, false, 48, false, false, 1)
 on conflict (id) do update
 set email = excluded.email,
     encrypted_password = excluded.encrypted_password,
@@ -126,18 +126,18 @@ insert into ods_gitlab_labels (
     lock_on_merge
 )
 values
-    (325101, '一级缺陷', '#E53935', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'severity-level-1', false),
-    (325102, '二级缺陷', '#FB8C00', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'severity-level-2', false),
-    (325103, 'P1', '#D81B60', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'priority-p1', false),
-    (325104, 'P2', '#8E24AA', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'priority-p2', false),
-    (325105, '工程图', '#00897B', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'module-gongchengtu', false),
-    (325106, '草图', '#43A047', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'module-caotu', false),
-    (325107, '平台', '#1E88E5', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'module-pingtai', false),
-    (325108, '已修复/完成', '#2E7D32', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'fixed-and-done', false),
-    (325109, '申请延期', '#6D4C41', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'delay-request', false),
-    (325110, '响应已延期', '#C62828', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'response-delayed', false),
-    (325111, '数据异常', '#455A64', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'data-anomaly', false),
-    (325112, '未复现', '#039BE5', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', 'not-reproduced', false)
+    (325101, '一级缺陷', '#E53935', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '严重程度：一级缺陷', false),
+    (325102, '二级缺陷', '#FB8C00', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '严重程度：二级缺陷', false),
+    (325103, 'P1', '#D81B60', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '优先级：P1', false),
+    (325104, 'P2', '#8E24AA', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '优先级：P2', false),
+    (325105, '工程图', '#00897B', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '模块：工程图', false),
+    (325106, '草图', '#43A047', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '模块：草图', false),
+    (325107, '平台', '#1E88E5', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '模块：平台', false),
+    (325108, '已修复/完成', '#2E7D32', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '处理状态：已修复并完成验证', false),
+    (325109, '申请延期', '#6D4C41', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '处理状态：申请延期', false),
+    (325110, '响应已延期', '#C62828', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '响应状态：已延期', false),
+    (325111, '数据异常', '#455A64', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '排除原因：数据异常', false),
+    (325112, '未复现', '#039BE5', 325, timestamp '2026-04-12 09:00:00', timestamp '2026-04-12 09:00:00', '处理状态：暂未复现', false)
 on conflict (id) do update
 set title = excluded.title,
     color = excluded.color,
@@ -164,11 +164,11 @@ insert into ods_gitlab_issues (
     closed_at
 )
 values
-    (92501, '[Drawing Export] customer issue sample 1', 3201, 325, timestamp '2026-04-12 10:00:00', timestamp '2026-04-13 09:00:00', 'valid customer issue sample with template reply', 32501, 1201, false, 2, 0, 0, timestamp '2026-04-13 09:00:00', timestamptz '2026-04-13 09:00:00+08'),
-    (92502, '[Sketch Constraint] customer issue sample 2', 3202, 325, timestamp '2026-04-14 10:30:00', timestamp '2026-04-15 11:00:00', 'valid customer issue sample with delay label', 32501, 1202, false, 1, 0, 0, timestamp '2026-04-15 11:00:00', null),
-    (92503, '[Platform Login] customer issue sample 3', 3201, 325, timestamp '2026-04-16 14:00:00', timestamp '2026-04-17 09:30:00', 'illegal sample without template reply', 32502, 1203, false, 1, 0, 0, timestamp '2026-04-17 09:30:00', null),
-    (92504, '[Module Tagging] customer issue sample 4', 3202, 325, timestamp '2026-04-18 09:15:00', timestamp '2026-04-18 16:00:00', 'illegal sample without module label', 32502, 1204, false, 1, 0, 0, timestamp '2026-04-18 16:00:00', null),
-    (92505, '[Field Mapping] customer issue sample 5', 3201, 325, timestamp '2026-04-19 11:00:00', timestamp '2026-04-20 10:00:00', 'valid customer issue sample with new requirement reason', 32502, 1205, false, 2, 0, 0, timestamp '2026-04-20 10:00:00', timestamptz '2026-04-20 10:00:00+08')
+    (92501, '【工程图导出】客户反馈导出后标注位置偏移', 3201, 325, timestamp '2026-04-12 10:00:00', timestamp '2026-04-13 09:00:00', '客户在工程图导出后发现标注位置与页面预览不一致，已按模板回复并完成修复。', 32501, 1201, false, 2, 0, 0, timestamp '2026-04-13 09:00:00', timestamptz '2026-04-13 09:00:00+08'),
+    (92502, '【草图约束】客户反馈约束拖拽后尺寸未刷新', 3202, 325, timestamp '2026-04-14 10:30:00', timestamp '2026-04-15 11:00:00', '客户在草图编辑时发现约束拖拽后尺寸显示未刷新，已按模板回复并申请延期处理。', 32501, 1202, false, 1, 0, 0, timestamp '2026-04-15 11:00:00', null),
+    (92503, '【平台登录】客户反馈登录后偶发空白页', 3201, 325, timestamp '2026-04-16 14:00:00', timestamp '2026-04-17 09:30:00', '客户现场反馈登录后偶发空白页，当前未按调研模板完整回复，用于验证非法数据识别。', 32502, 1203, false, 1, 0, 0, timestamp '2026-04-17 09:30:00', null),
+    (92504, '【模块标记】客户反馈缺陷单缺少模块归属', 3202, 325, timestamp '2026-04-18 09:15:00', timestamp '2026-04-18 16:00:00', '客户反馈缺陷单没有明确模块标签，用于验证缺失模块的非法数据识别。', 32502, 1204, false, 1, 0, 0, timestamp '2026-04-18 16:00:00', null),
+    (92505, '【字段映射】客户反馈导入字段与模板不一致', 3201, 325, timestamp '2026-04-19 11:00:00', timestamp '2026-04-20 10:00:00', '客户反馈导入字段与模板字段不一致，需求方确认需要补充字段映射规则。', 32502, 1205, false, 2, 0, 0, timestamp '2026-04-20 10:00:00', timestamptz '2026-04-20 10:00:00+08')
 on conflict (id) do update
 set title = excluded.title,
     author_id = excluded.author_id,

@@ -106,9 +106,9 @@ insert into ods_gitlab_merge_requests (
     retargeted
 )
 values
-    (10001, 'main', 'feature/payment-cache', 1, 1001, 1002, 'feat: 支付中心订单查询缓存优化', timestamp '2026-04-08 09:10:00', timestamp '2026-04-08 10:20:00', 'merged', 1, 101, '本地合法测试样例一', false, 1002, false, 3, false, false, false),
-    (10002, 'release/1.2', 'feature/order-export', 1, 1002, 1003, 'feat: 订单服务导出字段补齐', timestamp '2026-04-08 09:20:00', timestamp '2026-04-08 10:40:00', 'merged', 1, 102, '本地合法测试样例二', false, 1003, false, 3, false, false, false),
-    (10003, 'main', 'feature/report-filter', 1, 1001, 1003, 'fix: 报表平台筛选条件修正', timestamp '2026-04-08 09:30:00', timestamp '2026-04-08 11:00:00', 'merged', 1, 103, '本地合法测试样例三', false, 1003, false, 3, false, false, false)
+    (10001, 'main', '支付中心缓存优化', 1, 1001, 1002, '支付中心订单查询缓存优化', timestamp '2026-04-08 09:10:00', timestamp '2026-04-08 10:20:00', 'merged', 1, 101, '本地合法测试样例一', false, 1002, false, 3, false, false, false),
+    (10002, 'release/1.2', '订单导出字段补齐', 1, 1002, 1003, '订单服务导出字段补齐', timestamp '2026-04-08 09:20:00', timestamp '2026-04-08 10:40:00', 'merged', 1, 102, '本地合法测试样例二', false, 1003, false, 3, false, false, false),
+    (10003, 'main', '报表筛选修正', 1, 1001, 1003, '报表平台筛选条件修正', timestamp '2026-04-08 09:30:00', timestamp '2026-04-08 11:00:00', 'merged', 1, 103, '本地合法测试样例三', false, 1003, false, 3, false, false, false)
 on conflict (id) do update
 set target_branch = excluded.target_branch,
     source_branch = excluded.source_branch,

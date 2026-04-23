@@ -276,13 +276,13 @@ insert into ods_gitlab_merge_requests (
     source_updated_at
 )
 values
-    (10001, 'main', 'feature/payment-cache', 1, 1101, 1102, 'feat: 支付中心订单查询缓存优化', timestamp '2026-04-09 11:00:00', timestamp '2026-04-09 12:00:00', 'merged', 1, 101, '代码走查合法样例-支付中心', false, 1102, false, 3, false, false, false, timestamp '2026-04-09 12:00:00'),
-    (10002, 'release/1.2', 'feature/order-export', 1, 1102, 1103, 'feat: 订单服务导出字段补齐', timestamp '2026-04-09 11:05:00', timestamp '2026-04-09 12:05:00', 'merged', 1, 102, '代码走查合法样例-订单服务', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:05:00'),
-    (10003, 'main', 'feature/report-filter', 1, 1101, 1103, 'fix: 报表平台筛选条件修正', timestamp '2026-04-09 11:10:00', timestamp '2026-04-09 12:10:00', 'merged', 1, 103, '代码走查合法样例-报表平台', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:10:00'),
-    (10004, 'dev', 'feature/missing-module', 1, 1101, 1103, 'fix: 缺失模块标签的代码走查样例', timestamp '2026-04-09 11:15:00', timestamp '2026-04-09 12:15:00', 'merged', 1, 104, '非法样例-缺失模块标签', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:15:00'),
-    (10005, 'dev', 'feature/missing-owner', 1, 1101, null, 'fix: 缺失责任人的代码走查样例', timestamp '2026-04-09 11:20:00', timestamp '2026-04-09 12:20:00', 'merged', 1, 105, '非法样例-缺失责任人', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:20:00'),
-    (10006, 'dev', 'feature/missing-metrics', 1, 1102, 1103, 'fix: 缺失外部指标的代码走查样例', timestamp '2026-04-09 11:25:00', timestamp '2026-04-09 12:25:00', 'merged', 1, 106, '非法样例-缺失注释率和缺陷数', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:25:00'),
-    (10007, 'dev', 'feature/missing-added-lines', 1, 1102, 1104, 'fix: 缺失新增代码行数的代码走查样例', timestamp '2026-04-09 11:30:00', timestamp '2026-04-09 12:30:00', 'merged', 1, 107, '非法样例-缺失新增代码行数', false, 1104, false, 3, false, false, false, timestamp '2026-04-09 12:30:00')
+    (10001, 'main', '支付中心缓存优化', 1, 1101, 1102, '支付中心订单查询缓存优化', timestamp '2026-04-09 11:00:00', timestamp '2026-04-09 12:00:00', 'merged', 1, 101, '代码走查合法样例-支付中心', false, 1102, false, 3, false, false, false, timestamp '2026-04-09 12:00:00'),
+    (10002, 'release/1.2', '订单导出字段补齐', 1, 1102, 1103, '订单服务导出字段补齐', timestamp '2026-04-09 11:05:00', timestamp '2026-04-09 12:05:00', 'merged', 1, 102, '代码走查合法样例-订单服务', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:05:00'),
+    (10003, 'main', '报表筛选修正', 1, 1101, 1103, '报表平台筛选条件修正', timestamp '2026-04-09 11:10:00', timestamp '2026-04-09 12:10:00', 'merged', 1, 103, '代码走查合法样例-报表平台', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:10:00'),
+    (10004, 'dev', '缺失模块标签', 1, 1101, 1103, '缺失模块标签的代码走查样例', timestamp '2026-04-09 11:15:00', timestamp '2026-04-09 12:15:00', 'merged', 1, 104, '非法样例-缺失模块标签', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:15:00'),
+    (10005, 'dev', '缺失责任人', 1, 1101, null, '缺失责任人的代码走查样例', timestamp '2026-04-09 11:20:00', timestamp '2026-04-09 12:20:00', 'merged', 1, 105, '非法样例-缺失责任人', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:20:00'),
+    (10006, 'dev', '缺失外部指标', 1, 1102, 1103, '缺失外部指标的代码走查样例', timestamp '2026-04-09 11:25:00', timestamp '2026-04-09 12:25:00', 'merged', 1, 106, '非法样例-缺失注释率和缺陷数', false, 1103, false, 3, false, false, false, timestamp '2026-04-09 12:25:00'),
+    (10007, 'dev', '缺失新增代码行数', 1, 1102, 1104, '缺失新增代码行数的代码走查样例', timestamp '2026-04-09 11:30:00', timestamp '2026-04-09 12:30:00', 'merged', 1, 107, '非法样例-缺失新增代码行数', false, 1104, false, 3, false, false, false, timestamp '2026-04-09 12:30:00')
 on conflict (id) do update
 set target_branch = excluded.target_branch,
     source_branch = excluded.source_branch,
