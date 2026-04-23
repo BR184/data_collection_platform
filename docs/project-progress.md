@@ -12,6 +12,10 @@
 - Completed review-data service split as the second architecture slice:
   - extracted query / command / filter-option / summary services
   - kept the original facade and controller contract stable
+- Started the statistic-board decoupling foundation for phase three:
+  - expanded `IssueFactRecord` / repository to cover board-specific issue_fact semantics
+  - added shared runtime support for issue_fact statistic boards
+  - added reusable summary-board support models for later service migration
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles
