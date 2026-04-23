@@ -53,6 +53,11 @@
   - migrated customer-issue issue records, customer-issue illegal records, and code-review illegal records to the shared record-page controller
   - finished the phase-four page-controller convergence on the current reusable record-table pages without changing backend contracts
   - kept `ReviewDataManagementView` and `SystemTestIssueSearchView` as intentional special cases for now because they still carry expanded-row editing flow or legacy non-condition-filter interaction models
+- Started phase-five contract and manifest convergence:
+  - added `feature-manifest.ts` to centralize page query contracts and statistic-board page-to-board mappings
+  - switched `router.ts` route meta assembly to the shared page-route manifest helper
+  - removed the `StatisticBoardPage.vue` local `pageKey -> boardKey` hardcoded branch chain and switched it to the shared manifest
+  - kept the external collect-form route and not-found route as explicit local exceptions because they are not regular shell pages
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles
