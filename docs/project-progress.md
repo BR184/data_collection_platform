@@ -62,6 +62,15 @@
   - added explicit special-route contracts for the external collect form, rule-config page, and not-found page so their query boundaries no longer live only inside `router.ts`
   - added router tests for persisted cross-module query behavior and special-route whitelist behavior
   - completed the main phase-five goal of converging page metadata, query contracts, and route-level exceptions into a shared manifest-driven contract layer
+- Documented the post-decoupling stabilization boundary:
+  - added `docs/current-state/2026-04-23-decoupling-stabilization-checklist.md`
+  - clarified that the five-phase decoupling mainline is complete
+  - recorded intentional special cases, follow-up directions, and development guardrails for future modules
+- Started the functionality-completion phase with the integration-test module kickoff:
+  - confirmed `集成测试数据分析` is the main remaining non-board formal gap after excluding deferred dashboards and the retired `系统测试非法数据` page
+  - reviewed the old-platform integration-test functionality shape without reusing old code
+  - documented that integration-test is not an `issue_fact` statistic board and not a plain condition-record page, but a separate source/fact/query chain
+  - recorded the recommended MVP order as `data chain -> backend query API -> frontend summary/detail page`
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles
