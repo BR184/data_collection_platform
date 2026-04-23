@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import PageStateShell from '../components/base/PageStateShell.vue';
 import {
   api,
   type CustomerIssueIllegalRecordFilterOptionsResponse,
@@ -32,12 +33,16 @@ const {
 
 const rows = ref<CustomerIssueIllegalRecordRowResponse[]>([]);
 const total = ref(0);
+const pageInitialized = ref(false);
+const filterOptionsLoaded = ref(false);
 const advancedVisible = ref(false);
 const detailVisible = ref(false);
 const ruleExplanationVisible = ref(false);
 const ruleExplanationLoading = ref(false);
 const selectedRow = ref<CustomerIssueIllegalRecordRowResponse | null>(null);
 const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
+const projectId = computed(() => String(route.query.projectId ?? ''));
+const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 
 const filterOptions = ref<CustomerIssueIllegalRecordFilterOptionsResponse>({
   projectNames: [],
@@ -254,13 +259,13 @@ function createFallbackRuleExplanation(reason: string): StatisticBoardRuleExplan
 }
 
 async function loadFilterOptions() {
-  filterOptions.value = await api.getCustomerIssueIllegalRecordFilterOptions(route.query.projectId as string | undefined);
+  filterOptions.value = await api.getCustomerIssueIllegalRecordFilterOptions(projectId.value || undefined);
 }
 
 async function loadRuleExplanation() {
   ruleExplanationLoading.value = true;
   try {
-    ruleExplanation.value = await api.getCustomerIssueIllegalRecordRuleExplanation(route.query.projectId as string | undefined);
+    ruleExplanation.value = await api.getCustomerIssueIllegalRecordRuleExplanation(projectId.value || undefined);
   } catch {
     ruleExplanation.value = createFallbackRuleExplanation('规则说明加载失败，请稍后重试。');
   } finally {
@@ -298,15 +303,30 @@ async function loadTableData() {
 
 bindLoader(async () => {
   try {
-    await loadFilterOptions();
     await loadTableData();
-    await loadRuleExplanation();
+    pageInitialized.value = true;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '客户问题非法数据加载失败');
     rows.value = [];
     total.value = 0;
+    pageInitialized.value = true;
   }
 });
+
+watch(
+  projectId,
+  async () => {
+    ruleExplanation.value = null;
+    try {
+      await loadFilterOptions();
+      filterOptionsLoaded.value = true;
+    } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : '客户问题非法数据筛选项加载失败');
+      filterOptionsLoaded.value = true;
+    }
+  },
+  { immediate: true },
+);
 
 async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
   if (payload.key === 'updatedAtRange') {
@@ -383,67 +403,86 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
-function openRuleExplanation() {
-  if (!ruleExplanation.value) {
-    ruleExplanation.value = createFallbackRuleExplanation('规则说明暂未加载完成，请稍后再试。');
-  }
+async function openRuleExplanation() {
   ruleExplanationVisible.value = true;
+  if (!ruleExplanation.value && !ruleExplanationLoading.value) {
+    await loadRuleExplanation();
+  }
 }
 </script>
 
 <template>
-  <section class="customer-illegal-page">
-    <BaseRecordTable
-      :columns="columns"
-      :rows="tableRows"
-      :loading="isTableLoading"
-      :keyword-auto-search="true"
-      :page="page"
-      :page-size="pageSize"
-      :total="total"
-      :primary-filters="primaryFilters"
-      :advanced-filters="advancedFilters"
-      :filter-values="filterValues"
-      :active-filter-tags="activeFilterTags"
-      :advanced-visible="advancedVisible"
-      :show-search="false"
-      :show-refresh="false"
-      empty-description="当前筛选条件下没有客户问题非法数据。"
-      @filter-change="handleFilterChange"
-      @reset="handleReset"
-      @query="handleQuery"
-      @clear-filter="handleClearFilter"
-      @update:advanced-visible="advancedVisible = $event"
-      @size-change="handleSizeChange"
-      @current-change="handleCurrentChange"
-      @sort-change="handleSortChange"
-    >
-      <template #toolbar-prefix>
-        <div class="customer-illegal-toolbar-meta">
-          <div class="customer-illegal-toolbar-title">缺陷非法数据明细</div>
-          <div class="customer-illegal-toolbar-desc">客户问题范围内由事实层判定出的异常样本</div>
-        </div>
-      </template>
+  <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
+    <template #skeleton>
+      <section class="customer-illegal-page">
+        <el-card shadow="never" class="panel-card page-skeleton-card">
+          <el-skeleton animated>
+            <template #template>
+              <div class="page-skeleton-stack">
+                <el-skeleton-item variant="h3" style="width: 28%" />
+                <el-skeleton-item variant="text" style="width: 52%" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 56px" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 420px" />
+              </div>
+            </template>
+          </el-skeleton>
+        </el-card>
+      </section>
+    </template>
 
-      <template #toolbar-actions>
-        <div class="customer-illegal-toolbar-actions">
-          <el-tag effect="plain" type="warning">当前 {{ total }} 条</el-tag>
-          <el-button
-            plain
-            size="small"
-            :icon="InfoFilled"
-            :loading="ruleExplanationLoading"
-            @click="openRuleExplanation"
-          >
-            规则说明
-          </el-button>
-        </div>
-      </template>
+    <section class="customer-illegal-page">
+      <BaseRecordTable
+        :columns="columns"
+        :rows="tableRows"
+        :loading="isTableLoading"
+        :loading-delay="180"
+        :keyword-auto-search="true"
+        :page="page"
+        :page-size="pageSize"
+        :total="total"
+        :primary-filters="primaryFilters"
+        :advanced-filters="advancedFilters"
+        :filter-values="filterValues"
+        :active-filter-tags="activeFilterTags"
+        :advanced-visible="advancedVisible"
+        :show-search="false"
+        :show-refresh="false"
+        empty-description="当前筛选条件下没有客户问题非法数据。"
+        @filter-change="handleFilterChange"
+        @reset="handleReset"
+        @query="handleQuery"
+        @clear-filter="handleClearFilter"
+        @update:advanced-visible="advancedVisible = $event"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+        @sort-change="handleSortChange"
+      >
+        <template #toolbar-prefix>
+          <div class="customer-illegal-toolbar-meta">
+            <div class="customer-illegal-toolbar-title">缺陷非法数据明细</div>
+            <div class="customer-illegal-toolbar-desc">客户问题范围内由事实层判定出的异常样本</div>
+          </div>
+        </template>
 
-      <template #row-actions="{ row }">
-        <el-button class="customer-illegal-detail-trigger" link @click="openDetailDrawer(row)">查看详情</el-button>
-      </template>
-    </BaseRecordTable>
+        <template #toolbar-actions>
+          <div class="customer-illegal-toolbar-actions">
+            <el-tag effect="plain" type="warning">当前 {{ total }} 条</el-tag>
+            <el-button
+              plain
+              size="small"
+              :icon="InfoFilled"
+              :loading="ruleExplanationLoading"
+              @click="openRuleExplanation"
+            >
+              规则说明
+            </el-button>
+          </div>
+        </template>
+
+        <template #row-actions="{ row }">
+          <el-button class="customer-illegal-detail-trigger" link @click="openDetailDrawer(row)">查看详情</el-button>
+        </template>
+      </BaseRecordTable>
 
     <el-drawer v-model="detailVisible" size="540px" destroy-on-close class="customer-illegal-drawer">
       <template #header>
@@ -524,7 +563,8 @@ function openRuleExplanation() {
         </template>
       </div>
     </el-drawer>
-  </section>
+    </section>
+  </PageStateShell>
 </template>
 
 <style scoped>

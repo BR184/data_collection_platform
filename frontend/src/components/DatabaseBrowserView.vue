@@ -6,9 +6,12 @@ import { api, type DatabaseTableOption, type DatabaseTableRowsResponse } from '.
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import SmartSelect from './base/SmartSelect.vue';
 import BaseSearchInput from './base/BaseSearchInput.vue';
+import PageStateShell from './base/PageStateShell.vue';
 import { useRouteTableState } from '../composables/useRouteTableState';
 
 const tablesLoading = ref(false);
+const tablesResolved = ref(false);
+const firstRowsResolved = ref(false);
 const tableOptions = ref<DatabaseTableOption[]>([]);
 const keywordDraft = ref('');
 const rowsResponse = ref<DatabaseTableRowsResponse | null>(null);
@@ -48,6 +51,15 @@ const smartTableOptions = computed(() =>
     label: `${option.label} (${option.tableName})`,
     value: option.tableName,
   })),
+);
+const pageReady = computed(() => {
+  if (!tablesResolved.value) {
+    return false;
+  }
+  return true;
+});
+const showInitialTableSkeleton = computed(
+  () => tableOptions.value.length > 0 && (!selectedTable.value || !firstRowsResolved.value),
 );
 const isCollectFormTable = computed(() => selectedTable.value === 'collect_form_records');
 const syncStatusTagType = computed(() => {
@@ -100,6 +112,7 @@ async function loadTables() {
     ElMessage.error((error as Error).message);
   } finally {
     tablesLoading.value = false;
+    tablesResolved.value = true;
   }
 }
 
@@ -120,6 +133,10 @@ async function loadRows(showError = true) {
   } catch (error) {
     if (showError) {
       ElMessage.error((error as Error).message);
+    }
+  } finally {
+    if (selectedTable.value) {
+      firstRowsResolved.value = true;
     }
   }
 }
@@ -288,171 +305,203 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="db-browser-card">
-    <div class="db-toolbar">
-      <div class="db-toolbar-filters">
-        <SmartSelect
-          :model-value="selectedTable"
-          class="db-table-select"
-          placeholder="请选择要查看的本地表"
-          :loading="tablesLoading"
-          :options="smartTableOptions"
-          @change="handleTableSelectChange"
-        />
-
-        <BaseSearchInput
-          :model-value="keywordDraft"
-          class="db-search-input"
-          placeholder="输入关键字搜索当前表"
-          @update:model-value="keywordDraft = $event"
-          @search="handleSearch"
-          @clear="handleReset"
-        />
-      </div>
-
-      <div class="db-toolbar-actions">
-        <el-button type="primary" @click="handleSearch">搜索</el-button>
-        <el-button @click="handleReset">重置</el-button>
-        <el-button :icon="Refresh" @click="handleRefresh">刷新</el-button>
-      </div>
-    </div>
-
-    <el-card shadow="never" class="db-table-card">
-      <template #header>
-        <div class="db-table-header">
-          <div class="db-table-context">
-            <el-tag v-if="rowsResponse?.label || selectedOption?.label" effect="plain" round>
-              {{ rowsResponse?.label || selectedOption?.label }}
-            </el-tag>
-            <span class="db-table-name">{{ rowsResponse?.tableName || selectedTable || '-' }}</span>
-          </div>
-
-          <div class="db-table-meta">
-            <el-tag :type="syncStatusTagType" round>{{ syncStatusText() }}</el-tag>
-            <SyncMetaBadge :value="formatTime(rowsResponse?.lastSyncTime || selectedOption?.lastSyncTime)" />
-            <span class="db-table-meta-text">Total: {{ total }}</span>
-          </div>
+  <PageStateShell :ready="pageReady">
+    <template #skeleton>
+      <div class="db-browser-card">
+        <div class="db-toolbar db-toolbar--skeleton">
+          <el-card shadow="never" class="db-table-card page-skeleton-card">
+            <el-skeleton animated>
+              <template #template>
+                <div class="page-skeleton-stack">
+                  <el-skeleton-item variant="rect" style="width: 42%; height: 40px" />
+                  <el-skeleton-item variant="rect" style="width: 28%; height: 40px" />
+                  <el-skeleton-item variant="rect" style="width: 100%; height: 420px" />
+                </div>
+              </template>
+            </el-skeleton>
+          </el-card>
         </div>
-      </template>
+      </div>
+    </template>
 
-      <el-empty v-if="!selectedTable" description="当前没有可查看的本地表" />
+    <div class="db-browser-card">
+      <div class="db-toolbar">
+        <div class="db-toolbar-filters">
+          <SmartSelect
+            :model-value="selectedTable"
+            class="db-table-select"
+            placeholder="请选择要查看的本地表"
+            :loading="tablesLoading"
+            :options="smartTableOptions"
+            @change="handleTableSelectChange"
+          />
 
-      <template v-else>
-        <el-alert
-          v-if="rowsResponse?.statusMessage"
-          class="db-status-alert"
-          :icon="WarningFilled"
-          type="warning"
-          :closable="false"
-          :title="rowsResponse.statusMessage"
-        />
-
-        <el-table
-          v-loading="isTableLoading"
-          :data="rows"
-          border
-          stripe
-          class="db-table"
-          :height="tableHeight"
-          @sort-change="handleSortChange"
-        >
-          <el-table-column
-            v-for="column in columns"
-            :key="column.key"
-            :prop="column.key"
-            :label="column.label"
-            :sortable="column.sortable ? 'custom' : false"
-            min-width="150"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <span class="db-cell-text">{{ formatCellValue(row[column.key]) }}</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column v-if="isCollectFormTable" label="操作" width="100" fixed="right">
-            <template #default="{ row }">
-              <el-button type="primary" link :icon="Edit" @click="openCollectFormEditor(row)">编辑</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="db-pagination">
-          <el-pagination
-            background
-            layout="total, sizes, prev, pager, next"
-            :current-page="page"
-            :page-size="pageSize"
-            :page-sizes="[10, 20, 50, 100]"
-            :total="total"
-            @size-change="handleSizeChange"
-            @current-change="handleCurrentChange"
+          <BaseSearchInput
+            :model-value="keywordDraft"
+            class="db-search-input"
+            placeholder="输入关键字搜索当前表"
+            @update:model-value="keywordDraft = $event"
+            @search="handleSearch"
+            @clear="handleReset"
           />
         </div>
-      </template>
-    </el-card>
 
-    <el-dialog
-      v-model="editDialogVisible"
-      title="编辑 collect_form_records"
-      width="820px"
-      destroy-on-close
-    >
-      <div class="db-edit-context">
-        <div class="db-edit-context-item"><span>ID</span><strong>{{ editForm.id || '-' }}</strong></div>
-        <div class="db-edit-context-item"><span>GitLab 来源地址</span><strong>{{ editingContext.gitlabBaseUrl }}</strong></div>
-        <div class="db-edit-context-item"><span>Project ID</span><strong>{{ editingContext.projectId }}</strong></div>
-        <div class="db-edit-context-item"><span>请求类型 IID</span><strong>{{ editingContext.requestIid }}</strong></div>
-        <div class="db-edit-context-item"><span>资源类型</span><strong>{{ editingContext.resourceType }}</strong></div>
-        <div class="db-edit-context-item"><span>资源编号</span><strong>{{ editingContext.resourceId }}</strong></div>
-        <div class="db-edit-context-item"><span>模板编码</span><strong>{{ editingContext.templateCode }}</strong></div>
-        <div class="db-edit-context-item"><span>更新时间</span><strong>{{ editingContext.updatedAt }}</strong></div>
-        <div class="db-edit-context-item"><span>创建时间</span><strong>{{ editingContext.createdAt }}</strong></div>
+        <div class="db-toolbar-actions">
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
+          <el-button @click="handleReset">重置</el-button>
+          <el-button :icon="Refresh" @click="handleRefresh">刷新</el-button>
+        </div>
       </div>
 
-      <el-form label-position="top" class="db-edit-form">
-        <div class="db-edit-grid">
-          <el-form-item label="表单标题">
-            <el-input v-model="editForm.formTitle" />
-          </el-form-item>
-          <el-form-item label="走查人">
-            <el-input v-model="editForm.reviewer" />
-          </el-form-item>
-          <el-form-item label="走查时间(分钟)">
-            <el-input-number v-model="editForm.reviewDurationMinutes" :min="0" :step="1" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="是否作废">
-            <el-switch v-model="editForm.deleted" />
-          </el-form-item>
-          <el-form-item label="规范">
-            <el-input-number v-model="editForm.specificationScore" :min="0" :step="1" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="逻辑">
-            <el-input-number v-model="editForm.logicScore" :min="0" :step="1" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="性能">
-            <el-input-number v-model="editForm.performanceScore" :min="0" :step="1" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="设计">
-            <el-input-number v-model="editForm.designScore" :min="0" :step="1" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="其他">
-            <el-input-number v-model="editForm.otherScore" :min="0" :step="1" controls-position="right" />
-          </el-form-item>
-        </div>
-        <el-form-item label="备注">
-          <el-input v-model="editForm.remark" type="textarea" :rows="4" />
-        </el-form-item>
-      </el-form>
+      <el-card shadow="never" class="db-table-card">
+        <template #header>
+          <div class="db-table-header">
+            <div class="db-table-context">
+              <el-tag v-if="rowsResponse?.label || selectedOption?.label" effect="plain" round>
+                {{ rowsResponse?.label || selectedOption?.label }}
+              </el-tag>
+              <span class="db-table-name">{{ rowsResponse?.tableName || selectedTable || '-' }}</span>
+            </div>
 
-      <template #footer>
-        <div class="db-edit-footer">
-          <el-button @click="editDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="editSaving" @click="saveCollectFormEdit">保存修改</el-button>
+            <div class="db-table-meta">
+              <el-tag :type="syncStatusTagType" round>{{ syncStatusText() }}</el-tag>
+              <SyncMetaBadge :value="formatTime(rowsResponse?.lastSyncTime || selectedOption?.lastSyncTime)" />
+              <span class="db-table-meta-text">Total: {{ total }}</span>
+            </div>
+          </div>
+        </template>
+
+        <div v-if="showInitialTableSkeleton" class="db-initial-loading">
+          <el-skeleton animated>
+            <template #template>
+              <div class="page-skeleton-stack">
+                <el-skeleton-item variant="text" style="width: 24%" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 360px" />
+                <el-skeleton-item variant="text" style="width: 18%" />
+              </div>
+            </template>
+          </el-skeleton>
         </div>
-      </template>
-    </el-dialog>
-  </div>
+
+        <el-empty v-else-if="!selectedTable" description="当前没有可查看的本地表" />
+
+        <template v-else>
+          <el-alert
+            v-if="rowsResponse?.statusMessage"
+            class="db-status-alert"
+            :icon="WarningFilled"
+            type="warning"
+            :closable="false"
+            :title="rowsResponse.statusMessage"
+          />
+
+          <el-table
+            v-loading="isTableLoading"
+            :data="rows"
+            border
+            stripe
+            class="db-table"
+            :height="tableHeight"
+            @sort-change="handleSortChange"
+          >
+            <el-table-column
+              v-for="column in columns"
+              :key="column.key"
+              :prop="column.key"
+              :label="column.label"
+              :sortable="column.sortable ? 'custom' : false"
+              min-width="150"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">
+                <span class="db-cell-text">{{ formatCellValue(row[column.key]) }}</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column v-if="isCollectFormTable" label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link :icon="Edit" @click="openCollectFormEditor(row)">编辑</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="db-pagination">
+            <el-pagination
+              background
+              layout="total, sizes, prev, pager, next"
+              :current-page="page"
+              :page-size="pageSize"
+              :page-sizes="[10, 20, 50, 100]"
+              :total="total"
+              @size-change="handleSizeChange"
+              @current-change="handleCurrentChange"
+            />
+          </div>
+        </template>
+      </el-card>
+    </div>
+  </PageStateShell>
+
+  <el-dialog
+    v-model="editDialogVisible"
+    title="编辑 collect_form_records"
+    width="820px"
+    destroy-on-close
+  >
+    <div class="db-edit-context">
+      <div class="db-edit-context-item"><span>ID</span><strong>{{ editForm.id || '-' }}</strong></div>
+      <div class="db-edit-context-item"><span>GitLab 来源地址</span><strong>{{ editingContext.gitlabBaseUrl }}</strong></div>
+      <div class="db-edit-context-item"><span>Project ID</span><strong>{{ editingContext.projectId }}</strong></div>
+      <div class="db-edit-context-item"><span>请求类型 IID</span><strong>{{ editingContext.requestIid }}</strong></div>
+      <div class="db-edit-context-item"><span>资源类型</span><strong>{{ editingContext.resourceType }}</strong></div>
+      <div class="db-edit-context-item"><span>资源编号</span><strong>{{ editingContext.resourceId }}</strong></div>
+      <div class="db-edit-context-item"><span>模板编码</span><strong>{{ editingContext.templateCode }}</strong></div>
+      <div class="db-edit-context-item"><span>更新时间</span><strong>{{ editingContext.updatedAt }}</strong></div>
+      <div class="db-edit-context-item"><span>创建时间</span><strong>{{ editingContext.createdAt }}</strong></div>
+    </div>
+
+    <el-form label-position="top" class="db-edit-form">
+      <div class="db-edit-grid">
+        <el-form-item label="表单标题">
+          <el-input v-model="editForm.formTitle" />
+        </el-form-item>
+        <el-form-item label="走查人">
+          <el-input v-model="editForm.reviewer" />
+        </el-form-item>
+        <el-form-item label="走查时间(分钟)">
+          <el-input-number v-model="editForm.reviewDurationMinutes" :min="0" :step="1" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="是否作废">
+          <el-switch v-model="editForm.deleted" />
+        </el-form-item>
+        <el-form-item label="规范">
+          <el-input-number v-model="editForm.specificationScore" :min="0" :step="1" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="逻辑">
+          <el-input-number v-model="editForm.logicScore" :min="0" :step="1" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="性能">
+          <el-input-number v-model="editForm.performanceScore" :min="0" :step="1" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="设计">
+          <el-input-number v-model="editForm.designScore" :min="0" :step="1" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="其他">
+          <el-input-number v-model="editForm.otherScore" :min="0" :step="1" controls-position="right" />
+        </el-form-item>
+      </div>
+      <el-form-item label="备注">
+        <el-input v-model="editForm.remark" type="textarea" :rows="4" />
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <div class="db-edit-footer">
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="saveCollectFormEdit">保存修改</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -531,6 +580,12 @@ onBeforeUnmount(() => {
 
 .db-status-alert {
   margin-bottom: 12px;
+}
+
+.db-initial-loading {
+  min-height: 420px;
+  display: grid;
+  align-content: start;
 }
 
 .db-table {

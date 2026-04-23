@@ -15,7 +15,9 @@ import {
   type TableWhitelistOption,
 } from '../api';
 import SmartSelect from '../components/base/SmartSelect.vue';
+import PageStateShell from '../components/base/PageStateShell.vue';
 
+const initialized = ref(false);
 const loading = ref(false);
 const refreshing = ref(false);
 const saving = ref(false);
@@ -530,9 +532,17 @@ function buildPurgeMessage(result: MirrorPurgeResult) {
   return `已真实删除镜像数据：删除 ${result.droppedMirrorTables} 张镜像表，清理 ${result.truncatedTables} 张镜像数据表。`;
 }
 
-onMounted(async () => {
-  await loadStatus(false, false);
+async function initializePage() {
+  try {
+    await loadStatus(false, false);
+  } finally {
+    initialized.value = true;
+  }
   void loadWebhookRegistration(false);
+}
+
+onMounted(async () => {
+  await initializePage();
 });
 
 onBeforeUnmount(() => {
@@ -541,8 +551,51 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="settings-grid">
-    <el-card shadow="never" class="panel-card">
+  <PageStateShell :ready="initialized">
+    <template #skeleton>
+      <div class="settings-grid">
+        <el-card shadow="never" class="panel-card page-skeleton-card">
+          <el-skeleton animated>
+            <template #template>
+              <div class="page-skeleton-stack">
+                <el-skeleton-item variant="h3" style="width: 36%" />
+                <el-skeleton-item variant="text" style="width: 72%" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 52px" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 52px" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 52px" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 220px" />
+              </div>
+            </template>
+          </el-skeleton>
+        </el-card>
+        <div class="settings-side-panel">
+          <el-card shadow="never" class="panel-card page-skeleton-card">
+            <el-skeleton animated>
+              <template #template>
+                <div class="page-skeleton-stack">
+                  <el-skeleton-item variant="h3" style="width: 44%" />
+                  <el-skeleton-item variant="text" style="width: 78%" />
+                  <el-skeleton-item variant="rect" style="width: 100%; height: 180px" />
+                </div>
+              </template>
+            </el-skeleton>
+          </el-card>
+          <el-card shadow="never" class="panel-card page-skeleton-card">
+            <el-skeleton animated>
+              <template #template>
+                <div class="page-skeleton-stack">
+                  <el-skeleton-item variant="h3" style="width: 42%" />
+                  <el-skeleton-item variant="rect" style="width: 100%; height: 200px" />
+                </div>
+              </template>
+            </el-skeleton>
+          </el-card>
+        </div>
+      </div>
+    </template>
+
+    <div class="settings-grid">
+      <el-card shadow="never" class="panel-card">
       <template #header>
         <div class="panel-header">
           <div>
@@ -784,8 +837,9 @@ onBeforeUnmount(() => {
           </el-table-column>
         </el-table>
       </el-card>
+      </div>
     </div>
-  </div>
+  </PageStateShell>
 
   <el-dialog
     v-model="purgeDialogVisible"

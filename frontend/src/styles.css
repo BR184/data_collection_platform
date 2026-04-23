@@ -144,7 +144,9 @@ button {
 .header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 116px;
 }
 
 .shell-body {
@@ -214,6 +216,7 @@ button {
 .shell-content {
   position: relative;
   padding: 12px 16px 16px;
+  min-height: calc(100vh - 64px);
   background: #f5f7fa;
 }
 
@@ -230,6 +233,8 @@ button {
   font-weight: 600;
   backdrop-filter: blur(5px);
   z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
 }
 
 .content-head {
@@ -262,6 +267,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(360px, 0.95fr);
   gap: 12px;
+  align-content: start;
 }
 
 .settings-side-panel {
@@ -283,6 +289,19 @@ button {
 .empty-stage-card > .el-card__body,
 .empty-placeholder-card > .el-card__body {
   padding: 16px !important;
+}
+
+.page-skeleton-card {
+  min-height: 420px;
+}
+
+.page-skeleton-card > .el-card__body {
+  height: 100%;
+}
+
+.page-skeleton-stack {
+  display: grid;
+  gap: 16px;
 }
 
 .stat-board {

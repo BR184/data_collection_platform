@@ -24,6 +24,7 @@ const props = withDefaults(
     expandedRowKeys?: Array<string | number>;
     expandColumnVisible?: boolean;
     rowActionsWidth?: number;
+    loadingDelay?: number;
     pageSizeOptions?: number[];
     searchPlaceholder?: string;
     emptyDescription?: string;
@@ -41,6 +42,7 @@ const props = withDefaults(
   {
     loading: false,
     keyword: '',
+    loadingDelay: 0,
     pageSizeOptions: () => [10, 20, 50, 100],
     rowKey: 'id',
     expandedRowKeys: () => [],
@@ -77,7 +79,9 @@ const emit = defineEmits<{
 
 const keywordDraft = ref(props.keyword);
 const inputFilterDrafts = ref<Record<string, string>>({});
+const displayedLoading = ref(false);
 let keywordAutoSearchTimer: number | null = null;
+let loadingTimer: number | null = null;
 
 watch(
   () => props.keyword,
@@ -112,6 +116,29 @@ const hasPrimaryFilters = computed(() => props.primaryFilters.length > 0);
 const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
 const hasActiveFilterTags = computed(() => props.activeFilterTags.length > 0);
 const hasStandaloneSearch = computed(() => props.showSearch && !props.primaryFilters.some((item) => item.key === 'keyword'));
+
+watch(
+  () => props.loading,
+  (loading) => {
+    if (loadingTimer != null) {
+      window.clearTimeout(loadingTimer);
+      loadingTimer = null;
+    }
+    if (!loading) {
+      displayedLoading.value = false;
+      return;
+    }
+    if ((props.loadingDelay ?? 0) <= 0) {
+      displayedLoading.value = true;
+      return;
+    }
+    loadingTimer = window.setTimeout(() => {
+      displayedLoading.value = true;
+      loadingTimer = null;
+    }, props.loadingDelay);
+  },
+  { immediate: true },
+);
 
 function normalizeTagList(value: unknown): RecordTableTagValue[] {
   if (!Array.isArray(value)) {
@@ -318,6 +345,10 @@ function handleStandaloneKeywordClear() {
 
 onBeforeUnmount(() => {
   clearKeywordAutoSearchTimer();
+  if (loadingTimer != null) {
+    window.clearTimeout(loadingTimer);
+    loadingTimer = null;
+  }
 });
 </script>
 
@@ -452,7 +483,7 @@ onBeforeUnmount(() => {
 
     <div class="record-table-frame">
       <el-table
-        v-loading="loading"
+        v-loading="displayedLoading"
         :data="rows"
         :row-key="rowKey"
         :expand-row-keys="expandedRowKeys"

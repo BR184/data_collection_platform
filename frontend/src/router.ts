@@ -1,20 +1,20 @@
 import { createRouter, createWebHashHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router';
 import { pageByKey, type ModuleKey, type PageKey } from './navigation';
-import { routerState } from './router-state';
+import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
 
-import StatisticBoardPage from './views/StatisticBoardPage.vue';
-import MirrorSettingsView from './views/MirrorSettingsView.vue';
-import DatabaseBrowserView from './components/DatabaseBrowserView.vue';
-import ModulePlaceholderView from './views/ModulePlaceholderView.vue';
-import NotFoundView from './views/NotFoundView.vue';
-import CollectFormView from './views/CollectFormView.vue';
-import CodeReviewIllegalRecordsView from './views/CodeReviewIllegalRecordsView.vue';
-import CodeReviewIllegalRuleConfigView from './views/CodeReviewIllegalRuleConfigView.vue';
-import ReviewDataManagementView from './views/ReviewDataManagementView.vue';
-import SystemTestIssueSearchView from './views/SystemTestIssueSearchView.vue';
-import CustomerIssueIllegalRecordsView from './views/CustomerIssueIllegalRecordsView.vue';
-import CustomerIssueRecordsView from './views/CustomerIssueRecordsView.vue';
-import TestingPhaseDefinitionView from './views/TestingPhaseDefinitionView.vue';
+const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
+const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
+const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
+const ModulePlaceholderView = () => import('./views/ModulePlaceholderView.vue');
+const NotFoundView = () => import('./views/NotFoundView.vue');
+const CollectFormView = () => import('./views/CollectFormView.vue');
+const CodeReviewIllegalRecordsView = () => import('./views/CodeReviewIllegalRecordsView.vue');
+const CodeReviewIllegalRuleConfigView = () => import('./views/CodeReviewIllegalRuleConfigView.vue');
+const ReviewDataManagementView = () => import('./views/ReviewDataManagementView.vue');
+const SystemTestIssueSearchView = () => import('./views/SystemTestIssueSearchView.vue');
+const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIllegalRecordsView.vue');
+const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.vue');
+const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -547,9 +547,17 @@ const router = createRouter({
   },
 });
 
+function shouldShowGlobalRouteLoading(to: RouteLocationNormalized, from: RouteLocationNormalized) {
+  return from.matched.length > 0 && to.path !== from.path;
+}
+
 router.beforeEach((to, from) => {
-  routerState.routeLoading = true;
-  routerState.routeError = '';
+  clearRouteError();
+  if (shouldShowGlobalRouteLoading(to, from)) {
+    beginRouteLoading();
+  } else {
+    endRouteLoading();
+  }
   const normalizedQuery = normalizeQuery(to, from);
   if (normalizedQuery) {
     return {
@@ -563,12 +571,12 @@ router.beforeEach((to, from) => {
 });
 
 router.afterEach(() => {
-  routerState.routeLoading = false;
+  endRouteLoading();
 });
 
 router.onError((error) => {
-  routerState.routeLoading = false;
-  routerState.routeError = error instanceof Error ? error.message : '页面加载失败，请稍后重试。';
+  endRouteLoading();
+  setRouteError(error instanceof Error ? error.message : '页面加载失败，请稍后重试。');
 });
 
 export default router;

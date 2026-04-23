@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import PageStateShell from '../components/base/PageStateShell.vue';
 import {
   api,
   type CustomerIssueRecordFilterOptionsResponse,
@@ -33,6 +34,8 @@ const {
 
 const rows = ref<CustomerIssueRecordRowResponse[]>([]);
 const total = ref(0);
+const pageInitialized = ref(false);
+const filterOptionsLoaded = ref(false);
 const advancedVisible = ref(false);
 const detailVisible = ref(false);
 const ruleExplanationVisible = ref(false);
@@ -55,6 +58,8 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
 const topic = computed<CustomerIssueRecordTopic>(() =>
   route.meta.pageKey === 'customer-issues-delay-issues' ? 'delay' : 'cc-product',
 );
+const projectId = computed(() => String(route.query.projectId ?? ''));
+const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const isDelayTopic = computed(() => topic.value === 'delay');
 const pageTitle = computed(() => (isDelayTopic.value ? '延期问题明细' : 'CC_PRODUCT 议题明细'));
 const pageDescription = computed(() =>
@@ -283,7 +288,7 @@ async function loadFilterOptions() {
 async function loadRuleExplanation() {
   ruleExplanationLoading.value = true;
   try {
-    ruleExplanation.value = await api.getCustomerIssueRecordRuleExplanation(topic.value, route.query.projectId as string | undefined);
+    ruleExplanation.value = await api.getCustomerIssueRecordRuleExplanation(topic.value, projectId.value || undefined);
   } catch {
     ruleExplanation.value = createFallbackRuleExplanation('规则说明加载失败，请稍后重试。');
   } finally {
@@ -322,15 +327,30 @@ async function loadTableData() {
 
 bindLoader(async () => {
   try {
-    await loadFilterOptions();
     await loadTableData();
-    await loadRuleExplanation();
+    pageInitialized.value = true;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}加载失败`);
     rows.value = [];
     total.value = 0;
+    pageInitialized.value = true;
   }
 });
+
+watch(
+  [topic, projectId],
+  async () => {
+    ruleExplanation.value = null;
+    try {
+      await loadFilterOptions();
+      filterOptionsLoaded.value = true;
+    } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}筛选项加载失败`);
+      filterOptionsLoaded.value = true;
+    }
+  },
+  { immediate: true },
+);
 
 async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
   if (payload.key === 'updatedAtRange') {
@@ -407,67 +427,86 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
-function openRuleExplanation() {
-  if (!ruleExplanation.value) {
-    ruleExplanation.value = createFallbackRuleExplanation('规则说明暂未加载完成，请稍后再试。');
-  }
+async function openRuleExplanation() {
   ruleExplanationVisible.value = true;
+  if (!ruleExplanation.value && !ruleExplanationLoading.value) {
+    await loadRuleExplanation();
+  }
 }
 </script>
 
 <template>
-  <section class="customer-record-page">
-    <BaseRecordTable
-      :columns="columns"
-      :rows="tableRows"
-      :loading="isTableLoading"
-      :keyword-auto-search="true"
-      :page="page"
-      :page-size="pageSize"
-      :total="total"
-      :primary-filters="primaryFilters"
-      :advanced-filters="advancedFilters"
-      :filter-values="filterValues"
-      :active-filter-tags="activeFilterTags"
-      :advanced-visible="advancedVisible"
-      :show-search="false"
-      :show-refresh="false"
-      :empty-description="emptyDescription"
-      @filter-change="handleFilterChange"
-      @reset="handleReset"
-      @query="handleQuery"
-      @clear-filter="handleClearFilter"
-      @update:advanced-visible="advancedVisible = $event"
-      @size-change="handleSizeChange"
-      @current-change="handleCurrentChange"
-      @sort-change="handleSortChange"
-    >
-      <template #toolbar-prefix>
-        <div class="customer-record-toolbar-meta">
-          <div class="customer-record-toolbar-title">{{ pageTitle }}</div>
-          <div class="customer-record-toolbar-desc">{{ pageDescription }}</div>
-        </div>
-      </template>
+  <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
+    <template #skeleton>
+      <section class="customer-record-page">
+        <el-card shadow="never" class="panel-card page-skeleton-card">
+          <el-skeleton animated>
+            <template #template>
+              <div class="page-skeleton-stack">
+                <el-skeleton-item variant="h3" style="width: 30%" />
+                <el-skeleton-item variant="text" style="width: 58%" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 56px" />
+                <el-skeleton-item variant="rect" style="width: 100%; height: 420px" />
+              </div>
+            </template>
+          </el-skeleton>
+        </el-card>
+      </section>
+    </template>
 
-      <template #toolbar-actions>
-        <div class="customer-record-toolbar-actions">
-          <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
-          <el-button
-            plain
-            size="small"
-            :icon="InfoFilled"
-            :loading="ruleExplanationLoading"
-            @click="openRuleExplanation"
-          >
-            规则说明
-          </el-button>
-        </div>
-      </template>
+    <section class="customer-record-page">
+      <BaseRecordTable
+        :columns="columns"
+        :rows="tableRows"
+        :loading="isTableLoading"
+        :loading-delay="180"
+        :keyword-auto-search="true"
+        :page="page"
+        :page-size="pageSize"
+        :total="total"
+        :primary-filters="primaryFilters"
+        :advanced-filters="advancedFilters"
+        :filter-values="filterValues"
+        :active-filter-tags="activeFilterTags"
+        :advanced-visible="advancedVisible"
+        :show-search="false"
+        :show-refresh="false"
+        :empty-description="emptyDescription"
+        @filter-change="handleFilterChange"
+        @reset="handleReset"
+        @query="handleQuery"
+        @clear-filter="handleClearFilter"
+        @update:advanced-visible="advancedVisible = $event"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+        @sort-change="handleSortChange"
+      >
+        <template #toolbar-prefix>
+          <div class="customer-record-toolbar-meta">
+            <div class="customer-record-toolbar-title">{{ pageTitle }}</div>
+            <div class="customer-record-toolbar-desc">{{ pageDescription }}</div>
+          </div>
+        </template>
 
-      <template #row-actions="{ row }">
-        <el-button class="customer-record-detail-trigger" link @click="openDetailDrawer(row)">查看详情</el-button>
-      </template>
-    </BaseRecordTable>
+        <template #toolbar-actions>
+          <div class="customer-record-toolbar-actions">
+            <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
+            <el-button
+              plain
+              size="small"
+              :icon="InfoFilled"
+              :loading="ruleExplanationLoading"
+              @click="openRuleExplanation"
+            >
+              规则说明
+            </el-button>
+          </div>
+        </template>
+
+        <template #row-actions="{ row }">
+          <el-button class="customer-record-detail-trigger" link @click="openDetailDrawer(row)">查看详情</el-button>
+        </template>
+      </BaseRecordTable>
 
     <el-drawer v-model="detailVisible" size="560px" destroy-on-close class="customer-record-drawer">
       <template #header>
@@ -550,7 +589,8 @@ function openRuleExplanation() {
         </template>
       </div>
     </el-drawer>
-  </section>
+    </section>
+  </PageStateShell>
 </template>
 
 <style scoped>
