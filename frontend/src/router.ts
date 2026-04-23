@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router';
-import { buildPageRouteMeta, getPagePath, type ModuleKey, type PageKey } from './feature-manifest';
+import { buildPageRouteMeta, buildSpecialRouteMeta, getPagePath, type ModuleKey, type PageKey } from './feature-manifest';
 import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
 
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
@@ -53,13 +53,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/external/code-review-form',
     component: CollectFormView,
-    meta: buildPageRouteMeta('code-review-illegal-records', {
-      title: '代码走查表单',
-      description: '通过独立链接打开的代码走查表单页面。',
-      standalone: true,
-      allowedQueryKeys: ['gitlabBaseUrl', 'projectId', 'mrIid'],
-      persistedQueryKeys: [],
-    }),
+    meta: buildSpecialRouteMeta('external-code-review-form'),
   },
   {
     ...buildShellRoute('quality-board-home', StatisticBoardPage),
@@ -79,10 +73,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/code-review/illegal-records/rule-config',
     component: CodeReviewIllegalRuleConfigView,
-    meta: buildPageRouteMeta('code-review-illegal-records', {
-      title: '代码走查规则配置',
-      description: '配置当前用户自己的代码走查判定规则，并即时查看结果预览。',
-    }),
+    meta: buildSpecialRouteMeta('code-review-illegal-rule-config'),
   },
   buildPlaceholderRoute('code-review-multi-board'),
   buildPlaceholderRoute('integration-test-home'),
@@ -136,12 +127,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/:pathMatch(.*)*',
     component: NotFoundView,
-    meta: {
-      moduleKey: 'quality-board',
-      pageKey: 'quality-board-home',
-      title: '页面不存在',
-      description: '访问的地址无效，已为你保留平台基础壳子。',
-    },
+    meta: buildSpecialRouteMeta('not-found'),
   },
 ];
 

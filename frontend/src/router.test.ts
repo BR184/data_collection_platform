@@ -34,4 +34,44 @@ describe('router query normalization', () => {
 
     expect(normalizeQuery(to)).toBeNull();
   });
+
+  it('keeps persisted projectId but drops unrelated module query params when switching modules', () => {
+    const from = router.resolve({
+      path: '/review-data/home',
+      query: {
+        projectId: '1001',
+        keyword: 'alpha',
+        reviewType: '专题评审',
+      },
+    });
+    const to = router.resolve({
+      path: '/customer-issues/home',
+      query: {
+        projectId: '1001',
+        keyword: 'should-drop',
+      },
+    });
+
+    expect(normalizeQuery(to, from)).toEqual({
+      projectId: '1001',
+    });
+  });
+
+  it('drops non-whitelisted query params on special standalone routes', () => {
+    const to = router.resolve({
+      path: '/external/code-review-form',
+      query: {
+        gitlabBaseUrl: 'https://gitlab.example.com',
+        projectId: '2002',
+        mrIid: '123',
+        keyword: 'should-drop',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      gitlabBaseUrl: 'https://gitlab.example.com',
+      projectId: '2002',
+      mrIid: '123',
+    });
+  });
 });

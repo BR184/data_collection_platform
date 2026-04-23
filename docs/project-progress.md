@@ -59,7 +59,9 @@
   - removed the `StatisticBoardPage.vue` local `pageKey -> boardKey` hardcoded branch chain and switched it to the shared manifest
   - moved shell module/page metadata into `feature-manifest.ts` so `navigation.ts` is now only a compatibility re-export
   - switched `App.vue` and the regular shell routes to consume the manifest directly instead of duplicating module/page definitions
-  - kept the external collect-form route and not-found route as explicit local exceptions because they are not regular shell pages
+  - added explicit special-route contracts for the external collect form, rule-config page, and not-found page so their query boundaries no longer live only inside `router.ts`
+  - added router tests for persisted cross-module query behavior and special-route whitelist behavior
+  - completed the main phase-five goal of converging page metadata, query contracts, and route-level exceptions into a shared manifest-driven contract layer
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

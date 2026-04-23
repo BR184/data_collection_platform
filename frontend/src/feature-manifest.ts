@@ -68,6 +68,18 @@ export interface PageRouteContract {
   standalone?: boolean;
 }
 
+export type SpecialRouteKey = 'external-code-review-form' | 'code-review-illegal-rule-config' | 'not-found';
+
+export interface RouteMetaOverrides extends PageRouteContract {
+  title: string;
+  description: string;
+}
+
+interface SpecialRouteContract {
+  basePageKey: PageKey;
+  overrides: RouteMetaOverrides;
+}
+
 export const modules: ShellModule[] = [
   {
     key: 'quality-board',
@@ -499,8 +511,42 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   },
 };
 
+const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> = {
+  'external-code-review-form': {
+    basePageKey: 'code-review-illegal-records',
+    overrides: {
+      title: '代码走查表单',
+      description: '通过独立链接打开的代码走查表单页面。',
+      standalone: true,
+      allowedQueryKeys: ['gitlabBaseUrl', 'projectId', 'mrIid'],
+      persistedQueryKeys: [],
+    },
+  },
+  'code-review-illegal-rule-config': {
+    basePageKey: 'code-review-illegal-records',
+    overrides: {
+      title: '代码走查规则配置',
+      description: '配置当前用户自己的代码走查判定规则，并即时查看结果预览。',
+    },
+  },
+  'not-found': {
+    basePageKey: 'quality-board-home',
+    overrides: {
+      title: '页面不存在',
+      description: '访问的地址无效，已为你保留平台基础壳子。',
+      allowedQueryKeys: [],
+      allowedQueryPrefixes: [],
+      persistedQueryKeys: [],
+    },
+  },
+};
+
 export function getPageRouteContract(pageKey: PageKey) {
   return pageRouteContractByKey[pageKey] ?? {};
+}
+
+export function getSpecialRouteContract(routeKey: SpecialRouteKey) {
+  return specialRouteContractByKey[routeKey];
 }
 
 export function getPagePath(pageKey: PageKey) {
@@ -520,7 +566,7 @@ export function getStatisticBoardKey(pageKey?: PageKey | null) {
 
 export function buildPageRouteMeta(
   pageKey: PageKey,
-  overrides: Partial<PageRouteContract & { title: string; description: string }> = {},
+  overrides: Partial<RouteMetaOverrides> = {},
 ) {
   const page = pageByKey.get(pageKey);
   const moduleKey = getPageModuleKey(pageKey);
@@ -541,4 +587,9 @@ export function buildPageRouteMeta(
     persistedQueryKeys: overrides.persistedQueryKeys ?? contract.persistedQueryKeys,
     standalone: overrides.standalone ?? contract.standalone,
   };
+}
+
+export function buildSpecialRouteMeta(routeKey: SpecialRouteKey) {
+  const routeContract = getSpecialRouteContract(routeKey);
+  return buildPageRouteMeta(routeContract.basePageKey, routeContract.overrides);
 }
