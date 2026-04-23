@@ -43,6 +43,10 @@
   - kept `BaseRecordTable` quick keyword search and refresh actions enabled
   - added backend `filterGroup` support for customer-issue record list APIs while preserving existing legacy query parameters
   - shared customer-issue condition field definitions through `views/customer-issues/customer-issue-condition-fields.ts`
+- Continued phase-four page-controller convergence:
+  - added `useConditionFilterGroupState` to centralize filter-draft initialization, route sync, and query-patch generation
+  - migrated code-review illegal records to the shared condition-filter state flow without changing its page contract
+  - migrated review-data management to the same condition-filter state flow while keeping keyword search and summary loading behavior stable
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

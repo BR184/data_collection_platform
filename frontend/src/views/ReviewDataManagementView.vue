@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   ElButton,
   ElDescriptions,
@@ -30,21 +30,9 @@ import type {
   StatisticFilterField,
   StatisticFilterGroup,
 } from '../types/api';
+import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import {
-  buildFilterGroupFromRouteQuery,
-  buildFilterQueryPatch,
-  buildResetFilterQueryPatch,
-  mergeRouteQuery,
-} from '../components/statistic-board-route-query';
-import {
-  createEmptyFilterGroup,
-  normalizeFilterDraftGroup,
-  replaceFilterDraftGroup,
-  resetFilterDraftGroup,
-  sanitizeFilterDraftGroup,
-  type StatisticFilterDraftGroup,
-} from '../components/statistic-board-filters';
+import { mergeRouteQuery } from '../components/statistic-board-route-query';
 import {
   buildProblemItemTableRows,
   buildReviewDataExportCsv,
@@ -105,7 +93,6 @@ const problemForm = ref<ReviewProblemItemFormModel>(createEmptyProblemItemForm()
 const expandedRowKeys = ref<Array<number | string>>([]);
 const problemItemsMap = ref<Record<number, ReviewDataProblemItemResponse[]>>({});
 const problemLoadingMap = ref<Record<number, boolean>>({});
-const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
@@ -184,6 +171,16 @@ const reviewFilterFields = computed<StatisticFilterField[]>(() => [
     operators: ['day', 'before', 'after', 'between'],
   },
 ]);
+
+const {
+  filterDraft,
+  initializeFromQuery,
+  buildFilterPayload,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+} = useConditionFilterGroupState(reviewFilterFields);
+
 const appliedFilterGroup = ref<StatisticFilterGroup | null>(null);
 const summaryCards = computed(() => buildReviewDataSummaryCards(summary.value));
 const tableRows = computed(() => buildReviewDataTableRows(rows.value));
@@ -224,9 +221,8 @@ function buildReviewDataRecordQueryParams(overrides: { page?: number; size?: num
 }
 
 function syncFilterDraftFromRoute() {
-  const nextDraft = normalizeFilterDraftGroup(buildFilterGroupFromRouteQuery(route.query), reviewFilterFields.value);
-  replaceFilterDraftGroup(filterDraft, nextDraft);
-  appliedFilterGroup.value = sanitizeFilterDraftGroup(nextDraft);
+  initializeFromQuery(route.query);
+  appliedFilterGroup.value = buildFilterPayload();
 }
 
 async function handleRefresh() {
@@ -252,11 +248,11 @@ async function loadProblemItems(recordId: number) {
 }
 
 async function handleReset() {
-  resetFilterDraftGroup(filterDraft);
+  resetDraft();
   appliedFilterGroup.value = null;
   await patchQuery({
     keyword: '',
-    ...buildResetFilterQueryPatch(route.query),
+    ...buildResetQueryPatch(route.query),
     title: '',
     projectName: '',
     moduleName: '',
@@ -271,10 +267,10 @@ async function handleReset() {
 }
 
 async function handleQuery(nextKeyword = keyword.value) {
-  appliedFilterGroup.value = sanitizeFilterDraftGroup(filterDraft);
+  appliedFilterGroup.value = buildFilterPayload();
   const patch = {
     keyword: nextKeyword.trim(),
-    ...buildFilterQueryPatch(route.query, filterDraft),
+    ...buildApplyQueryPatch(route.query),
     page: 1,
   };
   const nextQuery = mergeRouteQuery(route.query, patch);

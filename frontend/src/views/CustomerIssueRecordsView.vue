@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
@@ -16,20 +16,8 @@ import type {
 import { buildCustomerIssueRecordConditionFields } from './customer-issues/customer-issue-condition-fields';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
-import {
-  buildFilterGroupFromRouteQuery,
-  buildFilterQueryPatch,
-  buildResetFilterQueryPatch,
-} from '../components/statistic-board-route-query';
-import {
-  createEmptyFilterGroup,
-  normalizeFilterDraftGroup,
-  replaceFilterDraftGroup,
-  resetFilterDraftGroup,
-  sanitizeFilterDraftGroup,
-  type StatisticFilterDraftGroup,
-} from '../components/statistic-board-filters';
+import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
+import type { RecordTableColumn } from '../types/record-table';
 
 const {
   route,
@@ -56,7 +44,6 @@ const filterOptionsLoaded = ref(false);
 const advancedVisible = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
-const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
@@ -230,11 +217,15 @@ const conditionFilterFields = computed<StatisticFilterField[]>(() =>
   buildCustomerIssueRecordConditionFields(filterOptions.value),
 );
 
-const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
-  filterDraft.conditions.length
-    ? [{ key: 'filterGroup', label: '条件筛选', value: `${filterDraft.conditions.length} 条` }]
-    : [],
-);
+const {
+  filterDraft,
+  activeFilterTags: conditionActiveFilterTags,
+  initializeFromQuery,
+  buildFilterPayload,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+} = useConditionFilterGroupState(conditionFilterFields);
 
 const columns = computed<RecordTableColumn[]>(() => [
   { key: 'issueIid', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
@@ -316,16 +307,6 @@ async function loadFilterOptions() {
   filterOptions.value = await api.getCustomerIssueRecordFilterOptions(topic.value, route.query.projectId as string | undefined);
 }
 
-function initializeFiltersFromRoute() {
-  const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
-  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, conditionFilterFields.value);
-  replaceFilterDraftGroup(filterDraft, nextDraft);
-}
-
-function buildFilterPayload() {
-  return sanitizeFilterDraftGroup(filterDraft);
-}
-
 async function loadTableData() {
   const response = await api.getCustomerIssueRecords({
     topic: topic.value,
@@ -358,7 +339,7 @@ async function loadTableData() {
 
 bindLoader(async () => {
   try {
-    initializeFiltersFromRoute();
+    initializeFromQuery(route.query);
     await loadTableData();
     pageInitialized.value = true;
   } catch (error) {
@@ -399,9 +380,9 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleReset() {
-  resetFilterDraftGroup(filterDraft);
+  resetDraft();
   await patchQuery({
-    ...buildResetFilterQueryPatch(route.query),
+    ...buildResetQueryPatch(route.query),
     page: 1,
     sortBy: 'updatedAt',
     sortOrder: 'desc',
@@ -426,7 +407,7 @@ async function handleReset() {
 
 async function handleQuery() {
   await patchQuery({
-    ...buildFilterQueryPatch(route.query, filterDraft),
+    ...buildApplyQueryPatch(route.query),
     page: 1,
     issueIid: null,
     title: null,
@@ -472,8 +453,8 @@ async function handleSortChange(payload: { prop: string; order: 'ascending' | 'd
 
 async function handleClearFilter(key: string) {
   if (key === 'filterGroup') {
-    resetFilterDraftGroup(filterDraft);
-    await patchQuery({ ...buildResetFilterQueryPatch(route.query), page: 1 });
+    resetDraft();
+    await patchQuery({ ...buildResetQueryPatch(route.query), page: 1 });
     return;
   }
   if (key === 'updatedAtRange') {

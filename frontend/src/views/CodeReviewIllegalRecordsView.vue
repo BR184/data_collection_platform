@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -14,22 +14,10 @@ import type {
   StatisticFilterField,
   StatisticBoardRuleExplanationResponse,
 } from '../types/api';
+import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';
-import {
-  createEmptyFilterGroup,
-  normalizeFilterDraftGroup,
-  replaceFilterDraftGroup,
-  resetFilterDraftGroup,
-  sanitizeFilterDraftGroup,
-  type StatisticFilterDraftGroup,
-} from '../components/statistic-board-filters';
-import {
-  buildFilterGroupFromRouteQuery,
-  buildFilterQueryPatch,
-  buildResetFilterQueryPatch,
-} from '../components/statistic-board-route-query';
 import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
 import {
   loadStoredCodeReviewRuleConfig,
@@ -69,7 +57,6 @@ const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const syncStatus = ref<RealtimeWorkspaceStatusResponse | null>(null);
 const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
-const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>({
   requestTypes: [{ label: '合并请求', value: 'merge_request' }],
@@ -226,6 +213,15 @@ const conditionFilterFields = computed<StatisticFilterField[]>(() => [
   numberField('defectCount', '缺陷数量'),
   numberField('addedLines', '新增代码行数'),
 ]);
+
+const {
+  filterDraft,
+  initializeFromQuery,
+  buildFilterPayload,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+} = useConditionFilterGroupState(conditionFilterFields);
 
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   const values = filterValues.value;
@@ -386,16 +382,6 @@ async function loadFilterOptions() {
   syncAppliedRuleConfig();
 }
 
-function initializeFiltersFromRoute() {
-  const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
-  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, conditionFilterFields.value);
-  replaceFilterDraftGroup(filterDraft, nextDraft);
-}
-
-function buildFilterPayload() {
-  return sanitizeFilterDraftGroup(filterDraft);
-}
-
 async function loadSyncStatus() {
   try {
     syncStatus.value = await api.getCodeReviewIllegalRecordRealtimeStatus();
@@ -444,7 +430,7 @@ async function loadTableData() {
 bindLoader(async () => {
   try {
     await loadFilterOptions();
-    initializeFiltersFromRoute();
+    initializeFromQuery(route.query);
     await loadTableData();
     await loadSyncStatus();
     await loadRuleExplanation();
@@ -473,9 +459,9 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleReset() {
-  resetFilterDraftGroup(filterDraft);
+  resetDraft();
   await patchQuery({
-    ...buildResetFilterQueryPatch(route.query),
+    ...buildResetQueryPatch(route.query),
     page: 1,
     sortBy: 'mergedAt',
     sortOrder: 'desc',
@@ -496,7 +482,7 @@ async function handleReset() {
 
 async function handleQuery() {
   await patchQuery({
-    ...buildFilterQueryPatch(route.query, filterDraft),
+    ...buildApplyQueryPatch(route.query),
     page: 1,
     keyword: null,
     repositoryName: null,
