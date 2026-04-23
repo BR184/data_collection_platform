@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { InfoFilled } from '@element-plus/icons-vue';
+import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -507,11 +507,10 @@ function openDetailDrawer(row: Record<string, unknown>) {
         :keyword="String(route.query.keyword ?? '')"
         search-placeholder="输入关键字快速搜索"
         :show-search="true"
-        :show-refresh="true"
+        :show-refresh="false"
         empty-description="当前筛选条件下没有客户问题非法数据。"
         @reset="handleReset"
         @search="handleKeywordSearch"
-        @refresh="handleRefresh"
         @query="handleQuery"
         @clear-filter="handleClearFilter"
         @size-change="handleSizeChange"
@@ -526,14 +525,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
           />
         </template>
 
-        <template #toolbar-prefix>
-          <div class="customer-illegal-toolbar-meta">
-            <div class="customer-illegal-toolbar-title">缺陷非法数据明细</div>
-            <div class="customer-illegal-toolbar-desc">客户问题范围内由事实层判定出的异常样本</div>
-          </div>
-        </template>
-
-        <template #toolbar-actions>
+        <template #primary-actions>
           <div class="customer-illegal-toolbar-actions">
             <el-tag effect="plain" type="warning">当前 {{ total }} 条</el-tag>
             <el-button
@@ -545,6 +537,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
             >
               规则说明
             </el-button>
+            <el-button plain size="small" :icon="Refresh" @click="handleRefresh">刷新</el-button>
           </div>
         </template>
 
@@ -640,22 +633,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
 .customer-illegal-page {
   display: grid;
   gap: 12px;
-}
-
-.customer-illegal-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.customer-illegal-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.customer-illegal-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.48);
 }
 
 .customer-illegal-toolbar-actions,

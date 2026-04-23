@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { InfoFilled } from '@element-plus/icons-vue';
+import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -77,11 +77,6 @@ const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const isDelayTopic = computed(() => topic.value === 'delay');
 const pageTitle = computed(() => (isDelayTopic.value ? '延期问题明细' : 'CC_PRODUCT 议题明细'));
-const pageDescription = computed(() =>
-  isDelayTopic.value
-    ? '客户问题范围内已申请延期、响应延期或解决延期的议题'
-    : '客户问题范围内的 CC_PRODUCT 议题清单',
-);
 const emptyDescription = computed(() =>
   isDelayTopic.value ? '当前筛选条件下没有延期问题。' : '当前筛选条件下没有 CC_PRODUCT 议题。',
 );
@@ -531,11 +526,10 @@ function openDetailDrawer(row: Record<string, unknown>) {
         :keyword="String(route.query.keyword ?? '')"
         search-placeholder="输入关键字快速搜索"
         :show-search="true"
-        :show-refresh="true"
+        :show-refresh="false"
         :empty-description="emptyDescription"
         @reset="handleReset"
         @search="handleKeywordSearch"
-        @refresh="handleRefresh"
         @query="handleQuery"
         @clear-filter="handleClearFilter"
         @size-change="handleSizeChange"
@@ -550,14 +544,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
           />
         </template>
 
-        <template #toolbar-prefix>
-          <div class="customer-record-toolbar-meta">
-            <div class="customer-record-toolbar-title">{{ pageTitle }}</div>
-            <div class="customer-record-toolbar-desc">{{ pageDescription }}</div>
-          </div>
-        </template>
-
-        <template #toolbar-actions>
+        <template #primary-actions>
           <div class="customer-record-toolbar-actions">
             <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
             <el-button
@@ -569,6 +556,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
             >
               规则说明
             </el-button>
+            <el-button plain size="small" :icon="Refresh" @click="handleRefresh">刷新</el-button>
           </div>
         </template>
 
@@ -666,22 +654,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
 .customer-record-page {
   display: grid;
   gap: 12px;
-}
-
-.customer-record-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.customer-record-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.customer-record-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.48);
 }
 
 .customer-record-toolbar-actions,
