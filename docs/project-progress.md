@@ -49,7 +49,10 @@
   - migrated review-data management to the same condition-filter state flow while keeping keyword search and summary loading behavior stable
   - removed the leftover legacy filter-state shells from customer-issue issue-record and illegal-record pages
   - merged code-review illegal-record active filter tags into the shared condition-filter state while preserving personal rule tags
+  - added `useRecordPageController` to centralize reset / query / keyword search / refresh / paging / sorting / filter-clear actions for condition-filtered record pages
+  - migrated customer-issue issue records, customer-issue illegal records, and code-review illegal records to the shared record-page controller
   - finished the phase-four page-controller convergence on the current reusable record-table pages without changing backend contracts
+  - kept `ReviewDataManagementView` and `SystemTestIssueSearchView` as intentional special cases for now because they still carry expanded-row editing flow or legacy non-condition-filter interaction models
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

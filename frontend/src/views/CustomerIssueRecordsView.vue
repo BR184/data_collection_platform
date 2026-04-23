@@ -17,6 +17,7 @@ import { buildCustomerIssueRecordConditionFields } from './customer-issues/custo
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
+import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableColumn } from '../types/record-table';
 
 const {
@@ -91,6 +92,65 @@ const {
   buildApplyQueryPatch,
   buildResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
+
+const {
+  handleReset,
+  handleQuery,
+  handleKeywordSearch,
+  handleRefresh,
+  handleSizeChange,
+  handleCurrentChange,
+  handleSortChange,
+  handleClearFilter,
+} = useRecordPageController({
+  getRouteQuery: () => route.query,
+  patchQuery,
+  loadTableData,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+  defaultSortBy: 'updatedAt',
+  defaultSortOrder: 'desc',
+  resetClearKeys: [
+    'keyword',
+    'issueIid',
+    'title',
+    'projectName',
+    'moduleName',
+    'reasonCategory',
+    'severityLevel',
+    'priorityLevel',
+    'issueState',
+    'bugStatus',
+    'category',
+    'milestoneTitle',
+    'createdAtStart',
+    'createdAtEnd',
+    'updatedAtStart',
+    'updatedAtEnd',
+  ],
+  queryClearKeys: [
+    'issueIid',
+    'title',
+    'projectName',
+    'moduleName',
+    'reasonCategory',
+    'severityLevel',
+    'priorityLevel',
+    'issueState',
+    'bugStatus',
+    'category',
+    'milestoneTitle',
+    'createdAtStart',
+    'createdAtEnd',
+    'updatedAtStart',
+    'updatedAtEnd',
+  ],
+  rangeKeys: {
+    updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
+    createdAtRange: { startKey: 'createdAtStart', endKey: 'createdAtEnd' },
+  },
+});
 
 const columns = computed<RecordTableColumn[]>(() => [
   { key: 'issueIid', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
@@ -217,95 +277,6 @@ watch(
   },
   { immediate: true },
 );
-
-async function handleReset() {
-  resetDraft();
-  await patchQuery({
-    ...buildResetQueryPatch(route.query),
-    page: 1,
-    sortBy: 'updatedAt',
-    sortOrder: 'desc',
-    keyword: null,
-    issueIid: null,
-    title: null,
-    projectName: null,
-    moduleName: null,
-    reasonCategory: null,
-    severityLevel: null,
-    priorityLevel: null,
-    issueState: null,
-    bugStatus: null,
-    category: null,
-    milestoneTitle: null,
-    createdAtStart: null,
-    createdAtEnd: null,
-    updatedAtStart: null,
-    updatedAtEnd: null,
-  });
-}
-
-async function handleQuery() {
-  await patchQuery({
-    ...buildApplyQueryPatch(route.query),
-    page: 1,
-    issueIid: null,
-    title: null,
-    projectName: null,
-    moduleName: null,
-    reasonCategory: null,
-    severityLevel: null,
-    priorityLevel: null,
-    issueState: null,
-    bugStatus: null,
-    category: null,
-    milestoneTitle: null,
-    createdAtStart: null,
-    createdAtEnd: null,
-    updatedAtStart: null,
-    updatedAtEnd: null,
-  });
-}
-
-async function handleKeywordSearch(nextKeyword: string) {
-  await patchQuery({ page: 1, keyword: nextKeyword || null });
-}
-
-async function handleRefresh() {
-  await loadTableData();
-}
-
-async function handleSizeChange(nextSize: number) {
-  await patchQuery({ pageSize: nextSize, page: 1 });
-}
-
-async function handleCurrentChange(nextPage: number) {
-  await patchQuery({ page: nextPage });
-}
-
-async function handleSortChange(payload: { prop: string; order: 'ascending' | 'descending' | null }) {
-  await patchQuery({
-    sortBy: payload.prop || 'updatedAt',
-    sortOrder: payload.order === 'ascending' ? 'asc' : 'desc',
-    page: 1,
-  });
-}
-
-async function handleClearFilter(key: string) {
-  if (key === 'filterGroup') {
-    resetDraft();
-    await patchQuery({ ...buildResetQueryPatch(route.query), page: 1 });
-    return;
-  }
-  if (key === 'updatedAtRange') {
-    await patchQuery({ page: 1, updatedAtStart: null, updatedAtEnd: null });
-    return;
-  }
-  if (key === 'createdAtRange') {
-    await patchQuery({ page: 1, createdAtStart: null, createdAtEnd: null });
-    return;
-  }
-  await patchQuery({ page: 1, [key]: null });
-}
 
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as CustomerIssueRecordRowResponse) ?? null;

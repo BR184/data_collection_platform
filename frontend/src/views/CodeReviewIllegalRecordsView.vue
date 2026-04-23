@@ -16,6 +16,7 @@ import type {
 } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableActiveFilterTag, RecordTableColumn } from '../types/record-table';
 import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';
 import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
@@ -138,6 +139,54 @@ const {
   buildApplyQueryPatch,
   buildResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
+
+const {
+  handleReset,
+  handleQuery,
+  handleSizeChange,
+  handleCurrentChange,
+  handleSortChange,
+  handleClearFilter: baseHandleClearFilter,
+} = useRecordPageController({
+  getRouteQuery: () => route.query,
+  patchQuery,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+  defaultSortBy: 'mergedAt',
+  defaultSortOrder: 'desc',
+  resetClearKeys: [
+    'keyword',
+    'repositoryName',
+    'mergedAtStart',
+    'mergedAtEnd',
+    'projectName',
+    'requestType',
+    'targetBranch',
+    'mergedBy',
+    'moduleName',
+    'illegalType',
+    'mergeRequestIid',
+    'owner',
+  ],
+  queryClearKeys: [
+    'keyword',
+    'repositoryName',
+    'mergedAtStart',
+    'mergedAtEnd',
+    'projectName',
+    'requestType',
+    'targetBranch',
+    'mergedBy',
+    'moduleName',
+    'illegalType',
+    'mergeRequestIid',
+    'owner',
+  ],
+  rangeKeys: {
+    mergedAtRange: { startKey: 'mergedAtStart', endKey: 'mergedAtEnd' },
+  },
+});
 
 const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   const tags = [...conditionFilterGroupTags.value];
@@ -337,63 +386,6 @@ bindLoader(async () => {
   }
 });
 
-async function handleReset() {
-  resetDraft();
-  await patchQuery({
-    ...buildResetQueryPatch(route.query),
-    page: 1,
-    sortBy: 'mergedAt',
-    sortOrder: 'desc',
-    keyword: null,
-    repositoryName: null,
-    mergedAtStart: null,
-    mergedAtEnd: null,
-    projectName: null,
-    requestType: null,
-    targetBranch: null,
-    mergedBy: null,
-    moduleName: null,
-    illegalType: null,
-    mergeRequestIid: null,
-    owner: null,
-  });
-}
-
-async function handleQuery() {
-  await patchQuery({
-    ...buildApplyQueryPatch(route.query),
-    page: 1,
-    keyword: null,
-    repositoryName: null,
-    mergedAtStart: null,
-    mergedAtEnd: null,
-    projectName: null,
-    requestType: null,
-    targetBranch: null,
-    mergedBy: null,
-    moduleName: null,
-    illegalType: null,
-    mergeRequestIid: null,
-    owner: null,
-  });
-}
-
-async function handleSizeChange(nextSize: number) {
-  await patchQuery({ pageSize: nextSize, page: 1 });
-}
-
-async function handleCurrentChange(nextPage: number) {
-  await patchQuery({ page: nextPage });
-}
-
-async function handleSortChange(payload: { prop: string; order: 'ascending' | 'descending' | null }) {
-  await patchQuery({
-    sortBy: payload.prop || 'mergedAt',
-    sortOrder: payload.order === 'ascending' ? 'asc' : 'desc',
-    page: 1,
-  });
-}
-
 async function handleClearFilter(key: string) {
   if (key === 'personalRuleConfig') {
     const stored = loadStoredCodeReviewRuleConfig();
@@ -415,7 +407,7 @@ async function handleClearFilter(key: string) {
     await patchQuery({ page: 1, mergedAtStart: null, mergedAtEnd: null });
     return;
   }
-  await patchQuery({ page: 1, [key]: null });
+  await baseHandleClearFilter(key);
 }
 
 function openRuleExplanation() {
