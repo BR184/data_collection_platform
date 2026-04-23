@@ -9,6 +9,9 @@
   - template repeated statistic-board patterns third
   - unify frontend page controllers and API domains last
 - Selected `issue_fact` shared read abstraction as the first implementation slice
+- Completed review-data service split as the second architecture slice:
+  - extracted query / command / filter-option / summary services
+  - kept the original facade and controller contract stable
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles
