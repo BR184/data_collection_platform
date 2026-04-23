@@ -1,20 +1,35 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import {
   api,
   type CodeReviewIllegalRecordFilterOptionsResponse,
   type CodeReviewIllegalRecordRowResponse,
   type RealtimeWorkspaceStatusResponse,
+  type StatisticFilterField,
   type StatisticBoardRuleExplanationResponse,
 } from '../api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';
+import {
+  createEmptyFilterGroup,
+  normalizeFilterDraftGroup,
+  replaceFilterDraftGroup,
+  resetFilterDraftGroup,
+  sanitizeFilterDraftGroup,
+  type StatisticFilterDraftGroup,
+} from '../components/statistic-board-filters';
+import {
+  buildFilterGroupFromRouteQuery,
+  buildFilterQueryPatch,
+  buildResetFilterQueryPatch,
+} from '../components/statistic-board-route-query';
 import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
 import {
   loadStoredCodeReviewRuleConfig,
@@ -45,7 +60,6 @@ const {
   },
 });
 
-const advancedVisible = ref(false);
 const rows = ref<CodeReviewIllegalRecordRowResponse[]>([]);
 const total = ref(0);
 const detailVisible = ref(false);
@@ -55,6 +69,7 @@ const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const syncStatus = ref<RealtimeWorkspaceStatusResponse | null>(null);
 const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
+const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>({
   requestTypes: [{ label: '合并请求', value: 'merge_request' }],
@@ -151,6 +166,67 @@ const advancedFilters = computed<RecordTableFilterField[]>(() => [
   },
 ]);
 
+function selectField(key: string, label: string, options: { label: string; value: string }[], width = 180): StatisticFilterField {
+  return {
+    key,
+    label,
+    type: 'select',
+    width,
+    operators: ['eq', 'ne'],
+    options,
+  };
+}
+
+function textField(key: string, label: string, width = 180): StatisticFilterField {
+  return {
+    key,
+    label,
+    type: 'text',
+    width,
+    operators: ['contains', 'eq', 'ne', 'isEmpty', 'isNotEmpty'],
+    options: [],
+  };
+}
+
+function numberField(key: string, label: string, width = 160): StatisticFilterField {
+  return {
+    key,
+    label,
+    type: 'number',
+    width,
+    operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
+    options: [],
+  };
+}
+
+function datetimeField(key: string, label: string, width = 220): StatisticFilterField {
+  return {
+    key,
+    label,
+    type: 'datetime',
+    width,
+    operators: ['year', 'month', 'day', 'at', 'before', 'after', 'between'],
+    options: [],
+  };
+}
+
+const conditionFilterFields = computed<StatisticFilterField[]>(() => [
+  selectField('repositoryName', '代码库', filterOptions.value.repositoryNames),
+  datetimeField('mergedAt', '合并时间'),
+  selectField('illegalType', '非法类型', filterOptions.value.illegalTypes),
+  textField('keyword', '关键字', 240),
+  selectField('requestType', '请求类型', filterOptions.value.requestTypes),
+  numberField('mergeRequestIid', '合并请求编号'),
+  textField('owner', '标注责任人'),
+  selectField('targetBranch', '目标分支', filterOptions.value.targetBranches),
+  selectField('mergedBy', '合并人', filterOptions.value.mergedBys),
+  selectField('moduleName', '模块名称', filterOptions.value.moduleNames),
+  selectField('projectName', '项目名称', filterOptions.value.projectNames),
+  numberField('commentRate', '代码注释比例'),
+  numberField('defectCount', '缺陷数量'),
+  numberField('addedLines', '新增代码行数'),
+]);
+
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   const values = filterValues.value;
   const tags: RecordTableActiveFilterTag[] = [];
@@ -172,6 +248,12 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   }
   return tags;
 });
+
+const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
+  appliedRuleConfig.value?.enabled
+    ? [{ key: 'personalRuleConfig', label: '判定规则', value: '我的规则' }]
+    : [],
+);
 
 const columns = computed<RecordTableColumn[]>(() => [
   { key: 'mergeRequestIid', label: '合并请求编号', type: 'link', sortable: true, width: 128, fixed: 'left' },
@@ -304,6 +386,16 @@ async function loadFilterOptions() {
   syncAppliedRuleConfig();
 }
 
+function initializeFiltersFromRoute() {
+  const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
+  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, conditionFilterFields.value);
+  replaceFilterDraftGroup(filterDraft, nextDraft);
+}
+
+function buildFilterPayload() {
+  return sanitizeFilterDraftGroup(filterDraft);
+}
+
 async function loadSyncStatus() {
   try {
     syncStatus.value = await api.getCodeReviewIllegalRecordRealtimeStatus();
@@ -338,6 +430,7 @@ async function loadTableData() {
     illegalType: String(route.query.illegalType ?? ''),
     mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
     owner: String(route.query.owner ?? ''),
+    filterGroup: buildFilterPayload(),
     page: page.value,
     size: pageSize.value,
     sortBy: sortBy.value || 'mergedAt',
@@ -351,6 +444,7 @@ async function loadTableData() {
 bindLoader(async () => {
   try {
     await loadFilterOptions();
+    initializeFiltersFromRoute();
     await loadTableData();
     await loadSyncStatus();
     await loadRuleExplanation();
@@ -379,7 +473,9 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleReset() {
+  resetFilterDraftGroup(filterDraft);
   await patchQuery({
+    ...buildResetFilterQueryPatch(route.query),
     page: 1,
     sortBy: 'mergedAt',
     sortOrder: 'desc',
@@ -399,7 +495,22 @@ async function handleReset() {
 }
 
 async function handleQuery() {
-  await patchQuery({ page: 1 });
+  await patchQuery({
+    ...buildFilterQueryPatch(route.query, filterDraft),
+    page: 1,
+    keyword: null,
+    repositoryName: null,
+    mergedAtStart: null,
+    mergedAtEnd: null,
+    projectName: null,
+    requestType: null,
+    targetBranch: null,
+    mergedBy: null,
+    moduleName: null,
+    illegalType: null,
+    mergeRequestIid: null,
+    owner: null,
+  });
 }
 
 async function handleSizeChange(nextSize: number) {
@@ -477,27 +588,28 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
       :columns="columns"
       :rows="tableRows"
       :loading="isTableLoading"
-      :keyword-auto-search="true"
       :page="page"
       :page-size="pageSize"
       :total="total"
-      :primary-filters="primaryFilters"
-      :advanced-filters="advancedFilters"
-      :filter-values="filterValues"
-      :active-filter-tags="activeFilterTags"
-      :advanced-visible="advancedVisible"
+      :active-filter-tags="conditionActiveFilterTags"
       :show-search="false"
       :show-refresh="false"
       :empty-description="tableEmptyDescription"
-      @filter-change="handleFilterChange"
       @reset="handleReset"
       @query="handleQuery"
       @clear-filter="handleClearFilter"
-      @update:advanced-visible="advancedVisible = $event"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
       @sort-change="handleSortChange"
     >
+      <template #filter-builder>
+        <StatisticFilterBuilder
+          :model-value="filterDraft"
+          :fields="conditionFilterFields"
+          add-button-text="添加条件"
+        />
+      </template>
+
       <template #toolbar-prefix>
         <div class="record-page-toolbar-meta">
           <div class="record-page-toolbar-title">非法记录明细</div>

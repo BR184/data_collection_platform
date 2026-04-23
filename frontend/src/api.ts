@@ -146,6 +146,8 @@ export type StatisticFilterOperator =
   | 'ne'
   | 'contains'
   | 'notContains'
+  | 'isEmpty'
+  | 'isNotEmpty'
   | 'gt'
   | 'gte'
   | 'lt'
@@ -839,6 +841,7 @@ export const api = {
       illegalType?: string;
       mergeRequestIid?: string;
       owner?: string;
+      filterGroup?: StatisticFilterGroup | null;
       page?: number;
       size?: number;
       sortBy?: string;
@@ -861,6 +864,7 @@ export const api = {
         ...(params.illegalType ? { illegalType: params.illegalType } : {}),
         ...(params.mergeRequestIid ? { mergeRequestIid: params.mergeRequestIid } : {}),
         ...(params.owner ? { owner: params.owner } : {}),
+        ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
         ...(params.sortBy ? { sortBy: params.sortBy } : {}),
         ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
         ...(params.ruleConfig ? { ruleConfig: JSON.stringify(params.ruleConfig) } : {}),
