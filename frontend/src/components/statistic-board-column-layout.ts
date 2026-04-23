@@ -7,13 +7,26 @@ import { flattenStatisticColumnLeavesFromGroup } from '../api';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
 
 export function applyOrderedColumnsToGroup(group: StatisticColumnGroup, orderedLeafColumns: StatisticColumnLeaf[]): StatisticColumnGroup | null {
+  return applyOrderedColumnsToGroupWithPrefs(group, orderedLeafColumns, {});
+}
+
+function applyOrderedColumnsToGroupWithPrefs(
+  group: StatisticColumnGroup,
+  orderedLeafColumns: StatisticColumnLeaf[],
+  childGroupOrderByParent: Record<string, string[]>,
+): StatisticColumnGroup | null {
   const directColumnKeys = new Set((group.columns ?? []).map((leaf) => leaf.key));
   const directColumns = orderedLeafColumns.filter((column) => directColumnKeys.has(column.key));
-  const children = (group.children ?? [])
+  const childrenByKey = new Map((group.children ?? []).map((child) => [child.key, child]));
+  const defaultChildOrder = (group.children ?? []).map((child) => child.key);
+  const orderedChildKeys = childGroupOrderByParent[group.key] ?? defaultChildOrder;
+  const children = orderedChildKeys
+    .map((childKey) => childrenByKey.get(childKey))
+    .filter((child): child is StatisticColumnGroup => Boolean(child))
     .map((child) => {
       const childLeafKeys = new Set(flattenStatisticColumnLeavesFromGroup(child).map((column) => column.key));
       const childColumns = orderedLeafColumns.filter((column) => childLeafKeys.has(column.key));
-      return applyOrderedColumnsToGroup(child, childColumns);
+      return applyOrderedColumnsToGroupWithPrefs(child, childColumns, childGroupOrderByParent);
     })
     .filter((child): child is StatisticColumnGroup => Boolean(child));
   if (!directColumns.length && !children.length) {
@@ -40,7 +53,7 @@ export function resolveOrderedColumnGroups(columnGroups: StatisticColumnGroup[],
         .map((columnKey) => columnMap.get(columnKey))
         .filter((column): column is StatisticColumnLeaf => Boolean(column))
         .filter((column) => visibleColumnKeySet.has(column.key));
-      return applyOrderedColumnsToGroup(group, orderedLeafColumns);
+      return applyOrderedColumnsToGroupWithPrefs(group, orderedLeafColumns, prefs.childGroupOrderByParent);
     })
     .filter((group): group is StatisticColumnGroup => Boolean(group));
 }
@@ -50,7 +63,7 @@ export function visualTextUnits(text: string) {
 }
 
 export function headerLabelMinimumWidth(label: string, reservePx: number) {
-  return Math.max(96, visualTextUnits(label) * 7 + reservePx);
+  return Math.max(84, visualTextUnits(label) * 6 + reservePx);
 }
 
 export function computeFirstColumnWidth(rows: StatisticRowData[], widthStrategy: StatisticBoardViewPrefs['widthStrategy']) {
@@ -67,11 +80,11 @@ export function computeFirstColumnWidth(rows: StatisticRowData[], widthStrategy:
 export function computeFirstColumnMinWidth(rowHeaderLabel: string, widthStrategy: StatisticBoardViewPrefs['widthStrategy']) {
   const baseWidth =
     widthStrategy === 'compact'
-      ? 108
+      ? 100
       : widthStrategy === 'header'
-        ? 120
-        : 132;
-  return Math.max(baseWidth, headerLabelMinimumWidth(rowHeaderLabel, 96));
+        ? 114
+        : 126;
+  return Math.max(baseWidth, headerLabelMinimumWidth(rowHeaderLabel, 72));
 }
 
 export function columnWidth(
@@ -80,7 +93,7 @@ export function columnWidth(
   rows: StatisticRowData[],
 ) {
   if (column.metricType.includes('count') || column.metricType.includes('ratio') || column.metricType.includes('number')) {
-    return widthStrategy === 'compact' ? 96 : widthStrategy === 'header' ? 124 : 156;
+    return widthStrategy === 'compact' ? 88 : widthStrategy === 'header' ? 116 : 148;
   }
   if (widthStrategy === 'compact') {
     return compactColumnWidth(column);
@@ -96,7 +109,7 @@ export function columnMinWidth(
   widthStrategy: StatisticBoardViewPrefs['widthStrategy'],
   rows: StatisticRowData[],
 ) {
-  return Math.max(columnWidth(column, widthStrategy, rows), headerLabelMinimumWidth(column.label, 98));
+  return Math.max(columnWidth(column, widthStrategy, rows), headerLabelMinimumWidth(column.label, 74));
 }
 
 export function columnResizable(column: StatisticColumnLeaf) {
@@ -105,13 +118,13 @@ export function columnResizable(column: StatisticColumnLeaf) {
 
 function compactColumnWidth(column: StatisticColumnLeaf) {
   if (column.metricType.includes('time') || column.metricType.includes('date')) {
-    return 132;
+    return 124;
   }
-  return Math.min(136, Math.max(88, column.label.length * 11 + 24));
+  return Math.min(124, Math.max(80, column.label.length * 10 + 18));
 }
 
 function headerBasedWidth(column: StatisticColumnLeaf) {
-  return Math.min(196, Math.max(116, column.label.length * 16 + 34));
+  return Math.min(176, Math.max(104, column.label.length * 14 + 28));
 }
 
 function contentBasedWidth(column: StatisticColumnLeaf, rows: StatisticRowData[]) {

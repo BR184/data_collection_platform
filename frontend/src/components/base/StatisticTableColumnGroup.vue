@@ -5,11 +5,12 @@ import type { SortDirection } from '../statistic-board-sorting';
 
 defineProps<{
   group: StatisticColumnGroup;
+  parentGroupKey: string;
   rootGroupKey: string;
   draggableGroupHeader?: boolean;
-  isGroupDragging?: (groupKey: string) => boolean;
-  onGroupDragStart?: (groupKey: string) => void;
-  onGroupDrop?: (groupKey: string) => void;
+  isGroupDragging?: (parentGroupKey: string, groupKey: string) => boolean;
+  onGroupDragStart?: (parentGroupKey: string, groupKey: string) => void;
+  onGroupDrop?: (parentGroupKey: string, groupKey: string) => void;
   sortDirectionForColumn: (columnKey: string) => SortDirection;
   sortStateLabel: (direction: SortDirection) => string;
   sortIconForDirection: (direction: SortDirection) => Component;
@@ -31,11 +32,11 @@ defineProps<{
       <div
         v-if="draggableGroupHeader"
         class="stat-group-header"
-        :class="{ dragging: isGroupDragging?.(group.key) }"
+        :class="{ dragging: isGroupDragging?.(parentGroupKey, group.key) }"
         draggable="true"
-        @dragstart="onGroupDragStart?.(group.key)"
+        @dragstart="onGroupDragStart?.(parentGroupKey, group.key)"
         @dragover.prevent
-        @drop.prevent="onGroupDrop?.(group.key)"
+        @drop.prevent="onGroupDrop?.(parentGroupKey, group.key)"
         @dragend="clearDragState"
       >
         <span class="stat-header-zone stat-header-zone-left" aria-hidden="true">
@@ -58,8 +59,9 @@ defineProps<{
       v-for="child in group.children ?? []"
       :key="child.key"
       :group="child"
+      :parent-group-key="group.key"
       :root-group-key="rootGroupKey"
-      :draggable-group-header="false"
+      :draggable-group-header="true"
       :is-group-dragging="isGroupDragging"
       :on-group-drag-start="onGroupDragStart"
       :on-group-drop="onGroupDrop"

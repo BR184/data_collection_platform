@@ -48,9 +48,9 @@ const props = withDefaults(
     openDetail: (row: StatisticRowData, cell: StatisticCellData) => void | Promise<void>;
     columnMinWidth: (column: StatisticColumnLeaf) => number;
     columnResizable: (column: StatisticColumnLeaf) => boolean;
-    isGroupDragging: (groupKey: string) => boolean;
-    onGroupDragStart: (groupKey: string) => void;
-    onGroupDrop: (groupKey: string) => void;
+    isGroupDragging: (parentGroupKey: string, groupKey: string) => boolean;
+    onGroupDragStart: (parentGroupKey: string, groupKey: string) => void;
+    onGroupDrop: (parentGroupKey: string, groupKey: string) => void;
     isColumnDragging: (groupKey: string, columnKey: string) => boolean;
     onColumnDragStart: (groupKey: string, columnKey: string) => void;
     onColumnDrop: (groupKey: string, columnKey: string) => void;
@@ -88,7 +88,7 @@ const props = withDefaults(
       fit
       class="base-stat-table stat-matrix-table"
       :class="props.uiHooks.tableClass"
-      style="width: 100%"
+      style="width: max-content; min-width: 100%"
     >
       <el-table-column
         prop="rowLabel"
@@ -132,6 +132,7 @@ const props = withDefaults(
         v-for="group in orderedColumnGroups"
         :key="group.key"
         :group="group"
+        parent-group-key="__root__"
         :root-group-key="group.key"
         :draggable-group-header="true"
         :is-group-dragging="isGroupDragging"

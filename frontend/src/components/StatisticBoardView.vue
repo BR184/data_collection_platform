@@ -112,6 +112,7 @@ const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const boardViewPrefs = ref<StatisticBoardViewPrefs>({
   visibleColumnKeys: [],
   groupOrder: [],
+  childGroupOrderByParent: {},
   columnOrderByGroup: {},
   sortColumnKey: '',
   sortDirection: 'default',
@@ -180,6 +181,9 @@ const tableRenderKey = computed(
       props.boardKey,
       boardViewPrefs.value.widthStrategy,
       boardViewPrefs.value.groupOrder.join('|'),
+      Object.entries(boardViewPrefs.value.childGroupOrderByParent)
+        .map(([groupKey, childKeys]) => `${groupKey}:${childKeys.join(',')}`)
+        .join('|'),
       Object.entries(boardViewPrefs.value.columnOrderByGroup)
         .map(([groupKey, columnKeys]) => `${groupKey}:${columnKeys.join(',')}`)
         .join('|'),
@@ -373,6 +377,15 @@ function restoreDefaultView() {
   boardViewPrefs.value = {
     visibleColumnKeys: defaultVisibleColumnKeys(board.value.definition),
     groupOrder: board.value.definition.columnGroups.map((group) => group.key),
+    childGroupOrderByParent: Object.fromEntries(
+      board.value.definition.columnGroups.flatMap(function collect(group): Array<[string, string[]]> {
+        const children = group.children ?? [];
+        if (children.length === 0) {
+          return [];
+        }
+        return [[group.key, children.map((child) => child.key)], ...children.flatMap((child) => collect(child))];
+      }),
+    ),
     columnOrderByGroup: Object.fromEntries(
       board.value.definition.columnGroups.map((group) => [group.key, flattenStatisticColumnLeavesFromGroup(group).map((column) => column.key)]),
     ),

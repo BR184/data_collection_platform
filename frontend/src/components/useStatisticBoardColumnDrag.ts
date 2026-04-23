@@ -7,31 +7,45 @@ export function useStatisticBoardColumnDrag(
 ) {
   const dragState = reactive<{
     type: 'group' | 'column' | '';
+    sourceParentGroupKey: string;
     sourceGroupKey: string;
     sourceColumnKey: string;
   }>({
     type: '',
+    sourceParentGroupKey: '',
     sourceGroupKey: '',
     sourceColumnKey: '',
   });
 
-  function onGroupDragStart(groupKey: string) {
+  function onGroupDragStart(parentGroupKey: string, groupKey: string) {
     dragState.type = 'group';
+    dragState.sourceParentGroupKey = parentGroupKey;
     dragState.sourceGroupKey = groupKey;
     dragState.sourceColumnKey = '';
   }
 
-  function isGroupDragging(groupKey: string) {
-    return dragState.type === 'group' && dragState.sourceGroupKey === groupKey;
+  function isGroupDragging(parentGroupKey: string, groupKey: string) {
+    return (
+      dragState.type === 'group' &&
+      dragState.sourceParentGroupKey === parentGroupKey &&
+      dragState.sourceGroupKey === groupKey
+    );
   }
 
-  function onGroupDrop(targetGroupKey: string) {
-    if (dragState.type !== 'group' || dragState.sourceGroupKey === targetGroupKey) {
+  function onGroupDrop(parentGroupKey: string, targetGroupKey: string) {
+    if (
+      dragState.type !== 'group' ||
+      dragState.sourceParentGroupKey !== parentGroupKey ||
+      dragState.sourceGroupKey === targetGroupKey
+    ) {
       clearDragState();
       return;
     }
 
-    const nextOrder = [...boardViewPrefs.value.groupOrder];
+    const nextOrder =
+      parentGroupKey === '__root__'
+        ? [...boardViewPrefs.value.groupOrder]
+        : [...(boardViewPrefs.value.childGroupOrderByParent[parentGroupKey] ?? [])];
     const sourceIndex = nextOrder.indexOf(dragState.sourceGroupKey);
     const targetIndex = nextOrder.indexOf(targetGroupKey);
     if (sourceIndex < 0 || targetIndex < 0) {
@@ -40,10 +54,19 @@ export function useStatisticBoardColumnDrag(
     }
     const [moved] = nextOrder.splice(sourceIndex, 1);
     nextOrder.splice(targetIndex, 0, moved);
-    boardViewPrefs.value = {
-      ...boardViewPrefs.value,
-      groupOrder: nextOrder,
-    };
+    boardViewPrefs.value =
+      parentGroupKey === '__root__'
+        ? {
+            ...boardViewPrefs.value,
+            groupOrder: nextOrder,
+          }
+        : {
+            ...boardViewPrefs.value,
+            childGroupOrderByParent: {
+              ...boardViewPrefs.value.childGroupOrderByParent,
+              [parentGroupKey]: nextOrder,
+            },
+          };
     persistViewPrefs();
     clearDragState();
   }
@@ -94,6 +117,7 @@ export function useStatisticBoardColumnDrag(
 
   function clearDragState() {
     dragState.type = '';
+    dragState.sourceParentGroupKey = '';
     dragState.sourceGroupKey = '';
     dragState.sourceColumnKey = '';
   }

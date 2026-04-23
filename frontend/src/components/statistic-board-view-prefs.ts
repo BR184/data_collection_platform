@@ -5,6 +5,7 @@ const STORAGE_PREFIX = 'stat-board-view:';
 interface StoredStatisticBoardViewPrefs {
   visibleColumnKeys: string[];
   groupOrder: string[];
+  childGroupOrderByParent: Record<string, string[]>;
   columnOrderByGroup: Record<string, string[]>;
   sortColumnKey: string;
   sortDirection: 'default' | 'asc' | 'desc';
@@ -14,6 +15,7 @@ interface StoredStatisticBoardViewPrefs {
 export interface StatisticBoardViewPrefs {
   visibleColumnKeys: string[];
   groupOrder: string[];
+  childGroupOrderByParent: Record<string, string[]>;
   columnOrderByGroup: Record<string, string[]>;
   sortColumnKey: string;
   sortDirection: 'default' | 'asc' | 'desc';
@@ -34,6 +36,23 @@ function defaultColumnOrderByGroup(definition: StatisticBoardDefinition): Record
   );
 }
 
+function defaultChildGroupOrderByParent(definition: StatisticBoardDefinition): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+
+  function walk(groups: StatisticBoardDefinition['columnGroups']) {
+    for (const group of groups) {
+      const children = group.children ?? [];
+      if (children.length > 0) {
+        result[group.key] = children.map((child) => child.key);
+        walk(children);
+      }
+    }
+  }
+
+  walk(definition.columnGroups);
+  return result;
+}
+
 function mergeOrderedKeys(persisted: string[], fallback: string[]) {
   const persistedValid = persisted.filter((key) => fallback.includes(key));
   const missing = fallback.filter((key) => !persistedValid.includes(key));
@@ -50,6 +69,7 @@ export function loadStatisticBoardViewPrefs(
 ): StatisticBoardViewPrefs {
   const fallbackVisible = defaultVisibleColumnKeys(definition);
   const fallbackGroupOrder = defaultGroupOrder(definition);
+  const fallbackChildGroupOrderByParent = defaultChildGroupOrderByParent(definition);
   const fallbackColumnOrderByGroup = defaultColumnOrderByGroup(definition);
   const raw = window.localStorage.getItem(storageKey(boardKey));
 
@@ -57,6 +77,7 @@ export function loadStatisticBoardViewPrefs(
     return {
       visibleColumnKeys: fallbackVisible,
       groupOrder: fallbackGroupOrder,
+      childGroupOrderByParent: fallbackChildGroupOrderByParent,
       columnOrderByGroup: fallbackColumnOrderByGroup,
       sortColumnKey: '',
       sortDirection: 'default',
@@ -72,6 +93,14 @@ export function loadStatisticBoardViewPrefs(
     const visibleColumnKeys = (parsed.visibleColumnKeys ?? []).filter((key) => allowedColumnKeys.has(key));
     const groupOrder = (parsed.groupOrder ?? []).filter((key) => allowedGroupKeys.has(key));
     const resolvedGroupOrder = groupOrder.length ? mergeOrderedKeys(groupOrder, fallbackGroupOrder) : fallbackGroupOrder;
+    const childGroupOrderByParent = Object.fromEntries(
+      Object.entries(fallbackChildGroupOrderByParent).map(([parentGroupKey, fallbackGroupKeys]) => {
+        const persisted = (parsed.childGroupOrderByParent?.[parentGroupKey] ?? []).filter((key) =>
+          fallbackGroupKeys.includes(key),
+        );
+        return [parentGroupKey, persisted.length ? mergeOrderedKeys(persisted, fallbackGroupKeys) : fallbackGroupKeys];
+      }),
+    );
     const columnOrderByGroup = Object.fromEntries(
       resolvedGroupOrder.map((groupKey) => {
         const fallbackColumns = fallbackColumnOrderByGroup[groupKey] ?? [];
@@ -83,6 +112,7 @@ export function loadStatisticBoardViewPrefs(
     return {
       visibleColumnKeys: visibleColumnKeys.length ? visibleColumnKeys : fallbackVisible,
       groupOrder: resolvedGroupOrder,
+      childGroupOrderByParent,
       columnOrderByGroup,
       sortColumnKey:
         parsed.sortColumnKey && allowedColumnKeys.has(parsed.sortColumnKey) ? parsed.sortColumnKey : '',
@@ -95,6 +125,7 @@ export function loadStatisticBoardViewPrefs(
     return {
       visibleColumnKeys: fallbackVisible,
       groupOrder: fallbackGroupOrder,
+      childGroupOrderByParent: fallbackChildGroupOrderByParent,
       columnOrderByGroup: fallbackColumnOrderByGroup,
       sortColumnKey: '',
       sortDirection: 'default',
