@@ -12,6 +12,7 @@ public record IntegrationTestDetailRowResponse(
     String title,
     String moduleName,
     String functionName,
+    String functionLabels,
     String executor,
     Integer executeCase,
     Integer passCase,

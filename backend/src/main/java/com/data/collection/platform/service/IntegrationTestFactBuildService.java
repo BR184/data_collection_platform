@@ -117,7 +117,9 @@ public class IntegrationTestFactBuildService {
     LocalDateTime changedSince = full ? null : getChangedSince();
     String sql =
         INTEGRATION_TEST_SOURCE_SQL
-            + (changedSince == null ? "" : " and greatest(coalesce(i.updated_at, i.created_at), coalesce(notes.note_updated_at, i.updated_at, i.created_at)) > ?");
+            + (changedSince == null
+                ? ""
+                : " and greatest(coalesce(i.updated_at, i.created_at), coalesce(notes.note_updated_at, i.updated_at, i.created_at)) > ?");
     try {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
@@ -179,8 +181,8 @@ public class IntegrationTestFactBuildService {
     String testingPhase = resolveTestingPhase(projectId, labels, updatedAt, createdAt, calendar);
     List<String> moduleNames =
         moduleDictionary.normalizeIssueModules(
-            projectId,
-            IssueFactNormalizationRules.normalizeModuleNames(labels));
+            projectId, IssueFactNormalizationRules.normalizeModuleNames(labels));
+    List<String> functionLabels = IntegrationTestFactRules.extractFunctionLabels(labels);
     String moduleName = moduleNames.isEmpty() ? "未识别模块" : moduleNames.get(0);
 
     IntegrationTestFact fact = new IntegrationTestFact();
@@ -217,7 +219,7 @@ public class IntegrationTestFactBuildService {
     fact.setPassRate(calculatePassRate(parsed.executeCase(), parsed.passCase()));
     fact.setLegal(calculateLegal(parsed.executeCase(), parsed.passCase(), parsed.notPassCaseNow()));
     fact.setLabelNames(String.join(", ", labels));
-    fact.setFunctionLabels(null);
+    fact.setFunctionLabels(String.join(", ", functionLabels));
     fact.setDeleted(false);
     return fact;
   }
@@ -239,7 +241,8 @@ public class IntegrationTestFactBuildService {
                     rs.getBoolean("enabled")));
     Map<PhaseCalendarKey, PhaseCalendarEntry> result = new LinkedHashMap<>();
     for (PhaseCalendarEntry entry : entries) {
-      result.putIfAbsent(new PhaseCalendarKey(entry.projectId(), normalizeKey(entry.testingPhase())), entry);
+      result.putIfAbsent(
+          new PhaseCalendarKey(entry.projectId(), normalizeKey(entry.testingPhase())), entry);
     }
     return result;
   }
@@ -264,7 +267,8 @@ public class IntegrationTestFactBuildService {
       if (!projectId.equals(entry.projectId())) {
         continue;
       }
-      if (!StringUtils.hasText(entry.testingPhase()) || !entry.testingPhase().contains("集成测试")) {
+      if (!StringUtils.hasText(entry.testingPhase())
+          || !entry.testingPhase().contains("集成测试")) {
         continue;
       }
       if (entry.matches(referenceTime)) {
@@ -278,8 +282,7 @@ public class IntegrationTestFactBuildService {
     if (!StringUtils.hasText(noteText)) {
       return ParsedIntegrationNote.empty();
     }
-    String normalized = noteText.replace("\r\n", "\n");
-    List<String> lines = List.of(normalized.split("\n"));
+    List<String> lines = List.of(noteText.replace("\r\n", "\n").split("\n"));
     boolean started = false;
     String functionName = null;
     String executor = null;
@@ -309,28 +312,29 @@ public class IntegrationTestFactBuildService {
       }
       String key = keyValue.key();
       String value = keyValue.value();
-      if (containsAny(key, "功能标签")) {
+      if (IntegrationTestFactRules.matchesKey(key, "功能标签")) {
         continue;
-      } else if (containsAny(key, "功能")) {
+      }
+      if (IntegrationTestFactRules.matchesKey(key, "功能")) {
         functionName = value;
-      } else if (containsAny(key, "执行人")) {
+      } else if (IntegrationTestFactRules.matchesKey(key, "执行人")) {
         executor = value;
-      } else if (containsAny(key, "执行用例总数")) {
-        executeCase = parseInteger(value);
-      } else if (containsAny(key, "初始未通过用例数")) {
-        notPassCase = parseInteger(value);
-      } else if (containsAny(key, "本次未通过用例数")) {
-        notPassCaseNow = parseInteger(value);
-      } else if (containsAny(key, "本次问题用例数")) {
-        problemCase = parseInteger(value);
-      } else if (containsAny(key, "本次通过用例数", "通过用例数")) {
-        passCase = parseInteger(value);
-      } else if (containsAny(key, "未通过用例数")) {
-        notPassCaseNow = parseInteger(value);
-      } else if (containsAny(key, "问题用例数")) {
-        problemCase = parseInteger(value);
-      } else if (containsAny(key, "用例外问题数")) {
-        exceptionCount = parseInteger(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "执行用例总数", "执行用例数")) {
+        executeCase = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "初始未通过用例数", "初始未通过")) {
+        notPassCase = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "本次未通过用例数", "本次未通过")) {
+        notPassCaseNow = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "本次问题用例数", "本次问题用例")) {
+        problemCase = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "本次通过用例数", "通过用例数", "通过用例")) {
+        passCase = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "未通过用例数", "未通过用例")) {
+        notPassCaseNow = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "问题用例数", "问题用例")) {
+        problemCase = IntegrationTestFactRules.parseNumericValue(value);
+      } else if (IntegrationTestFactRules.matchesKey(key, "用例外问题数", "例外问题数")) {
+        exceptionCount = IntegrationTestFactRules.parseNumericValue(value);
       }
     }
     return new ParsedIntegrationNote(
@@ -363,34 +367,6 @@ public class IntegrationTestFactBuildService {
     String key = TextQuerySupport.trimToNull(line.substring(0, colonIndex));
     String value = TextQuerySupport.trimToNull(line.substring(colonIndex + 1));
     return key == null || value == null ? null : new KeyValue(key, value);
-  }
-
-  private Integer parseInteger(String value) {
-    if (!StringUtils.hasText(value)) {
-      return null;
-    }
-    String digits = value.replaceAll("[^0-9-]", "");
-    if (!StringUtils.hasText(digits)) {
-      return null;
-    }
-    try {
-      return Integer.valueOf(digits);
-    } catch (NumberFormatException ex) {
-      return null;
-    }
-  }
-
-  private boolean containsAny(String source, String... tokens) {
-    String normalized = TextQuerySupport.trimToNull(source);
-    if (normalized == null) {
-      return false;
-    }
-    for (String token : tokens) {
-      if (normalized.contains(token)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private boolean calculateLegal(Integer executeCase, Integer passCase, Integer notPassCaseNow) {

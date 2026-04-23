@@ -6,7 +6,6 @@ import com.data.collection.platform.entity.IntegrationTestPhaseOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestProjectOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryRowResponse;
-import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -19,6 +18,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class IntegrationTestQueryService {
+  private static final String UNKNOWN_MODULE = "未识别模块";
+
   private static final Map<String, String> DETAIL_SORT_FIELDS =
       Map.ofEntries(
           Map.entry("issueIid", "issue_iid"),
@@ -178,6 +179,7 @@ public class IntegrationTestQueryService {
                    title,
                    coalesce(module_name, '未识别模块') as module_name,
                    function_name,
+                   function_labels,
                    executor,
                    execute_case,
                    pass_case,
@@ -230,7 +232,7 @@ public class IntegrationTestQueryService {
     }
     String normalizedModule = TextQuerySupport.trimToNull(moduleName);
     if (normalizedModule != null) {
-      where.append(" and coalesce(module_name, '未识别模块') = ?");
+      where.append(" and coalesce(module_name, '").append(UNKNOWN_MODULE).append("') = ?");
       args.add(normalizedModule);
     }
   }
@@ -261,6 +263,7 @@ public class IntegrationTestQueryService {
         TextQuerySupport.normalizeDisplay(rs.getString("title")),
         TextQuerySupport.normalizeDisplay(rs.getString("module_name")),
         TextQuerySupport.normalizeDisplay(rs.getString("function_name")),
+        TextQuerySupport.normalizeDisplay(rs.getString("function_labels")),
         TextQuerySupport.normalizeDisplay(rs.getString("executor")),
         getInteger(rs, "execute_case"),
         getInteger(rs, "pass_case"),

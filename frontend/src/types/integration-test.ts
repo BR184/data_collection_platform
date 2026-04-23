@@ -48,6 +48,7 @@ export interface IntegrationTestDetailRowResponse {
   title: string;
   moduleName: string;
   functionName?: string | null;
+  functionLabels?: string | null;
   executor?: string | null;
   executeCase?: number | null;
   passCase?: number | null;

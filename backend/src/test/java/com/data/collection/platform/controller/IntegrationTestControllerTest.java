@@ -92,6 +92,7 @@ class IntegrationTestControllerTest {
                         "草图命令异常",
                         "草图",
                         "拉伸",
+                        "新功能",
                         "张三",
                         10,
                         8,

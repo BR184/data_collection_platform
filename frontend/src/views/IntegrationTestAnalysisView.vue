@@ -85,6 +85,7 @@ const detailColumns = computed<RecordTableColumn[]>(() => [
   { key: 'issuableReference', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'functionName', label: '功能', sortable: true, minWidth: 160 },
+  { key: 'functionLabels', label: '功能标签', minWidth: 160 },
   { key: 'executor', label: '执行人', sortable: true, width: 120 },
   { key: 'executeCase', label: '执行用例总数', sortable: true, width: 120 },
   { key: 'passCase', label: '通过用例数', sortable: true, width: 120 },
@@ -102,6 +103,7 @@ const detailRows = computed<Record<string, unknown>[]>(() =>
     issuableReference: row.issuableReference || `#${row.issueIid}`,
     title: row.title || '-',
     functionName: row.functionName || '-',
+    functionLabels: buildFunctionLabelTags(row.functionLabels),
     executor: row.executor || '-',
     executeCase: row.executeCase ?? 0,
     passCase: row.passCase ?? 0,
@@ -341,6 +343,20 @@ function formatPercent(value?: string | number | null) {
     return '0.00%';
   }
   return `${Number(value).toFixed(2)}%`;
+}
+
+function buildFunctionLabelTags(value?: string | null) {
+  const labels = String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!labels.length) {
+    return [{ label: '-', type: 'info' as const }];
+  }
+  return labels.map((label) => ({
+    label,
+    type: 'primary' as const,
+  }));
 }
 </script>
 

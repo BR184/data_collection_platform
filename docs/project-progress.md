@@ -82,6 +82,11 @@
   - frontend `npm run build` passed
   - frontend `npx vitest run src/router.test.ts` passed
   - backend full test execution is still blocked by unrelated pre-existing test-compile failures outside this slice
+- Continued the integration-test hardening pass:
+  - extracted integration-test field matching and function-label recognition into a dedicated rule helper
+  - broadened note parsing tolerance for variant field names such as `执行用例数` / `问题用例数` / `例外问题数`
+  - restored old-platform style function-label recognition (`新功能` / `老功能` / `增强功能`) from issue labels
+  - exposed function labels in the integration-test detail drawer
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles
