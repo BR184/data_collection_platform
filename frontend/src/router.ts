@@ -15,6 +15,7 @@ const SystemTestIssueSearchView = () => import('./views/SystemTestIssueSearchVie
 const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIllegalRecordsView.vue');
 const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.vue');
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
+const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -76,7 +77,9 @@ const routes: RouteRecordRaw[] = [
     meta: buildSpecialRouteMeta('code-review-illegal-rule-config'),
   },
   buildPlaceholderRoute('code-review-multi-board'),
-  buildPlaceholderRoute('integration-test-home'),
+  {
+    ...buildShellRoute('integration-test-home', IntegrationTestAnalysisView),
+  },
   {
     ...buildShellRoute('question-metrics-home', StatisticBoardPage),
   },

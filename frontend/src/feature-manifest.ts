@@ -389,6 +389,19 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
+  'integration-test-home': {
+    allowedQueryKeys: [
+      'projectId',
+      'testingPhase',
+      'detailVisible',
+      'detailModule',
+      'detailPage',
+      'detailPageSize',
+      'detailSortBy',
+      'detailSortOrder',
+    ],
+    persistedQueryKeys: ['projectId'],
+  },
   'question-metrics-home': {
     allowedQueryKeys: statisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],

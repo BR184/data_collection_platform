@@ -71,6 +71,17 @@
   - reviewed the old-platform integration-test functionality shape without reusing old code
   - documented that integration-test is not an `issue_fact` statistic board and not a plain condition-record page, but a separate source/fact/query chain
   - recorded the recommended MVP order as `data chain -> backend query API -> frontend summary/detail page`
+- Implemented the first real integration-test MVP chain:
+  - added the independent `integration_test_fact` schema, entity, mapper, and build service
+  - parses the latest GitLab issue note containing `集成测试数据` into a dedicated fact record per issue
+  - added backend APIs for project options, phase options, module summary, module detail paging, and manual fact rebuild
+  - replaced the frontend `integration-test-home` placeholder with a real `项目/阶段筛选 + 模块汇总 + 模块详情抽屉` page
+  - kept the module on shared shell/loading/query-contract foundations without coupling it back into `issue_fact` statistic boards
+- Verified the new integration-test slice:
+  - backend `compile` passed via the local Maven toolchain
+  - frontend `npm run build` passed
+  - frontend `npx vitest run src/router.test.ts` passed
+  - backend full test execution is still blocked by unrelated pre-existing test-compile failures outside this slice
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

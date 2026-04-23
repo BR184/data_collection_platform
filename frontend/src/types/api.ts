@@ -1,5 +1,7 @@
 import type { CodeReviewRuleConfig } from './code-review-rule-config';
 
+export * from './integration-test';
+
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
 
