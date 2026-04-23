@@ -4,6 +4,7 @@ import type {
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordListResponse,
   CustomerIssueRecordTopic,
+  StatisticFilterGroup,
   StatisticBoardRuleExplanationResponse,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
@@ -30,6 +31,7 @@ export const issueRecordsApi = {
     createdAtEnd?: string;
     updatedAtStart?: string;
     updatedAtEnd?: string;
+    filterGroup?: StatisticFilterGroup | null;
     page?: number;
     size?: number;
     sortBy?: string;
@@ -56,6 +58,7 @@ export const issueRecordsApi = {
       ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
       ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
       ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
+      ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
       ...(params.sortBy ? { sortBy: params.sortBy } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });
@@ -87,6 +90,7 @@ export const issueRecordsApi = {
     createdAtEnd?: string;
     updatedAtStart?: string;
     updatedAtEnd?: string;
+    filterGroup?: StatisticFilterGroup | null;
     page?: number;
     size?: number;
     sortBy?: string;
@@ -112,6 +116,7 @@ export const issueRecordsApi = {
       ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
       ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
       ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
+      ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
       ...(params.sortBy ? { sortBy: params.sortBy } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });

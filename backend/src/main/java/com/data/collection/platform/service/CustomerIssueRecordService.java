@@ -5,9 +5,11 @@ import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -22,12 +24,15 @@ public class CustomerIssueRecordService {
 
   private final IssueFactRecordRepository issueFactRecordRepository;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
+  private final ObjectMapper objectMapper;
 
   public CustomerIssueRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
-      CustomerIssueScopeProfile customerIssueScopeProfile) {
+      CustomerIssueScopeProfile customerIssueScopeProfile,
+      ObjectMapper objectMapper) {
     this.issueFactRecordRepository = issueFactRecordRepository;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
+    this.objectMapper = objectMapper;
   }
 
   public CustomerIssueRecordListResponse listRecords(
@@ -49,6 +54,7 @@ public class CustomerIssueRecordService {
       String createdAtEnd,
       String updatedAtStart,
       String updatedAtEnd,
+      String filterGroupJson,
       int page,
       int size,
       String sortField,
@@ -58,6 +64,11 @@ public class CustomerIssueRecordService {
     String safeSortField = normalizeSortField(sortField);
     String safeSortOrder = normalizeSortOrder(sortOrder);
     String safeTopic = normalizeTopic(topic);
+    StatisticFilterGroup filterGroup =
+        IssueFactRecordFilterGroupSupport.parse(
+            objectMapper,
+            filterGroupJson,
+            IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
 
     List<IssueFactRecord> filtered =
         loadTopicScopedViews(safeTopic, projectId).stream()
@@ -75,6 +86,7 @@ public class CustomerIssueRecordService {
             .filter(view -> matchesEquals(view.milestoneTitle(), milestoneTitle))
             .filter(view -> matchesDateRange(view.createdAt(), createdAtStart, createdAtEnd))
             .filter(view -> matchesDateRange(view.updatedAt(), updatedAtStart, updatedAtEnd))
+            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, filterGroup))
             .sorted(buildComparator(safeSortField, safeSortOrder))
             .toList();
 

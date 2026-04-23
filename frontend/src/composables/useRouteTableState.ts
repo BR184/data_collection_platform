@@ -23,6 +23,7 @@ export interface RouteTableStateOptions {
     keyword?: string;
   };
   debounceMs?: number;
+  minLoadingMs?: number;
 }
 
 export function useRouteTableState(options: RouteTableStateOptions = {}) {
@@ -30,6 +31,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
   const router = useRouter();
   const isTableLoading = ref(false);
   let debounceTimer: number | null = null;
+  let loaderRunId = 0;
 
   const page = computed(() => parsePositiveInteger(route.query.page, options.defaults?.page ?? 1));
   const pageSize = computed(() => parsePositiveInteger(route.query.pageSize, options.defaults?.pageSize ?? 20));
@@ -78,11 +80,20 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
     watch(
       () => route.query,
       async () => {
+        const runId = ++loaderRunId;
+        const startedAt = Date.now();
         isTableLoading.value = true;
         try {
           await loader();
         } finally {
-          isTableLoading.value = false;
+          const minLoadingMs = options.minLoadingMs ?? 220;
+          const remainingMs = minLoadingMs - (Date.now() - startedAt);
+          if (remainingMs > 0) {
+            await new Promise((resolve) => window.setTimeout(resolve, remainingMs));
+          }
+          if (runId === loaderRunId) {
+            isTableLoading.value = false;
+          }
         }
       },
       { immediate: true, deep: true },
@@ -91,6 +102,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
 
   onBeforeUnmount(() => {
     cancelDebouncedQuery();
+    loaderRunId += 1;
   });
 
   return {

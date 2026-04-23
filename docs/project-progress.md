@@ -38,6 +38,11 @@
   - left `api.ts` as a compatibility aggregate for request-capable pages
   - kept the existing `api` aggregate export compatible with current pages
   - added `useRuleExplanationPanel` and migrated customer-issue record pages to shared rule-panel loading behavior
+- Unified customer-issue submodule filtering:
+  - switched CC_PRODUCT issues, delay issues, and customer-issue illegal records to the shared `StatisticFilterBuilder`
+  - kept `BaseRecordTable` quick keyword search and refresh actions enabled
+  - added backend `filterGroup` support for customer-issue record list APIs while preserving existing legacy query parameters
+  - shared customer-issue condition field definitions through `views/customer-issues/customer-issue-condition-fields.ts`
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

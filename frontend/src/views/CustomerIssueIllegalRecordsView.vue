@@ -1,18 +1,34 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
+import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import type {
   CustomerIssueIllegalRecordFilterOptionsResponse,
   CustomerIssueIllegalRecordRowResponse,
   StatisticBoardRuleExplanationResponse,
+  StatisticFilterField,
 } from '../types/api';
+import { buildCustomerIssueIllegalConditionFields } from './customer-issues/customer-issue-condition-fields';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
+import {
+  buildFilterGroupFromRouteQuery,
+  buildFilterQueryPatch,
+  buildResetFilterQueryPatch,
+} from '../components/statistic-board-route-query';
+import {
+  createEmptyFilterGroup,
+  normalizeFilterDraftGroup,
+  replaceFilterDraftGroup,
+  resetFilterDraftGroup,
+  sanitizeFilterDraftGroup,
+  type StatisticFilterDraftGroup,
+} from '../components/statistic-board-filters';
 
 const {
   route,
@@ -39,6 +55,7 @@ const filterOptionsLoaded = ref(false);
 const advancedVisible = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueIllegalRecordRowResponse | null>(null);
+const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 
@@ -199,6 +216,16 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   return tags;
 });
 
+const conditionFilterFields = computed<StatisticFilterField[]>(() =>
+  buildCustomerIssueIllegalConditionFields(filterOptions.value),
+);
+
+const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
+  filterDraft.conditions.length
+    ? [{ key: 'filterGroup', label: '条件筛选', value: `${filterDraft.conditions.length} 条` }]
+    : [],
+);
+
 const columns = computed<RecordTableColumn[]>(() => [
   { key: 'issueIid', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
@@ -271,6 +298,16 @@ async function loadFilterOptions() {
   filterOptions.value = await api.getCustomerIssueIllegalRecordFilterOptions(projectId.value || undefined);
 }
 
+function initializeFiltersFromRoute() {
+  const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
+  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, conditionFilterFields.value);
+  replaceFilterDraftGroup(filterDraft, nextDraft);
+}
+
+function buildFilterPayload() {
+  return sanitizeFilterDraftGroup(filterDraft);
+}
+
 async function loadTableData() {
   const response = await api.getCustomerIssueIllegalRecords({
     projectId: route.query.projectId as string | undefined,
@@ -290,6 +327,7 @@ async function loadTableData() {
     createdAtEnd: String(route.query.createdAtEnd ?? ''),
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
+    filterGroup: buildFilterPayload(),
     page: page.value,
     size: pageSize.value,
     sortBy: sortBy.value || 'updatedAt',
@@ -301,6 +339,7 @@ async function loadTableData() {
 
 bindLoader(async () => {
   try {
+    initializeFiltersFromRoute();
     await loadTableData();
     pageInitialized.value = true;
   } catch (error) {
@@ -341,7 +380,9 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleReset() {
+  resetFilterDraftGroup(filterDraft);
   await patchQuery({
+    ...buildResetFilterQueryPatch(route.query),
     page: 1,
     sortBy: 'updatedAt',
     sortOrder: 'desc',
@@ -365,7 +406,33 @@ async function handleReset() {
 }
 
 async function handleQuery() {
-  await patchQuery({ page: 1 });
+  await patchQuery({
+    ...buildFilterQueryPatch(route.query, filterDraft),
+    page: 1,
+    issueIid: null,
+    title: null,
+    projectName: null,
+    moduleName: null,
+    illegalReason: null,
+    severityLevel: null,
+    priorityLevel: null,
+    issueState: null,
+    bugStatus: null,
+    category: null,
+    milestoneTitle: null,
+    createdAtStart: null,
+    createdAtEnd: null,
+    updatedAtStart: null,
+    updatedAtEnd: null,
+  });
+}
+
+async function handleKeywordSearch(nextKeyword: string) {
+  await patchQuery({ page: 1, keyword: nextKeyword || null });
+}
+
+async function handleRefresh() {
+  await loadTableData();
 }
 
 async function handleSizeChange(nextSize: number) {
@@ -385,6 +452,11 @@ async function handleSortChange(payload: { prop: string; order: 'ascending' | 'd
 }
 
 async function handleClearFilter(key: string) {
+  if (key === 'filterGroup') {
+    resetFilterDraftGroup(filterDraft);
+    await patchQuery({ ...buildResetFilterQueryPatch(route.query), page: 1 });
+    return;
+  }
   if (key === 'updatedAtRange') {
     await patchQuery({ page: 1, updatedAtStart: null, updatedAtEnd: null });
     return;
@@ -427,28 +499,33 @@ function openDetailDrawer(row: Record<string, unknown>) {
         :columns="columns"
         :rows="tableRows"
         :loading="isTableLoading"
-        :loading-delay="180"
         :keyword-auto-search="true"
         :page="page"
         :page-size="pageSize"
         :total="total"
-        :primary-filters="primaryFilters"
-        :advanced-filters="advancedFilters"
-        :filter-values="filterValues"
-        :active-filter-tags="activeFilterTags"
-        :advanced-visible="advancedVisible"
-        :show-search="false"
-        :show-refresh="false"
+        :active-filter-tags="conditionActiveFilterTags"
+        :keyword="String(route.query.keyword ?? '')"
+        search-placeholder="输入关键字快速搜索"
+        :show-search="true"
+        :show-refresh="true"
         empty-description="当前筛选条件下没有客户问题非法数据。"
-        @filter-change="handleFilterChange"
         @reset="handleReset"
+        @search="handleKeywordSearch"
+        @refresh="handleRefresh"
         @query="handleQuery"
         @clear-filter="handleClearFilter"
-        @update:advanced-visible="advancedVisible = $event"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
+        <template #filter-builder>
+          <StatisticFilterBuilder
+            :model-value="filterDraft"
+            :fields="conditionFilterFields"
+            add-button-text="添加条件"
+          />
+        </template>
+
         <template #toolbar-prefix>
           <div class="customer-illegal-toolbar-meta">
             <div class="customer-illegal-toolbar-title">缺陷非法数据明细</div>
