@@ -1,5 +1,19 @@
 # Data Collection Platform Progress
 
+## Current Architecture Work
+
+- Added a project-wide decoupling review and migration blueprint
+- Confirmed the next architecture sequence:
+  - build shared fact-read layer first
+  - split oversized services second
+  - template repeated statistic-board patterns third
+  - unify frontend page controllers and API domains last
+- Selected `issue_fact` shared read abstraction as the first implementation slice
+- Kept the existing direction that is already correct:
+  - fact-first architecture
+  - scope profiles
+  - reusable frontend base components
+
 ## Completed
 
 - Initialized Spring Boot 3 + Java 21 backend

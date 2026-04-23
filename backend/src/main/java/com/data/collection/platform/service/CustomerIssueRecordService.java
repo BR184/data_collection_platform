@@ -8,67 +8,25 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 @Service
 public class CustomerIssueRecordService {
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String RULE_VERSION = "customer-issue-records@2026-04-22-v1";
-  private static final String FACT_SQL =
-      """
-      select project_id,
-             coalesce(project_name, '') as project_name,
-             issue_id,
-             issue_iid,
-             coalesce(title, '') as title,
-             coalesce(issue_state, 'opened') as issue_state,
-             coalesce(testing_phase, '') as testing_phase,
-             coalesce(system_test_label, '') as system_test_label,
-             coalesce(severity_level, '') as severity_level,
-             coalesce(priority_level, '') as priority_level,
-             coalesce(bug_status, '') as bug_status,
-             coalesce(category, '') as category,
-             coalesce(reason_category, '') as reason_category,
-             coalesce(milestone_title, '') as milestone_title,
-             coalesce(author_name, '') as author_name,
-             coalesce(assignee_name, '') as assignee_name,
-             coalesce(module_names, '') as module_names,
-             coalesce(label_names, '') as label_names,
-             coalesce(delay_issue, false) as delay_issue,
-             coalesce(delay_reason, '') as delay_reason,
-             coalesce(delay_cause, '') as delay_cause,
-             coalesce(is_response_delayed, false) as is_response_delayed,
-             coalesce(is_resolve_delayed, false) as is_resolve_delayed,
-             coalesce(is_illegal, false) as is_illegal,
-             coalesce(illegal_reason, '') as illegal_reason,
-             created_at_source,
-             updated_at_source,
-             closed_at_source
-        from issue_fact
-       where deleted = false
-      """;
 
-  private final IssueFactQueryService issueFactQueryService;
+  private final IssueFactRecordRepository issueFactRecordRepository;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
 
   public CustomerIssueRecordService(
-      IssueFactQueryService issueFactQueryService,
+      IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile) {
-    this.issueFactQueryService = issueFactQueryService;
+    this.issueFactRecordRepository = issueFactRecordRepository;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
   }
 
@@ -101,7 +59,7 @@ public class CustomerIssueRecordService {
     String safeSortOrder = normalizeSortOrder(sortOrder);
     String safeTopic = normalizeTopic(topic);
 
-    List<CustomerIssueRecordView> filtered =
+    List<IssueFactRecord> filtered =
         loadTopicScopedViews(safeTopic, projectId).stream()
             .filter(view -> matchesKeyword(view, keyword))
             .filter(view -> matchesIssueIid(view, issueIid))
@@ -120,8 +78,7 @@ public class CustomerIssueRecordService {
             .sorted(buildComparator(safeSortField, safeSortOrder))
             .toList();
 
-    PageSlice<CustomerIssueRecordView> pageSlice =
-        PageSliceSupport.slice(filtered, safePage, safeSize);
+    PageSlice<IssueFactRecord> pageSlice = PageSliceSupport.slice(filtered, safePage, safeSize);
     return new CustomerIssueRecordListResponse(
         pageSlice.records().stream().map(this::toResponse).toList(),
         pageSlice.total(),
@@ -132,24 +89,24 @@ public class CustomerIssueRecordService {
   }
 
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(String topic, Long projectId) {
-    List<CustomerIssueRecordView> rows = loadTopicScopedViews(normalizeTopic(topic), projectId);
+    List<IssueFactRecord> rows = loadTopicScopedViews(normalizeTopic(topic), projectId);
     return new CustomerIssueRecordFilterOptionsResponse(
-        toOptions(rows, CustomerIssueRecordView::projectName),
+        toOptions(rows, IssueFactRecord::projectName),
         toOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
-        toOptions(rows, CustomerIssueRecordView::reasonCategory),
-        toOptions(rows, CustomerIssueRecordView::severityLevel),
-        toOptions(rows, CustomerIssueRecordView::priorityLevel),
-        toOptions(rows, CustomerIssueRecordView::issueState),
-        toOptions(rows, CustomerIssueRecordView::bugStatus),
-        toOptions(rows, CustomerIssueRecordView::category),
-        toOptions(rows, CustomerIssueRecordView::milestoneTitle));
+        toOptions(rows, IssueFactRecord::reasonCategory),
+        toOptions(rows, IssueFactRecord::severityLevel),
+        toOptions(rows, IssueFactRecord::priorityLevel),
+        toOptions(rows, IssueFactRecord::issueState),
+        toOptions(rows, IssueFactRecord::bugStatus),
+        toOptions(rows, IssueFactRecord::category),
+        toOptions(rows, IssueFactRecord::milestoneTitle));
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(String topic, Long projectId) {
     String safeTopic = normalizeTopic(topic);
-    List<CustomerIssueRecordView> loaded = loadFacts(projectId);
-    List<CustomerIssueRecordView> scoped = scopeCustomerIssues(loaded);
-    List<CustomerIssueRecordView> topicScoped = applyTopic(scoped, safeTopic);
+    List<IssueFactRecord> loaded = loadFacts(projectId);
+    List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
+    List<IssueFactRecord> topicScoped = applyTopic(scoped, safeTopic);
     return new StatisticBoardRuleExplanationResponse(
         "customer-issue-" + safeTopic + "-records",
         true,
@@ -177,68 +134,28 @@ public class CustomerIssueRecordService {
         null);
   }
 
-  private List<CustomerIssueRecordView> loadTopicScopedViews(String topic, Long projectId) {
+  private List<IssueFactRecord> loadTopicScopedViews(String topic, Long projectId) {
     return applyTopic(scopeCustomerIssues(loadFacts(projectId)), topic);
   }
 
-  private List<CustomerIssueRecordView> applyTopic(List<CustomerIssueRecordView> rows, String topic) {
+  private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, String topic) {
     if (TOPIC_DELAY.equals(topic)) {
-      return rows.stream().filter(CustomerIssueRecordView::delayRelated).toList();
+      return rows.stream().filter(IssueFactRecord::delayRelated).toList();
     }
     return rows;
   }
 
-  private List<CustomerIssueRecordView> scopeCustomerIssues(List<CustomerIssueRecordView> rows) {
+  private List<IssueFactRecord> scopeCustomerIssues(List<IssueFactRecord> rows) {
     return rows.stream()
         .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()))
         .toList();
   }
 
-  private List<CustomerIssueRecordView> loadFacts(Long projectId) {
-    Map<String, String> filters = new LinkedHashMap<>();
-    if (projectId != null) {
-      filters.put("projectId", String.valueOf(projectId));
-    }
-    try {
-      return issueFactQueryService.query(FACT_SQL, filters, this::mapIssueFact);
-    } catch (DataAccessException error) {
-      return List.of();
-    }
+  private List<IssueFactRecord> loadFacts(Long projectId) {
+    return issueFactRecordRepository.findByProjectId(projectId);
   }
 
-  private CustomerIssueRecordView mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
-    return new CustomerIssueRecordView(
-        rs.getLong("project_id"),
-        text(rs.getString("project_name")),
-        rs.getLong("issue_id"),
-        rs.getInt("issue_iid"),
-        text(rs.getString("title")),
-        text(rs.getString("issue_state")),
-        text(rs.getString("testing_phase")),
-        text(rs.getString("system_test_label")),
-        text(rs.getString("severity_level")),
-        text(rs.getString("priority_level")),
-        text(rs.getString("bug_status")),
-        text(rs.getString("category")),
-        text(rs.getString("reason_category")),
-        text(rs.getString("milestone_title")),
-        text(rs.getString("author_name")),
-        text(rs.getString("assignee_name")),
-        split(rs.getString("module_names")),
-        split(rs.getString("label_names")),
-        rs.getBoolean("delay_issue"),
-        text(rs.getString("delay_reason")),
-        text(rs.getString("delay_cause")),
-        rs.getBoolean("is_response_delayed"),
-        rs.getBoolean("is_resolve_delayed"),
-        rs.getBoolean("is_illegal"),
-        text(rs.getString("illegal_reason")),
-        time(rs.getTimestamp("created_at_source")),
-        time(rs.getTimestamp("updated_at_source")),
-        time(rs.getTimestamp("closed_at_source")));
-  }
-
-  private CustomerIssueRecordRowResponse toResponse(CustomerIssueRecordView view) {
+  private CustomerIssueRecordRowResponse toResponse(IssueFactRecord view) {
     return new CustomerIssueRecordRowResponse(
         view.issueId(),
         view.issueIid(),
@@ -268,7 +185,7 @@ public class CustomerIssueRecordService {
         view.labels());
   }
 
-  private boolean matchesKeyword(CustomerIssueRecordView view, String keyword) {
+  private boolean matchesKeyword(IssueFactRecord view, String keyword) {
     String normalizedKeyword = TextQuerySupport.trimToNull(keyword);
     if (normalizedKeyword == null) {
       return true;
@@ -283,7 +200,7 @@ public class CustomerIssueRecordService {
         || TextQuerySupport.containsAbstractSearch(view.milestoneTitle(), normalizedKeyword);
   }
 
-  private boolean matchesIssueIid(CustomerIssueRecordView view, String issueIid) {
+  private boolean matchesIssueIid(IssueFactRecord view, String issueIid) {
     String normalized = TextQuerySupport.trimToNull(issueIid);
     return normalized == null
         || TextQuerySupport.containsIgnoreCase(String.valueOf(view.issueIid()), normalized);
@@ -293,7 +210,7 @@ public class CustomerIssueRecordService {
     return TextQuerySupport.containsAbstractSearch(source, query);
   }
 
-  private boolean matchesModule(CustomerIssueRecordView view, String moduleName) {
+  private boolean matchesModule(IssueFactRecord view, String moduleName) {
     String normalized = TextQuerySupport.trimToNull(moduleName);
     return normalized == null
         || view.moduleNames().stream()
@@ -313,27 +230,27 @@ public class CustomerIssueRecordService {
     return endDate == null || (source != null && source.isBefore(endDate.plusDays(1).atStartOfDay()));
   }
 
-  private Comparator<CustomerIssueRecordView> buildComparator(String sortField, String sortOrder) {
-    Comparator<CustomerIssueRecordView> comparator =
+  private Comparator<IssueFactRecord> buildComparator(String sortField, String sortOrder) {
+    Comparator<IssueFactRecord> comparator =
         switch (sortField) {
-          case "issueIid" -> SortSupport.nullableComparable(CustomerIssueRecordView::issueIid);
-          case "title" -> SortSupport.nullableString(CustomerIssueRecordView::title);
-          case "projectName" -> SortSupport.nullableString(CustomerIssueRecordView::projectName);
+          case "issueIid" -> SortSupport.nullableComparable(IssueFactRecord::issueIid);
+          case "title" -> SortSupport.nullableString(IssueFactRecord::title);
+          case "projectName" -> SortSupport.nullableString(IssueFactRecord::projectName);
           case "moduleNames" -> SortSupport.nullableString(view -> String.join("、", view.moduleNames()));
-          case "reasonCategory" -> SortSupport.nullableString(CustomerIssueRecordView::reasonCategory);
-          case "severityLevel" -> SortSupport.nullableString(CustomerIssueRecordView::severityLevel);
-          case "priorityLevel" -> SortSupport.nullableString(CustomerIssueRecordView::priorityLevel);
-          case "bugStatus" -> SortSupport.nullableString(CustomerIssueRecordView::bugStatus);
-          case "issueState" -> SortSupport.nullableString(CustomerIssueRecordView::issueState);
-          case "authorName" -> SortSupport.nullableString(CustomerIssueRecordView::authorName);
-          case "assigneeName" -> SortSupport.nullableString(CustomerIssueRecordView::assigneeName);
-          case "category" -> SortSupport.nullableString(CustomerIssueRecordView::category);
-          case "milestoneTitle" -> SortSupport.nullableString(CustomerIssueRecordView::milestoneTitle);
-          case "createdAt" -> SortSupport.nullableComparable(CustomerIssueRecordView::createdAt);
-          case "closedAt" -> SortSupport.nullableComparable(CustomerIssueRecordView::closedAt);
-          default -> SortSupport.nullableComparable(CustomerIssueRecordView::updatedAt);
+          case "reasonCategory" -> SortSupport.nullableString(IssueFactRecord::reasonCategory);
+          case "severityLevel" -> SortSupport.nullableString(IssueFactRecord::severityLevel);
+          case "priorityLevel" -> SortSupport.nullableString(IssueFactRecord::priorityLevel);
+          case "bugStatus" -> SortSupport.nullableString(IssueFactRecord::bugStatus);
+          case "issueState" -> SortSupport.nullableString(IssueFactRecord::issueState);
+          case "authorName" -> SortSupport.nullableString(IssueFactRecord::authorName);
+          case "assigneeName" -> SortSupport.nullableString(IssueFactRecord::assigneeName);
+          case "category" -> SortSupport.nullableString(IssueFactRecord::category);
+          case "milestoneTitle" -> SortSupport.nullableString(IssueFactRecord::milestoneTitle);
+          case "createdAt" -> SortSupport.nullableComparable(IssueFactRecord::createdAt);
+          case "closedAt" -> SortSupport.nullableComparable(IssueFactRecord::closedAt);
+          default -> SortSupport.nullableComparable(IssueFactRecord::updatedAt);
         };
-    comparator = comparator.thenComparing(CustomerIssueRecordView::issueIid);
+    comparator = comparator.thenComparing(IssueFactRecord::issueIid);
     return SortSupport.applyDirection(comparator, "asc".equalsIgnoreCase(sortOrder));
   }
 
@@ -390,11 +307,11 @@ public class CustomerIssueRecordService {
   }
 
   private StatisticRuleFlowStep step(
-      String key, String title, String description, List<CustomerIssueRecordView> output, long inputCount) {
+      String key, String title, String description, List<IssueFactRecord> output, long inputCount) {
     return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
   }
 
-  private List<StatisticRuleFlowStepSample> sample(List<CustomerIssueRecordView> rows) {
+  private List<StatisticRuleFlowStepSample> sample(List<IssueFactRecord> rows) {
     return rows.stream()
         .limit(3)
         .map(row -> new StatisticRuleFlowStepSample("#" + row.issueIid() + " " + row.projectName(), row.title()))
@@ -402,8 +319,8 @@ public class CustomerIssueRecordService {
   }
 
   private List<OptionItemResponse> toOptions(
-      List<CustomerIssueRecordView> rows,
-      java.util.function.Function<CustomerIssueRecordView, String> extractor) {
+      List<IssueFactRecord> rows,
+      java.util.function.Function<IssueFactRecord, String> extractor) {
     return OptionItemResponseFactory.from(rows, extractor, TextQuerySupport::trimToNull);
   }
 
@@ -414,66 +331,5 @@ public class CustomerIssueRecordService {
   private LocalDate parseDate(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized == null ? null : LocalDate.parse(normalized);
-  }
-
-  private LocalDateTime time(Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private String text(String value) {
-    return value == null ? "" : value.trim();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String item : raw.split(",")) {
-      String normalized = item == null ? "" : item.trim();
-      if (!normalized.isEmpty()) {
-        values.add(normalized);
-      }
-    }
-    return List.copyOf(values);
-  }
-
-  private record CustomerIssueRecordView(
-      Long projectId,
-      String projectName,
-      Long issueId,
-      Integer issueIid,
-      String title,
-      String issueState,
-      String testingPhase,
-      String systemTestLabel,
-      String severityLevel,
-      String priorityLevel,
-      String bugStatus,
-      String category,
-      String reasonCategory,
-      String milestoneTitle,
-      String authorName,
-      String assigneeName,
-      List<String> moduleNames,
-      List<String> labels,
-      boolean delayIssue,
-      String delayReason,
-      String delayCause,
-      boolean responseDelayed,
-      boolean resolveDelayed,
-      boolean illegal,
-      String illegalReason,
-      LocalDateTime createdAt,
-      LocalDateTime updatedAt,
-      LocalDateTime closedAt) {
-    IssueScopeContext scopeContext() {
-      return new IssueScopeContext(
-          projectId, projectName, milestoneTitle, testingPhase, systemTestLabel, createdAt, labels);
-    }
-
-    boolean delayRelated() {
-      return delayIssue || responseDelayed || resolveDelayed;
-    }
   }
 }
