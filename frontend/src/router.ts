@@ -14,6 +14,7 @@ import ReviewDataManagementView from './views/ReviewDataManagementView.vue';
 import SystemTestIssueSearchView from './views/SystemTestIssueSearchView.vue';
 import CustomerIssueIllegalRecordsView from './views/CustomerIssueIllegalRecordsView.vue';
 import CustomerIssueRecordsView from './views/CustomerIssueRecordsView.vue';
+import TestingPhaseDefinitionView from './views/TestingPhaseDefinitionView.vue';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -439,7 +440,18 @@ const routes: RouteRecordRaw[] = [
     },
   },
   buildPlaceholderRoute('/system-settings/module-management', 'system-settings', 'module-management'),
-  buildPlaceholderRoute('/system-settings/testing-phase-definition', 'system-settings', 'testing-phase-definition'),
+  {
+    path: '/system-settings/testing-phase-definition',
+    component: TestingPhaseDefinitionView,
+    meta: {
+      moduleKey: 'system-settings',
+      pageKey: 'testing-phase-definition',
+      title: pageByKey.get('testing-phase-definition')!.label,
+      description: pageByKey.get('testing-phase-definition')!.description,
+      allowedQueryKeys: ['projectId', 'keyword', 'enabled'],
+      persistedQueryKeys: ['projectId'],
+    },
+  },
   {
     path: '/:pathMatch(.*)*',
     component: NotFoundView,
