@@ -26,6 +26,14 @@
   - moved the common request wrapper into `api-client/request.ts`
   - split mirror sync APIs into `api-client/mirror-api.ts`
   - split statistic-board APIs into `api-client/statistic-boards-api.ts`
+  - split code-review APIs into `api-client/code-review-api.ts`
+  - split review-data APIs into `api-client/review-data-api.ts`
+  - split issue-record APIs into `api-client/issue-records-api.ts`
+  - split database-browser APIs into `api-client/database-browser-api.ts`
+  - split testing-phase APIs into `api-client/testing-phases-api.ts`
+  - split collect-form APIs into `api-client/collect-forms-api.ts`
+  - removed the corresponding legacy method blocks from the large `api.ts` aggregate
+  - left `api.ts` as a compatibility aggregate and shared type home for now
   - kept the existing `api` aggregate export compatible with current pages
   - added `useRuleExplanationPanel` and migrated customer-issue record pages to shared rule-panel loading behavior
 - Kept the existing direction that is already correct:
