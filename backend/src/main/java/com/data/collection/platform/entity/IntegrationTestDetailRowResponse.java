@@ -22,6 +22,8 @@ public record IntegrationTestDetailRowResponse(
     Integer exceptionCount,
     BigDecimal passRate,
     Boolean legal,
+    String parseStatus,
+    String validationReason,
     String issueState,
     String authorName,
     String assigneeName,

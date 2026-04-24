@@ -264,6 +264,8 @@ create table if not exists integration_test_fact (
     exception_count integer,
     pass_rate numeric(8, 2),
     legal boolean not null default false,
+    parse_status varchar(32) not null default 'PARTIAL',
+    validation_reason varchar(255),
     label_names text,
     function_labels text,
     deleted boolean not null default false,
@@ -415,6 +417,8 @@ alter table issue_fact add column if not exists resolve_sla_days integer not nul
 alter table issue_fact add column if not exists resolve_deadline_at timestamp;
 alter table issue_fact add column if not exists is_resolve_delayed boolean not null default false;
 alter table issue_fact add column if not exists is_legacy boolean not null default false;
+alter table integration_test_fact add column if not exists parse_status varchar(32) not null default 'PARTIAL';
+alter table integration_test_fact add column if not exists validation_reason varchar(255);
 
 create index if not exists idx_gitlab_mirror_records_table on gitlab_mirror_records(config_id, table_name);
 create index if not exists idx_collect_form_records_context on collect_form_records(project_id, resource_type, resource_id, template_code);

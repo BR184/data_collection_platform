@@ -58,6 +58,8 @@ export interface IntegrationTestDetailRowResponse {
   exceptionCount?: number | null;
   passRate?: string | number | null;
   legal?: boolean | null;
+  parseStatus?: string | null;
+  validationReason?: string | null;
   issueState?: string | null;
   authorName?: string | null;
   assigneeName?: string | null;

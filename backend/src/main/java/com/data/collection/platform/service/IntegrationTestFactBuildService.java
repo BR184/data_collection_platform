@@ -217,7 +217,12 @@ public class IntegrationTestFactBuildService {
     fact.setProblemCase(parsed.problemCase());
     fact.setExceptionCount(parsed.exceptionCount());
     fact.setPassRate(calculatePassRate(parsed.executeCase(), parsed.passCase()));
-    fact.setLegal(calculateLegal(parsed.executeCase(), parsed.passCase(), parsed.notPassCaseNow()));
+    IntegrationTestFactRules.ValidationResult validation =
+        IntegrationTestFactRules.validateRecord(
+            parsed.executeCase(), parsed.passCase(), parsed.notPassCaseNow());
+    fact.setLegal(validation.legal());
+    fact.setParseStatus(validation.parseStatus());
+    fact.setValidationReason(validation.validationReason());
     fact.setLabelNames(String.join(", ", labels));
     fact.setFunctionLabels(String.join(", ", functionLabels));
     fact.setDeleted(false);
@@ -367,13 +372,6 @@ public class IntegrationTestFactBuildService {
     String key = TextQuerySupport.trimToNull(line.substring(0, colonIndex));
     String value = TextQuerySupport.trimToNull(line.substring(colonIndex + 1));
     return key == null || value == null ? null : new KeyValue(key, value);
-  }
-
-  private boolean calculateLegal(Integer executeCase, Integer passCase, Integer notPassCaseNow) {
-    return executeCase != null
-        && passCase != null
-        && notPassCaseNow != null
-        && executeCase.equals(passCase + notPassCaseNow);
   }
 
   private BigDecimal calculatePassRate(Integer executeCase, Integer passCase) {

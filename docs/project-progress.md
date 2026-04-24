@@ -87,6 +87,13 @@
   - broadened note parsing tolerance for variant field names such as `执行用例数` / `问题用例数` / `例外问题数`
   - restored old-platform style function-label recognition (`新功能` / `老功能` / `增强功能`) from issue labels
   - exposed function labels in the integration-test detail drawer
+- Corrected the integration-test rule layer toward the new-platform design:
+  - added `parse_status` and `validation_reason` to `integration_test_fact`
+  - replaced the old implicit legality-only result with explicit parse/validation feedback
+  - surfaced validation explanations in the integration-test detail page so incomplete records are diagnosable
+- Unified record-table field alignment:
+  - changed `BaseRecordTable` default cell alignment to centered
+  - centered tag-style cell content so short values such as modules and branches no longer look visually offset
 - Kept the existing direction that is already correct:
   - fact-first architecture
   - scope profiles

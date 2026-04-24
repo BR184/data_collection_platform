@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -75,6 +76,32 @@ final class IntegrationTestFactRules {
     }
   }
 
+  static ValidationResult validateRecord(
+      Integer executeCase, Integer passCase, Integer notPassCaseNow) {
+    List<String> missingFields = new ArrayList<>();
+    if (executeCase == null) {
+      missingFields.add("执行用例总数");
+    }
+    if (passCase == null) {
+      missingFields.add("通过用例数");
+    }
+    if (notPassCaseNow == null) {
+      missingFields.add("本次未通过用例数");
+    }
+    if (!missingFields.isEmpty()) {
+      return new ValidationResult(
+          false, "PARTIAL", "缺少核心统计字段：" + String.join("、", missingFields));
+    }
+    if (executeCase < 0 || passCase < 0 || notPassCaseNow < 0) {
+      return new ValidationResult(false, "PARTIAL", "核心统计字段不能为负数");
+    }
+    if (!executeCase.equals(passCase + notPassCaseNow)) {
+      return new ValidationResult(
+          false, "PARSED", "执行用例总数应等于通过用例数 + 本次未通过用例数");
+    }
+    return new ValidationResult(true, "PARSED", null);
+  }
+
   private static String compactKey(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     if (normalized == null) {
@@ -82,6 +109,8 @@ final class IntegrationTestFactRules {
     }
     return normalized
         .toLowerCase(Locale.ROOT)
-        .replaceAll("[\\s:：#*\\-_/()（）\\[\\]{}<>·,.，。;；]+", "");
+        .replaceAll("[\\s:：*\\-_/()（）\\[\\]{}<>·,，。；;]+", "");
   }
+
+  record ValidationResult(boolean legal, String parseStatus, String validationReason) {}
 }

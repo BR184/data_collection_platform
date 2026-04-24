@@ -514,7 +514,7 @@ onBeforeUnmount(() => {
           :width="column.width"
           :min-width="column.minWidth"
           :fixed="column.fixed"
-          :align="column.align ?? 'left'"
+          :align="column.align ?? 'center'"
           :header-align="column.headerAlign ?? 'center'"
           :show-overflow-tooltip="column.showOverflowTooltip ?? true"
         >
@@ -732,6 +732,7 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .record-table-link {

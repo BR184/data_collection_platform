@@ -109,6 +109,12 @@ public class IntegrationTestFact {
 
   private Boolean legal;
 
+  @TableField("parse_status")
+  private String parseStatus;
+
+  @TableField("validation_reason")
+  private String validationReason;
+
   @TableField("label_names")
   private String labelNames;
 

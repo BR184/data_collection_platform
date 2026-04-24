@@ -102,6 +102,8 @@ class IntegrationTestControllerTest {
                         1,
                         new BigDecimal("80.00"),
                         true,
+                        "PARSED",
+                        null,
                         "opened",
                         "李四",
                         null,

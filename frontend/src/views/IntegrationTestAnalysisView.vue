@@ -85,7 +85,7 @@ const detailColumns = computed<RecordTableColumn[]>(() => [
   { key: 'issuableReference', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'functionName', label: '功能', sortable: true, minWidth: 160 },
-  { key: 'functionLabels', label: '功能标签', minWidth: 160 },
+  { key: 'functionLabels', label: '功能标签', type: 'tags', minWidth: 160 },
   { key: 'executor', label: '执行人', sortable: true, width: 120 },
   { key: 'executeCase', label: '执行用例总数', sortable: true, width: 120 },
   { key: 'passCase', label: '通过用例数', sortable: true, width: 120 },
@@ -94,7 +94,8 @@ const detailColumns = computed<RecordTableColumn[]>(() => [
   { key: 'problemCase', label: '问题用例数', sortable: true, width: 120 },
   { key: 'exceptionCount', label: '例外问题数', sortable: true, width: 120 },
   { key: 'passRate', label: '通过率', sortable: true, width: 110 },
-  { key: 'legal', label: '合法性', sortable: true, width: 120 },
+  { key: 'legal', label: '合法性', type: 'tags', sortable: true, width: 120 },
+  { key: 'validationReason', label: '校验说明', minWidth: 220 },
   { key: 'noteUpdatedAt', label: '备注更新时间', sortable: true, minWidth: 170 },
 ]);
 
@@ -112,12 +113,8 @@ const detailRows = computed<Record<string, unknown>[]>(() =>
     problemCase: row.problemCase ?? 0,
     exceptionCount: row.exceptionCount ?? 0,
     passRate: formatPercent(row.passRate),
-    legal: [
-      {
-        label: row.legal ? '合法' : '待确认',
-        type: row.legal ? ('success' as const) : ('warning' as const),
-      },
-    ],
+    legal: buildValidationTags(row),
+    validationReason: formatValidationReason(row),
     noteUpdatedAt: formatDateTime(row.noteUpdatedAt ?? row.updatedAtSource),
   })),
 );
@@ -343,6 +340,23 @@ function formatPercent(value?: string | number | null) {
     return '0.00%';
   }
   return `${Number(value).toFixed(2)}%`;
+}
+
+function buildValidationTags(row: IntegrationTestDetailResponse['records'][number]) {
+  if (row.legal) {
+    return [{ label: '合法', type: 'success' as const }];
+  }
+  if (row.parseStatus === 'PARTIAL') {
+    return [{ label: '待补充', type: 'warning' as const }];
+  }
+  return [{ label: '待确认', type: 'danger' as const }];
+}
+
+function formatValidationReason(row: IntegrationTestDetailResponse['records'][number]) {
+  if (row.validationReason) {
+    return row.validationReason;
+  }
+  return row.legal ? '校验通过' : '-';
 }
 
 function buildFunctionLabelTags(value?: string | null) {
