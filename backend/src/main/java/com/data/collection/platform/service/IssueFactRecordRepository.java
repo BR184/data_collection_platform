@@ -2,16 +2,11 @@ package com.data.collection.platform.service;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 @Service
 public class IssueFactRecordRepository {
@@ -82,61 +77,39 @@ public class IssueFactRecordRepository {
   private IssueFactRecord mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueFactRecord(
         rs.getLong("project_id"),
-        text(rs.getString("project_name")),
+        IssueFactValueSupport.text(rs.getString("project_name")),
         rs.getLong("issue_id"),
         rs.getInt("issue_iid"),
-        text(rs.getString("title")),
-        text(rs.getString("issue_state")),
-        text(rs.getString("testing_phase")),
-        text(rs.getString("system_test_label")),
-        text(rs.getString("severity_level")),
-        text(rs.getString("priority_level")),
-        text(rs.getString("bug_status")),
-        text(rs.getString("category")),
-        text(rs.getString("reason_category")),
+        IssueFactValueSupport.text(rs.getString("title")),
+        IssueFactValueSupport.text(rs.getString("issue_state")),
+        IssueFactValueSupport.text(rs.getString("testing_phase")),
+        IssueFactValueSupport.text(rs.getString("system_test_label")),
+        IssueFactValueSupport.text(rs.getString("severity_level")),
+        IssueFactValueSupport.text(rs.getString("priority_level")),
+        IssueFactValueSupport.text(rs.getString("bug_status")),
+        IssueFactValueSupport.text(rs.getString("category")),
+        IssueFactValueSupport.text(rs.getString("reason_category")),
         rs.getBoolean("is_excluded"),
-        text(rs.getString("exclusion_reason")),
+        IssueFactValueSupport.text(rs.getString("exclusion_reason")),
         rs.getBoolean("is_fixed"),
         rs.getBoolean("is_regression"),
         rs.getBoolean("is_crash"),
         rs.getBoolean("is_level1_other"),
         rs.getBoolean("is_legacy"),
-        text(rs.getString("milestone_title")),
-        text(rs.getString("author_name")),
-        text(rs.getString("assignee_name")),
-        split(rs.getString("module_names")),
-        split(rs.getString("label_names")),
+        IssueFactValueSupport.text(rs.getString("milestone_title")),
+        IssueFactValueSupport.text(rs.getString("author_name")),
+        IssueFactValueSupport.text(rs.getString("assignee_name")),
+        IssueFactValueSupport.split(rs.getString("module_names")),
+        IssueFactValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("delay_issue"),
-        text(rs.getString("delay_reason")),
-        text(rs.getString("delay_cause")),
+        IssueFactValueSupport.text(rs.getString("delay_reason")),
+        IssueFactValueSupport.text(rs.getString("delay_cause")),
         rs.getBoolean("is_response_delayed"),
         rs.getBoolean("is_resolve_delayed"),
         rs.getBoolean("is_illegal"),
-        text(rs.getString("illegal_reason")),
-        time(rs.getTimestamp("created_at_source")),
-        time(rs.getTimestamp("updated_at_source")),
-        time(rs.getTimestamp("closed_at_source")));
-  }
-
-  private LocalDateTime time(Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private String text(String value) {
-    return value == null ? "" : value.trim();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String item : raw.split(",")) {
-      String normalized = item == null ? "" : item.trim();
-      if (!normalized.isEmpty()) {
-        values.add(normalized);
-      }
-    }
-    return List.copyOf(values);
+        IssueFactValueSupport.text(rs.getString("illegal_reason")),
+        IssueFactValueSupport.time(rs.getTimestamp("created_at_source")),
+        IssueFactValueSupport.time(rs.getTimestamp("updated_at_source")),
+        IssueFactValueSupport.time(rs.getTimestamp("closed_at_source")));
   }
 }

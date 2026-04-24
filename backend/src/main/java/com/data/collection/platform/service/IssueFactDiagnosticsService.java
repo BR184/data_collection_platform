@@ -5,14 +5,11 @@ import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueFactScopeDiagnosticsResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -110,38 +107,16 @@ public class IssueFactDiagnosticsService {
   private IssueFactDiagnosticView mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueFactDiagnosticView(
         rs.getLong("project_id"),
-        text(rs.getString("project_name")),
-        text(rs.getString("milestone_title")),
-        text(rs.getString("testing_phase")),
-        text(rs.getString("system_test_label")),
-        text(rs.getString("reason_category")),
+        IssueFactValueSupport.text(rs.getString("project_name")),
+        IssueFactValueSupport.text(rs.getString("milestone_title")),
+        IssueFactValueSupport.text(rs.getString("testing_phase")),
+        IssueFactValueSupport.text(rs.getString("system_test_label")),
+        IssueFactValueSupport.text(rs.getString("reason_category")),
         rs.getBoolean("has_response"),
         rs.getBoolean("is_response_delayed"),
         rs.getBoolean("is_resolve_delayed"),
-        split(rs.getString("label_names")),
-        time(rs.getTimestamp("created_at_source")));
-  }
-
-  private String text(String value) {
-    return StringUtils.hasText(value) ? value.trim() : "";
-  }
-
-  private LocalDateTime time(Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String value : raw.split(",")) {
-      String trimmed = value == null ? "" : value.trim();
-      if (!trimmed.isEmpty()) {
-        values.add(trimmed);
-      }
-    }
-    return List.copyOf(values);
+        IssueFactValueSupport.split(rs.getString("label_names")),
+        IssueFactValueSupport.time(rs.getTimestamp("created_at_source")));
   }
 
   private record IssueFactDiagnosticView(

@@ -206,7 +206,7 @@ public class IssueSourceReadinessService {
           (rs, rowNum) ->
               new IssueFactCountBreakdownResponse(
                   String.valueOf(rs.getLong("project_id")),
-                  text(rs.getString("project_name"), "未命名项目"),
+                  IssueFactValueSupport.text(rs.getString("project_name"), "未命名项目"),
                   rs.getLong("issue_count")));
     } catch (DataAccessException error) {
       warnings.add("top issue projects unavailable: " + rootMessage(error));
@@ -214,9 +214,6 @@ public class IssueSourceReadinessService {
     }
   }
 
-  private String text(String value, String fallback) {
-    return value == null || value.isBlank() ? fallback : value.trim();
-  }
 
   private String rootMessage(DataAccessException error) {
     Throwable cause = error.getMostSpecificCause();
