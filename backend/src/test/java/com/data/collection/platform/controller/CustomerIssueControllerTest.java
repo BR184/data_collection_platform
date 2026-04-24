@@ -13,8 +13,11 @@ import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.service.CustomerIssueIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
+import com.data.collection.platform.service.CustomerIssueRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueRecordService;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,29 +47,31 @@ class CustomerIssueControllerTest {
   @Test
   void shouldReturnCustomerIssueRecords() throws Exception {
     when(customerIssueRecordService.listRecords(
-            "delay",
-            325L,
-            "delay",
-            "201",
-            "sample",
-            "CC_PRODUCT",
-            "Sketch",
-            "Design",
-            "S2",
-            "P1",
-            "opened",
-            "Open",
-            "Bug",
-            "R1",
-            "2026-04-01",
-            "2026-04-21",
-            "2026-04-10",
-            "2026-04-22",
-            null,
-            2,
-            10,
-            "updatedAt",
-            "desc"))
+            new CustomerIssueRecordQueryRequest(
+                "delay",
+                new IssueFactRecordListRequest(
+                    325L,
+                    "delay",
+                    "201",
+                    "sample",
+                    "CC_PRODUCT",
+                    "Sketch",
+                    "S2",
+                    "P1",
+                    "opened",
+                    "Open",
+                    "Bug",
+                    "R1",
+                    "2026-04-01",
+                    "2026-04-21",
+                    "2026-04-10",
+                    "2026-04-22",
+                    2,
+                    10,
+                    "updatedAt",
+                    "desc"),
+                "Design",
+                null)))
         .thenReturn(
             new CustomerIssueRecordListResponse(
                 List.of(
@@ -175,28 +180,30 @@ class CustomerIssueControllerTest {
   @Test
   void shouldReturnCustomerIssueIllegalRecords() throws Exception {
     when(customerIssueIllegalRecordService.listRecords(
-            325L,
-            "illegal",
-            "301",
-            "sample",
-            "CC_PRODUCT",
-            "Sketch",
-            "Module mismatch",
-            "S1",
-            "P0",
-            "opened",
-            "Open",
-            "Bug",
-            "R1",
-            "2026-04-01",
-            "2026-04-21",
-            "2026-04-10",
-            "2026-04-22",
-            null,
-            1,
-            20,
-            "updatedAt",
-            "desc"))
+            new CustomerIssueIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    325L,
+                    "illegal",
+                    "301",
+                    "sample",
+                    "CC_PRODUCT",
+                    "Sketch",
+                    "S1",
+                    "P0",
+                    "opened",
+                    "Open",
+                    "Bug",
+                    "R1",
+                    "2026-04-01",
+                    "2026-04-21",
+                    "2026-04-10",
+                    "2026-04-22",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                "Module mismatch",
+                null)))
         .thenReturn(
             new CustomerIssueIllegalRecordListResponse(
                 List.of(

@@ -6,8 +6,11 @@ import com.data.collection.platform.entity.CustomerIssueIllegalRecordListRespons
 import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.service.CustomerIssueIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
+import com.data.collection.platform.service.CustomerIssueRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueRecordService;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -53,29 +56,31 @@ public class CustomerIssueController {
       @RequestParam(required = false) String sortOrder) {
     return ApiResponse.success(
         customerIssueRecordService.listRecords(
-            topic,
-            projectId,
-            keyword,
-            issueIid,
-            title,
-            projectName,
-            moduleName,
-            reasonCategory,
-            severityLevel,
-            priorityLevel,
-            issueState,
-            bugStatus,
-            category,
-            milestoneTitle,
-            createdAtStart,
-            createdAtEnd,
-            updatedAtStart,
-            updatedAtEnd,
-            filterGroup,
-            page,
-            size,
-            sortBy,
-            sortOrder));
+            new CustomerIssueRecordQueryRequest(
+                topic,
+                buildListRequest(
+                    projectId,
+                    keyword,
+                    issueIid,
+                    title,
+                    projectName,
+                    moduleName,
+                    severityLevel,
+                    priorityLevel,
+                    issueState,
+                    bugStatus,
+                    category,
+                    milestoneTitle,
+                    createdAtStart,
+                    createdAtEnd,
+                    updatedAtStart,
+                    updatedAtEnd,
+                    page,
+                    size,
+                    sortBy,
+                    sortOrder),
+                reasonCategory,
+                filterGroup)));
   }
 
   @GetMapping("/records/filter-options")
@@ -118,28 +123,30 @@ public class CustomerIssueController {
       @RequestParam(required = false) String sortOrder) {
     return ApiResponse.success(
         customerIssueIllegalRecordService.listRecords(
-            projectId,
-            keyword,
-            issueIid,
-            title,
-            projectName,
-            moduleName,
-            illegalReason,
-            severityLevel,
-            priorityLevel,
-            issueState,
-            bugStatus,
-            category,
-            milestoneTitle,
-            createdAtStart,
-            createdAtEnd,
-            updatedAtStart,
-            updatedAtEnd,
-            filterGroup,
-            page,
-            size,
-            sortBy,
-            sortOrder));
+            new CustomerIssueIllegalRecordQueryRequest(
+                buildListRequest(
+                    projectId,
+                    keyword,
+                    issueIid,
+                    title,
+                    projectName,
+                    moduleName,
+                    severityLevel,
+                    priorityLevel,
+                    issueState,
+                    bugStatus,
+                    category,
+                    milestoneTitle,
+                    createdAtStart,
+                    createdAtEnd,
+                    updatedAtStart,
+                    updatedAtEnd,
+                    page,
+                    size,
+                    sortBy,
+                    sortOrder),
+                illegalReason,
+                filterGroup)));
   }
 
   @GetMapping("/illegal-records/filter-options")
@@ -152,5 +159,49 @@ public class CustomerIssueController {
   public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation(
       @RequestParam(required = false) Long projectId) {
     return ApiResponse.success(customerIssueIllegalRecordService.getRuleExplanation(projectId));
+  }
+
+  private IssueFactRecordListRequest buildListRequest(
+      Long projectId,
+      String keyword,
+      String issueIid,
+      String title,
+      String projectName,
+      String moduleName,
+      String severityLevel,
+      String priorityLevel,
+      String issueState,
+      String bugStatus,
+      String category,
+      String milestoneTitle,
+      String createdAtStart,
+      String createdAtEnd,
+      String updatedAtStart,
+      String updatedAtEnd,
+      int page,
+      int size,
+      String sortBy,
+      String sortOrder) {
+    return new IssueFactRecordListRequest(
+        projectId,
+        keyword,
+        issueIid,
+        title,
+        projectName,
+        moduleName,
+        severityLevel,
+        priorityLevel,
+        issueState,
+        bugStatus,
+        category,
+        milestoneTitle,
+        createdAtStart,
+        createdAtEnd,
+        updatedAtStart,
+        updatedAtEnd,
+        page,
+        size,
+        sortBy,
+        sortOrder);
   }
 }

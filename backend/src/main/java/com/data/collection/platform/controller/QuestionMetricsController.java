@@ -3,7 +3,9 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
+import com.data.collection.platform.service.SystemTestIssueSearchQueryRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,28 +46,31 @@ public class QuestionMetricsController {
       @RequestParam(required = false) String sortOrder) {
     return ApiResponse.success(
         systemTestIssueSearchService.listRecords(
-            projectId,
-            keyword,
-            issueIid,
-            title,
-            projectName,
-            moduleName,
-            testingPhase,
-            authorName,
-            assigneeName,
-            issueState,
-            severityLevel,
-            bugStatus,
-            category,
-            milestoneTitle,
-            createdAtStart,
-            createdAtEnd,
-            updatedAtStart,
-            updatedAtEnd,
-            page,
-            size,
-            sortBy,
-            sortOrder));
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    projectId,
+                    keyword,
+                    issueIid,
+                    title,
+                    projectName,
+                    moduleName,
+                    severityLevel,
+                    null,
+                    issueState,
+                    bugStatus,
+                    category,
+                    milestoneTitle,
+                    createdAtStart,
+                    createdAtEnd,
+                    updatedAtStart,
+                    updatedAtEnd,
+                    page,
+                    size,
+                    sortBy,
+                    sortOrder),
+                testingPhase,
+                authorName,
+                assigneeName)));
   }
 
   @GetMapping("/issues/filter-options")

@@ -172,6 +172,7 @@
 - 路由契约测试已具备基础覆盖。
 - 集成测试控制器已有单测。
 - 后端全量测试链路已恢复，但共享底座与关键正式页面的保护范围仍需继续扩大。
+- issue fact 记录查询链路的第一轮后端结构重构已完成，但前端记录页与统计板层面的进一步去重仍未开始。
 
 ### 6.3 体验层仍可优化
 
@@ -218,6 +219,25 @@
   - 新增共享前端底座单测：
     - `useRecordPageController`
     - `useRuleExplanationPanel`
+- 技术层第一阶段重构
+  - 三类 `issue_fact` 记录查询服务已统一切到请求对象模式：
+    - `CustomerIssueRecordService`
+    - `CustomerIssueIllegalRecordService`
+    - `SystemTestIssueSearchService`
+  - 新增共享记录查询基类：
+    - `AbstractIssueFactRecordListService`
+  - 新增共享请求对象：
+    - `IssueFactRecordListRequest`
+    - `CustomerIssueRecordQueryRequest`
+    - `CustomerIssueIllegalRecordQueryRequest`
+    - `SystemTestIssueSearchQueryRequest`
+  - 同步补充 service 单测：
+    - `CustomerIssueRecordServiceTest`
+    - `CustomerIssueIllegalRecordServiceTest`
+    - `SystemTestIssueSearchServiceTest`
+  - 相关 controller 切片测试已随签名收口同步更新：
+    - `CustomerIssueControllerTest`
+    - `QuestionMetricsControllerTest`
 
 ## 8. 当前开发约束
 
@@ -242,8 +262,9 @@
 当前优先建议：
 
 1. 继续补强后端与前端验证覆盖，在全量测试已恢复的基础上扩大关键模块保护范围。
-2. 在不动废弃模块的前提下，继续收口非废弃模块的验证缺口。
-3. 维持现有特例页面边界，避免再次引入新的隐式耦合。
+2. 继续进入技术层第二阶段，优先收口统计板与记录页前端大组件的职责过重问题。
+3. 在不动废弃模块的前提下，继续收口非废弃模块的验证缺口。
+4. 维持现有特例页面边界，避免再次引入新的隐式耦合。
 
 ### 9.3 后续功能补齐方向
 

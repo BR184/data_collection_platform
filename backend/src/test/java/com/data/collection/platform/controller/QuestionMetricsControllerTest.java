@@ -9,7 +9,9 @@ import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
+import com.data.collection.platform.service.SystemTestIssueSearchQueryRequest;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,28 +37,31 @@ class QuestionMetricsControllerTest {
   @Test
   void shouldReturnIssueSearchList() throws Exception {
     when(systemTestIssueSearchService.listRecords(
-            1001L,
-            "草图",
-            "809",
-            "崩溃",
-            "Rocksdb",
-            "草图",
-            "CC2026R1",
-            "alice",
-            "bob",
-            "opened",
-            "LEVEL2",
-            "处理中",
-            "功能缺陷",
-            "CC2026R1",
-            "2026-04-01",
-            "2026-04-21",
-            "2026-04-10",
-            "2026-04-22",
-            2,
-            10,
-            "updatedAt",
-            "desc"))
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    "草图",
+                    "809",
+                    "崩溃",
+                    "Rocksdb",
+                    "草图",
+                    "LEVEL2",
+                    null,
+                    "opened",
+                    "处理中",
+                    "功能缺陷",
+                    "CC2026R1",
+                    "2026-04-01",
+                    "2026-04-21",
+                    "2026-04-10",
+                    "2026-04-22",
+                    2,
+                    10,
+                    "updatedAt",
+                    "desc"),
+                "CC2026R1",
+                "alice",
+                "bob")))
         .thenReturn(
             new SystemTestIssueSearchListResponse(
                 List.of(

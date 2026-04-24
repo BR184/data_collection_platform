@@ -10,19 +10,21 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
-public class CustomerIssueRecordService {
+public class CustomerIssueRecordService extends AbstractIssueFactRecordListService {
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String RULE_VERSION = "customer-issue-records@2026-04-22-v1";
+  private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
+      createSortComparators();
 
-  private final IssueFactRecordRepository issueFactRecordRepository;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final ObjectMapper objectMapper;
 
@@ -30,64 +32,34 @@ public class CustomerIssueRecordService {
       IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       ObjectMapper objectMapper) {
-    this.issueFactRecordRepository = issueFactRecordRepository;
+    super(issueFactRecordRepository);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
   }
 
-  public CustomerIssueRecordListResponse listRecords(
-      String topic,
-      Long projectId,
-      String keyword,
-      String issueIid,
-      String title,
-      String projectName,
-      String moduleName,
-      String reasonCategory,
-      String severityLevel,
-      String priorityLevel,
-      String issueState,
-      String bugStatus,
-      String category,
-      String milestoneTitle,
-      String createdAtStart,
-      String createdAtEnd,
-      String updatedAtStart,
-      String updatedAtEnd,
-      String filterGroupJson,
-      int page,
-      int size,
-      String sortField,
-      String sortOrder) {
-    int safePage = page <= 0 ? 1 : page;
-    int safeSize = size <= 0 ? 20 : Math.min(size, 100);
-    String safeSortField = normalizeSortField(sortField);
-    String safeSortOrder = normalizeSortOrder(sortOrder);
-    String safeTopic = normalizeTopic(topic);
+  public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
+    IssueFactRecordListRequest listRequest = request.listRequest();
+    int safePage = normalizePage(listRequest.page());
+    int safeSize = normalizeSize(listRequest.size());
+    String safeSortField =
+        normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
+    String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
+    String safeTopic = normalizeTopic(request.topic());
     StatisticFilterGroup filterGroup =
         IssueFactRecordFilterGroupSupport.parse(
             objectMapper,
-            filterGroupJson,
+            request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
 
     List<IssueFactRecord> filtered =
-        loadTopicScopedViews(safeTopic, projectId).stream()
-            .filter(view -> matchesKeyword(view, keyword))
-            .filter(view -> matchesIssueIid(view, issueIid))
-            .filter(view -> matchesText(view.title(), title))
-            .filter(view -> matchesEquals(view.projectName(), projectName))
-            .filter(view -> matchesModule(view, moduleName))
-            .filter(view -> matchesEquals(view.reasonCategory(), reasonCategory))
-            .filter(view -> matchesEquals(view.severityLevel(), severityLevel))
-            .filter(view -> matchesEquals(view.priorityLevel(), priorityLevel))
-            .filter(view -> matchesEquals(view.issueState(), issueState))
-            .filter(view -> matchesEquals(view.bugStatus(), bugStatus))
-            .filter(view -> matchesEquals(view.category(), category))
-            .filter(view -> matchesEquals(view.milestoneTitle(), milestoneTitle))
-            .filter(view -> matchesDateRange(view.createdAt(), createdAtStart, createdAtEnd))
-            .filter(view -> matchesDateRange(view.updatedAt(), updatedAtStart, updatedAtEnd))
+        applyBaseFilters(
+                loadTopicScopedViews(safeTopic, listRequest.projectId()),
+                listRequest,
+                view -> matchesKeyword(view, listRequest.keyword()))
+            .stream()
+            .filter(view -> matchesEquals(view.reasonCategory(), request.reasonCategory()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, filterGroup))
-            .sorted(buildComparator(safeSortField, safeSortOrder))
+            .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
 
     PageSlice<IssueFactRecord> pageSlice = PageSliceSupport.slice(filtered, safePage, safeSize);
@@ -163,10 +135,6 @@ public class CustomerIssueRecordService {
         .toList();
   }
 
-  private List<IssueFactRecord> loadFacts(Long projectId) {
-    return issueFactRecordRepository.findByProjectId(projectId);
-  }
-
   private CustomerIssueRecordRowResponse toResponse(IssueFactRecord view) {
     return new CustomerIssueRecordRowResponse(
         view.issueId(),
@@ -212,90 +180,6 @@ public class CustomerIssueRecordService {
         || TextQuerySupport.containsAbstractSearch(view.milestoneTitle(), normalizedKeyword);
   }
 
-  private boolean matchesIssueIid(IssueFactRecord view, String issueIid) {
-    String normalized = TextQuerySupport.trimToNull(issueIid);
-    return normalized == null
-        || TextQuerySupport.containsIgnoreCase(String.valueOf(view.issueIid()), normalized);
-  }
-
-  private boolean matchesText(String source, String query) {
-    return TextQuerySupport.containsAbstractSearch(source, query);
-  }
-
-  private boolean matchesModule(IssueFactRecord view, String moduleName) {
-    String normalized = TextQuerySupport.trimToNull(moduleName);
-    return normalized == null
-        || view.moduleNames().stream()
-            .anyMatch(item -> TextQuerySupport.equalsNormalized(item, normalized));
-  }
-
-  private boolean matchesEquals(String source, String target) {
-    return TextQuerySupport.equalsNormalized(source, target);
-  }
-
-  private boolean matchesDateRange(LocalDateTime source, String start, String end) {
-    LocalDate startDate = parseDate(start);
-    if (startDate != null && (source == null || source.isBefore(startDate.atStartOfDay()))) {
-      return false;
-    }
-    LocalDate endDate = parseDate(end);
-    return endDate == null || (source != null && source.isBefore(endDate.plusDays(1).atStartOfDay()));
-  }
-
-  private Comparator<IssueFactRecord> buildComparator(String sortField, String sortOrder) {
-    Comparator<IssueFactRecord> comparator =
-        switch (sortField) {
-          case "issueIid" -> SortSupport.nullableComparable(IssueFactRecord::issueIid);
-          case "title" -> SortSupport.nullableString(IssueFactRecord::title);
-          case "projectName" -> SortSupport.nullableString(IssueFactRecord::projectName);
-          case "moduleNames" -> SortSupport.nullableString(view -> String.join("、", view.moduleNames()));
-          case "reasonCategory" -> SortSupport.nullableString(IssueFactRecord::reasonCategory);
-          case "severityLevel" -> SortSupport.nullableString(IssueFactRecord::severityLevel);
-          case "priorityLevel" -> SortSupport.nullableString(IssueFactRecord::priorityLevel);
-          case "bugStatus" -> SortSupport.nullableString(IssueFactRecord::bugStatus);
-          case "issueState" -> SortSupport.nullableString(IssueFactRecord::issueState);
-          case "authorName" -> SortSupport.nullableString(IssueFactRecord::authorName);
-          case "assigneeName" -> SortSupport.nullableString(IssueFactRecord::assigneeName);
-          case "category" -> SortSupport.nullableString(IssueFactRecord::category);
-          case "milestoneTitle" -> SortSupport.nullableString(IssueFactRecord::milestoneTitle);
-          case "createdAt" -> SortSupport.nullableComparable(IssueFactRecord::createdAt);
-          case "closedAt" -> SortSupport.nullableComparable(IssueFactRecord::closedAt);
-          default -> SortSupport.nullableComparable(IssueFactRecord::updatedAt);
-        };
-    comparator = comparator.thenComparing(IssueFactRecord::issueIid);
-    return SortSupport.applyDirection(comparator, "asc".equalsIgnoreCase(sortOrder));
-  }
-
-  private String normalizeSortField(String sortField) {
-    String normalized = TextQuerySupport.trimToNull(sortField);
-    if (normalized == null) {
-      return "updatedAt";
-    }
-    return switch (normalized) {
-      case "issueIid",
-          "title",
-          "projectName",
-          "moduleNames",
-          "reasonCategory",
-          "severityLevel",
-          "priorityLevel",
-          "bugStatus",
-          "issueState",
-          "authorName",
-          "assigneeName",
-          "category",
-          "milestoneTitle",
-          "createdAt",
-          "updatedAt",
-          "closedAt" -> normalized;
-      default -> "updatedAt";
-    };
-  }
-
-  private String normalizeSortOrder(String sortOrder) {
-    return "asc".equalsIgnoreCase(sortOrder) ? "asc" : "desc";
-  }
-
   private String normalizeTopic(String topic) {
     return TOPIC_DELAY.equalsIgnoreCase(TextQuerySupport.trimToNull(topic)) ? TOPIC_DELAY : TOPIC_CC_PRODUCT;
   }
@@ -318,30 +202,25 @@ public class CustomerIssueRecordService {
     return "不再做额外过滤，保留客户问题范围内的全部议题。";
   }
 
-  private StatisticRuleFlowStep step(
-      String key, String title, String description, List<IssueFactRecord> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
-  }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueFactRecord> rows) {
-    return rows.stream()
-        .limit(3)
-        .map(row -> new StatisticRuleFlowStepSample("#" + row.issueIid() + " " + row.projectName(), row.title()))
-        .toList();
-  }
-
-  private List<OptionItemResponse> toOptions(
-      List<IssueFactRecord> rows,
-      java.util.function.Function<IssueFactRecord, String> extractor) {
-    return OptionItemResponseFactory.from(rows, extractor, TextQuerySupport::trimToNull);
-  }
-
-  private List<OptionItemResponse> toOptions(List<String> values) {
-    return OptionItemResponseFactory.from(values, TextQuerySupport::trimToNull);
-  }
-
-  private LocalDate parseDate(String value) {
-    String normalized = TextQuerySupport.trimToNull(value);
-    return normalized == null ? null : LocalDate.parse(normalized);
+  private static Map<String, Comparator<IssueFactRecord>> createSortComparators() {
+    Map<String, Comparator<IssueFactRecord>> comparators = new LinkedHashMap<>();
+    comparators.put("issueIid", SortSupport.nullableComparable(IssueFactRecord::issueIid));
+    comparators.put("title", SortSupport.nullableString(IssueFactRecord::title));
+    comparators.put("projectName", SortSupport.nullableString(IssueFactRecord::projectName));
+    comparators.put(
+        "moduleNames", SortSupport.nullableString(view -> String.join("、", view.moduleNames())));
+    comparators.put("reasonCategory", SortSupport.nullableString(IssueFactRecord::reasonCategory));
+    comparators.put("severityLevel", SortSupport.nullableString(IssueFactRecord::severityLevel));
+    comparators.put("priorityLevel", SortSupport.nullableString(IssueFactRecord::priorityLevel));
+    comparators.put("bugStatus", SortSupport.nullableString(IssueFactRecord::bugStatus));
+    comparators.put("issueState", SortSupport.nullableString(IssueFactRecord::issueState));
+    comparators.put("authorName", SortSupport.nullableString(IssueFactRecord::authorName));
+    comparators.put("assigneeName", SortSupport.nullableString(IssueFactRecord::assigneeName));
+    comparators.put("category", SortSupport.nullableString(IssueFactRecord::category));
+    comparators.put("milestoneTitle", SortSupport.nullableString(IssueFactRecord::milestoneTitle));
+    comparators.put("createdAt", SortSupport.nullableComparable(IssueFactRecord::createdAt));
+    comparators.put("updatedAt", SortSupport.nullableComparable(IssueFactRecord::updatedAt));
+    comparators.put("closedAt", SortSupport.nullableComparable(IssueFactRecord::closedAt));
+    return Map.copyOf(comparators);
   }
 }
