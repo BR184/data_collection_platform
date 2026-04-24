@@ -15,7 +15,10 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
+import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
+import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +39,57 @@ class CodeReviewControllerTest {
   @BeforeEach
   void setUp() {
     mockMvc = MockMvcBuilders.standaloneSetup(new CodeReviewController(codeReviewIllegalRecordService)).build();
+  }
+
+  @Test
+  void shouldReturnIllegalRecords() throws Exception {
+    when(codeReviewIllegalRecordService.listRecords(
+            new CodeReviewIllegalRecordQueryRequest(
+                325L,
+                "repo-a",
+                "2026-04-01",
+                "2026-04-21",
+                "sample",
+                "Project X",
+                "merge_request",
+                "master",
+                "Alice",
+                "支付模块",
+                "缺少模块标签",
+                "101",
+                "王老师",
+                "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}",
+                2,
+                10,
+                "mergedAt",
+                "desc",
+                "{\"enabled\":true,\"groups\":[],\"updatedAt\":null}")))
+        .thenReturn(new CodeReviewIllegalRecordListResponse(List.of(), 0, 2, 10, "mergedAt", "desc"));
+
+    mockMvc.perform(get("/api/code-review/illegal-records")
+            .param("projectId", "325")
+            .param("repositoryName", "repo-a")
+            .param("mergedAtStart", "2026-04-01")
+            .param("mergedAtEnd", "2026-04-21")
+            .param("keyword", "sample")
+            .param("projectName", "Project X")
+            .param("requestType", "merge_request")
+            .param("targetBranch", "master")
+            .param("mergedBy", "Alice")
+            .param("moduleName", "支付模块")
+            .param("illegalType", "缺少模块标签")
+            .param("mergeRequestIid", "101")
+            .param("owner", "王老师")
+            .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}")
+            .param("page", "2")
+            .param("size", "10")
+            .param("sortBy", "mergedAt")
+            .param("sortOrder", "desc")
+            .param("ruleConfig", "{\"enabled\":true,\"groups\":[],\"updatedAt\":null}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.page").value(2))
+        .andExpect(jsonPath("$.data.size").value(10));
   }
 
   @Test
@@ -138,5 +192,32 @@ class CodeReviewControllerTest {
         .andExpect(jsonPath("$.data.baseTotal").value(10))
         .andExpect(jsonPath("$.data.filteredTotal").value(4))
         .andExpect(jsonPath("$.data.samples[0].mergeRequestIid").value(101));
+  }
+
+  @Test
+  void shouldReturnRealtimeStatusAndRefreshMessage() throws Exception {
+    RealtimeWorkspaceStatusResponse status =
+        new RealtimeWorkspaceStatusResponse(
+            "code-review-illegal-records",
+            true,
+            "ready",
+            "ok",
+            false,
+            LocalDateTime.of(2026, 4, 24, 9, 0),
+            null,
+            null);
+    when(codeReviewIllegalRecordService.getRealtimeStatus()).thenReturn(status);
+    when(codeReviewIllegalRecordService.requestRealtimeRefresh()).thenReturn(status);
+
+    mockMvc.perform(get("/api/code-review/illegal-records/status"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.workspaceKey").value("code-review-illegal-records"));
+
+    mockMvc.perform(post("/api/code-review/illegal-records/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.message").value("已开始刷新最新数据"))
+        .andExpect(jsonPath("$.data.status").value("ready"));
   }
 }

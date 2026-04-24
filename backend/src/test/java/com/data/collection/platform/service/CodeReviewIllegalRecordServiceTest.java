@@ -46,29 +46,30 @@ class CodeReviewIllegalRecordServiceTest {
   @Test
   void shouldKeepListRecordsBehaviorAfterRefactor() {
     when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
-        source(101L, 12, "repo-b", "Alice", "", LocalDateTime.of(2026, 4, 8, 10, 0)),
-        source(102L, 5, "repo-a", "Bob", "", LocalDateTime.of(2026, 4, 9, 10, 0))));
+        source(101L, 12, "repo-b", "Alice", "Owner A", "", LocalDateTime.of(2026, 4, 8, 10, 0)),
+        source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0))));
 
     CodeReviewIllegalRecordListResponse response = service.listRecords(
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        "merge_request",
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        1,
-        20,
-        "mergeRequestIid",
-        "asc",
-        null);
+        new CodeReviewIllegalRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "merge_request",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            20,
+            "mergeRequestIid",
+            "asc",
+            null));
 
     assertThat(response.total()).isEqualTo(2);
     assertThat(response.sortField()).isEqualTo("mergeRequestIid");
@@ -80,8 +81,8 @@ class CodeReviewIllegalRecordServiceTest {
   @Test
   void shouldBuildFilterOptionsFromLoadedSources() {
     when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
-        source(101L, 12, "repo-b", "Alice", "module-b", LocalDateTime.of(2026, 4, 8, 10, 0)),
-        source(102L, 5, "repo-a", "Bob", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
+        source(101L, 12, "repo-b", "Alice", "Owner A", "module-b", LocalDateTime.of(2026, 4, 8, 10, 0)),
+        source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
 
     CodeReviewIllegalRecordFilterOptionsResponse response = service.getFilterOptions(null);
 
@@ -91,11 +92,44 @@ class CodeReviewIllegalRecordServiceTest {
     assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("module-a", "module-b");
   }
 
+  @Test
+  void shouldApplyFilterGroupAfterRefactor() {
+    when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
+        source(101L, 12, "repo-b", "Alice", "Owner A", "", LocalDateTime.of(2026, 4, 8, 10, 0)),
+        source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0))));
+
+    CodeReviewIllegalRecordListResponse response = service.listRecords(
+        new CodeReviewIllegalRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "merge_request",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"Owner B\"}]}",
+            1,
+            20,
+            "mergeRequestIid",
+            "asc",
+            null));
+
+    assertThat(response.total()).isEqualTo(1);
+    assertThat(response.records()).extracting(item -> item.mergeRequestIid()).containsExactly(5);
+  }
+
   private CodeReviewIllegalRecordSource source(
       Long mergeRequestId,
       Integer mergeRequestIid,
       String repositoryName,
       String mergedBy,
+      String owner,
       String moduleName,
       LocalDateTime mergedAt) {
     return new CodeReviewIllegalRecordSource(
@@ -107,7 +141,7 @@ class CodeReviewIllegalRecordServiceTest {
         repositoryName,
         mergedAt,
         mergedBy,
-        "Owner A",
+        owner,
         "master",
         moduleName,
         List.of(),

@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.CodeReviewRulePreviewRequest;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,25 +49,26 @@ public class CodeReviewController {
       @RequestParam(required = false) String ruleConfig) {
     return ApiResponse.success(
         codeReviewIllegalRecordService.listRecords(
-            projectId,
-            repositoryName,
-            mergedAtStart,
-            mergedAtEnd,
-            keyword,
-            projectName,
-            requestType,
-            targetBranch,
-            mergedBy,
-            moduleName,
-            illegalType,
-            mergeRequestIid,
-            owner,
-            filterGroup,
-            page,
-            size,
-            sortBy,
-            sortOrder,
-            ruleConfig));
+            new CodeReviewIllegalRecordQueryRequest(
+                projectId,
+                repositoryName,
+                mergedAtStart,
+                mergedAtEnd,
+                keyword,
+                projectName,
+                requestType,
+                targetBranch,
+                mergedBy,
+                moduleName,
+                illegalType,
+                mergeRequestIid,
+                owner,
+                filterGroup,
+                page,
+                size,
+                sortBy,
+                sortOrder,
+                ruleConfig)));
   }
 
   @GetMapping("/illegal-records/filter-options")
