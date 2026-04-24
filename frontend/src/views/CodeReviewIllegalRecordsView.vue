@@ -11,13 +11,12 @@ import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordRowResponse,
   RealtimeWorkspaceStatusResponse,
-  StatisticFilterField,
-  StatisticBoardRuleExplanationResponse,
 } from '../types/api';
+import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRecordPageController } from '../composables/useRecordPageController';
-import type { RecordTableActiveFilterTag, RecordTableColumn } from '../types/record-table';
+import type { RecordTableActiveFilterTag } from '../types/record-table';
 import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';
 import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
 import {
@@ -29,6 +28,18 @@ import {
   hasReadyCodeReviewRuleConfig,
   normalizeCodeReviewRuleConfig,
 } from './code-review-rule-config-utils';
+import {
+  CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
+  CODE_REVIEW_QUERY_CLEAR_KEYS,
+  CODE_REVIEW_RANGE_KEYS,
+  createCodeReviewConditionFields,
+  createCodeReviewRuleExplanationFallback,
+  createDefaultCodeReviewFilterOptions,
+  formatCodeReviewDateTime,
+  formatCodeReviewMetric,
+  formatCodeReviewPercent,
+  mapCodeReviewIllegalTableRows,
+} from './code-review-illegal-records-view-helpers';
 
 const router = useRouter();
 const {
@@ -52,83 +63,26 @@ const {
 const rows = ref<CodeReviewIllegalRecordRowResponse[]>([]);
 const total = ref(0);
 const detailVisible = ref(false);
-const ruleExplanationVisible = ref(false);
-const ruleExplanationLoading = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const syncStatus = ref<RealtimeWorkspaceStatusResponse | null>(null);
-const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 
-const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>({
-  requestTypes: [{ label: '合并请求', value: 'merge_request' }],
-  repositoryNames: [],
-  illegalTypes: [],
-  targetBranches: [],
-  mergedBys: [],
-  moduleNames: [],
-  projectNames: [],
+const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
+  createDefaultCodeReviewFilterOptions(),
+);
+const ruleFields = computed(() => buildCodeReviewRuleFields(filterOptions.value));
+const conditionFilterFields = computed(() => createCodeReviewConditionFields(filterOptions.value));
+
+const {
+  ruleExplanation,
+  ruleExplanationLoading,
+  ruleExplanationVisible,
+  loadRuleExplanation: loadRuleExplanationPanel,
+  openRuleExplanation: openRuleExplanationPanel,
+} = useRuleExplanationPanel({
+  load: () => api.getCodeReviewIllegalRecordRuleExplanation(),
+  fallback: (reason) => createCodeReviewRuleExplanationFallback(reason),
 });
-
-function selectField(key: string, label: string, options: { label: string; value: string }[], width = 180): StatisticFilterField {
-  return {
-    key,
-    label,
-    type: 'select',
-    width,
-    operators: ['eq', 'ne'],
-    options,
-  };
-}
-
-function textField(key: string, label: string, width = 180): StatisticFilterField {
-  return {
-    key,
-    label,
-    type: 'text',
-    width,
-    operators: ['contains', 'eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: [],
-  };
-}
-
-function numberField(key: string, label: string, width = 160): StatisticFilterField {
-  return {
-    key,
-    label,
-    type: 'number',
-    width,
-    operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
-    options: [],
-  };
-}
-
-function datetimeField(key: string, label: string, width = 220): StatisticFilterField {
-  return {
-    key,
-    label,
-    type: 'datetime',
-    width,
-    operators: ['year', 'month', 'day', 'at', 'before', 'after', 'between'],
-    options: [],
-  };
-}
-
-const conditionFilterFields = computed<StatisticFilterField[]>(() => [
-  selectField('repositoryName', '代码库', filterOptions.value.repositoryNames),
-  datetimeField('mergedAt', '合并时间'),
-  selectField('illegalType', '非法类型', filterOptions.value.illegalTypes),
-  textField('keyword', '关键字', 240),
-  selectField('requestType', '请求类型', filterOptions.value.requestTypes),
-  numberField('mergeRequestIid', '合并请求编号'),
-  textField('owner', '标注责任人'),
-  selectField('targetBranch', '目标分支', filterOptions.value.targetBranches),
-  selectField('mergedBy', '合并人', filterOptions.value.mergedBys),
-  selectField('moduleName', '模块名称', filterOptions.value.moduleNames),
-  selectField('projectName', '项目名称', filterOptions.value.projectNames),
-  numberField('commentRate', '代码注释比例'),
-  numberField('defectCount', '缺陷数量'),
-  numberField('addedLines', '新增代码行数'),
-]);
 
 const {
   filterDraft,
@@ -155,37 +109,9 @@ const {
   buildResetQueryPatch,
   defaultSortBy: 'mergedAt',
   defaultSortOrder: 'desc',
-  resetClearKeys: [
-    'keyword',
-    'repositoryName',
-    'mergedAtStart',
-    'mergedAtEnd',
-    'projectName',
-    'requestType',
-    'targetBranch',
-    'mergedBy',
-    'moduleName',
-    'illegalType',
-    'mergeRequestIid',
-    'owner',
-  ],
-  queryClearKeys: [
-    'keyword',
-    'repositoryName',
-    'mergedAtStart',
-    'mergedAtEnd',
-    'projectName',
-    'requestType',
-    'targetBranch',
-    'mergedBy',
-    'moduleName',
-    'illegalType',
-    'mergeRequestIid',
-    'owner',
-  ],
-  rangeKeys: {
-    mergedAtRange: { startKey: 'mergedAtStart', endKey: 'mergedAtEnd' },
-  },
+  resetClearKeys: CODE_REVIEW_QUERY_CLEAR_KEYS,
+  queryClearKeys: CODE_REVIEW_QUERY_CLEAR_KEYS,
+  rangeKeys: CODE_REVIEW_RANGE_KEYS,
 });
 
 const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
@@ -196,20 +122,7 @@ const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   return tags;
 });
 
-const columns = computed<RecordTableColumn[]>(() => [
-  { key: 'mergeRequestIid', label: '合并请求编号', type: 'link', sortable: true, width: 128, fixed: 'left' },
-  { key: 'mergeRequestContent', label: '合并请求内容', sortable: true, minWidth: 260 },
-  { key: 'owner', label: '标注责任人', sortable: true, minWidth: 140 },
-  { key: 'projectName', label: '所属项目', sortable: true, minWidth: 160 },
-  { key: 'mergedAt', label: '合并时间', type: 'datetime', sortable: true, minWidth: 180 },
-  { key: 'mergedBy', label: '合并人', sortable: true, minWidth: 140 },
-  { key: 'moduleName', label: '模块名', sortable: true, minWidth: 140 },
-  { key: 'targetBranch', label: '合并目标分支', sortable: true, minWidth: 180 },
-  { key: 'illegalTypes', label: '非法类型', type: 'tags', minWidth: 220 },
-  { key: 'commentRate', label: '代码注释比例(%)', sortable: true, width: 160, align: 'right' },
-  { key: 'defectCount', label: '缺陷数量', type: 'number', sortable: true, width: 120, align: 'right' },
-  { key: 'addedLines', label: '新增代码行数(行)', type: 'number', sortable: true, width: 150, align: 'right' },
-]);
+const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
 
 const tableEmptyDescription = computed(() =>
   appliedRuleConfig.value?.enabled
@@ -217,45 +130,9 @@ const tableEmptyDescription = computed(() =>
     : '当前筛选条件下没有查询到非法记录。',
 );
 
-const tableRows = computed<Record<string, unknown>[]>(() =>
-  rows.value.map((row) => ({
-    __raw: row,
-    mergeRequestIid: row.mergeRequestLink
-      ? { label: String(row.mergeRequestIid), href: row.mergeRequestLink }
-      : String(row.mergeRequestIid),
-    mergeRequestContent: row.mergeRequestContent,
-    owner: row.owner || '-',
-    projectName: row.projectName || '-',
-    mergedAt: row.mergedAt ? row.mergedAt.replace('T', ' ').slice(0, 19) : '-',
-    mergedBy: row.mergedBy || '-',
-    moduleName: row.moduleName || '-',
-    targetBranch: row.targetBranch || '-',
-    illegalTypes: row.illegalTypes.map((label) => ({ label, type: 'warning' as const })),
-    commentRate: formatPercent(row.commentRate),
-    defectCount: row.defectCount,
-    addedLines: row.addedLines,
-  })),
-);
+const tableRows = computed<Record<string, unknown>[]>(() => mapCodeReviewIllegalTableRows(rows.value));
 
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
-}
-
-function formatMetric(value?: number | null, suffix = '') {
-  if (value == null) {
-    return '-';
-  }
-  return `${value}${suffix}`;
-}
-
-function formatPercent(value?: number | null) {
-  if (value == null) {
-    return '-';
-  }
-  return `${value.toFixed(2)}%`;
-}
-
-const lastSyncedText = computed(() => formatDateTime(syncStatus.value?.lastSyncedAt));
+const lastSyncedText = computed(() => formatCodeReviewDateTime(syncStatus.value?.lastSyncedAt));
 const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps || []);
 const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions || []);
 const ruleFirstInputCount = computed(() => ruleExplanationSteps.value[0]?.inputCount || 0);
@@ -284,28 +161,14 @@ const qaFriendlyRuleSummary = computed(() => {
 });
 const ruleExclusionSteps = computed(() => ruleExplanationSteps.value.slice(1));
 
-function createFallbackRuleExplanation(reason: string): StatisticBoardRuleExplanationResponse {
-  return {
-    boardKey: 'code-review-illegal-records',
-    supported: false,
-    title: '代码走查非法记录规则说明',
-    version: null,
-    scopeDescription: null,
-    summary: null,
-    flowSteps: [],
-    metricDefinitions: [],
-    unsupportedReason: reason,
-  };
-}
-
 function syncAppliedRuleConfig() {
   const stored = loadStoredCodeReviewRuleConfig();
   if (!stored) {
     appliedRuleConfig.value = null;
     return;
   }
-  const normalized = normalizeCodeReviewRuleConfig(stored, buildCodeReviewRuleFields(filterOptions.value));
-  appliedRuleConfig.value = hasReadyCodeReviewRuleConfig(normalized, buildCodeReviewRuleFields(filterOptions.value))
+  const normalized = normalizeCodeReviewRuleConfig(stored, ruleFields.value);
+  appliedRuleConfig.value = hasReadyCodeReviewRuleConfig(normalized, ruleFields.value)
     ? normalized
     : null;
 }
@@ -332,17 +195,6 @@ async function loadSyncStatus() {
     syncStatus.value = await api.getCodeReviewIllegalRecordRealtimeStatus();
   } catch {
     syncStatus.value = null;
-  }
-}
-
-async function loadRuleExplanation() {
-  ruleExplanationLoading.value = true;
-  try {
-    ruleExplanation.value = await api.getCodeReviewIllegalRecordRuleExplanation();
-  } catch {
-    ruleExplanation.value = createFallbackRuleExplanation('规则说明加载失败，请稍后重试。');
-  } finally {
-    ruleExplanationLoading.value = false;
   }
 }
 
@@ -378,7 +230,7 @@ bindLoader(async () => {
     initializeFromQuery(route.query);
     await loadTableData();
     await loadSyncStatus();
-    await loadRuleExplanation();
+    await loadRuleExplanationPanel();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '非法记录数据加载失败');
     rows.value = [];
@@ -390,8 +242,8 @@ async function handleClearFilter(key: string) {
   if (key === 'personalRuleConfig') {
     const stored = loadStoredCodeReviewRuleConfig();
     const cleared = normalizeCodeReviewRuleConfig(
-      stored ?? createDefaultCodeReviewRuleConfig(buildCodeReviewRuleFields(filterOptions.value)[0]),
-      buildCodeReviewRuleFields(filterOptions.value),
+      stored ?? createDefaultCodeReviewRuleConfig(ruleFields.value[0]),
+      ruleFields.value,
     );
     cleared.enabled = false;
     saveStoredCodeReviewRuleConfig(cleared);
@@ -410,14 +262,16 @@ async function handleClearFilter(key: string) {
   await baseHandleClearFilter(key);
 }
 
-function openRuleExplanation() {
+async function handleOpenRuleExplanation() {
+  await openRuleExplanationPanel();
   if (!ruleExplanation.value) {
-    ruleExplanation.value = createFallbackRuleExplanation('规则说明暂未加载完成，请稍后再试。');
+    ruleExplanation.value = createCodeReviewRuleExplanationFallback(
+      '规则说明暂未加载完成，请稍后再试。',
+    );
   }
   if (!ruleExplanation.value.supported) {
     ElMessage.warning(ruleExplanation.value.unsupportedReason || '当前页面暂不支持规则说明');
   }
-  ruleExplanationVisible.value = true;
 }
 
 function ruleStepRetainedRate(step: { inputCount: number; outputCount: number }) {
@@ -485,7 +339,7 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
             size="small"
             :icon="InfoFilled"
             :loading="ruleExplanationLoading"
-            @click="openRuleExplanation"
+            @click="handleOpenRuleExplanation"
           >
             规则说明
           </el-button>
@@ -561,7 +415,7 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
             <el-descriptions-item label="合并人">{{ selectedRow.mergedBy || '-' }}</el-descriptions-item>
             <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="合并目标分支">{{ selectedRow.targetBranch || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="合并时间">{{ formatDateTime(selectedRow.mergedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="合并时间">{{ formatCodeReviewDateTime(selectedRow.mergedAt) }}</el-descriptions-item>
             <el-descriptions-item label="项目 ID">{{ selectedRow.projectId ?? '-' }}</el-descriptions-item>
           </el-descriptions>
         </section>
@@ -591,15 +445,15 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
           <div class="record-detail-metrics">
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">代码注释比例</span>
-              <strong class="record-detail-metric-value">{{ formatPercent(selectedRow.commentRate) }}</strong>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewPercent(selectedRow.commentRate) }}</strong>
             </article>
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">缺陷数量</span>
-              <strong class="record-detail-metric-value">{{ formatMetric(selectedRow.defectCount) }}</strong>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.defectCount) }}</strong>
             </article>
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">新增代码行数</span>
-              <strong class="record-detail-metric-value">{{ formatMetric(selectedRow.addedLines, ' 行') }}</strong>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.addedLines, ' 行') }}</strong>
             </article>
           </div>
         </section>
