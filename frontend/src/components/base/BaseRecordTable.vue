@@ -3,7 +3,7 @@ import { computed, ref, toRef, useSlots, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import BaseSearchInput from './BaseSearchInput.vue';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';
-import RecordTableFilterFieldRenderer from './RecordTableFilterFieldRenderer.vue';
+import RecordTableFilterFields from './RecordTableFilterFields.vue';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import type {
   RecordTableActiveFilterTag,
@@ -146,12 +146,8 @@ function toggleAdvancedVisible() {
   emit('update:advancedVisible', !props.advancedVisible);
 }
 
-function getFilterValue(key: string) {
-  return props.filterValues[key];
-}
-
 function getInputFilterDraft(key: string) {
-  return inputFilterDrafts.value[key] ?? String(getFilterValue(key) ?? '');
+  return inputFilterDrafts.value[key] ?? String(props.filterValues[key] ?? '');
 }
 
 function updateInputFilterDraft(key: string, value: string) {
@@ -253,14 +249,12 @@ function handleStandaloneKeywordClear() {
       <div class="record-filter-primary">
         <slot name="filter-builder" />
 
-        <RecordTableFilterFieldRenderer
-          v-for="filter in primaryFilters"
-          :key="filter.key"
-          :filter="filter"
-          :model-value="getFilterValue(filter.key)"
-          :input-value="getInputFilterDraft(filter.key)"
-          :input-class="{ 'record-filter-main-keyword': filter.key === 'keyword' }"
-          :default-input-width="filter.key === 'keyword' ? 260 : 168"
+        <RecordTableFilterFields
+          :filters="primaryFilters"
+          :filter-values="filterValues"
+          :input-drafts="inputFilterDrafts"
+          keyword-field-visible
+          :default-input-width="168"
           :default-select-width="180"
           :default-date-range-width="280"
           @input-update="handleInputFilterUpdate"
@@ -300,12 +294,10 @@ function handleStandaloneKeywordClear() {
 
       <el-collapse-transition>
         <div v-show="advancedVisible && hasAdvancedFilters" class="record-filter-advanced">
-          <RecordTableFilterFieldRenderer
-            v-for="filter in advancedFilters"
-            :key="filter.key"
-            :filter="filter"
-            :model-value="getFilterValue(filter.key)"
-            :input-value="getInputFilterDraft(filter.key)"
+          <RecordTableFilterFields
+            :filters="advancedFilters"
+            :filter-values="filterValues"
+            :input-drafts="inputFilterDrafts"
             :default-input-width="168"
             :default-select-width="168"
             :default-date-range-width="280"
