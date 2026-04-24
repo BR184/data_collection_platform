@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SourceMode;
@@ -41,6 +42,7 @@ class GitlabMirrorSyncServiceTest {
   private GitlabSyncLogService logService;
   private GitlabSyncTaskService taskService;
   private GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
+  private GitlabMirrorProperties properties;
   private JsonUtils jsonUtils;
   private GitlabMirrorSyncService selfProxy;
   private GitlabMirrorSyncService syncService;
@@ -56,6 +58,7 @@ class GitlabMirrorSyncServiceTest {
     logService = mock(GitlabSyncLogService.class);
     taskService = mock(GitlabSyncTaskService.class);
     webhookPreciseSyncPlanner = mock(GitlabWebhookPreciseSyncPlanner.class);
+    properties = new GitlabMirrorProperties();
     jsonUtils = mock(JsonUtils.class);
     selfProxy = mock(GitlabMirrorSyncService.class);
     syncService =
@@ -69,6 +72,7 @@ class GitlabMirrorSyncServiceTest {
             logService,
             taskService,
             webhookPreciseSyncPlanner,
+            properties,
             jsonUtils,
             selfProxy);
   }
@@ -159,7 +163,7 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
-  void incrementalSyncShouldUseLastFullSyncTimeWhenIncrementalBaselineIsMissing() {
+  void incrementalSyncShouldUseLastFullSyncTimeWithLookbackWhenIncrementalBaselineIsMissing() {
     GitlabSyncTask task = runningTask(SyncType.INCREMENTAL);
     GitlabSyncConfig config = baseConfig();
     LocalDateTime lastFullSyncAt = LocalDateTime.now().minusMinutes(15);
@@ -180,7 +184,7 @@ class GitlabMirrorSyncServiceTest {
 
     ArgumentCaptor<LocalDateTime> sinceCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
     verify(externalDbService).incrementalScan(eq(config), eq(option), sinceCaptor.capture());
-    org.assertj.core.api.Assertions.assertThat(sinceCaptor.getValue()).isEqualTo(lastFullSyncAt);
+    org.assertj.core.api.Assertions.assertThat(sinceCaptor.getValue()).isEqualTo(lastFullSyncAt.minusMinutes(5));
   }
 
   @Test

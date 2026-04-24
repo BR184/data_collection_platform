@@ -29,7 +29,14 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -74,18 +81,28 @@ public class GitlabExternalDbService {
 
   public void testConnection(GitlabSyncConfig config) {
     try {
-      if (isDockerMode(config)) {
-        executeDockerSql(config, "select 1");
-        return;
-      }
-      try (Connection connection = openConnection(config); Statement statement = connection.createStatement()) {
-        statement.execute("select 1");
-      }
+      executeExternalQueryWithRetry("connection test", () -> {
+        try {
+          if (isDockerMode(config)) {
+            executeDockerSql(config, "select 1");
+            return null;
+          }
+          try (Connection connection = openConnection(config); Statement statement = connection.createStatement()) {
+            statement.setQueryTimeout(resolveExternalQueryTimeoutSeconds());
+            statement.execute("select 1");
+          }
+          return null;
+        } catch (Exception e) {
+          throw new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
+        }
+      });
     } catch (Exception e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Connection_Test")) {
         log.error("GitLab PostgreSQL connection test failed", e);
       }
-      throw new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
+      throw e instanceof BizException bizException
+          ? bizException
+          : new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
     }
   }
 
@@ -289,52 +306,63 @@ public class GitlabExternalDbService {
   }
 
   private List<Map<String, Object>> executeJdbcQuery(GitlabSyncConfig config, String sql) {
-    try (Connection connection = openConnection(config);
-         Statement statement = connection.createStatement();
-         ResultSet resultSet = statement.executeQuery(sql)) {
-      List<Map<String, Object>> rows = new ArrayList<>();
-      ResultSetMetaData metaData = resultSet.getMetaData();
-      int count = metaData.getColumnCount();
-      while (resultSet.next()) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        for (int i = 1; i <= count; i++) {
-          row.put(metaData.getColumnLabel(i), resultSet.getObject(i));
+    try {
+      return executeExternalQueryWithRetry("JDBC query", () -> {
+        try (Connection connection = openConnection(config);
+             Statement statement = connection.createStatement()) {
+          statement.setQueryTimeout(resolveExternalQueryTimeoutSeconds());
+          try (ResultSet resultSet = statement.executeQuery(sql)) {
+            List<Map<String, Object>> rows = new ArrayList<>();
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            int count = metaData.getColumnCount();
+            while (resultSet.next()) {
+              Map<String, Object> row = new LinkedHashMap<>();
+              for (int i = 1; i <= count; i++) {
+                row.put(metaData.getColumnLabel(i), resultSet.getObject(i));
+              }
+              rows.add(row);
+            }
+            return rows;
+          }
+        } catch (Exception e) {
+          throw new BizException("Failed to query GitLab database: " + e.getMessage());
         }
-        rows.add(row);
-      }
-      return rows;
-    } catch (Exception e) {
+      });
+    } catch (BizException e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
         log.error("Failed to query GitLab database via JDBC", e);
       }
-      throw new BizException("Failed to query GitLab database: " + e.getMessage());
+      throw e;
     }
   }
 
   private List<Map<String, Object>> executeDockerQuery(GitlabSyncConfig config, String sql) {
     try {
-      List<String> lines = executeDockerSql(config, "select row_to_json(t)::text from (%s) t".formatted(sql));
-      List<Map<String, Object>> rows = new ArrayList<>();
-      for (String line : lines) {
-        if (line == null || line.isBlank()) {
-          continue;
+      return executeExternalQueryWithRetry("Docker query", () -> {
+        try {
+          List<String> lines = executeDockerSql(config, "select row_to_json(t)::text from (%s) t".formatted(sql));
+          List<Map<String, Object>> rows = new ArrayList<>();
+          for (String line : lines) {
+            if (line == null || line.isBlank()) {
+              continue;
+            }
+            if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
+              throw new BizException(line);
+            }
+            rows.add(objectMapper.readValue(line, MAP_TYPE));
+          }
+          return rows;
+        } catch (BizException e) {
+          throw e;
+        } catch (Exception e) {
+          throw new BizException("Failed to query GitLab database via Docker: " + e.getMessage());
         }
-        if (line.startsWith("ERROR:") || line.startsWith("FATAL:")) {
-          throw new BizException(line);
-        }
-        rows.add(objectMapper.readValue(line, MAP_TYPE));
-      }
-      return rows;
+      });
     } catch (BizException e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
         log.error("Failed to query GitLab database via Docker", e);
       }
       throw e;
-    } catch (Exception e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
-        log.error("Failed to query GitLab database via Docker", e);
-      }
-      throw new BizException("Failed to query GitLab database via Docker: " + e.getMessage());
     }
   }
 
@@ -362,15 +390,25 @@ public class GitlabExternalDbService {
           script);
       builder.redirectErrorStream(true);
       Process process = builder.start();
-      List<String> lines = new ArrayList<>();
-      try (BufferedReader reader = new BufferedReader(
-          new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-        String line;
-        while ((line = reader.readLine()) != null) {
-          lines.add(line);
+      ExecutorService outputReader = Executors.newSingleThreadExecutor();
+      List<String> lines;
+      try {
+        Future<List<String>> outputFuture = outputReader.submit(() -> readProcessOutput(process));
+        boolean finished = process.waitFor(resolveExternalQueryTimeoutSeconds(), TimeUnit.SECONDS);
+        if (!finished) {
+          process.destroyForcibly();
+          throw new BizException("Docker GitLab PostgreSQL command timed out after "
+              + resolveExternalQueryTimeoutSeconds() + " seconds");
         }
+        try {
+          lines = outputFuture.get(5, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+          throw new BizException("Docker GitLab PostgreSQL command output read timed out");
+        }
+      } finally {
+        outputReader.shutdownNow();
       }
-      int exitCode = process.waitFor();
+      int exitCode = process.exitValue();
       if (exitCode != 0) {
         throw new BizException("Docker GitLab PostgreSQL command failed: " + String.join(System.lineSeparator(), lines));
       }
@@ -380,6 +418,12 @@ public class GitlabExternalDbService {
         log.error("Docker GitLab PostgreSQL command failed", e);
       }
       throw e;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
+        log.error("Docker GitLab PostgreSQL command interrupted", e);
+      }
+      throw new BizException("Docker GitLab PostgreSQL command interrupted");
     } catch (Exception e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
         log.error("Docker GitLab PostgreSQL command failed", e);
@@ -389,8 +433,108 @@ public class GitlabExternalDbService {
   }
 
   private Connection openConnection(GitlabSyncConfig config) throws Exception {
-    String url = "jdbc:postgresql://%s:%d/%s".formatted(config.getDbHost(), config.getDbPort(), normalizeDbName(config));
-    return DriverManager.getConnection(url, normalizeDbUser(config), config.getDbPassword());
+    return DriverManager.getConnection(buildJdbcUrl(config), normalizeDbUser(config), config.getDbPassword());
+  }
+
+  String buildJdbcUrl(GitlabSyncConfig config) {
+    int timeoutSeconds = resolveExternalQueryTimeoutSeconds();
+    return "jdbc:postgresql://%s:%d/%s?connectTimeout=%d&socketTimeout=%d&tcpKeepAlive=true".formatted(
+        config.getDbHost(),
+        config.getDbPort(),
+        normalizeDbName(config),
+        timeoutSeconds,
+        timeoutSeconds);
+  }
+
+  <T> T executeExternalQueryWithRetry(String operation, Supplier<T> supplier) {
+    int attempts = Math.max(1, properties.getExternalQueryRetryAttempts());
+    int retryDelayMs = Math.max(0, properties.getExternalQueryRetryDelayMs());
+    RuntimeException lastFailure = null;
+    for (int attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return supplier.get();
+      } catch (RuntimeException e) {
+        lastFailure = e;
+        if (attempt >= attempts || !isRetryableExternalFailure(e)) {
+          throw e;
+        }
+        log.warn(
+            "Transient GitLab external query failure, operation={}, attempt={}/{}, retryDelayMs={}, message={}",
+            operation,
+            attempt,
+            attempts,
+            retryDelayMs,
+            e.getMessage());
+        sleepBeforeRetry(retryDelayMs);
+      }
+    }
+    throw lastFailure;
+  }
+
+  boolean isRetryableExternalFailure(RuntimeException e) {
+    String message = flattenMessage(e);
+    if (message.isBlank()) {
+      return false;
+    }
+    if (message.contains("ERROR:") || message.contains("FATAL:") || message.toLowerCase(Locale.ROOT).contains("syntax error")) {
+      return false;
+    }
+    String lowerMessage = message.toLowerCase(Locale.ROOT);
+    return lowerMessage.contains("timeout")
+        || lowerMessage.contains("timed out")
+        || lowerMessage.contains("connection reset")
+        || lowerMessage.contains("connection refused")
+        || lowerMessage.contains("could not connect")
+        || lowerMessage.contains("connection has been closed")
+        || lowerMessage.contains("closed connection")
+        || lowerMessage.contains("broken pipe")
+        || lowerMessage.contains("i/o error")
+        || lowerMessage.contains("io exception")
+        || lowerMessage.contains("network")
+        || lowerMessage.contains("temporarily unavailable");
+  }
+
+  private List<String> readProcessOutput(Process process) throws Exception {
+    List<String> lines = new ArrayList<>();
+    try (BufferedReader reader = new BufferedReader(
+        new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        lines.add(line);
+      }
+    }
+    return lines;
+  }
+
+  private void sleepBeforeRetry(int retryDelayMs) {
+    if (retryDelayMs <= 0) {
+      return;
+    }
+    try {
+      Thread.sleep(retryDelayMs);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new BizException("GitLab external query retry interrupted");
+    }
+  }
+
+  private String flattenMessage(Throwable throwable) {
+    StringBuilder message = new StringBuilder();
+    Throwable current = throwable;
+    while (current != null) {
+      if (current.getMessage() != null) {
+        if (!message.isEmpty()) {
+          message.append(' ');
+        }
+        message.append(current.getMessage());
+      }
+      current = current.getCause();
+    }
+    return message.toString();
+  }
+
+  private int resolveExternalQueryTimeoutSeconds() {
+    return Math.max(1, properties.getExternalQueryTimeoutSeconds());
   }
 
   private String normalizeDbName(GitlabSyncConfig config) {

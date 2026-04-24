@@ -7,6 +7,8 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabWebhookEvent;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.mapper.GitlabWebhookEventMapper;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +47,7 @@ public class GitlabWebhookService {
           payload.get("object_kind"));
     }
     if (config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank()) {
-      if (secret == null || !config.getWebhookSecret().equals(secret)) {
+      if (!secretMatches(config.getWebhookSecret(), secret)) {
         try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.WEBHOOK.name());
              GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Webhook_Received")) {
           log.warn("Webhook rejected because secret validation failed, eventType={}", effectiveEventType);
@@ -77,6 +79,19 @@ public class GitlabWebhookService {
     if (value == null) {
       return null;
     }
-    return Long.parseLong(String.valueOf(value));
+    try {
+      return Long.parseLong(String.valueOf(value));
+    } catch (NumberFormatException e) {
+      return null;
+    }
+  }
+
+  private boolean secretMatches(String expectedSecret, String actualSecret) {
+    if (actualSecret == null) {
+      return false;
+    }
+    return MessageDigest.isEqual(
+        expectedSecret.getBytes(StandardCharsets.UTF_8),
+        actualSecret.getBytes(StandardCharsets.UTF_8));
   }
 }

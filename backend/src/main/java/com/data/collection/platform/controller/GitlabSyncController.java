@@ -89,7 +89,7 @@ public class GitlabSyncController {
     LocalDateTime currentStartedAt = currentTask == null ? null : currentTask.getStartedAt();
     return ApiResponse.success(
         new MirrorStatusResponse(
-            config,
+            sanitizeConfigForResponse(config),
             currentTask == null ? null : MirrorStatusTaskView.from(currentTask),
             currentStatus,
             currentMessage,
@@ -115,7 +115,7 @@ public class GitlabSyncController {
   @PutMapping("/config")
   public ApiResponse<GitlabSyncConfig> saveConfig(@RequestBody SaveConfigRequest request) {
     GitlabSyncConfig config = new GitlabSyncConfig();
-    boolean syncEnabled = request.autoSyncEnabled() || request.enabled();
+    boolean syncEnabled = request.autoSyncEnabled();
     config.setName(request.name());
     config.setEnabled(syncEnabled);
     config.setAutoSyncEnabled(syncEnabled);
@@ -140,7 +140,7 @@ public class GitlabSyncController {
           request.sourceMode(),
           request.whitelistMode());
     }
-    return ApiResponse.success("配置已保存", configService.saveConfig(config));
+    return ApiResponse.success("配置已保存", sanitizeConfigForResponse(configService.saveConfig(config)));
   }
 
   @PostMapping("/test-connection")
@@ -239,6 +239,31 @@ public class GitlabSyncController {
       @NotNull Integer compensationIntervalMinutes) {}
 
   public record PurgeRequest(@NotNull MirrorPurgeScope scope) {}
+
+  private GitlabSyncConfig sanitizeConfigForResponse(GitlabSyncConfig source) {
+    GitlabSyncConfig sanitized = new GitlabSyncConfig();
+    sanitized.setId(source.getId());
+    sanitized.setName(source.getName());
+    sanitized.setEnabled(source.isEnabled());
+    sanitized.setAutoSyncEnabled(source.isAutoSyncEnabled());
+    sanitized.setSourceMode(source.getSourceMode());
+    sanitized.setWhitelistMode(source.getWhitelistMode());
+    sanitized.setWhitelistTables(source.getWhitelistTables());
+    sanitized.setDbHost(source.getDbHost());
+    sanitized.setDbPort(source.getDbPort());
+    sanitized.setDbName(source.getDbName());
+    sanitized.setDbUsername(source.getDbUsername());
+    sanitized.setDbPassword("");
+    sanitized.setDockerContainerName(source.getDockerContainerName());
+    sanitized.setWebhookSecret("");
+    sanitized.setWebhookProjectId(source.getWebhookProjectId());
+    sanitized.setCompensationIntervalMinutes(source.getCompensationIntervalMinutes());
+    sanitized.setLastFullSyncAt(source.getLastFullSyncAt());
+    sanitized.setLastIncrementalSyncAt(source.getLastIncrementalSyncAt());
+    sanitized.setCreatedAt(source.getCreatedAt());
+    sanitized.setUpdatedAt(source.getUpdatedAt());
+    return sanitized;
+  }
 
   private Map<String, Object> buildSubmissionResponse(SyncTaskSubmissionResult result) {
     GitlabSyncTask task = result.task();

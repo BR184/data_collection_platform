@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabMirrorRecord;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
@@ -42,6 +43,7 @@ public class GitlabMirrorSyncService {
   private final GitlabSyncLogService logService;
   private final GitlabSyncTaskService taskService;
   private final GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
+  private final GitlabMirrorProperties properties;
   private final JsonUtils jsonUtils;
   private final GitlabMirrorSyncService self;
   private final ConcurrentMap<Long, SyncProgress> progressMap = new ConcurrentHashMap<>();
@@ -57,6 +59,7 @@ public class GitlabMirrorSyncService {
       GitlabSyncLogService logService,
       GitlabSyncTaskService taskService,
       GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner,
+      GitlabMirrorProperties properties,
       JsonUtils jsonUtils,
       @Lazy GitlabMirrorSyncService self) {
     this.configService = configService;
@@ -68,6 +71,7 @@ public class GitlabMirrorSyncService {
     this.logService = logService;
     this.taskService = taskService;
     this.webhookPreciseSyncPlanner = webhookPreciseSyncPlanner;
+    this.properties = properties;
     this.jsonUtils = jsonUtils;
     this.self = self;
   }
@@ -458,7 +462,7 @@ public class GitlabMirrorSyncService {
     if (baseline == null) {
       baseline = LocalDateTime.now().minusHours(24);
     }
-    return baseline.minusMinutes(5);
+    return baseline.minusMinutes(resolveIncrementalLookbackMinutes());
   }
 
   private void checkCancelled(Long taskId) {
@@ -601,9 +605,14 @@ public class GitlabMirrorSyncService {
       int intervalMinutes = config.getCompensationIntervalMinutes() == null ? 10 : config.getCompensationIntervalMinutes();
       return LocalDateTime.now().minusMinutes((long) intervalMinutes + COMPENSATION_EXTRA_LOOKBACK_MINUTES);
     }
-    return config.getLastIncrementalSyncAt() != null
+    LocalDateTime baseline = config.getLastIncrementalSyncAt() != null
         ? config.getLastIncrementalSyncAt()
         : config.getLastFullSyncAt();
+    return baseline == null ? null : baseline.minusMinutes(resolveIncrementalLookbackMinutes());
+  }
+
+  private int resolveIncrementalLookbackMinutes() {
+    return Math.max(0, properties.getIncrementalLookbackMinutes());
   }
 
   private String buildCompletionMessage(SyncType type, int skippedTableCount) {

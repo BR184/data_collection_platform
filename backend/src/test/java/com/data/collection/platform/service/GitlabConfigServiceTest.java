@@ -68,7 +68,7 @@ class GitlabConfigServiceTest {
 
     configService.saveConfig(input);
 
-    verify(configMapper).updateById(argThat(config ->
+    verify(configMapper).updateById(argThat((GitlabSyncConfig config) ->
         "stored-database-secret".equals(config.getDbPassword())
             && "stored-webhook-secret".equals(config.getWebhookSecret())));
   }
@@ -85,7 +85,7 @@ class GitlabConfigServiceTest {
 
     configService.saveConfig(input);
 
-    verify(configMapper).updateById(argThat(config -> !config.isEnabled() && !config.isAutoSyncEnabled()));
+    verify(configMapper).updateById(argThat((GitlabSyncConfig config) -> !config.isEnabled() && !config.isAutoSyncEnabled()));
   }
 
   private GitlabSyncConfig persistedConfig() {

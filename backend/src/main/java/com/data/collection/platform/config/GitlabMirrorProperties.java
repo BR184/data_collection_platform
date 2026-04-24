@@ -16,6 +16,10 @@ public class GitlabMirrorProperties {
   private int webhookStatusCacheSeconds = 60;
   private int webhookBatchWindowSeconds = 3;
   private int webhookBatchSize = 10;
+  private int externalQueryTimeoutSeconds = 120;
+  private int externalQueryRetryAttempts = 3;
+  private int externalQueryRetryDelayMs = 1000;
+  private int incrementalLookbackMinutes = 5;
 
   public boolean isSchedulerEnabled() {
     return schedulerEnabled;
@@ -111,5 +115,37 @@ public class GitlabMirrorProperties {
 
   public void setWebhookBatchSize(int webhookBatchSize) {
     this.webhookBatchSize = webhookBatchSize;
+  }
+
+  public int getExternalQueryTimeoutSeconds() {
+    return externalQueryTimeoutSeconds;
+  }
+
+  public void setExternalQueryTimeoutSeconds(int externalQueryTimeoutSeconds) {
+    this.externalQueryTimeoutSeconds = externalQueryTimeoutSeconds;
+  }
+
+  public int getExternalQueryRetryAttempts() {
+    return externalQueryRetryAttempts;
+  }
+
+  public void setExternalQueryRetryAttempts(int externalQueryRetryAttempts) {
+    this.externalQueryRetryAttempts = externalQueryRetryAttempts;
+  }
+
+  public int getExternalQueryRetryDelayMs() {
+    return externalQueryRetryDelayMs;
+  }
+
+  public void setExternalQueryRetryDelayMs(int externalQueryRetryDelayMs) {
+    this.externalQueryRetryDelayMs = externalQueryRetryDelayMs;
+  }
+
+  public int getIncrementalLookbackMinutes() {
+    return incrementalLookbackMinutes;
+  }
+
+  public void setIncrementalLookbackMinutes(int incrementalLookbackMinutes) {
+    this.incrementalLookbackMinutes = incrementalLookbackMinutes;
   }
 }

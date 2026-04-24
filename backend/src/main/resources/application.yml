@@ -36,3 +36,7 @@ platform:
     webhook-status-cache-seconds: 60
     webhook-batch-window-seconds: 3
     webhook-batch-size: 10
+    external-query-timeout-seconds: 120
+    external-query-retry-attempts: 3
+    external-query-retry-delay-ms: 1000
+    incremental-lookback-minutes: 5

@@ -40,7 +40,7 @@ public class GitlabConfigService {
 
   public GitlabSyncConfig saveConfig(GitlabSyncConfig input) {
     GitlabSyncConfig current = getConfig();
-    GitlabSyncConfig normalized = normalize(input);
+    GitlabSyncConfig normalized = normalize(input, current);
     LocalDateTime now = LocalDateTime.now();
     if (current.getId() == null) {
       normalized.setCreatedAt(now);
@@ -101,9 +101,9 @@ public class GitlabConfigService {
     return config;
   }
 
-  private GitlabSyncConfig normalize(GitlabSyncConfig config) {
+  private GitlabSyncConfig normalize(GitlabSyncConfig config, GitlabSyncConfig current) {
     GitlabSyncConfig normalized = new GitlabSyncConfig();
-    boolean syncEnabled = config.isAutoSyncEnabled() || config.isEnabled();
+    boolean syncEnabled = config.isAutoSyncEnabled();
     normalized.setName(config.getName());
     normalized.setEnabled(syncEnabled);
     normalized.setAutoSyncEnabled(syncEnabled);
@@ -114,9 +114,9 @@ public class GitlabConfigService {
     normalized.setDbPort(config.getDbPort());
     normalized.setDbName(config.getDbName());
     normalized.setDbUsername(config.getDbUsername());
-    normalized.setDbPassword(config.getDbPassword());
+    normalized.setDbPassword(resolveSecret(config.getDbPassword(), current.getDbPassword()));
     normalized.setDockerContainerName(config.getDockerContainerName());
-    normalized.setWebhookSecret(config.getWebhookSecret());
+    normalized.setWebhookSecret(resolveSecret(config.getWebhookSecret(), current.getWebhookSecret()));
     normalized.setWebhookProjectId(config.getWebhookProjectId());
     normalized.setCompensationIntervalMinutes(normalizeCompensationInterval(config.getCompensationIntervalMinutes()));
     return normalized;
@@ -133,5 +133,12 @@ public class GitlabConfigService {
               + " 分钟");
     }
     return effectiveValue;
+  }
+
+  private String resolveSecret(String nextValue, String currentValue) {
+    if (nextValue == null || nextValue.isBlank()) {
+      return currentValue == null ? "" : currentValue;
+    }
+    return nextValue;
   }
 }
