@@ -18,7 +18,6 @@ export type ModuleKey =
   | 'system-settings';
 
 export type PageKey =
-  | 'quality-board-home'
   | 'quality-board-rd-quality-board'
   | 'quality-board-other-board'
   | 'review-data-home'
@@ -83,17 +82,11 @@ interface SpecialRouteContract {
 export const modules: ShellModule[] = [
   {
     key: 'quality-board',
-    label: '统计分析',
+    label: '质量看板',
     icon: Histogram,
-    title: '统计分析',
-    description: '统一承载汇总统计表、质量看板以及下钻明细页面。',
+    title: '质量看板',
+    description: '对齐老平台质量看板模块，统一承载研发质量看板及其他看板入口。',
     pages: [
-      {
-        key: 'quality-board-home',
-        label: '镜像表基础统计',
-        description: '基于当前 GitLab 镜像数据展示汇总统计与明细下钻。',
-        path: '/quality-board/home',
-      },
       {
         key: 'quality-board-rd-quality-board',
         label: '研发质量看板',
@@ -338,12 +331,6 @@ const customerIssueRecordQueryKeys = [
 ];
 
 const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
-  'quality-board-home': {
-    allowedQueryKeys: statisticBoardQueryKeys,
-    allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
-    boardKey: 'mirror-table-overview',
-  },
   'review-data-home': {
     allowedQueryKeys: [
       'page',
@@ -543,7 +530,7 @@ const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> =
     },
   },
   'not-found': {
-    basePageKey: 'quality-board-home',
+    basePageKey: 'quality-board-rd-quality-board',
     overrides: {
       title: '页面不存在',
       description: '访问的地址无效，已为你保留平台基础壳子。',

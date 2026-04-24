@@ -8,7 +8,7 @@ describe('router query normalization', () => {
 
   it('preserves serialized filterGroup on statistic board routes', () => {
     const to = router.resolve({
-      path: '/quality-board/home',
+      path: '/question-metrics/home',
       query: {
         detailPage: '2',
         filterGroup:

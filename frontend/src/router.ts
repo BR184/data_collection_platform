@@ -49,15 +49,16 @@ function buildPlaceholderRoute(pageKey: PageKey): RouteRecordRaw {
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/quality-board/home',
+    redirect: '/quality-board/rd-quality-board',
+  },
+  {
+    path: '/quality-board/home',
+    redirect: '/quality-board/rd-quality-board',
   },
   {
     path: '/external/code-review-form',
     component: CollectFormView,
     meta: buildSpecialRouteMeta('external-code-review-form'),
-  },
-  {
-    ...buildShellRoute('quality-board-home', StatisticBoardPage),
   },
   buildPlaceholderRoute('quality-board-rd-quality-board'),
   buildPlaceholderRoute('quality-board-other-board'),

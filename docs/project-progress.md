@@ -1,166 +1,243 @@
-# Data Collection Platform Progress
+# 数据采集平台项目主文档
 
-## Current Architecture Work
+更新时间：2026-04-24  
+适用项目：`D:\projects\data_collection_platform`
 
-- Added a project-wide decoupling review and migration blueprint
-- Confirmed the next architecture sequence:
-  - build shared fact-read layer first
-  - split oversized services second
-  - template repeated statistic-board patterns third
-  - unify frontend page controllers and API domains last
-- Selected `issue_fact` shared read abstraction as the first implementation slice
-- Completed review-data service split as the second architecture slice:
-  - extracted query / command / filter-option / summary services
-  - kept the original facade and controller contract stable
-- Started the statistic-board decoupling foundation for phase three:
-  - expanded `IssueFactRecord` / repository to cover board-specific issue_fact semantics
-  - added shared runtime support for issue_fact statistic boards
-  - added reusable summary-board support models for later service migration
-- Continued phase-three migration on defect-summary boards:
-  - switched system-test / customer-issue defect summary boards to shared realtime refresh support
-  - switched both boards to read issue facts through `IssueFactBoardRuntimeSupport`
-  - kept existing board definitions, detail schema, and aggregation behavior unchanged for safety
-  - removed direct service dependencies on mirror sync / realtime workspace / fact rebuild / raw issue_fact query services
-  - removed obsolete local JDBC fact SQL and mapper code from both defect-summary services
-- Started phase-four frontend decoupling:
-  - moved the common request wrapper into `api-client/request.ts`
-  - split mirror sync APIs into `api-client/mirror-api.ts`
-  - split statistic-board APIs into `api-client/statistic-boards-api.ts`
-  - split code-review APIs into `api-client/code-review-api.ts`
-  - split review-data APIs into `api-client/review-data-api.ts`
-  - split issue-record APIs into `api-client/issue-records-api.ts`
-  - split database-browser APIs into `api-client/database-browser-api.ts`
-  - split testing-phase APIs into `api-client/testing-phases-api.ts`
-  - split collect-form APIs into `api-client/collect-forms-api.ts`
-  - removed the corresponding legacy method blocks from the large `api.ts` aggregate
-  - moved shared frontend API DTOs and statistic-board helpers into `types/api.ts`
-  - changed `api-client` modules and pure type/helper consumers to depend on `types/api.ts`
-  - left `api.ts` as a compatibility aggregate for request-capable pages
-  - kept the existing `api` aggregate export compatible with current pages
-  - added `useRuleExplanationPanel` and migrated customer-issue record pages to shared rule-panel loading behavior
-- Unified customer-issue submodule filtering:
-  - switched CC_PRODUCT issues, delay issues, and customer-issue illegal records to the shared `StatisticFilterBuilder`
-  - kept `BaseRecordTable` quick keyword search and refresh actions enabled
-  - added backend `filterGroup` support for customer-issue record list APIs while preserving existing legacy query parameters
-  - shared customer-issue condition field definitions through `views/customer-issues/customer-issue-condition-fields.ts`
-- Continued phase-four page-controller convergence:
-  - added `useConditionFilterGroupState` to centralize filter-draft initialization, route sync, and query-patch generation
-  - migrated code-review illegal records to the shared condition-filter state flow without changing its page contract
-  - migrated review-data management to the same condition-filter state flow while keeping keyword search and summary loading behavior stable
-  - removed the leftover legacy filter-state shells from customer-issue issue-record and illegal-record pages
-  - merged code-review illegal-record active filter tags into the shared condition-filter state while preserving personal rule tags
-  - added `useRecordPageController` to centralize reset / query / keyword search / refresh / paging / sorting / filter-clear actions for condition-filtered record pages
-  - migrated customer-issue issue records, customer-issue illegal records, and code-review illegal records to the shared record-page controller
-  - finished the phase-four page-controller convergence on the current reusable record-table pages without changing backend contracts
-  - kept `ReviewDataManagementView` and `SystemTestIssueSearchView` as intentional special cases for now because they still carry expanded-row editing flow or legacy non-condition-filter interaction models
-- Started phase-five contract and manifest convergence:
-  - added `feature-manifest.ts` to centralize page query contracts and statistic-board page-to-board mappings
-  - switched `router.ts` route meta assembly to the shared page-route manifest helper
-  - removed the `StatisticBoardPage.vue` local `pageKey -> boardKey` hardcoded branch chain and switched it to the shared manifest
-  - moved shell module/page metadata into `feature-manifest.ts` so `navigation.ts` is now only a compatibility re-export
-  - switched `App.vue` and the regular shell routes to consume the manifest directly instead of duplicating module/page definitions
-  - added explicit special-route contracts for the external collect form, rule-config page, and not-found page so their query boundaries no longer live only inside `router.ts`
-  - added router tests for persisted cross-module query behavior and special-route whitelist behavior
-  - completed the main phase-five goal of converging page metadata, query contracts, and route-level exceptions into a shared manifest-driven contract layer
-- Documented the post-decoupling stabilization boundary:
-  - added `docs/current-state/2026-04-23-decoupling-stabilization-checklist.md`
-  - clarified that the five-phase decoupling mainline is complete
-  - recorded intentional special cases, follow-up directions, and development guardrails for future modules
-- Started the functionality-completion phase with the integration-test module kickoff:
-  - confirmed `集成测试数据分析` is the main remaining non-board formal gap after excluding deferred dashboards and the retired `系统测试非法数据` page
-  - reviewed the old-platform integration-test functionality shape without reusing old code
-  - documented that integration-test is not an `issue_fact` statistic board and not a plain condition-record page, but a separate source/fact/query chain
-  - recorded the recommended MVP order as `data chain -> backend query API -> frontend summary/detail page`
-- Implemented the first real integration-test MVP chain:
-  - added the independent `integration_test_fact` schema, entity, mapper, and build service
-  - parses the latest GitLab issue note containing `集成测试数据` into a dedicated fact record per issue
-  - added backend APIs for project options, phase options, module summary, module detail paging, and manual fact rebuild
-  - replaced the frontend `integration-test-home` placeholder with a real `项目/阶段筛选 + 模块汇总 + 模块详情抽屉` page
-  - kept the module on shared shell/loading/query-contract foundations without coupling it back into `issue_fact` statistic boards
-- Verified the new integration-test slice:
-  - backend `compile` passed via the local Maven toolchain
-  - frontend `npm run build` passed
-  - frontend `npx vitest run src/router.test.ts` passed
-  - backend full test execution is still blocked by unrelated pre-existing test-compile failures outside this slice
-- Continued the integration-test hardening pass:
-  - extracted integration-test field matching and function-label recognition into a dedicated rule helper
-  - broadened note parsing tolerance for variant field names such as `执行用例数` / `问题用例数` / `例外问题数`
-  - restored old-platform style function-label recognition (`新功能` / `老功能` / `增强功能`) from issue labels
-  - exposed function labels in the integration-test detail drawer
-- Corrected the integration-test rule layer toward the new-platform design:
-  - added `parse_status` and `validation_reason` to `integration_test_fact`
-  - replaced the old implicit legality-only result with explicit parse/validation feedback
-  - surfaced validation explanations in the integration-test detail page so incomplete records are diagnosable
-- Unified record-table field alignment:
-  - changed `BaseRecordTable` default cell alignment to centered
-  - centered tag-style cell content so short values such as modules and branches no longer look visually offset
-- Kept the existing direction that is already correct:
-  - fact-first architecture
-  - scope profiles
-  - reusable frontend base components
+## 1. 文档规则
 
-## Completed
+- `docs/project-progress.md` 是当前项目唯一保留并持续维护的主 Markdown 文档。
+- 其他阶段性 `current-state` / `plans` / `progress` 文档不再保留，避免多份口径并存。
+- 后续所有项目进展、功能缺口、技术债、验证状态和下一步计划都统一收口到本文档。
+- 当本文档明显过长、已不利于快速判断现状时，再做一次结构化整理，但仍保持单主文档策略。
 
-- Initialized Spring Boot 3 + Java 21 backend
-- Initialized Vue 3 + Element Plus frontend
-- Added local Java 21 and Maven toolchain under `tools`
-- Added local PostgreSQL 14 development database
-- Configured backend datasource to local platform database
-- Added common backend dependencies:
-  - Lombok
-  - Hutool
-  - MyBatis-Plus
-  - Testcontainers
-  - logstash-logback-encoder
-- Added unified backend error handling and frontend error display
-- Implemented GitLab mirror first version:
-  - full sync by DB
-  - incremental sync by webhook trigger
-  - compensation scheduler
-  - whitelist modes
-- Added Docker mode for GitLab source database reads using `gitlab-psql`
-- Added home dashboard page with a dedicated entry to mirror settings
-- Added visual sync progress on both dashboard and settings page
-- Changed frontend polling to run only while sync status is `RUNNING`
-- Added backend controller tests for status/progress payload
-- Added real local GitLab integration test covering:
-  - full sync
-  - webhook incremental sync
-  - compensation sync
-- Added higher-load GitLab stress integration test covering:
-  - bulk full sync
-  - bulk webhook incremental sync
-  - bulk compensation sync
-- Fixed compensation sync strategy to perform true full-scan compensation
-- Fixed incremental timestamp conversion for local GitLab source timezone handling
-- Optimized mirror write performance with batch upsert instead of per-row upsert
-- Upgraded mirror dashboard and settings page:
-  - cleaner progress card
-  - richer progress metadata
-  - improved sync log readability
-  - readable whitelist labels and status texts
-- Fixed `ALL` whitelist mode:
-  - dynamically discovers real GitLab tables from `information_schema`
-  - no longer falls back to the 21 recommended tables when `ALL` is selected
-- Fixed incremental sync failure in Docker mode:
-  - source table metadata is now discovered dynamically
-  - avoids querying non-existent `updated_at` columns such as on `user_details`
-  - Docker SQL errors are now surfaced as backend business errors instead of JSON parse failures
-- Verified against local GitLab:
-  - `ALL` mode now scans `725` source tables
-  - compensation sync completed successfully with `725` tables / `3231` mirrored rows processed
-  - manual incremental sync completed successfully with `725` tables / `1638` mirrored rows processed
-  - current local mirror storage contains `67` tables with `3483` records
+## 2. 项目定位
 
-## Current Limitations
+当前项目是一个以 GitLab 数据镜像为数据入口、以本地事实层和统计分析为核心、同时承载评审数据、代码走查、集成测试、系统测试、客户问题和系统设置能力的单体平台。
 
-- Mirror storage is still generic JSONB, not strong typed per GitLab table
-- Incremental sync still uses table-level strategy rather than fine-grained event routing
-- Docker-mode source reads still dominate end-to-end stress test wall time when creating test fixtures inside GitLab
+当前总体方向已经明确：
 
-## Next Recommended Steps
+- 功能参考老平台和交接文档
+- 实现遵循新平台自己的架构、分层和复用底座
+- 优先走真实链路，不为了补页面而反向牺牲底层设计
 
-1. Run a real full-sync verification flow from the settings page
-2. Add webhook event-level routing improvements
-3. Decide whether mirrored data should stay generic or move toward typed local tables
-4. Add first user-facing sync cancellation support if needed
+## 3. 当前真实状态
+
+### 3.1 架构主线
+
+整体解耦主线已完成，项目已进入“基于统一底座继续补功能和做稳定化”的阶段。
+
+当前已经建立的核心底座包括：
+
+- `issue_fact` 共享事实读取与消费链路
+- 统计板通用运行时与注册机制
+- 前端 `feature-manifest.ts` 单一页面契约与导航清单
+- 前端 `api-client/*` 领域化 API 分层
+- 前端条件筛选状态与记录页控制器复用链路
+- 代码走查、客户问题、系统测试、评审数据等模块的共享页面底座
+
+### 3.2 模块现状
+
+#### 质量看板
+
+- 顶部模块已从“统计分析”改名为“质量看板”。
+- `镜像表基础统计` 导航入口已移除。
+- 当前保留：
+  - `研发质量看板`
+  - `其他看板`
+- 当前问题：
+  - 这两个入口仍是占位壳子，尚未承接真实内容。
+
+#### 评审数据
+
+- `评审数据管理` 已是正式页面。
+- 已完成服务拆分、条件筛选状态收口、页面控制层收口。
+- 当前仍保留特例控制流，不强行并入通用记录页控制器。
+
+#### 代码走查
+
+- `代码走查非法数据`、规则配置页、外部表单页均已落地。
+- `代码走查多元看板` 仍为占位入口。
+
+#### 集成测试
+
+- `集成测试数据分析` 已从占位页替换为真实页面。
+- 已建立独立 `integration_test_fact` 事实链路。
+- 已具备：
+  - 项目筛选
+  - 测试阶段筛选
+  - 模块汇总
+  - 模块详情分页
+  - 手动重建事实
+- 当前仍需继续补强数据口径、导出能力和更完整的验证链路。
+
+#### 系统测试
+
+- 已落地：
+  - `系统测试缺陷汇总`
+  - `申请延期缺陷分析`
+  - `缺陷原因分析`
+  - `议题阶段统计`
+  - `议题查询`
+- 当前保留：
+  - `议题多元看板` 占位
+  - `系统测试非法数据` 仅作为测试对象保留，不作为正式后续实现重点
+
+#### 客户问题
+
+- 已落地：
+  - `缺陷汇总`
+  - `缺陷非法数据`
+  - `缺陷原因分析`
+  - `CC_PRODUCT议题`
+  - `延期问题`
+  - `缺陷响应效率`
+  - `按功能展示缺陷数量`
+- 已统一接入共享条件筛选、规则说明、刷新和记录页控制器底座。
+
+#### 系统设置
+
+- 已落地：
+  - `数据镜像设置`
+  - `数据库查看`
+  - `议题测试阶段定义`
+- `模块管理` 占位入口已删除，不再作为正式功能存在。
+
+## 4. 已完成的关键建设
+
+### 4.1 镜像与数据基础
+
+- 已完成 GitLab 镜像全量同步、增量同步、补偿同步和白名单模式。
+- 已支持 Docker 模式读取外部 GitLab 数据库。
+- 已支持镜像进度、状态、日志与可视化设置页。
+- 已修复 `ALL` 白名单模式的真实表发现逻辑。
+- 已优化镜像写入性能和时区处理。
+
+### 4.2 事实层与统计层
+
+- 已完成 `issue_fact` 规范化和共享消费。
+- 已把系统测试、客户问题的核心统计板收口到共享统计板运行时。
+- 已提供通用统计板接口：
+  - 统计数据
+  - 明细下钻
+  - 规则说明
+  - 导出
+  - 状态查询
+  - 手动刷新
+
+### 4.3 前端底座
+
+- 已完成 `api.ts` 拆分，形成 `api-client/*` 领域化结构。
+- 已完成共享类型下沉与契约收口。
+- 已完成 `feature-manifest.ts` 作为页面契约和导航单一来源。
+- 已完成：
+  - `useConditionFilterGroupState`
+  - `useRecordPageController`
+  - `useRuleExplanationPanel`
+
+### 4.4 页面与交互
+
+- 记录类页面已统一走可复用底座。
+- 统计类页面已统一走统计板抽象链路。
+- `BaseRecordTable` 默认字段已统一居中，短字段展示更稳定。
+
+## 5. 当前功能缺口
+
+当前真正仍未完成、且不是已明确废弃范围的功能缺口，主要有：
+
+1. `质量看板` 还没有真实内容承接。
+2. `代码走查多元看板` 仍是占位页。
+3. `系统测试议题多元看板` 仍是占位页。
+
+以下项不纳入当前主动补齐范围：
+
+- `系统测试非法数据`
+  - 当前只保留为测试对象，不作为正式功能继续推进。
+- 各类统一看板
+  - 仍按后置策略处理，不作为当前第一优先级。
+
+## 6. 当前技术债与需补项
+
+### 6.1 明确保留的特例
+
+- `ReviewDataManagementView`
+  - 仍保留较重的特例控制流。
+  - 原因是其交互包含编辑、汇总、联动等复杂行为。
+- `SystemTestIssueSearchView`
+  - 仍使用旧式筛选模型。
+  - 当前暂不强并进新一代条件筛选抽象。
+
+### 6.2 验证层仍需补强
+
+- 前端构建已可通过。
+- 路由契约测试已具备基础覆盖。
+- 集成测试控制器已有单测。
+- 但后端全量测试仍被历史遗留问题阻塞，整体回归防线尚未完全恢复。
+
+### 6.3 体验层仍可优化
+
+- 不同页面之间的切换仍存在“闪一下 / 空一下”的观感问题。
+- 当前不应通过增加耦合或重缓存的方式强行抹平，需要后续在壳层或渐进加载策略上单独设计。
+
+### 6.4 数据口径仍需继续完善
+
+- 集成测试模块当前已有真实链路，但仍需继续补：
+  - 解析容错
+  - 校验口径
+  - 导出能力
+  - 更完整的验证覆盖
+
+## 7. 当前验证状态
+
+已确认通过的验证包括：
+
+- 前端 `npm run build`
+- 前端 `npx vitest run src/router.test.ts`
+- 集成测试模块相关控制器测试
+- 后端若干统计板、筛选支持、镜像与控制器切片测试
+- 后端局部 `compile`
+- 后端 `mvn test`
+
+已修复并恢复：
+
+- 后端全量测试链路
+  - 本次修复了 2 处测试代码未跟随服务重构更新的问题：
+    - `CodeReviewIllegalRecordServiceTest`
+    - `SystemTestDefectSummaryRuleExplanationTest`
+
+## 8. 当前开发约束
+
+后续继续开发时，默认遵循以下规则：
+
+1. 功能参考老平台和交接文档，但实现必须走新平台自己的架构。
+2. 新增统计板优先接入现有统计板运行时和 `feature-manifest.ts`，不再绕开底座单独写一套。
+3. 新增条件筛选型记录页优先复用共享条件筛选和共享页面控制器。
+4. 新增事实型能力优先补事实层、规则层和查询层，不再先做页面壳子再反补底层。
+5. 废弃模块、测试对象模块和正式上线模块要在产品层状态上明确区分，避免用户误解。
+
+## 9. 下一阶段计划
+
+### 9.1 近期优先级
+
+1. 清理旧文档，只保留本主文档持续维护。
+2. 修复非废弃模块的技术层问题，优先恢复验证链路与稳定性。
+3. 再回到剩余真实功能缺口。
+
+### 9.2 技术层下一刀
+
+当前优先建议：
+
+1. 继续补强后端与前端验证覆盖，在全量测试已恢复的基础上扩大关键模块保护范围。
+2. 在不动废弃模块的前提下，继续收口非废弃模块的验证缺口。
+3. 维持现有特例页面边界，避免再次引入新的隐式耦合。
+
+### 9.3 后续功能补齐方向
+
+在技术层稳定后，再按优先级推进：
+
+1. `质量看板` 内容承接
+2. `代码走查多元看板`
+3. `系统测试议题多元看板`
+
+## 10. 一句话结论
+
+当前项目已经完成了解耦主线和大部分核心模块落地，正在从“架构收口期”进入“单文档治理 + 技术层稳固 + 剩余功能补齐”的阶段。

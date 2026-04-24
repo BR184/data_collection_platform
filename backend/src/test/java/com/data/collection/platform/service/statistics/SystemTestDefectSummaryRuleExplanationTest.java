@@ -1,14 +1,12 @@
 package com.data.collection.platform.service.statistics;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
-import com.data.collection.platform.service.FactBuildService;
-import com.data.collection.platform.service.GitlabMirrorSyncService;
-import com.data.collection.platform.service.IssueFactQueryService;
-import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
@@ -16,28 +14,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.jdbc.core.RowMapper;
 
 @ExtendWith(MockitoExtension.class)
 class SystemTestDefectSummaryRuleExplanationTest {
-  @Mock private GitlabMirrorSyncService gitlabMirrorSyncService;
-  @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
-  @Mock private FactBuildService factBuildService;
-  @Mock private IssueFactQueryService issueFactQueryService;
+  @Mock private IssueFactBoardRuntimeSupport runtimeSupport;
 
   @Test
   void shouldDescribeSystemTestBoardRuleFlowEvenWhenMirrorTablesAreEmpty() {
-    when(issueFactQueryService.query(
-        org.mockito.ArgumentMatchers.anyString(),
-        org.mockito.ArgumentMatchers.anyMap(),
-        org.mockito.ArgumentMatchers.<RowMapper<Object>>any()))
+    when(runtimeSupport.loadFacts(anyMap(), any()))
         .thenReturn(List.of());
     SystemTestDefectSummaryBoardService service = new SystemTestDefectSummaryBoardService(
         new JsonUtils(new ObjectMapper()),
-        gitlabMirrorSyncService,
-        realtimeWorkspaceService,
-        factBuildService,
-        issueFactQueryService);
+        runtimeSupport);
 
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(Map.of());
 

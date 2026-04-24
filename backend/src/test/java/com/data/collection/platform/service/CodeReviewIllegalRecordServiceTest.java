@@ -63,6 +63,7 @@ class CodeReviewIllegalRecordServiceTest {
         null,
         null,
         null,
+        null,
         1,
         20,
         "mergeRequestIid",
