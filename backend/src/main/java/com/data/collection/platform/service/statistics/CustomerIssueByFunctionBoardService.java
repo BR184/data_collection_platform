@@ -259,34 +259,46 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return new RuleFlowSnapshot(
         withFunction,
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定客户问题范围", "复用 CustomerIssueScopeProfile 收口客户问题范围。", scoped, initial.size()),
-            step("function-filter", "保留已识别功能", "只保留 issue_fact.function_name 非空的议题。", withFunction, scoped.size()),
-            new StatisticRuleFlowStep(
+            StatisticRuleFlowSupport.step(
+                "source-load",
+                "加载议题事实",
+                "从 issue_fact 读取已归一化的议题事实。",
+                initial.size(),
+                initial,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "scope-filter",
+                "限定客户问题范围",
+                "复用 CustomerIssueScopeProfile 收口客户问题范围。",
+                initial.size(),
+                scoped,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "function-filter",
+                "保留已识别功能",
+                "只保留 issue_fact.function_name 非空的议题。",
+                scoped.size(),
+                withFunction,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "module-function-expand",
                 "按模块/功能展开",
                 "将客户问题议题展开到 module_names + function_name 组合；未标记模块的议题归入“未标记模块”。",
                 withFunction.size(),
                 withFunction.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
-                sample(withFunction))));
+                withFunction,
+                this::toRuleFlowSample
+            )));
   }
 
-  private StatisticRuleFlowStep step(
-      String key, String title, String description, List<IssueSource> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
-  }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueSource> issues) {
-    return issues.stream()
-        .limit(3)
-        .map(
-            issue ->
-                new StatisticRuleFlowStepSample(
+  private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
+    return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 功能: " + issue.functionName()))
-        .toList();
+                    issue.title() + " | 功能: " + issue.functionName());
   }
-
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     try {

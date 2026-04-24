@@ -194,22 +194,45 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
     List<IssueSource> valid = scoped.stream().filter(i -> !i.excluded()).toList();
     return new RuleFlowSnapshot(valid, List.of(
-        step("source-load", "加载议题事实", "从 issue_fact 读取已经归一化的议题事实。", initial, initial.size()),
-        step("scope-filter", "限定系统测试范围", "只保留带有系统测试或回归测试标签的议题。", scoped, initial.size()),
-        step("exclude-invalid-issues", "排除无效数据", "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/数据异常/需求如此的议题。", valid, scoped.size()),
-        new StatisticRuleFlowStep("module-expand", "按模块展开", "同一条议题可能属于多个模块，模块行会分别计入；总计行仍按议题本身统计。", valid.size(),
-            valid.stream().mapToLong(i -> i.moduleNames().size()).sum(), sample(valid))));
+        StatisticRuleFlowSupport.step(
+            "source-load",
+            "加载议题事实",
+            "从 issue_fact 读取已经归一化的议题事实。",
+            initial.size(),
+            initial,
+            this::toRuleFlowSample
+        ),
+        StatisticRuleFlowSupport.step(
+            "scope-filter",
+            "限定系统测试范围",
+            "只保留带有系统测试或回归测试标签的议题。",
+            initial.size(),
+            scoped,
+            this::toRuleFlowSample
+        ),
+        StatisticRuleFlowSupport.step(
+            "exclude-invalid-issues",
+            "排除无效数据",
+            "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/数据异常/需求如此的议题。",
+            scoped.size(),
+            valid,
+            this::toRuleFlowSample
+        ),
+        StatisticRuleFlowSupport.step(
+            "module-expand",
+            "按模块展开",
+            "同一条议题可能属于多个模块，模块行会分别计入；总计行仍按议题本身统计。",
+            valid.size(),
+            valid.stream().mapToLong(i -> i.moduleNames().size()).sum(),
+            valid,
+            this::toRuleFlowSample
+        )));
   }
 
-  private StatisticRuleFlowStep step(String key, String title, String desc, List<IssueSource> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, desc, inputCount, output.size(), sample(output));
+  private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource i) {
+    return new StatisticRuleFlowStepSample("#" + i.iid() + " " + i.projectName(),
+        i.title() + (i.moduleNames().isEmpty() ? "" : " | 模块: " + String.join("、", i.moduleNames())));
   }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueSource> issues) {
-    return issues.stream().limit(3).map(i -> new StatisticRuleFlowStepSample("#" + i.iid() + " " + i.projectName(),
-        i.title() + (i.moduleNames().isEmpty() ? "" : " | 模块: " + String.join("、", i.moduleNames())))).toList();
-  }
-
   private List<StatisticRuleMetricDefinition> buildMetricDefinitions() {
     return List.of(
         new StatisticRuleMetricDefinition("level1", "一级缺陷", "一级缺陷基于 severity_level = LEVEL1，再拆分回退、挂机、其他一级。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),

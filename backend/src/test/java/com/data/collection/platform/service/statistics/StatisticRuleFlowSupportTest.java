@@ -24,4 +24,22 @@ class StatisticRuleFlowSupportTest {
     assertEquals(3, step.samples().size());
     assertEquals("a", step.samples().get(0).label());
   }
+
+  @Test
+  void stepShouldAllowOutputCountDifferentFromSampleSourceSize() {
+    StatisticRuleFlowStep step =
+        StatisticRuleFlowSupport.step(
+            "expand",
+            "expand title",
+            "expand desc",
+            2,
+            5,
+            List.of("a", "b", "c", "d"),
+            value -> new StatisticRuleFlowStepSample(value, value));
+
+    assertEquals(2, step.inputCount());
+    assertEquals(5, step.outputCount());
+    assertEquals(3, step.samples().size());
+    assertEquals("a", step.samples().get(0).label());
+  }
 }

@@ -230,13 +230,15 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             snapshot.flowSteps().get(1),
             snapshot.flowSteps().get(2),
             snapshot.flowSteps().get(3),
-            new StatisticRuleFlowStep(
+            StatisticRuleFlowSupport.step(
                 "group-by-delay-cause",
                 "按延期原因聚合",
                 "将延期议题按 issue_fact.delay_cause 聚合，再统计各严重程度下的延期缺陷数量。",
                 snapshot.finalSources().size(),
                 causeCount,
-                sample(snapshot.finalSources()))),
+                snapshot.finalSources(),
+                this::toRuleFlowSample
+            )),
         List.of(
             new StatisticRuleMetricDefinition("level1", "一级缺陷", "按 issue_fact.severity_level = LEVEL1 统计。", "一级缺陷数 = 当前延期原因下 LEVEL1 议题数", null),
             new StatisticRuleMetricDefinition("level2", "二级缺陷", "按 issue_fact.severity_level = LEVEL2 统计。", "二级缺陷数 = 当前延期原因下 LEVEL2 议题数", null),
@@ -264,28 +266,45 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return new RuleFlowSnapshot(
         filtered,
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已经归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定系统测试范围", "只保留带有系统测试或回归测试标签的议题。", scoped, initial.size()),
-            step("delay-cause-filter", "保留延期议题", "只保留 issue_fact.delay_cause 非空且未被排除的延期议题。", delayed, scoped.size()),
-            step("phase-filter", "应用测试阶段筛选", "根据页面上的测试阶段筛选进一步收敛范围；未选择时保留全部系统测试阶段。", filtered, delayed.size())));
+            StatisticRuleFlowSupport.step(
+                "source-load",
+                "加载议题事实",
+                "从 issue_fact 读取已经归一化的议题事实。",
+                initial.size(),
+                initial,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "scope-filter",
+                "限定系统测试范围",
+                "只保留带有系统测试或回归测试标签的议题。",
+                initial.size(),
+                scoped,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "delay-cause-filter",
+                "保留延期议题",
+                "只保留 issue_fact.delay_cause 非空且未被排除的延期议题。",
+                scoped.size(),
+                delayed,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "phase-filter",
+                "应用测试阶段筛选",
+                "根据页面上的测试阶段筛选进一步收敛范围；未选择时保留全部系统测试阶段。",
+                delayed.size(),
+                filtered,
+                this::toRuleFlowSample
+            )));
   }
 
-  private StatisticRuleFlowStep step(
-      String key, String title, String description, List<IssueSource> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
-  }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueSource> issues) {
-    return issues.stream()
-        .limit(3)
-        .map(
-            issue ->
-                new StatisticRuleFlowStepSample(
+  private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
+    return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 延期原因: " + issue.delayCause() + " | 严重程度: " + issue.severityLevel()))
-        .toList();
+                    issue.title() + " | 延期原因: " + issue.delayCause() + " | 严重程度: " + issue.severityLevel());
   }
-
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
         || TOTAL_ROW_KEY.equals(rowKey)

@@ -18,13 +18,24 @@ final class StatisticRuleFlowSupport {
       long inputCount,
       List<T> output,
       Function<T, StatisticRuleFlowStepSample> sampleMapper) {
+    return step(key, title, description, inputCount, output.size(), output, sampleMapper);
+  }
+
+  static <T> StatisticRuleFlowStep step(
+      String key,
+      String title,
+      String description,
+      long inputCount,
+      long outputCount,
+      List<T> sampleItems,
+      Function<T, StatisticRuleFlowStepSample> sampleMapper) {
     return new StatisticRuleFlowStep(
         key,
         title,
         description,
         inputCount,
-        output.size(),
-        samples(output, sampleMapper));
+        outputCount,
+        samples(sampleItems, sampleMapper));
   }
 
   static <T> List<StatisticRuleFlowStepSample> samples(

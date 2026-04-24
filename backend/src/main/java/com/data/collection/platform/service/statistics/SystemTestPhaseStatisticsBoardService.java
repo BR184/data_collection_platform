@@ -240,13 +240,15 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
             snapshot.flowSteps().get(2),
-            new StatisticRuleFlowStep(
+            StatisticRuleFlowSupport.step(
                 "group-by-turn",
                 "按轮次聚合",
                 "按主轮次聚合为“第一轮系统测试 / 第二轮系统测试 / 回归测试”等行，并统计各严重程度数量。",
                 snapshot.finalSources().size(),
                 phaseCount,
-                sample(snapshot.finalSources()))),
+                snapshot.finalSources(),
+                this::toRuleFlowSample
+            )),
         List.of(
             new StatisticRuleMetricDefinition("level1", "一级缺陷", "按 issue_fact.severity_level = LEVEL1 统计。", "一级缺陷数 = 当前轮次内 LEVEL1 议题数", null),
             new StatisticRuleMetricDefinition("level2", "二级缺陷", "按 issue_fact.severity_level = LEVEL2 统计。", "二级缺陷数 = 当前轮次内 LEVEL2 议题数", null),
@@ -273,32 +275,37 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     return new RuleFlowSnapshot(
         filtered,
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已经归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定系统测试范围", "只保留带有系统测试或回归测试标签，且可识别主轮次的议题。", scoped, initial.size()),
-            step(
+            StatisticRuleFlowSupport.step(
+                "source-load",
+                "加载议题事实",
+                "从 issue_fact 读取已经归一化的议题事实。",
+                initial.size(),
+                initial,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "scope-filter",
+                "限定系统测试范围",
+                "只保留带有系统测试或回归测试标签，且可识别主轮次的议题。",
+                initial.size(),
+                scoped,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "phase-filter",
                 "应用测试阶段筛选",
                 "根据页面上的“测试阶段”筛选条件进一步保留匹配轮次；未填写时保留全部轮次。",
+                scoped.size(),
                 filtered,
-                scoped.size())));
+                this::toRuleFlowSample
+            )));
   }
 
-  private StatisticRuleFlowStep step(
-      String key, String title, String description, List<IssueSource> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
-  }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueSource> issues) {
-    return issues.stream()
-        .limit(3)
-        .map(
-            issue ->
-                new StatisticRuleFlowStepSample(
+  private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
+    return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 轮次: " + displayPhaseLabel(issue.primaryPhaseLabel(), issue.phaseFilterValue())))
-        .toList();
+                    issue.title() + " | 轮次: " + displayPhaseLabel(issue.primaryPhaseLabel(), issue.phaseFilterValue()));
   }
-
   private String displayPhaseLabel(String phaseKey, String selectedTestingPhase) {
     String normalized = trimToNull(phaseKey);
     if (normalized == null) {

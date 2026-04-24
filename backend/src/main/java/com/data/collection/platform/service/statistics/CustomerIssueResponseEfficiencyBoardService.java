@@ -256,36 +256,41 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     return new RuleFlowSnapshot(
         scoped,
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定客户问题范围", "复用 CustomerIssueScopeProfile 收口客户问题范围。", scoped, initial.size()),
-            new StatisticRuleFlowStep(
+            StatisticRuleFlowSupport.step(
+                "source-load",
+                "加载议题事实",
+                "从 issue_fact 读取已归一化的议题事实。",
+                initial.size(),
+                initial,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "scope-filter",
+                "限定客户问题范围",
+                "复用 CustomerIssueScopeProfile 收口客户问题范围。",
+                initial.size(),
+                scoped,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "module-expand",
                 "按模块展开",
                 "同一条议题可归属多个模块；未标记模块的议题会进入“未标记模块”行。",
                 scoped.size(),
                 scoped.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
-                sample(scoped))));
+                scoped,
+                this::toRuleFlowSample
+            )));
   }
 
-  private StatisticRuleFlowStep step(
-      String key, String title, String description, List<IssueSource> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
-  }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueSource> issues) {
-    return issues.stream()
-        .limit(3)
-        .map(
-            issue ->
-                new StatisticRuleFlowStepSample(
+  private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
+    return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
                     issue.title()
                         + " | 响应: "
                         + (issue.hasResponse() ? "已响应" : "未响应")
-                        + (issue.responseDelayed() ? " | 响应延期" : "")))
-        .toList();
+                        + (issue.responseDelayed() ? " | 响应延期" : ""));
   }
-
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     try {

@@ -260,13 +260,15 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             snapshot.flowSteps().get(1),
             snapshot.flowSteps().get(2),
             snapshot.flowSteps().get(3),
-            new StatisticRuleFlowStep(
+            StatisticRuleFlowSupport.step(
                 "group-by-module",
                 "按模块聚合",
                 "将保留下来的系统测试议题按 module_names 展开到各模块行，再按缺陷原因归类聚合。",
                 snapshot.finalSources().size(),
                 moduleCount,
-                sample(snapshot.finalSources()))),
+                snapshot.finalSources(),
+                this::toRuleFlowSample
+            )),
         List.of(
             new StatisticRuleMetricDefinition("requirement_understanding", "需求理解偏差", "按 issue_fact.reason_category = 需求理解偏差 统计。", "需求理解偏差数 = 当前模块内 reason_category 为需求理解偏差的议题数", null),
             new StatisticRuleMetricDefinition("new_requirement", "新增需求", "按 issue_fact.reason_category = 新增需求 统计。", "新增需求数 = 当前模块内 reason_category 为新增需求的议题数", null),
@@ -289,28 +291,45 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return new RuleFlowSnapshot(
         filtered,
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已经归一化的议题事实。", initial, initial.size()),
-            step("scope-filter", "限定系统测试范围", "只保留带有系统测试或回归测试标签的议题。", scoped, initial.size()),
-            step("reason-category-filter", "保留已识别原因", "只保留 issue_fact.reason_category 非空的议题，避免把未归因数据混入原因分析。", withReason, scoped.size()),
-            step("phase-filter", "应用测试阶段筛选", "根据页面上的测试阶段筛选进一步收敛范围；未选择时保留全部系统测试阶段。", filtered, withReason.size())));
+            StatisticRuleFlowSupport.step(
+                "source-load",
+                "加载议题事实",
+                "从 issue_fact 读取已经归一化的议题事实。",
+                initial.size(),
+                initial,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "scope-filter",
+                "限定系统测试范围",
+                "只保留带有系统测试或回归测试标签的议题。",
+                initial.size(),
+                scoped,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "reason-category-filter",
+                "保留已识别原因",
+                "只保留 issue_fact.reason_category 非空的议题，避免把未归因数据混入原因分析。",
+                scoped.size(),
+                withReason,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "phase-filter",
+                "应用测试阶段筛选",
+                "根据页面上的测试阶段筛选进一步收敛范围；未选择时保留全部系统测试阶段。",
+                withReason.size(),
+                filtered,
+                this::toRuleFlowSample
+            )));
   }
 
-  private StatisticRuleFlowStep step(
-      String key, String title, String description, List<IssueSource> output, long inputCount) {
-    return new StatisticRuleFlowStep(key, title, description, inputCount, output.size(), sample(output));
-  }
-
-  private List<StatisticRuleFlowStepSample> sample(List<IssueSource> issues) {
-    return issues.stream()
-        .limit(3)
-        .map(
-            issue ->
-                new StatisticRuleFlowStepSample(
+  private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
+    return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 原因: " + issue.reasonCategory() + " | 模块: " + String.join("、", issue.moduleNames())))
-        .toList();
+                    issue.title() + " | 原因: " + issue.reasonCategory() + " | 模块: " + String.join("、", issue.moduleNames()));
   }
-
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
         || TOTAL_ROW_KEY.equals(rowKey)
