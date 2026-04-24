@@ -2,8 +2,10 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -91,6 +93,8 @@ class GitlabSyncControllerTest {
   @Test
   void statusShouldReturnTaskDrivenProgressPayloadWhenRunning() throws Exception {
     GitlabSyncConfig config = baseConfig();
+    config.setDbPassword("database-secret");
+    config.setWebhookSecret("webhook-secret");
     GitlabSyncTask task = new GitlabSyncTask();
     task.setId(10L);
     task.setStatus(SyncStatus.RUNNING);
@@ -116,7 +120,53 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.progress.phase").value("FULL_SYNC"))
         .andExpect(jsonPath("$.data.progress.totalTables").value(20))
         .andExpect(jsonPath("$.data.progress.completedTables").value(5))
+        .andExpect(jsonPath("$.data.config.dbPassword").value(""))
+        .andExpect(jsonPath("$.data.config.webhookSecret").value(""))
         .andExpect(jsonPath("$.data.webhookRegistration").doesNotExist());
+  }
+
+  @Test
+  void saveConfigShouldTreatAutoSyncEnabledAsAuthoritativeAndSanitizeResponseSecrets() throws Exception {
+    GitlabSyncConfig saved = baseConfig();
+    saved.setEnabled(false);
+    saved.setAutoSyncEnabled(false);
+    saved.setDbPassword("database-secret");
+    saved.setWebhookSecret("webhook-secret");
+    when(configService.saveConfig(argThat(config ->
+        !config.isEnabled()
+            && !config.isAutoSyncEnabled()
+            && "new-database-secret".equals(config.getDbPassword())
+            && "new-webhook-secret".equals(config.getWebhookSecret()))))
+        .thenReturn(saved);
+
+    mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/gitlab-sync/config")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "name": "GitLab default source",
+                  "enabled": true,
+                  "autoSyncEnabled": false,
+                  "sourceMode": "DIRECT",
+                  "whitelistMode": "RECOMMENDED",
+                  "whitelistTables": [],
+                  "dbHost": "localhost",
+                  "dbPort": 5432,
+                  "dbName": "gitlabhq_production",
+                  "dbUsername": "gitlab",
+                  "dbPassword": "new-database-secret",
+                  "dockerContainerName": "gitlab-data-web-1",
+                  "webhookSecret": "new-webhook-secret",
+                  "webhookProjectId": 1,
+                  "compensationIntervalMinutes": 10
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.autoSyncEnabled").value(false))
+        .andExpect(jsonPath("$.data.enabled").value(false))
+        .andExpect(jsonPath("$.data.dbPassword").value(""))
+        .andExpect(jsonPath("$.data.webhookSecret").value(""));
+
+    verify(configService, never()).saveConfig(argThat(config -> config.isAutoSyncEnabled() || config.isEnabled()));
   }
 
   @Test

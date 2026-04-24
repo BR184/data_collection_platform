@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -9,7 +10,11 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceMode;
+import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.mapper.GitlabSyncConfigMapper;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -49,5 +54,68 @@ class GitlabConfigServiceTest {
         .hasMessageContaining("补偿间隔仅支持 1 到 720 分钟");
 
     verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
+  }
+
+  @Test
+  void shouldPreserveStoredSecretsWhenSaveRequestLeavesSecretsBlank() {
+    GitlabSyncConfig current = persistedConfig();
+    when(configMapper.selectOne(any())).thenReturn(current);
+    when(configMapper.selectById(1L)).thenReturn(current);
+
+    GitlabSyncConfig input = baseInput();
+    input.setDbPassword("");
+    input.setWebhookSecret(" ");
+
+    configService.saveConfig(input);
+
+    verify(configMapper).updateById(argThat(config ->
+        "stored-database-secret".equals(config.getDbPassword())
+            && "stored-webhook-secret".equals(config.getWebhookSecret())));
+  }
+
+  @Test
+  void shouldAllowDisablingAutoSyncEvenWhenLegacyEnabledWasTrue() {
+    GitlabSyncConfig current = persistedConfig();
+    when(configMapper.selectOne(any())).thenReturn(current);
+    when(configMapper.selectById(1L)).thenReturn(current);
+
+    GitlabSyncConfig input = baseInput();
+    input.setEnabled(true);
+    input.setAutoSyncEnabled(false);
+
+    configService.saveConfig(input);
+
+    verify(configMapper).updateById(argThat(config -> !config.isEnabled() && !config.isAutoSyncEnabled()));
+  }
+
+  private GitlabSyncConfig persistedConfig() {
+    GitlabSyncConfig config = baseInput();
+    config.setId(1L);
+    config.setEnabled(true);
+    config.setAutoSyncEnabled(true);
+    config.setDbPassword("stored-database-secret");
+    config.setWebhookSecret("stored-webhook-secret");
+    config.setCreatedAt(LocalDateTime.now().minusDays(1));
+    return config;
+  }
+
+  private GitlabSyncConfig baseInput() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setName("GitLab default source");
+    config.setEnabled(false);
+    config.setAutoSyncEnabled(false);
+    config.setSourceMode(SourceMode.DIRECT);
+    config.setWhitelistMode(WhitelistMode.RECOMMENDED);
+    config.setWhitelistTables(List.of());
+    config.setDbHost("localhost");
+    config.setDbPort(5432);
+    config.setDbName("gitlabhq_production");
+    config.setDbUsername("gitlab");
+    config.setDbPassword("new-database-secret");
+    config.setDockerContainerName("gitlab-data-web-1");
+    config.setWebhookSecret("new-webhook-secret");
+    config.setWebhookProjectId(1L);
+    config.setCompensationIntervalMinutes(10);
+    return config;
   }
 }
