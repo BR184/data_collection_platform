@@ -6,6 +6,7 @@ import java.util.List;
 public record CustomerIssueIllegalRecordRowResponse(
     Long issueId,
     Integer issueIid,
+    String issueLink,
     Long projectId,
     String projectName,
     String title,

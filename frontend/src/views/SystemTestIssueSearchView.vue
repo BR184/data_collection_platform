@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import { api } from '../api';
+import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchRowResponse,
@@ -192,7 +193,7 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
 });
 
 const columns = computed<RecordTableColumn[]>(() => [
-  { key: 'issueIid', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
+  { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'projectName', label: '项目名称', sortable: true, minWidth: 140 },
   { key: 'moduleNames', label: '模块', type: 'tags', minWidth: 180 },
@@ -208,7 +209,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
     __raw: row,
     issueId: row.issueId,
-    issueIid: row.issueIid,
+    issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
     title: row.title || '-',
     projectName: row.projectName || '-',
     moduleNames: splitDisplayList(row.moduleNames).map((label) => ({ label, type: 'info' as const })),

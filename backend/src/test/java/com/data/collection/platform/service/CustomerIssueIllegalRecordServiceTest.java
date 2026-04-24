@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -21,9 +22,14 @@ class CustomerIssueIllegalRecordServiceTest {
 
   @Test
   void shouldApplyIllegalFiltersThroughSharedPipeline() {
+    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
+    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     CustomerIssueIllegalRecordService service =
         new CustomerIssueIllegalRecordService(
-            issueFactRecordRepository, customerIssueScopeProfile, new ObjectMapper());
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            gitlabMirrorProperties);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
             List.of(
@@ -61,6 +67,8 @@ class CustomerIssueIllegalRecordServiceTest {
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(201);
+    assertThat(response.records().getFirst().issueLink())
+        .isEqualTo("http://gitlab.example.com/-/issues/201");
   }
 
   private IssueFactRecord record(

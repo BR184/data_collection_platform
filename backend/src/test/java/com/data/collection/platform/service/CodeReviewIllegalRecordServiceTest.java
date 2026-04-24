@@ -4,9 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,13 +35,15 @@ class CodeReviewIllegalRecordServiceTest {
 
   @BeforeEach
   void setUp() {
+    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
+    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     service = new CodeReviewIllegalRecordService(
         gitlabMirrorSyncService,
         realtimeWorkspaceService,
         factBuildService,
         sourceLoader,
         new ObjectMapper(),
-        "http://gitlab.example.com");
+        gitlabMirrorProperties);
   }
 
   @Test

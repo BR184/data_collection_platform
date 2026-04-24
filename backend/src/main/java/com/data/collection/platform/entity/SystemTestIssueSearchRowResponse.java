@@ -6,6 +6,7 @@ import java.util.List;
 public record SystemTestIssueSearchRowResponse(
     Long issueId,
     Integer issueIid,
+    String issueLink,
     Long projectId,
     String projectName,
     String title,

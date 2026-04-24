@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,13 +20,16 @@ class CustomerIssueRecordServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
 
-  @InjectMocks private CustomerIssueRecordService service;
-
   @Test
   void shouldApplyTopicAndCommonFiltersThroughRequestObject() {
-    service =
+    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
+    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
+    CustomerIssueRecordService service =
         new CustomerIssueRecordService(
-            issueFactRecordRepository, customerIssueScopeProfile, new ObjectMapper());
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            gitlabMirrorProperties);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
             List.of(
@@ -65,6 +68,8 @@ class CustomerIssueRecordServiceTest {
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(101);
+    assertThat(response.records().getFirst().issueLink())
+        .isEqualTo("http://gitlab.example.com/-/issues/101");
   }
 
   private IssueFactRecord record(

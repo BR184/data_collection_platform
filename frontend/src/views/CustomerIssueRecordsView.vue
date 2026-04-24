@@ -6,6 +6,7 @@ import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
+import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordRowResponse,
@@ -153,7 +154,7 @@ const {
 });
 
 const columns = computed<RecordTableColumn[]>(() => [
-  { key: 'issueIid', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
+  { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'moduleNames', label: '模块', sortable: true, minWidth: 150 },
   { key: 'reasonCategory', label: '缺陷原因', type: 'tag', sortable: true, minWidth: 140 },
@@ -169,7 +170,7 @@ const columns = computed<RecordTableColumn[]>(() => [
 const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
     __raw: row,
-    issueIid: row.issueIid,
+    issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
     title: row.title,
     moduleNames: row.moduleNames || '-',
     reasonCategory: [{ label: row.reasonCategory || '未归因', type: row.reasonCategory ? 'primary' as const : 'info' as const }],

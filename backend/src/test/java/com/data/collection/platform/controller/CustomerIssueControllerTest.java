@@ -78,6 +78,7 @@ class CustomerIssueControllerTest {
                     new CustomerIssueRecordRowResponse(
                         9001L,
                         201,
+                        "http://gitlab.example.com/-/issues/201",
                         325L,
                         "CC_PRODUCT",
                         "Delay sample",
@@ -135,6 +136,7 @@ class CustomerIssueControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.records[0].issueIid").value(201))
+        .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/201"))
         .andExpect(jsonPath("$.data.records[0].title").value("Delay sample"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("delay"));
   }
@@ -210,6 +212,7 @@ class CustomerIssueControllerTest {
                     new CustomerIssueIllegalRecordRowResponse(
                         9002L,
                         301,
+                        "http://gitlab.example.com/-/issues/301",
                         325L,
                         "CC_PRODUCT",
                         "Illegal sample",
@@ -259,6 +262,7 @@ class CustomerIssueControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.records[0].issueIid").value(301))
+        .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/301"))
         .andExpect(jsonPath("$.data.records[0].illegalReason").value("Module mismatch"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("illegal"));
   }

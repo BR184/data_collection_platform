@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,8 +21,11 @@ class SystemTestIssueSearchServiceTest {
 
   @Test
   void shouldApplySystemTestSpecificFiltersThroughRequestObject() {
+    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
+    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(issueFactRecordRepository, systemTestScopeProfile);
+        new SystemTestIssueSearchService(
+            issueFactRecordRepository, systemTestScopeProfile, gitlabMirrorProperties);
     when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(
             List.of(
@@ -60,6 +64,8 @@ class SystemTestIssueSearchServiceTest {
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(301);
+    assertThat(response.records().getFirst().issueLink())
+        .isEqualTo("http://gitlab.example.com/-/issues/301");
   }
 
   private IssueFactRecord record(

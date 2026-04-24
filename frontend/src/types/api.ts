@@ -566,6 +566,7 @@ export interface RealtimeWorkspaceStatusResponse {
 export interface SystemTestIssueSearchRowResponse {
   issueId: number;
   issueIid: number;
+  issueLink?: string | null;
   projectId: number;
   projectName: string;
   title: string;
@@ -609,6 +610,7 @@ export interface SystemTestIssueSearchFilterOptionsResponse {
 export interface CustomerIssueIllegalRecordRowResponse {
   issueId: number;
   issueIid: number;
+  issueLink?: string | null;
   projectId: number;
   projectName: string;
   title: string;
@@ -654,6 +656,7 @@ export type CustomerIssueRecordTopic = 'cc-product' | 'delay';
 export interface CustomerIssueRecordRowResponse {
   issueId: number;
   issueIid: number;
+  issueLink?: string | null;
   projectId: number;
   projectName: string;
   title: string;

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -58,13 +58,13 @@ public class CodeReviewIllegalRecordService {
       FactBuildService factBuildService,
       CodeReviewIllegalRecordSourceLoader sourceLoader,
       ObjectMapper objectMapper,
-      @Value("${gitlab-mirror.web-base-url:http://172.22.10.233}") String defaultGitlabBaseUrl) {
+      GitlabMirrorProperties gitlabMirrorProperties) {
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.sourceLoader = sourceLoader;
     this.objectMapper = objectMapper;
-    this.defaultGitlabBaseUrl = defaultGitlabBaseUrl;
+    this.defaultGitlabBaseUrl = gitlabMirrorProperties.getWebBaseUrl();
   }
 
   public CodeReviewIllegalRecordListResponse listRecords(CodeReviewIllegalRecordQueryRequest request) {

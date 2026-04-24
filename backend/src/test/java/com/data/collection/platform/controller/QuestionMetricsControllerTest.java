@@ -68,6 +68,7 @@ class QuestionMetricsControllerTest {
                     new SystemTestIssueSearchRowResponse(
                         9001L,
                         809,
+                        "http://gitlab.example.com/-/issues/809",
                         1001L,
                         "Rocksdb",
                         "草图模块崩溃问题",
@@ -117,6 +118,7 @@ class QuestionMetricsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.records[0].issueIid").value(809))
+        .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/809"))
         .andExpect(jsonPath("$.data.records[0].projectName").value("Rocksdb"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("CC2026R1第一轮系统测试"));
   }

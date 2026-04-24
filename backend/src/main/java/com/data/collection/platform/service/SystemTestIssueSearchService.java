@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
@@ -21,8 +22,9 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
 
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
-      SystemTestScopeProfile systemTestScopeProfile) {
-    super(issueFactRecordRepository);
+      SystemTestScopeProfile systemTestScopeProfile,
+      GitlabMirrorProperties gitlabMirrorProperties) {
+    super(issueFactRecordRepository, gitlabMirrorProperties.getWebBaseUrl());
     this.systemTestScopeProfile = systemTestScopeProfile;
   }
 
@@ -82,6 +84,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     return new SystemTestIssueSearchRowResponse(
         view.issueId(),
         view.issueIid(),
+        buildIssueLink(view.issueIid()),
         view.projectId(),
         view.projectName(),
         view.title(),

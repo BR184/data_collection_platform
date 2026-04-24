@@ -10,12 +10,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.springframework.util.StringUtils;
 
 abstract class AbstractIssueFactRecordListService extends AbstractFactQueryService {
   private final IssueFactRecordRepository issueFactRecordRepository;
+  private final String defaultGitlabBaseUrl;
 
-  protected AbstractIssueFactRecordListService(IssueFactRecordRepository issueFactRecordRepository) {
+  protected AbstractIssueFactRecordListService(
+      IssueFactRecordRepository issueFactRecordRepository, String defaultGitlabBaseUrl) {
     this.issueFactRecordRepository = issueFactRecordRepository;
+    this.defaultGitlabBaseUrl = defaultGitlabBaseUrl;
   }
 
   protected List<IssueFactRecord> loadFacts(Long projectId) {
@@ -111,6 +115,13 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
 
   protected List<OptionItemResponse> toOptions(List<String> values) {
     return OptionItemResponseFactory.from(values, TextQuerySupport::trimToNull);
+  }
+
+  protected String buildIssueLink(Integer issueIid) {
+    if (!StringUtils.hasText(defaultGitlabBaseUrl) || issueIid == null) {
+      return null;
+    }
+    return defaultGitlabBaseUrl.replaceAll("/+$", "") + "/-/issues/" + issueIid;
   }
 
   protected StatisticRuleFlowStep step(

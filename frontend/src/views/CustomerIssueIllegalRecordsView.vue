@@ -6,6 +6,7 @@ import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
+import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {
   CustomerIssueIllegalRecordFilterOptionsResponse,
   CustomerIssueIllegalRecordRowResponse,
@@ -143,7 +144,7 @@ const {
 });
 
 const columns = computed<RecordTableColumn[]>(() => [
-  { key: 'issueIid', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
+  { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'illegalReason', label: '非法原因', type: 'tag', sortable: true, minWidth: 150 },
   { key: 'projectName', label: '所属项目', sortable: true, minWidth: 150 },
@@ -159,7 +160,7 @@ const columns = computed<RecordTableColumn[]>(() => [
 const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
     __raw: row,
-    issueIid: row.issueIid,
+    issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
     title: row.title,
     illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
     projectName: row.projectName || '-',

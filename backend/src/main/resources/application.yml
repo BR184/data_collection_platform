@@ -25,6 +25,8 @@ platform:
   gitlab-mirror:
     scheduler-enabled: true
     scheduler-delay-ms: 60000
+    # 本地/内网 GitLab 访问地址，记录类页面和代码走查链接统一复用这里
+    web-base-url: http://172.22.10.233
     webhook-base-url: http://host.docker.internal:18080/api/gitlab-sync/webhook
     docker-command: docker
     heartbeat-timeout-seconds: 180
