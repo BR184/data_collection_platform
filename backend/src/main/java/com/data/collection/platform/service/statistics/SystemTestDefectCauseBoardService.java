@@ -12,7 +12,6 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
-import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -33,10 +32,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -288,7 +285,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     List<IssueSource> withReason =
         scoped.stream().filter(IssueSource::hasReasonCategory).toList();
     List<IssueSource> filtered =
-        withReason.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
+        withReason.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
         filtered,
         List.of(
@@ -312,42 +309,6 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
                     "#" + issue.iid() + " " + issue.projectName(),
                     issue.title() + " | 原因: " + issue.reasonCategory() + " | 模块: " + String.join("、", issue.moduleNames())))
         .toList();
-  }
-
-  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      return true;
-    }
-    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
-    for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      boolean matched = matchesCondition(issue, condition);
-      if (isOr && matched) {
-        return true;
-      }
-      if (!isOr && !matched) {
-        return false;
-      }
-    }
-    return !isOr;
-  }
-
-  private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
-    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
-      return true;
-    }
-    if (!"testingPhase".equals(condition.fieldKey())) {
-      return true;
-    }
-    String candidate = issue.phaseFilterValue();
-    String value = trimToNull(condition.value());
-    return switch (condition.operator()) {
-      case "eq" -> value == null || candidate.equalsIgnoreCase(value);
-      case "ne" -> value == null || !candidate.equalsIgnoreCase(value);
-      case "contains" -> value == null || candidate.toLowerCase(java.util.Locale.ROOT).contains(value.toLowerCase(java.util.Locale.ROOT));
-      case "isEmpty" -> !StringUtils.hasText(candidate);
-      case "isNotEmpty" -> StringUtils.hasText(candidate);
-      default -> true;
-    };
   }
 
   private boolean matchesRow(IssueSource issue, String rowKey) {
@@ -403,7 +364,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove("testingPhase");
-    Long projectId = parseLong(queryFilters.get("projectId"));
+    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
       return facts.isEmpty() ? List.of() : facts;
@@ -446,17 +407,17 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return new IssueSource(
         rs.getLong("id"),
         rs.getInt("iid"),
-        text(rs.getString("title"), ""),
-        text(rs.getString("project_name"), "未命名项目"),
-        text(rs.getString("author_name"), ""),
-        time(rs.getTimestamp("updated_at")),
-        time(rs.getTimestamp("closed_at")),
-        text(rs.getString("issue_state"), "opened"),
-        text(rs.getString("testing_phase"), ""),
-        text(rs.getString("system_test_label"), ""),
-        text(rs.getString("reason_category"), ""),
-        split(rs.getString("module_names")),
-        split(rs.getString("label_names")));
+        StatisticSourceValueSupport.text(rs.getString("title"), ""),
+        StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
+        StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
+        StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
+        StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
+        StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
+        StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
+        StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
+        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        StatisticSourceValueSupport.split(rs.getString("label_names")));
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
@@ -466,9 +427,9 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
               Map.of(),
               (rs, rowNum) ->
                   new PhaseOptionSource(
-                      text(rs.getString("testing_phase"), ""),
-                      text(rs.getString("system_test_label"), ""),
-                      split(rs.getString("label_names"))))
+                      StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
+                      StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
+                      StatisticSourceValueSupport.split(rs.getString("label_names"))))
           .stream()
           .flatMap(source -> source.candidates().stream())
           .filter(this::isPhaseScopedValue)
@@ -527,36 +488,6 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         .filter(metric -> metric.key().equals(key))
         .findFirst()
         .orElseThrow(() -> new IllegalArgumentException("Unknown metric key: " + key));
-  }
-
-  private Long parseLong(String value) {
-    try {
-      return StringUtils.hasText(value) ? Long.parseLong(value.trim()) : null;
-    } catch (NumberFormatException e) {
-      return null;
-    }
-  }
-
-  private String text(String value, String fallback) {
-    return StringUtils.hasText(value) ? value.trim() : fallback;
-  }
-
-  private LocalDateTime time(java.sql.Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String value : raw.split(",")) {
-      String trimmed = value == null ? "" : value.trim();
-      if (!trimmed.isEmpty()) {
-        values.add(trimmed);
-      }
-    }
-    return List.copyOf(values);
   }
 
   private static String count(long value) {
@@ -623,7 +554,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       String systemTestLabel,
       String reasonCategory,
       List<String> moduleNames,
-      List<String> labels) {
+      List<String> labels) implements SystemTestPhaseFilterSource {
     boolean inSystemTestScope() {
       return StringUtils.hasText(primaryPhaseLabel());
     }
@@ -655,7 +586,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       return labels.stream().filter(this::hasScope).findFirst().orElse("");
     }
 
-    String phaseFilterValue() {
+    public String phaseFilterValue() {
       String primary = primaryPhaseLabel();
       String normalized = StringUtils.hasText(primary) ? primary : "";
       Matcher matcher = TURN_LABEL_PATTERN.matcher(normalized);

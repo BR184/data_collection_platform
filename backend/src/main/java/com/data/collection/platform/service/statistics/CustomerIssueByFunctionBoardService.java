@@ -30,10 +30,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -302,30 +300,30 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueSource(
         rs.getLong("project_id"),
-        text(rs.getString("project_name")),
+        StatisticSourceValueSupport.text(rs.getString("project_name")),
         rs.getLong("issue_id"),
         rs.getInt("issue_iid"),
-        text(rs.getString("title")),
-        text(rs.getString("issue_state")),
-        text(rs.getString("testing_phase")),
-        text(rs.getString("system_test_label")),
-        text(rs.getString("severity_level")),
-        text(rs.getString("priority_level")),
-        text(rs.getString("bug_status")),
-        text(rs.getString("category")),
-        text(rs.getString("reason_category")),
-        text(rs.getString("milestone_title")),
-        text(rs.getString("author_name")),
-        text(rs.getString("assignee_name")),
-        split(rs.getString("module_names")),
-        text(rs.getString("function_name")),
-        split(rs.getString("label_names")),
+        StatisticSourceValueSupport.text(rs.getString("title")),
+        StatisticSourceValueSupport.text(rs.getString("issue_state")),
+        StatisticSourceValueSupport.text(rs.getString("testing_phase")),
+        StatisticSourceValueSupport.text(rs.getString("system_test_label")),
+        StatisticSourceValueSupport.text(rs.getString("severity_level")),
+        StatisticSourceValueSupport.text(rs.getString("priority_level")),
+        StatisticSourceValueSupport.text(rs.getString("bug_status")),
+        StatisticSourceValueSupport.text(rs.getString("category")),
+        StatisticSourceValueSupport.text(rs.getString("reason_category")),
+        StatisticSourceValueSupport.text(rs.getString("milestone_title")),
+        StatisticSourceValueSupport.text(rs.getString("author_name")),
+        StatisticSourceValueSupport.text(rs.getString("assignee_name")),
+        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        StatisticSourceValueSupport.text(rs.getString("function_name")),
+        StatisticSourceValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("is_fixed"),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_response_delayed"),
-        time(rs.getTimestamp("created_at_source")),
-        time(rs.getTimestamp("updated_at_source")),
-        time(rs.getTimestamp("closed_at_source")));
+        StatisticSourceValueSupport.time(rs.getTimestamp("created_at_source")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("updated_at_source")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("closed_at_source")));
   }
 
   private boolean matchesRow(IssueSource issue, String requestedRowKey) {
@@ -386,28 +384,6 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   private String rowKey(String moduleName, String functionName) {
     return moduleName + ROW_KEY_SEPARATOR + functionName;
-  }
-
-  private LocalDateTime time(java.sql.Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private String text(String value) {
-    return value == null ? "" : value.trim();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String value : raw.split(",")) {
-      String normalized = value == null ? "" : value.trim();
-      if (!normalized.isEmpty()) {
-        values.add(normalized);
-      }
-    }
-    return List.copyOf(values);
   }
 
   private static String count(long value) {

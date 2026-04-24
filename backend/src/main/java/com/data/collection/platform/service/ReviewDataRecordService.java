@@ -24,34 +24,8 @@ public class ReviewDataRecordService {
     this.filterOptionService = filterOptionService;
   }
 
-  public ReviewDataRecordListResponse listRecords(
-      String keyword,
-      String title,
-      String projectName,
-      String moduleName,
-      String reviewOwner,
-      String reviewType,
-      String problemStatus,
-      String reviewExpert,
-      String filterGroupJson,
-      int page,
-      int size,
-      String sortField,
-      String sortOrder) {
-    return queryService.listRecords(
-        keyword,
-        title,
-        projectName,
-        moduleName,
-        reviewOwner,
-        reviewType,
-        problemStatus,
-        reviewExpert,
-        filterGroupJson,
-        page,
-        size,
-        sortField,
-        sortOrder);
+  public ReviewDataRecordListResponse listRecords(ReviewDataRecordQueryRequest request) {
+    return queryService.listRecords(request);
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {

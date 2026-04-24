@@ -33,10 +33,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -337,7 +335,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    Long projectId = parseLong(queryFilters.get("projectId"));
+    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
       return facts.isEmpty() ? List.of() : facts;
@@ -380,20 +378,20 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     return new IssueSource(
         rs.getLong("id"),
         rs.getInt("iid"),
-        text(rs.getString("title"), ""),
+        StatisticSourceValueSupport.text(rs.getString("title"), ""),
         rs.getLong("project_id"),
-        text(rs.getString("project_name"), "未命名项目"),
-        text(rs.getString("milestone_title"), ""),
-        text(rs.getString("author_name"), ""),
-        time(rs.getTimestamp("created_at")),
-        time(rs.getTimestamp("updated_at")),
-        time(rs.getTimestamp("closed_at")),
-        text(rs.getString("issue_state"), "opened"),
-        text(rs.getString("testing_phase"), ""),
-        text(rs.getString("system_test_label"), ""),
-        text(rs.getString("reason_category"), ""),
-        split(rs.getString("module_names")),
-        split(rs.getString("label_names")));
+        StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
+        StatisticSourceValueSupport.text(rs.getString("milestone_title"), ""),
+        StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
+        StatisticSourceValueSupport.time(rs.getTimestamp("created_at")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
+        StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
+        StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
+        StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
+        StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
+        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        StatisticSourceValueSupport.split(rs.getString("label_names")));
   }
 
   private CauseMetricDefinition metric(String key) {
@@ -401,36 +399,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         .filter(metric -> metric.key().equals(key))
         .findFirst()
         .orElseThrow(() -> new IllegalArgumentException("Unknown metric key: " + key));
-  }
-
-  private Long parseLong(String value) {
-    try {
-      return StringUtils.hasText(value) ? Long.parseLong(value.trim()) : null;
-    } catch (NumberFormatException e) {
-      return null;
-    }
-  }
-
-  private String text(String value, String fallback) {
-    return StringUtils.hasText(value) ? value.trim() : fallback;
-  }
-
-  private LocalDateTime time(java.sql.Timestamp timestamp) {
-    return timestamp == null ? null : timestamp.toLocalDateTime();
-  }
-
-  private List<String> split(String raw) {
-    if (!StringUtils.hasText(raw)) {
-      return List.of();
-    }
-    Set<String> values = new LinkedHashSet<>();
-    for (String value : raw.split(",")) {
-      String trimmed = value == null ? "" : value.trim();
-      if (!trimmed.isEmpty()) {
-        values.add(trimmed);
-      }
-    }
-    return List.copyOf(values);
   }
 
   private static String count(long value) {

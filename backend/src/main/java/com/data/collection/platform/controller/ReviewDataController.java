@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
+import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -47,19 +48,20 @@ public class ReviewDataController {
       @RequestParam(required = false) String sortOrder) {
     return ApiResponse.success(
         reviewDataRecordService.listRecords(
-            keyword,
-            title,
-            projectName,
-            moduleName,
-            reviewOwner,
-            reviewType,
-            problemStatus,
-            reviewExpert,
-            filterGroup,
-            page,
-            size,
-            sortBy,
-            sortOrder));
+            new ReviewDataRecordQueryRequest(
+                keyword,
+                title,
+                projectName,
+                moduleName,
+                reviewOwner,
+                reviewType,
+                problemStatus,
+                reviewExpert,
+                filterGroup,
+                page,
+                size,
+                sortBy,
+                sortOrder)));
   }
 
   @GetMapping("/records/filter-options")

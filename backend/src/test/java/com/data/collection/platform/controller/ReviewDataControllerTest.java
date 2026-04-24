@@ -2,6 +2,7 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -19,10 +20,12 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
+import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,20 +49,7 @@ class ReviewDataControllerTest {
 
   @Test
   void shouldReturnReviewDataRecordList() throws Exception {
-    when(reviewDataRecordService.listRecords(
-            eq("review"),
-            eq("design"),
-            eq("CrownCAD"),
-            eq("Sketch"),
-            eq("Alice"),
-            eq("Document Review"),
-            eq("Resolved"),
-            eq("Bob"),
-            eq(null),
-            eq(2),
-            eq(10),
-            eq("updatedAt"),
-            eq("desc")))
+    when(reviewDataRecordService.listRecords(any(ReviewDataRecordQueryRequest.class)))
         .thenReturn(
             new ReviewDataRecordListResponse(
                 List.of(
@@ -97,6 +87,7 @@ class ReviewDataControllerTest {
                 .param("reviewType", "Document Review")
                 .param("problemStatus", "Resolved")
                 .param("reviewExpert", "Bob")
+                .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[]}")
                 .param("page", "2")
                 .param("size", "10")
                 .param("sortBy", "updatedAt")
@@ -106,6 +97,23 @@ class ReviewDataControllerTest {
         .andExpect(jsonPath("$.data.records[0].title").value("Sketch Design Review"))
         .andExpect(jsonPath("$.data.records[0].problemCount").value(5))
         .andExpect(jsonPath("$.data.summary.totalProblemItems").value(5));
+
+    var requestCaptor = org.mockito.ArgumentCaptor.forClass(ReviewDataRecordQueryRequest.class);
+    verify(reviewDataRecordService).listRecords(requestCaptor.capture());
+    ReviewDataRecordQueryRequest request = requestCaptor.getValue();
+    Assertions.assertEquals("review", request.keyword());
+    Assertions.assertEquals("design", request.title());
+    Assertions.assertEquals("CrownCAD", request.projectName());
+    Assertions.assertEquals("Sketch", request.moduleName());
+    Assertions.assertEquals("Alice", request.reviewOwner());
+    Assertions.assertEquals("Document Review", request.reviewType());
+    Assertions.assertEquals("Resolved", request.problemStatus());
+    Assertions.assertEquals("Bob", request.reviewExpert());
+    Assertions.assertEquals("{\"logic\":\"AND\",\"conditions\":[]}", request.filterGroupJson());
+    Assertions.assertEquals(2, request.page());
+    Assertions.assertEquals(10, request.size());
+    Assertions.assertEquals("updatedAt", request.sortField());
+    Assertions.assertEquals("desc", request.sortOrder());
   }
 
   @Test

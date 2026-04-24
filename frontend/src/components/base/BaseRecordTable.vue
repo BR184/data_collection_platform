@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, toRef, useSlots, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import SmartSelect from './SmartSelect.vue';
 import BaseSearchInput from './BaseSearchInput.vue';
-import { resolveRecordTableCellDisplay } from './base-record-table-cell';
+import BaseRecordTableCell from './BaseRecordTableCell.vue';
+import RecordTableFilterFieldRenderer from './RecordTableFilterFieldRenderer.vue';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import type {
   RecordTableActiveFilterTag,
@@ -253,44 +253,22 @@ function handleStandaloneKeywordClear() {
       <div class="record-filter-primary">
         <slot name="filter-builder" />
 
-        <template v-for="filter in primaryFilters" :key="filter.key">
-          <BaseSearchInput
-            v-if="filter.type === 'input'"
-            :model-value="getInputFilterDraft(filter.key)"
-            :class="['record-filter-input', { 'record-filter-main-keyword': filter.key === 'keyword' }]"
-            :style="{ width: `${filter.width ?? (filter.key === 'keyword' ? 260 : 168)}px` }"
-            :placeholder="filter.placeholder || filter.label"
-            :clearable="filter.clearable ?? true"
-            @update:model-value="handleInputFilterUpdate(filter.key, String($event ?? ''))"
-            @change="commitInputFilterValue(filter.key, String($event ?? ''))"
-            @search="handleInputFilterSearch(filter.key)"
-            @clear="handleInputFilterClear(filter.key)"
-          />
-
-          <SmartSelect
-            v-else-if="filter.type === 'select'"
-            :model-value="String(getFilterValue(filter.key) ?? '')"
-            class="record-filter-select"
-            :style="{ width: `${filter.width ?? 180}px` }"
-            :placeholder="filter.placeholder || filter.label"
-            :options="filter.options ?? []"
-            :compact="filter.selectMode === 'compact'"
-            @change="handleFilterChange(filter.key, String($event ?? ''))"
-          />
-
-          <el-date-picker
-            v-else-if="filter.type === 'daterange'"
-            :model-value="(getFilterValue(filter.key) as string[]) ?? []"
-            class="record-filter-main-date"
-            :style="{ width: `${filter.width ?? 280}px` }"
-            type="daterange"
-            range-separator="至"
-            :start-placeholder="filter.startPlaceholder || '开始日期'"
-            :end-placeholder="filter.endPlaceholder || '结束日期'"
-            value-format="YYYY-MM-DD"
-            @change="handleFilterChange(filter.key, Array.isArray($event) ? $event : null)"
-          />
-        </template>
+        <RecordTableFilterFieldRenderer
+          v-for="filter in primaryFilters"
+          :key="filter.key"
+          :filter="filter"
+          :model-value="getFilterValue(filter.key)"
+          :input-value="getInputFilterDraft(filter.key)"
+          :input-class="{ 'record-filter-main-keyword': filter.key === 'keyword' }"
+          :default-input-width="filter.key === 'keyword' ? 260 : 168"
+          :default-select-width="180"
+          :default-date-range-width="280"
+          @input-update="handleInputFilterUpdate"
+          @input-change="commitInputFilterValue"
+          @input-search="handleInputFilterSearch"
+          @input-clear="handleInputFilterClear"
+          @filter-change="handleFilterChange"
+        />
 
         <BaseSearchInput
           v-if="hasStandaloneSearch"
@@ -322,31 +300,21 @@ function handleStandaloneKeywordClear() {
 
       <el-collapse-transition>
         <div v-show="advancedVisible && hasAdvancedFilters" class="record-filter-advanced">
-          <template v-for="filter in advancedFilters" :key="filter.key">
-            <BaseSearchInput
-              v-if="filter.type === 'input'"
-              :model-value="getInputFilterDraft(filter.key)"
-              class="record-filter-input"
-              :style="{ width: `${filter.width ?? 168}px` }"
-              :placeholder="filter.placeholder || filter.label"
-              :clearable="filter.clearable ?? true"
-              @update:model-value="handleInputFilterUpdate(filter.key, String($event ?? ''))"
-              @change="commitInputFilterValue(filter.key, String($event ?? ''))"
-              @search="handleInputFilterSearch(filter.key)"
-              @clear="handleInputFilterClear(filter.key)"
-            />
-
-            <SmartSelect
-              v-else-if="filter.type === 'select'"
-              :model-value="String(getFilterValue(filter.key) ?? '')"
-              class="record-filter-select"
-              :style="{ width: `${filter.width ?? 168}px` }"
-              :placeholder="filter.placeholder || filter.label"
-              :options="filter.options ?? []"
-              :compact="filter.selectMode === 'compact'"
-              @change="handleFilterChange(filter.key, String($event ?? ''))"
-            />
-          </template>
+          <RecordTableFilterFieldRenderer
+            v-for="filter in advancedFilters"
+            :key="filter.key"
+            :filter="filter"
+            :model-value="getFilterValue(filter.key)"
+            :input-value="getInputFilterDraft(filter.key)"
+            :default-input-width="168"
+            :default-select-width="168"
+            :default-date-range-width="280"
+            @input-update="handleInputFilterUpdate"
+            @input-change="commitInputFilterValue"
+            @input-search="handleInputFilterSearch"
+            @input-clear="handleInputFilterClear"
+            @filter-change="handleFilterChange"
+          />
         </div>
       </el-collapse-transition>
     </section>
@@ -420,50 +388,7 @@ function handleStandaloneKeywordClear() {
               :row="row"
               :value="row[column.key]"
             />
-            <template v-else-if="column.type === 'tags'">
-              <template v-for="cell in [resolveRecordTableCellDisplay(row[column.key])]" :key="`${column.key}-tags`">
-                <div class="record-table-tags">
-                  <el-tag
-                    v-for="tag in cell.tags"
-                    :key="`${column.key}-${tag.label}`"
-                    size="small"
-                    :type="tag.type ?? 'info'"
-                    effect="plain"
-                  >
-                    {{ tag.label }}
-                  </el-tag>
-                  <span v-if="!cell.tags.length" class="record-table-empty">-</span>
-                </div>
-              </template>
-            </template>
-            <template v-else-if="column.type === 'tag'">
-              <template v-for="cell in [resolveRecordTableCellDisplay(row[column.key])]" :key="`${column.key}-tag`">
-                <el-tag
-                  v-if="cell.primaryTag"
-                  size="small"
-                  :type="cell.primaryTag.type ?? 'info'"
-                  effect="plain"
-                >
-                  {{ cell.primaryTag.label }}
-                </el-tag>
-                <span v-else class="record-table-empty">-</span>
-              </template>
-            </template>
-            <template v-else-if="column.type === 'link'">
-              <template v-for="cell in [resolveRecordTableCellDisplay(row[column.key])]" :key="`${column.key}-link`">
-                <a
-                  v-if="cell.link"
-                  class="record-table-link"
-                  :href="cell.link.href"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {{ cell.link.label }}
-                </a>
-                <span v-else class="record-table-empty">-</span>
-              </template>
-            </template>
-            <span v-else class="record-table-text">{{ resolveRecordTableCellDisplay(row[column.key]).text }}</span>
+            <BaseRecordTableCell v-else :column="column" :value="row[column.key]" />
           </template>
         </el-table-column>
 
@@ -626,31 +551,6 @@ function handleStandaloneKeywordClear() {
   display: flex;
   justify-content: flex-end;
   padding-top: 2px;
-}
-
-.record-table-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.record-table-link {
-  color: #2563eb;
-  text-decoration: none;
-}
-
-.record-table-link:hover {
-  text-decoration: underline;
-}
-
-.record-table-text,
-.record-table-empty {
-  color: rgba(0, 0, 0, 0.88);
-}
-
-.record-table-empty {
-  color: rgba(0, 0, 0, 0.45);
 }
 
 :deep(.el-input__wrapper),
