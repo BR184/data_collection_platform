@@ -101,12 +101,12 @@ class CodeReviewControllerTest {
             List.of(new CodeReviewRulePreviewSample(
                 1L,
                 101,
-                "绀轰緥椤圭洰",
-                "鏀粯妯″潡",
-                "鐜嬭€佸笀",
+                "示例项目",
+                "支付模块",
+                "王老师",
                 "master",
-                "绀轰緥鍚堝苟璇锋眰鍐呭",
-                List.of("婊¤冻锛氭ā鍧楀悕涓虹┖")))));
+                "示例合并请求内容",
+                List.of("满足：模块名称为空")))));
 
     mockMvc.perform(post("/api/code-review/illegal-records/rule-config/preview")
             .contentType("application/json")

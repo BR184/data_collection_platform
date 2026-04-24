@@ -263,6 +263,92 @@ class StatisticBoardControllerTest {
   }
 
   @Test
+  void shouldLoadCustomerIssueResponseEfficiencyBoard() {
+    StatisticBoardResponse response =
+        controller.getBoard("customer-issue-response-efficiency", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.definition().boardKey()).isEqualTo("customer-issue-response-efficiency");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块");
+    assertThat(response.definition().filters()).extracting("key")
+        .containsExactly("projectName", "moduleName", "severityLevel", "priorityLevel");
+    assertThat(response.definition().columnGroups()).extracting("key")
+        .containsExactly("response", "resolve");
+    assertThat(response.definition().columnGroups())
+        .anySatisfy(group -> {
+          assertThat(group.key()).isEqualTo("response");
+          assertThat(group.leafColumns()).extracting("key")
+              .containsExactly(
+                  "total",
+                  "responded",
+                  "unresponded",
+                  "response_overdue",
+                  "response_delayed",
+                  "response_rate");
+        })
+        .anySatisfy(group -> {
+          assertThat(group.key()).isEqualTo("resolve");
+          assertThat(group.leafColumns()).extracting("key")
+              .containsExactly("resolve_delayed", "resolve_on_time", "resolve_delay_rate");
+        });
+    assertThat(response.meta().columnCount()).isEqualTo(9);
+  }
+
+  @Test
+  void shouldLoadCustomerIssueResponseEfficiencyRuleExplanation() {
+    StatisticBoardRuleExplanationResponse response =
+        controller.getRuleExplanation("customer-issue-response-efficiency", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.boardKey()).isEqualTo("customer-issue-response-efficiency");
+    assertThat(response.supported()).isTrue();
+    assertThat(response.version()).isNotBlank();
+    assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(3);
+    assertThat(response.metricDefinitions()).extracting("key")
+        .containsExactly("response_rate", "response_delayed", "resolve_delay_rate");
+  }
+
+  @Test
+  void shouldLoadCustomerIssueByFunctionBoard() {
+    StatisticBoardResponse response =
+        controller.getBoard("customer-issue-by-function", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.definition().boardKey()).isEqualTo("customer-issue-by-function");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块 / 功能");
+    assertThat(response.definition().filters()).extracting("key")
+        .containsExactly("projectName", "moduleName", "functionName", "milestoneTitle", "severityLevel");
+    assertThat(response.definition().columnGroups()).extracting("key")
+        .containsExactly("quantity", "severity");
+    assertThat(response.definition().columnGroups())
+        .anySatisfy(group -> {
+          assertThat(group.key()).isEqualTo("quantity");
+          assertThat(group.leafColumns()).extracting("key")
+              .containsExactly("total", "fixed", "open", "delay", "response_delayed", "function_ratio");
+        })
+        .anySatisfy(group -> {
+          assertThat(group.key()).isEqualTo("severity");
+          assertThat(group.leafColumns()).extracting("key")
+              .containsExactly("level1", "level2", "level3", "suggestion");
+        });
+    assertThat(response.meta().columnCount()).isEqualTo(10);
+  }
+
+  @Test
+  void shouldLoadCustomerIssueByFunctionRuleExplanation() {
+    StatisticBoardRuleExplanationResponse response =
+        controller.getRuleExplanation("customer-issue-by-function", Map.of()).getData();
+
+    assertThat(response).isNotNull();
+    assertThat(response.boardKey()).isEqualTo("customer-issue-by-function");
+    assertThat(response.supported()).isTrue();
+    assertThat(response.version()).isNotBlank();
+    assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
+    assertThat(response.metricDefinitions()).extracting("key")
+        .containsExactly("total", "function_ratio", "severity");
+  }
+
+  @Test
   void shouldLoadMirrorTableOverviewRuleExplanation() {
     StatisticBoardRuleExplanationResponse response =
         controller.getRuleExplanation("mirror-table-overview", Map.of()).getData();

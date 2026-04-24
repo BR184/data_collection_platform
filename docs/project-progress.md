@@ -203,6 +203,11 @@
   - 本次修复了 2 处测试代码未跟随服务重构更新的问题：
     - `CodeReviewIllegalRecordServiceTest`
     - `SystemTestDefectSummaryRuleExplanationTest`
+- 非废弃模块的第二批验证补强
+  - 新增客户问题两个正式统计板的控制器测试覆盖：
+    - `customer-issue-response-efficiency`
+    - `customer-issue-by-function`
+  - 新增 `IntegrationTestAnalysisView` 前端挂载与明细抽屉冒烟测试
 
 ## 8. 当前开发约束
 
