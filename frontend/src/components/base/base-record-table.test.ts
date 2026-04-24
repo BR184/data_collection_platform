@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import ElementPlus from 'element-plus';
 import BaseRecordTable from './BaseRecordTable.vue';
+import BaseSearchInput from './BaseSearchInput.vue';
+import { resolveRecordTableCellDisplay } from './base-record-table-cell';
 
 describe('BaseRecordTable', () => {
   afterEach(() => {
@@ -134,5 +137,66 @@ describe('BaseRecordTable', () => {
 
     expect(wrapper.emitted('filter-change')?.at(-1)).toEqual([{ key: 'keyword', value: 'cs' }]);
     expect(wrapper.emitted('query')).toBeFalsy();
+  });
+
+  it('normalizes tags and links through the extracted cell helper', () => {
+    const tagCell = resolveRecordTableCellDisplay(['待处理', { label: '高优', type: 'danger' }]);
+    const singleTagCell = resolveRecordTableCellDisplay([{ label: '进行中', type: 'warning' }]);
+    const linkCell = resolveRecordTableCellDisplay({ href: 'https://example.com/detail', label: '查看详情' });
+
+    expect(tagCell.tags).toEqual([
+      { label: '待处理' },
+      { label: '高优', type: 'danger' },
+    ]);
+    expect(singleTagCell.primaryTag).toEqual({ label: '进行中', type: 'warning' });
+    expect(linkCell.link).toEqual({ href: 'https://example.com/detail', label: '查看详情' });
+  });
+
+  it('emits empty search when standalone keyword is cleared during auto search mode', async () => {
+    const wrapper = mount(BaseRecordTable, {
+      props: {
+        columns: [],
+        rows: [],
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        keyword: '待清空',
+        keywordAutoSearch: true,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    wrapper.findComponent(BaseSearchInput).vm.$emit('clear');
+    await nextTick();
+
+    expect(wrapper.emitted('search')).toEqual([['']]);
+  });
+
+  it('delays the loading mask until the configured timeout', async () => {
+    vi.useFakeTimers();
+
+    const wrapper = mount(BaseRecordTable, {
+      props: {
+        columns: [],
+        rows: [],
+        loading: true,
+        loadingDelay: 250,
+        page: 1,
+        pageSize: 20,
+        total: 0,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    await nextTick();
+    expect(wrapper.find('.el-loading-mask').exists()).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(250);
+    await nextTick();
+    expect(wrapper.find('.el-loading-mask').exists()).toBe(true);
   });
 });

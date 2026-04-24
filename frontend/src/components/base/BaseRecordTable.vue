@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useSlots, watch } from 'vue';
+import { computed, ref, toRef, useSlots, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import SmartSelect from './SmartSelect.vue';
 import BaseSearchInput from './BaseSearchInput.vue';
+import { resolveRecordTableCellDisplay } from './base-record-table-cell';
+import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
   RecordTableFilterField,
-  RecordTableLinkValue,
-  RecordTableTagValue,
 } from '../../types/record-table';
 
 const props = withDefaults(
@@ -79,9 +79,9 @@ const emit = defineEmits<{
 
 const keywordDraft = ref(props.keyword);
 const inputFilterDrafts = ref<Record<string, string>>({});
-const displayedLoading = ref(false);
-let keywordAutoSearchTimer: number | null = null;
-let loadingTimer: number | null = null;
+const allFilters = computed(() => [...props.primaryFilters, ...props.advancedFilters]);
+const { displayedLoading } = useDelayedLoading(toRef(props, 'loading'), computed(() => props.loadingDelay ?? 0));
+const keywordAutoSearchTask = useDebouncedTask(toRef(props, 'keywordAutoSearchDelay'));
 
 watch(
   () => props.keyword,
@@ -91,10 +91,10 @@ watch(
 );
 
 watch(
-  [() => props.primaryFilters, () => props.advancedFilters, () => props.filterValues],
+  [allFilters, () => props.filterValues],
   () => {
     const nextDrafts: Record<string, string> = {};
-    for (const filter of [...props.primaryFilters, ...props.advancedFilters]) {
+    for (const filter of allFilters.value) {
       if (filter.type !== 'input') {
         continue;
       }
@@ -117,88 +117,6 @@ const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
 const hasActiveFilterTags = computed(() => props.activeFilterTags.length > 0);
 const hasStandaloneSearch = computed(() => props.showSearch && !props.primaryFilters.some((item) => item.key === 'keyword'));
 
-watch(
-  () => props.loading,
-  (loading) => {
-    if (loadingTimer != null) {
-      window.clearTimeout(loadingTimer);
-      loadingTimer = null;
-    }
-    if (!loading) {
-      displayedLoading.value = false;
-      return;
-    }
-    if ((props.loadingDelay ?? 0) <= 0) {
-      displayedLoading.value = true;
-      return;
-    }
-    loadingTimer = window.setTimeout(() => {
-      displayedLoading.value = true;
-      loadingTimer = null;
-    }, props.loadingDelay);
-  },
-  { immediate: true },
-);
-
-function normalizeTagList(value: unknown): RecordTableTagValue[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => {
-      if (!item) {
-        return null;
-      }
-      if (typeof item === 'string') {
-        return { label: item } satisfies RecordTableTagValue;
-      }
-      if (typeof item === 'object' && 'label' in item) {
-        const record = item as Record<string, unknown>;
-        return {
-          label: String(record.label ?? ''),
-          type: typeof record.type === 'string' ? (record.type as RecordTableTagValue['type']) : undefined,
-        } satisfies RecordTableTagValue;
-      }
-      return null;
-    })
-    .filter((item): item is RecordTableTagValue => Boolean(item?.label));
-}
-
-function normalizeLink(value: unknown): RecordTableLinkValue | null {
-  if (!value) {
-    return null;
-  }
-  if (typeof value === 'object' && 'href' in value) {
-    const record = value as Record<string, unknown>;
-    const href = String(record.href ?? '').trim();
-    if (!href) {
-      return null;
-    }
-    return {
-      href,
-      label: String(record.label ?? href),
-    };
-  }
-  const href = String(value).trim();
-  if (!href) {
-    return null;
-  }
-  return {
-    href,
-    label: href,
-  };
-}
-
-function formatCellValue(value: unknown) {
-  if (value == null || value === '') {
-    return '-';
-  }
-  if (typeof value === 'object') {
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
 function handleSearch() {
   const normalizedKeyword = keywordDraft.value.trim();
   emit('search', normalizedKeyword);
@@ -206,7 +124,7 @@ function handleSearch() {
 }
 
 function handleReset() {
-  clearKeywordAutoSearchTimer();
+  keywordAutoSearchTask.clear();
   keywordDraft.value = '';
   const nextDrafts = { ...inputFilterDrafts.value };
   for (const key of Object.keys(nextDrafts)) {
@@ -232,21 +150,6 @@ function getFilterValue(key: string) {
   return props.filterValues[key];
 }
 
-function clearKeywordAutoSearchTimer() {
-  if (keywordAutoSearchTimer != null) {
-    window.clearTimeout(keywordAutoSearchTimer);
-    keywordAutoSearchTimer = null;
-  }
-}
-
-function scheduleKeywordAutoSearch(callback: () => void) {
-  clearKeywordAutoSearchTimer();
-  keywordAutoSearchTimer = window.setTimeout(() => {
-    keywordAutoSearchTimer = null;
-    callback();
-  }, props.keywordAutoSearchDelay);
-}
-
 function getInputFilterDraft(key: string) {
   return inputFilterDrafts.value[key] ?? String(getFilterValue(key) ?? '');
 }
@@ -267,7 +170,7 @@ function commitInputFilterValue(key: string, value = getInputFilterDraft(key)) {
 
 function commitAllInputFilters() {
   const committedValues: Record<string, string> = {};
-  for (const filter of [...props.primaryFilters, ...props.advancedFilters]) {
+  for (const filter of allFilters.value) {
     if (filter.type !== 'input') {
       continue;
     }
@@ -284,13 +187,13 @@ function resolveQueryKeyword(committedInputFilters: Record<string, string>) {
 }
 
 function handleQueryClick() {
-  clearKeywordAutoSearchTimer();
+  keywordAutoSearchTask.clear();
   const committedInputFilters = commitAllInputFilters();
   emit('query', resolveQueryKeyword(committedInputFilters));
 }
 
 function handleInputFilterSearch(key: string) {
-  clearKeywordAutoSearchTimer();
+  keywordAutoSearchTask.clear();
   commitInputFilterValue(key);
   if (!props.keywordAutoSearch || key !== 'keyword') {
     handleQueryClick();
@@ -300,14 +203,14 @@ function handleInputFilterSearch(key: string) {
 function handleInputFilterUpdate(key: string, value: string) {
   updateInputFilterDraft(key, value);
   if (props.keywordAutoSearch && key === 'keyword') {
-    scheduleKeywordAutoSearch(() => {
+    keywordAutoSearchTask.schedule(() => {
       commitInputFilterValue(key, value);
     });
   }
 }
 
 function handleInputFilterClear(key: string) {
-  clearKeywordAutoSearchTimer();
+  keywordAutoSearchTask.clear();
   commitInputFilterValue(key, '');
 }
 
@@ -318,14 +221,14 @@ function emitStandaloneKeywordSearch(value = keywordDraft.value) {
 function handleStandaloneKeywordUpdate(value: string) {
   keywordDraft.value = value;
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
-    scheduleKeywordAutoSearch(() => {
+    keywordAutoSearchTask.schedule(() => {
       emitStandaloneKeywordSearch(value);
     });
   }
 }
 
 function handleStandaloneKeywordSearch() {
-  clearKeywordAutoSearchTimer();
+  keywordAutoSearchTask.clear();
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
     emitStandaloneKeywordSearch();
     return;
@@ -334,7 +237,7 @@ function handleStandaloneKeywordSearch() {
 }
 
 function handleStandaloneKeywordClear() {
-  clearKeywordAutoSearchTimer();
+  keywordAutoSearchTask.clear();
   keywordDraft.value = '';
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
     emitStandaloneKeywordSearch('');
@@ -342,14 +245,6 @@ function handleStandaloneKeywordClear() {
   }
   handleReset();
 }
-
-onBeforeUnmount(() => {
-  clearKeywordAutoSearchTimer();
-  if (loadingTimer != null) {
-    window.clearTimeout(loadingTimer);
-    loadingTimer = null;
-  }
-});
 </script>
 
 <template>
@@ -526,44 +421,49 @@ onBeforeUnmount(() => {
               :value="row[column.key]"
             />
             <template v-else-if="column.type === 'tags'">
-              <div class="record-table-tags">
-                <el-tag
-                  v-for="tag in normalizeTagList(row[column.key])"
-                  :key="`${column.key}-${tag.label}`"
-                  size="small"
-                  :type="tag.type ?? 'info'"
-                  effect="plain"
-                >
-                  {{ tag.label }}
-                </el-tag>
-                <span v-if="!normalizeTagList(row[column.key]).length" class="record-table-empty">-</span>
-              </div>
+              <template v-for="cell in [resolveRecordTableCellDisplay(row[column.key])]" :key="`${column.key}-tags`">
+                <div class="record-table-tags">
+                  <el-tag
+                    v-for="tag in cell.tags"
+                    :key="`${column.key}-${tag.label}`"
+                    size="small"
+                    :type="tag.type ?? 'info'"
+                    effect="plain"
+                  >
+                    {{ tag.label }}
+                  </el-tag>
+                  <span v-if="!cell.tags.length" class="record-table-empty">-</span>
+                </div>
+              </template>
             </template>
             <template v-else-if="column.type === 'tag'">
-              <template v-if="normalizeTagList(row[column.key])[0]">
+              <template v-for="cell in [resolveRecordTableCellDisplay(row[column.key])]" :key="`${column.key}-tag`">
                 <el-tag
+                  v-if="cell.primaryTag"
                   size="small"
-                  :type="normalizeTagList(row[column.key])[0].type ?? 'info'"
+                  :type="cell.primaryTag.type ?? 'info'"
                   effect="plain"
                 >
-                  {{ normalizeTagList(row[column.key])[0].label }}
+                  {{ cell.primaryTag.label }}
                 </el-tag>
+                <span v-else class="record-table-empty">-</span>
               </template>
-              <span v-else class="record-table-empty">-</span>
             </template>
             <template v-else-if="column.type === 'link'">
-              <a
-                v-if="normalizeLink(row[column.key])"
-                class="record-table-link"
-                :href="normalizeLink(row[column.key])!.href"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {{ normalizeLink(row[column.key])!.label }}
-              </a>
-              <span v-else class="record-table-empty">-</span>
+              <template v-for="cell in [resolveRecordTableCellDisplay(row[column.key])]" :key="`${column.key}-link`">
+                <a
+                  v-if="cell.link"
+                  class="record-table-link"
+                  :href="cell.link.href"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {{ cell.link.label }}
+                </a>
+                <span v-else class="record-table-empty">-</span>
+              </template>
             </template>
-            <span v-else class="record-table-text">{{ formatCellValue(row[column.key]) }}</span>
+            <span v-else class="record-table-text">{{ resolveRecordTableCellDisplay(row[column.key]).text }}</span>
           </template>
         </el-table-column>
 
