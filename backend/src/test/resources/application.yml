@@ -3,9 +3,9 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:15432/qaflex?currentSchema=qaflex_test
-    username: qaflex
-    password: qaflex_dev_2026
+    url: ${TEST_DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex?currentSchema=qaflex_test}
+    username: ${TEST_DATASOURCE_USERNAME:qaflex}
+    password: ${TEST_DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   sql:
     init:

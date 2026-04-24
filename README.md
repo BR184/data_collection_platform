@@ -10,6 +10,8 @@ Standard separated project structure:
 
 ```powershell
 cd backend
+$env:DATASOURCE_PASSWORD="your-local-password"
+$env:GITLAB_WEB_BASE_URL="http://your-gitlab-host"
 .\run-backend.ps1
 ```
 

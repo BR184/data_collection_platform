@@ -5,9 +5,9 @@ spring:
   application:
     name: data-collection-platform-backend
   datasource:
-    url: jdbc:postgresql://localhost:15432/qaflex
-    username: qaflex
-    password: qaflex_dev_2026
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex}
+    username: ${DATASOURCE_USERNAME:qaflex}
+    password: ${DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   sql:
     init:
@@ -26,9 +26,9 @@ platform:
     scheduler-enabled: true
     scheduler-delay-ms: 60000
     # 本地/内网 GitLab 访问地址，记录类页面和代码走查链接统一复用这里
-    web-base-url: http://172.22.10.233
-    webhook-base-url: http://host.docker.internal:18080/api/gitlab-sync/webhook
-    docker-command: docker
+    web-base-url: ${GITLAB_WEB_BASE_URL:http://localhost}
+    webhook-base-url: ${GITLAB_WEBHOOK_BASE_URL:http://host.docker.internal:18080/api/gitlab-sync/webhook}
+    docker-command: ${DOCKER_COMMAND:docker}
     heartbeat-timeout-seconds: 180
     dedupe-window-seconds: 15
     failure-backoff-minutes: 10

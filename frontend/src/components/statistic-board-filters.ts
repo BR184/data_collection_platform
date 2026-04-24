@@ -1,4 +1,9 @@
-import type { StatisticFilterField, StatisticFilterGroup, StatisticFilterOperator } from '../types/api';
+import type {
+  StatisticFilterCondition,
+  StatisticFilterField,
+  StatisticFilterGroup,
+  StatisticFilterOperator,
+} from '../types/api';
 
 export interface StatisticFilterConditionDraft {
   id: string;
@@ -46,7 +51,7 @@ export function createFilterConditionDraft(field?: StatisticFilterField): Statis
 }
 
 export function normalizeFilterDraftGroup(
-  source: StatisticFilterGroup | null | undefined,
+  source: Pick<StatisticFilterDraftGroup, 'logic' | 'conditions'> | StatisticFilterGroup | null | undefined,
   fields: StatisticFilterField[],
 ): StatisticFilterDraftGroup {
   const fieldMap = new Map(fields.map((field) => [field.key, field]));
@@ -68,15 +73,29 @@ export function normalizeFilterDraftGroup(
 }
 
 export function sanitizeFilterDraftGroup(draft: StatisticFilterDraftGroup): StatisticFilterGroup | null {
-  const conditions = draft.conditions
-    .map((condition) => ({
+  const conditions: StatisticFilterCondition[] = [];
+
+  for (const condition of draft.conditions) {
+    if (!condition.fieldKey || !condition.operator) {
+      continue;
+    }
+
+    const value = normalizeScalar(condition.value);
+    const secondaryValue = normalizeScalar(condition.secondaryValue);
+    if (requiresPrimaryValue(condition.operator) && !value) {
+      continue;
+    }
+    if (condition.operator === 'between' && !secondaryValue) {
+      continue;
+    }
+
+    conditions.push({
       fieldKey: condition.fieldKey,
       operator: condition.operator,
-      value: normalizeScalar(condition.value),
-      secondaryValue: normalizeScalar(condition.secondaryValue),
-    }))
-    .filter((condition) => condition.fieldKey && condition.operator && (!requiresPrimaryValue(condition.operator) || condition.value))
-    .filter((condition) => (condition.operator === 'between' ? !!condition.secondaryValue : true));
+      value,
+      secondaryValue,
+    });
+  }
 
   if (!conditions.length) {
     return null;

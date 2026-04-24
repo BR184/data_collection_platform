@@ -17,12 +17,15 @@ const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
 
+type RouteComponent = NonNullable<RouteRecordRaw['component']>;
+type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
+
 declare module 'vue-router' {
   interface RouteMeta {
-    moduleKey: ModuleKey;
-    pageKey: PageKey;
-    title: string;
-    description: string;
+    moduleKey?: ModuleKey;
+    pageKey?: PageKey;
+    title?: string;
+    description?: string;
     standalone?: boolean;
     allowedQueryKeys?: string[];
     allowedQueryPrefixes?: string[];
@@ -30,7 +33,7 @@ declare module 'vue-router' {
   }
 }
 
-function buildShellRoute(pageKey: PageKey, component: RouteRecordRaw['component']): RouteRecordRaw {
+function buildShellRoute(pageKey: PageKey, component: RouteComponent): RouteRecordRaw {
   const path = getPagePath(pageKey);
   if (!path) {
     throw new Error(`Missing path for page key: ${pageKey}`);
@@ -139,7 +142,7 @@ function sameStringArray(left: string[], right: string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-export function normalizeQuery(to: RouteLocationNormalized, from?: RouteLocationNormalized) {
+export function normalizeQuery(to: QueryNormalizableRoute, from?: QueryNormalizableRoute) {
   const allowedKeys = to.meta.allowedQueryKeys ?? [];
   const allowedPrefixes = to.meta.allowedQueryPrefixes ?? [];
   const persistedKeys = to.meta.persistedQueryKeys ?? [];

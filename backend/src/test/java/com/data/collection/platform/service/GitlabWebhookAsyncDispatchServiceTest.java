@@ -93,12 +93,18 @@ class GitlabWebhookAsyncDispatchServiceTest {
 
     AtomicInteger inFlight = new AtomicInteger();
     AtomicInteger maxInFlight = new AtomicInteger();
+    AtomicInteger invocationCount = new AtomicInteger();
     CountDownLatch latch = new CountDownLatch(2);
+    CountDownLatch firstCallStarted = new CountDownLatch(1);
+    CountDownLatch releaseFirstCall = new CountDownLatch(1);
     Mockito.doAnswer(invocation -> {
       int current = inFlight.incrementAndGet();
       maxInFlight.accumulateAndGet(current, Math::max);
       try {
-        Thread.sleep(120);
+        if (invocationCount.incrementAndGet() == 1) {
+          firstCallStarted.countDown();
+          org.junit.jupiter.api.Assertions.assertTrue(releaseFirstCall.await(2, TimeUnit.SECONDS));
+        }
       } finally {
         inFlight.decrementAndGet();
         latch.countDown();
@@ -108,8 +114,10 @@ class GitlabWebhookAsyncDispatchServiceTest {
 
     service.accept("Issue Hook", payload1);
     service.flushPending();
+    org.junit.jupiter.api.Assertions.assertTrue(firstCallStarted.await(2, TimeUnit.SECONDS));
     service.accept("Issue Hook", payload2);
     service.flushPending();
+    releaseFirstCall.countDown();
 
     org.junit.jupiter.api.Assertions.assertTrue(latch.await(2, TimeUnit.SECONDS));
     org.junit.jupiter.api.Assertions.assertEquals(1, maxInFlight.get());

@@ -48,7 +48,7 @@ const rows: StatisticRowData[] = [
     rowLabel: 'module-a',
     cells: [
       { columnKey: 'count', displayValue: '2', numericValue: 2, drilldown: true, detailParams: {} },
-      { columnKey: 'owner', displayValue: 'owner-name-long', numericValue: null, drilldown: true, detailParams: {} },
+      { columnKey: 'owner', displayValue: 'owner-name-long', numericValue: 0, drilldown: true, detailParams: {} },
     ],
   },
 ];

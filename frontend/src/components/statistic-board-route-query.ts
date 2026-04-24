@@ -183,7 +183,7 @@ function toDraftFilterGroup(source: StatisticFilterGroup): StatisticFilterDraftG
   return draftGroup;
 }
 
-function normalizeRouteScalar(value: string | number | null) {
+function normalizeRouteScalar(value: string | number | null | undefined) {
   if (value == null) {
     return '';
   }
