@@ -171,7 +171,7 @@
 - 前端构建已可通过。
 - 路由契约测试已具备基础覆盖。
 - 集成测试控制器已有单测。
-- 但后端全量测试仍被历史遗留问题阻塞，整体回归防线尚未完全恢复。
+- 后端全量测试链路已恢复，但共享底座与关键正式页面的保护范围仍需继续扩大。
 
 ### 6.3 体验层仍可优化
 
@@ -208,6 +208,16 @@
     - `customer-issue-response-efficiency`
     - `customer-issue-by-function`
   - 新增 `IntegrationTestAnalysisView` 前端挂载与明细抽屉冒烟测试
+- 非废弃模块的第三批验证补强
+  - 新增客户问题正式记录页与非法数据页前端冒烟测试：
+    - `CustomerIssueRecordsView`
+    - `CustomerIssueIllegalRecordsView`
+  - 新增 `StatisticBoardPage` 路由到统计板键的挂载冒烟测试
+  - 新增客户问题正式记录接口控制器测试：
+    - `CustomerIssueControllerTest`
+  - 新增共享前端底座单测：
+    - `useRecordPageController`
+    - `useRuleExplanationPanel`
 
 ## 8. 当前开发约束
 
