@@ -18,6 +18,8 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
+import { downloadCsv, useReviewDataExport } from './review-data/useReviewDataExport';
+import { useReviewDataDetail } from './review-data/useReviewDataDetail';
 import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDialog';
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
@@ -25,7 +27,6 @@ import { api } from '../api';
 import type {
   ReviewDataFilterOptionsResponse,
   ReviewDataProblemItemResponse,
-  ReviewDataRecordDetailResponse,
   ReviewDataRecordRowResponse,
   ReviewDataSummaryResponse,
   StatisticFilterField,
@@ -65,11 +66,7 @@ const filterOptions = ref<ReviewDataFilterOptionsResponse>({
   problemCategories: [],
 });
 
-const detailVisible = ref(false);
-const detailData = ref<ReviewDataRecordDetailResponse | null>(null);
 const ruleExplanationVisible = ref(false);
-
-const exportLoading = ref(false);
 
 const {
   expandedRowKeys,
@@ -80,6 +77,16 @@ const {
   toggleProblemPanel,
   problemItemsFor,
 } = useReviewProblemItems((recordId) => api.getReviewDataProblemItems(recordId));
+
+const {
+  detailVisible,
+  detailData,
+  openDetail,
+  refreshDetailIfOpen,
+} = useReviewDataDetail({
+  loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
+  notifyError: (message) => ElMessage.error(message),
+});
 
 const {
   recordDialogVisible,
@@ -112,6 +119,15 @@ const {
   createProblemItem: (recordId, payload) => api.createReviewDataProblemItem(recordId, payload),
   updateProblemItem: (recordId, itemId, payload) => api.updateReviewDataProblemItem(recordId, itemId, payload),
   refreshAfterMutation: (recordId) => refreshAfterProblemItemMutation(recordId),
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+const { exportLoading, exportExcel: handleExportExcel } = useReviewDataExport({
+  fetchRecords: (page, size) => api.getReviewDataRecords(buildReviewDataRecordQueryParams({ page, size })),
+  buildCsv: (exportRows) => buildReviewDataExportCsv(exportRows),
+  downloadCsv,
+  getExpectedTotal: () => Math.max(total.value, rows.value.length),
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
 });
@@ -260,10 +276,6 @@ async function refreshReviewRecords() {
   await Promise.all([loadFilterOptions(), loadRows()]);
 }
 
-async function loadDetail(recordId: number) {
-  detailData.value = await api.getReviewDataRecordDetail(recordId);
-}
-
 async function handleReset() {
   resetDraft();
   appliedFilterGroup.value = null;
@@ -322,53 +334,6 @@ async function handleSizeChange(nextSize: number) {
   await patchQuery({ pageSize: nextSize, page: 1 });
 }
 
-async function handleExportExcel() {
-  exportLoading.value = true;
-  try {
-    const exportRows: ReviewDataRecordRowResponse[] = [];
-    let nextPage = 1;
-    let expectedTotal = Math.max(total.value, rows.value.length);
-    do {
-      const response = await api.getReviewDataRecords(buildReviewDataRecordQueryParams({ page: nextPage, size: 100 }));
-      exportRows.push(...response.records);
-      expectedTotal = response.total;
-      nextPage += 1;
-    } while (exportRows.length < expectedTotal && nextPage < 1000);
-
-    const csv = buildReviewDataExportCsv(exportRows);
-    downloadCsv(csv, `评审数据管理_${formatExportFileDate(new Date())}.csv`);
-    ElMessage.success(`已导出 ${exportRows.length} 条评审记录`);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审数据导出失败');
-  } finally {
-    exportLoading.value = false;
-  }
-}
-
-function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
-}
-
-function formatExportFileDate(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
-  ].join('');
-}
-
 function recordFromTableRow(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
   return typeof raw?.id === 'number' ? raw : null;
@@ -400,12 +365,7 @@ async function handleOpenDetail(row: Record<string, unknown>) {
   if (!raw) {
     return;
   }
-  try {
-    await loadDetail(raw.id);
-    detailVisible.value = true;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审详情加载失败');
-  }
+  await openDetail(raw.id);
 }
 
 async function handleEditRecord(row: Record<string, unknown>) {
@@ -443,9 +403,7 @@ async function handleDeleteRecord(row: Record<string, unknown>) {
 
 async function refreshAfterProblemItemMutation(recordId: number) {
   await Promise.all([loadRows(), loadProblemItems(recordId)]);
-  if (detailVisible.value && detailData.value?.record.id === recordId) {
-    await loadDetail(recordId);
-  }
+  await refreshDetailIfOpen(recordId);
 }
 
 async function handleDeleteProblemItem(recordId: number, itemId: number) {
