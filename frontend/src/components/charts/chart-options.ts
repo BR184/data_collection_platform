@@ -97,12 +97,15 @@ export function buildColumnBarOption(input: {
     return null;
   }
 
+  const showLegend = input.series.length > 1;
+
   return {
     title: {
       text: input.title,
       subtext: input.subtitle ?? '',
       left: 0,
       top: 0,
+      itemGap: 8,
     },
     tooltip: {
       trigger: 'axis',
@@ -111,12 +114,14 @@ export function buildColumnBarOption(input: {
       },
       valueFormatter: tooltipValueFormatter(input.valueFormatter),
     },
-    legend: {
-      top: 28,
-      left: 0,
-    },
+    legend: showLegend
+      ? {
+          top: 52,
+          left: 0,
+        }
+      : undefined,
     grid: {
-      top: 72,
+      top: showLegend ? 96 : 72,
       left: 12,
       right: 20,
       bottom: 20,
@@ -164,23 +169,28 @@ export function buildLineOption(input: {
     return null;
   }
 
+  const showLegend = input.series.length > 1;
+
   return {
     title: {
       text: input.title,
       subtext: input.subtitle ?? '',
       left: 0,
       top: 0,
+      itemGap: 8,
     },
     tooltip: {
       trigger: 'axis',
       valueFormatter: tooltipValueFormatter(input.valueFormatter),
     },
-    legend: {
-      top: 28,
-      left: 0,
-    },
+    legend: showLegend
+      ? {
+          top: 52,
+          left: 0,
+        }
+      : undefined,
     grid: {
-      top: 72,
+      top: showLegend ? 96 : 72,
       left: 12,
       right: 20,
       bottom: 20,
@@ -238,6 +248,7 @@ export function buildDonutOption(input: {
       subtext: input.subtitle ?? '',
       left: 0,
       top: 0,
+      itemGap: 8,
     },
     tooltip: {
       trigger: 'item',
