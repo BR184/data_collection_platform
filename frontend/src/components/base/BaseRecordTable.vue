@@ -111,6 +111,7 @@ const hasExpand = computed(() => Boolean(slots.expand));
 const hasFilterBuilder = computed(() => Boolean(slots['filter-builder']));
 const hasPrimaryActions = computed(() => Boolean(slots['primary-actions']));
 const hasToolbarPrefix = computed(() => Boolean(slots['toolbar-prefix']));
+const hasContextPrefix = computed(() => Boolean(slots['context-prefix']));
 const hasToolbarActions = computed(() => Boolean(slots['toolbar-actions']));
 const hasPrimaryFilters = computed(() => props.primaryFilters.length > 0);
 const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
@@ -245,6 +246,10 @@ function handleStandaloneKeywordClear() {
 
 <template>
   <div class="record-table-workspace">
+    <section v-if="hasContextPrefix" class="record-context-panel">
+      <slot name="context-prefix" />
+    </section>
+
     <section v-if="hasFilterBuilder || hasPrimaryActions || hasPrimaryFilters || hasAdvancedFilters || showSearch" class="record-filter-panel">
       <div class="record-filter-primary">
         <slot name="filter-builder" />
@@ -428,6 +433,11 @@ function handleStandaloneKeywordClear() {
   display: grid;
   gap: 10px;
   padding: 4px 2px 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.record-context-panel {
+  padding: 0 2px 4px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
 

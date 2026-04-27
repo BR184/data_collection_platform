@@ -13,6 +13,7 @@ import type {
   IssueIllegalRecordFilterOptions,
   IssueIllegalRecordQueryParams,
 } from './issue-illegal-records/issue-illegal-records-types';
+import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 
 const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -113,6 +114,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :build-condition-fields="buildConditionFields"
     :columns="columns"
     :map-row="mapRow"
+    :scope-provider="CUSTOMER_MILESTONE_SCOPE_PROVIDER"
+    :build-scope-options="(options) => buildScopeOptions(options.milestoneTitles ?? [], '全部里程碑')"
     :reset-clear-keys="[
       'keyword',
       'issueIid',

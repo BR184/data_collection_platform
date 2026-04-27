@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import DataScopeBar from '../components/data-scope/DataScopeBar.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
@@ -20,6 +21,8 @@ import { useRouteTableState } from '../composables/useRouteTableState';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableColumn } from '../types/record-table';
+import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
+import { useDataScope } from '../composables/useDataScope';
 
 const {
   route,
@@ -81,7 +84,7 @@ const {
 });
 
 const conditionFilterFields = computed<StatisticFilterField[]>(() =>
-  buildCustomerIssueRecordConditionFields(filterOptions.value),
+  buildCustomerIssueRecordConditionFields(filterOptions.value).filter((field) => field.key !== 'milestoneTitle'),
 );
 
 const {
@@ -166,6 +169,15 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'authorName', label: '创建人', sortable: true, minWidth: 120 },
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
 ]);
+
+const milestoneScope = useDataScope({
+  provider: CUSTOMER_MILESTONE_SCOPE_PROVIDER,
+  options: computed(() => buildScopeOptions(filterOptions.value.milestoneTitles ?? [], '全部里程碑')),
+});
+
+const milestoneScopeSummary = computed(() =>
+  milestoneScope.summary.value ? `${milestoneScope.summary.value.label}：${milestoneScope.summary.value.value}` : '',
+);
 
 const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
@@ -328,6 +340,25 @@ function openDetailDrawer(row: Record<string, unknown>) {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
+        <template #context-prefix>
+          <DataScopeBar
+            :provider="CUSTOMER_MILESTONE_SCOPE_PROVIDER"
+            :options="milestoneScope.options.value"
+            :model-value="milestoneScope.value.value"
+            :summary="milestoneScopeSummary"
+            @change="milestoneScope.setValue"
+          />
+        </template>
+
+        <template #toolbar-prefix>
+          <div class="customer-record-toolbar-meta">
+            <div class="customer-record-toolbar-title">{{ pageTitle }}</div>
+            <div class="customer-record-toolbar-desc">
+              {{ isDelayTopic ? '客户延期问题明细与规则说明' : '客户问题议题明细与规则说明' }}
+            </div>
+          </div>
+        </template>
+
         <template #filter-builder>
           <StatisticFilterBuilder
             :model-value="filterDraft"
@@ -446,6 +477,22 @@ function openDetailDrawer(row: Record<string, unknown>) {
 .customer-record-page {
   display: grid;
   gap: 12px;
+}
+
+.customer-record-toolbar-meta {
+  display: grid;
+  gap: 2px;
+}
+
+.customer-record-toolbar-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.92);
+}
+
+.customer-record-toolbar-desc {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.45);
 }
 
 .customer-record-toolbar-actions,

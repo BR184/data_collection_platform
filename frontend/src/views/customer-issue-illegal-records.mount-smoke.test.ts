@@ -82,6 +82,7 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
     expect(wrapper.text()).toContain('Illegal sample');
+    expect(wrapper.text()).toContain('里程碑');
 
     await wrapper.get('.customer-illegal-detail-trigger').trigger('click');
     await flushPromises();

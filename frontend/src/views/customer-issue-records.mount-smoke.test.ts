@@ -89,6 +89,7 @@ describe('CustomerIssueRecordsView mount smoke', () => {
     expect(wrapper.exists()).toBe(true);
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('topic=delay'))).toBe(true);
     expect(wrapper.text()).toContain('Delay sample');
+    expect(wrapper.text()).toContain('里程碑');
 
     await wrapper.get('.customer-record-detail-trigger').trigger('click');
     await flushPromises();

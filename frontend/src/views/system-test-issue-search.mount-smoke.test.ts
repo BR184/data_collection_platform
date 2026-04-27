@@ -55,6 +55,7 @@ describe('SystemTestIssueSearchView mount smoke', () => {
     });
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
+    expect(wrapper.text()).toContain('测试阶段');
     vi.unstubAllGlobals();
   });
 });

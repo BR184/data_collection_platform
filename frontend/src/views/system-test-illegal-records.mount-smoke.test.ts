@@ -91,6 +91,7 @@ describe('SystemTestIllegalRecordsView mount smoke', () => {
     expect(wrapper.exists()).toBe(true);
     expect(wrapper.text()).toContain('System illegal sample');
     expect(wrapper.text()).toContain('未设定模块');
+    expect(wrapper.text()).toContain('测试阶段');
 
     await wrapper.get('.issue-illegal-detail-trigger').trigger('click');
     await flushPromises();

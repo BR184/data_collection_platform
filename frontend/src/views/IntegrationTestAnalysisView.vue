@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus';
 import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import DataScopeBar from '../components/data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import type {
   IntegrationTestDetailResponse,
@@ -13,6 +14,8 @@ import type {
   IntegrationTestSummaryResponse,
 } from '../types/api';
 import type { RecordTableColumn } from '../types/record-table';
+import { INTEGRATION_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
+import { useDataScope } from '../composables/useDataScope';
 
 const route = useRoute();
 const router = useRouter();
@@ -75,13 +78,15 @@ const detailTitle = computed(() => (detailModule.value ? `${detailModule.value} 
 const validationRuleText =
   '校验口径：执行用例总数 = 通过用例数 + 本次未通过用例数；所有统计字段不能为负数。';
 const phaseSelectOptions = computed(() =>
-  phaseOptions.value.map((item) => ({
-    label:
-      projectId.value == null && item.projectName
-        ? `${item.projectName} / ${item.testingPhase}`
-        : item.testingPhase,
-    value: item.testingPhase,
-  })),
+  buildScopeOptions(
+    phaseOptions.value.map((item) => ({
+      label:
+        projectId.value == null && item.projectName
+          ? `${item.projectName} / ${item.testingPhase}`
+          : item.testingPhase,
+      value: item.testingPhase,
+    })),
+  ),
 );
 
 const detailColumns = computed<RecordTableColumn[]>(() => [
@@ -101,6 +106,23 @@ const detailColumns = computed<RecordTableColumn[]>(() => [
   { key: 'validationReason', label: '校验说明', minWidth: 220 },
   { key: 'noteUpdatedAt', label: '备注更新时间', sortable: true, minWidth: 170 },
 ]);
+
+const phaseScope = useDataScope({
+  provider: INTEGRATION_PHASE_SCOPE_PROVIDER,
+  options: phaseSelectOptions,
+  clearQueryKeysOnChange: [
+    'detailVisible',
+    'detailModule',
+    'detailPage',
+    'detailPageSize',
+    'detailSortBy',
+    'detailSortOrder',
+  ],
+});
+
+const phaseScopeSummary = computed(() =>
+  phaseScope.summary.value ? `${phaseScope.summary.value.label}：${phaseScope.summary.value.value}` : '',
+);
 
 const detailRows = computed<Record<string, unknown>[]>(() =>
   detail.value.records.map((row) => ({
@@ -239,18 +261,6 @@ async function handleProjectChange(value: string | number) {
   await replaceQuery({
     projectId: value ? String(value) : undefined,
     testingPhase: undefined,
-    detailVisible: undefined,
-    detailModule: undefined,
-    detailPage: undefined,
-    detailPageSize: undefined,
-    detailSortBy: undefined,
-    detailSortOrder: undefined,
-  });
-}
-
-async function handlePhaseChange(value: string | number) {
-  await replaceQuery({
-    testingPhase: value ? String(value) : undefined,
     detailVisible: undefined,
     detailModule: undefined,
     detailPage: undefined,
@@ -443,21 +453,14 @@ function formatExportFileDate(date: Date) {
                 :value="String(item.projectId)"
               />
             </el-select>
-            <el-select
-              :model-value="testingPhase"
-              placeholder="选择测试阶段"
-              filterable
-              class="integration-select integration-select--phase"
+            <DataScopeBar
+              :provider="INTEGRATION_PHASE_SCOPE_PROVIDER"
+              :options="phaseScope.options.value"
+              :model-value="phaseScope.value.value"
               :loading="toolbarLoading"
-              @change="handlePhaseChange"
-            >
-              <el-option
-                v-for="item in phaseSelectOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
+              :summary="phaseScopeSummary"
+              @change="phaseScope.setValue"
+            />
           </div>
           <div class="integration-toolbar__actions">
             <el-button :icon="Refresh" :loading="summaryLoading" @click="handleRefresh">刷新</el-button>

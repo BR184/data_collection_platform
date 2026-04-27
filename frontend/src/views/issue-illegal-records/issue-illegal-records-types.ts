@@ -5,6 +5,7 @@ import type {
   StatisticFilterGroup,
 } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
+import type { DataScopeOption, DataScopeProvider } from '../../types/data-scope';
 
 export interface IssueIllegalRecordRow {
   issueId?: number;
@@ -101,4 +102,6 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   queryClearKeys: string[];
   defaultSortBy?: string;
   defaultSortOrder?: 'asc' | 'desc';
+  scopeProvider?: DataScopeProvider;
+  buildScopeOptions?: (options: IssueIllegalRecordFilterOptions) => DataScopeOption[];
 }

@@ -13,6 +13,7 @@ import type {
   IssueIllegalRecordFilterOptions,
   IssueIllegalRecordQueryParams,
 } from './issue-illegal-records/issue-illegal-records-types';
+import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 
 const initialFilterOptions: SystemTestIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -141,6 +142,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :build-condition-fields="buildConditionFields"
     :columns="columns"
     :map-row="mapRow"
+    :scope-provider="SYSTEM_TEST_PHASE_SCOPE_PROVIDER"
+    :build-scope-options="(options) => buildScopeOptions(options.testingPhases ?? [], '全部测试阶段')"
     :reset-clear-keys="[
       'keyword',
       'issueIid',

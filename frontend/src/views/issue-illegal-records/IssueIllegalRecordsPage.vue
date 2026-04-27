@@ -3,10 +3,12 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
+import DataScopeBar from '../../components/data-scope/DataScopeBar.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../../composables/useRecordPageController';
+import { useDataScope } from '../../composables/useDataScope';
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
@@ -53,8 +55,18 @@ const {
   fallback: (reason) => createFallbackRuleExplanation(reason),
 });
 
-const conditionFilterFields = computed<StatisticFilterField[]>(() =>
-  props.buildConditionFields(filterOptions.value),
+const conditionFilterFields = computed<StatisticFilterField[]>(() => {
+  const hiddenKeys = props.scopeProvider ? new Set([props.scopeProvider.queryKey]) : new Set<string>();
+  return props.buildConditionFields(filterOptions.value).filter((field) => !hiddenKeys.has(field.key));
+});
+
+const scopeOptions = computed(() => props.buildScopeOptions?.(filterOptions.value) ?? []);
+const scopeState = useDataScope({
+  provider: props.scopeProvider,
+  options: scopeOptions,
+});
+const scopeSummary = computed(() =>
+  scopeState.summary.value ? `${scopeState.summary.value.label}：${scopeState.summary.value.value}` : '',
 );
 
 const {
@@ -231,6 +243,17 @@ function openDetailDrawer(row: Record<string, unknown>) {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
+        <template #context-prefix>
+          <DataScopeBar
+            v-if="scopeProvider"
+            :provider="scopeProvider"
+            :options="scopeState.options.value"
+            :model-value="scopeState.value.value"
+            :summary="scopeSummary"
+            @change="scopeState.setValue"
+          />
+        </template>
+
         <template #filter-builder>
           <StatisticFilterBuilder
             :model-value="filterDraft"

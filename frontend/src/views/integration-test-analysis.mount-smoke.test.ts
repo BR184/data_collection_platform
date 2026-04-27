@@ -108,6 +108,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
     expect(wrapper.text()).toContain('CC_PRODUCT');
+    expect(wrapper.text()).toContain('集成阶段');
 
     const trigger = wrapper.get('.integration-summary-table .el-button');
     await trigger.trigger('click');
