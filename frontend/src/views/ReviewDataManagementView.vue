@@ -20,16 +20,14 @@ import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
 import { downloadCsv, useReviewDataExport } from './review-data/useReviewDataExport';
 import { useReviewDataDetail } from './review-data/useReviewDataDetail';
+import { useReviewDataRecords } from './review-data/useReviewDataRecords';
 import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDialog';
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import type {
-  ReviewDataFilterOptionsResponse,
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
-  ReviewDataSummaryResponse,
-  StatisticFilterField,
   StatisticFilterGroup,
 } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
@@ -37,8 +35,7 @@ import { useRouteTableState } from '../composables/useRouteTableState';
 import { mergeRouteQuery } from '../components/statistic-board-route-query';
 import {
   buildReviewDataExportCsv,
-  buildReviewDataSummaryCards,
-  buildReviewDataTableRows,
+  buildReviewDataFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
@@ -52,21 +49,21 @@ const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, debounced
   },
 });
 
-const rows = ref<ReviewDataRecordRowResponse[]>([]);
-const total = ref(0);
-const summary = ref<ReviewDataSummaryResponse | null>(null);
-const filterOptions = ref<ReviewDataFilterOptionsResponse>({
-  projectNames: [],
-  moduleNames: [],
-  reviewOwners: [],
-  reviewTypes: [],
-  reviewExperts: [],
-  problemStatuses: [],
-  reviewCategories: [],
-  problemCategories: [],
-});
-
 const ruleExplanationVisible = ref(false);
+
+const {
+  rows,
+  total,
+  filterOptions,
+  summaryCards,
+  tableRows,
+  loadFilterOptions,
+  loadRows: loadReviewRows,
+  refresh: refreshReviewDataRecords,
+} = useReviewDataRecords({
+  fetchFilterOptions: () => api.getReviewDataFilterOptions(),
+  fetchRecords: (params) => api.getReviewDataRecords(params),
+});
 
 const {
   expandedRowKeys,
@@ -135,80 +132,7 @@ const { exportLoading, exportExcel: handleExportExcel } = useReviewDataExport({
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 
-const reviewFilterFields = computed<StatisticFilterField[]>(() => [
-  {
-    key: 'title',
-    label: '标题',
-    type: 'text',
-    operators: ['contains', 'eq', 'ne', 'isEmpty', 'isNotEmpty'],
-  },
-  {
-    key: 'projectName',
-    label: '项目',
-    type: 'select',
-    operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: filterOptions.value.projectNames,
-  },
-  {
-    key: 'moduleName',
-    label: '模块',
-    type: 'select',
-    operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: filterOptions.value.moduleNames,
-  },
-  {
-    key: 'reviewOwner',
-    label: '负责人',
-    type: 'select',
-    operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: filterOptions.value.reviewOwners,
-  },
-  {
-    key: 'reviewType',
-    label: '评审类型',
-    type: 'select',
-    operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: filterOptions.value.reviewTypes,
-  },
-  {
-    key: 'reviewExpert',
-    label: '评审专家',
-    type: 'select',
-    operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: filterOptions.value.reviewExperts,
-  },
-  {
-    key: 'problemStatus',
-    label: '问题状态',
-    type: 'select',
-    operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
-    options: filterOptions.value.problemStatuses,
-  },
-  {
-    key: 'reviewScalePages',
-    label: '页数',
-    type: 'number',
-    operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
-  },
-  {
-    key: 'problemCount',
-    label: '问题合计',
-    type: 'number',
-    operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
-  },
-  {
-    key: 'problemDensity',
-    label: '缺陷密度',
-    type: 'number',
-    operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
-  },
-  {
-    key: 'reviewDate',
-    label: '评审日期',
-    type: 'datetime',
-    operators: ['day', 'before', 'after', 'between'],
-  },
-]);
+const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 
 const {
   filterDraft,
@@ -220,8 +144,6 @@ const {
 } = useConditionFilterGroupState(reviewFilterFields);
 
 const appliedFilterGroup = ref<StatisticFilterGroup | null>(null);
-const summaryCards = computed(() => buildReviewDataSummaryCards(summary.value));
-const tableRows = computed(() => buildReviewDataTableRows(rows.value));
 
 bindLoader(async () => {
   try {
@@ -233,18 +155,11 @@ bindLoader(async () => {
   }
 });
 
-async function loadFilterOptions() {
-  filterOptions.value = await api.getReviewDataFilterOptions();
-}
-
 async function loadRows() {
-  const response = await api.getReviewDataRecords(buildReviewDataRecordQueryParams({
+  await loadReviewRows(buildReviewDataRecordQueryParams({
     page: page.value,
     size: pageSize.value,
   }));
-  rows.value = response.records;
-  total.value = response.total;
-  summary.value = response.summary;
 }
 
 function buildReviewDataRecordQueryParams(overrides: { page?: number; size?: number } = {}) {
@@ -273,7 +188,10 @@ async function handleRefresh() {
 }
 
 async function refreshReviewRecords() {
-  await Promise.all([loadFilterOptions(), loadRows()]);
+  await refreshReviewDataRecords(buildReviewDataRecordQueryParams({
+    page: page.value,
+    size: pageSize.value,
+  }));
 }
 
 async function handleReset() {

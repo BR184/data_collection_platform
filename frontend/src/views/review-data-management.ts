@@ -1,7 +1,9 @@
 import type {
+  ReviewDataFilterOptionsResponse,
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
   ReviewDataSummaryResponse,
+  StatisticFilterField,
 } from '../types/api';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableTagValue } from '../types/record-table';
 
@@ -67,6 +69,88 @@ export function reviewProblemItemColumns(): RecordTableColumn[] {
     { key: 'rejectionReason', label: '不接受理由', minWidth: 140 },
     { key: 'problemStatus', label: '问题状态', type: 'tag', width: 110, align: 'center' },
     { key: 'updatedAt', label: '更新日期', minWidth: 160 },
+  ];
+}
+
+export function buildReviewDataFilterFields(filterOptions: ReviewDataFilterOptionsResponse): StatisticFilterField[] {
+  return [
+    {
+      key: 'title',
+      label: '标题',
+      type: 'text',
+      operators: ['contains', 'eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: [],
+    },
+    {
+      key: 'projectName',
+      label: '项目',
+      type: 'select',
+      operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: filterOptions.projectNames,
+    },
+    {
+      key: 'moduleName',
+      label: '模块',
+      type: 'select',
+      operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: filterOptions.moduleNames,
+    },
+    {
+      key: 'reviewOwner',
+      label: '负责人',
+      type: 'select',
+      operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: filterOptions.reviewOwners,
+    },
+    {
+      key: 'reviewType',
+      label: '评审类型',
+      type: 'select',
+      operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: filterOptions.reviewTypes,
+    },
+    {
+      key: 'reviewExpert',
+      label: '评审专家',
+      type: 'select',
+      operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: filterOptions.reviewExperts,
+    },
+    {
+      key: 'problemStatus',
+      label: '问题状态',
+      type: 'select',
+      operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
+      options: filterOptions.problemStatuses,
+    },
+    {
+      key: 'reviewScalePages',
+      label: '页数',
+      type: 'number',
+      operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
+      options: [],
+    },
+    {
+      key: 'problemCount',
+      label: '问题合计',
+      type: 'number',
+      operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
+      options: [],
+    },
+    {
+      key: 'problemDensity',
+      label: '缺陷密度',
+      type: 'number',
+      operators: ['eq', 'gt', 'gte', 'lt', 'lte', 'between'],
+      options: [],
+    },
+    {
+      key: 'reviewDate',
+      label: '评审日期',
+      type: 'datetime',
+      operators: ['day', 'before', 'after', 'between'],
+      options: [],
+    },
   ];
 }
 

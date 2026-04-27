@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../types/api';
+import type {
+  ReviewDataFilterOptionsResponse,
+  ReviewDataProblemItemResponse,
+  ReviewDataRecordRowResponse,
+} from '../types/api';
 import {
   buildProblemItemTableRows,
+  buildReviewDataFilterFields,
   buildReviewDataExportCsv,
   buildReviewDataSummaryCards,
   buildReviewDataTableRows,
@@ -110,5 +115,36 @@ describe('review-data-management helpers', () => {
   it('should create empty form defaults', () => {
     expect(createEmptyReviewRecordForm().reviewExperts).toEqual([]);
     expect(createEmptyProblemItemForm().problemStatus).toBe('');
+  });
+
+  it('should build condition filter fields from review data options', () => {
+    const filterOptions: ReviewDataFilterOptionsResponse = {
+      projectNames: [{ label: 'Project A', value: 'Project A' }],
+      moduleNames: [{ label: 'Module A', value: 'Module A' }],
+      reviewOwners: [{ label: 'Owner A', value: 'Owner A' }],
+      reviewTypes: [{ label: 'Design', value: 'Design' }],
+      reviewExperts: [{ label: 'Expert A', value: 'Expert A' }],
+      problemStatuses: [{ label: 'Open', value: 'Open' }],
+      reviewCategories: [],
+      problemCategories: [],
+    };
+
+    const fields = buildReviewDataFilterFields(filterOptions);
+
+    expect(fields.map((field) => field.key)).toEqual([
+      'title',
+      'projectName',
+      'moduleName',
+      'reviewOwner',
+      'reviewType',
+      'reviewExpert',
+      'problemStatus',
+      'reviewScalePages',
+      'problemCount',
+      'problemDensity',
+      'reviewDate',
+    ]);
+    expect(fields.find((field) => field.key === 'projectName')?.options).toBe(filterOptions.projectNames);
+    expect(fields.find((field) => field.key === 'reviewDate')?.operators).toContain('between');
   });
 });
