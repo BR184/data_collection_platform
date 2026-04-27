@@ -382,6 +382,7 @@ public class GitlabMirrorSyncService {
                 case FULL -> externalDbService.fullTableScan(config, table);
                 case COMPENSATION -> externalDbService.compensationScan(config, table, since);
                 case INCREMENTAL, WEBHOOK -> externalDbService.incrementalScan(config, table, since);
+                case PURGE -> throw new IllegalStateException("Purge tasks are not executed by sync worker");
               };
 
               recordCount = writeMirrorRows(taskId, null, config, table, mirrorSchema, rows, recordCount, currentProgress);
@@ -437,6 +438,7 @@ public class GitlabMirrorSyncService {
       case FULL -> "FULL_SYNC";
       case COMPENSATION -> "COMPENSATION_SYNC";
       case INCREMENTAL, WEBHOOK -> "INCREMENTAL_SYNC";
+      case PURGE -> "PURGE";
     };
   }
 
@@ -445,6 +447,7 @@ public class GitlabMirrorSyncService {
       case FULL -> "FULL";
       case COMPENSATION -> "WINDOW_COMPENSATION";
       case INCREMENTAL, WEBHOOK -> "INCREMENTAL";
+      case PURGE -> "PURGE";
     };
   }
 

@@ -283,6 +283,7 @@ public class GitlabSyncController {
         case COMPENSATION -> "补偿同步已开始";
         case INCREMENTAL -> "手工恢复增量已开始";
         case WEBHOOK -> "精确更新已开始";
+        case PURGE -> "删除镜像数据已开始";
       };
       case QUEUED -> "当前已有同步任务执行中，本次请求已登记到下一轮";
       case REUSED_ACTIVE -> "当前已有同范围同步任务执行中，本次请求已接收，无需重复操作";

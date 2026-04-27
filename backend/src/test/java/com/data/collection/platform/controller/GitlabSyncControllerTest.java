@@ -210,9 +210,34 @@ class GitlabSyncControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.message").value("已真实删除全部镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
         .andExpect(jsonPath("$.data.scope").value("MIRROR_DATA_ONLY"))
         .andExpect(jsonPath("$.data.droppedMirrorTables").value(12))
         .andExpect(jsonPath("$.data.truncatedTables").value(2));
+  }
+
+  @Test
+  void purgeShouldReturnWhitelistScopedMessage() throws Exception {
+    when(purgeService.purge(MirrorPurgeScope.MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST))
+        .thenReturn(new MirrorPurgeResult(
+            MirrorPurgeScope.MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST,
+            3,
+            List.of("ods_gitlab_notes"),
+            2,
+            List.of("sys_table_registry", "gitlab_mirror_records"),
+            false));
+
+    mockMvc.perform(post("/api/gitlab-sync/purge")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "scope": "MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.message").value("已真实删除当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
+        .andExpect(jsonPath("$.data.syncTimestampsReset").value(false));
   }
 
   @Test

@@ -10,6 +10,8 @@ import com.data.collection.platform.mapper.GitlabSyncLogMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GitlabSyncLogService {
@@ -21,6 +23,7 @@ public class GitlabSyncLogService {
     this.jsonUtils = jsonUtils;
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public long start(Long configId, SyncType syncType, List<String> whitelistSnapshot, String message) {
     GitlabSyncLog log = new GitlabSyncLog();
     log.setConfigId(configId);
@@ -35,6 +38,7 @@ public class GitlabSyncLogService {
     return log.getId();
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void finish(long id, SyncStatus status, String message, int tableCount, int recordCount) {
     LambdaUpdateWrapper<GitlabSyncLog> updateWrapper = new LambdaUpdateWrapper<GitlabSyncLog>()
         .eq(GitlabSyncLog::getId, id)
@@ -46,6 +50,7 @@ public class GitlabSyncLogService {
     logMapper.update(null, updateWrapper);
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void finishRunningLogsForRecoveredTask(
       Long configId,
       SyncType syncType,

@@ -10,6 +10,8 @@ import com.data.collection.platform.mapper.GitlabSyncConfigMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GitlabConfigService {
@@ -38,6 +40,7 @@ public class GitlabConfigService {
     return config == null ? defaultConfig() : config;
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public GitlabSyncConfig saveConfig(GitlabSyncConfig input) {
     GitlabSyncConfig current = getConfig();
     GitlabSyncConfig normalized = normalize(input, current);

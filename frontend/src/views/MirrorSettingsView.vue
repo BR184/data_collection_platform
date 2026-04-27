@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Refresh, Tools } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '../api';
 import type {
   GitlabSyncConfig,
   GitlabSyncLog,
+  GitlabSyncStatus,
   GitlabSyncTask,
+  GitlabSyncType,
   MirrorPurgeResult,
   MirrorPurgeScope,
   MirrorStatusResponse,
@@ -16,6 +18,46 @@ import type {
 } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
+
+const SYNC_TYPE_LABELS: Record<GitlabSyncType, string> = {
+  FULL: '全量同步',
+  INCREMENTAL: '增量同步',
+  COMPENSATION: '补偿同步',
+  WEBHOOK: 'Webhook同步',
+  PURGE: '删除镜像数据',
+};
+
+const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'success' | 'warning'> = {
+  FULL: 'warning',
+  INCREMENTAL: 'info',
+  COMPENSATION: 'success',
+  WEBHOOK: '',
+  PURGE: 'danger',
+};
+
+const SYNC_STATUS_LABELS: Record<GitlabSyncStatus | 'IDLE', string> = {
+  PENDING: '等待中',
+  QUEUED: '排队中',
+  RUNNING: '执行中',
+  SUCCESS: '成功',
+  FAILED: '失败',
+  CANCELLED: '已中止',
+  TIMEOUT: '已超时',
+  CANCELLING: '中止中',
+  IDLE: '空闲',
+};
+
+const SYNC_STATUS_TAG_TYPES: Record<GitlabSyncStatus | 'IDLE', 'danger' | 'info' | 'success' | 'warning'> = {
+  PENDING: 'warning',
+  QUEUED: 'warning',
+  RUNNING: 'warning',
+  SUCCESS: 'success',
+  FAILED: 'danger',
+  CANCELLED: 'info',
+  TIMEOUT: 'danger',
+  CANCELLING: 'warning',
+  IDLE: 'info',
+};
 
 const initialized = ref(false);
 const loading = ref(false);
@@ -68,15 +110,15 @@ const currentTask = computed<GitlabSyncTask | null>(() => status.value?.currentT
 const recentLogs = computed(() => status.value?.logs ?? []);
 const latestLog = computed(() => recentLogs.value[0] ?? null);
 const webhookRegistration = computed(() => webhookRegistrationState.value ?? null);
-const activePollingStatuses = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
+const activePollingStatuses: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 const canCancel = computed(() => currentTask.value != null && activePollingStatuses.includes(currentTask.value.status));
+const isPurging = computed(() => purging.value != null);
 const lastSyncDisplay = computed(() => {
   const lastFinishedAt = latestLog.value?.finishedAt || latestLog.value?.startedAt;
   if (!lastFinishedAt) {
-    return 'Last Sync: -';
+    return '最近操作：暂无';
   }
-  const syncStatus = latestLog.value?.status === 'SUCCESS' ? 'Success' : latestLog.value?.status === 'FAILED' ? 'Failed' : latestLog.value?.status === 'CANCELLED' ? 'Cancelled' : latestLog.value?.status ?? 'Idle';
-  return `Last Sync: ${formatDateTime(lastFinishedAt)} (${syncStatus})`;
+  return `最近操作：${formatDateTime(lastFinishedAt)}（${syncStatusText(latestLog.value?.status ?? 'IDLE')}）`;
 });
 
 const progressPercent = computed(() => {
@@ -92,29 +134,14 @@ const progressPercent = computed(() => {
 
 const displayStatus = computed(() => {
   const raw = status.value?.currentStatus ?? 'IDLE';
-  if (raw === 'RUNNING') {
-    return { text: '同步中', type: 'warning' as const };
-  }
-  if (raw === 'PENDING' || raw === 'QUEUED') {
-    return { text: '排队中', type: 'warning' as const };
-  }
-  if (raw === 'CANCELLING') {
-    return { text: '中止中', type: 'warning' as const };
-  }
-  if (raw === 'CANCELLED') {
-    return { text: '已中止', type: 'info' as const };
-  }
-  if (raw === 'TIMEOUT') {
-    return { text: '已超时', type: 'danger' as const };
+  if (raw !== 'IDLE') {
+    return { text: syncStatusText(raw), type: syncStatusTagType(raw) };
   }
   const log = latestLog.value;
-  if (log?.status === 'FAILED') {
-    return { text: '最近一次失败', type: 'danger' as const };
+  if (log != null) {
+    return { text: `最近操作${syncStatusText(log.status)}`, type: syncStatusTagType(log.status) };
   }
-  if (log?.status === 'SUCCESS') {
-    return { text: '最近一次成功', type: 'success' as const };
-  }
-  return { text: '空闲', type: 'info' as const };
+  return { text: syncStatusText('IDLE'), type: syncStatusTagType('IDLE') };
 });
 
 const phaseText = computed(() => {
@@ -352,7 +379,7 @@ function formatDateTime(value?: string | null) {
 
 function formatDuration(log: GitlabSyncLog) {
   if (!log.finishedAt || !log.startedAt) {
-    return log.status === 'RUNNING' ? '进行中' : '-';
+    return activePollingStatuses.includes(log.status) ? '进行中' : '-';
   }
   const start = new Date(log.startedAt).getTime();
   const end = new Date(log.finishedAt).getTime();
@@ -368,64 +395,12 @@ function formatDuration(log: GitlabSyncLog) {
   return `${minutes} 分 ${remain} 秒`;
 }
 
-function logStatusType(statusValue: string) {
-  switch (statusValue) {
-    case 'SUCCESS':
-      return 'success';
-    case 'FAILED':
-      return 'danger';
-    case 'RUNNING':
-      return 'warning';
-    default:
-      return 'info';
-  }
+function logStatusType(statusValue: GitlabSyncStatus) {
+  return syncStatusTagType(statusValue);
 }
 
-function logStatusText(statusValue: string) {
-  switch (statusValue) {
-    case 'SUCCESS':
-      return '成功';
-    case 'FAILED':
-      return '失败';
-    case 'RUNNING':
-      return '进行中';
-    case 'CANCELLED':
-      return '已中止';
-    case 'TIMEOUT':
-      return '超时';
-    default:
-      return statusValue;
-  }
-}
-
-function syncTypeText(syncType: string) {
-  switch (syncType) {
-    case 'FULL':
-      return '全量同步';
-    case 'INCREMENTAL':
-      return '手工恢复增量';
-    case 'COMPENSATION':
-      return '补偿同步';
-    case 'WEBHOOK':
-      return '精确更新';
-    default:
-      return syncType;
-  }
-}
-
-function syncTypeTagType(syncType: string) {
-  switch (syncType) {
-    case 'FULL':
-      return 'warning';
-    case 'INCREMENTAL':
-      return 'info';
-    case 'COMPENSATION':
-      return 'success';
-    case 'WEBHOOK':
-      return '';
-    default:
-      return 'info';
-  }
+function logStatusText(statusValue: GitlabSyncStatus) {
+  return syncStatusText(statusValue);
 }
 
 function syncLogMessage(log: GitlabSyncLog) {
@@ -453,6 +428,8 @@ function syncLogMessage(log: GitlabSyncLog) {
         return '全量重建或初始化同步。';
       }
       return message.replace(/^Manual full sync$/i, '手工触发的全量同步');
+    case 'PURGE':
+      return message || '删除镜像数据。';
     default:
       return message || '-';
   }
@@ -491,6 +468,11 @@ const purgeDialogCopy = computed(() => {
 });
 
 const purgeConfirmMatched = computed(() => purgeConfirmText.value === purgeDialogCopy.value.confirmText);
+const purgeProgressText = computed(() =>
+  purging.value === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST'
+    ? '正在删除白名单外的本地镜像数据，请勿关闭页面或重复操作。'
+    : '正在删除本地镜像数据，请勿关闭页面或重复操作。',
+);
 
 function openPurgeDialog() {
   purgeScope.value = 'MIRROR_DATA_ONLY';
@@ -512,9 +494,9 @@ async function purgeMirrorData() {
   }
 
   purging.value = purgeScope.value;
+  let result: MirrorPurgeResult | null = null;
   try {
-    const result = await api.purgeMirrorData(purgeScope.value);
-    ElMessage.success(buildPurgeMessage(result));
+    result = await api.purgeMirrorData(purgeScope.value);
     await loadStatus(false, false);
     purgeDialogVisible.value = false;
     purgeConfirmText.value = '';
@@ -523,13 +505,58 @@ async function purgeMirrorData() {
   } finally {
     purging.value = null;
   }
+  if (result != null) {
+    await ElMessageBox.alert(buildPurgeSummaryHtml(result), '删除完成', {
+      type: 'success',
+      confirmButtonText: '知道了',
+      dangerouslyUseHTMLString: true,
+    });
+  }
 }
 
-function buildPurgeMessage(result: MirrorPurgeResult) {
-  if (result.scope === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST') {
-    return `已真实删除当前白名单之外的镜像数据：删除 ${result.droppedMirrorTables} 张镜像表，清理 ${result.truncatedTables} 张镜像数据表。`;
+function buildPurgeSummaryHtml(result: MirrorPurgeResult) {
+  const scopeText =
+    result.scope === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST'
+      ? '删除白名单外镜像数据'
+      : '删除全部镜像数据';
+  const syncTimeResetText = result.syncTimestampsReset ? '已重置' : '未重置';
+  return [
+    `<strong>${scopeText}已完成</strong>`,
+    `删除镜像表：${result.droppedMirrorTables} 张`,
+    `清理数据表：${result.truncatedTables} 张`,
+    `同步时间：${syncTimeResetText}`,
+  ].join('<br />');
+}
+
+function formatFinishedAt(log: GitlabSyncLog) {
+  if (!log.finishedAt) {
+    return activePollingStatuses.includes(log.status) ? '进行中' : '-';
   }
-  return `已真实删除镜像数据：删除 ${result.droppedMirrorTables} 张镜像表，清理 ${result.truncatedTables} 张镜像数据表。`;
+  return formatDateTime(log.finishedAt);
+}
+
+function syncStatusText(statusValue: GitlabSyncStatus | 'IDLE') {
+  return SYNC_STATUS_LABELS[statusValue] ?? statusValue;
+}
+
+function syncStatusTagType(statusValue: GitlabSyncStatus | 'IDLE') {
+  return SYNC_STATUS_TAG_TYPES[statusValue] ?? 'info';
+}
+
+function syncTypeText(syncType: GitlabSyncType) {
+  return SYNC_TYPE_LABELS[syncType] ?? syncType;
+}
+
+function syncTypeTagType(syncType: GitlabSyncType) {
+  return SYNC_TYPE_TAG_TYPES[syncType] ?? 'info';
+}
+
+function handlePurgeDialogBeforeClose(done: () => void) {
+  if (isPurging.value) {
+    return;
+  }
+  closePurgeDialog();
+  done();
 }
 
 async function initializePage() {
@@ -814,7 +841,8 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <el-table :data="recentLogs" size="small" border class="sync-log-table">
+        <div class="sync-log-table-shell">
+        <el-table :data="recentLogs" row-key="id" max-height="320" size="small" border class="sync-log-table">
           <el-table-column label="类型" width="126">
             <template #default="{ row }">
               <el-tag size="small" effect="plain" :type="syncTypeTagType(row.syncType)">
@@ -827,15 +855,22 @@ onBeforeUnmount(() => {
               <el-tag size="small" :type="logStatusType(row.status)">{{ logStatusText(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="tableCount" label="表数" width="76" />
-          <el-table-column prop="recordCount" label="记录数" width="90" />
-          <el-table-column label="耗时" width="100">
+          <el-table-column label="开始时间" width="160">
+            <template #default="{ row }">{{ formatDateTime(row.startedAt) }}</template>
+          </el-table-column>
+          <el-table-column label="结束时间" width="160">
+            <template #default="{ row }">{{ formatFinishedAt(row) }}</template>
+          </el-table-column>
+          <el-table-column label="耗时" width="90">
             <template #default="{ row }">{{ formatDuration(row) }}</template>
           </el-table-column>
+          <el-table-column prop="tableCount" label="影响表数" width="96" />
+          <el-table-column prop="recordCount" label="记录数" width="88" />
           <el-table-column label="说明" min-width="220" show-overflow-tooltip>
             <template #default="{ row }">{{ syncLogMessage(row) }}</template>
           </el-table-column>
         </el-table>
+        </div>
       </el-card>
       </div>
     </div>
@@ -846,8 +881,10 @@ onBeforeUnmount(() => {
     :title="purgeDialogCopy.title"
     width="680px"
     class="mirror-purge-dialog"
+    :show-close="!isPurging"
     :close-on-click-modal="false"
-    :close-on-press-escape="!purging"
+    :close-on-press-escape="!isPurging"
+    :before-close="handlePurgeDialogBeforeClose"
     @close="closePurgeDialog"
   >
     <div class="purge-dialog-body">
@@ -859,17 +896,35 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <el-alert
+        v-if="isPurging"
+        class="purge-progress-alert"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="正在删除镜像数据"
+        :description="purgeProgressText"
+      />
+
       <div class="purge-scope-cards">
-        <label class="purge-scope-card" :class="{ active: purgeScope === 'MIRROR_DATA_ONLY' }">
-          <input v-model="purgeScope" type="radio" value="MIRROR_DATA_ONLY" />
+        <label class="purge-scope-card" :class="{ active: purgeScope === 'MIRROR_DATA_ONLY', disabled: isPurging }">
+          <input v-model="purgeScope" type="radio" value="MIRROR_DATA_ONLY" :disabled="isPurging" />
           <div class="purge-scope-card-title">删除镜像数据</div>
           <div class="purge-scope-card-desc">
             删除所有镜像表、镜像注册信息和旧镜像总表数据，不影响 GitLab 源端和本地非镜像数据。
           </div>
         </label>
 
-        <label class="purge-scope-card" :class="{ active: purgeScope === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST' }">
-          <input v-model="purgeScope" type="radio" value="MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST" />
+        <label
+          class="purge-scope-card"
+          :class="{ active: purgeScope === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST', disabled: isPurging }"
+        >
+          <input
+            v-model="purgeScope"
+            type="radio"
+            value="MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST"
+            :disabled="isPurging"
+          />
           <div class="purge-scope-card-title">删除镜像数据（排除当前设置的白名单）</div>
           <div class="purge-scope-card-desc">
             仅删除当前白名单之外的镜像数据，保留当前白名单内的镜像内容，不影响 GitLab 源端和本地非镜像数据。
@@ -883,15 +938,15 @@ onBeforeUnmount(() => {
         <div class="purge-warning-item">本地非镜像业务数据不会被删除。</div>
       </div>
 
-      <div class="purge-confirm-panel">
+      <div class="purge-confirm-panel" :class="{ 'is-disabled': isPurging }">
         <div class="purge-confirm-label">请输入确认短语以继续</div>
         <div class="purge-confirm-phrase">{{ purgeDialogCopy.confirmText }}</div>
-        <el-input v-model="purgeConfirmText" :placeholder="purgeDialogCopy.confirmText" />
+        <el-input v-model="purgeConfirmText" :placeholder="purgeDialogCopy.confirmText" :disabled="isPurging" />
       </div>
     </div>
     <template #footer>
-      <el-button @click="closePurgeDialog">取消</el-button>
-      <el-button type="danger" :loading="purging != null" :disabled="!purgeConfirmMatched" @click="purgeMirrorData()">
+      <el-button :disabled="isPurging" @click="closePurgeDialog">取消</el-button>
+      <el-button type="danger" :loading="isPurging" :disabled="!purgeConfirmMatched || isPurging" @click="purgeMirrorData()">
         确认删除
       </el-button>
     </template>

@@ -1269,6 +1269,14 @@ button {
   line-height: 1.5;
 }
 
+.sync-log-table-shell {
+  max-height: 320px;
+}
+
+.sync-log-table-shell .el-table {
+  width: 100%;
+}
+
 .mirror-purge-dialog .el-dialog__body {
   padding-top: 10px !important;
 }
@@ -1333,6 +1341,14 @@ button {
   box-shadow: 0 14px 26px rgba(16, 38, 64, 0.08);
 }
 
+.purge-scope-card.disabled,
+.purge-scope-card.disabled:hover {
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.68;
+}
+
 .purge-scope-card.active {
   border-color: rgba(37, 99, 235, 0.34);
   box-shadow:
@@ -1394,6 +1410,10 @@ button {
   background: linear-gradient(180deg, rgba(255, 250, 242, 0.98), rgba(255, 252, 247, 0.94));
 }
 
+.purge-confirm-panel.is-disabled {
+  opacity: 0.72;
+}
+
 .purge-confirm-label {
   font-size: 13px;
   font-weight: 700;
@@ -1410,6 +1430,10 @@ button {
   background: rgba(242, 138, 29, 0.12);
   color: #b45309;
   font-weight: 700;
+}
+
+.purge-progress-alert {
+  border-radius: 14px !important;
 }
 
 .el-card__header {

@@ -4,5 +4,6 @@ public enum SyncType {
   FULL,
   INCREMENTAL,
   COMPENSATION,
-  WEBHOOK
+  WEBHOOK,
+  PURGE
 }

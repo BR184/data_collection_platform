@@ -4,6 +4,16 @@ export * from './integration-test';
 
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
+export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'WEBHOOK' | 'PURGE';
+export type GitlabSyncStatus =
+  | 'PENDING'
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'SUCCESS'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'TIMEOUT'
+  | 'CANCELLING';
 
 export interface GitlabSyncConfig {
   id?: number;
@@ -36,8 +46,8 @@ export interface TableWhitelistOption {
 
 export interface GitlabSyncLog {
   id: number;
-  syncType: string;
-  status: string;
+  syncType: GitlabSyncType;
+  status: GitlabSyncStatus;
   message: string;
   tableCount: number;
   recordCount: number;
@@ -57,12 +67,12 @@ export interface SyncProgress {
 export interface GitlabSyncTask {
   id: number;
   runId: string;
-  taskType: string;
+  taskType: GitlabSyncType;
   triggerType: string;
   sourceMode: SourceMode;
   scopeKey: string;
   dedupeKey: string;
-  status: string;
+  status: GitlabSyncStatus;
   cancelRequested: boolean;
   pendingResync: boolean;
   retryCount: number;
@@ -106,7 +116,7 @@ export interface MirrorPurgeResult {
 export interface MirrorStatusResponse {
   config: GitlabSyncConfig;
   currentTask?: GitlabSyncTask | null;
-  currentStatus: string;
+  currentStatus: GitlabSyncStatus | 'IDLE';
   currentMessage: string;
   currentStartedAt?: string | null;
   progress?: SyncProgress | null;
