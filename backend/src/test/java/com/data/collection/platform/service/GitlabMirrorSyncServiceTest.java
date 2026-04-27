@@ -159,7 +159,7 @@ class GitlabMirrorSyncServiceTest {
     syncService.executeTaskAsync(201L);
 
     verify(externalDbService, never()).compensationScan(any(), any(), any());
-    verify(logService).finish(eq(1L), eq(SyncStatus.SUCCESS), contains("skipped 1 tables"), eq(1), eq(0));
+    verify(logService).finish(eq(1L), eq(SyncStatus.SUCCESS), contains("跳过了 1 张缺少时间列的表"), eq(1), eq(0));
   }
 
   @Test
@@ -207,7 +207,7 @@ class GitlabMirrorSyncServiceTest {
 
     verify(externalDbService, never()).incrementalScan(any(), any(), any());
     verify(externalDbService, never()).fullTableScan(any(), any());
-    verify(logService).finish(eq(1L), eq(SyncStatus.SUCCESS), eq("Sync completed successfully"), eq(1), eq(0));
+    verify(logService).finish(eq(1L), eq(SyncStatus.SUCCESS), eq("同步已完成"), eq(1), eq(0));
   }
 
   @Test

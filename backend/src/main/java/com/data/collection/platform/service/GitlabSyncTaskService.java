@@ -207,7 +207,7 @@ public class GitlabSyncTaskService {
             .set(GitlabSyncTask::isCancelRequested, true)
             .set(GitlabSyncTask::getStatus, nextStatus)
             .set(GitlabSyncTask::getFinishedAt, nextStatus == SyncStatus.CANCELLED ? now : null)
-            .set(GitlabSyncTask::getFinishedReason, "Cancellation requested by user")
+            .set(GitlabSyncTask::getFinishedReason, "已收到用户中止请求")
             .set(GitlabSyncTask::getUpdatedAt, now));
     GitlabSyncTask updatedTask = taskMapper.selectById(task.getId());
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openTask(updatedTask, configService.getConfigById(updatedTask.getConfigId()));
@@ -272,7 +272,7 @@ public class GitlabSyncTaskService {
   }
 
   public void recoverTimedOutTasks() {
-    String timeoutReason = "Task heartbeat timed out";
+    String timeoutReason = "任务心跳超时";
     LocalDateTime threshold = LocalDateTime.now().minusSeconds(properties.getHeartbeatTimeoutSeconds());
     List<GitlabSyncTask> staleTasks = taskMapper.selectList(new LambdaQueryWrapper<GitlabSyncTask>()
         .in(GitlabSyncTask::getStatus, SyncStatus.RUNNING, SyncStatus.CANCELLING)

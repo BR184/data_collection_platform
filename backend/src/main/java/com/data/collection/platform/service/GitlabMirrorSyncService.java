@@ -470,7 +470,7 @@ public class GitlabMirrorSyncService {
 
   private void checkCancelled(Long taskId) {
     if (taskService.isCancelRequested(taskId)) {
-      throw new SyncCancelledException("Sync cancelled by user");
+      throw new SyncCancelledException("同步已被用户中止");
     }
   }
 
@@ -620,9 +620,9 @@ public class GitlabMirrorSyncService {
 
   private String buildCompletionMessage(SyncType type, int skippedTableCount) {
     if (type != SyncType.COMPENSATION || skippedTableCount <= 0) {
-      return "Sync completed successfully";
+      return "同步已完成";
     }
-    return "Sync completed successfully, skipped %d tables without time columns during compensation window scan"
+    return "同步已完成，补偿窗口扫描时跳过了 %d 张缺少时间列的表"
         .formatted(skippedTableCount);
   }
 

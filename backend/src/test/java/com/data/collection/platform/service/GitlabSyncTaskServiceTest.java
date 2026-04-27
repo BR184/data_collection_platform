@@ -117,9 +117,9 @@ class GitlabSyncTaskServiceTest {
     GitlabSyncTask timedOut = taskMapper.selectById(first.getId());
     GitlabSyncLog recoveredLog = logService.findLatest(config.getId());
     assertThat(timedOut.getStatus()).isEqualTo(SyncStatus.TIMEOUT);
-    assertThat(timedOut.getFinishedReason()).isEqualTo("Task heartbeat timed out");
+    assertThat(timedOut.getFinishedReason()).isEqualTo("任务心跳超时");
     assertThat(recoveredLog.getStatus()).isEqualTo(SyncStatus.TIMEOUT);
-    assertThat(recoveredLog.getMessage()).isEqualTo("Task heartbeat timed out");
+    assertThat(recoveredLog.getMessage()).isEqualTo("任务心跳超时");
   }
 
   @Test

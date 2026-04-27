@@ -175,6 +175,14 @@ const progressHint = computed(() => {
   return '同步任务已启动，正在准备表扫描。';
 });
 
+const currentMessageText = computed(() => {
+  const rawMessage = status.value?.currentMessage?.trim() ?? '';
+  if (!rawMessage) {
+    return '当前没有正在执行的同步任务。';
+  }
+  return translateSyncMessage(rawMessage, currentTask.value?.taskType);
+});
+
 async function loadStatus(showError = true, blocking = true) {
   loading.value = blocking;
   try {
@@ -404,34 +412,23 @@ function logStatusText(statusValue: GitlabSyncStatus) {
 }
 
 function syncLogMessage(log: GitlabSyncLog) {
-  const message = (log.message || '').trim();
+  const message = translateSyncMessage(log.message, log.syncType);
+  if (message) {
+    return message;
+  }
   switch (log.syncType) {
     case 'WEBHOOK':
-      if (!message) {
-        return 'Webhook 触发的业务对象精确更新。';
-      }
-      return message.replace(/^Triggered by webhook:\s*/i, 'Webhook 精确更新：');
+      return 'Webhook 触发的业务对象精确更新。';
     case 'INCREMENTAL':
-      if (!message) {
-        return '人工触发的恢复型时间窗口增量同步。';
-      }
-      return message
-        .replace(/^Manual recovery incremental sync$/i, '人工触发的恢复型增量同步')
-        .replace(/^Manual recovery incremental sync requested$/i, '人工触发的恢复型增量同步');
+      return '人工触发的恢复型时间窗口增量同步。';
     case 'COMPENSATION':
-      if (!message) {
-        return '定时补偿窗口兜底同步。';
-      }
-      return message.replace(/^Scheduled compensation sync$/i, '定时补偿窗口兜底同步');
+      return '定时补偿窗口兜底同步。';
     case 'FULL':
-      if (!message) {
-        return '全量重建或初始化同步。';
-      }
-      return message.replace(/^Manual full sync$/i, '手工触发的全量同步');
+      return '全量重建或初始化同步。';
     case 'PURGE':
-      return message || '删除镜像数据。';
+      return '删除镜像数据。';
     default:
-      return message || '-';
+      return '-';
   }
 }
 
@@ -528,11 +525,8 @@ function buildPurgeSummaryHtml(result: MirrorPurgeResult) {
   ].join('<br />');
 }
 
-function formatFinishedAt(log: GitlabSyncLog) {
-  if (!log.finishedAt) {
-    return activePollingStatuses.includes(log.status) ? '进行中' : '-';
-  }
-  return formatDateTime(log.finishedAt);
+function formatLogTime(log: GitlabSyncLog) {
+  return formatDateTime(log.finishedAt || log.startedAt);
 }
 
 function syncStatusText(statusValue: GitlabSyncStatus | 'IDLE') {
@@ -549,6 +543,57 @@ function syncTypeText(syncType: GitlabSyncType) {
 
 function syncTypeTagType(syncType: GitlabSyncType) {
   return SYNC_TYPE_TAG_TYPES[syncType] ?? 'info';
+}
+
+function translateSyncMessage(message?: string | null, syncType?: GitlabSyncType | null) {
+  const normalized = message?.trim() ?? '';
+  if (!normalized) {
+    return '';
+  }
+
+  const skippedTablesMatch = normalized.match(
+    /^Sync completed successfully, skipped (\d+) tables without time columns during compensation window scan$/i,
+  );
+  if (skippedTablesMatch) {
+    return `同步已完成，补偿窗口扫描时跳过了 ${skippedTablesMatch[1]} 张缺少时间列的表`;
+  }
+
+  if (/^Sync completed successfully$/i.test(normalized)) {
+    return '同步已完成';
+  }
+  if (/^Sync cancelled by user$/i.test(normalized)) {
+    return '同步已被用户中止';
+  }
+  if (/^Task heartbeat timed out$/i.test(normalized)) {
+    return '任务心跳超时';
+  }
+  if (/^Cancellation requested by user$/i.test(normalized)) {
+    return '已收到用户中止请求';
+  }
+  if (/^已收到用户中止请求$/i.test(normalized)) {
+    return '已收到用户中止请求';
+  }
+  if (/^同步已完成$/i.test(normalized)) {
+    return '同步已完成';
+  }
+
+  if (syncType === 'FULL' && /^Manual full sync$/i.test(normalized)) {
+    return '手工触发的全量同步';
+  }
+  if (syncType === 'INCREMENTAL' && /^Manual recovery incremental sync(?: requested)?$/i.test(normalized)) {
+    return '手工恢复增量同步';
+  }
+  if (syncType === 'COMPENSATION' && /^Scheduled compensation sync$/i.test(normalized)) {
+    return '定时补偿同步';
+  }
+  if (syncType === 'WEBHOOK') {
+    const webhookMatch = normalized.match(/^Triggered by webhook:\s*(.+)$/i);
+    if (webhookMatch) {
+      return `Webhook 精确更新：${webhookMatch[1]}`;
+    }
+  }
+
+  return normalized;
 }
 
 function handlePurgeDialogBeforeClose(done: () => void) {
@@ -794,7 +839,7 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <div class="status-message">{{ status?.currentMessage || '当前没有正在执行的同步任务。' }}</div>
+        <div class="status-message">{{ currentMessageText }}</div>
 
         <div class="progress-shell">
           <div class="progress-head">
@@ -855,11 +900,8 @@ onBeforeUnmount(() => {
               <el-tag size="small" :type="logStatusType(row.status)">{{ logStatusText(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="开始时间" width="160">
-            <template #default="{ row }">{{ formatDateTime(row.startedAt) }}</template>
-          </el-table-column>
-          <el-table-column label="结束时间" width="160">
-            <template #default="{ row }">{{ formatFinishedAt(row) }}</template>
+          <el-table-column label="时间" width="160">
+            <template #default="{ row }">{{ formatLogTime(row) }}</template>
           </el-table-column>
           <el-table-column label="耗时" width="90">
             <template #default="{ row }">{{ formatDuration(row) }}</template>

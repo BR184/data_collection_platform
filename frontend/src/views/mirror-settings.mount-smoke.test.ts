@@ -37,9 +37,30 @@ describe('MirrorSettingsView mount smoke', () => {
             webhookProjectId: null,
             compensationIntervalMinutes: 10,
           },
-          currentTask: null,
-          currentStatus: 'IDLE',
-          currentMessage: '',
+          currentTask: {
+            id: 201,
+            runId: 'task-201',
+            taskType: 'FULL',
+            triggerType: 'MANUAL',
+            sourceMode: 'DOCKER',
+            scopeKey: 'scope',
+            dedupeKey: 'dedupe',
+            status: 'SUCCESS',
+            cancelRequested: false,
+            pendingResync: false,
+            retryCount: 0,
+            cooldownUntil: null,
+            heartbeatAt: null,
+            queuedAt: null,
+            runAfter: null,
+            startedAt: '2026-04-27T10:00:00',
+            finishedAt: '2026-04-27T10:00:12',
+            finishedReason: 'Sync completed successfully',
+            lockOwner: null,
+            payloadJson: null,
+          },
+          currentStatus: 'SUCCESS',
+          currentMessage: 'Sync completed successfully',
           currentStartedAt: null,
           progress: null,
           logs: [
@@ -90,6 +111,8 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.text()).toContain('最近操作');
     expect(wrapper.text()).toContain('删除镜像数据');
     expect(wrapper.text()).toContain('成功');
+    expect(wrapper.text()).toContain('同步已完成');
+    expect(wrapper.text()).not.toContain('Sync completed successfully');
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
 
     const openDialogButton = wrapper
