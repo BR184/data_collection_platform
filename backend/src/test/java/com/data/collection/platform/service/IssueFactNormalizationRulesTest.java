@@ -41,6 +41,12 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void shouldExcludePhaseAndFunctionLabelsFromModules() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("草图模块", "R1集成测试", "新功能")))
+        .containsExactly("草图模块");
+  }
+
+  @Test
   void shouldRecognizeSpecialLevelOneAndIllegalCases() {
     List<String> level1 = List.of("一级缺陷", "模块A");
     assertThat(IssueFactNormalizationRules.isRegression(level1, "模型回退导致显示错误")).isTrue();
