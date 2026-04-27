@@ -46,6 +46,28 @@ public class GitlabSyncLogService {
     logMapper.update(null, updateWrapper);
   }
 
+  public void finishRunningLogsForRecoveredTask(
+      Long configId,
+      SyncType syncType,
+      LocalDateTime taskStartedAt,
+      LocalDateTime taskHeartbeatAt,
+      String message) {
+    if (configId == null || syncType == null || taskStartedAt == null) {
+      return;
+    }
+    LocalDateTime latestLogStart = LocalDateTime.now();
+    LambdaUpdateWrapper<GitlabSyncLog> updateWrapper = new LambdaUpdateWrapper<GitlabSyncLog>()
+        .eq(GitlabSyncLog::getConfigId, configId)
+        .eq(GitlabSyncLog::getSyncType, syncType)
+        .eq(GitlabSyncLog::getStatus, SyncStatus.RUNNING)
+        .ge(GitlabSyncLog::getStartedAt, taskStartedAt.minusSeconds(5))
+        .le(GitlabSyncLog::getStartedAt, latestLogStart)
+        .set(GitlabSyncLog::getStatus, SyncStatus.TIMEOUT)
+        .set(GitlabSyncLog::getMessage, message)
+        .set(GitlabSyncLog::getFinishedAt, LocalDateTime.now());
+    logMapper.update(null, updateWrapper);
+  }
+
   public List<GitlabSyncLog> listRecent(Long configId, int limit) {
     return logMapper.selectList(new LambdaQueryWrapper<GitlabSyncLog>()
         .eq(GitlabSyncLog::getConfigId, configId)

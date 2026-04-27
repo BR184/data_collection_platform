@@ -39,6 +39,7 @@ public class GitlabSyncTaskService {
   private final GitlabMirrorProperties properties;
   private final JsonUtils jsonUtils;
   private final GitlabConfigService configService;
+  private final GitlabSyncLogService logService;
 
   public GitlabSyncTask submitTask(
       GitlabSyncConfig config,
@@ -271,6 +272,7 @@ public class GitlabSyncTaskService {
   }
 
   public void recoverTimedOutTasks() {
+    String timeoutReason = "Task heartbeat timed out";
     LocalDateTime threshold = LocalDateTime.now().minusSeconds(properties.getHeartbeatTimeoutSeconds());
     List<GitlabSyncTask> staleTasks = taskMapper.selectList(new LambdaQueryWrapper<GitlabSyncTask>()
         .in(GitlabSyncTask::getStatus, SyncStatus.RUNNING, SyncStatus.CANCELLING)
@@ -280,7 +282,17 @@ public class GitlabSyncTaskService {
            GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Timeout_Recovered")) {
         log.error("Task heartbeat timed out, recovering task");
       }
-      finish(task.getId(), SyncStatus.TIMEOUT, "Task heartbeat timed out", LocalDateTime.now().plusMinutes(properties.getFailureBackoffMinutes()));
+      logService.finishRunningLogsForRecoveredTask(
+          task.getConfigId(),
+          task.getTaskType(),
+          task.getStartedAt(),
+          task.getHeartbeatAt(),
+          timeoutReason);
+      finish(
+          task.getId(),
+          SyncStatus.TIMEOUT,
+          timeoutReason,
+          LocalDateTime.now().plusMinutes(properties.getFailureBackoffMinutes()));
     }
   }
 

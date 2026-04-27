@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
@@ -30,6 +31,9 @@ class GitlabSyncTaskServiceTest {
 
   @Autowired
   private GitlabSyncTaskMapper taskMapper;
+
+  @Autowired
+  private GitlabSyncLogService logService;
 
   @Autowired
   private JdbcTemplate jdbcTemplate;
@@ -100,13 +104,22 @@ class GitlabSyncTaskServiceTest {
     GitlabSyncTask first = taskService.submitTask(config, SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync", Map.of());
     taskService.claimPendingTask(first.getId(), "tester");
 
-    taskMapper.updateById(markHeartbeat(taskMapper.selectById(first.getId())));
+    LocalDateTime staleStartedAt = LocalDateTime.now().minusMinutes(10);
+    long logId = logService.start(config.getId(), SyncType.FULL, List.of("issues"), "Manual full sync");
+    jdbcTemplate.update(
+        "update gitlab_sync_logs set started_at = ? where id = ?",
+        staleStartedAt.plusSeconds(45),
+        logId);
+    taskMapper.updateById(markStaleExecutionWindow(taskMapper.selectById(first.getId()), staleStartedAt));
 
     taskService.recoverTimedOutTasks();
 
     GitlabSyncTask timedOut = taskMapper.selectById(first.getId());
+    GitlabSyncLog recoveredLog = logService.findLatest(config.getId());
     assertThat(timedOut.getStatus()).isEqualTo(SyncStatus.TIMEOUT);
     assertThat(timedOut.getFinishedReason()).isEqualTo("Task heartbeat timed out");
+    assertThat(recoveredLog.getStatus()).isEqualTo(SyncStatus.TIMEOUT);
+    assertThat(recoveredLog.getMessage()).isEqualTo("Task heartbeat timed out");
   }
 
   @Test
@@ -120,8 +133,9 @@ class GitlabSyncTaskServiceTest {
     assertThat(taskMapper.selectById(pending.getId()).getStatus()).isEqualTo(SyncStatus.CANCELLED);
   }
 
-  private GitlabSyncTask markHeartbeat(GitlabSyncTask task) {
-    task.setHeartbeatAt(LocalDateTime.now().minusMinutes(10));
+  private GitlabSyncTask markStaleExecutionWindow(GitlabSyncTask task, LocalDateTime startedAt) {
+    task.setStartedAt(startedAt);
+    task.setHeartbeatAt(startedAt.plusSeconds(30));
     return task;
   }
 
