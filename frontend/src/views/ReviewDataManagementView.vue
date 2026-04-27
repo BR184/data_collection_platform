@@ -18,15 +18,15 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
+import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDialog';
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
+import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import type {
   ReviewDataFilterOptionsResponse,
   ReviewDataProblemItemResponse,
-  ReviewDataProblemItemSaveRequest,
   ReviewDataRecordDetailResponse,
   ReviewDataRecordRowResponse,
-  ReviewDataRecordSaveRequest,
   ReviewDataSummaryResponse,
   StatisticFilterField,
   StatisticFilterGroup,
@@ -38,14 +38,8 @@ import {
   buildReviewDataExportCsv,
   buildReviewDataSummaryCards,
   buildReviewDataTableRows,
-  createEmptyProblemItemForm,
-  createEmptyReviewRecordForm,
-  createProblemItemFormFromRow,
-  createReviewRecordFormFromRow,
   reviewDataColumns,
   reviewProblemItemColumns,
-  type ReviewProblemItemFormModel,
-  type ReviewRecordFormModel,
 } from './review-data-management';
 
 const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, debouncedPatchQuery, bindLoader, isTableLoading } = useRouteTableState({
@@ -75,20 +69,7 @@ const detailVisible = ref(false);
 const detailData = ref<ReviewDataRecordDetailResponse | null>(null);
 const ruleExplanationVisible = ref(false);
 
-const recordDialogVisible = ref(false);
-const recordDialogSaving = ref(false);
-const recordEditMode = ref(false);
-const editingRecordId = ref<number | null>(null);
-const recordForm = ref<ReviewRecordFormModel>(createEmptyReviewRecordForm());
 const exportLoading = ref(false);
-
-const problemDialogVisible = ref(false);
-const problemDialogSaving = ref(false);
-const problemDialogEditMode = ref(false);
-const currentProblemRecordId = ref<number | null>(null);
-const currentProblemItemId = ref<number | null>(null);
-const currentProblemExpertOptions = ref<string[]>([]);
-const problemForm = ref<ReviewProblemItemFormModel>(createEmptyProblemItemForm());
 
 const {
   expandedRowKeys,
@@ -99,6 +80,41 @@ const {
   toggleProblemPanel,
   problemItemsFor,
 } = useReviewProblemItems((recordId) => api.getReviewDataProblemItems(recordId));
+
+const {
+  recordDialogVisible,
+  recordDialogSaving,
+  recordEditMode,
+  recordForm,
+  openCreateRecord,
+  openEditRecord,
+  submitRecord,
+} = useReviewRecordDialog({
+  loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
+  createRecord: (payload) => api.createReviewDataRecord(payload),
+  updateRecord: (recordId, payload) => api.updateReviewDataRecord(recordId, payload),
+  refreshRecords: () => refreshReviewRecords(),
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+const {
+  problemDialogVisible,
+  problemDialogSaving,
+  problemDialogEditMode,
+  currentProblemExpertOptions,
+  problemForm,
+  openCreateProblemItem: handleCreateProblemItem,
+  openEditProblemItem: handleEditProblemItem,
+  submitProblemItem,
+} = useReviewProblemItemDialog({
+  loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
+  createProblemItem: (recordId, payload) => api.createReviewDataProblemItem(recordId, payload),
+  updateProblemItem: (recordId, itemId, payload) => api.updateReviewDataProblemItem(recordId, itemId, payload),
+  refreshAfterMutation: (recordId) => refreshAfterProblemItemMutation(recordId),
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyError: (message) => ElMessage.error(message),
+});
 
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
@@ -233,11 +249,15 @@ function syncFilterDraftFromRoute() {
 
 async function handleRefresh() {
   try {
-    await Promise.all([loadFilterOptions(), loadRows()]);
+    await refreshReviewRecords();
     ElMessage.success('已刷新评审数据');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评审数据刷新失败');
   }
+}
+
+async function refreshReviewRecords() {
+  await Promise.all([loadFilterOptions(), loadRows()]);
 }
 
 async function loadDetail(recordId: number) {
@@ -393,41 +413,11 @@ async function handleEditRecord(row: Record<string, unknown>) {
   if (!raw) {
     return;
   }
-  try {
-    const detail = await api.getReviewDataRecordDetail(raw.id);
-    editingRecordId.value = raw.id;
-    recordEditMode.value = true;
-    recordForm.value = createReviewRecordFormFromRow(detail.record, detail.reviewExperts);
-    recordDialogVisible.value = true;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审详情加载失败');
-  }
+  await openEditRecord(raw.id);
 }
 
 function handleCreateRecord() {
-  editingRecordId.value = null;
-  recordEditMode.value = false;
-  recordForm.value = createEmptyReviewRecordForm();
-  recordDialogVisible.value = true;
-}
-
-async function submitRecord(payload: ReviewDataRecordSaveRequest) {
-  recordDialogSaving.value = true;
-  try {
-    if (recordEditMode.value && editingRecordId.value != null) {
-      await api.updateReviewDataRecord(editingRecordId.value, payload);
-      ElMessage.success('评审记录已更新');
-    } else {
-      await api.createReviewDataRecord(payload);
-      ElMessage.success('评审记录已创建');
-    }
-    recordDialogVisible.value = false;
-    await Promise.all([loadFilterOptions(), loadRows()]);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审记录保存失败');
-  } finally {
-    recordDialogSaving.value = false;
-  }
+  openCreateRecord();
 }
 
 async function handleDeleteRecord(row: Record<string, unknown>) {
@@ -443,7 +433,7 @@ async function handleDeleteRecord(row: Record<string, unknown>) {
     });
     await api.deleteReviewDataRecord(raw.id);
     ElMessage.success('评审记录已删除');
-    await Promise.all([loadFilterOptions(), loadRows()]);
+    await refreshReviewRecords();
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(error instanceof Error ? error.message : '评审记录删除失败');
@@ -451,56 +441,10 @@ async function handleDeleteRecord(row: Record<string, unknown>) {
   }
 }
 
-async function handleCreateProblemItem(recordId: number) {
-  try {
-    const detail = await api.getReviewDataRecordDetail(recordId);
-    currentProblemRecordId.value = recordId;
-    currentProblemItemId.value = null;
-    currentProblemExpertOptions.value = detail.reviewExperts;
-    problemDialogEditMode.value = false;
-    problemForm.value = createEmptyProblemItemForm();
-    problemDialogVisible.value = true;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审问题初始化失败');
-  }
-}
-
-async function handleEditProblemItem(recordId: number, item: ReviewDataProblemItemResponse) {
-  try {
-    const detail = await api.getReviewDataRecordDetail(recordId);
-    currentProblemRecordId.value = recordId;
-    currentProblemItemId.value = item.id;
-    currentProblemExpertOptions.value = detail.reviewExperts;
-    problemDialogEditMode.value = true;
-    problemForm.value = createProblemItemFormFromRow(item);
-    problemDialogVisible.value = true;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审问题详情加载失败');
-  }
-}
-
-async function submitProblemItem(payload: ReviewDataProblemItemSaveRequest) {
-  if (currentProblemRecordId.value == null) {
-    return;
-  }
-  problemDialogSaving.value = true;
-  try {
-    if (problemDialogEditMode.value && currentProblemItemId.value != null) {
-      await api.updateReviewDataProblemItem(currentProblemRecordId.value, currentProblemItemId.value, payload);
-      ElMessage.success('评审问题已更新');
-    } else {
-      await api.createReviewDataProblemItem(currentProblemRecordId.value, payload);
-      ElMessage.success('评审问题已新增');
-    }
-    problemDialogVisible.value = false;
-    await Promise.all([loadRows(), loadProblemItems(currentProblemRecordId.value)]);
-    if (detailVisible.value && detailData.value?.record.id === currentProblemRecordId.value) {
-      await loadDetail(currentProblemRecordId.value);
-    }
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审问题保存失败');
-  } finally {
-    problemDialogSaving.value = false;
+async function refreshAfterProblemItemMutation(recordId: number) {
+  await Promise.all([loadRows(), loadProblemItems(recordId)]);
+  if (detailVisible.value && detailData.value?.record.id === recordId) {
+    await loadDetail(recordId);
   }
 }
 
@@ -513,10 +457,7 @@ async function handleDeleteProblemItem(recordId: number, itemId: number) {
     });
     await api.deleteReviewDataProblemItem(recordId, itemId);
     ElMessage.success('评审问题已删除');
-    await Promise.all([loadRows(), loadProblemItems(recordId)]);
-    if (detailVisible.value && detailData.value?.record.id === recordId) {
-      await loadDetail(recordId);
-    }
+    await refreshAfterProblemItemMutation(recordId);
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error(error instanceof Error ? error.message : '评审问题删除失败');
