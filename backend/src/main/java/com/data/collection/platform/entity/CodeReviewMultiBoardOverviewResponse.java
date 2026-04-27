@@ -10,6 +10,8 @@ public record CodeReviewMultiBoardOverviewResponse(
     int pendingCount,
     Double averageCommentRate,
     int totalDefectCount,
+    int totalAddedLines,
+    Double defectDensityPerKloc,
     Double averageReviewDurationMinutes,
     Double averageAddedLines,
     List<CodeReviewMultiBoardBreakdownRowResponse> moduleRows,

@@ -248,3 +248,10 @@
 2. 将系统测试“轮次预设”从纯 `testingPhase` 平铺切换升级为更贴近老平台的树形分组 provider
 3. 让代码走查非法数据页也可选是否按 `source` 缩小统计范围
 4. 将“前后版本对比”导出场景接入 `DataScopeCompareDialog`
+
+## 2026-04-27 进展补充
+
+- `code-review-multi-board` 已从表格占位页升级为真实 ECharts 看板。
+- `question-metrics-multi-board` 已落地为系统测试图表看板，采用“本地项目选择器 + 正式统计页回链”的模式，没有强绑右上角阶段切换。
+- `quality-board-rd-quality-board` 与 `quality-board-other-board` 已落地第一版图表内容。
+- 本次新增的看板页没有继续扩展 `DataScopeProvider` 到质量看板，因为质量看板天然跨评审、代码走查、集成测试与系统测试多个上下文，单一 shell scope 会让语义变得含混。

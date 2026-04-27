@@ -427,6 +427,8 @@ export interface CodeReviewMultiBoardBreakdownRowResponse {
   completedCount: number;
   averageCommentRate?: number | null;
   totalDefectCount: number;
+  totalAddedLines: number;
+  defectDensityPerKloc?: number | null;
   averageReviewDurationMinutes?: number | null;
   averageAddedLines?: number | null;
 }
@@ -439,6 +441,8 @@ export interface CodeReviewMultiBoardOverviewResponse {
   pendingCount: number;
   averageCommentRate?: number | null;
   totalDefectCount: number;
+  totalAddedLines: number;
+  defectDensityPerKloc?: number | null;
   averageReviewDurationMinutes?: number | null;
   averageAddedLines?: number | null;
   moduleRows: CodeReviewMultiBoardBreakdownRowResponse[];

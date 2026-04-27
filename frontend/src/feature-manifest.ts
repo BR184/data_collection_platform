@@ -90,13 +90,13 @@ export const modules: ShellModule[] = [
       {
         key: 'quality-board-rd-quality-board',
         label: '研发质量看板',
-        description: '对齐老平台研发质量看板入口，当前先保留统一看板壳子。',
+        description: '聚合评审、代码走查、集成测试与系统测试关键信号的研发质量概览。',
         path: '/quality-board/rd-quality-board',
       },
       {
         key: 'quality-board-other-board',
         label: '其他看板',
-        description: '对齐老平台其他看板入口，当前先保留轻量占位页。',
+        description: '承接跨域的辅助分析图表，避免与首页 KPI 混排。',
         path: '/quality-board/other-board',
       },
     ],
@@ -132,7 +132,7 @@ export const modules: ShellModule[] = [
       {
         key: 'code-review-multi-board',
         label: '代码走查多元看板',
-        description: '对齐老平台代码走查多元看板入口，当前先保留统计壳子。',
+        description: '围绕数据源切换、模块分布与责任人分布的代码走查图表看板。',
         path: '/code-review/multi-board',
       },
     ],
@@ -168,7 +168,7 @@ export const modules: ShellModule[] = [
       {
         key: 'question-metrics-multi-board',
         label: '议题多元看板',
-        description: '对齐老平台议题多元看板入口，当前先保留统一看板壳子。',
+        description: '聚合系统测试核心统计板结果的图表化看板入口。',
         path: '/question-metrics/multi-board',
       },
       {
@@ -378,6 +378,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   },
   'code-review-multi-board': {
     allowedQueryKeys: ['source'],
+    persistedQueryKeys: [],
+  },
+  'question-metrics-multi-board': {
+    allowedQueryKeys: ['projectName'],
     persistedQueryKeys: [],
   },
   'integration-test-home': {

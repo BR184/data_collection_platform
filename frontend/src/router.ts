@@ -18,6 +18,9 @@ const SystemTestIllegalRecordsView = () => import('./views/SystemTestIllegalReco
 const CodeReviewMultiBoardView = () => import('./views/CodeReviewMultiBoardView.vue');
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
+const QualityBoardRdView = () => import('./views/QualityBoardRdView.vue');
+const QualityBoardOtherView = () => import('./views/QualityBoardOtherView.vue');
+const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.vue');
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
 type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
@@ -65,8 +68,12 @@ const routes: RouteRecordRaw[] = [
     component: CollectFormView,
     meta: buildSpecialRouteMeta('external-code-review-form'),
   },
-  buildPlaceholderRoute('quality-board-rd-quality-board'),
-  buildPlaceholderRoute('quality-board-other-board'),
+  {
+    ...buildShellRoute('quality-board-rd-quality-board', QualityBoardRdView),
+  },
+  {
+    ...buildShellRoute('quality-board-other-board', QualityBoardOtherView),
+  },
   {
     ...buildShellRoute('review-data-home', ReviewDataManagementView),
   },
@@ -91,7 +98,9 @@ const routes: RouteRecordRaw[] = [
   {
     ...buildShellRoute('question-metrics-home', StatisticBoardPage),
   },
-  buildPlaceholderRoute('question-metrics-multi-board'),
+  {
+    ...buildShellRoute('question-metrics-multi-board', SystemTestMultiBoardView),
+  },
   {
     ...buildShellRoute('question-metrics-delay-analysis', StatisticBoardPage),
   },

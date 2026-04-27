@@ -51,7 +51,7 @@ public class CodeReviewMultiBoardService {
     String source = resolveSource(requestedSource, options);
     if (!StringUtils.hasText(source)) {
       return new CodeReviewMultiBoardOverviewResponse(
-          "", "", 0, 0, 0, null, 0, null, null, List.of(), List.of());
+          "", "", 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of());
     }
 
     Map<String, Object> summary =
@@ -63,6 +63,7 @@ public class CodeReviewMultiBoardService {
               coalesce(sum(case when review_status <> 'COMPLETED' or review_status is null then 1 else 0 end), 0) as pending_count,
               round(avg(comment_rate)::numeric, 2) as average_comment_rate,
               coalesce(sum(defect_count), 0) as total_defect_count,
+              coalesce(sum(added_lines), 0) as total_added_lines,
               round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
               round(avg(added_lines)::numeric, 2) as average_added_lines
             from merge_request_fact
@@ -84,6 +85,8 @@ public class CodeReviewMultiBoardService {
         intValue(summary.get("pending_count")),
         doubleValue(summary.get("average_comment_rate")),
         intValue(summary.get("total_defect_count")),
+        intValue(summary.get("total_added_lines")),
+        densityValue(summary.get("total_defect_count"), summary.get("total_added_lines")),
         doubleValue(summary.get("average_review_duration_minutes")),
         doubleValue(summary.get("average_added_lines")),
         moduleRows,
@@ -113,6 +116,7 @@ public class CodeReviewMultiBoardService {
               coalesce(sum(case when review_status = 'COMPLETED' then 1 else 0 end), 0) as completed_count,
               round(avg(comment_rate)::numeric, 2) as average_comment_rate,
               coalesce(sum(defect_count), 0) as total_defect_count,
+              coalesce(sum(added_lines), 0) as total_added_lines,
               round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
               round(avg(added_lines)::numeric, 2) as average_added_lines
             from scoped
@@ -134,6 +138,8 @@ public class CodeReviewMultiBoardService {
               intValue(row.get("completed_count")),
               doubleValue(row.get("average_comment_rate")),
               intValue(row.get("total_defect_count")),
+              intValue(row.get("total_added_lines")),
+              densityValue(row.get("total_defect_count"), row.get("total_added_lines")),
               doubleValue(row.get("average_review_duration_minutes")),
               doubleValue(row.get("average_added_lines"))));
     }
@@ -167,5 +173,14 @@ public class CodeReviewMultiBoardService {
 
   private Double doubleValue(Object value) {
     return value instanceof Number number ? number.doubleValue() : null;
+  }
+
+  private Double densityValue(Object defectCountValue, Object addedLinesValue) {
+    int defectCount = intValue(defectCountValue);
+    int addedLines = intValue(addedLinesValue);
+    if (defectCount <= 0 || addedLines <= 0) {
+      return null;
+    }
+    return Math.round((defectCount * 1000D / addedLines) * 100D) / 100D;
   }
 }

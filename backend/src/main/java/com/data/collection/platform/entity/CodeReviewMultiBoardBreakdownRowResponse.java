@@ -7,5 +7,7 @@ public record CodeReviewMultiBoardBreakdownRowResponse(
     int completedCount,
     Double averageCommentRate,
     int totalDefectCount,
+    int totalAddedLines,
+    Double defectDensityPerKloc,
     Double averageReviewDurationMinutes,
     Double averageAddedLines) {}

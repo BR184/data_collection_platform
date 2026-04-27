@@ -248,10 +248,12 @@ class CodeReviewControllerTest {
                 2,
                 21.35,
                 9,
+                321,
+                28.04,
                 18.5,
                 64.2,
-                List.of(new CodeReviewMultiBoardBreakdownRowResponse("支付中心", "支付中心", 3, 2, 20.0, 4, 16.0, 52.0)),
-                List.of(new CodeReviewMultiBoardBreakdownRowResponse("张三", "张三", 2, 2, 22.5, 1, 14.0, 48.0))));
+                List.of(new CodeReviewMultiBoardBreakdownRowResponse("支付中心", "支付中心", 3, 2, 20.0, 4, 156, 25.64, 16.0, 52.0)),
+                List.of(new CodeReviewMultiBoardBreakdownRowResponse("张三", "张三", 2, 2, 22.5, 1, 96, 10.42, 14.0, 48.0))));
 
     mockMvc.perform(get("/api/code-review/multi-board/source-options"))
         .andExpect(status().isOk())
@@ -262,6 +264,7 @@ class CodeReviewControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.source").value("dgm"))
         .andExpect(jsonPath("$.data.sourceLabel").value("DGM"))
+        .andExpect(jsonPath("$.data.defectDensityPerKloc").value(28.04))
         .andExpect(jsonPath("$.data.moduleRows[0].rowLabel").value("支付中心"));
   }
 }
