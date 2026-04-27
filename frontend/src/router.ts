@@ -15,6 +15,7 @@ const SystemTestIssueSearchView = () => import('./views/SystemTestIssueSearchVie
 const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIllegalRecordsView.vue');
 const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.vue');
 const SystemTestIllegalRecordsView = () => import('./views/SystemTestIllegalRecordsView.vue');
+const CodeReviewMultiBoardView = () => import('./views/CodeReviewMultiBoardView.vue');
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
 
@@ -81,7 +82,9 @@ const routes: RouteRecordRaw[] = [
     component: CodeReviewIllegalRuleConfigView,
     meta: buildSpecialRouteMeta('code-review-illegal-rule-config'),
   },
-  buildPlaceholderRoute('code-review-multi-board'),
+  {
+    ...buildShellRoute('code-review-multi-board', CodeReviewMultiBoardView),
+  },
   {
     ...buildShellRoute('integration-test-home', IntegrationTestAnalysisView),
   },

@@ -3,12 +3,15 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
+import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewRequest;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
+import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class CodeReviewController {
 
   private final CodeReviewIllegalRecordService codeReviewIllegalRecordService;
+  private final CodeReviewMultiBoardService codeReviewMultiBoardService;
 
-  public CodeReviewController(CodeReviewIllegalRecordService codeReviewIllegalRecordService) {
+  public CodeReviewController(
+      CodeReviewIllegalRecordService codeReviewIllegalRecordService,
+      CodeReviewMultiBoardService codeReviewMultiBoardService) {
     this.codeReviewIllegalRecordService = codeReviewIllegalRecordService;
+    this.codeReviewMultiBoardService = codeReviewMultiBoardService;
   }
 
   @GetMapping("/illegal-records")
@@ -96,5 +103,16 @@ public class CodeReviewController {
   @PostMapping("/illegal-records/refresh")
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success("已开始刷新最新数据", codeReviewIllegalRecordService.requestRealtimeRefresh());
+  }
+
+  @GetMapping("/multi-board/source-options")
+  public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardSourceOptions() {
+    return ApiResponse.success(codeReviewMultiBoardService.listSourceOptions());
+  }
+
+  @GetMapping("/multi-board/overview")
+  public ApiResponse<CodeReviewMultiBoardOverviewResponse> getMultiBoardOverview(
+      @RequestParam(required = false) String source) {
+    return ApiResponse.success(codeReviewMultiBoardService.getOverview(source));
   }
 }

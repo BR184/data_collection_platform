@@ -420,6 +420,31 @@ export interface CodeReviewIllegalRecordFilterOptionsResponse {
   projectNames: OptionItemResponse[];
 }
 
+export interface CodeReviewMultiBoardBreakdownRowResponse {
+  rowKey: string;
+  rowLabel: string;
+  mergeRequestCount: number;
+  completedCount: number;
+  averageCommentRate?: number | null;
+  totalDefectCount: number;
+  averageReviewDurationMinutes?: number | null;
+  averageAddedLines?: number | null;
+}
+
+export interface CodeReviewMultiBoardOverviewResponse {
+  source: string;
+  sourceLabel: string;
+  mergeRequestCount: number;
+  completedCount: number;
+  pendingCount: number;
+  averageCommentRate?: number | null;
+  totalDefectCount: number;
+  averageReviewDurationMinutes?: number | null;
+  averageAddedLines?: number | null;
+  moduleRows: CodeReviewMultiBoardBreakdownRowResponse[];
+  ownerRows: CodeReviewMultiBoardBreakdownRowResponse[];
+}
+
 export interface CodeReviewRulePreviewRequest {
   projectId?: number | null;
   repositoryName?: string;

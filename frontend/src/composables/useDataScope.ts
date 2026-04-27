@@ -128,7 +128,7 @@ export function useDataScope(options: UseDataScopeOptions) {
       provider: provider.value,
       options: scopeOptions.value,
       modelValue: value.value,
-      summary: summary.value?.value ?? '',
+      summary: summary.value ? `${summary.value.label}：${summary.value.value}` : '',
       loading: options.loading ? Boolean(toValue(options.loading)) : false,
       onChange: patchQuery,
     });

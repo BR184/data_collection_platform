@@ -4,7 +4,7 @@
 
 ## 目标
 
-为新平台建立一套统一的“数据上下文切换”复用机制，用来承载老平台里这类能力：
+为新平台建立一套统一的“数据上下文切换”复用机制，用来承载老平台中这类能力：
 
 - 系统测试阶段切换
 - 集成测试阶段切换
@@ -12,7 +12,7 @@
 - 代码走查数据源切换
 - 前后版本对比切换
 
-这套能力不作为页面基类实现，而是采用我们当前平台更一致的方式：
+本方案不采用页面基类或抽象类，而是沿用新平台当前更一致的实现方式：
 
 - provider 协议
 - composable
@@ -21,8 +21,8 @@
 ## 设计原则
 
 1. 不把“数据上下文切换”混进普通筛选项
-2. 保持 query 持久化，和现有 `useRouteTableState` 兼容
-3. 先做前端可复用骨架，优先接入已有明确上下文切换需求的页面
+2. 保持 query 持久化，并与 `useRouteTableState` 兼容
+3. 优先让已有明确上下文需求的页面先接入
 4. 旧平台功能只参考行为，不迁移旧实现
 
 ## 新增复用骨架
@@ -52,7 +52,7 @@
 - `CUSTOMER_MILESTONE_SCOPE_PROVIDER`
 - `CODE_REVIEW_SOURCE_SCOPE_PROVIDER`
 
-同时提供：
+辅助方法：
 
 - `buildScopeOptions()`
 
@@ -63,6 +63,7 @@
 文件：
 
 - `frontend/src/composables/useDataScope.ts`
+- `frontend/src/composables/shell-data-scope.ts`
 
 职责：
 
@@ -70,7 +71,7 @@
 - 监听选项变化，纠正非法 query
 - 在切换上下文时写回 query
 - 自动把分页重置到第一页
-- 给页面提供当前上下文摘要
+- 向主模块壳注册当前页面的数据上下文
 
 ### 4. UI 组件
 
@@ -86,12 +87,12 @@
 
 位置约束：
 
-- 数据上下文不再放在各页面自己的工具栏内
+- 数据上下文不再放在各页面自己的工具栏里
 - 统一挂载到主模块壳 `shell-content` 的右上角
-- 只有当前页面注册了数据上下文时才显示
+- 只有当前页面注册了上下文时才显示
 - 未注册上下文的页面保持现状，不出现占位元素
 
-## 基础组件适配
+### 5. 基础组件适配
 
 文件：
 
@@ -99,12 +100,12 @@
 
 变更：
 
-- 新增 `context-prefix` 插槽（本次作为过渡层保留）
+- 新增 `context-prefix` 插槽，作为过渡层保留
 
-用途：
+说明：
 
-- 早期用于把一级数据上下文放在筛选区之前
-- 本次最终采用壳层统一挂载，但保留该插槽，便于后续局部场景扩展
+- 当前最终采用壳层统一挂载
+- 保留该插槽，便于后续局部场景扩展
 
 ## 首批接入页面
 
@@ -177,16 +178,57 @@
 - `milestoneTitle` 从普通条件构建器中提升为页级上下文
 - 展示位置在主模块壳右上角
 
+### 代码走查多元看板
+
+文件：
+
+- `frontend/src/views/CodeReviewMultiBoardView.vue`
+
+接入：
+
+- `CODE_REVIEW_SOURCE_SCOPE_PROVIDER`
+
+说明：
+
+- 用于承载老平台 `CC / DGM` 类型的数据源切换能力
+- 展示位置在主模块壳右上角
+- 当前数据基于 `merge_request_fact.source_instance`
+- 页面展示代码走查的合并请求数、缺陷数、注释率、走查时长，以及模块 / 责任人分布
+
+## 本地演示数据
+
+文件：
+
+- `scripts/seed-local-code-review-source-demo.sql`
+
+说明：
+
+- 为本地 `merge_request_fact` 补入 `cc` / `dgm` 两个 `source_instance`
+- 用于让代码走查多元看板与右上角数据源切换在本地可直接体验
+- 不改动镜像同步链路，只用于本地开发与验收
+
+## 命名说明
+
+页面上出现“测试阶段”还是“里程碑”，不是命名不统一，而是业务上下文本身不同：
+
+- 系统测试、集成测试：上下文是 `testingPhase`
+- 客户问题：上下文是 `milestoneTitle`
+- 代码走查：上下文是 `source`
+
+统一的是切换模型和壳层展示位置，不是强行把所有业务都叫成同一个字段名。
+
 ## 测试与验证
 
 已验证：
 
 - `npm run build`
 - `npm run test -- src/views/system-test-issue-search.mount-smoke.test.ts src/views/system-test-illegal-records.mount-smoke.test.ts src/views/customer-issue-records.mount-smoke.test.ts src/views/customer-issue-illegal-records.mount-smoke.test.ts src/views/integration-test-analysis.mount-smoke.test.ts`
+- `npm run test -- src/views/code-review-multi-board.mount-smoke.test.ts`
+- `mvn -q "-Dtest=CodeReviewControllerTest,CodeReviewMultiBoardServiceTest" test`
 
 ## 当前边界
 
-这次实现优先覆盖“列表页/分析页已经存在明确上下文切换需求”的场景。
+本次实现优先覆盖已有明确上下文切换需求的列表页、分析页和代码走查看板。
 
 尚未接入但已适配方案的页面：
 
@@ -198,21 +240,11 @@
 - `customer-issues-response-efficiency`
 - `customer-issues-issue-by-function`
 
-尚未启用但已预留的 provider：
-
-- `CODE_REVIEW_SOURCE_SCOPE_PROVIDER`
-
-说明：
-
-- 当前新平台没有任何已上线页面真正承载老平台 `CC / DGM` 数据源切换
-- 这个 provider 仅作为后续 `code-review-multi-board` 或代码走查质量看板的预留能力
-- 所以现在页面里找不到“切换数据库”的入口是符合当前实现状态的
-
 这些统计看板页下一步建议接入 `DataScopeProvider`，但需要先把 `StatisticBoardView` 的 route/filterGroup 注入路径统一成“页级上下文 + 条件构建器”双层结构。
 
 ## 后续建议
 
-1. 为 `StatisticBoardView` 增加和 `BaseRecordTable` 对齐的 `context-prefix` 层
+1. 为 `StatisticBoardView` 增加与 `BaseRecordTable` 对齐的壳层数据上下文接入点
 2. 将系统测试“轮次预设”从纯 `testingPhase` 平铺切换升级为更贴近老平台的树形分组 provider
-3. 为代码走查多看板页接入 `CODE_REVIEW_SOURCE_SCOPE_PROVIDER`
+3. 让代码走查非法数据页也可选是否按 `source` 缩小统计范围
 4. 将“前后版本对比”导出场景接入 `DataScopeCompareDialog`

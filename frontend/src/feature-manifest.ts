@@ -376,6 +376,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
+  'code-review-multi-board': {
+    allowedQueryKeys: ['source'],
+    persistedQueryKeys: [],
+  },
   'integration-test-home': {
     allowedQueryKeys: [
       'projectId',

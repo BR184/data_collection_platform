@@ -44,7 +44,7 @@ function handleSelectChange(value: string | string[]) {
       <span class="data-scope-bar__label">{{ provider.label }}</span>
 
       <SmartSelect
-        v-if="provider.mode === 'single-select' || provider.mode === 'segmented'"
+        v-if="provider.mode === 'single-select'"
         :model-value="modelValue"
         :options="toSelectOptions(options)"
         :placeholder="provider.placeholder || provider.label"
@@ -55,6 +55,23 @@ function handleSelectChange(value: string | string[]) {
         class="data-scope-bar__select"
         @change="handleSelectChange"
       />
+
+      <el-radio-group
+        v-else-if="provider.mode === 'segmented'"
+        :model-value="modelValue"
+        class="data-scope-bar__segmented"
+        size="small"
+        @change="handleSelectChange"
+      >
+        <el-radio-button
+          v-for="option in options"
+          :key="option.value"
+          :label="option.value"
+          :disabled="disabled || option.disabled"
+        >
+          {{ option.label }}
+        </el-radio-button>
+      </el-radio-group>
 
       <el-cascader
         v-else
@@ -99,6 +116,10 @@ function handleSelectChange(value: string | string[]) {
 .data-scope-bar__select,
 .data-scope-bar__cascader {
   width: 240px;
+}
+
+.data-scope-bar__segmented :deep(.el-radio-button__inner) {
+  min-width: 72px;
 }
 
 .data-scope-bar__summary {

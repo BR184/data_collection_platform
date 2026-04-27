@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
+import com.data.collection.platform.entity.CodeReviewMultiBoardBreakdownRowResponse;
+import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewSample;
 import com.data.collection.platform.entity.OptionItemResponse;
@@ -18,6 +20,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinit
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
+import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,11 +37,19 @@ class CodeReviewControllerTest {
   @Mock
   private CodeReviewIllegalRecordService codeReviewIllegalRecordService;
 
+  @Mock
+  private CodeReviewMultiBoardService codeReviewMultiBoardService;
+
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
-    mockMvc = MockMvcBuilders.standaloneSetup(new CodeReviewController(codeReviewIllegalRecordService)).build();
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(
+                new CodeReviewController(
+                    codeReviewIllegalRecordService,
+                    codeReviewMultiBoardService))
+            .build();
   }
 
   @Test
@@ -219,5 +230,38 @@ class CodeReviewControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.message").value("已开始刷新最新数据"))
         .andExpect(jsonPath("$.data.status").value("ready"));
+  }
+
+  @Test
+  void shouldReturnMultiBoardSourceOptionsAndOverview() throws Exception {
+    when(codeReviewMultiBoardService.listSourceOptions())
+        .thenReturn(List.of(
+            new OptionItemResponse("CC", "cc"),
+            new OptionItemResponse("DGM", "dgm")));
+    when(codeReviewMultiBoardService.getOverview("dgm"))
+        .thenReturn(
+            new CodeReviewMultiBoardOverviewResponse(
+                "dgm",
+                "DGM",
+                6,
+                4,
+                2,
+                21.35,
+                9,
+                18.5,
+                64.2,
+                List.of(new CodeReviewMultiBoardBreakdownRowResponse("支付中心", "支付中心", 3, 2, 20.0, 4, 16.0, 52.0)),
+                List.of(new CodeReviewMultiBoardBreakdownRowResponse("张三", "张三", 2, 2, 22.5, 1, 14.0, 48.0))));
+
+    mockMvc.perform(get("/api/code-review/multi-board/source-options"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].value").value("cc"))
+        .andExpect(jsonPath("$.data[1].value").value("dgm"));
+
+    mockMvc.perform(get("/api/code-review/multi-board/overview").param("source", "dgm"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.source").value("dgm"))
+        .andExpect(jsonPath("$.data.sourceLabel").value("DGM"))
+        .andExpect(jsonPath("$.data.moduleRows[0].rowLabel").value("支付中心"));
   }
 }

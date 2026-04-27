@@ -1,7 +1,9 @@
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordListResponse,
+  CodeReviewMultiBoardOverviewResponse,
   CodeReviewRulePreviewRequest,
+  OptionItemResponse,
   RealtimeWorkspaceStatusResponse,
   StatisticBoardRuleExplanationResponse,
   StatisticFilterGroup,
@@ -78,5 +80,14 @@ export const codeReviewApi = {
     return request<RealtimeWorkspaceStatusResponse>('/api/code-review/illegal-records/refresh', {
       method: 'POST',
     });
+  },
+  getCodeReviewMultiBoardSourceOptions() {
+    return request<OptionItemResponse[]>('/api/code-review/multi-board/source-options');
+  },
+  getCodeReviewMultiBoardOverview(source?: string) {
+    const query = new URLSearchParams(source ? { source } : {});
+    return request<CodeReviewMultiBoardOverviewResponse>(
+      `/api/code-review/multi-board/overview${query.toString() ? `?${query.toString()}` : ''}`,
+    );
   },
 };
