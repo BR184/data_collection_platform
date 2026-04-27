@@ -1007,9 +1007,45 @@ button {
 }
 
 .status-message {
-  font-size: 15px;
-  font-weight: 600;
+  position: relative;
+  --status-accent: #91caff;
+  padding: 12px 16px 12px 34px;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+  background:
+    linear-gradient(90deg, rgba(24, 144, 255, 0.04) 0, rgba(24, 144, 255, 0.04) 3px, #fafafa 3px, #fafafa 100%);
+  color: rgba(0, 0, 0, 0.85);
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.7;
+}
+
+.status-message::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 18px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-accent) 14%, white);
+}
+
+.status-message--success {
+  --status-accent: #52c41a;
+}
+
+.status-message--warning {
+  --status-accent: #faad14;
+}
+
+.status-message--danger {
+  --status-accent: #ff4d4f;
+}
+
+.status-message--info {
+  --status-accent: #1677ff;
 }
 
 .progress-panel .status-message {

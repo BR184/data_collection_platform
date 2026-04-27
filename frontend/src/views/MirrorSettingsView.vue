@@ -144,6 +144,11 @@ const displayStatus = computed(() => {
   return { text: syncStatusText('IDLE'), type: syncStatusTagType('IDLE') };
 });
 
+const statusMessageClass = computed(() => [
+  'status-message',
+  `status-message--${displayStatus.value.type}`,
+]);
+
 const phaseText = computed(() => {
   const phase = progress.value?.phase;
   switch (phase) {
@@ -839,7 +844,7 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <div class="status-message">{{ currentMessageText }}</div>
+        <div :class="statusMessageClass">{{ currentMessageText }}</div>
 
         <div class="progress-shell">
           <div class="progress-head">
