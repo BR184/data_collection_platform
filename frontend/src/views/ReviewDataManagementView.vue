@@ -21,6 +21,7 @@ import { reviewDataRuleExplanationContent } from './review-data/review-data-rule
 import { downloadCsv, useReviewDataExport } from './review-data/useReviewDataExport';
 import { useReviewDataDetail } from './review-data/useReviewDataDetail';
 import { useReviewDataRecords } from './review-data/useReviewDataRecords';
+import { useReviewDataRouteController } from './review-data/useReviewDataRouteController';
 import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDialog';
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
@@ -28,11 +29,9 @@ import { api } from '../api';
 import type {
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
-  StatisticFilterGroup,
 } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import { mergeRouteQuery } from '../components/statistic-board-route-query';
 import {
   buildReviewDataExportCsv,
   buildReviewDataFilterFields,
@@ -143,7 +142,31 @@ const {
   buildResetQueryPatch,
 } = useConditionFilterGroupState(reviewFilterFields);
 
-const appliedFilterGroup = ref<StatisticFilterGroup | null>(null);
+const {
+  buildRecordQueryParams: buildReviewDataRecordQueryParams,
+  syncFilterDraftFromRoute,
+  handleReset,
+  handleQuery,
+  handleKeywordSearch,
+  handleSortChange,
+  handlePageChange,
+  handleSizeChange,
+} = useReviewDataRouteController({
+  getRouteQuery: () => route.query,
+  getKeyword: () => keyword.value,
+  getPage: () => page.value,
+  getPageSize: () => pageSize.value,
+  getSortBy: () => sortBy.value,
+  getSortOrder: () => sortOrder.value as 'asc' | 'desc' | '',
+  patchQuery,
+  debouncedPatchQuery,
+  initializeFromQuery,
+  buildFilterPayload,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+  loadRows: () => loadRows(),
+});
 
 bindLoader(async () => {
   try {
@@ -162,22 +185,6 @@ async function loadRows() {
   }));
 }
 
-function buildReviewDataRecordQueryParams(overrides: { page?: number; size?: number } = {}) {
-  return {
-    keyword: keyword.value.trim(),
-    filterGroup: appliedFilterGroup.value,
-    page: overrides.page ?? page.value,
-    size: overrides.size ?? pageSize.value,
-    sortBy: sortBy.value,
-    sortOrder: (sortOrder.value as 'asc' | 'desc' | null) ?? 'desc',
-  };
-}
-
-function syncFilterDraftFromRoute() {
-  initializeFromQuery(route.query);
-  appliedFilterGroup.value = buildFilterPayload();
-}
-
 async function handleRefresh() {
   try {
     await refreshReviewRecords();
@@ -192,64 +199,6 @@ async function refreshReviewRecords() {
     page: page.value,
     size: pageSize.value,
   }));
-}
-
-async function handleReset() {
-  resetDraft();
-  appliedFilterGroup.value = null;
-  await patchQuery({
-    keyword: '',
-    ...buildResetQueryPatch(route.query),
-    title: '',
-    projectName: '',
-    moduleName: '',
-    reviewOwner: '',
-    reviewType: '',
-    problemStatus: '',
-    reviewExpert: '',
-    sortBy: 'updatedAt',
-    sortOrder: 'desc',
-    page: 1,
-  });
-}
-
-async function handleQuery(nextKeyword = keyword.value) {
-  appliedFilterGroup.value = buildFilterPayload();
-  const patch = {
-    keyword: nextKeyword.trim(),
-    ...buildApplyQueryPatch(route.query),
-    page: 1,
-  };
-  const nextQuery = mergeRouteQuery(route.query, patch);
-  const currentQuery = mergeRouteQuery(route.query, {});
-  const queryChanged = JSON.stringify(nextQuery) !== JSON.stringify(currentQuery);
-  await patchQuery(patch);
-  if (!queryChanged) {
-    await loadRows();
-  }
-}
-
-function handleKeywordSearch(nextKeyword: string) {
-  debouncedPatchQuery({
-    keyword: nextKeyword.trim(),
-    page: 1,
-  });
-}
-
-async function handleSortChange(payload: { prop: string; order: 'ascending' | 'descending' | null }) {
-  await patchQuery({
-    sortBy: payload.prop || 'updatedAt',
-    sortOrder: payload.order === 'ascending' ? 'asc' : payload.order === 'descending' ? 'desc' : 'desc',
-    page: 1,
-  });
-}
-
-async function handlePageChange(nextPage: number) {
-  await patchQuery({ page: nextPage });
-}
-
-async function handleSizeChange(nextSize: number) {
-  await patchQuery({ pageSize: nextSize, page: 1 });
 }
 
 function recordFromTableRow(row: Record<string, unknown>) {
