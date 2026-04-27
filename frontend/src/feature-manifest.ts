@@ -147,7 +147,7 @@ export const modules: ShellModule[] = [
       {
         key: 'integration-test-home',
         label: '集成测试数据分析',
-        description: '对齐老平台集成测试数据分析入口，当前先提供模块级壳子。',
+        description: '按项目和测试阶段汇总集成测试执行结果，支持模块明细、事实重建和明细导出。',
         path: '/integration-test/home',
       },
     ],

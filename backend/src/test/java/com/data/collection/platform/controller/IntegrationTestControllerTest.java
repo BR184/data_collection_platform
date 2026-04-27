@@ -1,6 +1,8 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -139,5 +141,25 @@ class IntegrationTestControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data[0].testingPhase").value("R1集成测试"))
         .andExpect(jsonPath("$.data[0].recordCount").value(12));
+  }
+
+  @Test
+  void shouldExportDetailsCsv() throws Exception {
+    when(integrationTestQueryService.exportDetailsCsv(
+            325L, "R1集成测试", "草图", "noteUpdatedAt", "desc"))
+        .thenReturn("\"议题编号\",\"标题\"\n\"#88\",\"草图命令异常\"\n");
+
+    mockMvc
+        .perform(
+            get("/api/integration-tests/details/export")
+                .param("projectId", "325")
+                .param("testingPhase", "R1集成测试")
+                .param("moduleName", "草图")
+                .param("sortField", "noteUpdatedAt")
+        .param("sortOrder", "desc"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
+        .andExpect(header().string("Content-Disposition", "attachment; filename=\"integration-test-details.csv\""))
+        .andExpect(content().string("\"议题编号\",\"标题\"\n\"#88\",\"草图命令异常\"\n"));
   }
 }

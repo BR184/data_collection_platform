@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -217,6 +218,64 @@ public class IntegrationTestQueryService {
         safeSortOrder);
   }
 
+  public String exportDetailsCsv(
+      Long projectId,
+      String testingPhase,
+      String moduleName,
+      String sortField,
+      String sortOrder) {
+    String safeSortField = normalizeSortField(sortField);
+    String safeSortOrder = normalizeSortOrder(sortOrder);
+
+    List<Object> args = new ArrayList<>();
+    StringBuilder where =
+        new StringBuilder(
+            """
+            from integration_test_fact
+             where deleted = false
+            """);
+    appendScopedFilters(where, args, projectId, testingPhase, moduleName);
+
+    List<IntegrationTestDetailRowResponse> rows =
+        jdbcTemplate.query(
+            """
+            select issue_id,
+                   issue_iid,
+                   issuable_reference,
+                   project_id,
+                   project_name,
+                   title,
+                   coalesce(module_name, '未识别模块') as module_name,
+                   function_name,
+                   function_labels,
+                   executor,
+                   execute_case,
+                   pass_case,
+                   not_pass_case,
+                   not_pass_case_now,
+                   problem_case,
+                   exception_count,
+                   pass_rate,
+                   legal,
+                   parse_status,
+                   validation_reason,
+                   issue_state,
+                   author_name,
+                   assignee_name,
+                   note_updated_at_source,
+                   updated_at_source
+            """
+                + where
+                + " order by "
+                + DETAIL_SORT_FIELDS.get(safeSortField)
+                + " "
+                + safeSortOrder
+                + " nulls last, issue_iid asc",
+            this::mapDetailRow,
+            args.toArray());
+    return buildDetailsCsv(TextQuerySupport.trimToNull(testingPhase), rows);
+  }
+
   private void appendScopedFilters(
       StringBuilder where,
       List<Object> args,
@@ -302,5 +361,74 @@ public class IntegrationTestQueryService {
 
   private String normalizeSortOrder(String sortOrder) {
     return "asc".equalsIgnoreCase(sortOrder) ? "asc" : "desc";
+  }
+
+  private String buildDetailsCsv(
+      String testingPhase, List<IntegrationTestDetailRowResponse> rows) {
+    StringBuilder builder = new StringBuilder();
+    appendCsvRow(
+        builder,
+        List.of(
+            "项目",
+            "测试阶段",
+            "模块",
+            "议题编号",
+            "标题",
+            "功能",
+            "功能标签",
+            "执行人",
+            "执行用例总数",
+            "通过用例数",
+            "初始未通过",
+            "本次未通过",
+            "问题用例数",
+            "例外问题数",
+            "通过率",
+            "合法性",
+            "校验说明",
+            "备注更新时间"));
+    for (IntegrationTestDetailRowResponse row : rows) {
+      appendCsvRow(
+          builder,
+          List.of(
+              csvText(row.projectName()),
+              csvText(testingPhase),
+              csvText(row.moduleName()),
+              csvText(row.issuableReference()),
+              csvText(row.title()),
+              csvText(row.functionName()),
+              csvText(row.functionLabels()),
+              csvText(row.executor()),
+              csvText(row.executeCase()),
+              csvText(row.passCase()),
+              csvText(row.notPassCase()),
+              csvText(row.notPassCaseNow()),
+              csvText(row.problemCase()),
+              csvText(row.exceptionCount()),
+              csvText(row.passRate()),
+              row.legal() != null && row.legal() ? "合法" : "待确认",
+              csvText(row.validationReason()),
+              csvText(row.noteUpdatedAt())));
+    }
+    return builder.toString();
+  }
+
+  private void appendCsvRow(StringBuilder builder, List<String> values) {
+    StringJoiner joiner = new StringJoiner(",");
+    for (String value : values) {
+      joiner.add(csvValue(value));
+    }
+    builder.append(joiner).append('\n');
+  }
+
+  private String csvValue(String value) {
+    if (value == null) {
+      return "";
+    }
+    return "\"" + value.replace("\"", "\"\"") + "\"";
+  }
+
+  private String csvText(Object value) {
+    return value == null ? "" : String.valueOf(value);
   }
 }

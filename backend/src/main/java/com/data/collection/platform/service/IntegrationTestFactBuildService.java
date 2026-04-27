@@ -174,7 +174,7 @@ public class IntegrationTestFactBuildService {
       throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
     String noteText = defaultText(rs.getString("note_text"), "");
-    ParsedIntegrationNote parsed = parseIntegrationNote(noteText);
+    IntegrationTestNoteParser.ParsedIntegrationNote parsed = IntegrationTestNoteParser.parse(noteText);
     Long projectId = rs.getLong("project_id");
     LocalDateTime createdAt = toLocalDateTime(rs.getTimestamp("created_at"));
     LocalDateTime updatedAt = toLocalDateTime(rs.getTimestamp("updated_at"));
@@ -283,97 +283,6 @@ public class IntegrationTestFactBuildService {
     return null;
   }
 
-  private ParsedIntegrationNote parseIntegrationNote(String noteText) {
-    if (!StringUtils.hasText(noteText)) {
-      return ParsedIntegrationNote.empty();
-    }
-    List<String> lines = List.of(noteText.replace("\r\n", "\n").split("\n"));
-    boolean started = false;
-    String functionName = null;
-    String executor = null;
-    Integer executeCase = null;
-    Integer passCase = null;
-    Integer notPassCase = null;
-    Integer notPassCaseNow = null;
-    Integer problemCase = null;
-    Integer exceptionCount = null;
-    for (String rawLine : lines) {
-      String line = TextQuerySupport.trimToNull(stripMarkdownPrefix(rawLine));
-      if (line == null) {
-        continue;
-      }
-      if (!started) {
-        if (line.contains("集成测试数据")) {
-          started = true;
-        }
-        continue;
-      }
-      if (line.startsWith("## ") && !line.contains("集成测试数据")) {
-        break;
-      }
-      KeyValue keyValue = splitKeyValue(line);
-      if (keyValue == null) {
-        continue;
-      }
-      String key = keyValue.key();
-      String value = keyValue.value();
-      if (IntegrationTestFactRules.matchesKey(key, "功能标签")) {
-        continue;
-      }
-      if (IntegrationTestFactRules.matchesKey(key, "功能")) {
-        functionName = value;
-      } else if (IntegrationTestFactRules.matchesKey(key, "执行人")) {
-        executor = value;
-      } else if (IntegrationTestFactRules.matchesKey(key, "执行用例总数", "执行用例数")) {
-        executeCase = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "初始未通过用例数", "初始未通过")) {
-        notPassCase = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "本次未通过用例数", "本次未通过")) {
-        notPassCaseNow = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "本次问题用例数", "本次问题用例")) {
-        problemCase = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "本次通过用例数", "通过用例数", "通过用例")) {
-        passCase = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "未通过用例数", "未通过用例")) {
-        notPassCaseNow = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "问题用例数", "问题用例")) {
-        problemCase = IntegrationTestFactRules.parseNumericValue(value);
-      } else if (IntegrationTestFactRules.matchesKey(key, "用例外问题数", "例外问题数")) {
-        exceptionCount = IntegrationTestFactRules.parseNumericValue(value);
-      }
-    }
-    return new ParsedIntegrationNote(
-        functionName,
-        executor,
-        executeCase,
-        passCase,
-        notPassCase,
-        notPassCaseNow,
-        problemCase,
-        exceptionCount);
-  }
-
-  private String stripMarkdownPrefix(String value) {
-    String result = value == null ? "" : value.trim();
-    while (result.startsWith("#") || result.startsWith("-") || result.startsWith("*")) {
-      result = result.substring(1).trim();
-    }
-    return result;
-  }
-
-  private KeyValue splitKeyValue(String line) {
-    int colonIndex = line.indexOf('：');
-    if (colonIndex < 0) {
-      colonIndex = line.indexOf(':');
-    }
-    if (colonIndex < 0) {
-      return null;
-    }
-    String key = TextQuerySupport.trimToNull(line.substring(0, colonIndex));
-    String value = TextQuerySupport.trimToNull(line.substring(colonIndex + 1));
-    return key == null || value == null ? null : new KeyValue(key, value);
-  }
-
   private BigDecimal calculatePassRate(Integer executeCase, Integer passCase) {
     if (executeCase == null || executeCase <= 0 || passCase == null || passCase <= 0) {
       return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -422,22 +331,6 @@ public class IntegrationTestFactBuildService {
   private String defaultText(String value, String fallback) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized == null ? fallback : normalized;
-  }
-
-  private record KeyValue(String key, String value) {}
-
-  private record ParsedIntegrationNote(
-      String functionName,
-      String executor,
-      Integer executeCase,
-      Integer passCase,
-      Integer notPassCase,
-      Integer notPassCaseNow,
-      Integer problemCase,
-      Integer exceptionCount) {
-    private static ParsedIntegrationNote empty() {
-      return new ParsedIntegrationNote(null, null, null, null, null, null, null, null);
-    }
   }
 
   private record PhaseCalendarKey(Long projectId, String testingPhase) {}

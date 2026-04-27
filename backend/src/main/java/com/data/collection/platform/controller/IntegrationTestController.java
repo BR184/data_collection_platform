@@ -8,7 +8,11 @@ import com.data.collection.platform.entity.IntegrationTestProjectOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.service.IntegrationTestFactBuildService;
 import com.data.collection.platform.service.IntegrationTestQueryService;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,5 +68,21 @@ public class IntegrationTestController {
     return ApiResponse.success(
         integrationTestQueryService.getDetails(
             projectId, testingPhase, moduleName, page, size, sortField, sortOrder));
+  }
+
+  @GetMapping("/details/export")
+  public ResponseEntity<String> exportDetails(
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String testingPhase,
+      @RequestParam(required = false) String moduleName,
+      @RequestParam(defaultValue = "noteUpdatedAt") String sortField,
+      @RequestParam(defaultValue = "desc") String sortOrder) {
+    String csv =
+        integrationTestQueryService.exportDetailsCsv(
+            projectId, testingPhase, moduleName, sortField, sortOrder);
+    return ResponseEntity.ok()
+        .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"integration-test-details.csv\"")
+        .body(csv);
   }
 }

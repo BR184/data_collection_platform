@@ -57,4 +57,25 @@ export const integrationTestsApi = {
     });
     return request<IntegrationTestDetailResponse>(`/api/integration-tests/details?${query.toString()}`);
   },
+  async exportIntegrationTestDetails(params: {
+    projectId?: string | number | null;
+    testingPhase?: string | null;
+    moduleName?: string | null;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    const query = new URLSearchParams({
+      ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
+      ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
+      ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+      ...(params.sortBy ? { sortField: params.sortBy } : {}),
+      ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
+    });
+    const response = await fetch(`/api/integration-tests/details/export${query.toString() ? `?${query.toString()}` : ''}`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Export failed: ${response.status}`);
+    }
+    return response.text();
+  },
 };

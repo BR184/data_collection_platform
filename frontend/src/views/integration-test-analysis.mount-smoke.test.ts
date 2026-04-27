@@ -12,74 +12,85 @@ function jsonResponse(data: unknown) {
 }
 
 describe('IntegrationTestAnalysisView mount smoke', () => {
-  it('mounts without route errors and opens module detail drawer', async () => {
+  it('mounts without route errors, opens module detail drawer and exports detail csv', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/integration-tests/project-options')) {
+        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT' }]);
+      }
+      if (url.includes('/api/integration-tests/phase-options')) {
+        return jsonResponse([
+          { projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R1 Integration', issueCount: 12 },
+        ]);
+      }
+      if (url.includes('/api/integration-tests/summary')) {
+        return jsonResponse({
+          projectId: 325,
+          testingPhase: 'R1 Integration',
+          moduleCount: 1,
+          totalIssueCount: 2,
+          factRefreshedAt: '2026-04-24T10:00:00',
+          rows: [
+            {
+              moduleName: 'Sketch',
+              issueCount: 2,
+              executeCase: 10,
+              passCase: 8,
+              notPassCase: 1,
+              notPassCaseNow: 1,
+              problemCase: 1,
+              exceptionCount: 0,
+              passRate: 80,
+              illegalCount: 1,
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/integration-tests/details/export')) {
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve('"Issue","Title"\n"#101","Integration sample"\n'),
+        } as Response);
+      }
+      if (url.includes('/api/integration-tests/details')) {
+        return jsonResponse({
+          records: [
+            {
+              issueIid: 101,
+              issuableReference: '#101',
+              title: 'Integration sample',
+              functionName: 'Function A',
+              functionLabels: 'NewFeature',
+              executor: 'Alice',
+              executeCase: 10,
+              passCase: 8,
+              notPassCase: 1,
+              notPassCaseNow: 1,
+              problemCase: 1,
+              exceptionCount: 0,
+              passRate: 80,
+              legal: false,
+              parseStatus: 'PARTIAL',
+              validationReason: 'Need to confirm execute/pass counts',
+              noteUpdatedAt: '2026-04-24T09:30:00',
+            },
+          ],
+          total: 1,
+          page: 1,
+          size: 20,
+          sortField: 'noteUpdatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
     vi.stubGlobal(
       'fetch',
-      vi.fn((url: string) => {
-        if (url.includes('/api/integration-tests/project-options')) {
-          return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT' }]);
-        }
-        if (url.includes('/api/integration-tests/phase-options')) {
-          return jsonResponse([
-            { projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R1 Integration', issueCount: 12 },
-          ]);
-        }
-        if (url.includes('/api/integration-tests/summary')) {
-          return jsonResponse({
-            projectId: 325,
-            testingPhase: 'R1 Integration',
-            moduleCount: 1,
-            totalIssueCount: 2,
-            factRefreshedAt: '2026-04-24T10:00:00',
-            rows: [
-              {
-                moduleName: 'Sketch',
-                issueCount: 2,
-                executeCase: 10,
-                passCase: 8,
-                notPassCase: 1,
-                notPassCaseNow: 1,
-                problemCase: 1,
-                exceptionCount: 0,
-                passRate: 80,
-                illegalCount: 1,
-              },
-            ],
-          });
-        }
-        if (url.includes('/api/integration-tests/details')) {
-          return jsonResponse({
-            records: [
-              {
-                issueIid: 101,
-                issuableReference: '#101',
-                title: 'Integration sample',
-                functionName: 'Function A',
-                functionLabels: 'NewFeature',
-                executor: 'Alice',
-                executeCase: 10,
-                passCase: 8,
-                notPassCase: 1,
-                notPassCaseNow: 1,
-                problemCase: 1,
-                exceptionCount: 0,
-                passRate: 80,
-                legal: false,
-                parseStatus: 'PARTIAL',
-                validationReason: 'Need to confirm execute/pass counts',
-                noteUpdatedAt: '2026-04-24T09:30:00',
-              },
-            ],
-            total: 1,
-            page: 1,
-            size: 20,
-            sortField: 'noteUpdatedAt',
-            sortOrder: 'desc',
-          });
-        }
-        return jsonResponse({});
-      }),
+      fetchMock,
     );
+    const createObjectUrl = vi.fn(() => 'blob:integration-export');
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.stubGlobal('URL', { createObjectURL: createObjectUrl, revokeObjectURL: revokeObjectUrl });
 
     const router = createRouter({
       history: createWebHashHistory(),
@@ -106,7 +117,20 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     expect(document.body.textContent).toContain('Integration sample');
     expect(document.body.textContent).toContain('Need to confirm execute/pass counts');
 
+    const exportButton = wrapper.findAll('button').find((button) => button.text().includes('导出明细'));
+    expect(exportButton).toBeTruthy();
+    await exportButton!.trigger('click');
+    await flushPromises();
+
+    const exportCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/integration-tests/details/export'));
+    expect(exportCall?.[0]).toContain('projectId=325');
+    expect(exportCall?.[0]).toContain('testingPhase=R1+Integration');
+    expect(exportCall?.[0]).toContain('moduleName=Sketch');
+    expect(createObjectUrl).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+
     wrapper.unmount();
+    click.mockRestore();
     vi.unstubAllGlobals();
   });
 });

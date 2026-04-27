@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Refresh, RefreshRight } from '@element-plus/icons-vue';
+import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import { api } from '../api';
@@ -22,6 +22,7 @@ const toolbarLoading = ref(false);
 const summaryLoading = ref(false);
 const rebuildLoading = ref(false);
 const detailLoading = ref(false);
+const exportLoading = ref(false);
 
 const projectOptions = ref<IntegrationTestProjectOptionResponse[]>([]);
 const phaseOptions = ref<IntegrationTestPhaseOptionResponse[]>([]);
@@ -326,6 +327,29 @@ async function handleDetailSortChange(payload: {
   });
 }
 
+async function handleExportDetail() {
+  if (!detailModule.value || !testingPhase.value) {
+    ElMessage.warning('请先选择测试阶段并打开模块明细');
+    return;
+  }
+  exportLoading.value = true;
+  try {
+    const csv = await api.exportIntegrationTestDetails({
+      projectId: projectId.value,
+      testingPhase: testingPhase.value,
+      moduleName: detailModule.value,
+      sortBy: detailSortBy.value,
+      sortOrder: detailSortOrder.value,
+    });
+    downloadCsv(csv, `集成测试明细_${detailModule.value}_${formatExportFileDate(new Date())}.csv`);
+    ElMessage.success('导出成功');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '集成测试明细导出失败');
+  } finally {
+    exportLoading.value = false;
+  }
+}
+
 function normalizePositiveNumber(raw: unknown, fallback: number) {
   const value = Number(raw);
   return Number.isFinite(value) && value > 0 ? value : fallback;
@@ -371,6 +395,26 @@ function buildFunctionLabelTags(value?: string | null) {
     label,
     type: 'primary' as const,
   }));
+}
+
+function downloadCsv(csv: string, filename: string) {
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function formatExportFileDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const second = String(date.getSeconds()).padStart(2, '0');
+  return `${year}${month}${day}_${hour}${minute}${second}`;
 }
 </script>
 
@@ -483,7 +527,15 @@ function buildFunctionLabelTags(value?: string | null) {
         </el-table>
       </el-card>
 
-      <el-drawer :model-value="detailVisible" :title="detailTitle" size="72%" @close="closeDetail">
+      <el-drawer :model-value="detailVisible" size="72%" @close="closeDetail">
+        <template #header>
+          <div class="integration-detail-drawer__header">
+            <span>{{ detailTitle }}</span>
+            <el-button plain :icon="Download" :loading="exportLoading" @click.stop="handleExportDetail">
+              导出明细
+            </el-button>
+          </div>
+        </template>
         <BaseRecordTable
           :columns="detailColumns"
           :rows="detailRows"
@@ -583,6 +635,15 @@ function buildFunctionLabelTags(value?: string | null) {
 
 .integration-summary-table {
   width: 100%;
+}
+
+.integration-detail-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding-right: 12px;
 }
 
 @media (max-width: 768px) {
