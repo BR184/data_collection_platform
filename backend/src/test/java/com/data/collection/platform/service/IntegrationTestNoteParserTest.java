@@ -61,4 +61,35 @@ class IntegrationTestNoteParserTest {
     assertThat(parsed.problemCase()).isEqualTo(1);
     assertThat(parsed.exceptionCount()).isZero();
   }
+
+  @Test
+  void shouldParseHorizontalMarkdownTableRowsAndValidate() {
+    String note =
+        """
+        ## 集成测试数据
+        | 功能 | 执行人 | 执行用例总数 | 本次通过用例数 | 初始未通过用例数 | 本次未通过用例数 | 本次问题用例数 | 用例外问题数 |
+        | --- | --- | --- | --- | --- | --- | --- | --- |
+        | 拉伸 | 张三 | 10 | 8 | 2 | 2 | 1 | 0 |
+        """;
+
+    IntegrationTestNoteParser.ParsedIntegrationNote parsed = IntegrationTestNoteParser.parse(note);
+    IntegrationTestFactRules.ValidationResult validation =
+        IntegrationTestFactRules.validateRecord(
+            parsed.executeCase(),
+            parsed.passCase(),
+            parsed.notPassCaseNow(),
+            parsed.notPassCase(),
+            parsed.problemCase(),
+            parsed.exceptionCount());
+
+    assertThat(parsed.functionName()).isEqualTo("拉伸");
+    assertThat(parsed.executor()).isEqualTo("张三");
+    assertThat(parsed.executeCase()).isEqualTo(10);
+    assertThat(parsed.passCase()).isEqualTo(8);
+    assertThat(parsed.notPassCase()).isEqualTo(2);
+    assertThat(parsed.notPassCaseNow()).isEqualTo(2);
+    assertThat(parsed.problemCase()).isEqualTo(1);
+    assertThat(parsed.exceptionCount()).isZero();
+    assertThat(validation.legal()).isTrue();
+  }
 }
