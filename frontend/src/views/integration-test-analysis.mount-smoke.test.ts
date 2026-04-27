@@ -116,6 +116,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     expect(document.body.textContent).toContain('Sketch');
     expect(document.body.textContent).toContain('Integration sample');
     expect(document.body.textContent).toContain('Need to confirm execute/pass counts');
+    expect(document.body.textContent).toContain('校验口径：执行用例总数 = 通过用例数 + 本次未通过用例数');
 
     const exportButton = wrapper.findAll('button').find((button) => button.text().includes('导出明细'));
     expect(exportButton).toBeTruthy();

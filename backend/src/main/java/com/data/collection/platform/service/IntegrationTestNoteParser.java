@@ -103,6 +103,9 @@ final class IntegrationTestNoteParser {
       separatorIndex = line.indexOf('=');
     }
     if (separatorIndex < 0) {
+      separatorIndex = line.indexOf('＝');
+    }
+    if (separatorIndex < 0) {
       return null;
     }
     String key = TextQuerySupport.trimToNull(line.substring(0, separatorIndex));

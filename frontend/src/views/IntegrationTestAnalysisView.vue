@@ -72,6 +72,8 @@ const selectedProjectLabel = computed(() => {
 });
 const selectedPhaseLabel = computed(() => testingPhase.value || '未选择测试阶段');
 const detailTitle = computed(() => (detailModule.value ? `${detailModule.value} 明细` : '模块明细'));
+const validationRuleText =
+  '校验口径：执行用例总数 = 通过用例数 + 本次未通过用例数；所有统计字段不能为负数。';
 const phaseSelectOptions = computed(() =>
   phaseOptions.value.map((item) => ({
     label:
@@ -530,7 +532,10 @@ function formatExportFileDate(date: Date) {
       <el-drawer :model-value="detailVisible" size="72%" @close="closeDetail">
         <template #header>
           <div class="integration-detail-drawer__header">
-            <span>{{ detailTitle }}</span>
+            <div class="integration-detail-drawer__title">
+              <span>{{ detailTitle }}</span>
+              <small>{{ validationRuleText }}</small>
+            </div>
             <el-button plain :icon="Download" :loading="exportLoading" @click.stop="handleExportDetail">
               导出明细
             </el-button>
@@ -644,6 +649,22 @@ function formatExportFileDate(date: Date) {
   gap: 12px;
   width: 100%;
   padding-right: 12px;
+}
+
+.integration-detail-drawer__title {
+  display: grid;
+  gap: 4px;
+}
+
+.integration-detail-drawer__title span {
+  color: #111827;
+  font-weight: 600;
+}
+
+.integration-detail-drawer__title small {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 @media (max-width: 768px) {

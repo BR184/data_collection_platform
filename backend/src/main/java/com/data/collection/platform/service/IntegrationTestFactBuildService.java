@@ -219,7 +219,12 @@ public class IntegrationTestFactBuildService {
     fact.setPassRate(calculatePassRate(parsed.executeCase(), parsed.passCase()));
     IntegrationTestFactRules.ValidationResult validation =
         IntegrationTestFactRules.validateRecord(
-            parsed.executeCase(), parsed.passCase(), parsed.notPassCaseNow());
+            parsed.executeCase(),
+            parsed.passCase(),
+            parsed.notPassCaseNow(),
+            parsed.notPassCase(),
+            parsed.problemCase(),
+            parsed.exceptionCount());
     fact.setLegal(validation.legal());
     fact.setParseStatus(validation.parseStatus());
     fact.setValidationReason(validation.validationReason());

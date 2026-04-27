@@ -77,7 +77,12 @@ final class IntegrationTestFactRules {
   }
 
   static ValidationResult validateRecord(
-      Integer executeCase, Integer passCase, Integer notPassCaseNow) {
+      Integer executeCase,
+      Integer passCase,
+      Integer notPassCaseNow,
+      Integer notPassCase,
+      Integer problemCase,
+      Integer exceptionCount) {
     List<String> missingFields = new ArrayList<>();
     if (executeCase == null) {
       missingFields.add("执行用例总数");
@@ -92,14 +97,28 @@ final class IntegrationTestFactRules {
       return new ValidationResult(
           false, "PARTIAL", "缺少核心统计字段：" + String.join("、", missingFields));
     }
-    if (executeCase < 0 || passCase < 0 || notPassCaseNow < 0) {
-      return new ValidationResult(false, "PARTIAL", "核心统计字段不能为负数");
+    List<String> negativeFields = new ArrayList<>();
+    addNegativeField(negativeFields, "执行用例总数", executeCase);
+    addNegativeField(negativeFields, "通过用例数", passCase);
+    addNegativeField(negativeFields, "本次未通过用例数", notPassCaseNow);
+    addNegativeField(negativeFields, "初始未通过用例数", notPassCase);
+    addNegativeField(negativeFields, "本次问题用例数", problemCase);
+    addNegativeField(negativeFields, "用例外问题数", exceptionCount);
+    if (!negativeFields.isEmpty()) {
+      return new ValidationResult(
+          false, "PARTIAL", String.join("、", negativeFields) + "不能为负数");
     }
     if (!executeCase.equals(passCase + notPassCaseNow)) {
       return new ValidationResult(
           false, "PARSED", "执行用例总数应等于通过用例数 + 本次未通过用例数");
     }
     return new ValidationResult(true, "PARSED", null);
+  }
+
+  private static void addNegativeField(List<String> negativeFields, String fieldName, Integer value) {
+    if (value != null && value < 0) {
+      negativeFields.add(fieldName);
+    }
   }
 
   private static String compactKey(String value) {
