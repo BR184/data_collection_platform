@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import DataScopeBar from '../components/data-scope/DataScopeBar.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
@@ -170,14 +169,11 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
 ]);
 
-const milestoneScope = useDataScope({
+useDataScope({
   provider: CUSTOMER_MILESTONE_SCOPE_PROVIDER,
   options: computed(() => buildScopeOptions(filterOptions.value.milestoneTitles ?? [], '全部里程碑')),
+  mountToShell: true,
 });
-
-const milestoneScopeSummary = computed(() =>
-  milestoneScope.summary.value ? `${milestoneScope.summary.value.label}：${milestoneScope.summary.value.value}` : '',
-);
 
 const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
@@ -340,16 +336,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
-        <template #context-prefix>
-          <DataScopeBar
-            :provider="CUSTOMER_MILESTONE_SCOPE_PROVIDER"
-            :options="milestoneScope.options.value"
-            :model-value="milestoneScope.value.value"
-            :summary="milestoneScopeSummary"
-            @change="milestoneScope.setValue"
-          />
-        </template>
-
         <template #toolbar-prefix>
           <div class="customer-record-toolbar-meta">
             <div class="customer-record-toolbar-title">{{ pageTitle }}</div>

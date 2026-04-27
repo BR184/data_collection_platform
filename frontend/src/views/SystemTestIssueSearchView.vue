@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import DataScopeBar from '../components/data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {
@@ -187,14 +186,11 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   return tags;
 });
 
-const phaseScope = useDataScope({
+useDataScope({
   provider: SYSTEM_TEST_PHASE_SCOPE_PROVIDER,
   options: computed(() => buildScopeOptions(filterOptions.value.testingPhases, '全部测试阶段')),
+  mountToShell: true,
 });
-
-const phaseScopeSummary = computed(() =>
-  phaseScope.summary.value ? `${phaseScope.summary.value.label}：${phaseScope.summary.value.value}` : '',
-);
 
 const columns = computed<RecordTableColumn[]>(() => [
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
@@ -414,16 +410,6 @@ async function handleRefresh() {
       @sort-change="handleSortChange"
       @refresh="handleRefresh"
     >
-      <template #context-prefix>
-        <DataScopeBar
-          :provider="SYSTEM_TEST_PHASE_SCOPE_PROVIDER"
-          :options="phaseScope.options.value"
-          :model-value="phaseScope.value.value"
-          :summary="phaseScopeSummary"
-          @change="phaseScope.setValue"
-        />
-      </template>
-
       <template #toolbar-prefix>
         <div class="issue-search-toolbar-meta">
           <div class="issue-search-toolbar-title">议题查询</div>

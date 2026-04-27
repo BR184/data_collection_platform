@@ -2,7 +2,9 @@
 import { Loading } from '@element-plus/icons-vue';
 import { computed } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
+import DataScopeBar from './components/data-scope/DataScopeBar.vue';
 import { modules, moduleByKey } from './feature-manifest';
+import { shellDataScopeState } from './composables/shell-data-scope';
 import { routerState } from './router-state';
 
 const route = useRoute();
@@ -13,6 +15,7 @@ const activeModule = computed(
 );
 const activePageKey = computed(() => String(route.meta.pageKey ?? activeModule.value.pages[0]?.key ?? ''));
 const isStandalonePage = computed(() => Boolean(route.meta.standalone));
+const shellDataScope = computed(() => shellDataScopeState.registration);
 
 function openModule(moduleKey: string) {
   const targetModule = moduleByKey.get(moduleKey as never);
@@ -85,6 +88,17 @@ function openPage(path: string) {
 
       <main class="shell-content">
         <section class="content-head">
+          <div class="content-head-main">
+            <DataScopeBar
+              v-if="shellDataScope"
+              :provider="shellDataScope.provider"
+              :options="shellDataScope.options"
+              :model-value="shellDataScope.modelValue"
+              :summary="shellDataScope.summary"
+              :loading="shellDataScope.loading"
+              @change="shellDataScope.onChange"
+            />
+          </div>
           <div class="content-head-actions">
             <el-alert
               v-if="routerState.routeError"

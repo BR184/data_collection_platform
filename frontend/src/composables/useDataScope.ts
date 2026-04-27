@@ -1,6 +1,7 @@
-import { computed, ref, watch, type MaybeRefOrGetter, toValue } from 'vue';
+import { computed, onBeforeUnmount, ref, watch, watchEffect, type MaybeRefOrGetter, toValue } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { DataScopeOption, DataScopeProvider, DataScopeSelectionSummary } from '../types/data-scope';
+import { clearShellDataScope, registerShellDataScope } from './shell-data-scope';
 
 type QueryValue = string | number | null | undefined;
 
@@ -9,6 +10,8 @@ export interface UseDataScopeOptions {
   options: MaybeRefOrGetter<DataScopeOption[]>;
   clearQueryKeysOnChange?: string[];
   extraPatchOnChange?: (nextValue: string) => Record<string, QueryValue>;
+  mountToShell?: boolean;
+  loading?: MaybeRefOrGetter<boolean>;
 }
 
 function flattenOptions(options: DataScopeOption[]): DataScopeOption[] {
@@ -19,6 +22,7 @@ export function useDataScope(options: UseDataScopeOptions) {
   const route = useRoute();
   const router = useRouter();
   const syncing = ref(false);
+  const shellToken = `scope-${Math.random().toString(36).slice(2, 10)}`;
   const scopeOptions = computed(() => toValue(options.options));
   const flatOptions = computed(() => flattenOptions(scopeOptions.value));
   const provider = computed(() => options.provider ?? null);
@@ -114,6 +118,25 @@ export function useDataScope(options: UseDataScopeOptions) {
     },
     { immediate: true },
   );
+
+  watchEffect(() => {
+    if (!options.mountToShell || !provider.value) {
+      clearShellDataScope(shellToken);
+      return;
+    }
+    registerShellDataScope(shellToken, {
+      provider: provider.value,
+      options: scopeOptions.value,
+      modelValue: value.value,
+      summary: summary.value?.value ?? '',
+      loading: options.loading ? Boolean(toValue(options.loading)) : false,
+      onChange: patchQuery,
+    });
+  });
+
+  onBeforeUnmount(() => {
+    clearShellDataScope(shellToken);
+  });
 
   return {
     provider,

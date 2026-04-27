@@ -84,6 +84,13 @@
 - `DataScopeBar` 承载页级数据上下文切换
 - `DataScopeCompareDialog` 承载前后版本/前后阶段对比选择
 
+位置约束：
+
+- 数据上下文不再放在各页面自己的工具栏内
+- 统一挂载到主模块壳 `shell-content` 的右上角
+- 只有当前页面注册了数据上下文时才显示
+- 未注册上下文的页面保持现状，不出现占位元素
+
 ## 基础组件适配
 
 文件：
@@ -92,11 +99,12 @@
 
 变更：
 
-- 新增 `context-prefix` 插槽
+- 新增 `context-prefix` 插槽（本次作为过渡层保留）
 
 用途：
 
-- 把一级数据上下文放在筛选区之前，避免和普通筛选项混在一起
+- 早期用于把一级数据上下文放在筛选区之前
+- 本次最终采用壳层统一挂载，但保留该插槽，便于后续局部场景扩展
 
 ## 首批接入页面
 
@@ -114,6 +122,7 @@
 
 - 项目选择保留页面原有控件
 - 测试阶段切换改用统一 `DataScopeBar`
+- 展示位置在主模块壳右上角
 
 ### 系统测试列表页
 
@@ -129,6 +138,7 @@
 
 - `testingPhase` 从普通筛选提升为页级上下文
 - 原列表查询、排序、详情行为不变
+- 展示位置在主模块壳右上角
 
 ### 非法数据通用页
 
@@ -147,6 +157,11 @@
 - `frontend/src/views/SystemTestIllegalRecordsView.vue`
 - `frontend/src/views/CustomerIssueIllegalRecordsView.vue`
 
+说明：
+
+- 页内不再自行渲染上下文条
+- 由通用页注册到壳层右上角
+
 ### 客户问题列表页
 
 文件：
@@ -160,6 +175,7 @@
 说明：
 
 - `milestoneTitle` 从普通条件构建器中提升为页级上下文
+- 展示位置在主模块壳右上角
 
 ## 测试与验证
 
@@ -181,6 +197,16 @@
 - `customer-issues-home`
 - `customer-issues-response-efficiency`
 - `customer-issues-issue-by-function`
+
+尚未启用但已预留的 provider：
+
+- `CODE_REVIEW_SOURCE_SCOPE_PROVIDER`
+
+说明：
+
+- 当前新平台没有任何已上线页面真正承载老平台 `CC / DGM` 数据源切换
+- 这个 provider 仅作为后续 `code-review-multi-board` 或代码走查质量看板的预留能力
+- 所以现在页面里找不到“切换数据库”的入口是符合当前实现状态的
 
 这些统计看板页下一步建议接入 `DataScopeProvider`，但需要先把 `StatisticBoardView` 的 route/filterGroup 注入路径统一成“页级上下文 + 条件构建器”双层结构。
 

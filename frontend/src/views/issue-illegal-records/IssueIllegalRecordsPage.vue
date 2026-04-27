@@ -3,7 +3,6 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
-import DataScopeBar from '../../components/data-scope/DataScopeBar.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
@@ -61,13 +60,11 @@ const conditionFilterFields = computed<StatisticFilterField[]>(() => {
 });
 
 const scopeOptions = computed(() => props.buildScopeOptions?.(filterOptions.value) ?? []);
-const scopeState = useDataScope({
+useDataScope({
   provider: props.scopeProvider,
   options: scopeOptions,
+  mountToShell: true,
 });
-const scopeSummary = computed(() =>
-  scopeState.summary.value ? `${scopeState.summary.value.label}：${scopeState.summary.value.value}` : '',
-);
 
 const {
   filterDraft,
@@ -243,17 +240,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
-        <template #context-prefix>
-          <DataScopeBar
-            v-if="scopeProvider"
-            :provider="scopeProvider"
-            :options="scopeState.options.value"
-            :model-value="scopeState.value.value"
-            :summary="scopeSummary"
-            @change="scopeState.setValue"
-          />
-        </template>
-
         <template #filter-builder>
           <StatisticFilterBuilder
             :model-value="filterDraft"

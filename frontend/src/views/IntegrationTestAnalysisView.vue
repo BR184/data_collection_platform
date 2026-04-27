@@ -5,7 +5,6 @@ import { ElMessage } from 'element-plus';
 import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import DataScopeBar from '../components/data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import type {
   IntegrationTestDetailResponse,
@@ -110,6 +109,8 @@ const detailColumns = computed<RecordTableColumn[]>(() => [
 const phaseScope = useDataScope({
   provider: INTEGRATION_PHASE_SCOPE_PROVIDER,
   options: phaseSelectOptions,
+  mountToShell: true,
+  loading: toolbarLoading,
   clearQueryKeysOnChange: [
     'detailVisible',
     'detailModule',
@@ -119,10 +120,6 @@ const phaseScope = useDataScope({
     'detailSortOrder',
   ],
 });
-
-const phaseScopeSummary = computed(() =>
-  phaseScope.summary.value ? `${phaseScope.summary.value.label}：${phaseScope.summary.value.value}` : '',
-);
 
 const detailRows = computed<Record<string, unknown>[]>(() =>
   detail.value.records.map((row) => ({
@@ -453,14 +450,6 @@ function formatExportFileDate(date: Date) {
                 :value="String(item.projectId)"
               />
             </el-select>
-            <DataScopeBar
-              :provider="INTEGRATION_PHASE_SCOPE_PROVIDER"
-              :options="phaseScope.options.value"
-              :model-value="phaseScope.value.value"
-              :loading="toolbarLoading"
-              :summary="phaseScopeSummary"
-              @change="phaseScope.setValue"
-            />
           </div>
           <div class="integration-toolbar__actions">
             <el-button :icon="Refresh" :loading="summaryLoading" @click="handleRefresh">刷新</el-button>
