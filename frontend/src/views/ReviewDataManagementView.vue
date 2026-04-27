@@ -18,6 +18,7 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
+import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { api } from '../api';
 import type {
   ReviewDataFilterOptionsResponse,
@@ -34,7 +35,6 @@ import { useConditionFilterGroupState } from '../composables/useConditionFilterG
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { mergeRouteQuery } from '../components/statistic-board-route-query';
 import {
-  buildProblemItemTableRows,
   buildReviewDataExportCsv,
   buildReviewDataSummaryCards,
   buildReviewDataTableRows,
@@ -90,9 +90,15 @@ const currentProblemItemId = ref<number | null>(null);
 const currentProblemExpertOptions = ref<string[]>([]);
 const problemForm = ref<ReviewProblemItemFormModel>(createEmptyProblemItemForm());
 
-const expandedRowKeys = ref<Array<number | string>>([]);
-const problemItemsMap = ref<Record<number, ReviewDataProblemItemResponse[]>>({});
-const problemLoadingMap = ref<Record<number, boolean>>({});
+const {
+  expandedRowKeys,
+  problemLoadingMap,
+  loadProblemItems,
+  handleExpandChange,
+  isProblemExpanded,
+  toggleProblemPanel,
+  problemItemsFor,
+} = useReviewProblemItems((recordId) => api.getReviewDataProblemItems(recordId));
 
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
@@ -238,15 +244,6 @@ async function loadDetail(recordId: number) {
   detailData.value = await api.getReviewDataRecordDetail(recordId);
 }
 
-async function loadProblemItems(recordId: number) {
-  problemLoadingMap.value[recordId] = true;
-  try {
-    problemItemsMap.value[recordId] = await api.getReviewDataProblemItems(recordId);
-  } finally {
-    problemLoadingMap.value[recordId] = false;
-  }
-}
-
 async function handleReset() {
   resetDraft();
   appliedFilterGroup.value = null;
@@ -305,18 +302,6 @@ async function handleSizeChange(nextSize: number) {
   await patchQuery({ pageSize: nextSize, page: 1 });
 }
 
-async function handleExpandChange(row: Record<string, unknown>, expandedRows: Record<string, unknown>[]) {
-  const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
-  if (!raw) {
-    return;
-  }
-  const rowIsExpanded = expandedRows.some((item) => Number((item.__raw as ReviewDataRecordRowResponse | undefined)?.id) === raw.id);
-  expandedRowKeys.value = rowIsExpanded ? [raw.id] : expandedRowKeys.value.filter((item) => Number(item) !== raw.id);
-  if (rowIsExpanded && !problemItemsMap.value[raw.id]) {
-    await loadProblemItems(raw.id);
-  }
-}
-
 async function handleExportExcel() {
   exportLoading.value = true;
   try {
@@ -364,24 +349,9 @@ function formatExportFileDate(date: Date) {
   ].join('');
 }
 
-function isProblemExpanded(recordId: number) {
-  return expandedRowKeys.value.includes(recordId);
-}
-
 function recordFromTableRow(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
   return typeof raw?.id === 'number' ? raw : null;
-}
-
-async function toggleProblemPanel(recordId: number) {
-  if (isProblemExpanded(recordId)) {
-    expandedRowKeys.value = [];
-    return;
-  }
-  expandedRowKeys.value = [recordId];
-  if (!problemItemsMap.value[recordId]) {
-    await loadProblemItems(recordId);
-  }
 }
 
 async function toggleProblemPanelByRow(row: Record<string, unknown>) {
@@ -552,10 +522,6 @@ async function handleDeleteProblemItem(recordId: number, itemId: number) {
       ElMessage.error(error instanceof Error ? error.message : '评审问题删除失败');
     }
   }
-}
-
-function problemItemsFor(recordId: number) {
-  return buildProblemItemTableRows(problemItemsMap.value[recordId] ?? []);
 }
 
 function displayText(value: unknown) {
