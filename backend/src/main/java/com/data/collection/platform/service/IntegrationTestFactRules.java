@@ -6,9 +6,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
 final class IntegrationTestFactRules {
+  private static final Pattern FIRST_INTEGER_PATTERN = Pattern.compile("-?\\d+");
   private static final Map<String, List<String>> FUNCTION_LABEL_ALIASES =
       Map.of(
           "新功能", List.of("新功能", "NEW_FUNCTION"),
@@ -65,12 +68,12 @@ final class IntegrationTestFactRules {
     if (!StringUtils.hasText(value)) {
       return null;
     }
-    String digits = value.replaceAll("[^0-9-]", "");
-    if (!StringUtils.hasText(digits)) {
+    Matcher matcher = FIRST_INTEGER_PATTERN.matcher(value);
+    if (!matcher.find()) {
       return null;
     }
     try {
-      return Integer.valueOf(digits);
+      return Integer.valueOf(matcher.group());
     } catch (NumberFormatException ex) {
       return null;
     }

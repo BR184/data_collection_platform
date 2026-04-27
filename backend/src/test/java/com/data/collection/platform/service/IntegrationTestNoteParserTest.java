@@ -63,6 +63,35 @@ class IntegrationTestNoteParserTest {
   }
 
   @Test
+  void shouldParseAnnotatedNumbersByUsingTheLeadingCount() {
+    String note =
+        """
+        ### 集成测试数据
+        1. 功能：倒角
+        2. 执行人：李四
+        3. 执行用例总数：10（含自动化2条）
+        4. 本次通过用例数：8（含自动化2条）
+        5. 初始未通过用例数：3（历史遗留1条）
+        6. 本次未通过用例数：2（阻塞1条）
+        7. 本次问题用例数：1（已提单#123）
+        8. 用例外问题数：0（无）
+        ### 其他内容
+        执行用例总数：99
+        """;
+
+    IntegrationTestNoteParser.ParsedIntegrationNote parsed = IntegrationTestNoteParser.parse(note);
+
+    assertThat(parsed.functionName()).isEqualTo("倒角");
+    assertThat(parsed.executor()).isEqualTo("李四");
+    assertThat(parsed.executeCase()).isEqualTo(10);
+    assertThat(parsed.passCase()).isEqualTo(8);
+    assertThat(parsed.notPassCase()).isEqualTo(3);
+    assertThat(parsed.notPassCaseNow()).isEqualTo(2);
+    assertThat(parsed.problemCase()).isEqualTo(1);
+    assertThat(parsed.exceptionCount()).isZero();
+  }
+
+  @Test
   void shouldParseHorizontalMarkdownTableRowsAndValidate() {
     String note =
         """

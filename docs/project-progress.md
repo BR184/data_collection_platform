@@ -268,6 +268,8 @@
   - 新增 `IntegrationTestFactPipelineTest`，覆盖 GitLab ODS 最小数据、备注解析、`integration_test_fact` 构建、模块汇总和明细查询的端到端后端链路。
   - 修复标签归类规则，避免阶段标签和功能分类标签混入模块口径。
   - 补充 `IssueFactNormalizationRulesTest` 对阶段/功能标签不入模块的单元保护。
+  - 补充更贴近现场备注的解析样例：支持 `###` 等任意级 markdown 标题作为段落边界，避免后续章节覆盖集成测试数据。
+  - 数字解析改为取首个整数，避免 `10（含自动化2条）` 被误读为 `102`。
 
 ## 8. 当前开发约束
 

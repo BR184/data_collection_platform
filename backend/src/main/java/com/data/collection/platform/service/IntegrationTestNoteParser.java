@@ -27,7 +27,7 @@ final class IntegrationTestNoteParser {
       if (raw == null) {
         continue;
       }
-      boolean heading = raw.startsWith("## ");
+      boolean heading = isMarkdownHeading(raw);
       String line = TextQuerySupport.trimToNull(stripMarkdownPrefix(raw));
       if (line == null) {
         continue;
@@ -120,6 +120,11 @@ final class IntegrationTestNoteParser {
       result = result.substring(1).trim();
     }
     return result;
+  }
+
+  private static boolean isMarkdownHeading(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    return normalized != null && normalized.matches("#{1,6}\\s+.*");
   }
 
   private static KeyValue splitKeyValue(String line) {
