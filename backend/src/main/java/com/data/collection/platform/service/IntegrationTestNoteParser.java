@@ -1,7 +1,9 @@
 package com.data.collection.platform.service;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.util.StringUtils;
 
 final class IntegrationTestNoteParser {
@@ -52,7 +54,7 @@ final class IntegrationTestNoteParser {
         }
         if (horizontalTableHeader != null) {
           ParsedIntegrationNote current =
-              applyHorizontalTableRow(
+              mergeHorizontalTableRow(
                   horizontalTableHeader,
                   tableCells,
                   new ParsedIntegrationNote(
@@ -194,6 +196,50 @@ final class IntegrationTestNoteParser {
       result = applyKeyValue(header.get(index), row.get(index), result);
     }
     return result;
+  }
+
+  private static ParsedIntegrationNote mergeHorizontalTableRow(
+      List<String> header, List<String> row, ParsedIntegrationNote current) {
+    ParsedIntegrationNote rowValue = applyHorizontalTableRow(header, row, ParsedIntegrationNote.empty());
+    return new ParsedIntegrationNote(
+        mergeText(current.functionName(), rowValue.functionName()),
+        mergeText(current.executor(), rowValue.executor()),
+        sum(current.executeCase(), rowValue.executeCase()),
+        sum(current.passCase(), rowValue.passCase()),
+        sum(current.notPassCase(), rowValue.notPassCase()),
+        sum(current.notPassCaseNow(), rowValue.notPassCaseNow()),
+        sum(current.problemCase(), rowValue.problemCase()),
+        sum(current.exceptionCount(), rowValue.exceptionCount()));
+  }
+
+  private static String mergeText(String current, String next) {
+    Set<String> values = new LinkedHashSet<>();
+    addTextValues(values, current);
+    addTextValues(values, next);
+    return values.isEmpty() ? null : String.join(", ", values);
+  }
+
+  private static void addTextValues(Set<String> values, String text) {
+    String normalized = TextQuerySupport.trimToNull(text);
+    if (normalized == null) {
+      return;
+    }
+    for (String value : normalized.split("[,，、]")) {
+      String item = TextQuerySupport.trimToNull(value);
+      if (item != null) {
+        values.add(item);
+      }
+    }
+  }
+
+  private static Integer sum(Integer current, Integer next) {
+    if (current == null) {
+      return next;
+    }
+    if (next == null) {
+      return current;
+    }
+    return current + next;
   }
 
   private static ParsedIntegrationNote applyKeyValue(

@@ -121,4 +121,36 @@ class IntegrationTestNoteParserTest {
     assertThat(parsed.exceptionCount()).isZero();
     assertThat(validation.legal()).isTrue();
   }
+
+  @Test
+  void shouldAggregateMultipleHorizontalRowsIntoOneIssueFact() {
+    String note =
+        """
+        ## 集成测试数据
+        | 功能 | 执行人 | 执行用例总数 | 本次通过用例数 | 初始未通过用例数 | 本次未通过用例数 | 本次问题用例数 | 用例外问题数 |
+        | --- | --- | --- | --- | --- | --- | --- | --- |
+        | 拉伸 | 张三 | 10 | 8 | 2 | 2 | 1 | 0 |
+        | 倒角 | 李四 | 5 | 4 | 1 | 1 | 0 | 1 |
+        """;
+
+    IntegrationTestNoteParser.ParsedIntegrationNote parsed = IntegrationTestNoteParser.parse(note);
+    IntegrationTestFactRules.ValidationResult validation =
+        IntegrationTestFactRules.validateRecord(
+            parsed.executeCase(),
+            parsed.passCase(),
+            parsed.notPassCaseNow(),
+            parsed.notPassCase(),
+            parsed.problemCase(),
+            parsed.exceptionCount());
+
+    assertThat(parsed.functionName()).isEqualTo("拉伸, 倒角");
+    assertThat(parsed.executor()).isEqualTo("张三, 李四");
+    assertThat(parsed.executeCase()).isEqualTo(15);
+    assertThat(parsed.passCase()).isEqualTo(12);
+    assertThat(parsed.notPassCase()).isEqualTo(3);
+    assertThat(parsed.notPassCaseNow()).isEqualTo(3);
+    assertThat(parsed.problemCase()).isEqualTo(1);
+    assertThat(parsed.exceptionCount()).isEqualTo(1);
+    assertThat(validation.legal()).isTrue();
+  }
 }
