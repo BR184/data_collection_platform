@@ -28,6 +28,25 @@ final class IssueFactRecordFilterGroupSupport {
           Map.entry("createdAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")),
           Map.entry("updatedAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")));
 
+  static final Map<String, List<String>> SYSTEM_TEST_FILTER_OPERATORS =
+      Map.ofEntries(
+          Map.entry("keyword", List.of("contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("issueIid", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("title", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("projectName", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("moduleName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("testingPhase", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("illegalReason", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("severityLevel", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("issueState", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("bugStatus", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("category", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("milestoneTitle", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("authorName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("assigneeName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("createdAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")),
+          Map.entry("updatedAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")));
+
   private IssueFactRecordFilterGroupSupport() {}
 
   static StatisticFilterGroup parse(
@@ -122,6 +141,7 @@ final class IssueFactRecordFilterGroupSupport {
               Objects.toString(row.title(), ""),
               Objects.toString(row.projectName(), ""),
               String.join(" ", row.moduleNames()),
+              Objects.toString(row.phaseFilterValue(), ""),
               Objects.toString(row.reasonCategory(), ""),
               Objects.toString(row.illegalReason(), ""),
               Objects.toString(row.authorName(), ""),
@@ -131,14 +151,17 @@ final class IssueFactRecordFilterGroupSupport {
       case "title" -> List.of(Objects.toString(row.title(), ""));
       case "projectName" -> List.of(Objects.toString(row.projectName(), ""));
       case "moduleName" -> row.moduleNames();
+      case "testingPhase" -> List.of(Objects.toString(row.phaseFilterValue(), ""));
       case "reasonCategory" -> List.of(Objects.toString(row.reasonCategory(), ""));
-      case "illegalReason" -> List.of(Objects.toString(row.illegalReason(), ""));
+      case "illegalReason" -> illegalReasonValues(row.illegalReason());
       case "severityLevel" -> List.of(Objects.toString(row.severityLevel(), ""));
       case "priorityLevel" -> List.of(Objects.toString(row.priorityLevel(), ""));
       case "issueState" -> List.of(Objects.toString(row.issueState(), ""));
       case "bugStatus" -> List.of(Objects.toString(row.bugStatus(), ""));
       case "category" -> List.of(Objects.toString(row.category(), ""));
       case "milestoneTitle" -> List.of(Objects.toString(row.milestoneTitle(), ""));
+      case "authorName" -> List.of(Objects.toString(row.authorName(), ""));
+      case "assigneeName" -> List.of(Objects.toString(row.assigneeName(), ""));
       case "createdAt" -> List.of(formatDateTime(row.createdAt()));
       case "updatedAt" -> List.of(formatDateTime(row.updatedAt()));
       default -> List.of();
@@ -149,6 +172,15 @@ final class IssueFactRecordFilterGroupSupport {
     String safeLeft = TextQuerySupport.trimToNull(left);
     String safeRight = TextQuerySupport.trimToNull(right);
     return safeLeft != null && safeRight != null && safeLeft.equalsIgnoreCase(safeRight);
+  }
+
+  private static List<String> illegalReasonValues(String illegalReason) {
+    String raw = Objects.toString(illegalReason, "");
+    String normalized = SystemTestIllegalReasonSupport.normalize(raw);
+    if (normalized == null || normalized.equals(raw)) {
+      return List.of(raw);
+    }
+    return List.of(raw, normalized);
   }
 
   private static int compareText(String left, String right) {

@@ -6,6 +6,8 @@ import type {
   CustomerIssueRecordTopic,
   StatisticFilterGroup,
   StatisticBoardRuleExplanationResponse,
+  SystemTestIllegalRecordFilterOptionsResponse,
+  SystemTestIllegalRecordListResponse,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
 } from '../types/api';
@@ -70,6 +72,76 @@ export const issueRecordsApi = {
     );
     return request<SystemTestIssueSearchFilterOptionsResponse>(
       `/api/question-metrics/issues/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+    );
+  },
+  getSystemTestIllegalRecords(params: {
+    projectId?: string | number | null;
+    keyword?: string;
+    issueIid?: string;
+    title?: string;
+    projectName?: string;
+    moduleName?: string;
+    testingPhase?: string;
+    illegalReason?: string;
+    authorName?: string;
+    assigneeName?: string;
+    issueState?: string;
+    severityLevel?: string;
+    bugStatus?: string;
+    category?: string;
+    milestoneTitle?: string;
+    createdAtStart?: string;
+    createdAtEnd?: string;
+    updatedAtStart?: string;
+    updatedAtEnd?: string;
+    filterGroup?: StatisticFilterGroup | null;
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    const query = new URLSearchParams({
+      page: String(params.page ?? 1),
+      size: String(params.size ?? 20),
+      ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
+      ...(params.keyword ? { keyword: params.keyword } : {}),
+      ...(params.issueIid ? { issueIid: params.issueIid } : {}),
+      ...(params.title ? { title: params.title } : {}),
+      ...(params.projectName ? { projectName: params.projectName } : {}),
+      ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+      ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
+      ...(params.illegalReason ? { illegalReason: params.illegalReason } : {}),
+      ...(params.authorName ? { authorName: params.authorName } : {}),
+      ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
+      ...(params.issueState ? { issueState: params.issueState } : {}),
+      ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
+      ...(params.bugStatus ? { bugStatus: params.bugStatus } : {}),
+      ...(params.category ? { category: params.category } : {}),
+      ...(params.milestoneTitle ? { milestoneTitle: params.milestoneTitle } : {}),
+      ...(params.createdAtStart ? { createdAtStart: params.createdAtStart } : {}),
+      ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
+      ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
+      ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
+      ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+      ...(params.sortBy ? { sortBy: params.sortBy } : {}),
+      ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
+    });
+    return request<SystemTestIllegalRecordListResponse>(`/api/question-metrics/illegal-records?${query.toString()}`);
+  },
+  getSystemTestIllegalRecordFilterOptions(projectId?: string | number | null) {
+    const query = new URLSearchParams(
+      projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
+    );
+    return request<SystemTestIllegalRecordFilterOptionsResponse>(
+      `/api/question-metrics/illegal-records/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+    );
+  },
+  getSystemTestIllegalRecordRuleExplanation(projectId?: string | number | null) {
+    const query = new URLSearchParams(
+      projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
+    );
+    return request<StatisticBoardRuleExplanationResponse>(
+      `/api/question-metrics/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
     );
   },
   getCustomerIssueIllegalRecords(params: {

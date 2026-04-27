@@ -14,6 +14,7 @@ const ReviewDataManagementView = () => import('./views/ReviewDataManagementView.
 const SystemTestIssueSearchView = () => import('./views/SystemTestIssueSearchView.vue');
 const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIllegalRecordsView.vue');
 const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.vue');
+const SystemTestIllegalRecordsView = () => import('./views/SystemTestIllegalRecordsView.vue');
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
 
@@ -91,7 +92,9 @@ const routes: RouteRecordRaw[] = [
   {
     ...buildShellRoute('question-metrics-delay-analysis', StatisticBoardPage),
   },
-  buildPlaceholderRoute('question-metrics-illegal-records'),
+  {
+    ...buildShellRoute('question-metrics-illegal-records', SystemTestIllegalRecordsView),
+  },
   {
     ...buildShellRoute('question-metrics-defect-cause', StatisticBoardPage),
   },
