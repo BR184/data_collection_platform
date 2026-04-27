@@ -1,8 +1,6 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
-import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,17 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ReviewDataRecordCommandService {
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
-  private final ReviewDataRecordQueryService queryService;
 
-  public ReviewDataRecordCommandService(
-      ReviewDataRecordPersistenceSupport persistenceSupport,
-      ReviewDataRecordQueryService queryService) {
+  public ReviewDataRecordCommandService(ReviewDataRecordPersistenceSupport persistenceSupport) {
     this.persistenceSupport = persistenceSupport;
-    this.queryService = queryService;
   }
 
   @Transactional
-  public ReviewDataRecordDetailResponse createRecord(ReviewDataRecordSaveRequest request) {
+  public Long createRecord(ReviewDataRecordSaveRequest request) {
     Long recordId =
         persistenceSupport.insertRecord(
             request.projectName(),
@@ -38,11 +32,11 @@ public class ReviewDataRecordCommandService {
     }
 
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
-    return queryService.getRecordDetail(recordId);
+    return recordId;
   }
 
   @Transactional
-  public ReviewDataRecordDetailResponse updateRecord(Long recordId, ReviewDataRecordSaveRequest request) {
+  public Long updateRecord(Long recordId, ReviewDataRecordSaveRequest request) {
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.updateRecord(
         recordId,
@@ -57,7 +51,7 @@ public class ReviewDataRecordCommandService {
         request.authorName(),
         request.reviewVersion());
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
-    return queryService.getRecordDetail(recordId);
+    return recordId;
   }
 
   @Transactional
@@ -67,8 +61,7 @@ public class ReviewDataRecordCommandService {
   }
 
   @Transactional
-  public ReviewDataProblemItemResponse createProblemItem(
-      Long recordId, ReviewDataProblemItemSaveRequest request) {
+  public Long createProblemItem(Long recordId, ReviewDataProblemItemSaveRequest request) {
     persistenceSupport.assertRecordExists(recordId);
     Long itemId =
         persistenceSupport.insertProblemItem(
@@ -87,11 +80,11 @@ public class ReviewDataRecordCommandService {
       throw new IllegalStateException("创建评审问题失败");
     }
     persistenceSupport.touchRecord(recordId);
-    return persistenceSupport.getProblemItemOrThrow(recordId, itemId);
+    return itemId;
   }
 
   @Transactional
-  public ReviewDataProblemItemResponse updateProblemItem(
+  public Long updateProblemItem(
       Long recordId, Long itemId, ReviewDataProblemItemSaveRequest request) {
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.assertProblemItemExists(recordId, itemId);
@@ -109,7 +102,7 @@ public class ReviewDataRecordCommandService {
         request.rejectionReason(),
         request.problemStatus());
     persistenceSupport.touchRecord(recordId);
-    return persistenceSupport.getProblemItemOrThrow(recordId, itemId);
+    return itemId;
   }
 
   @Transactional

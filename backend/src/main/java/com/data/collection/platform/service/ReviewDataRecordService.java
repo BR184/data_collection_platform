@@ -41,11 +41,13 @@ public class ReviewDataRecordService {
   }
 
   public ReviewDataRecordDetailResponse createRecord(ReviewDataRecordSaveRequest request) {
-    return commandService.createRecord(request);
+    Long recordId = commandService.createRecord(request);
+    return queryService.getRecordDetail(recordId);
   }
 
   public ReviewDataRecordDetailResponse updateRecord(Long recordId, ReviewDataRecordSaveRequest request) {
-    return commandService.updateRecord(recordId, request);
+    Long updatedRecordId = commandService.updateRecord(recordId, request);
+    return queryService.getRecordDetail(updatedRecordId);
   }
 
   public void deleteRecord(Long recordId) {
@@ -54,12 +56,14 @@ public class ReviewDataRecordService {
 
   public ReviewDataProblemItemResponse createProblemItem(
       Long recordId, ReviewDataProblemItemSaveRequest request) {
-    return commandService.createProblemItem(recordId, request);
+    Long itemId = commandService.createProblemItem(recordId, request);
+    return queryService.getProblemItem(recordId, itemId);
   }
 
   public ReviewDataProblemItemResponse updateProblemItem(
       Long recordId, Long itemId, ReviewDataProblemItemSaveRequest request) {
-    return commandService.updateProblemItem(recordId, itemId, request);
+    Long updatedItemId = commandService.updateProblemItem(recordId, itemId, request);
+    return queryService.getProblemItem(recordId, updatedItemId);
   }
 
   public void deleteProblemItem(Long recordId, Long itemId) {

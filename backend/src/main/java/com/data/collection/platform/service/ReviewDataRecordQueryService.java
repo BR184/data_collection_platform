@@ -81,4 +81,9 @@ public class ReviewDataRecordQueryService {
     persistenceSupport.assertRecordExists(recordId);
     return persistenceSupport.listProblemItems(recordId);
   }
+
+  public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
+    persistenceSupport.assertRecordExists(recordId);
+    return persistenceSupport.getProblemItemOrThrow(recordId, itemId);
+  }
 }
