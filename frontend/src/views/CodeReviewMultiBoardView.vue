@@ -6,7 +6,6 @@ import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import { api } from '../api';
 import type {
-  CodeReviewMultiBoardBreakdownRowResponse,
   CodeReviewMultiBoardOverviewResponse,
   OptionItemResponse,
 } from '../types/api';
@@ -112,7 +111,7 @@ void initializePage();
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="code-review-multi-board">
       <section class="code-review-multi-board__hero">
-        <div>
+        <div class="code-review-multi-board__hero-copy">
           <div class="code-review-multi-board__eyebrow">代码走查 / 多元看板</div>
           <h2>代码走查质量概览</h2>
           <p>{{ sourceDescription }}</p>
@@ -177,24 +176,33 @@ void initializePage();
               <p>保留表格是为了让图表能继续下沉到可验证的业务数据。</p>
             </div>
           </div>
-          <el-table :data="overview.moduleRows" v-loading="loading" stripe border empty-text="当前暂无模块统计">
-            <el-table-column prop="rowLabel" label="模块" min-width="180" />
-            <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
-            <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
-            <el-table-column label="完成率" width="110" align="right">
-              <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
-            </el-table-column>
-            <el-table-column label="注释率" width="120" align="right">
-              <template #default="{ row }">{{ formatPercent(row.averageCommentRate) }}</template>
-            </el-table-column>
-            <el-table-column label="缺陷密度" width="120" align="right">
-              <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
-            </el-table-column>
-            <el-table-column prop="totalDefectCount" label="缺陷数" width="100" align="right" />
-            <el-table-column label="总新增代码" width="120" align="right">
-              <template #default="{ row }">{{ row.totalAddedLines }}</template>
-            </el-table-column>
-          </el-table>
+          <div class="code-review-multi-board__table-scroll">
+            <el-table
+              :data="overview.moduleRows"
+              v-loading="loading"
+              stripe
+              border
+              empty-text="当前暂无模块统计"
+              style="width: max-content; min-width: 100%"
+            >
+              <el-table-column prop="rowLabel" label="模块" min-width="180" />
+              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
+              <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
+              <el-table-column label="完成率" width="110" align="right">
+                <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
+              </el-table-column>
+              <el-table-column label="注释率" width="120" align="right">
+                <template #default="{ row }">{{ formatPercent(row.averageCommentRate) }}</template>
+              </el-table-column>
+              <el-table-column label="缺陷密度" width="120" align="right">
+                <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
+              </el-table-column>
+              <el-table-column prop="totalDefectCount" label="缺陷数" width="100" align="right" />
+              <el-table-column label="总新增代码" width="120" align="right">
+                <template #default="{ row }">{{ row.totalAddedLines }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
         </article>
 
         <article class="code-review-multi-board__table-panel">
@@ -204,23 +212,32 @@ void initializePage();
               <p>结合完成率、密度和体量看人，不再只给一个数量榜单。</p>
             </div>
           </div>
-          <el-table :data="overview.ownerRows" v-loading="loading" stripe border empty-text="当前暂无责任人统计">
-            <el-table-column prop="rowLabel" label="责任人" min-width="160" />
-            <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
-            <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
-            <el-table-column label="完成率" width="110" align="right">
-              <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
-            </el-table-column>
-            <el-table-column label="缺陷密度" width="120" align="right">
-              <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
-            </el-table-column>
-            <el-table-column label="平均走查时长" width="140" align="right">
-              <template #default="{ row }">{{ formatMinutes(row.averageReviewDurationMinutes) }}</template>
-            </el-table-column>
-            <el-table-column label="平均新增代码" width="130" align="right">
-              <template #default="{ row }">{{ formatLines(row.averageAddedLines) }}</template>
-            </el-table-column>
-          </el-table>
+          <div class="code-review-multi-board__table-scroll">
+            <el-table
+              :data="overview.ownerRows"
+              v-loading="loading"
+              stripe
+              border
+              empty-text="当前暂无责任人统计"
+              style="width: max-content; min-width: 100%"
+            >
+              <el-table-column prop="rowLabel" label="责任人" min-width="160" />
+              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
+              <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
+              <el-table-column label="完成率" width="110" align="right">
+                <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
+              </el-table-column>
+              <el-table-column label="缺陷密度" width="120" align="right">
+                <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
+              </el-table-column>
+              <el-table-column label="平均走查时长" width="140" align="right">
+                <template #default="{ row }">{{ formatMinutes(row.averageReviewDurationMinutes) }}</template>
+              </el-table-column>
+              <el-table-column label="平均新增代码" width="130" align="right">
+                <template #default="{ row }">{{ formatLines(row.averageAddedLines) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
         </article>
       </section>
     </section>
@@ -242,6 +259,13 @@ void initializePage();
   border: 1px solid #e4e7ec;
   border-radius: 8px;
   background: #fff;
+}
+
+.code-review-multi-board__hero-copy,
+.code-review-multi-board__panel,
+.code-review-multi-board__table-panel,
+.code-review-multi-board__summary-card {
+  min-width: 0;
 }
 
 .code-review-multi-board__eyebrow {
@@ -266,7 +290,7 @@ void initializePage();
 .code-review-multi-board__summary {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .code-review-multi-board__summary-card {
@@ -284,9 +308,10 @@ void initializePage();
 }
 
 .code-review-multi-board__summary-card strong {
-  font-size: 24px;
+  font-size: clamp(20px, 2vw, 24px);
   line-height: 1.2;
   color: #111827;
+  overflow-wrap: anywhere;
 }
 
 .code-review-multi-board__grid,
@@ -302,6 +327,11 @@ void initializePage();
   border: 1px solid #e4e7ec;
   border-radius: 8px;
   background: #fff;
+}
+
+.code-review-multi-board__table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .code-review-multi-board__panel-head {
@@ -326,7 +356,6 @@ void initializePage();
 }
 
 @media (max-width: 1180px) {
-  .code-review-multi-board__summary,
   .code-review-multi-board__grid,
   .code-review-multi-board__table-grid {
     grid-template-columns: 1fr;

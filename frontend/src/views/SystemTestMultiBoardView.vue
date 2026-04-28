@@ -264,6 +264,12 @@ void loadBoards().catch((error) => {
   background: #fff;
 }
 
+.system-test-multi-board__hero > * ,
+.system-test-multi-board__panel,
+.system-test-multi-board__summary-card {
+  min-width: 0;
+}
+
 .system-test-multi-board__eyebrow {
   color: #4b5563;
   font-size: 12px;
@@ -292,7 +298,7 @@ void loadBoards().catch((error) => {
 .system-test-multi-board__summary {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .system-test-multi-board__summary-card {
@@ -310,9 +316,10 @@ void loadBoards().catch((error) => {
 }
 
 .system-test-multi-board__summary-card strong {
-  font-size: 24px;
+  font-size: clamp(20px, 2vw, 24px);
   line-height: 1.2;
   color: #111827;
+  overflow-wrap: anywhere;
 }
 
 .system-test-multi-board__summary-card[data-tone='success'] strong {

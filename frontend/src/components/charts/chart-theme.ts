@@ -10,7 +10,7 @@ export function registerChartTheme() {
   }
 
   echarts.registerTheme(THEME_NAME, {
-    color: ['#1677ff', '#36cfc9', '#ff9f29', '#ff6b72', '#7a5af8', '#52c41a', '#8c8c8c'],
+    color: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'],
     backgroundColor: 'transparent',
     textStyle: {
       fontFamily:

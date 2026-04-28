@@ -350,6 +350,7 @@ function handleStandaloneKeywordClear() {
         border
         stripe
         class="record-table"
+        style="width: max-content; min-width: 100%"
         @sort-change="emit('sort-change', $event)"
         @expand-change="handleExpandChange"
       >
@@ -539,14 +540,16 @@ function handleStandaloneKeywordClear() {
 }
 
 .record-table-frame {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.06);
   background: #fff;
 }
 
 .record-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
 }
 
 .record-table-pagination {

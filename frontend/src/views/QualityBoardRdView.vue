@@ -242,6 +242,12 @@ void loadPage().catch((error) => {
   background: #fff;
 }
 
+.quality-board-rd__hero > *,
+.quality-board-rd__panel,
+.quality-board-rd__summary-card {
+  min-width: 0;
+}
+
 .quality-board-rd__eyebrow {
   color: #4b5563;
   font-size: 12px;
@@ -264,7 +270,7 @@ void loadPage().catch((error) => {
 .quality-board-rd__summary {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .quality-board-rd__summary-card {
@@ -282,9 +288,10 @@ void loadPage().catch((error) => {
 }
 
 .quality-board-rd__summary-card strong {
-  font-size: 24px;
+  font-size: clamp(20px, 2vw, 24px);
   line-height: 1.2;
   color: #111827;
+  overflow-wrap: anywhere;
 }
 
 .quality-board-rd__summary-card[data-tone='success'] strong {

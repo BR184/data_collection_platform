@@ -563,6 +563,7 @@ function formatExportFileDate(date: Date) {
 .integration-summary-card,
 .integration-stat-card {
   border: 1px solid #e5e7eb;
+  min-width: 0;
 }
 
 .integration-toolbar {
@@ -631,7 +632,13 @@ function formatExportFileDate(date: Date) {
 }
 
 .integration-summary-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
+}
+
+.integration-summary-card {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .integration-detail-drawer__header {

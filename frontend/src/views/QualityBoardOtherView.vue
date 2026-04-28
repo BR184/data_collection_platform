@@ -156,6 +156,11 @@ void loadPage().catch((error) => {
   background: #fff;
 }
 
+.quality-board-other__hero > *,
+.quality-board-other__panel {
+  min-width: 0;
+}
+
 .quality-board-other__eyebrow {
   color: #4b5563;
   font-size: 12px;

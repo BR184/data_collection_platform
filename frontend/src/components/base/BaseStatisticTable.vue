@@ -264,3 +264,15 @@ const props = withDefaults(
     </div>
   </el-drawer>
 </template>
+
+<style scoped>
+.stat-matrix-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.stat-matrix-table {
+  width: max-content;
+  min-width: 100%;
+}
+</style>

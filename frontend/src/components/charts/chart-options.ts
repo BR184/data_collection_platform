@@ -32,6 +32,7 @@ export function buildHorizontalBarOption(input: {
       subtext: input.subtitle ?? '',
       left: 0,
       top: 0,
+      itemGap: 8,
     },
     tooltip: {
       trigger: 'axis',
@@ -56,16 +57,29 @@ export function buildHorizontalBarOption(input: {
       axisLabel: {
         width: 120,
         overflow: 'truncate',
+        color: '#4b5563',
+        margin: 12,
+      },
+      axisLine: {
+        show: false,
+      },
+      axisTick: {
+        show: false,
       },
     },
     series: [
       {
         type: 'bar',
         data: input.items.map((item) => item.value),
+        showBackground: true,
+        backgroundStyle: {
+          color: '#f5f7fa',
+          borderRadius: 4,
+        },
         barWidth: 16,
         itemStyle: {
-          borderRadius: [0, 8, 8, 0],
-          color: input.color ?? '#1677ff',
+          borderRadius: 4,
+          color: input.color ?? '#5470c6',
         },
         label: {
           show: true,
@@ -116,12 +130,12 @@ export function buildColumnBarOption(input: {
     },
     legend: showLegend
       ? {
-          top: 52,
+          top: 48,
           left: 0,
         }
       : undefined,
     grid: {
-      top: showLegend ? 96 : 72,
+      top: showLegend ? 92 : 72,
       left: 12,
       right: 20,
       bottom: 20,
@@ -143,11 +157,28 @@ export function buildColumnBarOption(input: {
         type: 'bar',
         stack: series.stack,
         data: series.data,
-        barMaxWidth: 34,
+        showBackground: !showLegend,
+        backgroundStyle: !showLegend
+          ? {
+              color: '#f5f7fa',
+              borderRadius: [6, 6, 0, 0],
+            }
+          : undefined,
+        barMaxWidth: showLegend ? 32 : 24,
+        barCategoryGap: showLegend ? '34%' : '42%',
         itemStyle: {
           color: series.color,
-          borderRadius: [8, 8, 0, 0],
+          borderRadius: [6, 6, 0, 0],
         },
+        label: !showLegend
+          ? {
+              show: true,
+              position: 'top',
+              color: '#4b5563',
+              formatter: ({ value }) =>
+                input.valueFormatter ? input.valueFormatter(Number(value)) : String(value ?? 0),
+            }
+          : undefined,
       }),
     ),
   };
