@@ -171,7 +171,7 @@ bindLoader(async () => {
     syncFilterDraftFromRoute();
     await loadRows();
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '璇勫鏁版嵁鍔犺浇澶辫触');
+    ElMessage.error(error instanceof Error ? error.message : '评审数据加载失败');
   }
 });
 
@@ -216,8 +216,8 @@ const {
   confirm: (message, title) =>
     ElMessageBox.confirm(message, title, {
       type: 'warning',
-      confirmButtonText: '鍒犻櫎',
-      cancelButtonText: '鍙栨秷',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
     }),
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
@@ -247,7 +247,7 @@ const {
       :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
-      query-button-text="鏌ヨ"
+      query-button-text="查询"
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
       @search="handleKeywordSearch"
@@ -270,11 +270,11 @@ const {
           :icon="InfoFilled"
           @click="openRuleExplanation"
         >
-          甯姪鎸囧崡
+          帮助指南
         </el-button>
-        <el-button type="primary" :icon="Plus" @click="handleCreateRecord">鏂板璇勫</el-button>
-        <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">瀵煎嚭Excel</el-button>
-        <el-button :icon="Refresh" @click="handleRefresh">鍒锋柊</el-button>
+        <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
+        <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">导出Excel</el-button>
+        <el-button :icon="Refresh" @click="handleRefresh">刷新</el-button>
       </template>
 
       <template #cell-title="{ row }">

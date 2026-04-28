@@ -23,7 +23,7 @@ public class ReviewDataRecordWriteRepository {
             Integer.class,
             recordId);
     if (exists == null || exists == 0) {
-      throw new IllegalArgumentException("璇勫璁板綍涓嶅瓨鍦? " + recordId);
+      throw new IllegalArgumentException("评审记录不存在: " + recordId);
     }
   }
 

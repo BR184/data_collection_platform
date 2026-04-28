@@ -70,7 +70,7 @@ public class ReviewDataProblemItemRepository {
           itemId,
           recordId);
     } catch (EmptyResultDataAccessException exception) {
-      throw new IllegalArgumentException("璇勫闂涓嶅瓨鍦? " + itemId);
+      throw new IllegalArgumentException("评审问题不存在: " + itemId);
     }
   }
 
@@ -86,7 +86,7 @@ public class ReviewDataProblemItemRepository {
             recordId,
             itemId);
     if (exists == null || exists == 0) {
-      throw new IllegalArgumentException("璇勫闂涓嶅瓨鍦? " + itemId);
+      throw new IllegalArgumentException("评审问题不存在: " + itemId);
     }
   }
 

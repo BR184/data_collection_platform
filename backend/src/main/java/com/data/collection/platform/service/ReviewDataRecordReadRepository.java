@@ -37,7 +37,7 @@ public class ReviewDataRecordReadRepository {
       left join (
         select
           review_record_id,
-          string_agg(expert_name, '銆? order by sort_order asc, id asc) as expert_names
+          string_agg(expert_name, '、' order by sort_order asc, id asc) as expert_names
         from review_record_experts
         where deleted = false
         group by review_record_id
@@ -110,7 +110,7 @@ public class ReviewDataRecordReadRepository {
     try {
       return jdbcTemplate.queryForObject(BASE_LIST_SQL + " and r.id = ?", this::mapRecordRow, recordId);
     } catch (EmptyResultDataAccessException exception) {
-      throw new IllegalArgumentException("璇勫璁板綍涓嶅瓨鍦? " + recordId);
+      throw new IllegalArgumentException("评审记录不存在: " + recordId);
     }
   }
 
