@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
+import { init, type EChartsType } from './echarts-runtime';
 import { registerChartTheme } from './chart-theme';
 
 const props = withDefaults(
@@ -20,7 +20,7 @@ const props = withDefaults(
 );
 
 const rootRef = ref<HTMLDivElement | null>(null);
-let chart: echarts.ECharts | null = null;
+let chart: EChartsType | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
 const hasOption = computed(() => Boolean(props.option));
@@ -33,7 +33,7 @@ function ensureChart() {
   if (chart || !rootRef.value) {
     return;
   }
-  chart = echarts.init(rootRef.value, registerChartTheme(), {
+  chart = init(rootRef.value, registerChartTheme(), {
     renderer: 'svg',
   });
 }

@@ -1,4 +1,4 @@
-import * as echarts from 'echarts';
+import { registerTheme } from './echarts-runtime';
 
 const THEME_NAME = 'qa-flex-theme';
 
@@ -9,7 +9,7 @@ export function registerChartTheme() {
     return THEME_NAME;
   }
 
-  echarts.registerTheme(THEME_NAME, {
+  registerTheme(THEME_NAME, {
     color: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'],
     backgroundColor: 'transparent',
     textStyle: {

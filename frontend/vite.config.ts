@@ -18,6 +18,9 @@ export default defineConfig({
           if (normalizedId.includes('vue')) {
             return 'vendor-vue';
           }
+          if (normalizedId.includes('/echarts/') || normalizedId.includes('/zrender/')) {
+            return 'vendor-echarts';
+          }
           if (normalizedId.includes('pinyin-pro')) {
             return 'vendor-pinyin';
           }
