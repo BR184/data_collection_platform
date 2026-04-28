@@ -10,7 +10,6 @@ import { api } from '../api';
 import {
   flattenStatisticColumnLeaves,
   flattenStatisticColumnLeavesFromGroup,
-  type RealtimeWorkspaceStatusResponse,
   type StatisticBoardResponse,
   type StatisticCellData,
   type StatisticFilterField,
@@ -19,6 +18,7 @@ import {
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
 import { useStatisticBoardViewPrefs } from '../composables/useStatisticBoardViewPrefs';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useStatisticRoutePagination } from '../composables/useStatisticRoutePagination';
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
@@ -72,7 +72,6 @@ const props = withDefaults(
 
 const route = useRoute();
 const router = useRouter();
-const syncStatus = ref<RealtimeWorkspaceStatusResponse | null>(null);
 
 async function replaceRouteQuery(patch: Record<string, string | number | null | undefined>) {
   const nextQuery = mergeRouteQuery(route.query, patch);
@@ -145,13 +144,6 @@ const currentSortSummary = computed(() => {
   }
   return `${currentSortColumn.value.label} / ${boardViewPrefs.value.sortDirection === 'asc' ? '升序' : '降序'}`;
 });
-const lastSyncedText = computed(() => {
-  if (!syncStatus.value?.lastSyncedAt) {
-    return '暂无同步记录';
-  }
-  return syncStatus.value.lastSyncedAt.replace('T', ' ').slice(0, 19);
-});
-
 const tableRenderKey = computed(
   () =>
     [
@@ -252,6 +244,14 @@ const {
 });
 
 const {
+  lastSyncedText,
+  loadRealtimeStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => api.getStatisticBoardRealtimeStatus(props.boardKey),
+  emptyText: '暂无同步记录',
+});
+
+const {
   detailLoading,
   detailVisible,
   detail,
@@ -292,14 +292,6 @@ async function loadBoard(showError = true) {
     }
   } finally {
     loading.value = false;
-  }
-}
-
-async function loadRealtimeStatus() {
-  try {
-    syncStatus.value = await api.getStatisticBoardRealtimeStatus(props.boardKey);
-  } catch {
-    syncStatus.value = null;
   }
 }
 
