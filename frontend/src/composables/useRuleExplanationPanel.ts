@@ -4,6 +4,9 @@ import type { StatisticBoardRuleExplanationResponse } from '../types/api';
 interface UseRuleExplanationPanelOptions {
   load: () => Promise<StatisticBoardRuleExplanationResponse>;
   fallback: (reason: string) => StatisticBoardRuleExplanationResponse;
+  warn?: (message: string) => void;
+  openFallbackReason?: string;
+  unsupportedWarning?: string;
 }
 
 export function useRuleExplanationPanel(options: UseRuleExplanationPanelOptions) {
@@ -23,10 +26,21 @@ export function useRuleExplanationPanel(options: UseRuleExplanationPanelOptions)
   }
 
   async function openRuleExplanation() {
-    ruleExplanationVisible.value = true;
     if (!ruleExplanation.value && !ruleExplanationLoading.value) {
-      await loadRuleExplanation();
+      if (options.openFallbackReason) {
+        ruleExplanation.value = options.fallback(options.openFallbackReason);
+      } else {
+        await loadRuleExplanation();
+      }
     }
+    if (ruleExplanation.value && !ruleExplanation.value.supported) {
+      options.warn?.(ruleExplanation.value.unsupportedReason || options.unsupportedWarning || '当前统计表暂不支持规则说明');
+    }
+    ruleExplanationVisible.value = true;
+  }
+
+  function handleRuleExplanationVisibleChange(visible: boolean) {
+    ruleExplanationVisible.value = visible;
   }
 
   function resetRuleExplanation() {
@@ -39,6 +53,7 @@ export function useRuleExplanationPanel(options: UseRuleExplanationPanelOptions)
     ruleExplanationVisible,
     loadRuleExplanation,
     openRuleExplanation,
+    handleRuleExplanationVisibleChange,
     resetRuleExplanation,
   };
 }

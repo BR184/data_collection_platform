@@ -58,4 +58,32 @@ describe('useRuleExplanationPanel', () => {
     panel.resetRuleExplanation();
     expect(panel.ruleExplanation.value).toBeNull();
   });
+
+  it('can open with a fallback payload and warn when the rule is unsupported', async () => {
+    const load = vi.fn(async () => createRuleExplanation('不应该加载'));
+    const fallback = vi.fn((reason: string) => ({
+      ...createRuleExplanation('暂未加载'),
+      supported: false,
+      unsupportedReason: reason,
+    }));
+    const warn = vi.fn();
+
+    const panel = useRuleExplanationPanel({
+      load,
+      fallback,
+      warn,
+      openFallbackReason: '规则说明暂未加载完成，请稍后再试。',
+    });
+
+    await panel.openRuleExplanation();
+
+    expect(load).not.toHaveBeenCalled();
+    expect(fallback).toHaveBeenCalledWith('规则说明暂未加载完成，请稍后再试。');
+    expect(warn).toHaveBeenCalledWith('规则说明暂未加载完成，请稍后再试。');
+    expect(panel.ruleExplanationVisible.value).toBe(true);
+    expect(panel.ruleExplanation.value?.supported).toBe(false);
+
+    panel.handleRuleExplanationVisibleChange(false);
+    expect(panel.ruleExplanationVisible.value).toBe(false);
+  });
 });

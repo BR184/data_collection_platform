@@ -10,7 +10,6 @@ import { api } from '../api';
 import {
   flattenStatisticColumnLeaves,
   flattenStatisticColumnLeavesFromGroup,
-  type StatisticBoardRuleExplanationResponse,
   type RealtimeWorkspaceStatusResponse,
   type StatisticBoardResponse,
   type StatisticCellData,
@@ -25,6 +24,7 @@ import {
 } from './statistic-board-view-prefs';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
+import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useStatisticRoutePagination } from '../composables/useStatisticRoutePagination';
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
 import {
@@ -93,11 +93,8 @@ async function replaceRouteQuery(patch: Record<string, string | number | null | 
 
 const loading = ref(false);
 const board = ref<StatisticBoardResponse | null>(null);
-const ruleExplanationLoading = ref(false);
 const errorMessage = ref('');
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
-const ruleExplanationVisible = ref(false);
-const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const boardViewPrefs = ref<StatisticBoardViewPrefs>({
   visibleColumnKeys: [],
   groupOrder: [],
@@ -252,6 +249,24 @@ function buildFilterPayload() {
 }
 
 const {
+  ruleExplanation,
+  ruleExplanationLoading,
+  ruleExplanationVisible,
+  loadRuleExplanation,
+  openRuleExplanation,
+  handleRuleExplanationVisibleChange,
+} = useRuleExplanationPanel({
+  load: () =>
+    api.getStatisticBoardRuleExplanation(props.boardKey, {
+      filterGroup: buildFilterPayload(),
+    }),
+  fallback: (reason) => createFallbackRuleExplanation(props.boardKey, reason),
+  warn: (message) => ElMessage.warning(message),
+  openFallbackReason: '规则说明暂未加载完成，请稍后再试。',
+  unsupportedWarning: '当前统计表暂不支持规则说明',
+});
+
+const {
   detailLoading,
   detailVisible,
   detail,
@@ -299,19 +314,6 @@ async function loadRealtimeStatus() {
     syncStatus.value = await api.getStatisticBoardRealtimeStatus(props.boardKey);
   } catch {
     syncStatus.value = null;
-  }
-}
-
-async function loadRuleExplanation() {
-  ruleExplanationLoading.value = true;
-  try {
-    ruleExplanation.value = await api.getStatisticBoardRuleExplanation(props.boardKey, {
-      filterGroup: buildFilterPayload(),
-    });
-  } catch {
-    ruleExplanation.value = createFallbackRuleExplanation(props.boardKey, '规则说明加载失败，请稍后重试。');
-  } finally {
-    ruleExplanationLoading.value = false;
   }
 }
 
@@ -494,20 +496,6 @@ async function refreshBoard() {
   } finally {
     loading.value = false;
   }
-}
-
-function openRuleExplanation() {
-  if (!ruleExplanation.value) {
-    ruleExplanation.value = createFallbackRuleExplanation(props.boardKey, '规则说明暂未加载完成，请稍后再试。');
-  }
-  if (!ruleExplanation.value.supported) {
-    ElMessage.warning(ruleExplanation.value.unsupportedReason || '当前统计表暂不支持规则说明');
-  }
-  ruleExplanationVisible.value = true;
-}
-
-function handleRuleExplanationVisibleChange(visible: boolean) {
-  ruleExplanationVisible.value = visible;
 }
 
 watch(
