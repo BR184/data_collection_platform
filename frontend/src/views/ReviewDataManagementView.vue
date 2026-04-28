@@ -15,6 +15,7 @@ import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
 import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
+import ReviewDataRowActions from './review-data/ReviewDataRowActions.vue';
 import ReviewDataRuleExplanationDrawer from './review-data/ReviewDataRuleExplanationDrawer.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
@@ -305,32 +306,15 @@ const {
       </template>
 
       <template #row-actions="{ row }">
-        <div class="record-actions">
-          <el-button
-            class="record-actions-chip"
-            :class="{ active: isProblemExpandedByRow(row) }"
-            type="primary"
-            plain
-            size="small"
-            @click="toggleProblemPanelByRow(row)"
-          >
-            {{ isProblemExpandedByRow(row) ? '鏀惰捣' : '娓呭崟' }}
-          </el-button>
-          <el-button class="record-actions-link" type="primary" plain size="small" @click="handleOpenDetail(row)">鏌ョ湅</el-button>
-          <el-dropdown>
-            <span class="record-actions-more">
-              鏇村
-              <el-icon><ArrowDown /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="handleEditRecord(row)">缂栬緫璇勫</el-dropdown-item>
-                <el-dropdown-item @click="handleCreateProblemItemByRow(row)">鏂板闂</el-dropdown-item>
-                <el-dropdown-item divided @click="handleDeleteRecord(row)">鍒犻櫎璇勫</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
+        <ReviewDataRowActions
+          :row="row"
+          :expanded="isProblemExpandedByRow(row)"
+          :on-toggle-problem-panel="toggleProblemPanelByRow"
+          :on-open-detail="handleOpenDetail"
+          :on-edit-record="handleEditRecord"
+          :on-create-problem-item="handleCreateProblemItemByRow"
+          :on-delete-record="handleDeleteRecord"
+        />
       </template>
     </BaseRecordTable>
 
@@ -428,81 +412,11 @@ const {
   color: #1d4ed8;
 }
 
-.record-actions {
-  display: grid;
-  grid-template-columns: 52px 52px 48px;
-  align-items: center;
-  justify-content: center;
-  column-gap: 7px;
-}
 
-.record-actions :deep(.el-button + .el-button) {
-  margin-left: 0;
-}
-
-.record-actions-chip {
-  height: 26px;
-  width: 52px;
-  padding: 0 10px;
-  border-color: rgba(37, 99, 235, 0.2);
-  border-radius: 7px;
-  background: rgba(37, 99, 235, 0.08);
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 600;
-  justify-content: center;
-  line-height: 26px;
-}
-
-.record-actions-chip:hover,
-.record-actions-chip.active {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
-}
-
-.record-actions-link {
-  height: 26px;
-  width: 52px;
-  padding: 0 10px;
-  border-color: rgba(37, 99, 235, 0.14);
-  border-radius: 7px;
-  background: rgba(37, 99, 235, 0.04);
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 600;
-  justify-content: center;
-  line-height: 26px;
-}
-
-.record-actions-link:hover {
-  border-color: rgba(37, 99, 235, 0.28);
-  background: rgba(37, 99, 235, 0.1);
-  color: #1d4ed8;
-}
-
-.record-actions-more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  height: 26px;
-  width: 48px;
-  padding: 0;
-  border-radius: 7px;
-  cursor: pointer;
-  font-size: 12px;
-  color: rgba(37, 99, 235, 0.72);
-  line-height: 26px;
-}
-
-.record-actions-more:hover {
-  background: rgba(37, 99, 235, 0.08);
-  color: #1d4ed8;
-}
 
 
 
 </style>
+
 
 
