@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Loading } from '@element-plus/icons-vue';
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
-import DataScopeBar from './components/data-scope/DataScopeBar.vue';
 import { modules, moduleByKey } from './feature-manifest';
 import { shellDataScopeState } from './composables/shell-data-scope';
 import { routerState } from './router-state';
+
+const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/DataScopeBar.vue'));
 
 const route = useRoute();
 const router = useRouter();

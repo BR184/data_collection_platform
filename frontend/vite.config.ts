@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import Components from 'unplugin-vue-components/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
+import { manualChunks } from './build/manual-chunks';
 
 export default defineConfig({
   plugins: [
@@ -15,25 +16,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 850,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          const normalizedId = id.replace(/\\/g, '/');
-          if (!normalizedId.includes('node_modules')) {
-            return undefined;
-          }
-          if (normalizedId.includes('element-plus')) {
-            return 'vendor-element-plus';
-          }
-          if (normalizedId.includes('vue')) {
-            return 'vendor-vue';
-          }
-          if (normalizedId.includes('/echarts/') || normalizedId.includes('/zrender/')) {
-            return 'vendor-echarts';
-          }
-          if (normalizedId.includes('pinyin-pro')) {
-            return 'vendor-pinyin';
-          }
-          return 'vendor';
-        },
+        manualChunks,
       },
     },
   },
@@ -50,5 +33,10 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    server: {
+      deps: {
+        inline: ['element-plus'],
+      },
+    },
   },
 });
