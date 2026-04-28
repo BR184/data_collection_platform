@@ -7,10 +7,10 @@ import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
-import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,35 +33,8 @@ public class ReviewDataController {
 
   @GetMapping("/records")
   public ApiResponse<ReviewDataRecordListResponse> listRecords(
-      @RequestParam(required = false) String keyword,
-      @RequestParam(required = false) String title,
-      @RequestParam(required = false) String projectName,
-      @RequestParam(required = false) String moduleName,
-      @RequestParam(required = false) String reviewOwner,
-      @RequestParam(required = false) String reviewType,
-      @RequestParam(required = false) String problemStatus,
-      @RequestParam(required = false) String reviewExpert,
-      @RequestParam(required = false) String filterGroup,
-      @RequestParam(defaultValue = "1") int page,
-      @RequestParam(defaultValue = "20") int size,
-      @RequestParam(required = false) String sortBy,
-      @RequestParam(required = false) String sortOrder) {
-    return ApiResponse.success(
-        reviewDataRecordService.listRecords(
-            new ReviewDataRecordQueryRequest(
-                keyword,
-                title,
-                projectName,
-                moduleName,
-                reviewOwner,
-                reviewType,
-                problemStatus,
-                reviewExpert,
-                filterGroup,
-                page,
-                size,
-                sortBy,
-                sortOrder)));
+      @ModelAttribute ReviewDataRecordListRequest request) {
+    return ApiResponse.success(reviewDataRecordService.listRecords(request.toQueryRequest()));
   }
 
   @GetMapping("/records/filter-options")

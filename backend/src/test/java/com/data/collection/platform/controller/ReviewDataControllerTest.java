@@ -117,6 +117,30 @@ class ReviewDataControllerTest {
   }
 
   @Test
+  void shouldUseDefaultPaginationWhenQueryParamsAreMissing() throws Exception {
+    when(reviewDataRecordService.listRecords(any(ReviewDataRecordQueryRequest.class)))
+        .thenReturn(
+            new ReviewDataRecordListResponse(
+                List.of(),
+                0,
+                1,
+                20,
+                "updatedAt",
+                "desc",
+                new ReviewDataSummaryResponse(0, 0, 0, 0)));
+
+    mockMvc.perform(get("/api/review-data/records"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+
+    var requestCaptor = org.mockito.ArgumentCaptor.forClass(ReviewDataRecordQueryRequest.class);
+    verify(reviewDataRecordService).listRecords(requestCaptor.capture());
+    ReviewDataRecordQueryRequest request = requestCaptor.getValue();
+    Assertions.assertEquals(1, request.page());
+    Assertions.assertEquals(20, request.size());
+  }
+
+  @Test
   void shouldReturnFilterOptions() throws Exception {
     when(reviewDataRecordService.getFilterOptions())
         .thenReturn(
