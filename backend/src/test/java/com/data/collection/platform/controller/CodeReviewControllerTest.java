@@ -48,7 +48,8 @@ class CodeReviewControllerTest {
         MockMvcBuilders.standaloneSetup(
                 new CodeReviewController(
                     codeReviewIllegalRecordService,
-                    codeReviewMultiBoardService))
+                    codeReviewMultiBoardService,
+                    new CodeReviewRequestAssembler()))
             .build();
   }
 
