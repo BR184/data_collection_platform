@@ -63,26 +63,31 @@ export function defaultVisibleColumnKeys(definition: StatisticBoardDefinition): 
   return definition.columnGroups.flatMap((group) => flattenStatisticColumnLeavesFromGroup(group).map((column) => column.key));
 }
 
+export function createDefaultStatisticBoardViewPrefs(definition: StatisticBoardDefinition): StatisticBoardViewPrefs {
+  return {
+    visibleColumnKeys: defaultVisibleColumnKeys(definition),
+    groupOrder: defaultGroupOrder(definition),
+    childGroupOrderByParent: defaultChildGroupOrderByParent(definition),
+    columnOrderByGroup: defaultColumnOrderByGroup(definition),
+    sortColumnKey: '',
+    sortDirection: 'default',
+    widthStrategy: 'compact',
+  };
+}
+
 export function loadStatisticBoardViewPrefs(
   boardKey: string,
   definition: StatisticBoardDefinition,
 ): StatisticBoardViewPrefs {
-  const fallbackVisible = defaultVisibleColumnKeys(definition);
-  const fallbackGroupOrder = defaultGroupOrder(definition);
-  const fallbackChildGroupOrderByParent = defaultChildGroupOrderByParent(definition);
-  const fallbackColumnOrderByGroup = defaultColumnOrderByGroup(definition);
+  const fallbackPrefs = createDefaultStatisticBoardViewPrefs(definition);
+  const fallbackVisible = fallbackPrefs.visibleColumnKeys;
+  const fallbackGroupOrder = fallbackPrefs.groupOrder;
+  const fallbackChildGroupOrderByParent = fallbackPrefs.childGroupOrderByParent;
+  const fallbackColumnOrderByGroup = fallbackPrefs.columnOrderByGroup;
   const raw = window.localStorage.getItem(storageKey(boardKey));
 
   if (!raw) {
-    return {
-      visibleColumnKeys: fallbackVisible,
-      groupOrder: fallbackGroupOrder,
-      childGroupOrderByParent: fallbackChildGroupOrderByParent,
-      columnOrderByGroup: fallbackColumnOrderByGroup,
-      sortColumnKey: '',
-      sortDirection: 'default',
-      widthStrategy: 'compact',
-    };
+    return fallbackPrefs;
   }
 
   try {
@@ -122,15 +127,7 @@ export function loadStatisticBoardViewPrefs(
         parsed.widthStrategy === 'header' || parsed.widthStrategy === 'content' ? parsed.widthStrategy : 'compact',
     };
   } catch {
-    return {
-      visibleColumnKeys: fallbackVisible,
-      groupOrder: fallbackGroupOrder,
-      childGroupOrderByParent: fallbackChildGroupOrderByParent,
-      columnOrderByGroup: fallbackColumnOrderByGroup,
-      sortColumnKey: '',
-      sortDirection: 'default',
-      widthStrategy: 'compact',
-    };
+    return fallbackPrefs;
   }
 }
 

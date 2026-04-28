@@ -13,22 +13,16 @@ import {
   type RealtimeWorkspaceStatusResponse,
   type StatisticBoardResponse,
   type StatisticCellData,
+  type StatisticFilterField,
   type StatisticRowData,
 } from '../types/api';
-import {
-  defaultVisibleColumnKeys,
-  loadStatisticBoardViewPrefs,
-  resetStatisticBoardViewPrefs,
-  saveStatisticBoardViewPrefs,
-  type StatisticBoardViewPrefs,
-} from './statistic-board-view-prefs';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
+import { useStatisticBoardViewPrefs } from '../composables/useStatisticBoardViewPrefs';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useStatisticRoutePagination } from '../composables/useStatisticRoutePagination';
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
 import {
-  clearSortState,
   nextColumnSortState,
   ROW_LABEL_SORT_KEY,
   type SortDirection,
@@ -48,8 +42,6 @@ import {
   buildFilterQueryPatch,
   buildResetFilterQueryPatch,
   mergeRouteQuery,
-  routeBoardSortColumn,
-  routeBoardSortDirection,
 } from './statistic-board-route-query';
 import {
   columnMinWidth as resolveColumnMinWidth,
@@ -95,14 +87,20 @@ const loading = ref(false);
 const board = ref<StatisticBoardResponse | null>(null);
 const errorMessage = ref('');
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
-const boardViewPrefs = ref<StatisticBoardViewPrefs>({
-  visibleColumnKeys: [],
-  groupOrder: [],
-  childGroupOrderByParent: {},
-  columnOrderByGroup: {},
-  sortColumnKey: '',
-  sortDirection: 'default',
-  widthStrategy: 'compact',
+const {
+  boardViewPrefs,
+  applyStoredViewPrefs,
+  persistViewPrefs,
+  saveVisibleColumnPrefs,
+  restoreDefaultViewPrefs,
+  clearCurrentSort,
+  updateWidthStrategy,
+} = useStatisticBoardViewPrefs({
+  boardKey: () => props.boardKey,
+  routeQuery: () => route.query,
+  replaceRouteQuery,
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
 });
 
 const activeFilterFields = computed(() => board.value?.definition.filters ?? []);
@@ -206,6 +204,7 @@ const {
   toggleGroupColumns,
   isColumnSelected,
   toggleColumnSelection,
+  handleExpandedViewSettingGroupsChange,
 } = useStatisticViewSettings(
   computed(() => board.value?.definition.columnGroups ?? []),
   computed(() => boardViewPrefs.value.visibleColumnKeys),
@@ -228,20 +227,6 @@ function initializeFilters(fields: StatisticFilterField[]) {
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
   const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, fields);
   replaceFilterDraftGroup(filterDraft, nextDraft);
-}
-
-function applyStoredViewPrefs(response: StatisticBoardResponse) {
-  const storedPrefs = loadStatisticBoardViewPrefs(props.boardKey, response.definition);
-  boardViewPrefs.value = {
-    ...storedPrefs,
-    sortColumnKey: routeBoardSortColumn(route.query),
-    sortDirection: routeBoardSortDirection(route.query),
-  };
-  syncDraftFromVisible();
-}
-
-function persistViewPrefs() {
-  saveStatisticBoardViewPrefs(props.boardKey, boardViewPrefs.value);
 }
 
 function buildFilterPayload() {
@@ -297,7 +282,8 @@ async function loadBoard(showError = true) {
     });
     board.value = response;
     initializeFilters(response.definition.filters);
-    applyStoredViewPrefs(response);
+    applyStoredViewPrefs(response.definition);
+    syncDraftFromVisible();
     syncDetailPaginationFromRoute(route.query, board.value?.definition.defaultPageSize ?? 10);
   } catch (error) {
     errorMessage.value = (error as Error).message;
@@ -360,63 +346,14 @@ function saveViewPrefs() {
   if (!board.value) {
     return;
   }
-  if (!draftVisibleColumnKeys.value.length) {
-    ElMessage.warning('至少保留一列用于展示');
-    return;
-  }
-  boardViewPrefs.value = {
-    ...boardViewPrefs.value,
-    visibleColumnKeys: [...draftVisibleColumnKeys.value],
-  };
-  persistViewPrefs();
-  closeSettings();
-  ElMessage.success('视图配置已保存');
+  saveVisibleColumnPrefs(draftVisibleColumnKeys.value, closeSettings);
 }
 
 function restoreDefaultView() {
   if (!board.value) {
     return;
   }
-  boardViewPrefs.value = {
-    visibleColumnKeys: defaultVisibleColumnKeys(board.value.definition),
-    groupOrder: board.value.definition.columnGroups.map((group) => group.key),
-    childGroupOrderByParent: Object.fromEntries(
-      board.value.definition.columnGroups.flatMap(function collect(group): Array<[string, string[]]> {
-        const children = group.children ?? [];
-        if (children.length === 0) {
-          return [];
-        }
-        return [[group.key, children.map((child) => child.key)], ...children.flatMap((child) => collect(child))];
-      }),
-    ),
-    columnOrderByGroup: Object.fromEntries(
-      board.value.definition.columnGroups.map((group) => [group.key, flattenStatisticColumnLeavesFromGroup(group).map((column) => column.key)]),
-    ),
-    sortColumnKey: '',
-    sortDirection: 'default',
-    widthStrategy: 'compact',
-  };
-  syncDraftFromVisible();
-  resetStatisticBoardViewPrefs(props.boardKey);
-  closeSettings();
-  ElMessage.success('已恢复默认视图');
-}
-
-function clearCurrentSort() {
-  boardViewPrefs.value = {
-    ...boardViewPrefs.value,
-    ...clearSortState(),
-  };
-  persistViewPrefs();
-  void replaceRouteQuery({
-    sortBy: '',
-    sortOrder: '',
-  });
-  ElMessage.success('已恢复默认排序');
-}
-
-function handleExpandedViewSettingGroupsChange(value: string[]) {
-  expandedViewSettingGroups.value = value;
+  restoreDefaultViewPrefs(board.value.definition, syncDraftFromVisible, closeSettings);
 }
 
 async function openDetail(row: StatisticRowData, cell: StatisticCellData) {
@@ -622,7 +559,7 @@ watch(
         :handle-table-current-change="handleTableCurrentChange"
         :handle-table-size-change="handleTableSizeChange"
         :on-settings-visible-change="(visible) => (visible ? openSettings() : closeSettings())"
-        :on-width-strategy-change="(value) => (boardViewPrefs.widthStrategy = value)"
+        :on-width-strategy-change="updateWidthStrategy"
         :on-save-view-prefs="saveViewPrefs"
         :on-restore-default-view="restoreDefaultView"
         :toggle-all-columns="toggleAllColumns"

@@ -82,6 +82,10 @@ export function useStatisticViewSettings(
     draftVisibleColumnKeys.value = draftVisibleColumnKeys.value.filter((key) => key !== columnKey);
   }
 
+  function handleExpandedViewSettingGroupsChange(value: string[]) {
+    expandedViewSettingGroups.value = value;
+  }
+
   return {
     settingsVisible,
     draftVisibleColumnKeys,
@@ -99,5 +103,6 @@ export function useStatisticViewSettings(
     toggleGroupColumns,
     isColumnSelected,
     toggleColumnSelection,
+    handleExpandedViewSettingGroupsChange,
   };
 }
