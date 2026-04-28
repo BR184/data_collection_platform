@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import {
   ElButton,
   ElDescriptions,
@@ -20,6 +20,7 @@ import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
 import { downloadCsv, useReviewDataExport } from './review-data/useReviewDataExport';
 import { useReviewDataDetail } from './review-data/useReviewDataDetail';
+import { useReviewDataPageActions } from './review-data/useReviewDataPageActions';
 import { useReviewDataRecords } from './review-data/useReviewDataRecords';
 import { useReviewDataRouteController } from './review-data/useReviewDataRouteController';
 import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDialog';
@@ -47,8 +48,6 @@ const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, debounced
     sortOrder: 'desc',
   },
 });
-
-const ruleExplanationVisible = ref(false);
 
 const {
   rows,
@@ -185,7 +184,7 @@ async function loadRows() {
   }));
 }
 
-async function handleRefresh() {
+async function handleRefreshLegacy() {
   try {
     await refreshReviewRecords();
     ElMessage.success('已刷新评审数据');
@@ -201,33 +200,33 @@ async function refreshReviewRecords() {
   }));
 }
 
-function recordFromTableRow(row: Record<string, unknown>) {
+function recordFromTableRowLegacy(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
   return typeof raw?.id === 'number' ? raw : null;
 }
 
-async function toggleProblemPanelByRow(row: Record<string, unknown>) {
-  const raw = recordFromTableRow(row);
+async function toggleProblemPanelByRowLegacy(row: Record<string, unknown>) {
+  const raw = recordFromTableRowLegacy(row);
   if (!raw) {
     return;
   }
   await toggleProblemPanel(raw.id);
 }
 
-function isProblemExpandedByRow(row: Record<string, unknown>) {
-  const raw = recordFromTableRow(row);
+function isProblemExpandedByRowLegacy(row: Record<string, unknown>) {
+  const raw = recordFromTableRowLegacy(row);
   return raw ? isProblemExpanded(raw.id) : false;
 }
 
-async function handleCreateProblemItemByRow(row: Record<string, unknown>) {
-  const raw = recordFromTableRow(row);
+async function handleCreateProblemItemByRowLegacy(row: Record<string, unknown>) {
+  const raw = recordFromTableRowLegacy(row);
   if (!raw) {
     return;
   }
   await handleCreateProblemItem(raw.id);
 }
 
-async function handleOpenDetail(row: Record<string, unknown>) {
+async function handleOpenDetailLegacy(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
   if (!raw) {
     return;
@@ -235,7 +234,7 @@ async function handleOpenDetail(row: Record<string, unknown>) {
   await openDetail(raw.id);
 }
 
-async function handleEditRecord(row: Record<string, unknown>) {
+async function handleEditRecordLegacy(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
   if (!raw) {
     return;
@@ -243,11 +242,11 @@ async function handleEditRecord(row: Record<string, unknown>) {
   await openEditRecord(raw.id);
 }
 
-function handleCreateRecord() {
+function handleCreateRecordLegacy() {
   openCreateRecord();
 }
 
-async function handleDeleteRecord(row: Record<string, unknown>) {
+async function handleDeleteRecordLegacy(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
   if (!raw) {
     return;
@@ -273,7 +272,7 @@ async function refreshAfterProblemItemMutation(recordId: number) {
   await refreshDetailIfOpen(recordId);
 }
 
-async function handleDeleteProblemItem(recordId: number, itemId: number) {
+async function handleDeleteProblemItemLegacy(recordId: number, itemId: number) {
   try {
     await ElMessageBox.confirm('确认删除这条评审问题吗？', '删除评审问题', {
       type: 'warning',
@@ -290,6 +289,40 @@ async function handleDeleteProblemItem(recordId: number, itemId: number) {
   }
 }
 
+const {
+  ruleExplanationVisible,
+  handleRefresh,
+  toggleProblemPanelByRow,
+  isProblemExpandedByRow,
+  handleCreateProblemItemByRow,
+  handleOpenDetail,
+  handleEditRecord,
+  handleCreateRecord,
+  handleDeleteRecord,
+  handleDeleteProblemItem,
+  openRuleExplanation,
+} = useReviewDataPageActions({
+  refreshRecords: () => refreshReviewRecords(),
+  toggleProblemPanel,
+  isProblemExpanded,
+  openDetail,
+  openCreateRecord,
+  openEditRecord,
+  openCreateProblemItem: handleCreateProblemItem,
+  openEditProblemItem: handleEditProblemItem,
+  deleteRecord: (recordId) => api.deleteReviewDataRecord(recordId),
+  deleteProblemItem: (recordId, itemId) => api.deleteReviewDataProblemItem(recordId, itemId),
+  refreshAfterProblemItemMutation,
+  confirm: (message, title) =>
+    ElMessageBox.confirm(message, title, {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    }),
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
 function displayText(value: unknown) {
   const text = String(value ?? '').trim();
   return text || '-';
@@ -299,7 +332,7 @@ function formatDate(value?: string | null) {
   return value ? value.slice(0, 10) : '-';
 }
 
-function openRuleExplanation() {
+function openRuleExplanationLegacy() {
   ruleExplanationVisible.value = true;
 }
 </script>
