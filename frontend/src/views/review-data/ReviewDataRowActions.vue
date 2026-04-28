@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ArrowDown } from '@element-plus/icons-vue';
+
 defineProps<{
   row: Record<string, unknown>;
   expanded: boolean;
