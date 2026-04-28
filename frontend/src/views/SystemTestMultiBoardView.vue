@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';

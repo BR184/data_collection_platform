@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { ElForm, ElMessage } from 'element-plus';
-import type { FormRules } from 'element-plus';
+import { ElMessage } from '../../element-plus-services';
+import type { FormInstance, FormRules } from 'element-plus';
 import type { ReviewDataFilterOptionsResponse, ReviewDataRecordSaveRequest } from '../../types/api';
 import SmartSelect from '../../components/base/SmartSelect.vue';
 import type { ReviewRecordFormModel } from '../review-data-management';
@@ -20,7 +20,7 @@ const emit = defineEmits<{
   (event: 'submit', value: ReviewDataRecordSaveRequest): void;
 }>();
 
-const formRef = ref<InstanceType<typeof ElForm>>();
+const formRef = ref<FormInstance>();
 const form = reactive<ReviewRecordFormModel>({
   projectName: '',
   title: '',

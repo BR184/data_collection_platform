@@ -2,7 +2,8 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import type { FormInstance, FormRules } from 'element-plus';
+import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import type {
   TestingPhaseDefinitionResponse,

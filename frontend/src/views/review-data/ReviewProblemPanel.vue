@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ElButton, ElTable, ElTableColumn, ElTag } from 'element-plus';
 import { EditPen, Plus } from '@element-plus/icons-vue';
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';

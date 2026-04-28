@@ -1,15 +1,6 @@
 ﻿<script setup lang="ts">
 import { computed } from 'vue';
-import {
-  ElButton,
-  ElDropdown,
-  ElDropdownItem,
-  ElDropdownMenu,
-  ElIcon,
-  ElMessage,
-  ElMessageBox,
-  ElTag,
-} from 'element-plus';
+import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, Download, EditPen, InfoFilled, Plus, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';

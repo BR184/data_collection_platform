@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Refresh, Tools } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import type {
   GitlabSyncConfig,

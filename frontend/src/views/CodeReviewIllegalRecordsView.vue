@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import { InfoFilled, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';

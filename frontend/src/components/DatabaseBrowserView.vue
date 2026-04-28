@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import { Edit, Refresh, WarningFilled } from '@element-plus/icons-vue';
 import { api } from '../api';
 import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';

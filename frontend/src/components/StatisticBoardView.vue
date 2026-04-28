@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Search, Sort } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
 import BaseStatisticTable from './base/BaseStatisticTable.vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';

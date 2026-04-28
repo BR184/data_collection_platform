@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';

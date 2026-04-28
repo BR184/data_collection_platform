@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ElDescriptions, ElDescriptionsItem, ElDrawer, ElIcon } from 'element-plus';
 import { Document } from '@element-plus/icons-vue';
 import type { ReviewDataRecordDetailResponse } from '../../types/api';
 

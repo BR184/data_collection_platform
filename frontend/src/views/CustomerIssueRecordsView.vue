@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '../element-plus-services';
 import { InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';

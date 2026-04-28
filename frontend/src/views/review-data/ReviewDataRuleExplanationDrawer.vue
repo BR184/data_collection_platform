@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ElDrawer, ElIcon, ElTag } from 'element-plus';
 import { InfoFilled } from '@element-plus/icons-vue';
 import type { ReviewDataRuleExplanationContent } from './review-data-rule-explanation';
 

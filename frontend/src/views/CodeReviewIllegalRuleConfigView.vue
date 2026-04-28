@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { ArrowLeft, RefreshLeft, Select, Setting } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
 import CodeReviewRuleConfigEditor from '../components/rule-config/CodeReviewRuleConfigEditor.vue';
 import CodeReviewRuleConfigPreview from '../components/rule-config/CodeReviewRuleConfigPreview.vue';
