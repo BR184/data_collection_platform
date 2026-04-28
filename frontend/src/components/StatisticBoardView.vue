@@ -14,8 +14,6 @@ import {
   type RealtimeWorkspaceStatusResponse,
   type StatisticBoardResponse,
   type StatisticCellData,
-  type StatisticDetailColumn,
-  type StatisticDetailResponse,
   type StatisticRowData,
 } from '../types/api';
 import {
@@ -26,6 +24,7 @@ import {
   type StatisticBoardViewPrefs,
 } from './statistic-board-view-prefs';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
+import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
 import { useStatisticRoutePagination } from '../composables/useStatisticRoutePagination';
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
 import {
@@ -51,11 +50,6 @@ import {
   mergeRouteQuery,
   routeBoardSortColumn,
   routeBoardSortDirection,
-  routeDetailPage,
-  routeDetailPageSize,
-  routeDetailSortBy,
-  routeDetailSortOrder,
-  routeDetailVisible,
 } from './statistic-board-route-query';
 import {
   columnMinWidth as resolveColumnMinWidth,
@@ -98,16 +92,11 @@ async function replaceRouteQuery(patch: Record<string, string | number | null | 
 }
 
 const loading = ref(false);
-const detailLoading = ref(false);
 const board = ref<StatisticBoardResponse | null>(null);
 const ruleExplanationLoading = ref(false);
 const errorMessage = ref('');
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
-const detailVisible = ref(false);
 const ruleExplanationVisible = ref(false);
-const activeRow = ref<StatisticRowData | null>(null);
-const activeCell = ref<StatisticCellData | null>(null);
-const detail = ref<StatisticDetailResponse | null>(null);
 const ruleExplanation = ref<StatisticBoardRuleExplanationResponse | null>(null);
 const boardViewPrefs = ref<StatisticBoardViewPrefs>({
   visibleColumnKeys: [],
@@ -117,13 +106,6 @@ const boardViewPrefs = ref<StatisticBoardViewPrefs>({
   sortColumnKey: '',
   sortDirection: 'default',
   widthStrategy: 'compact',
-});
-
-const detailPagination = reactive({
-  page: 1,
-  size: 10,
-  sortField: '',
-  sortOrder: 'descending',
 });
 
 const activeFilterFields = computed(() => board.value?.definition.filters ?? []);
@@ -269,6 +251,28 @@ function buildFilterPayload() {
   return sanitizeFilterDraftGroup(filterDraft);
 }
 
+const {
+  detailLoading,
+  detailVisible,
+  detail,
+  detailPagination,
+  detailCellValue,
+  loadDetail,
+  openDetail: openStatisticDetail,
+  handleDetailSortChange,
+  handleDetailCurrentChange,
+  handleDetailSizeChange,
+  handleDetailVisibleChange,
+  syncFromRoute: syncDetailFromRoute,
+  syncPaginationFromRoute: syncDetailPaginationFromRoute,
+} = useStatisticBoardDetail({
+  boardKey: () => props.boardKey,
+  getFilterGroup: buildFilterPayload,
+  loadDetails: (boardKey, params) => api.getStatisticBoardDetails(boardKey, params),
+  notifyError: (message) => ElMessage.error(message),
+  replaceRouteQuery,
+});
+
 async function loadBoard(showError = true) {
   loading.value = true;
   errorMessage.value = '';
@@ -279,10 +283,7 @@ async function loadBoard(showError = true) {
     board.value = response;
     initializeFilters(response.definition.filters);
     applyStoredViewPrefs(response);
-    detailPagination.page = routeDetailPage(route.query);
-    detailPagination.size = routeDetailPageSize(route.query, board.value?.definition.defaultPageSize ?? 10);
-    detailPagination.sortField = routeDetailSortBy(route.query);
-    detailPagination.sortOrder = routeDetailSortOrder(route.query);
+    syncDetailPaginationFromRoute(route.query, board.value?.definition.defaultPageSize ?? 10);
   } catch (error) {
     errorMessage.value = (error as Error).message;
     if (showError) {
@@ -416,98 +417,8 @@ function handleExpandedViewSettingGroupsChange(value: string[]) {
   expandedViewSettingGroups.value = value;
 }
 
-function detailCellValue(record: Record<string, unknown>, column: StatisticDetailColumn) {
-  const value = record[column.key];
-  if (value == null || value === '') {
-    return '-';
-  }
-  if (typeof value === 'object') {
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
-async function loadDetail() {
-  if (!activeRow.value || !activeCell.value) {
-    return;
-  }
-  detailLoading.value = true;
-  try {
-    detail.value = await api.getStatisticBoardDetails(props.boardKey, {
-      rowKey: activeRow.value.rowKey,
-      columnKey: activeCell.value.columnKey,
-      page: detailPagination.page,
-      size: detailPagination.size,
-      sortField: detailPagination.sortField || undefined,
-      sortOrder: detailPagination.sortOrder || undefined,
-      filterGroup: buildFilterPayload(),
-    });
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    detailLoading.value = false;
-  }
-}
-
 async function openDetail(row: StatisticRowData, cell: StatisticCellData) {
-  if (!cell.drilldown) {
-    return;
-  }
-  activeRow.value = row;
-  activeCell.value = cell;
-  await replaceRouteQuery({
-    detailVisible: '1',
-    detailRowKey: row.rowKey,
-    detailColumnKey: cell.columnKey,
-    detailPage: 1,
-    detailPageSize: board.value?.definition.defaultPageSize ?? 10,
-    detailSortBy: 'syncedAt',
-    detailSortOrder: 'descending',
-  });
-}
-
-function handleDetailSortChange({
-  prop,
-  order,
-}: {
-  column: unknown;
-  prop: string;
-  order: 'ascending' | 'descending' | null;
-}) {
-  void replaceRouteQuery({
-    detailSortBy: prop || '',
-    detailSortOrder: order ?? 'descending',
-    detailPage: 1,
-  });
-}
-
-function handleDetailCurrentChange(nextPage: number) {
-  void replaceRouteQuery({
-    detailPage: nextPage,
-  });
-}
-
-function handleDetailSizeChange(nextSize: number) {
-  void replaceRouteQuery({
-    detailPageSize: nextSize,
-    detailPage: 1,
-  });
-}
-
-function handleDetailVisibleChange(visible: boolean) {
-  if (visible) {
-    return;
-  }
-  detailVisible.value = false;
-  void replaceRouteQuery({
-    detailVisible: '',
-    detailRowKey: '',
-    detailColumnKey: '',
-    detailPage: '',
-    detailPageSize: '',
-    detailSortBy: '',
-    detailSortOrder: '',
-  });
+  await openStatisticDetail(row, cell, board.value?.definition.defaultPageSize ?? 10);
 }
 
 function cellForColumn(row: StatisticRowData, columnKey: string) {
@@ -599,14 +510,6 @@ function handleRuleExplanationVisibleChange(visible: boolean) {
   ruleExplanationVisible.value = visible;
 }
 
-watch(detailVisible, (visible) => {
-  if (!visible) {
-    detail.value = null;
-    activeRow.value = null;
-    activeCell.value = null;
-  }
-});
-
 watch(
   [sortedRows, tablePageSize],
   () => {
@@ -624,18 +527,7 @@ watch(
       await loadBoard(false);
       await loadRealtimeStatus();
       await loadRuleExplanation();
-      detailVisible.value = routeDetailVisible(route.query);
-      if (detailVisible.value) {
-        activeRow.value = board.value?.rows.find((row) => row.rowKey === String(route.query.detailRowKey ?? '')) ?? null;
-        activeCell.value = activeRow.value?.cells.find((cell) => cell.columnKey === String(route.query.detailColumnKey ?? '')) ?? null;
-        if (activeRow.value && activeCell.value) {
-          await loadDetail();
-        } else {
-          detail.value = null;
-        }
-      } else {
-        detail.value = null;
-      }
+      await syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10);
     } finally {
       loading.value = false;
     }
