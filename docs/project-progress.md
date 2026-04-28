@@ -141,6 +141,7 @@
 - 已完成 `api.ts` 拆分，形成 `api-client/*` 领域化结构。
 - 已完成共享类型下沉与契约收口。
 - 已完成 `feature-manifest.ts` 作为页面契约和导航单一来源。
+- review-data、customer-issues、question-metrics 三条记录链路的 controller 已开始统一成“web request DTO + assembler + service request”模式，减少 controller 手工组装噪音。
 - 已完成：
   - `useConditionFilterGroupState`
   - `useRecordPageController`

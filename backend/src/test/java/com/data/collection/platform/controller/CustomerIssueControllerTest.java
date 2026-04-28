@@ -40,7 +40,10 @@ class CustomerIssueControllerTest {
   void setUp() {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
-                new CustomerIssueController(customerIssueIllegalRecordService, customerIssueRecordService))
+                new CustomerIssueController(
+                    customerIssueIllegalRecordService,
+                    customerIssueRecordService,
+                    new CustomerIssueRequestAssembler(new IssueFactRecordListRequestAssembler())))
             .build();
   }
 

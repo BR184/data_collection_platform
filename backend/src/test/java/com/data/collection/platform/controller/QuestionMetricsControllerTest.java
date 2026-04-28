@@ -42,7 +42,9 @@ class QuestionMetricsControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new QuestionMetricsController(
-                    systemTestIssueSearchService, systemTestIllegalRecordService))
+                    systemTestIssueSearchService,
+                    systemTestIllegalRecordService,
+                    new QuestionMetricsRequestAssembler(new IssueFactRecordListRequestAssembler())))
             .build();
   }
 
