@@ -26,15 +26,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReviewDataController {
 
   private final ReviewDataRecordService reviewDataRecordService;
+  private final ReviewDataRequestAssembler reviewDataRequestAssembler;
 
-  public ReviewDataController(ReviewDataRecordService reviewDataRecordService) {
+  public ReviewDataController(
+      ReviewDataRecordService reviewDataRecordService,
+      ReviewDataRequestAssembler reviewDataRequestAssembler) {
     this.reviewDataRecordService = reviewDataRecordService;
+    this.reviewDataRequestAssembler = reviewDataRequestAssembler;
   }
 
   @GetMapping("/records")
   public ApiResponse<ReviewDataRecordListResponse> listRecords(
       @ModelAttribute ReviewDataRecordListRequest request) {
-    return ApiResponse.success(reviewDataRecordService.listRecords(request.toQueryRequest()));
+    return ApiResponse.success(
+        reviewDataRecordService.listRecords(reviewDataRequestAssembler.toQueryRequest(request)));
   }
 
   @GetMapping("/records/filter-options")

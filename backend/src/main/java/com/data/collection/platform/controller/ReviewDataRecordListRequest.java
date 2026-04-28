@@ -1,7 +1,5 @@
 package com.data.collection.platform.controller;
 
-import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
-
 public class ReviewDataRecordListRequest {
   private String keyword;
   private String title;
@@ -16,23 +14,6 @@ public class ReviewDataRecordListRequest {
   private int size = 20;
   private String sortBy;
   private String sortOrder;
-
-  public ReviewDataRecordQueryRequest toQueryRequest() {
-    return new ReviewDataRecordQueryRequest(
-        keyword,
-        title,
-        projectName,
-        moduleName,
-        reviewOwner,
-        reviewType,
-        problemStatus,
-        reviewExpert,
-        filterGroup,
-        page,
-        size,
-        sortBy,
-        sortOrder);
-  }
 
   public String getKeyword() {
     return keyword;

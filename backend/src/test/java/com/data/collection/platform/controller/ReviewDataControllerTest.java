@@ -44,7 +44,12 @@ class ReviewDataControllerTest {
 
   @BeforeEach
   void setUp() {
-    mockMvc = MockMvcBuilders.standaloneSetup(new ReviewDataController(reviewDataRecordService)).build();
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(
+                new ReviewDataController(
+                    reviewDataRecordService,
+                    new ReviewDataRequestAssembler()))
+            .build();
   }
 
   @Test
