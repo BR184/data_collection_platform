@@ -14,6 +14,7 @@ import { ArrowDown, Download, EditPen, InfoFilled, Plus, Refresh } from '@elemen
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
+import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
 import ReviewDataRuleExplanationDrawer from './review-data/ReviewDataRuleExplanationDrawer.vue';
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
@@ -82,6 +83,11 @@ const {
   loadRecordDetail: (recordId) => api.getReviewDataRecordDetail(recordId),
   notifyError: (message) => ElMessage.error(message),
 });
+
+async function refreshAfterProblemItemMutation(recordId: number) {
+  await Promise.all([loadRows(), loadProblemItems(recordId)]);
+  await refreshDetailIfOpen(recordId);
+}
 
 const {
   recordDialogVisible,
@@ -287,78 +293,15 @@ const {
       </template>
 
       <template #expand="{ row }">
-        <div class="problem-panel">
-          <div class="problem-panel-head">
-            <div class="problem-panel-title">
-              <span>璇勫闂娓呭崟</span>
-              <el-tag size="small" effect="plain">共 {{ (row.__raw as ReviewDataRecordRowResponse).problemCount }} 条</el-tag>
-            </div>
-            <el-button type="primary" text :icon="Plus" @click="handleCreateProblemItem((row.__raw as ReviewDataRecordRowResponse).id)">
-              鏂板闂
-            </el-button>
-          </div>
-
-          <el-table
-            v-loading="problemLoadingMap[(row.__raw as ReviewDataRecordRowResponse).id]"
-            :data="problemItemsFor((row.__raw as ReviewDataRecordRowResponse).id)"
-            class="problem-subtable"
-            border
-            stripe
-            empty-text="当前评审下还没有录入问题清单。"
-          >
-            <el-table-column
-              v-for="column in problemColumns"
-              :key="column.key"
-              :prop="column.key"
-              :label="column.label"
-              :width="column.width"
-              :min-width="column.minWidth"
-              :align="column.align ?? 'left'"
-              :show-overflow-tooltip="column.showOverflowTooltip ?? true"
-            >
-              <template #default="{ row: problemRow }">
-                <template v-if="column.type === 'tag'">
-                  <el-tag
-                    v-for="tag in problemRow[column.key] as Array<{ label: string; type?: 'success' | 'warning' | 'info' | 'danger' | 'primary' }>"
-                    :key="tag.label"
-                    size="small"
-                    :type="tag.type ?? 'info'"
-                    effect="plain"
-                  >
-                    {{ tag.label }}
-                  </el-tag>
-                </template>
-                <span v-else>{{ problemRow[column.key] }}</span>
-              </template>
-            </el-table-column>
-
-            <el-table-column label="鎿嶄綔" width="136" fixed="right" align="center">
-              <template #default="{ row: problemRow }">
-                <div class="problem-actions">
-                  <el-button
-                    class="problem-action-edit"
-                    type="primary"
-                    plain
-                    size="small"
-                    :icon="EditPen"
-                    @click="handleEditProblemItem((row.__raw as ReviewDataRecordRowResponse).id, problemRow.__raw as ReviewDataProblemItemResponse)"
-                  >
-                    缂栬緫
-                  </el-button>
-                  <el-button
-                    class="problem-action-delete"
-                    type="danger"
-                    text
-                    size="small"
-                    @click="handleDeleteProblemItem((row.__raw as ReviewDataRecordRowResponse).id, (problemRow.__raw as ReviewDataProblemItemResponse).id)"
-                  >
-                    鍒犻櫎
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+        <ReviewProblemPanel
+          :record="row.__raw as ReviewDataRecordRowResponse"
+          :loading="problemLoadingMap[(row.__raw as ReviewDataRecordRowResponse).id]"
+          :rows="problemItemsFor((row.__raw as ReviewDataRecordRowResponse).id)"
+          :columns="problemColumns"
+          :on-create-problem-item="handleCreateProblemItem"
+          :on-edit-problem-item="handleEditProblemItem"
+          :on-delete-problem-item="handleDeleteProblemItem"
+        />
       </template>
 
       <template #row-actions="{ row }">
@@ -558,79 +501,8 @@ const {
   color: #1d4ed8;
 }
 
-.problem-panel {
-  display: grid;
-  gap: 12px;
-  padding: 12px 8px 4px 40px;
-  background: rgba(248, 250, 252, 0.72);
-}
 
-.problem-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
 
-.problem-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  color: rgba(15, 23, 42, 0.82);
-}
-
-.problem-subtable {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.problem-actions {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-}
-
-.problem-actions :deep(.el-button + .el-button) {
-  margin-left: 0;
-}
-
-.problem-action-edit {
-  height: 26px;
-  padding: 0 10px;
-  border-color: rgba(37, 99, 235, 0.2);
-  border-radius: 7px;
-  background: rgba(37, 99, 235, 0.08);
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.problem-action-edit:hover,
-.problem-action-edit:focus {
-  border-color: #2563eb;
-  background: #2563eb;
-  color: #fff;
-}
-
-.problem-action-delete {
-  height: 26px;
-  padding: 0 6px;
-  color: rgba(220, 38, 38, 0.72);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.problem-action-delete:hover,
-.problem-action-delete:focus {
-  background: rgba(220, 38, 38, 0.08);
-  color: #dc2626;
-}
-
-:deep(.problem-subtable .el-table__header th.el-table__cell) {
-  background: #f8fafc;
-}
 </style>
+
 
