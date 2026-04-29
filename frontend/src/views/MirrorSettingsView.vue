@@ -1,21 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Refresh, Tools } from '@element-plus/icons-vue';
+import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import type { GitlabSyncConfig } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import {
-  buildPurgeSummaryHtml,
-  formatDuration,
-  formatLogTime,
-  logStatusText,
-  logStatusType,
-  syncLogMessage,
-  syncTypeTagType,
-  syncTypeText,
-} from './mirror-settings-helpers';
+import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
+import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
@@ -397,44 +389,7 @@ onBeforeUnmount(() => {
         :current-started-at="status?.currentStartedAt"
       />
 
-      <el-card shadow="never" class="panel-card">
-        <template #header>
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">最近同步日志</div>
-            </div>
-            <el-button link :icon="Refresh" :loading="refreshing" @click="refreshStatus">刷新</el-button>
-          </div>
-        </template>
-
-        <div class="sync-log-table-shell">
-        <el-table :data="recentLogs" row-key="id" max-height="320" size="small" border class="sync-log-table">
-          <el-table-column label="类型" width="126">
-            <template #default="{ row }">
-              <el-tag size="small" effect="plain" :type="syncTypeTagType(row.syncType)">
-                {{ syncTypeText(row.syncType) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="96">
-            <template #default="{ row }">
-              <el-tag size="small" :type="logStatusType(row.status)">{{ logStatusText(row.status) }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="时间" width="160">
-            <template #default="{ row }">{{ formatLogTime(row) }}</template>
-          </el-table-column>
-          <el-table-column label="耗时" width="90">
-            <template #default="{ row }">{{ formatDuration(row) }}</template>
-          </el-table-column>
-          <el-table-column prop="tableCount" label="影响表数" width="96" />
-          <el-table-column prop="recordCount" label="记录数" width="88" />
-          <el-table-column label="说明" min-width="220" show-overflow-tooltip>
-            <template #default="{ row }">{{ syncLogMessage(row) }}</template>
-          </el-table-column>
-        </el-table>
-        </div>
-      </el-card>
+      <MirrorSyncLogTable :logs="recentLogs" :refreshing="refreshing" @refresh="refreshStatus" />
       </div>
     </div>
   </PageStateShell>
