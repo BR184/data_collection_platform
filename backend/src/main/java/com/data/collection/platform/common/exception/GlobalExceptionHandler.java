@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
   @ResponseBody
-  @ResponseStatus(HttpStatus.OK)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ExceptionHandler(BizException.class)
   public ApiResponse<Void> handleBizException(BizException e) {
     log.warn("Business exception: {}", e.getMessage());
@@ -24,7 +24,7 @@ public class GlobalExceptionHandler {
   }
 
   @ResponseBody
-  @ResponseStatus(HttpStatus.OK)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
   @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class, IllegalArgumentException.class})
   public ApiResponse<Void> handleBadRequest(Exception e) {
     log.warn("Bad request: {}", e.getMessage());
@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
   }
 
   @ResponseBody
-  @ResponseStatus(HttpStatus.OK)
+  @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
   @ExceptionHandler(Exception.class)
   public ApiResponse<Void> handleException(Exception e) {
     log.error("Unhandled exception", e);

@@ -12,7 +12,7 @@ import java.util.Objects;
 final class ReviewDataRecordFilterGroupSupport {
   private static final Map<String, List<String>> FILTER_OPERATORS =
       Map.ofEntries(
-          Map.entry("title", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("title", List.of("contains", "notContains", "eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("projectName", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("moduleName", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("reviewOwner", List.of("eq", "ne", "isEmpty", "isNotEmpty")),

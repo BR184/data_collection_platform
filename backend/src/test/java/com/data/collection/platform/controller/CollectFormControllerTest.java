@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -170,6 +171,25 @@ class CollectFormControllerTest {
   }
 
   @Test
+  void saveShouldRejectInvalidBodyBeforeCallingService() throws Exception {
+    mockMvc.perform(post("/api/collect-forms/save")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "gitlabBaseUrl": "http://172.22.10.233",
+                  "projectId": 88,
+                  "resourceType": "",
+                  "resourceId": "12",
+                  "templateCode": "code_review",
+                  "reviewDurationMinutes": -1
+                }
+                """))
+        .andExpect(status().isBadRequest());
+
+    verifyNoInteractions(collectFormService);
+  }
+
+  @Test
   void updateRecordShouldReturnUpdatedPayload() throws Exception {
     when(collectFormService.updateRecord(
         eq(7L),
@@ -226,5 +246,20 @@ class CollectFormControllerTest {
         .andExpect(jsonPath("$.data.id").value(7))
         .andExpect(jsonPath("$.data.formTitle").value("代码走查表-改"))
         .andExpect(jsonPath("$.data.deleted").value(true));
+  }
+
+  @Test
+  void updateRecordShouldRejectMissingIdBeforeCallingService() throws Exception {
+    mockMvc.perform(post("/api/collect-forms/update-record")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "formTitle": "Review Form",
+                  "reviewDurationMinutes": 8
+                }
+                """))
+        .andExpect(status().isBadRequest());
+
+    verifyNoInteractions(collectFormService);
   }
 }

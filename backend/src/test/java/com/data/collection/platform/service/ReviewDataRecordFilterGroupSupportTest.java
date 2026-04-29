@@ -67,6 +67,35 @@ class ReviewDataRecordFilterGroupSupportTest {
   }
 
   @Test
+  void shouldMatchNotContainsConditions() {
+    StatisticFilterGroup filterGroup =
+        ReviewDataRecordFilterGroupSupport.parse(
+            jsonUtils,
+            """
+            {
+              "logic": "AND",
+              "conditions": [
+                {"fieldKey": "title", "operator": "notContains", "value": "blocked"}
+              ]
+            }
+            """);
+
+    assertThat(filterGroup.conditions()).hasSize(1);
+    assertThat(
+            ReviewDataRecordFilterGroupSupport.matches(
+                row(10L, "Design review", 3, LocalDate.of(2026, 4, 20)),
+                filterGroup,
+                Map.of()))
+        .isTrue();
+    assertThat(
+            ReviewDataRecordFilterGroupSupport.matches(
+                row(11L, "Blocked design review", 3, LocalDate.of(2026, 4, 20)),
+                filterGroup,
+                Map.of()))
+        .isFalse();
+  }
+
+  @Test
   void shouldReportWhetherFilterNeedsField() {
     StatisticFilterGroup filterGroup =
         new StatisticFilterGroup(

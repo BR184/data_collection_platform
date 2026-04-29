@@ -4,9 +4,12 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.CollectFormDetailResponse;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.service.CollectFormService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,7 +49,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/save")
-  public ApiResponse<CollectFormDetailResponse> save(@RequestBody SaveRequest request) {
+  public ApiResponse<CollectFormDetailResponse> save(@Valid @RequestBody SaveRequest request) {
     return ApiResponse.success(
         "表单已保存到平台正式数据表",
         collectFormService.save(
@@ -68,7 +71,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/delete")
-  public ApiResponse<Boolean> delete(@RequestBody DeleteRequest request) {
+  public ApiResponse<Boolean> delete(@Valid @RequestBody DeleteRequest request) {
     return ApiResponse.success(
         "表单记录已作废",
         collectFormService.delete(
@@ -80,7 +83,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/update-record")
-  public ApiResponse<CollectFormDetailResponse> updateRecord(@RequestBody UpdateRecordRequest request) {
+  public ApiResponse<CollectFormDetailResponse> updateRecord(@Valid @RequestBody UpdateRecordRequest request) {
     return ApiResponse.success(
         "表单记录已更新",
         collectFormService.updateRecord(
@@ -98,39 +101,39 @@ public class CollectFormController {
   }
 
   public record SaveRequest(
-      @NotBlank String gitlabBaseUrl,
+      @NotBlank @Size(max = 255) String gitlabBaseUrl,
       @NotNull @Positive Long projectId,
-      Long requestIid,
-      @NotBlank String resourceType,
-      @NotBlank String resourceId,
-      @NotBlank String templateCode,
-      String formTitle,
-      String reviewer,
-      Integer reviewDurationMinutes,
-      Integer specificationScore,
-      Integer logicScore,
-      Integer performanceScore,
-      Integer designScore,
-      Integer otherScore,
+      @Positive Long requestIid,
+      @NotBlank @Size(max = 64) String resourceType,
+      @NotBlank @Size(max = 255) String resourceId,
+      @NotBlank @Size(max = 128) String templateCode,
+      @Size(max = 255) String formTitle,
+      @Size(max = 128) String reviewer,
+      @Min(0) Integer reviewDurationMinutes,
+      @Min(0) Integer specificationScore,
+      @Min(0) Integer logicScore,
+      @Min(0) Integer performanceScore,
+      @Min(0) Integer designScore,
+      @Min(0) Integer otherScore,
       String remark) {}
 
   public record DeleteRequest(
-      @NotBlank String gitlabBaseUrl,
+      @NotBlank @Size(max = 255) String gitlabBaseUrl,
       @NotNull @Positive Long projectId,
-      @NotBlank String resourceType,
-      @NotBlank String resourceId,
-      @NotBlank String templateCode) {}
+      @NotBlank @Size(max = 64) String resourceType,
+      @NotBlank @Size(max = 255) String resourceId,
+      @NotBlank @Size(max = 128) String templateCode) {}
 
   public record UpdateRecordRequest(
       @NotNull @Positive Long id,
-      String formTitle,
-      String reviewer,
-      Integer reviewDurationMinutes,
-      Integer specificationScore,
-      Integer logicScore,
-      Integer performanceScore,
-      Integer designScore,
-      Integer otherScore,
+      @Size(max = 255) String formTitle,
+      @Size(max = 128) String reviewer,
+      @Min(0) Integer reviewDurationMinutes,
+      @Min(0) Integer specificationScore,
+      @Min(0) Integer logicScore,
+      @Min(0) Integer performanceScore,
+      @Min(0) Integer designScore,
+      @Min(0) Integer otherScore,
       String remark,
       boolean deleted) {}
 }
