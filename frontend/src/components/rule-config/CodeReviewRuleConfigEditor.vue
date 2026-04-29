@@ -391,6 +391,7 @@ function ruleSentence(condition: CodeReviewRuleCondition) {
   gap: 8px;
   max-height: 360px;
   overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .rule-add-item {

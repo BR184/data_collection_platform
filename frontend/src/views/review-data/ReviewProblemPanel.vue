@@ -93,6 +93,11 @@ defineProps<{
   gap: 12px;
   padding: 12px 8px 4px 40px;
   background: rgba(248, 250, 252, 0.72);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+  transform-origin: top center;
+  animation: problem-panel-drawer-in 340ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: backwards;
 }
 
 .problem-panel-head {
@@ -161,5 +166,32 @@ defineProps<{
 
 :deep(.problem-subtable .el-table__header th.el-table__cell) {
   background: #f8fafc;
+}
+
+@keyframes problem-panel-drawer-in {
+  from {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-8px) scaleY(0.98);
+    box-shadow: 0 0 0 rgba(15, 23, 42, 0);
+  }
+
+  70% {
+    max-height: 520px;
+    opacity: 1;
+  }
+
+  to {
+    max-height: 960px;
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .problem-panel {
+    animation: none;
+  }
 }
 </style>

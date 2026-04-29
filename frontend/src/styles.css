@@ -20,6 +20,10 @@
   --success: #22a06b;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -866,6 +870,7 @@ button {
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
+  scrollbar-gutter: stable;
   display: grid;
   align-content: start;
   gap: 14px;
