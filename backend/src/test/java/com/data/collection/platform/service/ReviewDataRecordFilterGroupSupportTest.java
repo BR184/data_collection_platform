@@ -96,6 +96,51 @@ class ReviewDataRecordFilterGroupSupportTest {
   }
 
   @Test
+  void shouldMatchDateBetweenConditions() {
+    StatisticFilterGroup filterGroup =
+        ReviewDataRecordFilterGroupSupport.parse(
+            jsonUtils,
+            """
+            {
+              "logic": "AND",
+              "conditions": [
+                {"fieldKey": "reviewDate", "operator": "between", "value": "2026-04-01", "secondaryValue": "2026-04-30"}
+              ]
+            }
+            """);
+
+    assertThat(
+            ReviewDataRecordFilterGroupSupport.matches(
+                row(10L, "Design review", 3, LocalDate.of(2026, 4, 20)),
+                filterGroup,
+                Map.of()))
+        .isTrue();
+    assertThat(
+            ReviewDataRecordFilterGroupSupport.matches(
+                row(11L, "Design review", 3, LocalDate.of(2026, 5, 1)),
+                filterGroup,
+                Map.of()))
+        .isFalse();
+  }
+
+  @Test
+  void shouldReportWhetherFilterGroupCanBePushedDownToSql() {
+    StatisticFilterGroup supported =
+        new StatisticFilterGroup(
+            "AND",
+            List.of(
+                new StatisticFilterCondition("problemStatus", "eq", "待整改", null),
+                new StatisticFilterCondition("problemCount", "gte", "1", null)));
+    StatisticFilterGroup unsupported =
+        new StatisticFilterGroup(
+            "AND",
+            List.of(new StatisticFilterCondition("title", "contains", "zhangsan", null)));
+
+    assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(supported)).isTrue();
+    assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(unsupported)).isFalse();
+  }
+
+  @Test
   void shouldReportWhetherFilterNeedsField() {
     StatisticFilterGroup filterGroup =
         new StatisticFilterGroup(

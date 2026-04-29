@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,7 @@ public class ReviewDataRecordPersistenceSupport {
       String problemStatus,
       String reviewExpert,
       String keyword,
+      StatisticFilterGroup filterGroup,
       int page,
       int size,
       String sortField,
@@ -64,6 +66,7 @@ public class ReviewDataRecordPersistenceSupport {
         problemStatus,
         reviewExpert,
         keyword,
+        filterGroup,
         page,
         size,
         sortField,

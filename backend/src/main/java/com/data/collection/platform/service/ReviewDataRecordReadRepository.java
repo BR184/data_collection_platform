@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -93,12 +94,13 @@ public class ReviewDataRecordReadRepository {
       String problemStatus,
       String reviewExpert,
       String keyword,
+      StatisticFilterGroup filterGroup,
       int page,
       int size,
       String sortField,
       String sortOrder) {
     SqlParts from = buildFilteredFromSql(
-        title, projectName, moduleName, reviewOwner, reviewType, problemStatus, reviewExpert, keyword);
+        title, projectName, moduleName, reviewOwner, reviewType, problemStatus, reviewExpert, keyword, filterGroup);
     String orderBy = buildOrderBy(sortField, sortOrder);
     int safePage = page <= 0 ? 1 : page;
     int safeSize = size <= 0 ? 20 : Math.min(size, 100);
@@ -241,7 +243,8 @@ public class ReviewDataRecordReadRepository {
       String reviewType,
       String problemStatus,
       String reviewExpert,
-      String keyword) {
+      String keyword,
+      StatisticFilterGroup filterGroup) {
     StringBuilder sql =
         new StringBuilder(
             """
@@ -267,6 +270,7 @@ public class ReviewDataRecordReadRepository {
     appendProblemStatusFilter(sql, args, problemStatus);
     appendReviewExpertFilter(sql, args, reviewExpert);
     appendKeywordSearch(sql, args, keyword);
+    appendFilterGroup(sql, args, filterGroup);
     return new SqlParts(sql.toString(), args);
   }
 
@@ -363,6 +367,16 @@ public class ReviewDataRecordReadRepository {
       args.add(pattern);
       args.add(pattern);
     }
+  }
+
+  private void appendFilterGroup(StringBuilder sql, List<Object> args, StatisticFilterGroup filterGroup) {
+    ReviewDataFilterGroupSqlSupport.toSql(filterGroup)
+        .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
+        .ifPresent(
+            filter -> {
+              sql.append(" and (").append(filter.predicate()).append(")");
+              args.addAll(filter.args());
+            });
   }
 
   public record RecordPageResult(

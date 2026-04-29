@@ -33,11 +33,13 @@ public class ReviewDataRecordQueryService {
 
     StatisticFilterGroup filterGroup =
         ReviewDataRecordFilterGroupSupport.parse(jsonUtils, request.filterGroupJson());
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
-      boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
-      if (keywordSearch && persistenceSupport.hasMissingSearchIndexes()) {
-        return listRecordsWithJavaFilters(request, null, safePage, safeSize, safeSortField, safeSortOrder);
-      }
+    boolean hasFilterGroup =
+        filterGroup != null && filterGroup.conditions() != null && !filterGroup.conditions().isEmpty();
+    boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
+    boolean canUseSqlPath =
+        (!keywordSearch || !persistenceSupport.hasMissingSearchIndexes())
+            && (!hasFilterGroup || ReviewDataFilterGroupSqlSupport.canPushDown(filterGroup));
+    if (canUseSqlPath) {
       ReviewDataRecordReadRepository.RecordPageResult pageResult =
           persistenceSupport.loadRecordPage(
               request.title(),
@@ -48,6 +50,7 @@ public class ReviewDataRecordQueryService {
               request.problemStatus(),
               request.reviewExpert(),
               request.keyword(),
+              hasFilterGroup ? filterGroup : null,
               safePage,
               safeSize,
               safeSortField,
@@ -61,8 +64,8 @@ public class ReviewDataRecordQueryService {
           safeSortOrder,
           pageResult.summary());
     }
-
-    return listRecordsWithJavaFilters(request, filterGroup, safePage, safeSize, safeSortField, safeSortOrder);
+    return listRecordsWithJavaFilters(
+        request, hasFilterGroup ? filterGroup : null, safePage, safeSize, safeSortField, safeSortOrder);
   }
 
   private ReviewDataRecordListResponse listRecordsWithJavaFilters(

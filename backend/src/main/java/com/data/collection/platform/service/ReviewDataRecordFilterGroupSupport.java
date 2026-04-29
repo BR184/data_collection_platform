@@ -106,7 +106,8 @@ final class ReviewDataRecordFilterGroupSupport {
       case "ne" -> values.stream().noneMatch(value -> equalsIgnoreCase(value, condition.value()));
       case "contains" -> values.stream().anyMatch(value -> ReviewDataSearchSupport.matchesContains(value, condition.value()));
       case "notContains" -> values.stream().noneMatch(value -> ReviewDataSearchSupport.matchesContains(value, condition.value()));
-      case "gt", "gte", "lt", "lte", "between" -> values.stream().anyMatch(value -> matchesNumber(value, condition));
+      case "gt", "gte", "lt", "lte" -> values.stream().anyMatch(value -> matchesNumber(value, condition));
+      case "between" -> values.stream().anyMatch(value -> matchesBetween(value, condition));
       case "day" -> values.stream().anyMatch(value -> Objects.equals(firstDatePart(value), condition.value()));
       case "before" -> values.stream().anyMatch(value -> compareText(firstDatePart(value), firstDatePart(condition.value())) < 0);
       case "after" -> values.stream().anyMatch(value -> compareText(firstDatePart(value), firstDatePart(condition.value())) > 0);
@@ -190,6 +191,24 @@ final class ReviewDataRecordFilterGroupSupport {
     } catch (NumberFormatException exception) {
       return null;
     }
+  }
+
+  private static boolean matchesDateBetween(String value, StatisticFilterCondition condition) {
+    String left = firstDatePart(value);
+    String right = firstDatePart(condition.value());
+    String secondary = firstDatePart(condition.secondaryValue());
+    if (left == null || right == null || secondary == null) {
+      return false;
+    }
+    String min = right.compareTo(secondary) <= 0 ? right : secondary;
+    String max = right.compareTo(secondary) <= 0 ? secondary : right;
+    return left.compareTo(min) >= 0 && left.compareTo(max) <= 0;
+  }
+
+  private static boolean matchesBetween(String value, StatisticFilterCondition condition) {
+    return "reviewDate".equals(condition.fieldKey())
+        ? matchesDateBetween(value, condition)
+        : matchesNumber(value, condition);
   }
 
   private static boolean requiresPrimaryValue(String operator) {
