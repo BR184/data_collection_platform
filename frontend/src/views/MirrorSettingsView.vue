@@ -29,21 +29,18 @@ import {
   translateSyncMessage,
 } from './mirror-settings-helpers';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
+import { useMirrorStatusController } from './useMirrorStatusController';
 
 const initialized = ref(false);
-const loading = ref(false);
-const refreshing = ref(false);
 const saving = ref(false);
 const syncing = ref(false);
 const cancelling = ref(false);
 const registeringWebhook = ref(false);
-const status = ref<MirrorStatusResponse | null>(null);
 const webhookRegistrationState = ref<MirrorStatusResponse['webhookRegistration'] | null>(null);
 const webhookRegistrationLoading = ref(false);
 const whitelistOptions = ref<TableWhitelistOption[]>([]);
 const whitelistOptionsLoading = ref(false);
 const whitelistOptionsLoaded = ref(false);
-const refreshTimer = ref<number | null>(null);
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
@@ -61,6 +58,23 @@ const form = ref<GitlabSyncConfig>({
   webhookSecret: '',
   webhookProjectId: null,
   compensationIntervalMinutes: 10,
+});
+
+const {
+  loading,
+  refreshing,
+  status,
+  loadStatus,
+  refreshStatus,
+  stopRunningRefresh,
+  syncRunningRefresh,
+} = useMirrorStatusController({
+  form,
+  loadStatusData: () => api.getStatus(),
+  loadWebhookRegistration: () => {
+    void loadWebhookRegistration(false);
+  },
+  notifyError: (message) => ElMessage.error(message),
 });
 
 const recommendedCount = computed(() => whitelistOptions.value.filter((item) => item.recommended).length);
@@ -177,45 +191,6 @@ const currentMessageText = computed(() => {
   return translateSyncMessage(rawMessage, currentTask.value?.taskType);
 });
 
-async function loadStatus(showError = true, blocking = true) {
-  loading.value = blocking;
-  try {
-    const data = await api.getStatus();
-    status.value = data;
-    form.value = {
-      ...data.config,
-      name: data.config.name || 'GitLab 默认数据源',
-      enabled: data.config.autoSyncEnabled ?? data.config.enabled ?? true,
-      autoSyncEnabled: data.config.autoSyncEnabled ?? data.config.enabled ?? true,
-      sourceMode: data.config.sourceMode ?? 'DOCKER',
-      whitelistTables: data.config.whitelistTables ?? [],
-      dockerContainerName: data.config.dockerContainerName ?? 'gitlab-data-web-1',
-      dbHost: data.config.dbHost ?? 'localhost',
-      dbPort: data.config.dbPort ?? 5432,
-      dbName: data.config.dbName ?? 'gitlabhq_production',
-      dbUsername: data.config.dbUsername ?? 'gitlab',
-      dbPassword: data.config.dbPassword ?? '',
-      webhookProjectId: data.config.webhookProjectId ?? null,
-    };
-  } catch (error) {
-    if (showError) {
-      ElMessage.error((error as Error).message);
-    }
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function refreshStatus() {
-  refreshing.value = true;
-  try {
-    await loadStatus(false, false);
-    void loadWebhookRegistration(false);
-  } finally {
-    refreshing.value = false;
-  }
-}
-
 async function loadWebhookRegistration(showError = false) {
   webhookRegistrationLoading.value = true;
   try {
@@ -248,28 +223,10 @@ async function ensureWhitelistOptions(force = false) {
   }
 }
 
-function startRunningRefresh() {
-  stopRunningRefresh();
-  refreshTimer.value = window.setInterval(() => {
-    void loadStatus(false, false);
-  }, 4000);
-}
-
-function stopRunningRefresh() {
-  if (refreshTimer.value != null) {
-    window.clearInterval(refreshTimer.value);
-    refreshTimer.value = null;
-  }
-}
-
 watch(
   () => currentTask.value?.status,
   (nextStatus) => {
-    if (nextStatus && activePollingStatuses.includes(nextStatus)) {
-      startRunningRefresh();
-    } else {
-      stopRunningRefresh();
-    }
+    syncRunningRefresh(nextStatus);
   },
 );
 
