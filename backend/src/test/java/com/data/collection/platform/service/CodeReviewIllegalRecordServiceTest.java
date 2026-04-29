@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.when;
 
@@ -48,9 +49,29 @@ class CodeReviewIllegalRecordServiceTest {
 
   @Test
   void shouldKeepListRecordsBehaviorAfterRefactor() {
-    when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
-        source(101L, 12, "repo-b", "Alice", "Owner A", "", LocalDateTime.of(2026, 4, 8, 10, 0)),
-        source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0))));
+    when(sourceLoader.loadDefaultIllegalPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(
+                    source(
+                        102L,
+                        5,
+                        "repo-a",
+                        "Bob",
+                        "Owner B",
+                        "",
+                        LocalDateTime.of(2026, 4, 9, 10, 0)),
+                    source(
+                        101L,
+                        12,
+                        "repo-b",
+                        "Alice",
+                        "Owner A",
+                        "",
+                        LocalDateTime.of(2026, 4, 8, 10, 0))),
+                2,
+                1,
+                20));
 
     CodeReviewIllegalRecordListResponse response = service.listRecords(
         new CodeReviewIllegalRecordQueryRequest(

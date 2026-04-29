@@ -2,9 +2,12 @@ package com.data.collection.platform.service;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -37,6 +40,7 @@ public class CodeReviewIllegalRecordSourceLoader {
       from merge_request_fact
       where deleted = false
       """;
+  private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
   private final FactBuildService factBuildService;
   private final MergeRequestFactQueryService mergeRequestFactQueryService;
@@ -61,6 +65,24 @@ public class CodeReviewIllegalRecordSourceLoader {
     return List.of();
   }
 
+  public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
+      CodeReviewIllegalRecordSourcePageQuery query) {
+    if (!matchesRequestType(query.request().requestType())) {
+      return new PageSlice<>(List.of(), 0, query.page(), query.size());
+    }
+    try {
+      PageSlice<CodeReviewIllegalRecordSource> page = loadDefaultIllegalPageOnce(query);
+      if (page.total() > 0) {
+        return page;
+      }
+      factBuildService.rebuildMergeRequestFacts(true);
+      return loadDefaultIllegalPageOnce(query);
+    } catch (DataAccessException e) {
+      log.warn("Failed to load paged merge request illegal facts", e);
+      return new PageSlice<>(List.of(), 0, query.page(), query.size());
+    }
+  }
+
   private List<CodeReviewIllegalRecordSource> ensureFactsReady(Map<String, String> filters) {
     List<CodeReviewIllegalRecordSource> facts = mergeRequestFactQueryService.query(FACT_SQL, filters, this::mapFactSource);
     if (!facts.isEmpty()) {
@@ -68,6 +90,201 @@ public class CodeReviewIllegalRecordSourceLoader {
     }
     factBuildService.rebuildMergeRequestFacts(true);
     return mergeRequestFactQueryService.query(FACT_SQL, filters, this::mapFactSource);
+  }
+
+  private PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPageOnce(
+      CodeReviewIllegalRecordSourcePageQuery query) {
+    QueryParts parts = buildPageQuery(query.request());
+    long total =
+        mergeRequestFactQueryService.count(
+            "select count(*) from merge_request_fact" + parts.where(), parts.args());
+    if (total == 0) {
+      return new PageSlice<>(List.of(), 0, query.page(), query.size());
+    }
+    List<Object> pageArgs = new ArrayList<>(parts.args());
+    pageArgs.add(query.size());
+    pageArgs.add((long) (query.page() - 1) * query.size());
+    List<CodeReviewIllegalRecordSource> records =
+        mergeRequestFactQueryService.query(
+            FACT_SQL
+                + parts.tailWhere()
+                + " order by "
+                + sortColumn(query.sortField())
+                + " "
+                + sortOrder(query.sortOrder())
+                + nullsClause(query.sortOrder())
+                + ", merged_at_source "
+                + sortOrder(query.sortOrder())
+                + nullsClause(query.sortOrder())
+                + ", merge_request_iid "
+                + sortOrder(query.sortOrder())
+                + " limit ? offset ?",
+            pageArgs,
+            this::mapFactSource);
+    return new PageSlice<>(records, total, query.page(), query.size());
+  }
+
+  private QueryParts buildPageQuery(CodeReviewIllegalRecordQueryRequest request) {
+    StringBuilder where = new StringBuilder(" where deleted = false");
+    List<Object> args = new ArrayList<>();
+    appendEq(where, args, "project_id", request.projectId());
+    appendContains(where, args, "project_name", request.projectName());
+    appendContains(where, args, "repository_name", request.repositoryName());
+    appendContains(where, args, "target_branch", request.targetBranch());
+    appendContains(where, args, "module_name", request.moduleName());
+    appendContains(where, args, "owner_name", request.owner());
+    appendEq(where, args, "merge_request_iid", parseLong(request.mergeRequestIid()));
+    appendDateFrom(where, args, "merged_at_source", request.mergedAtStart());
+    appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
+    appendEqIgnoreCase(where, args, "merge_user_name", request.mergedBy());
+    appendIllegalPredicate(where, request.illegalType());
+    return new QueryParts(where.toString(), args);
+  }
+
+  private void appendIllegalPredicate(StringBuilder where, String illegalType) {
+    String predicate = illegalPredicate(illegalType);
+    where.append(" and (").append(predicate).append(")");
+  }
+
+  private String illegalPredicate(String illegalType) {
+    String normalized = TextQuerySupport.trimToNull(illegalType);
+    if (normalized == null) {
+      return String.join(
+          " or ",
+          missingModulePredicate(),
+          missingOwnerPredicate(),
+          missingReviewPredicate(),
+          notScannedPredicate(),
+          openScanIssuePredicate(),
+          "comment_rate is null",
+          "defect_count is null",
+          "added_lines is null");
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL.equals(normalized)) {
+      return missingModulePredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_OWNER_LABEL.equals(normalized)) {
+      return missingOwnerPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)) {
+      return missingReviewPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL.equals(normalized)) {
+      return notScannedPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL.equals(normalized)) {
+      return openScanIssuePredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_COMMENT_RATE_LABEL.equals(normalized)) {
+      return "comment_rate is null";
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_DEFECT_COUNT_LABEL.equals(normalized)) {
+      return "defect_count is null";
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_ADDED_LINES_LABEL.equals(normalized)) {
+      return "added_lines is null";
+    }
+    return "1 = 0";
+  }
+
+  private String missingModulePredicate() {
+    return "(label_names is null or btrim(label_names) = '')";
+  }
+
+  private String missingOwnerPredicate() {
+    return "(owner_name is null or btrim(owner_name) = '')";
+  }
+
+  private String missingReviewPredicate() {
+    return "(review_status is null or btrim(review_status) = '' or review_duration_minutes is null)";
+  }
+
+  private String notScannedPredicate() {
+    StringBuilder sql = new StringBuilder("upper(btrim(coalesce(scan_status, ''))) in (");
+    List<String> statuses = CodeReviewIllegalRuleRegistry.notScannedStatuses();
+    for (int index = 0; index < statuses.size(); index++) {
+      if (index > 0) {
+        sql.append(", ");
+      }
+      sql.append("'").append(statuses.get(index).replace("'", "''").toUpperCase(Locale.ROOT)).append("'");
+    }
+    sql.append(")");
+    return sql.toString();
+  }
+
+  private String openScanIssuePredicate() {
+    return "(scan_bug_count is not null and scan_bug_count > 0)";
+  }
+
+  private boolean matchesRequestType(String requestType) {
+    String normalized = TextQuerySupport.normalizeForMatch(requestType);
+    return normalized == null || "merge_request".equals(normalized);
+  }
+
+  private void appendEq(StringBuilder where, List<Object> args, String column, Long value) {
+    if (value == null) {
+      return;
+    }
+    where.append(" and ").append(column).append(" = ?");
+    args.add(value);
+  }
+
+  private void appendContains(StringBuilder where, List<Object> args, String column, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    where.append(" and ").append(column).append(" like ?");
+    args.add("%" + normalized + "%");
+  }
+
+  private void appendEqIgnoreCase(StringBuilder where, List<Object> args, String column, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    where.append(" and lower(coalesce(").append(column).append(", '')) = ?");
+    args.add(normalized.toLowerCase(Locale.ROOT));
+  }
+
+  private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {
+    LocalDate value = parseDate(rawValue);
+    if (value == null) {
+      return;
+    }
+    where.append(" and ").append(column).append(" >= ?");
+    args.add(value.atStartOfDay());
+  }
+
+  private void appendDateTo(StringBuilder where, List<Object> args, String column, String rawValue) {
+    LocalDate value = parseDate(rawValue);
+    if (value == null) {
+      return;
+    }
+    where.append(" and ").append(column).append(" < ?");
+    args.add(value.plusDays(1).atStartOfDay());
+  }
+
+  private LocalDate parseDate(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    return normalized == null ? null : LocalDate.parse(normalized);
+  }
+
+  private Long parseLong(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    return normalized == null ? null : Long.parseLong(normalized);
+  }
+
+  private String sortColumn(String sortField) {
+    return SORT_COLUMNS.getOrDefault(sortField, "merged_at_source");
+  }
+
+  private String sortOrder(String sortOrder) {
+    return "asc".equalsIgnoreCase(sortOrder) ? "asc" : "desc";
+  }
+
+  private String nullsClause(String sortOrder) {
+    return "asc".equalsIgnoreCase(sortOrder) ? " nulls last" : " nulls first";
   }
 
   private CodeReviewIllegalRecordSource mapFactSource(ResultSet rs, int rowNum) throws SQLException {
@@ -115,5 +332,27 @@ public class CodeReviewIllegalRecordSourceLoader {
       }
     }
     return result;
+  }
+
+  private static Map<String, String> createSortColumns() {
+    Map<String, String> columns = new LinkedHashMap<>();
+    columns.put("mergeRequestIid", "merge_request_iid");
+    columns.put("mergeRequestContent", "lower(coalesce(title, ''))");
+    columns.put("owner", "lower(coalesce(owner_name, ''))");
+    columns.put("projectName", "lower(coalesce(project_name, ''))");
+    columns.put("mergedAt", "merged_at_source");
+    columns.put("mergedBy", "lower(coalesce(merge_user_name, ''))");
+    columns.put("moduleName", "lower(coalesce(module_name, ''))");
+    columns.put("targetBranch", "lower(coalesce(target_branch, ''))");
+    columns.put("commentRate", "comment_rate");
+    columns.put("defectCount", "defect_count");
+    columns.put("addedLines", "added_lines");
+    return Map.copyOf(columns);
+  }
+
+  private record QueryParts(String where, List<Object> args) {
+    String tailWhere() {
+      return where.substring(" where deleted = false".length());
+    }
   }
 }

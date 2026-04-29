@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 final class SystemTestIllegalReasonSupport {
   static final String MISSING_SEVERITY = "未设定严重程度";
@@ -34,5 +35,20 @@ final class SystemTestIllegalReasonSupport {
     String normalizedExpected = normalize(expectedReason);
     return normalizedExpected == null
         || normalizedExpected.equals(normalize(actualReason));
+  }
+
+  static List<String> supportedRawReasons() {
+    return List.copyOf(ALIASES.keySet());
+  }
+
+  static List<String> rawReasonsFor(String expectedReason) {
+    String normalizedExpected = normalize(expectedReason);
+    if (normalizedExpected == null) {
+      return List.of();
+    }
+    return ALIASES.entrySet().stream()
+        .filter(entry -> normalizedExpected.equals(entry.getValue()))
+        .map(Entry::getKey)
+        .toList();
   }
 }

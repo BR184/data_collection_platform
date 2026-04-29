@@ -36,6 +36,32 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
 
+    if (canUseSqlPage(listRequest, null, safeSortField)
+        && TextQuerySupport.trimToNull(request.testingPhase()) == null) {
+      PageSlice<IssueFactRecord> pageSlice =
+          loadFactPage(
+              new IssueFactRecordPageQuery(
+                  IssueFactRecordPageQuery.Scope.SYSTEM_TEST,
+                  listRequest,
+                  null,
+                  null,
+                  request.authorName(),
+                  request.assigneeName(),
+                  false,
+                  false,
+                  false,
+                  false,
+                  false,
+                  safePage,
+                  safeSize,
+                  safeSortField,
+                  safeSortOrder));
+      List<SystemTestIssueSearchRowResponse> records =
+          pageSlice.records().stream().map(this::toResponse).toList();
+      return new SystemTestIssueSearchListResponse(
+          records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+    }
+
     List<IssueFactRecord> filtered =
         applyBaseFilters(
                 loadScopedViews(listRequest.projectId()),

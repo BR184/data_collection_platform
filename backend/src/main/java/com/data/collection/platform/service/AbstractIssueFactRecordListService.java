@@ -26,6 +26,19 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
     return issueFactRecordRepository.findByProjectId(projectId);
   }
 
+  protected PageSlice<IssueFactRecord> loadFactPage(IssueFactRecordPageQuery query) {
+    return issueFactRecordRepository.findPage(query);
+  }
+
+  protected boolean canUseSqlPage(
+      IssueFactRecordListRequest request, String filterGroupJson, String safeSortField) {
+    return request != null
+        && TextQuerySupport.trimToNull(filterGroupJson) == null
+        && TextQuerySupport.trimToNull(request.keyword()) == null
+        && TextQuerySupport.trimToNull(request.title()) == null
+        && !"testingPhase".equals(safeSortField);
+  }
+
   protected List<IssueFactRecord> applyBaseFilters(
       List<IssueFactRecord> rows,
       IssueFactRecordListRequest request,

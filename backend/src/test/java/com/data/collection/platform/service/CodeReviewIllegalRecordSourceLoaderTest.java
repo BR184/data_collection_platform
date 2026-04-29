@@ -133,6 +133,86 @@ class CodeReviewIllegalRecordSourceLoaderTest {
     verifyNoInteractions(factBuildService);
   }
 
+  @Test
+  void shouldLoadDefaultIllegalPageWithSqlFilteringAndPaging() {
+    insertMergeRequestFact(
+        325L,
+        "Product Center",
+        "repo-a",
+        9101L,
+        11L,
+        "missing owner",
+        "master",
+        "feature/a",
+        "Alice",
+        "",
+        "payment",
+        "payment",
+        LocalDateTime.of(2026, 4, 16, 9, 30),
+        "DONE",
+        37,
+        "SCANNED",
+        0,
+        0.75,
+        3,
+        128,
+        false);
+    insertMergeRequestFact(
+        325L,
+        "Product Center",
+        "repo-a",
+        9102L,
+        12L,
+        "legal row",
+        "master",
+        "feature/b",
+        "Bob",
+        "Owner B",
+        "payment",
+        "payment",
+        LocalDateTime.of(2026, 4, 17, 9, 30),
+        "DONE",
+        12,
+        "SCANNED",
+        0,
+        0.2,
+        0,
+        45,
+        false);
+
+    PageSlice<CodeReviewIllegalRecordSource> page =
+        sourceLoader.loadDefaultIllegalPage(
+            new CodeReviewIllegalRecordSourcePageQuery(
+                new CodeReviewIllegalRecordQueryRequest(
+                    325L,
+                    "repo-a",
+                    null,
+                    null,
+                    null,
+                    null,
+                    "merge_request",
+                    null,
+                    null,
+                    null,
+                    CodeReviewIllegalRuleRegistry.MISSING_OWNER_LABEL,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "mergeRequestIid",
+                    "asc",
+                    null),
+                1,
+                20,
+                "mergeRequestIid",
+                "asc"));
+
+    assertThat(page.total()).isEqualTo(1);
+    assertThat(page.records()).extracting(CodeReviewIllegalRecordSource::mergeRequestIid).containsExactly(11);
+    verifyNoInteractions(factBuildService);
+  }
+
   private void insertMergeRequestFact(
       Long projectId,
       String projectName,

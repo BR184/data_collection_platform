@@ -22,6 +22,15 @@ public class MergeRequestFactQueryService extends AbstractFactQueryService {
     return jdbcTemplate.query(sql.toString(), rowMapper, args.toArray());
   }
 
+  public <T> List<T> query(String sql, List<Object> args, RowMapper<T> rowMapper) {
+    return jdbcTemplate.query(sql, rowMapper, args.toArray());
+  }
+
+  public long count(String sql, List<Object> args) {
+    Long total = jdbcTemplate.queryForObject(sql, Long.class, args.toArray());
+    return total == null ? 0L : total;
+  }
+
   private void applyCommonFilters(StringBuilder sql, List<Object> args, Map<String, String> filters) {
     appendEq(sql, args, "project_id", filters.get("projectId"), Long::parseLong);
     appendContains(sql, args, "project_name", filters.get("projectName"));

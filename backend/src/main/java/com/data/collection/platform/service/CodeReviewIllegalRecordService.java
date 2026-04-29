@@ -74,6 +74,25 @@ public class CodeReviewIllegalRecordService {
     CodeReviewRuleConfig ruleConfig = parseRuleConfig(request.ruleConfigJson());
     StatisticFilterGroup filterGroup =
         CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, request.filterGroupJson());
+    if (canUseDefaultSqlPage(request)) {
+      PageSlice<CodeReviewIllegalRecordSource> sourcePage =
+          sourceLoader.loadDefaultIllegalPage(
+              new CodeReviewIllegalRecordSourcePageQuery(
+                  request, safePage, safeSize, safeSortField, safeSortOrder));
+      CodeReviewRuleConfig responseRuleConfig = null;
+      List<CodeReviewIllegalRecordRowResponse> records =
+          sourcePage.records().stream()
+              .map(this::toView)
+              .map(row -> toResponse(row, responseRuleConfig))
+              .toList();
+      return new CodeReviewIllegalRecordListResponse(
+          records,
+          sourcePage.total(),
+          sourcePage.page(),
+          sourcePage.size(),
+          safeSortField,
+          safeSortOrder);
+    }
     List<CodeReviewIllegalRecordView> scopedRows =
         loadScopedViews(
             request.projectId(),
@@ -111,6 +130,12 @@ public class CodeReviewIllegalRecordService {
 
     return new CodeReviewIllegalRecordListResponse(
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+  }
+
+  private boolean canUseDefaultSqlPage(CodeReviewIllegalRecordQueryRequest request) {
+    return TextQuerySupport.trimToNull(request.keyword()) == null
+        && TextQuerySupport.trimToNull(request.filterGroupJson()) == null
+        && TextQuerySupport.trimToNull(request.ruleConfigJson()) == null;
   }
 
   public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(

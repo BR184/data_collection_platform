@@ -53,6 +53,31 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
 
+    if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
+      PageSlice<IssueFactRecord> pageSlice =
+          loadFactPage(
+              new IssueFactRecordPageQuery(
+                  IssueFactRecordPageQuery.Scope.CUSTOMER,
+                  listRequest,
+                  null,
+                  request.illegalReason(),
+                  null,
+                  null,
+                  false,
+                  true,
+                  false,
+                  false,
+                  false,
+                  safePage,
+                  safeSize,
+                  safeSortField,
+                  safeSortOrder));
+      List<CustomerIssueIllegalRecordRowResponse> records =
+          pageSlice.records().stream().map(this::toResponse).toList();
+      return new CustomerIssueIllegalRecordListResponse(
+          records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+    }
+
     List<IssueFactRecord> filtered =
         applyBaseFilters(
                 loadScopedViews(listRequest.projectId()),

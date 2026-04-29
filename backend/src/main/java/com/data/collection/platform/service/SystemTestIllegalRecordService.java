@@ -50,6 +50,32 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
 
+    if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)
+        && TextQuerySupport.trimToNull(request.testingPhase()) == null) {
+      PageSlice<IssueFactRecord> pageSlice =
+          loadFactPage(
+              new IssueFactRecordPageQuery(
+                  IssueFactRecordPageQuery.Scope.SYSTEM_TEST,
+                  listRequest,
+                  null,
+                  request.illegalReason(),
+                  request.authorName(),
+                  request.assigneeName(),
+                  false,
+                  true,
+                  true,
+                  true,
+                  true,
+                  safePage,
+                  safeSize,
+                  safeSortField,
+                  safeSortOrder));
+      List<SystemTestIllegalRecordRowResponse> records =
+          pageSlice.records().stream().map(this::toResponse).toList();
+      return new SystemTestIllegalRecordListResponse(
+          records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+    }
+
     List<IssueFactRecord> filtered =
         applyBaseFilters(
                 loadScopedIllegalViews(listRequest.projectId()),

@@ -2,6 +2,8 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -21,6 +23,58 @@ class SystemTestIllegalRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
+
+  @Test
+  void shouldUseSqlPageForPlainIllegalListRequests() {
+    SystemTestIllegalRecordService service = service();
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(record(300, "非法", "草图", "CC2026R1系统测试", true, "缺失模块", false)),
+                1,
+                1,
+                20));
+
+    SystemTestIllegalRecordListResponse response =
+        service.listRecords(
+            new SystemTestIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null,
+                null,
+                null,
+                null));
+
+    assertThat(response.total()).isEqualTo(1);
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.SYSTEM_TEST
+                        && query.illegalOnly()
+                        && query.excludeExcluded()
+                        && query.supportedSystemIllegalReasonsOnly()));
+  }
 
   @Test
   void shouldApplySystemTestIllegalFiltersThroughSharedPipeline() {

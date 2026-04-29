@@ -2,6 +2,8 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -19,6 +21,62 @@ class CustomerIssueRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
+
+  @Test
+  void shouldUseSqlPageForPlainListRequests() {
+    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
+    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            gitlabMirrorProperties);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(record(100, "CC_PRODUCT", List.of("草图"), false, false, "", "Alice", "Bob")),
+                1,
+                1,
+                20));
+
+    CustomerIssueRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null));
+
+    assertThat(response.total()).isEqualTo(1);
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+                        && !query.delayOnly()
+                        && !query.illegalOnly()));
+  }
 
   @Test
   void shouldApplyTopicAndCommonFiltersThroughRequestObject() {

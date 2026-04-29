@@ -2,6 +2,8 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -19,6 +21,55 @@ class CustomerIssueIllegalRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
+
+  @Test
+  void shouldUseSqlPageForPlainIllegalListRequests() {
+    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
+    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
+    CustomerIssueIllegalRecordService service =
+        new CustomerIssueIllegalRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            gitlabMirrorProperties);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(new PageSlice<>(List.of(record(200, "非法", "草图", true, "模块缺失")), 1, 1, 20));
+
+    CustomerIssueIllegalRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null));
+
+    assertThat(response.total()).isEqualTo(1);
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+                        && query.illegalOnly()));
+  }
 
   @Test
   void shouldApplyIllegalFiltersThroughSharedPipeline() {

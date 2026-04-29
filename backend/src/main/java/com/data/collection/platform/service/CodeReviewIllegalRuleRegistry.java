@@ -138,4 +138,8 @@ final class CodeReviewIllegalRuleRegistry {
   static List<String> labels() {
     return ORDERED_RULES.stream().map(CodeReviewIllegalRule::label).collect(Collectors.toList());
   }
+
+  static List<String> notScannedStatuses() {
+    return List.copyOf(NOT_SCANNED_STATUSES);
+  }
 }
