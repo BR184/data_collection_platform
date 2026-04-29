@@ -7,8 +7,6 @@ import type {
   GitlabSyncConfig,
   GitlabSyncStatus,
   GitlabSyncTask,
-  MirrorPurgeResult,
-  MirrorPurgeScope,
   MirrorStatusResponse,
   SyncProgress,
   SyncSubmissionResponse,
@@ -30,6 +28,7 @@ import {
   syncTypeText,
   translateSyncMessage,
 } from './mirror-settings-helpers';
+import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 
 const initialized = ref(false);
 const loading = ref(false);
@@ -38,10 +37,6 @@ const saving = ref(false);
 const syncing = ref(false);
 const cancelling = ref(false);
 const registeringWebhook = ref(false);
-const purging = ref<MirrorPurgeScope | null>(null);
-const purgeDialogVisible = ref(false);
-const purgeScope = ref<MirrorPurgeScope>('MIRROR_DATA_ONLY');
-const purgeConfirmText = ref('');
 const status = ref<MirrorStatusResponse | null>(null);
 const webhookRegistrationState = ref<MirrorStatusResponse['webhookRegistration'] | null>(null);
 const webhookRegistrationLoading = ref(false);
@@ -84,7 +79,29 @@ const latestLog = computed(() => recentLogs.value[0] ?? null);
 const webhookRegistration = computed(() => webhookRegistrationState.value ?? null);
 const activePollingStatuses: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 const canCancel = computed(() => currentTask.value != null && activePollingStatuses.includes(currentTask.value.status));
-const isPurging = computed(() => purging.value != null);
+const {
+  purgeDialogVisible,
+  purgeScope,
+  purgeConfirmText,
+  isPurging,
+  purgeDialogCopy,
+  purgeConfirmMatched,
+  purgeProgressText,
+  openPurgeDialog,
+  closePurgeDialog,
+  purgeMirrorData,
+  handlePurgeDialogBeforeClose,
+} = useMirrorPurgeDialog({
+  purgeMirrorData: (scope) => api.purgeMirrorData(scope),
+  loadStatus: () => loadStatus(false, false),
+  notifyError: (message) => ElMessage.error(message),
+  showPurgeSummary: (result) =>
+    ElMessageBox.alert(buildPurgeSummaryHtml(result), '删除完成', {
+      type: 'success',
+      confirmButtonText: '知道了',
+      dangerouslyUseHTMLString: true,
+    }),
+});
 const lastSyncDisplay = computed(() => {
   const lastFinishedAt = latestLog.value?.finishedAt || latestLog.value?.startedAt;
   if (!lastFinishedAt) {
@@ -364,78 +381,6 @@ async function registerWebhook() {
   } finally {
     registeringWebhook.value = false;
   }
-}
-
-const purgeDialogCopy = computed(() => {
-  if (purgeScope.value === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST') {
-    return {
-      title: '删除镜像数据（排除当前白名单）',
-      confirmText: '删除白名单外镜像数据',
-      detail:
-        '将真实删除当前白名单之外的镜像表、镜像注册信息和旧镜像总表数据。当前白名单内的镜像数据会保留，GitLab 源端和本地非镜像数据不会受影响。',
-    };
-  }
-  return {
-    title: '删除镜像数据',
-    confirmText: '删除镜像数据',
-    detail:
-      '将真实删除全部镜像表、镜像注册信息和旧镜像总表数据。GitLab 源端和本地非镜像数据不会受影响，此操作不可恢复。',
-  };
-});
-
-const purgeConfirmMatched = computed(() => purgeConfirmText.value === purgeDialogCopy.value.confirmText);
-const purgeProgressText = computed(() =>
-  purging.value === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST'
-    ? '正在删除白名单外的本地镜像数据，请勿关闭页面或重复操作。'
-    : '正在删除本地镜像数据，请勿关闭页面或重复操作。',
-);
-
-function openPurgeDialog() {
-  purgeScope.value = 'MIRROR_DATA_ONLY';
-  purgeConfirmText.value = '';
-  purgeDialogVisible.value = true;
-}
-
-function closePurgeDialog() {
-  if (purging.value) {
-    return;
-  }
-  purgeDialogVisible.value = false;
-  purgeConfirmText.value = '';
-}
-
-async function purgeMirrorData() {
-  if (!purgeConfirmMatched.value) {
-    return;
-  }
-
-  purging.value = purgeScope.value;
-  let result: MirrorPurgeResult | null = null;
-  try {
-    result = await api.purgeMirrorData(purgeScope.value);
-    await loadStatus(false, false);
-    purgeDialogVisible.value = false;
-    purgeConfirmText.value = '';
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    purging.value = null;
-  }
-  if (result != null) {
-    await ElMessageBox.alert(buildPurgeSummaryHtml(result), '删除完成', {
-      type: 'success',
-      confirmButtonText: '知道了',
-      dangerouslyUseHTMLString: true,
-    });
-  }
-}
-
-function handlePurgeDialogBeforeClose(done: () => void) {
-  if (isPurging.value) {
-    return;
-  }
-  closePurgeDialog();
-  done();
 }
 
 async function initializePage() {
