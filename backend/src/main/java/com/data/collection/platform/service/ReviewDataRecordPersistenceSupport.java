@@ -31,14 +31,43 @@ public class ReviewDataRecordPersistenceSupport {
       String reviewOwner,
       String reviewType,
       String problemStatus,
-      String reviewExpert) {
+      String reviewExpert,
+      String keyword) {
     return recordReadRepository.loadRecords(
-        title, projectName, moduleName, reviewOwner, reviewType, problemStatus, reviewExpert);
+        title, projectName, moduleName, reviewOwner, reviewType, problemStatus, reviewExpert, keyword);
   }
 
   public Map<Long, List<String>> loadProblemStatusesByRecordIds(
       List<ReviewDataRecordRowResponse> records) {
     return recordReadRepository.loadProblemStatusesByRecordIds(records);
+  }
+
+  public ReviewDataRecordReadRepository.RecordPageResult loadRecordPage(
+      String title,
+      String projectName,
+      String moduleName,
+      String reviewOwner,
+      String reviewType,
+      String problemStatus,
+      String reviewExpert,
+      String keyword,
+      int page,
+      int size,
+      String sortField,
+      String sortOrder) {
+    return recordReadRepository.loadRecordPage(
+        title,
+        projectName,
+        moduleName,
+        reviewOwner,
+        reviewType,
+        problemStatus,
+        reviewExpert,
+        keyword,
+        page,
+        size,
+        sortField,
+        sortOrder);
   }
 
   public ReviewDataRecordRowResponse getRecordOrThrow(Long recordId) {
@@ -71,6 +100,18 @@ public class ReviewDataRecordPersistenceSupport {
 
   public void touchRecord(Long recordId) {
     recordWriteRepository.touchRecord(recordId);
+  }
+
+  public void refreshSearchIndex(Long recordId) {
+    recordWriteRepository.refreshSearchIndex(recordId);
+  }
+
+  public void refreshMissingSearchIndexes(int limit) {
+    recordWriteRepository.refreshMissingSearchIndexes(limit);
+  }
+
+  public boolean hasMissingSearchIndexes() {
+    return recordReadRepository.hasMissingSearchIndexes();
   }
 
   public List<String> loadExpertOptions() {

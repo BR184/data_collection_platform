@@ -59,7 +59,7 @@ public final class TextQuerySupport {
                     || haystack.initials().contains(candidate));
   }
 
-  private static SearchIndex buildSearchIndex(String value) {
+  public static SearchIndex buildSearchIndex(String value) {
     String normalized = normalizeForMatch(value);
     if (normalized == null) {
       return SearchIndex.EMPTY;
@@ -136,7 +136,7 @@ public final class TextQuerySupport {
     return normalized == null ? "" : normalized.replaceAll("\\s+", "");
   }
 
-  private record SearchIndex(String normalized, String compact, String spell, String initials) {
+  public record SearchIndex(String normalized, String compact, String spell, String initials) {
     private static final SearchIndex EMPTY = new SearchIndex("", "", "", "");
   }
 }

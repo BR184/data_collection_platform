@@ -119,6 +119,10 @@ create table if not exists review_records (
     review_product varchar(255) not null,
     author_name varchar(128) not null,
     review_version varchar(128) not null,
+    search_text text,
+    search_compact text,
+    search_spell text,
+    search_initials text,
     deleted boolean not null default false,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp
@@ -419,10 +423,20 @@ alter table issue_fact add column if not exists is_resolve_delayed boolean not n
 alter table issue_fact add column if not exists is_legacy boolean not null default false;
 alter table integration_test_fact add column if not exists parse_status varchar(32) not null default 'PARTIAL';
 alter table integration_test_fact add column if not exists validation_reason varchar(255);
+alter table review_records add column if not exists search_text text;
+alter table review_records add column if not exists search_compact text;
+alter table review_records add column if not exists search_spell text;
+alter table review_records add column if not exists search_initials text;
 
+create extension if not exists pg_trgm;
 create index if not exists idx_gitlab_mirror_records_table on gitlab_mirror_records(config_id, table_name);
 create index if not exists idx_collect_form_records_context on collect_form_records(project_id, resource_type, resource_id, template_code);
 create index if not exists idx_review_records_main on review_records(project_name, module_name, review_owner, review_type, review_date);
+create index if not exists idx_review_records_search_text_trgm on review_records using gin (search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_search_compact_trgm on review_records using gin (search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_search_spell_trgm on review_records using gin (search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_search_initials_trgm on review_records using gin (search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_search_missing on review_records(id) where deleted = false and search_text is null;
 create index if not exists idx_review_record_experts_record on review_record_experts(review_record_id, deleted, sort_order);
 create index if not exists idx_review_record_experts_name on review_record_experts(expert_name, deleted);
 create index if not exists idx_review_problem_items_record on review_problem_items(review_record_id, deleted, problem_status, updated_at desc);

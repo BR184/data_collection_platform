@@ -32,6 +32,7 @@ public class ReviewDataRecordCommandService {
     }
 
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
+    persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
   }
 
@@ -51,6 +52,7 @@ public class ReviewDataRecordCommandService {
         request.authorName(),
         request.reviewVersion());
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
+    persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
   }
 

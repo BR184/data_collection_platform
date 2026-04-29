@@ -40,3 +40,7 @@ platform:
     external-query-retry-attempts: 3
     external-query-retry-delay-ms: 1000
     incremental-lookback-minutes: 5
+  review-data:
+    search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
+    search-index-backfill-delay-ms: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_DELAY_MS:300000}
+    search-index-backfill-batch-size: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_BATCH_SIZE:200}

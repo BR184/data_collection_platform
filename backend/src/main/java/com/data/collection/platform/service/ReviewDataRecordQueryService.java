@@ -31,6 +31,47 @@ public class ReviewDataRecordQueryService {
     String safeSortField = ReviewDataRecordSortSupport.normalizeSortField(request.sortField());
     String safeSortOrder = ReviewDataRecordSortSupport.normalizeSortOrder(request.sortOrder());
 
+    StatisticFilterGroup filterGroup =
+        ReviewDataRecordFilterGroupSupport.parse(jsonUtils, request.filterGroupJson());
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
+      if (keywordSearch && persistenceSupport.hasMissingSearchIndexes()) {
+        return listRecordsWithJavaFilters(request, null, safePage, safeSize, safeSortField, safeSortOrder);
+      }
+      ReviewDataRecordReadRepository.RecordPageResult pageResult =
+          persistenceSupport.loadRecordPage(
+              request.title(),
+              request.projectName(),
+              request.moduleName(),
+              request.reviewOwner(),
+              request.reviewType(),
+              request.problemStatus(),
+              request.reviewExpert(),
+              request.keyword(),
+              safePage,
+              safeSize,
+              safeSortField,
+              safeSortOrder);
+      return new ReviewDataRecordListResponse(
+          pageResult.records(),
+          pageResult.total(),
+          safePage,
+          safeSize,
+          safeSortField,
+          safeSortOrder,
+          pageResult.summary());
+    }
+
+    return listRecordsWithJavaFilters(request, filterGroup, safePage, safeSize, safeSortField, safeSortOrder);
+  }
+
+  private ReviewDataRecordListResponse listRecordsWithJavaFilters(
+      ReviewDataRecordQueryRequest request,
+      StatisticFilterGroup filterGroup,
+      int safePage,
+      int safeSize,
+      String safeSortField,
+      String safeSortOrder) {
     List<ReviewDataRecordRowResponse> legacyFiltered =
         persistenceSupport.loadRecords(
             request.title(),
@@ -39,20 +80,22 @@ public class ReviewDataRecordQueryService {
             request.reviewOwner(),
             request.reviewType(),
             request.problemStatus(),
-            request.reviewExpert());
+            request.reviewExpert(),
+            null);
     List<ReviewDataRecordRowResponse> keywordFiltered =
         legacyFiltered.stream()
             .filter(row -> ReviewDataSearchSupport.matchesKeyword(row, request.keyword()))
             .toList();
-    StatisticFilterGroup filterGroup =
-        ReviewDataRecordFilterGroupSupport.parse(jsonUtils, request.filterGroupJson());
     Map<Long, List<String>> problemStatusesByRecordId =
-        ReviewDataRecordFilterGroupSupport.needsField(filterGroup, "problemStatus")
+        filterGroup != null && ReviewDataRecordFilterGroupSupport.needsField(filterGroup, "problemStatus")
             ? persistenceSupport.loadProblemStatusesByRecordIds(keywordFiltered)
             : Map.of();
     List<ReviewDataRecordRowResponse> filtered =
         keywordFiltered.stream()
-            .filter(row -> ReviewDataRecordFilterGroupSupport.matches(row, filterGroup, problemStatusesByRecordId))
+            .filter(
+                row ->
+                    filterGroup == null
+                        || ReviewDataRecordFilterGroupSupport.matches(row, filterGroup, problemStatusesByRecordId))
             .sorted(ReviewDataRecordSortSupport.buildComparator(safeSortField, safeSortOrder))
             .toList();
 

@@ -2,6 +2,8 @@ package com.data.collection.platform.service;
 
 import java.sql.Date;
 import java.sql.PreparedStatement;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -43,6 +45,9 @@ public class ReviewDataRecordWriteRepository {
       String authorName,
       String reviewVersion) {
     KeyHolder keyHolder = new GeneratedKeyHolder();
+    TextQuerySupport.SearchIndex searchIndex =
+        ReviewDataSearchIndexSupport.buildRecordIndex(
+            title, projectName, moduleName, reviewOwner, reviewType, List.of());
     jdbcTemplate.update(
         connection -> {
           PreparedStatement statement =
@@ -59,9 +64,13 @@ public class ReviewDataRecordWriteRepository {
                     review_product,
                     author_name,
                     review_version,
+                    search_text,
+                    search_compact,
+                    search_spell,
+                    search_initials,
                     created_at,
                     updated_at
-                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                   """,
                   new String[] {"id"});
           statement.setString(1, normalizeText(projectName));
@@ -74,6 +83,10 @@ public class ReviewDataRecordWriteRepository {
           statement.setString(8, normalizeText(reviewProduct));
           statement.setString(9, normalizeText(authorName));
           statement.setString(10, normalizeText(reviewVersion));
+          statement.setString(11, searchIndex.normalized());
+          statement.setString(12, searchIndex.compact());
+          statement.setString(13, searchIndex.spell());
+          statement.setString(14, searchIndex.initials());
           return statement;
         },
         keyHolder);
@@ -92,6 +105,9 @@ public class ReviewDataRecordWriteRepository {
       String reviewProduct,
       String authorName,
       String reviewVersion) {
+    TextQuerySupport.SearchIndex searchIndex =
+        ReviewDataSearchIndexSupport.buildRecordIndex(
+            title, projectName, moduleName, reviewOwner, reviewType, List.of());
     jdbcTemplate.update(
         """
         update review_records
@@ -106,6 +122,10 @@ public class ReviewDataRecordWriteRepository {
           review_product = ?,
           author_name = ?,
           review_version = ?,
+          search_text = ?,
+          search_compact = ?,
+          search_spell = ?,
+          search_initials = ?,
           updated_at = current_timestamp
         where id = ?
         """,
@@ -119,7 +139,72 @@ public class ReviewDataRecordWriteRepository {
         normalizeText(reviewProduct),
         normalizeText(authorName),
         normalizeText(reviewVersion),
+        searchIndex.normalized(),
+        searchIndex.compact(),
+        searchIndex.spell(),
+        searchIndex.initials(),
         recordId);
+  }
+
+  public void refreshSearchIndex(Long recordId) {
+    Map<String, Object> record =
+        jdbcTemplate.queryForMap(
+            """
+            select title, project_name, module_name, review_owner, review_type
+            from review_records
+            where id = ?
+            """,
+            recordId);
+    List<String> experts =
+        jdbcTemplate.query(
+            """
+            select expert_name
+            from review_record_experts
+            where review_record_id = ? and deleted = false
+            order by sort_order asc, id asc
+            """,
+            (rs, rowNum) -> rs.getString("expert_name"),
+            recordId);
+    TextQuerySupport.SearchIndex searchIndex =
+        ReviewDataSearchIndexSupport.buildRecordIndex(
+            Objects.toString(record.get("title"), ""),
+            Objects.toString(record.get("project_name"), ""),
+            Objects.toString(record.get("module_name"), ""),
+            Objects.toString(record.get("review_owner"), ""),
+            Objects.toString(record.get("review_type"), ""),
+            experts);
+    jdbcTemplate.update(
+        """
+        update review_records
+        set search_text = ?,
+            search_compact = ?,
+            search_spell = ?,
+            search_initials = ?
+        where id = ?
+        """,
+        searchIndex.normalized(),
+        searchIndex.compact(),
+        searchIndex.spell(),
+        searchIndex.initials(),
+        recordId);
+  }
+
+  public void refreshMissingSearchIndexes(int limit) {
+    int safeLimit = limit <= 0 ? 200 : Math.min(limit, 1000);
+    List<Long> recordIds =
+        jdbcTemplate.queryForList(
+            """
+            select id
+            from review_records
+            where deleted = false and search_text is null
+            order by id asc
+            limit ?
+            """,
+            Long.class,
+            safeLimit);
+    for (Long recordId : recordIds) {
+      refreshSearchIndex(recordId);
+    }
   }
 
   public void softDeleteRecord(Long recordId) {

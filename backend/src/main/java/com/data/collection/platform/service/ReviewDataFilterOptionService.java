@@ -50,7 +50,7 @@ public class ReviewDataFilterOptionService {
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
     List<ReviewDataRecordRowResponse> records =
-        persistenceSupport.loadRecords(null, null, null, null, null, null, null);
+        persistenceSupport.loadRecords(null, null, null, null, null, null, null, null);
 
     return new ReviewDataFilterOptionsResponse(
         toOptions(records.stream().map(ReviewDataRecordRowResponse::projectName).toList()),

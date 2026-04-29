@@ -26,4 +26,15 @@ class TextQuerySupportTest {
     assertEquals("Module A", TextQuerySupport.normalizeDisplay("  Module A "));
     assertNull(TextQuerySupport.trimToNull("   "));
   }
+
+  @Test
+  void shouldBuildSearchIndexForHomophoneNames() {
+    TextQuerySupport.SearchIndex first = TextQuerySupport.buildSearchIndex("\u5f20\u4e09");
+    TextQuerySupport.SearchIndex second = TextQuerySupport.buildSearchIndex("\u7ae0\u4f1e");
+
+    assertEquals("zhangsan", first.spell());
+    assertEquals("zs", first.initials());
+    assertEquals("zhangsan", second.spell());
+    assertEquals("zs", second.initials());
+  }
 }

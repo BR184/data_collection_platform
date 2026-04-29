@@ -10,6 +10,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @EnableAsync
 @MapperScan("com.data.collection.platform.mapper")
-@EnableConfigurationProperties(GitlabMirrorProperties.class)
+@EnableConfigurationProperties({GitlabMirrorProperties.class, ReviewDataProperties.class})
 public class PlatformConfiguration {
 }
