@@ -24,6 +24,7 @@ import { useStatisticBoardRouteController } from '../composables/useStatisticBoa
 import { refreshStatisticBoardRouteState } from '../composables/useStatisticBoardRouteRefresh';
 import { useStatisticBoardData } from '../composables/useStatisticBoardData';
 import { useStatisticBoardTableState } from '../composables/useStatisticBoardTableState';
+import { useStatisticBoardRuleExplanationState } from '../composables/useStatisticBoardRuleExplanationState';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -44,7 +45,6 @@ import {
 } from './statistic-board-column-layout';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import {
-  buildRuleExplanationOverview,
   createFallbackRuleExplanation,
   metricFormulaSummary,
   ruleStepRemovedCount,
@@ -121,15 +121,6 @@ const {
   persistViewPrefs,
   replaceRouteQuery,
 });
-
-const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
-const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions ?? []);
-const ruleExclusionSteps = computed(() => ruleExplanationSteps.value.slice(1));
-const ruleExplanationOverview = computed(() => buildRuleExplanationOverview(ruleExplanation.value));
-const ruleFirstInputCount = computed(() => ruleExplanationOverview.value.firstInputCount);
-const ruleFinalOutputCount = computed(() => ruleExplanationOverview.value.finalOutputCount);
-const ruleFinalRetainedRate = computed(() => ruleExplanationOverview.value.finalRetainedRate);
-const qaFriendlyRuleSummary = computed(() => ruleExplanationOverview.value.summary);
 
 const {
   tableCurrentPage,
@@ -219,6 +210,15 @@ const {
   openFallbackReason: '规则说明暂未加载完成，请稍后再试。',
   unsupportedWarning: '当前统计表暂不支持规则说明',
 });
+const {
+  ruleExplanationSteps,
+  ruleExplanationMetrics,
+  ruleExclusionSteps,
+  ruleFirstInputCount,
+  ruleFinalOutputCount,
+  ruleFinalRetainedRate,
+  qaFriendlyRuleSummary,
+} = useStatisticBoardRuleExplanationState(ruleExplanation);
 
 const {
   lastSyncedText,
