@@ -22,6 +22,8 @@ import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel'
 import { useStatisticRoutePagination } from '../composables/useStatisticRoutePagination';
 import { useStatisticBoardSortControls } from '../composables/useStatisticBoardSortControls';
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
+import { useStatisticBoardRouteController } from '../composables/useStatisticBoardRouteController';
+import { refreshStatisticBoardRouteState } from '../composables/useStatisticBoardRouteRefresh';
 import {
   type SortDirection,
   sortRowsFromSource,
@@ -36,9 +38,6 @@ import {
 } from './statistic-board-filters';
 import {
   buildFilterGroupFromRouteQuery,
-  buildFilterQueryPatch,
-  buildResetFilterQueryPatch,
-  mergeRouteQuery,
 } from './statistic-board-route-query';
 import {
   columnMinWidth as resolveColumnMinWidth,
@@ -70,19 +69,21 @@ const props = withDefaults(
 const route = useRoute();
 const router = useRouter();
 
-async function replaceRouteQuery(patch: Record<string, string | number | null | undefined>) {
-  const nextQuery = mergeRouteQuery(route.query, patch);
-  await router.replace({
-    path: route.path,
-    query: nextQuery,
-    hash: route.hash,
-  });
-}
-
 const loading = ref(false);
 const board = ref<StatisticBoardResponse | null>(null);
 const errorMessage = ref('');
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
+const {
+  replaceRouteQuery,
+  applyFiltersToRoute: applyFilterDraftToRoute,
+  resetFilters,
+} = useStatisticBoardRouteController({
+  getRouteQuery: () => route.query,
+  getRoutePath: () => route.path,
+  getRouteHash: () => route.hash,
+  replaceRoute: (location) => router.replace(location),
+  resetFilterDraft: () => resetFilterDraftGroup(filterDraft),
+});
 const {
   boardViewPrefs,
   applyStoredViewPrefs,
@@ -302,11 +303,6 @@ async function exportBoard() {
   }
 }
 
-function resetFilters() {
-  resetFilterDraftGroup(filterDraft);
-  void replaceRouteQuery(buildResetFilterQueryPatch(route.query));
-}
-
 function handleSettingsCommand(command: string) {
   if (command === 'open-settings') {
     openSettings();
@@ -362,16 +358,7 @@ function sortIconForDirection(direction: SortDirection) {
 }
 
 async function applyFiltersToRoute() {
-  await replaceRouteQuery({
-    ...buildFilterQueryPatch(route.query, filterDraft),
-    detailVisible: '',
-    detailRowKey: '',
-    detailColumnKey: '',
-    detailPage: '',
-    detailPageSize: '',
-    detailSortBy: '',
-    detailSortOrder: '',
-  });
+  await applyFilterDraftToRoute(filterDraft);
 }
 
 async function refreshBoard() {
@@ -398,16 +385,17 @@ watch(
 watch(
   () => route.query,
   async () => {
-    loading.value = true;
-    try {
-      syncTablePaginationFromRoute();
-      await loadBoard(false);
-      await loadRealtimeStatus();
-      await loadRuleExplanation();
-      await syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10);
-    } finally {
-      loading.value = false;
-    }
+    await refreshStatisticBoardRouteState({
+      setLoading: (nextLoading) => {
+        loading.value = nextLoading;
+      },
+      syncTablePaginationFromRoute,
+      loadBoard,
+      loadRealtimeStatus,
+      loadRuleExplanation,
+      syncDetailFromRoute: () =>
+        syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10),
+    });
   },
   { immediate: true, deep: true },
 );
