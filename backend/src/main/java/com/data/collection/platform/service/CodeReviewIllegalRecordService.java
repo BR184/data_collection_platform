@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsR
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
 import com.data.collection.platform.entity.CodeReviewRuleConfig;
-import com.data.collection.platform.entity.CodeReviewRulePreviewRequest;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewSample;
 import com.data.collection.platform.entity.OptionItemResponse;

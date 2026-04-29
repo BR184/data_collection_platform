@@ -1,4 +1,6 @@
-package com.data.collection.platform.entity;
+package com.data.collection.platform.service;
+
+import com.data.collection.platform.entity.CodeReviewRuleConfig;
 
 public record CodeReviewRulePreviewRequest(
     Long projectId,

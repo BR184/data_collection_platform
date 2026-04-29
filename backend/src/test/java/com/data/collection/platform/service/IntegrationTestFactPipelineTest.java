@@ -55,6 +55,28 @@ class IntegrationTestFactPipelineTest {
     assertThat(details.records().getFirst().parseStatus()).isEqualTo("PARSED");
   }
 
+  @Test
+  void shouldBuildIllegalFactWhenIntegrationCountsAreMismatched() {
+    insertIssueWithMismatchedIntegrationNote();
+
+    FactBuildResponse buildResponse = factBuildService.rebuildFacts(true);
+    IntegrationTestSummaryResponse summary = queryService.getSummary(326L, "R2集成测试");
+    IntegrationTestDetailResponse details =
+        queryService.getDetails(326L, "R2集成测试", "订单", 1, 20, "noteUpdatedAt", "desc");
+
+    assertThat(buildResponse.affectedRows()).isEqualTo(1);
+    assertThat(summary.totalIssueCount()).isEqualTo(1);
+    assertThat(summary.rows()).hasSize(1);
+    assertThat(summary.rows().getFirst().moduleName()).isEqualTo("订单");
+    assertThat(summary.rows().getFirst().illegalCount()).isEqualTo(1);
+
+    assertThat(details.records()).hasSize(1);
+    assertThat(details.records().getFirst().issuableReference()).isEqualTo("#89");
+    assertThat(details.records().getFirst().legal()).isFalse();
+    assertThat(details.records().getFirst().parseStatus()).isEqualTo("PARSED");
+    assertThat(details.records().getFirst().validationReason()).contains("执行用例总数");
+  }
+
   private void createMinimalOdsTables() {
     jdbcTemplate.execute(
         """
@@ -176,6 +198,54 @@ class IntegrationTestFactPipelineTest {
     linkLabel(1L, 1001L);
     linkLabel(2L, 1001L);
     linkLabel(3L, 1001L);
+  }
+
+  private void insertIssueWithMismatchedIntegrationNote() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 25, 9, 0);
+    LocalDateTime updatedAt = LocalDateTime.of(2026, 4, 25, 10, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        326L,
+        "ORDER_PRODUCT");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
+        502L,
+        "王五");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+          id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, mirror_deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, null, ?, false)
+        """,
+        1002L,
+        89L,
+        326L,
+        "集成测试统计不平衡样例",
+        502L,
+        createdAt,
+        updatedAt,
+        1);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(id, noteable_id, noteable_type, note, created_at, updated_at, mirror_deleted)
+        values (?, ?, 'Issue', ?, ?, ?, false)
+        """,
+        7002L,
+        1002L,
+        """
+        ## 集成测试数据
+        | 功能 | 执行人 | 执行用例总数 | 本次通过用例数 | 初始未通过用例数 | 本次未通过用例数 | 本次问题用例数 | 用例外问题数 |
+        | --- | --- | --- | --- | --- | --- | --- | --- |
+        | 下单 | 王五 | 10 | 7 | 2 | 2 | 1 | 0 |
+        """,
+        createdAt.plusMinutes(30),
+        updatedAt);
+    insertLabel(11L, "订单模块");
+    insertLabel(12L, "R2集成测试");
+    insertLabel(13L, "新功能");
+    linkLabel(11L, 1002L);
+    linkLabel(12L, 1002L);
+    linkLabel(13L, 1002L);
   }
 
   private void insertLabel(long id, String title) {

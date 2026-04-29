@@ -175,11 +175,17 @@
 ### 6.1 明确保留的特例
 
 - `ReviewDataManagementView`
-  - 仍保留较重的特例控制流。
-  - 原因是其交互包含编辑、汇总、联动等复杂行为。
+  - 为什么暂时保留：评审数据管理同时包含记录列表、问题项展开、详情抽屉、帮助抽屉、行级动作和导出等复合交互，已经拆出 composable 组和局部组件，但页面仍承担特例编排职责。
+  - 什么时候收口：当记录页共享控制器能够稳定承载“记录列表 + 行级动作 + 多抽屉 + 问题项子列表”组合后，再把剩余页面编排迁入通用记录页壳层。
+- `IntegrationTestAnalysisView`
+  - 为什么暂时保留：集成测试分析页同时承载项目/阶段切换、summary table、detail drawer、rebuild、export 和校验提示，且 `integration_test_fact` 真实备注样本仍在补厚。
+  - 什么时候收口：当事实构建链路的真实样本回归覆盖稳定，并且 summary/detail/export 三类接口形成统一数据页契约后，再抽成通用事实分析页模式。
 - `SystemTestIssueSearchView`
-  - 仍使用旧式筛选模型。
-  - 当前暂不强并进新一代条件筛选抽象。
+  - 为什么暂时保留：该页仍使用旧式筛选模型，当前已有新的系统测试非法数据页承接正式条件筛选能力，强行迁移会同时牵动旧查询、路由 query 和结果展示。
+  - 什么时候收口：当系统测试搜索的字段模型可以复用 `system-test-condition-fields`，并完成旧筛选 query 到条件筛选 DSL 的兼容映射后，再迁入共享记录页控制器。
+- `StatisticBoardView` / `StatisticBoardPage`
+  - 为什么暂时保留：统计板底座已经承载多个正式看板，但单个核心组件仍同时处理数据加载、详情抽屉、规则说明、列设置、排序、路由 query 同步、分页和 realtime 状态。
+  - 什么时候收口：优先拆出 detail drawer controller、rule explanation panel、view settings / column prefs、realtime toolbar/status；这些块具备独立测试后，再评估是否下沉成更通用的 board runtime。
 
 ### 6.2 验证层仍需补强
 

@@ -3,10 +3,10 @@ package com.data.collection.platform.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.CodeReviewRuleConfig;
-import com.data.collection.platform.entity.CodeReviewRulePreviewRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordFilterOptionsRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewMultiBoardOverviewRequest;
+import com.data.collection.platform.service.CodeReviewRulePreviewRequest;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

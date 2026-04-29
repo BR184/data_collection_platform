@@ -14,7 +14,7 @@ final class CodeReviewIllegalRecordFilterGroupSupport {
           Map.entry("repositoryName", List.of("eq", "ne")),
           Map.entry("mergedAt", List.of("year", "month", "day", "at", "before", "after", "between")),
           Map.entry("illegalType", List.of("eq", "ne")),
-          Map.entry("keyword", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("keyword", List.of("contains", "notContains", "eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("requestType", List.of("eq", "ne")),
           Map.entry("mergeRequestIid", List.of("eq", "gt", "gte", "lt", "lte", "between")),
           Map.entry("owner", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),

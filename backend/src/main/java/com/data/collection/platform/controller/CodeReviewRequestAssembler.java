@@ -1,9 +1,9 @@
 package com.data.collection.platform.controller;
 
-import com.data.collection.platform.entity.CodeReviewRulePreviewRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordFilterOptionsRequest;
 import com.data.collection.platform.service.CodeReviewMultiBoardOverviewRequest;
+import com.data.collection.platform.service.CodeReviewRulePreviewRequest;
 import org.springframework.stereotype.Component;
 
 @Component

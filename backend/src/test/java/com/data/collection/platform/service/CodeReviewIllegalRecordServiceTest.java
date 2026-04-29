@@ -128,6 +128,38 @@ class CodeReviewIllegalRecordServiceTest {
     assertThat(response.records()).extracting(item -> item.mergeRequestIid()).containsExactly(5);
   }
 
+  @Test
+  void shouldApplyKeywordNotContainsFilterGroup() {
+    when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
+        source(101L, 12, "repo-b", "Alice", "Owner A", "", LocalDateTime.of(2026, 4, 8, 10, 0), "payment module refactor"),
+        source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0), "login api cleanup")));
+
+    CodeReviewIllegalRecordListResponse response = service.listRecords(
+        new CodeReviewIllegalRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "merge_request",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"keyword\",\"operator\":\"notContains\",\"value\":\"payment\"}]}",
+            1,
+            20,
+            "mergeRequestIid",
+            "asc",
+            null));
+
+    assertThat(response.total()).isEqualTo(1);
+    assertThat(response.records()).extracting(item -> item.mergeRequestContent()).containsExactly("login api cleanup");
+  }
+
   private CodeReviewIllegalRecordSource source(
       Long mergeRequestId,
       Integer mergeRequestIid,
@@ -136,11 +168,23 @@ class CodeReviewIllegalRecordServiceTest {
       String owner,
       String moduleName,
       LocalDateTime mergedAt) {
+    return source(mergeRequestId, mergeRequestIid, repositoryName, mergedBy, owner, moduleName, mergedAt, "Refactor MR");
+  }
+
+  private CodeReviewIllegalRecordSource source(
+      Long mergeRequestId,
+      Integer mergeRequestIid,
+      String repositoryName,
+      String mergedBy,
+      String owner,
+      String moduleName,
+      LocalDateTime mergedAt,
+      String title) {
     return new CodeReviewIllegalRecordSource(
         mergeRequestId,
         mergeRequestIid,
         2001L,
-        "Refactor MR",
+        title,
         "Project X",
         repositoryName,
         mergedAt,
