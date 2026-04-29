@@ -3,13 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Refresh, Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
-import type {
-  GitlabSyncConfig,
-  GitlabSyncStatus,
-  GitlabSyncTask,
-  SyncProgress,
-  SyncSubmissionResponse,
-} from '../types/api';
+import type { GitlabSyncConfig, GitlabSyncStatus, GitlabSyncTask, SyncProgress } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import {
@@ -28,13 +22,11 @@ import {
 } from './mirror-settings-helpers';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
+import { useMirrorSyncActionsController } from './useMirrorSyncActionsController';
 import { useMirrorWebhookRegistrationController } from './useMirrorWebhookRegistrationController';
 import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptionsController';
 
 const initialized = ref(false);
-const saving = ref(false);
-const syncing = ref(false);
-const cancelling = ref(false);
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
@@ -81,6 +73,32 @@ const {
 } = useMirrorWhitelistOptionsController({
   form,
   loadWhitelistOptions: () => api.getWhitelistOptions(),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+const {
+  saving,
+  syncing,
+  cancelling,
+  saveConfig,
+  testConnection,
+  startFullSync,
+  startIncrementalSync,
+  cancelSyncTask,
+} = useMirrorSyncActionsController({
+  form,
+  saveConfigData: (config) => api.saveConfig(config),
+  testConnectionData: () => api.testConnection(),
+  startFullSyncData: () => api.startFullSync(),
+  startIncrementalSyncData: () => api.startIncrementalSync(),
+  cancelSyncData: () => api.cancelSync(),
+  loadStatus: (showError, blocking) => loadStatus(showError, blocking),
+  loadWebhookRegistration: () => {
+    void loadWebhookRegistration(false);
+  },
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyWarning: (message) => ElMessage.warning(message),
+  notifyInfo: (message) => ElMessage.info(message),
   notifyError: (message) => ElMessage.error(message),
 });
 
@@ -211,92 +229,6 @@ watch(
     syncRunningRefresh(nextStatus);
   },
 );
-
-async function saveConfig(showSuccess = true) {
-  saving.value = true;
-  try {
-    form.value.enabled = form.value.autoSyncEnabled;
-    await api.saveConfig(form.value);
-    if (showSuccess) {
-      ElMessage.success('配置已保存');
-    }
-    await loadStatus(false, false);
-    void loadWebhookRegistration(false);
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-    throw error;
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function testConnection() {
-  try {
-    await saveConfig(false);
-    await api.testConnection();
-    ElMessage.success('连接测试成功');
-    await loadStatus(false, false);
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  }
-}
-
-async function startFullSync() {
-  syncing.value = true;
-  try {
-    await saveConfig(false);
-    const result = await api.startFullSync();
-    showSubmissionFeedback(result);
-    await loadStatus(false, false);
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    syncing.value = false;
-  }
-}
-
-async function startIncrementalSync() {
-  syncing.value = true;
-  try {
-    await saveConfig(false);
-    const result = await api.startIncrementalSync();
-    showSubmissionFeedback(result);
-    await loadStatus(false, false);
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    syncing.value = false;
-  }
-}
-
-function showSubmissionFeedback(result: SyncSubmissionResponse) {
-  if (result.action === 'CREATED') {
-    ElMessage.success(result.message);
-    return;
-  }
-  if (result.action === 'QUEUED') {
-    ElMessage.warning(result.message);
-    return;
-  }
-  ElMessage.info(result.message);
-}
-
-async function cancelSyncTask() {
-  cancelling.value = true;
-  try {
-    const result = await api.cancelSync();
-    if (result.accepted) {
-      ElMessage.success('已提交中止请求');
-    } else {
-      ElMessage.info('当前没有可中止的任务');
-    }
-    await loadStatus(false, false);
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    cancelling.value = false;
-  }
-}
 
 async function initializePage() {
   try {
