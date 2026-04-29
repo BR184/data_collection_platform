@@ -11,6 +11,13 @@ const DEFAULT_TEXT_WIDTH = 180;
 const DEFAULT_NUMBER_WIDTH = 160;
 const DEFAULT_DATETIME_WIDTH = 220;
 
+export interface CodeReviewRuleExplanationOverview {
+  firstInputCount: number;
+  finalOutputCount: number;
+  finalRetainedRate: string;
+  summary: string;
+}
+
 export const CODE_REVIEW_QUERY_CLEAR_KEYS = [
   'keyword',
   'repositoryName',
@@ -91,6 +98,41 @@ export function createCodeReviewRuleExplanationFallback(
     flowSteps: [],
     metricDefinitions: [],
     unsupportedReason: reason,
+  };
+}
+
+export function buildCodeReviewRuleExplanationOverview(
+  explanation: Pick<StatisticBoardRuleExplanationResponse, 'supported' | 'summary' | 'flowSteps'> | null | undefined,
+): CodeReviewRuleExplanationOverview {
+  const flowSteps = explanation?.flowSteps ?? [];
+  const firstInputCount = flowSteps[0]?.inputCount || 0;
+  const illegalTotalStep = flowSteps.find((step) => step.key === 'illegal-total') || null;
+  const finalOutputCount = illegalTotalStep?.outputCount ?? (flowSteps.length ? flowSteps[flowSteps.length - 1].outputCount : 0);
+  const finalRetainedRate = firstInputCount ? `${((finalOutputCount / firstInputCount) * 100).toFixed(1)}%` : '0%';
+
+  if (!explanation?.supported) {
+    return {
+      firstInputCount,
+      finalOutputCount,
+      finalRetainedRate,
+      summary: '',
+    };
+  }
+
+  if (!flowSteps.length) {
+    return {
+      firstInputCount,
+      finalOutputCount,
+      finalRetainedRate,
+      summary: explanation.summary || '当前页面已经启用规则说明，但暂时没有可展示的统计过程。',
+    };
+  }
+
+  return {
+    firstInputCount,
+    finalOutputCount,
+    finalRetainedRate,
+    summary: `当前结果一共基于 ${firstInputCount} 条合并请求逐步检查，最终筛出 ${finalOutputCount} 条需要关注的记录，占原始数据的 ${finalRetainedRate}。`,
   };
 }
 

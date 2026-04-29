@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
+  buildCodeReviewRuleExplanationOverview,
   createCodeReviewConditionFields,
   createCodeReviewRuleExplanationFallback,
   createDefaultCodeReviewFilterOptions,
@@ -59,5 +60,23 @@ describe('code review illegal records view helpers', () => {
     expect(formatCodeReviewDateTime('2026-04-24T10:20:30')).toBe('2026-04-24 10:20:30');
     expect(formatCodeReviewPercent(0.5)).toBe('0.50%');
     expect(CODE_REVIEW_ILLEGAL_RECORD_COLUMNS[0].key).toBe('mergeRequestIid');
+  });
+
+  it('builds rule explanation overview with illegal-total as final output', () => {
+    const overview = buildCodeReviewRuleExplanationOverview({
+      supported: true,
+      summary: 'ignored',
+      flowSteps: [
+        { key: 'source', title: 'source', description: '', inputCount: 100, outputCount: 90, samples: [] },
+        { key: 'illegal-total', title: 'illegal', description: '', inputCount: 90, outputCount: 12, samples: [] },
+        { key: 'appendix', title: 'appendix', description: '', inputCount: 12, outputCount: 8, samples: [] },
+      ],
+    });
+
+    expect(overview.firstInputCount).toBe(100);
+    expect(overview.finalOutputCount).toBe(12);
+    expect(overview.finalRetainedRate).toBe('12.0%');
+    expect(overview.summary).toContain('100 条合并请求');
+    expect(overview.summary).toContain('12 条需要关注的记录');
   });
 });

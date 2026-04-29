@@ -10,9 +10,9 @@ import { api } from '../api';
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordRowResponse,
-  RealtimeWorkspaceStatusResponse,
 } from '../types/api';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRecordPageController } from '../composables/useRecordPageController';
@@ -32,6 +32,7 @@ import {
   CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
   CODE_REVIEW_QUERY_CLEAR_KEYS,
   CODE_REVIEW_RANGE_KEYS,
+  buildCodeReviewRuleExplanationOverview,
   createCodeReviewConditionFields,
   createCodeReviewRuleExplanationFallback,
   createDefaultCodeReviewFilterOptions,
@@ -64,7 +65,6 @@ const rows = ref<CodeReviewIllegalRecordRowResponse[]>([]);
 const total = ref(0);
 const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
-const syncStatus = ref<RealtimeWorkspaceStatusResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
@@ -132,33 +132,13 @@ const tableEmptyDescription = computed(() =>
 
 const tableRows = computed<Record<string, unknown>[]>(() => mapCodeReviewIllegalTableRows(rows.value));
 
-const lastSyncedText = computed(() => formatCodeReviewDateTime(syncStatus.value?.lastSyncedAt));
 const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps || []);
 const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions || []);
-const ruleFirstInputCount = computed(() => ruleExplanationSteps.value[0]?.inputCount || 0);
-const illegalTotalStep = computed(() => ruleExplanationSteps.value.find((step) => step.key === 'illegal-total') || null);
-const ruleFinalOutputCount = computed(() => {
-  if (illegalTotalStep.value) {
-    return illegalTotalStep.value.outputCount;
-  }
-  const steps = ruleExplanationSteps.value;
-  return steps.length ? steps[steps.length - 1].outputCount : 0;
-});
-const ruleFinalRetainedRate = computed(() => {
-  if (!ruleFirstInputCount.value) {
-    return '0%';
-  }
-  return `${((ruleFinalOutputCount.value / ruleFirstInputCount.value) * 100).toFixed(1)}%`;
-});
-const qaFriendlyRuleSummary = computed(() => {
-  if (!ruleExplanation.value?.supported) {
-    return '';
-  }
-  if (!ruleExplanationSteps.value.length) {
-    return ruleExplanation.value?.summary || '当前页面已经启用规则说明，但暂时没有可展示的统计过程。';
-  }
-  return `当前结果一共基于 ${ruleFirstInputCount.value} 条合并请求逐步检查，最终筛出 ${ruleFinalOutputCount.value} 条需要关注的记录，占原始数据的 ${ruleFinalRetainedRate.value}。`;
-});
+const ruleOverview = computed(() => buildCodeReviewRuleExplanationOverview(ruleExplanation.value));
+const ruleFirstInputCount = computed(() => ruleOverview.value.firstInputCount);
+const ruleFinalOutputCount = computed(() => ruleOverview.value.finalOutputCount);
+const ruleFinalRetainedRate = computed(() => ruleOverview.value.finalRetainedRate);
+const qaFriendlyRuleSummary = computed(() => ruleOverview.value.summary);
 const ruleExclusionSteps = computed(() => ruleExplanationSteps.value.slice(1));
 
 function syncAppliedRuleConfig() {
@@ -190,13 +170,13 @@ async function loadFilterOptions() {
   syncAppliedRuleConfig();
 }
 
-async function loadSyncStatus() {
-  try {
-    syncStatus.value = await api.getCodeReviewIllegalRecordRealtimeStatus();
-  } catch {
-    syncStatus.value = null;
-  }
-}
+const {
+  lastSyncedText,
+  loadRealtimeStatus: loadSyncStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => api.getCodeReviewIllegalRecordRealtimeStatus(),
+  emptyText: '-',
+});
 
 async function loadTableData() {
   const response = await api.getCodeReviewIllegalRecords({
