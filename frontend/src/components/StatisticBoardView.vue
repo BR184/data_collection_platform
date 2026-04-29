@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Search, Sort } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
@@ -11,7 +11,6 @@ import {
   flattenStatisticColumnLeaves,
   type StatisticBoardResponse,
   type StatisticCellData,
-  type StatisticFilterField,
   type StatisticRowData,
 } from '../types/api';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
@@ -24,6 +23,7 @@ import { useStatisticBoardSortControls } from '../composables/useStatisticBoardS
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
 import { useStatisticBoardRouteController } from '../composables/useStatisticBoardRouteController';
 import { refreshStatisticBoardRouteState } from '../composables/useStatisticBoardRouteRefresh';
+import { useStatisticBoardData } from '../composables/useStatisticBoardData';
 import {
   type SortDirection,
   sortRowsFromSource,
@@ -69,9 +69,6 @@ const props = withDefaults(
 const route = useRoute();
 const router = useRouter();
 
-const loading = ref(false);
-const board = ref<StatisticBoardResponse | null>(null);
-const errorMessage = ref('');
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
   replaceRouteQuery,
@@ -98,6 +95,22 @@ const {
   replaceRouteQuery,
   notifySuccess: (message) => ElMessage.success(message),
   notifyWarning: (message) => ElMessage.warning(message),
+});
+
+const {
+  loading,
+  board,
+  errorMessage,
+  loadBoard,
+  exportBoard,
+} = useStatisticBoardData({
+  boardKey: () => props.boardKey,
+  getFilterGroup: buildFilterPayload,
+  loadBoardData: (boardKey, request) => api.getStatisticBoard(boardKey, request),
+  exportBoardCsv: (boardKey, request) => api.exportStatisticBoard(boardKey, request),
+  onBoardLoaded: handleBoardLoaded,
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyError: (message) => ElMessage.error(message),
 });
 
 const activeFilterFields = computed(() => board.value?.definition.filters ?? []);
@@ -203,10 +216,13 @@ const firstColumnWidth = computed(() => computeFirstColumnWidth(board.value?.row
 
 const firstColumnMinWidth = computed(() => computeFirstColumnMinWidth(rowHeaderLabel.value, boardViewPrefs.value.widthStrategy));
 
-function initializeFilters(fields: StatisticFilterField[]) {
+function handleBoardLoaded(response: StatisticBoardResponse) {
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
-  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, fields);
+  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, response.definition.filters);
   replaceFilterDraftGroup(filterDraft, nextDraft);
+  applyStoredViewPrefs(response.definition);
+  syncDraftFromVisible();
+  syncDetailPaginationFromRoute(route.query, response.definition.defaultPageSize ?? 10);
 }
 
 function buildFilterPayload() {
@@ -260,48 +276,6 @@ const {
   notifyError: (message) => ElMessage.error(message),
   replaceRouteQuery,
 });
-
-async function loadBoard(showError = true) {
-  loading.value = true;
-  errorMessage.value = '';
-  try {
-    const response = await api.getStatisticBoard(props.boardKey, {
-      filterGroup: buildFilterPayload(),
-    });
-    board.value = response;
-    initializeFilters(response.definition.filters);
-    applyStoredViewPrefs(response.definition);
-    syncDraftFromVisible();
-    syncDetailPaginationFromRoute(route.query, board.value?.definition.defaultPageSize ?? 10);
-  } catch (error) {
-    errorMessage.value = (error as Error).message;
-    if (showError) {
-      ElMessage.error((error as Error).message);
-    }
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function exportBoard() {
-  try {
-    const csv = await api.exportStatisticBoard(props.boardKey, {
-      filterGroup: buildFilterPayload(),
-    });
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${props.boardKey}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-    ElMessage.success('导出成功');
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  }
-}
 
 function handleSettingsCommand(command: string) {
   if (command === 'open-settings') {
