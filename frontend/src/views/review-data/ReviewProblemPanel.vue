@@ -24,7 +24,8 @@ defineProps<{
       <el-button type="primary" text :icon="Plus" @click="onCreateProblemItem(record.id)">新增问题</el-button>
     </div>
 
-    <el-table
+    <div class="problem-subtable-frame">
+      <el-table
       v-loading="loading"
       :data="rows"
       class="problem-subtable"
@@ -83,7 +84,8 @@ defineProps<{
           </div>
         </template>
       </el-table-column>
-    </el-table>
+      </el-table>
+    </div>
   </div>
 </template>
 
@@ -91,7 +93,8 @@ defineProps<{
 .problem-panel {
   display: grid;
   gap: 12px;
-  padding: 12px 8px 4px 40px;
+  width: min(100%, calc(100vw - 304px));
+  padding: 12px 16px 14px;
   background: rgba(248, 250, 252, 0.72);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
   overflow: hidden;
@@ -115,7 +118,16 @@ defineProps<{
   color: rgba(15, 23, 42, 0.82);
 }
 
+.problem-subtable-frame {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
 .problem-subtable {
+  min-width: 1280px;
   border-radius: 12px;
   overflow: hidden;
 }
