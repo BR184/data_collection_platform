@@ -101,61 +101,103 @@ public class ReviewDataRecordReadRepository {
       String sortOrder) {
     SqlParts from = buildFilteredFromSql(
         title, projectName, moduleName, reviewOwner, reviewType, problemStatus, reviewExpert, keyword, filterGroup);
-    String orderBy = buildOrderBy(sortField, sortOrder);
+    String orderBy = buildWindowOrderBy(sortField, sortOrder);
     int safePage = page <= 0 ? 1 : page;
     int safeSize = size <= 0 ? 20 : Math.min(size, 100);
     int offset = (safePage - 1) * safeSize;
 
-    List<Object> pageArgs = new ArrayList<>(from.args());
-    pageArgs.add(safeSize);
-    pageArgs.add(offset);
-    List<ReviewDataRecordRowResponse> records =
-        jdbcTemplate.query(
-            """
-            select
-              r.id,
-              r.project_name,
-              r.title,
-              r.module_name,
-              r.review_type,
-              r.review_date,
-              r.review_owner,
-              r.review_scale_pages,
-              r.review_product,
-              r.author_name,
-              r.review_version,
-              r.updated_at,
-              r.deleted,
-              coalesce(expert.expert_names, '') as review_experts_summary,
-              coalesce(problem.problem_count, 0) as problem_count
-            """
-                + from.sql()
-                + orderBy
-                + " limit ? offset ?",
-            this::mapRecordRow,
-            pageArgs.toArray());
-
-    Long total =
-        jdbcTemplate.queryForObject(
-            "select count(*) " + from.sql(), Long.class, from.args().toArray());
-    ReviewDataSummaryResponse summary =
-        jdbcTemplate.queryForObject(
-            """
-            select
-              count(*) as total_records,
-              coalesce(sum(coalesce(problem.problem_count, 0)), 0) as total_problem_items,
-              coalesce(avg(r.review_scale_pages), 0) as average_review_scale_pages,
-              coalesce(avg(coalesce(problem.problem_count, 0)), 0) as average_problem_count
-            """
-                + from.sql(),
-            (rs, rowNum) ->
+    List<Object> args = new ArrayList<>(from.args());
+    args.add(offset);
+    args.add(offset + safeSize);
+    return jdbcTemplate.query(
+        """
+        with filtered_records as (
+          select
+            r.id,
+            r.project_name,
+            r.title,
+            r.module_name,
+            r.review_type,
+            r.review_date,
+            r.review_owner,
+            r.review_scale_pages,
+            r.review_product,
+            r.author_name,
+            r.review_version,
+            r.updated_at,
+            r.deleted,
+            coalesce(expert.expert_names, '') as review_experts_summary,
+            coalesce(problem.problem_count, 0) as problem_count,
+            case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end as problem_density
+        """
+            + from.sql()
+            + """
+        ),
+        summary as (
+          select
+            count(*) as total_records,
+            coalesce(sum(problem_count), 0) as total_problem_items,
+            coalesce(avg(review_scale_pages), 0) as average_review_scale_pages,
+            coalesce(avg(problem_count), 0) as average_problem_count
+          from filtered_records
+        ),
+        numbered_records as (
+          select fr.*, row_number() over (
+        """
+            + orderBy
+            + """
+          ) as page_row_number
+          from filtered_records fr
+        ),
+        page_records as (
+          select *
+          from numbered_records
+          where page_row_number > ? and page_row_number <= ?
+        )
+        select
+          summary.total_records,
+          summary.total_problem_items,
+          summary.average_review_scale_pages,
+          summary.average_problem_count,
+          page_records.id,
+          page_records.project_name,
+          page_records.title,
+          page_records.module_name,
+          page_records.review_type,
+          page_records.review_date,
+          page_records.review_owner,
+          page_records.review_scale_pages,
+          page_records.review_product,
+          page_records.author_name,
+          page_records.review_version,
+          page_records.updated_at,
+          page_records.deleted,
+          coalesce(page_records.review_experts_summary, '') as review_experts_summary,
+          coalesce(page_records.problem_count, 0) as problem_count,
+          page_records.page_row_number
+        from summary
+        left join page_records on true
+        order by page_records.page_row_number asc nulls last
+        """,
+        rs -> {
+          List<ReviewDataRecordRowResponse> records = new ArrayList<>();
+          ReviewDataSummaryResponse summary = new ReviewDataSummaryResponse(0, 0, 0D, 0D);
+          long total = 0L;
+          while (rs.next()) {
+            total = rs.getLong("total_records");
+            summary =
                 new ReviewDataSummaryResponse(
-                    rs.getLong("total_records"),
+                    total,
                     rs.getLong("total_problem_items"),
                     rs.getDouble("average_review_scale_pages"),
-                    rs.getDouble("average_problem_count")),
-            from.args().toArray());
-    return new RecordPageResult(records, total == null ? 0 : total, summary);
+                    rs.getDouble("average_problem_count"));
+            if (rs.getObject("id") != null) {
+              records.add(mapRecordRow(rs, records.size()));
+            }
+          }
+          return new RecordPageResult(records, total, summary);
+        },
+        args.toArray());
   }
 
   public Map<Long, List<String>> loadProblemStatusesByRecordIds(
@@ -191,6 +233,21 @@ public class ReviewDataRecordReadRepository {
               select 1
               from review_records
               where deleted = false and search_text is null
+              limit 1
+            )
+            """,
+            Boolean.class);
+    return Boolean.TRUE.equals(exists);
+  }
+
+  public boolean hasMissingTitleSearchIndexes() {
+    Boolean exists =
+        jdbcTemplate.queryForObject(
+            """
+            select exists(
+              select 1
+              from review_records
+              where deleted = false and title_search_text is null
               limit 1
             )
             """,
@@ -274,23 +331,22 @@ public class ReviewDataRecordReadRepository {
     return new SqlParts(sql.toString(), args);
   }
 
-  private String buildOrderBy(String sortField, String sortOrder) {
+  private String buildWindowOrderBy(String sortField, String sortOrder) {
     String direction = "asc".equalsIgnoreCase(sortOrder) ? "asc" : "desc";
     String expression =
         switch (sortField) {
-          case "title" -> "r.title";
-          case "projectName" -> "r.project_name";
-          case "moduleName" -> "r.module_name";
-          case "reviewType" -> "r.review_type";
-          case "reviewDate" -> "r.review_date";
-          case "reviewOwner" -> "r.review_owner";
-          case "reviewScalePages" -> "r.review_scale_pages";
-          case "problemCount" -> "coalesce(problem.problem_count, 0)";
-          case "problemDensity" ->
-              "case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end";
-          default -> "r.updated_at";
+          case "title" -> "fr.title";
+          case "projectName" -> "fr.project_name";
+          case "moduleName" -> "fr.module_name";
+          case "reviewType" -> "fr.review_type";
+          case "reviewDate" -> "fr.review_date";
+          case "reviewOwner" -> "fr.review_owner";
+          case "reviewScalePages" -> "fr.review_scale_pages";
+          case "problemCount" -> "fr.problem_count";
+          case "problemDensity" -> "fr.problem_density";
+          default -> "fr.updated_at";
         };
-    return " order by " + expression + " " + direction + " nulls last, r.id asc";
+    return " order by " + expression + " " + direction + " nulls last, fr.id asc";
   }
 
   private void appendContains(StringBuilder sql, List<Object> args, String column, String value) {

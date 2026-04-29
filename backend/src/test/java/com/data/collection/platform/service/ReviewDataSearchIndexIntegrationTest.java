@@ -91,6 +91,53 @@ class ReviewDataSearchIndexIntegrationTest {
     assertThat(response.summary().totalProblemItems()).isEqualTo(1);
   }
 
+  @Test
+  void shouldApplyTitleContainsFilterWithTitleOnlySearchIndex() {
+    reviewDataRecordService.createRecord(
+        recordRequest("\u5f20\u4e09", "\u8bbe\u8ba1\u8bc4\u5ba1\u5355", LocalDate.of(2026, 4, 20), 20));
+    reviewDataRecordService.createRecord(
+        recordRequest("\u8bbe\u8ba1\u4eba", "\u9700\u6c42\u8bc4\u5ba1\u5355", LocalDate.of(2026, 4, 21), 20));
+
+    List<String> titleSpellIndexes =
+        jdbcTemplate.queryForList(
+            "select title_search_spell from review_records order by title asc", String.class);
+    assertThat(titleSpellIndexes).anySatisfy(value -> assertThat(value).contains("shejipingshendan"));
+
+    ReviewDataRecordListResponse containsResponse =
+        reviewDataRecordService.listRecords(
+            new ReviewDataRecordQueryRequest(
+                null, null, null, null, null, null, null, null,
+                """
+                {
+                  "logic": "AND",
+                  "conditions": [
+                    {"fieldKey": "title", "operator": "contains", "value": "sheji"}
+                  ]
+                }
+                """,
+                1, 20, "title", "asc"));
+    assertThat(containsResponse.records())
+        .extracting(row -> row.title())
+        .containsExactly("\u8bbe\u8ba1\u8bc4\u5ba1\u5355");
+
+    ReviewDataRecordListResponse notContainsResponse =
+        reviewDataRecordService.listRecords(
+            new ReviewDataRecordQueryRequest(
+                null, null, null, null, null, null, null, null,
+                """
+                {
+                  "logic": "AND",
+                  "conditions": [
+                    {"fieldKey": "title", "operator": "notContains", "value": "sj"}
+                  ]
+                }
+                """,
+                1, 20, "title", "asc"));
+    assertThat(notContainsResponse.records())
+        .extracting(row -> row.title())
+        .containsExactly("\u9700\u6c42\u8bc4\u5ba1\u5355");
+  }
+
   private List<String> titlesForKeyword(String keyword) {
     ReviewDataRecordListResponse response =
         reviewDataRecordService.listRecords(

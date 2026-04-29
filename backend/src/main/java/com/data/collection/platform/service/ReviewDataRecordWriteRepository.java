@@ -48,6 +48,7 @@ public class ReviewDataRecordWriteRepository {
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
             title, projectName, moduleName, reviewOwner, reviewType, List.of());
+    TextQuerySupport.SearchIndex titleSearchIndex = TextQuerySupport.buildSearchIndex(title);
     jdbcTemplate.update(
         connection -> {
           PreparedStatement statement =
@@ -68,9 +69,13 @@ public class ReviewDataRecordWriteRepository {
                     search_compact,
                     search_spell,
                     search_initials,
+                    title_search_text,
+                    title_search_compact,
+                    title_search_spell,
+                    title_search_initials,
                     created_at,
                     updated_at
-                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                   """,
                   new String[] {"id"});
           statement.setString(1, normalizeText(projectName));
@@ -87,6 +92,10 @@ public class ReviewDataRecordWriteRepository {
           statement.setString(12, searchIndex.compact());
           statement.setString(13, searchIndex.spell());
           statement.setString(14, searchIndex.initials());
+          statement.setString(15, titleSearchIndex.normalized());
+          statement.setString(16, titleSearchIndex.compact());
+          statement.setString(17, titleSearchIndex.spell());
+          statement.setString(18, titleSearchIndex.initials());
           return statement;
         },
         keyHolder);
@@ -108,6 +117,7 @@ public class ReviewDataRecordWriteRepository {
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
             title, projectName, moduleName, reviewOwner, reviewType, List.of());
+    TextQuerySupport.SearchIndex titleSearchIndex = TextQuerySupport.buildSearchIndex(title);
     jdbcTemplate.update(
         """
         update review_records
@@ -126,6 +136,10 @@ public class ReviewDataRecordWriteRepository {
           search_compact = ?,
           search_spell = ?,
           search_initials = ?,
+          title_search_text = ?,
+          title_search_compact = ?,
+          title_search_spell = ?,
+          title_search_initials = ?,
           updated_at = current_timestamp
         where id = ?
         """,
@@ -143,6 +157,10 @@ public class ReviewDataRecordWriteRepository {
         searchIndex.compact(),
         searchIndex.spell(),
         searchIndex.initials(),
+        titleSearchIndex.normalized(),
+        titleSearchIndex.compact(),
+        titleSearchIndex.spell(),
+        titleSearchIndex.initials(),
         recordId);
   }
 
@@ -173,19 +191,29 @@ public class ReviewDataRecordWriteRepository {
             Objects.toString(record.get("review_owner"), ""),
             Objects.toString(record.get("review_type"), ""),
             experts);
+    TextQuerySupport.SearchIndex titleSearchIndex =
+        TextQuerySupport.buildSearchIndex(Objects.toString(record.get("title"), ""));
     jdbcTemplate.update(
         """
         update review_records
         set search_text = ?,
             search_compact = ?,
             search_spell = ?,
-            search_initials = ?
+            search_initials = ?,
+            title_search_text = ?,
+            title_search_compact = ?,
+            title_search_spell = ?,
+            title_search_initials = ?
         where id = ?
         """,
         searchIndex.normalized(),
         searchIndex.compact(),
         searchIndex.spell(),
         searchIndex.initials(),
+        titleSearchIndex.normalized(),
+        titleSearchIndex.compact(),
+        titleSearchIndex.spell(),
+        titleSearchIndex.initials(),
         recordId);
   }
 
@@ -196,7 +224,7 @@ public class ReviewDataRecordWriteRepository {
             """
             select id
             from review_records
-            where deleted = false and search_text is null
+            where deleted = false and (search_text is null or title_search_text is null)
             order by id asc
             limit ?
             """,

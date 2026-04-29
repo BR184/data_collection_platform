@@ -427,6 +427,10 @@ alter table review_records add column if not exists search_text text;
 alter table review_records add column if not exists search_compact text;
 alter table review_records add column if not exists search_spell text;
 alter table review_records add column if not exists search_initials text;
+alter table review_records add column if not exists title_search_text text;
+alter table review_records add column if not exists title_search_compact text;
+alter table review_records add column if not exists title_search_spell text;
+alter table review_records add column if not exists title_search_initials text;
 
 create extension if not exists pg_trgm;
 create index if not exists idx_gitlab_mirror_records_table on gitlab_mirror_records(config_id, table_name);
@@ -444,7 +448,12 @@ create index if not exists idx_review_records_search_text_trgm on review_records
 create index if not exists idx_review_records_search_compact_trgm on review_records using gin (search_compact gin_trgm_ops) where deleted = false;
 create index if not exists idx_review_records_search_spell_trgm on review_records using gin (search_spell gin_trgm_ops) where deleted = false;
 create index if not exists idx_review_records_search_initials_trgm on review_records using gin (search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_title_search_text_trgm on review_records using gin (title_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_title_search_compact_trgm on review_records using gin (title_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_title_search_spell_trgm on review_records using gin (title_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_review_records_title_search_initials_trgm on review_records using gin (title_search_initials gin_trgm_ops) where deleted = false;
 create index if not exists idx_review_records_search_missing on review_records(id) where deleted = false and search_text is null;
+create index if not exists idx_review_records_title_search_missing on review_records(id) where deleted = false and title_search_text is null;
 create index if not exists idx_review_record_experts_record on review_record_experts(review_record_id, deleted, sort_order);
 create index if not exists idx_review_record_experts_name on review_record_experts(expert_name, deleted);
 create index if not exists idx_review_record_experts_lower_name_record on review_record_experts(lower(coalesce(expert_name, '')), review_record_id) where deleted = false;

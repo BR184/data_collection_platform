@@ -134,10 +134,25 @@ class ReviewDataRecordFilterGroupSupportTest {
     StatisticFilterGroup unsupported =
         new StatisticFilterGroup(
             "AND",
-            List.of(new StatisticFilterCondition("title", "contains", "zhangsan", null)));
+            List.of(new StatisticFilterCondition("reviewExpert", "contains", "zhangsan", null)));
 
     assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(supported)).isTrue();
     assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(unsupported)).isFalse();
+  }
+
+  @Test
+  void shouldPushDownTitleContainsWhenTitleSearchIndexIsAvailable() {
+    StatisticFilterGroup titleContains =
+        new StatisticFilterGroup(
+            "AND",
+            List.of(new StatisticFilterCondition("title", "contains", "sheji", null)));
+    StatisticFilterGroup titleNotContains =
+        new StatisticFilterGroup(
+            "AND",
+            List.of(new StatisticFilterCondition("title", "notContains", "sj", null)));
+
+    assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(titleContains)).isTrue();
+    assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(titleNotContains)).isTrue();
   }
 
   @Test

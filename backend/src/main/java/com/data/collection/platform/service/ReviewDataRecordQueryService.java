@@ -36,8 +36,11 @@ public class ReviewDataRecordQueryService {
     boolean hasFilterGroup =
         filterGroup != null && filterGroup.conditions() != null && !filterGroup.conditions().isEmpty();
     boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
+    boolean titleSearchFilter =
+        hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(filterGroup);
     boolean canUseSqlPath =
         (!keywordSearch || !persistenceSupport.hasMissingSearchIndexes())
+            && (!titleSearchFilter || !persistenceSupport.hasMissingTitleSearchIndexes())
             && (!hasFilterGroup || ReviewDataFilterGroupSqlSupport.canPushDown(filterGroup));
     if (canUseSqlPath) {
       ReviewDataRecordReadRepository.RecordPageResult pageResult =

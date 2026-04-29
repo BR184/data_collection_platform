@@ -38,7 +38,7 @@ final class ReviewDataFilterGroupSqlSupport {
       return Optional.empty();
     }
     return switch (condition.fieldKey()) {
-      case "title" -> textCondition("r.title", condition, false);
+      case "title" -> titleCondition(condition);
       case "projectName" -> textCondition("r.project_name", condition, false);
       case "moduleName" -> textCondition("r.module_name", condition, false);
       case "reviewOwner" -> textCondition("r.review_owner", condition, false);
@@ -55,6 +55,52 @@ final class ReviewDataFilterGroupSqlSupport {
       case "reviewDate" -> dateCondition("r.review_date", condition);
       default -> Optional.empty();
     };
+  }
+
+  static boolean needsTitleSearchIndex(StatisticFilterGroup filterGroup) {
+    return filterGroup != null
+        && filterGroup.conditions() != null
+        && filterGroup.conditions().stream()
+            .anyMatch(
+                condition ->
+                    "title".equals(condition.fieldKey())
+                        && ("contains".equals(condition.operator())
+                            || "notContains".equals(condition.operator())));
+  }
+
+  private static Optional<SqlFilter> titleCondition(StatisticFilterCondition condition) {
+    if ("contains".equals(condition.operator()) || "notContains".equals(condition.operator())) {
+      return indexedSearchCondition(
+          List.of(
+              "r.title_search_text",
+              "r.title_search_compact",
+              "r.title_search_spell",
+              "r.title_search_initials"),
+          condition);
+    }
+    return textCondition("r.title", condition, false);
+  }
+
+  private static Optional<SqlFilter> indexedSearchCondition(
+      List<String> columns, StatisticFilterCondition condition) {
+    List<String> candidates = ReviewDataSearchIndexSupport.keywordCandidates(condition.value());
+    if (candidates.isEmpty()) {
+      return Optional.of(new SqlFilter("1 = 1", List.of()));
+    }
+    List<String> predicates = new ArrayList<>();
+    List<Object> args = new ArrayList<>();
+    for (String candidate : candidates) {
+      String pattern = "%" + candidate + "%";
+      for (String column : columns) {
+        predicates.add(column + " like ?");
+        args.add(pattern);
+      }
+    }
+    String predicate = "(" + String.join(" or ", predicates) + ")";
+    if ("notContains".equals(condition.operator())) {
+      predicate = "not " + predicate;
+    }
+    return Optional.of(new SqlFilter(predicate, args));
   }
 
   private static Optional<SqlFilter> textCondition(

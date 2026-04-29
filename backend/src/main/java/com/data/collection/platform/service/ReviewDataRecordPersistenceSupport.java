@@ -117,6 +117,10 @@ public class ReviewDataRecordPersistenceSupport {
     return recordReadRepository.hasMissingSearchIndexes();
   }
 
+  public boolean hasMissingTitleSearchIndexes() {
+    return recordReadRepository.hasMissingTitleSearchIndexes();
+  }
+
   public List<String> loadExpertOptions() {
     return expertRepository.loadExpertOptions();
   }
