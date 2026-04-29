@@ -18,7 +18,9 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
+import com.data.collection.platform.service.CodeReviewIllegalRecordFilterOptionsRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
+import com.data.collection.platform.service.CodeReviewMultiBoardOverviewRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import java.time.LocalDateTime;
@@ -106,7 +108,8 @@ class CodeReviewControllerTest {
 
   @Test
   void shouldReturnIllegalRecordFilterOptions() throws Exception {
-    when(codeReviewIllegalRecordService.getFilterOptions(null))
+    when(codeReviewIllegalRecordService.getFilterOptions(
+            new CodeReviewIllegalRecordFilterOptionsRequest(null)))
         .thenReturn(new CodeReviewIllegalRecordFilterOptionsResponse(
             List.of(new OptionItemResponse("合并请求", "merge_request")),
             List.of(),
@@ -239,7 +242,7 @@ class CodeReviewControllerTest {
         .thenReturn(List.of(
             new OptionItemResponse("CC", "cc"),
             new OptionItemResponse("DGM", "dgm")));
-    when(codeReviewMultiBoardService.getOverview("dgm"))
+    when(codeReviewMultiBoardService.getOverview(new CodeReviewMultiBoardOverviewRequest("dgm")))
         .thenReturn(
             new CodeReviewMultiBoardOverviewResponse(
                 "dgm",

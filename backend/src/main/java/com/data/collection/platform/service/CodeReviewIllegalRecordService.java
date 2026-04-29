@@ -114,12 +114,13 @@ public class CodeReviewIllegalRecordService {
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
   }
 
-  public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
+  public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(
+      CodeReviewIllegalRecordFilterOptionsRequest request) {
     List<CodeReviewIllegalRecordView> rows =
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    projectId, null, null, null, null, null, null, null, null))
+                    request.projectId(), null, null, null, null, null, null, null, null))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())

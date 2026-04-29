@@ -87,7 +87,8 @@ class CodeReviewIllegalRecordServiceTest {
         source(101L, 12, "repo-b", "Alice", "Owner A", "module-b", LocalDateTime.of(2026, 4, 8, 10, 0)),
         source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
 
-    CodeReviewIllegalRecordFilterOptionsResponse response = service.getFilterOptions(null);
+    CodeReviewIllegalRecordFilterOptionsResponse response =
+        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null));
 
     assertThat(response.requestTypes()).hasSize(1);
     assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("repo-a", "repo-b");

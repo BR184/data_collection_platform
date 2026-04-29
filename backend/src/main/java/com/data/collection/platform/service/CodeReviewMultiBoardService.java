@@ -46,9 +46,9 @@ public class CodeReviewMultiBoardService {
     return values.stream().map(value -> new OptionItemResponse(sourceLabel(value), value)).toList();
   }
 
-  public CodeReviewMultiBoardOverviewResponse getOverview(String requestedSource) {
+  public CodeReviewMultiBoardOverviewResponse getOverview(CodeReviewMultiBoardOverviewRequest request) {
     List<OptionItemResponse> options = listSourceOptions();
-    String source = resolveSource(requestedSource, options);
+    String source = resolveSource(request.source(), options);
     if (!StringUtils.hasText(source)) {
       return new CodeReviewMultiBoardOverviewResponse(
           "", "", 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of());

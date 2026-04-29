@@ -4,7 +4,6 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
-import com.data.collection.platform.entity.CodeReviewRulePreviewRequest;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -16,7 +15,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -46,8 +44,10 @@ public class CodeReviewController {
 
   @GetMapping("/illegal-records/filter-options")
   public ApiResponse<CodeReviewIllegalRecordFilterOptionsResponse> getIllegalRecordFilterOptions(
-      @RequestParam(required = false) Long projectId) {
-    return ApiResponse.success(codeReviewIllegalRecordService.getFilterOptions(projectId));
+      @ModelAttribute CodeReviewIllegalRecordFilterOptionsWebRequest request) {
+    return ApiResponse.success(
+        codeReviewIllegalRecordService.getFilterOptions(
+            codeReviewRequestAssembler.toIllegalRecordFilterOptionsRequest(request)));
   }
 
   @GetMapping("/illegal-records/rule-explanation")
@@ -57,8 +57,10 @@ public class CodeReviewController {
 
   @PostMapping("/illegal-records/rule-config/preview")
   public ApiResponse<CodeReviewRulePreviewResponse> previewIllegalRecordRuleConfig(
-      @RequestBody CodeReviewRulePreviewRequest request) {
-    return ApiResponse.success(codeReviewIllegalRecordService.previewRuleConfig(request));
+      @RequestBody CodeReviewRulePreviewWebRequest request) {
+    return ApiResponse.success(
+        codeReviewIllegalRecordService.previewRuleConfig(
+            codeReviewRequestAssembler.toRulePreviewRequest(request)));
   }
 
   @GetMapping("/illegal-records/status")
@@ -78,7 +80,9 @@ public class CodeReviewController {
 
   @GetMapping("/multi-board/overview")
   public ApiResponse<CodeReviewMultiBoardOverviewResponse> getMultiBoardOverview(
-      @RequestParam(required = false) String source) {
-    return ApiResponse.success(codeReviewMultiBoardService.getOverview(source));
+      @ModelAttribute CodeReviewMultiBoardOverviewWebRequest request) {
+    return ApiResponse.success(
+        codeReviewMultiBoardService.getOverview(
+            codeReviewRequestAssembler.toMultiBoardOverviewRequest(request)));
   }
 }

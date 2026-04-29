@@ -89,7 +89,8 @@ class CodeReviewMultiBoardServiceTest {
                     "average_review_duration_minutes", 14.0,
                     "average_added_lines", 48.0)));
 
-    CodeReviewMultiBoardOverviewResponse overview = service.getOverview("dgm");
+    CodeReviewMultiBoardOverviewResponse overview =
+        service.getOverview(new CodeReviewMultiBoardOverviewRequest("dgm"));
 
     assertThat(overview.source()).isEqualTo("dgm");
     assertThat(overview.sourceLabel()).isEqualTo("DGM");
