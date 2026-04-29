@@ -8,7 +8,6 @@ import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import {
-  flattenStatisticColumnLeaves,
   type StatisticBoardResponse,
   type StatisticCellData,
   type StatisticRowData,
@@ -24,9 +23,9 @@ import { useStatisticViewSettings } from '../composables/useStatisticViewSetting
 import { useStatisticBoardRouteController } from '../composables/useStatisticBoardRouteController';
 import { refreshStatisticBoardRouteState } from '../composables/useStatisticBoardRouteRefresh';
 import { useStatisticBoardData } from '../composables/useStatisticBoardData';
+import { useStatisticBoardTableState } from '../composables/useStatisticBoardTableState';
 import {
   type SortDirection,
-  sortRowsFromSource,
 } from './statistic-board-sorting';
 import {
   createEmptyFilterGroup,
@@ -42,9 +41,6 @@ import {
 import {
   columnMinWidth as resolveColumnMinWidth,
   columnResizable as resolveColumnResizable,
-  computeFirstColumnMinWidth,
-  computeFirstColumnWidth,
-  resolveOrderedColumnGroups,
 } from './statistic-board-column-layout';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import {
@@ -113,26 +109,6 @@ const {
   notifyError: (message) => ElMessage.error(message),
 });
 
-const activeFilterFields = computed(() => board.value?.definition.filters ?? []);
-
-const orderedColumnGroups = computed(() => {
-  if (!board.value) {
-    return [];
-  }
-  return resolveOrderedColumnGroups(board.value.definition.columnGroups, boardViewPrefs.value);
-});
-
-const sortedRows = computed(() => {
-  const rows = board.value?.rows ?? [];
-  const columns = board.value?.definition.columnGroups ? flattenStatisticColumnLeaves(board.value.definition.columnGroups) : [];
-  return sortRowsFromSource(rows, columns, boardViewPrefs.value);
-});
-const totalTableRows = computed(() => sortedRows.value.length);
-const paginatedRows = computed(() => {
-  const start = (tableCurrentPage.value - 1) * tablePageSize.value;
-  return sortedRows.value.slice(start, start + tablePageSize.value);
-});
-
 const {
   currentSortColumn,
   currentSortSummary,
@@ -145,23 +121,7 @@ const {
   persistViewPrefs,
   replaceRouteQuery,
 });
-const tableRenderKey = computed(
-  () =>
-    [
-      props.boardKey,
-      boardViewPrefs.value.widthStrategy,
-      boardViewPrefs.value.groupOrder.join('|'),
-      Object.entries(boardViewPrefs.value.childGroupOrderByParent)
-        .map(([groupKey, childKeys]) => `${groupKey}:${childKeys.join(',')}`)
-        .join('|'),
-      Object.entries(boardViewPrefs.value.columnOrderByGroup)
-        .map(([groupKey, columnKeys]) => `${groupKey}:${columnKeys.join(',')}`)
-        .join('|'),
-      boardViewPrefs.value.visibleColumnKeys.join('|'),
-    ].join('::'),
-);
 
-const rowHeaderLabel = computed(() => board.value?.definition.rowHeaderLabel || '统计对象');
 const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
 const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions ?? []);
 const ruleExclusionSteps = computed(() => ruleExplanationSteps.value.slice(1));
@@ -180,6 +140,23 @@ const {
   handleTableSizeChange,
   clampPageWithinBounds,
 } = useStatisticRoutePagination(props.boardKey);
+const {
+  activeFilterFields,
+  orderedColumnGroups,
+  sortedRows,
+  totalTableRows,
+  paginatedRows,
+  tableRenderKey,
+  rowHeaderLabel,
+  firstColumnWidth,
+  firstColumnMinWidth,
+} = useStatisticBoardTableState({
+  board,
+  boardViewPrefs,
+  tableCurrentPage,
+  tablePageSize,
+  boardKey: () => props.boardKey,
+});
 const {
   settingsVisible,
   draftVisibleColumnKeys,
@@ -211,10 +188,6 @@ const {
   onColumnDrop,
   clearDragState,
 } = useStatisticBoardColumnDrag(boardViewPrefs, persistViewPrefs);
-
-const firstColumnWidth = computed(() => computeFirstColumnWidth(board.value?.rows ?? [], boardViewPrefs.value.widthStrategy));
-
-const firstColumnMinWidth = computed(() => computeFirstColumnMinWidth(rowHeaderLabel.value, boardViewPrefs.value.widthStrategy));
 
 function handleBoardLoaded(response: StatisticBoardResponse) {
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
