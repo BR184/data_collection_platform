@@ -126,7 +126,6 @@ public class ReviewDataRecordReadRepository {
             r.review_version,
             r.updated_at,
             r.deleted,
-            coalesce(expert.expert_names, '') as review_experts_summary,
             coalesce(problem.problem_count, 0) as problem_count,
             case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end as problem_density
         """
@@ -172,11 +171,16 @@ public class ReviewDataRecordReadRepository {
           page_records.review_version,
           page_records.updated_at,
           page_records.deleted,
-          coalesce(page_records.review_experts_summary, '') as review_experts_summary,
+          coalesce(expert.expert_names, '') as review_experts_summary,
           coalesce(page_records.problem_count, 0) as problem_count,
           page_records.page_row_number
         from summary
         left join page_records on true
+        left join lateral (
+          select string_agg(expert_name, '、' order by sort_order asc, id asc) as expert_names
+          from review_record_experts
+          where review_record_id = page_records.id and deleted = false
+        ) expert on page_records.id is not null
         order by page_records.page_row_number asc nulls last
         """,
         rs -> {
@@ -306,11 +310,6 @@ public class ReviewDataRecordReadRepository {
         new StringBuilder(
             """
              from review_records r
-             left join lateral (
-               select string_agg(expert_name, '、' order by sort_order asc, id asc) as expert_names
-               from review_record_experts
-               where review_record_id = r.id and deleted = false
-             ) expert on true
              left join lateral (
                select count(*)::integer as problem_count
                from review_problem_items
