@@ -9,7 +9,6 @@ import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import {
   flattenStatisticColumnLeaves,
-  flattenStatisticColumnLeavesFromGroup,
   type StatisticBoardResponse,
   type StatisticCellData,
   type StatisticFilterField,
@@ -21,12 +20,10 @@ import { useStatisticBoardViewPrefs } from '../composables/useStatisticBoardView
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useStatisticRoutePagination } from '../composables/useStatisticRoutePagination';
+import { useStatisticBoardSortControls } from '../composables/useStatisticBoardSortControls';
 import { useStatisticViewSettings } from '../composables/useStatisticViewSettings';
 import {
-  nextColumnSortState,
-  ROW_LABEL_SORT_KEY,
   type SortDirection,
-  sortDirectionForColumn as resolveSortDirectionForColumn,
   sortRowsFromSource,
 } from './statistic-board-sorting';
 import {
@@ -122,27 +119,17 @@ const paginatedRows = computed(() => {
   return sortedRows.value.slice(start, start + tablePageSize.value);
 });
 
-const currentSortColumn = computed(() => {
-  if (!board.value || !boardViewPrefs.value.sortColumnKey || boardViewPrefs.value.sortDirection === 'default') {
-    return null;
-  }
-  if (boardViewPrefs.value.sortColumnKey === ROW_LABEL_SORT_KEY) {
-    return {
-      key: ROW_LABEL_SORT_KEY,
-      label: '统计对象',
-    };
-  }
-  return (
-    board.value.definition.columnGroups
-      .flatMap((group) => flattenStatisticColumnLeavesFromGroup(group))
-      .find((column) => column.key === boardViewPrefs.value.sortColumnKey) ?? null
-  );
-});
-const currentSortSummary = computed(() => {
-  if (!currentSortColumn.value) {
-    return '';
-  }
-  return `${currentSortColumn.value.label} / ${boardViewPrefs.value.sortDirection === 'asc' ? '升序' : '降序'}`;
+const {
+  currentSortColumn,
+  currentSortSummary,
+  sortDirectionForColumn,
+  toggleColumnSort,
+  sortStateLabel,
+} = useStatisticBoardSortControls({
+  board,
+  boardViewPrefs,
+  persistViewPrefs,
+  replaceRouteQuery,
 });
 const tableRenderKey = computed(
   () =>
@@ -362,33 +349,6 @@ function columnMinWidth(column: Parameters<typeof resolveColumnMinWidth>[0]) {
 
 function columnResizable(column: Parameters<typeof resolveColumnResizable>[0]) {
   return resolveColumnResizable(column);
-}
-
-function sortDirectionForColumn(columnKey: string) {
-  return resolveSortDirectionForColumn(boardViewPrefs.value, columnKey);
-}
-
-function toggleColumnSort(columnKey: string) {
-  const nextSortState = nextColumnSortState(boardViewPrefs.value, columnKey);
-  boardViewPrefs.value = {
-    ...boardViewPrefs.value,
-    ...nextSortState,
-  };
-  persistViewPrefs();
-  void replaceRouteQuery({
-    sortBy: nextSortState.sortColumnKey,
-    sortOrder: nextSortState.sortDirection,
-  });
-}
-
-function sortStateLabel(direction: SortDirection) {
-  if (direction === 'asc') {
-    return '当前为升序，点击切换为降序';
-  }
-  if (direction === 'desc') {
-    return '当前为降序，点击切换为升序';
-  }
-  return '当前为默认顺序，点击开始排序';
 }
 
 function sortIconForDirection(direction: SortDirection) {
