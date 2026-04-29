@@ -9,7 +9,6 @@ import type {
   GitlabSyncTask,
   SyncProgress,
   SyncSubmissionResponse,
-  TableWhitelistOption,
 } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
@@ -30,14 +29,12 @@ import {
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
 import { useMirrorWebhookRegistrationController } from './useMirrorWebhookRegistrationController';
+import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptionsController';
 
 const initialized = ref(false);
 const saving = ref(false);
 const syncing = ref(false);
 const cancelling = ref(false);
-const whitelistOptions = ref<TableWhitelistOption[]>([]);
-const whitelistOptionsLoading = ref(false);
-const whitelistOptionsLoaded = ref(false);
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
@@ -75,6 +72,19 @@ const {
 });
 
 const {
+  whitelistOptions,
+  whitelistOptionsLoading,
+  whitelistOptionsLoaded,
+  recommendedCount,
+  whitelistSelectOptions,
+  ensureWhitelistOptions,
+} = useMirrorWhitelistOptionsController({
+  form,
+  loadWhitelistOptions: () => api.getWhitelistOptions(),
+  notifyError: (message) => ElMessage.error(message),
+});
+
+const {
   registeringWebhook,
   webhookRegistrationLoading,
   webhookRegistration,
@@ -89,13 +99,6 @@ const {
   notifyError: (message) => ElMessage.error(message),
 });
 
-const recommendedCount = computed(() => whitelistOptions.value.filter((item) => item.recommended).length);
-const whitelistSelectOptions = computed(() =>
-  whitelistOptions.value.map((option) => ({
-    label: `${option.label} (${option.tableName})`,
-    value: option.tableName,
-  })),
-);
 const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
 const syncEnabled = computed(() => form.value.autoSyncEnabled);
 const progress = computed<SyncProgress | null>(() => status.value?.progress ?? null);
@@ -202,37 +205,10 @@ const currentMessageText = computed(() => {
   return translateSyncMessage(rawMessage, currentTask.value?.taskType);
 });
 
-async function ensureWhitelistOptions(force = false) {
-  if (whitelistOptionsLoading.value) {
-    return;
-  }
-  if (!force && whitelistOptionsLoaded.value) {
-    return;
-  }
-  whitelistOptionsLoading.value = true;
-  try {
-    whitelistOptions.value = await api.getWhitelistOptions();
-    whitelistOptionsLoaded.value = true;
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    whitelistOptionsLoading.value = false;
-  }
-}
-
 watch(
   () => currentTask.value?.status,
   (nextStatus) => {
     syncRunningRefresh(nextStatus);
-  },
-);
-
-watch(
-  () => form.value.whitelistMode,
-  (nextMode) => {
-    if (nextMode === 'CUSTOM') {
-      void ensureWhitelistOptions();
-    }
   },
 );
 
