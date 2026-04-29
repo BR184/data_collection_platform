@@ -7,7 +7,6 @@ import type {
   GitlabSyncConfig,
   GitlabSyncStatus,
   GitlabSyncTask,
-  MirrorStatusResponse,
   SyncProgress,
   SyncSubmissionResponse,
   TableWhitelistOption,
@@ -30,14 +29,12 @@ import {
 } from './mirror-settings-helpers';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
+import { useMirrorWebhookRegistrationController } from './useMirrorWebhookRegistrationController';
 
 const initialized = ref(false);
 const saving = ref(false);
 const syncing = ref(false);
 const cancelling = ref(false);
-const registeringWebhook = ref(false);
-const webhookRegistrationState = ref<MirrorStatusResponse['webhookRegistration'] | null>(null);
-const webhookRegistrationLoading = ref(false);
 const whitelistOptions = ref<TableWhitelistOption[]>([]);
 const whitelistOptionsLoading = ref(false);
 const whitelistOptionsLoaded = ref(false);
@@ -77,6 +74,21 @@ const {
   notifyError: (message) => ElMessage.error(message),
 });
 
+const {
+  registeringWebhook,
+  webhookRegistrationLoading,
+  webhookRegistration,
+  loadWebhookRegistration,
+  registerWebhook,
+} = useMirrorWebhookRegistrationController({
+  getRegistrationStatus: () => api.getWebhookRegistrationStatus(),
+  saveConfig: () => saveConfig(false),
+  registerWebhook: () => api.registerWebhook(),
+  loadStatus: (showError, blocking) => loadStatus(showError, blocking),
+  notifySuccess: (message) => ElMessage.success(message),
+  notifyError: (message) => ElMessage.error(message),
+});
+
 const recommendedCount = computed(() => whitelistOptions.value.filter((item) => item.recommended).length);
 const whitelistSelectOptions = computed(() =>
   whitelistOptions.value.map((option) => ({
@@ -90,7 +102,6 @@ const progress = computed<SyncProgress | null>(() => status.value?.progress ?? n
 const currentTask = computed<GitlabSyncTask | null>(() => status.value?.currentTask ?? null);
 const recentLogs = computed(() => status.value?.logs ?? []);
 const latestLog = computed(() => recentLogs.value[0] ?? null);
-const webhookRegistration = computed(() => webhookRegistrationState.value ?? null);
 const activePollingStatuses: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 const canCancel = computed(() => currentTask.value != null && activePollingStatuses.includes(currentTask.value.status));
 const {
@@ -190,20 +201,6 @@ const currentMessageText = computed(() => {
   }
   return translateSyncMessage(rawMessage, currentTask.value?.taskType);
 });
-
-async function loadWebhookRegistration(showError = false) {
-  webhookRegistrationLoading.value = true;
-  try {
-    webhookRegistrationState.value = await api.getWebhookRegistrationStatus();
-  } catch (error) {
-    webhookRegistrationState.value = null;
-    if (showError) {
-      ElMessage.error((error as Error).message);
-    }
-  } finally {
-    webhookRegistrationLoading.value = false;
-  }
-}
 
 async function ensureWhitelistOptions(force = false) {
   if (whitelistOptionsLoading.value) {
@@ -322,21 +319,6 @@ async function cancelSyncTask() {
     ElMessage.error((error as Error).message);
   } finally {
     cancelling.value = false;
-  }
-}
-
-async function registerWebhook() {
-  registeringWebhook.value = true;
-  try {
-    await saveConfig(false);
-    await api.registerWebhook();
-    ElMessage.success('GitLab Webhook 已注册');
-    await loadStatus(false, false);
-    await loadWebhookRegistration(false);
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    registeringWebhook.value = false;
   }
 }
 
