@@ -69,6 +69,7 @@ declare module 'vue' {
     SmartSelect: typeof import('./components/base/SmartSelect.vue')['default']
     StatisticBoardDetailDialog: typeof import('./components/StatisticBoardDetailDialog.vue')['default']
     StatisticBoardRuleExplanationDrawer: typeof import('./components/StatisticBoardRuleExplanationDrawer.vue')['default']
+    StatisticBoardToolbar: typeof import('./components/StatisticBoardToolbar.vue')['default']
     StatisticBoardView: typeof import('./components/StatisticBoardView.vue')['default']
     StatisticFilterBuilder: typeof import('./components/StatisticFilterBuilder.vue')['default']
     StatisticTableColumnGroup: typeof import('./components/base/StatisticTableColumnGroup.vue')['default']

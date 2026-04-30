@@ -1,13 +1,12 @@
 ﻿<script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
-import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Search, Sort } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Sort } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
 import BaseStatisticTable from './base/BaseStatisticTable.vue';
-import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import StatisticBoardDetailDialog from './StatisticBoardDetailDialog.vue';
 import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanationDrawer.vue';
-import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
+import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import { api } from '../api';
 import {
   type StatisticBoardResponse,
@@ -348,45 +347,20 @@ watch(
   <div class="stat-board" :class="props.uiHooks.rootClass">
       <el-card shadow="never" class="stat-board-card" :class="props.uiHooks.cardClass" v-loading="loading">
       <div class="stat-board-query-shell">
-        <div class="stat-board-toolbar" :class="props.uiHooks.toolbarClass">
-          <div class="stat-board-toolbar-main" :class="props.uiHooks.toolbarMainClass">
-            <StatisticFilterBuilder :model-value="filterDraft" :fields="activeFilterFields" />
-          </div>
-
-          <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
-            <span v-if="board?.definition.title" class="stat-board-meta-text">{{ board.definition.title }}</span>
-            <SyncMetaBadge :value="lastSyncedText" />
-            <el-button type="primary" :icon="Search" @click="applyFiltersToRoute">查询</el-button>
-            <el-button @click="resetFilters">重置</el-button>
-            <el-button :icon="RefreshRight" @click="refreshBoard">刷新</el-button>
-            <el-button
-              plain
-              :icon="InfoFilled"
-              :loading="ruleExplanationLoading"
-              @click="openRuleExplanation"
-            >
-              规则说明
-            </el-button>
-            <el-button plain :icon="Download" @click="exportBoard">导出</el-button>
-            <el-dropdown trigger="click" @command="handleSettingsCommand">
-              <el-button class="view-settings-trigger">
-                <span class="hamburger-icon" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </span>
-                <span>设置</span>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="open-settings">列显示设置</el-dropdown-item>
-                  <el-dropdown-item command="clear-sort">恢复默认排序</el-dropdown-item>
-                  <el-dropdown-item command="restore-default-view">恢复默认视图</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-        </div>
+        <StatisticBoardToolbar
+          :filter-draft="filterDraft"
+          :active-filter-fields="activeFilterFields"
+          :board-title="board?.definition.title"
+          :last-synced-text="lastSyncedText"
+          :rule-explanation-loading="ruleExplanationLoading"
+          :ui-hooks="props.uiHooks"
+          @apply-filters="applyFiltersToRoute"
+          @reset-filters="resetFilters"
+          @refresh-board="refreshBoard"
+          @open-rule-explanation="openRuleExplanation"
+          @export-board="exportBoard"
+          @settings-command="handleSettingsCommand"
+        />
       </div>
 
       <el-alert
