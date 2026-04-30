@@ -30,7 +30,15 @@ class SystemTestIllegalRecordServiceTest {
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
-                List.of(record(300, "非法", "草图", "CC2026R1系统测试", true, "缺失模块", false)),
+                List.of(
+                    record(
+                        300,
+                        "illegal",
+                        "draft",
+                        "CC2026R1 system test",
+                        true,
+                        SystemTestIllegalReasonSupport.MISSING_MODULE,
+                        false)),
                 1,
                 1,
                 20));
@@ -79,26 +87,32 @@ class SystemTestIllegalRecordServiceTest {
   @Test
   void shouldApplySystemTestIllegalFiltersThroughSharedPipeline() {
     SystemTestIllegalRecordService service = service();
-    when(issueFactRecordRepository.findByProjectId(1001L))
+    when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
-            List.of(
-                record(301, "草图非法", "草图", "CC2026R1第一轮系统测试", true, "缺失模块", false),
-                record(302, "草图合法", "草图", "CC2026R1第一轮系统测试", false, "", false),
-                record(303, "流程问题", "草图", "CC2026R1第一轮系统测试", true, "流程越位", false),
-                record(304, "排除样本", "草图", "CC2026R1第一轮系统测试", true, "缺失模块", true),
-                record(305, "其他轮次", "草图", "CC2026R2第一轮系统测试", true, "缺失模块", false)));
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+            new PageSlice<>(
+                List.of(
+                    record(
+                        301,
+                        "draft illegal",
+                        "draft",
+                        "CC2026R1 phase1 system test",
+                        true,
+                        SystemTestIllegalReasonSupport.MISSING_MODULE,
+                        false)),
+                1,
+                1,
+                20));
 
     SystemTestIllegalRecordListResponse response =
         service.listRecords(
             new SystemTestIllegalRecordQueryRequest(
                 new IssueFactRecordListRequest(
                     1001L,
-                    "非法",
+                    "illegal",
                     null,
                     null,
                     "Rocksdb",
-                    "草图",
+                    "draft",
                     null,
                     null,
                     null,
@@ -113,17 +127,30 @@ class SystemTestIllegalRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
-                "CC2026R1第一轮",
-                "未设定模块",
+                "phase1",
+                SystemTestIllegalReasonSupport.MISSING_MODULE,
                 "alice",
                 "bob",
                 null));
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(301);
-    assertThat(response.records().getFirst().illegalReason()).isEqualTo("未设定模块");
+    assertThat(response.records().getFirst().illegalReason())
+        .isEqualTo(SystemTestIllegalReasonSupport.MISSING_MODULE);
     assertThat(response.records().getFirst().issueLink())
         .isEqualTo("http://gitlab.example.com/-/issues/301");
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.SYSTEM_TEST
+                        && query.illegalOnly()
+                        && query.excludeExcluded()
+                        && query.supportedSystemIllegalReasonsOnly()
+                        && "phase1".equals(query.testingPhase())
+                        && SystemTestIllegalReasonSupport.MISSING_MODULE.equals(query.illegalReason())
+                        && "alice".equals(query.authorName())
+                        && "bob".equals(query.assigneeName())));
   }
 
   @Test
@@ -132,13 +159,24 @@ class SystemTestIllegalRecordServiceTest {
     when(issueFactRecordRepository.findByProjectId(null))
         .thenReturn(
             List.of(
-                record(401, "缺模块", "", "CC2026R1第一轮系统测试", true, "缺失模块", false)));
+                record(
+                    401,
+                    "missing module",
+                    "",
+                    "CC2026R1 system test",
+                    true,
+                    SystemTestIllegalReasonSupport.MISSING_MODULE,
+                    false)));
     when(systemTestScopeProfile.matches(any())).thenReturn(true);
 
     SystemTestIllegalRecordFilterOptionsResponse response = service.getFilterOptions(null);
 
-    assertThat(response.moduleNames()).extracting("value").contains("未设定模块");
-    assertThat(response.illegalReasons()).extracting("value").contains("未设定模块");
+    assertThat(response.moduleNames())
+        .extracting("value")
+        .contains(SystemTestIllegalReasonSupport.MISSING_MODULE);
+    assertThat(response.illegalReasons())
+        .extracting("value")
+        .contains(SystemTestIllegalReasonSupport.MISSING_MODULE);
   }
 
   @Test
@@ -147,16 +185,34 @@ class SystemTestIllegalRecordServiceTest {
     when(issueFactRecordRepository.findByProjectId(null))
         .thenReturn(
             List.of(
-                record(501, "缺严重程度", "草图", "CC2026R1第一轮系统测试", true, "缺失严重程度", false),
-                record(502, "模板错误", "草图", "CC2026R1第一轮系统测试", true, "未按照模板回复", false)));
+                record(
+                    501,
+                    "missing severity",
+                    "draft",
+                    "CC2026R1 system test",
+                    true,
+                    SystemTestIllegalReasonSupport.MISSING_SEVERITY,
+                    false),
+                record(
+                    502,
+                    "template",
+                    "draft",
+                    "CC2026R1 system test",
+                    true,
+                    SystemTestIllegalReasonSupport.TEMPLATE_NOT_FOLLOWED,
+                    false)));
     when(systemTestScopeProfile.matches(any())).thenReturn(true);
 
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(null);
 
-    assertThat(response.title()).isEqualTo("系统测试非法数据规则说明");
+    assertThat(response.boardKey()).isEqualTo("system-test-illegal-records");
     assertThat(response.metricDefinitions())
         .extracting("label")
-        .contains("未设定严重程度", "未设定模块", "未按照模板回复", "缺陷原因不唯一");
+        .contains(
+            SystemTestIllegalReasonSupport.MISSING_SEVERITY,
+            SystemTestIllegalReasonSupport.MISSING_MODULE,
+            SystemTestIllegalReasonSupport.TEMPLATE_NOT_FOLLOWED,
+            SystemTestIllegalReasonSupport.NON_UNIQUE_REASON);
     assertThat(response.flowSteps()).extracting("key").contains("reason-normalize");
   }
 
@@ -191,11 +247,11 @@ class SystemTestIllegalRecordServiceTest {
         testingPhase,
         "LEVEL2",
         "",
-        "处理中",
-        "功能缺陷",
+        "processing",
+        "bug",
         "",
         excluded,
-        excluded ? "已拒绝" : "",
+        excluded ? "rejected" : "",
         false,
         false,
         false,
@@ -205,7 +261,7 @@ class SystemTestIllegalRecordServiceTest {
         "alice",
         "bob",
         modules,
-        List.of(testingPhase, "系统测试"),
+        List.of(testingPhase, "system test"),
         false,
         "",
         "",

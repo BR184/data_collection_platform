@@ -3,6 +3,8 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -20,17 +22,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CodeReviewIllegalRecordServiceTest {
 
-  @Mock
-  private GitlabMirrorSyncService gitlabMirrorSyncService;
-
-  @Mock
-  private RealtimeWorkspaceService realtimeWorkspaceService;
-
-  @Mock
-  private FactBuildService factBuildService;
-
-  @Mock
-  private CodeReviewIllegalRecordSourceLoader sourceLoader;
+  @Mock private GitlabMirrorSyncService gitlabMirrorSyncService;
+  @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
+  @Mock private FactBuildService factBuildService;
+  @Mock private CodeReviewIllegalRecordSourceLoader sourceLoader;
 
   private CodeReviewIllegalRecordService service;
 
@@ -38,13 +33,14 @@ class CodeReviewIllegalRecordServiceTest {
   void setUp() {
     GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
     gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
-    service = new CodeReviewIllegalRecordService(
-        gitlabMirrorSyncService,
-        realtimeWorkspaceService,
-        factBuildService,
-        sourceLoader,
-        new ObjectMapper(),
-        gitlabMirrorProperties);
+    service =
+        new CodeReviewIllegalRecordService(
+            gitlabMirrorSyncService,
+            realtimeWorkspaceService,
+            factBuildService,
+            sourceLoader,
+            new ObjectMapper(),
+            gitlabMirrorProperties);
   }
 
   @Test
@@ -73,27 +69,28 @@ class CodeReviewIllegalRecordServiceTest {
                 1,
                 20));
 
-    CodeReviewIllegalRecordListResponse response = service.listRecords(
-        new CodeReviewIllegalRecordQueryRequest(
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "merge_request",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            1,
-            20,
-            "mergeRequestIid",
-            "asc",
-            null));
+    CodeReviewIllegalRecordListResponse response =
+        service.listRecords(
+            new CodeReviewIllegalRecordQueryRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "merge_request",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20,
+                "mergeRequestIid",
+                "asc",
+                null));
 
     assertThat(response.total()).isEqualTo(2);
     assertThat(response.sortField()).isEqualTo("mergeRequestIid");
@@ -104,9 +101,11 @@ class CodeReviewIllegalRecordServiceTest {
 
   @Test
   void shouldBuildFilterOptionsFromLoadedSources() {
-    when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
-        source(101L, 12, "repo-b", "Alice", "Owner A", "module-b", LocalDateTime.of(2026, 4, 8, 10, 0)),
-        source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
+    when(sourceLoader.loadSources(anyMap()))
+        .thenReturn(
+            List.of(
+                source(101L, 12, "repo-b", "Alice", "Owner A", "module-b", LocalDateTime.of(2026, 4, 8, 10, 0)),
+                source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null));
@@ -118,67 +117,92 @@ class CodeReviewIllegalRecordServiceTest {
   }
 
   @Test
-  void shouldApplyFilterGroupAfterRefactor() {
-    when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
-        source(101L, 12, "repo-b", "Alice", "Owner A", "", LocalDateTime.of(2026, 4, 8, 10, 0)),
-        source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0))));
+  void shouldPassFilterGroupToSqlPageAfterRefactor() {
+    when(sourceLoader.loadDefaultIllegalPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0))),
+                1,
+                1,
+                20));
 
-    CodeReviewIllegalRecordListResponse response = service.listRecords(
-        new CodeReviewIllegalRecordQueryRequest(
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "merge_request",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"Owner B\"}]}",
-            1,
-            20,
-            "mergeRequestIid",
-            "asc",
-            null));
+    CodeReviewIllegalRecordListResponse response =
+        service.listRecords(
+            new CodeReviewIllegalRecordQueryRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "merge_request",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"Owner B\"}]}",
+                1,
+                20,
+                "mergeRequestIid",
+                "asc",
+                null));
 
     assertThat(response.total()).isEqualTo(1);
     assertThat(response.records()).extracting(item -> item.mergeRequestIid()).containsExactly(5);
+    verify(sourceLoader)
+        .loadDefaultIllegalPage(
+            argThat(query -> query.filterGroup() != null && query.request().filterGroupJson() != null));
   }
 
   @Test
-  void shouldApplyKeywordNotContainsFilterGroup() {
-    when(sourceLoader.loadSources(anyMap())).thenReturn(List.of(
-        source(101L, 12, "repo-b", "Alice", "Owner A", "", LocalDateTime.of(2026, 4, 8, 10, 0), "payment module refactor"),
-        source(102L, 5, "repo-a", "Bob", "Owner B", "", LocalDateTime.of(2026, 4, 9, 10, 0), "login api cleanup")));
+  void shouldPassKeywordNotContainsFilterGroupToSqlPage() {
+    when(sourceLoader.loadDefaultIllegalPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(
+                    source(
+                        102L,
+                        5,
+                        "repo-a",
+                        "Bob",
+                        "Owner B",
+                        "",
+                        LocalDateTime.of(2026, 4, 9, 10, 0),
+                        "login api cleanup")),
+                1,
+                1,
+                20));
 
-    CodeReviewIllegalRecordListResponse response = service.listRecords(
-        new CodeReviewIllegalRecordQueryRequest(
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "merge_request",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"keyword\",\"operator\":\"notContains\",\"value\":\"payment\"}]}",
-            1,
-            20,
-            "mergeRequestIid",
-            "asc",
-            null));
+    CodeReviewIllegalRecordListResponse response =
+        service.listRecords(
+            new CodeReviewIllegalRecordQueryRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "merge_request",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"keyword\",\"operator\":\"notContains\",\"value\":\"payment\"}]}",
+                1,
+                20,
+                "mergeRequestIid",
+                "asc",
+                null));
 
     assertThat(response.total()).isEqualTo(1);
     assertThat(response.records()).extracting(item -> item.mergeRequestContent()).containsExactly("login api cleanup");
+    verify(sourceLoader)
+        .loadDefaultIllegalPage(
+            argThat(query -> query.filterGroup() != null && query.request().filterGroupJson() != null));
   }
 
   private CodeReviewIllegalRecordSource source(

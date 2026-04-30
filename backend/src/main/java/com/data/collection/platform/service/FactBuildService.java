@@ -8,6 +8,7 @@ import com.data.collection.platform.mapper.MergeRequestFactMapper;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
 import java.math.BigDecimal;
 import java.sql.Array;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -374,6 +375,10 @@ public class FactBuildService {
   }
 
   private LocalDateTime getIssueFactChangedSince() {
+    if (hasIssueFactsMissingSearchIndexes()) {
+      log.info("Issue fact search indexes are missing on existing rows; next rebuild will refresh all issue facts");
+      return null;
+    }
     return jdbcTemplate.queryForObject(
         """
             select max(ods_updated_at)
@@ -382,11 +387,16 @@ public class FactBuildService {
                and source_instance = ?
             """,
         LocalDateTime.class,
-        DEFAULT_SOURCE_SYSTEM,
-        DEFAULT_SOURCE_INSTANCE);
+            DEFAULT_SOURCE_SYSTEM,
+            DEFAULT_SOURCE_INSTANCE);
   }
 
   private LocalDateTime getMergeRequestFactChangedSince() {
+    if (hasMergeRequestFactsMissingSearchIndexes()) {
+      log.info(
+          "Merge request fact search indexes are missing on existing rows; next rebuild will refresh all merge request facts");
+      return null;
+    }
     return jdbcTemplate.queryForObject(
         """
             select max(ods_updated_at)
@@ -395,8 +405,64 @@ public class FactBuildService {
                and source_instance = ?
             """,
         LocalDateTime.class,
-        DEFAULT_SOURCE_SYSTEM,
-        DEFAULT_SOURCE_INSTANCE);
+            DEFAULT_SOURCE_SYSTEM,
+            DEFAULT_SOURCE_INSTANCE);
+  }
+
+  private boolean hasIssueFactsMissingSearchIndexes() {
+    Boolean result =
+        jdbcTemplate.queryForObject(
+            """
+            select exists (
+                select 1
+                  from issue_fact
+                 where source_system = ?
+                   and source_instance = ?
+                   and deleted = false
+                   and (
+                        search_text is null
+                     or search_compact is null
+                     or search_spell is null
+                     or search_initials is null
+                     or primary_phase_label is null
+                     or phase_filter_value is null
+                   )
+                 limit 1
+            )
+            """,
+            Boolean.class,
+            DEFAULT_SOURCE_SYSTEM,
+            DEFAULT_SOURCE_INSTANCE);
+    return Boolean.TRUE.equals(result);
+  }
+
+  private boolean hasMergeRequestFactsMissingSearchIndexes() {
+    Boolean result =
+        jdbcTemplate.queryForObject(
+            """
+            select exists (
+                select 1
+                  from merge_request_fact
+                 where source_system = ?
+                   and source_instance = ?
+                   and deleted = false
+                   and (
+                        search_text is null
+                     or search_compact is null
+                     or search_spell is null
+                     or search_initials is null
+                     or owner_search_text is null
+                     or owner_search_compact is null
+                     or owner_search_spell is null
+                     or owner_search_initials is null
+                   )
+                 limit 1
+            )
+            """,
+            Boolean.class,
+            DEFAULT_SOURCE_SYSTEM,
+            DEFAULT_SOURCE_INSTANCE);
+    return Boolean.TRUE.equals(result);
   }
 
   private Map<PhaseCalendarKey, PhaseCalendarEntry> loadPhaseCalendar() {
@@ -553,13 +619,122 @@ public class FactBuildService {
   private void batchUpsertIssueFacts(List<IssueFact> facts) {
     for (List<IssueFact> batch : partition(facts, FACT_BATCH_SIZE)) {
       issueFactMapper.batchUpsert(batch);
+      refreshIssueFactSearchIndexes(batch);
     }
   }
 
   private void batchUpsertMergeRequestFacts(List<MergeRequestFact> facts) {
     for (List<MergeRequestFact> batch : partition(facts, FACT_BATCH_SIZE)) {
       mergeRequestFactMapper.batchUpsert(batch);
+      refreshMergeRequestFactSearchIndexes(batch);
     }
+  }
+
+  private void refreshIssueFactSearchIndexes(List<IssueFact> facts) {
+    jdbcTemplate.batchUpdate(
+        """
+        update issue_fact
+           set search_text = ?,
+               search_compact = ?,
+               search_spell = ?,
+               search_initials = ?,
+               title_search_text = ?,
+               title_search_compact = ?,
+               title_search_spell = ?,
+               title_search_initials = ?,
+               module_search_text = ?,
+               module_search_compact = ?,
+               module_search_spell = ?,
+               module_search_initials = ?,
+               milestone_search_text = ?,
+               milestone_search_compact = ?,
+               milestone_search_spell = ?,
+               milestone_search_initials = ?,
+               author_search_text = ?,
+               author_search_compact = ?,
+               author_search_spell = ?,
+               author_search_initials = ?,
+               assignee_search_text = ?,
+               assignee_search_compact = ?,
+               assignee_search_spell = ?,
+               assignee_search_initials = ?,
+               primary_phase_label = ?,
+               phase_filter_value = ?,
+               phase_search_text = ?,
+               phase_search_compact = ?,
+               phase_search_spell = ?,
+               phase_search_initials = ?
+         where source_system = ?
+           and source_instance = ?
+           and project_id = ?
+           and issue_id = ?
+        """,
+        facts,
+        FACT_BATCH_SIZE,
+        (statement, fact) -> bindIssueSearchIndex(statement, fact));
+  }
+
+  private void bindIssueSearchIndex(PreparedStatement statement, IssueFact fact) throws SQLException {
+    FactSearchIndexSupport.IssueSearchIndexes indexes = FactSearchIndexSupport.buildIssueIndexes(fact);
+    int index = 1;
+    index = bindSearchIndex(statement, index, indexes.keyword());
+    index = bindSearchIndex(statement, index, indexes.title());
+    index = bindSearchIndex(statement, index, indexes.module());
+    index = bindSearchIndex(statement, index, indexes.milestone());
+    index = bindSearchIndex(statement, index, indexes.author());
+    index = bindSearchIndex(statement, index, indexes.assignee());
+    statement.setString(index++, indexes.primaryPhaseLabel());
+    statement.setString(index++, indexes.phaseFilterValue());
+    index = bindSearchIndex(statement, index, indexes.phase());
+    statement.setString(index++, fact.getSourceSystem());
+    statement.setString(index++, fact.getSourceInstance());
+    statement.setLong(index++, fact.getProjectId());
+    statement.setLong(index, fact.getIssueId());
+  }
+
+  private void refreshMergeRequestFactSearchIndexes(List<MergeRequestFact> facts) {
+    jdbcTemplate.batchUpdate(
+        """
+        update merge_request_fact
+           set search_text = ?,
+               search_compact = ?,
+               search_spell = ?,
+               search_initials = ?,
+               owner_search_text = ?,
+               owner_search_compact = ?,
+               owner_search_spell = ?,
+               owner_search_initials = ?
+         where source_system = ?
+           and source_instance = ?
+           and project_id = ?
+           and merge_request_id = ?
+        """,
+        facts,
+        FACT_BATCH_SIZE,
+        (statement, fact) -> bindMergeRequestSearchIndex(statement, fact));
+  }
+
+  private void bindMergeRequestSearchIndex(PreparedStatement statement, MergeRequestFact fact)
+      throws SQLException {
+    FactSearchIndexSupport.MergeRequestSearchIndexes indexes =
+        FactSearchIndexSupport.buildMergeRequestIndexes(fact);
+    int index = 1;
+    index = bindSearchIndex(statement, index, indexes.keyword());
+    index = bindSearchIndex(statement, index, indexes.owner());
+    statement.setString(index++, fact.getSourceSystem());
+    statement.setString(index++, fact.getSourceInstance());
+    statement.setLong(index++, fact.getProjectId());
+    statement.setLong(index, fact.getMergeRequestId());
+  }
+
+  private int bindSearchIndex(
+      PreparedStatement statement, int parameterIndex, TextQuerySupport.SearchIndex index)
+      throws SQLException {
+    statement.setString(parameterIndex++, index.normalized());
+    statement.setString(parameterIndex++, index.compact());
+    statement.setString(parameterIndex++, index.spell());
+    statement.setString(parameterIndex++, index.initials());
+    return parameterIndex;
   }
 
   private <T> List<List<T>> partition(List<T> items, int batchSize) {

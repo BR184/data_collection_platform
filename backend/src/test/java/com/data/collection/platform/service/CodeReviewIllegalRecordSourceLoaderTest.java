@@ -203,6 +203,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
                     "mergeRequestIid",
                     "asc",
                     null),
+                null,
                 1,
                 20,
                 "mergeRequestIid",

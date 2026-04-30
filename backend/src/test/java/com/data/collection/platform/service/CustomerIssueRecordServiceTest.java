@@ -35,7 +35,7 @@ class CustomerIssueRecordServiceTest {
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
-                List.of(record(100, "CC_PRODUCT", List.of("草图"), false, false, "", "Alice", "Bob")),
+                List.of(record(100, "CC_PRODUCT", List.of("draft"), false, false, "", "Alice", "Bob")),
                 1,
                 1,
                 20));
@@ -88,13 +88,22 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             gitlabMirrorProperties);
-    when(issueFactRecordRepository.findByProjectId(325L))
+    when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
-            List.of(
-                record(101, "CC_PRODUCT 延期议题", List.of("草图"), true, false, "设计问题", "Alice", "Bob"),
-                record(102, "普通客户问题", List.of("草图"), false, false, "设计问题", "Alice", "Bob"),
-                record(103, "模块不匹配", List.of("装配"), true, false, "流程问题", "Alice", "Bob")));
-    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+            new PageSlice<>(
+                List.of(
+                    record(
+                        101,
+                        "CC_PRODUCT delayed issue",
+                        List.of("draft"),
+                        true,
+                        false,
+                        "design",
+                        "Alice",
+                        "Bob")),
+                1,
+                1,
+                20));
 
     CustomerIssueRecordListResponse response =
         service.listRecords(
@@ -102,11 +111,11 @@ class CustomerIssueRecordServiceTest {
                 "delay",
                 new IssueFactRecordListRequest(
                     325L,
-                    "延期",
+                    "delay",
                     null,
                     null,
                     "CC_PRODUCT",
-                    "草图",
+                    "draft",
                     null,
                     null,
                     null,
@@ -121,13 +130,22 @@ class CustomerIssueRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
-                "设计问题",
+                "design",
                 null));
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(101);
     assertThat(response.records().getFirst().issueLink())
         .isEqualTo("http://gitlab.example.com/-/issues/101");
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+                        && query.delayOnly()
+                        && "design".equals(query.reasonCategory())
+                        && query.listRequest().projectId().equals(325L)
+                        && "delay".equals(query.listRequest().keyword())));
   }
 
   private IssueFactRecord record(
@@ -165,14 +183,14 @@ class CustomerIssueRecordServiceTest {
         authorName,
         assigneeName,
         moduleNames,
-        List.of("客户问题"),
+        List.of("customer"),
         delayIssue,
-        delayIssue ? "延期申请" : "",
+        delayIssue ? "delay requested" : "",
         "",
         false,
         false,
         illegal,
-        illegal ? "非法原因" : "",
+        illegal ? "illegal reason" : "",
         now.minusDays(3),
         now.minusDays(1),
         null);

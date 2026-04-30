@@ -50,15 +50,16 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
 
-    if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)
-        && TextQuerySupport.trimToNull(request.testingPhase()) == null) {
+    if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
                   IssueFactRecordPageQuery.Scope.SYSTEM_TEST,
                   listRequest,
+                  filterGroup,
                   null,
                   request.illegalReason(),
+                  request.testingPhase(),
                   request.authorName(),
                   request.assigneeName(),
                   false,

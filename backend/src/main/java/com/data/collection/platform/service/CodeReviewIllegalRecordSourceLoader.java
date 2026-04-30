@@ -94,7 +94,7 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPageOnce(
       CodeReviewIllegalRecordSourcePageQuery query) {
-    QueryParts parts = buildPageQuery(query.request());
+    QueryParts parts = buildPageQuery(query);
     long total =
         mergeRequestFactQueryService.count(
             "select count(*) from merge_request_fact" + parts.where(), parts.args());
@@ -124,10 +124,16 @@ public class CodeReviewIllegalRecordSourceLoader {
     return new PageSlice<>(records, total, query.page(), query.size());
   }
 
-  private QueryParts buildPageQuery(CodeReviewIllegalRecordQueryRequest request) {
+  private QueryParts buildPageQuery(CodeReviewIllegalRecordSourcePageQuery query) {
+    CodeReviewIllegalRecordQueryRequest request = query.request();
     StringBuilder where = new StringBuilder(" where deleted = false");
     List<Object> args = new ArrayList<>();
     appendEq(where, args, "project_id", request.projectId());
+    appendIndexedSearch(
+        where,
+        args,
+        List.of("search_text", "search_compact", "search_spell", "search_initials"),
+        request.keyword());
     appendContains(where, args, "project_name", request.projectName());
     appendContains(where, args, "repository_name", request.repositoryName());
     appendContains(where, args, "target_branch", request.targetBranch());
@@ -138,82 +144,26 @@ public class CodeReviewIllegalRecordSourceLoader {
     appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
     appendEqIgnoreCase(where, args, "merge_user_name", request.mergedBy());
     appendIllegalPredicate(where, request.illegalType());
+    appendFilterGroup(where, args, query.filterGroup());
     return new QueryParts(where.toString(), args);
   }
 
   private void appendIllegalPredicate(StringBuilder where, String illegalType) {
-    String predicate = illegalPredicate(illegalType);
+    String predicate = CodeReviewIllegalRecordSqlSupport.illegalPredicate(illegalType);
     where.append(" and (").append(predicate).append(")");
   }
 
-  private String illegalPredicate(String illegalType) {
-    String normalized = TextQuerySupport.trimToNull(illegalType);
-    if (normalized == null) {
-      return String.join(
-          " or ",
-          missingModulePredicate(),
-          missingOwnerPredicate(),
-          missingReviewPredicate(),
-          notScannedPredicate(),
-          openScanIssuePredicate(),
-          "comment_rate is null",
-          "defect_count is null",
-          "added_lines is null");
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL.equals(normalized)) {
-      return missingModulePredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_OWNER_LABEL.equals(normalized)) {
-      return missingOwnerPredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)) {
-      return missingReviewPredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL.equals(normalized)) {
-      return notScannedPredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL.equals(normalized)) {
-      return openScanIssuePredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_COMMENT_RATE_LABEL.equals(normalized)) {
-      return "comment_rate is null";
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_DEFECT_COUNT_LABEL.equals(normalized)) {
-      return "defect_count is null";
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_ADDED_LINES_LABEL.equals(normalized)) {
-      return "added_lines is null";
-    }
-    return "1 = 0";
-  }
-
-  private String missingModulePredicate() {
-    return "(label_names is null or btrim(label_names) = '')";
-  }
-
-  private String missingOwnerPredicate() {
-    return "(owner_name is null or btrim(owner_name) = '')";
-  }
-
-  private String missingReviewPredicate() {
-    return "(review_status is null or btrim(review_status) = '' or review_duration_minutes is null)";
-  }
-
-  private String notScannedPredicate() {
-    StringBuilder sql = new StringBuilder("upper(btrim(coalesce(scan_status, ''))) in (");
-    List<String> statuses = CodeReviewIllegalRuleRegistry.notScannedStatuses();
-    for (int index = 0; index < statuses.size(); index++) {
-      if (index > 0) {
-        sql.append(", ");
-      }
-      sql.append("'").append(statuses.get(index).replace("'", "''").toUpperCase(Locale.ROOT)).append("'");
-    }
-    sql.append(")");
-    return sql.toString();
-  }
-
-  private String openScanIssuePredicate() {
-    return "(scan_bug_count is not null and scan_bug_count > 0)";
+  private void appendFilterGroup(
+      StringBuilder where,
+      List<Object> args,
+      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
+    CodeReviewIllegalRecordSqlSupport.toSql(filterGroup)
+        .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
+        .ifPresent(
+            filter -> {
+              where.append(" and (").append(filter.predicate()).append(")");
+              args.addAll(filter.args());
+            });
   }
 
   private boolean matchesRequestType(String requestType) {
@@ -236,6 +186,27 @@ public class CodeReviewIllegalRecordSourceLoader {
     }
     where.append(" and ").append(column).append(" like ?");
     args.add("%" + normalized + "%");
+  }
+
+  private void appendIndexedSearch(
+      StringBuilder where, List<Object> args, List<String> columns, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    List<String> candidates = FactSearchIndexSupport.keywordCandidates(normalized);
+    if (candidates.isEmpty()) {
+      return;
+    }
+    List<String> predicates = new ArrayList<>();
+    for (String candidate : candidates) {
+      String pattern = "%" + candidate + "%";
+      for (String column : columns) {
+        predicates.add(column + " like ?");
+        args.add(pattern);
+      }
+    }
+    where.append(" and (").append(String.join(" or ", predicates)).append(")");
   }
 
   private void appendEqIgnoreCase(StringBuilder where, List<Object> args, String column, String value) {

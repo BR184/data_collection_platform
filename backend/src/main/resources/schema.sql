@@ -209,6 +209,36 @@ create table if not exists issue_fact (
     reason_category varchar(255),
     system_test_label varchar(255),
     label_names text,
+    primary_phase_label varchar(255),
+    phase_filter_value varchar(255),
+    search_text text,
+    search_compact text,
+    search_spell text,
+    search_initials text,
+    title_search_text text,
+    title_search_compact text,
+    title_search_spell text,
+    title_search_initials text,
+    module_search_text text,
+    module_search_compact text,
+    module_search_spell text,
+    module_search_initials text,
+    milestone_search_text text,
+    milestone_search_compact text,
+    milestone_search_spell text,
+    milestone_search_initials text,
+    author_search_text text,
+    author_search_compact text,
+    author_search_spell text,
+    author_search_initials text,
+    assignee_search_text text,
+    assignee_search_compact text,
+    assignee_search_spell text,
+    assignee_search_initials text,
+    phase_search_text text,
+    phase_search_compact text,
+    phase_search_spell text,
+    phase_search_initials text,
     is_excluded boolean not null default false,
     exclusion_reason varchar(255),
     is_fixed boolean not null default false,
@@ -308,6 +338,14 @@ create table if not exists merge_request_fact (
     assignee_names varchar(512),
     module_name varchar(255),
     label_names text,
+    search_text text,
+    search_compact text,
+    search_spell text,
+    search_initials text,
+    owner_search_text text,
+    owner_search_compact text,
+    owner_search_spell text,
+    owner_search_initials text,
     created_at_source timestamp,
     updated_at_source timestamp,
     ods_updated_at timestamp,
@@ -421,6 +459,44 @@ alter table issue_fact add column if not exists resolve_sla_days integer not nul
 alter table issue_fact add column if not exists resolve_deadline_at timestamp;
 alter table issue_fact add column if not exists is_resolve_delayed boolean not null default false;
 alter table issue_fact add column if not exists is_legacy boolean not null default false;
+alter table issue_fact add column if not exists primary_phase_label varchar(255);
+alter table issue_fact add column if not exists phase_filter_value varchar(255);
+alter table issue_fact add column if not exists search_text text;
+alter table issue_fact add column if not exists search_compact text;
+alter table issue_fact add column if not exists search_spell text;
+alter table issue_fact add column if not exists search_initials text;
+alter table issue_fact add column if not exists title_search_text text;
+alter table issue_fact add column if not exists title_search_compact text;
+alter table issue_fact add column if not exists title_search_spell text;
+alter table issue_fact add column if not exists title_search_initials text;
+alter table issue_fact add column if not exists module_search_text text;
+alter table issue_fact add column if not exists module_search_compact text;
+alter table issue_fact add column if not exists module_search_spell text;
+alter table issue_fact add column if not exists module_search_initials text;
+alter table issue_fact add column if not exists milestone_search_text text;
+alter table issue_fact add column if not exists milestone_search_compact text;
+alter table issue_fact add column if not exists milestone_search_spell text;
+alter table issue_fact add column if not exists milestone_search_initials text;
+alter table issue_fact add column if not exists author_search_text text;
+alter table issue_fact add column if not exists author_search_compact text;
+alter table issue_fact add column if not exists author_search_spell text;
+alter table issue_fact add column if not exists author_search_initials text;
+alter table issue_fact add column if not exists assignee_search_text text;
+alter table issue_fact add column if not exists assignee_search_compact text;
+alter table issue_fact add column if not exists assignee_search_spell text;
+alter table issue_fact add column if not exists assignee_search_initials text;
+alter table issue_fact add column if not exists phase_search_text text;
+alter table issue_fact add column if not exists phase_search_compact text;
+alter table issue_fact add column if not exists phase_search_spell text;
+alter table issue_fact add column if not exists phase_search_initials text;
+alter table merge_request_fact add column if not exists search_text text;
+alter table merge_request_fact add column if not exists search_compact text;
+alter table merge_request_fact add column if not exists search_spell text;
+alter table merge_request_fact add column if not exists search_initials text;
+alter table merge_request_fact add column if not exists owner_search_text text;
+alter table merge_request_fact add column if not exists owner_search_compact text;
+alter table merge_request_fact add column if not exists owner_search_spell text;
+alter table merge_request_fact add column if not exists owner_search_initials text;
 alter table integration_test_fact add column if not exists parse_status varchar(32) not null default 'PARTIAL';
 alter table integration_test_fact add column if not exists validation_reason varchar(255);
 alter table review_records add column if not exists search_text text;
@@ -476,6 +552,35 @@ create index if not exists idx_issue_fact_scope_label_trgm on issue_fact using g
 create index if not exists idx_issue_fact_scope_testing_phase_trgm on issue_fact using gin (lower(coalesce(testing_phase, '')) gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_scope_system_label_trgm on issue_fact using gin (lower(coalesce(system_test_label, '')) gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_module_names_trgm on issue_fact using gin (lower(coalesce(module_names, '')) gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_search_text_trgm on issue_fact using gin (search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_search_compact_trgm on issue_fact using gin (search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_search_spell_trgm on issue_fact using gin (search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_search_initials_trgm on issue_fact using gin (search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_title_search_text_trgm on issue_fact using gin (title_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_title_search_compact_trgm on issue_fact using gin (title_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_title_search_spell_trgm on issue_fact using gin (title_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_title_search_initials_trgm on issue_fact using gin (title_search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_module_search_text_trgm on issue_fact using gin (module_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_module_search_compact_trgm on issue_fact using gin (module_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_module_search_spell_trgm on issue_fact using gin (module_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_module_search_initials_trgm on issue_fact using gin (module_search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_milestone_search_text_trgm on issue_fact using gin (milestone_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_milestone_search_compact_trgm on issue_fact using gin (milestone_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_milestone_search_spell_trgm on issue_fact using gin (milestone_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_milestone_search_initials_trgm on issue_fact using gin (milestone_search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_author_search_text_trgm on issue_fact using gin (author_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_author_search_compact_trgm on issue_fact using gin (author_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_author_search_spell_trgm on issue_fact using gin (author_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_author_search_initials_trgm on issue_fact using gin (author_search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_assignee_search_text_trgm on issue_fact using gin (assignee_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_assignee_search_compact_trgm on issue_fact using gin (assignee_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_assignee_search_spell_trgm on issue_fact using gin (assignee_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_assignee_search_initials_trgm on issue_fact using gin (assignee_search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_phase_filter on issue_fact(phase_filter_value) where deleted = false;
+create index if not exists idx_issue_fact_phase_search_text_trgm on issue_fact using gin (phase_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_phase_search_compact_trgm on issue_fact using gin (phase_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_phase_search_spell_trgm on issue_fact using gin (phase_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_issue_fact_phase_search_initials_trgm on issue_fact using gin (phase_search_initials gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_context on merge_request_fact(source_system, source_instance, project_id, merge_request_iid);
 create index if not exists idx_merge_request_fact_owner on merge_request_fact(owner_name, module_name, merge_request_state);
 create index if not exists idx_merge_request_fact_metrics on merge_request_fact(comment_rate, defect_count, review_duration_minutes);
@@ -485,6 +590,14 @@ create index if not exists idx_merge_request_fact_repository_trgm on merge_reque
 create index if not exists idx_merge_request_fact_project_name_trgm on merge_request_fact using gin (project_name gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_target_branch_trgm on merge_request_fact using gin (target_branch gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_module_trgm on merge_request_fact using gin (module_name gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_search_text_trgm on merge_request_fact using gin (search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_search_compact_trgm on merge_request_fact using gin (search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_search_spell_trgm on merge_request_fact using gin (search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_search_initials_trgm on merge_request_fact using gin (search_initials gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_owner_search_text_trgm on merge_request_fact using gin (owner_search_text gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_owner_search_compact_trgm on merge_request_fact using gin (owner_search_compact gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_owner_search_spell_trgm on merge_request_fact using gin (owner_search_spell gin_trgm_ops) where deleted = false;
+create index if not exists idx_merge_request_fact_owner_search_initials_trgm on merge_request_fact using gin (owner_search_initials gin_trgm_ops) where deleted = false;
 create index if not exists idx_testing_phase_calendar_context on testing_phase_calendar(project_id, testing_phase, enabled);
 create unique index if not exists uk_module_dictionary_global on module_dictionary(dictionary_domain, alias_name) where project_id is null;
 create unique index if not exists uk_module_dictionary_project on module_dictionary(dictionary_domain, project_id, alias_name) where project_id is not null;

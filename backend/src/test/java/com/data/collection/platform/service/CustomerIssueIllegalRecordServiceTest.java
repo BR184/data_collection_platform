@@ -33,7 +33,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             gitlabMirrorProperties);
     when(issueFactRecordRepository.findPage(any()))
-        .thenReturn(new PageSlice<>(List.of(record(200, "非法", "草图", true, "模块缺失")), 1, 1, 20));
+        .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
 
     CustomerIssueIllegalRecordListResponse response =
         service.listRecords(
@@ -81,24 +81,24 @@ class CustomerIssueIllegalRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             gitlabMirrorProperties);
-    when(issueFactRecordRepository.findByProjectId(325L))
+    when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
-            List.of(
-                record(201, "草图非法", "草图", true, "模块缺失"),
-                record(202, "草图合法", "草图", false, ""),
-                record(203, "装配非法", "装配", true, "模块缺失")));
-    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+            new PageSlice<>(
+                List.of(record(201, "draft illegal", "draft", true, "missing module")),
+                1,
+                1,
+                20));
 
     CustomerIssueIllegalRecordListResponse response =
         service.listRecords(
             new CustomerIssueIllegalRecordQueryRequest(
                 new IssueFactRecordListRequest(
                     325L,
-                    "非法",
+                    "illegal",
                     null,
                     null,
                     "CC_PRODUCT",
-                    "草图",
+                    "draft",
                     null,
                     null,
                     null,
@@ -113,13 +113,21 @@ class CustomerIssueIllegalRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
-                "模块缺失",
+                "missing module",
                 null));
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(201);
     assertThat(response.records().getFirst().issueLink())
         .isEqualTo("http://gitlab.example.com/-/issues/201");
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+                        && query.illegalOnly()
+                        && "missing module".equals(query.illegalReason())
+                        && "illegal".equals(query.listRequest().keyword())));
   }
 
   private IssueFactRecord record(
@@ -138,7 +146,7 @@ class CustomerIssueIllegalRecordServiceTest {
         "P0",
         "Open",
         "Bug",
-        "设计问题",
+        "design",
         false,
         "",
         false,
@@ -150,7 +158,7 @@ class CustomerIssueIllegalRecordServiceTest {
         "Alice",
         "Bob",
         List.of(moduleName),
-        List.of("客户问题"),
+        List.of("customer"),
         false,
         "",
         "",

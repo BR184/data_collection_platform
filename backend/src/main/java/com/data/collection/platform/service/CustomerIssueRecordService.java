@@ -59,7 +59,9 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
               new IssueFactRecordPageQuery(
                   IssueFactRecordPageQuery.Scope.CUSTOMER,
                   listRequest,
+                  filterGroup,
                   request.reasonCategory(),
+                  null,
                   null,
                   null,
                   null,

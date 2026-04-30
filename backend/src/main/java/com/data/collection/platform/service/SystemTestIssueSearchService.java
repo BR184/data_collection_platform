@@ -36,8 +36,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
 
-    if (canUseSqlPage(listRequest, null, safeSortField)
-        && TextQuerySupport.trimToNull(request.testingPhase()) == null) {
+    if (canUseSqlPage(listRequest, null, safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
@@ -45,6 +44,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   listRequest,
                   null,
                   null,
+                  null,
+                  request.testingPhase(),
                   request.authorName(),
                   request.assigneeName(),
                   false,

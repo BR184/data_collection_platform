@@ -78,7 +78,7 @@ public class CodeReviewIllegalRecordService {
       PageSlice<CodeReviewIllegalRecordSource> sourcePage =
           sourceLoader.loadDefaultIllegalPage(
               new CodeReviewIllegalRecordSourcePageQuery(
-                  request, safePage, safeSize, safeSortField, safeSortOrder));
+                  request, filterGroup, safePage, safeSize, safeSortField, safeSortOrder));
       CodeReviewRuleConfig responseRuleConfig = null;
       List<CodeReviewIllegalRecordRowResponse> records =
           sourcePage.records().stream()
@@ -133,9 +133,7 @@ public class CodeReviewIllegalRecordService {
   }
 
   private boolean canUseDefaultSqlPage(CodeReviewIllegalRecordQueryRequest request) {
-    return TextQuerySupport.trimToNull(request.keyword()) == null
-        && TextQuerySupport.trimToNull(request.filterGroupJson()) == null
-        && TextQuerySupport.trimToNull(request.ruleConfigJson()) == null;
+    return TextQuerySupport.trimToNull(request.ruleConfigJson()) == null;
   }
 
   public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(

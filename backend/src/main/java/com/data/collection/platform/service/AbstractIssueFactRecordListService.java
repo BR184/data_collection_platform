@@ -32,11 +32,7 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
 
   protected boolean canUseSqlPage(
       IssueFactRecordListRequest request, String filterGroupJson, String safeSortField) {
-    return request != null
-        && TextQuerySupport.trimToNull(filterGroupJson) == null
-        && TextQuerySupport.trimToNull(request.keyword()) == null
-        && TextQuerySupport.trimToNull(request.title()) == null
-        && !"testingPhase".equals(safeSortField);
+    return request != null;
   }
 
   protected List<IssueFactRecord> applyBaseFilters(

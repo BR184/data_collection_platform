@@ -119,8 +119,10 @@ public class IssueFactRecordRepository {
     appendScope(where, args, query.scope());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
+    appendEqIgnoreCase(where, args, "phase_filter_value", query.testingPhase());
     appendAuthorAssigneeFilters(where, args, query.authorName(), query.assigneeName());
     appendIllegalFilters(where, args, query);
+    appendFilterGroup(where, args, query.filterGroup());
     if (query.delayOnly()) {
       where.append(" and (delay_issue = true or is_response_delayed = true or is_resolve_delayed = true)");
     }
@@ -185,8 +187,21 @@ public class IssueFactRecordRepository {
       return;
     }
     appendEq(where, args, "project_id", request.projectId());
+    appendIndexedSearch(
+        where,
+        args,
+        List.of("search_text", "search_compact", "search_spell", "search_initials"),
+        request.keyword());
     appendIssueIid(where, args, request.issueIid());
-    appendContainsIgnoreCase(where, args, "title", request.title());
+    appendIndexedSearch(
+        where,
+        args,
+        List.of(
+            "title_search_text",
+            "title_search_compact",
+            "title_search_spell",
+            "title_search_initials"),
+        request.title());
     appendEqIgnoreCase(where, args, "project_name", request.projectName());
     appendModuleFilter(where, args, request.moduleName(), useDisplayModuleFilter);
     appendEqIgnoreCase(where, args, "severity_level", request.severityLevel());
@@ -205,6 +220,19 @@ public class IssueFactRecordRepository {
       StringBuilder where, List<Object> args, String authorName, String assigneeName) {
     appendEqIgnoreCase(where, args, "author_name", authorName);
     appendEqIgnoreCase(where, args, "assignee_name", assigneeName);
+  }
+
+  private void appendFilterGroup(
+      StringBuilder where,
+      List<Object> args,
+      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
+    IssueFactFilterGroupSqlSupport.toSql(filterGroup)
+        .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
+        .ifPresent(
+            filter -> {
+              where.append(" and (").append(filter.predicate()).append(")");
+              args.addAll(filter.args());
+            });
   }
 
   private void appendIllegalFilters(
@@ -249,6 +277,27 @@ public class IssueFactRecordRepository {
     }
     where.append(" and lower(coalesce(").append(column).append(", '')) like ?");
     args.add("%" + normalized.toLowerCase(java.util.Locale.ROOT) + "%");
+  }
+
+  private void appendIndexedSearch(
+      StringBuilder where, List<Object> args, List<String> columns, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    List<String> candidates = FactSearchIndexSupport.keywordCandidates(normalized);
+    if (candidates.isEmpty()) {
+      return;
+    }
+    List<String> predicates = new ArrayList<>();
+    for (String candidate : candidates) {
+      String pattern = "%" + candidate + "%";
+      for (String column : columns) {
+        predicates.add(column + " like ?");
+        args.add(pattern);
+      }
+    }
+    where.append(" and (").append(String.join(" or ", predicates)).append(")");
   }
 
   private void appendIssueIid(StringBuilder where, List<Object> args, String value) {
@@ -372,7 +421,7 @@ public class IssueFactRecordRepository {
     columns.put("title", "lower(coalesce(title, ''))");
     columns.put("projectName", "lower(coalesce(project_name, ''))");
     columns.put("moduleNames", "lower(coalesce(module_names, ''))");
-    columns.put("testingPhase", "lower(coalesce(testing_phase, ''))");
+    columns.put("testingPhase", "lower(coalesce(phase_filter_value, ''))");
     columns.put("reasonCategory", "lower(coalesce(reason_category, ''))");
     columns.put("illegalReason", "lower(coalesce(illegal_reason, ''))");
     columns.put("severityLevel", "lower(coalesce(severity_level, ''))");

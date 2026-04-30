@@ -59,8 +59,10 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
               new IssueFactRecordPageQuery(
                   IssueFactRecordPageQuery.Scope.CUSTOMER,
                   listRequest,
+                  filterGroup,
                   null,
                   request.illegalReason(),
+                  null,
                   null,
                   null,
                   false,

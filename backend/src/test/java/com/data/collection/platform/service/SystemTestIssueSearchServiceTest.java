@@ -31,7 +31,7 @@ class SystemTestIssueSearchServiceTest {
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
-                List.of(record(300, "草图", "草图", "CC2026R1系统测试", "alice", "bob")),
+                List.of(record(300, "draft", "draft", "phase1 system test", "alice", "bob")),
                 1,
                 1,
                 20));
@@ -80,29 +80,29 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service =
         new SystemTestIssueSearchService(
             issueFactRecordRepository, systemTestScopeProfile, gitlabMirrorProperties);
-    when(issueFactRecordRepository.findByProjectId(1001L))
+    when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
-            List.of(
-                record(301, "草图崩溃", "草图", "CC2026R1第一轮系统测试", "alice", "bob"),
-                record(302, "草图其他轮次", "草图", "CC2026R2第一轮系统测试", "alice", "bob"),
-                record(303, "作者不匹配", "草图", "CC2026R1第一轮系统测试", "charlie", "bob")));
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+            new PageSlice<>(
+                List.of(record(301, "draft crash", "draft", "phase1 system test", "alice", "bob")),
+                1,
+                1,
+                20));
 
     SystemTestIssueSearchListResponse response =
         service.listRecords(
             new SystemTestIssueSearchQueryRequest(
                 new IssueFactRecordListRequest(
                     1001L,
-                    "草图",
+                    "draft",
                     null,
                     null,
                     "Rocksdb",
-                    "草图",
+                    "draft",
                     "LEVEL2",
                     null,
                     null,
-                    "处理中",
-                    "功能缺陷",
+                    "processing",
+                    "bug",
                     "CC2026R1",
                     null,
                     null,
@@ -112,7 +112,7 @@ class SystemTestIssueSearchServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
-                "CC2026R1第一轮",
+                "phase1",
                 "alice",
                 "bob"));
 
@@ -120,6 +120,15 @@ class SystemTestIssueSearchServiceTest {
     assertThat(response.records().getFirst().issueIid()).isEqualTo(301);
     assertThat(response.records().getFirst().issueLink())
         .isEqualTo("http://gitlab.example.com/-/issues/301");
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.scope() == IssueFactRecordPageQuery.Scope.SYSTEM_TEST
+                        && "phase1".equals(query.testingPhase())
+                        && "alice".equals(query.authorName())
+                        && "bob".equals(query.assigneeName())
+                        && "draft".equals(query.listRequest().keyword())));
   }
 
   private IssueFactRecord record(
@@ -141,8 +150,8 @@ class SystemTestIssueSearchServiceTest {
         testingPhase,
         "LEVEL2",
         "",
-        "处理中",
-        "功能缺陷",
+        "processing",
+        "bug",
         "",
         false,
         "",
@@ -155,7 +164,7 @@ class SystemTestIssueSearchServiceTest {
         authorName,
         assigneeName,
         List.of(moduleName),
-        List.of(testingPhase, "系统测试"),
+        List.of(testingPhase, "system test"),
         false,
         "",
         "",
