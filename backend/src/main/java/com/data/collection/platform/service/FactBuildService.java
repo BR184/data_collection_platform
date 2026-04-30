@@ -273,21 +273,28 @@ public class FactBuildService {
   private final IssueFactMapper issueFactMapper;
   private final MergeRequestFactMapper mergeRequestFactMapper;
   private final ModuleDictionaryService moduleDictionaryService;
+  private final FactBuildTaskService factBuildTaskService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
       IssueFactMapper issueFactMapper,
       MergeRequestFactMapper mergeRequestFactMapper,
-      ModuleDictionaryService moduleDictionaryService) {
+      ModuleDictionaryService moduleDictionaryService,
+      FactBuildTaskService factBuildTaskService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
     this.moduleDictionaryService = moduleDictionaryService;
+    this.factBuildTaskService = factBuildTaskService;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
-    FactBuildResponse issue = rebuildIssueFacts(full);
-    FactBuildResponse mergeRequest = rebuildMergeRequestFacts(full);
+    return factBuildTaskService.runGuarded("all", full, () -> rebuildAllFactsInternal(full));
+  }
+
+  private FactBuildResponse rebuildAllFactsInternal(boolean full) {
+    FactBuildResponse issue = rebuildIssueFactsInternal(full);
+    FactBuildResponse mergeRequest = rebuildMergeRequestFactsInternal(full);
     return new FactBuildResponse(
         "all",
         full,
@@ -296,6 +303,10 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildIssueFacts(boolean full) {
+    return factBuildTaskService.runGuarded("issue", full, () -> rebuildIssueFactsInternal(full));
+  }
+
+  private FactBuildResponse rebuildIssueFactsInternal(boolean full) {
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince();
     try {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
@@ -354,6 +365,11 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildMergeRequestFacts(boolean full) {
+    return factBuildTaskService.runGuarded(
+        "merge-request", full, () -> rebuildMergeRequestFactsInternal(full));
+  }
+
+  private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full) {
     LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince();
     String sql = MERGE_REQUEST_SOURCE_SQL + (changedSince == null ? "" : " and coalesce(mr.updated_at, mr.created_at) > ?");
     try {

@@ -7,11 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.FactBuildTaskResponse;
 import com.data.collection.platform.entity.IssueFactCountBreakdownResponse;
 import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueFactScopeDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueSourceReadinessResponse;
 import com.data.collection.platform.service.FactBuildService;
+import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class FactBuildControllerTest {
 
   @Mock private FactBuildService factBuildService;
+  @Mock private FactBuildTaskService factBuildTaskService;
   @Mock private IssueFactDiagnosticsService issueFactDiagnosticsService;
   @Mock private IssueSourceReadinessService issueSourceReadinessService;
 
@@ -38,7 +41,10 @@ class FactBuildControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new FactBuildController(
-                    factBuildService, issueFactDiagnosticsService, issueSourceReadinessService))
+                    factBuildService,
+                    factBuildTaskService,
+                    issueFactDiagnosticsService,
+                    issueSourceReadinessService))
             .build();
   }
 
@@ -64,6 +70,34 @@ class FactBuildControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.scope").value("issue"))
         .andExpect(jsonPath("$.data.full").value(true))
+        .andExpect(jsonPath("$.data.affectedRows").value(6));
+  }
+
+  @Test
+  void shouldLoadLatestFactBuildTask() throws Exception {
+    when(factBuildTaskService.latest("issue"))
+        .thenReturn(
+            new FactBuildTaskResponse(
+                1L,
+                "run-1",
+                "issue",
+                true,
+                "SUCCESS",
+                "MANUAL",
+                "owner",
+                6,
+                "done",
+                null,
+                LocalDateTime.of(2026, 4, 30, 9, 0),
+                LocalDateTime.of(2026, 4, 30, 9, 1),
+                LocalDateTime.of(2026, 4, 30, 9, 0),
+                LocalDateTime.of(2026, 4, 30, 9, 1)));
+
+    mockMvc.perform(get("/api/facts/build-tasks/latest").param("scope", "issue"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.scope").value("issue"))
+        .andExpect(jsonPath("$.data.status").value("SUCCESS"))
         .andExpect(jsonPath("$.data.affectedRows").value(6));
   }
 

@@ -10,25 +10,42 @@ import org.springframework.stereotype.Service;
 @Service
 public class IssueFactQueryService extends AbstractFactQueryService {
   private final JdbcTemplate jdbcTemplate;
+  private final SqlQueryMonitor sqlQueryMonitor;
 
-  public IssueFactQueryService(JdbcTemplate jdbcTemplate) {
+  public IssueFactQueryService(JdbcTemplate jdbcTemplate, SqlQueryMonitor sqlQueryMonitor) {
     this.jdbcTemplate = jdbcTemplate;
+    this.sqlQueryMonitor = sqlQueryMonitor;
   }
 
   public <T> List<T> query(String selectSql, Map<String, String> filters, RowMapper<T> rowMapper) {
     StringBuilder sql = new StringBuilder(selectSql);
     List<Object> args = new ArrayList<>();
     applyCommonFilters(sql, args, filters == null ? Map.of() : filters);
-    return jdbcTemplate.query(sql.toString(), rowMapper, args.toArray());
+    return queryWithMonitoring("issue-fact-filter-query", sql.toString(), args, rowMapper);
   }
 
   public <T> List<T> query(String sql, List<Object> args, RowMapper<T> rowMapper) {
-    return jdbcTemplate.query(sql, rowMapper, args.toArray());
+    return queryWithMonitoring("issue-fact-query", sql, args, rowMapper);
   }
 
   public long count(String sql, List<Object> args) {
-    Long total = jdbcTemplate.queryForObject(sql, Long.class, args.toArray());
-    return total == null ? 0L : total;
+    long startedAt = sqlQueryMonitor.start();
+    try {
+      Long total = jdbcTemplate.queryForObject(sql, Long.class, args.toArray());
+      return total == null ? 0L : total;
+    } finally {
+      sqlQueryMonitor.logIfSlow("issue-fact-count", sql, args, startedAt);
+    }
+  }
+
+  private <T> List<T> queryWithMonitoring(
+      String operation, String sql, List<Object> args, RowMapper<T> rowMapper) {
+    long startedAt = sqlQueryMonitor.start();
+    try {
+      return jdbcTemplate.query(sql, rowMapper, args.toArray());
+    } finally {
+      sqlQueryMonitor.logIfSlow(operation, sql, args, startedAt);
+    }
   }
 
   private void applyCommonFilters(StringBuilder sql, List<Object> args, Map<String, String> filters) {

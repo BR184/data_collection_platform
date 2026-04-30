@@ -11,6 +11,8 @@ spring:
     init:
       mode: always
       schema-locations: classpath:test-schema-init.sql,classpath:schema.sql
+  flyway:
+    enabled: false
 
 platform:
   gitlab-mirror:

@@ -12,6 +12,13 @@ spring:
   sql:
     init:
       mode: always
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  jdbc:
+    template:
+      query-timeout: ${PLATFORM_QUERY_TIMEOUT_SECONDS:30}
 
 mybatis-plus:
   configuration:
@@ -44,3 +51,5 @@ platform:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
     search-index-backfill-delay-ms: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_DELAY_MS:300000}
     search-index-backfill-batch-size: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_BATCH_SIZE:200}
+  query:
+    slow-threshold-ms: ${PLATFORM_SLOW_QUERY_THRESHOLD_MS:1000}
