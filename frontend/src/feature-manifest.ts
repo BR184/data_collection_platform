@@ -48,6 +48,8 @@ export interface ShellPage {
   label: string;
   description: string;
   path: string;
+  requiresLogin?: boolean;
+  hiddenForApproval?: boolean;
 }
 
 export interface ShellModule {
@@ -57,6 +59,13 @@ export interface ShellModule {
   title: string;
   description: string;
   pages: ShellPage[];
+}
+
+export type UserRole = 'GUEST' | 'ADMIN' | 'APPROVAL';
+
+export interface AccessUser {
+  role: UserRole;
+  authenticated: boolean;
 }
 
 export interface PageRouteContract {
@@ -98,6 +107,7 @@ export const modules: ShellModule[] = [
         label: '其他看板',
         description: '承接跨域的辅助分析图表，避免与首页 KPI 混排。',
         path: '/quality-board/other-board',
+        requiresLogin: true,
       },
     ],
   },
@@ -128,12 +138,15 @@ export const modules: ShellModule[] = [
         label: '代码走查非法数据',
         description: '展示代码走查场景下的非法记录明细列表。',
         path: '/code-review/illegal-records',
+        hiddenForApproval: true,
       },
       {
         key: 'code-review-multi-board',
         label: '代码走查多元看板',
         description: '围绕数据源切换、模块分布与责任人分布的代码走查图表看板。',
         path: '/code-review/multi-board',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
     ],
   },
@@ -164,18 +177,23 @@ export const modules: ShellModule[] = [
         label: '系统测试缺陷汇总',
         description: '展示系统测试缺陷的多级统计表头与模块维度汇总。',
         path: '/question-metrics/home',
+        hiddenForApproval: true,
       },
       {
         key: 'question-metrics-multi-board',
         label: '议题多元看板',
         description: '聚合系统测试核心统计板结果的图表化看板入口。',
         path: '/question-metrics/multi-board',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
       {
         key: 'question-metrics-delay-analysis',
         label: '申请延期缺陷分析',
         description: '展示系统测试延期原因维度下的一二三级、建议类与总计缺陷统计，并支持下钻明细。',
         path: '/question-metrics/delay-analysis',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
       {
         key: 'question-metrics-illegal-records',
@@ -215,6 +233,7 @@ export const modules: ShellModule[] = [
         label: '缺陷汇总',
         description: '展示客户问题范围下的多级统计表头与模块维度缺陷汇总。',
         path: '/customer-issues/home',
+        hiddenForApproval: true,
       },
       {
         key: 'customer-issues-illegal-records',
@@ -233,6 +252,7 @@ export const modules: ShellModule[] = [
         label: 'CC_PRODUCT议题',
         description: '对齐老平台客户问题统计下的 CC_PRODUCT 议题入口。',
         path: '/customer-issues/cc-product-issues',
+        hiddenForApproval: true,
       },
       {
         key: 'customer-issues-delay-issues',
@@ -266,18 +286,24 @@ export const modules: ShellModule[] = [
         label: '数据镜像设置',
         description: '管理 GitLab 数据镜像的连接、同步和日志。',
         path: '/system-settings/mirror-settings',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
       {
         key: 'database-browser',
         label: '数据库查看',
         description: '快速浏览本地平台数据库中的核心业务表数据。',
         path: '/system-settings/database-browser',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
       {
         key: 'testing-phase-definition',
         label: '议题测试阶段定义',
         description: '对齐老平台系统设置中的议题测试阶段定义入口。',
         path: '/system-settings/testing-phase-definition',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
     ],
   },
@@ -288,6 +314,34 @@ export const pageByKey = new Map(modules.flatMap((item) => item.pages.map((page)
 export const pageModuleKeyByPageKey = new Map(
   modules.flatMap((item) => item.pages.map((page) => [page.key, item.key] as const)),
 );
+
+export function canAccessPage(page: ShellPage, user: AccessUser) {
+  if (page.requiresLogin && !user.authenticated) {
+    return false;
+  }
+  if (page.hiddenForApproval && user.role === 'APPROVAL') {
+    return false;
+  }
+  return true;
+}
+
+export function canAccessPageKey(pageKey: PageKey, user: AccessUser) {
+  const page = pageByKey.get(pageKey);
+  return page ? canAccessPage(page, user) : false;
+}
+
+export function getVisibleModules(user: AccessUser): ShellModule[] {
+  return modules
+    .map((module) => ({
+      ...module,
+      pages: module.pages.filter((page) => canAccessPage(page, user)),
+    }))
+    .filter((module) => module.pages.length > 0);
+}
+
+export function getFirstAccessiblePagePath(user: AccessUser) {
+  return getVisibleModules(user)[0]?.pages[0]?.path ?? '/quality-board/rd-quality-board';
+}
 
 const statisticBoardQueryKeys = [
   'sortBy',

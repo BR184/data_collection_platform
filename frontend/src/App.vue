@@ -1,22 +1,62 @@
 <script setup lang="ts">
 import { Loading } from '@element-plus/icons-vue';
-import { computed, defineAsyncComponent } from 'vue';
+import { ElMessage } from 'element-plus';
+import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
-import { modules, moduleByKey } from './feature-manifest';
+import {
+  canAccessPageKey,
+  getFirstAccessiblePagePath,
+  getVisibleModules,
+  moduleByKey,
+  pageByKey,
+  type ModuleKey,
+  type PageKey,
+} from './feature-manifest';
 import { shellDataScopeState } from './composables/shell-data-scope';
+import { authState, loadCurrentUser, login, logout } from './composables/auth-state';
 import { routerState } from './router-state';
 
 const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/DataScopeBar.vue'));
 
 const route = useRoute();
 const router = useRouter();
+const loginDialogVisible = ref(false);
+const loginForm = reactive({
+  username: '',
+  password: '',
+});
+
+const currentUser = computed(() => authState.currentUser);
+const visibleModules = computed(() => getVisibleModules(currentUser.value));
 
 const activeModule = computed(
-  () => moduleByKey.get((route.meta.moduleKey as never) ?? 'quality-board') ?? modules[0],
+  () => {
+    const routeModule = moduleByKey.get((route.meta.moduleKey as ModuleKey | undefined) ?? 'quality-board');
+    const visibleRouteModule = visibleModules.value.find((module) => module.key === routeModule?.key);
+    return visibleRouteModule ?? visibleModules.value[0];
+  },
 );
 const activePageKey = computed(() => String(route.meta.pageKey ?? activeModule.value.pages[0]?.key ?? ''));
 const isStandalonePage = computed(() => Boolean(route.meta.standalone));
 const shellDataScope = computed(() => shellDataScopeState.registration);
+const authModeLabel = computed(() => {
+  if (currentUser.value.role === 'ADMIN') {
+    return '管理员模式';
+  }
+  if (currentUser.value.role === 'APPROVAL') {
+    return '审批模式';
+  }
+  return '游客模式';
+});
+const authModeTagType = computed(() => {
+  if (currentUser.value.role === 'ADMIN') {
+    return 'success';
+  }
+  if (currentUser.value.role === 'APPROVAL') {
+    return 'warning';
+  }
+  return 'info';
+});
 
 function openModule(moduleKey: string) {
   const targetModule = moduleByKey.get(moduleKey as never);
@@ -29,6 +69,48 @@ function openModule(moduleKey: string) {
 function openPage(path: string) {
   void router.push(path);
 }
+
+function ensureRouteAccess() {
+  if (isStandalonePage.value) {
+    return;
+  }
+  const pageKey = route.meta.pageKey as PageKey | undefined;
+  if (!pageKey || !pageByKey.has(pageKey)) {
+    return;
+  }
+  if (canAccessPageKey(pageKey, currentUser.value)) {
+    return;
+  }
+  void router.replace(getFirstAccessiblePagePath(currentUser.value));
+}
+
+async function handleLogin() {
+  try {
+    await login(loginForm.username, loginForm.password);
+    loginDialogVisible.value = false;
+    loginForm.password = '';
+    ElMessage.success('登录成功');
+    ensureRouteAccess();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '登录失败');
+  }
+}
+
+async function handleLogout() {
+  await logout();
+  ElMessage.success('已退出登录');
+  ensureRouteAccess();
+}
+
+onMounted(async () => {
+  await loadCurrentUser();
+  ensureRouteAccess();
+});
+
+watch(
+  () => [route.path, currentUser.value.role, currentUser.value.authenticated] as const,
+  () => ensureRouteAccess(),
+);
 </script>
 
 <template>
@@ -51,7 +133,7 @@ function openPage(path: string) {
 
       <nav class="top-nav">
         <button
-          v-for="module in modules"
+          v-for="module in visibleModules"
           :key="module.key"
           class="top-nav-item"
           :class="{ active: activeModule.key === module.key }"
@@ -64,6 +146,24 @@ function openPage(path: string) {
       <div class="header-actions">
         <el-tag v-if="routerState.routeLoading" size="small" type="warning" round>页面切换中</el-tag>
         <el-tag v-else-if="routerState.routeError" size="small" type="danger" round>连接异常</el-tag>
+        <el-tag :type="authModeTagType" size="small" round>{{ authModeLabel }}</el-tag>
+        <el-button
+          v-if="currentUser.authenticated"
+          size="small"
+          :loading="authState.loading"
+          @click="handleLogout"
+        >
+          退出
+        </el-button>
+        <el-button
+          v-else
+          size="small"
+          type="primary"
+          :loading="authState.loading"
+          @click="loginDialogVisible = true"
+        >
+          管理员登录
+        </el-button>
       </div>
     </header>
 
@@ -120,5 +220,26 @@ function openPage(path: string) {
         </div>
       </main>
     </div>
+
+    <el-dialog v-model="loginDialogVisible" title="管理员登录" width="360px">
+      <el-form label-position="top" @submit.prevent="handleLogin">
+        <el-form-item label="账号">
+          <el-input v-model="loginForm.username" autocomplete="username" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input
+            v-model="loginForm.password"
+            autocomplete="current-password"
+            show-password
+            type="password"
+            @keydown.enter="handleLogin"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="loginDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="authState.loading" @click="handleLogin">登录</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>

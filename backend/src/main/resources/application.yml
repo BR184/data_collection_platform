@@ -29,6 +29,11 @@ logging:
     path: logs
 
 platform:
+  auth:
+    admin-username: ${PLATFORM_ADMIN_USERNAME:admin}
+    admin-password: ${PLATFORM_ADMIN_PASSWORD:admin}
+    approval-username: ${PLATFORM_APPROVAL_USERNAME:approval}
+    approval-password: ${PLATFORM_APPROVAL_PASSWORD:approval}
   gitlab-mirror:
     scheduler-enabled: true
     scheduler-delay-ms: 60000
