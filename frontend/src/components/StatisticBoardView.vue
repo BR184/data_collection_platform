@@ -5,6 +5,7 @@ import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
 import BaseStatisticTable from './base/BaseStatisticTable.vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
+import StatisticBoardDetailDialog from './StatisticBoardDetailDialog.vue';
 import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanationDrawer.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import { api } from '../api';
@@ -465,58 +466,18 @@ watch(
       @update:model-value="handleRuleExplanationVisibleChange"
     />
 
-    <el-dialog
+    <StatisticBoardDetailDialog
       :model-value="detailVisible"
-      :title="detail?.title || '明细数据'"
-      class="stat-detail-dialog"
-      width="72%"
-      top="8vh"
-      align-center
+      :loading="detailLoading"
+      :detail="detail"
+      :pagination="detailPagination"
+      :detail-table-class="props.uiHooks.detailTableClass"
+      :detail-cell-value="detailCellValue"
+      :on-sort-change="handleDetailSortChange"
+      :on-current-change="handleDetailCurrentChange"
+      :on-size-change="handleDetailSizeChange"
       @update:model-value="handleDetailVisibleChange"
-      destroy-on-close
-      append-to-body
-    >
-      <div class="stat-detail-shell" v-loading="detailLoading">
-        <el-table
-          v-if="detail"
-          :data="detail.records"
-          border
-          stripe
-          class="stat-detail-table"
-          :class="props.uiHooks.detailTableClass"
-          @sort-change="handleDetailSortChange"
-        >
-          <el-table-column
-            v-for="column in detail.columns"
-            :key="column.key"
-            :prop="column.key"
-            :label="column.label"
-            :width="column.width || undefined"
-            :min-width="column.minWidth || 140"
-            :sortable="column.sortable ? 'custom' : false"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <span class="detail-cell-text">{{ detailCellValue(row, column) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div class="detail-pagination">
-          <el-pagination
-            v-if="detail"
-            :current-page="detailPagination.page"
-            :page-size="detailPagination.size"
-            background
-            layout="total, sizes, prev, pager, next"
-            :page-sizes="[10, 20, 50, 100]"
-            :total="detail.total"
-            @current-change="handleDetailCurrentChange"
-            @size-change="handleDetailSizeChange"
-          />
-        </div>
-      </div>
-    </el-dialog>
+    />
 
   </div>
 </template>
