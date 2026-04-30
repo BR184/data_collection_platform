@@ -85,13 +85,19 @@ button {
 .brand-mark {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
-  font-weight: 700;
-  color: #1677ff;
-  background: rgba(22, 119, 255, 0.08);
+  overflow: hidden;
+  background: #ffffff;
   border: 1px solid rgba(22, 119, 255, 0.12);
+}
+
+.brand-mark img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-copy {
@@ -151,6 +157,122 @@ button {
   justify-content: flex-end;
   gap: 8px;
   min-width: 116px;
+}
+
+.auth-dialog.el-dialog {
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 18px 46px rgba(15, 35, 62, 0.18);
+}
+
+.auth-dialog .el-dialog__header {
+  display: none;
+}
+
+.auth-dialog .el-dialog__body {
+  padding: 0;
+}
+
+.auth-dialog .el-dialog__footer {
+  padding: 0 28px 28px;
+}
+
+.auth-card-head {
+  min-height: 118px;
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 46%),
+    linear-gradient(135deg, #1677ff 0%, #0958d9 100%);
+}
+
+.auth-brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
+}
+
+.auth-brand-mark img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}
+
+.auth-title-group {
+  display: grid;
+  gap: 4px;
+}
+
+.auth-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.auth-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.auth-form {
+  padding: 26px 28px 8px;
+}
+
+.auth-form .el-form-item {
+  margin-bottom: 18px;
+}
+
+.auth-form .el-form-item__label {
+  color: rgba(0, 0, 0, 0.72);
+  font-weight: 600;
+}
+
+.auth-form .el-input__wrapper {
+  min-height: 42px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px #d9d9d9 inset;
+}
+
+.auth-form .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px #4096ff inset;
+}
+
+.auth-form .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px #1677ff inset, 0 0 0 3px rgba(22, 119, 255, 0.12);
+}
+
+.auth-mode-note {
+  margin: 0 28px 22px;
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 8px;
+  color: rgba(0, 0, 0, 0.58);
+  background: #f5f7fa;
+  border: 1px solid #edf0f5;
+  font-size: 12px;
+}
+
+.auth-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.auth-footer .el-button {
+  margin-left: 0;
+  border-radius: 8px;
 }
 
 .shell-body {

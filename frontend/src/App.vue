@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loading } from '@element-plus/icons-vue';
+import { Lock, Loading, User } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
@@ -125,7 +125,9 @@ watch(
   <div v-else class="app-shell">
     <header class="shell-header">
       <div class="brand-wrap">
-        <div class="brand-mark">数</div>
+        <div class="brand-mark">
+          <img src="/crowncad-logo.png" alt="CrownCAD" />
+        </div>
         <div class="brand-copy">
           <div class="brand-title">数据采集平台</div>
         </div>
@@ -221,24 +223,65 @@ watch(
       </main>
     </div>
 
-    <el-dialog v-model="loginDialogVisible" title="管理员登录" width="360px">
-      <el-form label-position="top" @submit.prevent="handleLogin">
+    <el-dialog
+      v-model="loginDialogVisible"
+      class="auth-dialog"
+      width="420px"
+      :show-close="false"
+      align-center
+    >
+      <div class="auth-card-head">
+        <div class="auth-brand-mark">
+          <img src="/crowncad-logo.png" alt="CrownCAD" />
+        </div>
+        <div class="auth-title-group">
+          <div class="auth-title">数据采集平台</div>
+          <div class="auth-subtitle">权限登录</div>
+        </div>
+      </div>
+
+      <el-form class="auth-form" label-position="top" @submit.prevent="handleLogin">
         <el-form-item label="账号">
-          <el-input v-model="loginForm.username" autocomplete="username" />
+          <el-input
+            v-model="loginForm.username"
+            autocomplete="username"
+            placeholder="请输入账号"
+            size="large"
+          >
+            <template #prefix>
+              <el-icon><User /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="密码">
           <el-input
             v-model="loginForm.password"
             autocomplete="current-password"
+            placeholder="请输入密码"
             show-password
+            size="large"
             type="password"
             @keydown.enter="handleLogin"
-          />
+          >
+            <template #prefix>
+              <el-icon><Lock /></el-icon>
+            </template>
+          </el-input>
         </el-form-item>
       </el-form>
+
+      <div class="auth-mode-note">
+        <span>当前为游客模式</span>
+        <span>登录后显示管理入口</span>
+      </div>
+
       <template #footer>
-        <el-button @click="loginDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="authState.loading" @click="handleLogin">登录</el-button>
+        <div class="auth-footer">
+          <el-button size="large" @click="loginDialogVisible = false">取消</el-button>
+          <el-button type="primary" size="large" :loading="authState.loading" @click="handleLogin">
+            登录
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
