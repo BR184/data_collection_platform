@@ -27,6 +27,7 @@ import { useStatisticBoardData } from '../composables/useStatisticBoardData';
 import { useStatisticBoardTableState } from '../composables/useStatisticBoardTableState';
 import { useStatisticBoardRuleExplanationState } from '../composables/useStatisticBoardRuleExplanationState';
 import { useStatisticBoardRefreshController } from '../composables/useStatisticBoardRefreshController';
+import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -256,33 +257,20 @@ const {
   loadDetail,
 });
 
-function handleSettingsCommand(command: string) {
-  if (command === 'open-settings') {
-    openSettings();
-    return;
-  }
-  if (command === 'clear-sort') {
-    clearCurrentSort();
-    return;
-  }
-  if (command === 'restore-default-view') {
-    restoreDefaultView();
-  }
-}
-
-function saveViewPrefs() {
-  if (!board.value) {
-    return;
-  }
-  saveVisibleColumnPrefs(draftVisibleColumnKeys.value, closeSettings);
-}
-
-function restoreDefaultView() {
-  if (!board.value) {
-    return;
-  }
-  restoreDefaultViewPrefs(board.value.definition, syncDraftFromVisible, closeSettings);
-}
+const {
+  handleSettingsCommand,
+  saveViewPrefs,
+  restoreDefaultView,
+} = useStatisticBoardSettingsActions({
+  board,
+  draftVisibleColumnKeys,
+  openSettings,
+  closeSettings,
+  clearCurrentSort,
+  syncDraftFromVisible,
+  saveVisibleColumnPrefs,
+  restoreDefaultViewPrefs,
+});
 
 async function openDetail(row: StatisticRowData, cell: StatisticCellData) {
   await openStatisticDetail(row, cell, board.value?.definition.defaultPageSize ?? 10);
