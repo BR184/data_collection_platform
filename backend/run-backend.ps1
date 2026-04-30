@@ -9,6 +9,16 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 [Console]::OutputEncoding = $utf8NoBom
 $OutputEncoding = $utf8NoBom
 Set-Location $projectRoot
+
+$staleBackendProcesses = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
+  Where-Object {
+    ($_.ExecutablePath -like "*\my-nocobase-app\demo\qa-flex-platform\*") -or
+    ($_.CommandLine -like "*\my-nocobase-app\demo\qa-flex-platform\*")
+  }
+if ($staleBackendProcesses) {
+  Write-Warning "Detected stale qa-flex-platform Java process(es): $($staleBackendProcesses.ProcessId -join ', '). Stop them before investigating backend CPU issues."
+}
+
 $mvnArgs = @(
   "-Dspring-boot.run.jvmArguments=-Dspring.devtools.restart.enabled=false -Dfile.encoding=UTF-8",
   "spring-boot:run"
