@@ -26,6 +26,7 @@ import { refreshStatisticBoardRouteState } from '../composables/useStatisticBoar
 import { useStatisticBoardData } from '../composables/useStatisticBoardData';
 import { useStatisticBoardTableState } from '../composables/useStatisticBoardTableState';
 import { useStatisticBoardRuleExplanationState } from '../composables/useStatisticBoardRuleExplanationState';
+import { useStatisticBoardRefreshController } from '../composables/useStatisticBoardRefreshController';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -245,6 +246,16 @@ const {
   replaceRouteQuery,
 });
 
+const {
+  refreshBoard,
+} = useStatisticBoardRefreshController({
+  loading,
+  detailVisible,
+  loadBoard,
+  loadRuleExplanation,
+  loadDetail,
+});
+
 function handleSettingsCommand(command: string) {
   if (command === 'open-settings') {
     openSettings();
@@ -301,19 +312,6 @@ function sortIconForDirection(direction: SortDirection) {
 
 async function applyFiltersToRoute() {
   await applyFilterDraftToRoute(filterDraft);
-}
-
-async function refreshBoard() {
-  loading.value = true;
-  try {
-    await loadBoard();
-    await loadRuleExplanation();
-    if (detailVisible.value) {
-      await loadDetail();
-    }
-  } finally {
-    loading.value = false;
-  }
 }
 
 watch(
