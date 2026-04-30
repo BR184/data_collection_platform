@@ -11,6 +11,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private static final String WORKSPACE_KEY = "customer-issue-illegal-records";
   private static final String RULE_VERSION = "customer-issue-illegal-records@2026-04-22-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final int EXPORT_PAGE_SIZE = 100;
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
@@ -97,6 +99,92 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         pageSlice.records().stream().map(this::toResponse).toList();
     return new CustomerIssueIllegalRecordListResponse(
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+  }
+
+  public String exportRecordsCsv(CustomerIssueIllegalRecordQueryRequest request) {
+    List<CustomerIssueIllegalRecordRowResponse> rows = new ArrayList<>();
+    int page = 1;
+    while (true) {
+      IssueFactRecordListRequest listRequest = request.listRequest();
+      CustomerIssueIllegalRecordQueryRequest pageRequest =
+          new CustomerIssueIllegalRecordQueryRequest(
+              new IssueFactRecordListRequest(
+                  listRequest.projectId(),
+                  listRequest.keyword(),
+                  listRequest.issueIid(),
+                  listRequest.title(),
+                  listRequest.projectName(),
+                  listRequest.moduleName(),
+                  listRequest.severityLevel(),
+                  listRequest.priorityLevel(),
+                  listRequest.issueState(),
+                  listRequest.bugStatus(),
+                  listRequest.category(),
+                  listRequest.milestoneTitle(),
+                  listRequest.createdAtStart(),
+                  listRequest.createdAtEnd(),
+                  listRequest.updatedAtStart(),
+                  listRequest.updatedAtEnd(),
+                  page,
+                  EXPORT_PAGE_SIZE,
+                  listRequest.sortField(),
+                  listRequest.sortOrder()),
+              request.illegalReason(),
+              request.filterGroupJson());
+      CustomerIssueIllegalRecordListResponse response = listRecords(pageRequest);
+      rows.addAll(response.records());
+      if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
+        break;
+      }
+      page += 1;
+    }
+
+    List<String> lines = new ArrayList<>();
+    lines.add(
+        String.join(
+            ",",
+            List.of(
+                "问题编号",
+                "非法原因",
+                "项目",
+                "模块",
+                "严重程度",
+                "优先级",
+                "缺陷状态",
+                "状态",
+                "创建人",
+                "处理人",
+                "缺陷分类",
+                "里程碑",
+                "创建时间",
+                "更新时间",
+                "关闭时间",
+                "标题",
+                "链接")));
+    for (CustomerIssueIllegalRecordRowResponse row : rows) {
+      lines.add(
+          String.join(
+              ",",
+              List.of(
+                  CsvExportSupport.cell(row.issueIid()),
+                  CsvExportSupport.cell(row.illegalReason()),
+                  CsvExportSupport.cell(row.projectName()),
+                  CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.severityLevel()),
+                  CsvExportSupport.cell(row.priorityLevel()),
+                  CsvExportSupport.cell(row.bugStatus()),
+                  CsvExportSupport.cell(row.issueState()),
+                  CsvExportSupport.cell(row.authorName()),
+                  CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.category()),
+                  CsvExportSupport.cell(row.milestoneTitle()),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
+                  CsvExportSupport.cell(row.title()),
+                  CsvExportSupport.cell(row.issueLink()))));
+    }
+    return String.join("\n", lines) + "\n";
   }
 
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {

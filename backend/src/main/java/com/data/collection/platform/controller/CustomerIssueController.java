@@ -8,6 +8,9 @@ import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +41,18 @@ public class CustomerIssueController {
             customerIssueRequestAssembler.toRecordQueryRequest(request)));
   }
 
+  @GetMapping("/records/export")
+  public ResponseEntity<String> exportRecords(
+      @ModelAttribute CustomerIssueRecordListWebRequest request) {
+    String csv =
+        customerIssueRecordService.exportRecordsCsv(
+            customerIssueRequestAssembler.toRecordQueryRequest(request));
+    return ResponseEntity.ok()
+        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-records.csv\"")
+        .body(csv);
+  }
+
   @GetMapping("/records/filter-options")
   public ApiResponse<CustomerIssueRecordFilterOptionsResponse> getRecordFilterOptions(
       @RequestParam(required = false) String topic,
@@ -58,6 +73,18 @@ public class CustomerIssueController {
     return ApiResponse.success(
         customerIssueIllegalRecordService.listRecords(
             customerIssueRequestAssembler.toIllegalRecordQueryRequest(request)));
+  }
+
+  @GetMapping("/illegal-records/export")
+  public ResponseEntity<String> exportIllegalRecords(
+      @ModelAttribute CustomerIssueIllegalRecordListWebRequest request) {
+    String csv =
+        customerIssueIllegalRecordService.exportRecordsCsv(
+            customerIssueRequestAssembler.toIllegalRecordQueryRequest(request));
+    return ResponseEntity.ok()
+        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-illegal-records.csv\"")
+        .body(csv);
   }
 
   @GetMapping("/illegal-records/filter-options")

@@ -9,6 +9,7 @@ import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +22,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   private static final String WORKSPACE_KEY = "system-test-illegal-records";
   private static final String RULE_VERSION = "system-test-illegal-records@2026-04-27-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final int EXPORT_PAGE_SIZE = 100;
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
@@ -97,6 +99,95 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         pageSlice.records().stream().map(this::toResponse).toList();
     return new SystemTestIllegalRecordListResponse(
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+  }
+
+  public String exportRecordsCsv(SystemTestIllegalRecordQueryRequest request) {
+    List<SystemTestIllegalRecordRowResponse> rows = new ArrayList<>();
+    int page = 1;
+    while (true) {
+      IssueFactRecordListRequest listRequest = request.listRequest();
+      SystemTestIllegalRecordQueryRequest pageRequest =
+          new SystemTestIllegalRecordQueryRequest(
+              new IssueFactRecordListRequest(
+                  listRequest.projectId(),
+                  listRequest.keyword(),
+                  listRequest.issueIid(),
+                  listRequest.title(),
+                  listRequest.projectName(),
+                  listRequest.moduleName(),
+                  listRequest.severityLevel(),
+                  listRequest.priorityLevel(),
+                  listRequest.issueState(),
+                  listRequest.bugStatus(),
+                  listRequest.category(),
+                  listRequest.milestoneTitle(),
+                  listRequest.createdAtStart(),
+                  listRequest.createdAtEnd(),
+                  listRequest.updatedAtStart(),
+                  listRequest.updatedAtEnd(),
+                  page,
+                  EXPORT_PAGE_SIZE,
+                  listRequest.sortField(),
+                  listRequest.sortOrder()),
+              request.testingPhase(),
+              request.illegalReason(),
+              request.authorName(),
+              request.assigneeName(),
+              request.filterGroupJson());
+      SystemTestIllegalRecordListResponse response = listRecords(pageRequest);
+      rows.addAll(response.records());
+      if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
+        break;
+      }
+      page += 1;
+    }
+
+    List<String> lines = new ArrayList<>();
+    lines.add(
+        String.join(
+            ",",
+            List.of(
+                "问题编号",
+                "非法类型",
+                "项目",
+                "模块",
+                "测试阶段",
+                "严重程度",
+                "缺陷状态",
+                "状态",
+                "创建人",
+                "处理人",
+                "缺陷分类",
+                "里程碑",
+                "创建时间",
+                "更新时间",
+                "关闭时间",
+                "标题",
+                "链接")));
+    for (SystemTestIllegalRecordRowResponse row : rows) {
+      lines.add(
+          String.join(
+              ",",
+              List.of(
+                  CsvExportSupport.cell(row.issueIid()),
+                  CsvExportSupport.cell(row.illegalReason()),
+                  CsvExportSupport.cell(row.projectName()),
+                  CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.testingPhase()),
+                  CsvExportSupport.cell(row.severityLevel()),
+                  CsvExportSupport.cell(row.bugStatus()),
+                  CsvExportSupport.cell(row.issueState()),
+                  CsvExportSupport.cell(row.authorName()),
+                  CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.category()),
+                  CsvExportSupport.cell(row.milestoneTitle()),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
+                  CsvExportSupport.cell(row.title()),
+                  CsvExportSupport.cell(row.issueLink()))));
+    }
+    return String.join("\n", lines) + "\n";
   }
 
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {

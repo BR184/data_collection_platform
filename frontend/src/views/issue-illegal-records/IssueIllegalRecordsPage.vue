@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../../element-plus-services';
-import { InfoFilled, Refresh } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
@@ -12,6 +12,7 @@ import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
+import { downloadCsv, formatExportFileDate } from '../../utils/csv-download';
 
 const props = defineProps<IssueIllegalRecordsPageConfig>();
 
@@ -39,6 +40,7 @@ const pageInitialized = ref(false);
 const filterOptionsLoaded = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<IssueIllegalRecordRow | null>(null);
+const exportLoading = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const filterOptions = ref({ ...props.initialFilterOptions });
@@ -133,7 +135,13 @@ async function loadFilterOptions() {
 }
 
 async function loadTableData() {
-  const response = await props.loadRecords({
+  const response = await props.loadRecords(buildCurrentQueryParams(true));
+  rows.value = response.records;
+  total.value = response.total;
+}
+
+function buildCurrentQueryParams(includePagination: boolean) {
+  return {
     projectId: route.query.projectId as string | undefined,
     keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
@@ -155,13 +163,26 @@ async function loadTableData() {
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
     filterGroup: buildFilterPayload(),
-    page: page.value,
-    size: pageSize.value,
+    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || props.defaultSortBy || 'updatedAt',
     sortOrder: (sortOrder.value || props.defaultSortOrder || 'desc') as 'asc' | 'desc',
-  });
-  rows.value = response.records;
-  total.value = response.total;
+  };
+}
+
+async function handleExport() {
+  if (!props.exportRecords) {
+    return;
+  }
+  exportLoading.value = true;
+  try {
+    const csv = await props.exportRecords(buildCurrentQueryParams(false));
+    const filenamePrefix = props.exportFilenamePrefix || props.title;
+    downloadCsv(csv, `${filenamePrefix}_${formatExportFileDate(new Date())}.csv`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+  } finally {
+    exportLoading.value = false;
+  }
 }
 
 bindLoader(async () => {
@@ -268,6 +289,16 @@ function openDetailDrawer(row: Record<string, unknown>) {
               规则说明
             </el-button>
             <el-button plain size="small" :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button
+              v-if="exportRecords"
+              plain
+              size="small"
+              :icon="Download"
+              :loading="exportLoading"
+              @click="handleExport"
+            >
+              导出
+            </el-button>
           </div>
         </template>
 

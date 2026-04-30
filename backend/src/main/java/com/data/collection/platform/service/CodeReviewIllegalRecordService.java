@@ -15,6 +15,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,8 @@ import org.springframework.util.StringUtils;
 public class CodeReviewIllegalRecordService {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
+  private static final int EXPORT_PAGE_SIZE = 100;
+  private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of(
@@ -130,6 +133,88 @@ public class CodeReviewIllegalRecordService {
 
     return new CodeReviewIllegalRecordListResponse(
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+  }
+
+  public String exportRecordsCsv(CodeReviewIllegalRecordQueryRequest request) {
+    List<CodeReviewIllegalRecordRowResponse> rows = new ArrayList<>();
+    int page = 1;
+    while (true) {
+      CodeReviewIllegalRecordQueryRequest pageRequest =
+          new CodeReviewIllegalRecordQueryRequest(
+              request.projectId(),
+              request.repositoryName(),
+              request.mergedAtStart(),
+              request.mergedAtEnd(),
+              request.keyword(),
+              request.projectName(),
+              request.requestType(),
+              request.targetBranch(),
+              request.mergedBy(),
+              request.moduleName(),
+              request.illegalType(),
+              request.mergeRequestIid(),
+              request.owner(),
+              request.filterGroupJson(),
+              page,
+              EXPORT_PAGE_SIZE,
+              request.sortField(),
+              request.sortOrder(),
+              request.ruleConfigJson());
+      CodeReviewIllegalRecordListResponse response = listRecords(pageRequest);
+      rows.addAll(response.records());
+      if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
+        break;
+      }
+      page += 1;
+    }
+
+    List<String> lines = new ArrayList<>();
+    lines.add(String.join(",", List.of(
+        "请求类型",
+        "MR IID",
+        "项目",
+        "仓库",
+        "模块",
+        "责任人",
+        "目标分支",
+        "合并人",
+        "合并时间",
+        "非法类型",
+        "评论率",
+        "缺陷数",
+        "新增行数",
+        "标题",
+        "链接")));
+    for (CodeReviewIllegalRecordRowResponse row : rows) {
+      lines.add(String.join(",", List.of(
+          csv(row.requestType()),
+          csv(row.mergeRequestIid()),
+          csv(row.projectName()),
+          csv(row.repositoryName()),
+          csv(row.moduleName()),
+          csv(row.owner()),
+          csv(row.targetBranch()),
+          csv(row.mergedBy()),
+          csv(row.mergedAt() == null ? "" : CSV_DATE_TIME.format(row.mergedAt())),
+          csv(row.illegalTypes() == null ? "" : String.join("；", row.illegalTypes())),
+          csv(row.commentRate()),
+          csv(row.defectCount()),
+          csv(row.addedLines()),
+          csv(row.mergeRequestContent()),
+          csv(row.mergeRequestLink()))));
+    }
+    return String.join("\n", lines) + "\n";
+  }
+
+  private String csv(Object value) {
+    if (value == null) {
+      return "";
+    }
+    String text = String.valueOf(value);
+    if (text.contains("\"") || text.contains(",") || text.contains("\n") || text.contains("\r")) {
+      return "\"" + text.replace("\"", "\"\"") + "\"";
+    }
+    return text;
   }
 
   private boolean canUseDefaultSqlPage(CodeReviewIllegalRecordQueryRequest request) {

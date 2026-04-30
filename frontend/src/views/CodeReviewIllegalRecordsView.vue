@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
-import { InfoFilled, Setting } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -66,6 +66,7 @@ const total = ref(0);
 const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
+const exportLoading = ref(false);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
@@ -179,7 +180,13 @@ const {
 });
 
 async function loadTableData() {
-  const response = await api.getCodeReviewIllegalRecords({
+  const response = await api.getCodeReviewIllegalRecords(buildCurrentQueryParams(true));
+  rows.value = response.records;
+  total.value = response.total;
+}
+
+function buildCurrentQueryParams(includePagination: boolean) {
+  return {
     projectId: route.query.projectId as string | undefined,
     repositoryName: String(route.query.repositoryName ?? ''),
     mergedAtStart: String(route.query.mergedAtStart ?? ''),
@@ -194,14 +201,38 @@ async function loadTableData() {
     mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
     owner: String(route.query.owner ?? ''),
     filterGroup: buildFilterPayload(),
-    page: page.value,
-    size: pageSize.value,
+    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'mergedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
     ruleConfig: appliedRuleConfig.value?.enabled ? appliedRuleConfig.value : null,
-  });
-  rows.value = response.records;
-  total.value = response.total;
+  };
+}
+
+async function handleExport() {
+  exportLoading.value = true;
+  try {
+    const csv = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
+    downloadCodeReviewCsv(csv, `代码走查非法数据_${formatExportFileDate(new Date())}.csv`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+  } finally {
+    exportLoading.value = false;
+  }
+}
+
+function downloadCodeReviewCsv(csv: string, filename: string) {
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function formatExportFileDate(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 }
 
 bindLoader(async () => {
@@ -325,6 +356,9 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
           </el-button>
           <el-button plain size="small" :icon="Setting" @click="openRuleConfig">
             规则配置
+          </el-button>
+          <el-button plain size="small" :icon="Download" :loading="exportLoading" @click="handleExport">
+            导出
           </el-button>
           <span class="record-page-summary-divider" />
           <span class="record-page-summary-label">当前排序</span>

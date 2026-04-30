@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../element-plus-services';
-import { InfoFilled, Refresh } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -22,6 +22,7 @@ import { useRecordPageController } from '../composables/useRecordPageController'
 import type { RecordTableColumn } from '../types/record-table';
 import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
+import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 
 const {
   route,
@@ -47,6 +48,7 @@ const pageInitialized = ref(false);
 const filterOptionsLoaded = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
+const exportLoading = ref(false);
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
@@ -230,7 +232,13 @@ async function loadFilterOptions() {
 }
 
 async function loadTableData() {
-  const response = await api.getCustomerIssueRecords({
+  const response = await api.getCustomerIssueRecords(buildCurrentQueryParams(true));
+  rows.value = response.records;
+  total.value = response.total;
+}
+
+function buildCurrentQueryParams(includePagination: boolean) {
+  return {
     topic: topic.value,
     projectId: route.query.projectId as string | undefined,
     keyword: String(route.query.keyword ?? ''),
@@ -250,13 +258,22 @@ async function loadTableData() {
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
     filterGroup: buildFilterPayload(),
-    page: page.value,
-    size: pageSize.value,
+    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'updatedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
-  });
-  rows.value = response.records;
-  total.value = response.total;
+  };
+}
+
+async function handleExport() {
+  exportLoading.value = true;
+  try {
+    const csv = await api.exportCustomerIssueRecords(buildCurrentQueryParams(false));
+    downloadCsv(csv, `${pageTitle.value}_${formatExportFileDate(new Date())}.csv`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+  } finally {
+    exportLoading.value = false;
+  }
 }
 
 bindLoader(async () => {
@@ -366,6 +383,9 @@ function openDetailDrawer(row: Record<string, unknown>) {
               规则说明
             </el-button>
             <el-button plain size="small" :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button plain size="small" :icon="Download" :loading="exportLoading" @click="handleExport">
+              导出
+            </el-button>
           </div>
         </template>
 

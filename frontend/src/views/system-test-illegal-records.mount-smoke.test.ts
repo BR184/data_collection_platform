@@ -103,4 +103,74 @@ describe('SystemTestIllegalRecordsView mount smoke', () => {
     wrapper.unmount();
     vi.unstubAllGlobals();
   });
+
+  it('exports current filtered illegal records as csv', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/question-metrics/illegal-records/export')) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('issue_iid,illegal_reason\n301,missing module\n') } as Response);
+      }
+      if (url.includes('/api/question-metrics/illegal-records/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          testingPhases: [],
+          illegalReasons: [],
+          authorNames: [],
+          assigneeNames: [],
+          issueStates: [],
+          severityLevels: [],
+          bugStatuses: [],
+          categories: [],
+          milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/question-metrics/illegal-records?')) {
+        return jsonResponse({
+          records: [],
+          total: 0,
+          page: 1,
+          size: 20,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:csv'), revokeObjectURL: vi.fn() });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [
+        {
+          path: '/question-metrics/illegal-records',
+          component: SystemTestIllegalRecordsView,
+          meta: { pageKey: 'question-metrics-illegal-records' },
+        },
+      ],
+    });
+
+    await router.push('/question-metrics/illegal-records?projectId=1001&keyword=sample&illegalReason=missing%20module&sortBy=updatedAt&sortOrder=desc');
+    await router.isReady();
+
+    const wrapper = mount(SystemTestIllegalRecordsView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    await wrapper.findAll('button').find((button) => button.text().includes('导出'))?.trigger('click');
+    await flushPromises();
+
+    const exportCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/question-metrics/illegal-records/export'));
+    expect(String(exportCall?.[0])).toContain('projectId=1001');
+    expect(String(exportCall?.[0])).toContain('keyword=sample');
+    expect(String(exportCall?.[0])).toContain('illegalReason=missing+module');
+    expect(String(exportCall?.[0])).not.toContain('page=');
+
+    wrapper.unmount();
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

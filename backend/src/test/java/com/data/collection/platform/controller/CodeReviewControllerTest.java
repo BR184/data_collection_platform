@@ -4,6 +4,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
@@ -104,6 +106,54 @@ class CodeReviewControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.page").value(2))
         .andExpect(jsonPath("$.data.size").value(10));
+  }
+
+  @Test
+  void shouldExportIllegalRecordsCsvWithCurrentFilters() throws Exception {
+    when(codeReviewIllegalRecordService.exportRecordsCsv(
+            new CodeReviewIllegalRecordQueryRequest(
+                325L,
+                "repo-a",
+                "2026-04-01",
+                "2026-04-21",
+                "sample",
+                "Project X",
+                "merge_request",
+                "master",
+                "Alice",
+                "支付模块",
+                "缺少模块标签",
+                "101",
+                "王老师",
+                "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}",
+                1,
+                20,
+                "mergedAt",
+                "desc",
+                null)))
+        .thenReturn("项目,模块,非法类型\nProject X,支付模块,缺少模块标签\n");
+
+    mockMvc.perform(get("/api/code-review/illegal-records/export")
+            .param("projectId", "325")
+            .param("repositoryName", "repo-a")
+            .param("mergedAtStart", "2026-04-01")
+            .param("mergedAtEnd", "2026-04-21")
+            .param("keyword", "sample")
+            .param("projectName", "Project X")
+            .param("requestType", "merge_request")
+            .param("targetBranch", "master")
+            .param("mergedBy", "Alice")
+            .param("moduleName", "支付模块")
+            .param("illegalType", "缺少模块标签")
+            .param("mergeRequestIid", "101")
+            .param("owner", "王老师")
+            .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}")
+            .param("sortBy", "mergedAt")
+            .param("sortOrder", "desc"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
+        .andExpect(header().string("Content-Disposition", "attachment; filename=\"code-review-illegal-records.csv\""))
+        .andExpect(content().string("项目,模块,非法类型\nProject X,支付模块,缺少模块标签\n"));
   }
 
   @Test

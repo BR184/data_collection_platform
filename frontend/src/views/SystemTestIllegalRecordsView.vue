@@ -136,6 +136,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     empty-description="当前筛选条件下没有系统测试非法数据。"
     :total-tag-text="(total) => `当前 ${total} 条`"
     :load-records="loadRecords"
+    :export-records="api.exportSystemTestIllegalRecords"
+    export-filename-prefix="系统测试非法数据"
     :load-filter-options="api.getSystemTestIllegalRecordFilterOptions"
     :load-rule-explanation="api.getSystemTestIllegalRecordRuleExplanation"
     :initial-filter-options="initialFilterOptions"

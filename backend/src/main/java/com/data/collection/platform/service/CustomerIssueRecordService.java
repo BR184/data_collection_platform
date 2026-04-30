@@ -11,6 +11,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String TOPIC_DELAY = "delay";
   private static final String RULE_VERSION = "customer-issue-records@2026-04-22-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final int EXPORT_PAGE_SIZE = 100;
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
@@ -102,6 +104,107 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         pageSlice.size(),
         safeSortField,
         safeSortOrder);
+  }
+
+  public String exportRecordsCsv(CustomerIssueRecordQueryRequest request) {
+    List<CustomerIssueRecordRowResponse> rows = new ArrayList<>();
+    int page = 1;
+    while (true) {
+      IssueFactRecordListRequest listRequest = request.listRequest();
+      CustomerIssueRecordQueryRequest pageRequest =
+          new CustomerIssueRecordQueryRequest(
+              request.topic(),
+              new IssueFactRecordListRequest(
+                  listRequest.projectId(),
+                  listRequest.keyword(),
+                  listRequest.issueIid(),
+                  listRequest.title(),
+                  listRequest.projectName(),
+                  listRequest.moduleName(),
+                  listRequest.severityLevel(),
+                  listRequest.priorityLevel(),
+                  listRequest.issueState(),
+                  listRequest.bugStatus(),
+                  listRequest.category(),
+                  listRequest.milestoneTitle(),
+                  listRequest.createdAtStart(),
+                  listRequest.createdAtEnd(),
+                  listRequest.updatedAtStart(),
+                  listRequest.updatedAtEnd(),
+                  page,
+                  EXPORT_PAGE_SIZE,
+                  listRequest.sortField(),
+                  listRequest.sortOrder()),
+              request.reasonCategory(),
+              request.filterGroupJson());
+      CustomerIssueRecordListResponse response = listRecords(pageRequest);
+      rows.addAll(response.records());
+      if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
+        break;
+      }
+      page += 1;
+    }
+
+    List<String> lines = new ArrayList<>();
+    lines.add(
+        String.join(
+            ",",
+            List.of(
+                "问题编号",
+                "项目",
+                "模块",
+                "缺陷原因",
+                "严重程度",
+                "优先级",
+                "缺陷状态",
+                "状态",
+                "创建人",
+                "处理人",
+                "缺陷分类",
+                "里程碑",
+                "延期问题",
+                "延期原因",
+                "延期分类",
+                "响应延期",
+                "解决延期",
+                "非法数据",
+                "非法原因",
+                "创建时间",
+                "更新时间",
+                "关闭时间",
+                "标题",
+                "链接")));
+    for (CustomerIssueRecordRowResponse row : rows) {
+      lines.add(
+          String.join(
+              ",",
+              List.of(
+                  CsvExportSupport.cell(row.issueIid()),
+                  CsvExportSupport.cell(row.projectName()),
+                  CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.reasonCategory()),
+                  CsvExportSupport.cell(row.severityLevel()),
+                  CsvExportSupport.cell(row.priorityLevel()),
+                  CsvExportSupport.cell(row.bugStatus()),
+                  CsvExportSupport.cell(row.issueState()),
+                  CsvExportSupport.cell(row.authorName()),
+                  CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.category()),
+                  CsvExportSupport.cell(row.milestoneTitle()),
+                  CsvExportSupport.cell(row.delayIssue() ? "是" : "否"),
+                  CsvExportSupport.cell(row.delayReason()),
+                  CsvExportSupport.cell(row.delayCause()),
+                  CsvExportSupport.cell(row.responseDelayed() ? "是" : "否"),
+                  CsvExportSupport.cell(row.resolveDelayed() ? "是" : "否"),
+                  CsvExportSupport.cell(row.illegal() ? "是" : "否"),
+                  CsvExportSupport.cell(row.illegalReason()),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
+                  CsvExportSupport.cell(row.title()),
+                  CsvExportSupport.cell(row.issueLink()))));
+    }
+    return String.join("\n", lines) + "\n";
   }
 
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(String topic, Long projectId) {

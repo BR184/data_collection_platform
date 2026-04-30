@@ -2,6 +2,8 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,6 +26,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.http.HttpHeaders;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
@@ -161,6 +164,50 @@ class QuestionMetricsControllerTest {
   }
 
   @Test
+  void shouldExportIssueSearchRecordsCsvWithCurrentFilters() throws Exception {
+    when(systemTestIssueSearchService.exportRecordsCsv(
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    "sample",
+                    null,
+                    null,
+                    null,
+                    "Sketch",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                "CC2026R1",
+                null,
+                null)))
+        .thenReturn("issue_iid,title\n809,Sample issue\n");
+
+    mockMvc.perform(
+            get("/api/question-metrics/issues/export")
+                .param("projectId", "1001")
+                .param("keyword", "sample")
+                .param("moduleName", "Sketch")
+                .param("testingPhase", "CC2026R1")
+                .param("sortBy", "updatedAt")
+                .param("sortOrder", "desc"))
+        .andExpect(status().isOk())
+        .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-issues.csv\""))
+        .andExpect(content().contentType("text/csv;charset=UTF-8"))
+        .andExpect(content().string("issue_iid,title\n809,Sample issue\n"));
+  }
+
+  @Test
   void shouldReturnSystemTestIllegalRecordList() throws Exception {
     when(systemTestIllegalRecordService.listRecords(
             new SystemTestIllegalRecordQueryRequest(
@@ -274,6 +321,55 @@ class QuestionMetricsControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.illegalReasons[0].value").value("未设定模块"));
+  }
+
+  @Test
+  void shouldExportSystemTestIllegalRecordsCsvWithCurrentFilters() throws Exception {
+    when(systemTestIllegalRecordService.exportRecordsCsv(
+            new SystemTestIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    "sample",
+                    null,
+                    null,
+                    null,
+                    "Sketch",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                "CC2026R1",
+                "missing module",
+                null,
+                null,
+                "{\"logic\":\"AND\",\"conditions\":[]}")))
+        .thenReturn("issue_iid,illegal_reason\n809,missing module\n");
+
+    mockMvc.perform(
+            get("/api/question-metrics/illegal-records/export")
+                .param("projectId", "1001")
+                .param("keyword", "sample")
+                .param("moduleName", "Sketch")
+                .param("testingPhase", "CC2026R1")
+                .param("illegalReason", "missing module")
+                .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[]}")
+                .param("sortBy", "updatedAt")
+                .param("sortOrder", "desc"))
+        .andExpect(status().isOk())
+        .andExpect(
+            header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-illegal-records.csv\""))
+        .andExpect(content().contentType("text/csv;charset=UTF-8"))
+        .andExpect(content().string("issue_iid,illegal_reason\n809,missing module\n"));
   }
 
   @Test

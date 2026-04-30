@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
+import { Download } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
+import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchRowResponse,
@@ -31,6 +33,7 @@ const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTabl
 const advancedVisible = ref(false);
 const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
+const exportLoading = ref(false);
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
@@ -239,7 +242,13 @@ async function loadFilterOptions() {
 }
 
 async function loadTableData() {
-  const response = await api.getSystemTestIssueSearchRecords({
+  const response = await api.getSystemTestIssueSearchRecords(buildCurrentQueryParams(true));
+  rows.value = response.records;
+  total.value = response.total;
+}
+
+function buildCurrentQueryParams(includePagination: boolean) {
+  return {
     projectId: route.query.projectId as string | undefined,
     keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
@@ -258,13 +267,22 @@ async function loadTableData() {
     createdAtEnd: String(route.query.createdAtEnd ?? ''),
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
-    page: page.value,
-    size: pageSize.value,
+    ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'updatedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
-  });
-  rows.value = response.records;
-  total.value = response.total;
+  };
+}
+
+async function handleExport() {
+  exportLoading.value = true;
+  try {
+    const csv = await api.exportSystemTestIssueSearchRecords(buildCurrentQueryParams(false));
+    downloadCsv(csv, `系统测试问题记录_${formatExportFileDate(new Date())}.csv`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导出失败');
+  } finally {
+    exportLoading.value = false;
+  }
 }
 
 function formatDateTime(value?: string | null) {
@@ -415,6 +433,12 @@ async function handleRefresh() {
           <div class="issue-search-toolbar-title">议题查询</div>
           <div class="issue-search-toolbar-desc">系统测试范围内的议题筛选、排序与详情展开</div>
         </div>
+      </template>
+
+      <template #toolbar-actions>
+        <el-button plain size="small" :icon="Download" :loading="exportLoading" @click="handleExport">
+          导出
+        </el-button>
       </template>
 
       <template #expand="{ row }">

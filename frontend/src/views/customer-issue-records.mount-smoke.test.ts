@@ -101,4 +101,73 @@ describe('CustomerIssueRecordsView mount smoke', () => {
     wrapper.unmount();
     vi.unstubAllGlobals();
   });
+
+  it('exports current filtered customer issue records as csv', async () => {
+    const fetchSpy = vi.fn((url: string) => {
+      if (url.includes('/api/customer-issues/records/export')) {
+        return Promise.resolve({ ok: true, text: () => Promise.resolve('issue_iid,title\n201,Delay sample\n') } as Response);
+      }
+      if (url.includes('/api/customer-issues/records/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          reasonCategories: [],
+          severityLevels: [],
+          priorityLevels: [],
+          issueStates: [],
+          bugStatuses: [],
+          categories: [],
+          milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/customer-issues/records?')) {
+        return jsonResponse({
+          records: [],
+          total: 0,
+          page: 1,
+          size: 20,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:csv'), revokeObjectURL: vi.fn() });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [
+        {
+          path: '/customer-issues/delay-issues',
+          component: CustomerIssueRecordsView,
+          meta: { pageKey: 'customer-issues-delay-issues' },
+        },
+      ],
+    });
+
+    await router.push('/customer-issues/delay-issues?projectId=325&keyword=delay&reasonCategory=Design&sortBy=updatedAt&sortOrder=desc');
+    await router.isReady();
+
+    const wrapper = mount(CustomerIssueRecordsView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    await wrapper.findAll('button').find((button) => button.text().includes('导出'))?.trigger('click');
+    await flushPromises();
+
+    const exportCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('/api/customer-issues/records/export'));
+    expect(String(exportCall?.[0])).toContain('topic=delay');
+    expect(String(exportCall?.[0])).toContain('projectId=325');
+    expect(String(exportCall?.[0])).toContain('keyword=delay');
+    expect(String(exportCall?.[0])).toContain('reasonCategory=Design');
+    expect(String(exportCall?.[0])).not.toContain('page=');
+
+    wrapper.unmount();
+    clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

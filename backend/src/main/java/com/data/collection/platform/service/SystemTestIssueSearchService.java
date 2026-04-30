@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,6 +16,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class SystemTestIssueSearchService extends AbstractIssueFactRecordListService {
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final int EXPORT_PAGE_SIZE = 100;
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
@@ -80,6 +82,91 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         pageSlice.records().stream().map(this::toResponse).toList();
     return new SystemTestIssueSearchListResponse(
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+  }
+
+  public String exportRecordsCsv(SystemTestIssueSearchQueryRequest request) {
+    List<SystemTestIssueSearchRowResponse> rows = new ArrayList<>();
+    int page = 1;
+    while (true) {
+      IssueFactRecordListRequest listRequest = request.listRequest();
+      SystemTestIssueSearchQueryRequest pageRequest =
+          new SystemTestIssueSearchQueryRequest(
+              new IssueFactRecordListRequest(
+                  listRequest.projectId(),
+                  listRequest.keyword(),
+                  listRequest.issueIid(),
+                  listRequest.title(),
+                  listRequest.projectName(),
+                  listRequest.moduleName(),
+                  listRequest.severityLevel(),
+                  listRequest.priorityLevel(),
+                  listRequest.issueState(),
+                  listRequest.bugStatus(),
+                  listRequest.category(),
+                  listRequest.milestoneTitle(),
+                  listRequest.createdAtStart(),
+                  listRequest.createdAtEnd(),
+                  listRequest.updatedAtStart(),
+                  listRequest.updatedAtEnd(),
+                  page,
+                  EXPORT_PAGE_SIZE,
+                  listRequest.sortField(),
+                  listRequest.sortOrder()),
+              request.testingPhase(),
+              request.authorName(),
+              request.assigneeName());
+      SystemTestIssueSearchListResponse response = listRecords(pageRequest);
+      rows.addAll(response.records());
+      if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
+        break;
+      }
+      page += 1;
+    }
+
+    List<String> lines = new ArrayList<>();
+    lines.add(
+        String.join(
+            ",",
+            List.of(
+                "问题编号",
+                "项目",
+                "模块",
+                "测试阶段",
+                "严重程度",
+                "缺陷状态",
+                "状态",
+                "创建人",
+                "处理人",
+                "缺陷分类",
+                "里程碑",
+                "创建时间",
+                "更新时间",
+                "关闭时间",
+                "标题",
+                "链接")));
+    for (SystemTestIssueSearchRowResponse row : rows) {
+      lines.add(
+          String.join(
+              ",",
+              List.of(
+                  CsvExportSupport.cell(row.issueIid()),
+                  CsvExportSupport.cell(row.projectName()),
+                  CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.testingPhase()),
+                  CsvExportSupport.cell(row.severityLevel()),
+                  CsvExportSupport.cell(row.bugStatus()),
+                  CsvExportSupport.cell(row.issueState()),
+                  CsvExportSupport.cell(row.authorName()),
+                  CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.category()),
+                  CsvExportSupport.cell(row.milestoneTitle()),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
+                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
+                  CsvExportSupport.cell(row.title()),
+                  CsvExportSupport.cell(row.issueLink()))));
+    }
+    return String.join("\n", lines) + "\n";
   }
 
   public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId) {

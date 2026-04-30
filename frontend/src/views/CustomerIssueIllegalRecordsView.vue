@@ -108,6 +108,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     empty-description="当前筛选条件下没有客户问题非法数据。"
     :total-tag-text="(total) => `当前 ${total} 条`"
     :load-records="loadRecords"
+    :export-records="api.exportCustomerIssueIllegalRecords"
+    export-filename-prefix="客户问题非法数据"
     :load-filter-options="api.getCustomerIssueIllegalRecordFilterOptions"
     :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
     :initial-filter-options="initialFilterOptions"

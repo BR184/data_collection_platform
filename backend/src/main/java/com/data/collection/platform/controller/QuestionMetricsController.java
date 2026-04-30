@@ -8,6 +8,9 @@ import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +41,18 @@ public class QuestionMetricsController {
             questionMetricsRequestAssembler.toIssueSearchQueryRequest(request)));
   }
 
+  @GetMapping("/issues/export")
+  public ResponseEntity<String> exportIssues(
+      @ModelAttribute SystemTestIssueSearchListWebRequest request) {
+    String csv =
+        systemTestIssueSearchService.exportRecordsCsv(
+            questionMetricsRequestAssembler.toIssueSearchQueryRequest(request));
+    return ResponseEntity.ok()
+        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-issues.csv\"")
+        .body(csv);
+  }
+
   @GetMapping("/issues/filter-options")
   public ApiResponse<SystemTestIssueSearchFilterOptionsResponse> getIssueFilterOptions(
       @RequestParam(required = false) Long projectId) {
@@ -50,6 +65,18 @@ public class QuestionMetricsController {
     return ApiResponse.success(
         systemTestIllegalRecordService.listRecords(
             questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request)));
+  }
+
+  @GetMapping("/illegal-records/export")
+  public ResponseEntity<String> exportIllegalRecords(
+      @ModelAttribute SystemTestIllegalRecordListWebRequest request) {
+    String csv =
+        systemTestIllegalRecordService.exportRecordsCsv(
+            questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request));
+    return ResponseEntity.ok()
+        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-illegal-records.csv\"")
+        .body(csv);
   }
 
   @GetMapping("/illegal-records/filter-options")

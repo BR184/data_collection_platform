@@ -2,6 +2,8 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,6 +25,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.http.HttpHeaders;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
@@ -142,6 +145,52 @@ class CustomerIssueControllerTest {
         .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/201"))
         .andExpect(jsonPath("$.data.records[0].title").value("Delay sample"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("delay"));
+  }
+
+  @Test
+  void shouldExportCustomerIssueRecordsCsvWithCurrentFilters() throws Exception {
+    when(customerIssueRecordService.exportRecordsCsv(
+            new CustomerIssueRecordQueryRequest(
+                "delay",
+                new IssueFactRecordListRequest(
+                    325L,
+                    "delay",
+                    null,
+                    null,
+                    null,
+                    "Sketch",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                "Design",
+                "{\"logic\":\"AND\",\"conditions\":[]}")))
+        .thenReturn("issue_iid,title\n201,Delay sample\n");
+
+    mockMvc.perform(
+            get("/api/customer-issues/records/export")
+                .param("topic", "delay")
+                .param("projectId", "325")
+                .param("keyword", "delay")
+                .param("moduleName", "Sketch")
+                .param("reasonCategory", "Design")
+                .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[]}")
+                .param("sortBy", "updatedAt")
+                .param("sortOrder", "desc"))
+        .andExpect(status().isOk())
+        .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-records.csv\""))
+        .andExpect(content().contentType("text/csv;charset=UTF-8"))
+        .andExpect(content().string("issue_iid,title\n201,Delay sample\n"));
   }
 
   @Test
@@ -268,6 +317,51 @@ class CustomerIssueControllerTest {
         .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/-/issues/301"))
         .andExpect(jsonPath("$.data.records[0].illegalReason").value("Module mismatch"))
         .andExpect(jsonPath("$.data.records[0].labels[0]").value("illegal"));
+  }
+
+  @Test
+  void shouldExportCustomerIssueIllegalRecordsCsvWithCurrentFilters() throws Exception {
+    when(customerIssueIllegalRecordService.exportRecordsCsv(
+            new CustomerIssueIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    325L,
+                    "illegal",
+                    null,
+                    null,
+                    null,
+                    "Sketch",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                "Module mismatch",
+                "{\"logic\":\"AND\",\"conditions\":[]}")))
+        .thenReturn("issue_iid,illegal_reason\n301,Module mismatch\n");
+
+    mockMvc.perform(
+            get("/api/customer-issues/illegal-records/export")
+                .param("projectId", "325")
+                .param("keyword", "illegal")
+                .param("moduleName", "Sketch")
+                .param("illegalReason", "Module mismatch")
+                .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[]}")
+                .param("sortBy", "updatedAt")
+                .param("sortOrder", "desc"))
+        .andExpect(status().isOk())
+        .andExpect(
+            header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-illegal-records.csv\""))
+        .andExpect(content().contentType("text/csv;charset=UTF-8"))
+        .andExpect(content().string("issue_iid,illegal_reason\n301,Module mismatch\n"));
   }
 
   @Test
