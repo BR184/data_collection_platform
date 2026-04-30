@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "platform.auth")
 public class PlatformAuthProperties {
   private String adminUsername = "admin";
-  private String adminPassword = "admin";
+  private String adminPassword = "admin123";
   private String approvalUsername = "approval";
   private String approvalPassword = "approval";
 

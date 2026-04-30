@@ -31,7 +31,7 @@ logging:
 platform:
   auth:
     admin-username: ${PLATFORM_ADMIN_USERNAME:admin}
-    admin-password: ${PLATFORM_ADMIN_PASSWORD:admin}
+    admin-password: ${PLATFORM_ADMIN_PASSWORD:admin123}
     approval-username: ${PLATFORM_APPROVAL_USERNAME:approval}
     approval-password: ${PLATFORM_APPROVAL_PASSWORD:approval}
   gitlab-mirror:

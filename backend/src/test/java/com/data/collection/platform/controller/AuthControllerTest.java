@@ -59,6 +59,25 @@ class AuthControllerTest {
   }
 
   @Test
+  void defaultAdminAccountShouldUseRequestedPassword() throws Exception {
+    MockMvc defaultAuthMockMvc =
+        MockMvcBuilders.standaloneSetup(new AuthController(new PlatformAuthProperties())).build();
+
+    defaultAuthMockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "admin123"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.role").value("ADMIN"))
+        .andExpect(jsonPath("$.data.authenticated").value(true));
+  }
+
+  @Test
   void loginShouldSupportApprovalRole() throws Exception {
     mockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
