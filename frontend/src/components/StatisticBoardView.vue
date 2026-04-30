@@ -10,8 +10,6 @@ import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import { api } from '../api';
 import {
   type StatisticBoardResponse,
-  type StatisticCellData,
-  type StatisticRowData,
 } from '../types/api';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
@@ -28,6 +26,7 @@ import { useStatisticBoardTableState } from '../composables/useStatisticBoardTab
 import { useStatisticBoardRuleExplanationState } from '../composables/useStatisticBoardRuleExplanationState';
 import { useStatisticBoardRefreshController } from '../composables/useStatisticBoardRefreshController';
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
+import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -42,10 +41,6 @@ import {
 import {
   buildFilterGroupFromRouteQuery,
 } from './statistic-board-route-query';
-import {
-  columnMinWidth as resolveColumnMinWidth,
-  columnResizable as resolveColumnResizable,
-} from './statistic-board-column-layout';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 
@@ -272,21 +267,16 @@ const {
   restoreDefaultViewPrefs,
 });
 
-async function openDetail(row: StatisticRowData, cell: StatisticCellData) {
-  await openStatisticDetail(row, cell, board.value?.definition.defaultPageSize ?? 10);
-}
-
-function cellForColumn(row: StatisticRowData, columnKey: string) {
-  return row.cells.find((item) => item.columnKey === columnKey);
-}
-
-function columnMinWidth(column: Parameters<typeof resolveColumnMinWidth>[0]) {
-  return resolveColumnMinWidth(column, boardViewPrefs.value.widthStrategy, board.value?.rows ?? []);
-}
-
-function columnResizable(column: Parameters<typeof resolveColumnResizable>[0]) {
-  return resolveColumnResizable(column);
-}
+const {
+  openDetail,
+  cellForColumn,
+  columnMinWidth,
+  columnResizable,
+} = useStatisticBoardTableAdapters({
+  board,
+  boardViewPrefs,
+  openStatisticDetail,
+});
 
 function sortIconForDirection(direction: SortDirection) {
   if (direction === 'asc') {
