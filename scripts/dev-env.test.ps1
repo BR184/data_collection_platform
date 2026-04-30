@@ -31,9 +31,10 @@ if ($npm.CommandType -eq "Function") {
   throw "npm still resolves to a PowerShell function"
 }
 
-$npmSource = [string] $npm.Source
-if (-not $npmSource.EndsWith("npm.cmd")) {
-  throw "npm does not resolve to npm.cmd: $npmSource"
+$npmCmd = Get-Command npm.cmd -ErrorAction Stop
+$npmCmdSource = [string] $npmCmd.Source
+if (-not $npmCmdSource.EndsWith("npm.cmd")) {
+  throw "npm.cmd does not resolve to npm.cmd: $npmCmdSource"
 }
 
 Write-Host "dev-env smoke test passed"

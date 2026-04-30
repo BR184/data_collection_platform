@@ -29,3 +29,24 @@ cd frontend
 Frontend default URL:
 
 - `http://localhost:18181/`
+
+## Verify local environment
+
+Use the project environment script instead of relying on a user PowerShell profile:
+
+```powershell
+.\scripts\verify-local.ps1
+```
+
+The verification script checks the local toolchain, compiles the backend, and runs the frontend typecheck.
+
+For manual commands:
+
+```powershell
+. .\scripts\dev-env.ps1
+cd backend
+mvn -q -DskipTests compile
+
+cd ..\frontend
+npm.cmd run typecheck
+```
