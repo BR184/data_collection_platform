@@ -5,6 +5,7 @@ import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
 import BaseStatisticTable from './base/BaseStatisticTable.vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
+import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanationDrawer.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import {
@@ -44,13 +45,7 @@ import {
   columnResizable as resolveColumnResizable,
 } from './statistic-board-column-layout';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
-import {
-  createFallbackRuleExplanation,
-  metricFormulaSummary,
-  ruleStepRemovedCount,
-  ruleStepRetainedRate,
-  ruleStepSummary,
-} from './statistic-board-rule-explanation';
+import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 
 const props = withDefaults(
   defineProps<{
@@ -456,105 +451,19 @@ watch(
       />
       </el-card>
 
-    <el-drawer
+    <StatisticBoardRuleExplanationDrawer
       :model-value="ruleExplanationVisible"
-      :title="ruleExplanation?.title || '规则说明'"
-      size="44%"
-      append-to-body
+      :loading="ruleExplanationLoading"
+      :explanation="ruleExplanation"
+      :steps="ruleExplanationSteps"
+      :metrics="ruleExplanationMetrics"
+      :exclusion-steps="ruleExclusionSteps"
+      :first-input-count="ruleFirstInputCount"
+      :final-output-count="ruleFinalOutputCount"
+      :final-retained-rate="ruleFinalRetainedRate"
+      :qa-friendly-summary="qaFriendlyRuleSummary"
       @update:model-value="handleRuleExplanationVisibleChange"
-    >
-      <div v-loading="ruleExplanationLoading" class="rule-explanation-panel">
-        <el-empty
-          v-if="!ruleExplanation?.supported"
-          :description="ruleExplanation?.unsupportedReason || '当前统计表暂不支持规则说明。'"
-        />
-
-        <template v-else>
-          <div class="rule-explanation-section">
-            <div class="rule-explanation-section-title">先看结论</div>
-            <div class="rule-explanation-summary-card">
-              <div class="rule-explanation-summary-main">{{ qaFriendlyRuleSummary }}</div>
-              <div v-if="ruleExplanation?.summary" class="rule-explanation-summary-sub">
-                {{ ruleExplanation.summary }}
-              </div>
-            </div>
-            <div class="rule-explanation-overview-grid">
-              <article class="rule-overview-card">
-                <span class="rule-overview-label">原始数据</span>
-                <strong class="rule-overview-value">{{ ruleFirstInputCount }}</strong>
-              </article>
-              <article class="rule-overview-card">
-                <span class="rule-overview-label">最终保留</span>
-                <strong class="rule-overview-value">{{ ruleFinalOutputCount }}</strong>
-              </article>
-              <article class="rule-overview-card">
-                <span class="rule-overview-label">最终保留比例</span>
-                <strong class="rule-overview-value">{{ ruleFinalRetainedRate }}</strong>
-              </article>
-            </div>
-          </div>
-
-          <el-descriptions border :column="1" class="rule-explanation-meta">
-            <el-descriptions-item label="当前使用规则版本">{{ ruleExplanation?.version || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="这次统计包含哪些数据">{{ ruleExplanation?.scopeDescription || '-' }}</el-descriptions-item>
-          </el-descriptions>
-
-          <div class="rule-explanation-section">
-            <div class="rule-explanation-section-title">哪些会被排除</div>
-            <div class="rule-rule-card-grid">
-              <article
-                v-for="(step, index) in ruleExclusionSteps"
-                :key="step.key"
-                class="rule-rule-card"
-              >
-                <div class="rule-rule-card-title">规则 {{ index + 1 }}：{{ step.title }}</div>
-                <div class="rule-rule-card-description">{{ step.description }}</div>
-                <div class="rule-rule-card-summary">{{ ruleStepSummary(step, index + 1) }}</div>
-                <div class="rule-rule-card-stats">
-                  <span class="rule-rule-card-stat">排除 {{ ruleStepRemovedCount(step) }} 条</span>
-                  <span class="rule-rule-card-stat">剩余 {{ step.outputCount }} 条</span>
-                  <span class="rule-rule-card-stat">保留 {{ ruleStepRetainedRate(step) }}</span>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="rule-explanation-section">
-            <div class="rule-explanation-section-title">数据是怎么一步步变少的</div>
-            <div class="rule-process-chain">
-              <article
-                v-for="(step, index) in ruleExplanationSteps"
-                :key="`${step.key}-process`"
-                class="rule-process-card"
-              >
-                <div class="rule-process-step">第 {{ index + 1 }} 步</div>
-                <div class="rule-process-title">{{ step.title }}</div>
-                <div class="rule-process-value">{{ step.outputCount }} 条</div>
-                <div class="rule-process-note">
-                  {{ index === 0 ? '这是最开始纳入统计的原始数据。' : `这一轮处理后还剩 ${step.outputCount} 条。` }}
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="rule-explanation-section">
-            <div class="rule-explanation-section-title">最后这些数字怎么算</div>
-            <div class="rule-formula-card-grid">
-              <article
-                v-for="metric in ruleExplanationMetrics"
-                :key="metric.key"
-                class="rule-formula-card"
-              >
-                <div class="rule-formula-card-title">{{ metric.label }}</div>
-                <div class="rule-formula-card-definition">{{ metricFormulaSummary(metric) }}</div>
-                <div class="rule-formula-card-formula">{{ metric.formula }}</div>
-                <div v-if="metric.note" class="rule-formula-card-note">{{ metric.note }}</div>
-              </article>
-            </div>
-          </div>
-        </template>
-      </div>
-    </el-drawer>
+    />
 
     <el-dialog
       :model-value="detailVisible"
@@ -611,174 +520,3 @@ watch(
 
   </div>
 </template>
-
-<style scoped>
-.rule-explanation-panel {
-  display: grid;
-  gap: 16px;
-}
-
-.rule-explanation-section {
-  display: grid;
-  gap: 12px;
-}
-
-.rule-explanation-section-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.76);
-}
-
-.rule-explanation-summary-card {
-  display: grid;
-  gap: 8px;
-  padding: 16px 18px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.14);
-}
-
-.rule-explanation-summary-main {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.rule-explanation-summary-sub {
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.66);
-}
-
-.rule-explanation-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.rule-overview-card {
-  display: grid;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.rule-overview-label {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.52);
-}
-
-.rule-overview-value {
-  font-size: 22px;
-  line-height: 1;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.rule-explanation-meta {
-  background: rgba(255, 255, 255, 0.82);
-  border-radius: 18px;
-}
-
-.rule-rule-card-grid,
-.rule-formula-card-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.rule-rule-card,
-.rule-formula-card {
-  display: grid;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.rule-rule-card-title,
-.rule-formula-card-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.rule-rule-card-description,
-.rule-formula-card-definition,
-.rule-formula-card-note {
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.68);
-}
-
-.rule-rule-card-summary,
-.rule-formula-card-formula {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(248, 250, 252, 0.96);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.8);
-}
-
-.rule-rule-card-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.rule-rule-card-stat {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(241, 245, 249, 0.95);
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.72);
-}
-
-.rule-process-chain {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.rule-process-card {
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.rule-process-step {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.46);
-}
-
-.rule-process-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.88);
-}
-
-.rule-process-value {
-  font-size: 26px;
-  line-height: 1;
-  color: rgba(15, 23, 42, 0.94);
-}
-
-.rule-process-note {
-  font-size: 12px;
-  line-height: 1.6;
-  color: rgba(15, 23, 42, 0.62);
-}
-
-@media (max-width: 960px) {
-  .rule-explanation-overview-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
