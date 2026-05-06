@@ -130,6 +130,8 @@
 - 已把系统测试、客户问题的核心统计板收口到共享统计板运行时。
 - 已明确搜索 SQL 下沉的一期架构：Java 生成 `normalized / compact / spell / initials` 搜索影子字段，SQL 基于持久化索引字段完成模糊匹配、拼音搜索和首字母搜索。
 - 已新增 Flyway 迁移 `V20260506_01__search_and_fact_query_indexes.sql`，开始纳管评审数据、议题事实和合并请求事实的搜索索引列、分类查询字段及关键查询索引。
+- 已新增 Flyway 迁移 `V20260506_02__gitlab_sync_core_schema.sql`，开始纳管 GitLab 同步配置、任务、日志、Webhook、镜像记录和采集表单记录等基础表。
+- 已新增 Flyway 迁移 `V20260506_03__operational_support_schema.sql`，继续纳管代码走查外部指标、集成测试事实、测试阶段日历、模块字典和镜像表注册表。
 - 已提供通用统计板接口：
   - 统计数据
   - 明细下钻
@@ -218,10 +220,19 @@
   - `issue_fact` 的分类、非法原因、阶段筛选和多字段搜索索引字段。
   - `merge_request_fact` 的关键词搜索字段和责任人搜索字段。
   - 相关 `pg_trgm`/GIN 索引和记录页分页排序索引。
+- 本次继续把 GitLab 同步基础结构迁入 Flyway：
+  - `gitlab_sync_configs`、`gitlab_sync_logs`、`gitlab_sync_tasks`、`gitlab_webhook_events`。
+  - `gitlab_mirror_records` 和 `collect_form_records`。
+  - 同步任务去重、范围状态、日志按配置查询、镜像表查询和采集表单上下文索引。
+- 本次继续把剩余核心支撑表迁入 Flyway：
+  - `code_review_external_metrics` 和 `integration_test_fact`。
+  - `testing_phase_calendar`、`module_dictionary` 和 `sys_table_registry`。
+  - 集成测试事实、测试阶段、模块字典和镜像表注册相关索引。
 - 当前仍未下沉的部分：
   - 拼音/首字母索引生成仍在 Java，暂不改为数据库函数。
   - 议题分类、非法原因、SLA、历史遗留等事实计算仍在 Java 事实构建阶段完成。
   - 统计看板中仍有部分聚合在 Java 内存层完成，后续按性能和口径稳定性逐步评估。
+  - 主配置仍保留 `spring.sql.init.mode=always` 和 `schema.sql` 初始化，待迁移烟测跑通后再切换到 Flyway 单一入口。
 - 后续建议：
   - 继续把 `schema.sql` 中仍未纳入 Flyway 的核心表结构分批迁移。
   - 为大表环境评估 `CREATE INDEX CONCURRENTLY` 的独立迁移策略。
@@ -242,8 +253,12 @@
 
 - 新增 Flyway 迁移：
   - `backend/src/main/resources/db/migration/V20260506_01__search_and_fact_query_indexes.sql`
+  - `backend/src/main/resources/db/migration/V20260506_02__gitlab_sync_core_schema.sql`
+  - `backend/src/main/resources/db/migration/V20260506_03__operational_support_schema.sql`
 - 扩展 Flyway 烟测：
   - `FlywayMigrationSmokeTest` 现在会检查搜索索引列、分类查询字段和关键索引是否由 Flyway 创建。
+  - `FlywayMigrationSmokeTest` 现在也会检查 GitLab 同步基础表、采集表单记录表和关键同步索引是否由 Flyway 创建。
+  - `FlywayMigrationSmokeTest` 现在也会检查代码走查指标、集成测试事实、阶段日历、模块字典和镜像表注册结构是否由 Flyway 创建。
 - 当前机器 shell 未找到 `mvn` / `java` / `psql` 命令，尚无法在本地完成迁移烟测执行；待具备 Maven/JDK 环境后优先运行：
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
 
