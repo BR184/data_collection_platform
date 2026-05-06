@@ -102,6 +102,9 @@ describe('useMirrorSyncActionsController', () => {
     const pending = controller.testConnection();
 
     expect(controller.testing.value).toBe(true);
+    for (let index = 0; index < 5 && !resolveTestConnection; index += 1) {
+      await Promise.resolve();
+    }
     resolveTestConnection!();
     await pending;
 
