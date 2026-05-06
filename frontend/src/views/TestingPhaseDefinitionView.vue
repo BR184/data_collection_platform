@@ -7,6 +7,7 @@ import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
+import { focusFirstInvalidFormField } from '../utils/formFocus';
 import type {
   TestingPhaseDefinitionResponse,
   TestingPhaseDefinitionSaveRequest,
@@ -143,6 +144,8 @@ async function savePhase() {
   }
   const valid = await instance.validate().catch(() => false);
   if (!valid || form.projectId == null) {
+    ElMessage.warning('请先补全测试阶段信息');
+    focusFirstInvalidFormField(instance);
     return;
   }
   saving.value = true;
@@ -330,7 +333,7 @@ onMounted(async () => {
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="620px" @closed="resetForm">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" @submit.prevent="savePhase">
         <el-form-item label="项目 ID" prop="projectId">
           <el-input-number v-model="form.projectId" :min="1" :precision="0" controls-position="right" />
           <span v-if="formProjectName" class="form-hint">{{ formProjectName }}</span>

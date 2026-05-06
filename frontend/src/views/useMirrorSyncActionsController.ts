@@ -19,6 +19,7 @@ export interface MirrorSyncActionsControllerDependencies {
 export function useMirrorSyncActionsController(deps: MirrorSyncActionsControllerDependencies) {
   const saving = ref(false);
   const syncing = ref(false);
+  const testing = ref(false);
   const cancelling = ref(false);
 
   function showSubmissionFeedback(result: SyncSubmissionResponse) {
@@ -52,6 +53,10 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   }
 
   async function testConnection() {
+    if (testing.value) {
+      return;
+    }
+    testing.value = true;
     try {
       await saveConfig(false);
       await deps.testConnectionData();
@@ -59,6 +64,8 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       await deps.loadStatus(false, false);
     } catch (error) {
       deps.notifyError((error as Error).message);
+    } finally {
+      testing.value = false;
     }
   }
 
@@ -110,6 +117,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   return {
     saving,
     syncing,
+    testing,
     cancelling,
     saveConfig,
     testConnection,

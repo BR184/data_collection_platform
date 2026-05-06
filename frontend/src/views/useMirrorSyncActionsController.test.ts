@@ -88,6 +88,26 @@ describe('useMirrorSyncActionsController', () => {
     expect(deps.loadStatus).toHaveBeenCalledTimes(2);
   });
 
+  it('exposes testing state while the connection test is running', async () => {
+    let resolveTestConnection: (() => void) | null = null;
+    const deps = setup();
+    deps.testConnectionData.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTestConnection = () => resolve({ success: true, message: 'ok' });
+        }),
+    );
+    const controller = useMirrorSyncActionsController(deps);
+
+    const pending = controller.testConnection();
+
+    expect(controller.testing.value).toBe(true);
+    resolveTestConnection!();
+    await pending;
+
+    expect(controller.testing.value).toBe(false);
+  });
+
   it('starts full and incremental syncs with submission feedback', async () => {
     const deps = setup();
     const controller = useMirrorSyncActionsController(deps);

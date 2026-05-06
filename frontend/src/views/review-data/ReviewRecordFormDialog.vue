@@ -7,6 +7,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { ReviewDataFilterOptionsResponse, ReviewDataRecordSaveRequest } from '../../types/api';
 import SmartSelect from '../../components/base/SmartSelect.vue';
 import type { ReviewRecordFormModel } from '../review-data-management';
+import { focusFirstInvalidFormField } from '../../utils/formFocus';
 
 const props = defineProps<{
   visible: boolean;
@@ -81,6 +82,7 @@ async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) {
     ElMessage.warning('请先补全评审信息');
+    focusFirstInvalidFormField(formRef.value);
     return;
   }
   emit('submit', {
@@ -120,7 +122,7 @@ function handleClose() {
     />
     <div v-if="tipText" class="review-form-tip-note">{{ tipText }}</div>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="112px" class="review-form">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="112px" class="review-form" @submit.prevent="handleSubmit">
       <div class="review-form-grid">
         <el-form-item label="项目名称" prop="projectName">
           <SmartSelect v-model="form.projectName" :options="projectOptions" compact placeholder="请选择项目名称" />

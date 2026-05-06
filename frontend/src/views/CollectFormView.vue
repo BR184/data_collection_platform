@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElMessage } from '../element-plus-services';
+import { ElMessage, ElMessageBox } from '../element-plus-services';
 // 采集表单页面面向外部评审入口，重点是把 GitLab 上下文转成稳定的表单提交参数。
 // 页面中的默认值来自路由和接口组合，提交前仍由后端做最终校验和落库。
 import { computed, reactive, ref, watch } from 'vue';
@@ -130,6 +130,22 @@ async function deleteForm() {
     ElMessage.warning('缺少必要的链接上下文参数');
     return;
   }
+  try {
+    await ElMessageBox.confirm(
+      '作废后当前表单记录会从有效数据中移除，后续如需恢复需要重新保存。确认作废这条记录吗？',
+      '作废表单记录',
+      {
+        confirmButtonText: '确认作废',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    );
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '作废确认失败');
+    }
+    return;
+  }
   deleting.value = true;
   try {
     const deleted = await api.deleteCollectForm({
@@ -222,7 +238,7 @@ watch(
           </div>
         </template>
 
-        <el-form label-position="top" class="external-form-layout">
+        <el-form label-position="top" class="external-form-layout" @submit.prevent="saveForm">
           <div class="external-form-grid">
             <el-form-item label="走查人">
               <el-input v-model="formModel.reviewer" placeholder="请输入走查人" />

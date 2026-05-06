@@ -461,7 +461,7 @@ onBeforeUnmount(() => {
       <div class="db-edit-context-item"><span>创建时间</span><strong>{{ editingContext.createdAt }}</strong></div>
     </div>
 
-    <el-form label-position="top" class="db-edit-form">
+    <el-form label-position="top" class="db-edit-form" @submit.prevent="saveCollectFormEdit">
       <div class="db-edit-grid">
         <el-form-item label="表单标题">
           <el-input v-model="editForm.formTitle" />

@@ -71,6 +71,7 @@ const {
 const {
   saving,
   syncing,
+  testing,
   cancelling,
   saveConfig,
   testConnection,
@@ -366,7 +367,7 @@ onBeforeUnmount(() => {
 
         <el-space wrap>
           <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
-          <el-button :icon="Tools" @click="testConnection">测试连接</el-button>
+          <el-button :icon="Tools" :loading="testing" :disabled="saving || testing" @click="testConnection">测试连接</el-button>
           <el-button :loading="registeringWebhook" @click="registerWebhook">注册 Webhook</el-button>
           <el-button type="success" :loading="syncing" :disabled="!syncEnabled" @click="startFullSync">首次全量同步</el-button>
           <el-button :loading="syncing" :disabled="!syncEnabled" @click="startIncrementalSync">立即增量同步</el-button>
