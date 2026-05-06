@@ -255,10 +255,14 @@
 - 生成物和日志污染认知风险：
   - `.gitignore` 已补充 `.tmp-*`、`tmp-*` 等临时调试文件规则。
   - 新增 `scripts/check_worktree_artifacts.py`，用于阻止日志、构建产物和临时文件被继续纳入版本管理。
+  - 新增 `scripts/check_runtime_artifact_locations.py`，用于阻止根目录继续堆积本地日志和临时文件；现有 `backend-start*.log` 已归档到 `.tmp-logs/`。
 - 前后端契约漂移风险：
   - 新增 `scripts/check_api_contract_drift.py`，静态比对前端 `api-client` 引用的 `/api/**` 路径是否能在后端 Controller 中找到。
 - `schema.sql` 与 Flyway 漂移风险：
   - 新增 `scripts/check_schema_flyway_drift.py`，把表、索引、扩展和最终字段集合纳入可重复静态检查。
+- 事实字段契约漂移风险：
+  - 新增 `scripts/check_fact_field_contract.py`，检查 `schema.sql`、Flyway 最终字段集合和 `docs/fact-field-contract.md` 是否覆盖关键事实字段。
+  - 已修正事实字段文档中的旧字段名，当前以 `category`、`reason_category`、`resolve_sla_days` 和 `phase_search_*` 为准。
 
 ## 7. 当前验证状态
 
@@ -291,8 +295,10 @@
   - `python scripts/check_worktree_artifacts.py`
   - `python scripts/check_api_contract_drift.py`
   - `python scripts/check_frontend_api_boundary.py`
+  - `python scripts/check_fact_field_contract.py`
   - `python scripts/check_flyway_profile_smoke_coverage.py`
   - `python scripts/check_text_whitespace.py`
+  - `python scripts/check_runtime_artifact_locations.py`
   - `mvn -DskipTests compile`
   - `mvn -Dtest=GitlabSourceSchemaGuardTest test`
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
@@ -308,6 +314,7 @@
   - 新增 `scripts/check_text_whitespace.py`，让 CI 能扫描已提交文本文件，本地也能覆盖未跟踪的新文本文件。
   - 新增 `scripts/check_flyway_migration_immutability.py` 和 checksum 清单，防止已锁定 Flyway 迁移被误改。
   - 新增 `scripts/check_frontend_api_boundary.py`，阻止非测试页面绕过 `api-client` 直接调用 `/api`。
+  - 新增 `scripts/check_fact_field_contract.py`，把事实字段契约纳入静态守卫，避免 Java 事实生成、SQL 字段和文档说明再次漂移。
   - 非看板页面的 CSV 下载逻辑开始收口到 `frontend/src/utils/csv-download.ts`，减少重复实现。
   - 新增 `application-flyway-test.yml`，提供测试逐步切到 Flyway 初始化的 opt-in profile。
   - `scripts/verify-local.ps1` 和 CI 已加入 `FactBuildTaskServiceTest` 的 `flyway-test` profile 运行，开始把 SpringBootTest 从 `schema.sql` 双轨迁往 Flyway 路径。
@@ -316,6 +323,7 @@
   - 新增 `docs/fact-field-contract.md`，记录 Java 事实字段、SQL 查询字段和前端筛选字段的边界。
   - 新增 `docs/frontend-record-page-rules.md`，约束非看板记录页继续复用共享筛选、分页、导出和明细底座。
   - 新增 `docs/runtime-artifacts.md`，约束日志、临时文件和构建产物的目录与提交前检查。
+  - 运行产物治理继续收口：根目录本地日志已移动到 `.tmp-logs/`，CI 和本地验证会拦截新的根目录日志。
 
 已修复并恢复：
 
