@@ -105,17 +105,24 @@ public class IntegrationTestFactBuildService {
   private final JdbcTemplate jdbcTemplate;
   private final IntegrationTestFactMapper integrationTestFactMapper;
   private final ModuleDictionaryService moduleDictionaryService;
+  private final GitlabSourceSchemaGuard sourceSchemaGuard;
+  private final SqlQueryMonitor sqlQueryMonitor;
 
   public IntegrationTestFactBuildService(
       JdbcTemplate jdbcTemplate,
       IntegrationTestFactMapper integrationTestFactMapper,
-      ModuleDictionaryService moduleDictionaryService) {
+      ModuleDictionaryService moduleDictionaryService,
+      GitlabSourceSchemaGuard sourceSchemaGuard,
+      SqlQueryMonitor sqlQueryMonitor) {
     this.jdbcTemplate = jdbcTemplate;
     this.integrationTestFactMapper = integrationTestFactMapper;
     this.moduleDictionaryService = moduleDictionaryService;
+    this.sourceSchemaGuard = sourceSchemaGuard;
+    this.sqlQueryMonitor = sqlQueryMonitor;
   }
 
   public FactBuildResponse rebuildFacts(boolean full) {
+    sourceSchemaGuard.verifyIntegrationTestSource();
     LocalDateTime changedSince = full ? null : getChangedSince();
     String sql =
         INTEGRATION_TEST_SOURCE_SQL
@@ -125,13 +132,21 @@ public class IntegrationTestFactBuildService {
     try {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
-      List<IntegrationTestFact> facts =
-          changedSince == null
-              ? jdbcTemplate.query(sql, (rs, rowNum) -> mapFact(rs, moduleDictionary, calendar))
-              : jdbcTemplate.query(
-                  sql,
-                  (rs, rowNum) -> mapFact(rs, moduleDictionary, calendar),
-                  Timestamp.valueOf(changedSince));
+      Timestamp changedSinceArg = changedSince == null ? null : Timestamp.valueOf(changedSince);
+      List<Object> args = changedSinceArg == null ? List.of() : List.of(changedSinceArg);
+      long startedAt = sqlQueryMonitor.start();
+      List<IntegrationTestFact> facts;
+      try {
+        facts =
+            changedSinceArg == null
+                ? jdbcTemplate.query(sql, (rs, rowNum) -> mapFact(rs, moduleDictionary, calendar))
+                : jdbcTemplate.query(
+                    sql,
+                    (rs, rowNum) -> mapFact(rs, moduleDictionary, calendar),
+                    changedSinceArg);
+      } finally {
+        sqlQueryMonitor.logIfSlow("integration-test-fact-source-query", sql, args, startedAt);
+      }
       if (full) {
         jdbcTemplate.update(
             """

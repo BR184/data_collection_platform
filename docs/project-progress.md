@@ -244,6 +244,22 @@
   - 如果这些版本号迁移已经在共享库执行过，后续不要直接修改已执行 SQL 文件；说明性内容改走新迁移或统一执行 Flyway repair 后再校验。
   - 补统一索引重建入口，避免历史数据缺失搜索影子字段时长期走 Java fallback。
 
+### 6.6 风险修复进展
+
+- GitLab 源表依赖风险：
+  - 新增 `GitlabSourceSchemaGuard`，事实构建执行大 SQL 前先检查 ODS 源表和关键字段。
+  - 议题事实、合并请求事实、集成测试事实分别走独立源表检查，缺表或缺字段时返回明确业务错误。
+- 事实构建大 SQL 复杂度风险：
+  - 议题、合并请求和集成测试事实源查询已接入 `SqlQueryMonitor`，超过阈值时输出压缩后的 SQL 与参数数量。
+  - 源表检查前置后，GitLab 版本或白名单变化导致的字段缺失不会再直接落到难读的大 SQL 报错里。
+- 生成物和日志污染认知风险：
+  - `.gitignore` 已补充 `.tmp-*`、`tmp-*` 等临时调试文件规则。
+  - 新增 `scripts/check_worktree_artifacts.py`，用于阻止日志、构建产物和临时文件被继续纳入版本管理。
+- 前后端契约漂移风险：
+  - 新增 `scripts/check_api_contract_drift.py`，静态比对前端 `api-client` 引用的 `/api/**` 路径是否能在后端 Controller 中找到。
+- `schema.sql` 与 Flyway 漂移风险：
+  - 新增 `scripts/check_schema_flyway_drift.py`，把表、索引、扩展和最终字段集合纳入可重复静态检查。
+
 ## 7. 当前验证状态
 
 已确认通过的验证包括：
@@ -269,6 +285,10 @@
   - `schema.sql` 中的 17 张表、103 个索引、1 个扩展在 Flyway 迁移中无缺口。
   - 17 张表的最终字段集合也已完成比对，无缺表、无漏列。
   - 主配置默认关闭 `schema.sql` 初始化，改由 Flyway 作为建库入口；测试 profile 暂保留原初始化链路。
+- 本次新增风险守卫的当前机器验证：
+  - `python scripts/check_schema_flyway_drift.py`
+  - `python scripts/check_worktree_artifacts.py`
+  - `python scripts/check_api_contract_drift.py`
 - 当前机器 shell 未找到 `mvn` / `java` / `psql` 命令，尚无法在本地完成迁移烟测执行；待具备 Maven/JDK 环境后优先运行：
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
 

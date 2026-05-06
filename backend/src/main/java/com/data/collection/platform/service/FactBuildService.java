@@ -276,18 +276,24 @@ public class FactBuildService {
   private final MergeRequestFactMapper mergeRequestFactMapper;
   private final ModuleDictionaryService moduleDictionaryService;
   private final FactBuildTaskService factBuildTaskService;
+  private final GitlabSourceSchemaGuard sourceSchemaGuard;
+  private final SqlQueryMonitor sqlQueryMonitor;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
       IssueFactMapper issueFactMapper,
       MergeRequestFactMapper mergeRequestFactMapper,
       ModuleDictionaryService moduleDictionaryService,
-      FactBuildTaskService factBuildTaskService) {
+      FactBuildTaskService factBuildTaskService,
+      GitlabSourceSchemaGuard sourceSchemaGuard,
+      SqlQueryMonitor sqlQueryMonitor) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
     this.moduleDictionaryService = moduleDictionaryService;
     this.factBuildTaskService = factBuildTaskService;
+    this.sourceSchemaGuard = sourceSchemaGuard;
+    this.sqlQueryMonitor = sqlQueryMonitor;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -309,6 +315,7 @@ public class FactBuildService {
   }
 
   private FactBuildResponse rebuildIssueFactsInternal(boolean full) {
+    sourceSchemaGuard.verifyIssueFactSource();
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince();
     try {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
@@ -347,9 +354,19 @@ public class FactBuildService {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) {
     String sql = baseSql + (changedSince == null ? "" : " and coalesce(i.updated_at, i.created_at) > ?");
-    return changedSince == null
-        ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary))
-        : jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary), Timestamp.valueOf(changedSince));
+    Timestamp changedSinceArg = changedSince == null ? null : Timestamp.valueOf(changedSince);
+    List<Object> args = changedSinceArg == null ? List.of() : List.of(changedSinceArg);
+    long startedAt = sqlQueryMonitor.start();
+    try {
+      return changedSinceArg == null
+          ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary))
+          : jdbcTemplate.query(
+              sql,
+              (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary),
+              changedSinceArg);
+    } finally {
+      sqlQueryMonitor.logIfSlow("issue-fact-source-query", sql, args, startedAt);
+    }
   }
 
   private boolean isMilestoneQueryFallbackAllowed(DataAccessException error) {
@@ -372,14 +389,27 @@ public class FactBuildService {
   }
 
   private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full) {
+    sourceSchemaGuard.verifyMergeRequestFactSource();
     LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince();
     String sql = MERGE_REQUEST_SOURCE_SQL + (changedSince == null ? "" : " and coalesce(mr.updated_at, mr.created_at) > ?");
+    Timestamp changedSinceArg = changedSince == null ? null : Timestamp.valueOf(changedSince);
+    List<Object> args = changedSinceArg == null ? List.of() : List.of(changedSinceArg);
     try {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-      List<MergeRequestFact> facts =
-          changedSince == null
-              ? jdbcTemplate.query(sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary))
-              : jdbcTemplate.query(sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary), Timestamp.valueOf(changedSince));
+      long startedAt = sqlQueryMonitor.start();
+      List<MergeRequestFact> facts;
+      try {
+        facts =
+            changedSinceArg == null
+                ? jdbcTemplate.query(
+                    sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary))
+                : jdbcTemplate.query(
+                    sql,
+                    (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary),
+                    changedSinceArg);
+      } finally {
+        sqlQueryMonitor.logIfSlow("merge-request-fact-source-query", sql, args, startedAt);
+      }
       batchUpsertMergeRequestFacts(facts);
       return new FactBuildResponse(
           "merge-request",

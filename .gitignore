@@ -6,6 +6,15 @@ frontend/.vite/
 backend/target/
 backend/logs/
 
+.tmp/
+.tmp-*/
+.tmp-*.js
+tmp-*.json
+tmp-*.sql
+tmp-*.log
+__pycache__/
+**/__pycache__/
+
 tools/
 infra/postgres-data/
 
