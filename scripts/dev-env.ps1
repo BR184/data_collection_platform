@@ -37,9 +37,12 @@ function Remove-CommandFunction {
 
 $javaHome = Join-Path $projectRoot "tools\jdk\jdk-21.0.10+7"
 $mavenHome = Join-Path $projectRoot "tools\maven\apache-maven-3.9.9"
+$postgresHome = Join-Path $projectRoot "tools\postgresql-17.9\pgsql"
 
 $env:JAVA_HOME = (Resolve-Path -LiteralPath $javaHome).Path
 $env:MAVEN_HOME = (Resolve-Path -LiteralPath $mavenHome).Path
+$env:POSTGRES_HOME = (Resolve-Path -LiteralPath $postgresHome).Path
+Prepend-PathEntry (Join-Path $env:POSTGRES_HOME "bin")
 Prepend-PathEntry (Join-Path $env:MAVEN_HOME "bin")
 Prepend-PathEntry (Join-Path $env:JAVA_HOME "bin")
 

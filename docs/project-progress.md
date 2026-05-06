@@ -239,7 +239,7 @@
   - 统计看板中仍有部分聚合在 Java 内存层完成，后续按性能和口径稳定性逐步评估。
   - 测试 profile 仍保留 `schema.sql` 初始化，待真实 PostgreSQL 烟测可运行后再评估是否切到 Flyway。
 - 后续建议：
-  - 在具备 Maven/JDK/PostgreSQL 工具链后执行 `FlywayMigrationSmokeTest`，确认空库可由 Flyway 独立建出完整基础结构。
+  - 已在本地补齐 Maven/JDK/PostgreSQL 客户端工具链，并通过 `FlywayMigrationSmokeTest` 确认空库可由 Flyway 独立建出完整基础结构。
   - 为大表环境评估 `CREATE INDEX CONCURRENTLY` 的独立迁移策略。
   - 如果这些版本号迁移已经在共享库执行过，后续不要直接修改已执行 SQL 文件；说明性内容改走新迁移或统一执行 Flyway repair 后再校验。
   - 补统一索引重建入口，避免历史数据缺失搜索影子字段时长期走 Java fallback。
@@ -289,8 +289,13 @@
   - `python scripts/check_schema_flyway_drift.py`
   - `python scripts/check_worktree_artifacts.py`
   - `python scripts/check_api_contract_drift.py`
-- 当前机器 shell 未找到 `mvn` / `java` / `psql` 命令，尚无法在本地完成迁移烟测执行；待具备 Maven/JDK 环境后优先运行：
+  - `mvn -DskipTests compile`
+  - `mvn -Dtest=GitlabSourceSchemaGuardTest test`
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
+- 本地工具链状态：
+  - 项目 `tools` 目录下已有 JDK 21 与 Maven 3.9.9；新增 PostgreSQL 17.9 客户端到 `tools/postgresql-17.9/pgsql`。
+  - `scripts/dev-env.ps1` 已补充 `POSTGRES_HOME`，加载后可直接使用 `java`、`mvn`、`psql`。
+  - Flyway 烟测时发现 PostgreSQL 扩展安装在 `public` schema 后，业务 schema 内直接引用 `gin_trgm_ops` 会失败；已改为 `create extension if not exists pg_trgm with schema public` 和 `public.gin_trgm_ops`。
 
 已修复并恢复：
 
