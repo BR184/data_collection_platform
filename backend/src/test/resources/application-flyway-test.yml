@@ -1,0 +1,23 @@
+server:
+  port: 0
+
+spring:
+  datasource:
+    url: ${TEST_DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex?currentSchema=qaflex_test_flyway}
+    username: ${TEST_DATASOURCE_USERNAME:qaflex}
+    password: ${TEST_DATASOURCE_PASSWORD:qaflex_dev_2026}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: never
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: qaflex_test_flyway
+    default-schema: qaflex_test_flyway
+    create-schemas: true
+    baseline-on-migrate: true
+
+platform:
+  gitlab-mirror:
+    scheduler-enabled: false

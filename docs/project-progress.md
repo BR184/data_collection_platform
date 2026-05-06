@@ -289,13 +289,24 @@
   - `python scripts/check_schema_flyway_drift.py`
   - `python scripts/check_worktree_artifacts.py`
   - `python scripts/check_api_contract_drift.py`
+  - `python scripts/check_text_whitespace.py`
   - `mvn -DskipTests compile`
   - `mvn -Dtest=GitlabSourceSchemaGuardTest test`
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-local.ps1`
 - 本地工具链状态：
   - 项目 `tools` 目录下已有 JDK 21 与 Maven 3.9.9；新增 PostgreSQL 17.9 客户端到 `tools/postgresql-17.9/pgsql`。
   - `scripts/dev-env.ps1` 已补充 `POSTGRES_HOME`，加载后可直接使用 `java`、`mvn`、`psql`。
   - Flyway 烟测时发现 PostgreSQL 扩展安装在 `public` schema 后，业务 schema 内直接引用 `gin_trgm_ops` 会失败；已改为 `create extension if not exists pg_trgm with schema public` 和 `public.gin_trgm_ops`。
+- 本次继续收口的技术风险：
+  - 新增 `.gitlab-ci.yml`，把 schema/Flyway 漂移、前后端契约漂移、生成物污染、后端编译、源表守卫测试、前端 typecheck 和 Flyway 烟测接入 CI。
+  - 扩展 `scripts/verify-local.ps1`，使本地验证入口与 CI 守卫保持一致。
+  - 新增 `scripts/check_text_whitespace.py`，让 CI 能扫描已提交文本文件，本地也能覆盖未跟踪的新文本文件。
+  - 新增 `application-flyway-test.yml`，提供测试逐步切到 Flyway 初始化的 opt-in profile。
+  - 新增 `docs/flyway-migration-rules.md`，明确已执行迁移不可变、checksum 处理和大表索引策略。
+  - 新增 `docs/fact-field-contract.md`，记录 Java 事实字段、SQL 查询字段和前端筛选字段的边界。
+  - 新增 `docs/frontend-record-page-rules.md`，约束非看板记录页继续复用共享筛选、分页、导出和明细底座。
+  - 新增 `docs/runtime-artifacts.md`，约束日志、临时文件和构建产物的目录与提交前检查。
 
 已修复并恢复：
 

@@ -1,0 +1,64 @@
+stages:
+  - static
+  - backend
+  - frontend
+  - database
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .m2/repository
+    - frontend/node_modules
+
+static-guards:
+  stage: static
+  image: python:3.12
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends git
+  script:
+    - python scripts/check_schema_flyway_drift.py
+    - python scripts/check_api_contract_drift.py
+    - python scripts/check_worktree_artifacts.py
+    - python scripts/check_text_whitespace.py
+    - git diff --check
+
+backend-compile-and-guards:
+  stage: backend
+  image: maven:3.9.9-eclipse-temurin-21
+  script:
+    - cd backend
+    - mvn -q -DskipTests compile
+    - mvn -q -Dtest=GitlabSourceSchemaGuardTest test
+
+frontend-typecheck:
+  stage: frontend
+  image: node:20
+  script:
+    - cd frontend
+    - npm ci
+    - npm run typecheck
+
+flyway-smoke:
+  stage: database
+  image: maven:3.9.9-eclipse-temurin-21
+  services:
+    - name: postgres:17
+      alias: postgres
+  variables:
+    POSTGRES_DB: qaflex
+    POSTGRES_USER: qaflex
+    POSTGRES_PASSWORD: qaflex_dev_2026
+    TEST_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/qaflex?currentSchema=qaflex_test"
+    TEST_DATASOURCE_USERNAME: qaflex
+    TEST_DATASOURCE_PASSWORD: qaflex_dev_2026
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends postgresql-client
+    - until pg_isready -h postgres -p 5432 -U qaflex; do sleep 1; done
+  script:
+    - cd backend
+    - mvn -q -Dtest=FlywayMigrationSmokeTest test
