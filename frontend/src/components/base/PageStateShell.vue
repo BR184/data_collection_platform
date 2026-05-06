@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+// 页面状态壳统一处理首次加载和空状态，减少各页面重复维护骨架屏分支。
+// 组件只关心 ready 状态和高度，不参与具体数据请求。
 
 const props = withDefaults(defineProps<{
   ready: boolean;

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { StatisticDetailColumn, StatisticDetailResponse } from '../types/api';
+// 统计板明细弹窗承接图表点击后的记录列表，保持和主看板一致的排序与分页语义。
+// 弹窗只负责展示和导出，明细数据的筛选口径由父级传入的查询上下文决定。
 
 defineProps<{
   modelValue: boolean;

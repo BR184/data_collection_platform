@@ -1,5 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed } from 'vue';
+// 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
+// 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, Download, EditPen, InfoFilled, Plus, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';

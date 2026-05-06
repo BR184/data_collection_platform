@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+// 镜像设置页集中管理同步配置、白名单、Webhook 和清理动作，是数据入口的运维面板。
+// 每组操作拆到独立 controller，页面只负责把表单状态和反馈动作组合起来。
 import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';

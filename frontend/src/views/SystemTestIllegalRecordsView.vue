@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecordsPage.vue';
+// 系统测试非法数据页复用非法记录页底座，保证客户问题和系统测试的处置链路一致。
+// 本页只绑定系统测试范围、规则说明和接口适配，避免复制整套记录表逻辑。
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {

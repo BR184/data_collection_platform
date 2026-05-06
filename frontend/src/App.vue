@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Lock, Loading, User } from '@element-plus/icons-vue';
+// 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
+// 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
 import { ElMessage } from 'element-plus';
 import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';

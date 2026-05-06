@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { EditPen, Plus } from '@element-plus/icons-vue';
+// 问题项面板挂在评审记录行下方，用于展示专家问题列表和行内新增入口。
+// 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
 

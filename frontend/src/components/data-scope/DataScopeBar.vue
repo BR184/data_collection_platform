@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import SmartSelect from '../base/SmartSelect.vue';
+// 数据范围条承载全局项目、阶段或数据源选择，让看板和记录页共享同一范围语义。
+// 组件只负责选择器展示，范围变更后的路由清理和重新加载由 shell 状态处理。
 import type { RecordTableFilterOption } from '../../types/record-table';
 import type { DataScopeOption, DataScopeProvider } from '../../types/data-scope';
 

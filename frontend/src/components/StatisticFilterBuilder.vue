@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import SmartSelect from './base/SmartSelect.vue';
+// 高级筛选构建器把字段、操作符和值拆成可组合条件，供记录页和统计板复用。
+// 组件只维护前端草稿结构，最终查询表达式由调用方序列化后交给接口。
 import type { StatisticFilterField, StatisticFilterOperator } from '../types/api';
 import type { RecordTableFilterOption } from '../types/record-table';
 import {

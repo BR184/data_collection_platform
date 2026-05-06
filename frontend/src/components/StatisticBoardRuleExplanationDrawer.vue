@@ -4,6 +4,8 @@ import type {
   StatisticRuleFlowStep,
   StatisticRuleMetricDefinition,
 } from '../types/api';
+// 规则说明抽屉集中展示统计口径，避免每个看板页面散落一份解释文案。
+// 组件只做结构化展示，不参与任何统计计算或筛选状态维护。
 import {
   metricFormulaSummary,
   ruleStepRemovedCount,

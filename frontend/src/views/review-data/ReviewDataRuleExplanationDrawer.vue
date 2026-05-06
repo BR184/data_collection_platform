@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { InfoFilled } from '@element-plus/icons-vue';
+// 评审数据规则抽屉集中解释导入、问题项和统计字段口径，便于页面保持简洁。
+// 文案内容放在独立模块中，组件只负责按章节渲染。
 import type { ReviewDataRuleExplanationContent } from './review-data-rule-explanation';
 
 defineProps<{

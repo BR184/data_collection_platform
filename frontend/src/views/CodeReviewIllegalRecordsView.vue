@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+// 代码走查非法记录页承接规则配置结果和记录检索结果，重点是让违规数据可筛选、可导出。
+// 页面状态尽量通过共享记录表和帮助函数表达，减少与规则配置页的隐式耦合。
 import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';

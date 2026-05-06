@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+// 规则预览组件把后端返回的命中结果和示例记录转成可读摘要。
+// 它不重新计算规则，只展示保存前预览接口给出的结果。
 import type { CodeReviewRulePreviewResponse } from '../../types/code-review-rule-config';
 
 const props = defineProps<{

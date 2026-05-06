@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+// 图表面板封装 ECharts 生命周期，父级只需要传入 option 和点击事件。
+// 主题注册、resize 和销毁集中在这里处理，避免各看板重复写图表样板代码。
 import type { EChartsOption } from 'echarts';
 import { init, type EChartsType } from './echarts-runtime';
 import { registerChartTheme } from './chart-theme';

@@ -1,5 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
+// 统一统计板组件负责把查询条件、摘要卡片、图表和明细下钻串成同一套交互。
+// 各业务看板只传入 boardKey 和配置，避免每个页面重复实现刷新、排序和规则说明。
 import { ArrowDown, ArrowUp, Sort } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';

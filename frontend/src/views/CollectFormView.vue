@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ElMessage } from '../element-plus-services';
+// 采集表单页面面向外部评审入口，重点是把 GitLab 上下文转成稳定的表单提交参数。
+// 页面中的默认值来自路由和接口组合，提交前仍由后端做最终校验和落库。
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { api } from '../api';

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+// 代码走查多元看板是代码域的统计板入口，负责选择数据源并展示统一图表结果。
+// 看板配置和字段口径放在独立模块中，页面保持为薄编排层。
 import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';

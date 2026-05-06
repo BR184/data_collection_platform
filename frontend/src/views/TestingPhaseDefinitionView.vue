@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+// 测试阶段定义页维护事实构建会使用的阶段日历，阶段边界会影响统计归属。
+// 表格编辑保持在页面内完成，保存后由后端统一刷新阶段定义和校验规则。
 import { useRouter, useRoute } from 'vue-router';
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';

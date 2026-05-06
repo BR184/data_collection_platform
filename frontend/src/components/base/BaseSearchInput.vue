@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+// 基础搜索框统一关键词输入、清空和回车触发方式，避免记录页搜索体验不一致。
+// 组件不做防抖和接口请求，节流策略交给使用方按页面场景决定。
 import { Search } from '@element-plus/icons-vue';
 
 const props = withDefaults(

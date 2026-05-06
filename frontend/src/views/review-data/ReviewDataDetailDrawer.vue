@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Document } from '@element-plus/icons-vue';
+// 评审详情抽屉只展示单条记录的完整字段，刷新和编辑动作仍由主页面统一调度。
+// 这样详情区可以安全复用，不会意外触发列表查询条件变化。
 import type { ReviewDataRecordDetailResponse } from '../../types/api';
 
 defineProps<{

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+// 系统测试多元看板聚合多个统计卡片和图表配置，页面职责是绑定看板 key 与刷新动作。
+// 统计计算不在前端重复推导，所有口径都通过统一统计板接口获取。
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';

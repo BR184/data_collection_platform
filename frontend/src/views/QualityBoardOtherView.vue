@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+// 其他质量看板承接跨域辅助指标，和研发质量首页共享同一套统计板渲染底座。
+// 这里不单独实现图表逻辑，避免同类看板出现两套交互规则。
 import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';

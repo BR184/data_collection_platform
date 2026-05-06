@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+// 研发质量看板是质量域的首页信号，负责展示强指标和关键趋势。
+// 页面只绑定看板配置，统计口径继续通过统一统计板运行时提供。
 import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';

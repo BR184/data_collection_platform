@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Download, InfoFilled, RefreshRight, Search } from '@element-plus/icons-vue';
+// 统计板工具栏只承载刷新、规则说明和导出等横向动作，保持看板内容区专注展示。
+// 这里不读取业务数据，所有按钮状态都由父级显式传入。
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { StatisticFilterField } from '../types/api';

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+// 非法记录通用页承接系统测试和客户问题两类场景，差异通过配置和接口适配传入。
+// 页面内部统一处理关键词、条件筛选、规则说明、分页和导出，避免两个业务域重复实现。
 import { ElMessage } from '../../element-plus-services';
 import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';

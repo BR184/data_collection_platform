@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, useSlots, watch } from 'vue';
+// 通用记录表封装分页、排序、关键词和条件筛选，是多个正式记录页的交互底座。
+// 表格不理解业务字段含义，只根据列配置和事件把用户意图传回页面层。
 import { Refresh } from '@element-plus/icons-vue';
 import BaseSearchInput from './BaseSearchInput.vue';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';

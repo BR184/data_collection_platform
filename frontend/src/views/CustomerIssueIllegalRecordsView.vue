@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecordsPage.vue';
+// 客户问题非法数据页沿用同一个非法记录页面骨架，差异只体现在规则说明和接口域。
+// 这种薄封装让系统测试与客户问题两类页面保持一致的筛选、分页和导出体验。
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {

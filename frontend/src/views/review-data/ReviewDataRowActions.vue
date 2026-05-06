@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ArrowDown } from '@element-plus/icons-vue';
+// 评审数据行操作集中收口查看、编辑和问题项展开入口，保证表格每一行的动作顺序一致。
+// 组件只发出意图事件，确认弹窗和接口调用由页面动作层统一处理。
 
 defineProps<{
   row: Record<string, unknown>;

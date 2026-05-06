@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+// 评审记录表单弹窗复用创建和编辑流程，字段默认值由对应 composable 预先准备。
+// 弹窗只负责表单展示与提交事件，不直接判断刷新列表或详情抽屉。
 import { ElMessage } from '../../element-plus-services';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReviewDataFilterOptionsResponse, ReviewDataRecordSaveRequest } from '../../types/api';

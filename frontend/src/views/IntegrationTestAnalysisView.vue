@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+// 集成测试分析页以项目和阶段作为主范围，汇总区与明细抽屉共享同一套路由状态。
+// 页面保留重建、导出和下钻的编排逻辑，事实解析和统计口径由后端事实层负责。
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
 import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';

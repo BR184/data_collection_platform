@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+// 代码走查规则配置页负责把规则草稿、预览和保存动作串成一个可回滚的编辑流程。
+// 本页只维护前端编辑状态，实际规则解释和非法判定仍以后端保存后的配置为准。
 import { ArrowLeft, RefreshLeft, Select, Setting } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+// 客户问题正式记录页复用共享记录页底座，只在这里定义客户问题自己的范围和列展示。
+// 查询条件统一落到 issue_fact 口径，避免页面层再重复实现筛选规则。
 import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';

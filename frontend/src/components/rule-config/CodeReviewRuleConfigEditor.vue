@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+// 规则编辑器只维护条件组和动作配置的结构化编辑，具体字段来自代码走查规则 schema。
+// 组件不保存草稿，外层页面负责本地缓存、预览和最终提交。
 import { Delete, Plus } from '@element-plus/icons-vue';
 import SmartSelect from '../base/SmartSelect.vue';
 import type {

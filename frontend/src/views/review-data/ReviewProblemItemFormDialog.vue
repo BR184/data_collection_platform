@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+// 问题项表单弹窗同时服务新增和编辑，专家选项由当前评审记录上下文决定。
+// 保存后的列表刷新留给父级流程处理，避免弹窗知道过多页面结构。
 import { ElMessage } from '../../element-plus-services';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReviewDataFilterOptionsResponse, ReviewDataProblemItemSaveRequest } from '../../types/api';

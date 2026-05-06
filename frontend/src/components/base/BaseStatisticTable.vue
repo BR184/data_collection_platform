@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
+// 基础统计表负责把统计行按列组展示成稳定表格，供多个看板的明细摘要复用。
+// 这里不做字段推导，列组和格式化规则都由上层统计配置决定。
 import { ArrowRight } from '@element-plus/icons-vue';
 import StatisticTableColumnGroup from './StatisticTableColumnGroup.vue';
 import type {
