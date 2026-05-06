@@ -1,6 +1,6 @@
 # 数据采集平台项目主文档
 
-更新时间：2026-04-27  
+更新时间：2026-05-06
 适用项目：`D:\projects\data_collection_platform`
 
 ## 1. 文档规则
@@ -128,6 +128,8 @@
 
 - 已完成 `issue_fact` 规范化和共享消费。
 - 已把系统测试、客户问题的核心统计板收口到共享统计板运行时。
+- 已明确搜索 SQL 下沉的一期架构：Java 生成 `normalized / compact / spell / initials` 搜索影子字段，SQL 基于持久化索引字段完成模糊匹配、拼音搜索和首字母搜索。
+- 已新增 Flyway 迁移 `V20260506_01__search_and_fact_query_indexes.sql`，开始纳管评审数据、议题事实和合并请求事实的搜索索引列、分类查询字段及关键查询索引。
 - 已提供通用统计板接口：
   - 统计数据
   - 明细下钻
@@ -206,6 +208,25 @@
   - 更多真实备注样例覆盖
   - 更完整的验证覆盖
 
+### 6.5 SQL 下沉与 Flyway 纳管
+
+- 当前搜索能力采用“Java 生成索引字段，SQL 消费索引字段”的一期方案。
+  - Java 仍负责拼音、首字母、紧凑文本等搜索影子字段生成。
+  - SQL 已负责记录页关键词查询、高级筛选、分页、排序和部分非法判定。
+- 本次已开始把搜索和分类查询所需的数据库结构迁入 Flyway：
+  - `review_records` 的搜索字段与标题专用搜索字段。
+  - `issue_fact` 的分类、非法原因、阶段筛选和多字段搜索索引字段。
+  - `merge_request_fact` 的关键词搜索字段和责任人搜索字段。
+  - 相关 `pg_trgm`/GIN 索引和记录页分页排序索引。
+- 当前仍未下沉的部分：
+  - 拼音/首字母索引生成仍在 Java，暂不改为数据库函数。
+  - 议题分类、非法原因、SLA、历史遗留等事实计算仍在 Java 事实构建阶段完成。
+  - 统计看板中仍有部分聚合在 Java 内存层完成，后续按性能和口径稳定性逐步评估。
+- 后续建议：
+  - 继续把 `schema.sql` 中仍未纳入 Flyway 的核心表结构分批迁移。
+  - 为大表环境评估 `CREATE INDEX CONCURRENTLY` 的独立迁移策略。
+  - 补统一索引重建入口，避免历史数据缺失搜索影子字段时长期走 Java fallback。
+
 ## 7. 当前验证状态
 
 已确认通过的验证包括：
@@ -216,6 +237,15 @@
 - 后端若干统计板、筛选支持、镜像与控制器切片测试
 - 后端局部 `compile`
 - 后端 `mvn test`
+
+本次新增但尚未在当前机器完成验证：
+
+- 新增 Flyway 迁移：
+  - `backend/src/main/resources/db/migration/V20260506_01__search_and_fact_query_indexes.sql`
+- 扩展 Flyway 烟测：
+  - `FlywayMigrationSmokeTest` 现在会检查搜索索引列、分类查询字段和关键索引是否由 Flyway 创建。
+- 当前机器 shell 未找到 `mvn` / `java` / `psql` 命令，尚无法在本地完成迁移烟测执行；待具备 Maven/JDK 环境后优先运行：
+  - `mvn -Dtest=FlywayMigrationSmokeTest test`
 
 已修复并恢复：
 
