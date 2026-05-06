@@ -2,6 +2,8 @@ server:
   port: 0
 
 spring:
+  main:
+    banner-mode: off
   datasource:
     url: ${TEST_DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex?currentSchema=qaflex_test_flyway}
     username: ${TEST_DATASOURCE_USERNAME:qaflex}
@@ -17,6 +19,18 @@ spring:
     default-schema: qaflex_test_flyway
     create-schemas: true
     baseline-on-migrate: true
+
+mybatis-plus:
+  global-config:
+    banner: false
+
+logging:
+  level:
+    root: warn
+    com.data.collection.platform: warn
+    org.springframework: warn
+    org.flywaydb: warn
+    com.zaxxer.hikari: warn
 
 platform:
   gitlab-mirror:

@@ -13,7 +13,7 @@ if ($staleBackendProcesses) {
 }
 
 $mvnArgs = @(
-  "-Dspring-boot.run.jvmArguments=-Dspring.devtools.restart.enabled=false -Dfile.encoding=UTF-8",
+  "-Dspring-boot.run.jvmArguments=-Ddebug=false -Dspring.devtools.restart.enabled=false -Dfile.encoding=UTF-8",
   "spring-boot:run"
 )
 & mvn @mvnArgs

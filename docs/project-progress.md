@@ -263,6 +263,11 @@
 - 事实字段契约漂移风险：
   - 新增 `scripts/check_fact_field_contract.py`，检查 `schema.sql`、Flyway 最终字段集合和 `docs/fact-field-contract.md` 是否覆盖关键事实字段。
   - 已修正事实字段文档中的旧字段名，当前以 `category`、`reason_category`、`resolve_sla_days` 和 `phase_search_*` 为准。
+- 验证噪音和未来 JDK 兼容风险：
+  - Maven 测试阶段已预加载 `mockito-core` javaagent，避免 Mockito 运行时自附加 agent 的未来兼容警告。
+  - 测试资源新增 `logback-test.xml`，测试 profile 默认关闭 Spring/MyBatis-Plus banner 并把测试日志收敛到 WARN 级别。
+  - Maven 测试和 `backend/run-backend.ps1` 已显式设置 `-Ddebug=false`，避免本机 `DEBUG` 环境变量触发 Spring Boot 条件报告。
+  - 新增 `scripts/check_backend_test_hygiene.py`，防止测试 agent 和日志收敛配置被误删。
 
 ## 7. 当前验证状态
 
@@ -292,6 +297,7 @@
 - 本次新增风险守卫的当前机器验证：
   - `python scripts/check_schema_flyway_drift.py`
   - `python scripts/check_flyway_migration_immutability.py`
+  - `python scripts/check_backend_test_hygiene.py`
   - `python scripts/check_worktree_artifacts.py`
   - `python scripts/check_api_contract_drift.py`
   - `python scripts/check_frontend_api_boundary.py`
@@ -313,6 +319,7 @@
   - 扩展 `scripts/verify-local.ps1`，使本地验证入口与 CI 守卫保持一致。
   - 新增 `scripts/check_text_whitespace.py`，让 CI 能扫描已提交文本文件，本地也能覆盖未跟踪的新文本文件。
   - 新增 `scripts/check_flyway_migration_immutability.py` 和 checksum 清单，防止已锁定 Flyway 迁移被误改。
+  - 新增 `scripts/check_backend_test_hygiene.py`，把 Mockito agent、测试日志收敛和 banner 关闭纳入静态守卫。
   - 新增 `scripts/check_frontend_api_boundary.py`，阻止非测试页面绕过 `api-client` 直接调用 `/api`。
   - 新增 `scripts/check_fact_field_contract.py`，把事实字段契约纳入静态守卫，避免 Java 事实生成、SQL 字段和文档说明再次漂移。
   - 非看板页面的 CSV 下载逻辑开始收口到 `frontend/src/utils/csv-download.ts`，减少重复实现。
@@ -324,6 +331,8 @@
   - 新增 `docs/frontend-record-page-rules.md`，约束非看板记录页继续复用共享筛选、分页、导出和明细底座。
   - 新增 `docs/runtime-artifacts.md`，约束日志、临时文件和构建产物的目录与提交前检查。
   - 运行产物治理继续收口：根目录本地日志已移动到 `.tmp-logs/`，CI 和本地验证会拦截新的根目录日志。
+  - 后端测试输出继续收口：`mvn -q -Dtest=GitlabSourceSchemaGuardTest test` 已不再输出 Mockito 动态 agent 和 JVM sharing 警告。
+  - 本机存在 `DEBUG=release` 环境变量时，`FlywayMigrationSmokeTest` 和 `FactBuildTaskServiceTest` 已不再输出 Spring Boot DEBUG 条件报告。
 
 已修复并恢复：
 
