@@ -3,7 +3,7 @@ import { Lock, Loading, User } from '@element-plus/icons-vue';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
 import { ElMessage } from 'element-plus';
-import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import {
   canAccessPageKey,
@@ -27,6 +27,9 @@ const loginForm = reactive({
   username: '',
   password: '',
 });
+type InputFocusTarget = { focus: () => void };
+const usernameInputRef = ref<InputFocusTarget>();
+const passwordInputRef = ref<InputFocusTarget>();
 
 const currentUser = computed(() => authState.currentUser);
 const visibleModules = computed(() => getVisibleModules(currentUser.value));
@@ -86,7 +89,34 @@ function ensureRouteAccess() {
   void router.replace(getFirstAccessiblePagePath(currentUser.value));
 }
 
+async function focusUsernameInput() {
+  await nextTick();
+  usernameInputRef.value?.focus();
+}
+
+async function focusPasswordInput() {
+  await nextTick();
+  passwordInputRef.value?.focus();
+}
+
+async function validateLoginForm() {
+  if (!loginForm.username.trim()) {
+    ElMessage.warning('请输入账号');
+    await focusUsernameInput();
+    return false;
+  }
+  if (!loginForm.password) {
+    ElMessage.warning('请输入密码');
+    await focusPasswordInput();
+    return false;
+  }
+  return true;
+}
+
 async function handleLogin() {
+  if (!(await validateLoginForm())) {
+    return;
+  }
   try {
     await login(loginForm.username, loginForm.password);
     loginDialogVisible.value = false;
@@ -245,10 +275,12 @@ watch(
       <el-form class="auth-form" label-position="top" @submit.prevent="handleLogin">
         <el-form-item label="账号">
           <el-input
+            ref="usernameInputRef"
             v-model="loginForm.username"
             autocomplete="username"
             placeholder="请输入账号"
             size="large"
+            @keydown.enter.prevent="handleLogin"
           >
             <template #prefix>
               <el-icon><User /></el-icon>
@@ -257,13 +289,14 @@ watch(
         </el-form-item>
         <el-form-item label="密码">
           <el-input
+            ref="passwordInputRef"
             v-model="loginForm.password"
             autocomplete="current-password"
             placeholder="请输入密码"
             show-password
             size="large"
             type="password"
-            @keydown.enter="handleLogin"
+            @keydown.enter.prevent="handleLogin"
           >
             <template #prefix>
               <el-icon><Lock /></el-icon>
