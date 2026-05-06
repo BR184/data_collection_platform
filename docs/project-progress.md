@@ -287,8 +287,10 @@
   - 主配置默认关闭 `schema.sql` 初始化，改由 Flyway 作为建库入口；测试 profile 暂保留原初始化链路。
 - 本次新增风险守卫的当前机器验证：
   - `python scripts/check_schema_flyway_drift.py`
+  - `python scripts/check_flyway_migration_immutability.py`
   - `python scripts/check_worktree_artifacts.py`
   - `python scripts/check_api_contract_drift.py`
+  - `python scripts/check_frontend_api_boundary.py`
   - `python scripts/check_text_whitespace.py`
   - `mvn -DskipTests compile`
   - `mvn -Dtest=GitlabSourceSchemaGuardTest test`
@@ -302,6 +304,9 @@
   - 新增 `.gitlab-ci.yml`，把 schema/Flyway 漂移、前后端契约漂移、生成物污染、后端编译、源表守卫测试、前端 typecheck 和 Flyway 烟测接入 CI。
   - 扩展 `scripts/verify-local.ps1`，使本地验证入口与 CI 守卫保持一致。
   - 新增 `scripts/check_text_whitespace.py`，让 CI 能扫描已提交文本文件，本地也能覆盖未跟踪的新文本文件。
+  - 新增 `scripts/check_flyway_migration_immutability.py` 和 checksum 清单，防止已锁定 Flyway 迁移被误改。
+  - 新增 `scripts/check_frontend_api_boundary.py`，阻止非测试页面绕过 `api-client` 直接调用 `/api`。
+  - 非看板页面的 CSV 下载逻辑开始收口到 `frontend/src/utils/csv-download.ts`，减少重复实现。
   - 新增 `application-flyway-test.yml`，提供测试逐步切到 Flyway 初始化的 opt-in profile。
   - 新增 `docs/flyway-migration-rules.md`，明确已执行迁移不可变、checksum 处理和大表索引策略。
   - 新增 `docs/fact-field-contract.md`，记录 Java 事实字段、SQL 查询字段和前端筛选字段的边界。

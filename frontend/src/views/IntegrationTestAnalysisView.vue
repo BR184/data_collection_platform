@@ -17,6 +17,7 @@ import type {
 import type { RecordTableColumn } from '../types/record-table';
 import { INTEGRATION_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
+import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 
 const route = useRoute();
 const router = useRouter();
@@ -352,7 +353,7 @@ async function handleExportDetail() {
       sortBy: detailSortBy.value,
       sortOrder: detailSortOrder.value,
     });
-    downloadCsv(csv, `集成测试明细_${detailModule.value}_${formatExportFileDate(new Date())}.csv`);
+    downloadCsv(csv, `集成测试明细_${detailModule.value}_${formatExportFileDate(new Date(), '_')}.csv`);
     ElMessage.success('导出成功');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '集成测试明细导出失败');
@@ -408,25 +409,6 @@ function buildFunctionLabelTags(value?: string | null) {
   }));
 }
 
-function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-function formatExportFileDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hour = String(date.getHours()).padStart(2, '0');
-  const minute = String(date.getMinutes()).padStart(2, '0');
-  const second = String(date.getSeconds()).padStart(2, '0');
-  return `${year}${month}${day}_${hour}${minute}${second}`;
-}
 </script>
 
 <template>

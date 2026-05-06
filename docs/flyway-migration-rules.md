@@ -33,8 +33,17 @@
 
 ```powershell
 python scripts/check_schema_flyway_drift.py
+python scripts/check_flyway_migration_immutability.py
 cd backend
 mvn -q -Dtest=FlywayMigrationSmokeTest test
 ```
 
 CI 中也会执行同类检查，确保新增表、索引、扩展和最终字段集合不再漂移。
+
+新增迁移后需要先完成评审，再执行：
+
+```powershell
+python scripts/check_flyway_migration_immutability.py --update
+```
+
+该命令只用于锁定新增迁移。已经在共享库执行过的旧迁移不应通过更新清单来绕过 checksum 风险。

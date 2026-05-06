@@ -51,3 +51,13 @@
 4. 是否绕开了 `api-client`。
 5. 是否绕开了已有条件筛选字段定义。
 6. 是否补充或更新了挂载测试。
+
+## 自动守卫
+
+提交前运行：
+
+```powershell
+python scripts/check_frontend_api_boundary.py
+```
+
+页面、组件和组合式函数不应直接写 `/api/**` 字符串或调用 `fetch`。真实请求统一放到 `frontend/src/api-client`，测试文件可以保留 mock URL。
