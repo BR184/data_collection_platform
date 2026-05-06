@@ -228,14 +228,20 @@
   - `code_review_external_metrics` 和 `integration_test_fact`。
   - `testing_phase_calendar`、`module_dictionary` 和 `sys_table_registry`。
   - 集成测试事实、测试阶段、模块字典和镜像表注册相关索引。
+- 已完成 `schema.sql` 与 Flyway 迁移的静态覆盖比对：
+  - 17 张表、103 个索引、1 个扩展均已在 Flyway 迁移中纳管，无缺口。
+  - 17 张表的最终字段集合已完成比对，无缺表、无漏列。
+  - `alter table add column` 补列项覆盖 `schema.sql` 的 108 项，并额外保留 7 项旧库兼容补列。
+  - 主配置已切换为 Flyway 默认入口，`schema.sql` 初始化改为通过 `SPRING_SQL_INIT_MODE` 按需启用。
 - 当前仍未下沉的部分：
   - 拼音/首字母索引生成仍在 Java，暂不改为数据库函数。
   - 议题分类、非法原因、SLA、历史遗留等事实计算仍在 Java 事实构建阶段完成。
   - 统计看板中仍有部分聚合在 Java 内存层完成，后续按性能和口径稳定性逐步评估。
-  - 主配置仍保留 `spring.sql.init.mode=always` 和 `schema.sql` 初始化，待迁移烟测跑通后再切换到 Flyway 单一入口。
+  - 测试 profile 仍保留 `schema.sql` 初始化，待真实 PostgreSQL 烟测可运行后再评估是否切到 Flyway。
 - 后续建议：
-  - 继续把 `schema.sql` 中仍未纳入 Flyway 的核心表结构分批迁移。
+  - 在具备 Maven/JDK/PostgreSQL 工具链后执行 `FlywayMigrationSmokeTest`，确认空库可由 Flyway 独立建出完整基础结构。
   - 为大表环境评估 `CREATE INDEX CONCURRENTLY` 的独立迁移策略。
+  - 如果这些版本号迁移已经在共享库执行过，后续不要直接修改已执行 SQL 文件；说明性内容改走新迁移或统一执行 Flyway repair 后再校验。
   - 补统一索引重建入口，避免历史数据缺失搜索影子字段时长期走 Java fallback。
 
 ## 7. 当前验证状态
@@ -259,6 +265,10 @@
   - `FlywayMigrationSmokeTest` 现在会检查搜索索引列、分类查询字段和关键索引是否由 Flyway 创建。
   - `FlywayMigrationSmokeTest` 现在也会检查 GitLab 同步基础表、采集表单记录表和关键同步索引是否由 Flyway 创建。
   - `FlywayMigrationSmokeTest` 现在也会检查代码走查指标、集成测试事实、阶段日历、模块字典和镜像表注册结构是否由 Flyway 创建。
+- 完成 Flyway 覆盖静态比对：
+  - `schema.sql` 中的 17 张表、103 个索引、1 个扩展在 Flyway 迁移中无缺口。
+  - 17 张表的最终字段集合也已完成比对，无缺表、无漏列。
+  - 主配置默认关闭 `schema.sql` 初始化，改由 Flyway 作为建库入口；测试 profile 暂保留原初始化链路。
 - 当前机器 shell 未找到 `mvn` / `java` / `psql` 命令，尚无法在本地完成迁移烟测执行；待具备 Maven/JDK 环境后优先运行：
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
 

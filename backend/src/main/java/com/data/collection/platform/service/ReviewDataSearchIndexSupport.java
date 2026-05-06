@@ -8,6 +8,8 @@ import java.util.stream.Stream;
 import org.springframework.util.StringUtils;
 
 final class ReviewDataSearchIndexSupport {
+  // 评审数据搜索索引把标题、项目、模块、责任人、类型和专家合并成一份检索文档。
+  // 这样列表关键词搜索可以和标题专用搜索共享同一套拼音、紧凑文本和首字母规则。
   private ReviewDataSearchIndexSupport() {}
 
   static TextQuerySupport.SearchIndex buildRecordIndex(

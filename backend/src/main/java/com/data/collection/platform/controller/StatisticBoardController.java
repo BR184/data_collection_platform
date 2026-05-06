@@ -25,6 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/statistic-boards")
+// 统计板控制器通过 boardKey 路由到注册表中的具体看板服务。
+// 看板定义、明细下钻、实时刷新和规则说明都由服务能力声明，控制器只做统一 HTTP 外壳。
 public class StatisticBoardController {
   private final StatisticBoardRegistry registry;
   private final RealtimeWorkspaceService realtimeWorkspaceService;

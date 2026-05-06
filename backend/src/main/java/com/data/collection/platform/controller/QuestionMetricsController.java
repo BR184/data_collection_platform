@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/question-metrics")
+// 系统测试问题指标控制器保留旧入口路径，但内部已收口到 issue_fact 查询服务。
+// 这样前端路由和历史接口可以稳定过渡，业务口径仍由共享事实层统一。
 public class QuestionMetricsController {
   private final SystemTestIssueSearchService systemTestIssueSearchService;
   private final SystemTestIllegalRecordService systemTestIllegalRecordService;

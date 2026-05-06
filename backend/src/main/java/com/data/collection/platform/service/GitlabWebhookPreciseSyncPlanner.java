@@ -8,6 +8,8 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
+// Webhook 精确同步规划器把 GitLab 事件转换成需要回读的镜像表和主键条件。
+// 无法定位精确目标时返回空计划，由外层决定是否退回补偿同步。
 public class GitlabWebhookPreciseSyncPlanner {
   public GitlabWebhookPreciseSyncPlan plan(Map<String, Object> payload) {
     if (payload == null || payload.isEmpty()) {

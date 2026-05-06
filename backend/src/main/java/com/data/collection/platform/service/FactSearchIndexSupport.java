@@ -10,6 +10,8 @@ import java.util.stream.Stream;
 import org.springframework.util.StringUtils;
 
 final class FactSearchIndexSupport {
+  // 事实搜索索引把 issue 和 merge request 的多个展示字段合并成可查询文档。
+  // 这些索引对象最终写入数据库影子列，供 SQL 使用 pg_trgm 做高级搜索。
   private static final List<String> SYSTEM_TEST_TOKENS = List.of("系统测试", "回归测试");
 
   private FactSearchIndexSupport() {}

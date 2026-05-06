@@ -11,6 +11,8 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
+// 评审数据查询服务在 SQL 下推和 Java fallback 之间做路由选择。
+// 当搜索影子字段完整且高级筛选可下推时走 SQL，否则保留 Java 过滤以兼容历史数据。
 public class ReviewDataRecordQueryService {
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
   private final ReviewDataSummaryService summaryService;
@@ -42,6 +44,7 @@ public class ReviewDataRecordQueryService {
         (!keywordSearch || !persistenceSupport.hasMissingSearchIndexes())
             && (!titleSearchFilter || !persistenceSupport.hasMissingTitleSearchIndexes())
             && (!hasFilterGroup || ReviewDataFilterGroupSqlSupport.canPushDown(filterGroup));
+    // SQL 路径是目标形态：分页、排序、关键词和高级筛选都尽量交给数据库完成。
     if (canUseSqlPath) {
       ReviewDataRecordReadRepository.RecordPageResult pageResult =
           persistenceSupport.loadRecordPage(
@@ -67,6 +70,7 @@ public class ReviewDataRecordQueryService {
           safeSortOrder,
           pageResult.summary());
     }
+    // fallback 只用于历史搜索索引缺失或筛选表达式暂未下推的场景，避免用户查询突然失效。
     return listRecordsWithJavaFilters(
         request, hasFilterGroup ? filterGroup : null, safePage, safeSize, safeSortField, safeSortOrder);
   }

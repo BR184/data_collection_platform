@@ -11,6 +11,8 @@ import org.springframework.util.StringUtils;
 public final class TextQuerySupport {
   private TextQuerySupport() {}
 
+  // 文本查询工具统一生成 normalized、compact、spell、initials 四类搜索形态。
+  // Java 生成的结果会写入数据库影子字段，SQL 再基于这些字段做模糊、拼音和首字母搜索。
   public static String normalizeDisplay(String value) {
     String normalized = trimToNull(value);
     return normalized == null ? "" : normalized;

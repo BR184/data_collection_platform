@@ -14,6 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
+// 数据库浏览服务只暴露白名单内的业务表和镜像表，用于运维排查而不是任意 SQL 控制台。
+// 表定义负责限制可查列、可排序字段和关键词范围，避免前端直接拼接表结构。
 public class DatabaseBrowserService {
 
   private final JdbcTemplate jdbcTemplate;

@@ -9,6 +9,8 @@ import org.springframework.util.StringUtils;
 final class IntegrationTestNoteParser {
   private IntegrationTestNoteParser() {}
 
+  // 备注格式来自现场手工填写，既可能是 key-value，也可能是 Markdown 表格。
+  // 解析器尽量宽容输入差异，但只在“集成测试数据”段落内抽取字段，避免误读后续章节。
   static ParsedIntegrationNote parse(String noteText) {
     if (!StringUtils.hasText(noteText)) {
       return ParsedIntegrationNote.empty();

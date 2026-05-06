@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/code-review")
+// 代码走查控制器同时承接非法记录、规则配置和多元看板入口。
+// 请求对象先经 assembler 收口，再交给服务层处理规则、筛选和导出。
 public class CodeReviewController {
 
   private final CodeReviewIllegalRecordService codeReviewIllegalRecordService;

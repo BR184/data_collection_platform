@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/integration-tests")
+// 集成测试控制器暴露事实重建、范围选项、汇总、明细和导出接口。
+// 备注解析和事实聚合不在控制层展开，避免接口层耦合集成测试口径细节。
 public class IntegrationTestController {
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final IntegrationTestQueryService integrationTestQueryService;

@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
+// 模块字典服务负责把标签、备注和外部数据里的模块别名归一成标准模块名。
+// 规则支持全局、issue 和 merge request 作用域，优先级越高越先命中。
 public class ModuleDictionaryService {
 
   private static final String DOMAIN_COMMON = "COMMON";

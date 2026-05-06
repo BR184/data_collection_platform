@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/database-browser")
+// 数据库浏览控制器只提供受控表列表和分页查询，面向排查数据同步状态。
+// 可浏览表、列和排序字段由服务层白名单决定，不开放任意 SQL 执行。
 public class DatabaseBrowserController {
 
   private final DatabaseBrowserService databaseBrowserService;

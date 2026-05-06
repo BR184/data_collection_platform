@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
+// SQL 查询监控只在超过阈值时输出压缩后的 SQL 和参数数量，用于定位事实层慢查询。
+// 这里不打印参数明细，避免日志泄露用户输入或外部系统数据。
 public class SqlQueryMonitor {
   private final long slowThresholdMs;
 

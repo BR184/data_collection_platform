@@ -1,3 +1,5 @@
+-- 运营支撑迁移补齐事实层周边表：代码走查外部指标、集成测试事实、阶段日历、模块字典和镜像注册表。
+-- 这些表依赖 GitLab 同步核心表，因此放在 V20260506_02 之后执行。
 create table if not exists code_review_external_metrics (
     id bigserial primary key,
     project_id bigint not null,
@@ -15,6 +17,7 @@ create table if not exists code_review_external_metrics (
     unique (project_id, merge_request_iid)
 );
 
+-- 集成测试事实表由备注解析和 issue 镜像数据构建，查询页只消费这里的稳定事实结果。
 create table if not exists integration_test_fact (
     id bigserial primary key,
     source_system varchar(64) not null default 'GITLAB',
@@ -60,6 +63,7 @@ create table if not exists integration_test_fact (
     unique (source_system, source_instance, project_id, issue_id)
 );
 
+-- 测试阶段日历定义阶段起止时间，是集成测试和系统测试统计归属的重要依据。
 create table if not exists testing_phase_calendar (
     id bigserial primary key,
     project_id bigint not null,
@@ -73,6 +77,7 @@ create table if not exists testing_phase_calendar (
     unique (project_id, testing_phase)
 );
 
+-- 模块字典用于把不同来源的模块别名归一到标准模块名，支持全局和项目级两种作用域。
 create table if not exists module_dictionary (
     id bigserial primary key,
     dictionary_domain varchar(64) not null default 'COMMON',
@@ -86,6 +91,7 @@ create table if not exists module_dictionary (
     updated_at timestamp not null default current_timestamp
 );
 
+-- 镜像表注册表记录外部源表和本地镜像表的映射、指纹和预览状态。
 create table if not exists sys_table_registry (
     id bigserial primary key,
     config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
@@ -106,10 +112,12 @@ create table if not exists sys_table_registry (
     unique (config_id, mirror_table_name)
 );
 
+-- 对旧库只补齐后续版本新增字段，避免把结构治理和数据回填混在同一条迁移里。
 alter table integration_test_fact add column if not exists parse_status varchar(32) not null default 'PARTIAL';
 alter table integration_test_fact add column if not exists validation_reason varchar(255);
 alter table sys_table_registry add column if not exists preview_enabled boolean not null default true;
 
+-- 支撑表索引分别服务代码走查指标合并、集成测试查询、阶段筛选、模块归一和镜像注册表浏览。
 create index if not exists idx_code_review_external_metrics_context on code_review_external_metrics(project_id, merge_request_iid);
 create index if not exists idx_integration_test_fact_phase on integration_test_fact(project_id, testing_phase);
 create index if not exists idx_integration_test_fact_module on integration_test_fact(project_id, testing_phase, module_name);

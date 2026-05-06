@@ -23,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/review-data")
+// 评审数据控制器把 Web 查询参数组装成领域请求，记录、详情、问题项和导出都走同一服务入口。
+// 这里不直接拼 SQL，也不处理搜索 fallback，保证页面请求边界清晰。
 public class ReviewDataController {
 
   private final ReviewDataRecordService reviewDataRecordService;

@@ -11,7 +11,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   sql:
     init:
-      mode: always
+      mode: ${SPRING_SQL_INIT_MODE:never}
   flyway:
     enabled: true
     locations: classpath:db/migration

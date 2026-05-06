@@ -27,6 +27,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 @Slf4j
+// 事实构建服务把 GitLab 镜像表转换成 issue_fact 和 merge_request_fact，是统计和记录页的统一数据来源。
+// 这里集中处理分类、SLA、非法标记和搜索影子字段，避免各查询接口重复推导事实口径。
 public class FactBuildService {
   private static final String DEFAULT_SOURCE_SYSTEM = "GITLAB";
   private static final String DEFAULT_SOURCE_INSTANCE = "default";

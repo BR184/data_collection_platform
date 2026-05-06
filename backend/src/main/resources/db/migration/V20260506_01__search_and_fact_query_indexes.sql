@@ -1,5 +1,8 @@
+-- 搜索与事实查询迁移的目标是先把 schema.sql 中已在运行的结构纳入 Flyway。
+-- 当前仍由 Java 生成 normalized/compact/spell/initials 等搜索影子字段，SQL 只负责基于这些字段查询。
 create extension if not exists pg_trgm;
 
+-- 评审数据表保留搜索影子字段，支持普通关键词、紧凑文本、拼音和首字母搜索。
 create table if not exists review_records (
     id bigserial primary key,
     project_name varchar(255) not null default '',
@@ -25,6 +28,7 @@ create table if not exists review_records (
     updated_at timestamp not null default current_timestamp
 );
 
+-- 评审专家和问题项随评审记录级联删除，支撑记录详情、问题项展开和专家筛选。
 create table if not exists review_record_experts (
     id bigserial primary key,
     review_record_id bigint not null references review_records(id) on delete cascade,
@@ -54,6 +58,7 @@ create table if not exists review_problem_items (
     updated_at timestamp not null default current_timestamp
 );
 
+-- issue_fact 是系统测试和客户问题共用的事实表，分类、非法、SLA 和搜索字段先保持 Java 构建。
 create table if not exists issue_fact (
     id bigserial primary key,
     source_system varchar(64) not null default 'GITLAB',
@@ -144,6 +149,7 @@ create table if not exists issue_fact (
     unique (source_system, source_instance, project_id, issue_id)
 );
 
+-- merge_request_fact 承接代码走查看板和责任人查询，owner_search_* 字段用于责任人高级搜索。
 create table if not exists merge_request_fact (
     id bigserial primary key,
     source_system varchar(64) not null default 'GITLAB',
@@ -195,6 +201,7 @@ create table if not exists merge_request_fact (
     unique (source_system, source_instance, project_id, merge_request_id)
 );
 
+-- 过渡期保留补列语句：已存在的库只补齐搜索字段，新库则由上面的 create table 一次性建出。
 alter table review_records add column if not exists search_text text;
 alter table review_records add column if not exists search_compact text;
 alter table review_records add column if not exists search_spell text;
@@ -270,6 +277,7 @@ alter table merge_request_fact add column if not exists owner_search_compact tex
 alter table merge_request_fact add column if not exists owner_search_spell text;
 alter table merge_request_fact add column if not exists owner_search_initials text;
 
+-- 评审数据索引分为列表排序索引、大小写归一查询索引和 pg_trgm 模糊搜索索引。
 create index if not exists idx_review_records_main on review_records(project_name, module_name, review_owner, review_type, review_date);
 create index if not exists idx_review_records_active_updated on review_records(updated_at desc, id asc) where deleted = false;
 create index if not exists idx_review_records_active_review_date on review_records(review_date, id asc) where deleted = false;
@@ -296,6 +304,7 @@ create index if not exists idx_review_problem_items_record on review_problem_ite
 create index if not exists idx_review_problem_items_lower_status_record on review_problem_items(lower(coalesce(problem_status, '')), review_record_id) where deleted = false;
 create index if not exists idx_review_problem_items_reviewer on review_problem_items(reviewer_name, deleted);
 
+-- issue_fact 的索引覆盖记录页筛选、非法列表、范围筛选和多字段模糊搜索。
 create index if not exists idx_issue_fact_context on issue_fact(source_system, source_instance, project_id, issue_iid);
 create index if not exists idx_issue_fact_state on issue_fact(issue_state, severity_level, priority_level);
 create index if not exists idx_issue_fact_module on issue_fact(module_name, testing_phase, bug_status);
@@ -341,6 +350,7 @@ create index if not exists idx_issue_fact_phase_search_compact_trgm on issue_fac
 create index if not exists idx_issue_fact_phase_search_spell_trgm on issue_fact using gin (phase_search_spell gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_phase_search_initials_trgm on issue_fact using gin (phase_search_initials gin_trgm_ops) where deleted = false;
 
+-- merge_request_fact 的索引优先服务代码走查列表、趋势指标和责任人搜索。
 create index if not exists idx_merge_request_fact_context on merge_request_fact(source_system, source_instance, project_id, merge_request_iid);
 create index if not exists idx_merge_request_fact_owner on merge_request_fact(owner_name, module_name, merge_request_state);
 create index if not exists idx_merge_request_fact_metrics on merge_request_fact(comment_rate, defect_count, review_duration_minutes);

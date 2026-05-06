@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/customer-issues")
+// 客户问题控制器复用 issue_fact 记录查询能力，只暴露客户问题域的正式记录和非法记录接口。
+// 系统测试共用逻辑留在底层服务，避免两个控制器复制筛选和导出规则。
 public class CustomerIssueController {
   private final CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
   private final CustomerIssueRecordService customerIssueRecordService;

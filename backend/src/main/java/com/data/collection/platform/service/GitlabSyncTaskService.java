@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+// 同步任务服务是镜像调度的闸门，负责去重、排队、复用活动任务和恢复超时任务。
+// 业务服务只提交意图，是否真正创建新任务由这里按 scopeKey 和 dedupeKey 决定。
 public class GitlabSyncTaskService {
   private static final List<SyncStatus> ACTIVE_STATUSES = List.of(
       SyncStatus.PENDING,

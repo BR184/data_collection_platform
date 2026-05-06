@@ -26,6 +26,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 @Slf4j
+// 代码走查非法记录服务承接规则配置、实时刷新、记录查询、导出和规则说明。
+// 默认规则尽量下沉到 SQL 查询；用户自定义规则则通过规则配置和源数据加载器组合执行。
 public class CodeReviewIllegalRecordService {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";

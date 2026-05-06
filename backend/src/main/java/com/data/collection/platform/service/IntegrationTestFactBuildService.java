@@ -24,6 +24,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 @Slf4j
+// 集成测试事实构建服务从 issue 镜像和备注中抽取执行用例、通过率、模块和执行人。
+// 解析后的 integration_test_fact 是分析页汇总、明细和导出的唯一事实来源。
 public class IntegrationTestFactBuildService {
   private static final String DEFAULT_SOURCE_SYSTEM = "GITLAB";
   private static final String DEFAULT_SOURCE_INSTANCE = "default";

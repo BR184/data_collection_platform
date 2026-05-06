@@ -1,3 +1,5 @@
+-- GitLab 同步核心迁移纳管数据入口相关表：配置、任务、日志、Webhook 和镜像记录。
+-- 这些表是后续关闭 schema.sql 初始化前必须先由 Flyway 独立建出的基础骨架。
 create table if not exists gitlab_sync_configs (
     id bigserial primary key,
     name varchar(128) not null default 'default',
@@ -21,6 +23,7 @@ create table if not exists gitlab_sync_configs (
     updated_at timestamp not null default current_timestamp
 );
 
+-- 同步日志只记录每次任务执行摘要，不承载镜像数据本身。
 create table if not exists gitlab_sync_logs (
     id bigserial primary key,
     config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
@@ -34,6 +37,7 @@ create table if not exists gitlab_sync_logs (
     finished_at timestamp
 );
 
+-- 同步任务表保存去重键、冷却时间、心跳和锁信息，用于避免重复调度和长任务失联。
 create table if not exists gitlab_sync_tasks (
     id bigserial primary key,
     run_id varchar(64) not null,
@@ -61,6 +65,7 @@ create table if not exists gitlab_sync_tasks (
     updated_at timestamp not null default current_timestamp
 );
 
+-- Webhook 事件先落本地表，再由任务链路异步处理，避免请求入口直接承担重同步成本。
 create table if not exists gitlab_webhook_events (
     id bigserial primary key,
     config_id bigint references gitlab_sync_configs(id) on delete set null,
@@ -72,6 +77,7 @@ create table if not exists gitlab_webhook_events (
     processed boolean not null default false
 );
 
+-- 镜像记录表用 jsonb 保存外部 GitLab 行数据，是事实构建读取 ODS 数据的统一入口。
 create table if not exists gitlab_mirror_records (
     id bigserial primary key,
     config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
@@ -84,6 +90,7 @@ create table if not exists gitlab_mirror_records (
     unique (config_id, table_name, record_key)
 );
 
+-- 采集表单记录来自外部评审入口，后续事实构建会把它合并到代码走查和评审分析口径中。
 create table if not exists collect_form_records (
     id bigserial primary key,
     gitlab_base_url varchar(255) not null,
@@ -107,6 +114,7 @@ create table if not exists collect_form_records (
     unique (gitlab_base_url, project_id, resource_type, resource_id, template_code)
 );
 
+-- 过渡期补列兼容旧库：旧 schema.sql 版本可能已经建表但缺少新调度字段。
 alter table gitlab_sync_configs add column if not exists source_mode varchar(32) not null default 'DOCKER';
 alter table gitlab_sync_configs add column if not exists docker_container_name varchar(255);
 alter table gitlab_sync_configs add column if not exists webhook_secret varchar(255);
@@ -136,6 +144,7 @@ alter table gitlab_sync_tasks add column if not exists payload_json text;
 alter table gitlab_sync_tasks add column if not exists created_at timestamp not null default current_timestamp;
 alter table gitlab_sync_tasks add column if not exists updated_at timestamp not null default current_timestamp;
 
+-- 同步索引覆盖任务列表、去重判断、日志查询和镜像记录按表读取。
 create index if not exists idx_gitlab_mirror_records_table on gitlab_mirror_records(config_id, table_name);
 create index if not exists idx_collect_form_records_context on collect_form_records(project_id, resource_type, resource_id, template_code);
 create index if not exists idx_gitlab_sync_logs_config on gitlab_sync_logs(config_id, started_at desc);

@@ -9,6 +9,8 @@ import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.util.Map;
 
 public abstract class AbstractStatisticBoardService {
+  // 统计板基类统一处理定义、筛选解析、明细查询和 CSV 导出。
+  // 具体看板只实现领域数据聚合，避免每个看板重复解析高级筛选 JSON。
   private final JsonUtils jsonUtils;
 
   protected AbstractStatisticBoardService(JsonUtils jsonUtils) {

@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
       "spring.flyway.schemas=qaflex_test_migration",
       "spring.flyway.default-schema=qaflex_test_migration",
       "spring.flyway.create-schemas=true",
+      // 关闭 schema.sql 初始化，确保这个烟测只验证 Flyway 自己能否建出完整基础结构。
       "spring.sql.init.mode=never"
     })
 class FlywayMigrationSmokeTest {
@@ -26,6 +27,7 @@ class FlywayMigrationSmokeTest {
 
   @Test
   void shouldApplySearchAndFactQuerySchemaMigration() {
+    // 搜索字段当前仍由 Java 生成，Flyway 负责保证 SQL 查询所需的影子列和索引存在。
     assertThat(tableExists("review_records")).isTrue();
     assertThat(tableExists("issue_fact")).isTrue();
     assertThat(tableExists("merge_request_fact")).isTrue();
@@ -46,6 +48,7 @@ class FlywayMigrationSmokeTest {
 
   @Test
   void shouldApplyGitlabSyncCoreSchemaMigration() {
+    // GitLab 同步链路是数据入口，必须先于事实构建和镜像注册表在空库中独立创建。
     assertThat(tableExists("gitlab_sync_configs")).isTrue();
     assertThat(tableExists("gitlab_sync_logs")).isTrue();
     assertThat(tableExists("gitlab_sync_tasks")).isTrue();
@@ -70,6 +73,7 @@ class FlywayMigrationSmokeTest {
 
   @Test
   void shouldApplyOperationalSupportSchemaMigration() {
+    // 运营支撑表依赖同步核心表，覆盖集成测试事实、模块字典和镜像表注册等后续查询基础。
     assertThat(tableExists("code_review_external_metrics")).isTrue();
     assertThat(tableExists("integration_test_fact")).isTrue();
     assertThat(tableExists("testing_phase_calendar")).isTrue();

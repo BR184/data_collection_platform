@@ -46,6 +46,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/gitlab-sync")
 @Slf4j
+// GitLab 同步控制器是镜像数据入口的 API 门面，只负责配置、任务、Webhook 和清理动作编排。
+// 外部库访问、任务去重和事实重建都下沉到 service，避免控制层持有同步细节。
 public class GitlabSyncController {
   private final GitlabConfigService configService;
   private final GitlabMirrorSyncService syncService;

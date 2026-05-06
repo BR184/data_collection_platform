@@ -30,6 +30,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
+// GitLab 镜像同步服务负责把外部库数据拉入本地 ODS 表和镜像记录表，是整个平台的数据入口。
+// 同步过程同时维护任务进度、日志和精确 Webhook 补偿，避免事实构建直接访问外部库。
 public class GitlabMirrorSyncService {
   private static final int UPSERT_BATCH_SIZE = 200;
   private static final int COMPENSATION_EXTRA_LOOKBACK_MINUTES = 60;
@@ -47,6 +49,7 @@ public class GitlabMirrorSyncService {
   private final JsonUtils jsonUtils;
   private final GitlabMirrorSyncService self;
   private final ConcurrentMap<Long, SyncProgress> progressMap = new ConcurrentHashMap<>();
+  // 每个服务实例持有独立锁 owner，用于区分本机正在处理的长同步任务和历史遗留任务。
   private final String lockOwner = java.util.UUID.randomUUID().toString();
 
   public GitlabMirrorSyncService(

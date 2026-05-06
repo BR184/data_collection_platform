@@ -8,6 +8,8 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
 @Service
+// issue_fact 查询服务封装通用筛选和慢 SQL 监控，是统计板读取事实层的轻量入口。
+// 更复杂的记录页分页查询放在 IssueFactRecordRepository，避免一个类同时承担两种查询模型。
 public class IssueFactQueryService extends AbstractFactQueryService {
   private final JdbcTemplate jdbcTemplate;
   private final SqlQueryMonitor sqlQueryMonitor;
