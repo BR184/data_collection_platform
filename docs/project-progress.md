@@ -291,10 +291,12 @@
   - `python scripts/check_worktree_artifacts.py`
   - `python scripts/check_api_contract_drift.py`
   - `python scripts/check_frontend_api_boundary.py`
+  - `python scripts/check_flyway_profile_smoke_coverage.py`
   - `python scripts/check_text_whitespace.py`
   - `mvn -DskipTests compile`
   - `mvn -Dtest=GitlabSourceSchemaGuardTest test`
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
+  - `mvn -Dspring.profiles.active=flyway-test -Dtest=FactBuildTaskServiceTest test`
   - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-local.ps1`
 - 本地工具链状态：
   - 项目 `tools` 目录下已有 JDK 21 与 Maven 3.9.9；新增 PostgreSQL 17.9 客户端到 `tools/postgresql-17.9/pgsql`。
@@ -308,6 +310,8 @@
   - 新增 `scripts/check_frontend_api_boundary.py`，阻止非测试页面绕过 `api-client` 直接调用 `/api`。
   - 非看板页面的 CSV 下载逻辑开始收口到 `frontend/src/utils/csv-download.ts`，减少重复实现。
   - 新增 `application-flyway-test.yml`，提供测试逐步切到 Flyway 初始化的 opt-in profile。
+  - `scripts/verify-local.ps1` 和 CI 已加入 `FactBuildTaskServiceTest` 的 `flyway-test` profile 运行，开始把 SpringBootTest 从 `schema.sql` 双轨迁往 Flyway 路径。
+  - 新增 `scripts/check_flyway_profile_smoke_coverage.py` 和 `scripts/flyway-profile-smoke-tests.txt`，防止 Flyway profile 代表性测试清单失效或变空。
   - 新增 `docs/flyway-migration-rules.md`，明确已执行迁移不可变、checksum 处理和大表索引策略。
   - 新增 `docs/fact-field-contract.md`，记录 Java 事实字段、SQL 查询字段和前端筛选字段的边界。
   - 新增 `docs/frontend-record-page-rules.md`，约束非看板记录页继续复用共享筛选、分页、导出和明细底座。

@@ -34,8 +34,10 @@
 ```powershell
 python scripts/check_schema_flyway_drift.py
 python scripts/check_flyway_migration_immutability.py
+python scripts/check_flyway_profile_smoke_coverage.py
 cd backend
 mvn -q -Dtest=FlywayMigrationSmokeTest test
+mvn -q -Dspring.profiles.active=flyway-test -Dtest=FactBuildTaskServiceTest test
 ```
 
 CI 中也会执行同类检查，确保新增表、索引、扩展和最终字段集合不再漂移。
@@ -47,3 +49,9 @@ python scripts/check_flyway_migration_immutability.py --update
 ```
 
 该命令只用于锁定新增迁移。已经在共享库执行过的旧迁移不应通过更新清单来绕过 checksum 风险。
+
+## 测试初始化路径
+
+默认测试 profile 仍保留 `schema.sql` 初始化用于兼容旧测试。为了逐步迁往 Flyway，代表性 `@SpringBootTest` 需要写入 `scripts/flyway-profile-smoke-tests.txt`，并在 `flyway-test` profile 下运行。
+
+新增依赖数据库结构的 SpringBootTest 时，应评估是否把它加入该清单，或用现有代表性测试覆盖相同 schema 路径。

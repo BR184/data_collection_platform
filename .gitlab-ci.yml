@@ -24,6 +24,7 @@ static-guards:
     - python scripts/check_flyway_migration_immutability.py
     - python scripts/check_api_contract_drift.py
     - python scripts/check_frontend_api_boundary.py
+    - python scripts/check_flyway_profile_smoke_coverage.py
     - python scripts/check_worktree_artifacts.py
     - python scripts/check_text_whitespace.py
     - git diff --check
@@ -64,3 +65,4 @@ flyway-smoke:
   script:
     - cd backend
     - mvn -q -Dtest=FlywayMigrationSmokeTest test
+    - TEST_DATASOURCE_URL="jdbc:postgresql://postgres:5432/qaflex?currentSchema=qaflex_test_flyway" mvn -q -Dspring.profiles.active=flyway-test -Dtest=FactBuildTaskServiceTest test

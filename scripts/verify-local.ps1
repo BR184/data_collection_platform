@@ -17,6 +17,7 @@ try {
   python scripts/check_flyway_migration_immutability.py
   python scripts/check_api_contract_drift.py
   python scripts/check_frontend_api_boundary.py
+  python scripts/check_flyway_profile_smoke_coverage.py
   python scripts/check_worktree_artifacts.py
   python scripts/check_text_whitespace.py
   git diff --check
@@ -30,6 +31,7 @@ try {
   mvn -q -Dtest=GitlabSourceSchemaGuardTest test
   if (-not $SkipDatabase) {
     mvn -q -Dtest=FlywayMigrationSmokeTest test
+    mvn -q '-Dspring.profiles.active=flyway-test' -Dtest=FactBuildTaskServiceTest test
   }
 } finally {
   Pop-Location
