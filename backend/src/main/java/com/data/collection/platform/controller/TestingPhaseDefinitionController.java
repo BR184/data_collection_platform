@@ -1,9 +1,11 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.TestingPhaseDefinitionResponse;
 import com.data.collection.platform.entity.TestingPhaseDefinitionSaveRequest;
 import com.data.collection.platform.entity.TestingPhaseProjectOptionResponse;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.TestingPhaseDefinitionService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -42,18 +44,21 @@ public class TestingPhaseDefinitionController {
   }
 
   @PostMapping
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<TestingPhaseDefinitionResponse> create(
       @RequestBody @Valid TestingPhaseDefinitionSaveRequest request) {
     return ApiResponse.success("测试阶段定义已保存", testingPhaseDefinitionService.create(request));
   }
 
   @PutMapping("/{id}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<TestingPhaseDefinitionResponse> update(
       @PathVariable Long id, @RequestBody @Valid TestingPhaseDefinitionSaveRequest request) {
     return ApiResponse.success("测试阶段定义已更新", testingPhaseDefinitionService.update(id, request));
   }
 
   @PatchMapping("/{id}/enabled")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<TestingPhaseDefinitionResponse> setEnabled(
       @PathVariable Long id, @RequestBody EnabledRequest request) {
     return ApiResponse.success(
@@ -62,6 +67,7 @@ public class TestingPhaseDefinitionController {
   }
 
   @DeleteMapping("/{id}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Void> delete(@PathVariable Long id) {
     testingPhaseDefinitionService.delete(id);
     return ApiResponse.success("测试阶段定义已删除", null);

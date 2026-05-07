@@ -236,6 +236,10 @@ public class IntegrationTestQueryService {
             """);
     appendScopedFilters(where, args, projectId, testingPhase, moduleName);
 
+    Long total =
+        jdbcTemplate.queryForObject("select count(*) " + where, Long.class, args.toArray());
+    CsvExportSupport.ensureWithinRowLimit(total == null ? 0 : total);
+
     List<IntegrationTestDetailRowResponse> rows =
         jdbcTemplate.query(
             """

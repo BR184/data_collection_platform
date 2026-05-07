@@ -132,6 +132,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
               request.illegalReason(),
               request.filterGroupJson());
       CustomerIssueIllegalRecordListResponse response = listRecords(pageRequest);
+      CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;

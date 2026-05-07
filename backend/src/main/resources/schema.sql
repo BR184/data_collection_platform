@@ -101,6 +101,18 @@ create table if not exists fact_build_tasks (
     updated_at timestamp not null default current_timestamp
 );
 
+create table if not exists operation_audit_logs (
+    id bigserial primary key,
+    username varchar(128) not null default 'guest',
+    role varchar(32) not null default 'GUEST',
+    http_method varchar(16) not null,
+    request_path varchar(512) not null,
+    remote_address varchar(128),
+    response_status integer not null,
+    error_message text,
+    created_at timestamp not null default current_timestamp
+);
+
 create table if not exists collect_form_records (
     id bigserial primary key,
     gitlab_base_url varchar(255) not null,
@@ -122,6 +134,19 @@ create table if not exists collect_form_records (
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
     unique (gitlab_base_url, project_id, resource_type, resource_id, template_code)
+);
+
+create table if not exists collect_form_record_audit_logs (
+    id bigserial primary key,
+    record_id bigint references collect_form_records(id) on delete set null,
+    action varchar(32) not null,
+    editor_id varchar(128),
+    editor_username varchar(128),
+    reviewer varchar(128),
+    remote_address varchar(128),
+    user_agent text,
+    snapshot_json jsonb not null,
+    created_at timestamp not null default current_timestamp
 );
 
 create table if not exists review_records (
@@ -539,8 +564,12 @@ alter table review_records add column if not exists title_search_spell text;
 alter table review_records add column if not exists title_search_initials text;
 
 create extension if not exists pg_trgm with schema public;
+create index if not exists idx_operation_audit_logs_created_at on operation_audit_logs(created_at desc);
+create index if not exists idx_operation_audit_logs_request_path on operation_audit_logs(request_path, created_at desc);
 create index if not exists idx_gitlab_mirror_records_table on gitlab_mirror_records(config_id, table_name);
 create index if not exists idx_collect_form_records_context on collect_form_records(project_id, resource_type, resource_id, template_code);
+create index if not exists idx_collect_form_record_audit_logs_record on collect_form_record_audit_logs(record_id, created_at desc);
+create index if not exists idx_collect_form_record_audit_logs_editor on collect_form_record_audit_logs(editor_username, editor_id, created_at desc);
 create index if not exists idx_review_records_main on review_records(project_name, module_name, review_owner, review_type, review_date);
 create index if not exists idx_review_records_active_updated on review_records(updated_at desc, id asc) where deleted = false;
 create index if not exists idx_review_records_active_review_date on review_records(review_date, id asc) where deleted = false;

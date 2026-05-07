@@ -2,5 +2,7 @@
   "V20260430_01__fact_build_tasks.sql": "dc785f4678ef48071ce51b30579bbf4ee22a4b4e8390a7926d9e210396a2abe1",
   "V20260506_01__search_and_fact_query_indexes.sql": "cf50319a28486632e95c05bdedd058a303936c0aea3e3d9da233fd24b1d831d4",
   "V20260506_02__gitlab_sync_core_schema.sql": "6e537ad21d918ee505f2f875e68556655eb1cdc2dd8c804d90052106f012e29c",
-  "V20260506_03__operational_support_schema.sql": "ac3d068c2cc5f2f9cfded0bb1e096de62f4b5440a015f551dd3945b9f65caada"
+  "V20260506_03__operational_support_schema.sql": "ac3d068c2cc5f2f9cfded0bb1e096de62f4b5440a015f551dd3945b9f65caada",
+  "V20260507_01__operation_audit_logs.sql": "d0427febe963af71dfadc0f2059a13f50dae68086bba58f9fabccc3c2f113f7d",
+  "V20260507_02__collect_form_audit_logs.sql": "939970345e6195b6b3cca457149ac910980ac12a774472d73b5a2ac09e17b832"
 }

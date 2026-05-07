@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.entity.CollectFormDetailResponse;
+import com.data.collection.platform.entity.CollectFormEditContext;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.service.CollectFormService;
 import java.time.LocalDateTime;
@@ -120,7 +122,8 @@ class CollectFormControllerTest {
         eq(3),
         eq(4),
         eq(5),
-        eq("备注")))
+        eq("备注"),
+        any(CollectFormEditContext.class)))
         .thenReturn(new CollectFormDetailResponse(
             7L,
             "http://172.22.10.233",
@@ -202,7 +205,8 @@ class CollectFormControllerTest {
         eq(5),
         eq(6),
         eq("数据库查看修改"),
-        eq(true)))
+        eq(true),
+        any(CollectFormEditContext.class)))
         .thenReturn(new CollectFormDetailResponse(
             7L,
             "http://172.22.10.233",

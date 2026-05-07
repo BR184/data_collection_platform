@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.entity.CollectFormEditContext;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.entity.CollectFormRecord;
 import com.data.collection.platform.mapper.CollectFormRecordMapper;
@@ -22,6 +23,9 @@ class CollectFormServiceTest {
 
   @Mock
   private CollectFormRecordMapper collectFormRecordMapper;
+
+  @Mock
+  private CollectFormAuditService collectFormAuditService;
 
   @InjectMocks
   private CollectFormService collectFormService;
@@ -67,10 +71,12 @@ class CollectFormServiceTest {
         3,
         4,
         5,
-        "本地测试");
+        "本地测试",
+        editContext());
 
     ArgumentCaptor<CollectFormRecord> captor = ArgumentCaptor.forClass(CollectFormRecord.class);
     verify(collectFormRecordMapper).upsert(captor.capture());
+    verify(collectFormAuditService).record(eq("SAVE"), eq(saved), org.mockito.ArgumentMatchers.any());
     CollectFormRecord record = captor.getValue();
     assertEquals("http://172.22.10.233", record.getGitlabBaseUrl());
     assertEquals(88L, record.getProjectId());
@@ -136,11 +142,13 @@ class CollectFormServiceTest {
         5,
         6,
         "数据库查看修改",
-        true);
+        true,
+        editContext());
 
     ArgumentCaptor<CollectFormRecord> captor = ArgumentCaptor.forClass(CollectFormRecord.class);
     verify(collectFormRecordMapper).updateById(captor.capture());
     verify(collectFormRecordMapper, times(2)).selectById(7L);
+    verify(collectFormAuditService).record(eq("DELETE"), eq(latest), org.mockito.ArgumentMatchers.any());
     CollectFormRecord update = captor.getValue();
     assertEquals(7L, update.getId());
     assertEquals("代码走查表-改", update.getFormTitle());
@@ -151,20 +159,46 @@ class CollectFormServiceTest {
 
   @Test
   void deleteShouldDelegateLogicalDeleteByUniqueContext() {
+    CollectFormRecord existing = new CollectFormRecord();
+    existing.setId(9L);
+    existing.setGitlabBaseUrl("http://172.22.10.233");
+    existing.setProjectId(1L);
+    existing.setResourceType("merge_request");
+    existing.setResourceId("2");
+    existing.setTemplateCode("code_review");
+    existing.setReviewer("王小欢");
+    existing.setDeleted(false);
+    CollectFormRecord latest = new CollectFormRecord();
+    latest.setId(9L);
+    latest.setReviewer("王小欢");
+    latest.setDeleted(true);
+    when(collectFormRecordMapper.selectByContext(
+        eq("http://172.22.10.233"),
+        eq(1L),
+        eq("merge_request"),
+        eq("2"),
+        eq("code_review"))).thenReturn(existing);
     when(collectFormRecordMapper.logicalDelete(
         eq("http://172.22.10.233"),
         eq(1L),
         eq("merge_request"),
         eq("2"),
         eq("code_review"))).thenReturn(1);
+    when(collectFormRecordMapper.selectById(9L)).thenReturn(latest);
 
     boolean deleted = collectFormService.delete(
         "http://172.22.10.233",
         1L,
         "merge_request",
         "2",
-        "code_review");
+        "code_review",
+        editContext());
 
     assertTrue(deleted);
+    verify(collectFormAuditService).record(eq("DELETE"), eq(latest), org.mockito.ArgumentMatchers.any());
+  }
+
+  private CollectFormEditContext editContext() {
+    return new CollectFormEditContext("", "王小欢", "127.0.0.1", "JUnit");
   }
 }

@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
@@ -8,6 +9,7 @@ import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import java.nio.charset.StandardCharsets;
@@ -74,6 +76,7 @@ public class CodeReviewController {
   }
 
   @PostMapping("/illegal-records/rule-config/preview")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<CodeReviewRulePreviewResponse> previewIllegalRecordRuleConfig(
       @RequestBody CodeReviewRulePreviewWebRequest request) {
     return ApiResponse.success(
@@ -87,6 +90,7 @@ public class CodeReviewController {
   }
 
   @PostMapping("/illegal-records/refresh")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success("已开始刷新最新数据", codeReviewIllegalRecordService.requestRealtimeRefresh());
   }

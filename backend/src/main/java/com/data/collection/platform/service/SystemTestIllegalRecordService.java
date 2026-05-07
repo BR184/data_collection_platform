@@ -135,6 +135,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
               request.assigneeName(),
               request.filterGroupJson());
       SystemTestIllegalRecordListResponse response = listRecords(pageRequest);
+      CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;

@@ -34,6 +34,8 @@ export const collectFormsApi = {
     designScore: number;
     otherScore: number;
     remark: string;
+    editorId?: string;
+    editorUsername?: string;
   }) {
     return request<CollectFormDetailResponse>('/api/collect-forms/save', {
       method: 'POST',
@@ -52,6 +54,8 @@ export const collectFormsApi = {
     otherScore: number;
     remark: string;
     deleted: boolean;
+    editorId?: string;
+    editorUsername?: string;
   }) {
     return request<CollectFormDetailResponse>('/api/collect-forms/update-record', {
       method: 'POST',
@@ -64,6 +68,8 @@ export const collectFormsApi = {
     resourceType: string;
     resourceId: string;
     templateCode: string;
+    editorId?: string;
+    editorUsername?: string;
   }) {
     return request<boolean>('/api/collect-forms/delete', {
       method: 'POST',

@@ -1,6 +1,6 @@
 # 数据采集平台项目主文档
 
-更新时间：2026-05-06
+更新时间：2026-05-07
 适用项目：`D:\projects\data_collection_platform`
 
 ## 1. 文档规则
@@ -173,6 +173,9 @@
 - 外部数据源类功能
   - 包括新的外部数据接入、外部数据源配置和外部数据源看板化扩展。
   - 已按产品决策暂缓，不作为近期实现目标。
+  - 当前已落地的代码走查外部表单只覆盖“单个外部上下文对应一份当前表单记录”的口径，不等同于通用的多人评判模型。
+  - 后续若出现“外部评判类数据源”，需要单独确认并设计多人同权评判能力：同一外部对象允许多个走查人/评判人分别提交判断，记录每个评判人的身份、结论、理由和时间；最终聚合结论按“一票否决”处理，即任一评判人判定非法/有错误，则该数据最终为非法，即使其他评判人判定合法。
+  - 这类能力目前未在交接文档中形成明确实现要求，不能直接用现有 `collect_form_records` 的最后一次提交覆盖模型承接。
 
 ## 6. 当前技术债与需补项
 
@@ -310,6 +313,12 @@
   - `mvn -Dtest=FlywayMigrationSmokeTest test`
   - `mvn -Dspring.profiles.active=flyway-test -Dtest=FactBuildTaskServiceTest test`
   - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-local.ps1`
+- 2026-05-07 非看板/非外部评判风险收口验证：
+  - `mvn -q -Dtest=PlatformAuthorizationInterceptorTest,PlatformStartupSecurityGuardTest,FactBuildOperationGuardTest,CsvExportSupportTest,CollectFormServiceTest,CollectFormControllerTest,FactBuildControllerTest,IntegrationTestControllerTest,ReviewDataRecordServiceTest test`
+  - `python scripts/check_schema_flyway_drift.py`
+  - `python scripts/check_flyway_migration_immutability.py`
+  - `npm.cmd run typecheck`
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-local.ps1`
 - 本地工具链状态：
   - 项目 `tools` 目录下已有 JDK 21 与 Maven 3.9.9；新增 PostgreSQL 17.9 客户端到 `tools/postgresql-17.9/pgsql`。
   - `scripts/dev-env.ps1` 已补充 `POSTGRES_HOME`，加载后可直接使用 `java`、`mvn`、`psql`。
@@ -333,6 +342,51 @@
   - 运行产物治理继续收口：根目录本地日志已移动到 `.tmp-logs/`，CI 和本地验证会拦截新的根目录日志。
   - 后端测试输出继续收口：`mvn -q -Dtest=GitlabSourceSchemaGuardTest test` 已不再输出 Mockito 动态 agent 和 JVM sharing 警告。
   - 本机存在 `DEBUG=release` 环境变量时，`FlywayMigrationSmokeTest` 和 `FactBuildTaskServiceTest` 已不再输出 Spring Boot DEBUG 条件报告。
+
+### 6.7 非看板与非外部评判风险收口
+
+本节排除所有看板模块，也排除“外部评判类数据源的多人同权判定模型”。本次已把可直接落地的风险先收口到代码、迁移和验证脚本中。
+
+已落地：
+
+1. 服务端权限不再只靠前端隐藏入口
+   - 新增 `@RequireRole` 与 `PlatformAuthorizationInterceptor`，对高危写操作做后端角色校验。
+   - 已覆盖 GitLab 同步配置、连接测试、全量/增量同步、Webhook 注册、任务取消、镜像清理、事实重建、集成测试事实重建、评审数据维护、测试阶段定义维护、代码走查规则预览和实时刷新等入口。
+   - 外部采集表不加登录权限，继续保持 GitLab 评论区链接可直接填写。
+2. 默认口令和共享环境误启动风险已加硬保护
+   - 新增 `PLATFORM_SECURE_CONFIG_REQUIRED` 开关。
+   - 开启后，如果仍使用 `admin/admin123`、`approval/approval`、空数据库密码或默认 `GITLAB_WEB_BASE_URL=http://localhost`，后端会启动失败并给出明确原因。
+   - 本地开发默认不强制开启，避免影响现有本地调试。
+3. 高危操作已有统一审计
+   - 新增 `operation_audit_logs` 表和 `PlatformAuditInterceptor`。
+   - 所有 `/api/**` 写操作会记录登录用户、角色、HTTP 方法、路径、来源 IP、响应状态和错误摘要。
+   - 登录接口本身不写入该通用审计，避免把认证噪音混入业务操作审计。
+4. 外部采集表保留免登录，但每次编辑都留痕
+   - 新增 `collect_form_record_audit_logs` 表。
+   - 每次保存、更新、作废都会记录 `record_id`、动作、`editor_id`、`editor_username`、填写人、来源 IP、User-Agent 和当次表单快照。
+   - 当前先保留手动填写模式：前端保存/作废时把“走查人/填写人”同步作为 `editorUsername` 提交；后端同时保存 reviewer 和 editorUsername，便于后续追查“谁编辑过”。
+5. 事实重建并发风险已收口
+   - 新增 `FactBuildOperationGuard`。
+   - 同一 scope 重建会被 single-flight 保护；`all` 与任意子 scope 也互斥，避免事实表中间态和大 SQL 堆积。
+6. 评审数据搜索影子字段缺失有了手动回填入口
+   - 新增管理员接口 `POST /api/review-data/records/search-index/backfill?batchSize=200`。
+   - 可按批回填历史评审数据搜索索引，并返回是否仍存在缺失的搜索字段。
+7. 大结果集导出已有上限保护
+   - 非看板记录类 CSV 和集成测试明细导出统一加 `10000` 行上限。
+   - 超过上限时后端返回业务错误，提示用户缩小筛选条件，避免后端内存和浏览器下载被大结果集拖垮。
+8. Flyway/schema 漂移继续由守卫兜底
+   - 新增迁移：
+     - `V20260507_01__operation_audit_logs.sql`
+     - `V20260507_02__collect_form_audit_logs.sql`
+   - 已更新 `scripts/flyway-migration-checksums.json`，新增迁移已纳入不可变校验。
+   - `schema.sql` 与 Flyway 当前保持一致：19 张表、107 个索引、1 个扩展。
+
+仍需配合真实环境继续做的事项：
+
+1. 旧库大表索引如已存在海量数据，仍建议迁移前单独评估是否需要 `CREATE INDEX CONCURRENTLY` 的人工执行窗口。
+2. GitLab 版本、标签口径和 milestone 样本变化仍需要依赖 `issue-source-readiness`、源表守卫和真实样本回归持续兜底。
+3. 集成测试备注解析仍需要继续沉淀脱敏现场样本；本次没有扩大隐式解析规则。
+4. 评审数据管理、系统测试议题查询和集成测试分析这几个特例页面仍保留边界，后续新增交互时应优先回到共享底座。
 
 已修复并恢复：
 
@@ -433,6 +487,7 @@
 2. `代码走查多元看板` 专题图和筛选细化
 3. `系统测试议题多元看板` 专题拆分与视觉收敛
 4. 外部数据源类能力
+5. 外部评判类数据源的多人同权判定模型：需要支持评判人级别的明细记录、身份留痕、结论聚合和“一票否决”规则，避免最后操作者覆盖前序判断。
 
 ## 10. 一句话结论
 

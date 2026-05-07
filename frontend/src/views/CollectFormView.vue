@@ -114,6 +114,7 @@ async function saveForm() {
       designScore: formModel.design,
       otherScore: formModel.other,
       remark: formModel.remark,
+      editorUsername: formModel.reviewer,
     });
     lastLoadedRecord.value = record;
     applyRecord(record);
@@ -154,6 +155,7 @@ async function deleteForm() {
       resourceType: 'merge_request',
       resourceId: String(context.value.mrIid),
       templateCode: 'code_review',
+      editorUsername: formModel.reviewer,
     });
     if (deleted) {
       await loadRecord();

@@ -23,11 +23,12 @@ class ReviewDataRecordServiceTest {
   @Mock private ReviewDataRecordQueryService queryService;
   @Mock private ReviewDataRecordCommandService commandService;
   @Mock private ReviewDataFilterOptionService filterOptionService;
+  @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
 
   @Test
   void shouldComposeCreateRecordCommandWithDetailQuery() {
     ReviewDataRecordService service =
-        new ReviewDataRecordService(queryService, commandService, filterOptionService);
+        new ReviewDataRecordService(queryService, commandService, filterOptionService, persistenceSupport);
     ReviewDataRecordSaveRequest request = recordRequest();
     ReviewDataRecordDetailResponse detail = detail(10L);
 
@@ -42,7 +43,7 @@ class ReviewDataRecordServiceTest {
   @Test
   void shouldComposeCreateProblemItemCommandWithItemQuery() {
     ReviewDataRecordService service =
-        new ReviewDataRecordService(queryService, commandService, filterOptionService);
+        new ReviewDataRecordService(queryService, commandService, filterOptionService, persistenceSupport);
     ReviewDataProblemItemSaveRequest request = problemRequest();
     ReviewDataProblemItemResponse item =
         new ReviewDataProblemItemResponse(

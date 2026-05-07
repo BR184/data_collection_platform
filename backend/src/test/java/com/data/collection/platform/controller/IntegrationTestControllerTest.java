@@ -17,6 +17,7 @@ import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryRowResponse;
 import com.data.collection.platform.service.IntegrationTestFactBuildService;
 import com.data.collection.platform.service.IntegrationTestQueryService;
+import com.data.collection.platform.service.FactBuildOperationGuard;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,7 +42,7 @@ class IntegrationTestControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new IntegrationTestController(
-                    integrationTestFactBuildService, integrationTestQueryService))
+                    integrationTestFactBuildService, integrationTestQueryService, new FactBuildOperationGuard()))
             .build();
   }
 

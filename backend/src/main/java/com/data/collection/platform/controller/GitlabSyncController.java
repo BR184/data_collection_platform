@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.MirrorStatusLogView;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.MirrorStatusTaskView;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
@@ -29,6 +30,7 @@ import com.data.collection.platform.service.GitlabSyncTaskService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
 import com.data.collection.platform.service.GitlabWebhookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.data.collection.platform.security.RequireRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -115,6 +117,7 @@ public class GitlabSyncController {
   }
 
   @PutMapping("/config")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabSyncConfig> saveConfig(@RequestBody SaveConfigRequest request) {
     GitlabSyncConfig config = new GitlabSyncConfig();
     boolean syncEnabled = request.autoSyncEnabled();
@@ -146,6 +149,7 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/test-connection")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> testConnection() {
     try (GitlabSyncLogContext.Scope context =
             GitlabSyncLogContext.openConfig(configService.getConfig(), "TEST_CONNECTION");
@@ -157,6 +161,7 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/full-sync")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> fullSync() {
     try (GitlabSyncLogContext.Scope context =
             GitlabSyncLogContext.openConfig(configService.getConfig(), SyncType.FULL.name());
@@ -168,6 +173,7 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/incremental-sync")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> incrementalSync() {
     try (GitlabSyncLogContext.Scope context =
             GitlabSyncLogContext.openConfig(configService.getConfig(), SyncType.INCREMENTAL.name());
@@ -180,6 +186,7 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/register-webhook")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook() {
     GitlabSyncConfig config = configService.getConfig();
     GitlabWebhookRegistrationStatus result =
@@ -188,6 +195,7 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/cancel")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> cancel() {
     GitlabSyncConfig config = configService.getConfig();
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "CANCEL");
@@ -204,6 +212,7 @@ public class GitlabSyncController {
   }
 
   @PostMapping("/purge")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<MirrorPurgeResult> purge(@RequestBody PurgeRequest request) {
     MirrorPurgeResult result = purgeService.purge(request.scope());
     String message = switch (request.scope()) {

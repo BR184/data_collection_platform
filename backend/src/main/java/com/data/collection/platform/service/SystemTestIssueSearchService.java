@@ -116,6 +116,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
               request.authorName(),
               request.assigneeName());
       SystemTestIssueSearchListResponse response = listRecords(pageRequest);
+      CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;

@@ -1,9 +1,11 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.CollectFormEditContext;
 import com.data.collection.platform.entity.CollectFormDetailResponse;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.service.CollectFormService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -49,7 +51,9 @@ public class CollectFormController {
   }
 
   @PostMapping("/save")
-  public ApiResponse<CollectFormDetailResponse> save(@Valid @RequestBody SaveRequest request) {
+  public ApiResponse<CollectFormDetailResponse> save(
+      @Valid @RequestBody SaveRequest request,
+      HttpServletRequest servletRequest) {
     return ApiResponse.success(
         "表单已保存到平台正式数据表",
         collectFormService.save(
@@ -67,11 +71,14 @@ public class CollectFormController {
             request.performanceScore(),
             request.designScore(),
             request.otherScore(),
-            request.remark()));
+            request.remark(),
+            editContext(request.editorId(), request.editorUsername(), servletRequest)));
   }
 
   @PostMapping("/delete")
-  public ApiResponse<Boolean> delete(@Valid @RequestBody DeleteRequest request) {
+  public ApiResponse<Boolean> delete(
+      @Valid @RequestBody DeleteRequest request,
+      HttpServletRequest servletRequest) {
     return ApiResponse.success(
         "表单记录已作废",
         collectFormService.delete(
@@ -79,11 +86,14 @@ public class CollectFormController {
             request.projectId(),
             request.resourceType(),
             request.resourceId(),
-            request.templateCode()));
+            request.templateCode(),
+            editContext(request.editorId(), request.editorUsername(), servletRequest)));
   }
 
   @PostMapping("/update-record")
-  public ApiResponse<CollectFormDetailResponse> updateRecord(@Valid @RequestBody UpdateRecordRequest request) {
+  public ApiResponse<CollectFormDetailResponse> updateRecord(
+      @Valid @RequestBody UpdateRecordRequest request,
+      HttpServletRequest servletRequest) {
     return ApiResponse.success(
         "表单记录已更新",
         collectFormService.updateRecord(
@@ -97,7 +107,8 @@ public class CollectFormController {
             request.designScore(),
             request.otherScore(),
             request.remark(),
-            request.deleted()));
+            request.deleted(),
+            editContext(request.editorId(), request.editorUsername(), servletRequest)));
   }
 
   public record SaveRequest(
@@ -115,14 +126,18 @@ public class CollectFormController {
       @Min(0) Integer performanceScore,
       @Min(0) Integer designScore,
       @Min(0) Integer otherScore,
-      String remark) {}
+      String remark,
+      @Size(max = 128) String editorId,
+      @Size(max = 128) String editorUsername) {}
 
   public record DeleteRequest(
       @NotBlank @Size(max = 255) String gitlabBaseUrl,
       @NotNull @Positive Long projectId,
       @NotBlank @Size(max = 64) String resourceType,
       @NotBlank @Size(max = 255) String resourceId,
-      @NotBlank @Size(max = 128) String templateCode) {}
+      @NotBlank @Size(max = 128) String templateCode,
+      @Size(max = 128) String editorId,
+      @Size(max = 128) String editorUsername) {}
 
   public record UpdateRecordRequest(
       @NotNull @Positive Long id,
@@ -135,5 +150,26 @@ public class CollectFormController {
       @Min(0) Integer designScore,
       @Min(0) Integer otherScore,
       String remark,
-      boolean deleted) {}
+      boolean deleted,
+      @Size(max = 128) String editorId,
+      @Size(max = 128) String editorUsername) {}
+
+  private CollectFormEditContext editContext(
+      String editorId,
+      String editorUsername,
+      HttpServletRequest request) {
+    return new CollectFormEditContext(
+        editorId,
+        editorUsername,
+        clientAddress(request),
+        request.getHeader("User-Agent"));
+  }
+
+  private String clientAddress(HttpServletRequest request) {
+    String forwardedFor = request.getHeader("X-Forwarded-For");
+    if (forwardedFor != null && !forwardedFor.isBlank()) {
+      return forwardedFor.split(",", 2)[0].trim();
+    }
+    return request.getRemoteAddr();
+  }
 }

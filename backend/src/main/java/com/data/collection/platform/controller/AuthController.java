@@ -6,6 +6,7 @@ import com.data.collection.platform.config.PlatformAuthProperties;
 import com.data.collection.platform.entity.AuthLoginRequest;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.AuthUserResponse;
+import com.data.collection.platform.security.AuthSessionSupport;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -18,8 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-  private static final String SESSION_USER_KEY = "platform.auth.user";
-
   private final PlatformAuthProperties properties;
 
   public AuthController(PlatformAuthProperties properties) {
@@ -28,15 +27,7 @@ public class AuthController {
 
   @GetMapping("/current")
   public ApiResponse<AuthUserResponse> current(HttpServletRequest request) {
-    HttpSession session = request.getSession(false);
-    if (session == null) {
-      return ApiResponse.success(AuthUserResponse.guest());
-    }
-    Object user = session.getAttribute(SESSION_USER_KEY);
-    if (user instanceof AuthUserResponse authUser) {
-      return ApiResponse.success(authUser);
-    }
-    return ApiResponse.success(AuthUserResponse.guest());
+    return ApiResponse.success(AuthSessionSupport.currentUser(request));
   }
 
   @PostMapping("/login")
@@ -48,7 +39,7 @@ public class AuthController {
     if (user == null) {
       return ApiResponse.fail(ResultCode.BAD_REQUEST, "用户名或密码错误");
     }
-    session.setAttribute(SESSION_USER_KEY, user);
+    session.setAttribute(AuthSessionSupport.SESSION_USER_KEY, user);
     return ApiResponse.success("登录成功", user);
   }
 

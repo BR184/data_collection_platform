@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.CollectFormEditContext;
 import com.data.collection.platform.entity.CollectFormDetailResponse;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
 import com.data.collection.platform.entity.CollectFormRecord;
@@ -13,9 +14,13 @@ import org.springframework.util.StringUtils;
 public class CollectFormService {
 
   private final CollectFormRecordMapper collectFormRecordMapper;
+  private final CollectFormAuditService collectFormAuditService;
 
-  public CollectFormService(CollectFormRecordMapper collectFormRecordMapper) {
+  public CollectFormService(
+      CollectFormRecordMapper collectFormRecordMapper,
+      CollectFormAuditService collectFormAuditService) {
     this.collectFormRecordMapper = collectFormRecordMapper;
+    this.collectFormAuditService = collectFormAuditService;
   }
 
   public CollectFormDetailResponse getDetail(
@@ -49,7 +54,8 @@ public class CollectFormService {
       Integer performanceScore,
       Integer designScore,
       Integer otherScore,
-      String remark) {
+      String remark,
+      CollectFormEditContext editContext) {
     validateContext(gitlabBaseUrl, projectId, resourceType, resourceId, templateCode);
     CollectFormRecord record = new CollectFormRecord();
     record.setGitlabBaseUrl(gitlabBaseUrl.trim());
@@ -69,12 +75,14 @@ public class CollectFormService {
     record.setRemark(StringUtils.hasText(remark) ? remark.trim() : "");
     record.setDeleted(false);
     collectFormRecordMapper.upsert(record);
-    return getDetail(
+    CollectFormRecord latest = collectFormRecordMapper.selectByContext(
         record.getGitlabBaseUrl(),
         record.getProjectId(),
         record.getResourceType(),
         record.getResourceId(),
         record.getTemplateCode());
+    collectFormAuditService.record("SAVE", latest, editContext);
+    return latest == null ? null : CollectFormDetailResponse.from(latest);
   }
 
   public boolean delete(
@@ -82,15 +90,26 @@ public class CollectFormService {
       Long projectId,
       String resourceType,
       String resourceId,
-      String templateCode) {
+      String templateCode,
+      CollectFormEditContext editContext) {
     validateContext(gitlabBaseUrl, projectId, resourceType, resourceId, templateCode);
-    return collectFormRecordMapper.logicalDelete(
+    CollectFormRecord existing = collectFormRecordMapper.selectByContext(
+        gitlabBaseUrl.trim(),
+        projectId,
+        resourceType.trim(),
+        resourceId.trim(),
+        templateCode.trim());
+    int updated = collectFormRecordMapper.logicalDelete(
             gitlabBaseUrl.trim(),
             projectId,
             resourceType.trim(),
             resourceId.trim(),
-            templateCode.trim())
-        > 0;
+            templateCode.trim());
+    if (updated > 0) {
+      CollectFormRecord latest = existing == null ? null : collectFormRecordMapper.selectById(existing.getId());
+      collectFormAuditService.record("DELETE", latest, editContext);
+    }
+    return updated > 0;
   }
 
   public CollectFormDetailResponse updateRecord(
@@ -104,7 +123,8 @@ public class CollectFormService {
       Integer designScore,
       Integer otherScore,
       String remark,
-      boolean deleted) {
+      boolean deleted,
+      CollectFormEditContext editContext) {
     if (id == null || id <= 0) {
       throw new BizException("记录 ID 无效");
     }
@@ -129,6 +149,7 @@ public class CollectFormService {
 
     collectFormRecordMapper.updateById(update);
     CollectFormRecord latest = collectFormRecordMapper.selectById(id);
+    collectFormAuditService.record(deleted ? "DELETE" : "UPDATE", latest, editContext);
     return latest == null ? null : CollectFormDetailResponse.from(latest);
   }
 

@@ -1,11 +1,14 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.IntegrationTestDetailResponse;
 import com.data.collection.platform.entity.IntegrationTestPhaseOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestProjectOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
+import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.IntegrationTestFactBuildService;
 import com.data.collection.platform.service.IntegrationTestQueryService;
 import java.nio.charset.StandardCharsets;
@@ -26,17 +29,22 @@ import org.springframework.web.bind.annotation.RestController;
 public class IntegrationTestController {
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final IntegrationTestQueryService integrationTestQueryService;
+  private final FactBuildOperationGuard factBuildOperationGuard;
 
   public IntegrationTestController(
       IntegrationTestFactBuildService integrationTestFactBuildService,
-      IntegrationTestQueryService integrationTestQueryService) {
+      IntegrationTestQueryService integrationTestQueryService,
+      FactBuildOperationGuard factBuildOperationGuard) {
     this.integrationTestFactBuildService = integrationTestFactBuildService;
     this.integrationTestQueryService = integrationTestQueryService;
+    this.factBuildOperationGuard = factBuildOperationGuard;
   }
 
   @PostMapping("/rebuild")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<FactBuildResponse> rebuild(@RequestParam(defaultValue = "false") boolean full) {
-    FactBuildResponse response = integrationTestFactBuildService.rebuildFacts(full);
+    FactBuildResponse response =
+        factBuildOperationGuard.run("integration-test", () -> integrationTestFactBuildService.rebuildFacts(full));
     return ApiResponse.success(response.message(), response);
   }
 

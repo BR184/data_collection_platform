@@ -1,12 +1,15 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
+import com.data.collection.platform.entity.ReviewDataSearchIndexBackfillResponse;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -55,18 +58,21 @@ public class ReviewDataController {
   }
 
   @PostMapping("/records")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataRecordDetailResponse> createRecord(
       @Valid @RequestBody ReviewDataRecordSaveRequest request) {
     return ApiResponse.success("新增评审成功", reviewDataRecordService.createRecord(request));
   }
 
   @PutMapping("/records/{recordId}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataRecordDetailResponse> updateRecord(
       @PathVariable Long recordId, @Valid @RequestBody ReviewDataRecordSaveRequest request) {
     return ApiResponse.success("编辑评审成功", reviewDataRecordService.updateRecord(recordId, request));
   }
 
   @DeleteMapping("/records/{recordId}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Void> deleteRecord(@PathVariable Long recordId) {
     reviewDataRecordService.deleteRecord(recordId);
     return ApiResponse.success("删除评审成功", null);
@@ -77,13 +83,24 @@ public class ReviewDataController {
     return ApiResponse.success(reviewDataRecordService.listProblemItems(recordId));
   }
 
+  @PostMapping("/records/search-index/backfill")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<ReviewDataSearchIndexBackfillResponse> backfillSearchIndexes(
+      @RequestParam(defaultValue = "200") int batchSize) {
+    return ApiResponse.success(
+        "评审数据搜索索引回填已执行",
+        reviewDataRecordService.backfillMissingSearchIndexes(batchSize));
+  }
+
   @PostMapping("/records/{recordId}/problem-items")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataProblemItemResponse> createProblemItem(
       @PathVariable Long recordId, @Valid @RequestBody ReviewDataProblemItemSaveRequest request) {
     return ApiResponse.success("新增评审问题成功", reviewDataRecordService.createProblemItem(recordId, request));
   }
 
   @PutMapping("/records/{recordId}/problem-items/{itemId}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataProblemItemResponse> updateProblemItem(
       @PathVariable Long recordId,
       @PathVariable Long itemId,
@@ -94,6 +111,7 @@ public class ReviewDataController {
   }
 
   @DeleteMapping("/records/{recordId}/problem-items/{itemId}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Void> deleteProblemItem(@PathVariable Long recordId, @PathVariable Long itemId) {
     reviewDataRecordService.deleteProblemItem(recordId, itemId);
     return ApiResponse.success("删除评审问题成功", null);

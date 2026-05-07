@@ -13,6 +13,7 @@ import com.data.collection.platform.entity.IssueFactDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueFactScopeDiagnosticsResponse;
 import com.data.collection.platform.entity.IssueSourceReadinessResponse;
 import com.data.collection.platform.service.FactBuildService;
+import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
@@ -42,6 +43,7 @@ class FactBuildControllerTest {
         MockMvcBuilders.standaloneSetup(
                 new FactBuildController(
                     factBuildService,
+                    new FactBuildOperationGuard(),
                     factBuildTaskService,
                     issueFactDiagnosticsService,
                     issueSourceReadinessService))

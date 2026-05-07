@@ -8,6 +8,7 @@ public class PlatformAuthProperties {
   private String adminPassword = "admin123";
   private String approvalUsername = "approval";
   private String approvalPassword = "approval";
+  private boolean secureConfigRequired = false;
 
   public String getAdminUsername() {
     return adminUsername;
@@ -39,5 +40,13 @@ public class PlatformAuthProperties {
 
   public void setApprovalPassword(String approvalPassword) {
     this.approvalPassword = approvalPassword;
+  }
+
+  public boolean isSecureConfigRequired() {
+    return secureConfigRequired;
+  }
+
+  public void setSecureConfigRequired(boolean secureConfigRequired) {
+    this.secureConfigRequired = secureConfigRequired;
   }
 }
