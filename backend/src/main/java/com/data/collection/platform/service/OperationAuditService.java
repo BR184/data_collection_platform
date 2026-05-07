@@ -21,12 +21,23 @@ public class OperationAuditService {
       String remoteAddress,
       int responseStatus,
       String errorMessage) {
+    record(user, method, path, remoteAddress, responseStatus, errorMessage, "");
+  }
+
+  public void record(
+      AuthUserResponse user,
+      String method,
+      String path,
+      String remoteAddress,
+      int responseStatus,
+      String errorMessage,
+      String requestSummary) {
     try {
       jdbcTemplate.update(
           """
               insert into operation_audit_logs
-                (username, role, http_method, request_path, remote_address, response_status, error_message)
-              values (?, ?, ?, ?, ?, ?, ?)
+                (username, role, http_method, request_path, remote_address, response_status, error_message, request_summary)
+              values (?, ?, ?, ?, ?, ?, ?, ?)
               """,
           user == null ? "guest" : user.username(),
           user == null ? "GUEST" : user.role().name(),
@@ -34,7 +45,8 @@ public class OperationAuditService {
           path,
           remoteAddress == null ? "" : remoteAddress,
           responseStatus,
-          errorMessage == null ? "" : errorMessage);
+          errorMessage == null ? "" : errorMessage,
+          requestSummary == null ? "" : requestSummary);
     } catch (Exception ex) {
       log.warn("Failed to write operation audit log for {} {}", method, path, ex);
     }

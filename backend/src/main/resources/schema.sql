@@ -111,6 +111,7 @@ create table if not exists operation_audit_logs (
     remote_address varchar(128),
     response_status integer not null,
     error_message text,
+    request_summary text,
     created_at timestamp not null default current_timestamp
 );
 
