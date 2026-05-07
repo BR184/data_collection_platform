@@ -24,6 +24,7 @@ public class IssueFactRecordListRequestAssembler {
         request.getCreatedAtEnd(),
         request.getUpdatedAtStart(),
         request.getUpdatedAtEnd(),
+        request.getSourceInstance(),
         request.getPage(),
         request.getSize(),
         request.getSortBy(),

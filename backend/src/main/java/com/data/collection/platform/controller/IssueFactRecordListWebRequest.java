@@ -17,6 +17,7 @@ public class IssueFactRecordListWebRequest {
   private String createdAtEnd;
   private String updatedAtStart;
   private String updatedAtEnd;
+  private String sourceInstance;
   private int page = 1;
   private int size = 20;
   private String sortBy;
@@ -148,6 +149,14 @@ public class IssueFactRecordListWebRequest {
 
   public void setUpdatedAtEnd(String updatedAtEnd) {
     this.updatedAtEnd = updatedAtEnd;
+  }
+
+  public String getSourceInstance() {
+    return sourceInstance;
+  }
+
+  public void setSourceInstance(String sourceInstance) {
+    this.sourceInstance = sourceInstance;
   }
 
   public int getPage() {

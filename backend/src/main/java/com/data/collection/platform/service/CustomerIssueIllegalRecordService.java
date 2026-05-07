@@ -125,6 +125,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   listRequest.createdAtEnd(),
                   listRequest.updatedAtStart(),
                   listRequest.updatedAtEnd(),
+                  listRequest.sourceInstance(),
                   page,
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),

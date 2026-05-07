@@ -77,6 +77,27 @@ class IntegrationTestFactPipelineTest {
     assertThat(details.records().getFirst().validationReason()).contains("执行用例总数");
   }
 
+  @Test
+  void shouldFilterIntegrationQueriesBySourceInstance() {
+    insertIntegrationFact("cc", 2001L, 101L, "CC_PRODUCT", "cc-module", "R1", 10, 9);
+    insertIntegrationFact("dgm", 2002L, 102L, "DGM_PRODUCT", "dgm-module", "R1", 20, 15);
+
+    IntegrationTestSummaryResponse ccSummary = queryService.getSummary(null, "R1", "cc");
+    IntegrationTestSummaryResponse dgmSummary = queryService.getSummary(null, "R1", "dgm");
+    IntegrationTestDetailResponse ccDetails =
+        queryService.getDetails(null, "R1", null, 1, 20, "noteUpdatedAt", "desc", "cc");
+
+    assertThat(ccSummary.totalIssueCount()).isEqualTo(1);
+    assertThat(ccSummary.rows()).hasSize(1);
+    assertThat(ccSummary.rows().getFirst().moduleName()).isEqualTo("cc-module");
+    assertThat(ccSummary.rows().getFirst().executeCase()).isEqualTo(10);
+    assertThat(dgmSummary.totalIssueCount()).isEqualTo(1);
+    assertThat(dgmSummary.rows().getFirst().moduleName()).isEqualTo("dgm-module");
+    assertThat(dgmSummary.rows().getFirst().executeCase()).isEqualTo(20);
+    assertThat(ccDetails.records()).hasSize(1);
+    assertThat(ccDetails.records().getFirst().issueIid()).isEqualTo(101L);
+  }
+
   private void createMinimalOdsTables() {
     jdbcTemplate.execute(
         """
@@ -263,5 +284,43 @@ class IntegrationTestFactPipelineTest {
         """,
         labelId,
         issueId);
+  }
+
+  private void insertIntegrationFact(
+      String sourceInstance,
+      long issueId,
+      long issueIid,
+      String projectName,
+      String moduleName,
+      String testingPhase,
+      int executeCase,
+      int passCase) {
+    jdbcTemplate.update(
+        """
+        insert into integration_test_fact(
+          source_system, source_instance, ingest_channel, project_id, project_name, issue_id, issue_iid,
+          issuable_reference, title, issue_state, updated_at_source, ods_updated_at, note_id,
+          note_updated_at_source, module_name, function_name, executor, testing_phase, execute_case,
+          pass_case, not_pass_case, not_pass_case_now, problem_case, exception_count, pass_rate,
+          legal, parse_status, deleted
+        ) values (
+          'GITLAB', ?, 'MIRROR', 325, ?, ?, ?, ?, ?, 'opened', current_timestamp, current_timestamp,
+          ?, current_timestamp, ?, 'feature', 'owner', ?, ?, ?, ?, ?, 0, 0, ?, true, 'PARSED', false
+        )
+        """,
+        sourceInstance,
+        projectName,
+        issueId,
+        issueIid,
+        "#" + issueIid,
+        "source " + sourceInstance,
+        9000L + issueId,
+        moduleName,
+        testingPhase,
+        executeCase,
+        passCase,
+        executeCase - passCase,
+        executeCase - passCase,
+        java.math.BigDecimal.valueOf(passCase * 100.0 / executeCase));
   }
 }

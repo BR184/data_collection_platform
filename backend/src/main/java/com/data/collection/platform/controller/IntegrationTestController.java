@@ -59,21 +59,24 @@ public class IntegrationTestController {
   }
 
   @GetMapping("/project-options")
-  public ApiResponse<List<IntegrationTestProjectOptionResponse>> listProjectOptions() {
-    return ApiResponse.success(integrationTestQueryService.listProjectOptions());
+  public ApiResponse<List<IntegrationTestProjectOptionResponse>> listProjectOptions(
+      @RequestParam(required = false) String sourceInstance) {
+    return ApiResponse.success(integrationTestQueryService.listProjectOptions(sourceInstance));
   }
 
   @GetMapping("/phase-options")
   public ApiResponse<List<IntegrationTestPhaseOptionResponse>> listPhaseOptions(
-      @RequestParam(required = false) Long projectId) {
-    return ApiResponse.success(integrationTestQueryService.listPhaseOptions(projectId));
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String sourceInstance) {
+    return ApiResponse.success(integrationTestQueryService.listPhaseOptions(projectId, sourceInstance));
   }
 
   @GetMapping("/summary")
   public ApiResponse<IntegrationTestSummaryResponse> getSummary(
       @RequestParam(required = false) Long projectId,
-      @RequestParam(required = false) String testingPhase) {
-    return ApiResponse.success(integrationTestQueryService.getSummary(projectId, testingPhase));
+      @RequestParam(required = false) String testingPhase,
+      @RequestParam(required = false) String sourceInstance) {
+    return ApiResponse.success(integrationTestQueryService.getSummary(projectId, testingPhase, sourceInstance));
   }
 
   @GetMapping("/details")
@@ -84,10 +87,11 @@ public class IntegrationTestController {
       @RequestParam(defaultValue = "1") int page,
       @RequestParam(defaultValue = "20") int size,
       @RequestParam(defaultValue = "noteUpdatedAt") String sortField,
-      @RequestParam(defaultValue = "desc") String sortOrder) {
+      @RequestParam(defaultValue = "desc") String sortOrder,
+      @RequestParam(required = false) String sourceInstance) {
     return ApiResponse.success(
         integrationTestQueryService.getDetails(
-            projectId, testingPhase, moduleName, page, size, sortField, sortOrder));
+            projectId, testingPhase, moduleName, page, size, sortField, sortOrder, sourceInstance));
   }
 
   @GetMapping("/details/export")
@@ -96,10 +100,11 @@ public class IntegrationTestController {
       @RequestParam(required = false) String testingPhase,
       @RequestParam(required = false) String moduleName,
       @RequestParam(defaultValue = "noteUpdatedAt") String sortField,
-      @RequestParam(defaultValue = "desc") String sortOrder) {
+      @RequestParam(defaultValue = "desc") String sortOrder,
+      @RequestParam(required = false) String sourceInstance) {
     String csv =
         integrationTestQueryService.exportDetailsCsv(
-            projectId, testingPhase, moduleName, sortField, sortOrder);
+            projectId, testingPhase, moduleName, sortField, sortOrder, sourceInstance);
     return ResponseEntity.ok()
         .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"integration-test-details.csv\"")

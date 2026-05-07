@@ -45,21 +45,38 @@ public class IntegrationTestQueryService {
   }
 
   public List<IntegrationTestProjectOptionResponse> listProjectOptions() {
-    return jdbcTemplate.query(
+    return listProjectOptions(null);
+  }
+
+  public List<IntegrationTestProjectOptionResponse> listProjectOptions(String sourceInstance) {
+    List<Object> args = new ArrayList<>();
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            select project_id, max(coalesce(project_name, '')) as project_name
+              from integration_test_fact
+             where deleted = false
+            """);
+    appendSourceInstanceFilter(sql, args, sourceInstance);
+    sql.append(
         """
-        select project_id, max(coalesce(project_name, '')) as project_name
-          from integration_test_fact
-         where deleted = false
-         group by project_id
-         order by project_id asc
-        """,
+             group by project_id
+             order by project_id asc
+            """);
+    return jdbcTemplate.query(
+        sql.toString(),
         (rs, rowNum) ->
             new IntegrationTestProjectOptionResponse(
                 rs.getLong("project_id"),
-                TextQuerySupport.normalizeDisplay(rs.getString("project_name"))));
+                TextQuerySupport.normalizeDisplay(rs.getString("project_name"))),
+        args.toArray());
   }
 
   public List<IntegrationTestPhaseOptionResponse> listPhaseOptions(Long projectId) {
+    return listPhaseOptions(projectId, null);
+  }
+
+  public List<IntegrationTestPhaseOptionResponse> listPhaseOptions(Long projectId, String sourceInstance) {
     List<Object> args = new ArrayList<>();
     StringBuilder sql =
         new StringBuilder(
@@ -73,6 +90,7 @@ public class IntegrationTestQueryService {
                and testing_phase is not null
                and btrim(testing_phase) <> ''
             """);
+    appendSourceInstanceFilter(sql, args, sourceInstance);
     if (projectId != null) {
       sql.append(" and project_id = ?");
       args.add(projectId);
@@ -94,6 +112,10 @@ public class IntegrationTestQueryService {
   }
 
   public IntegrationTestSummaryResponse getSummary(Long projectId, String testingPhase) {
+    return getSummary(projectId, testingPhase, null);
+  }
+
+  public IntegrationTestSummaryResponse getSummary(Long projectId, String testingPhase, String sourceInstance) {
     List<Object> args = new ArrayList<>();
     StringBuilder where =
         new StringBuilder(
@@ -101,6 +123,7 @@ public class IntegrationTestQueryService {
             from integration_test_fact
              where deleted = false
             """);
+    appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, null);
 
     List<IntegrationTestSummaryRowResponse> rows =
@@ -152,6 +175,18 @@ public class IntegrationTestQueryService {
       int size,
       String sortField,
       String sortOrder) {
+    return getDetails(projectId, testingPhase, moduleName, page, size, sortField, sortOrder, null);
+  }
+
+  public IntegrationTestDetailResponse getDetails(
+      Long projectId,
+      String testingPhase,
+      String moduleName,
+      int page,
+      int size,
+      String sortField,
+      String sortOrder,
+      String sourceInstance) {
     int safePage = page <= 0 ? 1 : page;
     int safeSize = size <= 0 ? 20 : Math.min(size, 100);
     String safeSortField = normalizeSortField(sortField);
@@ -164,6 +199,7 @@ public class IntegrationTestQueryService {
             from integration_test_fact
              where deleted = false
             """);
+    appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, moduleName);
 
     List<Object> queryArgs = new ArrayList<>(args);
@@ -224,6 +260,16 @@ public class IntegrationTestQueryService {
       String moduleName,
       String sortField,
       String sortOrder) {
+    return exportDetailsCsv(projectId, testingPhase, moduleName, sortField, sortOrder, null);
+  }
+
+  public String exportDetailsCsv(
+      Long projectId,
+      String testingPhase,
+      String moduleName,
+      String sortField,
+      String sortOrder,
+      String sourceInstance) {
     String safeSortField = normalizeSortField(sortField);
     String safeSortOrder = normalizeSortOrder(sortOrder);
 
@@ -234,6 +280,7 @@ public class IntegrationTestQueryService {
             from integration_test_fact
              where deleted = false
             """);
+    appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, moduleName);
 
     Long total =
@@ -300,6 +347,15 @@ public class IntegrationTestQueryService {
       where.append(" and coalesce(module_name, '").append(UNKNOWN_MODULE).append("') = ?");
       args.add(normalizedModule);
     }
+  }
+
+  private void appendSourceInstanceFilter(StringBuilder where, List<Object> args, String sourceInstance) {
+    String normalized = TextQuerySupport.trimToNull(sourceInstance);
+    if (normalized == null) {
+      return;
+    }
+    where.append(" and lower(coalesce(source_instance, 'default')) = ?");
+    args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
   }
 
   private IntegrationTestSummaryRowResponse mapSummaryRow(ResultSet rs, int rowNum)

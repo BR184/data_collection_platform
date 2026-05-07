@@ -73,7 +73,7 @@ class IntegrationTestControllerTest {
 
   @Test
   void shouldListProjectOptions() throws Exception {
-    when(integrationTestQueryService.listProjectOptions())
+    when(integrationTestQueryService.listProjectOptions(null))
         .thenReturn(List.of(new IntegrationTestProjectOptionResponse(325L, "CC_PRODUCT")));
 
     mockMvc.perform(get("/api/integration-tests/project-options"))
@@ -84,7 +84,7 @@ class IntegrationTestControllerTest {
 
   @Test
   void shouldReturnSummaryAndDetails() throws Exception {
-    when(integrationTestQueryService.getSummary(325L, "R1集成测试"))
+    when(integrationTestQueryService.getSummary(325L, "R1集成测试", null))
         .thenReturn(
             new IntegrationTestSummaryResponse(
                 325L,
@@ -95,7 +95,8 @@ class IntegrationTestControllerTest {
                 List.of(
                     new IntegrationTestSummaryRowResponse(
                         "草图", 2, 18, 15, 1, 3, 0, 1, new BigDecimal("83.33"), 1))));
-    when(integrationTestQueryService.getDetails(325L, "R1集成测试", "草图", 1, 20, "noteUpdatedAt", "desc"))
+    when(integrationTestQueryService.getDetails(
+            325L, "R1集成测试", "草图", 1, 20, "noteUpdatedAt", "desc", null))
         .thenReturn(
             new IntegrationTestDetailResponse(
                 List.of(
@@ -148,7 +149,7 @@ class IntegrationTestControllerTest {
 
   @Test
   void shouldListPhaseOptions() throws Exception {
-    when(integrationTestQueryService.listPhaseOptions(325L))
+    when(integrationTestQueryService.listPhaseOptions(325L, null))
         .thenReturn(List.of(new IntegrationTestPhaseOptionResponse(325L, "CC_PRODUCT", "R1集成测试", 12)));
 
     mockMvc.perform(get("/api/integration-tests/phase-options").param("projectId", "325"))
@@ -160,7 +161,7 @@ class IntegrationTestControllerTest {
   @Test
   void shouldExportDetailsCsv() throws Exception {
     when(integrationTestQueryService.exportDetailsCsv(
-            325L, "R1集成测试", "草图", "noteUpdatedAt", "desc"))
+            325L, "R1集成测试", "草图", "noteUpdatedAt", "desc", null))
         .thenReturn("\"议题编号\",\"标题\"\n\"#88\",\"草图命令异常\"\n");
 
     mockMvc

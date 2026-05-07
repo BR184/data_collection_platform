@@ -117,6 +117,7 @@ public class IssueFactRecordRepository {
     StringBuilder where = new StringBuilder(" where deleted = false");
     List<Object> args = new ArrayList<>();
     appendScope(where, args, query.scope());
+    appendSourceInstance(where, args, query.listRequest());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
     appendEqIgnoreCase(where, args, "phase_filter_value", query.testingPhase());
@@ -214,6 +215,19 @@ public class IssueFactRecordRepository {
     appendDateTo(where, args, "created_at_source", request.createdAtEnd());
     appendDateFrom(where, args, "updated_at_source", request.updatedAtStart());
     appendDateTo(where, args, "updated_at_source", request.updatedAtEnd());
+  }
+
+  private void appendSourceInstance(
+      StringBuilder where, List<Object> args, IssueFactRecordListRequest request) {
+    if (request == null) {
+      return;
+    }
+    String sourceInstance = TextQuerySupport.trimToNull(request.sourceInstance());
+    if (sourceInstance == null) {
+      return;
+    }
+    where.append(" and lower(coalesce(source_instance, 'default')) = ?");
+    args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
   }
 
   private void appendAuthorAssigneeFilters(
