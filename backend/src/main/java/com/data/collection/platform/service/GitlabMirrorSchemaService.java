@@ -28,7 +28,6 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class GitlabMirrorSchemaService {
-  private static final String MIRROR_PREFIX = "ods_gitlab_";
   private static final int POSTGRES_IDENTIFIER_MAX_LENGTH = 63;
   private static final TypeReference<List<SourceTableColumn>> COLUMN_LIST_TYPE = new TypeReference<>() {};
 
@@ -55,9 +54,11 @@ public class GitlabMirrorSchemaService {
    * Control-plane schema refresh. This path may do low-frequency schema evolution work.
    */
   public PreparedMirrorTable prepareMirrorTable(GitlabSyncConfig config, TableWhitelistOption option) {
+    String expectedMirrorTableName = buildMirrorTableName(config, option.tableName());
     GitlabMirrorTableRegistry registry = findRegistry(config.getId(), option.tableName());
     if (registry != null
         && Boolean.TRUE.equals(registry.getInitialized())
+        && expectedMirrorTableName.equals(registry.getMirrorTableName())
         && !isSchemaCheckDue(registry)
         && tableExists(registry.getMirrorTableName())) {
       SourceTableSchema cachedSchema = buildSchemaFromRegistry(registry);
@@ -67,9 +68,12 @@ public class GitlabMirrorSchemaService {
     SourceTableSchema sourceSchema = externalDbService.discoverTableSchema(config, option);
     String schemaFingerprint = buildSchemaFingerprint(sourceSchema);
     String mirrorTableName =
-        registry != null && registry.getMirrorTableName() != null && !registry.getMirrorTableName().isBlank()
+        registry != null
+                && expectedMirrorTableName.equals(registry.getMirrorTableName())
+                && registry.getMirrorTableName() != null
+                && !registry.getMirrorTableName().isBlank()
             ? registry.getMirrorTableName()
-            : buildMirrorTableName(sourceSchema.tableName());
+            : expectedMirrorTableName;
 
     boolean schemaChanged =
         registry == null
@@ -109,10 +113,12 @@ public class GitlabMirrorSchemaService {
    * Data-plane fast path. Never performs ALTER/type validation/auxiliary index work.
    */
   public PreparedMirrorTable getPreparedMirrorTableForSync(GitlabSyncConfig config, TableWhitelistOption option) {
+    String expectedMirrorTableName = buildMirrorTableName(config, option.tableName());
     GitlabMirrorTableRegistry registry = findRegistry(config.getId(), option.tableName());
     if (registry != null
         && Boolean.TRUE.equals(registry.getInitialized())
         && Boolean.TRUE.equals(registry.getPreviewEnabled())
+        && expectedMirrorTableName.equals(registry.getMirrorTableName())
         && tableExists(registry.getMirrorTableName())) {
       SourceTableSchema cachedSchema = buildSchemaFromRegistry(registry);
       return new PreparedMirrorTable(cachedSchema, registry.getMirrorTableName(), true, registry);
@@ -120,9 +126,12 @@ public class GitlabMirrorSchemaService {
 
     SourceTableSchema sourceSchema = externalDbService.discoverTableSchema(config, option);
     String mirrorTableName =
-        registry != null && registry.getMirrorTableName() != null && !registry.getMirrorTableName().isBlank()
+        registry != null
+                && expectedMirrorTableName.equals(registry.getMirrorTableName())
+                && registry.getMirrorTableName() != null
+                && !registry.getMirrorTableName().isBlank()
             ? registry.getMirrorTableName()
-            : buildMirrorTableName(sourceSchema.tableName());
+            : expectedMirrorTableName;
     ensureMirrorTableForSync(mirrorTableName, sourceSchema);
     String schemaFingerprint = buildSchemaFingerprint(sourceSchema);
     GitlabMirrorTableRegistry updatedRegistry =
@@ -447,15 +456,10 @@ public class GitlabMirrorSchemaService {
     return shortHash(payload);
   }
 
-  private String buildMirrorTableName(String sourceTableName) {
-    String normalized = sourceTableName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_]", "_");
-    String candidate = MIRROR_PREFIX + normalized;
-    if (candidate.length() <= POSTGRES_IDENTIFIER_MAX_LENGTH) {
-      return candidate;
-    }
-    String hash = shortHash(sourceTableName);
-    int keepLength = POSTGRES_IDENTIFIER_MAX_LENGTH - MIRROR_PREFIX.length() - hash.length() - 1;
-    return MIRROR_PREFIX + normalized.substring(0, Math.max(8, keepLength)) + "_" + hash;
+  private String buildMirrorTableName(GitlabSyncConfig config, String sourceTableName) {
+    return GitlabSourceInstanceSupport.buildMirrorTableName(
+        sourceTableName,
+        GitlabSourceInstanceSupport.sourceInstanceOf(config));
   }
 
   private String shortHash(String text) {

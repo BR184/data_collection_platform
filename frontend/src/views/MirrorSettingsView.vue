@@ -19,10 +19,13 @@ import { useMirrorWebhookRegistrationController } from './useMirrorWebhookRegist
 import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptionsController';
 
 const initialized = ref(false);
+const configs = ref<GitlabSyncConfig[]>([]);
+const selectedConfigId = ref<number | undefined>(undefined);
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
   enabled: true,
+  sourceInstance: 'default',
   autoSyncEnabled: true,
   sourceMode: 'DOCKER',
   whitelistMode: 'RECOMMENDED',
@@ -48,7 +51,7 @@ const {
   syncRunningRefresh,
 } = useMirrorStatusController({
   form,
-  loadStatusData: () => api.getStatus(),
+  loadStatusData: () => api.getStatus(selectedConfigId.value),
   loadWebhookRegistration: () => {
     void loadWebhookRegistration(false);
   },
@@ -64,7 +67,7 @@ const {
   ensureWhitelistOptions,
 } = useMirrorWhitelistOptionsController({
   form,
-  loadWhitelistOptions: () => api.getWhitelistOptions(),
+  loadWhitelistOptions: () => api.getWhitelistOptions(selectedConfigId.value),
   notifyError: (message) => ElMessage.error(message),
 });
 
@@ -80,11 +83,16 @@ const {
   cancelSyncTask,
 } = useMirrorSyncActionsController({
   form,
-  saveConfigData: (config) => api.saveConfig(config),
-  testConnectionData: () => api.testConnection(),
-  startFullSyncData: () => api.startFullSync(),
-  startIncrementalSyncData: () => api.startIncrementalSync(),
-  cancelSyncData: () => api.cancelSync(),
+  saveConfigData: async (config) => {
+    const saved = await api.saveConfig(config);
+    await loadConfigs();
+    selectedConfigId.value = saved.id;
+    return saved;
+  },
+  testConnectionData: () => api.testConnection(selectedConfigId.value),
+  startFullSyncData: () => api.startFullSync(selectedConfigId.value),
+  startIncrementalSyncData: () => api.startIncrementalSync(selectedConfigId.value),
+  cancelSyncData: () => api.cancelSync(selectedConfigId.value),
   loadStatus: (showError, blocking) => loadStatus(showError, blocking),
   loadWebhookRegistration: () => {
     void loadWebhookRegistration(false);
@@ -102,9 +110,9 @@ const {
   loadWebhookRegistration,
   registerWebhook,
 } = useMirrorWebhookRegistrationController({
-  getRegistrationStatus: () => api.getWebhookRegistrationStatus(),
+  getRegistrationStatus: () => api.getWebhookRegistrationStatus(selectedConfigId.value),
   saveConfig: () => saveConfig(false),
-  registerWebhook: () => api.registerWebhook(),
+  registerWebhook: () => api.registerWebhook(selectedConfigId.value),
   loadStatus: (showError, blocking) => loadStatus(showError, blocking),
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
@@ -157,11 +165,40 @@ watch(
 
 async function initializePage() {
   try {
+    await loadConfigs();
     await loadStatus(false, false);
   } finally {
     initialized.value = true;
   }
   void loadWebhookRegistration(false);
+}
+
+async function loadConfigs() {
+  configs.value = await api.getConfigs();
+  if (selectedConfigId.value == null) {
+    selectedConfigId.value = configs.value.find((item) => item.id != null)?.id;
+  }
+}
+
+async function handleConfigSelection(configId: number) {
+  selectedConfigId.value = configId;
+  whitelistOptionsLoaded.value = false;
+  await loadStatus(true, true);
+  void loadWebhookRegistration(false);
+}
+
+function createNewConfig() {
+  selectedConfigId.value = undefined;
+  form.value = {
+    ...form.value,
+    id: undefined,
+    name: 'GitLab new source',
+    sourceInstance: '',
+    dbPassword: '',
+    webhookSecret: '',
+    lastFullSyncAt: null,
+    lastIncrementalSyncAt: null,
+  };
 }
 
 onMounted(async () => {
@@ -232,6 +269,27 @@ onBeforeUnmount(() => {
       </template>
 
       <el-form label-width="150px">
+        <el-form-item label="GitLab 数据源">
+          <div style="display: flex; width: 100%; gap: 8px">
+            <el-select
+              v-model="selectedConfigId"
+              placeholder="选择已绑定的数据源"
+              style="width: 100%"
+              @change="handleConfigSelection"
+            >
+              <el-option
+                v-for="item in configs"
+                :key="item.id ?? item.sourceInstance"
+                :label="`${item.name} (${item.sourceInstance})`"
+                :value="item.id"
+              />
+            </el-select>
+            <el-button @click="createNewConfig">新增数据源</el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="来源标识">
+          <el-input v-model="form.sourceInstance" placeholder="例如 cc / dgm" />
+        </el-form-item>
         <el-form-item label="数据源名称">
           <el-input v-model="form.name" />
         </el-form-item>

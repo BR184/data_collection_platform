@@ -118,6 +118,7 @@ public class GitlabWhitelistService {
       return "default";
     }
     return String.join("|",
+        GitlabSourceInstanceSupport.sourceInstanceOf(config),
         String.valueOf(config.getSourceMode()),
         String.valueOf(config.getDockerContainerName()),
         String.valueOf(config.getDbHost()),

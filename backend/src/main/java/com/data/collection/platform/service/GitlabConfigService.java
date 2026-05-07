@@ -29,20 +29,64 @@ public class GitlabConfigService {
         configMapper.selectOne(new LambdaQueryWrapper<GitlabSyncConfig>()
             .orderByAsc(GitlabSyncConfig::getId)
             .last("limit 1"));
-    return config == null ? defaultConfig() : config;
+    if (config == null) {
+      return defaultConfig();
+    }
+    normalizePersistedSourceInstance(config);
+    return config;
+  }
+
+  public List<GitlabSyncConfig> listConfigs() {
+    List<GitlabSyncConfig> configs =
+        configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
+            .orderByAsc(GitlabSyncConfig::getSourceInstance)
+            .orderByAsc(GitlabSyncConfig::getId));
+    if (configs == null || configs.isEmpty()) {
+      return List.of(defaultConfig());
+    }
+    configs.forEach(this::normalizePersistedSourceInstance);
+    return configs;
   }
 
   public GitlabSyncConfig getConfigById(Long id) {
     if (id == null) {
-      return defaultConfig();
+      return getConfig();
     }
     GitlabSyncConfig config = configMapper.selectById(id);
-    return config == null ? defaultConfig() : config;
+    if (config == null) {
+      return defaultConfig();
+    }
+    normalizePersistedSourceInstance(config);
+    return config;
+  }
+
+  public GitlabSyncConfig getConfigForWebhook(String secret) {
+    List<GitlabSyncConfig> configs =
+        configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
+            .eq(GitlabSyncConfig::isEnabled, true)
+            .orderByAsc(GitlabSyncConfig::getId));
+    if (configs == null || configs.isEmpty()) {
+      return defaultConfig();
+    }
+    configs.forEach(this::normalizePersistedSourceInstance);
+    if (secret != null && !secret.isBlank()) {
+      List<GitlabSyncConfig> matches = configs.stream()
+          .filter(config -> config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank())
+          .filter(config -> config.getWebhookSecret().equals(secret))
+          .toList();
+      if (matches.size() == 1) {
+        return matches.getFirst();
+      }
+    }
+    if (configs.size() == 1) {
+      return configs.getFirst();
+    }
+    throw new BizException("存在多个 GitLab 数据源，请为每个源配置不同的 Webhook Secret");
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public GitlabSyncConfig saveConfig(GitlabSyncConfig input) {
-    GitlabSyncConfig current = getConfig();
+    GitlabSyncConfig current = resolveCurrentForSave(input);
     GitlabSyncConfig normalized = normalize(input, current);
     LocalDateTime now = LocalDateTime.now();
     if (current.getId() == null) {
@@ -57,7 +101,7 @@ public class GitlabConfigService {
       normalized.setUpdatedAt(now);
       configMapper.updateById(normalized);
     }
-    return getConfig();
+    return getConfigById(normalized.getId());
   }
 
   public void updateSyncTime(Long id, boolean fullSync) {
@@ -86,10 +130,36 @@ public class GitlabConfigService {
             .set(GitlabSyncConfig::getUpdatedAt, LocalDateTime.now()));
   }
 
+  private GitlabSyncConfig resolveCurrentForSave(GitlabSyncConfig input) {
+    if (input != null && input.getId() != null) {
+      GitlabSyncConfig byId = configMapper.selectById(input.getId());
+      if (byId != null) {
+        normalizePersistedSourceInstance(byId);
+        return byId;
+      }
+    }
+    String sourceInstance =
+        GitlabSourceInstanceSupport.normalizeSourceInstance(input == null ? null : input.getSourceInstance());
+    GitlabSyncConfig bySource =
+        configMapper.selectOne(new LambdaQueryWrapper<GitlabSyncConfig>()
+            .eq(GitlabSyncConfig::getSourceInstance, sourceInstance)
+            .last("limit 1"));
+    if (bySource != null) {
+      normalizePersistedSourceInstance(bySource);
+      return bySource;
+    }
+    return defaultConfig(sourceInstance);
+  }
+
   private GitlabSyncConfig defaultConfig() {
+    return defaultConfig(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+  }
+
+  private GitlabSyncConfig defaultConfig(String sourceInstance) {
     GitlabSyncConfig config = new GitlabSyncConfig();
-    config.setName("GitLab 默认数据源");
+    config.setName("GitLab default source");
     config.setEnabled(true);
+    config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
@@ -109,6 +179,7 @@ public class GitlabConfigService {
     boolean syncEnabled = config.isAutoSyncEnabled();
     normalized.setName(config.getName());
     normalized.setEnabled(syncEnabled);
+    normalized.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance()));
     normalized.setAutoSyncEnabled(syncEnabled);
     normalized.setSourceMode(config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode());
     normalized.setWhitelistMode(config.getWhitelistMode() == null ? WhitelistMode.RECOMMENDED : config.getWhitelistMode());
@@ -143,5 +214,9 @@ public class GitlabConfigService {
       return currentValue == null ? "" : currentValue;
     }
     return nextValue;
+  }
+
+  private void normalizePersistedSourceInstance(GitlabSyncConfig config) {
+    config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance()));
   }
 }

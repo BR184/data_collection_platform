@@ -34,7 +34,7 @@ public class GitlabWebhookService {
   }
 
   public void accept(String eventType, Map<String, Object> payload, String secret) {
-    GitlabSyncConfig config = configService.getConfig();
+    GitlabSyncConfig config = configService.getConfigForWebhook(secret);
     String effectiveEventType = eventType == null || eventType.isBlank()
         ? String.valueOf(payload.getOrDefault("object_kind", "webhook"))
         : eventType;
@@ -67,7 +67,7 @@ public class GitlabWebhookService {
     webhookEventMapper.insert(event);
 
     if (config.isAutoSyncEnabled()) {
-      asyncDispatchService.accept(effectiveEventType, payload);
+      asyncDispatchService.accept(config, effectiveEventType, payload);
     }
   }
 

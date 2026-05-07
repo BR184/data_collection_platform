@@ -2,6 +2,7 @@ create table if not exists gitlab_sync_configs (
     id bigserial primary key,
     name varchar(128) not null default 'default',
     enabled boolean not null default true,
+    source_instance varchar(128) not null default 'default',
     auto_sync_enabled boolean not null default true,
     source_mode varchar(32) not null default 'DOCKER',
     whitelist_mode varchar(32) not null default 'RECOMMENDED',
@@ -455,6 +456,7 @@ create table if not exists sys_table_registry (
 );
 
 alter table gitlab_sync_configs add column if not exists source_mode varchar(32) not null default 'DOCKER';
+alter table gitlab_sync_configs add column if not exists source_instance varchar(128) not null default 'default';
 alter table gitlab_sync_configs add column if not exists docker_container_name varchar(255);
 alter table gitlab_sync_tasks add column if not exists run_id varchar(64);
 alter table gitlab_sync_tasks add column if not exists trigger_type varchar(32) default 'MANUAL';
@@ -667,5 +669,6 @@ create index if not exists idx_gitlab_sync_logs_config on gitlab_sync_logs(confi
 create index if not exists idx_gitlab_sync_tasks_config on gitlab_sync_tasks(config_id, created_at desc);
 create index if not exists idx_gitlab_sync_tasks_scope_status on gitlab_sync_tasks(scope_key, status, created_at desc);
 create index if not exists idx_gitlab_sync_tasks_dedupe on gitlab_sync_tasks(dedupe_key, created_at desc);
+create unique index if not exists uk_gitlab_sync_configs_source_instance on gitlab_sync_configs(source_instance);
 create index if not exists idx_fact_build_tasks_scope_status on fact_build_tasks(scope, status, created_at desc);
 create index if not exists idx_fact_build_tasks_created_at on fact_build_tasks(created_at desc);

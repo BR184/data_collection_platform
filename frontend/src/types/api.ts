@@ -19,6 +19,7 @@ export interface GitlabSyncConfig {
   id?: number;
   name: string;
   enabled: boolean;
+  sourceInstance: string;
   autoSyncEnabled: boolean;
   sourceMode: SourceMode;
   whitelistMode: WhitelistMode;

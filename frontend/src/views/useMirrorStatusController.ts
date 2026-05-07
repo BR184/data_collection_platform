@@ -17,6 +17,7 @@ function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
     ...config,
     name: config.name || 'GitLab 默认数据源',
     enabled: config.autoSyncEnabled ?? config.enabled ?? true,
+    sourceInstance: config.sourceInstance ?? 'default',
     autoSyncEnabled: config.autoSyncEnabled ?? config.enabled ?? true,
     sourceMode: config.sourceMode ?? 'DOCKER',
     whitelistTables: config.whitelistTables ?? [],

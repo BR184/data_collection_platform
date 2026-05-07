@@ -17,12 +17,36 @@ describe('MirrorSettingsView mount smoke', () => {
       resolvePurgeResponse = resolve;
     });
     const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/gitlab-sync/configs')) {
+        return jsonResponse([
+          {
+            id: 1,
+            name: 'GitLab default source',
+            enabled: true,
+            sourceInstance: 'default',
+            autoSyncEnabled: true,
+            sourceMode: 'DOCKER',
+            whitelistMode: 'RECOMMENDED',
+            whitelistTables: [],
+            dbHost: 'localhost',
+            dbPort: 5432,
+            dbName: 'gitlabhq_production',
+            dbUsername: 'gitlab',
+            dbPassword: '',
+            dockerContainerName: 'gitlab-data-web-1',
+            webhookSecret: '',
+            webhookProjectId: null,
+            compensationIntervalMinutes: 10,
+          },
+        ]);
+      }
       if (url.includes('/api/gitlab-sync/status')) {
         return jsonResponse({
           config: {
             id: 1,
             name: 'GitLab 默认数据源',
             enabled: true,
+            sourceInstance: 'default',
             autoSyncEnabled: true,
             sourceMode: 'DOCKER',
             whitelistMode: 'RECOMMENDED',

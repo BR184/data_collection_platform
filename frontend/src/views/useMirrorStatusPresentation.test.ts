@@ -51,6 +51,7 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
     config: {
       name: 'GitLab 默认数据源',
       enabled: true,
+      sourceInstance: 'default',
       autoSyncEnabled: true,
       sourceMode: 'DOCKER',
       whitelistMode: 'RECOMMENDED',

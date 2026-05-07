@@ -57,6 +57,7 @@ class FlywayMigrationSmokeTest {
     assertThat(tableExists("collect_form_records")).isTrue();
 
     assertThat(columnExists("gitlab_sync_configs", "source_mode")).isTrue();
+    assertThat(columnExists("gitlab_sync_configs", "source_instance")).isTrue();
     assertThat(columnExists("gitlab_sync_configs", "docker_container_name")).isTrue();
     assertThat(columnExists("gitlab_sync_tasks", "dedupe_key")).isTrue();
     assertThat(columnExists("gitlab_sync_tasks", "pending_resync")).isTrue();
@@ -69,6 +70,7 @@ class FlywayMigrationSmokeTest {
     assertThat(indexExists("idx_gitlab_sync_logs_config")).isTrue();
     assertThat(indexExists("idx_gitlab_sync_tasks_scope_status")).isTrue();
     assertThat(indexExists("idx_gitlab_sync_tasks_dedupe")).isTrue();
+    assertThat(indexExists("uk_gitlab_sync_configs_source_instance")).isTrue();
   }
 
   @Test

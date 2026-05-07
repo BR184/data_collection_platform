@@ -97,22 +97,39 @@ public class GitlabMirrorSyncService {
   }
 
   public void testConnection() {
-    externalDbService.testConnection(configService.getConfig());
+    testConnection(null);
+  }
+
+  public void testConnection(Long configId) {
+    externalDbService.testConnection(configService.getConfigById(configId));
   }
 
   public SyncTaskSubmissionResult startFullSync() {
-    return submitTask(SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync");
+    return startFullSync(null);
+  }
+
+  public SyncTaskSubmissionResult startFullSync(Long configId) {
+    return submitTask(configService.getConfigById(configId), SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync");
   }
 
   public SyncTaskSubmissionResult startIncrementalSync(SyncTriggerType triggerType, String message) {
-    return submitTask(SyncType.INCREMENTAL, triggerType, message);
+    return startIncrementalSync(null, triggerType, message);
+  }
+
+  public SyncTaskSubmissionResult startIncrementalSync(Long configId, SyncTriggerType triggerType, String message) {
+    return submitTask(configService.getConfigById(configId), SyncType.INCREMENTAL, triggerType, message);
   }
 
   public SyncTaskSubmissionResult startWebhookSync(String eventType, Map<String, Object> payload) {
+    return startWebhookSync(configService.getConfig(), eventType, payload);
+  }
+
+  public SyncTaskSubmissionResult startWebhookSync(GitlabSyncConfig config, String eventType, Map<String, Object> payload) {
     String effectiveEventType = eventType != null && !eventType.isBlank()
         ? eventType
         : String.valueOf(payload.getOrDefault("object_kind", "webhook"));
     return submitTask(
+        config,
         SyncType.WEBHOOK,
         SyncTriggerType.WEBHOOK,
         "Triggered by webhook: " + effectiveEventType,
@@ -122,7 +139,11 @@ public class GitlabMirrorSyncService {
   }
 
   public SyncTaskSubmissionResult startCompensationSync() {
-    return submitTask(SyncType.COMPENSATION, SyncTriggerType.SCHEDULE, "Scheduled compensation sync");
+    return startCompensationSync(configService.getConfig());
+  }
+
+  public SyncTaskSubmissionResult startCompensationSync(GitlabSyncConfig config) {
+    return submitTask(config, SyncType.COMPENSATION, SyncTriggerType.SCHEDULE, "Scheduled compensation sync");
   }
 
   public int refreshTablesOnDemand(List<String> sourceTableNames, String reason) {
@@ -257,16 +278,20 @@ public class GitlabMirrorSyncService {
     }
   }
 
-  private SyncTaskSubmissionResult submitTask(SyncType type, SyncTriggerType triggerType, String message) {
-    return submitTask(type, triggerType, message, Map.of());
+  private SyncTaskSubmissionResult submitTask(
+      GitlabSyncConfig config,
+      SyncType type,
+      SyncTriggerType triggerType,
+      String message) {
+    return submitTask(config, type, triggerType, message, Map.of());
   }
 
   private SyncTaskSubmissionResult submitTask(
+      GitlabSyncConfig config,
       SyncType type,
       SyncTriggerType triggerType,
       String message,
       Map<String, Object> payload) {
-    GitlabSyncConfig config = configService.getConfig();
     SyncTaskSubmissionResult result = taskService.submitTaskResult(config, type, triggerType, message, payload);
     GitlabSyncTask task = result.task();
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openTask(task, config);
@@ -550,7 +575,7 @@ public class GitlabMirrorSyncService {
     for (Map<String, Object> row : rows) {
       GitlabMirrorRecord record = new GitlabMirrorRecord();
       record.setConfigId(config.getId());
-      record.setTableName(table.tableName());
+      record.setTableName(mirrorSchema.tableName());
       record.setRecordKey(externalDbService.buildRecordKey(table, row));
       record.setUpdatedAtSource(externalDbService.extractUpdatedAt(table, row));
       record.setRowData(jsonUtils.toJson(row));

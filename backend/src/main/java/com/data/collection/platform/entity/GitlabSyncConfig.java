@@ -20,6 +20,9 @@ public class GitlabSyncConfig {
   private String name;
   private boolean enabled;
 
+  @TableField("source_instance")
+  private String sourceInstance;
+
   @TableField("auto_sync_enabled")
   private boolean autoSyncEnabled;
 

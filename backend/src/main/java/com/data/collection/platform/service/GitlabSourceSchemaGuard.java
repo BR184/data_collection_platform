@@ -28,22 +28,9 @@ public class GitlabSourceSchemaGuard {
               "mirror_deleted"),
           requirement("ods_gitlab_projects", "id", "name", "mirror_deleted"),
           requirement("ods_gitlab_users", "id", "name", "mirror_deleted"),
-          requirement(
-              "ods_gitlab_label_links",
-              "label_id",
-              "target_id",
-              "target_type",
-              "mirror_deleted"),
+          requirement("ods_gitlab_label_links", "label_id", "target_id", "target_type", "mirror_deleted"),
           requirement("ods_gitlab_labels", "id", "title", "mirror_deleted"),
-          requirement(
-              "ods_gitlab_notes",
-              "id",
-              "noteable_id",
-              "noteable_type",
-              "note",
-              "created_at",
-              "updated_at",
-              "mirror_deleted"));
+          requirement("ods_gitlab_notes", "id", "noteable_id", "noteable_type", "note", "created_at", "updated_at", "mirror_deleted"));
 
   private static final List<SourceTableRequirement> MERGE_REQUEST_FACT_SOURCE =
       List.of(
@@ -60,26 +47,12 @@ public class GitlabSourceSchemaGuard {
               "created_at",
               "updated_at",
               "mirror_deleted"),
-          requirement(
-              "ods_gitlab_merge_request_metrics",
-              "merge_request_id",
-              "merged_at",
-              "added_lines",
-              "mirror_deleted"),
-          requirement(
-              "ods_gitlab_projects", "id", "name", "path", "namespace_id", "mirror_deleted"),
+          requirement("ods_gitlab_merge_request_metrics", "merge_request_id", "merged_at", "added_lines", "mirror_deleted"),
+          requirement("ods_gitlab_projects", "id", "name", "path", "namespace_id", "mirror_deleted"),
           requirement("ods_gitlab_namespaces", "id", "path", "mirror_deleted"),
           requirement("ods_gitlab_users", "id", "name", "mirror_deleted"),
-          requirement(
-              "ods_gitlab_merge_request_reviewers",
-              "merge_request_id",
-              "user_id",
-              "mirror_deleted"),
-          requirement(
-              "ods_gitlab_merge_request_assignees",
-              "merge_request_id",
-              "user_id",
-              "mirror_deleted"),
+          requirement("ods_gitlab_merge_request_reviewers", "merge_request_id", "user_id", "mirror_deleted"),
+          requirement("ods_gitlab_merge_request_assignees", "merge_request_id", "user_id", "mirror_deleted"),
           requirement(
               "ods_gitlab_label_links",
               "id",
@@ -101,15 +74,27 @@ public class GitlabSourceSchemaGuard {
   }
 
   public void verifyIssueFactSource() {
-    verify("议题事实", ISSUE_FACT_SOURCE);
+    verifyIssueFactSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+  }
+
+  public void verifyIssueFactSource(String sourceInstance) {
+    verify("issue fact", rewriteRequirements(ISSUE_FACT_SOURCE, sourceInstance));
   }
 
   public void verifyMergeRequestFactSource() {
-    verify("合并请求事实", MERGE_REQUEST_FACT_SOURCE);
+    verifyMergeRequestFactSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+  }
+
+  public void verifyMergeRequestFactSource(String sourceInstance) {
+    verify("merge request fact", rewriteRequirements(MERGE_REQUEST_FACT_SOURCE, sourceInstance));
   }
 
   public void verifyIntegrationTestSource() {
-    verify("集成测试事实", INTEGRATION_TEST_SOURCE);
+    verifyIntegrationTestSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+  }
+
+  public void verifyIntegrationTestSource(String sourceInstance) {
+    verify("integration test fact", rewriteRequirements(INTEGRATION_TEST_SOURCE, sourceInstance));
   }
 
   private void verify(String scopeName, List<SourceTableRequirement> requirements) {
@@ -117,17 +102,17 @@ public class GitlabSourceSchemaGuard {
     for (SourceTableRequirement requirement : requirements) {
       Set<String> actualColumns = loadColumns(requirement.tableName());
       if (actualColumns.isEmpty()) {
-        missing.add("缺少源表 " + requirement.tableName());
+        missing.add("missing source table " + requirement.tableName());
         continue;
       }
       for (String column : requirement.requiredColumns()) {
         if (!actualColumns.contains(column.toLowerCase(Locale.ROOT))) {
-          missing.add("缺少源字段 " + requirement.tableName() + "." + column);
+          missing.add("missing source column " + requirement.tableName() + "." + column);
         }
       }
     }
     if (!missing.isEmpty()) {
-      throw new BizException("GitLab 源表结构不完整，无法构建" + scopeName + "：" + String.join("；", missing));
+      throw new BizException("GitLab source schema is incomplete for " + scopeName + ": " + String.join("; ", missing));
     }
   }
 
@@ -151,7 +136,7 @@ public class GitlabSourceSchemaGuard {
       }
       return columns;
     } catch (DataAccessException error) {
-      throw new BizException("无法检查 GitLab 源表结构：" + rootMessage(error));
+      throw new BizException("Failed to inspect GitLab source schema: " + rootMessage(error));
     }
   }
 
@@ -159,6 +144,16 @@ public class GitlabSourceSchemaGuard {
     Throwable cause = error.getMostSpecificCause();
     String message = cause == null ? error.getMessage() : cause.getMessage();
     return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
+  }
+
+  private List<SourceTableRequirement> rewriteRequirements(
+      List<SourceTableRequirement> requirements,
+      String sourceInstance) {
+    return requirements.stream()
+        .map(requirement -> new SourceTableRequirement(
+            GitlabSourceInstanceSupport.rewriteMirrorTableReferences(requirement.tableName(), sourceInstance),
+            requirement.requiredColumns()))
+        .toList();
   }
 
   private static SourceTableRequirement requirement(String tableName, String... requiredColumns) {

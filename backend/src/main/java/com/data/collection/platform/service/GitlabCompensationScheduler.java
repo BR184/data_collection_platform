@@ -33,7 +33,12 @@ public class GitlabCompensationScheduler {
       return;
     }
     syncService.recoverTimedOutTasks();
-    GitlabSyncConfig config = configService.getConfig();
+    for (GitlabSyncConfig config : configService.listConfigs()) {
+      runForConfig(config);
+    }
+  }
+
+  private void runForConfig(GitlabSyncConfig config) {
     if (config.getId() == null || !config.isEnabled() || !config.isAutoSyncEnabled()) {
       return;
     }
@@ -52,7 +57,7 @@ public class GitlabCompensationScheduler {
           config.getId(),
           config.getCompensationIntervalMinutes(),
           minutes);
-      syncService.startCompensationSync();
+      syncService.startCompensationSync(config);
     }
   }
 }

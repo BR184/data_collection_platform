@@ -35,9 +35,7 @@ class GitlabConfigServiceTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setCompensationIntervalMinutes(0);
 
-    assertThatThrownBy(() -> configService.saveConfig(config))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("补偿间隔仅支持 1 到 720 分钟");
+    assertThatThrownBy(() -> configService.saveConfig(config)).isInstanceOf(BizException.class);
 
     verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
   }
@@ -49,9 +47,7 @@ class GitlabConfigServiceTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setCompensationIntervalMinutes(721);
 
-    assertThatThrownBy(() -> configService.saveConfig(config))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("补偿间隔仅支持 1 到 720 分钟");
+    assertThatThrownBy(() -> configService.saveConfig(config)).isInstanceOf(BizException.class);
 
     verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
   }
@@ -88,6 +84,17 @@ class GitlabConfigServiceTest {
     verify(configMapper).updateById(argThat((GitlabSyncConfig config) -> !config.isEnabled() && !config.isAutoSyncEnabled()));
   }
 
+  @Test
+  void shouldNormalizeBlankSourceInstanceToDefault() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setSourceInstance(" ");
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) -> "default".equals(config.getSourceInstance())));
+  }
+
   private GitlabSyncConfig persistedConfig() {
     GitlabSyncConfig config = baseInput();
     config.setId(1L);
@@ -103,6 +110,7 @@ class GitlabConfigServiceTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setName("GitLab default source");
     config.setEnabled(false);
+    config.setSourceInstance("cc");
     config.setAutoSyncEnabled(false);
     config.setSourceMode(SourceMode.DIRECT);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);

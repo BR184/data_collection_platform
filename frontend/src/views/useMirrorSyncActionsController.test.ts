@@ -7,6 +7,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
   return {
     name: 'GitLab 默认数据源',
     enabled: true,
+    sourceInstance: 'default',
     autoSyncEnabled: true,
     sourceMode: 'DOCKER',
     whitelistMode: 'RECOMMENDED',

@@ -278,6 +278,7 @@ public class FactBuildService {
   private final FactBuildTaskService factBuildTaskService;
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final SqlQueryMonitor sqlQueryMonitor;
+  private final GitlabConfigService configService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -286,7 +287,8 @@ public class FactBuildService {
       ModuleDictionaryService moduleDictionaryService,
       FactBuildTaskService factBuildTaskService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
-      SqlQueryMonitor sqlQueryMonitor) {
+      SqlQueryMonitor sqlQueryMonitor,
+      GitlabConfigService configService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
@@ -294,6 +296,7 @@ public class FactBuildService {
     this.factBuildTaskService = factBuildTaskService;
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.sqlQueryMonitor = sqlQueryMonitor;
+    this.configService = configService;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -315,12 +318,13 @@ public class FactBuildService {
   }
 
   private FactBuildResponse rebuildIssueFactsInternal(boolean full) {
-    sourceSchemaGuard.verifyIssueFactSource();
-    LocalDateTime changedSince = full ? null : getIssueFactChangedSince();
+    String sourceInstance = currentSourceInstance();
+    sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
+    LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
     try {
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
-      List<IssueFact> facts = loadIssueFacts(changedSince, calendar, moduleDictionary);
+      List<IssueFact> facts = loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary);
       batchUpsertIssueFacts(facts);
       return new FactBuildResponse(
           "issue",
@@ -334,35 +338,38 @@ public class FactBuildService {
   }
 
   private List<IssueFact> loadIssueFacts(
+      String sourceInstance,
       LocalDateTime changedSince,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) {
     try {
-      return queryIssueFacts(ISSUE_SOURCE_SQL, changedSince, calendar, moduleDictionary);
+      return queryIssueFacts(sourceInstance, ISSUE_SOURCE_SQL, changedSince, calendar, moduleDictionary);
     } catch (DataAccessException error) {
       if (!isMilestoneQueryFallbackAllowed(error)) {
         throw error;
       }
       log.warn("Issue fact build fallback activated because milestone join is unavailable", error);
-      return queryIssueFacts(ISSUE_SOURCE_SQL_FALLBACK, changedSince, calendar, moduleDictionary);
+      return queryIssueFacts(sourceInstance, ISSUE_SOURCE_SQL_FALLBACK, changedSince, calendar, moduleDictionary);
     }
   }
 
   private List<IssueFact> queryIssueFacts(
+      String sourceInstance,
       String baseSql,
       LocalDateTime changedSince,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) {
-    String sql = baseSql + (changedSince == null ? "" : " and coalesce(i.updated_at, i.created_at) > ?");
+    String sql = rewriteSourceSql(baseSql, sourceInstance)
+        + (changedSince == null ? "" : " and coalesce(i.updated_at, i.created_at) > ?");
     Timestamp changedSinceArg = changedSince == null ? null : Timestamp.valueOf(changedSince);
     List<Object> args = changedSinceArg == null ? List.of() : List.of(changedSinceArg);
     long startedAt = sqlQueryMonitor.start();
     try {
       return changedSinceArg == null
-          ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary))
+          ? jdbcTemplate.query(sql, (rs, rowNum) -> mapIssueFact(rs, sourceInstance, calendar, moduleDictionary))
           : jdbcTemplate.query(
               sql,
-              (rs, rowNum) -> mapIssueFact(rs, calendar, moduleDictionary),
+              (rs, rowNum) -> mapIssueFact(rs, sourceInstance, calendar, moduleDictionary),
               changedSinceArg);
     } finally {
       sqlQueryMonitor.logIfSlow("issue-fact-source-query", sql, args, startedAt);
@@ -389,9 +396,11 @@ public class FactBuildService {
   }
 
   private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full) {
-    sourceSchemaGuard.verifyMergeRequestFactSource();
-    LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince();
-    String sql = MERGE_REQUEST_SOURCE_SQL + (changedSince == null ? "" : " and coalesce(mr.updated_at, mr.created_at) > ?");
+    String sourceInstance = currentSourceInstance();
+    sourceSchemaGuard.verifyMergeRequestFactSource(sourceInstance);
+    LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince(sourceInstance);
+    String sql = rewriteSourceSql(MERGE_REQUEST_SOURCE_SQL, sourceInstance)
+        + (changedSince == null ? "" : " and coalesce(mr.updated_at, mr.created_at) > ?");
     Timestamp changedSinceArg = changedSince == null ? null : Timestamp.valueOf(changedSince);
     List<Object> args = changedSinceArg == null ? List.of() : List.of(changedSinceArg);
     try {
@@ -402,10 +411,10 @@ public class FactBuildService {
         facts =
             changedSinceArg == null
                 ? jdbcTemplate.query(
-                    sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary))
+                    sql, (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, sourceInstance, moduleDictionary))
                 : jdbcTemplate.query(
                     sql,
-                    (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, moduleDictionary),
+                    (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, sourceInstance, moduleDictionary),
                     changedSinceArg);
       } finally {
         sqlQueryMonitor.logIfSlow("merge-request-fact-source-query", sql, args, startedAt);
@@ -422,8 +431,8 @@ public class FactBuildService {
     }
   }
 
-  private LocalDateTime getIssueFactChangedSince() {
-    if (hasIssueFactsMissingSearchIndexes()) {
+  private LocalDateTime getIssueFactChangedSince(String sourceInstance) {
+    if (hasIssueFactsMissingSearchIndexes(sourceInstance)) {
       log.info("Issue fact search indexes are missing on existing rows; next rebuild will refresh all issue facts");
       return null;
     }
@@ -436,11 +445,11 @@ public class FactBuildService {
             """,
         LocalDateTime.class,
             DEFAULT_SOURCE_SYSTEM,
-            DEFAULT_SOURCE_INSTANCE);
+            sourceInstance);
   }
 
-  private LocalDateTime getMergeRequestFactChangedSince() {
-    if (hasMergeRequestFactsMissingSearchIndexes()) {
+  private LocalDateTime getMergeRequestFactChangedSince(String sourceInstance) {
+    if (hasMergeRequestFactsMissingSearchIndexes(sourceInstance)) {
       log.info(
           "Merge request fact search indexes are missing on existing rows; next rebuild will refresh all merge request facts");
       return null;
@@ -454,10 +463,10 @@ public class FactBuildService {
             """,
         LocalDateTime.class,
             DEFAULT_SOURCE_SYSTEM,
-            DEFAULT_SOURCE_INSTANCE);
+            sourceInstance);
   }
 
-  private boolean hasIssueFactsMissingSearchIndexes() {
+  private boolean hasIssueFactsMissingSearchIndexes(String sourceInstance) {
     Boolean result =
         jdbcTemplate.queryForObject(
             """
@@ -480,11 +489,11 @@ public class FactBuildService {
             """,
             Boolean.class,
             DEFAULT_SOURCE_SYSTEM,
-            DEFAULT_SOURCE_INSTANCE);
+            sourceInstance);
     return Boolean.TRUE.equals(result);
   }
 
-  private boolean hasMergeRequestFactsMissingSearchIndexes() {
+  private boolean hasMergeRequestFactsMissingSearchIndexes(String sourceInstance) {
     Boolean result =
         jdbcTemplate.queryForObject(
             """
@@ -509,8 +518,16 @@ public class FactBuildService {
             """,
             Boolean.class,
             DEFAULT_SOURCE_SYSTEM,
-            DEFAULT_SOURCE_INSTANCE);
+            sourceInstance);
     return Boolean.TRUE.equals(result);
+  }
+
+  private String currentSourceInstance() {
+    return GitlabSourceInstanceSupport.sourceInstanceOf(configService.getConfig());
+  }
+
+  private String rewriteSourceSql(String sql, String sourceInstance) {
+    return GitlabSourceInstanceSupport.rewriteMirrorTableReferences(sql, sourceInstance);
   }
 
   private Map<PhaseCalendarKey, PhaseCalendarEntry> loadPhaseCalendar() {
@@ -535,6 +552,7 @@ public class FactBuildService {
 
   private IssueFact mapIssueFact(
       ResultSet rs,
+      String sourceInstance,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
@@ -555,7 +573,7 @@ public class FactBuildService {
 
     IssueFact fact = new IssueFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
-    fact.setSourceInstance(DEFAULT_SOURCE_INSTANCE);
+    fact.setSourceInstance(sourceInstance);
     fact.setIngestChannel(MIRROR_INGEST_CHANNEL);
     fact.setSourceSummary("GitLab issue 镜像聚合");
     fact.setRawPayload(notesText);
@@ -620,11 +638,11 @@ public class FactBuildService {
   }
 
   private MergeRequestFact mapMergeRequestFact(
-      ResultSet rs, int rowNum, ModuleDictionary moduleDictionary) throws SQLException {
+      ResultSet rs, int rowNum, String sourceInstance, ModuleDictionary moduleDictionary) throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
     MergeRequestFact fact = new MergeRequestFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
-    fact.setSourceInstance(DEFAULT_SOURCE_INSTANCE);
+    fact.setSourceInstance(sourceInstance);
     fact.setIngestChannel(MIRROR_INGEST_CHANNEL);
     fact.setSourceSummary(defaultText(rs.getString("metric_source_summary"), "GitLab merge request 镜像聚合"));
     fact.setRawPayload(defaultText(rs.getString("metric_raw_payload"), null));

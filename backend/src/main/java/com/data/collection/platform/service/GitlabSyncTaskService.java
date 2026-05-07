@@ -353,8 +353,9 @@ public class GitlabSyncTaskService {
       case RECOMMENDED -> "RECOMMENDED";
       case CUSTOM -> hashValue(String.join(",", config.getWhitelistTables() == null ? List.of() : config.getWhitelistTables()));
     };
-    return "cfg-%s:mirror:%s:%s:%s:local".formatted(
+    return "cfg-%s:source-%s:mirror:%s:%s:%s:local".formatted(
         config.getId() == null ? "new" : config.getId(),
+        GitlabSourceInstanceSupport.sourceInstanceOf(config),
         config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode(),
         config.getWhitelistMode(),
         whitelistValue);

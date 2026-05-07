@@ -42,6 +42,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -83,8 +84,8 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/status")
-  public ApiResponse<MirrorStatusResponse> status() {
-    GitlabSyncConfig config = configService.getConfig();
+  public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     List<GitlabSyncLog> logs = config.getId() == null ? List.of() : logService.listRecent(config.getId(), 20);
     GitlabSyncTask currentTask = taskService.findDisplayTask(config.getId());
     SyncProgress progress = currentTask == null ? null : syncService.getProgress(currentTask.getId());
@@ -104,16 +105,23 @@ public class GitlabSyncController {
             null));
   }
 
+  @GetMapping("/configs")
+  public ApiResponse<List<GitlabSyncConfig>> configs() {
+    return ApiResponse.success(configService.listConfigs().stream().map(this::sanitizeConfigForResponse).toList());
+  }
+
   @GetMapping("/webhook-registration-status")
-  public ApiResponse<GitlabWebhookRegistrationStatus> webhookRegistrationStatus() {
-    GitlabSyncConfig config = configService.getConfig();
+  public ApiResponse<GitlabWebhookRegistrationStatus> webhookRegistrationStatus(
+      @RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     return ApiResponse.success(
         webhookRegistrationService.getStatus(config, properties.getWebhookBaseUrl()));
   }
 
   @GetMapping("/whitelist-options")
-  public ApiResponse<List<TableWhitelistOption>> whitelistOptions() {
-    return ApiResponse.success(whitelistService.listOptions(configService.getConfig()));
+  public ApiResponse<List<TableWhitelistOption>> whitelistOptions(
+      @RequestParam(value = "configId", required = false) Long configId) {
+    return ApiResponse.success(whitelistService.listOptions(resolveConfig(configId)));
   }
 
   @PutMapping("/config")
@@ -121,9 +129,11 @@ public class GitlabSyncController {
   public ApiResponse<GitlabSyncConfig> saveConfig(@RequestBody SaveConfigRequest request) {
     GitlabSyncConfig config = new GitlabSyncConfig();
     boolean syncEnabled = request.autoSyncEnabled();
+    config.setId(request.id());
     config.setName(request.name());
     config.setEnabled(syncEnabled);
     config.setAutoSyncEnabled(syncEnabled);
+    config.setSourceInstance(request.sourceInstance());
     config.setSourceMode(request.sourceMode());
     config.setWhitelistMode(request.whitelistMode());
     config.setWhitelistTables(request.whitelistTables());
@@ -151,44 +161,79 @@ public class GitlabSyncController {
   @PostMapping("/test-connection")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> testConnection() {
+    return testConnection(null);
+  }
+
+  @PostMapping("/test-connection/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> testConnection(@RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     try (GitlabSyncLogContext.Scope context =
-            GitlabSyncLogContext.openConfig(configService.getConfig(), "TEST_CONNECTION");
+            GitlabSyncLogContext.openConfig(config, "TEST_CONNECTION");
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Connection_Test")) {
       log.info("Manual test connection requested");
     }
-    syncService.testConnection();
+    if (configId == null) {
+      syncService.testConnection();
+    } else {
+      syncService.testConnection(config.getId());
+    }
     return ApiResponse.success("GitLab PostgreSQL 连接成功", Map.of("checked", true));
   }
 
   @PostMapping("/full-sync")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> fullSync() {
+    return fullSync(null);
+  }
+
+  @PostMapping("/full-sync/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> fullSync(@RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     try (GitlabSyncLogContext.Scope context =
-            GitlabSyncLogContext.openConfig(configService.getConfig(), SyncType.FULL.name());
+            GitlabSyncLogContext.openConfig(config, SyncType.FULL.name());
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Submit")) {
       log.info("Manual full sync requested");
     }
-    SyncTaskSubmissionResult result = syncService.startFullSync();
+    SyncTaskSubmissionResult result =
+        configId == null ? syncService.startFullSync() : syncService.startFullSync(config.getId());
     return ApiResponse.success(submissionMessage(result, SyncType.FULL), buildSubmissionResponse(result));
   }
 
   @PostMapping("/incremental-sync")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> incrementalSync() {
+    return incrementalSync(null);
+  }
+
+  @PostMapping("/incremental-sync/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> incrementalSync(@RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     try (GitlabSyncLogContext.Scope context =
-            GitlabSyncLogContext.openConfig(configService.getConfig(), SyncType.INCREMENTAL.name());
+            GitlabSyncLogContext.openConfig(config, SyncType.INCREMENTAL.name());
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Submit")) {
       log.info("Manual recovery incremental sync requested");
     }
     SyncTaskSubmissionResult result =
-        syncService.startIncrementalSync(SyncTriggerType.MANUAL, "Manual recovery incremental sync");
+        configId == null
+            ? syncService.startIncrementalSync(SyncTriggerType.MANUAL, "Manual recovery incremental sync")
+            : syncService.startIncrementalSync(config.getId(), SyncTriggerType.MANUAL, "Manual recovery incremental sync");
     return ApiResponse.success(submissionMessage(result, SyncType.INCREMENTAL), buildSubmissionResponse(result));
   }
 
   @PostMapping("/register-webhook")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook() {
-    GitlabSyncConfig config = configService.getConfig();
+    return registerWebhook(null);
+  }
+
+  @PostMapping("/register-webhook/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook(
+      @RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     GitlabWebhookRegistrationStatus result =
         webhookRegistrationService.ensureRegistered(config, properties.getWebhookBaseUrl());
     return ApiResponse.success("GitLab Webhook 已注册", result);
@@ -197,7 +242,13 @@ public class GitlabSyncController {
   @PostMapping("/cancel")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> cancel() {
-    GitlabSyncConfig config = configService.getConfig();
+    return cancel(null);
+  }
+
+  @PostMapping("/cancel/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> cancel(@RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "CANCEL");
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Cancel_Request")) {
       log.info("Manual task cancel requested");
@@ -233,9 +284,11 @@ public class GitlabSyncController {
   }
 
   public record SaveConfigRequest(
+      Long id,
       @NotBlank String name,
       boolean enabled,
       boolean autoSyncEnabled,
+      String sourceInstance,
       @NotNull SourceMode sourceMode,
       @NotNull WhitelistMode whitelistMode,
       List<String> whitelistTables,
@@ -256,6 +309,7 @@ public class GitlabSyncController {
     sanitized.setId(source.getId());
     sanitized.setName(source.getName());
     sanitized.setEnabled(source.isEnabled());
+    sanitized.setSourceInstance(source.getSourceInstance());
     sanitized.setAutoSyncEnabled(source.isAutoSyncEnabled());
     sanitized.setSourceMode(source.getSourceMode());
     sanitized.setWhitelistMode(source.getWhitelistMode());
@@ -274,6 +328,10 @@ public class GitlabSyncController {
     sanitized.setCreatedAt(source.getCreatedAt());
     sanitized.setUpdatedAt(source.getUpdatedAt());
     return sanitized;
+  }
+
+  private GitlabSyncConfig resolveConfig(Long configId) {
+    return configId == null ? configService.getConfig() : configService.getConfigById(configId);
   }
 
   private Map<String, Object> buildSubmissionResponse(SyncTaskSubmissionResult result) {

@@ -48,10 +48,13 @@ public class GitlabWebhookAsyncDispatchService {
   }
 
   public void accept(String eventType, Map<String, Object> payload) {
-    GitlabSyncConfig config = configService.getConfig();
+    accept(configService.getConfig(), eventType, payload);
+  }
+
+  public void accept(GitlabSyncConfig config, String eventType, Map<String, Object> payload) {
     GitlabWebhookPreciseSyncPlan plan = planner.plan(payload);
     if (plan.targets().isEmpty()) {
-      syncService.startWebhookSync(eventType, payload);
+      syncService.startWebhookSync(config, eventType, payload);
       return;
     }
 

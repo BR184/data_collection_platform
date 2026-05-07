@@ -107,25 +107,29 @@ public class IntegrationTestFactBuildService {
   private final ModuleDictionaryService moduleDictionaryService;
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final SqlQueryMonitor sqlQueryMonitor;
+  private final GitlabConfigService configService;
 
   public IntegrationTestFactBuildService(
       JdbcTemplate jdbcTemplate,
       IntegrationTestFactMapper integrationTestFactMapper,
       ModuleDictionaryService moduleDictionaryService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
-      SqlQueryMonitor sqlQueryMonitor) {
+      SqlQueryMonitor sqlQueryMonitor,
+      GitlabConfigService configService) {
     this.jdbcTemplate = jdbcTemplate;
     this.integrationTestFactMapper = integrationTestFactMapper;
     this.moduleDictionaryService = moduleDictionaryService;
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.sqlQueryMonitor = sqlQueryMonitor;
+    this.configService = configService;
   }
 
   public FactBuildResponse rebuildFacts(boolean full) {
-    sourceSchemaGuard.verifyIntegrationTestSource();
-    LocalDateTime changedSince = full ? null : getChangedSince();
+    String sourceInstance = currentSourceInstance();
+    sourceSchemaGuard.verifyIntegrationTestSource(sourceInstance);
+    LocalDateTime changedSince = full ? null : getChangedSince(sourceInstance);
     String sql =
-        INTEGRATION_TEST_SOURCE_SQL
+        rewriteSourceSql(INTEGRATION_TEST_SOURCE_SQL, sourceInstance)
             + (changedSince == null
                 ? ""
                 : " and greatest(coalesce(i.updated_at, i.created_at), coalesce(notes.note_updated_at, i.updated_at, i.created_at)) > ?");
@@ -139,10 +143,10 @@ public class IntegrationTestFactBuildService {
       try {
         facts =
             changedSinceArg == null
-                ? jdbcTemplate.query(sql, (rs, rowNum) -> mapFact(rs, moduleDictionary, calendar))
+                ? jdbcTemplate.query(sql, (rs, rowNum) -> mapFact(rs, sourceInstance, moduleDictionary, calendar))
                 : jdbcTemplate.query(
                     sql,
-                    (rs, rowNum) -> mapFact(rs, moduleDictionary, calendar),
+                    (rs, rowNum) -> mapFact(rs, sourceInstance, moduleDictionary, calendar),
                     changedSinceArg);
       } finally {
         sqlQueryMonitor.logIfSlow("integration-test-fact-source-query", sql, args, startedAt);
@@ -155,7 +159,7 @@ public class IntegrationTestFactBuildService {
                and source_instance = ?
             """,
             DEFAULT_SOURCE_SYSTEM,
-            DEFAULT_SOURCE_INSTANCE);
+            sourceInstance);
       }
       for (IntegrationTestFact fact : facts) {
         integrationTestFactMapper.upsert(fact);
@@ -171,7 +175,7 @@ public class IntegrationTestFactBuildService {
     }
   }
 
-  private LocalDateTime getChangedSince() {
+  private LocalDateTime getChangedSince(String sourceInstance) {
     return jdbcTemplate.queryForObject(
         """
         select max(ods_updated_at)
@@ -181,11 +185,20 @@ public class IntegrationTestFactBuildService {
         """,
         LocalDateTime.class,
         DEFAULT_SOURCE_SYSTEM,
-        DEFAULT_SOURCE_INSTANCE);
+        sourceInstance);
+  }
+
+  private String currentSourceInstance() {
+    return GitlabSourceInstanceSupport.sourceInstanceOf(configService.getConfig());
+  }
+
+  private String rewriteSourceSql(String sql, String sourceInstance) {
+    return GitlabSourceInstanceSupport.rewriteMirrorTableReferences(sql, sourceInstance);
   }
 
   private IntegrationTestFact mapFact(
       ResultSet rs,
+      String sourceInstance,
       ModuleDictionary moduleDictionary,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar)
       throws SQLException {
@@ -204,7 +217,7 @@ public class IntegrationTestFactBuildService {
 
     IntegrationTestFact fact = new IntegrationTestFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
-    fact.setSourceInstance(DEFAULT_SOURCE_INSTANCE);
+    fact.setSourceInstance(sourceInstance);
     fact.setIngestChannel(MIRROR_INGEST_CHANNEL);
     fact.setSourceSummary("GitLab 集成测试备注解析");
     fact.setRawPayload(noteText);

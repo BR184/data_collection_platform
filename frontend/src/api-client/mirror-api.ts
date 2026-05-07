@@ -10,14 +10,17 @@ import type {
 import { request } from './request';
 
 export const mirrorApi = {
-  getStatus() {
-    return request<MirrorStatusResponse>('/api/gitlab-sync/status');
+  getConfigs() {
+    return request<GitlabSyncConfig[]>('/api/gitlab-sync/configs');
   },
-  getWebhookRegistrationStatus() {
-    return request<GitlabWebhookRegistrationStatus>('/api/gitlab-sync/webhook-registration-status');
+  getStatus(configId?: number) {
+    return request<MirrorStatusResponse>(withConfigId('/api/gitlab-sync/status', configId));
   },
-  getWhitelistOptions() {
-    return request<TableWhitelistOption[]>('/api/gitlab-sync/whitelist-options');
+  getWebhookRegistrationStatus(configId?: number) {
+    return request<GitlabWebhookRegistrationStatus>(withConfigId('/api/gitlab-sync/webhook-registration-status', configId));
+  },
+  getWhitelistOptions(configId?: number) {
+    return request<TableWhitelistOption[]>(withConfigId('/api/gitlab-sync/whitelist-options', configId));
   },
   saveConfig(config: GitlabSyncConfig) {
     return request<GitlabSyncConfig>('/api/gitlab-sync/config', {
@@ -25,28 +28,28 @@ export const mirrorApi = {
       body: JSON.stringify(config),
     });
   },
-  testConnection() {
-    return request<{ success: boolean; message: string }>('/api/gitlab-sync/test-connection', {
+  testConnection(configId?: number) {
+    return request<{ success: boolean; message: string }>(withConfigId('/api/gitlab-sync/test-connection/by-config', configId), {
       method: 'POST',
     });
   },
-  startFullSync() {
-    return request<SyncSubmissionResponse>('/api/gitlab-sync/full-sync', {
+  startFullSync(configId?: number) {
+    return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/full-sync/by-config', configId), {
       method: 'POST',
     });
   },
-  startIncrementalSync() {
-    return request<SyncSubmissionResponse>('/api/gitlab-sync/incremental-sync', {
+  startIncrementalSync(configId?: number) {
+    return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/incremental-sync/by-config', configId), {
       method: 'POST',
     });
   },
-  registerWebhook() {
-    return request<GitlabWebhookRegistrationStatus>('/api/gitlab-sync/register-webhook', {
+  registerWebhook(configId?: number) {
+    return request<GitlabWebhookRegistrationStatus>(withConfigId('/api/gitlab-sync/register-webhook/by-config', configId), {
       method: 'POST',
     });
   },
-  cancelSync() {
-    return request<{ accepted: boolean; taskId?: number; status?: string }>('/api/gitlab-sync/cancel', {
+  cancelSync(configId?: number) {
+    return request<{ accepted: boolean; taskId?: number; status?: string }>(withConfigId('/api/gitlab-sync/cancel/by-config', configId), {
       method: 'POST',
     });
   },
@@ -57,3 +60,7 @@ export const mirrorApi = {
     });
   },
 };
+
+function withConfigId(path: string, configId?: number) {
+  return configId == null ? path : `${path}?configId=${encodeURIComponent(String(configId))}`;
+}

@@ -99,6 +99,20 @@ class GitlabSyncTaskServiceTest {
   }
 
   @Test
+  void scopeKeyShouldSeparateDifferentSourceInstances() {
+    GitlabSyncConfig ccConfig = baseConfig();
+    ccConfig.setId(1L);
+    ccConfig.setSourceInstance("cc");
+    GitlabSyncConfig dgmConfig = baseConfig();
+    dgmConfig.setId(1L);
+    dgmConfig.setSourceInstance("dgm");
+
+    assertThat(taskService.buildScopeKey(ccConfig)).isNotEqualTo(taskService.buildScopeKey(dgmConfig));
+    assertThat(taskService.buildScopeKey(ccConfig)).contains("source-cc");
+    assertThat(taskService.buildScopeKey(dgmConfig)).contains("source-dgm");
+  }
+
+  @Test
   void staleRunningTaskShouldBeRecoveredAsTimeout() {
     GitlabSyncConfig config = configService.saveConfig(baseConfig());
     GitlabSyncTask first = taskService.submitTask(config, SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync", Map.of());
@@ -145,6 +159,7 @@ class GitlabSyncTaskServiceTest {
     config.setEnabled(true);
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
+    config.setSourceInstance("default");
     config.setWhitelistMode(WhitelistMode.CUSTOM);
     config.setWhitelistTables(List.of("issues", "notes"));
     config.setDbHost("localhost");
