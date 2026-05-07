@@ -26,6 +26,9 @@ public interface GitlabMirrorRecordMapper extends BaseMapper<GitlabMirrorRecord>
       "do update set updated_at_source = excluded.updated_at_source,",
       "row_data = excluded.row_data,",
       "synced_at = current_timestamp",
+      "where excluded.updated_at_source is null",
+      "or gitlab_mirror_records.updated_at_source is null",
+      "or excluded.updated_at_source >= gitlab_mirror_records.updated_at_source",
       "</script>"
   })
   void upsertBatch(@Param("records") List<GitlabMirrorRecord> records);
