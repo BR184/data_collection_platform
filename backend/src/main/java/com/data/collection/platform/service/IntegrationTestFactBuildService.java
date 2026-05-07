@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IntegrationTestFact;
 import com.data.collection.platform.mapper.IntegrationTestFactMapper;
 import com.data.collection.platform.service.ModuleDictionaryService.ModuleDictionary;
@@ -125,7 +126,18 @@ public class IntegrationTestFactBuildService {
   }
 
   public FactBuildResponse rebuildFacts(boolean full) {
-    String sourceInstance = currentSourceInstance();
+    return rebuildFacts(full, null);
+  }
+
+  public FactBuildResponse rebuildFacts(boolean full, Long configId) {
+    return rebuildFactsInternal(full, sourceInstanceForConfig(configId));
+  }
+
+  public FactBuildResponse rebuildFactsForConfig(GitlabSyncConfig config, boolean full) {
+    return rebuildFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
+  }
+
+  private FactBuildResponse rebuildFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyIntegrationTestSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getChangedSince(sourceInstance);
     String sql =
@@ -165,7 +177,7 @@ public class IntegrationTestFactBuildService {
         integrationTestFactMapper.upsert(fact);
       }
       return new FactBuildResponse(
-          "integration-test",
+          factScope(sourceInstance),
           full,
           facts.size(),
           changedSince == null ? "集成测试事实已全量构建" : "集成测试事实已按增量构建");
@@ -188,8 +200,14 @@ public class IntegrationTestFactBuildService {
         sourceInstance);
   }
 
-  private String currentSourceInstance() {
-    return GitlabSourceInstanceSupport.sourceInstanceOf(configService.getConfig());
+  private String sourceInstanceForConfig(Long configId) {
+    return GitlabSourceInstanceSupport.sourceInstanceOf(
+        configId == null ? configService.getConfig() : configService.getConfigById(configId));
+  }
+
+  private String factScope(String sourceInstance) {
+    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return DEFAULT_SOURCE_INSTANCE.equals(normalized) ? "integration-test" : normalized + ":integration-test";
   }
 
   private String rewriteSourceSql(String sql, String sourceInstance) {

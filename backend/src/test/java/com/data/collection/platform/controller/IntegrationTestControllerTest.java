@@ -59,6 +59,19 @@ class IntegrationTestControllerTest {
   }
 
   @Test
+  void shouldRebuildFactsForConfigWhenConfigIdIsProvided() throws Exception {
+    when(integrationTestFactBuildService.rebuildFacts(false, 2L))
+        .thenReturn(new FactBuildResponse("dgm:integration-test", false, 5, "ok"));
+
+    mockMvc
+        .perform(post("/api/integration-tests/rebuild").param("configId", "2"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.scope").value("dgm:integration-test"))
+        .andExpect(jsonPath("$.data.affectedRows").value(5));
+  }
+
+  @Test
   void shouldListProjectOptions() throws Exception {
     when(integrationTestQueryService.listProjectOptions())
         .thenReturn(List.of(new IntegrationTestProjectOptionResponse(325L, "CC_PRODUCT")));

@@ -76,6 +76,22 @@ class FactBuildControllerTest {
   }
 
   @Test
+  void shouldRebuildFactsForConfigWhenConfigIdIsProvided() throws Exception {
+    when(factBuildService.rebuildMergeRequestFacts(false, 2L))
+        .thenReturn(new FactBuildResponse("dgm:merge-request", false, 4, "ok"));
+
+    mockMvc
+        .perform(
+            post("/api/facts/rebuild")
+                .param("scope", "merge-request")
+                .param("configId", "2"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.scope").value("dgm:merge-request"))
+        .andExpect(jsonPath("$.data.affectedRows").value(4));
+  }
+
+  @Test
   void shouldLoadLatestFactBuildTask() throws Exception {
     when(factBuildTaskService.latest("issue"))
         .thenReturn(

@@ -44,6 +44,8 @@ class GitlabMirrorSyncServiceTest {
   private GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
   private GitlabMirrorProperties properties;
   private JsonUtils jsonUtils;
+  private FactBuildService factBuildService;
+  private IntegrationTestFactBuildService integrationTestFactBuildService;
   private GitlabMirrorSyncService selfProxy;
   private GitlabMirrorSyncService syncService;
 
@@ -60,6 +62,8 @@ class GitlabMirrorSyncServiceTest {
     webhookPreciseSyncPlanner = mock(GitlabWebhookPreciseSyncPlanner.class);
     properties = new GitlabMirrorProperties();
     jsonUtils = mock(JsonUtils.class);
+    factBuildService = mock(FactBuildService.class);
+    integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
     selfProxy = mock(GitlabMirrorSyncService.class);
     syncService =
         new GitlabMirrorSyncService(
@@ -74,6 +78,8 @@ class GitlabMirrorSyncServiceTest {
             webhookPreciseSyncPlanner,
             properties,
             jsonUtils,
+            factBuildService,
+            integrationTestFactBuildService,
             selfProxy);
   }
 
@@ -136,6 +142,8 @@ class GitlabMirrorSyncServiceTest {
     syncService.executeTaskAsync(200L);
 
     verify(externalDbService).compensationScan(any(), any(), any());
+    verify(factBuildService).rebuildAllFactsForConfig(config, false);
+    verify(integrationTestFactBuildService).rebuildFactsForConfig(config, false);
     verify(externalDbService, never()).fullTableScan(any(), any());
     verify(externalDbService, never()).incrementalScan(any(), any(), any());
   }

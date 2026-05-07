@@ -47,6 +47,8 @@ public class GitlabMirrorSyncService {
   private final GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
   private final GitlabMirrorProperties properties;
   private final JsonUtils jsonUtils;
+  private final FactBuildService factBuildService;
+  private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final GitlabMirrorSyncService self;
   private final ConcurrentMap<Long, SyncProgress> progressMap = new ConcurrentHashMap<>();
   // 每个服务实例持有独立锁 owner，用于区分本机正在处理的长同步任务和历史遗留任务。
@@ -64,6 +66,8 @@ public class GitlabMirrorSyncService {
       GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner,
       GitlabMirrorProperties properties,
       JsonUtils jsonUtils,
+      @Lazy FactBuildService factBuildService,
+      @Lazy IntegrationTestFactBuildService integrationTestFactBuildService,
       @Lazy GitlabMirrorSyncService self) {
     this.configService = configService;
     this.whitelistService = whitelistService;
@@ -76,6 +80,8 @@ public class GitlabMirrorSyncService {
     this.webhookPreciseSyncPlanner = webhookPreciseSyncPlanner;
     this.properties = properties;
     this.jsonUtils = jsonUtils;
+    this.factBuildService = factBuildService;
+    this.integrationTestFactBuildService = integrationTestFactBuildService;
     this.self = self;
   }
 
@@ -271,6 +277,7 @@ public class GitlabMirrorSyncService {
         }
       }
       logService.finish(logId, SyncStatus.SUCCESS, "Webhook precise sync completed", tableCount, recordCount);
+      refreshFactsAfterMirrorSync(config, false);
       return recordCount;
     } catch (Exception e) {
       logService.finish(logId, SyncStatus.FAILED, e.getMessage(), tableCount, recordCount);
@@ -433,6 +440,7 @@ public class GitlabMirrorSyncService {
         }
 
         configService.updateSyncTime(config.getId(), task.getTaskType() == SyncType.FULL);
+        refreshFactsAfterMirrorSync(config, task.getTaskType() == SyncType.FULL);
         String successMessage = buildCompletionMessage(task.getTaskType(), skippedTableCount);
         logService.finish(logId, SyncStatus.SUCCESS, successMessage, tableCount, recordCount);
         taskService.finish(taskId, SyncStatus.SUCCESS, successMessage, null);
@@ -472,6 +480,19 @@ public class GitlabMirrorSyncService {
       case INCREMENTAL, WEBHOOK -> "INCREMENTAL_SYNC";
       case PURGE -> "PURGE";
     };
+  }
+
+  private void refreshFactsAfterMirrorSync(GitlabSyncConfig config, boolean full) {
+    try {
+      factBuildService.rebuildAllFactsForConfig(config, full);
+      integrationTestFactBuildService.rebuildFactsForConfig(config, full);
+    } catch (Exception e) {
+      log.warn(
+          "Post-sync fact refresh failed, configId={}, sourceInstance={}",
+          config == null ? null : config.getId(),
+          GitlabSourceInstanceSupport.sourceInstanceOf(config),
+          e);
+    }
   }
 
   private String resolveScanMode(SyncType type) {

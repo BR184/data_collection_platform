@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
 import com.data.collection.platform.entity.MergeRequestFact;
 import com.data.collection.platform.mapper.IssueFactMapper;
@@ -300,25 +301,48 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
-    return factBuildTaskService.runGuarded("all", full, () -> rebuildAllFactsInternal(full));
+    return rebuildAllFacts(full, null);
   }
 
-  private FactBuildResponse rebuildAllFactsInternal(boolean full) {
-    FactBuildResponse issue = rebuildIssueFactsInternal(full);
-    FactBuildResponse mergeRequest = rebuildMergeRequestFactsInternal(full);
+  public FactBuildResponse rebuildAllFacts(boolean full, Long configId) {
+    String sourceInstance = sourceInstanceForConfig(configId);
+    return factBuildTaskService.runGuarded(
+        factScope("all", sourceInstance), full, () -> rebuildAllFactsInternal(full, sourceInstance));
+  }
+
+  public FactBuildResponse rebuildAllFactsForConfig(GitlabSyncConfig config, boolean full) {
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    return factBuildTaskService.runGuarded(
+        factScope("all", sourceInstance), full, () -> rebuildAllFactsInternal(full, sourceInstance));
+  }
+
+  private FactBuildResponse rebuildAllFactsInternal(boolean full, String sourceInstance) {
+    FactBuildResponse issue = rebuildIssueFactsInternal(full, sourceInstance);
+    FactBuildResponse mergeRequest = rebuildMergeRequestFactsInternal(full, sourceInstance);
     return new FactBuildResponse(
-        "all",
+        factScope("all", sourceInstance),
         full,
         issue.affectedRows() + mergeRequest.affectedRows(),
         "事实表构建完成：议题 " + issue.affectedRows() + " 条，合并请求 " + mergeRequest.affectedRows() + " 条");
   }
 
   public FactBuildResponse rebuildIssueFacts(boolean full) {
-    return factBuildTaskService.runGuarded("issue", full, () -> rebuildIssueFactsInternal(full));
+    return rebuildIssueFacts(full, null);
   }
 
-  private FactBuildResponse rebuildIssueFactsInternal(boolean full) {
-    String sourceInstance = currentSourceInstance();
+  public FactBuildResponse rebuildIssueFacts(boolean full, Long configId) {
+    String sourceInstance = sourceInstanceForConfig(configId);
+    return factBuildTaskService.runGuarded(
+        factScope("issue", sourceInstance), full, () -> rebuildIssueFactsInternal(full, sourceInstance));
+  }
+
+  public FactBuildResponse rebuildIssueFactsForConfig(GitlabSyncConfig config, boolean full) {
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    return factBuildTaskService.runGuarded(
+        factScope("issue", sourceInstance), full, () -> rebuildIssueFactsInternal(full, sourceInstance));
+  }
+
+  private FactBuildResponse rebuildIssueFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
     try {
@@ -327,7 +351,7 @@ public class FactBuildService {
       List<IssueFact> facts = loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary);
       batchUpsertIssueFacts(facts);
       return new FactBuildResponse(
-          "issue",
+          factScope("issue", sourceInstance),
           full,
           facts.size(),
           changedSince == null ? "议题事实已全量构建" : "议题事实已按增量构建");
@@ -391,12 +415,22 @@ public class FactBuildService {
   }
 
   public FactBuildResponse rebuildMergeRequestFacts(boolean full) {
-    return factBuildTaskService.runGuarded(
-        "merge-request", full, () -> rebuildMergeRequestFactsInternal(full));
+    return rebuildMergeRequestFacts(full, null);
   }
 
-  private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full) {
-    String sourceInstance = currentSourceInstance();
+  public FactBuildResponse rebuildMergeRequestFacts(boolean full, Long configId) {
+    String sourceInstance = sourceInstanceForConfig(configId);
+    return factBuildTaskService.runGuarded(
+        factScope("merge-request", sourceInstance), full, () -> rebuildMergeRequestFactsInternal(full, sourceInstance));
+  }
+
+  public FactBuildResponse rebuildMergeRequestFactsForConfig(GitlabSyncConfig config, boolean full) {
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    return factBuildTaskService.runGuarded(
+        factScope("merge-request", sourceInstance), full, () -> rebuildMergeRequestFactsInternal(full, sourceInstance));
+  }
+
+  private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyMergeRequestFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getMergeRequestFactChangedSince(sourceInstance);
     String sql = rewriteSourceSql(MERGE_REQUEST_SOURCE_SQL, sourceInstance)
@@ -421,7 +455,7 @@ public class FactBuildService {
       }
       batchUpsertMergeRequestFacts(facts);
       return new FactBuildResponse(
-          "merge-request",
+          factScope("merge-request", sourceInstance),
           full,
           facts.size(),
           changedSince == null ? "合并请求事实已全量构建" : "合并请求事实已按增量构建");
@@ -522,8 +556,14 @@ public class FactBuildService {
     return Boolean.TRUE.equals(result);
   }
 
-  private String currentSourceInstance() {
-    return GitlabSourceInstanceSupport.sourceInstanceOf(configService.getConfig());
+  private String sourceInstanceForConfig(Long configId) {
+    return GitlabSourceInstanceSupport.sourceInstanceOf(
+        configId == null ? configService.getConfig() : configService.getConfigById(configId));
+  }
+
+  private String factScope(String scope, String sourceInstance) {
+    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return DEFAULT_SOURCE_INSTANCE.equals(normalized) ? scope : normalized + ":" + scope;
   }
 
   private String rewriteSourceSql(String sql, String sourceInstance) {

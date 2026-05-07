@@ -44,15 +44,26 @@ public class FactBuildController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<FactBuildResponse> rebuildFacts(
       @RequestParam(defaultValue = "all") String scope,
-      @RequestParam(defaultValue = "false") boolean full) {
+      @RequestParam(defaultValue = "false") boolean full,
+      @RequestParam(required = false) Long configId) {
     FactBuildResponse response =
-        factBuildOperationGuard.run(scope, () ->
+        factBuildOperationGuard.run(guardScope(scope, configId), () ->
             switch (scope) {
-              case "issue" -> factBuildService.rebuildIssueFacts(full);
-              case "merge-request", "merge_request" -> factBuildService.rebuildMergeRequestFacts(full);
-              default -> factBuildService.rebuildAllFacts(full);
+              case "issue" -> configId == null
+                  ? factBuildService.rebuildIssueFacts(full)
+                  : factBuildService.rebuildIssueFacts(full, configId);
+              case "merge-request", "merge_request" -> configId == null
+                  ? factBuildService.rebuildMergeRequestFacts(full)
+                  : factBuildService.rebuildMergeRequestFacts(full, configId);
+              default -> configId == null
+                  ? factBuildService.rebuildAllFacts(full)
+                  : factBuildService.rebuildAllFacts(full, configId);
             });
     return ApiResponse.success(response.message(), response);
+  }
+
+  private String guardScope(String scope, Long configId) {
+    return configId == null ? scope : scope + ":config-" + configId;
   }
 
   @GetMapping("/build-tasks/latest")

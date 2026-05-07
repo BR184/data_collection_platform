@@ -193,6 +193,11 @@
     - 使用项目内置 JDK/Maven 跑通后端全量 `mvn test`。
     - Webhook 定时批处理在 registry 表尚未可用时改为 debug 级跳过，避免启动早期或测试早期产生错误日志。
     - 统计看板自动触发事实重建时，如果 GitLab ODS 源表尚未准备好，恢复为空数据降级，不再把源表缺失冒泡成页面错误。
+  - 2026-05-07 第三轮收口：
+    - 事实构建接口新增可选 `configId`，管理员手动重建 `issue_fact`、`merge_request_fact` 和 `integration_test_fact` 时可以明确指定 GitLab 镜像源；不传时继续兼容默认源。
+    - GitLab 镜像同步成功后会按当前 `GitlabSyncConfig` 触发对应来源的增量事实刷新；全量同步后走全量事实刷新，Webhook/增量/补偿同步后走增量事实刷新。
+    - 同步后的事实刷新失败只记录 warning，不反向影响镜像同步任务成功状态，避免事实层临时缺表或字段漂移把已经完成的镜像导入打失败。
+    - 已通过后端全量 `mvn -q test`、前端 `tsc --noEmit`、Flyway/schema 漂移检查、Flyway 迁移不可变检查、事实字段契约检查和前端 API 边界检查。
 
 ## 6. 当前技术债与需补项
 

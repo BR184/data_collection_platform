@@ -42,10 +42,20 @@ public class IntegrationTestController {
 
   @PostMapping("/rebuild")
   @RequireRole(AuthRole.ADMIN)
-  public ApiResponse<FactBuildResponse> rebuild(@RequestParam(defaultValue = "false") boolean full) {
+  public ApiResponse<FactBuildResponse> rebuild(
+      @RequestParam(defaultValue = "false") boolean full,
+      @RequestParam(required = false) Long configId) {
     FactBuildResponse response =
-        factBuildOperationGuard.run("integration-test", () -> integrationTestFactBuildService.rebuildFacts(full));
+        factBuildOperationGuard.run(
+            guardScope(configId),
+            () -> configId == null
+                ? integrationTestFactBuildService.rebuildFacts(full)
+                : integrationTestFactBuildService.rebuildFacts(full, configId));
     return ApiResponse.success(response.message(), response);
+  }
+
+  private String guardScope(Long configId) {
+    return configId == null ? "integration-test" : "integration-test:config-" + configId;
   }
 
   @GetMapping("/project-options")
