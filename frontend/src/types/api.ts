@@ -37,6 +37,25 @@ export interface GitlabSyncConfig {
   lastIncrementalSyncAt?: string | null;
 }
 
+export interface GitlabSourceHealthResponse {
+  configId: number;
+  name: string;
+  sourceInstance: string;
+  enabled: boolean;
+  currentStatus: GitlabSyncStatus | 'IDLE';
+  currentMessage?: string | null;
+  currentStartedAt?: string | null;
+  latestLogStatus?: GitlabSyncStatus | null;
+  latestLogMessage?: string | null;
+  latestLogFinishedAt?: string | null;
+  registeredMirrorTables: number;
+  existingMirrorTables: number;
+  mergeRequestFactCount: number;
+  issueFactCount: number;
+  integrationTestFactCount: number;
+  missingRequiredMirrorTables: string[];
+}
+
 export interface TableWhitelistOption {
   tableName: string;
   label: string;
@@ -464,6 +483,7 @@ export interface CodeReviewRulePreviewRequest {
   illegalType?: string;
   mergeRequestIid?: string;
   owner?: string;
+  source?: string;
   ruleConfig: CodeReviewRuleConfig;
 }
 

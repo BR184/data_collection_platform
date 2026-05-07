@@ -62,6 +62,7 @@ const scopeTags = computed(() => {
   append('模块名', 'moduleName');
   append('合并请求编号', 'mergeRequestIid');
   append('责任人', 'owner');
+  append('数据源', 'source');
 
   const mergedAtStart = String(route.query.mergedAtStart ?? '').trim();
   const mergedAtEnd = String(route.query.mergedAtEnd ?? '').trim();
@@ -84,7 +85,10 @@ const scopeDescription = computed(() => {
 async function loadFilterOptions() {
   filterLoading.value = true;
   try {
-    filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(route.query.projectId as string | undefined);
+    filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
+      route.query.projectId as string | undefined,
+      String(route.query.source ?? '') || undefined,
+    );
   } finally {
     filterLoading.value = false;
   }
@@ -127,6 +131,7 @@ async function loadPreview() {
       illegalType: String(route.query.illegalType ?? ''),
       mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
       owner: String(route.query.owner ?? ''),
+      source: String(route.query.source ?? ''),
       ruleConfig: {
         ...draftConfig.value,
         enabled: true,

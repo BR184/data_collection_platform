@@ -12,6 +12,7 @@ import { api } from '../api';
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordRowResponse,
+  OptionItemResponse,
 } from '../types/api';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
@@ -44,6 +45,8 @@ import {
   mapCodeReviewIllegalTableRows,
 } from './code-review-illegal-records-view-helpers';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
+import { useDataScope } from '../composables/useDataScope';
 
 const router = useRouter();
 const {
@@ -70,6 +73,7 @@ const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 const exportLoading = ref(false);
+const sourceOptions = ref<OptionItemResponse[]>([]);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
@@ -127,6 +131,12 @@ const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
 });
 
 const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
+const sourceScope = useDataScope({
+  provider: CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
+  options: computed(() => buildScopeOptions(sourceOptions.value)),
+  mountToShell: true,
+  loading: isTableLoading,
+});
 
 const tableEmptyDescription = computed(() =>
   appliedRuleConfig.value?.enabled
@@ -170,8 +180,16 @@ function openRuleConfig() {
 }
 
 async function loadFilterOptions() {
-  filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(route.query.projectId as string | undefined);
+  filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
+    route.query.projectId as string | undefined,
+    sourceScope.value.value || undefined,
+  );
   syncAppliedRuleConfig();
+}
+
+async function loadSourceOptions() {
+  const options = await api.getCodeReviewMultiBoardSourceOptions();
+  sourceOptions.value = Array.isArray(options) ? options : [];
 }
 
 const {
@@ -203,6 +221,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     illegalType: String(route.query.illegalType ?? ''),
     mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
     owner: String(route.query.owner ?? ''),
+    source: sourceScope.value.value || undefined,
     filterGroup: buildFilterPayload(),
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'mergedAt',
@@ -225,6 +244,7 @@ async function handleExport() {
 
 bindLoader(async () => {
   try {
+    await loadSourceOptions();
     await loadFilterOptions();
     initializeFromQuery(route.query);
     await loadTableData();

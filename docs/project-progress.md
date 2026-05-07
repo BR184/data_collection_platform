@@ -203,6 +203,14 @@
     - 集成测试分析的项目选项、阶段选项、汇总、明细和导出接口均新增可选 `sourceInstance`，避免 CC/DGM 的 `integration_test_fact` 在查询侧混合统计。
     - 新增集成测试事实查询隔离回归：同一测试阶段下写入 `cc` 与 `dgm` 两组事实，带来源参数查询时只返回对应来源。
     - 已通过后端全量 `mvn -q test`、前端 `tsc --noEmit`、API 契约漂移检查、Flyway/schema 漂移检查、Flyway 迁移不可变检查、事实字段契约检查和前端 API 边界检查。
+  - 2026-05-07 第五轮收口：
+    - 按最新产品边界收敛为“只有代码走查域面向用户切换 CC/DGM 数据源”，正式记录页和看板结构保持不变，只通过来源参数改变展示数据。
+    - `代码走查非法数据` 列表、筛选项、导出和规则预览均已补充 `source` 参数，并下沉到 `merge_request_fact.source_instance` 过滤。
+    - `代码走查非法数据` 前端接入与多元看板相同的数据源选择器，路由白名单允许 `source`，规则配置页会继承当前来源。
+    - `数据镜像设置` 新增每个 GitLab 源的健康诊断入口，展示当前任务/最近日志、已注册镜像表、实际存在镜像表、代码走查事实数量和缺失关键镜像表。
+    - 镜像清理从全局扫描/全局清空改为按当前 `configId` 和来源实例隔离，避免清理 CC 时误删 DGM，或清理默认源时影响命名源。
+    - 新增 `V20260507_04__code_review_source_query_indexes.sql`，为代码走查来源切换后的列表查询补 `source_instance + deleted + merged_at_source` 组合索引。
+    - 前端对数据源选项和健康诊断响应增加数组兜底，接口异常或内网抖动时页面不会因为响应形状异常直接崩溃。
 
 ## 6. 当前技术债与需补项
 
@@ -282,6 +290,11 @@
 - 事实构建大 SQL 复杂度风险：
   - 议题、合并请求和集成测试事实源查询已接入 `SqlQueryMonitor`，超过阈值时输出压缩后的 SQL 与参数数量。
   - 源表检查前置后，GitLab 版本或白名单变化导致的字段缺失不会再直接落到难读的大 SQL 报错里。
+- 多 GitLab 镜像源混源风险：
+  - CC/DGM 采用同一平台库内的来源实例隔离，ODS 镜像表、同步任务、镜像记录和事实层均携带当前来源。
+  - 面向用户的数据源切换暂只落在代码走查域，避免把 demo 看板和无明确双源需求的模块扩大改造。
+  - 代码走查非法数据的列表、筛选、导出和规则预览已通过 `source` 过滤 `merge_request_fact.source_instance`，不再把不同 GitLab 源的同名项目混在一起。
+  - 镜像清理和管理端健康诊断已按 `configId` 隔离，降低多源绑定后误删、误判和启动后状态不可见的风险。
 - 生成物和日志污染认知风险：
   - `.gitignore` 已补充 `.tmp-*`、`tmp-*` 等临时调试文件规则。
   - 新增 `scripts/check_worktree_artifacts.py`，用于阻止日志、构建产物和临时文件被继续纳入版本管理。
@@ -483,15 +496,24 @@
   - GitLab mirror 导入支持按来源生成隔离表名，例如 `ods_gitlab_cc_issues`、`ods_gitlab_dgm_issues`；未指定来源时保留原 `ods_gitlab_issues` 兼容路径。
   - 议题事实和集成测试事实构建已支持按 `GitlabSyncConfig` / `configId` 选择对应来源；同步成功后只触发当前来源的事实刷新，刷新失败只记录告警，不阻断镜像同步成功结果。
   - `issue_fact` 记录查询、导出、集成测试汇总/明细/导出已补充 `sourceInstance` 筛选，避免 CC/DGM 数据在正式记录页混查。
+  - 按产品最新边界，前端显式数据源切换只继续落在代码走查域；其他正式模块先保留底层来源隔离能力，不主动暴露 UI 切换。
+  - `代码走查非法数据` 已补充 `source` 传递链路：列表、筛选项、导出和规则预览会按 `merge_request_fact.source_instance` 过滤。
+  - `数据镜像设置` 已补充来源健康诊断，能看到每个 GitLab 源的任务状态、最近同步日志、镜像表数量、代码走查事实数量和缺失关键表。
+  - 镜像清理已改为按当前配置和来源实例隔离，清理某一个源时不会全局删除其他 GitLab 源的镜像表注册、镜像记录或 ODS 表。
+  - 已新增代码走查来源查询索引迁移 `V20260507_04__code_review_source_query_indexes.sql`。
   - 统计看板目前仍按 demo 级别看待，本轮没有继续逐个看板做大结构改造；仅在共享 `IssueFactQueryService` 的通用过滤里保留低侵入 `sourceInstance` 保护，防止已经走共享查询链路的看板混源。
   - 配置保存层已补充来源标识规范化和冲突保护：`sourceInstance` 统一 trim、小写、空值归一到 `default`，长度限制 64；修改已有配置时如果改到另一个已存在来源，会返回明确业务错误，不再让数据库唯一约束或后续同步阶段才暴露问题。
   - 已补充回归测试：
     - `GitlabConfigServiceTest` 覆盖重复来源修改和超长来源标识拦截。
     - `SqlPushdownRealChainTest` 覆盖统计看板 HTTP 链路携带 `sourceInstance` 时只返回对应来源数据。
+    - `CodeReviewIllegalRecordSourceLoaderTest` 覆盖同一代码走查事实表中 `cc` 与 `dgm` 隔离查询。
+    - `GitlabMirrorPurgeServiceTest` 和 `GitlabSyncControllerTest` 覆盖按配置清理与来源健康诊断。
   - 本轮验证通过：
     - `mvn -q -Dtest=GitlabConfigServiceTest,SqlPushdownRealChainTest,StatisticBoardControllerTest,SystemTestDefectSummaryRuleExplanationTest test`
+    - `mvn -q -Dtest=CodeReviewControllerTest,CodeReviewRequestAssemblerTest,CodeReviewIllegalRecordServiceTest,CodeReviewIllegalRecordSourceLoaderTest,GitlabMirrorPurgeServiceTest,GitlabSyncControllerTest test`
     - `mvn -q test`
     - `frontend` 下 `tsc --noEmit --pretty false`
+    - `frontend` 下 `vitest run src/views/code-review-multi-board.mount-smoke.test.ts src/views/code-review-illegal-records.mount-smoke.test.ts src/views/code-review-rule-config.mount-smoke.test.ts src/views/mirror-settings.mount-smoke.test.ts`
     - `python scripts/check_api_contract_drift.py`
     - `python scripts/check_schema_flyway_drift.py`
     - `python scripts/check_flyway_migration_immutability.py`

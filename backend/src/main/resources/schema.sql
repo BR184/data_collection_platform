@@ -647,6 +647,7 @@ create index if not exists idx_merge_request_fact_owner on merge_request_fact(ow
 create index if not exists idx_merge_request_fact_metrics on merge_request_fact(comment_rate, defect_count, review_duration_minutes);
 create index if not exists idx_merge_request_fact_list_merged on merge_request_fact(deleted, merged_at_source desc, merge_request_iid desc);
 create index if not exists idx_merge_request_fact_project_list_merged on merge_request_fact(project_id, deleted, merged_at_source desc, merge_request_iid desc);
+create index if not exists idx_merge_request_fact_source_list_merged on merge_request_fact(source_instance, deleted, merged_at_source desc, merge_request_iid desc);
 create index if not exists idx_merge_request_fact_repository_trgm on merge_request_fact using gin (repository_name public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_project_name_trgm on merge_request_fact using gin (project_name public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_merge_request_fact_target_branch_trgm on merge_request_fact using gin (target_branch public.gin_trgm_ops) where deleted = false;

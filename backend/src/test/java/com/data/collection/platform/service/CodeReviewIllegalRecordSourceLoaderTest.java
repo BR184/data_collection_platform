@@ -28,6 +28,62 @@ class CodeReviewIllegalRecordSourceLoaderTest {
   }
 
   @Test
+  void shouldFilterMergeRequestFactsBySourceInstance() {
+    insertMergeRequestFact(
+        "cc",
+        325L,
+        "Product Center",
+        "repo-a",
+        9201L,
+        21L,
+        "cc missing owner",
+        "master",
+        "feature/cc",
+        "Alice",
+        "",
+        "payment",
+        "payment",
+        LocalDateTime.of(2026, 4, 16, 9, 30),
+        "DONE",
+        37,
+        "SCANNED",
+        0,
+        0.75,
+        3,
+        128,
+        false);
+    insertMergeRequestFact(
+        "dgm",
+        325L,
+        "Product Center",
+        "repo-a",
+        9202L,
+        22L,
+        "dgm missing owner",
+        "master",
+        "feature/dgm",
+        "Bob",
+        "",
+        "payment",
+        "payment",
+        LocalDateTime.of(2026, 4, 17, 9, 30),
+        "DONE",
+        37,
+        "SCANNED",
+        0,
+        0.75,
+        3,
+        128,
+        false);
+
+    List<CodeReviewIllegalRecordSource> sources =
+        sourceLoader.loadSources(Map.of("sourceInstance", "DGM"));
+
+    assertThat(sources).hasSize(1);
+    assertThat(sources.getFirst().mergeRequestId()).isEqualTo(9202L);
+  }
+
+  @Test
   void shouldLoadMergeRequestFactsWithCombinedFiltersAndFieldMapping() {
     insertMergeRequestFact(
         325L,
@@ -198,6 +254,7 @@ class CodeReviewIllegalRecordSourceLoaderTest {
                     null,
                     null,
                     null,
+                    null,
                     1,
                     20,
                     "mergeRequestIid",
@@ -215,6 +272,54 @@ class CodeReviewIllegalRecordSourceLoaderTest {
   }
 
   private void insertMergeRequestFact(
+      Long projectId,
+      String projectName,
+      String repositoryName,
+      Long mergeRequestId,
+      Long mergeRequestIid,
+      String title,
+      String targetBranch,
+      String sourceBranch,
+      String mergeUserName,
+      String ownerName,
+      String moduleName,
+      String labelNames,
+      LocalDateTime mergedAtSource,
+      String reviewStatus,
+      Integer reviewDurationMinutes,
+      String scanStatus,
+      Integer scanBugCount,
+      Double commentRate,
+      Integer defectCount,
+      Integer addedLines,
+      boolean deleted) {
+    insertMergeRequestFact(
+        "test",
+        projectId,
+        projectName,
+        repositoryName,
+        mergeRequestId,
+        mergeRequestIid,
+        title,
+        targetBranch,
+        sourceBranch,
+        mergeUserName,
+        ownerName,
+        moduleName,
+        labelNames,
+        mergedAtSource,
+        reviewStatus,
+        reviewDurationMinutes,
+        scanStatus,
+        scanBugCount,
+        commentRate,
+        defectCount,
+        addedLines,
+        deleted);
+  }
+
+  private void insertMergeRequestFact(
+      String sourceInstance,
       Long projectId,
       String projectName,
       String repositoryName,
@@ -270,11 +375,12 @@ class CodeReviewIllegalRecordSourceLoaderTest {
           deleted
         ) values (
           'GITLAB',
-          'test',
+          ?,
           ?, ?, ?, ?, ?, ?, 'merged', ?, ?, 'Author', ?, ?, 'Reviewer', 'Assignee', ?, ?,
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         """,
+        sourceInstance,
         projectId,
         projectName,
         repositoryName,

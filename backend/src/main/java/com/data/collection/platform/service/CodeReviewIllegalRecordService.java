@@ -111,7 +111,8 @@ public class CodeReviewIllegalRecordService {
             request.mergedBy(),
             request.moduleName(),
             request.mergeRequestIid(),
-            request.owner());
+            request.owner(),
+            request.source());
     List<CodeReviewIllegalRecordView> judgedRows =
         CodeReviewRuleConfigSupport.hasReadyConfig(ruleConfig)
             ? CodeReviewRuleConfigSupport.apply(scopedRows, ruleConfig)
@@ -156,6 +157,7 @@ public class CodeReviewIllegalRecordService {
               request.illegalType(),
               request.mergeRequestIid(),
               request.owner(),
+              request.source(),
               request.filterGroupJson(),
               page,
               EXPORT_PAGE_SIZE,
@@ -230,7 +232,7 @@ public class CodeReviewIllegalRecordService {
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    request.projectId(), null, null, null, null, null, null, null, null))
+                    request.projectId(), null, null, null, null, null, null, null, null, request.source()))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -289,7 +291,8 @@ public class CodeReviewIllegalRecordService {
             request == null ? null : request.mergedBy(),
             request == null ? null : request.moduleName(),
             request == null ? null : request.mergeRequestIid(),
-            request == null ? null : request.owner());
+            request == null ? null : request.owner(),
+            request == null ? null : request.source());
     List<CodeReviewIllegalRecordView> defaultRows =
         scopedRows.stream()
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -325,7 +328,8 @@ public class CodeReviewIllegalRecordService {
       String mergedBy,
       String moduleName,
       String mergeRequestIid,
-      String owner) {
+      String owner,
+      String source) {
     Map<String, String> factFilters =
         CodeReviewIllegalRecordQuerySupport.buildFactFilters(
             projectId,
@@ -336,7 +340,8 @@ public class CodeReviewIllegalRecordService {
             targetBranch,
             moduleName,
             mergeRequestIid,
-            owner);
+            owner,
+            source);
     return sourceLoader.loadSources(factFilters).stream()
         .map(this::toView)
         .filter(row -> CodeReviewIllegalRecordQuerySupport.matchesKeyword(row, keyword))

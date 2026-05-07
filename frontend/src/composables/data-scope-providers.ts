@@ -54,7 +54,8 @@ export function buildScopeOptions(
   values: Array<OptionItemResponse | string>,
   emptyLabel?: string,
 ): DataScopeOption[] {
-  const options = values
+  const safeValues = Array.isArray(values) ? values : [];
+  const options = safeValues
     .map((item) =>
       typeof item === 'string'
         ? { label: item, value: item }

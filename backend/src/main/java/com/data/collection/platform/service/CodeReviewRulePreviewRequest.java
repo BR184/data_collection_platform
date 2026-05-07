@@ -16,5 +16,6 @@ public record CodeReviewRulePreviewRequest(
     String illegalType,
     String mergeRequestIid,
     String owner,
+    String source,
     CodeReviewRuleConfig ruleConfig) {
 }

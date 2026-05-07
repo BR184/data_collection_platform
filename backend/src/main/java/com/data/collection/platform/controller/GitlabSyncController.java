@@ -4,6 +4,7 @@ import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
@@ -25,6 +26,8 @@ import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
+import com.data.collection.platform.service.GitlabSourceInstanceSupport;
+import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
@@ -61,6 +64,7 @@ public class GitlabSyncController {
   private final GitlabSyncTaskService taskService;
   private final GitlabWebhookRegistrationService webhookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
+  private final GitlabSourceHealthService sourceHealthService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -71,7 +75,8 @@ public class GitlabSyncController {
       GitlabWebhookService webhookService,
       GitlabSyncTaskService taskService,
       GitlabWebhookRegistrationService webhookRegistrationService,
-      GitlabMirrorPurgeService purgeService) {
+      GitlabMirrorPurgeService purgeService,
+      GitlabSourceHealthService sourceHealthService) {
     this.configService = configService;
     this.syncService = syncService;
     this.logService = logService;
@@ -81,6 +86,7 @@ public class GitlabSyncController {
     this.taskService = taskService;
     this.webhookRegistrationService = webhookRegistrationService;
     this.purgeService = purgeService;
+    this.sourceHealthService = sourceHealthService;
   }
 
   @GetMapping("/status")
@@ -108,6 +114,11 @@ public class GitlabSyncController {
   @GetMapping("/configs")
   public ApiResponse<List<GitlabSyncConfig>> configs() {
     return ApiResponse.success(configService.listConfigs().stream().map(this::sanitizeConfigForResponse).toList());
+  }
+
+  @GetMapping("/source-health")
+  public ApiResponse<List<GitlabSourceHealthResponse>> sourceHealth() {
+    return ApiResponse.success(sourceHealthService.listHealth());
   }
 
   @GetMapping("/webhook-registration-status")
@@ -265,11 +276,13 @@ public class GitlabSyncController {
   @PostMapping("/purge")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<MirrorPurgeResult> purge(@RequestBody PurgeRequest request) {
-    MirrorPurgeResult result = purgeService.purge(request.scope());
+    GitlabSyncConfig config = resolveConfig(request.configId());
+    MirrorPurgeResult result = purgeService.purge(request.scope(), config.getId());
+    String sourceLabel = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String message = switch (request.scope()) {
-      case MIRROR_DATA_ONLY -> "已真实删除全部镜像数据，GitLab 源端和本地非镜像数据均不受影响";
+      case MIRROR_DATA_ONLY -> "已真实删除 " + sourceLabel + " 镜像数据，GitLab 源端和本地非镜像数据均不受影响";
       case MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST ->
-          "已真实删除当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响";
+          "已真实删除 " + sourceLabel + " 当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响";
     };
     return ApiResponse.success(message, result);
   }
@@ -302,7 +315,7 @@ public class GitlabSyncController {
       Long webhookProjectId,
       @NotNull Integer compensationIntervalMinutes) {}
 
-  public record PurgeRequest(@NotNull MirrorPurgeScope scope) {}
+  public record PurgeRequest(@NotNull MirrorPurgeScope scope, Long configId) {}
 
   private GitlabSyncConfig sanitizeConfigForResponse(GitlabSyncConfig source) {
     GitlabSyncConfig sanitized = new GitlabSyncConfig();

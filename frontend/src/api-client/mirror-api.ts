@@ -1,5 +1,6 @@
 import type {
   GitlabSyncConfig,
+  GitlabSourceHealthResponse,
   GitlabWebhookRegistrationStatus,
   MirrorPurgeResult,
   MirrorPurgeScope,
@@ -12,6 +13,9 @@ import { request } from './request';
 export const mirrorApi = {
   getConfigs() {
     return request<GitlabSyncConfig[]>('/api/gitlab-sync/configs');
+  },
+  getSourceHealth() {
+    return request<GitlabSourceHealthResponse[]>('/api/gitlab-sync/source-health');
   },
   getStatus(configId?: number) {
     return request<MirrorStatusResponse>(withConfigId('/api/gitlab-sync/status', configId));
@@ -53,10 +57,10 @@ export const mirrorApi = {
       method: 'POST',
     });
   },
-  purgeMirrorData(scope: MirrorPurgeScope) {
+  purgeMirrorData(scope: MirrorPurgeScope, configId?: number) {
     return request<MirrorPurgeResult>('/api/gitlab-sync/purge', {
       method: 'POST',
-      body: JSON.stringify({ scope }),
+      body: JSON.stringify({ scope, configId }),
     });
   },
 };

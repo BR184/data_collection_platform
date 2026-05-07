@@ -5,5 +5,6 @@
   "V20260506_03__operational_support_schema.sql": "ac3d068c2cc5f2f9cfded0bb1e096de62f4b5440a015f551dd3945b9f65caada",
   "V20260507_01__operation_audit_logs.sql": "d0427febe963af71dfadc0f2059a13f50dae68086bba58f9fabccc3c2f113f7d",
   "V20260507_02__collect_form_audit_logs.sql": "939970345e6195b6b3cca457149ac910980ac12a774472d73b5a2ac09e17b832",
-  "V20260507_03__gitlab_multi_source_configs.sql": "585bbe0e1f17b9c47c276528efe2620f7b206179d883db95eba983dc322048f1"
+  "V20260507_03__gitlab_multi_source_configs.sql": "585bbe0e1f17b9c47c276528efe2620f7b206179d883db95eba983dc322048f1",
+  "V20260507_04__code_review_source_query_indexes.sql": "f7513cd80361438432dad76f6995b37a0411537040b29abdda78be2b6a02a983"
 }

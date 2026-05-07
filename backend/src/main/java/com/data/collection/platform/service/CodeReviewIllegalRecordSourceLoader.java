@@ -139,6 +139,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     appendContains(where, args, "target_branch", request.targetBranch());
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "owner_name", request.owner());
+    appendSourceInstance(where, args, request.source());
     appendEq(where, args, "merge_request_iid", parseLong(request.mergeRequestIid()));
     appendDateFrom(where, args, "merged_at_source", request.mergedAtStart());
     appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
@@ -216,6 +217,15 @@ public class CodeReviewIllegalRecordSourceLoader {
     }
     where.append(" and lower(coalesce(").append(column).append(", '')) = ?");
     args.add(normalized.toLowerCase(Locale.ROOT));
+  }
+
+  private void appendSourceInstance(StringBuilder where, List<Object> args, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    where.append(" and lower(coalesce(source_instance, 'default')) = ?");
+    args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
   }
 
   private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {

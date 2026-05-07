@@ -426,6 +426,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'illegalType',
       'mergeRequestIid',
       'owner',
+      'source',
     ],
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],

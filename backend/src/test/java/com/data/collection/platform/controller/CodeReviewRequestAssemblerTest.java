@@ -28,6 +28,7 @@ class CodeReviewRequestAssemblerTest {
     request.setIllegalType("missing-module");
     request.setMergeRequestIid("101");
     request.setOwner("owner-a");
+    request.setSource("dgm");
     request.setFilterGroup("{\"logic\":\"AND\"}");
     request.setPage(2);
     request.setSize(10);
@@ -54,6 +55,7 @@ class CodeReviewRequestAssemblerTest {
                 "missing-module",
                 "101",
                 "owner-a",
+                "dgm",
                 "{\"logic\":\"AND\"}",
                 2,
                 10,
@@ -89,11 +91,12 @@ class CodeReviewRequestAssemblerTest {
     CodeReviewIllegalRecordFilterOptionsWebRequest request =
         new CodeReviewIllegalRecordFilterOptionsWebRequest();
     request.setProjectId(325L);
+    request.setSource("cc");
 
     CodeReviewIllegalRecordFilterOptionsRequest queryRequest =
         new CodeReviewRequestAssembler().toIllegalRecordFilterOptionsRequest(request);
 
-    assertThat(queryRequest).isEqualTo(new CodeReviewIllegalRecordFilterOptionsRequest(325L));
+    assertThat(queryRequest).isEqualTo(new CodeReviewIllegalRecordFilterOptionsRequest(325L, "cc"));
   }
 
   @Test
@@ -113,6 +116,7 @@ class CodeReviewRequestAssemblerTest {
     request.setIllegalType("missing-module");
     request.setMergeRequestIid("101");
     request.setOwner("owner-a");
+    request.setSource("dgm");
     request.setRuleConfig(ruleConfig);
 
     CodeReviewRulePreviewRequest previewRequest =
@@ -134,6 +138,7 @@ class CodeReviewRequestAssemblerTest {
                 "missing-module",
                 "101",
                 "owner-a",
+                "dgm",
                 ruleConfig));
   }
 }

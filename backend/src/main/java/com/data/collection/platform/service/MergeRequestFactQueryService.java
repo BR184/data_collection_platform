@@ -55,6 +55,12 @@ public class MergeRequestFactQueryService extends AbstractFactQueryService {
     appendContains(sql, args, "target_branch", filters.get("targetBranch"));
     appendContains(sql, args, "module_name", filters.get("moduleName"));
     appendContains(sql, args, "owner_name", filters.get("owner"));
+    appendEq(
+        sql,
+        args,
+        "source_instance",
+        filters.get("sourceInstance"),
+        GitlabSourceInstanceSupport::normalizeSourceInstance);
     appendEq(sql, args, "merge_request_iid", filters.get("mergeRequestIid"), Long::parseLong);
     appendDateFrom(sql, args, "merged_at_source", filters.get("mergedAtStart"));
     appendDateTo(sql, args, "merged_at_source", filters.get("mergedAtEnd"));

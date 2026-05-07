@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
-import type { GitlabSyncConfig } from '../types/api';
+import type { GitlabSourceHealthResponse, GitlabSyncConfig } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
@@ -20,6 +20,7 @@ import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptions
 
 const initialized = ref(false);
 const configs = ref<GitlabSyncConfig[]>([]);
+const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
 const selectedConfigId = ref<number | undefined>(undefined);
 
 const form = ref<GitlabSyncConfig>({
@@ -120,6 +121,11 @@ const {
 
 const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
 const syncEnabled = computed(() => form.value.autoSyncEnabled);
+const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
+const currentSourceHealth = computed(() => {
+  const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
+  return healthItems.find((item) => item.configId === selectedConfigId.value);
+});
 const {
   progress,
   currentTask,
@@ -146,7 +152,7 @@ const {
   purgeMirrorData,
   handlePurgeDialogBeforeClose,
 } = useMirrorPurgeDialog({
-  purgeMirrorData: (scope) => api.purgeMirrorData(scope),
+  purgeMirrorData: (scope) => api.purgeMirrorData(scope, selectedConfigId.value),
   loadStatus: () => loadStatus(false, false),
   notifyError: (message) => ElMessage.error(message),
   showPurgeSummary: (result) =>
@@ -166,6 +172,7 @@ watch(
 async function initializePage() {
   try {
     await loadConfigs();
+    await loadSourceHealth();
     await loadStatus(false, false);
   } finally {
     initialized.value = true;
@@ -180,10 +187,16 @@ async function loadConfigs() {
   }
 }
 
+async function loadSourceHealth() {
+  const healthItems = await api.getSourceHealth();
+  sourceHealth.value = Array.isArray(healthItems) ? healthItems : [];
+}
+
 async function handleConfigSelection(configId: number) {
   selectedConfigId.value = configId;
   whitelistOptionsLoaded.value = false;
   await loadStatus(true, true);
+  void loadSourceHealth();
   void loadWebhookRegistration(false);
 }
 
@@ -451,6 +464,40 @@ onBeforeUnmount(() => {
       />
 
       <MirrorSyncLogTable :logs="recentLogs" :refreshing="refreshing" @refresh="refreshStatus" />
+
+      <el-card shadow="never" class="panel-card source-health-card">
+        <template #header>
+          <div class="panel-header">
+            <div class="panel-title">数据源健康状态</div>
+          </div>
+        </template>
+        <template v-if="currentSourceHealth">
+          <div class="source-health-grid">
+            <div>
+              <span>镜像表</span>
+              <strong>{{ currentSourceHealth.existingMirrorTables }} / {{ currentSourceHealth.registeredMirrorTables }}</strong>
+            </div>
+            <div>
+              <span>代码走查事实</span>
+              <strong>{{ currentSourceHealth.mergeRequestFactCount }}</strong>
+            </div>
+            <div>
+              <span>最新同步</span>
+              <strong>{{ currentSourceHealth.latestLogStatus || currentSourceHealth.currentStatus || '-' }}</strong>
+            </div>
+          </div>
+          <el-alert
+            v-if="currentSourceHealth.missingRequiredMirrorTables.length"
+            class="source-health-alert"
+            type="warning"
+            :closable="false"
+            show-icon
+            :title="`缺少 ${currentSourceHealth.missingRequiredMirrorTables.length} 张代码走查关键镜像表`"
+            :description="currentSourceHealth.missingRequiredMirrorTables.slice(0, 3).join('、')"
+          />
+        </template>
+        <el-empty v-else description="暂无当前数据源诊断信息" />
+      </el-card>
       </div>
     </div>
   </PageStateShell>
@@ -472,6 +519,9 @@ onBeforeUnmount(() => {
         <div class="purge-hero-title">此操作会真实删除本地镜像数据，且不可恢复。</div>
         <div class="purge-hero-description">
           {{ purgeDialogCopy.detail }}
+        </div>
+        <div class="purge-hero-description">
+          当前作用范围：{{ currentSourceText }}
         </div>
       </div>
 

@@ -14,6 +14,7 @@ public record CodeReviewIllegalRecordQueryRequest(
     String illegalType,
     String mergeRequestIid,
     String owner,
+    String source,
     String filterGroupJson,
     int page,
     int size,

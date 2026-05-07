@@ -20,7 +20,8 @@ final class CodeReviewIllegalRecordQuerySupport {
       String targetBranch,
       String moduleName,
       String mergeRequestIid,
-      String owner) {
+      String owner,
+      String source) {
     Map<String, String> filters = new LinkedHashMap<>();
     if (projectId != null) {
       filters.put("projectId", String.valueOf(projectId));
@@ -33,6 +34,7 @@ final class CodeReviewIllegalRecordQuerySupport {
     putIfPresent(filters, "moduleName", moduleName);
     putIfPresent(filters, "mergeRequestIid", mergeRequestIid);
     putIfPresent(filters, "owner", owner);
+    putIfPresent(filters, "sourceInstance", source);
     return filters;
   }
 

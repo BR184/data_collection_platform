@@ -25,6 +25,7 @@ interface CodeReviewIllegalRecordQueryParams {
   illegalType?: string;
   mergeRequestIid?: string;
   owner?: string;
+  source?: string;
   filterGroup?: StatisticFilterGroup | null;
   page?: number;
   size?: number;
@@ -49,6 +50,7 @@ function buildIllegalRecordQuery(params: CodeReviewIllegalRecordQueryParams, inc
     ...(params.illegalType ? { illegalType: params.illegalType } : {}),
     ...(params.mergeRequestIid ? { mergeRequestIid: params.mergeRequestIid } : {}),
     ...(params.owner ? { owner: params.owner } : {}),
+    ...(params.source ? { source: params.source } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
@@ -70,9 +72,12 @@ export const codeReviewApi = {
     }
     return text;
   },
-  getCodeReviewIllegalRecordFilterOptions(projectId?: string | number | null) {
+  getCodeReviewIllegalRecordFilterOptions(projectId?: string | number | null, source?: string | null) {
     const query = new URLSearchParams(
-      projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
+      {
+        ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+        ...(source ? { source } : {}),
+      },
     );
     return request<CodeReviewIllegalRecordFilterOptionsResponse>(
       `/api/code-review/illegal-records/filter-options${query.toString() ? `?${query.toString()}` : ''}`,

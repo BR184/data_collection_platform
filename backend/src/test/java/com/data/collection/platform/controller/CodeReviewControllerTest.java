@@ -74,6 +74,7 @@ class CodeReviewControllerTest {
                 "缺少模块标签",
                 "101",
                 "王老师",
+                "dgm",
                 "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}",
                 2,
                 10,
@@ -96,6 +97,7 @@ class CodeReviewControllerTest {
             .param("illegalType", "缺少模块标签")
             .param("mergeRequestIid", "101")
             .param("owner", "王老师")
+            .param("source", "dgm")
             .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}")
             .param("page", "2")
             .param("size", "10")
@@ -125,6 +127,7 @@ class CodeReviewControllerTest {
                 "缺少模块标签",
                 "101",
                 "王老师",
+                "cc",
                 "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}",
                 1,
                 20,
@@ -147,6 +150,7 @@ class CodeReviewControllerTest {
             .param("illegalType", "缺少模块标签")
             .param("mergeRequestIid", "101")
             .param("owner", "王老师")
+            .param("source", "cc")
             .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"owner\",\"operator\":\"eq\",\"value\":\"王老师\"}]}")
             .param("sortBy", "mergedAt")
             .param("sortOrder", "desc"))
@@ -159,7 +163,7 @@ class CodeReviewControllerTest {
   @Test
   void shouldReturnIllegalRecordFilterOptions() throws Exception {
     when(codeReviewIllegalRecordService.getFilterOptions(
-            new CodeReviewIllegalRecordFilterOptionsRequest(null)))
+            new CodeReviewIllegalRecordFilterOptionsRequest(null, "cc")))
         .thenReturn(new CodeReviewIllegalRecordFilterOptionsResponse(
             List.of(new OptionItemResponse("合并请求", "merge_request")),
             List.of(),
@@ -169,7 +173,7 @@ class CodeReviewControllerTest {
             List.of(),
             List.of()));
 
-    mockMvc.perform(get("/api/code-review/illegal-records/filter-options"))
+    mockMvc.perform(get("/api/code-review/illegal-records/filter-options").param("source", "cc"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.requestTypes[0].value").value("merge_request"));

@@ -16,6 +16,7 @@ public class CodeReviewRulePreviewWebRequest {
   private String illegalType;
   private String mergeRequestIid;
   private String owner;
+  private String source;
   private CodeReviewRuleConfig ruleConfig;
 
   public Long getProjectId() {
@@ -120,6 +121,14 @@ public class CodeReviewRulePreviewWebRequest {
 
   public void setOwner(String owner) {
     this.owner = owner;
+  }
+
+  public String getSource() {
+    return source;
+  }
+
+  public void setSource(String source) {
+    this.source = source;
   }
 
   public CodeReviewRuleConfig getRuleConfig() {

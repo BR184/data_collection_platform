@@ -25,6 +25,7 @@ public class CodeReviewRequestAssembler {
         request.getIllegalType(),
         request.getMergeRequestIid(),
         request.getOwner(),
+        request.getSource(),
         request.getFilterGroup(),
         request.getPage(),
         request.getSize(),
@@ -40,7 +41,7 @@ public class CodeReviewRequestAssembler {
 
   public CodeReviewIllegalRecordFilterOptionsRequest toIllegalRecordFilterOptionsRequest(
       CodeReviewIllegalRecordFilterOptionsWebRequest request) {
-    return new CodeReviewIllegalRecordFilterOptionsRequest(request.getProjectId());
+    return new CodeReviewIllegalRecordFilterOptionsRequest(request.getProjectId(), request.getSource());
   }
 
   public CodeReviewRulePreviewRequest toRulePreviewRequest(CodeReviewRulePreviewWebRequest request) {
@@ -58,6 +59,7 @@ public class CodeReviewRequestAssembler {
         request.getIllegalType(),
         request.getMergeRequestIid(),
         request.getOwner(),
+        request.getSource(),
         request.getRuleConfig());
   }
 }

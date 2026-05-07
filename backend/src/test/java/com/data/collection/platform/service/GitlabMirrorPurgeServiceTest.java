@@ -68,7 +68,10 @@ class GitlabMirrorPurgeServiceTest {
     when(configService.getConfig()).thenReturn(config);
     when(taskService.hasActiveTask(2L)).thenReturn(false);
     when(logService.start(2L, SyncType.PURGE, List.of(), "删除全部镜像数据")).thenReturn(21L);
-    when(jdbcTemplate.queryForList(anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+    when(jdbcTemplate.queryForList(
+            org.mockito.ArgumentMatchers.contains("from sys_table_registry"),
+            org.mockito.ArgumentMatchers.eq(String.class),
+            org.mockito.ArgumentMatchers.eq(2L)))
         .thenReturn(List.of("ods_gitlab_issues", "ods_gitlab_merge_requests"));
 
     MirrorPurgeResult result = purgeService.purge(MirrorPurgeScope.MIRROR_DATA_ONLY);
@@ -81,8 +84,8 @@ class GitlabMirrorPurgeServiceTest {
     verify(logService).finish(21L, SyncStatus.SUCCESS, "删除全部镜像数据", 4, 0);
     verify(jdbcTemplate).execute("drop table if exists \"ods_gitlab_issues\"");
     verify(jdbcTemplate).execute("drop table if exists \"ods_gitlab_merge_requests\"");
-    verify(jdbcTemplate).execute("truncate table \"sys_table_registry\"");
-    verify(jdbcTemplate).execute("truncate table \"gitlab_mirror_records\"");
+    verify(jdbcTemplate).update("delete from \"sys_table_registry\" where config_id = ?", 2L);
+    verify(jdbcTemplate).update("delete from \"gitlab_mirror_records\" where config_id = ?", 2L);
   }
 
   @Test
@@ -94,9 +97,16 @@ class GitlabMirrorPurgeServiceTest {
     when(whitelistService.resolveOptions(config)).thenReturn(List.of(
         new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
     when(logService.start(3L, SyncType.PURGE, List.of("issues"), "删除白名单外镜像数据")).thenReturn(31L);
-    when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("pg_tables"), org.mockito.ArgumentMatchers.eq(String.class)))
+    when(jdbcTemplate.queryForList(
+            org.mockito.ArgumentMatchers.contains("from sys_table_registry"),
+            org.mockito.ArgumentMatchers.eq(String.class),
+            org.mockito.ArgumentMatchers.eq(3L)))
         .thenReturn(List.of("ods_gitlab_issues", "ods_gitlab_merge_requests"));
-    when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("select mirror_table_name"), org.mockito.ArgumentMatchers.eq(String.class), org.mockito.ArgumentMatchers.any()))
+    when(jdbcTemplate.queryForList(
+            org.mockito.ArgumentMatchers.contains("source_table_name"),
+            org.mockito.ArgumentMatchers.eq(String.class),
+            org.mockito.ArgumentMatchers.eq(3L),
+            org.mockito.ArgumentMatchers.eq("issues")))
         .thenReturn(List.of("ods_gitlab_issues"));
 
     MirrorPurgeResult result = purgeService.purge(MirrorPurgeScope.MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST);
@@ -117,7 +127,10 @@ class GitlabMirrorPurgeServiceTest {
     when(configService.getConfig()).thenReturn(config);
     when(taskService.hasActiveTask(4L)).thenReturn(false);
     when(logService.start(4L, SyncType.PURGE, List.of(), "删除全部镜像数据")).thenReturn(41L);
-    when(jdbcTemplate.queryForList(anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+    when(jdbcTemplate.queryForList(
+            org.mockito.ArgumentMatchers.contains("from sys_table_registry"),
+            org.mockito.ArgumentMatchers.eq(String.class),
+            org.mockito.ArgumentMatchers.eq(4L)))
         .thenReturn(List.of("ods_gitlab_issues"));
     doThrow(new BizException("drop failed"))
         .when(jdbcTemplate)

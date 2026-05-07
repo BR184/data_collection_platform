@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorPurgeResult;
@@ -28,6 +29,7 @@ import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
+import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
@@ -71,6 +73,9 @@ class GitlabSyncControllerTest {
   @Mock
   private GitlabMirrorPurgeService purgeService;
 
+  @Mock
+  private GitlabSourceHealthService sourceHealthService;
+
   private MockMvc mockMvc;
 
   @BeforeEach
@@ -86,7 +91,8 @@ class GitlabSyncControllerTest {
         webhookService,
         taskService,
         webhookRegistrationService,
-        purgeService);
+        purgeService,
+        sourceHealthService);
     mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
   }
 
@@ -191,8 +197,39 @@ class GitlabSyncControllerTest {
   }
 
   @Test
+  void sourceHealthShouldReturnPerSourceDiagnostics() throws Exception {
+    when(sourceHealthService.listHealth())
+        .thenReturn(List.of(new GitlabSourceHealthResponse(
+            2L,
+            "DGM source",
+            "dgm",
+            true,
+            SyncStatus.IDLE,
+            "",
+            null,
+            SyncStatus.SUCCESS,
+            "同步完成",
+            null,
+            5,
+            5,
+            120,
+            0,
+            0,
+            List.of())));
+
+    mockMvc.perform(get("/api/gitlab-sync/source-health"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data[0].sourceInstance").value("dgm"))
+        .andExpect(jsonPath("$.data[0].mergeRequestFactCount").value(120));
+  }
+
+  @Test
   void purgeShouldDeleteMirrorDataOnly() throws Exception {
-    when(purgeService.purge(MirrorPurgeScope.MIRROR_DATA_ONLY))
+    GitlabSyncConfig config = baseConfig();
+    config.setSourceInstance("cc");
+    when(configService.getConfig()).thenReturn(config);
+    when(purgeService.purge(MirrorPurgeScope.MIRROR_DATA_ONLY, 1L))
         .thenReturn(new MirrorPurgeResult(
             MirrorPurgeScope.MIRROR_DATA_ONLY,
             12,
@@ -210,7 +247,7 @@ class GitlabSyncControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.message").value("已真实删除全部镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
+        .andExpect(jsonPath("$.message").value("已真实删除 cc 镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
         .andExpect(jsonPath("$.data.scope").value("MIRROR_DATA_ONLY"))
         .andExpect(jsonPath("$.data.droppedMirrorTables").value(12))
         .andExpect(jsonPath("$.data.truncatedTables").value(2));
@@ -218,7 +255,10 @@ class GitlabSyncControllerTest {
 
   @Test
   void purgeShouldReturnWhitelistScopedMessage() throws Exception {
-    when(purgeService.purge(MirrorPurgeScope.MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST))
+    GitlabSyncConfig config = baseConfig();
+    config.setSourceInstance("dgm");
+    when(configService.getConfig()).thenReturn(config);
+    when(purgeService.purge(MirrorPurgeScope.MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST, 1L))
         .thenReturn(new MirrorPurgeResult(
             MirrorPurgeScope.MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST,
             3,
@@ -236,7 +276,7 @@ class GitlabSyncControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.message").value("已真实删除当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
+        .andExpect(jsonPath("$.message").value("已真实删除 dgm 当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
         .andExpect(jsonPath("$.data.syncTimestampsReset").value(false));
   }
 

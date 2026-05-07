@@ -14,6 +14,7 @@ public class CodeReviewIllegalRecordListWebRequest {
   private String illegalType;
   private String mergeRequestIid;
   private String owner;
+  private String source;
   private String filterGroup;
   private int page = 1;
   private int size = 20;
@@ -123,6 +124,14 @@ public class CodeReviewIllegalRecordListWebRequest {
 
   public void setOwner(String owner) {
     this.owner = owner;
+  }
+
+  public String getSource() {
+    return source;
+  }
+
+  public void setSource(String source) {
+    this.source = source;
   }
 
   public String getFilterGroup() {

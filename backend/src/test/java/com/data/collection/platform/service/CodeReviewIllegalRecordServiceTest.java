@@ -86,6 +86,7 @@ class CodeReviewIllegalRecordServiceTest {
                 null,
                 null,
                 null,
+                null,
                 1,
                 20,
                 "mergeRequestIid",
@@ -108,7 +109,7 @@ class CodeReviewIllegalRecordServiceTest {
                 source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
-        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null));
+        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, "cc"));
 
     assertThat(response.requestTypes()).hasSize(1);
     assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("repo-a", "repo-b");
@@ -136,6 +137,7 @@ class CodeReviewIllegalRecordServiceTest {
                 null,
                 null,
                 "merge_request",
+                null,
                 null,
                 null,
                 null,
@@ -185,6 +187,7 @@ class CodeReviewIllegalRecordServiceTest {
                 null,
                 null,
                 "merge_request",
+                null,
                 null,
                 null,
                 null,
