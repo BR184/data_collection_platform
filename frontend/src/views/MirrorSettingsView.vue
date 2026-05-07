@@ -126,6 +126,23 @@ const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
   return healthItems.find((item) => item.configId === selectedConfigId.value);
 });
+const currentFactLaggingDomains = computed(() => {
+  const health = currentSourceHealth.value;
+  if (!health) {
+    return [];
+  }
+  const domains: string[] = [];
+  if (health.mergeRequestFactLagging) {
+    domains.push('代码走查事实');
+  }
+  if (health.issueFactLagging) {
+    domains.push('议题事实');
+  }
+  if (health.integrationTestFactLagging) {
+    domains.push('集成测试事实');
+  }
+  return domains;
+});
 const {
   progress,
   currentTask,
@@ -501,7 +518,7 @@ onBeforeUnmount(() => {
             type="warning"
             :closable="false"
             show-icon
-            title="事实层可能滞后"
+            :title="`${currentFactLaggingDomains.join('、') || '事实层'}可能滞后`"
             :description="currentSourceHealth.factLayerMessage || '镜像已更新，但统计事实尚未刷新到最新同步时间。'"
           />
         </template>

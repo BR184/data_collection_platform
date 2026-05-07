@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.exception.BizException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 class FactBuildOperationGuardTest {
@@ -58,6 +58,32 @@ class FactBuildOperationGuardTest {
   }
 
   @Test
+  void shouldRejectSameConfigScopedBuildWhenConfigAllBuildIsRunning() {
+    FactBuildOperationGuard guard = new FactBuildOperationGuard();
+
+    guard.run(
+        "all:config-1",
+        () -> {
+          assertThatThrownBy(() -> guard.run("issue:config-1", () -> "issue"))
+              .isInstanceOf(BizException.class);
+          return "all";
+        });
+  }
+
+  @Test
+  void shouldRejectConfigScopedBuildWhenGlobalAllBuildIsRunning() {
+    FactBuildOperationGuard guard = new FactBuildOperationGuard();
+
+    guard.run(
+        "all",
+        () -> {
+          assertThatThrownBy(() -> guard.run("issue:config-1", () -> "issue"))
+              .isInstanceOf(BizException.class);
+          return "all";
+        });
+  }
+
+  @Test
   void shouldAllowDifferentSourcesToBuildInParallel() {
     FactBuildOperationGuard guard = new FactBuildOperationGuard();
 
@@ -66,6 +92,17 @@ class FactBuildOperationGuardTest {
         () -> guard.run("dgm:issue", () -> "dgm"));
 
     assertThat(result).isEqualTo("dgm");
+  }
+
+  @Test
+  void shouldAllowDifferentConfigsToBuildInParallel() {
+    FactBuildOperationGuard guard = new FactBuildOperationGuard();
+
+    String result = guard.run(
+        "all:config-1",
+        () -> guard.run("issue:config-2", () -> "config-2"));
+
+    assertThat(result).isEqualTo("config-2");
   }
 
   @Test

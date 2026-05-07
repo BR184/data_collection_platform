@@ -5,9 +5,9 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SyncStatus;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,8 +48,22 @@ public class GitlabSourceHealthService {
     GitlabSyncLog latestLog = logService.findLatest(config.getId());
     List<String> registeredMirrorTables = registeredMirrorTables(config.getId());
     int existingMirrorTables = countExistingTables(registeredMirrorTables);
-    LocalDateTime latestFactUpdatedAt = latestFactUpdatedAt(sourceInstance);
-    boolean factLayerLagging = isFactLayerLagging(latestLog, latestFactUpdatedAt, existingMirrorTables);
+    LocalDateTime latestMergeRequestFactUpdatedAt =
+        latestFactUpdatedAt("merge_request_fact", sourceInstance);
+    LocalDateTime latestIssueFactUpdatedAt = latestFactUpdatedAt("issue_fact", sourceInstance);
+    LocalDateTime latestIntegrationTestFactUpdatedAt =
+        latestFactUpdatedAt("integration_test_fact", sourceInstance);
+    LocalDateTime latestFactUpdatedAt = latestOf(
+        latestMergeRequestFactUpdatedAt,
+        latestIssueFactUpdatedAt,
+        latestIntegrationTestFactUpdatedAt);
+    boolean mergeRequestFactLagging =
+        isFactLayerLagging(latestLog, latestMergeRequestFactUpdatedAt, existingMirrorTables);
+    boolean issueFactLagging =
+        isFactLayerLagging(latestLog, latestIssueFactUpdatedAt, existingMirrorTables);
+    boolean integrationTestFactLagging =
+        isFactLayerLagging(latestLog, latestIntegrationTestFactUpdatedAt, existingMirrorTables);
+    boolean factLayerLagging = mergeRequestFactLagging || issueFactLagging || integrationTestFactLagging;
     return new GitlabSourceHealthResponse(
         config.getId(),
         config.getName(),
@@ -64,8 +78,14 @@ public class GitlabSourceHealthService {
         registeredMirrorTables.size(),
         existingMirrorTables,
         factLayerLagging,
-        factLayerLagging ? "镜像已更新，但事实层尚未刷新到最新同步时间，页面统计可能仍是旧数据" : "",
+        factLayerLagging ? factLayerMessage(
+            mergeRequestFactLagging,
+            issueFactLagging,
+            integrationTestFactLagging) : "",
         latestFactUpdatedAt,
+        mergeRequestFactLagging,
+        issueFactLagging,
+        integrationTestFactLagging,
         countFacts("merge_request_fact", sourceInstance),
         countFacts("issue_fact", sourceInstance),
         countFacts("integration_test_fact", sourceInstance),
@@ -139,12 +159,11 @@ public class GitlabSourceHealthService {
     }
   }
 
-  private LocalDateTime latestFactUpdatedAt(String sourceInstance) {
+  private LocalDateTime latestOf(LocalDateTime... values) {
     LocalDateTime latest = null;
-    for (String tableName : List.of("merge_request_fact", "issue_fact", "integration_test_fact")) {
-      LocalDateTime tableLatest = latestFactUpdatedAt(tableName, sourceInstance);
-      if (tableLatest != null && (latest == null || tableLatest.isAfter(latest))) {
-        latest = tableLatest;
+    for (LocalDateTime value : values) {
+      if (value != null && (latest == null || value.isAfter(latest))) {
+        latest = value;
       }
     }
     return latest;
@@ -179,6 +198,26 @@ public class GitlabSourceHealthService {
       return true;
     }
     return latestFactUpdatedAt.isBefore(latestLog.getFinishedAt().minusSeconds(5));
+  }
+
+  private String factLayerMessage(
+      boolean mergeRequestFactLagging,
+      boolean issueFactLagging,
+      boolean integrationTestFactLagging) {
+    List<String> laggingDomains = new ArrayList<>();
+    if (mergeRequestFactLagging) {
+      laggingDomains.add("\u4ee3\u7801\u8d70\u67e5\u4e8b\u5b9e");
+    }
+    if (issueFactLagging) {
+      laggingDomains.add("\u8bae\u9898\u4e8b\u5b9e");
+    }
+    if (integrationTestFactLagging) {
+      laggingDomains.add("\u96c6\u6210\u6d4b\u8bd5\u4e8b\u5b9e");
+    }
+    return "\u955c\u50cf\u5df2\u66f4\u65b0\uff0c\u4f46"
+        + String.join("\u3001", laggingDomains)
+        + "\u5c1a\u672a\u5237\u65b0\u5230\u6700\u65b0\u540c\u6b65\u65f6\u95f4\uff0c"
+        + "\u9875\u9762\u7edf\u8ba1\u53ef\u80fd\u4ecd\u662f\u65e7\u6570\u636e";
   }
 
   private String quoteIdentifier(String identifier) {

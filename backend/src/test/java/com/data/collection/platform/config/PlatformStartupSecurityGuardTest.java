@@ -9,6 +9,20 @@ import org.springframework.mock.env.MockEnvironment;
 
 class PlatformStartupSecurityGuardTest {
   @Test
+  void shouldRejectUnsafeDefaultsByDefault() {
+    PlatformAuthProperties properties = new PlatformAuthProperties();
+
+    PlatformStartupSecurityGuard guard =
+        new PlatformStartupSecurityGuard(properties, new MockEnvironment());
+
+    assertThatThrownBy(() -> guard.run(new DefaultApplicationArguments()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("PLATFORM_ADMIN_PASSWORD")
+        .hasMessageContaining("DATASOURCE_PASSWORD")
+        .hasMessageContaining("GITLAB_WEB_BASE_URL");
+  }
+
+  @Test
   void shouldAllowLocalDefaultCredentialsWhenSecureConfigNotRequired() {
     PlatformAuthProperties properties = new PlatformAuthProperties();
     properties.setSecureConfigRequired(false);

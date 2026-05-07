@@ -8,7 +8,7 @@ public class PlatformAuthProperties {
   private String adminPassword = "admin123";
   private String approvalUsername = "approval";
   private String approvalPassword = "approval";
-  private boolean secureConfigRequired = false;
+  private boolean secureConfigRequired = true;
 
   public String getAdminUsername() {
     return adminUsername;

@@ -53,6 +53,9 @@ export interface GitlabSourceHealthResponse {
   factLayerLagging: boolean;
   factLayerMessage?: string | null;
   latestFactUpdatedAt?: string | null;
+  mergeRequestFactLagging: boolean;
+  issueFactLagging: boolean;
+  integrationTestFactLagging: boolean;
   mergeRequestFactCount: number;
   issueFactCount: number;
   integrationTestFactCount: number;

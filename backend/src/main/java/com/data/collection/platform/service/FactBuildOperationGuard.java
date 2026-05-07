@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class FactBuildOperationGuard {
+  private static final List<String> FACT_DOMAINS = List.of("all", "issue", "merge-request", "integration-test");
+
   private final Map<String, Long> runningScopes = new HashMap<>();
   private final LongSupplier currentTimeMillis;
 
@@ -54,12 +57,17 @@ public class FactBuildOperationGuard {
     if (runningScopes.isEmpty()) {
       return false;
     }
-    String sourcePrefix = sourcePrefix(scope);
-    if (isAllScope(scope)) {
-      return runningScopes.keySet().stream().anyMatch(runningScope -> sourcePrefix(runningScope).equals(sourcePrefix));
+    GuardScope requested = GuardScope.parse(scope);
+    return runningScopes.keySet().stream()
+        .map(GuardScope::parse)
+        .anyMatch(runningScope -> runningScope.conflictsWith(requested));
+  }
+
+  private String normalizeScope(String scope) {
+    if (scope == null || scope.isBlank()) {
+      return "all";
     }
-    String allScope = sourcePrefix.isBlank() ? "all" : sourcePrefix + ":all";
-    return runningScopes.containsKey(allScope) || runningScopes.containsKey(scope);
+    return scope.trim().toLowerCase(Locale.ROOT).replace('_', '-');
   }
 
   private void removeExpiredScopes() {
@@ -74,19 +82,43 @@ public class FactBuildOperationGuard {
     });
   }
 
-  private boolean isAllScope(String scope) {
-    return "all".equals(scope) || scope.endsWith(":all");
-  }
-
-  private String sourcePrefix(String scope) {
-    int separator = scope.indexOf(':');
-    return separator < 0 ? "" : scope.substring(0, separator);
-  }
-
-  private String normalizeScope(String scope) {
-    if (scope == null || scope.isBlank()) {
-      return "all";
+  private record GuardScope(String domain, String owner) {
+    static GuardScope parse(String scope) {
+      String[] parts = scope.split(":");
+      if (parts.length == 1) {
+        return new GuardScope(parts[0], "");
+      }
+      String first = parts[0];
+      String last = parts[parts.length - 1];
+      if (FACT_DOMAINS.contains(first)) {
+        return new GuardScope(first, join(parts, 1, parts.length));
+      }
+      if (FACT_DOMAINS.contains(last)) {
+        return new GuardScope(last, join(parts, 0, parts.length - 1));
+      }
+      return new GuardScope(first, join(parts, 1, parts.length));
     }
-    return scope.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+
+    boolean conflictsWith(GuardScope requested) {
+      if (isGlobalAll() || requested.isGlobalAll()) {
+        return true;
+      }
+      if (!owner.equals(requested.owner)) {
+        return false;
+      }
+      return isAll() || requested.isAll() || domain.equals(requested.domain);
+    }
+
+    private boolean isAll() {
+      return "all".equals(domain);
+    }
+
+    private boolean isGlobalAll() {
+      return isAll() && owner.isBlank();
+    }
+
+    private static String join(String[] parts, int startInclusive, int endExclusive) {
+      return String.join(":", java.util.Arrays.copyOfRange(parts, startInclusive, endExclusive));
+    }
   }
 }
