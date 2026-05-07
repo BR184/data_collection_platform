@@ -51,6 +51,12 @@ public class IssueFactQueryService extends AbstractFactQueryService {
   }
 
   private void applyCommonFilters(StringBuilder sql, List<Object> args, Map<String, String> filters) {
+    appendEq(
+        sql,
+        args,
+        "source_instance",
+        filters.get("sourceInstance"),
+        GitlabSourceInstanceSupport::normalizeSourceInstance);
     appendEq(sql, args, "project_id", filters.get("projectId"), Long::parseLong);
     appendContains(sql, args, "project_name", filters.get("projectName"));
     appendContains(sql, args, "milestone_title", filters.get("milestoneTitle"));

@@ -137,6 +137,51 @@ class SqlPushdownRealChainTest {
   }
 
   @Test
+  void shouldFilterStatisticBoardBySourceInstanceThroughHttpPath() throws Exception {
+    insertIssueFact(
+        "cc",
+        1001L,
+        75001L,
+        501,
+        "CC_PRODUCT",
+        "CC system test defect",
+        "alice",
+        "bob",
+        "cc-module",
+        "R1\u7cfb\u7edf\u6d4b\u8bd5",
+        "R1\u7cfb\u7edf\u6d4b\u8bd5",
+        "CC2026R1",
+        false,
+        "",
+        "\u7f16\u7801\u903b\u8f91\u9519\u8bef",
+        "\u7cfb\u7edf\u6d4b\u8bd5",
+        LocalDateTime.of(2026, 3, 2, 10, 0));
+    insertIssueFact(
+        "dgm",
+        1002L,
+        75002L,
+        502,
+        "DGM_PRODUCT",
+        "DGM system test defect",
+        "carol",
+        "dave",
+        "dgm-module",
+        "R1\u7cfb\u7edf\u6d4b\u8bd5",
+        "R1\u7cfb\u7edf\u6d4b\u8bd5",
+        "DGM2026R1",
+        false,
+        "",
+        "\u7f16\u7801\u903b\u8f91\u9519\u8bef",
+        "\u7cfb\u7edf\u6d4b\u8bd5",
+        LocalDateTime.of(2026, 3, 2, 11, 0));
+
+    JsonNode response = getJson("/api/statistic-boards/system-test-defect-summary", "sourceInstance=cc");
+
+    assertThat(response.at("/data/appliedFilters/sourceInstance").asText()).isEqualTo("cc");
+    assertThat(rowLabels(response)).contains("cc-module").doesNotContain("dgm-module");
+  }
+
+  @Test
   void shouldKeepCodeReviewKeywordAndFilterGroupBehaviorThroughHttpSqlPath() throws Exception {
     insertMergeRequestFact(
         2001L,
@@ -205,7 +250,51 @@ class SqlPushdownRealChainTest {
     return body;
   }
 
+  private java.util.List<String> rowLabels(JsonNode response) {
+    java.util.List<String> labels = new java.util.ArrayList<>();
+    response.at("/data/rows").forEach(row -> labels.add(row.get("rowLabel").asText()));
+    return labels;
+  }
+
   private void insertIssueFact(
+      Long projectId,
+      Long issueId,
+      Integer issueIid,
+      String projectName,
+      String title,
+      String authorName,
+      String assigneeName,
+      String moduleNames,
+      String testingPhase,
+      String systemTestLabel,
+      String milestoneTitle,
+      boolean illegal,
+      String illegalReason,
+      String reasonCategory,
+      String labelNames,
+      LocalDateTime createdAt) {
+    insertIssueFact(
+        "default",
+        projectId,
+        issueId,
+        issueIid,
+        projectName,
+        title,
+        authorName,
+        assigneeName,
+        moduleNames,
+        testingPhase,
+        systemTestLabel,
+        milestoneTitle,
+        illegal,
+        illegalReason,
+        reasonCategory,
+        labelNames,
+        createdAt);
+  }
+
+  private void insertIssueFact(
+      String sourceInstance,
       Long projectId,
       Long issueId,
       Integer issueIid,
@@ -256,7 +345,7 @@ class SqlPushdownRealChainTest {
           assignee_search_text, assignee_search_compact, assignee_search_spell, assignee_search_initials,
           phase_search_text, phase_search_compact, phase_search_spell, phase_search_initials
         ) values (
-          'GITLAB', 'default', ?, ?, ?, ?, ?, 'opened', ?, ?, ?, ?, ?, ?, ?, ?, 'LEVEL2', 'P1', ?,
+          'GITLAB', ?, ?, ?, ?, ?, ?, 'opened', ?, ?, ?, ?, ?, ?, ?, ?, 'LEVEL2', 'P1', ?,
           ?, ?, ?, ?, ?, false, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
@@ -267,6 +356,7 @@ class SqlPushdownRealChainTest {
           ?, ?, ?, ?
         )
         """,
+        sourceInstance,
         projectId,
         projectName,
         issueId,

@@ -8,6 +8,7 @@ import java.util.Locale;
 
 public final class GitlabSourceInstanceSupport {
   public static final String DEFAULT_SOURCE_INSTANCE = "default";
+  public static final int MAX_SOURCE_INSTANCE_LENGTH = 64;
   private static final String MIRROR_PREFIX = "ods_gitlab_";
   private static final int POSTGRES_IDENTIFIER_MAX_LENGTH = 63;
 
