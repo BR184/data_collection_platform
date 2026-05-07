@@ -25,6 +25,7 @@ public class GitlabWhitelistService {
       "projects",
       "namespaces",
       "members",
+      "milestones",
       "issues",
       "issue_assignees",
       "issue_metrics",
@@ -48,6 +49,7 @@ public class GitlabWhitelistService {
     FRIENDLY_LABELS.put("projects", "项目");
     FRIENDLY_LABELS.put("namespaces", "命名空间");
     FRIENDLY_LABELS.put("members", "成员关系");
+    FRIENDLY_LABELS.put("milestones", "里程碑");
     FRIENDLY_LABELS.put("issues", "缺陷 / Issue");
     FRIENDLY_LABELS.put("issue_assignees", "缺陷指派");
     FRIENDLY_LABELS.put("issue_metrics", "缺陷指标");

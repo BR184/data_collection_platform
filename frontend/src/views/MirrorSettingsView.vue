@@ -22,6 +22,9 @@ const initialized = ref(false);
 const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
 const selectedConfigId = ref<number | undefined>(undefined);
+const isCreatingNewConfig = ref(false);
+const previousConfigIdBeforeCreate = ref<number | undefined>(undefined);
+const newConfigSnapshot = ref('');
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
@@ -88,6 +91,9 @@ const {
     const saved = await api.saveConfig(config);
     await loadConfigs();
     selectedConfigId.value = saved.id;
+    isCreatingNewConfig.value = false;
+    previousConfigIdBeforeCreate.value = undefined;
+    newConfigSnapshot.value = '';
     return saved;
   },
   testConnectionData: () => api.testConnection(selectedConfigId.value),
@@ -121,6 +127,10 @@ const {
 
 const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
 const syncEnabled = computed(() => form.value.autoSyncEnabled);
+const sourceSelectPlaceholder = computed(() =>
+  isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
+);
+const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
 const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
@@ -210,6 +220,9 @@ async function loadSourceHealth() {
 }
 
 async function handleConfigSelection(configId: number) {
+  if (isCreatingNewConfig.value) {
+    return;
+  }
   selectedConfigId.value = configId;
   whitelistOptionsLoaded.value = false;
   await loadStatus(true, true);
@@ -218,6 +231,9 @@ async function handleConfigSelection(configId: number) {
 }
 
 function createNewConfig() {
+  previousConfigIdBeforeCreate.value = selectedConfigId.value;
+  isCreatingNewConfig.value = true;
+  stopRunningRefresh();
   selectedConfigId.value = undefined;
   form.value = {
     ...form.value,
@@ -229,6 +245,36 @@ function createNewConfig() {
     lastFullSyncAt: null,
     lastIncrementalSyncAt: null,
   };
+  newConfigSnapshot.value = JSON.stringify(form.value);
+}
+
+async function cancelNewConfig() {
+  if (JSON.stringify(form.value) !== newConfigSnapshot.value) {
+    try {
+      await ElMessageBox.confirm('放弃未保存的数据源配置？', '取消新增数据源', {
+        type: 'warning',
+        confirmButtonText: '放弃',
+        cancelButtonText: '继续填写',
+      });
+    } catch {
+      return;
+    }
+  }
+  isCreatingNewConfig.value = false;
+  selectedConfigId.value = previousConfigIdBeforeCreate.value ?? configs.value.find((item) => item.id != null)?.id;
+  previousConfigIdBeforeCreate.value = undefined;
+  newConfigSnapshot.value = '';
+  whitelistOptionsLoaded.value = false;
+  await loadStatus(true, true);
+  void loadSourceHealth();
+  void loadWebhookRegistration(false);
+}
+
+async function refreshCurrentStatus() {
+  if (isCreatingNewConfig.value) {
+    return;
+  }
+  await refreshStatus();
 }
 
 onMounted(async () => {
@@ -303,7 +349,8 @@ onBeforeUnmount(() => {
           <div style="display: flex; width: 100%; gap: 8px">
             <el-select
               v-model="selectedConfigId"
-              placeholder="选择已绑定的数据源"
+              :placeholder="sourceSelectPlaceholder"
+              :disabled="isCreatingNewConfig"
               style="width: 100%"
               @change="handleConfigSelection"
             >
@@ -314,7 +361,8 @@ onBeforeUnmount(() => {
                 :value="item.id"
               />
             </el-select>
-            <el-button @click="createNewConfig">新增数据源</el-button>
+            <el-button v-if="!isCreatingNewConfig" @click="createNewConfig">新增数据源</el-button>
+            <el-button v-else @click="cancelNewConfig">取消新增</el-button>
           </div>
         </el-form-item>
         <el-form-item label="来源标识">
@@ -455,14 +503,44 @@ onBeforeUnmount(() => {
 
         <el-space wrap>
           <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
-          <el-button :icon="Tools" :loading="testing" :disabled="saving || testing" @click="testConnection">测试连接</el-button>
-          <el-button :loading="registeringWebhook" @click="registerWebhook">注册 Webhook</el-button>
-          <el-button type="success" :loading="syncing" :disabled="!syncEnabled" @click="startFullSync">首次全量同步</el-button>
-          <el-button :loading="syncing" :disabled="!syncEnabled" @click="startIncrementalSync">立即增量同步</el-button>
-          <el-button type="danger" plain :loading="cancelling" :disabled="!canCancel" @click="cancelSyncTask">
+          <el-button
+            :icon="Tools"
+            :loading="testing"
+            :disabled="saving || testing || savedConfigActionDisabled"
+            @click="testConnection"
+          >
+            测试连接
+          </el-button>
+          <el-button :loading="registeringWebhook" :disabled="savedConfigActionDisabled" @click="registerWebhook">
+            注册 Webhook
+          </el-button>
+          <el-button
+            type="success"
+            :loading="syncing"
+            :disabled="!syncEnabled || savedConfigActionDisabled"
+            @click="startFullSync"
+          >
+            首次全量同步
+          </el-button>
+          <el-button
+            :loading="syncing"
+            :disabled="!syncEnabled || savedConfigActionDisabled"
+            @click="startIncrementalSync"
+          >
+            立即增量同步
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :loading="cancelling"
+            :disabled="!canCancel || savedConfigActionDisabled"
+            @click="cancelSyncTask"
+          >
             中止导入
           </el-button>
-          <el-button type="danger" plain @click="openPurgeDialog">删除镜像数据</el-button>
+          <el-button type="danger" plain :disabled="savedConfigActionDisabled" @click="openPurgeDialog">
+            删除镜像数据
+          </el-button>
         </el-space>
       </el-form>
     </el-card>
@@ -480,7 +558,7 @@ onBeforeUnmount(() => {
         :current-started-at="status?.currentStartedAt"
       />
 
-      <MirrorSyncLogTable :logs="recentLogs" :refreshing="refreshing" @refresh="refreshStatus" />
+      <MirrorSyncLogTable :logs="recentLogs" :refreshing="refreshing" @refresh="refreshCurrentStatus" />
 
       <el-card shadow="never" class="panel-card source-health-card">
         <template #header>

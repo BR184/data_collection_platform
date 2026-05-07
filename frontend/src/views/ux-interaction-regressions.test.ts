@@ -33,4 +33,13 @@ describe('UX interaction regressions', () => {
     expect(mirrorSettingsSource).toContain('testing');
     expect(mirrorSettingsSource).toContain(':loading="testing"');
   });
+
+  it('keeps mirror source creation separate from selecting an existing source', () => {
+    expect(mirrorSettingsSource).toContain('isCreatingNewConfig');
+    expect(mirrorSettingsSource).toContain('新增数据源（未保存）');
+    expect(mirrorSettingsSource).toContain(':disabled="isCreatingNewConfig"');
+    expect(mirrorSettingsSource).toContain('cancelNewConfig');
+    expect(mirrorSettingsSource).toContain('savedConfigActionDisabled');
+    expect(mirrorSettingsSource).toContain('refreshCurrentStatus');
+  });
 });
