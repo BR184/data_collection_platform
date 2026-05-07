@@ -40,6 +40,19 @@ class FactBuildTaskServiceTest {
   }
 
   @Test
+  void shouldPreserveSourceScopedBuildTask() {
+    FactBuildResponse response =
+        factBuildTaskService.runGuarded(
+            "cc:merge-request", false, () -> new FactBuildResponse("cc:merge-request", false, 3, "done"));
+
+    assertThat(response.affectedRows()).isEqualTo(3);
+    var latest = factBuildTaskService.latest("cc:merge-request");
+    assertThat(latest).isNotNull();
+    assertThat(latest.scope()).isEqualTo("cc:merge-request");
+    assertThat(latest.status()).isEqualTo("SUCCESS");
+  }
+
+  @Test
   void shouldSkipWhenAnotherBuildHoldsLock() {
     FactBuildResponse response =
         jdbcTemplate.execute(

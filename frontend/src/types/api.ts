@@ -50,6 +50,9 @@ export interface GitlabSourceHealthResponse {
   latestLogFinishedAt?: string | null;
   registeredMirrorTables: number;
   existingMirrorTables: number;
+  factLayerLagging: boolean;
+  factLayerMessage?: string | null;
+  latestFactUpdatedAt?: string | null;
   mergeRequestFactCount: number;
   issueFactCount: number;
   integrationTestFactCount: number;

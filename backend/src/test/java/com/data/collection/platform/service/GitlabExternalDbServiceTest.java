@@ -84,6 +84,22 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
+  void shouldUseExponentialBackoffWithJitterForExternalQueryRetries() {
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setExternalQueryRetryDelayMs(1000);
+    properties.setExternalQueryRetryMaxDelayMs(2500);
+    service = new GitlabExternalDbService(properties, new ObjectMapper());
+
+    long firstDelay = service.computeExternalQueryRetryDelayMs(1);
+    long secondDelay = service.computeExternalQueryRetryDelayMs(2);
+    long cappedDelay = service.computeExternalQueryRetryDelayMs(4);
+
+    assertThat(firstDelay).isBetween(1000L, 1500L);
+    assertThat(secondDelay).isBetween(2000L, 2500L);
+    assertThat(cappedDelay).isBetween(2500L, 2500L);
+  }
+
+  @Test
   void shouldNotRetrySqlErrorsFromSourceDatabase() {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setExternalQueryRetryAttempts(3);

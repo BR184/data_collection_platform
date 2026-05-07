@@ -57,9 +57,30 @@ public class GitlabWebhookAsyncDispatchService {
       syncService.startWebhookSync(config, eventType, payload);
       return;
     }
+    int maxQueueSize = Math.max(1, properties.getWebhookMaxQueueSize());
+    if (queuedCount.get() >= maxQueueSize) {
+      try (GitlabSyncLogContext.Scope context =
+               GitlabSyncLogContext.openConfig(config, "WEBHOOK_ASYNC", plan.objectKey());
+           GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(plan.objectId());
+           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("QUEUE_OVERFLOW")) {
+        log.warn(
+            "Webhook precise queue is full, fallback to incremental sync, eventType={}, objectKey={}, objectId={}, queuedSize={}, maxQueueSize={}",
+            eventType,
+            plan.objectKey(),
+            plan.objectId(),
+            queuedCount.get(),
+            maxQueueSize);
+      }
+      syncService.startIncrementalSync(
+          config.getId(),
+          com.data.collection.platform.entity.SyncTriggerType.WEBHOOK,
+          "Webhook precise queue overloaded; fallback incremental sync");
+      return;
+    }
 
     QueuedWebhookEntry entry = new QueuedWebhookEntry(
         config.getId(),
+        buildDispatchKey(config.getId(), plan.objectKey()),
         plan.objectKey(),
         plan.objectId(),
         eventType,
@@ -104,7 +125,7 @@ public class GitlabWebhookAsyncDispatchService {
     Map<String, QueuedWebhookEntry> latestByObject = new java.util.LinkedHashMap<>();
     for (QueuedWebhookEntry queued : drained) {
       latestByObject.merge(
-          queued.objectKey(),
+          queued.dispatchKey(),
           queued,
           (left, right) -> left.receivedAt().isAfter(right.receivedAt()) ? left : right);
     }
@@ -117,7 +138,7 @@ public class GitlabWebhookAsyncDispatchService {
   }
 
   private void executeSerial(QueuedWebhookEntry entry) {
-    ReentrantLock lock = objectLocks.computeIfAbsent(entry.objectKey(), ignored -> new ReentrantLock());
+    ReentrantLock lock = objectLocks.computeIfAbsent(entry.dispatchKey(), ignored -> new ReentrantLock());
     lock.lock();
     try {
       GitlabSyncConfig config = configService.getConfigById(entry.configId());
@@ -142,8 +163,13 @@ public class GitlabWebhookAsyncDispatchService {
     workerPool.shutdownNow();
   }
 
+  private String buildDispatchKey(Long configId, String objectKey) {
+    return (configId == null ? "default" : configId.toString()) + ":" + objectKey;
+  }
+
   record QueuedWebhookEntry(
       Long configId,
+      String dispatchKey,
       String objectKey,
       String objectId,
       String eventType,

@@ -188,6 +188,17 @@ public class FactBuildTaskService {
     if (normalized == null) {
       return "all";
     }
+    normalized = normalized.trim().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+    int sourceSeparator = normalized.indexOf(':');
+    if (sourceSeparator > 0 && sourceSeparator < normalized.length() - 1) {
+      String source = normalized.substring(0, sourceSeparator);
+      String scoped = normalizeBaseScope(normalized.substring(sourceSeparator + 1));
+      return source + ":" + scoped;
+    }
+    return normalizeBaseScope(normalized);
+  }
+
+  private String normalizeBaseScope(String normalized) {
     return switch (normalized) {
       case "merge_request" -> "merge-request";
       case "issue", "merge-request", "all" -> normalized;

@@ -84,6 +84,47 @@ class GitlabWebhookAsyncDispatchServiceTest {
   }
 
   @Test
+  void shouldNotMergeSameObjectAcrossDifferentGitlabSources() {
+    GitlabSyncConfig dgmConfig = new GitlabSyncConfig();
+    dgmConfig.setId(2L);
+    dgmConfig.setSourceInstance("dgm");
+    dgmConfig.setSourceMode(SourceMode.DOCKER);
+    dgmConfig.setWhitelistMode(WhitelistMode.RECOMMENDED);
+    when(configService.getConfigById(2L)).thenReturn(dgmConfig);
+
+    Map<String, Object> ccPayload = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101L, "title", "cc"));
+    Map<String, Object> dgmPayload = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101L, "title", "dgm"));
+
+    when(planner.plan(ccPayload)).thenReturn(new GitlabWebhookPreciseSyncPlan("issue:101", "101", List.of(new GitlabWebhookPreciseSyncTarget("issues", "id", 101L))));
+    when(planner.plan(dgmPayload)).thenReturn(new GitlabWebhookPreciseSyncPlan("issue:101", "101", List.of(new GitlabWebhookPreciseSyncTarget("issues", "id", 101L))));
+
+    service.accept(configService.getConfig(), "Issue Hook", ccPayload);
+    service.accept(dgmConfig, "Issue Hook", dgmPayload);
+    service.flushPending();
+
+    verify(syncService, timeout(1000).times(1)).executeRealtimeWebhookSync(eq(configService.getConfig()), eq(ccPayload), eq("101"));
+    verify(syncService, timeout(1000).times(1)).executeRealtimeWebhookSync(eq(dgmConfig), eq(dgmPayload), eq("101"));
+  }
+
+  @Test
+  void shouldFallbackToIncrementalSyncWhenPreciseQueueIsFull() {
+    properties.setWebhookMaxQueueSize(1);
+    Map<String, Object> payload1 = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101L));
+    Map<String, Object> payload2 = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 202L));
+
+    when(planner.plan(payload1)).thenReturn(new GitlabWebhookPreciseSyncPlan("issue:101", "101", List.of(new GitlabWebhookPreciseSyncTarget("issues", "id", 101L))));
+    when(planner.plan(payload2)).thenReturn(new GitlabWebhookPreciseSyncPlan("issue:202", "202", List.of(new GitlabWebhookPreciseSyncTarget("issues", "id", 202L))));
+
+    service.accept("Issue Hook", payload1);
+    service.accept("Issue Hook", payload2);
+    service.flushPending();
+
+    verify(syncService).startIncrementalSync(eq(1L), eq(com.data.collection.platform.entity.SyncTriggerType.WEBHOOK), Mockito.contains("Webhook precise queue"));
+    verify(syncService, timeout(1000).times(1)).executeRealtimeWebhookSync(any(), eq(payload1), eq("101"));
+    verify(syncService, Mockito.never()).executeRealtimeWebhookSync(any(), eq(payload2), eq("202"));
+  }
+
+  @Test
   void shouldSerializeExecutionForSameObjectKeyAcrossFlushes() throws Exception {
     Map<String, Object> payload1 = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101L, "title", "first"));
     Map<String, Object> payload2 = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101L, "title", "second"));

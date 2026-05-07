@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -448,7 +449,6 @@ public class GitlabExternalDbService {
 
   <T> T executeExternalQueryWithRetry(String operation, Supplier<T> supplier) {
     int attempts = Math.max(1, properties.getExternalQueryRetryAttempts());
-    int retryDelayMs = Math.max(0, properties.getExternalQueryRetryDelayMs());
     RuntimeException lastFailure = null;
     for (int attempt = 1; attempt <= attempts; attempt++) {
       try {
@@ -458,6 +458,7 @@ public class GitlabExternalDbService {
         if (attempt >= attempts || !isRetryableExternalFailure(e)) {
           throw e;
         }
+        long retryDelayMs = computeExternalQueryRetryDelayMs(attempt);
         log.warn(
             "Transient GitLab external query failure, operation={}, attempt={}/{}, retryDelayMs={}, message={}",
             operation,
@@ -469,6 +470,23 @@ public class GitlabExternalDbService {
       }
     }
     throw lastFailure;
+  }
+
+  long computeExternalQueryRetryDelayMs(int attempt) {
+    long baseDelayMs = Math.max(0, properties.getExternalQueryRetryDelayMs());
+    if (baseDelayMs <= 0) {
+      return 0;
+    }
+    long maxDelayMs = Math.max(baseDelayMs, properties.getExternalQueryRetryMaxDelayMs());
+    int exponent = Math.max(0, Math.min(10, attempt - 1));
+    long exponentialDelay = baseDelayMs * (1L << exponent);
+    long cappedDelay = Math.min(exponentialDelay, maxDelayMs);
+    if (cappedDelay >= maxDelayMs) {
+      return maxDelayMs;
+    }
+    long jitterBound = Math.max(1, cappedDelay / 2);
+    long jitter = ThreadLocalRandom.current().nextLong(jitterBound + 1);
+    return Math.min(maxDelayMs, cappedDelay + jitter);
   }
 
   boolean isRetryableExternalFailure(RuntimeException e) {
@@ -506,7 +524,7 @@ public class GitlabExternalDbService {
     return lines;
   }
 
-  private void sleepBeforeRetry(int retryDelayMs) {
+  private void sleepBeforeRetry(long retryDelayMs) {
     if (retryDelayMs <= 0) {
       return;
     }

@@ -49,13 +49,17 @@ platform:
     webhook-status-cache-seconds: 60
     webhook-batch-window-seconds: 3
     webhook-batch-size: 10
+    webhook-max-queue-size: ${GITLAB_WEBHOOK_MAX_QUEUE_SIZE:1000}
     external-query-timeout-seconds: 120
     external-query-retry-attempts: 3
     external-query-retry-delay-ms: 1000
+    external-query-retry-max-delay-ms: ${GITLAB_EXTERNAL_QUERY_RETRY_MAX_DELAY_MS:30000}
     incremental-lookback-minutes: 5
   review-data:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
     search-index-backfill-delay-ms: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_DELAY_MS:300000}
+  fact-build:
+    guard-timeout-ms: ${FACT_BUILD_GUARD_TIMEOUT_MS:7200000}
     search-index-backfill-batch-size: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_BATCH_SIZE:200}
   query:
     slow-threshold-ms: ${PLATFORM_SLOW_QUERY_THRESHOLD_MS:1000}

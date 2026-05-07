@@ -211,6 +211,15 @@
     - 镜像清理从全局扫描/全局清空改为按当前 `configId` 和来源实例隔离，避免清理 CC 时误删 DGM，或清理默认源时影响命名源。
     - 新增 `V20260507_04__code_review_source_query_indexes.sql`，为代码走查来源切换后的列表查询补 `source_instance + deleted + merged_at_source` 组合索引。
     - 前端对数据源选项和健康诊断响应增加数组兜底，接口异常或内网抖动时页面不会因为响应形状异常直接崩溃。
+  - 2026-05-07 code review 风险合并方案第一批落地：
+    - Webhook 精确同步队列的合并 key 已加入 `configId`，避免 CC/DGM 中相同 GitLab 对象 ID 在 3 秒批窗口内互相覆盖。
+    - Webhook 精确同步队列新增 `webhook-max-queue-size` 上限，达到上限后不再继续堆内存，改触发当前 GitLab 源的增量同步补偿。
+    - 外部 GitLab 查询重试从固定间隔改为指数退避 + jitter + 最大延迟上限，降低内网抖动时对 GitLab 源库的同步重试冲击。
+    - 事实构建 guard 新增超时恢复，避免异常残留的 single-flight 状态永久卡住后续事实刷新；同一来源内 `all` 与子 scope 互斥，不同来源可并行。
+    - `fact_build_tasks` 已保留 `cc:merge-request` 等来源 scope，不再把命名来源的事实任务误归一成 `all`。
+    - 数据源健康诊断新增事实层滞后提示：当镜像同步成功但事实表未刷新到同步完成时间之后，会在设置页提示统计可能仍是旧数据。
+    - 生产大表索引风险已纳入方案：已执行迁移不直接改写，后续新增大表索引优先采用独立并发建索引迁移或迁移前人工窗口，避免破坏 Flyway checksum。
+    - 本轮未直接大拆的架构项：表名前缀隔离改行级来源隔离、搜索影子字段下沉 DB/搜索引擎、服务继承层次重构、Docker CLI 模式替换为长期直连/sidecar。这些属于中长期重构，不应和当前稳定性修复混在同一轮强拆。
 
 ## 6. 当前技术债与需补项
 
@@ -295,6 +304,17 @@
   - 面向用户的数据源切换暂只落在代码走查域，避免把 demo 看板和无明确双源需求的模块扩大改造。
   - 代码走查非法数据的列表、筛选、导出和规则预览已通过 `source` 过滤 `merge_request_fact.source_instance`，不再把不同 GitLab 源的同名项目混在一起。
   - 镜像清理和管理端健康诊断已按 `configId` 隔离，降低多源绑定后误删、误判和启动后状态不可见的风险。
+- Webhook 与事实刷新稳定性风险：
+  - Webhook 批处理合并 key 已纳入 `configId`，避免不同 GitLab 源的同对象编号被误合并。
+  - Webhook 精确同步队列新增内存上限，过载时降级为当前来源的增量同步，优先保证最终一致性。
+  - 事实构建 guard 新增超时恢复和来源内 scope 互斥，避免长任务或异常残留造成后续同步永久卡住。
+  - 数据源健康诊断已显示事实层滞后状态，避免“镜像成功但页面仍是旧事实”的问题只停留在后台 warning。
+- 外部 GitLab 查询重试风险：
+  - 外部查询保留失败分类，只对网络/连接类瞬时错误重试。
+  - 重试等待改为指数退避 + jitter + 最大延迟上限，避免多个请求在内网抖动时同时重试冲击 GitLab。
+- 生产迁移锁表风险：
+  - 已明确已执行 Flyway 迁移不可直接改写；大表索引要走新增迁移、并发建索引或迁移前人工执行窗口。
+  - `check_schema_flyway_drift.py` 已识别 `concurrently` 索引写法，后续新增非阻塞索引迁移时 schema/Flyway 覆盖检查不会失真。
 - 生成物和日志污染认知风险：
   - `.gitignore` 已补充 `.tmp-*`、`tmp-*` 等临时调试文件规则。
   - 新增 `scripts/check_worktree_artifacts.py`，用于阻止日志、构建产物和临时文件被继续纳入版本管理。
@@ -500,7 +520,7 @@
   - `代码走查非法数据` 已补充 `source` 传递链路：列表、筛选项、导出和规则预览会按 `merge_request_fact.source_instance` 过滤。
   - `数据镜像设置` 已补充来源健康诊断，能看到每个 GitLab 源的任务状态、最近同步日志、镜像表数量、代码走查事实数量和缺失关键表。
   - 镜像清理已改为按当前配置和来源实例隔离，清理某一个源时不会全局删除其他 GitLab 源的镜像表注册、镜像记录或 ODS 表。
-  - 已新增代码走查来源查询索引迁移 `V20260507_04__code_review_source_query_indexes.sql`。
+  - 已新增代码走查来源查询索引迁移 `V20260507_04__code_review_source_query_indexes.sql`；该迁移已被本地 Flyway 测试库应用，后续不得直接改写，生产大表场景需按 Flyway 规则另走并发建索引策略。
   - 统计看板目前仍按 demo 级别看待，本轮没有继续逐个看板做大结构改造；仅在共享 `IssueFactQueryService` 的通用过滤里保留低侵入 `sourceInstance` 保护，防止已经走共享查询链路的看板混源。
   - 配置保存层已补充来源标识规范化和冲突保护：`sourceInstance` 统一 trim、小写、空值归一到 `default`，长度限制 64；修改已有配置时如果改到另一个已存在来源，会返回明确业务错误，不再让数据库唯一约束或后续同步阶段才暴露问题。
   - 已补充回归测试：
@@ -508,9 +528,14 @@
     - `SqlPushdownRealChainTest` 覆盖统计看板 HTTP 链路携带 `sourceInstance` 时只返回对应来源数据。
     - `CodeReviewIllegalRecordSourceLoaderTest` 覆盖同一代码走查事实表中 `cc` 与 `dgm` 隔离查询。
     - `GitlabMirrorPurgeServiceTest` 和 `GitlabSyncControllerTest` 覆盖按配置清理与来源健康诊断。
+    - `GitlabWebhookAsyncDispatchServiceTest` 覆盖 Webhook 跨源同对象不误合并、队列过载降级为增量同步。
+    - `GitlabExternalDbServiceTest` 覆盖指数退避 + jitter 的重试延迟边界。
+    - `FactBuildOperationGuardTest` 覆盖来源内 `all`/子 scope 互斥、不同来源并行和超时恢复。
+    - `FactBuildTaskServiceTest` 覆盖来源 scope 不再被误归一成 `all`。
   - 本轮验证通过：
     - `mvn -q -Dtest=GitlabConfigServiceTest,SqlPushdownRealChainTest,StatisticBoardControllerTest,SystemTestDefectSummaryRuleExplanationTest test`
     - `mvn -q -Dtest=CodeReviewControllerTest,CodeReviewRequestAssemblerTest,CodeReviewIllegalRecordServiceTest,CodeReviewIllegalRecordSourceLoaderTest,GitlabMirrorPurgeServiceTest,GitlabSyncControllerTest test`
+    - `mvn -q -Dtest=GitlabWebhookAsyncDispatchServiceTest,GitlabExternalDbServiceTest,FactBuildOperationGuardTest,FactBuildTaskServiceTest,GitlabSyncControllerTest test`
     - `mvn -q test`
     - `frontend` 下 `tsc --noEmit --pretty false`
     - `frontend` 下 `vitest run src/views/code-review-multi-board.mount-smoke.test.ts src/views/code-review-illegal-records.mount-smoke.test.ts src/views/code-review-rule-config.mount-smoke.test.ts src/views/mirror-settings.mount-smoke.test.ts`

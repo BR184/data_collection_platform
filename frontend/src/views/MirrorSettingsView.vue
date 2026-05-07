@@ -495,6 +495,15 @@ onBeforeUnmount(() => {
             :title="`缺少 ${currentSourceHealth.missingRequiredMirrorTables.length} 张代码走查关键镜像表`"
             :description="currentSourceHealth.missingRequiredMirrorTables.slice(0, 3).join('、')"
           />
+          <el-alert
+            v-if="currentSourceHealth.factLayerLagging"
+            class="source-health-alert"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="事实层可能滞后"
+            :description="currentSourceHealth.factLayerMessage || '镜像已更新，但统计事实尚未刷新到最新同步时间。'"
+          />
         </template>
         <el-empty v-else description="暂无当前数据源诊断信息" />
       </el-card>

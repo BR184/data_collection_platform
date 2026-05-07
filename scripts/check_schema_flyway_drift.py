@@ -39,7 +39,7 @@ def parse_indexes(sql: str) -> set[str]:
     return {
         norm_name(match.group(1))
         for match in re.finditer(
-            r"(?is)\bcreate\s+(?:unique\s+)?index\s+(?:if\s+not\s+exists\s+)?([\"\w]+)\s+on\b",
+            r"(?is)\bcreate\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?([\"\w]+)\s+on\b",
             sql,
         )
     }

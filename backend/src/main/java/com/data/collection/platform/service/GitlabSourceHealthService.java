@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SyncStatus;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,6 +48,8 @@ public class GitlabSourceHealthService {
     GitlabSyncLog latestLog = logService.findLatest(config.getId());
     List<String> registeredMirrorTables = registeredMirrorTables(config.getId());
     int existingMirrorTables = countExistingTables(registeredMirrorTables);
+    LocalDateTime latestFactUpdatedAt = latestFactUpdatedAt(sourceInstance);
+    boolean factLayerLagging = isFactLayerLagging(latestLog, latestFactUpdatedAt, existingMirrorTables);
     return new GitlabSourceHealthResponse(
         config.getId(),
         config.getName(),
@@ -60,6 +63,9 @@ public class GitlabSourceHealthService {
         latestLog == null ? null : latestLog.getFinishedAt(),
         registeredMirrorTables.size(),
         existingMirrorTables,
+        factLayerLagging,
+        factLayerLagging ? "镜像已更新，但事实层尚未刷新到最新同步时间，页面统计可能仍是旧数据" : "",
+        latestFactUpdatedAt,
         countFacts("merge_request_fact", sourceInstance),
         countFacts("issue_fact", sourceInstance),
         countFacts("integration_test_fact", sourceInstance),
@@ -131,6 +137,48 @@ public class GitlabSourceHealthService {
       log.debug("Failed to count fact rows for source health, tableName={}", tableName, error);
       return 0L;
     }
+  }
+
+  private LocalDateTime latestFactUpdatedAt(String sourceInstance) {
+    LocalDateTime latest = null;
+    for (String tableName : List.of("merge_request_fact", "issue_fact", "integration_test_fact")) {
+      LocalDateTime tableLatest = latestFactUpdatedAt(tableName, sourceInstance);
+      if (tableLatest != null && (latest == null || tableLatest.isAfter(latest))) {
+        latest = tableLatest;
+      }
+    }
+    return latest;
+  }
+
+  private LocalDateTime latestFactUpdatedAt(String tableName, String sourceInstance) {
+    if (!tableExists(tableName)) {
+      return null;
+    }
+    try {
+      return jdbcTemplate.queryForObject(
+          "select max(updated_at) from "
+              + quoteIdentifier(tableName)
+              + " where lower(coalesce(source_instance, 'default')) = ? and deleted = false",
+          LocalDateTime.class,
+          sourceInstance);
+    } catch (DataAccessException error) {
+      log.debug("Failed to load latest fact updated time for source health, tableName={}", tableName, error);
+      return null;
+    }
+  }
+
+  private boolean isFactLayerLagging(
+      GitlabSyncLog latestLog, LocalDateTime latestFactUpdatedAt, int existingMirrorTables) {
+    if (latestLog == null
+        || latestLog.getStatus() != SyncStatus.SUCCESS
+        || latestLog.getFinishedAt() == null
+        || existingMirrorTables <= 0) {
+      return false;
+    }
+    if (latestFactUpdatedAt == null) {
+      return true;
+    }
+    return latestFactUpdatedAt.isBefore(latestLog.getFinishedAt().minusSeconds(5));
   }
 
   private String quoteIdentifier(String identifier) {
