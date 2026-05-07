@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -164,21 +165,26 @@ public class GitlabMirrorSchemaService {
 
   public int recoverStaleSyncingStatuses() {
     LocalDateTime cutoff = LocalDateTime.now().minusSeconds(Math.max(30, properties.getHeartbeatTimeoutSeconds()));
-    Integer updated = jdbcTemplate.queryForObject(
-        """
-            with recovered as (
-              update sys_table_registry
-              set sync_status = 'IDLE',
-                  updated_at = current_timestamp
-              where sync_status = 'SYNCING'
-                and updated_at < ?
-              returning id
-            )
-            select count(*) from recovered
-            """,
-        Integer.class,
-        cutoff);
-    return updated == null ? 0 : updated;
+    try {
+      Integer updated = jdbcTemplate.queryForObject(
+          """
+              with recovered as (
+                update sys_table_registry
+                set sync_status = 'IDLE',
+                    updated_at = current_timestamp
+                where sync_status = 'SYNCING'
+                  and updated_at < ?
+                returning id
+              )
+              select count(*) from recovered
+              """,
+          Integer.class,
+          cutoff);
+      return updated == null ? 0 : updated;
+    } catch (DataAccessException error) {
+      log.debug("Skipped stale mirror status recovery because registry table is unavailable", error);
+      return 0;
+    }
   }
 
   public List<GitlabMirrorTableRegistry> listRegistry(Long configId) {

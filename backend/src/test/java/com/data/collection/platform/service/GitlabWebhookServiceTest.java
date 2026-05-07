@@ -46,13 +46,13 @@ class GitlabWebhookServiceTest {
         "project_id", 10L,
         "object_attributes", Map.of("id", 101L));
 
-    when(configService.getConfig()).thenReturn(config);
+    when(configService.getConfigForWebhook(null)).thenReturn(config);
     when(jsonUtils.toJson(payload)).thenReturn("{\"object_kind\":\"issue\"}");
 
     webhookService.accept("Issue Hook", payload, null);
 
     verify(webhookEventMapper).insert(org.mockito.ArgumentMatchers.<GitlabWebhookEvent>any());
-    verify(asyncDispatchService).accept(eq("Issue Hook"), eq(payload));
+    verify(asyncDispatchService).accept(eq(config), eq("Issue Hook"), eq(payload));
   }
 
   @Test
@@ -68,12 +68,12 @@ class GitlabWebhookServiceTest {
         "project_id", "not-a-number",
         "object_attributes", Map.of("id", 101L));
 
-    when(configService.getConfig()).thenReturn(config);
+    when(configService.getConfigForWebhook(null)).thenReturn(config);
     when(jsonUtils.toJson(payload)).thenReturn("{\"object_kind\":\"issue\"}");
 
     webhookService.accept("Issue Hook", payload, null);
 
     verify(webhookEventMapper).insert(argThat((GitlabWebhookEvent event) -> event.getProjectId() == null));
-    verify(asyncDispatchService).accept(eq("Issue Hook"), eq(payload));
+    verify(asyncDispatchService).accept(eq(config), eq("Issue Hook"), eq(payload));
   }
 }

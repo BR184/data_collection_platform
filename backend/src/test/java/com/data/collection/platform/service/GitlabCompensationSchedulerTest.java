@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,7 @@ class GitlabCompensationSchedulerTest {
   @Test
   void shouldTriggerCompensationWhenLatestActivityExceededInterval() {
     GitlabSyncConfig config = baseConfig();
-    when(configService.getConfig()).thenReturn(config);
+    when(configService.listConfigs()).thenReturn(List.of(config));
     when(syncService.hasActiveTask(1L)).thenReturn(false);
     when(taskService.isInCooldown(1L)).thenReturn(false);
     when(taskService.resolveLatestActivityAt(1L)).thenReturn(LocalDateTime.now().minusMinutes(20));
@@ -40,19 +41,19 @@ class GitlabCompensationSchedulerTest {
     scheduler.run();
 
     verify(syncService).recoverTimedOutTasks();
-    verify(syncService).startCompensationSync();
+    verify(syncService).startCompensationSync(config);
   }
 
   @Test
   void shouldSkipCompensationWhenActiveTaskExists() {
     GitlabSyncConfig config = baseConfig();
-    when(configService.getConfig()).thenReturn(config);
+    when(configService.listConfigs()).thenReturn(List.of(config));
     when(syncService.hasActiveTask(1L)).thenReturn(true);
 
     scheduler.run();
 
     verify(syncService).recoverTimedOutTasks();
-    verify(syncService, never()).startCompensationSync();
+    verify(syncService, never()).startCompensationSync(config);
   }
 
   private GitlabSyncConfig baseConfig() {

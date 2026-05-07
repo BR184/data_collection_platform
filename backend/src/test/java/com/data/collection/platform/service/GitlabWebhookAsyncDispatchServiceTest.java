@@ -60,7 +60,7 @@ class GitlabWebhookAsyncDispatchServiceTest {
 
     service.accept("Push Hook", payload);
 
-    verify(syncService).startWebhookSync("Push Hook", payload);
+    verify(syncService).startWebhookSync(any(), eq("Push Hook"), eq(payload));
   }
 
   @Test

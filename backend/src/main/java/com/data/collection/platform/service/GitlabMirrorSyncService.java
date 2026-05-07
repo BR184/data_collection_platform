@@ -101,7 +101,7 @@ public class GitlabMirrorSyncService {
   }
 
   public void testConnection(Long configId) {
-    externalDbService.testConnection(configService.getConfigById(configId));
+    externalDbService.testConnection(resolveConfig(configId));
   }
 
   public SyncTaskSubmissionResult startFullSync() {
@@ -109,7 +109,7 @@ public class GitlabMirrorSyncService {
   }
 
   public SyncTaskSubmissionResult startFullSync(Long configId) {
-    return submitTask(configService.getConfigById(configId), SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync");
+    return submitTask(resolveConfig(configId), SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync");
   }
 
   public SyncTaskSubmissionResult startIncrementalSync(SyncTriggerType triggerType, String message) {
@@ -117,7 +117,7 @@ public class GitlabMirrorSyncService {
   }
 
   public SyncTaskSubmissionResult startIncrementalSync(Long configId, SyncTriggerType triggerType, String message) {
-    return submitTask(configService.getConfigById(configId), SyncType.INCREMENTAL, triggerType, message);
+    return submitTask(resolveConfig(configId), SyncType.INCREMENTAL, triggerType, message);
   }
 
   public SyncTaskSubmissionResult startWebhookSync(String eventType, Map<String, Object> payload) {
@@ -284,6 +284,10 @@ public class GitlabMirrorSyncService {
       SyncTriggerType triggerType,
       String message) {
     return submitTask(config, type, triggerType, message, Map.of());
+  }
+
+  private GitlabSyncConfig resolveConfig(Long configId) {
+    return configId == null ? configService.getConfig() : configService.getConfigById(configId);
   }
 
   private SyncTaskSubmissionResult submitTask(
