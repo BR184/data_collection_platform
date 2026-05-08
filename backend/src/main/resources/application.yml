@@ -36,6 +36,7 @@ platform:
     approval-username: ${PLATFORM_APPROVAL_USERNAME:approval}
     approval-password: ${PLATFORM_APPROVAL_PASSWORD:approval}
     secure-config-required: ${PLATFORM_SECURE_CONFIG_REQUIRED:true}
+    csrf-enabled: ${PLATFORM_AUTH_CSRF_ENABLED:false}
     ldap:
       url: ${PLATFORM_LDAP_URL:}
       base-dn: ${PLATFORM_LDAP_BASE_DN:}

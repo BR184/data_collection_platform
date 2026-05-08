@@ -12,6 +12,7 @@ public class PlatformAuthProperties {
   private String approvalUsername = "approval";
   private String approvalPassword = "approval";
   private boolean secureConfigRequired = true;
+  private boolean csrfEnabled = false;
   private Ldap ldap = new Ldap();
 
   public String getProvider() {
@@ -60,6 +61,14 @@ public class PlatformAuthProperties {
 
   public void setSecureConfigRequired(boolean secureConfigRequired) {
     this.secureConfigRequired = secureConfigRequired;
+  }
+
+  public boolean isCsrfEnabled() {
+    return csrfEnabled;
+  }
+
+  public void setCsrfEnabled(boolean csrfEnabled) {
+    this.csrfEnabled = csrfEnabled;
   }
 
   public Ldap getLdap() {

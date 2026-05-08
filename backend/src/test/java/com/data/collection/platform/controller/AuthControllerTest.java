@@ -6,9 +6,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.config.PlatformAuthProperties;
+import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.security.LocalPlatformAuthenticationProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
@@ -26,6 +29,11 @@ class AuthControllerTest {
     properties.setApprovalUsername("approval");
     properties.setApprovalPassword("approval-secret");
     mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(new LocalPlatformAuthenticationProvider(properties))).build();
+  }
+
+  @AfterEach
+  void tearDown() {
+    SecurityContextHolder.clearContext();
   }
 
   @Test
@@ -54,6 +62,8 @@ class AuthControllerTest {
         .andReturn();
 
     MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+    Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    org.assertj.core.api.Assertions.assertThat(principal).isInstanceOf(AuthUserResponse.class);
     mockMvc.perform(get("/api/auth/current").session(session))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.role").value("ADMIN"));
@@ -92,6 +102,27 @@ class AuthControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.role").value("APPROVAL"));
+  }
+
+  @Test
+  void logoutShouldClearSecurityContext() throws Exception {
+    mockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "secret"
+                }
+                """))
+        .andExpect(status().isOk());
+
+    org.assertj.core.api.Assertions.assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+
+    mockMvc.perform(post("/api/auth/logout"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.role").value("GUEST"));
+
+    org.assertj.core.api.Assertions.assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
   }
 
   @Test
