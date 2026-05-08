@@ -110,21 +110,21 @@ public class GitlabExternalDbService {
   public List<TableWhitelistOption> discoverTables(GitlabSyncConfig config, Map<String, String> labels, List<String> recommendedTables) {
     String sql = """
         select
-          t.table_name,
-          string_agg(kcu.column_name, ',' order by kcu.ordinal_position) as primary_key
-        from information_schema.tables t
-        join information_schema.table_constraints tc
-          on tc.table_schema = t.table_schema
-         and tc.table_name = t.table_name
-         and tc.constraint_type = 'PRIMARY KEY'
-        join information_schema.key_column_usage kcu
-          on kcu.table_schema = tc.table_schema
-         and kcu.table_name = tc.table_name
-         and kcu.constraint_name = tc.constraint_name
-        where t.table_schema = 'public'
-          and t.table_type = 'BASE TABLE'
-        group by t.table_name
-        order by t.table_name
+          c.relname as table_name,
+          string_agg(a.attname, ',' order by array_position(i.indkey::int2[], a.attnum::int2)) as primary_key
+        from pg_class c
+        join pg_namespace n
+          on n.oid = c.relnamespace
+        join pg_index i
+          on i.indrelid = c.oid
+         and i.indisprimary
+        join pg_attribute a
+          on a.attrelid = c.oid
+         and a.attnum = any(i.indkey)
+        where n.nspname = 'public'
+          and c.relkind in ('r', 'p')
+        group by c.relname
+        order by c.relname
         """;
     List<Map<String, Object>> rows = isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
     Map<String, String> updatedAtColumnMap = discoverUpdatedAtColumns(config);

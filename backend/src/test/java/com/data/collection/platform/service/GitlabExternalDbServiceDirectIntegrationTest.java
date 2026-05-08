@@ -50,7 +50,24 @@ class GitlabExternalDbServiceDirectIntegrationTest {
             (101, 'first issue', timestamp '2026-01-01 09:00:00'),
             (202, 'second issue', timestamp '2026-01-01 11:00:00')
           """);
+      statement.execute("create role gitlab_readonly login password 'readonly_secret'");
+      statement.execute("grant connect on database gitlabhq_production to gitlab_readonly");
+      statement.execute("grant usage on schema public to gitlab_readonly");
+      statement.execute("grant select on all tables in schema public to gitlab_readonly");
     }
+  }
+
+  @Test
+  void directModeShouldDiscoverPrimaryKeysForReadOnlyUsers() {
+    GitlabSyncConfig config = directConfig("gitlab_readonly", "readonly_secret");
+
+    assertThat(service.discoverTables(config, java.util.Map.of(), List.of("issues")))
+        .anySatisfy(
+            option -> {
+              assertThat(option.tableName()).isEqualTo("issues");
+              assertThat(option.primaryKey()).isEqualTo("id");
+              assertThat(option.updatedAtColumn()).isEqualTo("updated_at");
+            });
   }
 
   @Test
@@ -76,13 +93,17 @@ class GitlabExternalDbServiceDirectIntegrationTest {
   }
 
   private GitlabSyncConfig directConfig() {
+    return directConfig(POSTGRES.getUsername(), POSTGRES.getPassword());
+  }
+
+  private GitlabSyncConfig directConfig(String username, String password) {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSourceMode(SourceMode.DIRECT);
     config.setDbHost(POSTGRES.getHost());
     config.setDbPort(POSTGRES.getMappedPort(PostgreSQLContainer.POSTGRESQL_PORT));
     config.setDbName(POSTGRES.getDatabaseName());
-    config.setDbUsername(POSTGRES.getUsername());
-    config.setDbPassword(POSTGRES.getPassword());
+    config.setDbUsername(username);
+    config.setDbPassword(password);
     return config;
   }
 }
