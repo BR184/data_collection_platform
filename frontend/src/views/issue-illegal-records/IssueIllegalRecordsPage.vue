@@ -271,13 +271,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
           />
         </template>
 
-        <template #toolbar-prefix>
-          <div class="issue-illegal-toolbar-meta">
-            <div class="issue-illegal-toolbar-title">{{ title }}</div>
-            <div class="issue-illegal-toolbar-desc">{{ description }}</div>
-          </div>
-        </template>
-
         <template #primary-actions>
           <div class="issue-illegal-toolbar-actions customer-illegal-toolbar-actions">
             <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
@@ -412,22 +405,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
 .issue-illegal-page {
   display: grid;
   gap: 12px;
-}
-
-.issue-illegal-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.issue-illegal-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.issue-illegal-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.45);
 }
 
 .issue-illegal-toolbar-actions,

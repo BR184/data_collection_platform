@@ -355,15 +355,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
-        <template #toolbar-prefix>
-          <div class="customer-record-toolbar-meta">
-            <div class="customer-record-toolbar-title">{{ pageTitle }}</div>
-            <div class="customer-record-toolbar-desc">
-              {{ isDelayTopic ? '客户延期问题明细与规则说明' : '客户问题议题明细与规则说明' }}
-            </div>
-          </div>
-        </template>
-
         <template #filter-builder>
           <StatisticFilterBuilder
             :model-value="filterDraft"
@@ -484,22 +475,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
 .customer-record-page {
   display: grid;
   gap: 12px;
-}
-
-.customer-record-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.customer-record-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.customer-record-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.45);
 }
 
 .customer-record-toolbar-actions,

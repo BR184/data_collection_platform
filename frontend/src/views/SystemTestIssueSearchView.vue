@@ -430,13 +430,6 @@ async function handleRefresh() {
       @sort-change="handleSortChange"
       @refresh="handleRefresh"
     >
-      <template #toolbar-prefix>
-        <div class="issue-search-toolbar-meta">
-          <div class="issue-search-toolbar-title">议题查询</div>
-          <div class="issue-search-toolbar-desc">系统测试范围内的议题筛选、排序与详情展开</div>
-        </div>
-      </template>
-
       <template #toolbar-actions>
         <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
           导出
@@ -524,22 +517,6 @@ async function handleRefresh() {
 .system-test-issue-search-page {
   display: grid;
   gap: 10px;
-}
-
-.issue-search-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.issue-search-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.issue-search-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.45);
 }
 
 .issue-detail-panel {

@@ -340,13 +340,6 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
         />
       </template>
 
-      <template #toolbar-prefix>
-        <div class="record-page-toolbar-meta">
-          <div class="record-page-toolbar-title">非法记录明细</div>
-          <div class="record-page-toolbar-desc">代码走查结果明细与异常记录工作区</div>
-        </div>
-      </template>
-
       <template #toolbar-actions>
         <div class="record-page-summary">
           <SyncMetaBadge :value="lastSyncedText" />
@@ -598,24 +591,6 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
 .record-page-shell {
   display: grid;
   gap: 12px;
-}
-
-.record-page-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.record-page-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-  line-height: 1.2;
-}
-
-.record-page-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.45);
-  line-height: 1.4;
 }
 
 .record-page-summary {

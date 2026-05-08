@@ -263,13 +263,6 @@ const {
         <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
       </template>
 
-      <template #toolbar-prefix>
-        <div class="review-data-toolbar-meta">
-          <div class="review-data-toolbar-title">评审数据管理</div>
-          <div class="review-data-toolbar-desc">评审记录、问题项维护与规则说明工作区</div>
-        </div>
-      </template>
-
       <template #primary-actions>
         <div class="review-data-toolbar-actions">
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
@@ -400,22 +393,6 @@ const {
 .title-sub {
   font-size: 12px;
   color: rgba(15, 23, 42, 0.48);
-}
-
-.review-data-toolbar-meta {
-  display: grid;
-  gap: 2px;
-}
-
-.review-data-toolbar-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.review-data-toolbar-desc {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.45);
 }
 
 .review-data-toolbar-actions {
