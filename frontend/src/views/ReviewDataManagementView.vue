@@ -3,7 +3,7 @@ import { computed } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
-import { ArrowDown, Download, EditPen, InfoFilled, Plus, Refresh } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Plus, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
@@ -263,20 +263,30 @@ const {
         <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
       </template>
 
+      <template #toolbar-prefix>
+        <div class="review-data-toolbar-meta">
+          <div class="review-data-toolbar-title">评审数据管理</div>
+          <div class="review-data-toolbar-desc">评审记录、问题项维护与规则说明工作区</div>
+        </div>
+      </template>
+
       <template #primary-actions>
-        <el-button
-          class="review-rule-trigger"
-          data-testid="review-rule-explanation-trigger"
-          plain
-          size="small"
-          :icon="InfoFilled"
-          @click="openRuleExplanation"
-        >
-          帮助指南
-        </el-button>
-        <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
-        <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">导出Excel</el-button>
-        <el-button :icon="Refresh" @click="handleRefresh">刷新</el-button>
+        <div class="review-data-toolbar-actions">
+          <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
+          <el-button
+            plain
+            :icon="InfoFilled"
+            data-testid="review-rule-explanation-trigger"
+            @click="openRuleExplanation"
+          >
+            规则说明
+          </el-button>
+          <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+          <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">
+            导出
+          </el-button>
+          <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
+        </div>
       </template>
 
       <template #cell-title="{ row }">
@@ -392,22 +402,28 @@ const {
   color: rgba(15, 23, 42, 0.48);
 }
 
-.review-rule-trigger {
-  border-color: rgba(59, 130, 246, 0.18);
-  background: rgba(59, 130, 246, 0.05);
-  color: #2563eb;
+.review-data-toolbar-meta {
+  display: grid;
+  gap: 2px;
 }
 
-.review-rule-trigger:hover,
-.review-rule-trigger:focus {
-  border-color: rgba(37, 99, 235, 0.3);
-  background: rgba(37, 99, 235, 0.1);
-  color: #1d4ed8;
+.review-data-toolbar-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.92);
 }
 
+.review-data-toolbar-desc {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.45);
+}
 
-
-
+.review-data-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 </style>
 

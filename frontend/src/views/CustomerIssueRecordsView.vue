@@ -377,15 +377,14 @@ function openDetailDrawer(row: Record<string, unknown>) {
             <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
             <el-button
               plain
-              size="small"
               :icon="InfoFilled"
               :loading="ruleExplanationLoading"
               @click="openRuleExplanation"
             >
               规则说明
             </el-button>
-            <el-button plain size="small" :icon="Refresh" @click="handleRefresh">刷新</el-button>
-            <el-button plain size="small" :icon="Download" :loading="exportLoading" @click="handleExport">
+            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
               导出
             </el-button>
           </div>

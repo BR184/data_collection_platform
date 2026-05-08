@@ -283,18 +283,16 @@ function openDetailDrawer(row: Record<string, unknown>) {
             <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
             <el-button
               plain
-              size="small"
               :icon="InfoFilled"
               :loading="ruleExplanationLoading"
               @click="openRuleExplanation"
             >
               规则说明
             </el-button>
-            <el-button plain size="small" :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
               v-if="exportRecords"
               plain
-              size="small"
               :icon="Download"
               :loading="exportLoading"
               @click="handleExport"

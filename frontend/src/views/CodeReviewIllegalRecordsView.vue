@@ -355,17 +355,16 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
           </el-tag>
           <el-button
             plain
-            size="small"
             :icon="InfoFilled"
             :loading="ruleExplanationLoading"
             @click="handleOpenRuleExplanation"
           >
             规则说明
           </el-button>
-          <el-button plain size="small" :icon="Setting" @click="openRuleConfig">
+          <el-button plain :icon="Setting" @click="openRuleConfig">
             规则配置
           </el-button>
-          <el-button plain size="small" :icon="Download" :loading="exportLoading" @click="handleExport">
+          <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
             导出
           </el-button>
           <span class="record-page-summary-divider" />

@@ -438,7 +438,7 @@ async function handleRefresh() {
       </template>
 
       <template #toolbar-actions>
-        <el-button plain size="small" :icon="Download" :loading="exportLoading" @click="handleExport">
+        <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
           导出
         </el-button>
       </template>
