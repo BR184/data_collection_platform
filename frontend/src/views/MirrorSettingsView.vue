@@ -25,6 +25,7 @@ const selectedConfigId = ref<number | undefined>(undefined);
 const isCreatingNewConfig = ref(false);
 const previousConfigIdBeforeCreate = ref<number | undefined>(undefined);
 const newConfigSnapshot = ref('');
+const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
@@ -146,12 +147,76 @@ const currentFactLaggingDomains = computed(() => {
     domains.push('代码走查事实');
   }
   if (health.issueFactLagging) {
-    domains.push('议题事实');
+    domains.push('系统测试/客户问题事实');
   }
   if (health.integrationTestFactLagging) {
     domains.push('集成测试事实');
   }
   return domains;
+});
+const currentSourceHealthTone = computed(() => {
+  const health = currentSourceHealth.value;
+  if (!health) {
+    return 'info';
+  }
+  if (health.missingRequiredMirrorTables.length > 0 || health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
+    return 'danger';
+  }
+  if (health.factLayerLagging || health.currentStatus === 'RUNNING' || health.currentStatus === 'QUEUED') {
+    return 'warning';
+  }
+  if (!health.enabled) {
+    return 'info';
+  }
+  return 'success';
+});
+const currentSourceHealthText = computed(() => {
+  const health = currentSourceHealth.value;
+  if (!health) {
+    return '暂无诊断';
+  }
+  if (!health.enabled) {
+    return '已停用';
+  }
+  if (health.missingRequiredMirrorTables.length > 0) {
+    return '镜像不完整';
+  }
+  if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
+    return '同步异常';
+  }
+  if (health.factLayerLagging) {
+    return '事实层滞后';
+  }
+  if (health.currentStatus === 'RUNNING' || health.currentStatus === 'QUEUED') {
+    return '同步中';
+  }
+  return '健康';
+});
+const currentSourceHealthSummary = computed(() => {
+  const health = currentSourceHealth.value;
+  if (!health) {
+    return '当前数据源还没有健康诊断结果。';
+  }
+  if (!health.enabled) {
+    return '该数据源已停用，不会参与自动同步。';
+  }
+  if (health.missingRequiredMirrorTables.length > 0) {
+    return '关键镜像表缺失，代码走查相关数据可能无法完整展示。';
+  }
+  if (health.factLayerLagging) {
+    return '镜像数据已经更新，但部分展示或统计使用的事实层还没有刷新到最新。';
+  }
+  if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
+    return health.latestLogMessage || '最近一次同步未成功，请查看同步日志并重新触发。';
+  }
+  return '镜像表、事实层和最近同步状态未发现阻断问题。';
+});
+const missingRequiredMirrorTablesPreview = computed(() => {
+  const tables = currentSourceHealth.value?.missingRequiredMirrorTables ?? [];
+  return {
+    visible: tables.slice(0, 5),
+    hiddenCount: Math.max(tables.length - 5, 0),
+  };
 });
 const {
   progress,
@@ -191,8 +256,15 @@ const {
 });
 watch(
   () => currentTask.value?.status,
-  (nextStatus) => {
+  (nextStatus, previousStatus) => {
     syncRunningRefresh(nextStatus);
+    if (
+      previousStatus
+      && ACTIVE_SYNC_STATUSES.includes(previousStatus)
+      && (!nextStatus || !ACTIVE_SYNC_STATUSES.includes(nextStatus))
+    ) {
+      void loadSourceHealth();
+    }
   },
 );
 
@@ -275,6 +347,7 @@ async function refreshCurrentStatus() {
     return;
   }
   await refreshStatus();
+  await loadSourceHealth();
 }
 
 onMounted(async () => {
@@ -567,6 +640,16 @@ onBeforeUnmount(() => {
           </div>
         </template>
         <template v-if="currentSourceHealth">
+          <div class="source-health-overview" :class="`is-${currentSourceHealthTone}`">
+            <div class="source-health-status-dot" />
+            <div class="source-health-overview-copy">
+              <div class="source-health-overview-title">
+                <span>{{ currentSourceHealthText }}</span>
+                <el-tag :type="currentSourceHealthTone" round>{{ currentSourceHealth.sourceInstance }}</el-tag>
+              </div>
+              <div class="source-health-overview-desc">{{ currentSourceHealthSummary }}</div>
+            </div>
+          </div>
           <div class="source-health-grid">
             <div>
               <span>镜像表</span>
@@ -580,6 +663,59 @@ onBeforeUnmount(() => {
               <span>最新同步</span>
               <strong>{{ currentSourceHealth.latestLogStatus || currentSourceHealth.currentStatus || '-' }}</strong>
             </div>
+          </div>
+          <div class="source-health-fact-grid">
+            <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.mergeRequestFactLagging }">
+              <span>代码走查事实</span>
+              <strong>{{ currentSourceHealth.mergeRequestFactCount }}</strong>
+            </div>
+            <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.issueFactLagging }">
+              <span>系统测试/客户问题事实</span>
+              <strong>{{ currentSourceHealth.issueFactCount }}</strong>
+            </div>
+            <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.integrationTestFactLagging }">
+              <span>集成测试事实</span>
+              <strong>{{ currentSourceHealth.integrationTestFactCount }}</strong>
+            </div>
+          </div>
+
+          <div class="source-health-detail-list">
+            <div class="source-health-detail-row">
+              <span>最新同步时间</span>
+              <strong>{{ currentSourceHealth.latestLogFinishedAt || currentSourceHealth.currentStartedAt || '-' }}</strong>
+            </div>
+            <div class="source-health-detail-row">
+              <span>事实层更新</span>
+              <strong>{{ currentSourceHealth.latestFactUpdatedAt || '-' }}</strong>
+            </div>
+          </div>
+
+          <div v-if="currentSourceHealth.missingRequiredMirrorTables.length" class="source-health-missing-panel">
+            <div class="source-health-section-title">
+              缺少关键镜像表
+              <el-tag size="small" type="warning" round>
+                {{ currentSourceHealth.missingRequiredMirrorTables.length }} 张
+              </el-tag>
+            </div>
+            <div class="source-health-table-tags">
+              <el-tag
+                v-for="table in missingRequiredMirrorTablesPreview.visible"
+                :key="table"
+                type="warning"
+                size="small"
+                effect="plain"
+              >
+                {{ table }}
+              </el-tag>
+              <el-tag v-if="missingRequiredMirrorTablesPreview.hiddenCount" size="small" type="info" effect="plain">
+                +{{ missingRequiredMirrorTablesPreview.hiddenCount }}
+              </el-tag>
+            </div>
+          </div>
+
+          <div v-if="currentSourceHealth.latestLogMessage || currentSourceHealth.currentMessage" class="source-health-message">
+            <span>近期信息</span>
+            <strong>{{ currentSourceHealth.latestLogMessage || currentSourceHealth.currentMessage }}</strong>
           </div>
           <el-alert
             v-if="currentSourceHealth.missingRequiredMirrorTables.length"

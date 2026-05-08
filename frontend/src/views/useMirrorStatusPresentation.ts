@@ -9,6 +9,28 @@ import {
 
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 
+function fallbackPhaseText(task: GitlabSyncTask | null): string {
+  if (!task || !ACTIVE_POLLING_STATUSES.includes(task.status)) {
+    return '空闲';
+  }
+  if (task.status === 'QUEUED') {
+    return '排队中';
+  }
+  switch (task.taskType) {
+    case 'FULL':
+      return '首次全量同步';
+    case 'INCREMENTAL':
+    case 'WEBHOOK':
+      return '增量同步';
+    case 'COMPENSATION':
+      return '补偿同步';
+    case 'PURGE':
+      return '删除镜像数据';
+    default:
+      return '同步准备中';
+  }
+}
+
 export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | null>) {
   const progress = computed<SyncProgress | null>(() => status.value?.progress ?? null);
   const currentTask = computed<GitlabSyncTask | null>(() => status.value?.currentTask ?? null);
@@ -29,7 +51,7 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
   const progressPercent = computed(() => {
     const current = progress.value;
     if (!current) {
-      return 0;
+      return currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status) ? 5 : 0;
     }
     if (current.totalTables <= 0) {
       return currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status) ? 5 : 0;
@@ -64,13 +86,19 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
       case 'COMPENSATION_SYNC':
         return '补偿同步';
       default:
-        return currentTask.value?.status === 'QUEUED' ? '排队中' : '空闲';
+        return fallbackPhaseText(currentTask.value);
     }
   });
 
   const progressHint = computed(() => {
     const current = progress.value;
     if (!current) {
+      if (currentTask.value?.status === 'PENDING') {
+        return '同步任务已提交，正在等待执行器接手。';
+      }
+      if (currentTask.value?.status === 'RUNNING') {
+        return '同步任务已启动，正在准备表扫描和进度数据。';
+      }
       if (currentTask.value?.status === 'QUEUED') {
         return '当前已有同步任务执行中，本次请求已进入队列等待。';
       }
@@ -88,6 +116,9 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
   const currentMessageText = computed(() => {
     const rawMessage = status.value?.currentMessage?.trim() ?? '';
     if (!rawMessage) {
+      if (currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status)) {
+        return '同步任务已启动，正在同步状态。';
+      }
       return '当前没有正在执行的同步任务。';
     }
     return translateSyncMessage(rawMessage, currentTask.value?.taskType);

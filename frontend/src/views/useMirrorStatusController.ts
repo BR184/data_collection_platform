@@ -75,7 +75,7 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
     stopRunningRefresh();
     refreshTimer.value = setTimer(() => {
       void loadStatus(false, false);
-    }, 4000);
+    }, 2000);
   }
 
   function syncRunningRefresh(nextStatus: GitlabSyncStatus | null | undefined) {

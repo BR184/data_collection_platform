@@ -142,4 +142,22 @@ describe('useMirrorStatusPresentation', () => {
     expect(presentation.phaseText.value).toBe('增量同步');
     expect(presentation.progressHint.value).toBe('同步任务已启动，正在准备表扫描。');
   });
+
+  it('keeps active tasks visible before detailed progress is available', () => {
+    const status = ref(
+      createStatus({
+        currentStatus: 'RUNNING',
+        currentMessage: '',
+        currentTask: createTask({ status: 'RUNNING', taskType: 'FULL' }),
+        progress: null,
+      }),
+    );
+
+    const presentation = useMirrorStatusPresentation(status);
+
+    expect(presentation.progressPercent.value).toBe(5);
+    expect(presentation.phaseText.value).toBe('首次全量同步');
+    expect(presentation.progressHint.value).toBe('同步任务已启动，正在准备表扫描和进度数据。');
+    expect(presentation.currentMessageText.value).toBe('同步任务已启动，正在同步状态。');
+  });
 });

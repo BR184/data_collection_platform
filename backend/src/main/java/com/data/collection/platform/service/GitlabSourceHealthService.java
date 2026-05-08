@@ -50,19 +50,12 @@ public class GitlabSourceHealthService {
     int existingMirrorTables = countExistingTables(registeredMirrorTables);
     LocalDateTime latestMergeRequestFactUpdatedAt =
         latestFactUpdatedAt("merge_request_fact", sourceInstance);
-    LocalDateTime latestIssueFactUpdatedAt = latestFactUpdatedAt("issue_fact", sourceInstance);
-    LocalDateTime latestIntegrationTestFactUpdatedAt =
-        latestFactUpdatedAt("integration_test_fact", sourceInstance);
-    LocalDateTime latestFactUpdatedAt = latestOf(
-        latestMergeRequestFactUpdatedAt,
-        latestIssueFactUpdatedAt,
-        latestIntegrationTestFactUpdatedAt);
     boolean mergeRequestFactLagging =
         isFactLayerLagging(latestLog, latestMergeRequestFactUpdatedAt, existingMirrorTables);
-    boolean issueFactLagging =
-        isFactLayerLagging(latestLog, latestIssueFactUpdatedAt, existingMirrorTables);
-    boolean integrationTestFactLagging =
-        isFactLayerLagging(latestLog, latestIntegrationTestFactUpdatedAt, existingMirrorTables);
+    // 数据镜像设置的 CC/DGM 数据源健康只面向代码走查切源能力；
+    // issue/integration-test 事实层仍展示计数，但不参与该数据源的健康滞后结论。
+    boolean issueFactLagging = false;
+    boolean integrationTestFactLagging = false;
     boolean factLayerLagging = mergeRequestFactLagging || issueFactLagging || integrationTestFactLagging;
     return new GitlabSourceHealthResponse(
         config.getId(),
@@ -82,7 +75,7 @@ public class GitlabSourceHealthService {
             mergeRequestFactLagging,
             issueFactLagging,
             integrationTestFactLagging) : "",
-        latestFactUpdatedAt,
+        latestMergeRequestFactUpdatedAt,
         mergeRequestFactLagging,
         issueFactLagging,
         integrationTestFactLagging,
@@ -157,16 +150,6 @@ public class GitlabSourceHealthService {
       log.debug("Failed to count fact rows for source health, tableName={}", tableName, error);
       return 0L;
     }
-  }
-
-  private LocalDateTime latestOf(LocalDateTime... values) {
-    LocalDateTime latest = null;
-    for (LocalDateTime value : values) {
-      if (value != null && (latest == null || value.isAfter(latest))) {
-        latest = value;
-      }
-    }
-    return latest;
   }
 
   private LocalDateTime latestFactUpdatedAt(String tableName, String sourceInstance) {

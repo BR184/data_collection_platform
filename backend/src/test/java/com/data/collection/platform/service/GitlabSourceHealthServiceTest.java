@@ -73,4 +73,47 @@ class GitlabSourceHealthServiceTest {
     assertThat(response.issueFactLagging()).isFalse();
     assertThat(response.integrationTestFactLagging()).isFalse();
   }
+
+  @Test
+  void shouldNotMarkSourceHealthLaggingWhenOnlyNonCodeReviewFactsAreMissing() {
+    GitlabConfigService configService = mock(GitlabConfigService.class);
+    GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
+    GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabSourceHealthService service =
+        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(8L);
+    config.setName("DGM");
+    config.setEnabled(true);
+    config.setSourceInstance("dgm");
+    when(configService.listConfigs()).thenReturn(List.of(config));
+
+    GitlabSyncLog latestLog = new GitlabSyncLog();
+    latestLog.setStatus(SyncStatus.SUCCESS);
+    latestLog.setFinishedAt(LocalDateTime.of(2026, 5, 7, 10, 0));
+    when(logService.findLatest(8L)).thenReturn(latestLog);
+    when(jdbcTemplate.queryForList(any(String.class), eq(String.class), eq(8L)))
+        .thenReturn(List.of("ods_gitlab_dgm_merge_requests"));
+    when(jdbcTemplate.queryForObject(eq("select to_regclass(?) is not null"), eq(Boolean.class), any()))
+        .thenReturn(true);
+    when(jdbcTemplate.queryForObject(
+            argThat(sql -> sql != null && sql.contains("\"merge_request_fact\"") && sql.contains("max(updated_at)")),
+            eq(LocalDateTime.class),
+            eq("dgm")))
+        .thenReturn(LocalDateTime.of(2026, 5, 7, 10, 1));
+    when(jdbcTemplate.queryForObject(
+            argThat(sql -> sql != null && sql.contains("count(*)")),
+            eq(Long.class),
+            eq("dgm")))
+        .thenReturn(1L);
+
+    GitlabSourceHealthResponse response = service.listHealth().getFirst();
+
+    assertThat(response.factLayerLagging()).isFalse();
+    assertThat(response.mergeRequestFactLagging()).isFalse();
+    assertThat(response.issueFactLagging()).isFalse();
+    assertThat(response.integrationTestFactLagging()).isFalse();
+  }
 }
