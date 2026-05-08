@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
@@ -25,6 +26,7 @@ import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncTaskSubmissionResult;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
+import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
@@ -41,6 +43,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -228,6 +231,84 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data[0].sourceInstance").value("dgm"))
         .andExpect(jsonPath("$.data[0].mergeRequestFactCount").value(120));
+  }
+
+  @Test
+  void diagnosticsShouldReturnDirectConnectionAndWebhookReadiness() throws Exception {
+    GitlabSyncConfig config = baseConfig();
+    config.setSourceMode(SourceMode.DIRECT);
+    config.setSourceInstance("inner-gitlab");
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptions(config))
+        .thenReturn(List.of(
+            new TableWhitelistOption("issues", "issues", "id", "updated_at", true),
+            new TableWhitelistOption("merge_requests", "merge_requests", "id", "updated_at", true)));
+    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
+        .thenReturn(new GitlabWebhookRegistrationStatus(
+            false,
+            true,
+            false,
+            1L,
+            "http://localhost:18080/api/gitlab-sync/webhook",
+            "直连模式不支持自动注册，但 webhook 接收入口可用",
+            List.of()));
+
+    mockMvc.perform(post("/api/gitlab-sync/diagnostics"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.configId").value(1))
+        .andExpect(jsonPath("$.data.sourceInstance").value("inner_gitlab"))
+        .andExpect(jsonPath("$.data.sourceMode").value("DIRECT"))
+        .andExpect(jsonPath("$.data.connectionOk").value(true))
+        .andExpect(jsonPath("$.data.whitelistOk").value(true))
+        .andExpect(jsonPath("$.data.whitelistOptionCount").value(2))
+        .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/webhook"))
+        .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
+        .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false));
+
+    verify(syncService).testConnection();
+  }
+
+  @Test
+  void diagnosticsShouldReturnConnectionFailureWithoutThrowing() throws Exception {
+    GitlabSyncConfig config = baseConfig();
+    when(configService.getConfig()).thenReturn(config);
+    Mockito.doThrow(new BizException("connection refused")).when(syncService).testConnection();
+    when(whitelistService.listOptions(config)).thenReturn(List.of());
+    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
+        .thenReturn(new GitlabWebhookRegistrationStatus(
+            true,
+            true,
+            false,
+            1L,
+            "http://localhost:18080/api/gitlab-sync/webhook",
+            "not registered",
+            List.of()));
+
+    mockMvc.perform(post("/api/gitlab-sync/diagnostics"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.connectionOk").value(false))
+        .andExpect(jsonPath("$.data.connectionMessage").value("connection refused"))
+        .andExpect(jsonPath("$.data.whitelistOk").value(true));
+  }
+
+  @Test
+  void diagnosticsShouldReturnWebhookStatusFailureWithoutThrowing() throws Exception {
+    GitlabSyncConfig config = baseConfig();
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptions(config)).thenReturn(List.of());
+    Mockito.doThrow(new BizException("docker command failed"))
+        .when(webhookRegistrationService)
+        .getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook"));
+
+    mockMvc.perform(post("/api/gitlab-sync/diagnostics"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.connectionOk").value(true))
+        .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
+        .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false))
+        .andExpect(jsonPath("$.data.webhookMessage").value("docker command failed"));
   }
 
   @Test

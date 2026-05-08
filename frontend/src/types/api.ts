@@ -173,6 +173,21 @@ export interface GitlabWebhookRegistrationStatus {
   hooks: GitlabRegisteredWebhook[];
 }
 
+export interface GitlabSyncDiagnosticsResponse {
+  configId?: number | null;
+  sourceInstance: string;
+  sourceMode: SourceMode;
+  connectionOk: boolean;
+  connectionMessage: string;
+  whitelistOk: boolean;
+  whitelistMessage: string;
+  whitelistOptionCount: number;
+  webhookReceiverUrl: string;
+  webhookAutoRegistrationSupported: boolean;
+  webhookAutoRegistered: boolean;
+  webhookMessage: string;
+}
+
 export interface StatisticFilterOption {
   label: string;
   value: string;

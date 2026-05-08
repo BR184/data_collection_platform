@@ -1,5 +1,6 @@
 import type {
   GitlabSyncConfig,
+  GitlabSyncDiagnosticsResponse,
   GitlabSourceHealthResponse,
   GitlabWebhookRegistrationStatus,
   MirrorPurgeResult,
@@ -34,6 +35,11 @@ export const mirrorApi = {
   },
   testConnection(configId?: number) {
     return request<{ success: boolean; message: string }>(withConfigId('/api/gitlab-sync/test-connection/by-config', configId), {
+      method: 'POST',
+    });
+  },
+  runDiagnostics(configId?: number) {
+    return request<GitlabSyncDiagnosticsResponse>(withConfigId('/api/gitlab-sync/diagnostics/by-config', configId), {
       method: 'POST',
     });
   },

@@ -4,6 +4,7 @@ import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
@@ -119,6 +120,69 @@ public class GitlabSyncController {
   @GetMapping("/source-health")
   public ApiResponse<List<GitlabSourceHealthResponse>> sourceHealth() {
     return ApiResponse.success(sourceHealthService.listHealth());
+  }
+
+  @PostMapping("/diagnostics")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<GitlabSyncDiagnosticsResponse> diagnostics() {
+    return diagnostics(null);
+  }
+
+  @PostMapping("/diagnostics/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<GitlabSyncDiagnosticsResponse> diagnostics(
+      @RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
+    boolean connectionOk = true;
+    String connectionMessage = "GitLab PostgreSQL connection succeeded";
+    try {
+      if (configId == null) {
+        syncService.testConnection();
+      } else {
+        syncService.testConnection(config.getId());
+      }
+    } catch (Exception e) {
+      connectionOk = false;
+      connectionMessage = e.getMessage();
+    }
+
+    boolean whitelistOk = true;
+    String whitelistMessage = "GitLab whitelist options resolved";
+    int whitelistOptionCount = 0;
+    try {
+      whitelistOptionCount = whitelistService.listOptions(config).size();
+    } catch (Exception e) {
+      whitelistOk = false;
+      whitelistMessage = e.getMessage();
+    }
+
+    GitlabWebhookRegistrationStatus webhookStatus;
+    try {
+      webhookStatus = webhookRegistrationService.getStatus(config, properties.getWebhookBaseUrl());
+    } catch (Exception e) {
+      webhookStatus = new GitlabWebhookRegistrationStatus(
+          false,
+          false,
+          false,
+          config.getWebhookProjectId(),
+          properties.getWebhookBaseUrl(),
+          e.getMessage(),
+          List.of());
+    }
+    GitlabSyncDiagnosticsResponse response = new GitlabSyncDiagnosticsResponse(
+        config.getId(),
+        GitlabSourceInstanceSupport.sourceInstanceOf(config),
+        config.getSourceMode(),
+        connectionOk,
+        connectionMessage,
+        whitelistOk,
+        whitelistMessage,
+        whitelistOptionCount,
+        properties.getWebhookBaseUrl(),
+        webhookStatus.supported(),
+        webhookStatus.registered(),
+        webhookStatus.message());
+    return ApiResponse.success(response);
   }
 
   @GetMapping("/webhook-registration-status")
