@@ -246,6 +246,38 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void webhookPreciseSyncShouldWorkWithDirectSourceMode() {
+    GitlabSyncConfig config = baseConfig();
+    config.setSourceMode(SourceMode.DIRECT);
+    config.setDbHost("gitlab.internal");
+    config.setDbPort(5432);
+    config.setDbName("gitlabhq_production");
+    config.setDbUsername("gitlab_ro");
+    TableWhitelistOption option = new TableWhitelistOption("issues", "issues", "id", "updated_at", true);
+    Map<String, Object> payload = Map.of("object_kind", "issue");
+    List<GitlabWebhookPreciseSyncTarget> targets =
+        List.of(new GitlabWebhookPreciseSyncTarget("issues", "id", 101L));
+
+    when(whitelistService.resolveOptions(config)).thenReturn(List.of(option));
+    when(webhookPreciseSyncPlanner.plan(payload))
+        .thenReturn(new GitlabWebhookPreciseSyncPlan("issue:101", "101", targets));
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(config, option))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                sourceSchema(option), "ods_gitlab_issues", true, null));
+    when(logService.start(anyLong(), any(), any(), anyString())).thenReturn(1L);
+    when(externalDbService.preciseScan(config, option, "id", 101L)).thenReturn(List.of());
+
+    syncService.executeRealtimeWebhookSync(config, payload, "101");
+
+    verify(externalDbService).preciseScan(eq(config), eq(option), eq("id"), eq(101L));
+    verify(factBuildService).rebuildAllFactsForConfig(config, false);
+    verify(integrationTestFactBuildService).rebuildFactsForConfig(config, false);
+    verify(externalDbService, never()).incrementalScan(any(), any(), any());
+    verify(externalDbService, never()).fullTableScan(any(), any());
+  }
+
+  @Test
   void unsupportedWebhookShouldFallbackToIncrementalWindowScan() {
     GitlabSyncTask task = runningTask(SyncType.WEBHOOK);
     task.setPayloadJson("{\"message\":\"Triggered by webhook: push\",\"webhookPayload\":{}}");

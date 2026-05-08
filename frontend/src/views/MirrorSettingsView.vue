@@ -132,6 +132,7 @@ const sourceSelectPlaceholder = computed(() =>
   isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
 );
 const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
+const webhookAutoRegistrationDisabled = computed(() => savedConfigActionDisabled.value || !isDockerMode.value);
 const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
@@ -584,7 +585,11 @@ onBeforeUnmount(() => {
           >
             测试连接
           </el-button>
-          <el-button :loading="registeringWebhook" :disabled="savedConfigActionDisabled" @click="registerWebhook">
+          <el-button
+            :loading="registeringWebhook"
+            :disabled="webhookAutoRegistrationDisabled"
+            @click="registerWebhook"
+          >
             注册 Webhook
           </el-button>
           <el-button
