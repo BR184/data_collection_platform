@@ -6,6 +6,7 @@ import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
@@ -293,23 +294,6 @@ async function handleOpenRuleExplanation() {
   }
 }
 
-function ruleStepRetainedRate(step: { inputCount: number; outputCount: number }) {
-  if (!step.inputCount) {
-    return '0%';
-  }
-  return `${((step.outputCount / step.inputCount) * 100).toFixed(1)}%`;
-}
-
-function ruleStepSummary(step: { key?: string; inputCount: number; outputCount: number }, index: number) {
-  if (step.key === 'illegal-total') {
-    return `第 ${index + 1} 步检查后，筛出 ${step.outputCount} 条需要关注的记录，占原始数据的 ${ruleStepRetainedRate(step)}。`;
-  }
-  return `在已经筛出的非法记录里，有 ${step.outputCount} 条符合第 ${index} 项规则，占全部非法记录的 ${ruleStepRetainedRate(step)}。`;
-}
-
-function metricFormulaSummary(metric: { label: string; definition: string; formula: string; note?: string | null }) {
-  return `${metric.label}：${metric.definition}`;
-}
 </script>
 
 <template>
@@ -474,116 +458,31 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
       </template>
     </el-drawer>
 
-    <el-drawer
+    <RuleExplanationDrawer
       v-model="ruleExplanationVisible"
-      size="44%"
-      destroy-on-close
-      class="record-detail-drawer"
-    >
-      <template #header>
-        <div class="record-detail-header">
-          <div class="record-detail-header-main">
-            <div class="record-detail-header-kicker">规则说明</div>
-            <div class="record-detail-header-title">{{ ruleExplanation?.title || '代码走查非法记录规则说明' }}</div>
-            <div class="record-detail-header-meta">
-              <span class="record-detail-meta-item">版本 {{ ruleExplanation?.version || '-' }}</span>
-              <span class="record-detail-meta-dot" />
-              <span class="record-detail-meta-item">默认口径</span>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <div v-loading="ruleExplanationLoading" class="record-rule-panel">
-        <el-empty
-          v-if="!ruleExplanation?.supported"
-          :description="ruleExplanation?.unsupportedReason || '当前页面暂不支持规则说明。'"
-        />
-
-        <template v-else>
-          <section class="record-detail-section">
-            <div class="record-detail-section-title">先看结论</div>
-            <div class="record-rule-summary-card">
-              <div class="record-rule-summary-main">{{ qaFriendlyRuleSummary }}</div>
-              <div v-if="ruleExplanation?.summary" class="record-rule-summary-sub">{{ ruleExplanation.summary }}</div>
-            </div>
-            <div class="record-rule-overview-grid">
-              <article class="record-rule-overview-card">
-                <span class="record-rule-overview-label">原始数据</span>
-                <strong class="record-rule-overview-value">{{ ruleFirstInputCount }}</strong>
-              </article>
-              <article class="record-rule-overview-card">
-                <span class="record-rule-overview-label">最终筛出</span>
-                <strong class="record-rule-overview-value">{{ ruleFinalOutputCount }}</strong>
-              </article>
-              <article class="record-rule-overview-card">
-                <span class="record-rule-overview-label">筛出比例</span>
-                <strong class="record-rule-overview-value">{{ ruleFinalRetainedRate }}</strong>
-              </article>
-            </div>
-          </section>
-
-          <section class="record-detail-section">
-            <div class="record-detail-section-title">这次统计包含哪些数据</div>
-            <div class="record-detail-content">{{ ruleExplanation?.scopeDescription || '-' }}</div>
-          </section>
-
-          <section class="record-detail-section">
-            <div class="record-detail-section-title">当前默认口径下，哪些情况会被筛出来</div>
-            <div class="record-rule-card-grid">
-              <article
-                v-for="(step, index) in ruleExclusionSteps"
-                :key="step.key"
-                class="record-rule-card"
-              >
-                <div class="record-rule-card-title">规则 {{ index + 1 }}：{{ step.title }}</div>
-                <div class="record-rule-card-description">{{ step.description }}</div>
-                <div class="record-rule-card-summary">{{ ruleStepSummary(step, index + 1) }}</div>
-                <div class="record-rule-card-stats">
-                  <span class="record-rule-card-stat">{{ step.key === 'illegal-total' ? '筛出' : '符合该类' }} {{ step.outputCount }} 条</span>
-                  <span class="record-rule-card-stat">{{ step.key === 'illegal-total' ? '占原始' : '占全部非法' }} {{ ruleStepRetainedRate(step) }}</span>
-                  <span class="record-rule-card-stat">检查基数 {{ step.inputCount }} 条</span>
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section class="record-detail-section">
-            <div class="record-detail-section-title">数据是怎么一步步变化的</div>
-            <div class="record-process-chain">
-              <article
-                v-for="(step, index) in ruleExplanationSteps"
-                :key="`${step.key}-process`"
-                class="record-process-card"
-              >
-                <div class="record-process-step">第 {{ index + 1 }} 步</div>
-                <div class="record-process-title">{{ step.title }}</div>
-                <div class="record-process-value">{{ step.outputCount }} 条</div>
-                <div class="record-process-note">
-                  {{ index === 0 ? '这是最开始纳入检查的合并请求。' : `这一轮处理后，共有 ${step.outputCount} 条被筛出来。` }}
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section class="record-detail-section">
-            <div class="record-detail-section-title">最后这些数字怎么算</div>
-            <div class="record-formula-card-grid">
-              <article
-                v-for="metric in ruleExplanationMetrics"
-                :key="metric.key"
-                class="record-formula-card"
-              >
-                <div class="record-formula-card-title">{{ metric.label }}</div>
-                <div class="record-formula-card-definition">{{ metricFormulaSummary(metric) }}</div>
-                <div class="record-formula-card-formula">{{ metric.formula }}</div>
-                <div v-if="metric.note" class="record-formula-card-note">{{ metric.note }}</div>
-              </article>
-            </div>
-          </section>
-        </template>
-      </div>
-    </el-drawer>
+      :loading="ruleExplanationLoading"
+      :title="ruleExplanation?.title || '代码走查非法记录规则说明'"
+      :supported="Boolean(ruleExplanation?.supported)"
+      :unsupported-reason="ruleExplanation?.unsupportedReason || '当前页面暂不支持规则说明。'"
+      :summary-main="qaFriendlyRuleSummary"
+      :summary="ruleExplanation?.summary"
+      :overview-cards="[
+        { label: '原始数据', value: ruleFirstInputCount },
+        { label: '最终筛出', value: ruleFinalOutputCount },
+        { label: '筛出比例', value: ruleFinalRetainedRate },
+      ]"
+      :info-items="[
+        { label: '当前使用规则版本', value: ruleExplanation?.version },
+        { label: '统计范围', value: ruleExplanation?.scopeDescription },
+        { label: '口径类型', value: '默认口径' },
+      ]"
+      :exclusion-steps="ruleExclusionSteps"
+      :process-steps="ruleExplanationSteps"
+      :metrics="ruleExplanationMetrics"
+      exclusion-title="当前默认口径下，哪些情况会被筛出来"
+      process-title="数据是怎么一步步变化的"
+      metrics-title="最后这些数字怎么算"
+    />
   </section>
 </template>
 
@@ -745,124 +644,7 @@ function metricFormulaSummary(metric: { label: string; definition: string; formu
   color: rgba(15, 23, 42, 0.92);
 }
 
-.record-rule-panel {
-  display: grid;
-  gap: 16px;
-}
-
-.record-rule-summary-card {
-  display: grid;
-  gap: 8px;
-  padding: 16px 18px;
-  border-radius: 12px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-}
-
-.record-rule-summary-main {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.record-rule-summary-sub {
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.66);
-}
-
-.record-rule-overview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.record-rule-overview-card,
-.record-rule-card,
-.record-formula-card,
-.record-process-card {
-  display: grid;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 12px;
-  background: #fff;
-  border: 1px solid #f0f0f0;
-}
-
-.record-rule-overview-label {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.52);
-}
-
-.record-rule-overview-value,
-.record-process-value {
-  font-size: 22px;
-  line-height: 1;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-.record-rule-card-grid,
-.record-formula-card-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.record-rule-card-title,
-.record-formula-card-title,
-.record-process-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.record-rule-card-description,
-.record-formula-card-definition,
-.record-formula-card-note,
-.record-process-note {
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.68);
-}
-
-.record-rule-card-summary,
-.record-formula-card-formula {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #fafafa;
-  border: 1px solid #f5f5f5;
-  font-size: 13px;
-  line-height: 1.7;
-  color: rgba(15, 23, 42, 0.8);
-}
-
-.record-rule-card-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.record-rule-card-stat {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #fafafa;
-  font-size: 12px;
-  color: #595959;
-}
-
-.record-process-chain {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.record-process-step {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.46);
-}
-
 @media (max-width: 960px) {
-  .record-rule-overview-grid,
   .record-detail-metrics {
     grid-template-columns: 1fr;
   }

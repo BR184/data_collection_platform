@@ -6,6 +6,7 @@ import { ElMessage } from '../../element-plus-services';
 import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
+import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../../composables/useRecordPageController';
@@ -108,7 +109,16 @@ const {
 
 const tableRows = computed<Record<string, unknown>[]>(() => rows.value.map((row) => props.mapRow(row)));
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
+const ruleFirstCount = computed(() => ruleSteps.value[0]?.inputCount ?? 0);
 const ruleFinalCount = computed(() => ruleSteps.value.at(-1)?.outputCount ?? 0);
+const ruleRetainedRate = computed(() =>
+  ruleFirstCount.value ? `${((ruleFinalCount.value / ruleFirstCount.value) * 100).toFixed(1)}%` : '0%',
+);
+const ruleOverviewCards = computed(() => [
+  { label: '原始数据', value: ruleFirstCount.value },
+  { label: '最终筛出', value: ruleFinalCount.value },
+  { label: '筛出比例', value: ruleRetainedRate.value },
+]);
 
 function createFallbackRuleExplanation(reason: string): StatisticBoardRuleExplanationResponse {
   return {
@@ -361,42 +371,26 @@ function openDetailDrawer(row: Record<string, unknown>) {
         </template>
       </el-drawer>
 
-      <el-drawer v-model="ruleExplanationVisible" size="42%" destroy-on-close class="issue-illegal-drawer customer-illegal-drawer">
-        <template #header>
-          <div class="issue-illegal-detail-header customer-illegal-detail-header">
-            <div>
-              <div class="issue-illegal-detail-kicker customer-illegal-detail-kicker">规则说明</div>
-              <div class="issue-illegal-detail-title customer-illegal-detail-title">
-                {{ ruleExplanation?.title || ruleTitle }}
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <div v-loading="ruleExplanationLoading" class="issue-illegal-rule-panel customer-illegal-rule-panel">
-          <el-empty v-if="!ruleExplanation?.supported" :description="ruleExplanation?.unsupportedReason || '当前暂不支持规则说明。'" />
-          <template v-else>
-            <section class="issue-illegal-rule-summary customer-illegal-rule-summary">
-              <strong>{{ totalTagText(ruleFinalCount) }}</strong>
-              <span>{{ ruleExplanation.summary }}</span>
-            </section>
-            <section class="issue-illegal-detail-section customer-illegal-detail-section">
-              <div class="issue-illegal-detail-section-title customer-illegal-detail-section-title">统计范围</div>
-              <div class="issue-illegal-reason-card customer-illegal-reason-card">{{ ruleExplanation.scopeDescription }}</div>
-            </section>
-            <section class="issue-illegal-detail-section customer-illegal-detail-section">
-              <div class="issue-illegal-detail-section-title customer-illegal-detail-section-title">处理步骤</div>
-              <article v-for="step in ruleSteps" :key="step.key" class="issue-illegal-step-card customer-illegal-step-card">
-                <div class="issue-illegal-step-title customer-illegal-step-title">{{ step.title }}</div>
-                <div class="issue-illegal-step-desc customer-illegal-step-desc">{{ step.description }}</div>
-                <div class="issue-illegal-step-count customer-illegal-step-count">
-                  输入 {{ step.inputCount }} 条，输出 {{ step.outputCount }} 条
-                </div>
-              </article>
-            </section>
-          </template>
-        </div>
-      </el-drawer>
+      <RuleExplanationDrawer
+        v-model="ruleExplanationVisible"
+        :loading="ruleExplanationLoading"
+        :title="ruleExplanation?.title || ruleTitle"
+        :supported="Boolean(ruleExplanation?.supported)"
+        :unsupported-reason="ruleExplanation?.unsupportedReason || '当前暂不支持规则说明。'"
+        :summary-main="totalTagText(ruleFinalCount)"
+        :summary="ruleExplanation?.summary"
+        :overview-cards="ruleOverviewCards"
+        :info-items="[
+          { label: '当前使用规则版本', value: ruleExplanation?.version },
+          { label: '统计范围', value: ruleExplanation?.scopeDescription },
+        ]"
+        :exclusion-steps="ruleSteps"
+        :process-steps="ruleSteps"
+        :metrics="ruleExplanation?.metricDefinitions ?? []"
+        exclusion-title="处理步骤"
+        process-title="数据是怎么一步步变化的"
+        metrics-title="指标定义"
+      />
     </section>
   </PageStateShell>
 </template>
@@ -431,8 +425,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
   background: #fafafa;
 }
 
-.issue-illegal-detail-header,
-.issue-illegal-rule-panel {
+.issue-illegal-detail-header {
   display: grid;
   gap: 12px;
 }
@@ -470,30 +463,10 @@ function openDetailDrawer(row: Record<string, unknown>) {
   color: rgba(15, 23, 42, 0.78);
 }
 
-.issue-illegal-reason-card,
-.issue-illegal-step-card,
-.issue-illegal-rule-summary {
+.issue-illegal-reason-card {
   padding: 12px;
   border-radius: 10px;
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.issue-illegal-rule-summary {
-  display: grid;
-  gap: 6px;
-  color: rgba(15, 23, 42, 0.72);
-}
-
-.issue-illegal-step-title {
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.86);
-}
-
-.issue-illegal-step-desc,
-.issue-illegal-step-count {
-  margin-top: 4px;
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.58);
 }
 </style>

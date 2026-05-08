@@ -66,6 +66,7 @@ declare module 'vue' {
     RecordTableFilterFields: typeof import('./components/base/RecordTableFilterFields.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    RuleExplanationDrawer: typeof import('./components/RuleExplanationDrawer.vue')['default']
     SmartSelect: typeof import('./components/base/SmartSelect.vue')['default']
     StatisticBoardDetailDialog: typeof import('./components/StatisticBoardDetailDialog.vue')['default']
     StatisticBoardRuleExplanationDrawer: typeof import('./components/StatisticBoardRuleExplanationDrawer.vue')['default']

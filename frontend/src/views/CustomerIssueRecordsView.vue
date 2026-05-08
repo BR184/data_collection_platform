@@ -6,6 +6,7 @@ import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
+import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
@@ -197,7 +198,16 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 );
 
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
+const ruleFirstCount = computed(() => ruleSteps.value[0]?.inputCount ?? 0);
 const ruleFinalCount = computed(() => ruleSteps.value.at(-1)?.outputCount ?? 0);
+const ruleRetainedRate = computed(() =>
+  ruleFirstCount.value ? `${((ruleFinalCount.value / ruleFirstCount.value) * 100).toFixed(1)}%` : '0%',
+);
+const ruleOverviewCards = computed(() => [
+  { label: '原始数据', value: ruleFirstCount.value },
+  { label: '最终筛出', value: ruleFinalCount.value },
+  { label: '筛出比例', value: ruleRetainedRate.value },
+]);
 
 function buildDelayFlags(row: CustomerIssueRecordRowResponse) {
   const flags = [];
@@ -437,36 +447,26 @@ function openDetailDrawer(row: Record<string, unknown>) {
       </template>
     </el-drawer>
 
-    <el-drawer v-model="ruleExplanationVisible" size="42%" destroy-on-close class="customer-record-drawer">
-      <template #header>
-        <div class="customer-record-detail-header">
-          <div class="customer-record-detail-kicker">规则说明</div>
-          <div class="customer-record-detail-title">{{ ruleExplanation?.title || `${pageTitle}规则说明` }}</div>
-        </div>
-      </template>
-
-      <div v-loading="ruleExplanationLoading" class="customer-record-rule-panel">
-        <el-empty v-if="!ruleExplanation?.supported" :description="ruleExplanation?.unsupportedReason || '当前暂不支持规则说明。'" />
-        <template v-else>
-          <section class="customer-record-rule-summary">
-            <strong>当前筛出 {{ ruleFinalCount }} 条记录。</strong>
-            <span>{{ ruleExplanation.summary }}</span>
-          </section>
-          <section class="customer-record-detail-section">
-            <div class="customer-record-detail-section-title">统计范围</div>
-            <div class="customer-record-card">{{ ruleExplanation.scopeDescription }}</div>
-          </section>
-          <section class="customer-record-detail-section">
-            <div class="customer-record-detail-section-title">处理步骤</div>
-            <article v-for="step in ruleSteps" :key="step.key" class="customer-record-step-card">
-              <div class="customer-record-step-title">{{ step.title }}</div>
-              <div class="customer-record-step-desc">{{ step.description }}</div>
-              <div class="customer-record-step-count">输入 {{ step.inputCount }} 条，输出 {{ step.outputCount }} 条</div>
-            </article>
-          </section>
-        </template>
-      </div>
-    </el-drawer>
+    <RuleExplanationDrawer
+      v-model="ruleExplanationVisible"
+      :loading="ruleExplanationLoading"
+      :title="ruleExplanation?.title || `${pageTitle}规则说明`"
+      :supported="Boolean(ruleExplanation?.supported)"
+      :unsupported-reason="ruleExplanation?.unsupportedReason || '当前暂不支持规则说明。'"
+      :summary-main="`当前筛出 ${ruleFinalCount} 条记录。`"
+      :summary="ruleExplanation?.summary"
+      :overview-cards="ruleOverviewCards"
+      :info-items="[
+        { label: '当前使用规则版本', value: ruleExplanation?.version },
+        { label: '统计范围', value: ruleExplanation?.scopeDescription },
+      ]"
+      :exclusion-steps="ruleSteps"
+      :process-steps="ruleSteps"
+      :metrics="ruleExplanation?.metricDefinitions ?? []"
+      exclusion-title="处理步骤"
+      process-title="数据是怎么一步步变化的"
+      metrics-title="指标定义"
+    />
     </section>
   </PageStateShell>
 </template>
@@ -539,33 +539,4 @@ function openDetailDrawer(row: Record<string, unknown>) {
   color: rgba(15, 23, 42, 0.76);
 }
 
-.customer-record-card,
-.customer-record-step-card,
-.customer-record-rule-summary {
-  display: grid;
-  gap: 8px;
-  padding: 14px;
-  border-radius: 12px;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  color: rgba(15, 23, 42, 0.76);
-  line-height: 1.7;
-}
-
-.customer-record-rule-panel {
-  display: grid;
-  gap: 14px;
-}
-
-.customer-record-step-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(15, 23, 42, 0.9);
-}
-
-.customer-record-step-desc,
-.customer-record-step-count {
-  font-size: 13px;
-  color: rgba(15, 23, 42, 0.66);
-}
 </style>
