@@ -278,6 +278,68 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void realtimeWebhookShouldFallbackToIncrementalWhenPreciseTargetsAreOutsideWhitelist() {
+    GitlabSyncConfig config = baseConfig();
+    Map<String, Object> payload = Map.of("object_kind", "release");
+    List<GitlabWebhookPreciseSyncTarget> targets =
+        List.of(new GitlabWebhookPreciseSyncTarget("releases", "id", 707L));
+    GitlabSyncTask queuedTask = new GitlabSyncTask();
+    queuedTask.setId(300L);
+    queuedTask.setStatus(SyncStatus.QUEUED);
+
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(List.of(new TableWhitelistOption("issues", "issues", "id", "updated_at", true)));
+    when(webhookPreciseSyncPlanner.plan(payload))
+        .thenReturn(new GitlabWebhookPreciseSyncPlan("release:707", "707", targets));
+    when(taskService.submitTaskResult(
+            eq(config),
+            eq(SyncType.INCREMENTAL),
+            eq(SyncTriggerType.WEBHOOK),
+            contains("fallback incremental sync"),
+            eq(Map.of())))
+        .thenReturn(new SyncTaskSubmissionResult(queuedTask, SyncSubmissionAction.QUEUED));
+
+    syncService.executeRealtimeWebhookSync(config, payload, "707");
+
+    verify(taskService).submitTaskResult(
+        eq(config),
+        eq(SyncType.INCREMENTAL),
+        eq(SyncTriggerType.WEBHOOK),
+        contains("fallback incremental sync"),
+        eq(Map.of()));
+    verify(externalDbService, never()).preciseScan(any(), any(), anyString(), any());
+    verify(logService, never()).start(anyLong(), any(), any(), anyString());
+    verify(factBuildService, never()).rebuildAllFactsForConfig(any(), any(Boolean.class));
+  }
+
+  @Test
+  void realtimeWebhookShouldSyncWhitelistedTargetsAndSkipOthers() {
+    GitlabSyncConfig config = baseConfig();
+    TableWhitelistOption option = new TableWhitelistOption("issues", "issues", "id", "updated_at", true);
+    Map<String, Object> payload = Map.of("object_kind", "issue");
+    List<GitlabWebhookPreciseSyncTarget> targets =
+        List.of(
+            new GitlabWebhookPreciseSyncTarget("issues", "id", 101L),
+            new GitlabWebhookPreciseSyncTarget("releases", "id", 707L));
+
+    when(whitelistService.resolveOptions(config)).thenReturn(List.of(option));
+    when(webhookPreciseSyncPlanner.plan(payload))
+        .thenReturn(new GitlabWebhookPreciseSyncPlan("issue:101", "101", targets));
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(config, option))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                sourceSchema(option), "ods_gitlab_issues", true, null));
+    when(logService.start(anyLong(), any(), any(), anyString())).thenReturn(1L);
+    when(externalDbService.preciseScan(config, option, "id", 101L)).thenReturn(List.of());
+
+    syncService.executeRealtimeWebhookSync(config, payload, "101");
+
+    verify(externalDbService).preciseScan(eq(config), eq(option), eq("id"), eq(101L));
+    verify(taskService, never()).submitTaskResult(any(), eq(SyncType.INCREMENTAL), any(), anyString(), any());
+  }
+
+  @Test
   void unsupportedWebhookShouldFallbackToIncrementalWindowScan() {
     GitlabSyncTask task = runningTask(SyncType.WEBHOOK);
     task.setPayloadJson("{\"message\":\"Triggered by webhook: push\",\"webhookPayload\":{}}");
@@ -298,6 +360,36 @@ class GitlabMirrorSyncServiceTest {
     when(taskService.promoteNextQueued(anyString())).thenReturn(null);
 
     syncService.executeTaskAsync(205L);
+
+    verify(externalDbService).incrementalScan(eq(config), eq(option), any());
+    verify(externalDbService, never()).preciseScan(any(), any(), anyString(), any());
+  }
+
+  @Test
+  void webhookTaskShouldFallbackToIncrementalWhenPreciseTargetsAreOutsideWhitelist() {
+    GitlabSyncTask task = runningTask(SyncType.WEBHOOK);
+    task.setPayloadJson("{\"message\":\"Triggered by webhook: release\",\"webhookPayload\":{}}");
+    GitlabSyncConfig config = baseConfig();
+    config.setLastFullSyncAt(LocalDateTime.now().minusMinutes(10));
+    TableWhitelistOption option = new TableWhitelistOption("issues", "issues", "id", "updated_at", true);
+
+    when(taskService.claimPendingTask(eq(206L), anyString())).thenReturn(task);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(whitelistService.resolveOptions(config)).thenReturn(List.of(option));
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(config, option))
+        .thenReturn(
+            new GitlabMirrorSchemaService.PreparedMirrorTable(
+                sourceSchema(option), "ods_gitlab_issues", true, null));
+    when(taskService.extractMessage(task)).thenReturn("Triggered by webhook: release");
+    when(logService.start(anyLong(), any(), any(), anyString())).thenReturn(1L);
+    when(jsonUtils.toMap(task.getPayloadJson()))
+        .thenReturn(Map.of("message", "Triggered by webhook: release", "webhookPayload", Map.of("object_kind", "release")));
+    when(webhookPreciseSyncPlanner.planTargets(Map.of("object_kind", "release")))
+        .thenReturn(List.of(new GitlabWebhookPreciseSyncTarget("releases", "id", 707L)));
+    when(externalDbService.incrementalScan(any(), any(), any())).thenReturn(List.of());
+    when(taskService.promoteNextQueued(anyString())).thenReturn(null);
+
+    syncService.executeTaskAsync(206L);
 
     verify(externalDbService).incrementalScan(eq(config), eq(option), any());
     verify(externalDbService, never()).preciseScan(any(), any(), anyString(), any());

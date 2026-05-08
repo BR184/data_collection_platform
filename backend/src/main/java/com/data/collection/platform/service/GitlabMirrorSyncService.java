@@ -227,10 +227,27 @@ public class GitlabMirrorSyncService {
     if (plan.targets().isEmpty()) {
       return 0;
     }
+    Map<String, TableWhitelistOption> tableMap = buildTableMap(tables);
+    List<GitlabWebhookPreciseSyncTarget> eligibleTargets = filterEligibleWebhookTargets(config, plan.objectKey(), plan.targets(), tableMap);
+    if (eligibleTargets.isEmpty()) {
+      try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncType.WEBHOOK.name(), plan.objectKey());
+           GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(objectId);
+           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("FALLBACK_INCREMENTAL")) {
+        log.warn(
+            "Webhook precise sync has no whitelisted targets, fallback to incremental sync, objectKey={}, targetCount={}",
+            plan.objectKey(),
+            plan.targets().size());
+      }
+      startIncrementalSync(
+          config.getId(),
+          SyncTriggerType.WEBHOOK,
+          "Webhook precise targets are outside whitelist; fallback incremental sync");
+      return 0;
+    }
     long logId = logService.start(
         config.getId(),
         SyncType.WEBHOOK,
-        plan.targets().stream().map(GitlabWebhookPreciseSyncTarget::tableName).toList(),
+        eligibleTargets.stream().map(GitlabWebhookPreciseSyncTarget::tableName).toList(),
         "Webhook precise sync: " + plan.objectKey());
     int tableCount = 0;
     int recordCount = 0;
@@ -238,13 +255,8 @@ public class GitlabMirrorSyncService {
          GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(objectId);
          GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("EXECUTING")) {
       log.info("Executing realtime webhook sync, objectKey={}, targetCount={}", plan.objectKey(), plan.targets().size());
-      Map<String, TableWhitelistOption> tableMap = tables.stream()
-          .collect(java.util.stream.Collectors.toMap(TableWhitelistOption::tableName, table -> table, (left, right) -> left));
-      for (GitlabWebhookPreciseSyncTarget target : plan.targets()) {
+      for (GitlabWebhookPreciseSyncTarget target : eligibleTargets) {
         TableWhitelistOption table = tableMap.get(target.tableName());
-        if (table == null) {
-          continue;
-        }
         try {
           GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
               mirrorSchemaService.getPreparedMirrorTableForSync(config, table);
@@ -542,16 +554,20 @@ public class GitlabMirrorSyncService {
       return false;
     }
 
-    Map<String, TableWhitelistOption> tableMap = tables.stream()
-        .collect(java.util.stream.Collectors.toMap(TableWhitelistOption::tableName, table -> table, (left, right) -> left));
+    Map<String, TableWhitelistOption> tableMap = buildTableMap(tables);
+    List<GitlabWebhookPreciseSyncTarget> eligibleTargets = filterEligibleWebhookTargets(
+        config,
+        task.getScopeKey(),
+        targets,
+        tableMap);
+    if (eligibleTargets.isEmpty()) {
+      return false;
+    }
 
     int tableCount = 0;
     int recordCount = 0;
-    for (GitlabWebhookPreciseSyncTarget target : targets) {
+    for (GitlabWebhookPreciseSyncTarget target : eligibleTargets) {
       TableWhitelistOption table = tableMap.get(target.tableName());
-      if (table == null) {
-        continue;
-      }
       try {
         checkCancelled(task.getId());
         GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
@@ -585,6 +601,38 @@ public class GitlabMirrorSyncService {
       }
     }
     return true;
+  }
+
+  private Map<String, TableWhitelistOption> buildTableMap(List<TableWhitelistOption> tables) {
+    return tables.stream()
+        .collect(java.util.stream.Collectors.toMap(TableWhitelistOption::tableName, table -> table, (left, right) -> left));
+  }
+
+  private List<GitlabWebhookPreciseSyncTarget> filterEligibleWebhookTargets(
+      GitlabSyncConfig config,
+      String objectKey,
+      List<GitlabWebhookPreciseSyncTarget> targets,
+      Map<String, TableWhitelistOption> tableMap) {
+    List<GitlabWebhookPreciseSyncTarget> eligibleTargets = targets.stream()
+        .filter(target -> tableMap.containsKey(target.tableName()))
+        .toList();
+    int skippedCount = targets.size() - eligibleTargets.size();
+    if (skippedCount > 0) {
+      List<String> skippedTables = targets.stream()
+          .map(GitlabWebhookPreciseSyncTarget::tableName)
+          .filter(tableName -> !tableMap.containsKey(tableName))
+          .distinct()
+          .toList();
+      try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncType.WEBHOOK.name(), objectKey);
+           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("PRECISE_TARGET_SKIPPED")) {
+        log.warn(
+            "Skipped webhook precise targets outside whitelist, objectKey={}, skippedTables={}, skippedCount={}",
+            objectKey,
+            skippedTables,
+            skippedCount);
+      }
+    }
+    return eligibleTargets;
   }
 
   private int writeMirrorRows(
