@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,6 +64,47 @@ class GitlabExternalDbServiceTest {
 
     assertThat(url)
         .isEqualTo("jdbc:postgresql://10.0.0.8:5432/gitlabhq_production?connectTimeout=45&socketTimeout=45&tcpKeepAlive=true");
+  }
+
+  @Test
+  void shouldQuoteSourceTableNameForFullScans() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);
+
+    String sql = service.buildFullTableScanSql(option);
+
+    assertThat(sql).isEqualTo("select * from \"public\".\"Issue Events\"");
+  }
+
+  @Test
+  void shouldQuoteSourceTableAndTimeColumnForWindowScans() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);
+
+    String sql = service.buildTimeWindowScanSql(option, LocalDateTime.of(2026, 1, 2, 3, 4, 5));
+
+    assertThat(sql)
+        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-01 19:04:05'");
+  }
+
+  @Test
+  void shouldQuoteSourceTableAndLookupColumnForPreciseScans() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);
+
+    String sql = service.buildPreciseScanSql(option, "Issue ID", 101L);
+
+    assertThat(sql).isEqualTo("select * from \"public\".\"Issue Events\" where \"Issue ID\" = 101");
+  }
+
+  @Test
+  void shouldEscapeQuotesInSourceIdentifiers() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("issue\"events", "issue\"events", "id", "updated_at", false);
+
+    String sql = service.buildFullTableScanSql(option);
+
+    assertThat(sql).isEqualTo("select * from \"public\".\"issue\"\"events\"");
   }
 
   @Test

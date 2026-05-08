@@ -177,7 +177,7 @@ public class GitlabExternalDbService {
   }
 
   public List<Map<String, Object>> fullTableScan(GitlabSyncConfig config, TableWhitelistOption option) {
-    String sql = "select * from public.%s".formatted(option.tableName());
+    String sql = buildFullTableScanSql(option);
     return isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
   }
 
@@ -203,20 +203,32 @@ public class GitlabExternalDbService {
     if (lookupColumn == null || lookupColumn.isBlank() || lookupValue == null) {
       return List.of();
     }
-    String sql = "select * from public.%s where %s = %s".formatted(
-        option.tableName(),
-        quoteIdentifier(lookupColumn),
-        toSqlLiteral(lookupValue));
+    String sql = buildPreciseScanSql(option, lookupColumn, lookupValue);
     return isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
   }
 
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
-    LocalDateTime gitlabSince = toGitlabSourceTime(since);
-    String sql = "select * from public.%s where %s >= timestamp '%s'".formatted(
-        option.tableName(),
-        option.updatedAtColumn(),
-        gitlabSince.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+    String sql = buildTimeWindowScanSql(option, since);
     return isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
+  }
+
+  String buildFullTableScanSql(TableWhitelistOption option) {
+    return "select * from %s".formatted(quoteQualifiedPublicTable(option.tableName()));
+  }
+
+  String buildPreciseScanSql(TableWhitelistOption option, String lookupColumn, Object lookupValue) {
+    return "select * from %s where %s = %s".formatted(
+        quoteQualifiedPublicTable(option.tableName()),
+        quoteIdentifier(lookupColumn),
+        toSqlLiteral(lookupValue));
+  }
+
+  String buildTimeWindowScanSql(TableWhitelistOption option, LocalDateTime since) {
+    LocalDateTime gitlabSince = toGitlabSourceTime(since);
+    return "select * from %s where %s >= timestamp '%s'".formatted(
+        quoteQualifiedPublicTable(option.tableName()),
+        quoteIdentifier(option.updatedAtColumn()),
+        gitlabSince.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
   }
 
   Map<String, String> discoverUpdatedAtColumns(GitlabSyncConfig config) {
@@ -263,6 +275,10 @@ public class GitlabExternalDbService {
 
   private String quoteIdentifier(String identifier) {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
+  }
+
+  private String quoteQualifiedPublicTable(String tableName) {
+    return quoteIdentifier("public") + "." + quoteIdentifier(tableName);
   }
 
   private String toSqlLiteral(Object value) {
