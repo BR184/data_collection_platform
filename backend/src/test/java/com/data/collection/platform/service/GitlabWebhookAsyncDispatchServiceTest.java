@@ -163,4 +163,19 @@ class GitlabWebhookAsyncDispatchServiceTest {
     org.junit.jupiter.api.Assertions.assertTrue(latch.await(2, TimeUnit.SECONDS));
     org.junit.jupiter.api.Assertions.assertEquals(1, maxInFlight.get());
   }
+
+  @Test
+  void shouldReleaseObjectLocksAfterQueuedWebhookFinishes() {
+    Map<String, Object> payload = Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101L));
+    when(planner.plan(payload)).thenReturn(new GitlabWebhookPreciseSyncPlan(
+        "issue:101",
+        "101",
+        List.of(new GitlabWebhookPreciseSyncTarget("issues", "id", 101L))));
+
+    service.accept("Issue Hook", payload);
+    service.flushPending();
+
+    verify(syncService, timeout(1000).times(1)).executeRealtimeWebhookSync(any(), eq(payload), eq("101"));
+    org.junit.jupiter.api.Assertions.assertEquals(0, service.objectLockCount());
+  }
 }

@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 public class GitlabWebhookAsyncDispatchService {
   private final ConcurrentLinkedQueue<QueuedWebhookEntry> pendingQueue = new ConcurrentLinkedQueue<>();
   private final AtomicInteger queuedCount = new AtomicInteger();
-  private final ConcurrentMap<String, ReentrantLock> objectLocks = new ConcurrentHashMap<>();
+  private final ConcurrentMap<String, ObjectLock> objectLocks = new ConcurrentHashMap<>();
   private final ExecutorService workerPool =
       Executors.newFixedThreadPool(Math.max(4, Runtime.getRuntime().availableProcessors()));
 
@@ -138,8 +138,8 @@ public class GitlabWebhookAsyncDispatchService {
   }
 
   private void executeSerial(QueuedWebhookEntry entry) {
-    ReentrantLock lock = objectLocks.computeIfAbsent(entry.dispatchKey(), ignored -> new ReentrantLock());
-    lock.lock();
+    ObjectLock objectLock = acquireObjectLock(entry.dispatchKey());
+    objectLock.lock().lock();
     try {
       GitlabSyncConfig config = configService.getConfigById(entry.configId());
       try (GitlabSyncLogContext.Scope context =
@@ -154,8 +154,30 @@ public class GitlabWebhookAsyncDispatchService {
       }
       syncService.executeRealtimeWebhookSync(config, entry.payload(), entry.objectId());
     } finally {
-      lock.unlock();
+      objectLock.lock().unlock();
+      releaseObjectLock(entry.dispatchKey(), objectLock);
     }
+  }
+
+  private ObjectLock acquireObjectLock(String dispatchKey) {
+    return objectLocks.compute(dispatchKey, (ignored, existing) -> {
+      ObjectLock objectLock = existing == null ? new ObjectLock() : existing;
+      objectLock.retain();
+      return objectLock;
+    });
+  }
+
+  private void releaseObjectLock(String dispatchKey, ObjectLock objectLock) {
+    objectLocks.computeIfPresent(dispatchKey, (ignored, existing) -> {
+      if (existing != objectLock) {
+        return existing;
+      }
+      return objectLock.release() == 0 ? null : objectLock;
+    });
+  }
+
+  int objectLockCount() {
+    return objectLocks.size();
   }
 
   @PreDestroy
@@ -175,5 +197,22 @@ public class GitlabWebhookAsyncDispatchService {
       String eventType,
       Map<String, Object> payload,
       LocalDateTime receivedAt) {
+  }
+
+  private static final class ObjectLock {
+    private final ReentrantLock lock = new ReentrantLock();
+    private final AtomicInteger references = new AtomicInteger();
+
+    ReentrantLock lock() {
+      return lock;
+    }
+
+    void retain() {
+      references.incrementAndGet();
+    }
+
+    int release() {
+      return references.decrementAndGet();
+    }
   }
 }
