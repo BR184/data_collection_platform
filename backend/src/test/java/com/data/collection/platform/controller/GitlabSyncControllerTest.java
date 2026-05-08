@@ -13,6 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
+import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncTask;
@@ -29,6 +31,7 @@ import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.service.GitlabConfigService;
+import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
@@ -79,6 +82,9 @@ class GitlabSyncControllerTest {
   @Mock
   private GitlabSourceHealthService sourceHealthService;
 
+  @Mock
+  private GitlabExternalDbService externalDbService;
+
   private MockMvc mockMvc;
 
   @BeforeEach
@@ -95,7 +101,8 @@ class GitlabSyncControllerTest {
         taskService,
         webhookRegistrationService,
         purgeService,
-        sourceHealthService);
+        sourceHealthService,
+        externalDbService);
     mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
   }
 
@@ -243,6 +250,17 @@ class GitlabSyncControllerTest {
         .thenReturn(List.of(
             new TableWhitelistOption("issues", "issues", "id", "updated_at", true),
             new TableWhitelistOption("merge_requests", "merge_requests", "id", "updated_at", true)));
+    when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
+        .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(
+            true,
+            "GitLab source metadata discovered",
+            2,
+            2,
+            0,
+            0,
+            List.of(
+                new GitlabSourceTableDiagnosticsResponse("issues", "id", "updated_at", "INCREMENTAL", "abc123", true),
+                new GitlabSourceTableDiagnosticsResponse("merge_requests", "id", "updated_at", "INCREMENTAL", "def456", true))));
     when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
         .thenReturn(new GitlabWebhookRegistrationStatus(
             false,
@@ -262,6 +280,11 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.connectionOk").value(true))
         .andExpect(jsonPath("$.data.whitelistOk").value(true))
         .andExpect(jsonPath("$.data.whitelistOptionCount").value(2))
+        .andExpect(jsonPath("$.data.metadataOk").value(true))
+        .andExpect(jsonPath("$.data.sourceTableCount").value(2))
+        .andExpect(jsonPath("$.data.missingPrimaryKeyTableCount").value(0))
+        .andExpect(jsonPath("$.data.missingUpdatedAtTableCount").value(0))
+        .andExpect(jsonPath("$.data.sourceTables[0].rowStrategy").value("INCREMENTAL"))
         .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/webhook"))
         .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
         .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false));
@@ -275,6 +298,15 @@ class GitlabSyncControllerTest {
     when(configService.getConfig()).thenReturn(config);
     Mockito.doThrow(new BizException("connection refused")).when(syncService).testConnection();
     when(whitelistService.listOptions(config)).thenReturn(List.of());
+    when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
+        .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(
+            true,
+            "GitLab source metadata discovered",
+            0,
+            0,
+            0,
+            0,
+            List.of()));
     when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
         .thenReturn(new GitlabWebhookRegistrationStatus(
             true,
@@ -298,6 +330,15 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
     when(whitelistService.listOptions(config)).thenReturn(List.of());
+    when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
+        .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(
+            true,
+            "GitLab source metadata discovered",
+            0,
+            0,
+            0,
+            0,
+            List.of()));
     Mockito.doThrow(new BizException("docker command failed"))
         .when(webhookRegistrationService)
         .getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook"));

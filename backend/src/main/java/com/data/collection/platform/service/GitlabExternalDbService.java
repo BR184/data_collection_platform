@@ -4,6 +4,8 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
+import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
@@ -13,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -27,10 +30,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -74,29 +79,19 @@ public class GitlabExternalDbService {
 
   private final GitlabMirrorProperties properties;
   private final ObjectMapper objectMapper;
+  private final Map<SourceMode, GitlabSourceAdapter> sourceAdapters;
 
   public GitlabExternalDbService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
     this.properties = properties;
     this.objectMapper = objectMapper;
+    this.sourceAdapters = Map.of(
+        SourceMode.DIRECT, new DirectJdbcSourceAdapter(),
+        SourceMode.DOCKER, new DockerPsqlSourceAdapter());
   }
 
   public void testConnection(GitlabSyncConfig config) {
     try {
-      executeExternalQueryWithRetry("connection test", () -> {
-        try {
-          if (isDockerMode(config)) {
-            executeDockerSql(config, "select 1");
-            return null;
-          }
-          try (Connection connection = openConnection(config); Statement statement = connection.createStatement()) {
-            statement.setQueryTimeout(resolveExternalQueryTimeoutSeconds());
-            statement.execute("select 1");
-          }
-          return null;
-        } catch (Exception e) {
-          throw new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
-        }
-      });
+      sourceAdapter(config).testConnection(config);
     } catch (Exception e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Connection_Test")) {
         log.error("GitLab PostgreSQL connection test failed", e);
@@ -108,30 +103,12 @@ public class GitlabExternalDbService {
   }
 
   public List<TableWhitelistOption> discoverTables(GitlabSyncConfig config, Map<String, String> labels, List<String> recommendedTables) {
-    String sql = """
-        select
-          c.relname as table_name,
-          string_agg(a.attname, ',' order by array_position(i.indkey::int2[], a.attnum::int2)) as primary_key
-        from pg_class c
-        join pg_namespace n
-          on n.oid = c.relnamespace
-        join pg_index i
-          on i.indrelid = c.oid
-         and i.indisprimary
-        join pg_attribute a
-          on a.attrelid = c.oid
-         and a.attnum = any(i.indkey)
-        where n.nspname = 'public'
-          and c.relkind in ('r', 'p')
-        group by c.relname
-        order by c.relname
-        """;
-    List<Map<String, Object>> rows = isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
+    Map<String, String> primaryKeyMap = discoverPrimaryKeysByTable(config);
     Map<String, String> updatedAtColumnMap = discoverUpdatedAtColumns(config);
-    List<TableWhitelistOption> result = new ArrayList<>(rows.size());
-    for (Map<String, Object> row : rows) {
-      String tableName = String.valueOf(row.get("table_name"));
-      String primaryKey = String.valueOf(row.get("primary_key"));
+    List<TableWhitelistOption> result = new ArrayList<>(primaryKeyMap.size());
+    for (Map.Entry<String, String> entry : primaryKeyMap.entrySet()) {
+      String tableName = entry.getKey();
+      String primaryKey = entry.getValue();
       String updatedAtColumn = updatedAtColumnMap.get(tableName);
       String label = labels.getOrDefault(tableName, tableName);
       boolean recommended = recommendedTables.contains(tableName);
@@ -156,7 +133,7 @@ public class GitlabExternalDbService {
           and not a.attisdropped
         order by a.attnum
         """.formatted(option.tableName().replace("'", "''"));
-    List<Map<String, Object>> rows = isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
+    List<Map<String, Object>> rows = executeSourceQuery(config, sql);
     List<SourceTableColumn> columns = new ArrayList<>(rows.size());
     for (Map<String, Object> row : rows) {
       columns.add(new SourceTableColumn(
@@ -178,7 +155,7 @@ public class GitlabExternalDbService {
 
   public List<Map<String, Object>> fullTableScan(GitlabSyncConfig config, TableWhitelistOption option) {
     String sql = buildFullTableScanSql(option);
-    return isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
+    return executeSourceQuery(config, sql);
   }
 
   public List<Map<String, Object>> incrementalScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
@@ -204,12 +181,12 @@ public class GitlabExternalDbService {
       return List.of();
     }
     String sql = buildPreciseScanSql(option, lookupColumn, lookupValue);
-    return isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
+    return executeSourceQuery(config, sql);
   }
 
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
     String sql = buildTimeWindowScanSql(option, since);
-    return isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
+    return executeSourceQuery(config, sql);
   }
 
   String buildFullTableScanSql(TableWhitelistOption option) {
@@ -231,29 +208,124 @@ public class GitlabExternalDbService {
         gitlabSince.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
   }
 
-  Map<String, String> discoverUpdatedAtColumns(GitlabSyncConfig config) {
+  Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
     String sql = """
-        select table_name, column_name
-        from information_schema.columns
-        where table_schema = 'public'
-        order by table_name, ordinal_position
+        select
+          c.relname as table_name,
+          string_agg(a.attname, ',' order by array_position(i.indkey::int2[], a.attnum::int2)) as primary_key
+        from pg_class c
+        join pg_namespace n
+          on n.oid = c.relnamespace
+        join pg_index i
+          on i.indrelid = c.oid
+         and i.indisprimary
+        join pg_attribute a
+          on a.attrelid = c.oid
+         and a.attnum = any(i.indkey)
+        where n.nspname = 'public'
+          and c.relkind in ('r', 'p')
+        group by c.relname
+        order by c.relname
         """;
-    List<Map<String, Object>> rows = isDockerMode(config) ? executeDockerQuery(config, sql) : executeJdbcQuery(config, sql);
-    Map<String, List<String>> columnsByTable = new HashMap<>();
+    List<Map<String, Object>> rows = executeSourceQuery(config, sql);
+    Map<String, String> primaryKeys = new LinkedHashMap<>();
     for (Map<String, Object> row : rows) {
-      String tableName = String.valueOf(row.get("table_name"));
-      String columnName = String.valueOf(row.get("column_name"));
-      columnsByTable.computeIfAbsent(tableName, ignored -> new ArrayList<>()).add(columnName);
+      primaryKeys.put(String.valueOf(row.get("table_name")), String.valueOf(row.get("primary_key")));
     }
+    return primaryKeys;
+  }
 
+  Map<String, String> discoverUpdatedAtColumns(GitlabSyncConfig config) {
+    Map<String, List<SourceTableColumn>> columnsByTable = discoverColumnsByTable(config);
     Map<String, String> resolved = new HashMap<>();
-    for (Map.Entry<String, List<String>> entry : columnsByTable.entrySet()) {
-      String updatedAtColumn = resolveUpdatedAtColumn(entry.getValue());
+    for (Map.Entry<String, List<SourceTableColumn>> entry : columnsByTable.entrySet()) {
+      String updatedAtColumn = resolveUpdatedAtColumn(entry.getValue().stream().map(SourceTableColumn::columnName).toList());
       if (updatedAtColumn != null) {
         resolved.put(entry.getKey(), updatedAtColumn);
       }
     }
     return resolved;
+  }
+
+  Map<String, List<SourceTableColumn>> discoverColumnsByTable(GitlabSyncConfig config) {
+    String sql = """
+        select
+          c.relname as table_name,
+          a.attname as column_name,
+          pg_catalog.format_type(a.atttypid, a.atttypmod) as formatted_type,
+          not a.attnotnull as nullable,
+          a.attnum as ordinal_position
+        from pg_attribute a
+        join pg_class c on a.attrelid = c.oid
+        join pg_namespace n on c.relnamespace = n.oid
+        where n.nspname = 'public'
+          and c.relkind in ('r', 'p')
+          and a.attnum > 0
+          and not a.attisdropped
+        order by c.relname, a.attnum
+        """;
+    List<Map<String, Object>> rows = executeSourceQuery(config, sql);
+    Map<String, List<SourceTableColumn>> columnsByTable = new LinkedHashMap<>();
+    for (Map<String, Object> row : rows) {
+      String tableName = String.valueOf(row.get("table_name"));
+      SourceTableColumn column = new SourceTableColumn(
+          String.valueOf(row.get("column_name")),
+          String.valueOf(row.get("formatted_type")),
+          Boolean.parseBoolean(String.valueOf(row.get("nullable"))),
+          ((Number) row.get("ordinal_position")).intValue());
+      columnsByTable.computeIfAbsent(tableName, ignored -> new ArrayList<>()).add(column);
+    }
+    return columnsByTable;
+  }
+
+  public GitlabSourceMetadataDiagnosticsResponse inspectSourceMetadata(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions) {
+    Map<String, String> primaryKeysByTable = discoverPrimaryKeysByTable(config);
+    Map<String, List<SourceTableColumn>> columnsByTable = discoverColumnsByTable(config);
+    Map<String, String> updatedAtColumns = new HashMap<>();
+    for (Map.Entry<String, List<SourceTableColumn>> entry : columnsByTable.entrySet()) {
+      updatedAtColumns.put(
+          entry.getKey(),
+          resolveUpdatedAtColumn(entry.getValue().stream().map(SourceTableColumn::columnName).toList()));
+    }
+    Map<String, TableWhitelistOption> optionsByTable = new HashMap<>();
+    for (TableWhitelistOption option : whitelistOptions == null ? List.<TableWhitelistOption>of() : whitelistOptions) {
+      optionsByTable.put(option.tableName(), option);
+    }
+    List<GitlabSourceTableDiagnosticsResponse> sourceTables = new ArrayList<>();
+    for (Map.Entry<String, List<SourceTableColumn>> entry : columnsByTable.entrySet()) {
+      String tableName = entry.getKey();
+      String primaryKey = primaryKeysByTable.get(tableName);
+      String updatedAtColumn = updatedAtColumns.get(tableName);
+      TableWhitelistOption option = optionsByTable.get(tableName);
+      SourceTableSchema schema = new SourceTableSchema(
+          tableName,
+          splitPrimaryKeys(primaryKey),
+          updatedAtColumn,
+          entry.getValue());
+      sourceTables.add(new GitlabSourceTableDiagnosticsResponse(
+          tableName,
+          primaryKey,
+          updatedAtColumn,
+          resolveRowStrategy(updatedAtColumn),
+          buildSchemaFingerprint(schema),
+          option != null && option.recommended()));
+    }
+    long missingPrimaryKeyCount = sourceTables.stream()
+        .filter(table -> table.primaryKey() == null || table.primaryKey().isBlank())
+        .count();
+    long missingUpdatedAtCount = sourceTables.stream()
+        .filter(table -> !"INCREMENTAL".equals(table.rowStrategy()))
+        .count();
+    return new GitlabSourceMetadataDiagnosticsResponse(
+        true,
+        "GitLab source metadata discovered",
+        sourceTables.size(),
+        primaryKeysByTable.size(),
+        Math.toIntExact(missingPrimaryKeyCount),
+        Math.toIntExact(missingUpdatedAtCount),
+        sourceTables);
   }
 
   String resolveUpdatedAtColumn(List<String> columnNames) {
@@ -318,8 +390,49 @@ public class GitlabExternalDbService {
     return null;
   }
 
-  private boolean isDockerMode(GitlabSyncConfig config) {
-    return config.getSourceMode() == SourceMode.DOCKER;
+  String resolveRowStrategy(String updatedAtColumn) {
+    return updatedAtColumn == null || updatedAtColumn.isBlank() ? "FULL_ONLY" : "INCREMENTAL";
+  }
+
+  String buildSchemaFingerprint(SourceTableSchema schema) {
+    String payload = schema.tableName()
+        + "|pk=" + String.join(",", schema.primaryKeys())
+        + "|updated=" + Objects.toString(schema.updatedAtColumn(), "")
+        + "|columns=" + schema.columns().stream()
+            .map(column -> column.columnName() + ":" + column.formattedType() + ":" + column.nullable())
+            .reduce((left, right) -> left + "|" + right)
+            .orElse("");
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(hash).substring(0, 16);
+    } catch (Exception e) {
+      throw new IllegalStateException("Failed to hash source schema fingerprint", e);
+    }
+  }
+
+  private List<String> splitPrimaryKeys(String primaryKey) {
+    if (primaryKey == null || primaryKey.isBlank()) {
+      return List.of();
+    }
+    return List.of(primaryKey.split(","))
+        .stream()
+        .map(String::trim)
+        .filter(value -> !value.isBlank())
+        .toList();
+  }
+
+  private List<Map<String, Object>> executeSourceQuery(GitlabSyncConfig config, String sql) {
+    return sourceAdapter(config).query(config, sql);
+  }
+
+  private GitlabSourceAdapter sourceAdapter(GitlabSyncConfig config) {
+    SourceMode sourceMode = config == null || config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode();
+    GitlabSourceAdapter adapter = sourceAdapters.get(sourceMode);
+    if (adapter == null) {
+      throw new BizException("Unsupported GitLab source mode: " + sourceMode);
+    }
+    return adapter;
   }
 
   private List<Map<String, Object>> executeJdbcQuery(GitlabSyncConfig config, String sql) {
@@ -603,5 +716,58 @@ public class GitlabExternalDbService {
     return localTime.atZone(ZoneId.systemDefault())
         .withZoneSameInstant(ZoneOffset.UTC)
         .toLocalDateTime();
+  }
+
+  private interface GitlabSourceAdapter {
+    SourceMode sourceMode();
+
+    void testConnection(GitlabSyncConfig config);
+
+    List<Map<String, Object>> query(GitlabSyncConfig config, String sql);
+  }
+
+  private class DirectJdbcSourceAdapter implements GitlabSourceAdapter {
+    @Override
+    public SourceMode sourceMode() {
+      return SourceMode.DIRECT;
+    }
+
+    @Override
+    public void testConnection(GitlabSyncConfig config) {
+      executeExternalQueryWithRetry("JDBC connection test", () -> {
+        try (Connection connection = openConnection(config); Statement statement = connection.createStatement()) {
+          statement.setQueryTimeout(resolveExternalQueryTimeoutSeconds());
+          statement.execute("select 1");
+          return null;
+        } catch (Exception e) {
+          throw new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
+        }
+      });
+    }
+
+    @Override
+    public List<Map<String, Object>> query(GitlabSyncConfig config, String sql) {
+      return executeJdbcQuery(config, sql);
+    }
+  }
+
+  private class DockerPsqlSourceAdapter implements GitlabSourceAdapter {
+    @Override
+    public SourceMode sourceMode() {
+      return SourceMode.DOCKER;
+    }
+
+    @Override
+    public void testConnection(GitlabSyncConfig config) {
+      executeExternalQueryWithRetry("Docker connection test", () -> {
+        executeDockerSql(config, "select 1");
+        return null;
+      });
+    }
+
+    @Override
+    public List<Map<String, Object>> query(GitlabSyncConfig config, String sql) {
+      return executeDockerQuery(config, sql);
+    }
   }
 }

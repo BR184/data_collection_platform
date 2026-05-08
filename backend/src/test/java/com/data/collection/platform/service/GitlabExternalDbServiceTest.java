@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.SourceTableColumn;
+import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -48,6 +50,28 @@ class GitlabExternalDbServiceTest {
   @Test
   void shouldReturnNullWhenNoCandidateExists() {
     assertThat(service.resolveUpdatedAtColumn(List.of("id", "name", "description"))).isNull();
+  }
+
+  @Test
+  void shouldMarkTablesWithoutUpdatedAtAsFullOnly() {
+    assertThat(service.resolveRowStrategy("updated_at")).isEqualTo("INCREMENTAL");
+    assertThat(service.resolveRowStrategy(null)).isEqualTo("FULL_ONLY");
+    assertThat(service.resolveRowStrategy("")).isEqualTo("FULL_ONLY");
+  }
+
+  @Test
+  void shouldBuildStableSchemaFingerprintForSourceMetadata() {
+    SourceTableSchema schema = new SourceTableSchema(
+        "issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("title", "text", true, 2),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 3)));
+
+    assertThat(service.buildSchemaFingerprint(schema)).isEqualTo(service.buildSchemaFingerprint(schema));
+    assertThat(service.buildSchemaFingerprint(schema)).hasSize(16);
   }
 
   @Test

@@ -3,6 +3,7 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
@@ -25,6 +26,7 @@ import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.service.GitlabConfigService;
+import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
@@ -66,6 +68,7 @@ public class GitlabSyncController {
   private final GitlabWebhookRegistrationService webhookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
+  private final GitlabExternalDbService externalDbService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -77,7 +80,8 @@ public class GitlabSyncController {
       GitlabSyncTaskService taskService,
       GitlabWebhookRegistrationService webhookRegistrationService,
       GitlabMirrorPurgeService purgeService,
-      GitlabSourceHealthService sourceHealthService) {
+      GitlabSourceHealthService sourceHealthService,
+      GitlabExternalDbService externalDbService) {
     this.configService = configService;
     this.syncService = syncService;
     this.logService = logService;
@@ -88,6 +92,7 @@ public class GitlabSyncController {
     this.webhookRegistrationService = webhookRegistrationService;
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
+    this.externalDbService = externalDbService;
   }
 
   @GetMapping("/status")
@@ -149,11 +154,20 @@ public class GitlabSyncController {
     boolean whitelistOk = true;
     String whitelistMessage = "GitLab whitelist options resolved";
     int whitelistOptionCount = 0;
+    List<TableWhitelistOption> whitelistOptions = List.of();
     try {
-      whitelistOptionCount = whitelistService.listOptions(config).size();
+      whitelistOptions = whitelistService.listOptions(config);
+      whitelistOptionCount = whitelistOptions.size();
     } catch (Exception e) {
       whitelistOk = false;
       whitelistMessage = e.getMessage();
+    }
+
+    GitlabSourceMetadataDiagnosticsResponse metadataDiagnostics;
+    try {
+      metadataDiagnostics = externalDbService.inspectSourceMetadata(config, whitelistOptions);
+    } catch (Exception e) {
+      metadataDiagnostics = GitlabSourceMetadataDiagnosticsResponse.failure(e.getMessage());
     }
 
     GitlabWebhookRegistrationStatus webhookStatus;
@@ -178,6 +192,13 @@ public class GitlabSyncController {
         whitelistOk,
         whitelistMessage,
         whitelistOptionCount,
+        metadataDiagnostics.metadataOk(),
+        metadataDiagnostics.metadataMessage(),
+        metadataDiagnostics.sourceTableCount(),
+        metadataDiagnostics.primaryKeyTableCount(),
+        metadataDiagnostics.missingPrimaryKeyTableCount(),
+        metadataDiagnostics.missingUpdatedAtTableCount(),
+        metadataDiagnostics.sourceTables(),
         properties.getWebhookBaseUrl(),
         webhookStatus.supported(),
         webhookStatus.registered(),

@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -50,6 +51,13 @@ class GitlabExternalDbServiceDirectIntegrationTest {
             (101, 'first issue', timestamp '2026-01-01 09:00:00'),
             (202, 'second issue', timestamp '2026-01-01 11:00:00')
           """);
+      statement.execute(
+          """
+          create table audit_events (
+            event_name text not null,
+            payload text
+          )
+          """);
       statement.execute("create role gitlab_readonly login password 'readonly_secret'");
       statement.execute("grant connect on database gitlabhq_production to gitlab_readonly");
       statement.execute("grant usage on schema public to gitlab_readonly");
@@ -68,6 +76,31 @@ class GitlabExternalDbServiceDirectIntegrationTest {
               assertThat(option.primaryKey()).isEqualTo("id");
               assertThat(option.updatedAtColumn()).isEqualTo("updated_at");
             });
+  }
+
+  @Test
+  void directModeShouldDiagnoseReadOnlyMetadataAccess() {
+    GitlabSyncConfig config = directConfig("gitlab_readonly", "readonly_secret");
+    TableWhitelistOption issues = new TableWhitelistOption("issues", "issues", "id", "updated_at", true);
+
+    GitlabSourceMetadataDiagnosticsResponse diagnostics = service.inspectSourceMetadata(config, List.of(issues));
+
+    assertThat(diagnostics.metadataOk()).isTrue();
+    assertThat(diagnostics.sourceTableCount()).isEqualTo(2);
+    assertThat(diagnostics.primaryKeyTableCount()).isEqualTo(1);
+    assertThat(diagnostics.missingPrimaryKeyTableCount()).isEqualTo(1);
+    assertThat(diagnostics.missingUpdatedAtTableCount()).isEqualTo(1);
+    assertThat(diagnostics.sourceTables())
+        .anySatisfy(table -> {
+          assertThat(table.tableName()).isEqualTo("issues");
+          assertThat(table.rowStrategy()).isEqualTo("INCREMENTAL");
+          assertThat(table.schemaFingerprint()).hasSize(16);
+        })
+        .anySatisfy(table -> {
+          assertThat(table.tableName()).isEqualTo("audit_events");
+          assertThat(table.primaryKey()).isNull();
+          assertThat(table.rowStrategy()).isEqualTo("FULL_ONLY");
+        });
   }
 
   @Test
