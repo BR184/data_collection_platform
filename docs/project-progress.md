@@ -157,6 +157,15 @@
 - 统计类页面已统一走统计板抽象链路。
 - `BaseRecordTable` 默认字段已统一居中，短字段展示更稳定。
 
+### 4.5 认证与统一账户预留
+
+- 当前管理员/审批用户登录仍保持本地 demo 账号模式，登录接口、Session 行为和现有 `@RequireRole` 权限控制不变。
+- 认证逻辑已预留 `PlatformAuthenticationProvider` 抽象，当前由 `LocalPlatformAuthenticationProvider` 承接原有配置账号校验，避免继续把认证细节写死在 `AuthController` 中。
+- 已新增 `platform.auth.provider` 配置口子，默认值为 `local`；当前 `ldap` 只作为未来统一账户平台接入方向，不会在本阶段自动生效。
+- 已预留 `platform.auth.ldap.*` 配置结构和 `LdapPlatformAuthenticationProvider` 骨架，但该 Provider 未注册为 Spring Bean，不参与当前登录流程。
+- 后续统一账户管理平台正式落地时，需要平台侧提供 LDAP URL、Base DN、用户搜索 base/filter、服务账号 DN/密码、组搜索 base/filter、账号状态字段以及 LDAP group 到本平台 `ADMIN` / `APPROVAL` / `VIEWER` 等角色的映射规则。
+- 推荐正式接入方向为 `Spring Security + LDAP Bind + 本地角色映射 + Session Cookie + CSRF`；在统一账户平台信息未确认前，不实现真实 LDAP bind/search，避免过早绑定错误口径。
+
 ## 5. 当前功能缺口
 
 当前真正仍未完成、且不是已明确废弃范围的功能缺口，主要有：

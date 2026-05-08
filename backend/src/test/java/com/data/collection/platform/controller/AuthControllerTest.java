@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.config.PlatformAuthProperties;
+import com.data.collection.platform.security.LocalPlatformAuthenticationProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -24,7 +25,7 @@ class AuthControllerTest {
     properties.setAdminPassword("secret");
     properties.setApprovalUsername("approval");
     properties.setApprovalPassword("approval-secret");
-    mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(properties)).build();
+    mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(new LocalPlatformAuthenticationProvider(properties))).build();
   }
 
   @Test
@@ -61,7 +62,8 @@ class AuthControllerTest {
   @Test
   void defaultAdminAccountShouldUseRequestedPassword() throws Exception {
     MockMvc defaultAuthMockMvc =
-        MockMvcBuilders.standaloneSetup(new AuthController(new PlatformAuthProperties())).build();
+        MockMvcBuilders.standaloneSetup(
+            new AuthController(new LocalPlatformAuthenticationProvider(new PlatformAuthProperties()))).build();
 
     defaultAuthMockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)

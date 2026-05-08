@@ -30,11 +30,22 @@ logging:
 
 platform:
   auth:
+    provider: ${PLATFORM_AUTH_PROVIDER:local}
     admin-username: ${PLATFORM_ADMIN_USERNAME:admin}
     admin-password: ${PLATFORM_ADMIN_PASSWORD:admin123}
     approval-username: ${PLATFORM_APPROVAL_USERNAME:approval}
     approval-password: ${PLATFORM_APPROVAL_PASSWORD:approval}
     secure-config-required: ${PLATFORM_SECURE_CONFIG_REQUIRED:true}
+    ldap:
+      url: ${PLATFORM_LDAP_URL:}
+      base-dn: ${PLATFORM_LDAP_BASE_DN:}
+      user-search-base: ${PLATFORM_LDAP_USER_SEARCH_BASE:}
+      user-search-filter: ${PLATFORM_LDAP_USER_SEARCH_FILTER:}
+      manager-dn: ${PLATFORM_LDAP_MANAGER_DN:}
+      manager-password: ${PLATFORM_LDAP_MANAGER_PASSWORD:}
+      group-search-base: ${PLATFORM_LDAP_GROUP_SEARCH_BASE:}
+      group-search-filter: ${PLATFORM_LDAP_GROUP_SEARCH_FILTER:}
+      group-role-mappings: {}
   gitlab-mirror:
     scheduler-enabled: true
     scheduler-delay-ms: 60000
