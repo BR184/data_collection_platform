@@ -251,6 +251,7 @@ public class GitlabMirrorSyncService {
         "Webhook precise sync: " + plan.objectKey());
     int tableCount = 0;
     int recordCount = 0;
+    boolean deleteWebhook = isExplicitDeleteWebhook(webhookPayload);
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncType.WEBHOOK.name(), plan.objectKey());
          GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(objectId);
          GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("EXECUTING")) {
@@ -264,23 +265,31 @@ public class GitlabMirrorSyncService {
           mirrorSchemaService.markTableSyncing(config.getId(), table.tableName());
           try (GitlabSyncLogContext.Scope fetchAction = GitlabSyncLogContext.action("Data_Fetching")) {
             log.info(
-                "Fetching precise webhook data, objectKey={}, tableName={}, lookupColumn={}, lookupValue={}",
+                "Processing precise webhook target, objectKey={}, tableName={}, lookupColumn={}, lookupValue={}",
                 plan.objectKey(),
                 table.tableName(),
                 target.lookupColumn(),
                 target.lookupValue());
           }
-          List<Map<String, Object>> rows =
-              externalDbService.preciseScan(config, table, target.lookupColumn(), target.lookupValue());
-          recordCount = writeMirrorRows(
-              null,
-              objectId,
-              config,
-              table,
-              mirrorSchema,
-              rows,
-              recordCount,
-              null);
+          if (deleteWebhook) {
+            recordCount += mirrorTableStorageService.markRowsDeleted(
+                mirrorSchema,
+                target.lookupColumn(),
+                target.lookupValue(),
+                null);
+          } else {
+            List<Map<String, Object>> rows =
+                externalDbService.preciseScan(config, table, target.lookupColumn(), target.lookupValue());
+            recordCount = writeMirrorRows(
+                null,
+                objectId,
+                config,
+                table,
+                mirrorSchema,
+                rows,
+                recordCount,
+                null);
+          }
           tableCount++;
           mirrorSchemaService.markTableIdle(config.getId(), table.tableName(), LocalDateTime.now());
         } catch (Exception e) {
@@ -566,6 +575,7 @@ public class GitlabMirrorSyncService {
 
     int tableCount = 0;
     int recordCount = 0;
+    boolean deleteWebhook = isExplicitDeleteWebhook(webhookPayload);
     for (GitlabWebhookPreciseSyncTarget target : eligibleTargets) {
       TableWhitelistOption table = tableMap.get(target.tableName());
       try {
@@ -580,14 +590,22 @@ public class GitlabMirrorSyncService {
         taskService.heartbeat(task.getId());
         try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
           log.info(
-              "Fetching precise webhook data, tableName={}, lookupColumn={}, lookupValue={}",
+              "Processing precise webhook target, tableName={}, lookupColumn={}, lookupValue={}",
               table.tableName(),
               target.lookupColumn(),
               target.lookupValue());
         }
-        List<Map<String, Object>> rows =
-            externalDbService.preciseScan(config, table, target.lookupColumn(), target.lookupValue());
-        recordCount = writeMirrorRows(task.getId(), null, config, table, mirrorSchema, rows, recordCount, currentProgress);
+        if (deleteWebhook) {
+          recordCount += mirrorTableStorageService.markRowsDeleted(
+              mirrorSchema,
+              target.lookupColumn(),
+              target.lookupValue(),
+              task.getId());
+        } else {
+          List<Map<String, Object>> rows =
+              externalDbService.preciseScan(config, table, target.lookupColumn(), target.lookupValue());
+          recordCount = writeMirrorRows(task.getId(), null, config, table, mirrorSchema, rows, recordCount, currentProgress);
+        }
         tableCount++;
         currentProgress.setCompletedTables(tableCount);
         currentProgress.setSyncedRecords(recordCount);
@@ -633,6 +651,33 @@ public class GitlabMirrorSyncService {
       }
     }
     return eligibleTargets;
+  }
+
+  private boolean isExplicitDeleteWebhook(Map<String, Object> webhookPayload) {
+    if (webhookPayload == null || webhookPayload.isEmpty()) {
+      return false;
+    }
+    @SuppressWarnings("unchecked")
+    Map<String, Object> attributes = webhookPayload.get("object_attributes") instanceof Map<?, ?> payload
+        ? (Map<String, Object>) payload
+        : Map.of();
+    return isDeleteMarker(attributes.get("action"))
+        || isDeleteMarker(attributes.get("state"))
+        || isDeleteMarker(attributes.get("action_type"))
+        || isDeleteMarker(webhookPayload.get("event_name"));
+  }
+
+  private boolean isDeleteMarker(Object value) {
+    if (value == null) {
+      return false;
+    }
+    String normalized = String.valueOf(value).trim().toLowerCase(java.util.Locale.ROOT);
+    return normalized.equals("delete")
+        || normalized.equals("deleted")
+        || normalized.equals("destroy")
+        || normalized.equals("destroyed")
+        || normalized.equals("remove")
+        || normalized.equals("removed");
   }
 
   private int writeMirrorRows(

@@ -53,6 +53,24 @@ public class GitlabMirrorTableStorageService {
     return new MirrorBatchWriteResult(rows.size(), appliedRows, skippedConflicts);
   }
 
+  public int markRowsDeleted(SourceTableSchema mirrorSchema, String lookupColumn, Object lookupValue, Long taskId) {
+    if (mirrorSchema == null || lookupColumn == null || lookupColumn.isBlank() || lookupValue == null) {
+      return 0;
+    }
+    String sql = """
+        update %s
+           set mirror_task_id = ?,
+               mirror_deleted = true,
+               mirror_synced_at = current_timestamp,
+               mirror_updated_at = current_timestamp
+         where %s = ?
+           and coalesce(mirror_deleted, false) = false
+        """.formatted(
+        quoteIdentifier(mirrorSchema.tableName()),
+        quoteIdentifier(lookupColumn));
+    return jdbcTemplate.update(sql, taskId, lookupValue);
+  }
+
   private String buildUpsertSql(SourceTableSchema schema) {
     String tableName = quoteIdentifier(schema.tableName());
     List<String> sourceColumns = schema.columns().stream().map(SourceTableColumn::columnName).toList();
