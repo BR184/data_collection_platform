@@ -5,5 +5,6 @@ public enum GitlabTableSyncTaskType {
   DAILY_VERIFY,
   MANUAL_REFRESH,
   FULL_REPAIR,
+  SHARD_REPAIR,
   DELETE_RECONCILE
 }

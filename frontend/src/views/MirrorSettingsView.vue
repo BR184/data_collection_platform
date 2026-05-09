@@ -165,10 +165,18 @@ const currentSourceHealthTone = computed(() => {
   if (!health) {
     return 'info';
   }
-  if (health.missingRequiredMirrorTables.length > 0 || health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
+  if (
+    health.missingRequiredMirrorTables.length > 0 ||
+    health.latestLogStatus === 'FAILED' ||
+    health.latestLogStatus === 'TIMEOUT'
+  ) {
     return 'danger';
   }
-  if (health.factLayerLagging || health.currentStatus === 'RUNNING' || health.currentStatus === 'QUEUED') {
+  if (
+    health.factLayerLagging ||
+    health.latestLogStatus === 'PARTIAL_SUCCESS' ||
+    ['RUNNING', 'QUEUED', 'RETRYING'].includes(health.currentStatus)
+  ) {
     return 'warning';
   }
   if (!health.enabled) {
@@ -190,10 +198,13 @@ const currentSourceHealthText = computed(() => {
   if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
     return '同步异常';
   }
+  if (health.latestLogStatus === 'PARTIAL_SUCCESS') {
+    return '部分表异常';
+  }
   if (health.factLayerLagging) {
     return '事实层滞后';
   }
-  if (health.currentStatus === 'RUNNING' || health.currentStatus === 'QUEUED') {
+  if (['RUNNING', 'QUEUED', 'RETRYING'].includes(health.currentStatus)) {
     return '同步中';
   }
   return '健康';
@@ -214,6 +225,9 @@ const currentSourceHealthSummary = computed(() => {
   }
   if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
     return health.latestLogMessage || '最近一次同步未成功，请查看同步日志并重新触发。';
+  }
+  if (health.latestLogStatus === 'PARTIAL_SUCCESS') {
+    return health.latestLogMessage || '最近一次同步部分表未成功，系统会继续按表级任务恢复。';
   }
   return '镜像表、事实层和最近同步状态未发现阻断问题。';
 });

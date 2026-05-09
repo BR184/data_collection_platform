@@ -83,6 +83,7 @@ Dirty Signal / Wakeup Only
 - 已将镜像同步后的事实刷新改成 `fact_build_tasks` 持久队列，由 `FactRefreshTaskWorkerService` 独立认领、恢复、执行和记录失败。
 - 已落地删除一致性首个闭环：每日校验发现镜像活跃行多于源端或主键范围漂移时，创建 `DELETE_RECONCILE` 表级任务；worker 分批读取镜像主键、查询源端存在性，并对缺失主键标记 `mirror_deleted=true`。
 - 已落地表级失败退避与源级汇总：`gitlab_table_sync_tasks` 增加 `run_after`，普通失败和超时按表复制重试任务，待重试尝试标记为 `RETRYING`，源级 job 在所有表结束后汇总为 `SUCCESS` / `PARTIAL_SUCCESS` / `FAILED` / `TIMEOUT`。
+- 已落地每日校验分片修复：源端和镜像端按主键签名 md5 前缀生成分片摘要，差异分片创建 `SHARD_REPAIR` 表级任务，worker 按分片主键游标分批拉源端并幂等 upsert，避免每日校验差异时直接全表重扫。
 - 已补充定向测试：`FactBuildTaskServiceTest`、`FactRefreshTaskWorkerServiceTest`、`GitlabMirrorSyncServiceTest`、`GitlabTableSyncWorkerServiceTest`。
 
 ### 补偿扫描主流程

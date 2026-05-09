@@ -29,7 +29,10 @@ function createLog(overrides: Partial<GitlabSyncLog> = {}): GitlabSyncLog {
 describe('mirror settings helpers', () => {
   it('formats sync status and type labels for display', () => {
     expect(syncStatusText('RUNNING')).toBe('执行中');
+    expect(syncStatusText('RETRYING')).toBe('等待重试');
+    expect(syncStatusText('PARTIAL_SUCCESS')).toBe('部分成功');
     expect(syncStatusTagType('FAILED')).toBe('danger');
+    expect(syncStatusTagType('PARTIAL_SUCCESS')).toBe('warning');
     expect(syncStatusText('IDLE')).toBe('空闲');
     expect(syncTypeText('PURGE')).toBe('删除镜像数据');
     expect(syncTypeTagType('FULL')).toBe('warning');

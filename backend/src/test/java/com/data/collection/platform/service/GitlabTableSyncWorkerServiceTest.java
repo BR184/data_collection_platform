@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -16,6 +17,7 @@ import com.data.collection.platform.entity.GitlabSyncJob;
 import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
+import com.data.collection.platform.entity.GitlabTableShardProbe;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncTaskType;
@@ -36,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class GitlabTableSyncWorkerServiceTest {
   private GitlabTableSyncTaskMapper taskMapper;
@@ -67,7 +70,8 @@ class GitlabTableSyncWorkerServiceTest {
         mirrorSchemaService,
         storageService,
         new GitlabMirrorProperties(),
-        factBuildTaskService);
+        factBuildTaskService,
+        new JsonUtils(new ObjectMapper()));
   }
 
   @Test
@@ -258,6 +262,50 @@ class GitlabTableSyncWorkerServiceTest {
   }
 
   @Test
+  void shouldCreateShardRepairTaskWhenDailyVerificationFindsChecksumDrift() {
+    GitlabTableSyncTask verifyTask = task();
+    verifyTask.setTaskType(GitlabTableSyncTaskType.DAILY_VERIFY);
+    GitlabTableSyncState state = state();
+    GitlabSyncConfig config = config();
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("title", "text", true, 2),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 3)));
+    GitlabTableProbe sameProbe = new GitlabTableProbe(10L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "10");
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            new GitlabMirrorTableRegistry()));
+    when(externalDbService.probeTable(eq(config), any())).thenReturn(sameProbe);
+    when(storageService.probeMirrorTable(schema)).thenReturn(sameProbe);
+    when(externalDbService.probeTableShards(eq(config), any(), eq(schema), eq(2)))
+        .thenReturn(List.of(new GitlabTableShardProbe(
+            "0a", 5L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "9", "source-checksum")));
+    when(storageService.probeMirrorTableShards(schema, 2))
+        .thenReturn(List.of(new GitlabTableShardProbe(
+            "0a", 5L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "9", "mirror-checksum")));
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1L);
+
+    service.executeTask(verifyTask);
+
+    ArgumentCaptor<GitlabTableSyncTask> taskCaptor = ArgumentCaptor.forClass(GitlabTableSyncTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    GitlabTableSyncTask repairTask = taskCaptor.getValue();
+    assertThat(repairTask.getTaskType()).isEqualTo(GitlabTableSyncTaskType.SHARD_REPAIR);
+    assertThat(repairTask.getCursorPk()).contains("\"shardKey\":\"0a\"");
+    assertThat(state.isDirtyFlag()).isTrue();
+  }
+
+  @Test
   void shouldExecuteDeleteReconcileTaskAndQueueContinuationWhenBatchIsFull() {
     GitlabTableSyncTask task = task();
     task.setTaskType(GitlabTableSyncTaskType.DELETE_RECONCILE);
@@ -298,6 +346,65 @@ class GitlabTableSyncWorkerServiceTest {
     GitlabTableSyncTask continuation = continuationCaptor.getValue();
     assertThat(continuation.getTaskType()).isEqualTo(GitlabTableSyncTaskType.DELETE_RECONCILE);
     assertThat(continuation.getCursorPk()).isEqualTo("[\"102\"]");
+  }
+
+  @Test
+  void shouldExecuteShardRepairTaskAndQueueContinuationWhenBatchIsFull() {
+    GitlabTableSyncTask task = task();
+    task.setTaskType(GitlabTableSyncTaskType.SHARD_REPAIR);
+    task.setCursorPk("{\"shardKey\":\"0a\",\"rowCursor\":\"\"}");
+    GitlabTableSyncState state = state();
+    GitlabSyncConfig config = config();
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("title", "text", true, 2),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 3)));
+    List<Map<String, Object>> sourceRows = List.of(
+        Map.of(
+            "id", 101L,
+            "title", "A",
+            "updated_at", LocalDateTime.of(2026, 1, 2, 3, 4),
+            "pk_signature", "101"),
+        Map.of(
+            "id", 102L,
+            "title", "B",
+            "updated_at", LocalDateTime.of(2026, 1, 2, 3, 5),
+            "pk_signature", "102"));
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            new GitlabMirrorTableRegistry()));
+    when(externalDbService.shardCursorScan(eq(config), any(), eq(schema), eq("0a"), eq(null), eq(2)))
+        .thenReturn(sourceRows);
+    when(storageService.upsertBatch(eq(schema), any(), eq(21L))).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1L);
+
+    service.executeTask(task);
+
+    assertThat(task.getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    assertThat(task.getRowsScanned()).isEqualTo(2L);
+    assertThat(task.getRowsApplied()).isEqualTo(2L);
+    assertThat(state.isDirtyFlag()).isTrue();
+
+    ArgumentCaptor<List<Map<String, Object>>> rowsCaptor = ArgumentCaptor.forClass(List.class);
+    verify(storageService).upsertBatch(eq(schema), rowsCaptor.capture(), eq(21L));
+    assertThat(rowsCaptor.getValue().get(0)).doesNotContainKey("pk_signature");
+
+    ArgumentCaptor<GitlabTableSyncTask> continuationCaptor = ArgumentCaptor.forClass(GitlabTableSyncTask.class);
+    verify(taskMapper).insert(continuationCaptor.capture());
+    GitlabTableSyncTask continuation = continuationCaptor.getValue();
+    assertThat(continuation.getTaskType()).isEqualTo(GitlabTableSyncTaskType.SHARD_REPAIR);
+    assertThat(continuation.getCursorPk()).contains("\"shardKey\":\"0a\"");
+    assertThat(continuation.getCursorPk()).contains("\"rowCursor\":\"102\"");
   }
 
   @Test

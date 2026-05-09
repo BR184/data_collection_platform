@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabTableProbe;
+import com.data.collection.platform.entity.GitlabTableShardProbe;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
@@ -212,6 +213,16 @@ public class GitlabExternalDbService {
         Objects.toString(row.get("max_pk"), ""));
   }
 
+  public List<GitlabTableShardProbe> probeTableShards(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      int shardKeyLength) {
+    return executeSourceQuery(config, buildTableShardProbeSql(option, schema, shardKeyLength)).stream()
+        .map(this::toShardProbe)
+        .toList();
+  }
+
   public Set<String> findExistingPrimaryKeySignatures(
       GitlabSyncConfig config,
       TableWhitelistOption option,
@@ -226,6 +237,16 @@ public class GitlabExternalDbService {
     return rows.stream()
         .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
         .collect(java.util.stream.Collectors.toSet());
+  }
+
+  public List<Map<String, Object>> shardCursorScan(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String shardKey,
+      String cursorPk,
+      int batchSize) {
+    return executeSourceQuery(config, buildShardCursorScanSql(option, schema, shardKey, cursorPk, batchSize));
   }
 
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
@@ -331,6 +352,71 @@ public class GitlabExternalDbService {
         selectColumns,
         quoteQualifiedPublicTable(option.tableName()),
         predicate).strip();
+  }
+
+  String buildTableShardProbeSql(TableWhitelistOption option, SourceTableSchema schema, int shardKeyLength) {
+    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), null);
+    String rowExpression = rowSignatureExpression(schema, null);
+    String maxUpdatedAtExpression = option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()
+        ? "null::timestamp"
+        : "max(" + quoteIdentifier(option.updatedAtColumn()) + ")";
+    int safeShardKeyLength = Math.max(1, Math.min(8, shardKeyLength));
+    return """
+        select shard_key,
+               count(*) as row_count,
+               %s as max_updated_at,
+               min(pk_signature) as min_pk,
+               max(pk_signature) as max_pk,
+               md5(coalesce(string_agg(row_hash, ',' order by pk_signature), '')) as checksum
+          from (
+            select %s as pk_signature,
+                   substring(md5(%s), 1, %d) as shard_key,
+                   md5(%s) as row_hash,
+                   %s
+              from %s
+          ) shard_rows
+         group by shard_key
+         order by shard_key
+        """.formatted(
+        maxUpdatedAtExpression,
+        pkExpression,
+        pkExpression,
+        safeShardKeyLength,
+        rowExpression,
+        option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()
+            ? "null::timestamp as " + quoteIdentifier("__updated_at")
+            : quoteIdentifier(option.updatedAtColumn()),
+        quoteQualifiedPublicTable(option.tableName())).strip();
+  }
+
+  String buildShardCursorScanSql(
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String shardKey,
+      String cursorPk,
+      int batchSize) {
+    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), "source_rows");
+    String cursorPredicate = cursorPk == null || cursorPk.isBlank()
+        ? ""
+        : " and pk_signature > " + toSqlLiteral(cursorPk);
+    return """
+        select *
+          from (
+            select source_rows.*,
+                   %s as pk_signature
+              from %s source_rows
+          ) shard_rows
+         where substring(md5(pk_signature), 1, %d) = %s
+               %s
+         order by pk_signature asc
+         limit %d
+        """.formatted(
+        pkExpression,
+        quoteQualifiedPublicTable(option.tableName()),
+        Math.max(1, Math.min(8, shardKey == null ? 1 : shardKey.length())),
+        toSqlLiteral(shardKey),
+        cursorPredicate,
+        Math.max(1, batchSize)).strip();
   }
 
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
@@ -476,6 +562,32 @@ public class GitlabExternalDbService {
 
   private String quoteQualifiedPublicTable(String tableName) {
     return quoteIdentifier("public") + "." + quoteIdentifier(tableName);
+  }
+
+  private String primaryKeySignatureExpression(List<String> primaryKeys, String tableAlias) {
+    List<String> safePrimaryKeys = primaryKeys == null || primaryKeys.isEmpty() ? List.of("id") : primaryKeys;
+    return safePrimaryKeys.stream()
+        .map(primaryKey -> qualifiedColumn(tableAlias, primaryKey) + "::text")
+        .collect(java.util.stream.Collectors.joining(", ", "concat_ws(chr(31), ", ")"));
+  }
+
+  private String rowSignatureExpression(SourceTableSchema schema, String tableAlias) {
+    List<String> columns = schema.columns().stream()
+        .map(SourceTableColumn::columnName)
+        .toList();
+    if (columns.isEmpty()) {
+      return "''";
+    }
+    return columns.stream()
+        .map(column -> "to_jsonb(" + qualifiedColumn(tableAlias, column) + ")")
+        .collect(java.util.stream.Collectors.joining(", ", "jsonb_build_array(", ")::text"));
+  }
+
+  private String qualifiedColumn(String tableAlias, String column) {
+    if (tableAlias == null || tableAlias.isBlank()) {
+      return quoteIdentifier(column);
+    }
+    return tableAlias + "." + quoteIdentifier(column);
   }
 
   private String toSqlLiteral(Object value) {
@@ -860,6 +972,16 @@ public class GitlabExternalDbService {
     } catch (NumberFormatException e) {
       return 0L;
     }
+  }
+
+  private GitlabTableShardProbe toShardProbe(Map<String, Object> row) {
+    return new GitlabTableShardProbe(
+        Objects.toString(row.get("shard_key"), ""),
+        toLong(row.get("row_count")),
+        toLocalDateTime(row.get("max_updated_at")),
+        Objects.toString(row.get("min_pk"), ""),
+        Objects.toString(row.get("max_pk"), ""),
+        Objects.toString(row.get("checksum"), ""));
   }
 
   private LocalDateTime toLocalDateTime(Object value) {

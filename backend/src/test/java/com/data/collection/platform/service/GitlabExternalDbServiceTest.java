@@ -197,6 +197,52 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
+  void shouldBuildShardProbeSqlFromPrimaryKeyAndSourceColumns() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("issues", "Issues", "id", "updated_at", true);
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("title", "text", true, 2),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 3)));
+
+    String sql = service.buildTableShardProbeSql(option, schema, 2);
+
+    assertThat(sql)
+        .contains("substring(md5(concat_ws(chr(31), \"id\"::text)), 1, 2) as shard_key")
+        .contains("md5(jsonb_build_array(to_jsonb(\"id\"), to_jsonb(\"title\"), to_jsonb(\"updated_at\"))::text) as row_hash")
+        .contains("md5(coalesce(string_agg(row_hash, ',' order by pk_signature), '')) as checksum")
+        .contains("from \"public\".\"issues\"");
+  }
+
+  @Test
+  void shouldBuildShardCursorScanSqlWithCompositePrimaryKey() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", null, true);
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_label_links",
+        List.of("label_id", "target_id", "target_type"),
+        null,
+        List.of(
+            new SourceTableColumn("label_id", "bigint", false, 1),
+            new SourceTableColumn("target_id", "bigint", false, 2),
+            new SourceTableColumn("target_type", "text", false, 3)));
+
+    String sql = service.buildShardCursorScanSql(option, schema, "0a", "1\u001F101\u001FIssue", 50);
+
+    assertThat(sql)
+        .contains("concat_ws(chr(31), source_rows.\"label_id\"::text, source_rows.\"target_id\"::text, source_rows.\"target_type\"::text) as pk_signature")
+        .contains("from \"public\".\"label_links\" source_rows")
+        .contains("where substring(md5(pk_signature), 1, 2) = '0a'")
+        .contains("and pk_signature > '1\u001F101\u001FIssue'")
+        .contains("order by pk_signature asc")
+        .contains("limit 50");
+  }
+
+  @Test
   void shouldQuoteSourceTableAndLookupColumnForPreciseScans() {
     TableWhitelistOption option =
         new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);

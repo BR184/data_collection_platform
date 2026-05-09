@@ -1,12 +1,14 @@
 package com.data.collection.platform.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncJob;
 import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
+import com.data.collection.platform.entity.GitlabTableShardProbe;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncTaskType;
@@ -23,7 +25,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,6 +40,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class GitlabTableSyncWorkerService {
   private static final LocalDateTime INITIAL_WATERMARK = LocalDateTime.of(1970, 1, 1, 0, 0);
+  private static final int DAILY_VERIFY_SHARD_KEY_LENGTH = 2;
   private static final String WORKER_ID = resolveWorkerId();
 
   private final GitlabTableSyncTaskMapper taskMapper;
@@ -47,6 +52,7 @@ public class GitlabTableSyncWorkerService {
   private final GitlabMirrorTableStorageService storageService;
   private final GitlabMirrorProperties properties;
   private final FactBuildTaskService factBuildTaskService;
+  private final JsonUtils jsonUtils;
 
   public GitlabTableSyncWorkerService(
       GitlabTableSyncTaskMapper taskMapper,
@@ -57,7 +63,8 @@ public class GitlabTableSyncWorkerService {
       GitlabMirrorSchemaService mirrorSchemaService,
       GitlabMirrorTableStorageService storageService,
       GitlabMirrorProperties properties,
-      FactBuildTaskService factBuildTaskService) {
+      FactBuildTaskService factBuildTaskService,
+      JsonUtils jsonUtils) {
     this.taskMapper = taskMapper;
     this.stateMapper = stateMapper;
     this.jobMapper = jobMapper;
@@ -67,6 +74,7 @@ public class GitlabTableSyncWorkerService {
     this.storageService = storageService;
     this.properties = properties;
     this.factBuildTaskService = factBuildTaskService;
+    this.jsonUtils = jsonUtils;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.table-worker-delay-ms:5000}")
@@ -113,6 +121,8 @@ public class GitlabTableSyncWorkerService {
         executeDailyVerify(task, state);
       } else if (task.getTaskType() == GitlabTableSyncTaskType.DELETE_RECONCILE) {
         executeDeleteReconcileTask(task, state);
+      } else if (task.getTaskType() == GitlabTableSyncTaskType.SHARD_REPAIR) {
+        executeShardRepairTask(task, state);
       } else {
         executeIncrementalLikeTask(task, state);
       }
@@ -136,7 +146,10 @@ public class GitlabTableSyncWorkerService {
         mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
     GitlabTableProbe sourceProbe = externalDbService.probeTable(config, option);
     GitlabTableProbe mirrorProbe = storageService.probeMirrorTable(preparedMirrorTable.mirrorSchema());
-    boolean drifted = isDrifted(sourceProbe, mirrorProbe, state);
+    List<GitlabTableShardProbe> driftedShards = findDriftedSourceShards(
+        externalDbService.probeTableShards(config, option, preparedMirrorTable.mirrorSchema(), DAILY_VERIFY_SHARD_KEY_LENGTH),
+        storageService.probeMirrorTableShards(preparedMirrorTable.mirrorSchema(), DAILY_VERIFY_SHARD_KEY_LENGTH));
+    boolean drifted = isDrifted(sourceProbe, mirrorProbe, state) || !driftedShards.isEmpty();
     markVerificationSuccess(task, state, sourceProbe, mirrorProbe, drifted);
     if (!drifted) {
       return;
@@ -144,9 +157,42 @@ public class GitlabTableSyncWorkerService {
     if (shouldCreateDeleteReconcileTask(sourceProbe, mirrorProbe)) {
       taskMapper.insert(createDeleteReconcileTask(task, state));
     }
-    if (shouldCreateFullRepairTask(sourceProbe, mirrorProbe, state)) {
+    if (!driftedShards.isEmpty()) {
+      for (GitlabTableShardProbe shard : driftedShards) {
+        taskMapper.insert(createShardRepairTask(task, state, shard.shardKey()));
+      }
+    } else if (shouldCreateFullRepairTask(sourceProbe, mirrorProbe, state)) {
       taskMapper.insert(createRepairTask(task, state));
     }
+  }
+
+  private void executeShardRepairTask(GitlabTableSyncTask task, GitlabTableSyncState state) {
+    GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
+    TableWhitelistOption option = tableOption(state);
+    GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
+        mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+    mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+
+    ShardRepairCursor cursor = decodeShardRepairCursor(task.getCursorPk());
+    List<Map<String, Object>> sourceRows = externalDbService.shardCursorScan(
+        config,
+        option,
+        preparedMirrorTable.mirrorSchema(),
+        cursor.shardKey(),
+        cursor.rowCursor(),
+        resolveBatchSize(task));
+    List<Map<String, Object>> rows = sourceRows.stream()
+        .map(this::withoutInternalColumns)
+        .toList();
+    MirrorBatchWriteResult writeResult =
+        storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+    String lastCursor = sourceRows.isEmpty() ? null : Objects.toString(sourceRows.get(sourceRows.size() - 1).get("pk_signature"), "");
+    boolean hasMore = rows.size() >= resolveBatchSize(task) && lastCursor != null && !lastCursor.isBlank();
+    markShardRepairSuccess(task, state, rows.size(), writeResult.appliedRows(), hasMore);
+    if (hasMore) {
+      taskMapper.insert(createShardRepairContinuationTask(task, cursor.shardKey(), lastCursor));
+    }
+    mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
   }
 
   private void executeDeleteReconcileTask(GitlabTableSyncTask task, GitlabTableSyncState state) {
@@ -313,6 +359,28 @@ public class GitlabTableSyncWorkerService {
     stateMapper.updateById(state);
   }
 
+  private void markShardRepairSuccess(
+      GitlabTableSyncTask task,
+      GitlabTableSyncState state,
+      int scannedRows,
+      int appliedRows,
+      boolean hasMore) {
+    LocalDateTime now = LocalDateTime.now();
+    task.setStatus(SyncStatus.SUCCESS);
+    task.setRowsScanned((long) scannedRows);
+    task.setRowsApplied((long) appliedRows);
+    task.setFinishedAt(now);
+    task.setUpdatedAt(now);
+    taskMapper.updateById(task);
+
+    state.setDirtyFlag(hasMore);
+    state.setLastSuccessAt(now);
+    state.setLastError("");
+    state.setRetryCount(0);
+    state.setUpdatedAt(now);
+    stateMapper.updateById(state);
+  }
+
   private GitlabTableSyncTask createContinuationTask(GitlabTableSyncTask previousTask, RowCursor cursor) {
     LocalDateTime now = LocalDateTime.now();
     GitlabTableSyncTask task = new GitlabTableSyncTask();
@@ -376,6 +444,58 @@ public class GitlabTableSyncWorkerService {
     task.setRunAfter(now);
     task.setRetryCount(0);
     task.setMaxRetryCount(verificationTask.getMaxRetryCount());
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    return task;
+  }
+
+  private GitlabTableSyncTask createShardRepairTask(
+      GitlabTableSyncTask verificationTask,
+      GitlabTableSyncState state,
+      String shardKey) {
+    LocalDateTime now = LocalDateTime.now();
+    GitlabTableSyncTask task = new GitlabTableSyncTask();
+    task.setJobId(verificationTask.getJobId());
+    task.setConfigId(verificationTask.getConfigId());
+    task.setSourceInstance(verificationTask.getSourceInstance());
+    task.setSourceTable(verificationTask.getSourceTable());
+    task.setMirrorTable(verificationTask.getMirrorTable());
+    task.setTaskType(GitlabTableSyncTaskType.SHARD_REPAIR);
+    task.setStatus(SyncStatus.PENDING);
+    task.setRowStrategy(state.getRowStrategy());
+    task.setCursorPk(encodeShardRepairCursor(shardKey, null));
+    task.setBatchSize(resolveBatchSize(verificationTask));
+    task.setRunAfter(now);
+    task.setRetryCount(0);
+    task.setMaxRetryCount(verificationTask.getMaxRetryCount());
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    return task;
+  }
+
+  private GitlabTableSyncTask createShardRepairContinuationTask(
+      GitlabTableSyncTask previousTask,
+      String shardKey,
+      String rowCursor) {
+    LocalDateTime now = LocalDateTime.now();
+    GitlabTableSyncTask task = new GitlabTableSyncTask();
+    task.setJobId(previousTask.getJobId());
+    task.setConfigId(previousTask.getConfigId());
+    task.setSourceInstance(previousTask.getSourceInstance());
+    task.setSourceTable(previousTask.getSourceTable());
+    task.setMirrorTable(previousTask.getMirrorTable());
+    task.setTaskType(GitlabTableSyncTaskType.SHARD_REPAIR);
+    task.setStatus(SyncStatus.PENDING);
+    task.setRowStrategy(previousTask.getRowStrategy());
+    task.setCursorPk(encodeShardRepairCursor(shardKey, rowCursor));
+    task.setBatchSize(resolveBatchSize(previousTask));
+    task.setRunAfter(now);
+    task.setRetryCount(0);
+    task.setMaxRetryCount(previousTask.getMaxRetryCount());
     task.setRowsScanned(0L);
     task.setRowsApplied(0L);
     task.setCreatedAt(now);
@@ -543,6 +663,7 @@ public class GitlabTableSyncWorkerService {
         .eq(GitlabTableSyncTask::getJobId, job.getId())
         .in(GitlabTableSyncTask::getTaskType, List.of(
             GitlabTableSyncTaskType.FULL_REPAIR,
+            GitlabTableSyncTaskType.SHARD_REPAIR,
             GitlabTableSyncTaskType.DELETE_RECONCILE)));
     return repairTasks != null && repairTasks > 0;
   }
@@ -588,6 +709,35 @@ public class GitlabTableSyncWorkerService {
             || !Objects.equals(sourceProbe.maxPrimaryKey(), mirrorProbe.maxPrimaryKey()));
   }
 
+  private List<GitlabTableShardProbe> findDriftedSourceShards(
+      List<GitlabTableShardProbe> sourceShards,
+      List<GitlabTableShardProbe> mirrorShards) {
+    if (sourceShards == null || sourceShards.isEmpty()) {
+      return List.of();
+    }
+    List<GitlabTableShardProbe> safeMirrorShards = mirrorShards == null ? List.of() : mirrorShards;
+    Map<String, GitlabTableShardProbe> mirrorByKey = new LinkedHashMap<>();
+    for (GitlabTableShardProbe mirrorShard : safeMirrorShards) {
+      mirrorByKey.put(mirrorShard.shardKey(), mirrorShard);
+    }
+    List<GitlabTableShardProbe> drifted = new ArrayList<>();
+    for (GitlabTableShardProbe sourceShard : sourceShards) {
+      GitlabTableShardProbe mirrorShard = mirrorByKey.get(sourceShard.shardKey());
+      if (mirrorShard == null || isShardDrifted(sourceShard, mirrorShard)) {
+        drifted.add(sourceShard);
+      }
+    }
+    return drifted;
+  }
+
+  private boolean isShardDrifted(GitlabTableShardProbe sourceShard, GitlabTableShardProbe mirrorShard) {
+    return sourceShard.rowCount() != mirrorShard.rowCount()
+        || !Objects.equals(sourceShard.maxUpdatedAt(), mirrorShard.maxUpdatedAt())
+        || !Objects.equals(sourceShard.minPrimaryKey(), mirrorShard.minPrimaryKey())
+        || !Objects.equals(sourceShard.maxPrimaryKey(), mirrorShard.maxPrimaryKey())
+        || !Objects.equals(sourceShard.checksum(), mirrorShard.checksum());
+  }
+
   private boolean shouldCreateFullRepairTask(
       GitlabTableProbe sourceProbe,
       GitlabTableProbe mirrorProbe,
@@ -628,6 +778,28 @@ public class GitlabTableSyncWorkerService {
     return task.getBatchSize() == null || task.getBatchSize() < 1 ? 500 : task.getBatchSize();
   }
 
+  private String encodeShardRepairCursor(String shardKey, String rowCursor) {
+    return jsonUtils.toJson(Map.of(
+        "shardKey", shardKey,
+        "rowCursor", rowCursor == null ? "" : rowCursor));
+  }
+
+  private ShardRepairCursor decodeShardRepairCursor(String cursorJson) {
+    Map<String, Object> cursor = jsonUtils.toMap(cursorJson);
+    String shardKey = Objects.toString(cursor.get("shardKey"), "");
+    if (shardKey.isBlank()) {
+      throw new IllegalStateException("Shard repair task cursor is missing shardKey");
+    }
+    String rowCursor = Objects.toString(cursor.get("rowCursor"), "");
+    return new ShardRepairCursor(shardKey, rowCursor.isBlank() ? null : rowCursor);
+  }
+
+  private Map<String, Object> withoutInternalColumns(Map<String, Object> row) {
+    Map<String, Object> copy = new LinkedHashMap<>(row);
+    copy.remove("pk_signature");
+    return copy;
+  }
+
   private long resolveFailureBackoffMinutes(int retryCount) {
     int baseMinutes = Math.max(1, properties.getFailureBackoffMinutes());
     int exponent = Math.max(0, Math.min(retryCount - 1, 5));
@@ -665,6 +837,9 @@ public class GitlabTableSyncWorkerService {
     static RowCursor empty() {
       return new RowCursor(null, "");
     }
+  }
+
+  private record ShardRepairCursor(String shardKey, String rowCursor) {
   }
 
   private static String resolveWorkerId() {

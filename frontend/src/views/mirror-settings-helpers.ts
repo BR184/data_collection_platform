@@ -1,6 +1,6 @@
 import type { GitlabSyncLog, GitlabSyncStatus, GitlabSyncType, MirrorPurgeResult } from '../types/api';
 
-const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
+const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
 const SYNC_TYPE_LABELS: Record<GitlabSyncType, string> = {
   FULL: '全量同步',
@@ -22,7 +22,9 @@ const SYNC_STATUS_LABELS: Record<GitlabSyncStatus | 'IDLE', string> = {
   PENDING: '等待中',
   QUEUED: '排队中',
   RUNNING: '执行中',
+  RETRYING: '等待重试',
   SUCCESS: '成功',
+  PARTIAL_SUCCESS: '部分成功',
   FAILED: '失败',
   CANCELLED: '已中止',
   TIMEOUT: '已超时',
@@ -34,7 +36,9 @@ const SYNC_STATUS_TAG_TYPES: Record<GitlabSyncStatus | 'IDLE', 'danger' | 'info'
   PENDING: 'warning',
   QUEUED: 'warning',
   RUNNING: 'warning',
+  RETRYING: 'warning',
   SUCCESS: 'success',
+  PARTIAL_SUCCESS: 'warning',
   FAILED: 'danger',
   CANCELLED: 'info',
   TIMEOUT: 'danger',
