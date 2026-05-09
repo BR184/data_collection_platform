@@ -12,6 +12,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncState;
@@ -41,6 +42,7 @@ class GitlabTableSyncWorkerServiceTest {
   private GitlabExternalDbService externalDbService;
   private GitlabMirrorSchemaService mirrorSchemaService;
   private GitlabMirrorTableStorageService storageService;
+  private FactBuildTaskService factBuildTaskService;
   private GitlabTableSyncWorkerService service;
 
   @BeforeEach
@@ -52,6 +54,7 @@ class GitlabTableSyncWorkerServiceTest {
     externalDbService = mock(GitlabExternalDbService.class);
     mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
     storageService = mock(GitlabMirrorTableStorageService.class);
+    factBuildTaskService = mock(FactBuildTaskService.class);
     service = new GitlabTableSyncWorkerService(
         taskMapper,
         stateMapper,
@@ -60,7 +63,8 @@ class GitlabTableSyncWorkerServiceTest {
         externalDbService,
         mirrorSchemaService,
         storageService,
-        new GitlabMirrorProperties());
+        new GitlabMirrorProperties(),
+        factBuildTaskService);
   }
 
   @Test
@@ -183,6 +187,45 @@ class GitlabTableSyncWorkerServiceTest {
     assertThat(repairTask.getTaskType()).isEqualTo(GitlabTableSyncTaskType.FULL_REPAIR);
     assertThat(repairTask.getStatus()).isEqualTo(SyncStatus.PENDING);
     assertThat(repairTask.getWatermarkAt()).isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
+  }
+
+  @Test
+  void shouldEnqueueFactRefreshWhenCompensationJobCompletes() {
+    GitlabTableSyncTask task = task();
+    GitlabTableSyncState state = state();
+    GitlabSyncConfig config = config();
+    GitlabSyncJob job = new GitlabSyncJob();
+    job.setId(9L);
+    job.setConfigId(3L);
+    job.setJobType(GitlabSyncJobType.COMPENSATION_SCAN);
+    job.setStatus(SyncStatus.RUNNING);
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(jobMapper.selectById(9L)).thenReturn(job);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            new GitlabMirrorTableRegistry()));
+    when(externalDbService.incrementalCursorScan(eq(config), any(), any(), eq(null), eq(null), eq(2)))
+        .thenReturn(List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 1, 2, 3, 4, 5))));
+    when(storageService.upsertBatch(eq(schema), any(), eq(21L))).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(0L);
+
+    service.executeTask(task);
+
+    verify(jobMapper).updateById(job);
+    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
+    assertThat(job.getStatus()).isEqualTo(SyncStatus.SUCCESS);
   }
 
   private GitlabTableSyncTask task() {

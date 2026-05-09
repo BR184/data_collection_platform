@@ -3,7 +3,11 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.sql.PreparedStatement;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,5 +85,72 @@ class FactBuildTaskServiceTest {
     var latest = factBuildTaskService.latest("merge-request");
     assertThat(latest).isNotNull();
     assertThat(latest.status()).isEqualTo("SKIPPED");
+  }
+
+  @Test
+  void shouldEnqueueDeduplicateClaimAndFinishMirrorRefreshTasks() {
+    GitlabSyncConfig config = config("corp-main");
+
+    int created = factBuildTaskService.enqueueMirrorRefreshTasks(config, false);
+    int duplicate = factBuildTaskService.enqueueMirrorRefreshTasks(config, false);
+
+    assertThat(created).isEqualTo(3);
+    assertThat(duplicate).isZero();
+
+    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("test-worker", 30);
+
+    assertThat(task).isNotNull();
+    assertThat(task.configId()).isEqualTo(config.getId());
+    assertThat(task.sourceInstance()).startsWith("corp_main_");
+    assertThat(task.factType()).isEqualTo("ISSUE");
+    assertThat(task.scope()).endsWith(":issue");
+    assertThat(task.full()).isFalse();
+    assertThat(task.leaseUntil()).isAfter(LocalDateTime.now());
+
+    factBuildTaskService.finishQueuedTask(task.id(), "SUCCESS", 7, "done", null);
+
+    var latest = factBuildTaskService.latest(task.scope());
+    assertThat(latest.status()).isEqualTo("SUCCESS");
+    assertThat(latest.affectedRows()).isEqualTo(7);
+    assertThat(latest.finishedAt()).isNotNull();
+  }
+
+  @Test
+  void shouldRecoverExpiredQueuedTaskLease() {
+    GitlabSyncConfig config = config("corp-timeout");
+    factBuildTaskService.enqueueMirrorRefreshTasks(config, true);
+    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTask("test-worker", 30);
+    jdbcTemplate.update(
+        """
+        update fact_build_tasks
+           set lease_until = current_timestamp - interval '1 minute'
+         where id = ?
+        """,
+        task.id());
+
+    int recovered = factBuildTaskService.recoverTimedOutQueuedTasks();
+    QueuedFactBuildTask reclaimed = factBuildTaskService.claimNextQueuedTask("next-worker", 30);
+
+    assertThat(recovered).isEqualTo(1);
+    assertThat(reclaimed.id()).isEqualTo(task.id());
+    assertThat(reclaimed.retryCount()).isEqualTo(1);
+    assertThat(reclaimed.full()).isTrue();
+  }
+
+  private GitlabSyncConfig config(String sourcePrefix) {
+    String sourceInstance = sourcePrefix + "-" + UUID.randomUUID();
+    Long id = jdbcTemplate.queryForObject(
+        """
+        insert into gitlab_sync_configs(name, source_instance, source_mode, db_name, db_username, db_password)
+        values (?, ?, 'DOCKER', 'gitlabhq_production', 'gitlab_ro', 'secret')
+        returning id
+        """,
+        Long.class,
+        sourceInstance,
+        sourceInstance);
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(id);
+    config.setSourceInstance(sourceInstance);
+    return config;
   }
 }

@@ -47,8 +47,7 @@ public class GitlabMirrorSyncService {
   private final GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
   private final GitlabMirrorProperties properties;
   private final JsonUtils jsonUtils;
-  private final FactBuildService factBuildService;
-  private final IntegrationTestFactBuildService integrationTestFactBuildService;
+  private final FactBuildTaskService factBuildTaskService;
   private final GitlabTableSyncPlanningService tableSyncPlanningService;
   private final GitlabMirrorSyncService self;
   private final ConcurrentMap<Long, SyncProgress> progressMap = new ConcurrentHashMap<>();
@@ -67,8 +66,7 @@ public class GitlabMirrorSyncService {
       GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner,
       GitlabMirrorProperties properties,
       JsonUtils jsonUtils,
-      @Lazy FactBuildService factBuildService,
-      @Lazy IntegrationTestFactBuildService integrationTestFactBuildService,
+      FactBuildTaskService factBuildTaskService,
       GitlabTableSyncPlanningService tableSyncPlanningService,
       @Lazy GitlabMirrorSyncService self) {
     this.configService = configService;
@@ -82,8 +80,7 @@ public class GitlabMirrorSyncService {
     this.webhookPreciseSyncPlanner = webhookPreciseSyncPlanner;
     this.properties = properties;
     this.jsonUtils = jsonUtils;
-    this.factBuildService = factBuildService;
-    this.integrationTestFactBuildService = integrationTestFactBuildService;
+    this.factBuildTaskService = factBuildTaskService;
     this.tableSyncPlanningService = tableSyncPlanningService;
     this.self = self;
   }
@@ -472,11 +469,16 @@ public class GitlabMirrorSyncService {
 
   private void refreshFactsAfterMirrorSync(GitlabSyncConfig config, boolean full) {
     try {
-      factBuildService.rebuildAllFactsForConfig(config, full);
-      integrationTestFactBuildService.rebuildFactsForConfig(config, full);
+      int queuedTasks = factBuildTaskService.enqueueMirrorRefreshTasks(config, full);
+      log.info(
+          "Queued fact refresh tasks after mirror sync, configId={}, sourceInstance={}, full={}, queuedTasks={}",
+          config == null ? null : config.getId(),
+          GitlabSourceInstanceSupport.sourceInstanceOf(config),
+          full,
+          queuedTasks);
     } catch (Exception e) {
       log.warn(
-          "Post-sync fact refresh failed, configId={}, sourceInstance={}",
+          "Post-sync fact refresh enqueue failed, configId={}, sourceInstance={}",
           config == null ? null : config.getId(),
           GitlabSourceInstanceSupport.sourceInstanceOf(config),
           e);

@@ -2,12 +2,15 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.FactBuildTaskResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Supplier;
 import javax.sql.DataSource;
@@ -21,10 +24,14 @@ import org.springframework.stereotype.Service;
 public class FactBuildTaskService {
   private static final long FACT_BUILD_LOCK_KEY = 2026043001L;
   private static final String STATUS_RUNNING = "RUNNING";
+  private static final String STATUS_PENDING = "PENDING";
   private static final String STATUS_SUCCESS = "SUCCESS";
   private static final String STATUS_FAILED = "FAILED";
+  private static final String STATUS_TIMEOUT = "TIMEOUT";
   private static final String STATUS_SKIPPED = "SKIPPED";
   private static final String TRIGGER_MANUAL = "MANUAL";
+  private static final String TRIGGER_MIRROR_SYNC = "MIRROR_SYNC";
+  private static final int DEFAULT_MAX_RETRY_COUNT = 3;
 
   private final JdbcTemplate jdbcTemplate;
   private final DataSource dataSource;
@@ -62,6 +69,89 @@ public class FactBuildTaskService {
     } catch (Exception error) {
       throw new IllegalStateException("事实构建任务锁处理失败", error);
     }
+  }
+
+  public int enqueueMirrorRefreshTasks(GitlabSyncConfig config, boolean full) {
+    if (config == null || config.getId() == null) {
+      return 0;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    return enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full)
+        + enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full)
+        + enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full);
+  }
+
+  public int recoverTimedOutQueuedTasks() {
+    int retried = jdbcTemplate.update(
+        """
+        update fact_build_tasks
+           set status = ?,
+               retry_count = retry_count + 1,
+               lock_owner = null,
+               heartbeat_at = null,
+               lease_until = null,
+               run_after = current_timestamp,
+               message = 'Fact refresh task lease timed out; retry queued',
+               updated_at = current_timestamp
+         where trigger_type = ?
+           and status = ?
+           and lease_until < current_timestamp
+           and retry_count < max_retry_count
+        """,
+        STATUS_PENDING,
+        TRIGGER_MIRROR_SYNC,
+        STATUS_RUNNING);
+    int timedOut = jdbcTemplate.update(
+        """
+        update fact_build_tasks
+           set status = ?,
+               error_message = 'Fact refresh task lease timed out',
+               finished_at = current_timestamp,
+               updated_at = current_timestamp
+         where trigger_type = ?
+           and status = ?
+           and lease_until < current_timestamp
+           and retry_count >= max_retry_count
+        """,
+        STATUS_TIMEOUT,
+        TRIGGER_MIRROR_SYNC,
+        STATUS_RUNNING);
+    return retried + timedOut;
+  }
+
+  public QueuedFactBuildTask claimNextQueuedTask(String owner, int leaseSeconds) {
+    List<QueuedFactBuildTask> tasks = jdbcTemplate.query(
+        """
+        update fact_build_tasks
+           set status = ?,
+               lock_owner = ?,
+               heartbeat_at = current_timestamp,
+               lease_until = current_timestamp + (? * interval '1 second'),
+               started_at = coalesce(started_at, current_timestamp),
+               updated_at = current_timestamp
+         where id = (
+           select id
+             from fact_build_tasks
+            where status = ?
+              and trigger_type = ?
+              and run_after <= current_timestamp
+            order by created_at asc, id asc
+            for update skip locked
+            limit 1
+         )
+         returning *
+        """,
+        (rs, rowNum) -> mapQueuedTask(rs),
+        STATUS_RUNNING,
+        owner,
+        Math.max(1, leaseSeconds),
+        STATUS_PENDING,
+        TRIGGER_MIRROR_SYNC);
+    return tasks.isEmpty() ? null : tasks.getFirst();
+  }
+
+  public void finishQueuedTask(Long taskId, String status, int affectedRows, String message, String errorMessage) {
+    finishTask(taskId, status, affectedRows, message, errorMessage);
   }
 
   public FactBuildTaskResponse latest(String scope) {
@@ -106,6 +196,44 @@ public class FactBuildTaskService {
         lockOwner);
   }
 
+  private int enqueueFactRefreshTask(Long configId, String sourceInstance, String factType, boolean full) {
+    String scope = factScope(factType, sourceInstance);
+    return jdbcTemplate.update(
+        """
+        insert into fact_build_tasks(
+          run_id, scope, config_id, source_instance, fact_type, full_build, status, trigger_type,
+          retry_count, max_retry_count, run_after, created_at, updated_at
+        )
+        select ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, current_timestamp, current_timestamp
+        where not exists (
+          select 1
+            from fact_build_tasks
+           where config_id = ?
+             and source_instance = ?
+             and fact_type = ?
+             and full_build = ?
+             and trigger_type = ?
+             and status in (?, ?)
+        )
+        """,
+        UUID.randomUUID().toString(),
+        scope,
+        configId,
+        sourceInstance,
+        factType,
+        full,
+        STATUS_PENDING,
+        TRIGGER_MIRROR_SYNC,
+        DEFAULT_MAX_RETRY_COUNT,
+        configId,
+        sourceInstance,
+        factType,
+        full,
+        TRIGGER_MIRROR_SYNC,
+        STATUS_PENDING,
+        STATUS_RUNNING);
+  }
+
   private void recordSkipped(String scope, boolean full, String message) {
     jdbcTemplate.update(
         """
@@ -132,6 +260,9 @@ public class FactBuildTaskService {
                affected_rows = ?,
                message = ?,
                error_message = ?,
+               lock_owner = null,
+               heartbeat_at = null,
+               lease_until = null,
                finished_at = current_timestamp,
                updated_at = current_timestamp
          where id = ?
@@ -141,6 +272,19 @@ public class FactBuildTaskService {
         message,
         errorMessage,
         taskId);
+  }
+
+  private QueuedFactBuildTask mapQueuedTask(ResultSet rs) throws java.sql.SQLException {
+    return new QueuedFactBuildTask(
+        rs.getLong("id"),
+        rs.getLong("config_id"),
+        rs.getString("source_instance"),
+        rs.getString("fact_type"),
+        rs.getString("scope"),
+        rs.getBoolean("full_build"),
+        rs.getInt("retry_count"),
+        rs.getInt("max_retry_count"),
+        toLocalDateTime(rs.getTimestamp("lease_until")));
   }
 
   private boolean tryAcquireLock(Connection connection) throws Exception {
@@ -188,21 +332,34 @@ public class FactBuildTaskService {
     if (normalized == null) {
       return "all";
     }
-    normalized = normalized.trim().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+    normalized = normalized.trim().toLowerCase(java.util.Locale.ROOT);
     int sourceSeparator = normalized.indexOf(':');
     if (sourceSeparator > 0 && sourceSeparator < normalized.length() - 1) {
-      String source = normalized.substring(0, sourceSeparator);
-      String scoped = normalizeBaseScope(normalized.substring(sourceSeparator + 1));
+      String source = GitlabSourceInstanceSupport.normalizeSourceInstance(normalized.substring(0, sourceSeparator));
+      String scoped = normalizeBaseScope(normalized.substring(sourceSeparator + 1).replace('_', '-'));
       return source + ":" + scoped;
     }
-    return normalizeBaseScope(normalized);
+    return normalizeBaseScope(normalized.replace('_', '-'));
   }
 
   private String normalizeBaseScope(String normalized) {
     return switch (normalized) {
       case "merge_request" -> "merge-request";
-      case "issue", "merge-request", "all" -> normalized;
+      case "issue", "merge-request", "integration-test", "all" -> normalized;
       default -> "all";
     };
+  }
+
+  private String factScope(String factType, String sourceInstance) {
+    String baseScope = switch (factType.toUpperCase(Locale.ROOT)) {
+      case "ISSUE" -> "issue";
+      case "MERGE_REQUEST" -> "merge-request";
+      case "INTEGRATION_TEST" -> "integration-test";
+      default -> "all";
+    };
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(normalizedSource)
+        ? baseScope
+        : normalizedSource + ":" + baseScope;
   }
 }

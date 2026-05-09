@@ -74,7 +74,14 @@ Dirty Signal / Wakeup Only
 - `gitlab_table_sync_tasks`：真正执行的表级任务，包含 `job_id`、`config_id`、`source_instance`、`source_table`、`mirror_table`、`task_type`、`status`、`watermark_at`、`cursor_updated_at`、`cursor_pk`、`batch_size`、`lease_until`、`heartbeat_at`、`retry_count`、`last_error`、`rows_scanned`、`rows_applied`。
 - `gitlab_table_sync_states`：表级权威状态，包含 `config_id`、`source_instance`、`source_table`、`mirror_table`、`primary_key_columns`、`updated_at_column`、`row_strategy`、`last_success_at`、`last_watermark_at`、`last_cursor_pk`、`source_max_updated_at`、`source_row_count`、`mirror_row_count`、`schema_fingerprint`、`last_error`、`retry_count`、`dirty_flag`。
 - `gitlab_hook_events`：Hook 信号表，状态只表达接收和合并结果，例如 `RECEIVED`、`COALESCED`、`IGNORED`、`ERROR`，不表达同步成功。
-- `fact_refresh_tasks`：事实刷新任务，按 `config_id + source_instance + fact_type` 可恢复执行，失败进入诊断，不反向打失败镜像任务。
+- `fact_build_tasks`：事实刷新任务复用既有事实构建任务表，并扩展 `config_id`、`source_instance`、`fact_type`、`run_after`、`heartbeat_at`、`lease_until`、`retry_count`、`payload_json` 等字段；按 `config_id + source_instance + fact_type` 可恢复执行，失败进入任务状态，不反向打失败镜像任务。
+
+### 2026-05-09 实现进展
+
+- 已落地表级同步任务持久化：补偿扫描、手动刷新、每日校验都进入 `gitlab_sync_jobs` / `gitlab_table_sync_tasks` / `gitlab_table_sync_states`。
+- 已将 System Hook 降级为 dirty/wakeup 信号，不再作为准确性链路。
+- 已将镜像同步后的事实刷新改成 `fact_build_tasks` 持久队列，由 `FactRefreshTaskWorkerService` 独立认领、恢复、执行和记录失败。
+- 已补充定向测试：`FactBuildTaskServiceTest`、`FactRefreshTaskWorkerServiceTest`、`GitlabMirrorSyncServiceTest`、`GitlabTableSyncWorkerServiceTest`。
 
 ### 补偿扫描主流程
 

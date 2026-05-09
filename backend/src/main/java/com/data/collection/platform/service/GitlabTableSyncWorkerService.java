@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncState;
@@ -43,6 +44,7 @@ public class GitlabTableSyncWorkerService {
   private final GitlabMirrorSchemaService mirrorSchemaService;
   private final GitlabMirrorTableStorageService storageService;
   private final GitlabMirrorProperties properties;
+  private final FactBuildTaskService factBuildTaskService;
 
   public GitlabTableSyncWorkerService(
       GitlabTableSyncTaskMapper taskMapper,
@@ -52,7 +54,8 @@ public class GitlabTableSyncWorkerService {
       GitlabExternalDbService externalDbService,
       GitlabMirrorSchemaService mirrorSchemaService,
       GitlabMirrorTableStorageService storageService,
-      GitlabMirrorProperties properties) {
+      GitlabMirrorProperties properties,
+      FactBuildTaskService factBuildTaskService) {
     this.taskMapper = taskMapper;
     this.stateMapper = stateMapper;
     this.jobMapper = jobMapper;
@@ -61,10 +64,14 @@ public class GitlabTableSyncWorkerService {
     this.mirrorSchemaService = mirrorSchemaService;
     this.storageService = storageService;
     this.properties = properties;
+    this.factBuildTaskService = factBuildTaskService;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.table-worker-delay-ms:5000}")
   public void runOnce() {
+    if (!properties.isSchedulerEnabled()) {
+      return;
+    }
     recoverTimedOutTasks();
     GitlabTableSyncTask task = taskMapper.selectOne(new LambdaQueryWrapper<GitlabTableSyncTask>()
         .eq(GitlabTableSyncTask::getStatus, SyncStatus.PENDING)
@@ -387,6 +394,24 @@ public class GitlabTableSyncWorkerService {
     job.setFinishedAt(now);
     job.setUpdatedAt(now);
     jobMapper.updateById(job);
+    if (shouldEnqueueFactRefresh(job)) {
+      GitlabSyncConfig config = configService.getConfigById(job.getConfigId());
+      factBuildTaskService.enqueueMirrorRefreshTasks(config, job.getJobType() == GitlabSyncJobType.DAILY_VERIFY);
+    }
+  }
+
+  private boolean shouldEnqueueFactRefresh(GitlabSyncJob job) {
+    if (job.getJobType() == GitlabSyncJobType.COMPENSATION_SCAN
+        || job.getJobType() == GitlabSyncJobType.MANUAL_REFRESH) {
+      return true;
+    }
+    if (job.getJobType() != GitlabSyncJobType.DAILY_VERIFY) {
+      return false;
+    }
+    Long repairTasks = taskMapper.selectCount(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, job.getId())
+        .eq(GitlabTableSyncTask::getTaskType, GitlabTableSyncTaskType.FULL_REPAIR));
+    return repairTasks != null && repairTasks > 0;
   }
 
   private RowCursor lastCursor(List<Map<String, Object>> rows, GitlabTableSyncState state) {

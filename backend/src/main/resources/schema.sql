@@ -185,14 +185,23 @@ create table if not exists gitlab_mirror_records (
 create table if not exists fact_build_tasks (
     id bigserial primary key,
     run_id varchar(64) not null,
-    scope varchar(32) not null,
+    scope varchar(128) not null,
+    config_id bigint references gitlab_sync_configs(id) on delete set null,
+    source_instance varchar(128) not null default 'default',
+    fact_type varchar(64) not null default 'ALL',
     full_build boolean not null default false,
     status varchar(32) not null,
     trigger_type varchar(32) not null default 'MANUAL',
     lock_owner varchar(128),
+    run_after timestamp not null default current_timestamp,
+    heartbeat_at timestamp,
+    lease_until timestamp,
+    retry_count integer not null default 0,
+    max_retry_count integer not null default 3,
     affected_rows integer not null default 0,
     message text,
     error_message text,
+    payload_json text,
     started_at timestamp,
     finished_at timestamp,
     created_at timestamp not null default current_timestamp,
@@ -580,13 +589,23 @@ alter table gitlab_sync_tasks add column if not exists created_at timestamp not 
 alter table gitlab_sync_tasks add column if not exists updated_at timestamp not null default current_timestamp;
 alter table fact_build_tasks add column if not exists run_id varchar(64);
 alter table fact_build_tasks add column if not exists scope varchar(32);
+alter table fact_build_tasks alter column scope type varchar(128);
+alter table fact_build_tasks add column if not exists config_id bigint references gitlab_sync_configs(id) on delete set null;
+alter table fact_build_tasks add column if not exists source_instance varchar(128) not null default 'default';
+alter table fact_build_tasks add column if not exists fact_type varchar(64) not null default 'ALL';
 alter table fact_build_tasks add column if not exists full_build boolean not null default false;
 alter table fact_build_tasks add column if not exists status varchar(32);
 alter table fact_build_tasks add column if not exists trigger_type varchar(32) not null default 'MANUAL';
 alter table fact_build_tasks add column if not exists lock_owner varchar(128);
+alter table fact_build_tasks add column if not exists run_after timestamp not null default current_timestamp;
+alter table fact_build_tasks add column if not exists heartbeat_at timestamp;
+alter table fact_build_tasks add column if not exists lease_until timestamp;
+alter table fact_build_tasks add column if not exists retry_count integer not null default 0;
+alter table fact_build_tasks add column if not exists max_retry_count integer not null default 3;
 alter table fact_build_tasks add column if not exists affected_rows integer not null default 0;
 alter table fact_build_tasks add column if not exists message text;
 alter table fact_build_tasks add column if not exists error_message text;
+alter table fact_build_tasks add column if not exists payload_json text;
 alter table fact_build_tasks add column if not exists started_at timestamp;
 alter table fact_build_tasks add column if not exists finished_at timestamp;
 alter table fact_build_tasks add column if not exists created_at timestamp not null default current_timestamp;
@@ -786,3 +805,5 @@ create unique index if not exists uk_gitlab_sync_configs_webhook_secret_enabled
       and btrim(webhook_secret) <> '';
 create index if not exists idx_fact_build_tasks_scope_status on fact_build_tasks(scope, status, created_at desc);
 create index if not exists idx_fact_build_tasks_created_at on fact_build_tasks(created_at desc);
+create index if not exists idx_fact_build_tasks_dispatch on fact_build_tasks(status, trigger_type, run_after, created_at);
+create index if not exists idx_fact_build_tasks_source_fact on fact_build_tasks(config_id, source_instance, fact_type, status, created_at desc);

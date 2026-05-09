@@ -45,8 +45,7 @@ class GitlabMirrorSyncServiceTest {
   private GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
   private GitlabMirrorProperties properties;
   private JsonUtils jsonUtils;
-  private FactBuildService factBuildService;
-  private IntegrationTestFactBuildService integrationTestFactBuildService;
+  private FactBuildTaskService factBuildTaskService;
   private GitlabTableSyncPlanningService tableSyncPlanningService;
   private GitlabMirrorSyncService selfProxy;
   private GitlabMirrorSyncService syncService;
@@ -64,8 +63,7 @@ class GitlabMirrorSyncServiceTest {
     webhookPreciseSyncPlanner = mock(GitlabWebhookPreciseSyncPlanner.class);
     properties = new GitlabMirrorProperties();
     jsonUtils = mock(JsonUtils.class);
-    factBuildService = mock(FactBuildService.class);
-    integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
+    factBuildTaskService = mock(FactBuildTaskService.class);
     tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     selfProxy = mock(GitlabMirrorSyncService.class);
     syncService =
@@ -81,8 +79,7 @@ class GitlabMirrorSyncServiceTest {
             webhookPreciseSyncPlanner,
             properties,
             jsonUtils,
-            factBuildService,
-            integrationTestFactBuildService,
+            factBuildTaskService,
             tableSyncPlanningService,
             selfProxy);
   }
@@ -165,8 +162,7 @@ class GitlabMirrorSyncServiceTest {
     syncService.executeTaskAsync(200L);
 
     verify(externalDbService).compensationScan(any(), any(), any());
-    verify(factBuildService).rebuildAllFactsForConfig(config, false);
-    verify(integrationTestFactBuildService).rebuildFactsForConfig(config, false);
+    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
     verify(externalDbService, never()).fullTableScan(any(), any());
     verify(externalDbService, never()).incrementalScan(any(), any(), any());
   }
@@ -294,8 +290,7 @@ class GitlabMirrorSyncServiceTest {
     syncService.executeRealtimeWebhookSync(config, payload, "101");
 
     verify(externalDbService).preciseScan(eq(config), eq(option), eq("id"), eq(101L));
-    verify(factBuildService).rebuildAllFactsForConfig(config, false);
-    verify(integrationTestFactBuildService).rebuildFactsForConfig(config, false);
+    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
     verify(externalDbService, never()).incrementalScan(any(), any(), any());
     verify(externalDbService, never()).fullTableScan(any(), any());
   }
@@ -333,7 +328,7 @@ class GitlabMirrorSyncServiceTest {
         eq(Map.of()));
     verify(externalDbService, never()).preciseScan(any(), any(), anyString(), any());
     verify(logService, never()).start(anyLong(), any(), any(), anyString());
-    verify(factBuildService, never()).rebuildAllFactsForConfig(any(), any(Boolean.class));
+    verify(factBuildTaskService, never()).enqueueMirrorRefreshTasks(any(), any(Boolean.class));
   }
 
   @Test
@@ -384,7 +379,7 @@ class GitlabMirrorSyncServiceTest {
 
     verify(mirrorTableStorageService).markRowsDeleted(eq(schema), eq("id"), eq(101L), eq(null));
     verify(externalDbService, never()).preciseScan(any(), any(), anyString(), any());
-    verify(factBuildService).rebuildAllFactsForConfig(config, false);
+    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
   }
 
   @Test
@@ -496,7 +491,7 @@ class GitlabMirrorSyncServiceTest {
 
     verify(mirrorTableStorageService).markRowsDeleted(eq(schema), eq("id"), eq(101L), eq(1L));
     verify(externalDbService, never()).preciseScan(any(), any(), anyString(), any());
-    verify(factBuildService).rebuildAllFactsForConfig(config, false);
+    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
   }
 
   private GitlabSyncConfig baseConfig() {

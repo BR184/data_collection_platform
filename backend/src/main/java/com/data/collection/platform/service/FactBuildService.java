@@ -342,6 +342,10 @@ public class FactBuildService {
         factScope("issue", sourceInstance), full, () -> rebuildIssueFactsInternal(full, sourceInstance));
   }
 
+  public FactBuildResponse rebuildIssueFactsForQueuedTask(GitlabSyncConfig config, boolean full) {
+    return rebuildIssueFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
+  }
+
   private FactBuildResponse rebuildIssueFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
@@ -428,6 +432,10 @@ public class FactBuildService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     return factBuildTaskService.runGuarded(
         factScope("merge-request", sourceInstance), full, () -> rebuildMergeRequestFactsInternal(full, sourceInstance));
+  }
+
+  public FactBuildResponse rebuildMergeRequestFactsForQueuedTask(GitlabSyncConfig config, boolean full) {
+    return rebuildMergeRequestFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
   }
 
   private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full, String sourceInstance) {
