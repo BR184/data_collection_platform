@@ -502,6 +502,25 @@ public class GitlabSyncController {
   }
 
   private String submissionMessage(SyncTaskSubmissionResult result, SyncType requestedType) {
+    SyncStatus status = result.task().getStatus();
+    if (status == SyncStatus.SUCCESS) {
+      return switch (requestedType) {
+        case FULL -> "全量同步已完成";
+        case COMPENSATION -> "补偿同步已完成";
+        case INCREMENTAL -> "手工恢复增量已完成";
+        case WEBHOOK -> "精确更新已完成";
+        case PURGE -> "删除镜像数据已完成";
+      };
+    }
+    if (status == SyncStatus.PARTIAL_SUCCESS) {
+      return "部分表同步失败，请查看同步日志和表级诊断";
+    }
+    if (status == SyncStatus.FAILED) {
+      return "同步任务失败，请查看同步日志和表级诊断";
+    }
+    if (status == SyncStatus.TIMEOUT) {
+      return "同步任务超时，请稍后重试或查看表级诊断";
+    }
     SyncSubmissionAction action = result.action();
     return switch (action) {
       case CREATED -> switch (requestedType) {

@@ -23,6 +23,14 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   const cancelling = ref(false);
 
   function showSubmissionFeedback(result: SyncSubmissionResponse) {
+    if (result.status === 'FAILED' || result.status === 'TIMEOUT' || result.status === 'CANCELLED') {
+      deps.notifyError(result.message);
+      return;
+    }
+    if (result.status === 'PARTIAL_SUCCESS') {
+      deps.notifyWarning(result.message);
+      return;
+    }
     if (result.action === 'CREATED') {
       deps.notifySuccess(result.message);
       return;

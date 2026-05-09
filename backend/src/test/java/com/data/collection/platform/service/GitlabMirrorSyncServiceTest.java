@@ -154,6 +154,32 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void manualIncrementalTablePlanShouldWriteVisibleSyncLog() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables =
+        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualRefreshPlan(
+            config,
+            tables,
+            List.of("issues"),
+            "Manual recovery incremental sync"))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(41L, 1, 1, 0));
+    when(tableSyncWorkerService.drainReadyTasksForJob(41L)).thenReturn(1);
+    when(tableSyncPlanningService.findJobStatus(41L)).thenReturn(SyncStatus.SUCCESS);
+    when(logService.start(1L, SyncType.INCREMENTAL, List.of("issues"), "Manual recovery incremental sync"))
+        .thenReturn(9L);
+
+    syncService.startIncrementalSync(SyncTriggerType.MANUAL, "Manual recovery incremental sync");
+
+    verify(logService).start(1L, SyncType.INCREMENTAL, List.of("issues"), "Manual recovery incremental sync");
+    verify(logService).finish(eq(9L), eq(SyncStatus.SUCCESS), contains("表级同步"), eq(1), eq(0));
+  }
+
+  @Test
   void recoverTimedOutTasksShouldDelegateToTaskService() {
     syncService.recoverTimedOutTasks();
 

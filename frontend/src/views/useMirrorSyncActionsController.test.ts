@@ -129,6 +129,20 @@ describe('useMirrorSyncActionsController', () => {
     expect(controller.syncing.value).toBe(false);
   });
 
+  it('reports failed table-level submissions as errors instead of success', () => {
+    const deps = setup();
+    const controller = useMirrorSyncActionsController(deps);
+
+    controller.showSubmissionFeedback({
+      ...createSubmission('CREATED'),
+      status: 'FAILED',
+      message: '表级同步失败',
+    });
+
+    expect(deps.notifyError).toHaveBeenCalledWith('表级同步失败');
+    expect(deps.notifySuccess).not.toHaveBeenCalled();
+  });
+
   it('cancels sync tasks and reports whether a task was accepted', async () => {
     const deps = setup();
     const controller = useMirrorSyncActionsController(deps);

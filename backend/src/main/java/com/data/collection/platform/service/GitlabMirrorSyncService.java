@@ -323,15 +323,29 @@ public class GitlabMirrorSyncService {
     List<String> sourceTableNames = tables.stream()
         .map(TableWhitelistOption::tableName)
         .toList();
-    GitlabTableSyncPlanningService.CompensationPlanResult result =
-        tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, message);
-    tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+    long logId = logService.start(config.getId(), SyncType.INCREMENTAL, sourceTableNames, message);
+    GitlabTableSyncPlanningService.CompensationPlanResult result;
+    int processedTasks = 0;
+    try {
+      result = tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, message);
+      processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+      SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
+      logService.finish(
+          logId,
+          status,
+          buildTablePlanCompletionMessage(SyncType.INCREMENTAL, status, result.plannedTasks(), processedTasks),
+          result.plannedTasks(),
+          0);
+    } catch (Exception e) {
+      logService.finish(logId, SyncStatus.FAILED, e.getMessage(), processedTasks, 0);
+      throw e;
+    }
     GitlabSyncTask task = new GitlabSyncTask();
     task.setId(result.jobId());
     task.setConfigId(config.getId());
     task.setTaskType(SyncType.INCREMENTAL);
     task.setTriggerType(SyncTriggerType.MANUAL);
-    task.setStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
+    task.setStatus(normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId())));
     task.setCreatedAt(LocalDateTime.now());
     task.setUpdatedAt(task.getCreatedAt());
     return new SyncTaskSubmissionResult(task, SyncSubmissionAction.CREATED);
@@ -339,18 +353,59 @@ public class GitlabMirrorSyncService {
 
   private SyncTaskSubmissionResult submitManualFullTablePlan(GitlabSyncConfig config, String message) {
     List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
-    GitlabTableSyncPlanningService.CompensationPlanResult result =
-        tableSyncPlanningService.createManualVerificationPlan(config, tables);
-    tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+    List<String> sourceTableNames = tables.stream()
+        .map(TableWhitelistOption::tableName)
+        .toList();
+    long logId = logService.start(config.getId(), SyncType.FULL, sourceTableNames, message);
+    GitlabTableSyncPlanningService.CompensationPlanResult result;
+    int processedTasks = 0;
+    try {
+      result = tableSyncPlanningService.createManualVerificationPlan(config, tables);
+      processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+      SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
+      logService.finish(
+          logId,
+          status,
+          buildTablePlanCompletionMessage(SyncType.FULL, status, result.plannedTasks(), processedTasks),
+          result.plannedTasks(),
+          0);
+    } catch (Exception e) {
+      logService.finish(logId, SyncStatus.FAILED, e.getMessage(), processedTasks, 0);
+      throw e;
+    }
     GitlabSyncTask task = new GitlabSyncTask();
     task.setId(result.jobId());
     task.setConfigId(config.getId());
     task.setTaskType(SyncType.FULL);
     task.setTriggerType(SyncTriggerType.MANUAL);
-    task.setStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
+    task.setStatus(normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId())));
     task.setCreatedAt(LocalDateTime.now());
     task.setUpdatedAt(task.getCreatedAt());
     return new SyncTaskSubmissionResult(task, SyncSubmissionAction.CREATED);
+  }
+
+  private String buildTablePlanCompletionMessage(
+      SyncType type,
+      SyncStatus status,
+      int plannedTasks,
+      int processedTasks) {
+    String label = type == SyncType.FULL ? "全量校验" : "增量刷新";
+    return switch (status) {
+      case SUCCESS -> "%s表级同步已完成，计划表任务 %d 个，已处理 %d 个"
+          .formatted(label, plannedTasks, processedTasks);
+      case PARTIAL_SUCCESS -> "%s表级同步部分成功，计划表任务 %d 个，已处理 %d 个，请查看表级诊断"
+          .formatted(label, plannedTasks, processedTasks);
+      case FAILED -> "%s表级同步失败，计划表任务 %d 个，已处理 %d 个，请查看表级诊断"
+          .formatted(label, plannedTasks, processedTasks);
+      case TIMEOUT -> "%s表级同步超时，计划表任务 %d 个，已处理 %d 个，请稍后重试或查看表级诊断"
+          .formatted(label, plannedTasks, processedTasks);
+      default -> "%s表级同步状态为 %s，计划表任务 %d 个，已处理 %d 个"
+          .formatted(label, status, plannedTasks, processedTasks);
+    };
+  }
+
+  private SyncStatus normalizeJobStatus(SyncStatus status) {
+    return status == null ? SyncStatus.PENDING : status;
   }
 
   @Async
