@@ -112,6 +112,41 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
+  void shouldBuildCursorBatchScanSqlWithUpdatedAtAndPrimaryKeyCursor() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("Issue Events", "Issue Events", "Issue ID", "Updated At", false);
+
+    String sql = service.buildCursorBatchScanSql(
+        option,
+        LocalDateTime.of(2026, 1, 2, 3, 4, 5),
+        LocalDateTime.of(2026, 1, 2, 3, 5, 6),
+        "101",
+        200);
+
+    assertThat(sql)
+        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-01 19:04:05' "
+            + "and (\"Updated At\" > timestamp '2026-01-01 19:05:06' or (\"Updated At\" = timestamp '2026-01-01 19:05:06' "
+            + "and \"Issue ID\" > '101')) order by \"Updated At\" asc, \"Issue ID\" asc limit 200");
+  }
+
+  @Test
+  void shouldBuildCursorBatchScanSqlWithoutCursorForFirstBatch() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("issues", "Issues", "id", "updated_at", true);
+
+    String sql = service.buildCursorBatchScanSql(
+        option,
+        LocalDateTime.of(2026, 1, 2, 3, 4, 5),
+        null,
+        null,
+        0);
+
+    assertThat(sql)
+        .isEqualTo("select * from \"public\".\"issues\" where \"updated_at\" >= timestamp '2026-01-01 19:04:05' "
+            + "order by \"updated_at\" asc, \"id\" asc limit 1");
+  }
+
+  @Test
   void shouldQuoteSourceTableAndLookupColumnForPreciseScans() {
     TableWhitelistOption option =
         new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);

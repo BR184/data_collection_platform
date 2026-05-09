@@ -172,6 +172,19 @@ public class GitlabExternalDbService {
     return timeWindowScan(config, option, since);
   }
 
+  public List<Map<String, Object>> incrementalCursorScan(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      LocalDateTime watermark,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk,
+      int batchSize) {
+    if (watermark == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()) {
+      return List.of();
+    }
+    return executeSourceQuery(config, buildCursorBatchScanSql(option, watermark, cursorUpdatedAt, cursorPk, batchSize));
+  }
+
   public List<Map<String, Object>> preciseScan(
       GitlabSyncConfig config,
       TableWhitelistOption option,
@@ -206,6 +219,47 @@ public class GitlabExternalDbService {
         quoteQualifiedPublicTable(option.tableName()),
         quoteIdentifier(option.updatedAtColumn()),
         gitlabSince.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+  }
+
+  String buildCursorBatchScanSql(
+      TableWhitelistOption option,
+      LocalDateTime watermark,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk,
+      int batchSize) {
+    LocalDateTime gitlabWatermark = toGitlabSourceTime(watermark);
+    String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
+    String primaryKeyColumn = quoteIdentifier(firstPrimaryKey(option));
+    StringBuilder sql = new StringBuilder("select * from ")
+        .append(quoteQualifiedPublicTable(option.tableName()))
+        .append(" where ")
+        .append(updatedAtColumn)
+        .append(" >= timestamp '")
+        .append(gitlabWatermark.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+        .append("'");
+    if (cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank()) {
+      LocalDateTime gitlabCursor = toGitlabSourceTime(cursorUpdatedAt);
+      sql.append(" and (")
+          .append(updatedAtColumn)
+          .append(" > timestamp '")
+          .append(gitlabCursor.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+          .append("' or (")
+          .append(updatedAtColumn)
+          .append(" = timestamp '")
+          .append(gitlabCursor.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+          .append("' and ")
+          .append(primaryKeyColumn)
+          .append(" > ")
+          .append(toSqlLiteral(cursorPk))
+          .append("))");
+    }
+    return sql.append(" order by ")
+        .append(updatedAtColumn)
+        .append(" asc, ")
+        .append(primaryKeyColumn)
+        .append(" asc limit ")
+        .append(Math.max(1, batchSize))
+        .toString();
   }
 
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
@@ -420,6 +474,17 @@ public class GitlabExternalDbService {
         .map(String::trim)
         .filter(value -> !value.isBlank())
         .toList();
+  }
+
+  private String firstPrimaryKey(TableWhitelistOption option) {
+    if (option.primaryKey() == null || option.primaryKey().isBlank()) {
+      return "id";
+    }
+    return List.of(option.primaryKey().split(",")).stream()
+        .map(String::trim)
+        .filter(value -> !value.isBlank())
+        .findFirst()
+        .orElse("id");
   }
 
   private List<Map<String, Object>> executeSourceQuery(GitlabSyncConfig config, String sql) {

@@ -44,7 +44,7 @@ class GitlabTableSyncPlanningServiceTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(3L);
     config.setSourceInstance("corp-main");
-    when(jobMapper.insert(any())).thenAnswer(invocation -> {
+    when(jobMapper.insert(org.mockito.ArgumentMatchers.<GitlabSyncJob>any())).thenAnswer(invocation -> {
       GitlabSyncJob job = invocation.getArgument(0);
       job.setId(77L);
       return 1;
