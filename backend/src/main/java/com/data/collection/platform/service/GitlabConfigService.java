@@ -63,12 +63,20 @@ public class GitlabConfigService {
   public GitlabSyncConfig getConfigForWebhook(String secret) {
     List<GitlabSyncConfig> configs =
         configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
-            .eq(GitlabSyncConfig::isEnabled, true)
+            .eq(GitlabSyncConfig::getSourceEnabled, true)
+            .eq(GitlabSyncConfig::getWebhookEnabled, true)
             .orderByAsc(GitlabSyncConfig::getId));
     if (configs == null || configs.isEmpty()) {
-      return defaultConfig();
+      throw new BizException("未启用 GitLab Webhook 数据源");
     }
     configs.forEach(this::normalizePersistedSourceInstance);
+    configs = configs.stream()
+        .filter(config -> Boolean.TRUE.equals(config.getSourceEnabled()))
+        .filter(config -> Boolean.TRUE.equals(config.getWebhookEnabled()))
+        .toList();
+    if (configs.isEmpty()) {
+      throw new BizException("未启用 GitLab Webhook 数据源");
+    }
     if (secret != null && !secret.isBlank()) {
       List<GitlabSyncConfig> matches = configs.stream()
           .filter(config -> config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank())
@@ -77,11 +85,11 @@ public class GitlabConfigService {
       if (matches.size() == 1) {
         return matches.getFirst();
       }
+      if (matches.size() > 1) {
+        throw new BizException("存在多个 GitLab 数据源使用相同的 Webhook Secret");
+      }
     }
-    if (configs.size() == 1) {
-      return configs.getFirst();
-    }
-    throw new BizException("存在多个 GitLab 数据源，请为每个源配置不同的 Webhook Secret");
+    throw new BizException("Webhook Secret 未提供或未匹配到已启用的数据源");
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -177,6 +185,7 @@ public class GitlabConfigService {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setName("GitLab default source");
     config.setEnabled(true);
+    config.setSourceEnabled(true);
     config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
@@ -188,19 +197,25 @@ public class GitlabConfigService {
     config.setDbUsername("gitlab");
     config.setDbPassword("");
     config.setDockerContainerName("gitlab-data-web-1");
+    config.setWebhookEnabled(false);
     config.setCompensationIntervalMinutes(10);
     return config;
   }
 
   private GitlabSyncConfig normalize(GitlabSyncConfig config, GitlabSyncConfig current) {
     GitlabSyncConfig normalized = new GitlabSyncConfig();
-    boolean syncEnabled = config.isAutoSyncEnabled();
+    boolean sourceEnabled = config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled();
+    boolean autoSyncEnabled = config.isAutoSyncEnabled();
     String sourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance());
     validateSourceInstance(sourceInstance);
+    String resolvedWebhookSecret = resolveSecret(config.getWebhookSecret(), current.getWebhookSecret());
+    boolean webhookEnabled = resolveWebhookEnabled(config, current, resolvedWebhookSecret);
+    normalized.setId(current.getId());
     normalized.setName(config.getName());
-    normalized.setEnabled(syncEnabled);
+    normalized.setEnabled(sourceEnabled);
+    normalized.setSourceEnabled(sourceEnabled);
     normalized.setSourceInstance(sourceInstance);
-    normalized.setAutoSyncEnabled(syncEnabled);
+    normalized.setAutoSyncEnabled(autoSyncEnabled);
     normalized.setSourceMode(config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode());
     normalized.setWhitelistMode(config.getWhitelistMode() == null ? WhitelistMode.RECOMMENDED : config.getWhitelistMode());
     normalized.setWhitelistTables(config.getWhitelistTables() == null ? List.of() : config.getWhitelistTables());
@@ -210,10 +225,44 @@ public class GitlabConfigService {
     normalized.setDbUsername(config.getDbUsername());
     normalized.setDbPassword(resolveSecret(config.getDbPassword(), current.getDbPassword()));
     normalized.setDockerContainerName(config.getDockerContainerName());
-    normalized.setWebhookSecret(resolveSecret(config.getWebhookSecret(), current.getWebhookSecret()));
+    normalized.setWebhookSecret(resolvedWebhookSecret);
+    normalized.setWebhookEnabled(webhookEnabled);
     normalized.setWebhookProjectId(config.getWebhookProjectId());
     normalized.setCompensationIntervalMinutes(normalizeCompensationInterval(config.getCompensationIntervalMinutes()));
+    validateWebhookConfig(normalized);
     return normalized;
+  }
+
+  private boolean resolveWebhookEnabled(
+      GitlabSyncConfig config,
+      GitlabSyncConfig current,
+      String resolvedWebhookSecret) {
+    if (config.getWebhookEnabled() != null) {
+      return config.getWebhookEnabled();
+    }
+    if (current.getWebhookEnabled() != null) {
+      return current.getWebhookEnabled();
+    }
+    return resolvedWebhookSecret != null && !resolvedWebhookSecret.isBlank();
+  }
+
+  private void validateWebhookConfig(GitlabSyncConfig normalized) {
+    if (!Boolean.TRUE.equals(normalized.getWebhookEnabled())) {
+      return;
+    }
+    if (normalized.getWebhookSecret() == null || normalized.getWebhookSecret().isBlank()) {
+      throw new BizException("启用 Webhook 时必须配置唯一的 Webhook Secret");
+    }
+    List<GitlabSyncConfig> matches =
+        configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
+            .eq(GitlabSyncConfig::getSourceEnabled, true)
+            .eq(GitlabSyncConfig::getWebhookEnabled, true)
+            .eq(GitlabSyncConfig::getWebhookSecret, normalized.getWebhookSecret()));
+    boolean duplicate = matches != null && matches.stream()
+        .anyMatch(match -> match.getId() != null && !match.getId().equals(normalized.getId()));
+    if (duplicate) {
+      throw new BizException("Webhook Secret 已被其他 GitLab 数据源使用");
+    }
   }
 
   private Integer normalizeCompensationInterval(Integer intervalMinutes) {
@@ -248,5 +297,11 @@ public class GitlabConfigService {
 
   private void normalizePersistedSourceInstance(GitlabSyncConfig config) {
     config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance()));
+    if (config.getSourceEnabled() == null) {
+      config.setSourceEnabled(config.isEnabled());
+    }
+    if (config.getWebhookEnabled() == null) {
+      config.setWebhookEnabled(config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank());
+    }
   }
 }

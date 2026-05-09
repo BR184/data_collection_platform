@@ -2,6 +2,7 @@ create table if not exists gitlab_sync_configs (
     id bigserial primary key,
     name varchar(128) not null default 'default',
     enabled boolean not null default true,
+    source_enabled boolean not null default true,
     source_instance varchar(128) not null default 'default',
     auto_sync_enabled boolean not null default true,
     source_mode varchar(32) not null default 'DOCKER',
@@ -14,6 +15,7 @@ create table if not exists gitlab_sync_configs (
     db_password varchar(255) not null,
     docker_container_name varchar(255),
     webhook_secret varchar(255),
+    webhook_enabled boolean not null default false,
     webhook_project_id bigint,
     compensation_interval_minutes integer not null default 10,
     last_full_sync_at timestamp,
@@ -458,7 +460,9 @@ create table if not exists sys_table_registry (
 
 alter table gitlab_sync_configs add column if not exists source_mode varchar(32) not null default 'DOCKER';
 alter table gitlab_sync_configs add column if not exists source_instance varchar(128) not null default 'default';
+alter table gitlab_sync_configs add column if not exists source_enabled boolean not null default true;
 alter table gitlab_sync_configs add column if not exists docker_container_name varchar(255);
+alter table gitlab_sync_configs add column if not exists webhook_enabled boolean not null default false;
 alter table gitlab_sync_tasks add column if not exists run_id varchar(64);
 alter table gitlab_sync_tasks add column if not exists trigger_type varchar(32) default 'MANUAL';
 alter table gitlab_sync_tasks add column if not exists source_mode varchar(32) default 'DOCKER';
@@ -672,5 +676,11 @@ create index if not exists idx_gitlab_sync_tasks_config on gitlab_sync_tasks(con
 create index if not exists idx_gitlab_sync_tasks_scope_status on gitlab_sync_tasks(scope_key, status, created_at desc);
 create index if not exists idx_gitlab_sync_tasks_dedupe on gitlab_sync_tasks(dedupe_key, created_at desc);
 create unique index if not exists uk_gitlab_sync_configs_source_instance on gitlab_sync_configs(source_instance);
+create unique index if not exists uk_gitlab_sync_configs_webhook_secret_enabled
+    on gitlab_sync_configs(webhook_secret)
+    where source_enabled = true
+      and webhook_enabled = true
+      and webhook_secret is not null
+      and btrim(webhook_secret) <> '';
 create index if not exists idx_fact_build_tasks_scope_status on fact_build_tasks(scope, status, created_at desc);
 create index if not exists idx_fact_build_tasks_created_at on fact_build_tasks(created_at desc);

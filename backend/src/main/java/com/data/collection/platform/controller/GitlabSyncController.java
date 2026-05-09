@@ -183,6 +183,7 @@ public class GitlabSyncController {
           e.getMessage(),
           List.of());
     }
+    WebhookConfigDiagnostics webhookConfigDiagnostics = diagnoseWebhookConfig(config);
     GitlabSyncDiagnosticsResponse response = new GitlabSyncDiagnosticsResponse(
         config.getId(),
         GitlabSourceInstanceSupport.sourceInstanceOf(config),
@@ -200,6 +201,10 @@ public class GitlabSyncController {
         metadataDiagnostics.missingUpdatedAtTableCount(),
         metadataDiagnostics.sourceTables(),
         properties.getWebhookBaseUrl(),
+        Boolean.TRUE.equals(config.getWebhookEnabled()),
+        webhookConfigDiagnostics.secretConfigured(),
+        webhookConfigDiagnostics.secretUnique(),
+        webhookConfigDiagnostics.message(),
         webhookStatus.supported(),
         webhookStatus.registered(),
         webhookStatus.message());
@@ -224,10 +229,12 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabSyncConfig> saveConfig(@RequestBody SaveConfigRequest request) {
     GitlabSyncConfig config = new GitlabSyncConfig();
+    boolean sourceEnabled = request.sourceEnabled() == null ? request.enabled() : request.sourceEnabled();
     boolean syncEnabled = request.autoSyncEnabled();
     config.setId(request.id());
     config.setName(request.name());
-    config.setEnabled(syncEnabled);
+    config.setEnabled(sourceEnabled);
+    config.setSourceEnabled(sourceEnabled);
     config.setAutoSyncEnabled(syncEnabled);
     config.setSourceInstance(request.sourceInstance());
     config.setSourceMode(request.sourceMode());
@@ -240,13 +247,14 @@ public class GitlabSyncController {
     config.setDbPassword(request.dbPassword());
     config.setDockerContainerName(request.dockerContainerName());
     config.setWebhookSecret(request.webhookSecret());
+    config.setWebhookEnabled(request.webhookEnabled());
     config.setWebhookProjectId(request.webhookProjectId());
     config.setCompensationIntervalMinutes(request.compensationIntervalMinutes());
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "CONFIG");
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Config_Save")) {
       log.info(
           "Saving GitLab sync config, enabled={}, autoSyncEnabled={}, sourceMode={}, whitelistMode={}",
-          syncEnabled,
+          sourceEnabled,
           syncEnabled,
           request.sourceMode(),
           request.whitelistMode());
@@ -385,7 +393,9 @@ public class GitlabSyncController {
       Long id,
       @NotBlank String name,
       boolean enabled,
+      Boolean sourceEnabled,
       boolean autoSyncEnabled,
+      Boolean webhookEnabled,
       String sourceInstance,
       @NotNull SourceMode sourceMode,
       @NotNull WhitelistMode whitelistMode,
@@ -407,6 +417,7 @@ public class GitlabSyncController {
     sanitized.setId(source.getId());
     sanitized.setName(source.getName());
     sanitized.setEnabled(source.isEnabled());
+    sanitized.setSourceEnabled(source.getSourceEnabled() == null ? source.isEnabled() : source.getSourceEnabled());
     sanitized.setSourceInstance(source.getSourceInstance());
     sanitized.setAutoSyncEnabled(source.isAutoSyncEnabled());
     sanitized.setSourceMode(source.getSourceMode());
@@ -419,6 +430,7 @@ public class GitlabSyncController {
     sanitized.setDbPassword("");
     sanitized.setDockerContainerName(source.getDockerContainerName());
     sanitized.setWebhookSecret("");
+    sanitized.setWebhookEnabled(source.getWebhookEnabled() != null && source.getWebhookEnabled());
     sanitized.setWebhookProjectId(source.getWebhookProjectId());
     sanitized.setCompensationIntervalMinutes(source.getCompensationIntervalMinutes());
     sanitized.setLastFullSyncAt(source.getLastFullSyncAt());
@@ -426,6 +438,41 @@ public class GitlabSyncController {
     sanitized.setCreatedAt(source.getCreatedAt());
     sanitized.setUpdatedAt(source.getUpdatedAt());
     return sanitized;
+  }
+
+  private WebhookConfigDiagnostics diagnoseWebhookConfig(GitlabSyncConfig config) {
+    boolean webhookEnabled = Boolean.TRUE.equals(config.getWebhookEnabled());
+    boolean secretConfigured = config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank();
+    boolean secretUnique = true;
+    if (webhookEnabled && secretConfigured) {
+      String secret = config.getWebhookSecret();
+      List<GitlabSyncConfig> configs = configService.listConfigs();
+      secretUnique = (configs == null ? List.<GitlabSyncConfig>of() : configs).stream()
+          .filter(candidate -> candidate.getId() != null)
+          .filter(candidate -> !candidate.getId().equals(config.getId()))
+          .filter(candidate -> Boolean.TRUE.equals(candidate.getSourceEnabled()))
+          .filter(candidate -> Boolean.TRUE.equals(candidate.getWebhookEnabled()))
+          .noneMatch(candidate -> secret.equals(candidate.getWebhookSecret()));
+    }
+    String message;
+    if (!webhookEnabled) {
+      message = "Webhook 接收已停用";
+    } else if (!secretConfigured) {
+      message = "启用 Webhook 时必须配置唯一的 Webhook Secret";
+    } else if (!secretUnique) {
+      message = "Webhook Secret 已被其他 GitLab 数据源使用";
+    } else if (config.getSourceMode() == SourceMode.DIRECT) {
+      message = "直连模式支持 Webhook 接收，但需要在 GitLab 中手动注册";
+    } else {
+      message = "Webhook 配置可用";
+    }
+    return new WebhookConfigDiagnostics(secretConfigured, secretUnique, message);
+  }
+
+  private record WebhookConfigDiagnostics(
+      boolean secretConfigured,
+      boolean secretUnique,
+      String message) {
   }
 
   private GitlabSyncConfig resolveConfig(Long configId) {

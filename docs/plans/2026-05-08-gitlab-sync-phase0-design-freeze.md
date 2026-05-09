@@ -264,7 +264,7 @@ PENDING -> RUNNING -> SUCCESS
 ```sql
 alter table gitlab_sync_configs
     add column if not exists source_enabled boolean not null default true,
-    add column if not exists webhook_enabled boolean not null default true,
+    add column if not exists webhook_enabled boolean not null default false,
     add column if not exists db_ssl_enabled boolean not null default false,
     add column if not exists db_ssl_mode varchar(32),
     add column if not exists connection_timeout_seconds integer not null default 10,
@@ -275,7 +275,7 @@ alter table gitlab_sync_configs
 
 - `enabled` 当前语义暂时保留，Phase 2 再迁移到更清晰的 `source_enabled`。
 - `auto_sync_enabled` 只控制定时同步。
-- `webhook_enabled` 只控制 Webhook 接收。
+- `webhook_enabled` 只控制 Webhook 接收，Phase 2 正式迁移采用默认关闭，并按已有非空 secret 回填历史配置。
 
 ### 8.2 复用并扩展 `sys_table_registry`
 

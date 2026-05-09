@@ -34,11 +34,14 @@ class GitlabWebhookServiceTest {
   }
 
   @Test
-  void acceptShouldStartPreciseWebhookSyncWhenAutoSyncEnabled() {
+  void acceptShouldStartPreciseWebhookSyncWhenWebhookEnabledEvenIfAutoSyncDisabled() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
-    config.setAutoSyncEnabled(true);
+    config.setAutoSyncEnabled(false);
     config.setEnabled(true);
+    config.setSourceEnabled(true);
+    config.setWebhookEnabled(true);
+    config.setWebhookSecret("secret");
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.ALL);
     Map<String, Object> payload = Map.of(
@@ -46,10 +49,10 @@ class GitlabWebhookServiceTest {
         "project_id", 10L,
         "object_attributes", Map.of("id", 101L));
 
-    when(configService.getConfigForWebhook(null)).thenReturn(config);
+    when(configService.getConfigForWebhook("secret")).thenReturn(config);
     when(jsonUtils.toJson(payload)).thenReturn("{\"object_kind\":\"issue\"}");
 
-    webhookService.accept("Issue Hook", payload, null);
+    webhookService.accept("Issue Hook", payload, "secret");
 
     verify(webhookEventMapper).insert(org.mockito.ArgumentMatchers.<GitlabWebhookEvent>any());
     verify(asyncDispatchService).accept(eq(config), eq("Issue Hook"), eq(payload));
@@ -61,6 +64,8 @@ class GitlabWebhookServiceTest {
     config.setId(1L);
     config.setAutoSyncEnabled(true);
     config.setEnabled(true);
+    config.setSourceEnabled(true);
+    config.setWebhookEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.ALL);
     Map<String, Object> payload = Map.of(

@@ -7,6 +7,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
   return {
     name: '',
     enabled: true,
+    sourceEnabled: undefined,
     sourceInstance: 'default',
     autoSyncEnabled: true,
     sourceMode: 'DOCKER',
@@ -19,6 +20,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     dbPassword: undefined as unknown as string,
     dockerContainerName: undefined,
     webhookSecret: '',
+    webhookEnabled: undefined,
     webhookProjectId: undefined,
     compensationIntervalMinutes: 10,
     ...overrides,
@@ -59,6 +61,7 @@ describe('useMirrorStatusController', () => {
     expect(form.value).toMatchObject({
       name: 'GitLab 默认数据源',
       enabled: true,
+      sourceEnabled: true,
       sourceInstance: 'default',
       autoSyncEnabled: true,
       sourceMode: 'DOCKER',
@@ -70,6 +73,7 @@ describe('useMirrorStatusController', () => {
       dbUsername: 'gitlab',
       dbPassword: '',
       webhookProjectId: null,
+      webhookEnabled: false,
     });
   });
 

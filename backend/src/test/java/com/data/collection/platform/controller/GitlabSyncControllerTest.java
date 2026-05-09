@@ -142,15 +142,19 @@ class GitlabSyncControllerTest {
   }
 
   @Test
-  void saveConfigShouldTreatAutoSyncEnabledAsAuthoritativeAndSanitizeResponseSecrets() throws Exception {
+  void saveConfigShouldKeepSourceEnabledSeparateFromAutoSyncAndSanitizeResponseSecrets() throws Exception {
     GitlabSyncConfig saved = baseConfig();
-    saved.setEnabled(false);
+    saved.setEnabled(true);
+    saved.setSourceEnabled(true);
     saved.setAutoSyncEnabled(false);
     saved.setDbPassword("database-secret");
     saved.setWebhookSecret("webhook-secret");
+    saved.setWebhookEnabled(true);
     when(configService.saveConfig(argThat(config ->
-        !config.isEnabled()
+        config.isEnabled()
+            && Boolean.TRUE.equals(config.getSourceEnabled())
             && !config.isAutoSyncEnabled()
+            && Boolean.TRUE.equals(config.getWebhookEnabled())
             && "new-database-secret".equals(config.getDbPassword())
             && "new-webhook-secret".equals(config.getWebhookSecret()))))
         .thenReturn(saved);
@@ -161,7 +165,9 @@ class GitlabSyncControllerTest {
                 {
                   "name": "GitLab default source",
                   "enabled": true,
+                  "sourceEnabled": true,
                   "autoSyncEnabled": false,
+                  "webhookEnabled": true,
                   "sourceMode": "DIRECT",
                   "whitelistMode": "RECOMMENDED",
                   "whitelistTables": [],
@@ -178,11 +184,13 @@ class GitlabSyncControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.autoSyncEnabled").value(false))
-        .andExpect(jsonPath("$.data.enabled").value(false))
+        .andExpect(jsonPath("$.data.enabled").value(true))
+        .andExpect(jsonPath("$.data.sourceEnabled").value(true))
+        .andExpect(jsonPath("$.data.webhookEnabled").value(true))
         .andExpect(jsonPath("$.data.dbPassword").value(""))
         .andExpect(jsonPath("$.data.webhookSecret").value(""));
 
-    verify(configService, never()).saveConfig(argThat(config -> config.isAutoSyncEnabled() || config.isEnabled()));
+    verify(configService, never()).saveConfig(argThat(config -> config.isAutoSyncEnabled() || !config.isEnabled()));
   }
 
   @Test
@@ -245,7 +253,10 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = baseConfig();
     config.setSourceMode(SourceMode.DIRECT);
     config.setSourceInstance("inner-gitlab");
+    config.setWebhookEnabled(true);
+    config.setWebhookSecret("direct-secret");
     when(configService.getConfig()).thenReturn(config);
+    when(configService.listConfigs()).thenReturn(List.of(config));
     when(whitelistService.listOptions(config))
         .thenReturn(List.of(
             new TableWhitelistOption("issues", "issues", "id", "updated_at", true),
@@ -285,6 +296,10 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.missingPrimaryKeyTableCount").value(0))
         .andExpect(jsonPath("$.data.missingUpdatedAtTableCount").value(0))
         .andExpect(jsonPath("$.data.sourceTables[0].rowStrategy").value("INCREMENTAL"))
+        .andExpect(jsonPath("$.data.webhookEnabled").value(true))
+        .andExpect(jsonPath("$.data.webhookSecretConfigured").value(true))
+        .andExpect(jsonPath("$.data.webhookSecretUnique").value(true))
+        .andExpect(jsonPath("$.data.webhookConfigMessage").value("直连模式支持 Webhook 接收，但需要在 GitLab 中手动注册"))
         .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/webhook"))
         .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
         .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false));
@@ -525,6 +540,8 @@ class GitlabSyncControllerTest {
     config.setId(1L);
     config.setName("GitLab default source");
     config.setEnabled(true);
+    config.setSourceEnabled(true);
+    config.setWebhookEnabled(false);
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);

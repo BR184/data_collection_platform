@@ -58,7 +58,9 @@ class FlywayMigrationSmokeTest {
 
     assertThat(columnExists("gitlab_sync_configs", "source_mode")).isTrue();
     assertThat(columnExists("gitlab_sync_configs", "source_instance")).isTrue();
+    assertThat(columnExists("gitlab_sync_configs", "source_enabled")).isTrue();
     assertThat(columnExists("gitlab_sync_configs", "docker_container_name")).isTrue();
+    assertThat(columnExists("gitlab_sync_configs", "webhook_enabled")).isTrue();
     assertThat(columnExists("gitlab_sync_tasks", "dedupe_key")).isTrue();
     assertThat(columnExists("gitlab_sync_tasks", "pending_resync")).isTrue();
     assertThat(columnExists("gitlab_sync_tasks", "payload_json")).isTrue();
@@ -71,6 +73,7 @@ class FlywayMigrationSmokeTest {
     assertThat(indexExists("idx_gitlab_sync_tasks_scope_status")).isTrue();
     assertThat(indexExists("idx_gitlab_sync_tasks_dedupe")).isTrue();
     assertThat(indexExists("uk_gitlab_sync_configs_source_instance")).isTrue();
+    assertThat(indexExists("uk_gitlab_sync_configs_webhook_secret_enabled")).isTrue();
   }
 
   @Test

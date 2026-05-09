@@ -16,9 +16,10 @@ function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
   return {
     ...config,
     name: config.name || 'GitLab 默认数据源',
-    enabled: config.autoSyncEnabled ?? config.enabled ?? true,
+    enabled: config.sourceEnabled ?? config.enabled ?? true,
+    sourceEnabled: config.sourceEnabled ?? config.enabled ?? true,
     sourceInstance: config.sourceInstance ?? 'default',
-    autoSyncEnabled: config.autoSyncEnabled ?? config.enabled ?? true,
+    autoSyncEnabled: config.autoSyncEnabled ?? true,
     sourceMode: config.sourceMode ?? 'DOCKER',
     whitelistTables: config.whitelistTables ?? [],
     dockerContainerName: config.dockerContainerName ?? 'gitlab-data-web-1',
@@ -28,6 +29,7 @@ function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
     dbUsername: config.dbUsername ?? 'gitlab',
     dbPassword: config.dbPassword ?? '',
     webhookProjectId: config.webhookProjectId ?? null,
+    webhookEnabled: config.webhookEnabled ?? Boolean(config.webhookSecret),
   };
 }
 

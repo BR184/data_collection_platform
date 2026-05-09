@@ -30,6 +30,7 @@ const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
   enabled: true,
+  sourceEnabled: true,
   sourceInstance: 'default',
   autoSyncEnabled: true,
   sourceMode: 'DOCKER',
@@ -42,6 +43,7 @@ const form = ref<GitlabSyncConfig>({
   dbPassword: '',
   dockerContainerName: 'gitlab-data-web-1',
   webhookSecret: '',
+  webhookEnabled: false,
   webhookProjectId: null,
   compensationIntervalMinutes: 10,
 });
@@ -127,12 +129,15 @@ const {
 });
 
 const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
-const syncEnabled = computed(() => form.value.autoSyncEnabled);
+const sourceEnabled = computed(() => form.value.sourceEnabled ?? form.value.enabled);
+const syncEnabled = computed(() => sourceEnabled.value && form.value.autoSyncEnabled);
 const sourceSelectPlaceholder = computed(() =>
   isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
 );
 const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
-const webhookAutoRegistrationDisabled = computed(() => savedConfigActionDisabled.value || !isDockerMode.value);
+const webhookAutoRegistrationDisabled = computed(() =>
+  savedConfigActionDisabled.value || !isDockerMode.value || !form.value.webhookEnabled,
+);
 const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
@@ -445,6 +450,9 @@ onBeforeUnmount(() => {
         <el-form-item label="数据源名称">
           <el-input v-model="form.name" />
         </el-form-item>
+        <el-form-item label="启用数据源">
+          <el-switch v-model="form.sourceEnabled" />
+        </el-form-item>
 
         <el-divider>源数据库模式</el-divider>
 
@@ -540,6 +548,9 @@ onBeforeUnmount(() => {
 
         <el-divider>Webhook 增量同步</el-divider>
 
+        <el-form-item label="接收 Webhook">
+          <el-switch v-model="form.webhookEnabled" />
+        </el-form-item>
         <el-form-item label="Webhook URL">
           <el-input :model-value="status?.webhookUrl || ''" readonly />
         </el-form-item>
@@ -574,6 +585,13 @@ onBeforeUnmount(() => {
             </span>
           </div>
         </el-form-item>
+        <el-alert
+          v-if="!isDockerMode"
+          title="直连模式不会自动注册 GitLab Webhook；保存配置后，请在 GitLab 项目中手动填写 Webhook URL 和 Secret。"
+          type="info"
+          :closable="false"
+          show-icon
+        />
 
         <el-space wrap>
           <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>

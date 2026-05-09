@@ -37,7 +37,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   async function saveConfig(showSuccess = true) {
     saving.value = true;
     try {
-      deps.form.value.enabled = deps.form.value.autoSyncEnabled;
+      deps.form.value.enabled = deps.form.value.sourceEnabled ?? deps.form.value.enabled;
       await deps.saveConfigData(deps.form.value);
       if (showSuccess) {
         deps.notifySuccess('配置已保存');

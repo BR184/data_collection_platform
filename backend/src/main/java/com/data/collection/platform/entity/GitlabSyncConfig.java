@@ -20,6 +20,9 @@ public class GitlabSyncConfig {
   private String name;
   private boolean enabled;
 
+  @TableField("source_enabled")
+  private Boolean sourceEnabled;
+
   @TableField("source_instance")
   private String sourceInstance;
 
@@ -55,6 +58,9 @@ public class GitlabSyncConfig {
 
   @TableField("webhook_secret")
   private String webhookSecret;
+
+  @TableField("webhook_enabled")
+  private Boolean webhookEnabled;
 
   @TableField("webhook_project_id")
   private Long webhookProjectId;

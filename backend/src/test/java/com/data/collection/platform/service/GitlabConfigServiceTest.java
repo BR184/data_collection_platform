@@ -81,7 +81,64 @@ class GitlabConfigServiceTest {
 
     configService.saveConfig(input);
 
-    verify(configMapper).updateById(argThat((GitlabSyncConfig config) -> !config.isEnabled() && !config.isAutoSyncEnabled()));
+    verify(configMapper).updateById(argThat((GitlabSyncConfig config) ->
+        config.isEnabled()
+            && Boolean.TRUE.equals(config.getSourceEnabled())
+            && !config.isAutoSyncEnabled()));
+  }
+
+  @Test
+  void shouldRejectEnabledWebhookWithoutSecret() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setWebhookEnabled(true);
+    input.setWebhookSecret("");
+
+    assertThatThrownBy(() -> configService.saveConfig(input))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("Webhook Secret");
+    verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
+  }
+
+  @Test
+  void shouldRejectDuplicateEnabledWebhookSecret() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+    GitlabSyncConfig existing = persistedConfig();
+    existing.setId(99L);
+    existing.setSourceEnabled(true);
+    existing.setWebhookEnabled(true);
+    existing.setWebhookSecret("shared-secret");
+    when(configMapper.selectList(any())).thenReturn(List.of(existing));
+
+    GitlabSyncConfig input = baseInput();
+    input.setWebhookEnabled(true);
+    input.setWebhookSecret("shared-secret");
+
+    assertThatThrownBy(() -> configService.saveConfig(input))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("Webhook Secret");
+    verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
+  }
+
+  @Test
+  void shouldResolveWebhookConfigOnlyWhenWebhookEnabledAndSecretMatches() {
+    GitlabSyncConfig disabledWebhook = persistedConfig();
+    disabledWebhook.setId(1L);
+    disabledWebhook.setSourceEnabled(true);
+    disabledWebhook.setWebhookEnabled(false);
+    disabledWebhook.setWebhookSecret("disabled-secret");
+    GitlabSyncConfig enabledWebhook = persistedConfig();
+    enabledWebhook.setId(2L);
+    enabledWebhook.setSourceEnabled(true);
+    enabledWebhook.setWebhookEnabled(true);
+    enabledWebhook.setWebhookSecret("enabled-secret");
+    when(configMapper.selectList(any())).thenReturn(List.of(disabledWebhook, enabledWebhook));
+
+    org.assertj.core.api.Assertions.assertThat(configService.getConfigForWebhook("enabled-secret"))
+        .isSameAs(enabledWebhook);
+    assertThatThrownBy(() -> configService.getConfigForWebhook("disabled-secret"))
+        .isInstanceOf(BizException.class);
   }
 
   @Test

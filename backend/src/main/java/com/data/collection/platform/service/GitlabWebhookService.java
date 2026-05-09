@@ -66,9 +66,7 @@ public class GitlabWebhookService {
     event.setReceivedAt(LocalDateTime.now());
     webhookEventMapper.insert(event);
 
-    if (config.isAutoSyncEnabled()) {
-      asyncDispatchService.accept(config, effectiveEventType, payload);
-    }
+    asyncDispatchService.accept(config, effectiveEventType, payload);
   }
 
   private Long extractProjectId(Map<String, Object> payload) {

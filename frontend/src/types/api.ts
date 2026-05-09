@@ -19,6 +19,7 @@ export interface GitlabSyncConfig {
   id?: number;
   name: string;
   enabled: boolean;
+  sourceEnabled?: boolean;
   sourceInstance: string;
   autoSyncEnabled: boolean;
   sourceMode: SourceMode;
@@ -31,6 +32,7 @@ export interface GitlabSyncConfig {
   dbPassword: string;
   dockerContainerName?: string;
   webhookSecret?: string;
+  webhookEnabled?: boolean;
   webhookProjectId?: number | null;
   compensationIntervalMinutes: number;
   lastFullSyncAt?: string | null;
@@ -173,6 +175,15 @@ export interface GitlabWebhookRegistrationStatus {
   hooks: GitlabRegisteredWebhook[];
 }
 
+export interface GitlabSourceTableDiagnosticsResponse {
+  tableName: string;
+  primaryKey?: string | null;
+  updatedAtColumn?: string | null;
+  rowStrategy: string;
+  schemaFingerprint: string;
+  recommended: boolean;
+}
+
 export interface GitlabSyncDiagnosticsResponse {
   configId?: number | null;
   sourceInstance: string;
@@ -182,7 +193,18 @@ export interface GitlabSyncDiagnosticsResponse {
   whitelistOk: boolean;
   whitelistMessage: string;
   whitelistOptionCount: number;
+  metadataOk: boolean;
+  metadataMessage: string;
+  sourceTableCount: number;
+  primaryKeyTableCount: number;
+  missingPrimaryKeyTableCount: number;
+  missingUpdatedAtTableCount: number;
+  sourceTables: GitlabSourceTableDiagnosticsResponse[];
   webhookReceiverUrl: string;
+  webhookEnabled: boolean;
+  webhookSecretConfigured: boolean;
+  webhookSecretUnique: boolean;
+  webhookConfigMessage: string;
   webhookAutoRegistrationSupported: boolean;
   webhookAutoRegistered: boolean;
   webhookMessage: string;

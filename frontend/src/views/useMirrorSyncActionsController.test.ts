@@ -7,6 +7,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
   return {
     name: 'GitLab 默认数据源',
     enabled: true,
+    sourceEnabled: true,
     sourceInstance: 'default',
     autoSyncEnabled: true,
     sourceMode: 'DOCKER',
@@ -19,6 +20,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     dbPassword: '',
     dockerContainerName: 'gitlab-data-web-1',
     webhookSecret: '',
+    webhookEnabled: false,
     webhookProjectId: null,
     compensationIntervalMinutes: 10,
     ...overrides,
@@ -63,13 +65,14 @@ function setup(config: GitlabSyncConfig = createConfig()) {
 }
 
 describe('useMirrorSyncActionsController', () => {
-  it('saves config after syncing enabled from auto sync and refreshes dependent state', async () => {
-    const deps = setup(createConfig({ enabled: true, autoSyncEnabled: false }));
+  it('saves config while keeping source enabled separate from auto sync', async () => {
+    const deps = setup(createConfig({ enabled: true, sourceEnabled: true, autoSyncEnabled: false }));
     const controller = useMirrorSyncActionsController(deps);
 
     await controller.saveConfig();
 
-    expect(deps.form.value.enabled).toBe(false);
+    expect(deps.form.value.enabled).toBe(true);
+    expect(deps.form.value.autoSyncEnabled).toBe(false);
     expect(deps.saveConfigData).toHaveBeenCalledWith(deps.form.value);
     expect(deps.notifySuccess).toHaveBeenCalledWith('配置已保存');
     expect(deps.loadStatus).toHaveBeenCalledWith(false, false);

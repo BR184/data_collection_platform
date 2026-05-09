@@ -17,6 +17,10 @@ public record GitlabSyncDiagnosticsResponse(
     int missingUpdatedAtTableCount,
     java.util.List<GitlabSourceTableDiagnosticsResponse> sourceTables,
     String webhookReceiverUrl,
+    boolean webhookEnabled,
+    boolean webhookSecretConfigured,
+    boolean webhookSecretUnique,
+    String webhookConfigMessage,
     boolean webhookAutoRegistrationSupported,
     boolean webhookAutoRegistered,
     String webhookMessage) {

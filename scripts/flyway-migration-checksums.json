@@ -1,5 +1,5 @@
 {
-  "V20260430_01__fact_build_tasks.sql": "dc785f4678ef48071ce51b30579bbf4ee22a4b4e8390a7926d9e210396a2abe1",
+  "V20260430_01__fact_build_tasks.sql": "c11ea14ce70c496496abb38e8d78bddda358181b66f0c2663cdfdf3cf1ac10c3",
   "V20260506_01__search_and_fact_query_indexes.sql": "cf50319a28486632e95c05bdedd058a303936c0aea3e3d9da233fd24b1d831d4",
   "V20260506_02__gitlab_sync_core_schema.sql": "6e537ad21d918ee505f2f875e68556655eb1cdc2dd8c804d90052106f012e29c",
   "V20260506_03__operational_support_schema.sql": "ac3d068c2cc5f2f9cfded0bb1e096de62f4b5440a015f551dd3945b9f65caada",
@@ -7,5 +7,6 @@
   "V20260507_02__collect_form_audit_logs.sql": "939970345e6195b6b3cca457149ac910980ac12a774472d73b5a2ac09e17b832",
   "V20260507_03__gitlab_multi_source_configs.sql": "585bbe0e1f17b9c47c276528efe2620f7b206179d883db95eba983dc322048f1",
   "V20260507_04__code_review_source_query_indexes.sql": "f7513cd80361438432dad76f6995b37a0411537040b29abdda78be2b6a02a983",
-  "V20260507_05__operation_audit_request_summary.sql": "777a0e1f24a40f5f5b6848049ee07c02f38f630021424a3767492d589c9c5aed"
+  "V20260507_05__operation_audit_request_summary.sql": "777a0e1f24a40f5f5b6848049ee07c02f38f630021424a3767492d589c9c5aed",
+  "V20260508_01__gitlab_webhook_config_semantics.sql": "5a34889b9a94e63d77c839f04afd36b8d500cf2a969ddb902c71d5e538a11f12"
 }
