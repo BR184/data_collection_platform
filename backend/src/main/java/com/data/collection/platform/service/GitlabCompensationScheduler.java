@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -52,6 +53,10 @@ public class GitlabCompensationScheduler {
     }
     if (syncService.hasActiveTask(config.getId()) || taskService.isInCooldown(config.getId())) {
       log.debug("Compensation skipped because task is active or cooldown is in effect, configId={}", config.getId());
+      return;
+    }
+    if (tableSyncPlanningService.hasActiveJob(config.getId(), GitlabSyncJobType.COMPENSATION_SCAN)) {
+      log.debug("Compensation skipped because table-level compensation job is already pending or running, configId={}", config.getId());
       return;
     }
     LocalDateTime latestActivityAt = taskService.resolveLatestActivityAt(config.getId());

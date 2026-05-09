@@ -34,16 +34,19 @@ public class GitlabTableSyncPlanningService {
   private final GitlabTableSyncStateMapper stateMapper;
   private final GitlabTableSyncTaskMapper taskMapper;
   private final GitlabMirrorTableRegistryMapper registryMapper;
+  private final GitlabExternalDbService externalDbService;
 
   public GitlabTableSyncPlanningService(
       GitlabSyncJobMapper jobMapper,
       GitlabTableSyncStateMapper stateMapper,
       GitlabTableSyncTaskMapper taskMapper,
-      GitlabMirrorTableRegistryMapper registryMapper) {
+      GitlabMirrorTableRegistryMapper registryMapper,
+      GitlabExternalDbService externalDbService) {
     this.jobMapper = jobMapper;
     this.stateMapper = stateMapper;
     this.taskMapper = taskMapper;
     this.registryMapper = registryMapper;
+    this.externalDbService = externalDbService;
   }
 
   @Transactional
@@ -74,11 +77,11 @@ public class GitlabTableSyncPlanningService {
         continue;
       }
       GitlabTableSyncState state = upsertState(config.getId(), sourceInstance, option, now);
-      if (state.isSyncEnabled() && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL) {
+      if (!state.isSyncEnabled() || state.getRowStrategy() != GitlabTableRowStrategy.INCREMENTAL) {
+        verifyOnlyTables++;
+      } else if (shouldPlanIncrementalTask(config, option, state, now)) {
         taskMapper.insert(createTableTask(job, state, GitlabTableSyncTaskType.COMPENSATION_INCREMENTAL, now));
         plannedTasks++;
-      } else {
-        verifyOnlyTables++;
       }
     }
     if (plannedTasks == 0) {
@@ -90,10 +93,43 @@ public class GitlabTableSyncPlanningService {
     return new CompensationPlanResult(job.getId(), options.size(), plannedTasks, verifyOnlyTables);
   }
 
+  public boolean hasActiveJob(Long configId, GitlabSyncJobType jobType) {
+    if (configId == null || jobType == null) {
+      return false;
+    }
+    Long count = jobMapper.selectCount(new LambdaQueryWrapper<GitlabSyncJob>()
+        .eq(GitlabSyncJob::getConfigId, configId)
+        .eq(GitlabSyncJob::getJobType, jobType)
+        .in(GitlabSyncJob::getStatus, List.of(SyncStatus.PENDING, SyncStatus.RUNNING)));
+    return count != null && count > 0;
+  }
+
+  public SyncStatus findJobStatus(Long jobId) {
+    if (jobId == null) {
+      return SyncStatus.PENDING;
+    }
+    GitlabSyncJob job = jobMapper.selectById(jobId);
+    return job == null ? SyncStatus.PENDING : job.getStatus();
+  }
+
   @Transactional
   public CompensationPlanResult createDailyVerificationPlan(
       GitlabSyncConfig config,
       List<TableWhitelistOption> whitelistOptions) {
+    return createVerificationPlan(config, whitelistOptions, SyncTriggerType.SCHEDULE);
+  }
+
+  @Transactional
+  public CompensationPlanResult createManualVerificationPlan(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions) {
+    return createVerificationPlan(config, whitelistOptions, SyncTriggerType.MANUAL);
+  }
+
+  private CompensationPlanResult createVerificationPlan(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions,
+      SyncTriggerType triggerType) {
     Objects.requireNonNull(config, "config must not be null");
     if (config.getId() == null) {
       throw new IllegalArgumentException("config id must not be null");
@@ -105,7 +141,7 @@ public class GitlabTableSyncPlanningService {
         config.getId(),
         sourceInstance,
         GitlabSyncJobType.DAILY_VERIFY,
-        SyncTriggerType.SCHEDULE,
+        triggerType,
         -10,
         now);
     jobMapper.insert(job);
@@ -166,11 +202,11 @@ public class GitlabTableSyncPlanningService {
     int verifyOnlyTables = 0;
     for (TableWhitelistOption option : options) {
       GitlabTableSyncState state = upsertState(config.getId(), sourceInstance, option, now);
-      if (state.isSyncEnabled() && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL) {
+      if (!state.isSyncEnabled() || state.getRowStrategy() != GitlabTableRowStrategy.INCREMENTAL) {
+        verifyOnlyTables++;
+      } else {
         taskMapper.insert(createTableTask(job, state, GitlabTableSyncTaskType.MANUAL_REFRESH, now));
         plannedTasks++;
-      } else {
-        verifyOnlyTables++;
       }
     }
     if (plannedTasks == 0) {
@@ -205,6 +241,29 @@ public class GitlabTableSyncPlanningService {
     return job;
   }
 
+  private boolean shouldPlanIncrementalTask(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      GitlabTableSyncState state,
+      LocalDateTime now) {
+    if (state.isDirtyFlag() || state.getLastWatermarkAt() == null) {
+      return true;
+    }
+    try {
+      LocalDateTime sourceMaxUpdatedAt = externalDbService.findMaxUpdatedAt(config, option);
+      state.setSourceMaxUpdatedAt(sourceMaxUpdatedAt);
+      state.setUpdatedAt(now);
+      stateMapper.updateById(state);
+      return sourceMaxUpdatedAt != null && sourceMaxUpdatedAt.isAfter(state.getLastWatermarkAt());
+    } catch (RuntimeException e) {
+      state.setDirtyFlag(true);
+      state.setLastError(e.getMessage());
+      state.setUpdatedAt(now);
+      stateMapper.updateById(state);
+      return true;
+    }
+  }
+
   private GitlabTableSyncState upsertState(
       Long configId,
       String sourceInstance,
@@ -217,6 +276,7 @@ public class GitlabTableSyncPlanningService {
         .eq(GitlabTableSyncState::getSourceTable, sourceTable)
         .last("limit 1"));
     boolean isNew = state == null;
+    boolean wasDirty = !isNew && state.isDirtyFlag();
     if (isNew) {
       state = new GitlabTableSyncState();
       state.setConfigId(configId);
@@ -237,7 +297,7 @@ public class GitlabTableSyncPlanningService {
     state.setUpdatedAtColumn(normalizeText(option.updatedAtColumn()));
     state.setRowStrategy(rowStrategy);
     state.setSyncEnabled(rowStrategy == GitlabTableRowStrategy.INCREMENTAL);
-    state.setDirtyFlag(rowStrategy == GitlabTableRowStrategy.INCREMENTAL);
+    state.setDirtyFlag(rowStrategy == GitlabTableRowStrategy.INCREMENTAL && (isNew || wasDirty));
     state.setLastError(rowStrategy == GitlabTableRowStrategy.INCREMENTAL ? "" : DAILY_VERIFY_MESSAGE);
     state.setUpdatedAt(now);
 

@@ -23,4 +23,10 @@ export const databaseBrowserApi = {
     });
     return request<DatabaseTableRowsResponse>(`/api/database-browser/rows?${query.toString()}`);
   },
+  refreshDatabaseTable(tableName: string) {
+    const query = new URLSearchParams({ tableName });
+    return request<{ accepted: boolean; plannedTasks: number }>(`/api/database-browser/refresh?${query.toString()}`, {
+      method: 'POST',
+    });
+  },
 };

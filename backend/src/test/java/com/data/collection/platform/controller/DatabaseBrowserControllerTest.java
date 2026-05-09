@@ -2,6 +2,7 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -77,5 +78,16 @@ class DatabaseBrowserControllerTest {
         .andExpect(jsonPath("$.data.tableName").value("gitlab_sync_logs"))
         .andExpect(jsonPath("$.data.label").value("同步日志"))
         .andExpect(jsonPath("$.data.rows[0].status").value("FAILED"));
+  }
+
+  @Test
+  void shouldRefreshCurrentTable() throws Exception {
+    when(databaseBrowserService.refreshTable("ods_gitlab_issues_cc")).thenReturn(1);
+
+    mockMvc.perform(post("/api/database-browser/refresh")
+            .param("tableName", "ods_gitlab_issues_cc"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.plannedTasks").value(1));
   }
 }

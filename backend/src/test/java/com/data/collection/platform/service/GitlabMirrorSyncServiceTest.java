@@ -47,6 +47,7 @@ class GitlabMirrorSyncServiceTest {
   private JsonUtils jsonUtils;
   private FactBuildTaskService factBuildTaskService;
   private GitlabTableSyncPlanningService tableSyncPlanningService;
+  private GitlabTableSyncWorkerService tableSyncWorkerService;
   private GitlabMirrorSyncService selfProxy;
   private GitlabMirrorSyncService syncService;
 
@@ -65,6 +66,7 @@ class GitlabMirrorSyncServiceTest {
     jsonUtils = mock(JsonUtils.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
     tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
+    tableSyncWorkerService = mock(GitlabTableSyncWorkerService.class);
     selfProxy = mock(GitlabMirrorSyncService.class);
     syncService =
         new GitlabMirrorSyncService(
@@ -81,24 +83,31 @@ class GitlabMirrorSyncServiceTest {
             jsonUtils,
             factBuildTaskService,
             tableSyncPlanningService,
+            tableSyncWorkerService,
             selfProxy);
   }
 
   @Test
-  void fullSyncShouldDispatchAsyncExecutionWhenTaskIsPending() {
+  void fullSyncShouldQueueTableVerificationPlanAndDrainWorker() {
     GitlabSyncConfig config = baseConfig();
     config.setEnabled(true);
-    GitlabSyncTask task = new GitlabSyncTask();
-    task.setId(100L);
-    task.setStatus(SyncStatus.PENDING);
+    List<TableWhitelistOption> tables =
+        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
 
     when(configService.getConfig()).thenReturn(config);
-    when(taskService.submitTaskResult(config, SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync", Map.of()))
-        .thenReturn(new SyncTaskSubmissionResult(task, SyncSubmissionAction.CREATED));
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualVerificationPlan(config, tables))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(100L, 1, 1, 0));
+    when(tableSyncPlanningService.findJobStatus(100L)).thenReturn(SyncStatus.SUCCESS);
 
-    syncService.startFullSync();
+    SyncTaskSubmissionResult result = syncService.startFullSync();
 
-    verify(selfProxy).executeTaskAsync(100L);
+    assertThat(result.task().getId()).isEqualTo(100L);
+    assertThat(result.task().getTaskType()).isEqualTo(SyncType.FULL);
+    assertThat(result.task().getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    verify(tableSyncWorkerService).drainReadyTasksForJob(100L);
+    verify(taskService, never()).submitTaskResult(any(), eq(SyncType.FULL), any(), anyString(), any());
+    verify(selfProxy, never()).executeTaskAsync(anyLong());
   }
 
   @Test
@@ -115,6 +124,33 @@ class GitlabMirrorSyncServiceTest {
     syncService.startIncrementalSync(SyncTriggerType.WEBHOOK, "Triggered by webhook");
 
     verify(selfProxy, org.mockito.Mockito.never()).executeTaskAsync(anyLong());
+  }
+
+  @Test
+  void manualIncrementalSyncShouldQueueTablePlanAndDrainWorker() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables =
+        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualRefreshPlan(
+            config,
+            tables,
+            List.of("issues"),
+            "Manual recovery incremental sync"))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(41L, 1, 1, 0));
+
+    SyncTaskSubmissionResult result =
+        syncService.startIncrementalSync(SyncTriggerType.MANUAL, "Manual recovery incremental sync");
+
+    assertThat(result.task().getId()).isEqualTo(41L);
+    assertThat(result.task().getTaskType()).isEqualTo(SyncType.INCREMENTAL);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.CREATED);
+    verify(tableSyncWorkerService).drainReadyTasksForJob(41L);
+    verify(taskService, never()).submitTaskResult(any(), eq(SyncType.INCREMENTAL), any(), anyString(), any());
+    verify(selfProxy, never()).executeTaskAsync(anyLong());
   }
 
   @Test
@@ -139,6 +175,7 @@ class GitlabMirrorSyncServiceTest {
 
     assertThat(planned).isEqualTo(1);
     verify(tableSyncPlanningService).createManualRefreshPlan(config, tables, List.of("issues"), "board");
+    verify(tableSyncWorkerService).drainReadyTasksForJob(31L);
     verify(externalDbService, never()).incrementalScan(any(), any(), any());
   }
 

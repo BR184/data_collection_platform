@@ -21,6 +21,7 @@ import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.GitlabSyncJobMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncStateMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncTaskMapper;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class GitlabTableSyncPlanningServiceTest {
   private GitlabTableSyncStateMapper stateMapper;
   private GitlabTableSyncTaskMapper taskMapper;
   private GitlabMirrorTableRegistryMapper registryMapper;
+  private GitlabExternalDbService externalDbService;
   private GitlabTableSyncPlanningService service;
 
   @BeforeEach
@@ -39,7 +41,8 @@ class GitlabTableSyncPlanningServiceTest {
     stateMapper = mock(GitlabTableSyncStateMapper.class);
     taskMapper = mock(GitlabTableSyncTaskMapper.class);
     registryMapper = mock(GitlabMirrorTableRegistryMapper.class);
-    service = new GitlabTableSyncPlanningService(jobMapper, stateMapper, taskMapper, registryMapper);
+    externalDbService = mock(GitlabExternalDbService.class);
+    service = new GitlabTableSyncPlanningService(jobMapper, stateMapper, taskMapper, registryMapper, externalDbService);
   }
 
   @Test
@@ -147,6 +150,37 @@ class GitlabTableSyncPlanningServiceTest {
     verify(taskMapper).insert(taskCaptor.capture());
     assertThat(taskCaptor.getValue().getTaskType()).isEqualTo(GitlabTableSyncTaskType.MANUAL_REFRESH);
     assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("issues");
+  }
+
+  @Test
+  void shouldSkipCleanCompensationTableWhenSourceWatermarkDidNotAdvance() {
+    GitlabSyncConfig config = config();
+    GitlabTableSyncState existingState = new GitlabTableSyncState();
+    existingState.setId(9L);
+    existingState.setConfigId(3L);
+    existingState.setSourceInstance("corp_main");
+    existingState.setSourceTable("issues");
+    existingState.setLastWatermarkAt(LocalDateTime.of(2026, 5, 9, 10, 0));
+    existingState.setDirtyFlag(false);
+
+    when(stateMapper.selectOne(any())).thenReturn(existingState);
+    when(externalDbService.findMaxUpdatedAt(
+            config,
+            new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)))
+        .thenReturn(LocalDateTime.of(2026, 5, 9, 10, 0));
+    when(jobMapper.insert(org.mockito.ArgumentMatchers.<GitlabSyncJob>any())).thenAnswer(invocation -> {
+      GitlabSyncJob job = invocation.getArgument(0);
+      job.setId(90L);
+      return 1;
+    });
+
+    GitlabTableSyncPlanningService.CompensationPlanResult result = service.createCompensationScanPlan(
+        config,
+        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+
+    assertThat(result.jobId()).isEqualTo(90L);
+    assertThat(result.plannedTasks()).isZero();
+    verify(taskMapper, times(0)).insert(org.mockito.ArgumentMatchers.<GitlabTableSyncTask>any());
   }
 
   private GitlabSyncConfig config() {

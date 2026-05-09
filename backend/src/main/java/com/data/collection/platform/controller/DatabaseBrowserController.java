@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,5 +40,13 @@ public class DatabaseBrowserController {
       @RequestParam(required = false) String sortOrder) {
     return ApiResponse.success(
         databaseBrowserService.getTableRows(tableName, page, size, keyword, sortField, sortOrder));
+  }
+
+  @PostMapping("/refresh")
+  public ApiResponse<java.util.Map<String, Object>> refreshTable(@RequestParam @NotBlank String tableName) {
+    int plannedTasks = databaseBrowserService.refreshTable(tableName);
+    return ApiResponse.success(
+        plannedTasks > 0 ? "已刷新当前镜像表" : "当前表无需镜像刷新",
+        java.util.Map.of("accepted", true, "plannedTasks", plannedTasks));
   }
 }

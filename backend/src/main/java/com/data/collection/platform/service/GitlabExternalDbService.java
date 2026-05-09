@@ -14,6 +14,8 @@ import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +41,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -83,6 +87,7 @@ public class GitlabExternalDbService {
   private final GitlabMirrorProperties properties;
   private final ObjectMapper objectMapper;
   private final Map<SourceMode, GitlabSourceAdapter> sourceAdapters;
+  private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
 
   public GitlabExternalDbService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
     this.properties = properties;
@@ -213,6 +218,17 @@ public class GitlabExternalDbService {
         Objects.toString(row.get("max_pk"), ""));
   }
 
+  public LocalDateTime findMaxUpdatedAt(GitlabSyncConfig config, TableWhitelistOption option) {
+    if (option == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()) {
+      return null;
+    }
+    List<Map<String, Object>> rows = executeSourceQuery(config, buildMaxUpdatedAtProbeSql(option));
+    if (rows.isEmpty()) {
+      return null;
+    }
+    return toLocalDateTime(rows.get(0).get("max_updated_at"));
+  }
+
   public List<GitlabTableShardProbe> probeTableShards(
       GitlabSyncConfig config,
       TableWhitelistOption option,
@@ -329,6 +345,15 @@ public class GitlabExternalDbService {
         maxUpdatedAtExpression,
         primaryKeyColumn,
         primaryKeyColumn,
+        quoteQualifiedPublicTable(option.tableName())).strip();
+  }
+
+  String buildMaxUpdatedAtProbeSql(TableWhitelistOption option) {
+    return """
+        select max(%s) as max_updated_at
+          from %s
+        """.formatted(
+        quoteIdentifier(option.updatedAtColumn()),
         quoteQualifiedPublicTable(option.tableName())).strip();
   }
 
@@ -811,7 +836,34 @@ public class GitlabExternalDbService {
   }
 
   private Connection openConnection(GitlabSyncConfig config) throws Exception {
+    if (config != null && config.getSourceMode() == SourceMode.DIRECT) {
+      return directDataSources.computeIfAbsent(directDataSourceKey(config), ignored -> createDirectDataSource(config))
+          .getConnection();
+    }
     return DriverManager.getConnection(buildJdbcUrl(config), normalizeDbUser(config), config.getDbPassword());
+  }
+
+  private String directDataSourceKey(GitlabSyncConfig config) {
+    return "%s:%d/%s:%s:%s".formatted(
+        config.getDbHost(),
+        config.getDbPort(),
+        normalizeDbName(config),
+        normalizeDbUser(config),
+        Integer.toHexString(Objects.toString(config.getDbPassword(), "").hashCode()));
+  }
+
+  private HikariDataSource createDirectDataSource(GitlabSyncConfig config) {
+    HikariConfig hikariConfig = new HikariConfig();
+    hikariConfig.setJdbcUrl(buildJdbcUrl(config));
+    hikariConfig.setUsername(normalizeDbUser(config));
+    hikariConfig.setPassword(config.getDbPassword());
+    hikariConfig.setMaximumPoolSize(2);
+    hikariConfig.setMinimumIdle(0);
+    hikariConfig.setPoolName("gitlab-direct-" + config.getId());
+    hikariConfig.setConnectionTimeout(5000);
+    hikariConfig.setIdleTimeout(60000);
+    hikariConfig.setMaxLifetime(300000);
+    return new HikariDataSource(hikariConfig);
   }
 
   String buildJdbcUrl(GitlabSyncConfig config) {

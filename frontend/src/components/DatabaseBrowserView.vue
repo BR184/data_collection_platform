@@ -11,6 +11,7 @@ import PageStateShell from './base/PageStateShell.vue';
 import { useRouteTableState } from '../composables/useRouteTableState';
 
 const tablesLoading = ref(false);
+const refreshingTable = ref(false);
 const tablesResolved = ref(false);
 const firstRowsResolved = ref(false);
 const tableOptions = ref<DatabaseTableOption[]>([]);
@@ -171,8 +172,19 @@ async function handleReset() {
 }
 
 async function handleRefresh() {
-  await loadTables();
-  await loadRows();
+  refreshingTable.value = true;
+  try {
+    if (selectedTable.value) {
+      await api.refreshDatabaseTable(selectedTable.value);
+    }
+    await loadTables();
+    await loadRows();
+    ElMessage.success('当前表已刷新');
+  } catch (error) {
+    ElMessage.error((error as Error).message);
+  } finally {
+    refreshingTable.value = false;
+  }
 }
 
 async function handleSizeChange(nextSize: number) {
@@ -350,7 +362,7 @@ onBeforeUnmount(() => {
         <div class="db-toolbar-actions">
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="handleReset">重置</el-button>
-          <el-button :icon="Refresh" @click="handleRefresh">刷新</el-button>
+          <el-button :icon="Refresh" :loading="refreshingTable" @click="handleRefresh">刷新</el-button>
         </div>
       </div>
 

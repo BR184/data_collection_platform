@@ -61,6 +61,7 @@ class GitlabTableSyncWorkerServiceTest {
     mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
     storageService = mock(GitlabMirrorTableStorageService.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
+    when(taskMapper.update(any(), ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1);
     service = new GitlabTableSyncWorkerService(
         taskMapper,
         stateMapper,
@@ -437,7 +438,8 @@ class GitlabTableSyncWorkerServiceTest {
     when(externalDbService.incrementalCursorScan(eq(config), any(), any(), eq(null), eq(null), eq(2)))
         .thenReturn(List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 1, 2, 3, 4, 5))));
     when(storageService.upsertBatch(eq(schema), any(), eq(21L))).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
-    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(0L);
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any()))
+        .thenReturn(0L, 0L, 0L, 1L, 1L);
 
     service.executeTask(task);
 
@@ -463,7 +465,7 @@ class GitlabTableSyncWorkerServiceTest {
         .thenReturn(config());
     when(jobMapper.selectById(9L)).thenReturn(job);
     when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any()))
-        .thenReturn(0L, 1L, 0L, 2L);
+        .thenReturn(0L, 1L, 0L, 2L, 1L);
 
     service.executeTask(task);
 

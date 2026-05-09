@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -32,6 +33,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -41,6 +46,8 @@ import org.springframework.stereotype.Service;
 public class GitlabTableSyncWorkerService {
   private static final LocalDateTime INITIAL_WATERMARK = LocalDateTime.of(1970, 1, 1, 0, 0);
   private static final int DAILY_VERIFY_SHARD_KEY_LENGTH = 2;
+  private static final int DEFAULT_MAX_TASKS_PER_TICK = 200;
+  private static final int DEFAULT_JOB_DRAIN_PARALLELISM = 2;
   private static final String WORKER_ID = resolveWorkerId();
 
   private final GitlabTableSyncTaskMapper taskMapper;
@@ -82,19 +89,93 @@ public class GitlabTableSyncWorkerService {
     if (!properties.isSchedulerEnabled()) {
       return;
     }
+    drainReadyTasks(DEFAULT_MAX_TASKS_PER_TICK);
+  }
+
+  public int drainReadyTasks() {
+    return drainReadyTasks(DEFAULT_MAX_TASKS_PER_TICK);
+  }
+
+  public int drainReadyTasksForJob(Long jobId) {
+    return drainReadyTasksForJob(jobId, DEFAULT_JOB_DRAIN_PARALLELISM);
+  }
+
+  int drainReadyTasksForJob(Long jobId, int parallelism) {
+    if (jobId == null || parallelism <= 1) {
+      return drainReadyTasks(DEFAULT_MAX_TASKS_PER_TICK, jobId);
+    }
     recoverTimedOutTasks();
+    int workerCount = Math.min(Math.max(1, parallelism), DEFAULT_MAX_TASKS_PER_TICK);
+    AtomicInteger processed = new AtomicInteger();
+    ExecutorService executor = Executors.newFixedThreadPool(workerCount);
+    List<Future<?>> futures = new ArrayList<>();
+    try {
+      for (int i = 0; i < workerCount; i++) {
+        futures.add(executor.submit(() -> drainReadyTasksForJobWorker(jobId, processed)));
+      }
+      for (Future<?> future : futures) {
+        future.get();
+      }
+      finishJobIfComplete(jobId);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while draining table sync tasks", e);
+    } catch (Exception e) {
+      throw new IllegalStateException("Failed to drain table sync tasks", e);
+    } finally {
+      executor.shutdownNow();
+    }
+    return processed.get();
+  }
+
+  private void drainReadyTasksForJobWorker(Long jobId, AtomicInteger processed) {
+    while (processed.get() < DEFAULT_MAX_TASKS_PER_TICK) {
+      GitlabTableSyncTask task = findNextReadyTask(jobId);
+      if (task == null) {
+        return;
+      }
+      if (executeTask(task, false)) {
+        processed.incrementAndGet();
+      }
+    }
+  }
+
+  int drainReadyTasks(int maxTasks) {
+    return drainReadyTasks(maxTasks, null);
+  }
+
+  int drainReadyTasks(int maxTasks, Long jobId) {
+    recoverTimedOutTasks();
+    int processed = 0;
+    int safeMaxTasks = Math.max(1, maxTasks);
+    while (processed < safeMaxTasks) {
+      GitlabTableSyncTask task = findNextReadyTask(jobId);
+      if (task == null) {
+        break;
+      }
+      if (executeTask(task)) {
+        processed++;
+      }
+    }
+    return processed;
+  }
+
+  private GitlabTableSyncTask findNextReadyTask() {
+    return findNextReadyTask(null);
+  }
+
+  private GitlabTableSyncTask findNextReadyTask(Long jobId) {
     LocalDateTime now = LocalDateTime.now();
-    GitlabTableSyncTask task = taskMapper.selectOne(new LambdaQueryWrapper<GitlabTableSyncTask>()
+    LambdaQueryWrapper<GitlabTableSyncTask> query = new LambdaQueryWrapper<GitlabTableSyncTask>()
         .eq(GitlabTableSyncTask::getStatus, SyncStatus.PENDING)
         .and(wrapper -> wrapper.isNull(GitlabTableSyncTask::getRunAfter)
             .or()
-            .le(GitlabTableSyncTask::getRunAfter, now))
-        .orderByAsc(GitlabTableSyncTask::getCreatedAt)
-        .last("limit 1"));
-    if (task == null) {
-      return;
+            .le(GitlabTableSyncTask::getRunAfter, now));
+    if (jobId != null) {
+      query.eq(GitlabTableSyncTask::getJobId, jobId);
     }
-    executeTask(task);
+    query.orderByAsc(GitlabTableSyncTask::getCreatedAt).last("limit 1");
+    return taskMapper.selectOne(query);
   }
 
   int recoverTimedOutTasks() {
@@ -109,9 +190,16 @@ public class GitlabTableSyncWorkerService {
     return staleTasks.size();
   }
 
-  void executeTask(GitlabTableSyncTask task) {
+  boolean executeTask(GitlabTableSyncTask task) {
+    return executeTask(task, true);
+  }
+
+  private boolean executeTask(GitlabTableSyncTask task, boolean finishJobAfterTask) {
     LocalDateTime now = LocalDateTime.now();
-    markTaskRunning(task, now);
+    task = markTaskRunning(task, now);
+    if (task == null) {
+      return false;
+    }
     GitlabTableSyncState state = findState(task);
     try {
       if (state == null) {
@@ -126,10 +214,14 @@ public class GitlabTableSyncWorkerService {
       } else {
         executeIncrementalLikeTask(task, state);
       }
-      finishJobIfComplete(task.getJobId());
+      if (finishJobAfterTask) {
+        finishJobIfComplete(task.getJobId());
+      }
     } catch (Exception e) {
       markFailure(task, state, e);
-      finishJobIfComplete(task.getJobId());
+      if (finishJobAfterTask) {
+        finishJobIfComplete(task.getJobId());
+      }
       log.warn(
           "Table sync task failed, taskId={}, configId={}, sourceTable={}",
           task.getId(),
@@ -137,6 +229,7 @@ public class GitlabTableSyncWorkerService {
           task.getSourceTable(),
           e);
     }
+    return true;
   }
 
   private void executeDailyVerify(GitlabTableSyncTask task, GitlabTableSyncState state) {
@@ -252,14 +345,26 @@ public class GitlabTableSyncWorkerService {
     mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
   }
 
-  private void markTaskRunning(GitlabTableSyncTask task, LocalDateTime now) {
+  private GitlabTableSyncTask markTaskRunning(GitlabTableSyncTask task, LocalDateTime now) {
+    LocalDateTime leaseUntil = now.plusSeconds(Math.max(1, properties.getHeartbeatTimeoutSeconds()));
+    int updated = taskMapper.update(null, new UpdateWrapper<GitlabTableSyncTask>()
+        .eq("id", task.getId())
+        .eq("status", SyncStatus.PENDING)
+        .set("status", SyncStatus.RUNNING)
+        .set("started_at", now)
+        .set("heartbeat_at", now)
+        .set("lease_owner", WORKER_ID)
+        .set("lease_until", leaseUntil)
+        .set("updated_at", now));
+    if (updated <= 0) {
+      return null;
+    }
     task.setStatus(SyncStatus.RUNNING);
     task.setStartedAt(now);
     task.setHeartbeatAt(now);
     task.setLeaseOwner(WORKER_ID);
-    task.setLeaseUntil(now.plusSeconds(Math.max(1, properties.getHeartbeatTimeoutSeconds())));
+    task.setLeaseUntil(leaseUntil);
     task.setUpdatedAt(now);
-    taskMapper.updateById(task);
 
     GitlabSyncJob job = jobMapper.selectById(task.getJobId());
     if (job != null && job.getStatus() == SyncStatus.PENDING) {
@@ -271,6 +376,7 @@ public class GitlabTableSyncWorkerService {
       job.setUpdatedAt(now);
       jobMapper.updateById(job);
     }
+    return task;
   }
 
   private GitlabTableSyncState findState(GitlabTableSyncTask task) {
@@ -654,7 +760,10 @@ public class GitlabTableSyncWorkerService {
   private boolean shouldEnqueueFactRefresh(GitlabSyncJob job) {
     if (job.getJobType() == GitlabSyncJobType.COMPENSATION_SCAN
         || job.getJobType() == GitlabSyncJobType.MANUAL_REFRESH) {
-      return true;
+      Long appliedTasks = taskMapper.selectCount(new LambdaQueryWrapper<GitlabTableSyncTask>()
+          .eq(GitlabTableSyncTask::getJobId, job.getId())
+          .gt(GitlabTableSyncTask::getRowsApplied, 0));
+      return appliedTasks != null && appliedTasks > 0;
     }
     if (job.getJobType() != GitlabSyncJobType.DAILY_VERIFY) {
       return false;

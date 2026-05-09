@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
+import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncTaskSubmissionResult;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
@@ -49,6 +50,7 @@ public class GitlabMirrorSyncService {
   private final JsonUtils jsonUtils;
   private final FactBuildTaskService factBuildTaskService;
   private final GitlabTableSyncPlanningService tableSyncPlanningService;
+  private final GitlabTableSyncWorkerService tableSyncWorkerService;
   private final GitlabMirrorSyncService self;
   private final ConcurrentMap<Long, SyncProgress> progressMap = new ConcurrentHashMap<>();
   // 每个服务实例持有独立锁 owner，用于区分本机正在处理的长同步任务和历史遗留任务。
@@ -68,6 +70,7 @@ public class GitlabMirrorSyncService {
       JsonUtils jsonUtils,
       FactBuildTaskService factBuildTaskService,
       GitlabTableSyncPlanningService tableSyncPlanningService,
+      GitlabTableSyncWorkerService tableSyncWorkerService,
       @Lazy GitlabMirrorSyncService self) {
     this.configService = configService;
     this.whitelistService = whitelistService;
@@ -82,6 +85,7 @@ public class GitlabMirrorSyncService {
     this.jsonUtils = jsonUtils;
     this.factBuildTaskService = factBuildTaskService;
     this.tableSyncPlanningService = tableSyncPlanningService;
+    this.tableSyncWorkerService = tableSyncWorkerService;
     this.self = self;
   }
 
@@ -115,7 +119,7 @@ public class GitlabMirrorSyncService {
   }
 
   public SyncTaskSubmissionResult startFullSync(Long configId) {
-    return submitTask(resolveConfig(configId), SyncType.FULL, SyncTriggerType.MANUAL, "Manual full sync");
+    return submitManualFullTablePlan(resolveConfig(configId), "Manual full sync");
   }
 
   public SyncTaskSubmissionResult startIncrementalSync(SyncTriggerType triggerType, String message) {
@@ -123,7 +127,11 @@ public class GitlabMirrorSyncService {
   }
 
   public SyncTaskSubmissionResult startIncrementalSync(Long configId, SyncTriggerType triggerType, String message) {
-    return submitTask(resolveConfig(configId), SyncType.INCREMENTAL, triggerType, message);
+    GitlabSyncConfig config = resolveConfig(configId);
+    if (triggerType == SyncTriggerType.MANUAL) {
+      return submitManualIncrementalTablePlan(config, message);
+    }
+    return submitTask(config, SyncType.INCREMENTAL, triggerType, message);
   }
 
   public SyncTaskSubmissionResult startWebhookSync(String eventType, Map<String, Object> payload) {
@@ -153,11 +161,15 @@ public class GitlabMirrorSyncService {
   }
 
   public int refreshTablesOnDemand(List<String> sourceTableNames, String reason) {
+    return refreshTablesOnDemand(null, sourceTableNames, reason);
+  }
+
+  public int refreshTablesOnDemand(Long configId, List<String> sourceTableNames, String reason) {
     if (sourceTableNames == null || sourceTableNames.isEmpty()) {
       return 0;
     }
 
-    GitlabSyncConfig config = configService.getConfig();
+    GitlabSyncConfig config = resolveConfig(configId);
     if (config.getId() == null || !config.isEnabled()) {
       return 0;
     }
@@ -174,6 +186,7 @@ public class GitlabMirrorSyncService {
           sourceTableNames,
           result.plannedTasks(),
           result.verifyOnlyTables());
+      tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
       return result.plannedTasks();
     }
   }
@@ -303,6 +316,41 @@ public class GitlabMirrorSyncService {
       self.executeTaskAsync(task.getId());
     }
     return result;
+  }
+
+  private SyncTaskSubmissionResult submitManualIncrementalTablePlan(GitlabSyncConfig config, String message) {
+    List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
+    List<String> sourceTableNames = tables.stream()
+        .map(TableWhitelistOption::tableName)
+        .toList();
+    GitlabTableSyncPlanningService.CompensationPlanResult result =
+        tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, message);
+    tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+    GitlabSyncTask task = new GitlabSyncTask();
+    task.setId(result.jobId());
+    task.setConfigId(config.getId());
+    task.setTaskType(SyncType.INCREMENTAL);
+    task.setTriggerType(SyncTriggerType.MANUAL);
+    task.setStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
+    task.setCreatedAt(LocalDateTime.now());
+    task.setUpdatedAt(task.getCreatedAt());
+    return new SyncTaskSubmissionResult(task, SyncSubmissionAction.CREATED);
+  }
+
+  private SyncTaskSubmissionResult submitManualFullTablePlan(GitlabSyncConfig config, String message) {
+    List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
+    GitlabTableSyncPlanningService.CompensationPlanResult result =
+        tableSyncPlanningService.createManualVerificationPlan(config, tables);
+    tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+    GitlabSyncTask task = new GitlabSyncTask();
+    task.setId(result.jobId());
+    task.setConfigId(config.getId());
+    task.setTaskType(SyncType.FULL);
+    task.setTriggerType(SyncTriggerType.MANUAL);
+    task.setStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
+    task.setCreatedAt(LocalDateTime.now());
+    task.setUpdatedAt(task.getCreatedAt());
+    return new SyncTaskSubmissionResult(task, SyncSubmissionAction.CREATED);
   }
 
   @Async

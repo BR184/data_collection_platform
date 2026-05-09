@@ -21,14 +21,17 @@ public class DatabaseBrowserService {
   private final JdbcTemplate jdbcTemplate;
   private final GitlabMirrorTableRegistryMapper registryMapper;
   private final DatabaseBrowserMirrorTableDefinitionFactory mirrorTableDefinitionFactory;
+  private final GitlabMirrorSyncService gitlabMirrorSyncService;
 
   public DatabaseBrowserService(
       JdbcTemplate jdbcTemplate,
       GitlabMirrorTableRegistryMapper registryMapper,
-      DatabaseBrowserMirrorTableDefinitionFactory mirrorTableDefinitionFactory) {
+      DatabaseBrowserMirrorTableDefinitionFactory mirrorTableDefinitionFactory,
+      GitlabMirrorSyncService gitlabMirrorSyncService) {
     this.jdbcTemplate = jdbcTemplate;
     this.registryMapper = registryMapper;
     this.mirrorTableDefinitionFactory = mirrorTableDefinitionFactory;
+    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
   }
 
   public List<DatabaseTableOption> listTables() {
@@ -103,6 +106,18 @@ public class DatabaseBrowserService {
         context.registry() == null ? "IDLE" : context.registry().getSyncStatus(),
         context.registry() == null ? null : context.registry().getLastSyncTime(),
         buildStatusMessage(context.registry()));
+  }
+
+  public int refreshTable(String tableName) {
+    DatabaseBrowserTableContext context = resolveTableContext(tableName);
+    GitlabMirrorTableRegistry registry = context.registry();
+    if (registry == null) {
+      return 0;
+    }
+    return gitlabMirrorSyncService.refreshTablesOnDemand(
+        registry.getConfigId(),
+        List.of(registry.getSourceTableName()),
+        "database-browser:" + tableName);
   }
 
   private List<GitlabMirrorTableRegistry> listMirrorRegistries() {

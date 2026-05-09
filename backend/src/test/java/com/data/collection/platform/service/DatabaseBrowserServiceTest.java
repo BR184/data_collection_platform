@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -35,6 +36,9 @@ class DatabaseBrowserServiceTest {
   @Mock
   private DatabaseBrowserMirrorTableDefinitionFactory mirrorTableDefinitionFactory;
 
+  @Mock
+  private GitlabMirrorSyncService gitlabMirrorSyncService;
+
   private DatabaseBrowserService service;
 
   @BeforeEach
@@ -43,7 +47,8 @@ class DatabaseBrowserServiceTest {
         new DatabaseBrowserService(
             jdbcTemplate,
             registryMapper,
-            mirrorTableDefinitionFactory);
+            mirrorTableDefinitionFactory,
+            gitlabMirrorSyncService);
   }
 
   @Test
@@ -112,5 +117,25 @@ class DatabaseBrowserServiceTest {
     assertThat(response.getLabel()).isEqualTo("镜像表/ issues");
     assertThat(response.getSyncStatus()).isEqualTo("SYNCING");
     assertThat(response.getStatusMessage()).isEqualTo("数据正在同步中，当前展示为历史稳定版本。");
+  }
+
+  @Test
+  void shouldRefreshMirrorTableBySourceTableAndConfig() {
+    GitlabMirrorTableRegistry registry = new GitlabMirrorTableRegistry();
+    registry.setConfigId(60L);
+    registry.setInitialized(true);
+    registry.setMirrorTableName("ods_gitlab_issues_cc");
+    registry.setSourceTableName("issues");
+    when(registryMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(registry);
+    when(mirrorTableDefinitionFactory.buildMirrorTableDefinition(registry))
+        .thenReturn(new DatabaseBrowserTableDefinition("issues", List.of("id"), List.of(), "id"));
+    when(gitlabMirrorSyncService.refreshTablesOnDemand(60L, List.of("issues"), "database-browser:ods_gitlab_issues_cc"))
+        .thenReturn(1);
+
+    int plannedTasks = service.refreshTable("ods_gitlab_issues_cc");
+
+    assertThat(plannedTasks).isEqualTo(1);
+    verify(gitlabMirrorSyncService)
+        .refreshTablesOnDemand(60L, List.of("issues"), "database-browser:ods_gitlab_issues_cc");
   }
 }
