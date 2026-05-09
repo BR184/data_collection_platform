@@ -1626,6 +1626,52 @@ button {
   border-radius: 8px !important;
 }
 
+.panel-subtitle {
+  margin-top: 4px;
+  color: rgba(0, 0, 0, 0.56);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.table-sync-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.table-sync-summary-grid > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(217, 217, 217, 0.88);
+  background: #ffffff;
+}
+
+.table-sync-summary-grid span {
+  overflow: hidden;
+  color: rgba(0, 0, 0, 0.56);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.table-sync-summary-grid strong {
+  color: rgba(0, 0, 0, 0.88);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.table-sync-diagnostics-table {
+  width: 100%;
+}
+
+.table-sync-more {
+  color: rgba(0, 0, 0, 0.56);
+  font-size: 12px;
+}
+
 .mirror-purge-dialog .el-dialog__body {
   padding-top: 10px !important;
 }

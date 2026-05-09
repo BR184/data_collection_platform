@@ -5,6 +5,14 @@ export * from './integration-test';
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
 export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'WEBHOOK' | 'PURGE';
+export type GitlabTableSyncTaskType =
+  | 'COMPENSATION_INCREMENTAL'
+  | 'DAILY_VERIFY'
+  | 'MANUAL_REFRESH'
+  | 'FULL_REPAIR'
+  | 'SHARD_REPAIR'
+  | 'DELETE_RECONCILE';
+export type GitlabTableRowStrategy = 'INCREMENTAL' | 'FULL_SMALL_TABLE' | 'VERIFY_ONLY' | 'UNSUPPORTED' | string;
 export type GitlabSyncStatus =
   | 'PENDING'
   | 'QUEUED'
@@ -210,6 +218,47 @@ export interface GitlabSyncDiagnosticsResponse {
   webhookAutoRegistrationSupported: boolean;
   webhookAutoRegistered: boolean;
   webhookMessage: string;
+}
+
+export interface GitlabTableSyncStateDiagnostics {
+  sourceTable: string;
+  mirrorTable: string;
+  primaryKeyColumns: string;
+  updatedAtColumn?: string | null;
+  rowStrategy: GitlabTableRowStrategy;
+  syncEnabled: boolean;
+  dirty: boolean;
+  lastSuccessAt?: string | null;
+  lastFullVerifiedAt?: string | null;
+  lastWatermarkAt?: string | null;
+  lastCursorPk?: string | null;
+  sourceRowCount?: number | null;
+  mirrorRowCount?: number | null;
+  schemaFingerprint?: string | null;
+  lastError?: string | null;
+  retryCount?: number | null;
+  latestTaskType?: GitlabTableSyncTaskType | null;
+  latestTaskStatus?: GitlabSyncStatus | null;
+  latestTaskRunAfter?: string | null;
+  latestTaskHeartbeatAt?: string | null;
+  latestTaskLeaseUntil?: string | null;
+  latestTaskRowsScanned?: number | null;
+  latestTaskRowsApplied?: number | null;
+  latestTaskError?: string | null;
+}
+
+export interface GitlabTableSyncDiagnosticsResponse {
+  configId: number;
+  sourceInstance: string;
+  generatedAt: string;
+  tableCount: number;
+  dirtyTableCount: number;
+  pendingTaskCount: number;
+  runningTaskCount: number;
+  retryingTaskCount: number;
+  failedTaskCount: number;
+  timedOutTaskCount: number;
+  tables: GitlabTableSyncStateDiagnostics[];
 }
 
 export interface StatisticFilterOption {

@@ -5,10 +5,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
-import type { GitlabSourceHealthResponse, GitlabSyncConfig } from '../types/api';
+import type { GitlabSourceHealthResponse, GitlabSyncConfig, GitlabTableSyncDiagnosticsResponse } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
+import { buildPurgeSummaryHtml, formatDateTime, syncStatusTagType, syncStatusText } from './mirror-settings-helpers';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
@@ -21,11 +21,13 @@ import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptions
 const initialized = ref(false);
 const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
+const tableSyncDiagnostics = ref<GitlabTableSyncDiagnosticsResponse | null>(null);
+const tableSyncDiagnosticsLoading = ref(false);
 const selectedConfigId = ref<number | undefined>(undefined);
 const isCreatingNewConfig = ref(false);
 const previousConfigIdBeforeCreate = ref<number | undefined>(undefined);
 const newConfigSnapshot = ref('');
-const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
+const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
 const form = ref<GitlabSyncConfig>({
   name: 'GitLab 默认数据源',
@@ -238,6 +240,31 @@ const missingRequiredMirrorTablesPreview = computed(() => {
     hiddenCount: Math.max(tables.length - 5, 0),
   };
 });
+const tableSyncRows = computed(() => tableSyncDiagnostics.value?.tables ?? []);
+const tableSyncProblemRows = computed(() =>
+  tableSyncRows.value.filter(
+    (row) =>
+      row.dirty ||
+      row.latestTaskStatus === 'FAILED' ||
+      row.latestTaskStatus === 'TIMEOUT' ||
+      row.latestTaskStatus === 'RETRYING',
+  ),
+);
+const tableSyncDisplayRows = computed(() =>
+  (tableSyncProblemRows.value.length > 0 ? tableSyncProblemRows.value : tableSyncRows.value).slice(0, 8),
+);
+const tableSyncQueueSummary = computed(() => {
+  const diagnostics = tableSyncDiagnostics.value;
+  if (!diagnostics) {
+    return '暂无表级任务诊断';
+  }
+  return [
+    `待执行 ${diagnostics.pendingTaskCount}`,
+    `运行中 ${diagnostics.runningTaskCount}`,
+    `重试中 ${diagnostics.retryingTaskCount}`,
+    `失败 ${diagnostics.failedTaskCount + diagnostics.timedOutTaskCount}`,
+  ].join(' · ');
+});
 const {
   progress,
   currentTask,
@@ -291,7 +318,7 @@ watch(
 async function initializePage() {
   try {
     await loadConfigs();
-    await loadSourceHealth();
+    await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
     await loadStatus(false, false);
   } finally {
     initialized.value = true;
@@ -311,6 +338,24 @@ async function loadSourceHealth() {
   sourceHealth.value = Array.isArray(healthItems) ? healthItems : [];
 }
 
+async function loadTableSyncDiagnostics(showError = false) {
+  if (selectedConfigId.value == null || isCreatingNewConfig.value) {
+    tableSyncDiagnostics.value = null;
+    return;
+  }
+  tableSyncDiagnosticsLoading.value = true;
+  try {
+    tableSyncDiagnostics.value = await api.getTableSyncDiagnostics(selectedConfigId.value);
+  } catch (error) {
+    tableSyncDiagnostics.value = null;
+    if (showError) {
+      ElMessage.error(error instanceof Error ? error.message : '加载表级同步诊断失败');
+    }
+  } finally {
+    tableSyncDiagnosticsLoading.value = false;
+  }
+}
+
 async function handleConfigSelection(configId: number) {
   if (isCreatingNewConfig.value) {
     return;
@@ -319,6 +364,7 @@ async function handleConfigSelection(configId: number) {
   whitelistOptionsLoaded.value = false;
   await loadStatus(true, true);
   void loadSourceHealth();
+  void loadTableSyncDiagnostics(true);
   void loadWebhookRegistration(false);
 }
 
@@ -327,6 +373,7 @@ function createNewConfig() {
   isCreatingNewConfig.value = true;
   stopRunningRefresh();
   selectedConfigId.value = undefined;
+  tableSyncDiagnostics.value = null;
   form.value = {
     ...form.value,
     id: undefined,
@@ -359,6 +406,7 @@ async function cancelNewConfig() {
   whitelistOptionsLoaded.value = false;
   await loadStatus(true, true);
   void loadSourceHealth();
+  void loadTableSyncDiagnostics(true);
   void loadWebhookRegistration(false);
 }
 
@@ -367,7 +415,7 @@ async function refreshCurrentStatus() {
     return;
   }
   await refreshStatus();
-  await loadSourceHealth();
+  await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
 }
 
 onMounted(async () => {
@@ -774,6 +822,75 @@ onBeforeUnmount(() => {
           />
         </template>
         <el-empty v-else description="暂无当前数据源诊断信息" />
+      </el-card>
+
+      <el-card shadow="never" class="panel-card table-sync-diagnostics-card">
+        <template #header>
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">表级同步诊断</div>
+              <div class="panel-subtitle">{{ tableSyncQueueSummary }}</div>
+            </div>
+            <el-button
+              size="small"
+              text
+              :loading="tableSyncDiagnosticsLoading"
+              :disabled="savedConfigActionDisabled"
+              @click="loadTableSyncDiagnostics(true)"
+            >
+              刷新
+            </el-button>
+          </div>
+        </template>
+        <template v-if="tableSyncDiagnostics">
+          <div class="table-sync-summary-grid">
+            <div>
+              <span>同步表</span>
+              <strong>{{ tableSyncDiagnostics.tableCount }}</strong>
+            </div>
+            <div>
+              <span>脏表</span>
+              <strong>{{ tableSyncDiagnostics.dirtyTableCount }}</strong>
+            </div>
+            <div>
+              <span>重试中</span>
+              <strong>{{ tableSyncDiagnostics.retryingTaskCount }}</strong>
+            </div>
+          </div>
+          <el-table
+            v-loading="tableSyncDiagnosticsLoading"
+            class="table-sync-diagnostics-table"
+            :data="tableSyncDisplayRows"
+            size="small"
+          >
+            <el-table-column prop="sourceTable" label="源表" min-width="130" show-overflow-tooltip />
+            <el-table-column label="状态" width="86">
+              <template #default="{ row }">
+                <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
+                  {{ syncStatusText(row.latestTaskStatus) }}
+                </el-tag>
+                <el-tag v-else size="small" type="info">无任务</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="脏表" width="64">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.dirty ? 'warning' : 'success'" effect="plain">
+                  {{ row.dirty ? '是' : '否' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="水位/错误" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span v-if="row.lastError || row.latestTaskError">{{ row.lastError || row.latestTaskError }}</span>
+                <span v-else>{{ formatDateTime(row.lastWatermarkAt || row.lastSuccessAt) }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div v-if="tableSyncRows.length > tableSyncDisplayRows.length" class="table-sync-more">
+            优先展示异常表，另有 {{ tableSyncRows.length - tableSyncDisplayRows.length }} 张表未展开。
+          </div>
+        </template>
+        <el-empty v-else description="暂无表级同步诊断" />
       </el-card>
       </div>
     </div>

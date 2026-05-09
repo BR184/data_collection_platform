@@ -18,6 +18,7 @@ import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncTask;
+import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
@@ -37,6 +38,7 @@ import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
+import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
 import com.data.collection.platform.service.GitlabWebhookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
@@ -85,6 +87,9 @@ class GitlabSyncControllerTest {
   @Mock
   private GitlabExternalDbService externalDbService;
 
+  @Mock
+  private GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService;
+
   private MockMvc mockMvc;
 
   @BeforeEach
@@ -102,8 +107,37 @@ class GitlabSyncControllerTest {
         webhookRegistrationService,
         purgeService,
         sourceHealthService,
-        externalDbService);
+        externalDbService,
+        tableSyncDiagnosticsService);
     mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+  }
+
+  @Test
+  void tableSyncDiagnosticsShouldReturnTableLevelState() throws Exception {
+    GitlabSyncConfig config = baseConfig();
+    config.setId(7L);
+    when(configService.getConfigById(7L)).thenReturn(config);
+    when(tableSyncDiagnosticsService.diagnose(7L))
+        .thenReturn(new GitlabTableSyncDiagnosticsResponse(
+            7L,
+            "default",
+            java.time.LocalDateTime.of(2026, 5, 9, 10, 0),
+            2,
+            1,
+            3L,
+            1L,
+            1L,
+            0L,
+            0L,
+            List.of()));
+
+    mockMvc.perform(get("/api/gitlab-sync/table-sync-diagnostics").param("configId", "7"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.configId").value(7))
+        .andExpect(jsonPath("$.data.sourceInstance").value("default"))
+        .andExpect(jsonPath("$.data.tableCount").value(2))
+        .andExpect(jsonPath("$.data.dirtyTableCount").value(1))
+        .andExpect(jsonPath("$.data.pendingTaskCount").value(3));
   }
 
   @Test

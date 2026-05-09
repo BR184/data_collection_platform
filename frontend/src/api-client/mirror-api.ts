@@ -2,6 +2,7 @@ import type {
   GitlabSyncConfig,
   GitlabSyncDiagnosticsResponse,
   GitlabSourceHealthResponse,
+  GitlabTableSyncDiagnosticsResponse,
   GitlabWebhookRegistrationStatus,
   MirrorPurgeResult,
   MirrorPurgeScope,
@@ -42,6 +43,11 @@ export const mirrorApi = {
     return request<GitlabSyncDiagnosticsResponse>(withConfigId('/api/gitlab-sync/diagnostics/by-config', configId), {
       method: 'POST',
     });
+  },
+  getTableSyncDiagnostics(configId?: number) {
+    return request<GitlabTableSyncDiagnosticsResponse>(
+      withConfigId('/api/gitlab-sync/table-sync-diagnostics', configId),
+    );
   },
   startFullSync(configId?: number) {
     return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/full-sync/by-config', configId), {

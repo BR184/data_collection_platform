@@ -118,6 +118,21 @@ describe('MirrorSettingsView mount smoke', () => {
           hooks: [],
         });
       }
+      if (url.includes('/api/gitlab-sync/table-sync-diagnostics')) {
+        return jsonResponse({
+          configId: 1,
+          sourceInstance: 'default',
+          generatedAt: '2026-04-27T10:00:00',
+          tableCount: 1,
+          dirtyTableCount: 0,
+          pendingTaskCount: 0,
+          runningTaskCount: 0,
+          retryingTaskCount: 0,
+          failedTaskCount: 0,
+          timedOutTaskCount: 0,
+          tables: [],
+        });
+      }
       if (url.includes('/api/gitlab-sync/purge')) {
         return purgeResponsePromise;
       }

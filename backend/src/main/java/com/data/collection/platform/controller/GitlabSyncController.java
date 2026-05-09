@@ -9,6 +9,7 @@ import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
+import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
@@ -33,6 +34,7 @@ import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
+import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
 import com.data.collection.platform.service.GitlabWebhookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
@@ -69,6 +71,7 @@ public class GitlabSyncController {
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
+  private final GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -81,7 +84,8 @@ public class GitlabSyncController {
       GitlabWebhookRegistrationService webhookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
-      GitlabExternalDbService externalDbService) {
+      GitlabExternalDbService externalDbService,
+      GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService) {
     this.configService = configService;
     this.syncService = syncService;
     this.logService = logService;
@@ -93,6 +97,7 @@ public class GitlabSyncController {
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
+    this.tableSyncDiagnosticsService = tableSyncDiagnosticsService;
   }
 
   @GetMapping("/status")
@@ -125,6 +130,13 @@ public class GitlabSyncController {
   @GetMapping("/source-health")
   public ApiResponse<List<GitlabSourceHealthResponse>> sourceHealth() {
     return ApiResponse.success(sourceHealthService.listHealth());
+  }
+
+  @GetMapping("/table-sync-diagnostics")
+  public ApiResponse<GitlabTableSyncDiagnosticsResponse> tableSyncDiagnostics(
+      @RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
+    return ApiResponse.success(tableSyncDiagnosticsService.diagnose(config.getId()));
   }
 
   @PostMapping("/diagnostics")
