@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabTableProbe;
+import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
@@ -10,6 +11,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -74,6 +76,74 @@ public class GitlabMirrorTableStorageService {
         quoteIdentifier(mirrorSchema.tableName()),
         quoteIdentifier(lookupColumn));
     return jdbcTemplate.update(sql, taskId, lookupValue);
+  }
+
+  public int markRowsDeletedByPrimaryKeys(
+      SourceTableSchema mirrorSchema,
+      List<Map<String, Object>> primaryKeyRows,
+      Long taskId) {
+    if (mirrorSchema == null || primaryKeyRows == null || primaryKeyRows.isEmpty()) {
+      return 0;
+    }
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    String sql = """
+        update %s
+           set mirror_task_id = ?,
+               mirror_deleted = true,
+               mirror_synced_at = current_timestamp,
+               mirror_updated_at = current_timestamp
+         where coalesce(mirror_deleted, false) = false
+           and (%s)
+        """.formatted(
+        quoteIdentifier(mirrorSchema.tableName()),
+        primaryKeyRows.stream()
+            .map(ignored -> primaryKeys.stream()
+                .map(primaryKey -> quoteIdentifier(primaryKey) + "::text = ?")
+                .collect(Collectors.joining(" and ", "(", ")")))
+            .collect(Collectors.joining(" or ")));
+    List<Object> args = new ArrayList<>();
+    args.add(taskId);
+    for (Map<String, Object> row : primaryKeyRows) {
+      for (String primaryKey : primaryKeys) {
+        args.add(Objects.toString(row.get(primaryKey), ""));
+      }
+    }
+    return jdbcTemplate.update(sql, args.toArray());
+  }
+
+  public MirrorPrimaryKeyBatch listActivePrimaryKeys(
+      SourceTableSchema mirrorSchema,
+      String cursor,
+      int batchSize) {
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(mirrorSchema);
+    List<String> cursorValues = PrimaryKeySignatureSupport.decodeCursor(jsonUtils, cursor);
+    List<Object> args = new ArrayList<>();
+    String cursorPredicate = "";
+    if (cursorValues.size() == primaryKeys.size()) {
+      cursorPredicate = " and " + buildCursorPredicate(primaryKeys, args, cursorValues);
+    }
+    String sql = """
+        select %s
+          from %s
+         where coalesce(mirror_deleted, false) = false
+               %s
+         order by %s
+         limit ?
+        """.formatted(
+        primaryKeys.stream()
+            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text as " + quoteIdentifier(primaryKey))
+            .collect(Collectors.joining(", ")),
+        quoteIdentifier(mirrorSchema.tableName()),
+        cursorPredicate,
+        primaryKeys.stream()
+            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text asc")
+            .collect(Collectors.joining(", ")));
+    args.add(Math.max(1, batchSize));
+    List<Map<String, Object>> keys = jdbcTemplate.queryForList(sql, args.toArray());
+    String nextCursor = keys.isEmpty()
+        ? null
+        : PrimaryKeySignatureSupport.encodeCursor(jsonUtils, primaryKeys, keys.get(keys.size() - 1));
+    return new MirrorPrimaryKeyBatch(keys, nextCursor);
   }
 
   public GitlabTableProbe probeMirrorTable(SourceTableSchema mirrorSchema) {
@@ -149,6 +219,21 @@ public class GitlabMirrorTableStorageService {
 
   private String quoteIdentifier(String identifier) {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
+  }
+
+  private String buildCursorPredicate(List<String> primaryKeys, List<Object> args, List<String> cursorValues) {
+    List<String> disjunctions = new ArrayList<>();
+    for (int i = 0; i < primaryKeys.size(); i++) {
+      StringBuilder predicate = new StringBuilder("(");
+      for (int j = 0; j < i; j++) {
+        predicate.append(quoteIdentifier(primaryKeys.get(j))).append("::text = ? and ");
+        args.add(cursorValues.get(j));
+      }
+      predicate.append(quoteIdentifier(primaryKeys.get(i))).append("::text > ?)");
+      args.add(cursorValues.get(i));
+      disjunctions.add(predicate.toString());
+    }
+    return "(" + String.join(" or ", disjunctions) + ")";
   }
 
   private long toLong(Object value) {

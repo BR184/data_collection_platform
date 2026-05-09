@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncTaskType;
+import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -25,6 +26,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -73,8 +75,12 @@ public class GitlabTableSyncWorkerService {
       return;
     }
     recoverTimedOutTasks();
+    LocalDateTime now = LocalDateTime.now();
     GitlabTableSyncTask task = taskMapper.selectOne(new LambdaQueryWrapper<GitlabTableSyncTask>()
         .eq(GitlabTableSyncTask::getStatus, SyncStatus.PENDING)
+        .and(wrapper -> wrapper.isNull(GitlabTableSyncTask::getRunAfter)
+            .or()
+            .le(GitlabTableSyncTask::getRunAfter, now))
         .orderByAsc(GitlabTableSyncTask::getCreatedAt)
         .last("limit 1"));
     if (task == null) {
@@ -90,6 +96,7 @@ public class GitlabTableSyncWorkerService {
         .lt(GitlabTableSyncTask::getLeaseUntil, now));
     for (GitlabTableSyncTask task : staleTasks) {
       markTimeoutAndRetry(task, now);
+      finishJobIfComplete(task.getJobId());
     }
     return staleTasks.size();
   }
@@ -104,12 +111,15 @@ public class GitlabTableSyncWorkerService {
       }
       if (task.getTaskType() == GitlabTableSyncTaskType.DAILY_VERIFY) {
         executeDailyVerify(task, state);
+      } else if (task.getTaskType() == GitlabTableSyncTaskType.DELETE_RECONCILE) {
+        executeDeleteReconcileTask(task, state);
       } else {
         executeIncrementalLikeTask(task, state);
       }
       finishJobIfComplete(task.getJobId());
     } catch (Exception e) {
       markFailure(task, state, e);
+      finishJobIfComplete(task.getJobId());
       log.warn(
           "Table sync task failed, taskId={}, configId={}, sourceTable={}",
           task.getId(),
@@ -128,9 +138,43 @@ public class GitlabTableSyncWorkerService {
     GitlabTableProbe mirrorProbe = storageService.probeMirrorTable(preparedMirrorTable.mirrorSchema());
     boolean drifted = isDrifted(sourceProbe, mirrorProbe, state);
     markVerificationSuccess(task, state, sourceProbe, mirrorProbe, drifted);
-    if (drifted && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL && state.isSyncEnabled()) {
+    if (!drifted) {
+      return;
+    }
+    if (shouldCreateDeleteReconcileTask(sourceProbe, mirrorProbe)) {
+      taskMapper.insert(createDeleteReconcileTask(task, state));
+    }
+    if (shouldCreateFullRepairTask(sourceProbe, mirrorProbe, state)) {
       taskMapper.insert(createRepairTask(task, state));
     }
+  }
+
+  private void executeDeleteReconcileTask(GitlabTableSyncTask task, GitlabTableSyncState state) {
+    GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
+    TableWhitelistOption option = tableOption(state);
+    GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
+        mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+    mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+
+    MirrorPrimaryKeyBatch batch = storageService.listActivePrimaryKeys(
+        preparedMirrorTable.mirrorSchema(),
+        task.getCursorPk(),
+        resolveBatchSize(task));
+    Set<String> sourceKeys = externalDbService.findExistingPrimaryKeySignatures(config, option, batch.keys());
+    List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(preparedMirrorTable.mirrorSchema());
+    List<Map<String, Object>> missingKeys = batch.keys().stream()
+        .filter(row -> !sourceKeys.contains(PrimaryKeySignatureSupport.signature(primaryKeys, row)))
+        .toList();
+    int deletedRows = storageService.markRowsDeletedByPrimaryKeys(
+        preparedMirrorTable.mirrorSchema(),
+        missingKeys,
+        task.getId());
+    boolean hasMore = batch.keys().size() >= resolveBatchSize(task) && batch.nextCursor() != null;
+    markDeleteReconcileSuccess(task, state, batch.keys().size(), deletedRows, hasMore);
+    if (hasMore) {
+      taskMapper.insert(createDeleteContinuationTask(task, batch.nextCursor()));
+    }
+    mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
   }
 
   private void executeIncrementalLikeTask(GitlabTableSyncTask task, GitlabTableSyncState state) {
@@ -247,6 +291,28 @@ public class GitlabTableSyncWorkerService {
     stateMapper.updateById(state);
   }
 
+  private void markDeleteReconcileSuccess(
+      GitlabTableSyncTask task,
+      GitlabTableSyncState state,
+      int scannedRows,
+      int deletedRows,
+      boolean hasMore) {
+    LocalDateTime now = LocalDateTime.now();
+    task.setStatus(SyncStatus.SUCCESS);
+    task.setRowsScanned((long) scannedRows);
+    task.setRowsApplied((long) deletedRows);
+    task.setFinishedAt(now);
+    task.setUpdatedAt(now);
+    taskMapper.updateById(task);
+
+    state.setDirtyFlag(hasMore);
+    state.setLastSuccessAt(now);
+    state.setLastError("");
+    state.setRetryCount(0);
+    state.setUpdatedAt(now);
+    stateMapper.updateById(state);
+  }
+
   private GitlabTableSyncTask createContinuationTask(GitlabTableSyncTask previousTask, RowCursor cursor) {
     LocalDateTime now = LocalDateTime.now();
     GitlabTableSyncTask task = new GitlabTableSyncTask();
@@ -262,6 +328,7 @@ public class GitlabTableSyncWorkerService {
     task.setCursorUpdatedAt(cursor.updatedAt());
     task.setCursorPk(cursor.primaryKey());
     task.setBatchSize(resolveBatchSize(previousTask));
+    task.setRunAfter(now);
     task.setRetryCount(0);
     task.setMaxRetryCount(previousTask.getMaxRetryCount());
     task.setRowsScanned(0L);
@@ -284,8 +351,54 @@ public class GitlabTableSyncWorkerService {
     task.setRowStrategy(GitlabTableRowStrategy.INCREMENTAL);
     task.setWatermarkAt(INITIAL_WATERMARK);
     task.setBatchSize(resolveBatchSize(verificationTask));
+    task.setRunAfter(now);
     task.setRetryCount(0);
     task.setMaxRetryCount(verificationTask.getMaxRetryCount());
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    return task;
+  }
+
+  private GitlabTableSyncTask createDeleteReconcileTask(GitlabTableSyncTask verificationTask, GitlabTableSyncState state) {
+    LocalDateTime now = LocalDateTime.now();
+    GitlabTableSyncTask task = new GitlabTableSyncTask();
+    task.setJobId(verificationTask.getJobId());
+    task.setConfigId(verificationTask.getConfigId());
+    task.setSourceInstance(verificationTask.getSourceInstance());
+    task.setSourceTable(verificationTask.getSourceTable());
+    task.setMirrorTable(verificationTask.getMirrorTable());
+    task.setTaskType(GitlabTableSyncTaskType.DELETE_RECONCILE);
+    task.setStatus(SyncStatus.PENDING);
+    task.setRowStrategy(state.getRowStrategy());
+    task.setBatchSize(resolveBatchSize(verificationTask));
+    task.setRunAfter(now);
+    task.setRetryCount(0);
+    task.setMaxRetryCount(verificationTask.getMaxRetryCount());
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    return task;
+  }
+
+  private GitlabTableSyncTask createDeleteContinuationTask(GitlabTableSyncTask previousTask, String cursor) {
+    LocalDateTime now = LocalDateTime.now();
+    GitlabTableSyncTask task = new GitlabTableSyncTask();
+    task.setJobId(previousTask.getJobId());
+    task.setConfigId(previousTask.getConfigId());
+    task.setSourceInstance(previousTask.getSourceInstance());
+    task.setSourceTable(previousTask.getSourceTable());
+    task.setMirrorTable(previousTask.getMirrorTable());
+    task.setTaskType(GitlabTableSyncTaskType.DELETE_RECONCILE);
+    task.setStatus(SyncStatus.PENDING);
+    task.setRowStrategy(previousTask.getRowStrategy());
+    task.setCursorPk(cursor);
+    task.setBatchSize(resolveBatchSize(previousTask));
+    task.setRunAfter(now);
+    task.setRetryCount(0);
+    task.setMaxRetryCount(previousTask.getMaxRetryCount());
     task.setRowsScanned(0L);
     task.setRowsApplied(0L);
     task.setCreatedAt(now);
@@ -296,9 +409,11 @@ public class GitlabTableSyncWorkerService {
   private void markFailure(GitlabTableSyncTask task, GitlabTableSyncState state, Exception e) {
     LocalDateTime now = LocalDateTime.now();
     mirrorSchemaService.markTableError(task.getConfigId(), task.getSourceTable());
-    task.setStatus(SyncStatus.FAILED);
+    int retryCount = task.getRetryCount() == null ? 0 : task.getRetryCount();
+    int maxRetryCount = task.getMaxRetryCount() == null ? 3 : task.getMaxRetryCount();
+    boolean willRetry = retryCount < maxRetryCount;
+    task.setStatus(willRetry ? SyncStatus.RETRYING : SyncStatus.FAILED);
     task.setLastError(e.getMessage());
-    task.setRetryCount(task.getRetryCount() == null ? 1 : task.getRetryCount() + 1);
     task.setFinishedAt(now);
     task.setUpdatedAt(now);
     taskMapper.updateById(task);
@@ -311,18 +426,18 @@ public class GitlabTableSyncWorkerService {
       stateMapper.updateById(state);
     }
 
-    GitlabSyncJob job = jobMapper.selectById(task.getJobId());
-    if (job != null) {
-      job.setStatus(SyncStatus.FAILED);
-      job.setErrorMessage(e.getMessage());
-      job.setFinishedAt(now);
-      job.setUpdatedAt(now);
-      jobMapper.updateById(job);
+    if (willRetry) {
+      GitlabTableSyncTask retryTask = copyForRetry(task, retryCount + 1, now);
+      retryTask.setRunAfter(now.plusMinutes(resolveFailureBackoffMinutes(retryCount + 1)));
+      taskMapper.insert(retryTask);
     }
   }
 
   private void markTimeoutAndRetry(GitlabTableSyncTask task, LocalDateTime now) {
-    task.setStatus(SyncStatus.TIMEOUT);
+    int retryCount = task.getRetryCount() == null ? 0 : task.getRetryCount();
+    int maxRetryCount = task.getMaxRetryCount() == null ? 3 : task.getMaxRetryCount();
+    boolean willRetry = retryCount < maxRetryCount;
+    task.setStatus(willRetry ? SyncStatus.RETRYING : SyncStatus.TIMEOUT);
     task.setLastError("Table sync task lease timed out");
     task.setFinishedAt(now);
     task.setUpdatedAt(now);
@@ -337,22 +452,12 @@ public class GitlabTableSyncWorkerService {
       stateMapper.updateById(state);
     }
 
-    int retryCount = task.getRetryCount() == null ? 0 : task.getRetryCount();
-    int maxRetryCount = task.getMaxRetryCount() == null ? 3 : task.getMaxRetryCount();
-    if (retryCount < maxRetryCount) {
+    if (willRetry) {
       GitlabTableSyncTask retryTask = copyForRetry(task, retryCount + 1, now);
       taskMapper.insert(retryTask);
       return;
     }
 
-    GitlabSyncJob job = jobMapper.selectById(task.getJobId());
-    if (job != null) {
-      job.setStatus(SyncStatus.TIMEOUT);
-      job.setErrorMessage(task.getLastError());
-      job.setFinishedAt(now);
-      job.setUpdatedAt(now);
-      jobMapper.updateById(job);
-    }
   }
 
   private GitlabTableSyncTask copyForRetry(GitlabTableSyncTask timedOutTask, int retryCount, LocalDateTime now) {
@@ -369,6 +474,7 @@ public class GitlabTableSyncWorkerService {
     retryTask.setCursorUpdatedAt(timedOutTask.getCursorUpdatedAt());
     retryTask.setCursorPk(timedOutTask.getCursorPk());
     retryTask.setBatchSize(resolveBatchSize(timedOutTask));
+    retryTask.setRunAfter(now.plusMinutes(resolveFailureBackoffMinutes(retryCount)));
     retryTask.setRetryCount(retryCount);
     retryTask.setMaxRetryCount(timedOutTask.getMaxRetryCount());
     retryTask.setRowsScanned(0L);
@@ -386,11 +492,36 @@ public class GitlabTableSyncWorkerService {
       return;
     }
     GitlabSyncJob job = jobMapper.selectById(jobId);
-    if (job == null || job.getStatus() == SyncStatus.FAILED) {
+    if (job == null) {
       return;
     }
     LocalDateTime now = LocalDateTime.now();
-    job.setStatus(SyncStatus.SUCCESS);
+    Long failed = taskMapper.selectCount(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, jobId)
+        .eq(GitlabTableSyncTask::getStatus, SyncStatus.FAILED));
+    Long timedOut = taskMapper.selectCount(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, jobId)
+        .eq(GitlabTableSyncTask::getStatus, SyncStatus.TIMEOUT));
+    Long succeeded = taskMapper.selectCount(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, jobId)
+        .eq(GitlabTableSyncTask::getStatus, SyncStatus.SUCCESS));
+    long failedCount = failed == null ? 0 : failed;
+    long timedOutCount = timedOut == null ? 0 : timedOut;
+    long successCount = succeeded == null ? 0 : succeeded;
+    long badCount = failedCount + timedOutCount;
+    if (badCount == 0) {
+      job.setStatus(SyncStatus.SUCCESS);
+      job.setErrorMessage(null);
+    } else if (successCount > 0) {
+      job.setStatus(SyncStatus.PARTIAL_SUCCESS);
+      job.setErrorMessage("Some table sync tasks failed or timed out");
+    } else if (timedOutCount > 0 && failedCount == 0) {
+      job.setStatus(SyncStatus.TIMEOUT);
+      job.setErrorMessage("All table sync tasks timed out");
+    } else {
+      job.setStatus(SyncStatus.FAILED);
+      job.setErrorMessage("All table sync tasks failed");
+    }
     job.setFinishedAt(now);
     job.setUpdatedAt(now);
     jobMapper.updateById(job);
@@ -410,7 +541,9 @@ public class GitlabTableSyncWorkerService {
     }
     Long repairTasks = taskMapper.selectCount(new LambdaQueryWrapper<GitlabTableSyncTask>()
         .eq(GitlabTableSyncTask::getJobId, job.getId())
-        .eq(GitlabTableSyncTask::getTaskType, GitlabTableSyncTaskType.FULL_REPAIR));
+        .in(GitlabTableSyncTask::getTaskType, List.of(
+            GitlabTableSyncTaskType.FULL_REPAIR,
+            GitlabTableSyncTaskType.DELETE_RECONCILE)));
     return repairTasks != null && repairTasks > 0;
   }
 
@@ -446,6 +579,36 @@ public class GitlabTableSyncWorkerService {
         && !Objects.equals(sourceProbe.maxUpdatedAt(), mirrorProbe.maxUpdatedAt());
   }
 
+  private boolean shouldCreateDeleteReconcileTask(GitlabTableProbe sourceProbe, GitlabTableProbe mirrorProbe) {
+    if (mirrorProbe.rowCount() > sourceProbe.rowCount()) {
+      return true;
+    }
+    return mirrorProbe.rowCount() == sourceProbe.rowCount()
+        && (!Objects.equals(sourceProbe.minPrimaryKey(), mirrorProbe.minPrimaryKey())
+            || !Objects.equals(sourceProbe.maxPrimaryKey(), mirrorProbe.maxPrimaryKey()));
+  }
+
+  private boolean shouldCreateFullRepairTask(
+      GitlabTableProbe sourceProbe,
+      GitlabTableProbe mirrorProbe,
+      GitlabTableSyncState state) {
+    if (state.getRowStrategy() != GitlabTableRowStrategy.INCREMENTAL || !state.isSyncEnabled()) {
+      return false;
+    }
+    if (sourceProbe.rowCount() > mirrorProbe.rowCount()) {
+      return true;
+    }
+    if (sourceProbe.rowCount() == mirrorProbe.rowCount()
+        && (!Objects.equals(sourceProbe.minPrimaryKey(), mirrorProbe.minPrimaryKey())
+            || !Objects.equals(sourceProbe.maxPrimaryKey(), mirrorProbe.maxPrimaryKey()))) {
+      return true;
+    }
+    return state.getUpdatedAtColumn() != null
+        && !state.getUpdatedAtColumn().isBlank()
+        && sourceProbe.maxUpdatedAt() != null
+        && (mirrorProbe.maxUpdatedAt() == null || sourceProbe.maxUpdatedAt().isAfter(mirrorProbe.maxUpdatedAt()));
+  }
+
   private String buildDriftMessage(
       GitlabTableProbe sourceProbe,
       GitlabTableProbe mirrorProbe,
@@ -463,6 +626,12 @@ public class GitlabTableSyncWorkerService {
 
   private int resolveBatchSize(GitlabTableSyncTask task) {
     return task.getBatchSize() == null || task.getBatchSize() < 1 ? 500 : task.getBatchSize();
+  }
+
+  private long resolveFailureBackoffMinutes(int retryCount) {
+    int baseMinutes = Math.max(1, properties.getFailureBackoffMinutes());
+    int exponent = Math.max(0, Math.min(retryCount - 1, 5));
+    return (long) baseMinutes * (1L << exponent);
   }
 
   private String firstPrimaryKey(String primaryKeys) {

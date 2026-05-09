@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -211,6 +212,22 @@ public class GitlabExternalDbService {
         Objects.toString(row.get("max_pk"), ""));
   }
 
+  public Set<String> findExistingPrimaryKeySignatures(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      List<Map<String, Object>> primaryKeyRows) {
+    if (primaryKeyRows == null || primaryKeyRows.isEmpty()) {
+      return Set.of();
+    }
+    List<String> configuredPrimaryKeys = splitPrimaryKeys(option.primaryKey());
+    List<String> primaryKeys = configuredPrimaryKeys.isEmpty() ? List.of("id") : configuredPrimaryKeys;
+    List<Map<String, Object>> rows =
+        executeSourceQuery(config, buildExistingPrimaryKeysSql(option, primaryKeys, primaryKeyRows));
+    return rows.stream()
+        .map(row -> PrimaryKeySignatureSupport.signature(primaryKeys, row))
+        .collect(java.util.stream.Collectors.toSet());
+  }
+
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
     String sql = buildTimeWindowScanSql(option, since);
     return executeSourceQuery(config, sql);
@@ -292,6 +309,28 @@ public class GitlabExternalDbService {
         primaryKeyColumn,
         primaryKeyColumn,
         quoteQualifiedPublicTable(option.tableName())).strip();
+  }
+
+  String buildExistingPrimaryKeysSql(
+      TableWhitelistOption option,
+      List<String> primaryKeys,
+      List<Map<String, Object>> primaryKeyRows) {
+    String selectColumns = primaryKeys.stream()
+        .map(primaryKey -> quoteIdentifier(primaryKey) + "::text as " + quoteIdentifier(primaryKey))
+        .collect(java.util.stream.Collectors.joining(", "));
+    String predicate = primaryKeyRows.stream()
+        .map(row -> primaryKeys.stream()
+            .map(primaryKey -> quoteIdentifier(primaryKey) + "::text = " + toSqlLiteral(Objects.toString(row.get(primaryKey), "")))
+            .collect(java.util.stream.Collectors.joining(" and ", "(", ")")))
+        .collect(java.util.stream.Collectors.joining(" or "));
+    return """
+        select %s
+          from %s
+         where %s
+        """.formatted(
+        selectColumns,
+        quoteQualifiedPublicTable(option.tableName()),
+        predicate).strip();
   }
 
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {

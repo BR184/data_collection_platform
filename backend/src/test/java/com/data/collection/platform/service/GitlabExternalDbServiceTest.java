@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -174,6 +175,25 @@ class GitlabExternalDbServiceTest {
             + "       min(\"id\")::text as min_pk,\n"
             + "       max(\"id\")::text as max_pk\n"
             + "  from \"public\".\"label_links\"");
+  }
+
+  @Test
+  void shouldBuildExistingPrimaryKeysSqlForCompositeKeys() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", null, true);
+
+    String sql = service.buildExistingPrimaryKeysSql(
+        option,
+        List.of("label_id", "target_id", "target_type"),
+        List.of(
+            Map.of("label_id", "1", "target_id", "101", "target_type", "Issue"),
+            Map.of("label_id", "2", "target_id", "102", "target_type", "MergeRequest")));
+
+    assertThat(sql)
+        .isEqualTo("select \"label_id\"::text as \"label_id\", \"target_id\"::text as \"target_id\", \"target_type\"::text as \"target_type\"\n"
+            + "  from \"public\".\"label_links\"\n"
+            + " where (\"label_id\"::text = '1' and \"target_id\"::text = '101' and \"target_type\"::text = 'Issue') "
+            + "or (\"label_id\"::text = '2' and \"target_id\"::text = '102' and \"target_type\"::text = 'MergeRequest')");
   }
 
   @Test

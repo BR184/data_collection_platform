@@ -50,6 +50,9 @@ public class GitlabTableSyncTask {
   @TableField("batch_size")
   private Integer batchSize;
 
+  @TableField("run_after")
+  private LocalDateTime runAfter;
+
   @TableField("lease_owner")
   private String leaseOwner;
 

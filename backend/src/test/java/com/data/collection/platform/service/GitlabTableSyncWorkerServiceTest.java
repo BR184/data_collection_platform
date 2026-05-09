@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -18,6 +19,7 @@ import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncTaskType;
+import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
@@ -29,6 +31,7 @@ import com.data.collection.platform.mapper.GitlabTableSyncTaskMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -135,7 +138,7 @@ class GitlabTableSyncWorkerServiceTest {
     int recovered = service.recoverTimedOutTasks();
 
     assertThat(recovered).isEqualTo(1);
-    assertThat(staleTask.getStatus()).isEqualTo(SyncStatus.TIMEOUT);
+    assertThat(staleTask.getStatus()).isEqualTo(SyncStatus.RETRYING);
     assertThat(state.isDirtyFlag()).isTrue();
     assertThat(state.getLastError()).isEqualTo("Table sync task lease timed out");
 
@@ -145,6 +148,35 @@ class GitlabTableSyncWorkerServiceTest {
     assertThat(retryTask.getStatus()).isEqualTo(SyncStatus.PENDING);
     assertThat(retryTask.getRetryCount()).isEqualTo(2);
     assertThat(retryTask.getSourceTable()).isEqualTo("issues");
+    assertThat(retryTask.getRunAfter()).isAfter(LocalDateTime.now());
+  }
+
+  @Test
+  void shouldRetryFailedTableWithoutFailingWholeJobImmediately() {
+    GitlabTableSyncTask task = task();
+    GitlabTableSyncState state = state();
+    GitlabSyncJob job = new GitlabSyncJob();
+    job.setId(9L);
+    job.setStatus(SyncStatus.RUNNING);
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenThrow(new IllegalStateException("source unavailable"));
+    when(jobMapper.selectById(9L)).thenReturn(job);
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1L);
+
+    service.executeTask(task);
+
+    assertThat(task.getStatus()).isEqualTo(SyncStatus.RETRYING);
+    assertThat(state.isDirtyFlag()).isTrue();
+    assertThat(state.getLastError()).isEqualTo("source unavailable");
+    assertThat(job.getStatus()).isEqualTo(SyncStatus.RUNNING);
+
+    ArgumentCaptor<GitlabTableSyncTask> retryCaptor = ArgumentCaptor.forClass(GitlabTableSyncTask.class);
+    verify(taskMapper).insert(retryCaptor.capture());
+    GitlabTableSyncTask retryTask = retryCaptor.getValue();
+    assertThat(retryTask.getStatus()).isEqualTo(SyncStatus.PENDING);
+    assertThat(retryTask.getRetryCount()).isEqualTo(1);
+    assertThat(retryTask.getRunAfter()).isAfter(LocalDateTime.now());
   }
 
   @Test
@@ -190,6 +222,85 @@ class GitlabTableSyncWorkerServiceTest {
   }
 
   @Test
+  void shouldCreateDeleteReconcileTaskWhenDailyVerificationFindsExtraMirrorRows() {
+    GitlabTableSyncTask verifyTask = task();
+    verifyTask.setTaskType(GitlabTableSyncTaskType.DAILY_VERIFY);
+    GitlabTableSyncState state = state();
+    GitlabSyncConfig config = config();
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            new GitlabMirrorTableRegistry()));
+    when(externalDbService.probeTable(eq(config), any()))
+        .thenReturn(new GitlabTableProbe(9L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "9"));
+    when(storageService.probeMirrorTable(schema))
+        .thenReturn(new GitlabTableProbe(10L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "10"));
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1L);
+
+    service.executeTask(verifyTask);
+
+    ArgumentCaptor<GitlabTableSyncTask> taskCaptor = ArgumentCaptor.forClass(GitlabTableSyncTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    GitlabTableSyncTask reconcileTask = taskCaptor.getValue();
+    assertThat(reconcileTask.getTaskType()).isEqualTo(GitlabTableSyncTaskType.DELETE_RECONCILE);
+    assertThat(reconcileTask.getStatus()).isEqualTo(SyncStatus.PENDING);
+  }
+
+  @Test
+  void shouldExecuteDeleteReconcileTaskAndQueueContinuationWhenBatchIsFull() {
+    GitlabTableSyncTask task = task();
+    task.setTaskType(GitlabTableSyncTaskType.DELETE_RECONCILE);
+    GitlabTableSyncState state = state();
+    GitlabSyncConfig config = config();
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(new SourceTableColumn("id", "bigint", false, 1)));
+    List<Map<String, Object>> mirrorKeys = List.of(Map.of("id", "101"), Map.of("id", "102"));
+    MirrorPrimaryKeyBatch batch = new MirrorPrimaryKeyBatch(mirrorKeys, "[\"102\"]");
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            new GitlabMirrorTableRegistry()));
+    when(storageService.listActivePrimaryKeys(schema, null, 2)).thenReturn(batch);
+    when(externalDbService.findExistingPrimaryKeySignatures(eq(config), any(), eq(mirrorKeys)))
+        .thenReturn(Set.of("101"));
+    when(storageService.markRowsDeletedByPrimaryKeys(eq(schema), eq(List.of(Map.of("id", "102"))), eq(21L)))
+        .thenReturn(1);
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1L);
+
+    service.executeTask(task);
+
+    assertThat(task.getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    assertThat(task.getRowsScanned()).isEqualTo(2L);
+    assertThat(task.getRowsApplied()).isEqualTo(1L);
+    assertThat(state.isDirtyFlag()).isTrue();
+
+    ArgumentCaptor<GitlabTableSyncTask> continuationCaptor = ArgumentCaptor.forClass(GitlabTableSyncTask.class);
+    verify(taskMapper).insert(continuationCaptor.capture());
+    GitlabTableSyncTask continuation = continuationCaptor.getValue();
+    assertThat(continuation.getTaskType()).isEqualTo(GitlabTableSyncTaskType.DELETE_RECONCILE);
+    assertThat(continuation.getCursorPk()).isEqualTo("[\"102\"]");
+  }
+
+  @Test
   void shouldEnqueueFactRefreshWhenCompensationJobCompletes() {
     GitlabTableSyncTask task = task();
     GitlabTableSyncState state = state();
@@ -226,6 +337,35 @@ class GitlabTableSyncWorkerServiceTest {
     verify(jobMapper).updateById(job);
     verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
     assertThat(job.getStatus()).isEqualTo(SyncStatus.SUCCESS);
+  }
+
+  @Test
+  void shouldMarkJobPartialSuccessWhenSomeTablesFailedAfterRetries() {
+    GitlabTableSyncTask task = task();
+    GitlabTableSyncState state = state();
+    GitlabSyncJob job = new GitlabSyncJob();
+    job.setId(9L);
+    job.setConfigId(3L);
+    job.setJobType(GitlabSyncJobType.COMPENSATION_SCAN);
+    job.setStatus(SyncStatus.RUNNING);
+    task.setRetryCount(3);
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L))
+        .thenThrow(new IllegalStateException("permission denied"))
+        .thenReturn(config());
+    when(jobMapper.selectById(9L)).thenReturn(job);
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any()))
+        .thenReturn(0L, 1L, 0L, 2L);
+
+    service.executeTask(task);
+
+    verify(taskMapper, times(0)).insert(ArgumentMatchers.<GitlabTableSyncTask>any());
+    verify(jobMapper).updateById(job);
+    assertThat(task.getStatus()).isEqualTo(SyncStatus.FAILED);
+    assertThat(job.getStatus()).isEqualTo(SyncStatus.PARTIAL_SUCCESS);
+    assertThat(job.getErrorMessage()).isEqualTo("Some table sync tasks failed or timed out");
+    verify(factBuildTaskService).enqueueMirrorRefreshTasks(any(), eq(false));
   }
 
   private GitlabTableSyncTask task() {

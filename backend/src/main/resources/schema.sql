@@ -129,6 +129,7 @@ create table if not exists gitlab_table_sync_tasks (
     cursor_updated_at timestamp,
     cursor_pk varchar(512),
     batch_size integer not null default 500,
+    run_after timestamp not null default current_timestamp,
     lease_owner varchar(128),
     lease_until timestamp,
     heartbeat_at timestamp,
@@ -793,7 +794,7 @@ create index if not exists idx_gitlab_sync_jobs_dispatch on gitlab_sync_jobs(sta
 create index if not exists idx_gitlab_sync_jobs_config on gitlab_sync_jobs(config_id, job_type, created_at desc);
 create index if not exists idx_gitlab_table_sync_states_dirty on gitlab_table_sync_states(config_id, dirty_flag, updated_at desc);
 create index if not exists idx_gitlab_table_sync_states_table on gitlab_table_sync_states(config_id, source_table);
-create index if not exists idx_gitlab_table_sync_tasks_dispatch on gitlab_table_sync_tasks(status, source_instance, created_at);
+create index if not exists idx_gitlab_table_sync_tasks_dispatch on gitlab_table_sync_tasks(status, run_after, source_instance, created_at);
 create index if not exists idx_gitlab_table_sync_tasks_table on gitlab_table_sync_tasks(config_id, source_table, status, created_at desc);
 create index if not exists idx_gitlab_hook_events_status on gitlab_hook_events(config_id, status, received_at desc);
 create unique index if not exists uk_gitlab_sync_configs_source_instance on gitlab_sync_configs(source_instance);

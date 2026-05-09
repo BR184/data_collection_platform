@@ -265,6 +265,7 @@ public class GitlabTableSyncPlanningService {
     task.setRowStrategy(GitlabTableRowStrategy.INCREMENTAL);
     task.setWatermarkAt(state.getLastWatermarkAt());
     task.setBatchSize(DEFAULT_BATCH_SIZE);
+    task.setRunAfter(now);
     task.setRetryCount(0);
     task.setMaxRetryCount(DEFAULT_MAX_RETRY_COUNT);
     task.setRowsScanned(0L);

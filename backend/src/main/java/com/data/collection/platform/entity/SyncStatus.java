@@ -5,9 +5,11 @@ public enum SyncStatus {
   PENDING,
   QUEUED,
   RUNNING,
+  RETRYING,
   CANCELLING,
   CANCELLED,
   SUCCESS,
+  PARTIAL_SUCCESS,
   FAILED,
   TIMEOUT
 }
