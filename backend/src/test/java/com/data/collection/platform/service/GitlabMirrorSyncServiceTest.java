@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -46,6 +47,7 @@ class GitlabMirrorSyncServiceTest {
   private JsonUtils jsonUtils;
   private FactBuildService factBuildService;
   private IntegrationTestFactBuildService integrationTestFactBuildService;
+  private GitlabTableSyncPlanningService tableSyncPlanningService;
   private GitlabMirrorSyncService selfProxy;
   private GitlabMirrorSyncService syncService;
 
@@ -64,6 +66,7 @@ class GitlabMirrorSyncServiceTest {
     jsonUtils = mock(JsonUtils.class);
     factBuildService = mock(FactBuildService.class);
     integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
+    tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     selfProxy = mock(GitlabMirrorSyncService.class);
     syncService =
         new GitlabMirrorSyncService(
@@ -80,12 +83,14 @@ class GitlabMirrorSyncServiceTest {
             jsonUtils,
             factBuildService,
             integrationTestFactBuildService,
+            tableSyncPlanningService,
             selfProxy);
   }
 
   @Test
   void fullSyncShouldDispatchAsyncExecutionWhenTaskIsPending() {
     GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
     GitlabSyncTask task = new GitlabSyncTask();
     task.setId(100L);
     task.setStatus(SyncStatus.PENDING);
@@ -120,6 +125,24 @@ class GitlabMirrorSyncServiceTest {
     syncService.recoverTimedOutTasks();
 
     verify(taskService).recoverTimedOutTasks();
+  }
+
+  @Test
+  void refreshTablesOnDemandShouldQueueTableLevelManualRefreshPlan() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables =
+        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualRefreshPlan(config, tables, List.of("issues"), "board"))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(31L, 1, 1, 0));
+
+    int planned = syncService.refreshTablesOnDemand(List.of("issues"), "board");
+
+    assertThat(planned).isEqualTo(1);
+    verify(tableSyncPlanningService).createManualRefreshPlan(config, tables, List.of("issues"), "board");
+    verify(externalDbService, never()).incrementalScan(any(), any(), any());
   }
 
   @Test

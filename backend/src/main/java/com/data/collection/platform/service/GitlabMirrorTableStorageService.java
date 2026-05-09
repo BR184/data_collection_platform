@@ -1,13 +1,18 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,6 +76,27 @@ public class GitlabMirrorTableStorageService {
     return jdbcTemplate.update(sql, taskId, lookupValue);
   }
 
+  public GitlabTableProbe probeMirrorTable(SourceTableSchema mirrorSchema) {
+    String primaryKeyColumn = mirrorSchema.primaryKeys().isEmpty() ? "id" : mirrorSchema.primaryKeys().get(0);
+    String sql = """
+        select count(*) as row_count,
+               max(source_updated_at) as max_updated_at,
+               min(%s)::text as min_pk,
+               max(%s)::text as max_pk
+          from %s
+         where coalesce(mirror_deleted, false) = false
+        """.formatted(
+        quoteIdentifier(primaryKeyColumn),
+        quoteIdentifier(primaryKeyColumn),
+        quoteIdentifier(mirrorSchema.tableName()));
+    Map<String, Object> row = jdbcTemplate.queryForMap(sql);
+    return new GitlabTableProbe(
+        toLong(row.get("row_count")),
+        toLocalDateTime(row.get("max_updated_at")),
+        Objects.toString(row.get("min_pk"), ""),
+        Objects.toString(row.get("max_pk"), ""));
+  }
+
   private String buildUpsertSql(SourceTableSchema schema) {
     String tableName = quoteIdentifier(schema.tableName());
     List<String> sourceColumns = schema.columns().stream().map(SourceTableColumn::columnName).toList();
@@ -123,5 +149,32 @@ public class GitlabMirrorTableStorageService {
 
   private String quoteIdentifier(String identifier) {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
+  }
+
+  private long toLong(Object value) {
+    if (value instanceof Number number) {
+      return number.longValue();
+    }
+    if (value == null) {
+      return 0L;
+    }
+    try {
+      return Long.parseLong(String.valueOf(value));
+    } catch (NumberFormatException e) {
+      return 0L;
+    }
+  }
+
+  private LocalDateTime toLocalDateTime(Object value) {
+    if (value instanceof LocalDateTime localDateTime) {
+      return localDateTime;
+    }
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    if (value instanceof java.util.Date date) {
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+    }
+    return null;
   }
 }

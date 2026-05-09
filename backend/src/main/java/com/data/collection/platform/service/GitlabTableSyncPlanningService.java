@@ -58,7 +58,13 @@ public class GitlabTableSyncPlanningService {
     List<TableWhitelistOption> options = whitelistOptions == null ? List.of() : whitelistOptions;
     LocalDateTime now = LocalDateTime.now();
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    GitlabSyncJob job = createJob(config.getId(), sourceInstance, now);
+    GitlabSyncJob job = createJob(
+        config.getId(),
+        sourceInstance,
+        GitlabSyncJobType.COMPENSATION_SCAN,
+        SyncTriggerType.SCHEDULE,
+        0,
+        now);
     jobMapper.insert(job);
 
     int plannedTasks = 0;
@@ -69,7 +75,7 @@ public class GitlabTableSyncPlanningService {
       }
       GitlabTableSyncState state = upsertState(config.getId(), sourceInstance, option, now);
       if (state.isSyncEnabled() && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL) {
-        taskMapper.insert(createIncrementalTask(job, state, now));
+        taskMapper.insert(createTableTask(job, state, GitlabTableSyncTaskType.COMPENSATION_INCREMENTAL, now));
         plannedTasks++;
       } else {
         verifyOnlyTables++;
@@ -84,15 +90,113 @@ public class GitlabTableSyncPlanningService {
     return new CompensationPlanResult(job.getId(), options.size(), plannedTasks, verifyOnlyTables);
   }
 
-  private GitlabSyncJob createJob(Long configId, String sourceInstance, LocalDateTime now) {
+  @Transactional
+  public CompensationPlanResult createDailyVerificationPlan(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions) {
+    Objects.requireNonNull(config, "config must not be null");
+    if (config.getId() == null) {
+      throw new IllegalArgumentException("config id must not be null");
+    }
+    List<TableWhitelistOption> options = whitelistOptions == null ? List.of() : whitelistOptions;
+    LocalDateTime now = LocalDateTime.now();
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    GitlabSyncJob job = createJob(
+        config.getId(),
+        sourceInstance,
+        GitlabSyncJobType.DAILY_VERIFY,
+        SyncTriggerType.SCHEDULE,
+        -10,
+        now);
+    jobMapper.insert(job);
+
+    int plannedTasks = 0;
+    int verifyOnlyTables = 0;
+    for (TableWhitelistOption option : options) {
+      if (option == null || isBlank(option.tableName())) {
+        continue;
+      }
+      GitlabTableSyncState state = upsertState(config.getId(), sourceInstance, option, now);
+      taskMapper.insert(createTableTask(job, state, GitlabTableSyncTaskType.DAILY_VERIFY, now));
+      plannedTasks++;
+      if (state.getRowStrategy() == GitlabTableRowStrategy.VERIFY_ONLY) {
+        verifyOnlyTables++;
+      }
+    }
+    if (plannedTasks == 0) {
+      job.setStatus(SyncStatus.SUCCESS);
+      job.setFinishedAt(LocalDateTime.now());
+      job.setUpdatedAt(job.getFinishedAt());
+      jobMapper.updateById(job);
+    }
+    return new CompensationPlanResult(job.getId(), options.size(), plannedTasks, verifyOnlyTables);
+  }
+
+  @Transactional
+  public CompensationPlanResult createManualRefreshPlan(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions,
+      List<String> sourceTableNames,
+      String reason) {
+    Objects.requireNonNull(config, "config must not be null");
+    if (config.getId() == null) {
+      throw new IllegalArgumentException("config id must not be null");
+    }
+    List<String> targetTables = sourceTableNames == null ? List.of() : sourceTableNames.stream()
+        .filter(tableName -> !isBlank(tableName))
+        .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
+        .toList();
+    List<TableWhitelistOption> options = (whitelistOptions == null ? List.<TableWhitelistOption>of() : whitelistOptions)
+        .stream()
+        .filter(option -> targetTables.contains(GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName())))
+        .toList();
+    LocalDateTime now = LocalDateTime.now();
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    GitlabSyncJob job = createJob(
+        config.getId(),
+        sourceInstance,
+        GitlabSyncJobType.MANUAL_REFRESH,
+        SyncTriggerType.MANUAL,
+        100,
+        now);
+    job.setPayloadJson(reason == null ? "" : reason);
+    jobMapper.insert(job);
+
+    int plannedTasks = 0;
+    int verifyOnlyTables = 0;
+    for (TableWhitelistOption option : options) {
+      GitlabTableSyncState state = upsertState(config.getId(), sourceInstance, option, now);
+      if (state.isSyncEnabled() && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL) {
+        taskMapper.insert(createTableTask(job, state, GitlabTableSyncTaskType.MANUAL_REFRESH, now));
+        plannedTasks++;
+      } else {
+        verifyOnlyTables++;
+      }
+    }
+    if (plannedTasks == 0) {
+      job.setStatus(SyncStatus.SUCCESS);
+      job.setFinishedAt(LocalDateTime.now());
+      job.setUpdatedAt(job.getFinishedAt());
+      jobMapper.updateById(job);
+    }
+    return new CompensationPlanResult(job.getId(), options.size(), plannedTasks, verifyOnlyTables);
+  }
+
+  private GitlabSyncJob createJob(
+      Long configId,
+      String sourceInstance,
+      GitlabSyncJobType jobType,
+      SyncTriggerType triggerType,
+      int priority,
+      LocalDateTime now) {
     GitlabSyncJob job = new GitlabSyncJob();
     job.setRunId(UUID.randomUUID().toString());
     job.setConfigId(configId);
     job.setSourceInstance(sourceInstance);
-    job.setJobType(GitlabSyncJobType.COMPENSATION_SCAN);
-    job.setTriggerType(SyncTriggerType.SCHEDULE);
+    job.setJobType(jobType);
+    job.setTriggerType(triggerType);
     job.setStatus(SyncStatus.PENDING);
-    job.setPriority(0);
+    job.setPriority(priority);
     job.setRunAfter(now);
     job.setRetryCount(0);
     job.setMaxRetryCount(DEFAULT_MAX_RETRY_COUNT);
@@ -145,9 +249,10 @@ public class GitlabTableSyncPlanningService {
     return state;
   }
 
-  private GitlabTableSyncTask createIncrementalTask(
+  private GitlabTableSyncTask createTableTask(
       GitlabSyncJob job,
       GitlabTableSyncState state,
+      GitlabTableSyncTaskType taskType,
       LocalDateTime now) {
     GitlabTableSyncTask task = new GitlabTableSyncTask();
     task.setJobId(job.getId());
@@ -155,7 +260,7 @@ public class GitlabTableSyncPlanningService {
     task.setSourceInstance(state.getSourceInstance());
     task.setSourceTable(state.getSourceTable());
     task.setMirrorTable(state.getMirrorTable());
-    task.setTaskType(GitlabTableSyncTaskType.COMPENSATION_INCREMENTAL);
+    task.setTaskType(taskType);
     task.setStatus(SyncStatus.PENDING);
     task.setRowStrategy(GitlabTableRowStrategy.INCREMENTAL);
     task.setWatermarkAt(state.getLastWatermarkAt());

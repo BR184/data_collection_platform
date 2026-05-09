@@ -147,6 +147,36 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
+  void shouldBuildLightweightTableProbeSql() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("Issue Events", "Issue Events", "Issue ID", "Updated At", false);
+
+    String sql = service.buildTableProbeSql(option);
+
+    assertThat(sql)
+        .isEqualTo("select count(*) as row_count,\n"
+            + "       max(\"Updated At\") as max_updated_at,\n"
+            + "       min(\"Issue ID\")::text as min_pk,\n"
+            + "       max(\"Issue ID\")::text as max_pk\n"
+            + "  from \"public\".\"Issue Events\"");
+  }
+
+  @Test
+  void shouldBuildLightweightTableProbeSqlWithoutUpdatedAt() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("label_links", "Label links", "id", null, true);
+
+    String sql = service.buildTableProbeSql(option);
+
+    assertThat(sql)
+        .isEqualTo("select count(*) as row_count,\n"
+            + "       null::timestamp as max_updated_at,\n"
+            + "       min(\"id\")::text as min_pk,\n"
+            + "       max(\"id\")::text as max_pk\n"
+            + "  from \"public\".\"label_links\"");
+  }
+
+  @Test
   void shouldQuoteSourceTableAndLookupColumnForPreciseScans() {
     TableWhitelistOption option =
         new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);

@@ -6,6 +6,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
+import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
@@ -197,6 +198,19 @@ public class GitlabExternalDbService {
     return executeSourceQuery(config, sql);
   }
 
+  public GitlabTableProbe probeTable(GitlabSyncConfig config, TableWhitelistOption option) {
+    List<Map<String, Object>> rows = executeSourceQuery(config, buildTableProbeSql(option));
+    if (rows.isEmpty()) {
+      return new GitlabTableProbe(0L, null, "", "");
+    }
+    Map<String, Object> row = rows.get(0);
+    return new GitlabTableProbe(
+        toLong(row.get("row_count")),
+        toLocalDateTime(row.get("max_updated_at")),
+        Objects.toString(row.get("min_pk"), ""),
+        Objects.toString(row.get("max_pk"), ""));
+  }
+
   private List<Map<String, Object>> timeWindowScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
     String sql = buildTimeWindowScanSql(option, since);
     return executeSourceQuery(config, sql);
@@ -260,6 +274,24 @@ public class GitlabExternalDbService {
         .append(" asc limit ")
         .append(Math.max(1, batchSize))
         .toString();
+  }
+
+  String buildTableProbeSql(TableWhitelistOption option) {
+    String primaryKeyColumn = quoteIdentifier(firstPrimaryKey(option));
+    String maxUpdatedAtExpression = option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()
+        ? "null::timestamp"
+        : "max(" + quoteIdentifier(option.updatedAtColumn()) + ")";
+    return """
+        select count(*) as row_count,
+               %s as max_updated_at,
+               min(%s)::text as min_pk,
+               max(%s)::text as max_pk
+          from %s
+        """.formatted(
+        maxUpdatedAtExpression,
+        primaryKeyColumn,
+        primaryKeyColumn,
+        quoteQualifiedPublicTable(option.tableName())).strip();
   }
 
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
@@ -773,6 +805,36 @@ public class GitlabExternalDbService {
     try {
       return OffsetDateTime.parse(text).toLocalDateTime();
     } catch (Exception ignored) {
+    }
+    return null;
+  }
+
+  private long toLong(Object value) {
+    if (value instanceof Number number) {
+      return number.longValue();
+    }
+    if (value == null) {
+      return 0L;
+    }
+    try {
+      return Long.parseLong(String.valueOf(value));
+    } catch (NumberFormatException e) {
+      return 0L;
+    }
+  }
+
+  private LocalDateTime toLocalDateTime(Object value) {
+    if (value instanceof LocalDateTime localDateTime) {
+      return localDateTime;
+    }
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    if (value instanceof java.util.Date date) {
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+    }
+    if (value instanceof String text) {
+      return parseDateTime(text);
     }
     return null;
   }

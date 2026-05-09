@@ -49,6 +49,7 @@ public class GitlabMirrorSyncService {
   private final JsonUtils jsonUtils;
   private final FactBuildService factBuildService;
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
+  private final GitlabTableSyncPlanningService tableSyncPlanningService;
   private final GitlabMirrorSyncService self;
   private final ConcurrentMap<Long, SyncProgress> progressMap = new ConcurrentHashMap<>();
   // 每个服务实例持有独立锁 owner，用于区分本机正在处理的长同步任务和历史遗留任务。
@@ -68,6 +69,7 @@ public class GitlabMirrorSyncService {
       JsonUtils jsonUtils,
       @Lazy FactBuildService factBuildService,
       @Lazy IntegrationTestFactBuildService integrationTestFactBuildService,
+      GitlabTableSyncPlanningService tableSyncPlanningService,
       @Lazy GitlabMirrorSyncService self) {
     this.configService = configService;
     this.whitelistService = whitelistService;
@@ -82,6 +84,7 @@ public class GitlabMirrorSyncService {
     this.jsonUtils = jsonUtils;
     this.factBuildService = factBuildService;
     this.integrationTestFactBuildService = integrationTestFactBuildService;
+    this.tableSyncPlanningService = tableSyncPlanningService;
     this.self = self;
   }
 
@@ -161,56 +164,20 @@ public class GitlabMirrorSyncService {
     if (config.getId() == null || !config.isEnabled()) {
       return 0;
     }
-    taskService.recoverTimedOutTasks();
-    if (hasExecutingTask(config.getId())) {
-      try (GitlabSyncLogContext.Scope context =
-               GitlabSyncLogContext.openConfig(config, "ON_DEMAND_REFRESH");
-           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SKIPPED")) {
-        log.info("Skipped on-demand refresh because another sync task is executing, reason={}", reason);
-      }
-      return 0;
-    }
-
-    Set<String> targetTables = new LinkedHashSet<>(sourceTableNames);
-    List<TableWhitelistOption> tables = whitelistService.listOptions(config).stream()
-        .filter(option -> targetTables.contains(option.tableName()))
-        .toList();
-    if (tables.isEmpty()) {
-      return 0;
-    }
-
-    int recordCount = 0;
     try (GitlabSyncLogContext.Scope context =
              GitlabSyncLogContext.openConfig(config, "ON_DEMAND_REFRESH");
-         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("EXECUTING")) {
-      log.info("Starting on-demand mirror refresh, reason={}, tables={}", reason, targetTables);
-      externalDbService.testConnection(config);
-      for (TableWhitelistOption table : tables) {
-        try {
-          GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
-              mirrorSchemaService.getPreparedMirrorTableForSync(config, table);
-          mirrorSchemaService.markTableSyncing(config.getId(), table.tableName());
-          LocalDateTime since = resolveOnDemandSince(config, preparedMirrorTable.registry(), table);
-          List<Map<String, Object>> rows =
-              externalDbService.incrementalScan(config, table, since);
-          recordCount = writeMirrorRows(
-              null,
-              reason,
-              config,
-              table,
-              preparedMirrorTable.mirrorSchema(),
-              rows,
-              recordCount,
-              null);
-          mirrorSchemaService.markTableIdle(config.getId(), table.tableName(), LocalDateTime.now());
-        } catch (Exception e) {
-          mirrorSchemaService.markTableError(config.getId(), table.tableName());
-          throw e;
-        }
-      }
-      configService.updateSyncTime(config.getId(), false);
-      log.info("Finished on-demand mirror refresh, reason={}, syncedRecords={}", reason, recordCount);
-      return recordCount;
+         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("QUEUED")) {
+      List<TableWhitelistOption> tables = whitelistService.listOptions(config);
+      GitlabTableSyncPlanningService.CompensationPlanResult result =
+          tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, reason);
+      log.info(
+          "Queued on-demand table refresh, reason={}, jobId={}, targetTables={}, plannedTasks={}, verifyOnlyTables={}",
+          reason,
+          result.jobId(),
+          sourceTableNames,
+          result.plannedTasks(),
+          result.verifyOnlyTables());
+      return result.plannedTasks();
     }
   }
 

@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
+import com.data.collection.platform.entity.GitlabTableSyncTaskType;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -21,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -89,37 +92,14 @@ public class GitlabTableSyncWorkerService {
     markTaskRunning(task, now);
     GitlabTableSyncState state = findState(task);
     try {
-      if (state == null || state.getRowStrategy() != GitlabTableRowStrategy.INCREMENTAL || !state.isSyncEnabled()) {
-        throw new IllegalStateException("Table task is not executable by incremental worker");
+      if (state == null) {
+        throw new IllegalStateException("Table sync state is missing");
       }
-      GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
-      TableWhitelistOption option = new TableWhitelistOption(
-          state.getSourceTable(),
-          state.getSourceTable(),
-          state.getPrimaryKeyColumns(),
-          state.getUpdatedAtColumn(),
-          true);
-      GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
-          mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
-      mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
-
-      LocalDateTime since = resolveScanStart(task);
-      List<Map<String, Object>> rows = externalDbService.incrementalCursorScan(
-          config,
-          option,
-          since,
-          task.getCursorUpdatedAt(),
-          task.getCursorPk(),
-          resolveBatchSize(task));
-      MirrorBatchWriteResult writeResult =
-          storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
-      RowCursor lastCursor = lastCursor(rows, state);
-      boolean hasMore = rows.size() >= resolveBatchSize(task) && lastCursor.updatedAt() != null;
-      markSuccess(task, state, rows.size(), writeResult.appliedRows(), lastCursor, hasMore);
-      if (hasMore) {
-        taskMapper.insert(createContinuationTask(task, lastCursor));
+      if (task.getTaskType() == GitlabTableSyncTaskType.DAILY_VERIFY) {
+        executeDailyVerify(task, state);
+      } else {
+        executeIncrementalLikeTask(task, state);
       }
-      mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
       finishJobIfComplete(task.getJobId());
     } catch (Exception e) {
       markFailure(task, state, e);
@@ -130,6 +110,49 @@ public class GitlabTableSyncWorkerService {
           task.getSourceTable(),
           e);
     }
+  }
+
+  private void executeDailyVerify(GitlabTableSyncTask task, GitlabTableSyncState state) {
+    GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
+    TableWhitelistOption option = tableOption(state);
+    GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
+        mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+    GitlabTableProbe sourceProbe = externalDbService.probeTable(config, option);
+    GitlabTableProbe mirrorProbe = storageService.probeMirrorTable(preparedMirrorTable.mirrorSchema());
+    boolean drifted = isDrifted(sourceProbe, mirrorProbe, state);
+    markVerificationSuccess(task, state, sourceProbe, mirrorProbe, drifted);
+    if (drifted && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL && state.isSyncEnabled()) {
+      taskMapper.insert(createRepairTask(task, state));
+    }
+  }
+
+  private void executeIncrementalLikeTask(GitlabTableSyncTask task, GitlabTableSyncState state) {
+    if (state.getRowStrategy() != GitlabTableRowStrategy.INCREMENTAL || !state.isSyncEnabled()) {
+      throw new IllegalStateException("Table task is not executable by incremental worker");
+    }
+    GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
+    TableWhitelistOption option = tableOption(state);
+    GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
+        mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+    mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+
+    LocalDateTime since = resolveScanStart(task);
+    List<Map<String, Object>> rows = externalDbService.incrementalCursorScan(
+        config,
+        option,
+        since,
+        task.getCursorUpdatedAt(),
+        task.getCursorPk(),
+        resolveBatchSize(task));
+    MirrorBatchWriteResult writeResult =
+        storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+    RowCursor lastCursor = lastCursor(rows, state);
+    boolean hasMore = rows.size() >= resolveBatchSize(task) && lastCursor.updatedAt() != null;
+    markSuccess(task, state, rows.size(), writeResult.appliedRows(), lastCursor, hasMore);
+    if (hasMore) {
+      taskMapper.insert(createContinuationTask(task, lastCursor));
+    }
+    mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
   }
 
   private void markTaskRunning(GitlabTableSyncTask task, LocalDateTime now) {
@@ -193,6 +216,30 @@ public class GitlabTableSyncWorkerService {
     stateMapper.updateById(state);
   }
 
+  private void markVerificationSuccess(
+      GitlabTableSyncTask task,
+      GitlabTableSyncState state,
+      GitlabTableProbe sourceProbe,
+      GitlabTableProbe mirrorProbe,
+      boolean drifted) {
+    LocalDateTime now = LocalDateTime.now();
+    task.setStatus(SyncStatus.SUCCESS);
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setFinishedAt(now);
+    task.setUpdatedAt(now);
+    taskMapper.updateById(task);
+
+    state.setSourceRowCount(sourceProbe.rowCount());
+    state.setMirrorRowCount(mirrorProbe.rowCount());
+    state.setSourceMaxUpdatedAt(sourceProbe.maxUpdatedAt());
+    state.setLastFullVerifiedAt(now);
+    state.setDirtyFlag(drifted);
+    state.setLastError(drifted ? buildDriftMessage(sourceProbe, mirrorProbe, state) : "");
+    state.setUpdatedAt(now);
+    stateMapper.updateById(state);
+  }
+
   private GitlabTableSyncTask createContinuationTask(GitlabTableSyncTask previousTask, RowCursor cursor) {
     LocalDateTime now = LocalDateTime.now();
     GitlabTableSyncTask task = new GitlabTableSyncTask();
@@ -210,6 +257,28 @@ public class GitlabTableSyncWorkerService {
     task.setBatchSize(resolveBatchSize(previousTask));
     task.setRetryCount(0);
     task.setMaxRetryCount(previousTask.getMaxRetryCount());
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    return task;
+  }
+
+  private GitlabTableSyncTask createRepairTask(GitlabTableSyncTask verificationTask, GitlabTableSyncState state) {
+    LocalDateTime now = LocalDateTime.now();
+    GitlabTableSyncTask task = new GitlabTableSyncTask();
+    task.setJobId(verificationTask.getJobId());
+    task.setConfigId(verificationTask.getConfigId());
+    task.setSourceInstance(verificationTask.getSourceInstance());
+    task.setSourceTable(verificationTask.getSourceTable());
+    task.setMirrorTable(verificationTask.getMirrorTable());
+    task.setTaskType(GitlabTableSyncTaskType.FULL_REPAIR);
+    task.setStatus(SyncStatus.PENDING);
+    task.setRowStrategy(GitlabTableRowStrategy.INCREMENTAL);
+    task.setWatermarkAt(INITIAL_WATERMARK);
+    task.setBatchSize(resolveBatchSize(verificationTask));
+    task.setRetryCount(0);
+    task.setMaxRetryCount(verificationTask.getMaxRetryCount());
     task.setRowsScanned(0L);
     task.setRowsApplied(0L);
     task.setCreatedAt(now);
@@ -328,6 +397,43 @@ public class GitlabTableSyncWorkerService {
     LocalDateTime updatedAt = toLocalDateTime(row.get(state.getUpdatedAtColumn()));
     Object primaryKey = row.get(firstPrimaryKey(state.getPrimaryKeyColumns()));
     return new RowCursor(updatedAt, primaryKey == null ? "" : String.valueOf(primaryKey));
+  }
+
+  private TableWhitelistOption tableOption(GitlabTableSyncState state) {
+    return new TableWhitelistOption(
+        state.getSourceTable(),
+        state.getSourceTable(),
+        state.getPrimaryKeyColumns(),
+        state.getUpdatedAtColumn(),
+        true);
+  }
+
+  private boolean isDrifted(GitlabTableProbe sourceProbe, GitlabTableProbe mirrorProbe, GitlabTableSyncState state) {
+    if (sourceProbe.rowCount() != mirrorProbe.rowCount()) {
+      return true;
+    }
+    if (!Objects.equals(sourceProbe.minPrimaryKey(), mirrorProbe.minPrimaryKey())
+        || !Objects.equals(sourceProbe.maxPrimaryKey(), mirrorProbe.maxPrimaryKey())) {
+      return true;
+    }
+    return state.getUpdatedAtColumn() != null
+        && !state.getUpdatedAtColumn().isBlank()
+        && !Objects.equals(sourceProbe.maxUpdatedAt(), mirrorProbe.maxUpdatedAt());
+  }
+
+  private String buildDriftMessage(
+      GitlabTableProbe sourceProbe,
+      GitlabTableProbe mirrorProbe,
+      GitlabTableSyncState state) {
+    if (state.getRowStrategy() != GitlabTableRowStrategy.INCREMENTAL) {
+      return "Daily verification found drift, but table has no updated_at column for incremental repair";
+    }
+    return "Daily verification found drift: sourceRows=%d, mirrorRows=%d, sourceMaxUpdatedAt=%s, mirrorMaxUpdatedAt=%s"
+        .formatted(
+            sourceProbe.rowCount(),
+            mirrorProbe.rowCount(),
+            sourceProbe.maxUpdatedAt(),
+            mirrorProbe.maxUpdatedAt());
   }
 
   private int resolveBatchSize(GitlabTableSyncTask task) {

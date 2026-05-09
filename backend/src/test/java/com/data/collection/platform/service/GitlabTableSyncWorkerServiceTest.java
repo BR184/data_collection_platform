@@ -12,6 +12,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
@@ -140,6 +141,48 @@ class GitlabTableSyncWorkerServiceTest {
     assertThat(retryTask.getStatus()).isEqualTo(SyncStatus.PENDING);
     assertThat(retryTask.getRetryCount()).isEqualTo(2);
     assertThat(retryTask.getSourceTable()).isEqualTo("issues");
+  }
+
+  @Test
+  void shouldCreateRepairTaskWhenDailyVerificationFindsDrift() {
+    GitlabTableSyncTask verifyTask = task();
+    verifyTask.setTaskType(GitlabTableSyncTaskType.DAILY_VERIFY);
+    GitlabTableSyncState state = state();
+    GitlabSyncConfig config = config();
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            new GitlabMirrorTableRegistry()));
+    when(externalDbService.probeTable(eq(config), any()))
+        .thenReturn(new GitlabTableProbe(10L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "10"));
+    when(storageService.probeMirrorTable(schema))
+        .thenReturn(new GitlabTableProbe(9L, LocalDateTime.of(2026, 1, 2, 3, 3), "1", "9"));
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1L);
+
+    service.executeTask(verifyTask);
+
+    assertThat(verifyTask.getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    assertThat(state.isDirtyFlag()).isTrue();
+    assertThat(state.getSourceRowCount()).isEqualTo(10L);
+    assertThat(state.getMirrorRowCount()).isEqualTo(9L);
+
+    ArgumentCaptor<GitlabTableSyncTask> repairCaptor = ArgumentCaptor.forClass(GitlabTableSyncTask.class);
+    verify(taskMapper).insert(repairCaptor.capture());
+    GitlabTableSyncTask repairTask = repairCaptor.getValue();
+    assertThat(repairTask.getTaskType()).isEqualTo(GitlabTableSyncTaskType.FULL_REPAIR);
+    assertThat(repairTask.getStatus()).isEqualTo(SyncStatus.PENDING);
+    assertThat(repairTask.getWatermarkAt()).isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
   }
 
   private GitlabTableSyncTask task() {
