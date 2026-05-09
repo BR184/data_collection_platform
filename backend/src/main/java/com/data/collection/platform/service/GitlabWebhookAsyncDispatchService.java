@@ -1,20 +1,10 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import jakarta.annotation.PreDestroy;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
+import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -22,29 +12,20 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class GitlabWebhookAsyncDispatchService {
-  private final ConcurrentLinkedQueue<QueuedWebhookEntry> pendingQueue = new ConcurrentLinkedQueue<>();
-  private final AtomicInteger queuedCount = new AtomicInteger();
-  private final ConcurrentMap<String, ObjectLock> objectLocks = new ConcurrentHashMap<>();
-  private final ExecutorService workerPool =
-      Executors.newFixedThreadPool(Math.max(4, Runtime.getRuntime().availableProcessors()));
-
-  private final GitlabMirrorProperties properties;
-  private final GitlabWebhookPreciseSyncPlanner planner;
-  private final GitlabMirrorSyncService syncService;
   private final GitlabConfigService configService;
   private final GitlabMirrorSchemaService mirrorSchemaService;
+  private final GitlabWhitelistService whitelistService;
+  private final GitlabTableSyncPlanningService tableSyncPlanningService;
 
   public GitlabWebhookAsyncDispatchService(
-      GitlabMirrorProperties properties,
-      GitlabWebhookPreciseSyncPlanner planner,
-      GitlabMirrorSyncService syncService,
       GitlabConfigService configService,
-      GitlabMirrorSchemaService mirrorSchemaService) {
-    this.properties = properties;
-    this.planner = planner;
-    this.syncService = syncService;
+      GitlabMirrorSchemaService mirrorSchemaService,
+      GitlabWhitelistService whitelistService,
+      GitlabTableSyncPlanningService tableSyncPlanningService) {
     this.configService = configService;
     this.mirrorSchemaService = mirrorSchemaService;
+    this.whitelistService = whitelistService;
+    this.tableSyncPlanningService = tableSyncPlanningService;
   }
 
   public void accept(String eventType, Map<String, Object> payload) {
@@ -52,55 +33,19 @@ public class GitlabWebhookAsyncDispatchService {
   }
 
   public void accept(GitlabSyncConfig config, String eventType, Map<String, Object> payload) {
-    GitlabWebhookPreciseSyncPlan plan = planner.plan(payload);
-    if (plan.targets().isEmpty()) {
-      syncService.startWebhookSync(config, eventType, payload);
-      return;
-    }
-    int maxQueueSize = Math.max(1, properties.getWebhookMaxQueueSize());
-    if (queuedCount.get() >= maxQueueSize) {
-      try (GitlabSyncLogContext.Scope context =
-               GitlabSyncLogContext.openConfig(config, "WEBHOOK_ASYNC", plan.objectKey());
-           GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(plan.objectId());
-           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("QUEUE_OVERFLOW")) {
-        log.warn(
-            "Webhook precise queue is full, fallback to incremental sync, eventType={}, objectKey={}, objectId={}, queuedSize={}, maxQueueSize={}",
-            eventType,
-            plan.objectKey(),
-            plan.objectId(),
-            queuedCount.get(),
-            maxQueueSize);
-      }
-      syncService.startIncrementalSync(
-          config.getId(),
-          com.data.collection.platform.entity.SyncTriggerType.WEBHOOK,
-          "Webhook precise queue overloaded; fallback incremental sync");
-      return;
-    }
-
-    QueuedWebhookEntry entry = new QueuedWebhookEntry(
-        config.getId(),
-        buildDispatchKey(config.getId(), plan.objectKey()),
-        plan.objectKey(),
-        plan.objectId(),
-        eventType,
-        payload,
-        LocalDateTime.now());
-    pendingQueue.add(entry);
-    int currentQueued = queuedCount.incrementAndGet();
+    List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
+    GitlabTableSyncPlanningService.CompensationPlanResult result =
+        tableSyncPlanningService.createCompensationScanPlan(config, tables);
     try (GitlabSyncLogContext.Scope context =
-             GitlabSyncLogContext.openConfig(config, "WEBHOOK_ASYNC", plan.objectKey());
-         GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(plan.objectId());
-         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("QUEUED")) {
+             GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
+         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_QUEUED")) {
       log.info(
-          "Webhook queued for async precise sync, eventType={}, objectKey={}, objectId={}, queuedSize={}",
+          "Webhook wakeup queued compensation scan, eventType={}, jobId={}, discoveredTables={}, plannedTasks={}, verifyOnlyTables={}",
           eventType,
-          plan.objectKey(),
-          plan.objectId(),
-          currentQueued);
-    }
-    if (currentQueued >= properties.getWebhookBatchSize()) {
-      flushPending();
+          result.jobId(),
+          result.discoveredTables(),
+          result.plannedTasks(),
+          result.verifyOnlyTables());
     }
   }
 
@@ -110,109 +55,14 @@ public class GitlabWebhookAsyncDispatchService {
   }
 
   public void flushPending() {
-    List<QueuedWebhookEntry> drained = new ArrayList<>();
-    QueuedWebhookEntry entry;
-    while ((entry = pendingQueue.poll()) != null) {
-      drained.add(entry);
-    }
-    if (drained.isEmpty()) {
-      mirrorSchemaService.recoverStaleSyncingStatuses();
-      return;
-    }
-    queuedCount.addAndGet(-drained.size());
     mirrorSchemaService.recoverStaleSyncingStatuses();
-
-    Map<String, QueuedWebhookEntry> latestByObject = new java.util.LinkedHashMap<>();
-    for (QueuedWebhookEntry queued : drained) {
-      latestByObject.merge(
-          queued.dispatchKey(),
-          queued,
-          (left, right) -> left.receivedAt().isAfter(right.receivedAt()) ? left : right);
-    }
-
-    latestByObject.values().forEach(this::dispatch);
-  }
-
-  private void dispatch(QueuedWebhookEntry entry) {
-    workerPool.submit(() -> executeSerial(entry));
-  }
-
-  private void executeSerial(QueuedWebhookEntry entry) {
-    ObjectLock objectLock = acquireObjectLock(entry.dispatchKey());
-    objectLock.lock().lock();
-    try {
-      GitlabSyncConfig config = configService.getConfigById(entry.configId());
-      try (GitlabSyncLogContext.Scope context =
-               GitlabSyncLogContext.openConfig(config, "WEBHOOK_ASYNC", entry.objectKey());
-           GitlabSyncLogContext.Scope objectScope = GitlabSyncLogContext.object(entry.objectId());
-           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("EXECUTING")) {
-        log.info(
-            "Executing queued webhook precise sync, eventType={}, objectKey={}, objectId={}",
-            entry.eventType(),
-            entry.objectKey(),
-            entry.objectId());
-      }
-      syncService.executeRealtimeWebhookSync(config, entry.payload(), entry.objectId());
-    } finally {
-      objectLock.lock().unlock();
-      releaseObjectLock(entry.dispatchKey(), objectLock);
-    }
-  }
-
-  private ObjectLock acquireObjectLock(String dispatchKey) {
-    return objectLocks.compute(dispatchKey, (ignored, existing) -> {
-      ObjectLock objectLock = existing == null ? new ObjectLock() : existing;
-      objectLock.retain();
-      return objectLock;
-    });
-  }
-
-  private void releaseObjectLock(String dispatchKey, ObjectLock objectLock) {
-    objectLocks.computeIfPresent(dispatchKey, (ignored, existing) -> {
-      if (existing != objectLock) {
-        return existing;
-      }
-      return objectLock.release() == 0 ? null : objectLock;
-    });
   }
 
   int objectLockCount() {
-    return objectLocks.size();
+    return 0;
   }
 
-  @PreDestroy
   public void shutdown() {
-    workerPool.shutdownNow();
-  }
-
-  private String buildDispatchKey(Long configId, String objectKey) {
-    return (configId == null ? "default" : configId.toString()) + ":" + objectKey;
-  }
-
-  record QueuedWebhookEntry(
-      Long configId,
-      String dispatchKey,
-      String objectKey,
-      String objectId,
-      String eventType,
-      Map<String, Object> payload,
-      LocalDateTime receivedAt) {
-  }
-
-  private static final class ObjectLock {
-    private final ReentrantLock lock = new ReentrantLock();
-    private final AtomicInteger references = new AtomicInteger();
-
-    ReentrantLock lock() {
-      return lock;
-    }
-
-    void retain() {
-      references.incrementAndGet();
-    }
-
-    int release() {
-      return references.decrementAndGet();
-    }
+    // No background worker remains. Hooks only persist events and wake compensation planning.
   }
 }

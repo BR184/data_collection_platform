@@ -8,5 +8,6 @@
   "V20260507_03__gitlab_multi_source_configs.sql": "585bbe0e1f17b9c47c276528efe2620f7b206179d883db95eba983dc322048f1",
   "V20260507_04__code_review_source_query_indexes.sql": "f7513cd80361438432dad76f6995b37a0411537040b29abdda78be2b6a02a983",
   "V20260507_05__operation_audit_request_summary.sql": "777a0e1f24a40f5f5b6848049ee07c02f38f630021424a3767492d589c9c5aed",
-  "V20260508_01__gitlab_webhook_config_semantics.sql": "5a34889b9a94e63d77c839f04afd36b8d500cf2a969ddb902c71d5e538a11f12"
+  "V20260508_01__gitlab_webhook_config_semantics.sql": "5a34889b9a94e63d77c839f04afd36b8d500cf2a969ddb902c71d5e538a11f12",
+  "V20260509_01__gitlab_table_level_sync_jobs.sql": "45a1bcffaf707c82242d879cf4400fd50486dbb5c1dd78db8410ddf3d4215c6b"
 }

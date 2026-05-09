@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -7,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.TableWhitelistOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,8 @@ class GitlabCompensationSchedulerTest {
   private GitlabConfigService configService;
   private GitlabMirrorSyncService syncService;
   private GitlabSyncTaskService taskService;
+  private GitlabWhitelistService whitelistService;
+  private GitlabTableSyncPlanningService tableSyncPlanningService;
   private GitlabCompensationScheduler scheduler;
 
   @BeforeEach
@@ -27,7 +31,15 @@ class GitlabCompensationSchedulerTest {
     configService = mock(GitlabConfigService.class);
     syncService = mock(GitlabMirrorSyncService.class);
     taskService = mock(GitlabSyncTaskService.class);
-    scheduler = new GitlabCompensationScheduler(properties, configService, syncService, taskService);
+    whitelistService = mock(GitlabWhitelistService.class);
+    tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
+    scheduler = new GitlabCompensationScheduler(
+        properties,
+        configService,
+        syncService,
+        taskService,
+        whitelistService,
+        tableSyncPlanningService);
   }
 
   @Test
@@ -37,11 +49,17 @@ class GitlabCompensationSchedulerTest {
     when(syncService.hasActiveTask(1L)).thenReturn(false);
     when(taskService.isInCooldown(1L)).thenReturn(false);
     when(taskService.resolveLatestActivityAt(1L)).thenReturn(LocalDateTime.now().minusMinutes(20));
+    List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createCompensationScanPlan(config, tables))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(11L, 1, 1, 0));
 
     scheduler.run();
 
     verify(syncService).recoverTimedOutTasks();
-    verify(syncService).startCompensationSync(config);
+    verify(whitelistService).resolveOptions(config);
+    verify(tableSyncPlanningService).createCompensationScanPlan(config, tables);
+    verify(syncService, never()).startCompensationSync(config);
   }
 
   @Test
@@ -53,6 +71,7 @@ class GitlabCompensationSchedulerTest {
     scheduler.run();
 
     verify(syncService).recoverTimedOutTasks();
+    verify(tableSyncPlanningService, never()).createCompensationScanPlan(any(), any());
     verify(syncService, never()).startCompensationSync(config);
   }
 
