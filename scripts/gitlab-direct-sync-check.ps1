@@ -4,6 +4,10 @@ param(
   [string] $WebhookSecret = "",
   [switch] $SimulateWebhook,
   [switch] $StartIncrementalSync,
+  [switch] $PollAfterSubmission,
+  [switch] $RequireCleanMirror,
+  [int] $MaxPollAttempts = 24,
+  [int] $PollIntervalSeconds = 5,
   [int] $WebhookProjectId = 10,
   [int] $WebhookObjectId = 101,
   [string] $WebhookTitle = "Simulated issue from direct sync check",
@@ -72,6 +76,11 @@ function Invoke-PlatformApi {
   return Invoke-RestMethod @request
 }
 
+function Test-ActiveStatus {
+  param([string] $Status)
+  return @("PENDING", "QUEUED", "RUNNING", "RETRYING", "CANCELLING") -contains $Status
+}
+
 function Assert-ApiSuccess {
   param(
     [string] $Name,
@@ -81,6 +90,29 @@ function Assert-ApiSuccess {
     return
   }
   Write-Check $Name ($Response.success -eq $true) $Response.message
+}
+
+function Wait-For-StableStatus {
+  if ($DryRun) {
+    return
+  }
+  if (-not $PollAfterSubmission) {
+    return
+  }
+
+  Write-Section "Polling mirror status"
+  for ($attempt = 1; $attempt -le $MaxPollAttempts; $attempt += 1) {
+    $statusResponse = Invoke-PlatformApi -Method GET -Path (Build-ConfigPath "/api/gitlab-sync/status")
+    Assert-ApiSuccess "Status poll $attempt returned success" $statusResponse
+    $currentStatus = [string] $statusResponse.data.currentStatus
+    Write-Host "poll=$attempt currentStatus=$currentStatus"
+    if (-not (Test-ActiveStatus $currentStatus)) {
+      Write-Check "Mirror status reached stable state" ($currentStatus -notin @("FAILED", "TIMEOUT")) $currentStatus
+      return
+    }
+    Start-Sleep -Seconds ([Math]::Max(1, $PollIntervalSeconds))
+  }
+  Write-Check "Mirror status reached stable state within polling window" $false "attempts=$MaxPollAttempts"
 }
 
 $script:NormalizedBaseUrl = Normalize-BaseUrl $BaseUrl
@@ -141,6 +173,56 @@ if (-not $DryRun) {
   if ($status.data.currentTask -ne $null) {
     Write-Host "currentTask: id=$($status.data.currentTask.id), type=$($status.data.currentTask.taskType), status=$($status.data.currentTask.status)"
   }
+  Write-Check "Current status is not failed" ($status.data.currentStatus -notin @("FAILED", "TIMEOUT")) $status.data.currentStatus
+}
+
+Write-Section "Source health"
+$health = Invoke-PlatformApi -Method GET -Path "/api/gitlab-sync/source-health"
+Assert-ApiSuccess "Source health endpoint returned success" $health
+
+if (-not $DryRun) {
+  $healthItems = @($health.data)
+  $currentHealth = $healthItems | Where-Object { $_.configId -eq $ConfigId } | Select-Object -First 1
+  Write-Check "Current source health is present" ($currentHealth -ne $null) "configId=$ConfigId"
+  if ($currentHealth -ne $null) {
+    Write-Host "health.currentStatus: $($currentHealth.currentStatus)"
+    Write-Host "health.latestLogStatus: $($currentHealth.latestLogStatus)"
+    Write-Host "health.mirrorTables: $($currentHealth.existingMirrorTables)/$($currentHealth.registeredMirrorTables)"
+    Write-Check "Source health is not failed" ($currentHealth.latestLogStatus -notin @("FAILED", "TIMEOUT")) $currentHealth.latestLogStatus
+    if ($RequireCleanMirror) {
+      Write-Check "Required mirror tables exist" ($currentHealth.missingRequiredMirrorTables.Count -eq 0) "missing=$($currentHealth.missingRequiredMirrorTables.Count)"
+      Write-Check "Fact layer is current" (-not [bool] $currentHealth.factLayerLagging) $currentHealth.factLayerMessage
+    }
+  }
+}
+
+Write-Section "Table sync diagnostics"
+$tableDiagnosticsPath = Build-ConfigPath "/api/gitlab-sync/table-sync-diagnostics"
+$tableDiagnostics = Invoke-PlatformApi -Method GET -Path $tableDiagnosticsPath
+Assert-ApiSuccess "Table sync diagnostics endpoint returned success" $tableDiagnostics
+
+if (-not $DryRun) {
+  $data = $tableDiagnostics.data
+  Write-Host "tableCount: $($data.tableCount)"
+  Write-Host "dirtyTableCount: $($data.dirtyTableCount)"
+  Write-Host "tasks: pending=$($data.pendingTaskCount), running=$($data.runningTaskCount), retrying=$($data.retryingTaskCount), failed=$($data.failedTaskCount), timeout=$($data.timedOutTaskCount)"
+  Write-Check "No failed table sync tasks" ([int] $data.failedTaskCount -eq 0) "failed=$($data.failedTaskCount)"
+  Write-Check "No timed-out table sync tasks" ([int] $data.timedOutTaskCount -eq 0) "timeout=$($data.timedOutTaskCount)"
+  if ($RequireCleanMirror) {
+    Write-Check "No dirty table sync states" ([int] $data.dirtyTableCount -eq 0) "dirty=$($data.dirtyTableCount)"
+    Write-Check "No pending/running/retrying table sync tasks" (
+      ([int] $data.pendingTaskCount + [int] $data.runningTaskCount + [int] $data.retryingTaskCount) -eq 0
+    ) "pending=$($data.pendingTaskCount), running=$($data.runningTaskCount), retrying=$($data.retryingTaskCount)"
+  }
+  $problemTables = @($data.tables | Where-Object {
+      $_.dirty -or $_.latestTaskStatus -in @("FAILED", "TIMEOUT", "RETRYING")
+    } | Select-Object -First 10)
+  if ($problemTables.Count -gt 0) {
+    Write-Host "Problem tables:"
+    foreach ($table in $problemTables) {
+      Write-Host "  $($table.sourceTable): dirty=$($table.dirty), latestTask=$($table.latestTaskType)/$($table.latestTaskStatus), error=$($table.lastError)$($table.latestTaskError)"
+    }
+  }
 }
 
 if ($StartIncrementalSync) {
@@ -154,6 +236,7 @@ if ($StartIncrementalSync) {
     Write-Host "action: $($incremental.data.action)"
     Write-Host "message: $($incremental.data.message)"
   }
+  Wait-For-StableStatus
 }
 
 if ($SimulateWebhook) {
@@ -183,6 +266,7 @@ if ($SimulateWebhook) {
   if (-not $DryRun) {
     Write-Check "Webhook receiver accepted payload" ([bool] $webhook.data.accepted) ""
   }
+  Wait-For-StableStatus
 }
 
 Write-Section "Result"

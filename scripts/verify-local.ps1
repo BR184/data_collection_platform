@@ -24,6 +24,7 @@ try {
   python scripts/check_runtime_artifact_locations.py
   python scripts/check_text_whitespace.py
   git diff --check
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gitlab-direct-sync-check.ps1 -DryRun -StartIncrementalSync -SimulateWebhook -WebhookSecret dry-run-secret -PollAfterSubmission -RequireCleanMirror
 } finally {
   Pop-Location
 }

@@ -85,6 +85,7 @@ Dirty Signal / Wakeup Only
 - 已落地表级失败退避与源级汇总：`gitlab_table_sync_tasks` 增加 `run_after`，普通失败和超时按表复制重试任务，待重试尝试标记为 `RETRYING`，源级 job 在所有表结束后汇总为 `SUCCESS` / `PARTIAL_SUCCESS` / `FAILED` / `TIMEOUT`。
 - 已落地每日校验分片修复：源端和镜像端按主键签名 md5 前缀生成分片摘要，差异分片创建 `SHARD_REPAIR` 表级任务，worker 按分片主键游标分批拉源端并幂等 upsert，避免每日校验差异时直接全表重扫。
 - 已落地表级诊断入口：新增表级同步诊断接口和设置页展示，能看到每张表的 dirty 状态、水位、最近校验、最近任务、重试/失败计数和错误信息。
+- 已固化上线前联调脚本：`scripts/gitlab-direct-sync-check.ps1` 覆盖连接诊断、白名单、状态、源健康、表级诊断、可选增量触发、可选 Webhook 模拟和轮询收敛；`verify-local.ps1` 会执行 dry-run 防止脚本接口路径漂移。
 - 已补充定向测试：`FactBuildTaskServiceTest`、`FactRefreshTaskWorkerServiceTest`、`GitlabMirrorSyncServiceTest`、`GitlabTableSyncWorkerServiceTest`。
 
 ### 补偿扫描主流程
