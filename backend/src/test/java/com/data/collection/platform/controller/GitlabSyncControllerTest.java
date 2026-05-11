@@ -17,6 +17,8 @@ import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsRespon
 import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
+import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
@@ -39,6 +41,7 @@ import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
 import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
+import com.data.collection.platform.service.GitlabTableSyncPlanningService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
 import com.data.collection.platform.service.GitlabWebhookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
@@ -88,6 +91,9 @@ class GitlabSyncControllerTest {
   private GitlabExternalDbService externalDbService;
 
   @Mock
+  private GitlabTableSyncPlanningService tableSyncPlanningService;
+
+  @Mock
   private GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService;
 
   private MockMvc mockMvc;
@@ -108,6 +114,7 @@ class GitlabSyncControllerTest {
         purgeService,
         sourceHealthService,
         externalDbService,
+        tableSyncPlanningService,
         tableSyncDiagnosticsService);
     mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
   }
@@ -158,6 +165,7 @@ class GitlabSyncControllerTest {
 
     when(configService.getConfig()).thenReturn(config);
     when(taskService.findDisplayTask(1L)).thenReturn(task);
+    when(tableSyncPlanningService.findDisplayJob(1L)).thenReturn(null);
     when(taskService.extractMessage(task)).thenReturn("Manual full sync");
     when(syncService.getProgress(10L)).thenReturn(progress);
     when(logService.listRecent(eq(1L), anyInt())).thenReturn(List.of());
@@ -173,6 +181,38 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.config.dbPassword").value(""))
         .andExpect(jsonPath("$.data.config.webhookSecret").value(""))
         .andExpect(jsonPath("$.data.webhookRegistration").doesNotExist());
+  }
+
+  @Test
+  void statusShouldPreferRunningTableSyncJobOverLegacyTask() throws Exception {
+    GitlabSyncConfig config = baseConfig();
+    GitlabSyncTask legacyTask = new GitlabSyncTask();
+    legacyTask.setId(12L);
+    legacyTask.setStatus(SyncStatus.SUCCESS);
+    legacyTask.setTaskType(SyncType.COMPENSATION);
+    legacyTask.setUpdatedAt(java.time.LocalDateTime.of(2026, 5, 11, 11, 21, 16));
+
+    GitlabSyncJob runningJob = new GitlabSyncJob();
+    runningJob.setId(10L);
+    runningJob.setRunId("job-run-10");
+    runningJob.setJobType(GitlabSyncJobType.DAILY_VERIFY);
+    runningJob.setTriggerType(SyncTriggerType.MANUAL);
+    runningJob.setStatus(SyncStatus.RUNNING);
+    runningJob.setStartedAt(java.time.LocalDateTime.of(2026, 5, 11, 11, 24, 16));
+    runningJob.setUpdatedAt(java.time.LocalDateTime.of(2026, 5, 11, 11, 24, 20));
+
+    when(configService.getConfig()).thenReturn(config);
+    when(taskService.findDisplayTask(1L)).thenReturn(legacyTask);
+    when(tableSyncPlanningService.findDisplayJob(1L)).thenReturn(runningJob);
+    when(logService.listRecent(eq(1L), anyInt())).thenReturn(List.of());
+
+    mockMvc.perform(get("/api/gitlab-sync/status"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.currentStatus").value("RUNNING"))
+        .andExpect(jsonPath("$.data.currentTask.id").value(10))
+        .andExpect(jsonPath("$.data.currentTask.taskType").value("FULL"))
+        .andExpect(jsonPath("$.data.currentTask.status").value("RUNNING"));
   }
 
   @Test

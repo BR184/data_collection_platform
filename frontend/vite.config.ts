@@ -4,6 +4,8 @@ import Components from 'unplugin-vue-components/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
 import { manualChunks } from './build/manual-chunks';
 
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:18080';
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -25,7 +27,7 @@ export default defineConfig({
     port: 18181,
     proxy: {
       '/api': {
-        target: 'http://localhost:18080',
+        target: apiProxyTarget,
         changeOrigin: true,
       },
     },

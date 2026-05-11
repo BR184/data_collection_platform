@@ -10,6 +10,8 @@ import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -311,5 +313,87 @@ class GitlabExternalDbServiceTest {
     })).isInstanceOf(BizException.class);
 
     assertThat(attempts).hasValue(1);
+  }
+
+  @Test
+  void shouldNormalizeSqlArrayValuesToDetachedJavaList() throws Exception {
+    StubSqlArray sqlArray = new StubSqlArray(new Object[] {"a", 1L, new Object[] {"x", "y"}});
+
+    Object normalized = service.normalizeJdbcValue(sqlArray);
+
+    assertThat(normalized).isInstanceOf(List.class);
+    List<?> items = (List<?>) normalized;
+    assertThat(items).hasSize(3);
+    assertThat(items.get(0)).isEqualTo("a");
+    assertThat(items.get(1)).isEqualTo(1L);
+    assertThat(items.get(2)).isInstanceOf(List.class);
+    @SuppressWarnings("unchecked")
+    List<Object> nested = (List<Object>) items.get(2);
+    assertThat(nested).containsExactly("x", "y");
+    assertThat(sqlArray.freed).isTrue();
+  }
+
+  private static final class StubSqlArray implements java.sql.Array {
+    private final Object value;
+    private boolean freed;
+
+    private StubSqlArray(Object value) {
+      this.value = value;
+    }
+
+    @Override
+    public String getBaseTypeName() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int getBaseType() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object getArray() throws SQLException {
+      return value;
+    }
+
+    @Override
+    public Object getArray(Map<String, Class<?>> map) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object getArray(long index, int count) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object getArray(long index, int count, Map<String, Class<?>> map) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ResultSet getResultSet() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ResultSet getResultSet(Map<String, Class<?>> map) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ResultSet getResultSet(long index, int count) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ResultSet getResultSet(long index, int count, Map<String, Class<?>> map) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void free() throws SQLException {
+      freed = true;
+    }
   }
 }

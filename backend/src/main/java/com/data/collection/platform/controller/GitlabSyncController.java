@@ -6,6 +6,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
+import com.data.collection.platform.entity.GitlabSyncJob;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
@@ -34,6 +35,7 @@ import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
+import com.data.collection.platform.service.GitlabTableSyncPlanningService;
 import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
 import com.data.collection.platform.service.GitlabWebhookService;
@@ -44,6 +46,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -60,6 +63,13 @@ import org.springframework.web.bind.annotation.RestController;
 // GitLab 同步控制器是镜像数据入口的 API 门面，只负责配置、任务、Webhook 和清理动作编排。
 // 外部库访问、任务去重和事实重建都下沉到 service，避免控制层持有同步细节。
 public class GitlabSyncController {
+  private static final Set<SyncStatus> ACTIVE_SYNC_STATUSES = Set.of(
+      SyncStatus.PENDING,
+      SyncStatus.QUEUED,
+      SyncStatus.RUNNING,
+      SyncStatus.RETRYING,
+      SyncStatus.CANCELLING);
+
   private final GitlabConfigService configService;
   private final GitlabMirrorSyncService syncService;
   private final GitlabSyncLogService logService;
@@ -71,6 +81,7 @@ public class GitlabSyncController {
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
+  private final GitlabTableSyncPlanningService tableSyncPlanningService;
   private final GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService;
 
   public GitlabSyncController(
@@ -85,6 +96,7 @@ public class GitlabSyncController {
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
       GitlabExternalDbService externalDbService,
+      GitlabTableSyncPlanningService tableSyncPlanningService,
       GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService) {
     this.configService = configService;
     this.syncService = syncService;
@@ -97,6 +109,7 @@ public class GitlabSyncController {
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
+    this.tableSyncPlanningService = tableSyncPlanningService;
     this.tableSyncDiagnosticsService = tableSyncDiagnosticsService;
   }
 
@@ -104,15 +117,31 @@ public class GitlabSyncController {
   public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     List<GitlabSyncLog> logs = config.getId() == null ? List.of() : logService.listRecent(config.getId(), 20);
-    GitlabSyncTask currentTask = taskService.findDisplayTask(config.getId());
-    SyncProgress progress = currentTask == null ? null : syncService.getProgress(currentTask.getId());
-    SyncStatus currentStatus = currentTask == null ? SyncStatus.IDLE : currentTask.getStatus();
-    String currentMessage = currentTask == null ? "" : taskService.extractMessage(currentTask);
-    LocalDateTime currentStartedAt = currentTask == null ? null : currentTask.getStartedAt();
+    GitlabSyncTask displayTask = taskService.findDisplayTask(config.getId());
+    GitlabSyncJob displayJob = tableSyncPlanningService.findDisplayJob(config.getId());
+
+    MirrorStatusTaskView currentTask;
+    SyncProgress progress;
+    SyncStatus currentStatus;
+    String currentMessage;
+    LocalDateTime currentStartedAt;
+    if (preferJobStatus(displayJob, displayTask)) {
+      currentTask = MirrorStatusTaskView.fromJob(displayJob, config.getSourceMode());
+      progress = null;
+      currentStatus = displayJob == null || displayJob.getStatus() == null ? SyncStatus.IDLE : displayJob.getStatus();
+      currentMessage = extractJobMessage(displayJob);
+      currentStartedAt = displayJob == null ? null : displayJob.getStartedAt();
+    } else {
+      currentTask = displayTask == null ? null : MirrorStatusTaskView.from(displayTask);
+      progress = displayTask == null ? null : syncService.getProgress(displayTask.getId());
+      currentStatus = displayTask == null ? SyncStatus.IDLE : displayTask.getStatus();
+      currentMessage = displayTask == null ? "" : taskService.extractMessage(displayTask);
+      currentStartedAt = displayTask == null ? null : displayTask.getStartedAt();
+    }
     return ApiResponse.success(
         new MirrorStatusResponse(
             sanitizeConfigForResponse(config),
-            currentTask == null ? null : MirrorStatusTaskView.from(currentTask),
+            currentTask,
             currentStatus,
             currentMessage,
             currentStartedAt,
@@ -120,6 +149,75 @@ public class GitlabSyncController {
             logs.stream().map(MirrorStatusLogView::from).toList(),
             properties.getWebhookBaseUrl(),
             null));
+  }
+
+  private boolean preferJobStatus(GitlabSyncJob job, GitlabSyncTask task) {
+    if (job == null) {
+      return false;
+    }
+    if (task == null) {
+      return true;
+    }
+    boolean jobActive = isActiveStatus(job.getStatus());
+    boolean taskActive = isActiveStatus(task.getStatus());
+    if (jobActive != taskActive) {
+      return jobActive;
+    }
+    LocalDateTime jobTime = latestJobTime(job);
+    LocalDateTime taskTime = latestTaskTime(task);
+    if (jobTime == null) {
+      return false;
+    }
+    if (taskTime == null) {
+      return true;
+    }
+    return !jobTime.isBefore(taskTime);
+  }
+
+  private boolean isActiveStatus(SyncStatus status) {
+    return status != null && ACTIVE_SYNC_STATUSES.contains(status);
+  }
+
+  private LocalDateTime latestJobTime(GitlabSyncJob job) {
+    if (job == null) {
+      return null;
+    }
+    if (job.getUpdatedAt() != null) {
+      return job.getUpdatedAt();
+    }
+    if (job.getFinishedAt() != null) {
+      return job.getFinishedAt();
+    }
+    if (job.getStartedAt() != null) {
+      return job.getStartedAt();
+    }
+    return job.getCreatedAt();
+  }
+
+  private LocalDateTime latestTaskTime(GitlabSyncTask task) {
+    if (task == null) {
+      return null;
+    }
+    if (task.getUpdatedAt() != null) {
+      return task.getUpdatedAt();
+    }
+    if (task.getFinishedAt() != null) {
+      return task.getFinishedAt();
+    }
+    if (task.getStartedAt() != null) {
+      return task.getStartedAt();
+    }
+    return task.getCreatedAt();
+  }
+
+  private String extractJobMessage(GitlabSyncJob job) {
+    if (job == null) {
+      return "";
+    }
+    if (job.getErrorMessage() != null && !job.getErrorMessage().isBlank()) {
+      return job.getErrorMessage();
+    }
+    return "%s / %s".formatted(job.getJobType(), job.getStatus());
   }
 
   @GetMapping("/configs")

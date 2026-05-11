@@ -721,7 +721,7 @@ public class GitlabExternalDbService {
             while (resultSet.next()) {
               Map<String, Object> row = new LinkedHashMap<>();
               for (int i = 1; i <= count; i++) {
-                row.put(metaData.getColumnLabel(i), resultSet.getObject(i));
+                row.put(metaData.getColumnLabel(i), normalizeJdbcValue(resultSet.getObject(i)));
               }
               rows.add(row);
             }
@@ -737,6 +737,41 @@ public class GitlabExternalDbService {
       }
       throw e;
     }
+  }
+
+  Object normalizeJdbcValue(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof java.sql.Array sqlArray) {
+      try {
+        Object array = sqlArray.getArray();
+        return normalizeArrayValue(array);
+      } catch (Exception e) {
+        throw new BizException("Failed to normalize SQL array value: " + e.getMessage());
+      } finally {
+        try {
+          sqlArray.free();
+        } catch (Exception ignored) {
+          // no-op
+        }
+      }
+    }
+    return value;
+  }
+
+  private Object normalizeArrayValue(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof Object[] array) {
+      List<Object> normalized = new ArrayList<>(array.length);
+      for (Object item : array) {
+        normalized.add(normalizeJdbcValue(item));
+      }
+      return normalized;
+    }
+    return value;
   }
 
   private List<Map<String, Object>> executeDockerQuery(GitlabSyncConfig config, String sql) {
