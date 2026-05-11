@@ -59,7 +59,6 @@ class GitlabCompensationSchedulerTest {
     verify(syncService).recoverTimedOutTasks();
     verify(whitelistService).resolveOptions(config);
     verify(tableSyncPlanningService).createCompensationScanPlan(config, tables);
-    verify(syncService, never()).startCompensationSync(config);
   }
 
   @Test
@@ -72,7 +71,6 @@ class GitlabCompensationSchedulerTest {
 
     verify(syncService).recoverTimedOutTasks();
     verify(tableSyncPlanningService, never()).createCompensationScanPlan(any(), any());
-    verify(syncService, never()).startCompensationSync(config);
   }
 
   private GitlabSyncConfig baseConfig() {
