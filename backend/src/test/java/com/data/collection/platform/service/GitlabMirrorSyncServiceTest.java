@@ -254,6 +254,34 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void refreshTablesOnDemandDetailedShouldReturnPersistentJobContext() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables = List.of(
+        new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
+        new TableWhitelistOption("label_links", "Label links", "id", null, true));
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptionsStrict(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualRefreshPlan(
+            config,
+            tables,
+            List.of("issues", "label_links"),
+            "board"))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(31L, 2, 1, 1));
+    when(tableSyncPlanningService.findJobStatus(31L)).thenReturn(SyncStatus.SUCCESS);
+
+    GitlabMirrorSyncService.OnDemandRefreshResult result =
+        syncService.refreshTablesOnDemandDetailed(List.of("Issues", "label_links"), "board");
+
+    assertThat(result.jobId()).isEqualTo(31L);
+    assertThat(result.sourceTables()).containsExactly("issues", "label_links");
+    assertThat(result.plannedTasks()).isEqualTo(1);
+    assertThat(result.unsupportedTables()).containsExactly("label_links");
+    assertThat(result.status()).isEqualTo(SyncStatus.SUCCESS);
+    verify(tableSyncWorkerService).drainReadyTasksForJob(31L);
+  }
+
+  @Test
   void refreshTablesOnDemandShouldFailWhenRequestedTablesAreNotRefreshable() {
     GitlabSyncConfig config = baseConfig();
     config.setEnabled(true);

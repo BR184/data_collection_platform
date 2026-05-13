@@ -1,20 +1,29 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
+import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
+import com.data.collection.platform.entity.SyncStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -206,6 +215,49 @@ class CodeReviewIllegalRecordServiceTest {
     verify(sourceLoader)
         .loadDefaultIllegalPage(
             argThat(query -> query.filterGroup() != null && query.request().filterGroupJson() != null));
+  }
+
+  @Test
+  void shouldPropagateRealtimeRefreshFailureToWorkspaceStatus() {
+    RuntimeException failure = new RuntimeException("mirror refresh failed");
+    when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
+            anyList(), eq(CodeReviewIllegalRecordService.WORKSPACE_KEY)))
+        .thenThrow(failure);
+
+    service.requestRealtimeRefresh();
+
+    ArgumentCaptor<Supplier<RealtimeWorkspaceRefreshResult>> refreshAction =
+        ArgumentCaptor.forClass(Supplier.class);
+    verify(realtimeWorkspaceService)
+        .requestRefreshWithResult(eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), refreshAction.capture());
+    assertThatThrownBy(refreshAction.getValue()::get).isSameAs(failure);
+    verify(factBuildService, never()).rebuildMergeRequestFacts(false);
+  }
+
+  @Test
+  void shouldReturnStructuredRealtimeRefreshResult() {
+    when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
+            anyList(), eq(CodeReviewIllegalRecordService.WORKSPACE_KEY)))
+        .thenReturn(new GitlabMirrorSyncService.OnDemandRefreshResult(
+            31L, List.of("merge_requests"), 1, List.of("label_links"), SyncStatus.SUCCESS));
+    when(factBuildService.rebuildMergeRequestFacts(false))
+        .thenReturn(new FactBuildResponse("merge-request", false, 9, "fact ok"));
+
+    service.requestRealtimeRefresh();
+
+    ArgumentCaptor<Supplier<RealtimeWorkspaceRefreshResult>> refreshAction =
+        ArgumentCaptor.forClass(Supplier.class);
+    verify(realtimeWorkspaceService)
+        .requestRefreshWithResult(eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), refreshAction.capture());
+    RealtimeWorkspaceRefreshResult result = refreshAction.getValue().get();
+    assertThat(result.jobId()).isEqualTo(31L);
+    assertThat(result.sourceTables()).containsExactly("merge_requests");
+    assertThat(result.plannedTasks()).isEqualTo(1);
+    assertThat(result.unsupportedTables()).containsExactly("label_links");
+    assertThat(result.factRefreshPlanned()).isTrue();
+    assertThat(result.mirrorStatus()).isEqualTo("SUCCESS");
+    assertThat(result.factStatus()).isEqualTo("SUCCESS");
+    assertThat(result.message()).isEqualTo("fact ok");
   }
 
   private CodeReviewIllegalRecordSource source(

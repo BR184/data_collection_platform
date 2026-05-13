@@ -1,6 +1,8 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
@@ -64,11 +66,21 @@ public class IssueFactBoardRuntimeSupport {
 
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh(
       String boardKey, List<String> realtimeRefreshTables) {
-    return realtimeWorkspaceService.requestRefresh(
+    return realtimeWorkspaceService.requestRefreshWithResult(
         boardKey,
         () -> {
-          gitlabMirrorSyncService.refreshTablesOnDemand(realtimeRefreshTables, boardKey);
-          factBuildService.rebuildIssueFacts(false);
+          GitlabMirrorSyncService.OnDemandRefreshResult mirrorResult =
+              gitlabMirrorSyncService.refreshTablesOnDemandDetailed(realtimeRefreshTables, boardKey);
+          FactBuildResponse factResult = factBuildService.rebuildIssueFacts(false);
+          return new RealtimeWorkspaceRefreshResult(
+              mirrorResult.jobId(),
+              mirrorResult.sourceTables(),
+              mirrorResult.plannedTasks(),
+              mirrorResult.unsupportedTables(),
+              true,
+              mirrorResult.status().name(),
+              "SUCCESS",
+              factResult.message());
         });
   }
 }

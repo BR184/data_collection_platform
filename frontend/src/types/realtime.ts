@@ -7,4 +7,11 @@ export interface RealtimeWorkspaceStatusResponse {
   lastSyncedAt?: string | null;
   lastRefreshStartedAt?: string | null;
   lastRefreshFinishedAt?: string | null;
+  jobId?: number | null;
+  sourceTables?: string[];
+  plannedTasks?: number | null;
+  unsupportedTables?: string[];
+  factRefreshPlanned?: boolean | null;
+  mirrorStatus?: string | null;
+  factStatus?: string | null;
 }

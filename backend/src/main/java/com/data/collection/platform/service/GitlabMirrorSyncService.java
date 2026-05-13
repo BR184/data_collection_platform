@@ -17,7 +17,11 @@ import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -128,30 +132,44 @@ public class GitlabMirrorSyncService {
   }
 
   public int refreshTablesOnDemand(Long configId, List<String> sourceTableNames, String reason) {
+    return refreshTablesOnDemandDetailed(configId, sourceTableNames, reason).plannedTasks();
+  }
+
+  public OnDemandRefreshResult refreshTablesOnDemandDetailed(List<String> sourceTableNames, String reason) {
+    return refreshTablesOnDemandDetailed(null, sourceTableNames, reason);
+  }
+
+  public OnDemandRefreshResult refreshTablesOnDemandDetailed(
+      Long configId,
+      List<String> sourceTableNames,
+      String reason) {
     if (sourceTableNames == null || sourceTableNames.isEmpty()) {
-      return 0;
+      return new OnDemandRefreshResult(null, List.of(), 0, List.of(), SyncStatus.SUCCESS);
     }
 
     GitlabSyncConfig config = resolveConfig(configId);
     if (config.getId() == null || !config.isEnabled()) {
-      return 0;
+      return new OnDemandRefreshResult(
+          null, normalizeRequestedTables(sourceTableNames), 0, List.of(), SyncStatus.SUCCESS);
     }
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "ON_DEMAND_REFRESH");
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("QUEUED")) {
       List<TableWhitelistOption> tables = whitelistService.listOptionsStrict(config);
+      List<String> requestedTables = normalizeRequestedTables(sourceTableNames);
       GitlabTableSyncPlanningService.CompensationPlanResult result =
-          tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, reason);
+          tableSyncPlanningService.createManualRefreshPlan(config, tables, requestedTables, reason);
       if (result == null) {
         throw new BizException("当前页面刷新任务规划失败，请查看同步诊断");
       }
-      if (result.plannedTasks() == 0 && hasUnsupportedRefreshTargets(result, sourceTableNames)) {
+      List<String> unsupportedTables = resolveUnsupportedRefreshTables(tables, requestedTables);
+      if (result.plannedTasks() == 0 && !unsupportedTables.isEmpty()) {
         throw new BizException("当前页面依赖表不支持主动刷新，请等待每日校验或联系管理员调整同步策略");
       }
       log.info(
           "Queued on-demand table refresh, reason={}, jobId={}, targetTables={}, plannedTasks={}, verifyOnlyTables={}",
           reason,
           result.jobId(),
-          sourceTableNames,
+          requestedTables,
           result.plannedTasks(),
           result.verifyOnlyTables());
       int processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
@@ -160,21 +178,48 @@ public class GitlabMirrorSyncService {
           result.jobId(),
           result.plannedTasks(),
           processedTasks);
-      return result.plannedTasks();
+      return new OnDemandRefreshResult(
+          result.jobId(),
+          requestedTables,
+          result.plannedTasks(),
+          unsupportedTables,
+          normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId())));
     }
   }
 
-  private boolean hasUnsupportedRefreshTargets(
-      GitlabTableSyncPlanningService.CompensationPlanResult result,
-      List<String> sourceTableNames) {
-    long requestedTableCount = sourceTableNames == null
-        ? 0
-        : sourceTableNames.stream()
-            .filter(tableName -> tableName != null && !tableName.isBlank())
-            .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
-            .distinct()
-            .count();
-    return result.verifyOnlyTables() > 0 || result.discoveredTables() < requestedTableCount;
+  private List<String> normalizeRequestedTables(List<String> sourceTableNames) {
+    if (sourceTableNames == null) {
+      return List.of();
+    }
+    Set<String> normalizedTables = new LinkedHashSet<>();
+    for (String sourceTableName : sourceTableNames) {
+      if (sourceTableName == null || sourceTableName.isBlank()) {
+        continue;
+      }
+      normalizedTables.add(GitlabSourceInstanceSupport.normalizeSourceTableName(sourceTableName));
+    }
+    return List.copyOf(normalizedTables);
+  }
+
+  private List<String> resolveUnsupportedRefreshTables(
+      List<TableWhitelistOption> whitelistOptions,
+      List<String> requestedTables) {
+    if (requestedTables == null || requestedTables.isEmpty()) {
+      return List.of();
+    }
+    Map<String, TableWhitelistOption> optionsByTable = new LinkedHashMap<>();
+    for (TableWhitelistOption option : whitelistOptions == null ? List.<TableWhitelistOption>of() : whitelistOptions) {
+      if (option == null || option.tableName() == null || option.tableName().isBlank()) {
+        continue;
+      }
+      optionsByTable.put(GitlabSourceInstanceSupport.normalizeSourceTableName(option.tableName()), option);
+    }
+    return requestedTables.stream()
+        .filter(table -> {
+          TableWhitelistOption option = optionsByTable.get(table);
+          return option == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank();
+        })
+        .toList();
   }
 
   public GitlabSyncTask requestCancel(Long configId) {
@@ -333,5 +378,18 @@ public class GitlabMirrorSyncService {
         buildTablePlanCompletionMessage(type, status, plannedTasks, processedTasks),
         plannedTasks,
         0);
+  }
+
+  public record OnDemandRefreshResult(
+      Long jobId,
+      List<String> sourceTables,
+      int plannedTasks,
+      List<String> unsupportedTables,
+      SyncStatus status) {
+
+    public OnDemandRefreshResult {
+      sourceTables = sourceTables == null ? List.of() : List.copyOf(sourceTables);
+      unsupportedTables = unsupportedTables == null ? List.of() : List.copyOf(unsupportedTables);
+    }
   }
 }

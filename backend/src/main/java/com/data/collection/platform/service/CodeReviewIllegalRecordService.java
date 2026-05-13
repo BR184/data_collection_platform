@@ -7,7 +7,9 @@ import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
 import com.data.collection.platform.entity.CodeReviewRuleConfig;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewSample;
+import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -253,7 +255,7 @@ public class CodeReviewIllegalRecordService {
   }
 
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
-    return realtimeWorkspaceService.requestRefresh(WORKSPACE_KEY, this::refreshMirrorForRealtimeView);
+    return realtimeWorkspaceService.requestRefreshWithResult(WORKSPACE_KEY, this::refreshMirrorForRealtimeView);
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation() {
@@ -376,16 +378,20 @@ public class CodeReviewIllegalRecordService {
         CodeReviewRuleConfigSupport.explainRow(row, ruleConfig));
   }
 
-  private void refreshMirrorForRealtimeView() {
-    try {
-      gitlabMirrorSyncService.refreshTablesOnDemand(
-          REALTIME_REFRESH_TABLES, "code-review-illegal-records");
-      factBuildService.rebuildMergeRequestFacts(false);
-    } catch (Exception e) {
-      log.warn(
-          "On-demand mirror refresh for code review illegal records failed, fallback to current mirror snapshot",
-          e);
-    }
+  private RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
+    GitlabMirrorSyncService.OnDemandRefreshResult mirrorResult =
+        gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
+            REALTIME_REFRESH_TABLES, WORKSPACE_KEY);
+    FactBuildResponse factResult = factBuildService.rebuildMergeRequestFacts(false);
+    return new RealtimeWorkspaceRefreshResult(
+        mirrorResult.jobId(),
+        mirrorResult.sourceTables(),
+        mirrorResult.plannedTasks(),
+        mirrorResult.unsupportedTables(),
+        true,
+        mirrorResult.status().name(),
+        "SUCCESS",
+        factResult.message());
   }
 
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {
