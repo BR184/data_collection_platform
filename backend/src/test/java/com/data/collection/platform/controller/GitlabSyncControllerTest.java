@@ -331,7 +331,7 @@ class GitlabSyncControllerTest {
     config.setWebhookSecret("direct-secret");
     when(configService.getConfig()).thenReturn(config);
     when(configService.listConfigs()).thenReturn(List.of(config));
-    when(whitelistService.listOptions(config))
+    when(whitelistService.listOptionsStrict(config))
         .thenReturn(List.of(
             new TableWhitelistOption("issues", "issues", "id", "updated_at", true),
             new TableWhitelistOption("merge_requests", "merge_requests", "id", "updated_at", true)));
@@ -386,7 +386,7 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
     Mockito.doThrow(new BizException("connection refused")).when(syncService).testConnection();
-    when(whitelistService.listOptions(config)).thenReturn(List.of());
+    when(whitelistService.listOptionsStrict(config)).thenReturn(List.of());
     when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
         .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(
             true,
@@ -415,10 +415,37 @@ class GitlabSyncControllerTest {
   }
 
   @Test
+  void diagnosticsByConfigShouldReturnWhitelistFailureWhenStrictDiscoveryFails() throws Exception {
+    GitlabSyncConfig config = baseConfig();
+    config.setId(7L);
+    when(configService.getConfigById(7L)).thenReturn(config);
+    Mockito.doThrow(new BizException("metadata denied")).when(whitelistService).listOptionsStrict(config);
+    when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
+        .thenReturn(GitlabSourceMetadataDiagnosticsResponse.failure("metadata denied"));
+    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
+        .thenReturn(new GitlabWebhookRegistrationStatus(
+            true,
+            true,
+            false,
+            1L,
+            "http://localhost:18080/api/gitlab-sync/webhook",
+            "not registered",
+            List.of()));
+
+    mockMvc.perform(post("/api/gitlab-sync/diagnostics/by-config").param("configId", "7"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.configId").value(7))
+        .andExpect(jsonPath("$.data.whitelistOk").value(false))
+        .andExpect(jsonPath("$.data.whitelistMessage").value("metadata denied"))
+        .andExpect(jsonPath("$.data.whitelistOptionCount").value(0));
+  }
+
+  @Test
   void diagnosticsShouldReturnWebhookStatusFailureWithoutThrowing() throws Exception {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
-    when(whitelistService.listOptions(config)).thenReturn(List.of());
+    when(whitelistService.listOptionsStrict(config)).thenReturn(List.of());
     when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
         .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(
             true,

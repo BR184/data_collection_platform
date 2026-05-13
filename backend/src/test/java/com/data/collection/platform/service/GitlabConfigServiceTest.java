@@ -183,6 +183,15 @@ class GitlabConfigServiceTest {
     verify(configMapper, never()).updateById(any(GitlabSyncConfig.class));
   }
 
+  @Test
+  void shouldRejectMissingExplicitConfigIdInsteadOfReturningDefaultConfig() {
+    when(configMapper.selectById(999L)).thenReturn(null);
+
+    assertThatThrownBy(() -> configService.getConfigById(999L))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("999");
+  }
+
   private GitlabSyncConfig persistedConfig() {
     GitlabSyncConfig config = baseInput();
     config.setId(1L);

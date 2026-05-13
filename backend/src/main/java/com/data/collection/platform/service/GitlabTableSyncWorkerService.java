@@ -183,11 +183,27 @@ public class GitlabTableSyncWorkerService {
     List<GitlabTableSyncTask> staleTasks = taskMapper.selectList(new LambdaQueryWrapper<GitlabTableSyncTask>()
         .eq(GitlabTableSyncTask::getStatus, SyncStatus.RUNNING)
         .lt(GitlabTableSyncTask::getLeaseUntil, now));
+    int recovered = 0;
     for (GitlabTableSyncTask task : staleTasks) {
+      if (wasRenewedAfterTimeoutSelection(task, now)) {
+        continue;
+      }
       markTimeoutAndRetry(task, now);
       finishJobIfComplete(task.getJobId());
+      recovered++;
     }
-    return staleTasks.size();
+    return recovered;
+  }
+
+  private boolean wasRenewedAfterTimeoutSelection(GitlabTableSyncTask selectedTask, LocalDateTime timeoutAt) {
+    if (selectedTask == null || selectedTask.getId() == null) {
+      return false;
+    }
+    GitlabTableSyncTask latest = taskMapper.selectById(selectedTask.getId());
+    if (latest == null || latest.getStatus() != SyncStatus.RUNNING || latest.getLeaseUntil() == null) {
+      return false;
+    }
+    return latest.getLeaseUntil().isAfter(timeoutAt);
   }
 
   boolean executeTask(GitlabTableSyncTask task) {
@@ -237,7 +253,9 @@ public class GitlabTableSyncWorkerService {
     TableWhitelistOption option = tableOption(state);
     GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
         mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+    heartbeat(task);
     GitlabTableProbe sourceProbe = externalDbService.probeTable(config, option);
+    heartbeat(task);
     GitlabTableProbe mirrorProbe = storageService.probeMirrorTable(preparedMirrorTable.mirrorSchema());
     List<GitlabTableShardProbe> driftedShards = findDriftedSourceShards(
         externalDbService.probeTableShards(config, option, preparedMirrorTable.mirrorSchema(), DAILY_VERIFY_SHARD_KEY_LENGTH),
@@ -265,6 +283,7 @@ public class GitlabTableSyncWorkerService {
     GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
         mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
     mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+    heartbeat(task);
 
     ShardRepairCursor cursor = decodeShardRepairCursor(task.getCursorPk());
     List<Map<String, Object>> sourceRows = externalDbService.shardCursorScan(
@@ -274,6 +293,7 @@ public class GitlabTableSyncWorkerService {
         cursor.shardKey(),
         cursor.rowCursor(),
         resolveBatchSize(task));
+    heartbeat(task);
     List<Map<String, Object>> rows = sourceRows.stream()
         .map(this::withoutInternalColumns)
         .toList();
@@ -294,11 +314,13 @@ public class GitlabTableSyncWorkerService {
     GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
         mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
     mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+    heartbeat(task);
 
     MirrorPrimaryKeyBatch batch = storageService.listActivePrimaryKeys(
         preparedMirrorTable.mirrorSchema(),
         task.getCursorPk(),
         resolveBatchSize(task));
+    heartbeat(task);
     Set<String> sourceKeys = externalDbService.findExistingPrimaryKeySignatures(config, option, batch.keys());
     List<String> primaryKeys = PrimaryKeySignatureSupport.primaryKeyColumns(preparedMirrorTable.mirrorSchema());
     List<Map<String, Object>> missingKeys = batch.keys().stream()
@@ -325,6 +347,7 @@ public class GitlabTableSyncWorkerService {
     GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
         mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
     mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+    heartbeat(task);
 
     LocalDateTime since = resolveScanStart(task);
     List<Map<String, Object>> rows = externalDbService.incrementalCursorScan(
@@ -334,6 +357,7 @@ public class GitlabTableSyncWorkerService {
         task.getCursorUpdatedAt(),
         task.getCursorPk(),
         resolveBatchSize(task));
+    heartbeat(task);
     MirrorBatchWriteResult writeResult =
         storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
     RowCursor lastCursor = lastCursor(rows, state);
@@ -377,6 +401,29 @@ public class GitlabTableSyncWorkerService {
       jobMapper.updateById(job);
     }
     return task;
+  }
+
+  private void heartbeat(GitlabTableSyncTask task) {
+    if (task == null || task.getId() == null) {
+      return;
+    }
+    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime leaseUntil = now.plusSeconds(Math.max(1, properties.getHeartbeatTimeoutSeconds()));
+    int updated = taskMapper.update(null, new UpdateWrapper<GitlabTableSyncTask>()
+        .eq("id", task.getId())
+        .eq("status", SyncStatus.RUNNING)
+        .set("heartbeat_at", now)
+        .set("lease_owner", WORKER_ID)
+        .set("lease_until", leaseUntil)
+        .set("updated_at", now));
+    if (updated <= 0) {
+      log.debug("Table sync heartbeat was not applied, taskId={}", task.getId());
+      return;
+    }
+    task.setHeartbeatAt(now);
+    task.setLeaseOwner(WORKER_ID);
+    task.setLeaseUntil(leaseUntil);
+    task.setUpdatedAt(now);
   }
 
   private GitlabTableSyncState findState(GitlabTableSyncTask task) {

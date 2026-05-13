@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeast;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.data.collection.platform.common.JsonUtils;
@@ -128,6 +129,7 @@ class GitlabTableSyncWorkerServiceTest {
     assertThat(continuation.getCursorUpdatedAt()).isEqualTo(LocalDateTime.of(2026, 1, 2, 3, 4, 6));
     assertThat(continuation.getCursorPk()).isEqualTo("102");
     assertThat(continuation.getStatus()).isEqualTo(SyncStatus.PENDING);
+    verify(taskMapper, atLeast(2)).update(eq(null), ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any());
   }
 
   @Test
@@ -154,6 +156,26 @@ class GitlabTableSyncWorkerServiceTest {
     assertThat(retryTask.getRetryCount()).isEqualTo(2);
     assertThat(retryTask.getSourceTable()).isEqualTo("issues");
     assertThat(retryTask.getRunAfter()).isAfter(LocalDateTime.now());
+  }
+
+  @Test
+  void shouldSkipTimeoutRecoveryWhenTaskHeartbeatWasRenewedAfterSelection() {
+    GitlabTableSyncTask staleSelection = task();
+    staleSelection.setStatus(SyncStatus.RUNNING);
+    staleSelection.setRetryCount(1);
+    staleSelection.setLeaseUntil(LocalDateTime.now().minusMinutes(1));
+    GitlabTableSyncTask renewedTask = task();
+    renewedTask.setStatus(SyncStatus.RUNNING);
+    renewedTask.setLeaseUntil(LocalDateTime.now().plusMinutes(5));
+    renewedTask.setHeartbeatAt(LocalDateTime.now());
+
+    when(taskMapper.selectList(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(List.of(staleSelection));
+    when(taskMapper.selectById(21L)).thenReturn(renewedTask);
+
+    int recovered = service.recoverTimedOutTasks();
+
+    assertThat(recovered).isZero();
+    verify(taskMapper, times(0)).insert(ArgumentMatchers.<GitlabTableSyncTask>any());
   }
 
   @Test

@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -135,9 +136,15 @@ public class GitlabMirrorSyncService {
     }
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "ON_DEMAND_REFRESH");
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("QUEUED")) {
-      List<TableWhitelistOption> tables = whitelistService.listOptions(config);
+      List<TableWhitelistOption> tables = whitelistService.listOptionsStrict(config);
       GitlabTableSyncPlanningService.CompensationPlanResult result =
           tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, reason);
+      if (result == null) {
+        throw new BizException("当前页面刷新任务规划失败，请查看同步诊断");
+      }
+      if (result.plannedTasks() == 0 && hasUnsupportedRefreshTargets(result, sourceTableNames)) {
+        throw new BizException("当前页面依赖表不支持主动刷新，请等待每日校验或联系管理员调整同步策略");
+      }
       log.info(
           "Queued on-demand table refresh, reason={}, jobId={}, targetTables={}, plannedTasks={}, verifyOnlyTables={}",
           reason,
@@ -153,6 +160,19 @@ public class GitlabMirrorSyncService {
           processedTasks);
       return result.plannedTasks();
     }
+  }
+
+  private boolean hasUnsupportedRefreshTargets(
+      GitlabTableSyncPlanningService.CompensationPlanResult result,
+      List<String> sourceTableNames) {
+    long requestedTableCount = sourceTableNames == null
+        ? 0
+        : sourceTableNames.stream()
+            .filter(tableName -> tableName != null && !tableName.isBlank())
+            .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
+            .distinct()
+            .count();
+    return result.verifyOnlyTables() > 0 || result.discoveredTables() < requestedTableCount;
   }
 
   public GitlabSyncTask requestCancel(Long configId) {

@@ -48,7 +48,7 @@ class GitlabCompensationSchedulerTest {
     when(configService.listConfigs()).thenReturn(List.of(config));
     when(syncService.hasActiveTask(1L)).thenReturn(false);
     when(taskService.isInCooldown(1L)).thenReturn(false);
-    when(taskService.resolveLatestActivityAt(1L)).thenReturn(LocalDateTime.now().minusMinutes(20));
+    when(tableSyncPlanningService.resolveLatestActivityAt(1L)).thenReturn(LocalDateTime.now().minusMinutes(20));
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
     when(whitelistService.resolveOptions(config)).thenReturn(tables);
     when(tableSyncPlanningService.createCompensationScanPlan(config, tables))
@@ -57,6 +57,25 @@ class GitlabCompensationSchedulerTest {
     scheduler.run();
 
     verify(syncService).recoverTimedOutTasks();
+    verify(whitelistService).resolveOptions(config);
+    verify(tableSyncPlanningService).createCompensationScanPlan(config, tables);
+  }
+
+  @Test
+  void shouldBootstrapTableLevelCompensationWhenNoLegacyActivityExists() {
+    GitlabSyncConfig config = baseConfig();
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(syncService.hasActiveTask(1L)).thenReturn(false);
+    when(taskService.isInCooldown(1L)).thenReturn(false);
+    when(tableSyncPlanningService.resolveLatestActivityAt(1L)).thenReturn(null);
+    when(taskService.resolveLatestActivityAt(1L)).thenReturn(null);
+    List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createCompensationScanPlan(config, tables))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(12L, 1, 1, 0));
+
+    scheduler.run();
+
     verify(whitelistService).resolveOptions(config);
     verify(tableSyncPlanningService).createCompensationScanPlan(config, tables);
   }

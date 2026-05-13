@@ -54,7 +54,7 @@ public class GitlabConfigService {
     }
     GitlabSyncConfig config = configMapper.selectById(id);
     if (config == null) {
-      return defaultConfig();
+      throw new BizException("GitLab 数据源配置不存在：" + id);
     }
     normalizePersistedSourceInstance(config);
     return config;

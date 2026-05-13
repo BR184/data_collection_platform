@@ -84,8 +84,12 @@ public class GitlabWhitelistService {
     }
   }
 
+  public List<TableWhitelistOption> listOptionsStrict(GitlabSyncConfig config) {
+    return new ArrayList<>(loadAvailableTables(config));
+  }
+
   public List<TableWhitelistOption> resolveOptions(GitlabSyncConfig config) {
-    List<TableWhitelistOption> allOptions = loadAvailableTables(config);
+    List<TableWhitelistOption> allOptions = listOptionsStrict(config);
     if (config == null || config.getWhitelistMode() == null || config.getWhitelistMode() == WhitelistMode.RECOMMENDED) {
       return allOptions.stream().filter(TableWhitelistOption::recommended).toList();
     }

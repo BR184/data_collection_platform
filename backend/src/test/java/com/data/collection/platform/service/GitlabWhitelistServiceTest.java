@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -31,5 +32,36 @@ class GitlabWhitelistServiceTest {
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
 
     assertThat(options).extracting(TableWhitelistOption::tableName).containsExactly("issues");
+  }
+
+  @Test
+  void listOptionsShouldKeepFallbackForSettingsUiWhenDiscoveryFails() {
+    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
+    GitlabWhitelistService whitelistService = new GitlabWhitelistService(externalDbService);
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setSourceMode(SourceMode.DIRECT);
+
+    when(externalDbService.discoverTables(eq(config), anyMap(), anyList()))
+        .thenThrow(new BizException("metadata denied"));
+
+    List<TableWhitelistOption> options = whitelistService.listOptions(config);
+
+    assertThat(options).isNotEmpty();
+    assertThat(options).extracting(TableWhitelistOption::tableName).contains("issues");
+  }
+
+  @Test
+  void listOptionsStrictShouldSurfaceDiscoveryFailureForDiagnostics() {
+    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
+    GitlabWhitelistService whitelistService = new GitlabWhitelistService(externalDbService);
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setSourceMode(SourceMode.DIRECT);
+
+    when(externalDbService.discoverTables(eq(config), anyMap(), anyList()))
+        .thenThrow(new BizException("metadata denied"));
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> whitelistService.listOptionsStrict(config))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("metadata denied");
   }
 }

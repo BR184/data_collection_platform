@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -191,7 +192,7 @@ class GitlabMirrorSyncServiceTest {
     config.setEnabled(true);
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
     when(configService.getConfig()).thenReturn(config);
-    when(whitelistService.listOptions(config)).thenReturn(tables);
+    when(whitelistService.listOptionsStrict(config)).thenReturn(tables);
     when(tableSyncPlanningService.createManualRefreshPlan(config, tables, List.of("issues"), "board"))
         .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(31L, 1, 1, 0));
 
@@ -201,6 +202,38 @@ class GitlabMirrorSyncServiceTest {
     verify(tableSyncPlanningService).createManualRefreshPlan(config, tables, List.of("issues"), "board");
     verify(tableSyncWorkerService).drainReadyTasksForJob(31L);
     verify(externalDbService, never()).incrementalScan(any(), any(), any());
+  }
+
+  @Test
+  void refreshTablesOnDemandShouldFailWhenRequestedTablesAreNotRefreshable() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("label_links", "Label links", "id", null, true));
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptionsStrict(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualRefreshPlan(config, tables, List.of("label_links"), "board"))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(32L, 1, 0, 1));
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> syncService.refreshTablesOnDemand(List.of("label_links"), "board"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("不支持主动刷新");
+  }
+
+  @Test
+  void refreshTablesOnDemandShouldFailWhenRequestedTablesAreOutsideWhitelist() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptionsStrict(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualRefreshPlan(config, tables, List.of("unknown_table"), "board"))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(33L, 0, 0, 0));
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> syncService.refreshTablesOnDemand(List.of("unknown_table"), "board"))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("不支持主动刷新");
   }
 
   @Test

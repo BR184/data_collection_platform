@@ -266,7 +266,7 @@ public class GitlabSyncController {
     int whitelistOptionCount = 0;
     List<TableWhitelistOption> whitelistOptions = List.of();
     try {
-      whitelistOptions = whitelistService.listOptions(config);
+      whitelistOptions = whitelistService.listOptionsStrict(config);
       whitelistOptionCount = whitelistOptions.size();
     } catch (Exception e) {
       whitelistOk = false;

@@ -120,9 +120,18 @@ public class GitlabMirrorSchemaService {
         && Boolean.TRUE.equals(registry.getInitialized())
         && Boolean.TRUE.equals(registry.getPreviewEnabled())
         && expectedMirrorTableName.equals(registry.getMirrorTableName())
+        && !isSchemaCheckDue(registry)
         && tableExists(registry.getMirrorTableName())) {
       SourceTableSchema cachedSchema = buildSchemaFromRegistry(registry);
       return new PreparedMirrorTable(cachedSchema, registry.getMirrorTableName(), true, registry);
+    }
+
+    if (registry != null
+        && Boolean.TRUE.equals(registry.getInitialized())
+        && Boolean.TRUE.equals(registry.getPreviewEnabled())
+        && expectedMirrorTableName.equals(registry.getMirrorTableName())
+        && tableExists(registry.getMirrorTableName())) {
+      return prepareMirrorTable(config, option);
     }
 
     SourceTableSchema sourceSchema = externalDbService.discoverTableSchema(config, option);

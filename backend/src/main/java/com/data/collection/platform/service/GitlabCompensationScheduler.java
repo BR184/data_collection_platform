@@ -59,12 +59,12 @@ public class GitlabCompensationScheduler {
       log.debug("Compensation skipped because table-level compensation job is already pending or running, configId={}", config.getId());
       return;
     }
-    LocalDateTime latestActivityAt = taskService.resolveLatestActivityAt(config.getId());
+    LocalDateTime latestActivityAt = tableSyncPlanningService.resolveLatestActivityAt(config.getId());
     if (latestActivityAt == null) {
-      return;
+      latestActivityAt = taskService.resolveLatestActivityAt(config.getId());
     }
-    long minutes = Duration.between(latestActivityAt, LocalDateTime.now()).toMinutes();
-    if (minutes >= config.getCompensationIntervalMinutes()) {
+    long minutes = latestActivityAt == null ? Long.MAX_VALUE : Duration.between(latestActivityAt, LocalDateTime.now()).toMinutes();
+    if (latestActivityAt == null || minutes >= config.getCompensationIntervalMinutes()) {
       log.info(
           "Compensation trigger accepted, configId={}, intervalMinutes={}, idleMinutes={}",
           config.getId(),

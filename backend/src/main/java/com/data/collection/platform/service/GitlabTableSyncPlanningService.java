@@ -104,6 +104,31 @@ public class GitlabTableSyncPlanningService {
     return count != null && count > 0;
   }
 
+  public LocalDateTime resolveLatestActivityAt(Long configId) {
+    if (configId == null) {
+      return null;
+    }
+    LocalDateTime latest = null;
+    GitlabSyncJob job = jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
+        .eq(GitlabSyncJob::getConfigId, configId)
+        .orderByDesc(GitlabSyncJob::getUpdatedAt)
+        .last("limit 1"));
+    latest = max(latest, latestJobTime(job));
+
+    GitlabTableSyncTask task = taskMapper.selectOne(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getConfigId, configId)
+        .orderByDesc(GitlabTableSyncTask::getUpdatedAt)
+        .last("limit 1"));
+    latest = max(latest, latestTaskTime(task));
+
+    GitlabTableSyncState state = stateMapper.selectOne(new LambdaQueryWrapper<GitlabTableSyncState>()
+        .eq(GitlabTableSyncState::getConfigId, configId)
+        .orderByDesc(GitlabTableSyncState::getUpdatedAt)
+        .last("limit 1"));
+    latest = max(latest, latestStateTime(state));
+    return latest;
+  }
+
   public GitlabSyncJob findDisplayJob(Long configId) {
     if (configId == null) {
       return null;
@@ -377,6 +402,43 @@ public class GitlabTableSyncPlanningService {
 
   private String normalizeText(String value) {
     return isBlank(value) ? "" : value.trim();
+  }
+
+  private LocalDateTime latestJobTime(GitlabSyncJob job) {
+    if (job == null) {
+      return null;
+    }
+    return max(
+        max(job.getUpdatedAt(), job.getHeartbeatAt()),
+        max(job.getFinishedAt(), max(job.getStartedAt(), job.getCreatedAt())));
+  }
+
+  private LocalDateTime latestTaskTime(GitlabTableSyncTask task) {
+    if (task == null) {
+      return null;
+    }
+    return max(
+        max(task.getUpdatedAt(), task.getHeartbeatAt()),
+        max(task.getFinishedAt(), max(task.getStartedAt(), task.getCreatedAt())));
+  }
+
+  private LocalDateTime latestStateTime(GitlabTableSyncState state) {
+    if (state == null) {
+      return null;
+    }
+    return max(
+        max(state.getUpdatedAt(), state.getLastSuccessAt()),
+        max(state.getLastFullVerifiedAt(), state.getLastWatermarkAt()));
+  }
+
+  private LocalDateTime max(LocalDateTime left, LocalDateTime right) {
+    if (left == null) {
+      return right;
+    }
+    if (right == null) {
+      return left;
+    }
+    return left.isAfter(right) ? left : right;
   }
 
   private boolean isBlank(String value) {
