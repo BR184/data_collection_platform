@@ -3,6 +3,8 @@ package com.data.collection.platform.controller;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
+import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshRequest;
+import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
@@ -90,6 +92,21 @@ public class ReviewDataController {
     return ApiResponse.success(
         "评审数据搜索索引回填已执行",
         reviewDataRecordService.backfillMissingSearchIndexes(batchSize));
+  }
+
+  @PostMapping("/records/gitlab-context/refresh")
+  public ApiResponse<ReviewDataGitlabContextRefreshResponse> refreshGitlabContext(
+      @RequestBody(required = false) ReviewDataGitlabContextRefreshRequest request) {
+    return ApiResponse.success(
+        "GitLab 上下文同步请求已处理",
+        reviewDataRecordService.refreshGitlabContext(
+            request == null ? new ReviewDataGitlabContextRefreshRequest(List.of(), null) : request));
+  }
+
+  @GetMapping("/records/gitlab-context/refresh/{jobId}")
+  public ApiResponse<ReviewDataGitlabContextRefreshResponse> getGitlabContextRefreshStatus(
+      @PathVariable Long jobId) {
+    return ApiResponse.success(reviewDataRecordService.getGitlabContextRefreshStatus(jobId));
   }
 
   @PostMapping("/records/{recordId}/problem-items")

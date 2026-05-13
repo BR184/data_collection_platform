@@ -31,6 +31,9 @@ public class ReviewDataRecordReadRepository {
         r.review_product,
         r.author_name,
         r.review_version,
+        r.gitlab_project_id,
+        r.gitlab_resource_iid,
+        r.gitlab_resource_type,
         r.updated_at,
         r.deleted,
         coalesce(expert.expert_names, '') as review_experts_summary,
@@ -124,6 +127,9 @@ public class ReviewDataRecordReadRepository {
             r.review_product,
             r.author_name,
             r.review_version,
+            r.gitlab_project_id,
+            r.gitlab_resource_iid,
+            r.gitlab_resource_type,
             r.updated_at,
             r.deleted,
             coalesce(problem.problem_count, 0) as problem_count,
@@ -169,6 +175,9 @@ public class ReviewDataRecordReadRepository {
           page_records.review_product,
           page_records.author_name,
           page_records.review_version,
+          page_records.gitlab_project_id,
+          page_records.gitlab_resource_iid,
+          page_records.gitlab_resource_type,
           page_records.updated_at,
           page_records.deleted,
           coalesce(expert.expert_names, '') as review_experts_summary,
@@ -286,7 +295,10 @@ public class ReviewDataRecordReadRepository {
         problemCount == null ? 0 : problemCount,
         calculateProblemDensity(problemCount, reviewScalePages),
         rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime(),
-        rs.getBoolean("deleted"));
+        rs.getBoolean("deleted"),
+        (Long) rs.getObject("gitlab_project_id"),
+        (Long) rs.getObject("gitlab_resource_iid"),
+        TextQuerySupport.trimToNull(rs.getString("gitlab_resource_type")));
   }
 
   private Double calculateProblemDensity(Integer problemCount, Integer reviewScalePages) {

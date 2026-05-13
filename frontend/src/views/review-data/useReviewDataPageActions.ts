@@ -10,6 +10,7 @@ type TableRowWithRawRecord = Record<string, unknown> & {
 
 export interface ReviewDataPageActionsDependencies {
   refreshRecords: () => Promise<void>;
+  syncGitlabContext: (recordIds: number[]) => Promise<{ accepted: boolean; message: string }>;
   toggleProblemPanel: (recordId: number) => Promise<void>;
   isProblemExpanded: (recordId: number) => boolean;
   openDetail: (recordId: number) => Promise<void>;
@@ -36,9 +37,27 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
   async function handleRefresh() {
     try {
       await deps.refreshRecords();
-      deps.notifySuccess('评审数据已刷新');
+      deps.notifySuccess('评审数据列表已刷新');
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审数据刷新失败');
+      deps.notifyError(error instanceof Error ? error.message : '评审数据列表刷新失败');
+    }
+  }
+
+  async function handleSyncGitlabContext(records: ReviewDataRecordRowResponse[]) {
+    const linkedRecordIds = records
+      .filter((record) => Boolean(record.gitlabProjectId && record.gitlabResourceIid && record.gitlabResourceType))
+      .map((record) => record.id);
+    if (linkedRecordIds.length === 0) {
+      deps.notifySuccess('当前结果没有关联 GitLab 上下文，仅刷新本地列表');
+      await deps.refreshRecords();
+      return;
+    }
+    try {
+      const response = await deps.syncGitlabContext(linkedRecordIds);
+      deps.notifySuccess(response.message || '已同步关联 GitLab 上下文');
+      await deps.refreshRecords();
+    } catch (error) {
+      deps.notifyError(error instanceof Error ? error.message : '同步关联 GitLab 上下文失败');
     }
   }
 
@@ -121,6 +140,7 @@ export function useReviewDataPageActions(deps: ReviewDataPageActionsDependencies
     ruleExplanationVisible,
     recordFromTableRow,
     handleRefresh,
+    handleSyncGitlabContext,
     toggleProblemPanelByRow,
     isProblemExpandedByRow,
     handleCreateProblemItemByRow,

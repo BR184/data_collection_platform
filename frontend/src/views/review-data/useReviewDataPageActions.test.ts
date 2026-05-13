@@ -47,6 +47,9 @@ function problemItem(id = 9): ReviewDataProblemItemResponse {
 function setup() {
   return {
     refreshRecords: vi.fn<() => Promise<void>>(() => Promise.resolve()),
+    syncGitlabContext: vi.fn<(recordIds: number[]) => Promise<{ accepted: boolean; message: string }>>(
+      () => Promise.resolve({ accepted: true, message: '已同步关联 GitLab 上下文' }),
+    ),
     toggleProblemPanel: vi.fn<(recordId: number) => Promise<void>>(() => Promise.resolve()),
     isProblemExpanded: vi.fn<(recordId: number) => boolean>(() => false),
     openDetail: vi.fn<(recordId: number) => Promise<void>>(() => Promise.resolve()),
@@ -90,8 +93,32 @@ describe('useReviewDataPageActions', () => {
     state.openRuleExplanation();
 
     expect(deps.refreshRecords).toHaveBeenCalledOnce();
-    expect(deps.notifySuccess).toHaveBeenCalledWith('评审数据已刷新');
+    expect(deps.notifySuccess).toHaveBeenCalledWith('评审数据列表已刷新');
     expect(state.ruleExplanationVisible.value).toBe(true);
+  });
+
+  it('syncs linked GitLab context without replacing local refresh behavior', async () => {
+    const deps = setup();
+    const state = useReviewDataPageActions(deps);
+
+    await state.handleSyncGitlabContext([
+      { ...record(7), gitlabProjectId: 325, gitlabResourceIid: 12, gitlabResourceType: 'merge_request' },
+    ]);
+
+    expect(deps.syncGitlabContext).toHaveBeenCalledWith([7]);
+    expect(deps.refreshRecords).toHaveBeenCalledOnce();
+    expect(deps.notifySuccess).toHaveBeenCalledWith('已同步关联 GitLab 上下文');
+  });
+
+  it('keeps GitLab context sync as a local reload when current rows have no linkage', async () => {
+    const deps = setup();
+    const state = useReviewDataPageActions(deps);
+
+    await state.handleSyncGitlabContext([record(8)]);
+
+    expect(deps.syncGitlabContext).not.toHaveBeenCalled();
+    expect(deps.refreshRecords).toHaveBeenCalledOnce();
+    expect(deps.notifySuccess).toHaveBeenCalledWith('当前结果没有关联 GitLab 上下文，仅刷新本地列表');
   });
 
   it('confirms and deletes records, then refreshes the list', async () => {

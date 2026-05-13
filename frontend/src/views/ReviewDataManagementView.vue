@@ -131,6 +131,9 @@ const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
+const hasGitlabContextRows = computed(() =>
+  rows.value.some((row) => Boolean(row.gitlabProjectId && row.gitlabResourceIid && row.gitlabResourceType)),
+);
 
 const {
   filterDraft,
@@ -194,6 +197,7 @@ async function refreshReviewRecords() {
 const {
   ruleExplanationVisible,
   handleRefresh,
+  handleSyncGitlabContext,
   toggleProblemPanelByRow,
   isProblemExpandedByRow,
   handleCreateProblemItemByRow,
@@ -205,6 +209,7 @@ const {
   openRuleExplanation,
 } = useReviewDataPageActions({
   refreshRecords: () => refreshReviewRecords(),
+  syncGitlabContext: (recordIds) => api.refreshReviewDataGitlabContext({ recordIds }),
   toggleProblemPanel,
   isProblemExpanded,
   openDetail,
@@ -275,6 +280,15 @@ const {
             规则说明
           </el-button>
           <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+          <el-button
+            plain
+            :icon="Refresh"
+            :disabled="!hasGitlabContextRows"
+            title="同步关联 GitLab 上下文，不覆盖人工评审字段"
+            @click="handleSyncGitlabContext(rows)"
+          >
+            同步关联 GitLab 上下文
+          </el-button>
           <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">
             导出
           </el-button>

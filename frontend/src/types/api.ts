@@ -605,6 +605,9 @@ export interface ReviewDataRecordRowResponse {
   problemDensity: number;
   updatedAt?: string | null;
   deleted: boolean;
+  gitlabProjectId?: number | null;
+  gitlabResourceIid?: number | null;
+  gitlabResourceType?: string | null;
 }
 
 export interface ReviewDataRecordListResponse {
@@ -662,6 +665,22 @@ export interface ReviewDataRecordSaveRequest {
   reviewProduct: string;
   authorName: string;
   reviewVersion: string;
+}
+
+export interface ReviewDataGitlabContextRefreshRequest {
+  recordIds?: number[];
+  resourceType?: string | null;
+}
+
+export interface ReviewDataGitlabContextRefreshResponse {
+  accepted: boolean;
+  jobId?: number | null;
+  status: string;
+  resourceTypes: string[];
+  sourceTables: string[];
+  plannedTasks: number;
+  manualFieldsTouched: boolean;
+  message: string;
 }
 
 export interface ReviewDataProblemItemSaveRequest {

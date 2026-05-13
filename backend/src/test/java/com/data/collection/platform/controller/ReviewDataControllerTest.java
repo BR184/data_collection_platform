@@ -13,6 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
+import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshRequest;
+import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
@@ -302,6 +304,49 @@ class ReviewDataControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.problemStatus").value("Resolved"));
+  }
+
+  @Test
+  void shouldStartGitlabContextRefreshForSelectedRecords() throws Exception {
+    when(reviewDataRecordService.refreshGitlabContext(any(ReviewDataGitlabContextRefreshRequest.class)))
+        .thenReturn(new ReviewDataGitlabContextRefreshResponse(
+            true,
+            88L,
+            "SUCCESS",
+            List.of("merge_request"),
+            List.of("merge_requests", "projects"),
+            2,
+            false,
+            "ok"));
+
+    mockMvc.perform(
+            post("/api/review-data/records/gitlab-context/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"recordIds\":[1,2]}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accepted").value(true))
+        .andExpect(jsonPath("$.data.jobId").value(88))
+        .andExpect(jsonPath("$.data.manualFieldsTouched").value(false));
+  }
+
+  @Test
+  void shouldReturnGitlabContextRefreshStatus() throws Exception {
+    when(reviewDataRecordService.getGitlabContextRefreshStatus(88L))
+        .thenReturn(new ReviewDataGitlabContextRefreshResponse(
+            true,
+            88L,
+            "SUCCESS",
+            List.of(),
+            List.of("issues"),
+            1,
+            false,
+            "done"));
+
+    mockMvc.perform(get("/api/review-data/records/gitlab-context/refresh/88"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("SUCCESS"))
+        .andExpect(jsonPath("$.data.sourceTables[0]").value("issues"));
   }
 
   @Test
