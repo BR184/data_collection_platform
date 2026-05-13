@@ -1,4 +1,5 @@
 import type { GitlabSyncLog, GitlabSyncStatus, GitlabSyncType, MirrorPurgeResult } from '../types/api';
+import { formatBeijingDateTime } from '../utils/beijing-time';
 
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
@@ -47,14 +48,7 @@ const SYNC_STATUS_TAG_TYPES: Record<GitlabSyncStatus | 'IDLE', 'danger' | 'info'
 };
 
 export function formatDateTime(value?: string | null) {
-  if (!value) {
-    return '-';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString('zh-CN', { hour12: false });
+  return formatBeijingDateTime(value);
 }
 
 export function formatDuration(log: GitlabSyncLog) {

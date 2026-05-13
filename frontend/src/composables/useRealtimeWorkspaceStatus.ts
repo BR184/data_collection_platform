@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import type { RealtimeWorkspaceStatusResponse } from '../types/api';
+import { formatBeijingDateTime } from '../utils/beijing-time';
 
 interface UseRealtimeWorkspaceStatusOptions {
   loadStatus: () => Promise<RealtimeWorkspaceStatusResponse>;
@@ -7,10 +8,7 @@ interface UseRealtimeWorkspaceStatusOptions {
 }
 
 export function formatRealtimeLastSyncedText(lastSyncedAt: string | null | undefined, emptyText = '暂无同步记录') {
-  if (!lastSyncedAt) {
-    return emptyText;
-  }
-  return lastSyncedAt.replace('T', ' ').slice(0, 19);
+  return formatBeijingDateTime(lastSyncedAt, emptyText);
 }
 
 export function useRealtimeWorkspaceStatus(options: UseRealtimeWorkspaceStatusOptions) {

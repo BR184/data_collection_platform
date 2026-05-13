@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.config.PlatformJacksonConfiguration;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSourceTableDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -45,6 +46,9 @@ import com.data.collection.platform.service.GitlabTableSyncPlanningService;
 import com.data.collection.platform.service.GitlabWebhookRegistrationService;
 import com.data.collection.platform.service.GitlabWebhookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +58,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -116,7 +121,16 @@ class GitlabSyncControllerTest {
         externalDbService,
         tableSyncPlanningService,
         tableSyncDiagnosticsService);
-    mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+    JavaTimeModule javaTimeModule = new JavaTimeModule();
+    javaTimeModule.addSerializer(
+        java.time.LocalDateTime.class,
+        PlatformJacksonConfiguration.localDateTimeSerializer());
+    ObjectMapper objectMapper = new ObjectMapper()
+        .registerModule(javaTimeModule)
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    mockMvc = MockMvcBuilders.standaloneSetup(controller)
+        .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+        .build();
   }
 
   @Test
@@ -142,6 +156,7 @@ class GitlabSyncControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.configId").value(7))
         .andExpect(jsonPath("$.data.sourceInstance").value("default"))
+        .andExpect(jsonPath("$.data.generatedAt").value("2026-05-09T10:00:00+08:00"))
         .andExpect(jsonPath("$.data.tableCount").value(2))
         .andExpect(jsonPath("$.data.dirtyTableCount").value(1))
         .andExpect(jsonPath("$.data.pendingTaskCount").value(3));
@@ -212,7 +227,9 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.currentStatus").value("RUNNING"))
         .andExpect(jsonPath("$.data.currentTask.id").value(10))
         .andExpect(jsonPath("$.data.currentTask.taskType").value("FULL"))
-        .andExpect(jsonPath("$.data.currentTask.status").value("RUNNING"));
+        .andExpect(jsonPath("$.data.currentTask.status").value("RUNNING"))
+        .andExpect(jsonPath("$.data.currentStartedAt").value("2026-05-11T11:24:16+08:00"))
+        .andExpect(jsonPath("$.data.currentTask.startedAt").value("2026-05-11T11:24:16+08:00"));
   }
 
   @Test

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GitlabSyncLog, MirrorPurgeResult } from '../types/api';
 import {
   buildPurgeSummaryHtml,
+  formatDateTime,
   formatDuration,
   formatLogTime,
   syncLogMessage,
@@ -54,6 +55,8 @@ describe('mirror settings helpers', () => {
     expect(formatDuration(createLog({ status: 'RUNNING', finishedAt: null }))).toBe('进行中');
     expect(formatDuration(createLog({ startedAt: 'invalid', finishedAt: 'also-invalid' }))).toBe('-');
     expect(formatLogTime(createLog({ finishedAt: 'invalid-date' }))).toBe('invalid-date');
+    expect(formatDateTime('2026-04-27T02:00:00Z')).toBe('2026-04-27 10:00:00');
+    expect(formatDateTime('2026-04-27T10:00:00')).toBe('2026-04-27 10:00:00');
   });
 
   it('builds the purge completion summary html', () => {

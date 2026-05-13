@@ -33,11 +33,21 @@ describe('useRealtimeWorkspaceStatus', () => {
 
     expect(loadStatus).toHaveBeenCalledOnce();
     expect(status.syncStatus.value?.workspaceKey).toBe('stat-board');
-    expect(status.lastSyncedText.value).toBe('2026-04-28 09:10:11');
+    expect(status.lastSyncedText.value).toBe('2026-04-28 17:10:11');
 
     await status.loadRealtimeStatus();
 
     expect(status.syncStatus.value).toBeNull();
     expect(status.lastSyncedText.value).toBe('暂无同步记录');
+  });
+
+  it('keeps legacy offset-free timestamps stable', () => {
+    const status = useRealtimeWorkspaceStatus({
+      loadStatus: vi.fn<() => Promise<RealtimeWorkspaceStatusResponse>>(),
+    });
+
+    status.syncStatus.value = createStatus('2026-04-28T09:10:11');
+
+    expect(status.lastSyncedText.value).toBe('2026-04-28 09:10:11');
   });
 });

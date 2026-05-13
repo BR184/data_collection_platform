@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: data-collection-platform-backend
+  jackson:
+    time-zone: ${PLATFORM_TIME_ZONE:Asia/Shanghai}
   datasource:
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex}
     username: ${DATASOURCE_USERNAME:qaflex}
