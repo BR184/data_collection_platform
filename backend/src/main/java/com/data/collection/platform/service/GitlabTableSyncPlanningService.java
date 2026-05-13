@@ -167,6 +167,33 @@ public class GitlabTableSyncPlanningService {
     return job == null ? SyncStatus.PENDING : job.getStatus();
   }
 
+  public GitlabSyncJob findJob(Long jobId) {
+    return jobId == null ? null : jobMapper.selectById(jobId);
+  }
+
+  public GitlabSyncJob findLatestManualRefreshJobByReason(String reason) {
+    if (isBlank(reason)) {
+      return null;
+    }
+    return jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
+        .eq(GitlabSyncJob::getJobType, GitlabSyncJobType.MANUAL_REFRESH)
+        .eq(GitlabSyncJob::getTriggerType, SyncTriggerType.MANUAL)
+        .eq(GitlabSyncJob::getPayloadJson, reason)
+        .orderByDesc(GitlabSyncJob::getCreatedAt)
+        .orderByDesc(GitlabSyncJob::getId)
+        .last("limit 1"));
+  }
+
+  public List<GitlabTableSyncTask> listTasksForJob(Long jobId) {
+    if (jobId == null) {
+      return List.of();
+    }
+    return taskMapper.selectList(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, jobId)
+        .orderByAsc(GitlabTableSyncTask::getSourceTable)
+        .orderByAsc(GitlabTableSyncTask::getId));
+  }
+
   @Transactional
   public CompensationPlanResult createDailyVerificationPlan(
       GitlabSyncConfig config,
