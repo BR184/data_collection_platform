@@ -234,6 +234,7 @@ public class GitlabMirrorSyncService {
       GitlabSyncConfig config,
       SyncTriggerType triggerType,
       String message) {
+    long startedNanos = System.nanoTime();
     GitlabSyncJob activeJob = tableSyncPlanningService.findActiveJob(config.getId());
     if (activeJob != null) {
       return new SyncTaskSubmissionResult(
@@ -246,10 +247,22 @@ public class GitlabMirrorSyncService {
     GitlabTableSyncPlanningService.CompensationPlanResult result;
     int processedTasks = 0;
     try {
+      long planningStartedNanos = System.nanoTime();
       result = tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, message);
+      long planningDurationMs = elapsedMs(planningStartedNanos);
+      long drainStartedNanos = System.nanoTime();
       processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+      long mirrorTaskDurationMs = elapsedMs(drainStartedNanos);
       SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
       finishVisibleLogIfTerminal(logId, SyncType.INCREMENTAL, status, result.plannedTasks(), processedTasks);
+      log.info(
+          "Incremental table plan completed, jobId={}, plannedTasks={}, processedTasks={}, planningDurationMs={}, mirrorTaskDurationMs={}, totalDurationMs={}",
+          result.jobId(),
+          result.plannedTasks(),
+          processedTasks,
+          planningDurationMs,
+          mirrorTaskDurationMs,
+          elapsedMs(startedNanos));
     } catch (Exception e) {
       logService.finish(logId, SyncStatus.FAILED, e.getMessage(), processedTasks, 0);
       throw e;
@@ -263,11 +276,26 @@ public class GitlabMirrorSyncService {
   }
 
   private SyncTaskSubmissionResult submitManualFullTablePlan(GitlabSyncConfig config, String message) {
+    long startedNanos = System.nanoTime();
     GitlabSyncJob activeJob = tableSyncPlanningService.findActiveJob(config.getId());
     if (activeJob != null) {
       return new SyncTaskSubmissionResult(
           buildSummaryTaskFromJob(activeJob, syncTypeFromJob(activeJob.getJobType())),
           SyncSubmissionAction.REUSED_ACTIVE);
+    }
+    GitlabSyncJob recentJob = tableSyncPlanningService.findRecentCompletedJob(
+        config.getId(),
+        GitlabSyncJobType.DAILY_VERIFY,
+        LocalDateTime.now().minusSeconds(Math.max(0, properties.getDedupeWindowSeconds())));
+    if (recentJob != null) {
+      log.info(
+          "Reusing recent completed full verification job, jobId={}, status={}, dedupeWindowSeconds={}",
+          recentJob.getId(),
+          recentJob.getStatus(),
+          properties.getDedupeWindowSeconds());
+      return new SyncTaskSubmissionResult(
+          buildSummaryTaskFromJob(recentJob, SyncType.FULL),
+          SyncSubmissionAction.DEDUPED);
     }
     List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
     List<String> sourceTableNames = tables.stream().map(TableWhitelistOption::tableName).toList();
@@ -275,10 +303,22 @@ public class GitlabMirrorSyncService {
     GitlabTableSyncPlanningService.CompensationPlanResult result;
     int processedTasks = 0;
     try {
+      long planningStartedNanos = System.nanoTime();
       result = tableSyncPlanningService.createManualVerificationPlan(config, tables);
+      long planningDurationMs = elapsedMs(planningStartedNanos);
+      long drainStartedNanos = System.nanoTime();
       processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
+      long mirrorTaskDurationMs = elapsedMs(drainStartedNanos);
       SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
       finishVisibleLogIfTerminal(logId, SyncType.FULL, status, result.plannedTasks(), processedTasks);
+      log.info(
+          "Full table verification completed, jobId={}, plannedTasks={}, processedTasks={}, planningDurationMs={}, mirrorTaskDurationMs={}, totalDurationMs={}",
+          result.jobId(),
+          result.plannedTasks(),
+          processedTasks,
+          planningDurationMs,
+          mirrorTaskDurationMs,
+          elapsedMs(startedNanos));
     } catch (Exception e) {
       logService.finish(logId, SyncStatus.FAILED, e.getMessage(), processedTasks, 0);
       throw e;
@@ -357,6 +397,10 @@ public class GitlabMirrorSyncService {
 
   private SyncStatus normalizeJobStatus(SyncStatus status) {
     return status == null ? SyncStatus.PENDING : status;
+  }
+
+  private long elapsedMs(long startedNanos) {
+    return Math.max(0, (System.nanoTime() - startedNanos) / 1_000_000);
   }
 
   private void finishVisibleLogIfTerminal(

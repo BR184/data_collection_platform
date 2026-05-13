@@ -159,6 +159,23 @@ public class GitlabTableSyncPlanningService {
         .last("limit 1"));
   }
 
+  public GitlabSyncJob findRecentCompletedJob(
+      Long configId,
+      GitlabSyncJobType jobType,
+      LocalDateTime since) {
+    if (configId == null || jobType == null || since == null) {
+      return null;
+    }
+    return jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
+        .eq(GitlabSyncJob::getConfigId, configId)
+        .eq(GitlabSyncJob::getJobType, jobType)
+        .eq(GitlabSyncJob::getStatus, SyncStatus.SUCCESS)
+        .ge(GitlabSyncJob::getUpdatedAt, since)
+        .orderByDesc(GitlabSyncJob::getUpdatedAt)
+        .orderByDesc(GitlabSyncJob::getId)
+        .last("limit 1"));
+  }
+
   public SyncStatus findJobStatus(Long jobId) {
     if (jobId == null) {
       return SyncStatus.PENDING;

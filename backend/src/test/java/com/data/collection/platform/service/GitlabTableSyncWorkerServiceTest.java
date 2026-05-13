@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -330,6 +331,60 @@ class GitlabTableSyncWorkerServiceTest {
     assertThat(repairTask.getTaskType()).isEqualTo(GitlabTableSyncTaskType.SHARD_REPAIR);
     assertThat(repairTask.getCursorPk()).contains("\"shardKey\":\"0a\"");
     assertThat(state.isDirtyFlag()).isTrue();
+  }
+
+  @Test
+  void shouldSkipShardChecksumProbeWhenDailyVerificationProbeMatchesLastCleanState() {
+    GitlabTableSyncTask verifyTask = task();
+    verifyTask.setTaskType(GitlabTableSyncTaskType.DAILY_VERIFY);
+    GitlabTableSyncState state = state();
+    state.setSourceRowCount(10L);
+    state.setMirrorRowCount(10L);
+    state.setSourceMaxUpdatedAt(LocalDateTime.of(2026, 1, 2, 3, 4));
+    state.setSchemaFingerprint("schema-v1");
+    state.setLastFullVerifiedAt(LocalDateTime.of(2026, 1, 2, 4, 0));
+    state.setDirtyFlag(false);
+    GitlabSyncConfig config = config();
+    GitlabSyncJob job = new GitlabSyncJob();
+    job.setId(9L);
+    job.setConfigId(3L);
+    job.setJobType(GitlabSyncJobType.DAILY_VERIFY);
+    job.setStatus(SyncStatus.RUNNING);
+    GitlabMirrorTableRegistry registry = new GitlabMirrorTableRegistry();
+    registry.setSchemaFingerprint("schema-v1");
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_issues",
+        List.of("id"),
+        "updated_at",
+        List.of(
+            new SourceTableColumn("id", "bigint", false, 1),
+            new SourceTableColumn("updated_at", "timestamp without time zone", false, 2)));
+    GitlabTableProbe sameProbe = new GitlabTableProbe(10L, LocalDateTime.of(2026, 1, 2, 3, 4), "1", "10");
+
+    when(stateMapper.selectOne(ArgumentMatchers.<Wrapper<GitlabTableSyncState>>any())).thenReturn(state);
+    when(configService.getConfigById(3L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(any(), any()))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(
+            schema,
+            "ods_gitlab_issues",
+            true,
+            registry));
+    when(externalDbService.probeTable(eq(config), any())).thenReturn(sameProbe);
+    when(storageService.probeMirrorTable(schema)).thenReturn(sameProbe);
+    when(jobMapper.selectById(9L)).thenReturn(job);
+    when(taskMapper.selectCount(ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any()))
+        .thenReturn(0L, 0L, 0L, 1L, 0L);
+
+    service.executeTask(verifyTask);
+
+    assertThat(verifyTask.getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    assertThat(job.getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    assertThat(state.isDirtyFlag()).isFalse();
+    assertThat(state.getLastError()).isEmpty();
+    verify(externalDbService, never()).probeTableShards(any(), any(), any(), any(Integer.class));
+    verify(storageService, never()).probeMirrorTableShards(any(), any(Integer.class));
+    verify(taskMapper, never()).insert(ArgumentMatchers.<GitlabTableSyncTask>any());
+    verify(factBuildTaskService, never()).enqueueMirrorRefreshTasks(any(), eq(true));
   }
 
   @Test

@@ -183,6 +183,20 @@ class GitlabTableSyncPlanningServiceTest {
     verify(taskMapper, times(0)).insert(org.mockito.ArgumentMatchers.<GitlabTableSyncTask>any());
   }
 
+  @Test
+  void shouldFindRecentCompletedJobForFullVerificationDedupeWindow() {
+    LocalDateTime since = LocalDateTime.of(2026, 5, 13, 10, 0);
+    GitlabSyncJob recentJob = new GitlabSyncJob();
+    recentJob.setId(91L);
+    recentJob.setStatus(SyncStatus.SUCCESS);
+    when(jobMapper.selectOne(any())).thenReturn(recentJob);
+
+    GitlabSyncJob result =
+        service.findRecentCompletedJob(3L, GitlabSyncJobType.DAILY_VERIFY, since);
+
+    assertThat(result).isEqualTo(recentJob);
+  }
+
   private GitlabSyncConfig config() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(3L);

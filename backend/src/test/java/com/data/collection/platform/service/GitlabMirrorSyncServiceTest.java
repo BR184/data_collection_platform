@@ -181,6 +181,34 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void fullSyncShouldReuseRecentCompletedVerificationJobWithinDedupeWindow() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    GitlabSyncJob recentJob = new GitlabSyncJob();
+    recentJob.setId(101L);
+    recentJob.setConfigId(1L);
+    recentJob.setJobType(GitlabSyncJobType.DAILY_VERIFY);
+    recentJob.setStatus(SyncStatus.SUCCESS);
+    recentJob.setTriggerType(SyncTriggerType.MANUAL);
+    recentJob.setCreatedAt(LocalDateTime.of(2026, 5, 13, 10, 0));
+    recentJob.setFinishedAt(LocalDateTime.of(2026, 5, 13, 10, 1));
+    recentJob.setUpdatedAt(LocalDateTime.of(2026, 5, 13, 10, 1));
+
+    when(configService.getConfig()).thenReturn(config);
+    when(tableSyncPlanningService.findRecentCompletedJob(eq(1L), eq(GitlabSyncJobType.DAILY_VERIFY), any()))
+        .thenReturn(recentJob);
+
+    SyncTaskSubmissionResult result = syncService.startFullSync();
+
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
+    assertThat(result.task().getId()).isEqualTo(101L);
+    assertThat(result.task().getStatus()).isEqualTo(SyncStatus.SUCCESS);
+    verify(whitelistService, never()).resolveOptions(any());
+    verify(tableSyncPlanningService, never()).createManualVerificationPlan(any(), any());
+    verify(tableSyncWorkerService, never()).drainReadyTasksForJob(any());
+  }
+
+  @Test
   void manualIncrementalTablePlanShouldWriteVisibleSyncLog() {
     GitlabSyncConfig config = baseConfig();
     config.setEnabled(true);

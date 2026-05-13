@@ -253,19 +253,57 @@ public class GitlabTableSyncWorkerService {
   }
 
   private void executeDailyVerify(GitlabTableSyncTask task, GitlabTableSyncState state) {
+    long startedNanos = System.nanoTime();
     GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
     TableWhitelistOption option = tableOption(state);
     GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
         mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
     heartbeat(task);
+    long sourceProbeStartedNanos = System.nanoTime();
     GitlabTableProbe sourceProbe = externalDbService.probeTable(config, option);
+    long sourceProbeDurationMs = elapsedMs(sourceProbeStartedNanos);
     heartbeat(task);
+    long mirrorProbeStartedNanos = System.nanoTime();
     GitlabTableProbe mirrorProbe = storageService.probeMirrorTable(preparedMirrorTable.mirrorSchema());
-    List<GitlabTableShardProbe> driftedShards = findDriftedSourceShards(
-        externalDbService.probeTableShards(config, option, preparedMirrorTable.mirrorSchema(), DAILY_VERIFY_SHARD_KEY_LENGTH),
-        storageService.probeMirrorTableShards(preparedMirrorTable.mirrorSchema(), DAILY_VERIFY_SHARD_KEY_LENGTH));
-    boolean drifted = isDrifted(sourceProbe, mirrorProbe, state) || !driftedShards.isEmpty();
-    markVerificationSuccess(task, state, sourceProbe, mirrorProbe, drifted);
+    long mirrorProbeDurationMs = elapsedMs(mirrorProbeStartedNanos);
+    String schemaFingerprint = schemaFingerprint(preparedMirrorTable, state);
+    boolean topLevelDrifted = isDrifted(sourceProbe, mirrorProbe, state);
+    if (!topLevelDrifted && shouldUseNoChangeFastPath(sourceProbe, mirrorProbe, state, schemaFingerprint)) {
+      markVerificationSuccess(task, state, sourceProbe, mirrorProbe, schemaFingerprint, false);
+      log.info(
+          "Daily verification no-change fast path, taskId={}, configId={}, sourceTable={}, probeDurationMs={}, mirrorTaskDurationMs={}, totalDurationMs={}",
+          task.getId(),
+          task.getConfigId(),
+          task.getSourceTable(),
+          sourceProbeDurationMs + mirrorProbeDurationMs,
+          0,
+          elapsedMs(startedNanos));
+      return;
+    }
+    long shardProbeStartedNanos = System.nanoTime();
+    List<GitlabTableShardProbe> driftedShards = topLevelDrifted
+        ? List.of()
+        : findDriftedSourceShards(
+            externalDbService.probeTableShards(
+                config,
+                option,
+                preparedMirrorTable.mirrorSchema(),
+                DAILY_VERIFY_SHARD_KEY_LENGTH),
+            storageService.probeMirrorTableShards(
+                preparedMirrorTable.mirrorSchema(),
+                DAILY_VERIFY_SHARD_KEY_LENGTH));
+    long shardProbeDurationMs = topLevelDrifted ? 0 : elapsedMs(shardProbeStartedNanos);
+    boolean drifted = topLevelDrifted || !driftedShards.isEmpty();
+    markVerificationSuccess(task, state, sourceProbe, mirrorProbe, schemaFingerprint, drifted);
+    log.info(
+        "Daily verification completed, taskId={}, configId={}, sourceTable={}, drifted={}, probeDurationMs={}, mirrorTaskDurationMs={}, totalDurationMs={}",
+        task.getId(),
+        task.getConfigId(),
+        task.getSourceTable(),
+        drifted,
+        sourceProbeDurationMs + mirrorProbeDurationMs,
+        shardProbeDurationMs,
+        elapsedMs(startedNanos));
     if (!drifted) {
       return;
     }
@@ -475,6 +513,7 @@ public class GitlabTableSyncWorkerService {
       GitlabTableSyncState state,
       GitlabTableProbe sourceProbe,
       GitlabTableProbe mirrorProbe,
+      String schemaFingerprint,
       boolean drifted) {
     LocalDateTime now = LocalDateTime.now();
     task.setStatus(SyncStatus.SUCCESS);
@@ -487,6 +526,7 @@ public class GitlabTableSyncWorkerService {
     state.setSourceRowCount(sourceProbe.rowCount());
     state.setMirrorRowCount(mirrorProbe.rowCount());
     state.setSourceMaxUpdatedAt(sourceProbe.maxUpdatedAt());
+    state.setSchemaFingerprint(schemaFingerprint);
     state.setLastFullVerifiedAt(now);
     state.setDirtyFlag(drifted);
     state.setLastError(drifted ? buildDriftMessage(sourceProbe, mirrorProbe, state) : "");
@@ -893,6 +933,36 @@ public class GitlabTableSyncWorkerService {
         && !Objects.equals(sourceProbe.maxUpdatedAt(), mirrorProbe.maxUpdatedAt());
   }
 
+  private boolean shouldUseNoChangeFastPath(
+      GitlabTableProbe sourceProbe,
+      GitlabTableProbe mirrorProbe,
+      GitlabTableSyncState state,
+      String schemaFingerprint) {
+    if (state.getLastFullVerifiedAt() == null || state.isDirtyFlag()) {
+      return false;
+    }
+    return Objects.equals(state.getSourceRowCount(), sourceProbe.rowCount())
+        && Objects.equals(state.getMirrorRowCount(), mirrorProbe.rowCount())
+        && Objects.equals(state.getSourceMaxUpdatedAt(), sourceProbe.maxUpdatedAt())
+        && Objects.equals(state.getSourceMaxUpdatedAt(), mirrorProbe.maxUpdatedAt())
+        && Objects.equals(normalizeText(state.getSchemaFingerprint()), normalizeText(schemaFingerprint));
+  }
+
+  private String schemaFingerprint(
+      GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable,
+      GitlabTableSyncState state) {
+    if (preparedMirrorTable != null
+        && preparedMirrorTable.registry() != null
+        && preparedMirrorTable.registry().getSchemaFingerprint() != null) {
+      return preparedMirrorTable.registry().getSchemaFingerprint();
+    }
+    return state == null ? "" : normalizeText(state.getSchemaFingerprint());
+  }
+
+  private String normalizeText(String value) {
+    return value == null ? "" : value.trim();
+  }
+
   private boolean shouldCreateDeleteReconcileTask(GitlabTableProbe sourceProbe, GitlabTableProbe mirrorProbe) {
     if (mirrorProbe.rowCount() > sourceProbe.rowCount()) {
       return true;
@@ -997,6 +1067,10 @@ public class GitlabTableSyncWorkerService {
     int baseMinutes = Math.max(1, properties.getFailureBackoffMinutes());
     int exponent = Math.max(0, Math.min(retryCount - 1, 5));
     return (long) baseMinutes * (1L << exponent);
+  }
+
+  private long elapsedMs(long startedNanos) {
+    return Math.max(0, (System.nanoTime() - startedNanos) / 1_000_000);
   }
 
   private String firstPrimaryKey(String primaryKeys) {
