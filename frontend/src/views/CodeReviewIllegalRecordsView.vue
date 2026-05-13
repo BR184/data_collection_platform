@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 // 代码走查非法记录页承接规则配置结果和记录检索结果，重点是让违规数据可筛选、可导出。
 // 页面状态尽量通过共享记录表和帮助函数表达，减少与规则配置页的隐式耦合。
 import { ElMessage } from '../element-plus-services';
-import { Download, InfoFilled, Setting } from '@element-plus/icons-vue';
+import { Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
@@ -74,6 +74,7 @@ const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 const exportLoading = ref(false);
+const realtimeRefreshLoading = ref(false);
 const sourceOptions = ref<OptionItemResponse[]>([]);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
@@ -194,6 +195,7 @@ async function loadSourceOptions() {
 }
 
 const {
+  syncStatus,
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
@@ -241,6 +243,28 @@ async function handleExport() {
   } finally {
     exportLoading.value = false;
   }
+}
+
+async function handleRefreshLatestData() {
+  realtimeRefreshLoading.value = true;
+  try {
+    let status = await api.refreshCodeReviewIllegalRecords();
+    ElMessage.success(status.message || '已开始刷新最新数据');
+    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
+      await sleep(1000);
+      status = (await loadSyncStatus()) ?? status;
+    }
+    await loadTableData();
+    await loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+  } finally {
+    realtimeRefreshLoading.value = false;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 bindLoader(async () => {
@@ -327,6 +351,14 @@ async function handleOpenRuleExplanation() {
       <template #toolbar-actions>
         <div class="record-page-summary">
           <SyncMetaBadge :value="lastSyncedText" />
+          <el-button
+            plain
+            :icon="RefreshRight"
+            :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+            @click="handleRefreshLatestData"
+          >
+            刷新最新数据
+          </el-button>
           <el-tag v-if="appliedRuleConfig?.enabled" effect="plain" type="success" class="record-page-config-tag">
             已按我的规则判定
           </el-tag>

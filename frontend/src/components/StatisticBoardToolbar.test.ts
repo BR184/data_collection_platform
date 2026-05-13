@@ -82,7 +82,7 @@ describe('StatisticBoardToolbar', () => {
 
     await buttons.find((button) => button.text() === '查询')?.trigger('click');
     await buttons.find((button) => button.text() === '重置')?.trigger('click');
-    await buttons.find((button) => button.text() === '刷新')?.trigger('click');
+    await buttons.find((button) => button.text() === '刷新最新数据')?.trigger('click');
     await buttons.find((button) => button.text() === '规则说明')?.trigger('click');
     await buttons.find((button) => button.text() === '导出')?.trigger('click');
 

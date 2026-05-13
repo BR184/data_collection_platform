@@ -22,8 +22,10 @@ export function useRealtimeWorkspaceStatus(options: UseRealtimeWorkspaceStatusOp
   async function loadRealtimeStatus() {
     try {
       syncStatus.value = await options.loadStatus();
+      return syncStatus.value;
     } catch {
       syncStatus.value = null;
+      return null;
     }
   }
 

@@ -252,6 +252,9 @@ const {
   loadBoard,
   loadRuleExplanation,
   loadDetail,
+  requestRealtimeRefresh: () => api.refreshStatisticBoardRealtime(props.boardKey),
+  loadRealtimeStatus,
+  notifySuccess: (message) => ElMessage.success(message),
 });
 
 const {

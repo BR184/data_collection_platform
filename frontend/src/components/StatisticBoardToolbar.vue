@@ -44,7 +44,7 @@ const emit = defineEmits<{
       <SyncMetaBadge :value="lastSyncedText" />
       <el-button type="primary" :icon="Search" @click="emit('applyFilters')">查询</el-button>
       <el-button @click="emit('resetFilters')">重置</el-button>
-      <el-button :icon="RefreshRight" @click="emit('refreshBoard')">刷新</el-button>
+      <el-button :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
       <el-button
         plain
         :icon="InfoFilled"

@@ -174,12 +174,9 @@ async function handleReset() {
 async function handleRefresh() {
   refreshingTable.value = true;
   try {
-    if (selectedTable.value) {
-      await api.refreshDatabaseTable(selectedTable.value);
-    }
     await loadTables();
     await loadRows();
-    ElMessage.success('当前表已刷新');
+    ElMessage.success('当前查询已重新加载');
   } catch (error) {
     ElMessage.error((error as Error).message);
   } finally {
