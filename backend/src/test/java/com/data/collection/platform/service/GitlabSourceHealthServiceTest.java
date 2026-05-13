@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncLog;
+import com.data.collection.platform.entity.GitlabSyncTask;
+import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -115,5 +117,126 @@ class GitlabSourceHealthServiceTest {
     assertThat(response.mergeRequestFactLagging()).isFalse();
     assertThat(response.issueFactLagging()).isFalse();
     assertThat(response.integrationTestFactLagging()).isFalse();
+  }
+
+  @Test
+  void shouldMarkDirectSourceBlockedWhenDatabasePasswordIsMissing() {
+    GitlabConfigService configService = mock(GitlabConfigService.class);
+    GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
+    GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabSourceHealthService service =
+        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(9L);
+    config.setName("Blocked direct source");
+    config.setEnabled(true);
+    config.setSourceEnabled(true);
+    config.setSourceMode(SourceMode.DIRECT);
+    config.setDbHost("10.0.0.8");
+    config.setDbPort(5432);
+    config.setDbName("gitlabhq_production");
+    config.setDbUsername("gitlab");
+    config.setDbPassword("");
+    when(configService.listConfigs()).thenReturn(List.of(config));
+
+    GitlabSourceHealthResponse response = service.listHealth().getFirst();
+
+    assertThat(response.healthStatus()).isEqualTo("BLOCKED");
+    assertThat(response.healthMessage()).contains("configuration is incomplete");
+    assertThat(response.currentStatus()).isEqualTo(SyncStatus.IDLE);
+    assertThat(response.missingRequiredMirrorTables()).isEmpty();
+  }
+
+  @Test
+  void shouldReportMissingMirrorTableAsDegradedWithSpecificTableName() {
+    GitlabConfigService configService = mock(GitlabConfigService.class);
+    GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
+    GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabSourceHealthService service =
+        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(10L);
+    config.setName("CC");
+    config.setEnabled(true);
+    config.setSourceEnabled(true);
+    config.setSourceMode(SourceMode.DOCKER);
+    config.setDockerContainerName("gitlab-web-1");
+    config.setSourceInstance("cc");
+    when(configService.listConfigs()).thenReturn(List.of(config));
+    when(jdbcTemplate.queryForList(any(String.class), eq(String.class), eq(10L)))
+        .thenReturn(List.of("ods_gitlab_cc_merge_requests"));
+    when(jdbcTemplate.queryForObject(eq("select to_regclass(?) is not null"), eq(Boolean.class), any()))
+        .thenReturn(false);
+    when(jdbcTemplate.queryForObject(
+            argThat(sql -> sql != null && sql.contains("\"merge_request_fact\"") && sql.contains("max(updated_at)")),
+            eq(LocalDateTime.class),
+            eq("cc")))
+        .thenReturn(LocalDateTime.of(2026, 5, 7, 10, 1));
+    when(jdbcTemplate.queryForObject(argThat(sql -> sql != null && sql.contains("count(*)")), eq(Long.class), eq("cc")))
+        .thenReturn(1L);
+
+    GitlabSourceHealthResponse response = service.listHealth().getFirst();
+
+    assertThat(response.healthStatus()).isEqualTo("DEGRADED");
+    assertThat(response.healthMessage()).contains("ods_gitlab_cc_merge_request_metrics");
+    assertThat(response.missingRequiredMirrorTables()).contains("ods_gitlab_cc_merge_request_metrics");
+  }
+
+  @Test
+  void shouldKeepSourceStatusesIsolatedWhenOneSourceIsBlocked() {
+    GitlabConfigService configService = mock(GitlabConfigService.class);
+    GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
+    GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    GitlabSourceHealthService service =
+        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+
+    GitlabSyncConfig blocked = new GitlabSyncConfig();
+    blocked.setId(11L);
+    blocked.setName("Blocked");
+    blocked.setEnabled(true);
+    blocked.setSourceEnabled(true);
+    blocked.setSourceMode(SourceMode.DIRECT);
+    blocked.setDbHost("10.0.0.8");
+    blocked.setDbPort(5432);
+    blocked.setDbName("gitlabhq_production");
+    blocked.setDbUsername("gitlab");
+
+    GitlabSyncConfig healthy = new GitlabSyncConfig();
+    healthy.setId(12L);
+    healthy.setName("Healthy");
+    healthy.setEnabled(true);
+    healthy.setSourceEnabled(true);
+    healthy.setSourceMode(SourceMode.DOCKER);
+    healthy.setDockerContainerName("gitlab-web-1");
+    healthy.setSourceInstance("dgm");
+    when(configService.listConfigs()).thenReturn(List.of(blocked, healthy));
+
+    GitlabSyncTask blockedTask = new GitlabSyncTask();
+    blockedTask.setStatus(SyncStatus.RUNNING);
+    when(taskService.findDisplayTask(11L)).thenReturn(blockedTask);
+    when(jdbcTemplate.queryForList(any(String.class), eq(String.class), eq(12L)))
+        .thenReturn(List.of("ods_gitlab_dgm_merge_requests"));
+    when(jdbcTemplate.queryForObject(eq("select to_regclass(?) is not null"), eq(Boolean.class), any()))
+        .thenReturn(true);
+    when(jdbcTemplate.queryForObject(
+            argThat(sql -> sql != null && sql.contains("\"merge_request_fact\"") && sql.contains("max(updated_at)")),
+            eq(LocalDateTime.class),
+            eq("dgm")))
+        .thenReturn(LocalDateTime.of(2026, 5, 7, 10, 1));
+    when(jdbcTemplate.queryForObject(argThat(sql -> sql != null && sql.contains("count(*)")), eq(Long.class), eq("dgm")))
+        .thenReturn(1L);
+
+    List<GitlabSourceHealthResponse> responses = service.listHealth();
+
+    assertThat(responses).hasSize(2);
+    assertThat(responses.get(0).healthStatus()).isEqualTo("BLOCKED");
+    assertThat(responses.get(0).currentStatus()).isEqualTo(SyncStatus.RUNNING);
+    assertThat(responses.get(1).healthStatus()).isEqualTo("OK");
+    assertThat(responses.get(1).currentStatus()).isEqualTo(SyncStatus.IDLE);
   }
 }

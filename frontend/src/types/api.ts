@@ -54,6 +54,8 @@ export interface GitlabSourceHealthResponse {
   name: string;
   sourceInstance: string;
   enabled: boolean;
+  healthStatus?: 'OK' | 'DEGRADED' | 'BLOCKED' | 'DISABLED' | string;
+  healthMessage?: string | null;
   currentStatus: GitlabSyncStatus | 'IDLE';
   currentMessage?: string | null;
   currentStartedAt?: string | null;
