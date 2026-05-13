@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-// 镜像设置页集中管理同步配置、白名单、Webhook 和清理动作，是数据入口的运维面板。
+// 镜像设置页集中管理同步配置、白名单、System Hook 和清理动作，是数据入口的运维面板。
 // 每组操作拆到独立 controller，页面只负责把表单状态和反馈动作组合起来。
 import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
@@ -608,21 +608,18 @@ onBeforeUnmount(() => {
           </div>
         </el-form-item>
 
-        <el-divider>Webhook 增量同步</el-divider>
+        <el-divider>System Hook 增量同步</el-divider>
 
-        <el-form-item label="接收 Webhook">
+        <el-form-item label="接收 System Hook">
           <el-switch v-model="form.webhookEnabled" />
         </el-form-item>
-        <el-form-item label="Webhook URL">
-          <el-input :model-value="status?.webhookUrl || ''" readonly />
+        <el-form-item label="System Hook URL">
+          <el-input :model-value="status?.systemHookUrl || status?.webhookUrl || ''" readonly />
         </el-form-item>
-        <el-form-item label="Webhook Secret">
+        <el-form-item label="System Hook Secret">
           <el-input v-model="form.webhookSecret" />
         </el-form-item>
-        <el-form-item label="GitLab Project ID">
-          <el-input-number v-model="form.webhookProjectId" :min="1" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="Webhook 状态">
+        <el-form-item label="System Hook 状态">
           <div class="webhook-status-line">
             <el-tag
               :type="webhookRegistrationLoading ? 'info' : webhookRegistration?.registered ? 'success' : webhookRegistration?.configured ? 'warning' : 'info'"
@@ -641,15 +638,15 @@ onBeforeUnmount(() => {
             <span class="webhook-status-text">
               {{
                 webhookRegistrationLoading
-                  ? '正在异步检测 GitLab Webhook 状态，不影响页面其他信息加载。'
-                  : webhookRegistration?.message || '尚未检测 GitLab Webhook 状态'
+                  ? '正在异步检测 GitLab System Hook 状态，不影响页面其他信息加载。'
+                  : webhookRegistration?.message || '尚未检测 GitLab System Hook 状态'
               }}
             </span>
           </div>
         </el-form-item>
         <el-alert
           v-if="!isDockerMode"
-          title="直连模式不会自动注册 GitLab Webhook；保存配置后，请在 GitLab 项目中手动填写 Webhook URL 和 Secret。"
+          title="直连模式不会自动注册 GitLab System Hook；保存配置后，请在 GitLab 管理区域的系统 Hook 中手动填写 URL 和 Secret。"
           type="info"
           :closable="false"
           show-icon
@@ -670,7 +667,7 @@ onBeforeUnmount(() => {
             :disabled="webhookAutoRegistrationDisabled"
             @click="registerWebhook"
           >
-            注册 Webhook
+            注册 System Hook
           </el-button>
           <el-button
             type="success"
