@@ -18,6 +18,11 @@ The flow covers:
 
 - Docker-to-direct source mode switch.
 - Whitelist boundary behavior.
+- Source health status and fact-layer freshness.
+- Table-level job/task diagnostics for planned, processed, scanned, and applied work.
+- Page-level manual refresh smoke checks.
+- Review-data GitLab context refresh smoke checks.
+- API timezone sample checks.
 - Webhook precise sync and fallback behavior.
 - Delete webhook tombstone handling.
 - Direct SQL safety for source identifiers.
@@ -251,12 +256,51 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -StartIncrementalSync
 ```
 
+Optional page refresh smoke:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\gitlab-direct-sync-check.ps1 `
+  -BaseUrl "http://localhost:18080" `
+  -ConfigId 1 `
+  -RunPageRefreshSmoke `
+  -PageRefreshBoardKey "system-test-defect-summary"
+```
+
+Expected:
+
+- `GET /api/statistic-boards/{boardKey}/status` returns successfully.
+- `POST /api/statistic-boards/{boardKey}/refresh` returns mirror/fact status fields.
+- Response includes `jobId`, `sourceTables`, `plannedTasks`, `unsupportedTables`, and `factRefreshPlanned` when available.
+- The page should not report "already latest" when mirror sync succeeded but fact refresh failed.
+
+Optional review-data GitLab context refresh smoke:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\gitlab-direct-sync-check.ps1 `
+  -BaseUrl "http://localhost:18080" `
+  -ConfigId 1 `
+  -RunReviewDataContextSmoke `
+  -ReviewDataContextResourceType "merge_request"
+```
+
+Expected:
+
+- `POST /api/review-data/records/gitlab-context/refresh` returns successfully.
+- `manualFieldsTouched=false`.
+- `resourceTypes` and `sourceTables` show the GitLab context scope.
+- If a `jobId` is returned, `GET /api/review-data/records/gitlab-context/refresh/{jobId}` can read current status.
+- This operation refreshes GitLab-derived context only and must not overwrite manual review fields.
+
 Dry run without sending requests:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\gitlab-direct-sync-check.ps1 `
   -DryRun `
+  -RunPageRefreshSmoke `
+  -RunReviewDataContextSmoke `
   -SimulateWebhook `
   -WebhookSecret "dummy"
 ```
@@ -287,6 +331,34 @@ Interpretation:
 - `webhookAutoRegistrationSupported=false` is normal for direct mode.
 - It only means the platform will not execute Docker/GitLab Rails commands to register the hook.
 - GitLab can still call the platform webhook receiver.
+
+### 3.1 Verify Runtime Health and Table-Level Metrics
+
+The direct sync check also reads:
+
+- `GET /api/gitlab-sync/source-health`
+- `GET /api/gitlab-sync/table-sync-diagnostics?configId={id}`
+- `GET /api/gitlab-sync/status?configId={id}`
+
+Expected health result:
+
+- `healthStatus` is `OK` or an understood `DEGRADED` state.
+- `healthStatus=BLOCKED` must be treated as a release blocker unless the source is intentionally disabled.
+- `healthMessage` explains missing credentials, connection failures, whitelist failures, or missing required mirror tables.
+- `factLayerLagging=false` when the mirror and fact tables are already aligned.
+
+Expected table diagnostics:
+
+- `tableCount` is the planned table count.
+- Processed table count is derived from terminal latest task statuses.
+- `latestTaskRowsScanned` and `latestTaskRowsApplied` explain zero-change runs.
+- A no-change run should show planned/processed work instead of only "affected records = 0".
+- `failedTaskCount` and `timedOutTaskCount` should be zero before release.
+
+Timezone sample:
+
+- The script prints current UTC and Beijing timestamps.
+- API timestamps should include the `+08:00` offset after backend serialization.
 
 ### 4. Verify Whitelist Discovery
 
@@ -448,6 +520,11 @@ Expected:
 | --- | --- | --- | --- |
 | `connectionOk=false` | Network, credentials, DB host, DB user permission | Diagnostics `connectionMessage` | Fix host/port/password/firewall/read-only user permission |
 | `whitelistOk=false` | Metadata query failed or DB user cannot inspect tables | Diagnostics `whitelistMessage` | Grant metadata/table read permissions |
+| `healthStatus=BLOCKED` | Missing direct DB config, Docker container name, auth failure, permission failure, or whitelist failure | Source health `healthMessage` | Fix source config or credentials before release |
+| `factLayerLagging=true` | Mirror sync succeeded but dependent fact table is older | Source health `factLayerMessage`; latest fact task | Run or troubleshoot fact refresh task |
+| Table diagnostics show failed/timed-out tasks | Single table sync failed or worker lease expired | `/table-sync-diagnostics` latest task fields | Inspect `latestTaskError`, rerun page refresh or compensation scan |
+| Page refresh returns unsupported tables | Page depends on verify-only or unsupported source tables | Refresh response `unsupportedTables` | Wait for daily verification or add a controlled table strategy |
+| Review-data context refresh skipped | No selected/filter resource has GitLab context | Refresh response `resourceTypes` and message | Reload local list only or select records with GitLab context |
 | `whitelistOptionCount=0` | No discovered tables or wrong database/schema | Diagnostics and `/whitelist-options` | Confirm `dbName`, schema, and GitLab DB user |
 | Direct diagnostics shows webhook auto registration unsupported | Normal direct-mode behavior | Diagnostics `sourceMode` | Register webhook manually in GitLab |
 | Webhook returns unauthorized/failed | Secret mismatch | `X-Gitlab-Token` and config `webhookSecret` | Align GitLab secret token and platform config |
@@ -480,6 +557,16 @@ Frontend typecheck:
 & "C:\Program Files\nodejs\npm.cmd" run typecheck
 ```
 
+Local release dry run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\verify-local.ps1 `
+  -SkipDatabase
+```
+
+The local verification script runs `gitlab-direct-sync-check.ps1` in dry-run mode with incremental sync, page refresh, review-data context refresh, and webhook smoke paths enabled. This verifies command coverage without sending requests.
+
 Direct integration tests:
 
 - `GitlabExternalDbServiceDirectIntegrationTest` is skipped unless the required local/system property switch is enabled.
@@ -491,7 +578,13 @@ Direct integration tests:
 - [ ] Diagnostics returns `connectionOk=true`.
 - [ ] Diagnostics returns `whitelistOk=true`.
 - [ ] `whitelistOptionCount` is greater than zero.
+- [ ] Source health is not `BLOCKED`.
+- [ ] Table diagnostics show no failed or timed-out tasks.
+- [ ] No-change runs show planned/processed/scanned/applied metrics, not only zero affected records.
 - [ ] Manual incremental sync succeeds.
+- [ ] Page refresh smoke returns mirror/fact status fields.
+- [ ] Review-data GitLab context refresh smoke returns `manualFieldsTouched=false`.
+- [ ] API timestamp samples include the expected Beijing offset.
 - [ ] Webhook receiver URL is reachable from GitLab.
 - [ ] GitLab webhook is manually registered for direct mode.
 - [ ] Webhook secret matches platform config.

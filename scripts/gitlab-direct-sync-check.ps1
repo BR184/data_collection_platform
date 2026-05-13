@@ -4,10 +4,15 @@ param(
   [string] $WebhookSecret = "",
   [switch] $SimulateWebhook,
   [switch] $StartIncrementalSync,
+  [switch] $RunPageRefreshSmoke,
+  [switch] $RunReviewDataContextSmoke,
   [switch] $PollAfterSubmission,
   [switch] $RequireCleanMirror,
   [int] $MaxPollAttempts = 24,
   [int] $PollIntervalSeconds = 5,
+  [string] $PageRefreshBoardKey = "system-test-defect-summary",
+  [string] $ReviewDataContextResourceType = "merge_request",
+  [int[]] $ReviewDataContextRecordIds = @(),
   [int] $WebhookProjectId = 10,
   [int] $WebhookObjectId = 101,
   [string] $WebhookTitle = "Simulated issue from direct sync check",
@@ -92,6 +97,25 @@ function Assert-ApiSuccess {
   Write-Check $Name ($Response.success -eq $true) $Response.message
 }
 
+function Format-ListValue {
+  param([object[]] $Values)
+  $items = @($Values | Where-Object { $_ -ne $null -and -not [string]::IsNullOrWhiteSpace([string] $_) })
+  if ($items.Count -eq 0) {
+    return "-"
+  }
+  return $items -join ", "
+}
+
+function Write-TimezoneSample {
+  Write-Section "Timezone sample"
+  $utcNow = [DateTimeOffset]::UtcNow
+  $beijingZone = [TimeZoneInfo]::FindSystemTimeZoneById("China Standard Time")
+  $beijingNow = [TimeZoneInfo]::ConvertTime($utcNow, $beijingZone)
+  Write-Host "utcNow: $($utcNow.ToString("o"))"
+  Write-Host "beijingNow: $($beijingNow.ToString("o"))"
+  Write-Host "expectedApiOffset: +08:00"
+}
+
 function Wait-For-StableStatus {
   if ($DryRun) {
     return
@@ -170,10 +194,24 @@ Assert-ApiSuccess "Status endpoint returned success" $status
 if (-not $DryRun) {
   Write-Host "currentStatus: $($status.data.currentStatus)"
   Write-Host "currentMessage: $($status.data.currentMessage)"
+  Write-Host "currentStartedAt: $($status.data.currentStartedAt)"
   if ($status.data.currentTask -ne $null) {
     Write-Host "currentTask: id=$($status.data.currentTask.id), type=$($status.data.currentTask.taskType), status=$($status.data.currentTask.status)"
+    Write-Host "currentTaskTiming: queued=$($status.data.currentTask.queuedAt), started=$($status.data.currentTask.startedAt), finished=$($status.data.currentTask.finishedAt)"
+  }
+  $logs = @($status.data.logs)
+  foreach ($syncType in @("FULL", "INCREMENTAL", "WEBHOOK", "COMPENSATION")) {
+    $latestLog = $logs | Where-Object { $_.syncType -eq $syncType } | Select-Object -First 1
+    if ($latestLog -ne $null) {
+      Write-Host "latest$($syncType)Log: id=$($latestLog.id), status=$($latestLog.status), tables=$($latestLog.tableCount), records=$($latestLog.recordCount), finished=$($latestLog.finishedAt), message=$($latestLog.message)"
+    }
   }
   Write-Check "Current status is not failed" ($status.data.currentStatus -notin @("FAILED", "TIMEOUT")) $status.data.currentStatus
+} else {
+  Write-Host "currentStatus: <api>"
+  Write-Host "latestFULLLog: <api>"
+  Write-Host "latestINCREMENTALLog: <api>"
+  Write-Host "latestWEBHOOKLog: <api>"
 }
 
 Write-Section "Source health"
@@ -185,15 +223,27 @@ if (-not $DryRun) {
   $currentHealth = $healthItems | Where-Object { $_.configId -eq $ConfigId } | Select-Object -First 1
   Write-Check "Current source health is present" ($currentHealth -ne $null) "configId=$ConfigId"
   if ($currentHealth -ne $null) {
+    Write-Host "healthStatus: $($currentHealth.healthStatus)"
+    Write-Host "healthMessage: $($currentHealth.healthMessage)"
     Write-Host "health.currentStatus: $($currentHealth.currentStatus)"
     Write-Host "health.latestLogStatus: $($currentHealth.latestLogStatus)"
     Write-Host "health.mirrorTables: $($currentHealth.existingMirrorTables)/$($currentHealth.registeredMirrorTables)"
+    Write-Host "health.factLayerLagging: $($currentHealth.factLayerLagging) - $($currentHealth.factLayerMessage)"
+    Write-Host "health.factCounts: mergeRequest=$($currentHealth.mergeRequestFactCount), issue=$($currentHealth.issueFactCount), integrationTest=$($currentHealth.integrationTestFactCount)"
+    Write-Host "health.missingRequiredMirrorTables: $(Format-ListValue $currentHealth.missingRequiredMirrorTables)"
+    Write-Check "Source health is not blocked" ($currentHealth.healthStatus -ne "BLOCKED") $currentHealth.healthMessage
     Write-Check "Source health is not failed" ($currentHealth.latestLogStatus -notin @("FAILED", "TIMEOUT")) $currentHealth.latestLogStatus
     if ($RequireCleanMirror) {
       Write-Check "Required mirror tables exist" ($currentHealth.missingRequiredMirrorTables.Count -eq 0) "missing=$($currentHealth.missingRequiredMirrorTables.Count)"
       Write-Check "Fact layer is current" (-not [bool] $currentHealth.factLayerLagging) $currentHealth.factLayerMessage
     }
   }
+} else {
+  Write-Host "healthStatus: <api>"
+  Write-Host "healthMessage: <api>"
+  Write-Host "health.factLayerLagging: <api>"
+  Write-Host "health.factCounts: mergeRequest=<api>, issue=<api>, integrationTest=<api>"
+  Write-Host "health.missingRequiredMirrorTables: <api>"
 }
 
 Write-Section "Table sync diagnostics"
@@ -206,6 +256,12 @@ if (-not $DryRun) {
   Write-Host "tableCount: $($data.tableCount)"
   Write-Host "dirtyTableCount: $($data.dirtyTableCount)"
   Write-Host "tasks: pending=$($data.pendingTaskCount), running=$($data.runningTaskCount), retrying=$($data.retryingTaskCount), failed=$($data.failedTaskCount), timeout=$($data.timedOutTaskCount)"
+  $tables = @($data.tables)
+  $processedTables = @($tables | Where-Object { $_.latestTaskStatus -in @("SUCCESS", "FAILED", "TIMEOUT", "PARTIAL_SUCCESS", "CANCELLED") }).Count
+  $scannedRows = ($tables | ForEach-Object { if ($_.latestTaskRowsScanned -ne $null) { [long] $_.latestTaskRowsScanned } else { 0 } } | Measure-Object -Sum).Sum
+  $appliedRows = ($tables | ForEach-Object { if ($_.latestTaskRowsApplied -ne $null) { [long] $_.latestTaskRowsApplied } else { 0 } } | Measure-Object -Sum).Sum
+  Write-Host "syncMetrics: plannedTables=$($data.tableCount), processedTables=$processedTables, scannedRows=$scannedRows, appliedRows=$appliedRows, changedRows=n/a"
+  Write-Host "syncMetricsNote: changedRows is not exposed by the current API; use appliedRows and no-change status as write-side signals."
   Write-Check "No failed table sync tasks" ([int] $data.failedTaskCount -eq 0) "failed=$($data.failedTaskCount)"
   Write-Check "No timed-out table sync tasks" ([int] $data.timedOutTaskCount -eq 0) "timeout=$($data.timedOutTaskCount)"
   if ($RequireCleanMirror) {
@@ -221,6 +277,71 @@ if (-not $DryRun) {
     Write-Host "Problem tables:"
     foreach ($table in $problemTables) {
       Write-Host "  $($table.sourceTable): dirty=$($table.dirty), latestTask=$($table.latestTaskType)/$($table.latestTaskStatus), error=$($table.lastError)$($table.latestTaskError)"
+    }
+  }
+} else {
+  Write-Host "syncMetrics: plannedTables=<api>, processedTables=<api>, scannedRows=<api>, appliedRows=<api>, changedRows=n/a"
+  Write-Host "syncMetricsNote: changedRows is not exposed by the current API; use appliedRows and no-change status as write-side signals."
+}
+
+Write-TimezoneSample
+
+if ($RunPageRefreshSmoke) {
+  Write-Section "Page refresh endpoint smoke"
+  $pageStatusPath = "/api/statistic-boards/$PageRefreshBoardKey/status"
+  $pageStatus = Invoke-PlatformApi -Method GET -Path $pageStatusPath
+  Assert-ApiSuccess "Page refresh status endpoint returned success" $pageStatus
+  if (-not $DryRun) {
+    Write-Host "workspaceKey: $($pageStatus.data.workspaceKey)"
+    Write-Host "status: $($pageStatus.data.status)"
+    Write-Host "message: $($pageStatus.data.message)"
+    Write-Host "mirrorStatus: $($pageStatus.data.mirrorStatus)"
+    Write-Host "factStatus: $($pageStatus.data.factStatus)"
+    Write-Host "lastSyncedAt: $($pageStatus.data.lastSyncedAt)"
+  }
+
+  $pageRefreshPath = "/api/statistic-boards/$PageRefreshBoardKey/refresh"
+  $pageRefresh = Invoke-PlatformApi -Method POST -Path $pageRefreshPath
+  Assert-ApiSuccess "Page refresh endpoint returned success" $pageRefresh
+  if (-not $DryRun) {
+    Write-Host "refresh.workspaceKey: $($pageRefresh.data.workspaceKey)"
+    Write-Host "refresh.status: $($pageRefresh.data.status)"
+    Write-Host "refresh.message: $($pageRefresh.data.message)"
+    Write-Host "refresh.jobId: $($pageRefresh.data.jobId)"
+    Write-Host "refresh.sourceTables: $(Format-ListValue $pageRefresh.data.sourceTables)"
+    Write-Host "refresh.plannedTasks: $($pageRefresh.data.plannedTasks)"
+    Write-Host "refresh.unsupportedTables: $(Format-ListValue $pageRefresh.data.unsupportedTables)"
+    Write-Host "refresh.factRefreshPlanned: $($pageRefresh.data.factRefreshPlanned)"
+    Write-Host "refresh.mirrorStatus: $($pageRefresh.data.mirrorStatus)"
+    Write-Host "refresh.factStatus: $($pageRefresh.data.factStatus)"
+  }
+}
+
+if ($RunReviewDataContextSmoke) {
+  Write-Section "Review data GitLab context refresh smoke"
+  $reviewBody = @{
+    recordIds = @($ReviewDataContextRecordIds)
+    resourceType = $ReviewDataContextResourceType
+  }
+  $reviewRefresh = Invoke-PlatformApi -Method POST -Path "/api/review-data/records/gitlab-context/refresh" -Body $reviewBody
+  Assert-ApiSuccess "Review data GitLab context refresh endpoint returned success" $reviewRefresh
+  if (-not $DryRun) {
+    Write-Host "accepted: $($reviewRefresh.data.accepted)"
+    Write-Host "jobId: $($reviewRefresh.data.jobId)"
+    Write-Host "status: $($reviewRefresh.data.status)"
+    Write-Host "resourceTypes: $(Format-ListValue $reviewRefresh.data.resourceTypes)"
+    Write-Host "sourceTables: $(Format-ListValue $reviewRefresh.data.sourceTables)"
+    Write-Host "plannedTasks: $($reviewRefresh.data.plannedTasks)"
+    Write-Host "manualFieldsTouched: $($reviewRefresh.data.manualFieldsTouched)"
+    Write-Host "message: $($reviewRefresh.data.message)"
+    Write-Check "Review data GitLab context refresh does not touch manual fields" (-not [bool] $reviewRefresh.data.manualFieldsTouched) ""
+
+    if ($reviewRefresh.data.jobId -ne $null) {
+      $reviewStatus = Invoke-PlatformApi -Method GET -Path "/api/review-data/records/gitlab-context/refresh/$($reviewRefresh.data.jobId)"
+      Assert-ApiSuccess "Review data GitLab context refresh status endpoint returned success" $reviewStatus
+      Write-Host "statusCheck.status: $($reviewStatus.data.status)"
+      Write-Host "statusCheck.sourceTables: $(Format-ListValue $reviewStatus.data.sourceTables)"
+      Write-Host "statusCheck.plannedTasks: $($reviewStatus.data.plannedTasks)"
     }
   }
 }
