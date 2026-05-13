@@ -11,11 +11,12 @@ function jsonResponse(data: unknown) {
 }
 
 describe('MirrorSettingsView mount smoke', () => {
-  it('shows localized purge logs and keeps the purge dialog locked while deleting', async () => {
+  it('shows translated purge logs and keeps the purge dialog locked while deleting', async () => {
     let resolvePurgeResponse: ((value: Response) => void) | null = null;
     const purgeResponsePromise = new Promise<Response>((resolve) => {
       resolvePurgeResponse = resolve;
     });
+
     const fetchMock = vi.fn((url: string) => {
       if (url.includes('/api/gitlab-sync/configs')) {
         return jsonResponse([
@@ -46,7 +47,7 @@ describe('MirrorSettingsView mount smoke', () => {
         return jsonResponse({
           config: {
             id: 1,
-            name: 'GitLab 默认数据源',
+            name: 'GitLab default source',
             enabled: true,
             sourceEnabled: true,
             sourceInstance: 'default',
@@ -96,25 +97,27 @@ describe('MirrorSettingsView mount smoke', () => {
               id: 101,
               syncType: 'PURGE',
               status: 'SUCCESS',
-              message: '删除全部镜像数据',
+              message: 'Delete mirror data',
               tableCount: 5,
               recordCount: 0,
               startedAt: '2026-04-27T10:00:00',
               finishedAt: '2026-04-27T10:00:12',
             },
           ],
-          webhookUrl: 'http://localhost:18080/api/gitlab-sync/webhook',
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          systemHookRegistration: null,
+          webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
           webhookRegistration: null,
         });
       }
-      if (url.includes('/api/gitlab-sync/webhook-registration-status')) {
+      if (url.includes('/api/gitlab-sync/system-hook-registration-status')) {
         return jsonResponse({
           supported: true,
           configured: true,
           registered: true,
           projectId: 1,
-          webhookUrl: 'http://localhost:18080/api/gitlab-sync/webhook',
-          message: 'GitLab Webhook 已注册',
+          webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          message: 'GitLab System Hook registered',
           hooks: [],
         });
       }
@@ -138,6 +141,7 @@ describe('MirrorSettingsView mount smoke', () => {
       }
       return jsonResponse({});
     });
+
     vi.stubGlobal('fetch', fetchMock);
     const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue('confirm' as never);
 
@@ -151,33 +155,33 @@ describe('MirrorSettingsView mount smoke', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('最近操作');
-    expect(wrapper.text()).toContain('删除镜像数据');
-    expect(wrapper.text()).toContain('成功');
-    expect(wrapper.text()).toContain('同步已完成');
+    expect(wrapper.text()).toContain('Recent sync activity');
+    expect(wrapper.text()).toContain('Delete mirror data');
+    expect(wrapper.text()).toContain('Success');
+    expect(wrapper.text()).toContain('Sync completed');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
 
-    const openDialogButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('删除镜像数据'));
+    const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('Delete mirror data'));
     expect(openDialogButton).toBeTruthy();
     await openDialogButton!.trigger('click');
     await flushPromises();
 
     const confirmInput = wrapper.get('.purge-confirm-panel input');
-    await confirmInput.setValue('删除镜像数据');
+    await confirmInput.setValue('Delete mirror data');
     await flushPromises();
 
     const confirmButton = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('确认删除'),
+      button.textContent?.includes('Confirm deletion'),
     ) as HTMLButtonElement | undefined;
     expect(confirmButton).toBeTruthy();
     confirmButton!.click();
     await flushPromises();
 
-    expect(document.body.textContent).toContain('正在删除镜像数据');
-    expect(document.body.textContent).toContain('正在删除本地镜像数据，请勿关闭页面或重复操作。');
+    expect(document.body.textContent).toContain('Deleting mirror data');
+    expect(document.body.textContent).toContain(
+      'Deleting local mirror data. Please keep this page open and avoid duplicate actions.',
+    );
     const scopeInputs = [...document.body.querySelectorAll('.purge-scope-card input')] as HTMLInputElement[];
     expect(scopeInputs).toHaveLength(2);
     expect(scopeInputs.every((input) => input.disabled)).toBe(true);
@@ -206,8 +210,8 @@ describe('MirrorSettingsView mount smoke', () => {
     await flushPromises();
 
     expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringContaining('删除镜像表：3 张'),
-      '删除完成',
+      expect.stringContaining('Dropped mirror tables: 3'),
+      'Deletion complete',
       expect.objectContaining({ type: 'success' }),
     );
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/api/gitlab-sync/status')).length).toBeGreaterThanOrEqual(2);

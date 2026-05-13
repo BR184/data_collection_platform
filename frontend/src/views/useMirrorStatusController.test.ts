@@ -35,7 +35,9 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
     currentMessage: '',
     progress: null,
     logs: [],
-    webhookUrl: 'http://localhost:18080/api/gitlab-sync/webhook',
+    systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+    systemHookRegistration: null,
+    webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
     webhookRegistration: null,
     ...overrides,
   };
@@ -59,7 +61,7 @@ describe('useMirrorStatusController', () => {
     expect(controller.status.value).toBe(response);
     expect(controller.loading.value).toBe(false);
     expect(form.value).toMatchObject({
-      name: 'GitLab 默认数据源',
+      name: 'GitLab default source',
       enabled: true,
       sourceEnabled: true,
       sourceInstance: 'default',
@@ -128,7 +130,7 @@ describe('useMirrorStatusController', () => {
     const deps = {
       form,
       loadStatusData: vi.fn(async () => {
-        throw new Error('状态加载失败');
+        throw new Error('Status load failed');
       }),
       loadWebhookRegistration: vi.fn(),
       notifyError: vi.fn(),
@@ -139,7 +141,7 @@ describe('useMirrorStatusController', () => {
     await controller.loadStatus(true);
 
     expect(deps.notifyError).toHaveBeenCalledTimes(1);
-    expect(deps.notifyError).toHaveBeenCalledWith('状态加载失败');
+    expect(deps.notifyError).toHaveBeenCalledWith('Status load failed');
     expect(controller.loading.value).toBe(false);
   });
 });

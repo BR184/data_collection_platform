@@ -37,7 +37,7 @@ export function useMirrorWebhookRegistrationController(
     try {
       await deps.saveConfig();
       await deps.registerWebhook();
-      deps.notifySuccess('GitLab Webhook 已注册');
+      deps.notifySuccess('GitLab System Hook registered');
       await deps.loadStatus(false, false);
       await loadWebhookRegistration(false);
     } catch (error) {

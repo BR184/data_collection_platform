@@ -1,4 +1,4 @@
-package com.data.collection.platform.controller;
+﻿package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.common.response.ApiResponse;
@@ -60,9 +60,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/gitlab-sync")
 @Slf4j
-// GitLab 同步控制器是镜像数据入口的 API 门面，只负责配置、任务、Webhook 和清理动作编排。
-// 外部库访问、任务去重和事实重建都下沉到 service，避免控制层持有同步细节。
-public class GitlabSyncController {
+// GitLab 鍚屾鎺у埗鍣ㄦ槸闀滃儚鏁版嵁鍏ュ彛鐨?API 闂ㄩ潰锛屽彧璐熻矗閰嶇疆銆佷换鍔°€乄ebhook 鍜屾竻鐞嗗姩浣滅紪鎺掋€?// 澶栭儴搴撹闂€佷换鍔″幓閲嶅拰浜嬪疄閲嶅缓閮戒笅娌夊埌 service锛岄伩鍏嶆帶鍒跺眰鎸佹湁鍚屾缁嗚妭銆?public class GitlabSyncController {
   private static final Set<SyncStatus> ACTIVE_SYNC_STATUSES = Set.of(
       SyncStatus.PENDING,
       SyncStatus.QUEUED,
@@ -147,6 +145,8 @@ public class GitlabSyncController {
             currentStartedAt,
             progress,
             logs.stream().map(MirrorStatusLogView::from).toList(),
+            properties.getWebhookBaseUrl(),
+            null,
             properties.getWebhookBaseUrl(),
             null));
   }
@@ -317,11 +317,19 @@ public class GitlabSyncController {
         webhookConfigDiagnostics.message(),
         webhookStatus.supported(),
         webhookStatus.registered(),
+        webhookStatus.message(),
+        properties.getWebhookBaseUrl(),
+        Boolean.TRUE.equals(config.getWebhookEnabled()),
+        webhookConfigDiagnostics.secretConfigured(),
+        webhookConfigDiagnostics.secretUnique(),
+        webhookConfigDiagnostics.message(),
+        webhookStatus.supported(),
+        webhookStatus.registered(),
         webhookStatus.message());
     return ApiResponse.success(response);
   }
 
-  @GetMapping("/webhook-registration-status")
+  @GetMapping({"/system-hook-registration-status", "/webhook-registration-status"})
   public ApiResponse<GitlabWebhookRegistrationStatus> webhookRegistrationStatus(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -369,7 +377,7 @@ public class GitlabSyncController {
           request.sourceMode(),
           request.whitelistMode());
     }
-    return ApiResponse.success("配置已保存", sanitizeConfigForResponse(configService.saveConfig(config)));
+    return ApiResponse.success("閰嶇疆宸蹭繚瀛?, sanitizeConfigForResponse(configService.saveConfig(config)));
   }
 
   @PostMapping("/test-connection")
@@ -392,7 +400,7 @@ public class GitlabSyncController {
     } else {
       syncService.testConnection(config.getId());
     }
-    return ApiResponse.success("GitLab PostgreSQL 连接成功", Map.of("checked", true));
+    return ApiResponse.success("GitLab PostgreSQL 杩炴帴鎴愬姛", Map.of("checked", true));
   }
 
   @PostMapping("/full-sync")
@@ -437,20 +445,20 @@ public class GitlabSyncController {
     return ApiResponse.success(submissionMessage(result, SyncType.INCREMENTAL), buildSubmissionResponse(result));
   }
 
-  @PostMapping("/register-webhook")
+  @PostMapping({"/register-system-hook", "/register-webhook"})
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook() {
     return registerWebhook(null);
   }
 
-  @PostMapping("/register-webhook/by-config")
+  @PostMapping({"/register-system-hook/by-config", "/register-webhook/by-config"})
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     GitlabWebhookRegistrationStatus result =
         webhookRegistrationService.ensureRegistered(config, properties.getWebhookBaseUrl());
-    return ApiResponse.success("GitLab Webhook 已注册", result);
+    return ApiResponse.success("GitLab System Hook registered", result);
   }
 
   @PostMapping("/cancel")
@@ -469,10 +477,10 @@ public class GitlabSyncController {
     }
     GitlabSyncTask task = syncService.requestCancel(config.getId());
     if (task == null) {
-      return ApiResponse.success("当前没有可中止的任务", Map.of("accepted", false));
+      return ApiResponse.success("褰撳墠娌℃湁鍙腑姝㈢殑浠诲姟", Map.of("accepted", false));
     }
     return ApiResponse.success(
-        "已提交中止请求",
+        "宸叉彁浜や腑姝㈣姹?,
         Map.of("accepted", true, "taskId", task.getId(), "status", task.getStatus()));
   }
 
@@ -483,20 +491,20 @@ public class GitlabSyncController {
     MirrorPurgeResult result = purgeService.purge(request.scope(), config.getId());
     String sourceLabel = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String message = switch (request.scope()) {
-      case MIRROR_DATA_ONLY -> "已真实删除 " + sourceLabel + " 镜像数据，GitLab 源端和本地非镜像数据均不受影响";
+      case MIRROR_DATA_ONLY -> "宸茬湡瀹炲垹闄?" + sourceLabel + " 闀滃儚鏁版嵁锛孏itLab 婧愮鍜屾湰鍦伴潪闀滃儚鏁版嵁鍧囦笉鍙楀奖鍝?;
       case MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST ->
-          "已真实删除 " + sourceLabel + " 当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响";
+          "宸茬湡瀹炲垹闄?" + sourceLabel + " 褰撳墠鐧藉悕鍗曚箣澶栫殑闀滃儚鏁版嵁锛孏itLab 婧愮鍜屾湰鍦伴潪闀滃儚鏁版嵁鍧囦笉鍙楀奖鍝?;
     };
     return ApiResponse.success(message, result);
   }
 
-  @PostMapping("/webhook")
-  public ApiResponse<Map<String, Object>> webhook(
+  @PostMapping({"/system-hook", "/webhook"})
+  public ApiResponse<Map<String, Object>> systemHook(
       @RequestHeader(value = "X-Gitlab-Event", required = false) String eventType,
       @RequestHeader(value = "X-Gitlab-Token", required = false) String secret,
       @RequestBody Map<String, Object> payload) {
     webhookService.accept(eventType, payload, secret);
-    return ApiResponse.success("Webhook 已接收", Map.of("accepted", true));
+    return ApiResponse.success("GitLab System Hook accepted", Map.of("accepted", true));
   }
 
   public record SaveConfigRequest(
@@ -566,15 +574,15 @@ public class GitlabSyncController {
     }
     String message;
     if (!webhookEnabled) {
-      message = "Webhook 接收已停用";
+      message = "System Hook receiver disabled";
     } else if (!secretConfigured) {
-      message = "启用 Webhook 时必须配置唯一的 Webhook Secret";
+      message = "System Hook requires a unique secret";
     } else if (!secretUnique) {
-      message = "Webhook Secret 已被其他 GitLab 数据源使用";
+      message = "System Hook secret is already used by another GitLab source";
     } else if (config.getSourceMode() == SourceMode.DIRECT) {
-      message = "直连模式支持 Webhook 接收，但需要在 GitLab 中手动注册";
+      message = "Direct mode supports System Hook reception; register it in GitLab Admin Area";
     } else {
-      message = "Webhook 配置可用";
+      message = "System Hook configuration is available";
     }
     return new WebhookConfigDiagnostics(secretConfigured, secretUnique, message);
   }
@@ -603,35 +611,36 @@ public class GitlabSyncController {
     SyncStatus status = result.task().getStatus();
     if (status == SyncStatus.SUCCESS) {
       return switch (requestedType) {
-        case FULL -> "全量同步已完成";
-        case COMPENSATION -> "补偿同步已完成";
-        case INCREMENTAL -> "手工恢复增量已完成";
-        case WEBHOOK -> "精确更新已完成";
-        case PURGE -> "删除镜像数据已完成";
+        case FULL -> "鍏ㄩ噺鍚屾宸插畬鎴?;
+        case COMPENSATION -> "琛ュ伩鍚屾宸插畬鎴?;
+        case INCREMENTAL -> "鎵嬪伐鎭㈠澧為噺宸插畬鎴?;
+        case WEBHOOK -> "绮剧‘鏇存柊宸插畬鎴?;
+        case PURGE -> "鍒犻櫎闀滃儚鏁版嵁宸插畬鎴?;
       };
     }
     if (status == SyncStatus.PARTIAL_SUCCESS) {
-      return "部分表同步失败，请查看同步日志和表级诊断";
+      return "閮ㄥ垎琛ㄥ悓姝ュけ璐ワ紝璇锋煡鐪嬪悓姝ユ棩蹇楀拰琛ㄧ骇璇婃柇";
     }
     if (status == SyncStatus.FAILED) {
-      return "同步任务失败，请查看同步日志和表级诊断";
+      return "鍚屾浠诲姟澶辫触锛岃鏌ョ湅鍚屾鏃ュ織鍜岃〃绾ц瘖鏂?;
     }
     if (status == SyncStatus.TIMEOUT) {
-      return "同步任务超时，请稍后重试或查看表级诊断";
+      return "鍚屾浠诲姟瓒呮椂锛岃绋嶅悗閲嶈瘯鎴栨煡鐪嬭〃绾ц瘖鏂?;
     }
     SyncSubmissionAction action = result.action();
     return switch (action) {
       case CREATED -> switch (requestedType) {
-        case FULL -> "全量同步已开始";
-        case COMPENSATION -> "补偿同步已开始";
-        case INCREMENTAL -> "手工恢复增量已开始";
-        case WEBHOOK -> "精确更新已开始";
-        case PURGE -> "删除镜像数据已开始";
+        case FULL -> "鍏ㄩ噺鍚屾宸插紑濮?;
+        case COMPENSATION -> "琛ュ伩鍚屾宸插紑濮?;
+        case INCREMENTAL -> "鎵嬪伐鎭㈠澧為噺宸插紑濮?;
+        case WEBHOOK -> "绮剧‘鏇存柊宸插紑濮?;
+        case PURGE -> "鍒犻櫎闀滃儚鏁版嵁宸插紑濮?;
       };
-      case QUEUED -> "当前已有同步任务执行中，本次请求已登记到下一轮";
-      case REUSED_ACTIVE -> "当前已有同范围同步任务执行中，本次请求已接收，无需重复操作";
-      case REUSED_QUEUED -> "当前已有后续同步任务排队中，本次请求已合并到后续同步";
-      case DEDUPED -> "同步任务已提交，请勿重复操作";
+      case QUEUED -> "褰撳墠宸叉湁鍚屾浠诲姟鎵ц涓紝鏈璇锋眰宸茬櫥璁板埌涓嬩竴杞?;
+      case REUSED_ACTIVE -> "褰撳墠宸叉湁鍚岃寖鍥村悓姝ヤ换鍔℃墽琛屼腑锛屾湰娆¤姹傚凡鎺ユ敹锛屾棤闇€閲嶅鎿嶄綔";
+      case REUSED_QUEUED -> "褰撳墠宸叉湁鍚庣画鍚屾浠诲姟鎺掗槦涓紝鏈璇锋眰宸插悎骞跺埌鍚庣画鍚屾";
+      case DEDUPED -> "鍚屾浠诲姟宸叉彁浜わ紝璇峰嬁閲嶅鎿嶄綔";
     };
   }
 }
+

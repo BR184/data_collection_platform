@@ -37,8 +37,8 @@ public class GitlabWebhookRegistrationService {
     this.objectMapper = objectMapper;
   }
 
-  public GitlabWebhookRegistrationStatus getStatus(GitlabSyncConfig config, String webhookUrl) {
-    String cacheKey = buildCacheKey(config, webhookUrl);
+  public GitlabWebhookRegistrationStatus getStatus(GitlabSyncConfig config, String systemHookUrl) {
+    String cacheKey = buildCacheKey(config, systemHookUrl);
     CacheEntry cacheEntry = statusCache.get(cacheKey);
     long cacheSeconds = Math.max(5, properties.getWebhookStatusCacheSeconds());
     if (cacheEntry != null && Duration.between(cacheEntry.loadedAt(), Instant.now()).getSeconds() < cacheSeconds) {
@@ -49,30 +49,30 @@ public class GitlabWebhookRegistrationService {
     if (config.getSourceMode() != SourceMode.DOCKER) {
       status = new GitlabWebhookRegistrationStatus(
           false,
-          config.getWebhookProjectId() != null,
+          Boolean.TRUE.equals(config.getWebhookEnabled()),
           false,
-          config.getWebhookProjectId(),
-          webhookUrl,
-          "当前仅支持 Docker 模式下自动管理 GitLab Webhook",
+          null,
+          systemHookUrl,
+          "System Hook status can only be checked automatically in Docker mode",
           List.of());
-    } else if (config.getWebhookProjectId() == null) {
+    } else if (!isSystemHookConfigured(config)) {
       status = new GitlabWebhookRegistrationStatus(
           true,
           false,
           false,
           null,
-          webhookUrl,
-          "请先填写 GitLab Project ID",
+          systemHookUrl,
+          "Configure System Hook receiver and secret before registration",
           List.of());
     } else {
-      List<RegisteredGitlabWebhook> hooks = listHooks(config, webhookUrl);
+      List<RegisteredGitlabWebhook> hooks = listHooks(config, systemHookUrl);
       status = new GitlabWebhookRegistrationStatus(
           true,
           true,
           !hooks.isEmpty(),
-          config.getWebhookProjectId(),
-          webhookUrl,
-          hooks.isEmpty() ? "当前项目尚未注册平台 Webhook" : "GitLab Webhook 已注册",
+          null,
+          systemHookUrl,
+          hooks.isEmpty() ? "GitLab System Hook is not registered" : "GitLab System Hook registered",
           hooks);
     }
 
@@ -80,36 +80,46 @@ public class GitlabWebhookRegistrationService {
     return status;
   }
 
-  public GitlabWebhookRegistrationStatus ensureRegistered(GitlabSyncConfig config, String webhookUrl) {
+  public GitlabWebhookRegistrationStatus ensureRegistered(GitlabSyncConfig config, String systemHookUrl) {
     if (config.getSourceMode() != SourceMode.DOCKER) {
-      throw new BizException("当前仅支持 Docker 模式下自动注册 GitLab Webhook");
+      throw new BizException("System Hook can only be registered automatically in Docker mode");
     }
-    if (config.getWebhookProjectId() == null) {
-      throw new BizException("请先配置 GitLab Project ID");
+    if (!isSystemHookConfigured(config)) {
+      throw new BizException("Configure System Hook receiver and secret before registration");
     }
 
     List<String> command = buildDockerExecCommand(
         config,
-        webhookUrl,
+        systemHookUrl,
         config.getWebhookSecret(),
         buildEnsureHookScript());
-    String output = runCommand(command, "Webhook_Register");
+    String output = runCommand(command, "SystemHook_Register");
     try {
       objectMapper.readTree(output);
     } catch (Exception e) {
-      throw new BizException("GitLab Webhook 注册返回无法解析: " + output);
+      throw new BizException("GitLab System Hook registration response could not be parsed: " + output);
     }
-    invalidateCache(config, webhookUrl);
-    return getStatus(config, webhookUrl);
+    invalidateCache(config, systemHookUrl);
+    return getStatus(config, systemHookUrl);
   }
 
-  public void invalidateCache(GitlabSyncConfig config, String webhookUrl) {
-    statusCache.remove(buildCacheKey(config, webhookUrl));
+  public void invalidateCache(GitlabSyncConfig config, String systemHookUrl) {
+    statusCache.remove(buildCacheKey(config, systemHookUrl));
   }
 
-  private List<RegisteredGitlabWebhook> listHooks(GitlabSyncConfig config, String webhookUrl) {
-    List<String> command = buildDockerExecCommand(config, webhookUrl, config.getWebhookSecret(), buildListHooksScript());
-    String output = runCommand(command, "Webhook_Status");
+  private boolean isSystemHookConfigured(GitlabSyncConfig config) {
+    return Boolean.TRUE.equals(config.getWebhookEnabled())
+        && config.getWebhookSecret() != null
+        && !config.getWebhookSecret().isBlank();
+  }
+
+  private List<RegisteredGitlabWebhook> listHooks(GitlabSyncConfig config, String systemHookUrl) {
+    List<String> command = buildDockerExecCommand(
+        config,
+        systemHookUrl,
+        config.getWebhookSecret(),
+        buildListHooksScript());
+    String output = runCommand(command, "SystemHook_Status");
     try {
       List<Map<String, Object>> rows = objectMapper.readValue(output, LIST_TYPE);
       List<RegisteredGitlabWebhook> result = new ArrayList<>(rows.size());
@@ -127,24 +137,22 @@ public class GitlabWebhookRegistrationService {
       }
       return result;
     } catch (Exception e) {
-      throw new BizException("GitLab Webhook 状态解析失败: " + output);
+      throw new BizException("GitLab System Hook status parse failed: " + output);
     }
   }
 
   private List<String> buildDockerExecCommand(
       GitlabSyncConfig config,
-      String webhookUrl,
-      String webhookSecret,
+      String systemHookUrl,
+      String systemHookSecret,
       String rubyScript) {
     return List.of(
         properties.getDockerCommand(),
         "exec",
         "-e",
-        "PROJECT_ID=" + config.getWebhookProjectId(),
+        "WEBHOOK_URL=" + systemHookUrl,
         "-e",
-        "WEBHOOK_URL=" + webhookUrl,
-        "-e",
-        "WEBHOOK_SECRET=" + (webhookSecret == null ? "" : webhookSecret),
+        "WEBHOOK_SECRET=" + (systemHookSecret == null ? "" : systemHookSecret),
         config.getDockerContainerName(),
         "gitlab-rails",
         "runner",
@@ -166,38 +174,36 @@ public class GitlabWebhookRegistrationService {
       }
       int exitCode = process.waitFor();
       if (exitCode != 0) {
-        throw new BizException("GitLab Webhook 命令执行失败: " + output);
+        throw new BizException("GitLab System Hook command failed: " + output);
       }
       return output.toString().trim();
     } catch (BizException e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action(actionName)) {
-        log.error("GitLab webhook operation failed", e);
+        log.error("GitLab system hook operation failed", e);
       }
       throw e;
     } catch (Exception e) {
       try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action(actionName)) {
-        log.error("GitLab webhook operation failed", e);
+        log.error("GitLab system hook operation failed", e);
       }
-      throw new BizException("GitLab Webhook 操作失败: " + e.getMessage());
+      throw new BizException("GitLab System Hook operation failed: " + e.getMessage());
     }
   }
 
   private String buildListHooksScript() {
     return """
-        project_id = Integer(ENV.fetch('PROJECT_ID'))
         webhook_url = ENV.fetch('WEBHOOK_URL')
-        project = Project.find(project_id)
-        hooks = project.hooks.select { |h| h.url == webhook_url }.map do |h|
+        hooks = SystemHook.all.select { |h| h.url == webhook_url }.map do |h|
           {
             id: h.id,
             url: h.url,
-            issues_events: h.issues_events,
-            merge_requests_events: h.merge_requests_events,
-            note_events: h.note_events,
-            pipeline_events: h.pipeline_events,
-            job_events: h.job_events,
-            releases_events: h.releases_events,
-            enable_ssl_verification: h.enable_ssl_verification
+            issues_events: h.respond_to?(:issues_events) ? h.issues_events : false,
+            merge_requests_events: h.respond_to?(:merge_requests_events) ? h.merge_requests_events : false,
+            note_events: h.respond_to?(:note_events) ? h.note_events : false,
+            pipeline_events: h.respond_to?(:pipeline_events) ? h.pipeline_events : false,
+            job_events: h.respond_to?(:job_events) ? h.job_events : false,
+            releases_events: h.respond_to?(:releases_events) ? h.releases_events : false,
+            enable_ssl_verification: h.respond_to?(:enable_ssl_verification) ? h.enable_ssl_verification : false
           }
         end
         puts hooks.to_json
@@ -206,31 +212,27 @@ public class GitlabWebhookRegistrationService {
 
   private String buildEnsureHookScript() {
     return """
-        project_id = Integer(ENV.fetch('PROJECT_ID'))
         webhook_url = ENV.fetch('WEBHOOK_URL')
         webhook_secret = ENV.fetch('WEBHOOK_SECRET', '')
-        project = Project.find(project_id)
-        hook = project.hooks.detect { |existing_hook| existing_hook.url == webhook_url }
-        hook ||= project.hooks.build(url: webhook_url)
-        hook.issues_events = true
-        hook.merge_requests_events = true
-        hook.note_events = true
-        hook.pipeline_events = true
-        hook.job_events = true
-        hook.releases_events = true
-        hook.enable_ssl_verification = false
+        hook = SystemHook.all.detect { |existing_hook| existing_hook.url == webhook_url }
+        hook ||= SystemHook.new(url: webhook_url)
+        hook.push_events = true if hook.respond_to?(:push_events=)
+        hook.tag_push_events = true if hook.respond_to?(:tag_push_events=)
+        hook.merge_requests_events = true if hook.respond_to?(:merge_requests_events=)
+        hook.repository_update_events = true if hook.respond_to?(:repository_update_events=)
+        hook.enable_ssl_verification = false if hook.respond_to?(:enable_ssl_verification=)
         hook.token = webhook_secret
         hook.save!
         puts({
           id: hook.id,
           url: hook.url,
-          issues_events: hook.issues_events,
-          merge_requests_events: hook.merge_requests_events,
-          note_events: hook.note_events,
-          pipeline_events: hook.pipeline_events,
-          job_events: hook.job_events,
-          releases_events: hook.releases_events,
-          enable_ssl_verification: hook.enable_ssl_verification
+          issues_events: hook.respond_to?(:issues_events) ? hook.issues_events : false,
+          merge_requests_events: hook.respond_to?(:merge_requests_events) ? hook.merge_requests_events : false,
+          note_events: hook.respond_to?(:note_events) ? hook.note_events : false,
+          pipeline_events: hook.respond_to?(:pipeline_events) ? hook.pipeline_events : false,
+          job_events: hook.respond_to?(:job_events) ? hook.job_events : false,
+          releases_events: hook.respond_to?(:releases_events) ? hook.releases_events : false,
+          enable_ssl_verification: hook.respond_to?(:enable_ssl_verification) ? hook.enable_ssl_verification : false
         }.to_json)
         """;
   }
@@ -253,13 +255,13 @@ public class GitlabWebhookRegistrationService {
     return value != null && Boolean.parseBoolean(String.valueOf(value));
   }
 
-  private String buildCacheKey(GitlabSyncConfig config, String webhookUrl) {
+  private String buildCacheKey(GitlabSyncConfig config, String systemHookUrl) {
     return String.join(
         "|",
         Objects.toString(config.getSourceMode(), ""),
         Objects.toString(config.getDockerContainerName(), ""),
-        Objects.toString(config.getWebhookProjectId(), ""),
-        Objects.toString(webhookUrl, ""));
+        Objects.toString(config.getWebhookEnabled(), ""),
+        Objects.toString(systemHookUrl, ""));
   }
 
   private record CacheEntry(Instant loadedAt, GitlabWebhookRegistrationStatus status) {

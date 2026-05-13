@@ -19,17 +19,17 @@ export function useMirrorPurgeDialog(deps: MirrorPurgeDialogDependencies) {
   const purgeDialogCopy = computed(() => {
     if (purgeScope.value === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST') {
       return {
-        title: '删除镜像数据（排除当前白名单）',
-        confirmText: '删除白名单外镜像数据',
+        title: 'Delete mirror data outside the current whitelist',
+        confirmText: 'Delete non-whitelist mirror data',
         detail:
-          '将真实删除当前白名单之外的镜像表、镜像注册信息和旧镜像总表数据。当前白名单内的镜像数据会保留，GitLab 源端和本地非镜像数据不会受影响。',
+          'This permanently deletes local mirror tables, mirror registry entries, and summary data that are outside the current whitelist. Mirror data for currently selected tables is kept. GitLab source data and local non-mirror data are not affected.',
       };
     }
     return {
-      title: '删除镜像数据',
-      confirmText: '删除镜像数据',
+      title: 'Delete mirror data',
+      confirmText: 'Delete mirror data',
       detail:
-        '将真实删除全部镜像表、镜像注册信息和旧镜像总表数据。GitLab 源端和本地非镜像数据不会受影响，此操作不可恢复。',
+        'This permanently deletes all local mirror tables, mirror registry entries, and summary data. GitLab source data and local non-mirror data are not affected. This action cannot be undone.',
     };
   });
 
@@ -37,8 +37,8 @@ export function useMirrorPurgeDialog(deps: MirrorPurgeDialogDependencies) {
 
   const purgeProgressText = computed(() =>
     purging.value === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST'
-      ? '正在删除白名单外的本地镜像数据，请勿关闭页面或重复操作。'
-      : '正在删除本地镜像数据，请勿关闭页面或重复操作。',
+      ? 'Deleting local mirror data outside the current whitelist. Please keep this page open and avoid duplicate actions.'
+      : 'Deleting local mirror data. Please keep this page open and avoid duplicate actions.',
   );
 
   function openPurgeDialog() {

@@ -15,7 +15,7 @@ export interface MirrorStatusControllerDependencies {
 function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
   return {
     ...config,
-    name: config.name || 'GitLab 默认数据源',
+    name: config.name || 'GitLab default source',
     enabled: config.sourceEnabled ?? config.enabled ?? true,
     sourceEnabled: config.sourceEnabled ?? config.enabled ?? true,
     sourceInstance: config.sourceInstance ?? 'default',

@@ -2,7 +2,9 @@ param(
   [string] $BaseUrl = "http://localhost:18080",
   [int] $ConfigId = 1,
   [string] $WebhookSecret = "",
+  [string] $SystemHookSecret = "",
   [switch] $SimulateWebhook,
+  [switch] $SimulateSystemHook,
   [switch] $StartIncrementalSync,
   [switch] $RunPageRefreshSmoke,
   [switch] $RunReviewDataContextSmoke,
@@ -360,10 +362,11 @@ if ($StartIncrementalSync) {
   Wait-For-StableStatus
 }
 
-if ($SimulateWebhook) {
-  Write-Section "Simulated issue webhook"
-  if ([string]::IsNullOrWhiteSpace($WebhookSecret)) {
-    throw "WebhookSecret is required when -SimulateWebhook is used"
+if ($SimulateWebhook -or $SimulateSystemHook) {
+  $effectiveSystemHookSecret = if (-not [string]::IsNullOrWhiteSpace($SystemHookSecret)) { $SystemHookSecret } else { $WebhookSecret }
+  Write-Section "Simulated issue system hook"
+  if ([string]::IsNullOrWhiteSpace($effectiveSystemHookSecret)) {
+    throw "SystemHookSecret or WebhookSecret is required when hook simulation is used"
   }
 
   $payload = @{
@@ -380,12 +383,12 @@ if ($SimulateWebhook) {
 
   $headers = @{
     "X-Gitlab-Event" = "Issue Hook"
-    "X-Gitlab-Token" = $WebhookSecret
+    "X-Gitlab-Token" = $effectiveSystemHookSecret
   }
-  $webhook = Invoke-PlatformApi -Method POST -Path "/api/gitlab-sync/webhook" -Body $payload -Headers $headers
-  Assert-ApiSuccess "Webhook receiver returned success" $webhook
+  $webhook = Invoke-PlatformApi -Method POST -Path "/api/gitlab-sync/system-hook" -Body $payload -Headers $headers
+  Assert-ApiSuccess "System hook receiver returned success" $webhook
   if (-not $DryRun) {
-    Write-Check "Webhook receiver accepted payload" ([bool] $webhook.data.accepted) ""
+    Write-Check "System hook receiver accepted payload" ([bool] $webhook.data.accepted) ""
   }
   Wait-For-StableStatus
 }

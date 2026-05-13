@@ -4,11 +4,11 @@ import { formatBeijingDateTime } from '../utils/beijing-time';
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
 const SYNC_TYPE_LABELS: Record<GitlabSyncType, string> = {
-  FULL: '全量同步',
-  INCREMENTAL: '增量同步',
-  COMPENSATION: '补偿同步',
-  WEBHOOK: 'Webhook同步',
-  PURGE: '删除镜像数据',
+  FULL: 'Full sync',
+  INCREMENTAL: 'Incremental sync',
+  COMPENSATION: 'Compensation sync',
+  WEBHOOK: 'System Hook sync',
+  PURGE: 'Delete mirror data',
 };
 
 const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'success' | 'warning'> = {
@@ -20,17 +20,17 @@ const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'succ
 };
 
 const SYNC_STATUS_LABELS: Record<GitlabSyncStatus | 'IDLE', string> = {
-  PENDING: '等待中',
-  QUEUED: '排队中',
-  RUNNING: '执行中',
-  RETRYING: '等待重试',
-  SUCCESS: '成功',
-  PARTIAL_SUCCESS: '部分成功',
-  FAILED: '失败',
-  CANCELLED: '已中止',
-  TIMEOUT: '已超时',
-  CANCELLING: '中止中',
-  IDLE: '空闲',
+  PENDING: 'Pending',
+  QUEUED: 'Queued',
+  RUNNING: 'Running',
+  RETRYING: 'Retrying',
+  SUCCESS: 'Success',
+  PARTIAL_SUCCESS: 'Partial success',
+  FAILED: 'Failed',
+  CANCELLED: 'Cancelled',
+  TIMEOUT: 'Timed out',
+  CANCELLING: 'Cancelling',
+  IDLE: 'Idle',
 };
 
 const SYNC_STATUS_TAG_TYPES: Record<GitlabSyncStatus | 'IDLE', 'danger' | 'info' | 'success' | 'warning'> = {
@@ -53,7 +53,7 @@ export function formatDateTime(value?: string | null) {
 
 export function formatDuration(log: GitlabSyncLog) {
   if (!log.finishedAt || !log.startedAt) {
-    return ACTIVE_POLLING_STATUSES.includes(log.status) ? '进行中' : '-';
+    return ACTIVE_POLLING_STATUSES.includes(log.status) ? 'In progress' : '-';
   }
   const start = new Date(log.startedAt).getTime();
   const end = new Date(log.finishedAt).getTime();
@@ -62,11 +62,11 @@ export function formatDuration(log: GitlabSyncLog) {
   }
   const seconds = Math.max(0, Math.round((end - start) / 1000));
   if (seconds < 60) {
-    return `${seconds} 秒`;
+    return `${seconds}s`;
   }
   const minutes = Math.floor(seconds / 60);
   const remain = seconds % 60;
-  return `${minutes} 分 ${remain} 秒`;
+  return `${minutes}m ${remain}s`;
 }
 
 export function formatLogTime(log: GitlabSyncLog) {
@@ -107,41 +107,34 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
     /^Sync completed successfully, skipped (\d+) tables without time columns during compensation window scan$/i,
   );
   if (skippedTablesMatch) {
-    return `同步已完成，补偿窗口扫描时跳过了 ${skippedTablesMatch[1]} 张缺少时间列的表`;
+    return `Sync completed. Skipped ${skippedTablesMatch[1]} tables without time columns during the compensation scan.`;
   }
 
   if (/^Sync completed successfully$/i.test(normalized)) {
-    return '同步已完成';
+    return 'Sync completed';
   }
   if (/^Sync cancelled by user$/i.test(normalized)) {
-    return '同步已被用户中止';
+    return 'Sync cancelled by user';
   }
   if (/^Task heartbeat timed out$/i.test(normalized)) {
-    return '任务心跳超时';
+    return 'Task heartbeat timed out';
   }
   if (/^Cancellation requested by user$/i.test(normalized)) {
-    return '已收到用户中止请求';
+    return 'Cancellation requested by user';
   }
-  if (/^已收到用户中止请求$/i.test(normalized)) {
-    return '已收到用户中止请求';
+  if (/^Manual full sync$/i.test(normalized) && syncType === 'FULL') {
+    return 'Manual full sync';
   }
-  if (/^同步已完成$/i.test(normalized)) {
-    return '同步已完成';
+  if (/^Manual recovery incremental sync(?: requested)?$/i.test(normalized) && syncType === 'INCREMENTAL') {
+    return 'Manual recovery incremental sync';
   }
-
-  if (syncType === 'FULL' && /^Manual full sync$/i.test(normalized)) {
-    return '手工触发的全量同步';
-  }
-  if (syncType === 'INCREMENTAL' && /^Manual recovery incremental sync(?: requested)?$/i.test(normalized)) {
-    return '手工恢复增量同步';
-  }
-  if (syncType === 'COMPENSATION' && /^Scheduled compensation sync$/i.test(normalized)) {
-    return '定时补偿同步';
+  if (/^Scheduled compensation sync$/i.test(normalized) && syncType === 'COMPENSATION') {
+    return 'Scheduled compensation sync';
   }
   if (syncType === 'WEBHOOK') {
     const webhookMatch = normalized.match(/^Triggered by webhook:\s*(.+)$/i);
     if (webhookMatch) {
-      return `Webhook 精确更新：${webhookMatch[1]}`;
+      return `System Hook triggered update: ${webhookMatch[1]}`;
     }
   }
 
@@ -155,15 +148,15 @@ export function syncLogMessage(log: GitlabSyncLog) {
   }
   switch (log.syncType) {
     case 'WEBHOOK':
-      return 'Webhook 触发的业务对象精确更新。';
+      return 'System Hook triggered targeted update.';
     case 'INCREMENTAL':
-      return '人工触发的恢复型时间窗口增量同步。';
+      return 'Manual recovery incremental sync.';
     case 'COMPENSATION':
-      return '定时补偿窗口兜底同步。';
+      return 'Scheduled compensation sync.';
     case 'FULL':
-      return '全量重建或初始化同步。';
+      return 'Full rebuild or initialization sync.';
     case 'PURGE':
-      return '删除镜像数据。';
+      return 'Delete mirror data.';
     default:
       return '-';
   }
@@ -172,13 +165,13 @@ export function syncLogMessage(log: GitlabSyncLog) {
 export function buildPurgeSummaryHtml(result: MirrorPurgeResult) {
   const scopeText =
     result.scope === 'MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST'
-      ? '删除白名单外镜像数据'
-      : '删除全部镜像数据';
-  const syncTimeResetText = result.syncTimestampsReset ? '已重置' : '未重置';
+      ? 'Deleted non-whitelist mirror data'
+      : 'Deleted all mirror data';
+  const syncTimeResetText = result.syncTimestampsReset ? 'Reset' : 'Not reset';
   return [
-    `<strong>${scopeText}已完成</strong>`,
-    `删除镜像表：${result.droppedMirrorTables} 张`,
-    `清理数据表：${result.truncatedTables} 张`,
-    `同步时间：${syncTimeResetText}`,
+    `<strong>${scopeText}</strong>`,
+    `Dropped mirror tables: ${result.droppedMirrorTables}`,
+    `Truncated tables: ${result.truncatedTables}`,
+    `Sync timestamps: ${syncTimeResetText}`,
   ].join('<br />');
 }

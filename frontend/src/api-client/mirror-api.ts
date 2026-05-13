@@ -23,7 +23,7 @@ export const mirrorApi = {
     return request<MirrorStatusResponse>(withConfigId('/api/gitlab-sync/status', configId));
   },
   getWebhookRegistrationStatus(configId?: number) {
-    return request<GitlabWebhookRegistrationStatus>(withConfigId('/api/gitlab-sync/webhook-registration-status', configId));
+    return request<GitlabWebhookRegistrationStatus>(withConfigId('/api/gitlab-sync/system-hook-registration-status', configId));
   },
   getWhitelistOptions(configId?: number) {
     return request<TableWhitelistOption[]>(withConfigId('/api/gitlab-sync/whitelist-options', configId));
@@ -60,7 +60,7 @@ export const mirrorApi = {
     });
   },
   registerWebhook(configId?: number) {
-    return request<GitlabWebhookRegistrationStatus>(withConfigId('/api/gitlab-sync/register-webhook/by-config', configId), {
+    return request<GitlabWebhookRegistrationStatus>(withConfigId('/api/gitlab-sync/register-system-hook/by-config', configId), {
       method: 'POST',
     });
   },

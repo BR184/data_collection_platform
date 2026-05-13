@@ -7,7 +7,7 @@ public class GitlabMirrorProperties {
   private boolean schedulerEnabled = true;
   private int schedulerDelayMs = 60000;
   private String webBaseUrl = "http://localhost";
-  private String webhookBaseUrl = "http://localhost:18080/api/gitlab-sync/webhook";
+  private String webhookBaseUrl = "http://localhost:18080/api/gitlab-sync/system-hook";
   private String dockerCommand = "docker";
   private int heartbeatTimeoutSeconds = 180;
   private int dedupeWindowSeconds = 15;

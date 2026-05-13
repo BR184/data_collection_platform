@@ -11,23 +11,23 @@ const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNI
 
 function fallbackPhaseText(task: GitlabSyncTask | null): string {
   if (!task || !ACTIVE_POLLING_STATUSES.includes(task.status)) {
-    return '空闲';
+    return 'Idle';
   }
   if (task.status === 'QUEUED') {
-    return '排队中';
+    return 'Queued';
   }
   switch (task.taskType) {
     case 'FULL':
-      return '首次全量同步';
+      return 'Initial full sync';
     case 'INCREMENTAL':
     case 'WEBHOOK':
-      return '增量同步';
+      return 'Incremental sync';
     case 'COMPENSATION':
-      return '补偿同步';
+      return 'Compensation sync';
     case 'PURGE':
-      return '删除镜像数据';
+      return 'Delete mirror data';
     default:
-      return '同步准备中';
+      return 'Preparing sync';
   }
 }
 
@@ -43,9 +43,9 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
   const lastSyncDisplay = computed(() => {
     const lastFinishedAt = latestLog.value?.finishedAt || latestLog.value?.startedAt;
     if (!lastFinishedAt) {
-      return '最近操作：暂无';
+      return 'Last activity: none';
     }
-    return `最近操作：${formatDateTime(lastFinishedAt)}（${syncStatusText(latestLog.value?.status ?? 'IDLE')}）`;
+    return `Last activity: ${formatDateTime(lastFinishedAt)} (${syncStatusText(latestLog.value?.status ?? 'IDLE')})`;
   });
 
   const progressPercent = computed(() => {
@@ -66,7 +66,7 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
     }
     const log = latestLog.value;
     if (log != null) {
-      return { text: `最近操作${syncStatusText(log.status)}`, type: syncStatusTagType(log.status) };
+      return { text: `Last activity ${syncStatusText(log.status)}`, type: syncStatusTagType(log.status) };
     }
     return { text: syncStatusText('IDLE'), type: syncStatusTagType('IDLE') };
   });
@@ -80,11 +80,11 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
     const phase = progress.value?.phase;
     switch (phase) {
       case 'FULL_SYNC':
-        return '首次全量同步';
+        return 'Initial full sync';
       case 'INCREMENTAL_SYNC':
-        return '增量同步';
+        return 'Incremental sync';
       case 'COMPENSATION_SYNC':
-        return '补偿同步';
+        return 'Compensation sync';
       default:
         return fallbackPhaseText(currentTask.value);
     }
@@ -94,32 +94,32 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
     const current = progress.value;
     if (!current) {
       if (currentTask.value?.status === 'PENDING') {
-        return '同步任务已提交，正在等待执行器接手。';
+        return 'The sync task has been submitted and is waiting for a worker.';
       }
       if (currentTask.value?.status === 'RUNNING') {
-        return '同步任务已启动，正在准备表扫描和进度数据。';
+        return 'The sync task has started and is preparing scan and progress details.';
       }
       if (currentTask.value?.status === 'QUEUED') {
-        return '当前已有同步任务执行中，本次请求已进入队列等待。';
+        return 'Another sync task is running, and this request is waiting in the queue.';
       }
       if (currentTask.value?.status === 'CANCELLING') {
-        return '已收到中止请求，正在等待当前批次安全退出。';
+        return 'Cancellation was requested and the current batch is stopping safely.';
       }
-      return '当前没有正在执行的同步任务。';
+      return 'There is no sync task running right now.';
     }
     if (current.currentTable) {
-      return `正在处理表 ${current.currentTable}，已同步 ${current.syncedRecords} 条记录。`;
+      return `Processing table ${current.currentTable}; synced ${current.syncedRecords} records so far.`;
     }
-    return '同步任务已启动，正在准备表扫描。';
+    return 'The sync task has started and is preparing the table scan.';
   });
 
   const currentMessageText = computed(() => {
     const rawMessage = status.value?.currentMessage?.trim() ?? '';
     if (!rawMessage) {
       if (currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status)) {
-        return '同步任务已启动，正在同步状态。';
+        return 'The sync task has started and the latest status is being collected.';
       }
-      return '当前没有正在执行的同步任务。';
+      return 'There is no sync task running right now.';
     }
     return translateSyncMessage(rawMessage, currentTask.value?.taskType);
   });

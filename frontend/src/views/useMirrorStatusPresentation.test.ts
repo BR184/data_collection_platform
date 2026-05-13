@@ -49,7 +49,7 @@ function createProgress(overrides: Partial<SyncProgress> = {}): SyncProgress {
 function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStatusResponse {
   return {
     config: {
-      name: 'GitLab 默认数据源',
+      name: 'GitLab default source',
       enabled: true,
       sourceInstance: 'default',
       autoSyncEnabled: true,
@@ -71,7 +71,9 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
     currentTask: null,
     progress: null,
     logs: [],
-    webhookUrl: 'http://localhost:18080/api/gitlab-sync/webhook',
+    systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+    systemHookRegistration: null,
+    webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
     webhookRegistration: null,
     ...overrides,
   };
@@ -85,13 +87,13 @@ describe('useMirrorStatusPresentation', () => {
     expect(presentation.recentLogs.value).toEqual([]);
     expect(presentation.latestLog.value).toBeNull();
     expect(presentation.canCancel.value).toBe(false);
-    expect(presentation.lastSyncDisplay.value).toBe('最近操作：暂无');
+    expect(presentation.lastSyncDisplay.value).toBe('Last activity: none');
     expect(presentation.progressPercent.value).toBe(0);
-    expect(presentation.displayStatus.value).toEqual({ text: '空闲', type: 'info' });
+    expect(presentation.displayStatus.value).toEqual({ text: 'Idle', type: 'info' });
     expect(presentation.statusMessageClass.value).toEqual(['status-message', 'status-message--info']);
-    expect(presentation.phaseText.value).toBe('空闲');
-    expect(presentation.progressHint.value).toBe('当前没有正在执行的同步任务。');
-    expect(presentation.currentMessageText.value).toBe('当前没有正在执行的同步任务。');
+    expect(presentation.phaseText.value).toBe('Idle');
+    expect(presentation.progressHint.value).toBe('There is no sync task running right now.');
+    expect(presentation.currentMessageText.value).toBe('There is no sync task running right now.');
   });
 
   it('derives running progress, cancel state, and translated current message', () => {
@@ -108,10 +110,10 @@ describe('useMirrorStatusPresentation', () => {
 
     expect(presentation.progressPercent.value).toBe(25);
     expect(presentation.canCancel.value).toBe(true);
-    expect(presentation.displayStatus.value).toEqual({ text: '执行中', type: 'warning' });
-    expect(presentation.phaseText.value).toBe('首次全量同步');
-    expect(presentation.progressHint.value).toBe('正在处理表 issues，已同步 20 条记录。');
-    expect(presentation.currentMessageText.value).toBe('手工触发的全量同步');
+    expect(presentation.displayStatus.value).toEqual({ text: 'Running', type: 'warning' });
+    expect(presentation.phaseText.value).toBe('Initial full sync');
+    expect(presentation.progressHint.value).toBe('Processing table issues; synced 20 records so far.');
+    expect(presentation.currentMessageText.value).toBe('Manual full sync');
   });
 
   it('uses recent log status when the current status is idle', () => {
@@ -124,8 +126,8 @@ describe('useMirrorStatusPresentation', () => {
     const presentation = useMirrorStatusPresentation(status);
 
     expect(presentation.latestLog.value?.id).toBe(1);
-    expect(presentation.lastSyncDisplay.value).toBe('最近操作：invalid-start（成功）');
-    expect(presentation.displayStatus.value).toEqual({ text: '最近操作成功', type: 'success' });
+    expect(presentation.lastSyncDisplay.value).toBe('Last activity: invalid-start (Success)');
+    expect(presentation.displayStatus.value).toEqual({ text: 'Last activity Success', type: 'success' });
   });
 
   it('shows queued and zero-table progress hints', () => {
@@ -139,8 +141,8 @@ describe('useMirrorStatusPresentation', () => {
     const presentation = useMirrorStatusPresentation(status);
 
     expect(presentation.progressPercent.value).toBe(5);
-    expect(presentation.phaseText.value).toBe('增量同步');
-    expect(presentation.progressHint.value).toBe('同步任务已启动，正在准备表扫描。');
+    expect(presentation.phaseText.value).toBe('Incremental sync');
+    expect(presentation.progressHint.value).toBe('The sync task has started and is preparing the table scan.');
   });
 
   it('keeps active tasks visible before detailed progress is available', () => {
@@ -156,8 +158,8 @@ describe('useMirrorStatusPresentation', () => {
     const presentation = useMirrorStatusPresentation(status);
 
     expect(presentation.progressPercent.value).toBe(5);
-    expect(presentation.phaseText.value).toBe('首次全量同步');
-    expect(presentation.progressHint.value).toBe('同步任务已启动，正在准备表扫描和进度数据。');
-    expect(presentation.currentMessageText.value).toBe('同步任务已启动，正在同步状态。');
+    expect(presentation.phaseText.value).toBe('Initial full sync');
+    expect(presentation.progressHint.value).toBe('The sync task has started and is preparing scan and progress details.');
+    expect(presentation.currentMessageText.value).toBe('The sync task has started and the latest status is being collected.');
   });
 });

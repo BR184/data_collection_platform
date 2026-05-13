@@ -161,6 +161,8 @@ export interface MirrorStatusResponse {
   currentStartedAt?: string | null;
   progress?: SyncProgress | null;
   logs: GitlabSyncLog[];
+  systemHookUrl?: string;
+  systemHookRegistration?: GitlabWebhookRegistrationStatus | null;
   webhookUrl: string;
   webhookRegistration?: GitlabWebhookRegistrationStatus | null;
 }
@@ -212,6 +214,14 @@ export interface GitlabSyncDiagnosticsResponse {
   missingPrimaryKeyTableCount: number;
   missingUpdatedAtTableCount: number;
   sourceTables: GitlabSourceTableDiagnosticsResponse[];
+  systemHookReceiverUrl?: string;
+  systemHookEnabled?: boolean;
+  systemHookSecretConfigured?: boolean;
+  systemHookSecretUnique?: boolean;
+  systemHookConfigMessage?: string;
+  systemHookAutoRegistrationSupported?: boolean;
+  systemHookAutoRegistered?: boolean;
+  systemHookMessage?: string;
   webhookReceiverUrl: string;
   webhookEnabled: boolean;
   webhookSecretConfigured: boolean;

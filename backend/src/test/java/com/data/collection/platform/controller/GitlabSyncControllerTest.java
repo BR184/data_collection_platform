@@ -593,19 +593,19 @@ class GitlabSyncControllerTest {
   }
 
   @Test
-  void webhookShouldDelegatePayloadToWebhookService() throws Exception {
+  void systemHookShouldDelegatePayloadToHookService() throws Exception {
     String payload = """
         {
           "object_kind": "issue",
           "project_id": 10,
           "object_attributes": {
             "id": 101,
-            "title": "Simulated issue from webhook"
+            "title": "Simulated issue from system hook"
           }
         }
         """;
 
-    mockMvc.perform(post("/api/gitlab-sync/webhook")
+    mockMvc.perform(post("/api/gitlab-sync/system-hook")
             .header("X-Gitlab-Event", "Issue Hook")
             .header("X-Gitlab-Token", "secret-token")
             .contentType(MediaType.APPLICATION_JSON)
@@ -619,25 +619,25 @@ class GitlabSyncControllerTest {
         eq(Map.of(
             "object_kind", "issue",
             "project_id", 10,
-            "object_attributes", Map.of("id", 101, "title", "Simulated issue from webhook"))),
+            "object_attributes", Map.of("id", 101, "title", "Simulated issue from system hook"))),
         eq("secret-token"));
   }
 
   @Test
-  void registerWebhookShouldReturnRegistrationStatus() throws Exception {
+  void registerSystemHookShouldReturnRegistrationStatus() throws Exception {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
-    when(webhookRegistrationService.ensureRegistered(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
+    when(webhookRegistrationService.ensureRegistered(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
         .thenReturn(new GitlabWebhookRegistrationStatus(
             true,
             true,
             true,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "GitLab Webhook 已注册",
             List.of(new GitlabWebhookRegistrationStatus.RegisteredGitlabWebhook(
                 1L,
-                "http://localhost:18080/api/gitlab-sync/webhook",
+                "http://localhost:18080/api/gitlab-sync/system-hook",
                 true,
                 true,
                 true,
@@ -646,7 +646,7 @@ class GitlabSyncControllerTest {
                 true,
                 false))));
 
-    mockMvc.perform(post("/api/gitlab-sync/register-webhook"))
+    mockMvc.perform(post("/api/gitlab-sync/register-system-hook"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.registered").value(true))
