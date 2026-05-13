@@ -215,6 +215,7 @@ const {
 } = useStatisticBoardRuleExplanationState(ruleExplanation);
 
 const {
+  syncStatus,
   lastSyncedText,
   loadRealtimeStatus,
 } = useRealtimeWorkspaceStatus({
@@ -334,6 +335,7 @@ watch(
           :board-title="board?.definition.title"
           :last-synced-text="lastSyncedText"
           :rule-explanation-loading="ruleExplanationLoading"
+          :realtime-status="syncStatus"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"
           @reset-filters="resetFilters"

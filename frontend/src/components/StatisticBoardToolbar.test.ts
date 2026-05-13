@@ -27,6 +27,16 @@ function mountToolbar() {
       boardTitle: 'Defect summary',
       lastSyncedText: '2026-04-30 10:00',
       ruleExplanationLoading: false,
+      realtimeStatus: {
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'READY',
+        message: 'ok',
+        refreshing: false,
+        lastSyncedAt: '2026-04-30T10:00:00',
+        mirrorStatus: 'SUCCESS',
+        factStatus: 'SUCCESS',
+      },
       uiHooks: {
         toolbarClass: 'toolbar-hook',
         toolbarMainClass: 'main-hook',
@@ -47,6 +57,10 @@ function mountToolbar() {
           props: ['icon', 'loading'],
           emits: ['click'],
           template: '<button type="button" @click="$emit(\'click\')"><slot /></button>',
+        },
+        ElTag: {
+          props: ['type', 'size'],
+          template: '<span class="el-tag"><slot /></span>',
         },
         ElDropdown: {
           emits: ['command'],
@@ -71,6 +85,9 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.get('[data-testid="filter-builder"]').text()).toBe('1');
     expect(wrapper.text()).toContain('Defect summary');
     expect(wrapper.get('[data-testid="sync-meta"]').text()).toBe('2026-04-30 10:00');
+    expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('已是最新');
+    expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('镜像已完成');
+    expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实已完成');
     expect(wrapper.classes()).toContain('toolbar-hook');
     expect(wrapper.find('.stat-board-toolbar-main').classes()).toContain('main-hook');
     expect(wrapper.find('.stat-board-toolbar-actions').classes()).toContain('actions-hook');
@@ -91,5 +108,36 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.emitted('refreshBoard')).toHaveLength(1);
     expect(wrapper.emitted('openRuleExplanation')).toHaveLength(1);
     expect(wrapper.emitted('exportBoard')).toHaveLength(1);
+  });
+
+  it('shows two-stage refresh progress and failure copy', async () => {
+    const refreshing = mountToolbar();
+    await refreshing.setProps({
+      realtimeStatus: {
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'REFRESHING',
+        message: 'refreshing',
+        refreshing: true,
+        mirrorStatus: 'SUCCESS',
+        factStatus: 'RUNNING',
+      },
+    });
+    expect(refreshing.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实刷新中');
+
+    const failed = mountToolbar();
+    await failed.setProps({
+      realtimeStatus: {
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'FAILED',
+        message: 'failed',
+        refreshing: false,
+        mirrorStatus: 'SUCCESS',
+        factStatus: 'FAILED',
+      },
+    });
+    expect(failed.get('[data-testid="realtime-refresh-status"]').text()).toContain('部分失败');
+    expect(failed.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实失败');
   });
 });

@@ -1,8 +1,13 @@
 import { ref } from 'vue';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useStatisticBoardRefreshController } from './useStatisticBoardRefreshController';
 
 describe('useStatisticBoardRefreshController', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   it('loads board and rule explanation when refreshing', async () => {
     const loading = ref(false);
     const detailVisible = ref(false);
@@ -58,6 +63,57 @@ describe('useStatisticBoardRefreshController', () => {
 
     await expect(controller.refreshBoard()).rejects.toThrow('load failed');
 
+    expect(loading.value).toBe(false);
+  });
+
+  it('calls page-level realtime refresh and waits for mirror/fact status before reloading board data', async () => {
+    vi.useFakeTimers();
+    const loading = ref(false);
+    const detailVisible = ref(false);
+    const loadBoard = vi.fn(() => Promise.resolve());
+    const loadRuleExplanation = vi.fn(() => Promise.resolve());
+    const loadDetail = vi.fn(() => Promise.resolve());
+    const notifySuccess = vi.fn();
+    const requestRealtimeRefresh = vi.fn(() => Promise.resolve({
+      workspaceKey: 'system-test-defect-summary',
+      supported: true,
+      status: 'REFRESHING',
+      message: '镜像同步中',
+      refreshing: true,
+      mirrorStatus: 'RUNNING',
+      factStatus: null,
+    }));
+    const settledStatus = {
+      workspaceKey: 'system-test-defect-summary',
+      supported: true,
+      status: 'READY',
+      message: '已是最新',
+      refreshing: false,
+      mirrorStatus: 'SUCCESS',
+      factStatus: 'SUCCESS',
+    };
+    const loadRealtimeStatus = vi.fn(() => Promise.resolve(settledStatus));
+    const controller = useStatisticBoardRefreshController({
+      loading,
+      detailVisible,
+      loadBoard,
+      loadRuleExplanation,
+      loadDetail,
+      requestRealtimeRefresh,
+      loadRealtimeStatus,
+      notifySuccess,
+    });
+
+    const refreshPromise = controller.refreshBoard();
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(1000);
+    await refreshPromise;
+
+    expect(requestRealtimeRefresh).toHaveBeenCalledOnce();
+    expect(loadRealtimeStatus).toHaveBeenCalledTimes(2);
+    expect(notifySuccess).toHaveBeenCalledWith('镜像同步中');
+    expect(loadBoard).toHaveBeenCalledOnce();
+    expect(loadRuleExplanation).toHaveBeenCalledOnce();
     expect(loading.value).toBe(false);
   });
 });

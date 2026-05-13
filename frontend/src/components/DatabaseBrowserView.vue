@@ -176,7 +176,7 @@ async function handleRefresh() {
   try {
     await loadTables();
     await loadRows();
-    ElMessage.success('当前查询已重新加载');
+    ElMessage.success('当前表数据已重新加载');
   } catch (error) {
     ElMessage.error((error as Error).message);
   } finally {
@@ -359,7 +359,8 @@ onBeforeUnmount(() => {
         <div class="db-toolbar-actions">
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="handleReset">重置</el-button>
-          <el-button :icon="Refresh" :loading="refreshingTable" @click="handleRefresh">刷新</el-button>
+          <el-button :icon="Refresh" :loading="refreshingTable" @click="handleRefresh">重新加载表数据</el-button>
+          <span class="db-refresh-note">仅用于运维查看，不触发 GitLab 同步</span>
         </div>
       </div>
 
@@ -548,6 +549,13 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.db-refresh-note {
+  color: rgba(15, 23, 42, 0.48);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .db-table-card {
