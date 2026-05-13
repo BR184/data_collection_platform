@@ -1,7 +1,7 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-// 闀滃儚璁剧疆椤甸泦涓鐞嗗悓姝ラ厤缃€佺櫧鍚嶅崟銆乄ebhook 鍜屾竻鐞嗗姩浣滐紝鏄暟鎹叆鍙ｇ殑杩愮淮闈㈡澘銆?
-// 姣忕粍鎿嶄綔鎷嗗埌鐙珛 controller锛岄〉闈㈠彧璐熻矗鎶婅〃鍗曠姸鎬佸拰鍙嶉鍔ㄤ綔缁勫悎璧锋潵銆?
+// 镜像设置页集中管理同步配置、白名单、Webhook 和清理动作，是数据入口的运维面板。
+// 每组操作拆到独立 controller，页面只负责把表单状态和反馈动作组合起来。
 import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
@@ -30,7 +30,7 @@ const newConfigSnapshot = ref('');
 const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
 const form = ref<GitlabSyncConfig>({
-  name: 'GitLab default source',
+  name: 'GitLab 默认数据源',
   enabled: true,
   sourceEnabled: true,
   sourceInstance: 'default',
@@ -134,13 +134,13 @@ const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
 const sourceEnabled = computed(() => form.value.sourceEnabled ?? form.value.enabled);
 const syncEnabled = computed(() => sourceEnabled.value && form.value.autoSyncEnabled);
 const sourceSelectPlaceholder = computed(() =>
-  isCreatingNewConfig.value ? 'New source (unsaved)' : 'Select a configured source',
+  isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
 );
 const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
-const systemHookAutoRegistrationDisabled = computed(() =>
+const webhookAutoRegistrationDisabled = computed(() =>
   savedConfigActionDisabled.value || !isDockerMode.value || !form.value.webhookEnabled,
 );
-const currentSourceText = computed(() => `${form.value.name || 'Unnamed source'} (${form.value.sourceInstance || 'default'})`);
+const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
   return healthItems.find((item) => item.configId === selectedConfigId.value);
@@ -152,13 +152,13 @@ const currentFactLaggingDomains = computed(() => {
   }
   const domains: string[] = [];
   if (health.mergeRequestFactLagging) {
-    domains.push('浠ｇ爜璧版煡浜嬪疄');
+    domains.push('代码走查事实');
   }
   if (health.issueFactLagging) {
-    domains.push('绯荤粺娴嬭瘯/瀹㈡埛闂浜嬪疄');
+    domains.push('系统测试/客户问题事实');
   }
   if (health.integrationTestFactLagging) {
-    domains.push('闆嗘垚娴嬭瘯浜嬪疄');
+    domains.push('集成测试事实');
   }
   return domains;
 });
@@ -189,49 +189,49 @@ const currentSourceHealthTone = computed(() => {
 const currentSourceHealthText = computed(() => {
   const health = currentSourceHealth.value;
   if (!health) {
-    return 'No diagnostics';
+    return '暂无诊断';
   }
   if (!health.enabled) {
-    return 'Disabled';
+    return '已停用';
   }
   if (health.missingRequiredMirrorTables.length > 0) {
-    return 'Mirror incomplete';
+    return '镜像不完整';
   }
   if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
-    return 'Sync error';
+    return '同步异常';
   }
   if (health.latestLogStatus === 'PARTIAL_SUCCESS') {
-    return 'Partial failure';
+    return '部分表异常';
   }
   if (health.factLayerLagging) {
-    return 'Fact layer lagging';
+    return '事实层滞后';
   }
   if (['RUNNING', 'QUEUED', 'RETRYING'].includes(health.currentStatus)) {
-    return 'Sync running';
+    return '同步中';
   }
-  return 'Healthy';
+  return '健康';
 });
 const currentSourceHealthSummary = computed(() => {
   const health = currentSourceHealth.value;
   if (!health) {
-    return 'No health diagnostics are available for the current source yet.';
+    return '当前数据源还没有健康诊断结果。';
   }
   if (!health.enabled) {
-    return 'This source is disabled and will not participate in automatic sync.';
+    return '该数据源已停用，不会参与自动同步。';
   }
   if (health.missingRequiredMirrorTables.length > 0) {
-    return 'Required mirror tables are missing, so some downstream views may be incomplete.';
+    return '关键镜像表缺失，代码走查相关数据可能无法完整展示。';
   }
   if (health.factLayerLagging) {
-    return 'Mirror data is newer than the current fact refresh used by some views.';
+    return '镜像数据已经更新，但部分展示或统计使用的事实层还没有刷新到最新。';
   }
   if (health.latestLogStatus === 'FAILED' || health.latestLogStatus === 'TIMEOUT') {
-    return health.latestLogMessage || 'The latest sync did not finish successfully.';
+    return health.latestLogMessage || '最近一次同步未成功，请查看同步日志并重新触发。';
   }
   if (health.latestLogStatus === 'PARTIAL_SUCCESS') {
-    return health.latestLogMessage || 'The latest sync partially failed and table-level recovery may still be running.';
+    return health.latestLogMessage || '最近一次同步部分表未成功，系统会继续按表级任务恢复。';
   }
-  return 'No blocking issue is currently visible in mirror tables, fact refresh, or recent sync status.';
+  return '镜像表、事实层和最近同步状态未发现阻断问题。';
 });
 const missingRequiredMirrorTablesPreview = computed(() => {
   const tables = currentSourceHealth.value?.missingRequiredMirrorTables ?? [];
@@ -256,14 +256,14 @@ const tableSyncDisplayRows = computed(() =>
 const tableSyncQueueSummary = computed(() => {
   const diagnostics = tableSyncDiagnostics.value;
   if (!diagnostics) {
-    return 'No table-level diagnostics';
+    return '暂无表级任务诊断';
   }
   return [
-    `寰呮墽琛?${diagnostics.pendingTaskCount}`,
-    `杩愯涓?${diagnostics.runningTaskCount}`,
-    `閲嶈瘯涓?${diagnostics.retryingTaskCount}`,
-    `澶辫触 ${diagnostics.failedTaskCount + diagnostics.timedOutTaskCount}`,
-  ].join(' 路 ');
+    `待执行 ${diagnostics.pendingTaskCount}`,
+    `运行中 ${diagnostics.runningTaskCount}`,
+    `重试中 ${diagnostics.retryingTaskCount}`,
+    `失败 ${diagnostics.failedTaskCount + diagnostics.timedOutTaskCount}`,
+  ].join(' · ');
 });
 const {
   progress,
@@ -295,9 +295,9 @@ const {
   loadStatus: () => loadStatus(false, false),
   notifyError: (message) => ElMessage.error(message),
   showPurgeSummary: (result) =>
-    ElMessageBox.alert(buildPurgeSummaryHtml(result), 'Deletion complete', {
+    ElMessageBox.alert(buildPurgeSummaryHtml(result), '删除完成', {
       type: 'success',
-      confirmButtonText: 'OK',
+      confirmButtonText: '知道了',
       dangerouslyUseHTMLString: true,
     }),
 });
@@ -349,7 +349,7 @@ async function loadTableSyncDiagnostics(showError = false) {
   } catch (error) {
     tableSyncDiagnostics.value = null;
     if (showError) {
-      ElMessage.error(error instanceof Error ? error.message : 'Failed to load table sync diagnostics');
+      ElMessage.error(error instanceof Error ? error.message : '加载表级同步诊断失败');
     }
   } finally {
     tableSyncDiagnosticsLoading.value = false;
@@ -390,10 +390,10 @@ function createNewConfig() {
 async function cancelNewConfig() {
   if (JSON.stringify(form.value) !== newConfigSnapshot.value) {
     try {
-      await ElMessageBox.confirm('Discard the unsaved source configuration?', 'Cancel new source', {
+      await ElMessageBox.confirm('放弃未保存的数据源配置？', '取消新增数据源', {
         type: 'warning',
-        confirmButtonText: 'Discard',
-        cancelButtonText: 'Continue editing',
+        confirmButtonText: '放弃',
+        cancelButtonText: '继续填写',
       });
     } catch {
       return;
@@ -476,17 +476,17 @@ onBeforeUnmount(() => {
       <template #header>
         <div class="panel-header">
           <div>
-            <div class="panel-title">GitLab 鏁版嵁闀滃儚璁剧疆</div>
+            <div class="panel-title">GitLab 数据镜像设置</div>
           </div>
           <div class="panel-header-meta">
             <span class="header-secondary-text">{{ lastSyncDisplay }}</span>
-            <el-tag v-if="loading" size="small" type="info">Loading</el-tag>
+            <el-tag v-if="loading" size="small" type="info">加载中</el-tag>
           </div>
         </div>
       </template>
 
       <el-form label-width="150px">
-        <el-form-item label="GitLab source">
+        <el-form-item label="GitLab 数据源">
           <div style="display: flex; width: 100%; gap: 8px">
             <el-select
               v-model="selectedConfigId"
@@ -502,41 +502,41 @@ onBeforeUnmount(() => {
                 :value="item.id"
               />
             </el-select>
-            <el-button v-if="!isCreatingNewConfig" @click="createNewConfig">New source</el-button>
-            <el-button v-else @click="cancelNewConfig">鍙栨秷鏂板</el-button>
+            <el-button v-if="!isCreatingNewConfig" @click="createNewConfig">新增数据源</el-button>
+            <el-button v-else @click="cancelNewConfig">取消新增</el-button>
           </div>
         </el-form-item>
-        <el-form-item label="鏉ユ簮鏍囪瘑">
-          <el-input v-model="form.sourceInstance" placeholder="渚嬪 cc / dgm" />
+        <el-form-item label="来源标识">
+          <el-input v-model="form.sourceInstance" placeholder="例如 cc / dgm" />
         </el-form-item>
-        <el-form-item label="Source name">
+        <el-form-item label="数据源名称">
           <el-input v-model="form.name" />
         </el-form-item>
-        <el-form-item label="Enable source">
+        <el-form-item label="启用数据源">
           <el-switch v-model="form.sourceEnabled" />
         </el-form-item>
 
-        <el-divider>婧愭暟鎹簱妯″紡</el-divider>
+        <el-divider>源数据库模式</el-divider>
 
-        <el-form-item label="璇诲彇鏂瑰紡">
+        <el-form-item label="读取方式">
           <el-radio-group v-model="form.sourceMode">
-            <el-radio value="DOCKER">Docker 妯″紡</el-radio>
-            <el-radio value="DIRECT">鐩磋繛 PostgreSQL</el-radio>
+            <el-radio value="DOCKER">Docker 模式</el-radio>
+            <el-radio value="DIRECT">直连 PostgreSQL</el-radio>
           </el-radio-group>
         </el-form-item>
 
         <template v-if="isDockerMode">
-          <el-form-item label="GitLab container">
-            <el-input v-model="form.dockerContainerName" placeholder="渚嬪 gitlab-data-web-1" />
+          <el-form-item label="GitLab 容器名">
+            <el-input v-model="form.dockerContainerName" placeholder="例如 gitlab-data-web-1" />
           </el-form-item>
-          <el-form-item label="Database name">
+          <el-form-item label="数据库名称">
             <el-input v-model="form.dbName" />
           </el-form-item>
-          <el-form-item label="鏁版嵁搴撶敤鎴峰悕">
+          <el-form-item label="数据库用户名">
             <el-input v-model="form.dbUsername" />
           </el-form-item>
           <el-alert
-            title="Docker mode reads PostgreSQL from inside the GitLab container through docker exec, so no extra database password is needed."
+            title="Docker 模式通过 docker exec 进入 GitLab 容器内部读取 PostgreSQL，不需要额外数据库密码。"
             type="info"
             :closable="false"
             show-icon
@@ -546,12 +546,12 @@ onBeforeUnmount(() => {
         <template v-else>
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="Database host">
+              <el-form-item label="数据库主机">
                 <el-input v-model="form.dbHost" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="Database port">
+              <el-form-item label="数据库端口">
                 <el-input-number v-model="form.dbPort" :min="1" :max="65535" style="width: 100%" />
               </el-form-item>
             </el-col>
@@ -559,38 +559,38 @@ onBeforeUnmount(() => {
 
           <el-row :gutter="16">
             <el-col :span="12">
-              <el-form-item label="Database name">
+              <el-form-item label="数据库名称">
                 <el-input v-model="form.dbName" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="鏁版嵁搴撶敤鎴峰悕">
+              <el-form-item label="数据库用户名">
                 <el-input v-model="form.dbUsername" />
               </el-form-item>
             </el-col>
           </el-row>
 
-          <el-form-item label="Database password">
+          <el-form-item label="数据库密码">
             <el-input v-model="form.dbPassword" type="password" show-password />
           </el-form-item>
         </template>
 
-        <el-divider>鍚屾绛栫暐</el-divider>
+        <el-divider>同步策略</el-divider>
 
-        <el-form-item label="鑷姩鍚屾">
+        <el-form-item label="自动同步">
           <el-switch v-model="form.autoSyncEnabled" />
         </el-form-item>
-        <el-form-item label="琛ュ伩闂撮殧(鍒嗛挓)">
+        <el-form-item label="补偿间隔(分钟)">
           <el-input-number v-model="form.compensationIntervalMinutes" :min="1" :max="720" />
         </el-form-item>
-        <el-form-item label="Whitelist mode">
+        <el-form-item label="白名单模式">
           <el-radio-group v-model="form.whitelistMode">
-            <el-radio value="RECOMMENDED">Recommended tables</el-radio>
-            <el-radio value="ALL">All tables</el-radio>
-            <el-radio value="CUSTOM">鑷畾涔夌櫧鍚嶅崟</el-radio>
+            <el-radio value="RECOMMENDED">推荐业务表</el-radio>
+            <el-radio value="ALL">全部表</el-radio>
+            <el-radio value="CUSTOM">自定义白名单</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="form.whitelistMode === 'CUSTOM'" label="鑷畾涔夌櫧鍚嶅崟">
+        <el-form-item v-if="form.whitelistMode === 'CUSTOM'" label="自定义白名单">
           <SmartSelect
             v-model="form.whitelistTables"
             multiple
@@ -602,24 +602,27 @@ onBeforeUnmount(() => {
           <div class="form-help-text">
             {{
               whitelistOptionsLoaded
-                ? `Loaded ${whitelistOptions.length} table options, including ${recommendedCount} recommended tables.`
-                : 'Load table options on demand when entering custom whitelist mode.'
+                ? `已加载 ${whitelistOptions.length} 张可选表，推荐表 ${recommendedCount} 张。`
+                : '进入自定义白名单时按需加载表选项，避免刷新设置页时等待。'
             }}
           </div>
         </el-form-item>
 
-        <el-divider>System Hook wakeup</el-divider>
+        <el-divider>Webhook 增量同步</el-divider>
 
-        <el-form-item label="Receive System Hook">
+        <el-form-item label="接收 Webhook">
           <el-switch v-model="form.webhookEnabled" />
         </el-form-item>
-        <el-form-item label="System Hook URL">
-          <el-input :model-value="status?.systemHookUrl || status?.webhookUrl || ''" readonly />
+        <el-form-item label="Webhook URL">
+          <el-input :model-value="status?.webhookUrl || ''" readonly />
         </el-form-item>
-        <el-form-item label="System Hook Secret">
+        <el-form-item label="Webhook Secret">
           <el-input v-model="form.webhookSecret" />
         </el-form-item>
-        <el-form-item label="System Hook status">
+        <el-form-item label="GitLab Project ID">
+          <el-input-number v-model="form.webhookProjectId" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="Webhook 状态">
           <div class="webhook-status-line">
             <el-tag
               :type="webhookRegistrationLoading ? 'info' : webhookRegistration?.registered ? 'success' : webhookRegistration?.configured ? 'warning' : 'info'"
@@ -627,47 +630,47 @@ onBeforeUnmount(() => {
             >
               {{
                 webhookRegistrationLoading
-                  ? 'Checking'
+                  ? '检测中'
                   : webhookRegistration?.registered
-                    ? 'Registered'
+                    ? '已注册'
                     : webhookRegistration?.configured
-                      ? 'Not registered'
-                      : 'Not configured'
+                      ? '未注册'
+                      : '未配置'
               }}
             </el-tag>
             <span class="webhook-status-text">
               {{
                 webhookRegistrationLoading
-                  ? 'Checking GitLab System Hook status without blocking the page.'
-                  : webhookRegistration?.message || 'GitLab System Hook status has not been checked yet.'
+                  ? '正在异步检测 GitLab Webhook 状态，不影响页面其他信息加载。'
+                  : webhookRegistration?.message || '尚未检测 GitLab Webhook 状态'
               }}
             </span>
           </div>
         </el-form-item>
         <el-alert
           v-if="!isDockerMode"
-          title="Direct mode does not auto-register GitLab System Hook; save the config, then register the URL and secret in GitLab Admin Area > System Hooks."
+          title="直连模式不会自动注册 GitLab Webhook；保存配置后，请在 GitLab 项目中手动填写 Webhook URL 和 Secret。"
           type="info"
           :closable="false"
           show-icon
         />
 
         <el-space wrap>
-          <el-button type="primary" :loading="saving" @click="saveConfig()">淇濆瓨閰嶇疆</el-button>
+          <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
           <el-button
             :icon="Tools"
             :loading="testing"
             :disabled="saving || testing || savedConfigActionDisabled"
             @click="testConnection"
           >
-            娴嬭瘯杩炴帴
+            测试连接
           </el-button>
           <el-button
             :loading="registeringWebhook"
-            :disabled="systemHookAutoRegistrationDisabled"
+            :disabled="webhookAutoRegistrationDisabled"
             @click="registerWebhook"
           >
-            Register System Hook
+            注册 Webhook
           </el-button>
           <el-button
             type="success"
@@ -675,14 +678,14 @@ onBeforeUnmount(() => {
             :disabled="!syncEnabled || savedConfigActionDisabled"
             @click="startFullSync"
           >
-            棣栨鍏ㄩ噺鍚屾
+            首次全量同步
           </el-button>
           <el-button
             :loading="syncing"
             :disabled="!syncEnabled || savedConfigActionDisabled"
             @click="startIncrementalSync"
           >
-            绔嬪嵆澧為噺鍚屾
+            立即增量同步
           </el-button>
           <el-button
             type="danger"
@@ -691,10 +694,10 @@ onBeforeUnmount(() => {
             :disabled="!canCancel || savedConfigActionDisabled"
             @click="cancelSyncTask"
           >
-            涓瀵煎叆
+            中止导入
           </el-button>
           <el-button type="danger" plain :disabled="savedConfigActionDisabled" @click="openPurgeDialog">
-            Delete mirror data
+            删除镜像数据
           </el-button>
         </el-space>
       </el-form>
@@ -718,7 +721,7 @@ onBeforeUnmount(() => {
       <el-card shadow="never" class="panel-card source-health-card">
         <template #header>
           <div class="panel-header">
-            <div class="panel-title">Source health</div>
+            <div class="panel-title">数据源健康状态</div>
           </div>
         </template>
         <template v-if="currentSourceHealth">
@@ -734,49 +737,49 @@ onBeforeUnmount(() => {
           </div>
           <div class="source-health-grid">
             <div>
-              <span>Mirror tables</span>
+              <span>镜像表</span>
               <strong>{{ currentSourceHealth.existingMirrorTables }} / {{ currentSourceHealth.registeredMirrorTables }}</strong>
             </div>
             <div>
-              <span>浠ｇ爜璧版煡浜嬪疄</span>
+              <span>代码走查事实</span>
               <strong>{{ currentSourceHealth.mergeRequestFactCount }}</strong>
             </div>
             <div>
-              <span>Latest sync</span>
+              <span>最新同步</span>
               <strong>{{ currentSourceHealth.latestLogStatus || currentSourceHealth.currentStatus || '-' }}</strong>
             </div>
           </div>
           <div class="source-health-fact-grid">
             <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.mergeRequestFactLagging }">
-              <span>浠ｇ爜璧版煡浜嬪疄</span>
+              <span>代码走查事实</span>
               <strong>{{ currentSourceHealth.mergeRequestFactCount }}</strong>
             </div>
             <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.issueFactLagging }">
-              <span>绯荤粺娴嬭瘯/瀹㈡埛闂浜嬪疄</span>
+              <span>系统测试/客户问题事实</span>
               <strong>{{ currentSourceHealth.issueFactCount }}</strong>
             </div>
             <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.integrationTestFactLagging }">
-              <span>闆嗘垚娴嬭瘯浜嬪疄</span>
+              <span>集成测试事实</span>
               <strong>{{ currentSourceHealth.integrationTestFactCount }}</strong>
             </div>
           </div>
 
           <div class="source-health-detail-list">
             <div class="source-health-detail-row">
-              <span>Latest sync time</span>
+              <span>最新同步时间</span>
               <strong>{{ currentSourceHealth.latestLogFinishedAt || currentSourceHealth.currentStartedAt || '-' }}</strong>
             </div>
             <div class="source-health-detail-row">
-              <span>Fact refresh</span>
+              <span>事实层更新</span>
               <strong>{{ currentSourceHealth.latestFactUpdatedAt || '-' }}</strong>
             </div>
           </div>
 
           <div v-if="currentSourceHealth.missingRequiredMirrorTables.length" class="source-health-missing-panel">
             <div class="source-health-section-title">
-              缂哄皯鍏抽敭闀滃儚琛?
+              缺少关键镜像表
               <el-tag size="small" type="warning" round>
-                {{ currentSourceHealth.missingRequiredMirrorTables.length }} 寮?
+                {{ currentSourceHealth.missingRequiredMirrorTables.length }} 张
               </el-tag>
             </div>
             <div class="source-health-table-tags">
@@ -796,7 +799,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="currentSourceHealth.latestLogMessage || currentSourceHealth.currentMessage" class="source-health-message">
-            <span>杩戞湡淇℃伅</span>
+            <span>近期信息</span>
             <strong>{{ currentSourceHealth.latestLogMessage || currentSourceHealth.currentMessage }}</strong>
           </div>
           <el-alert
@@ -805,8 +808,8 @@ onBeforeUnmount(() => {
             type="warning"
             :closable="false"
             show-icon
-            :title="`Missing ${currentSourceHealth.missingRequiredMirrorTables.length} required mirror tables`"
-            :description="currentSourceHealth.missingRequiredMirrorTables.slice(0, 3).join(', ')"
+            :title="`缺少 ${currentSourceHealth.missingRequiredMirrorTables.length} 张代码走查关键镜像表`"
+            :description="currentSourceHealth.missingRequiredMirrorTables.slice(0, 3).join('、')"
           />
           <el-alert
             v-if="currentSourceHealth.factLayerLagging"
@@ -814,18 +817,18 @@ onBeforeUnmount(() => {
             type="warning"
             :closable="false"
             show-icon
-            :title="`${currentFactLaggingDomains.join(', ') || 'Fact layer'} may be lagging`"
-            :description="currentSourceHealth.factLayerMessage || 'Mirror data is newer than the current fact refresh.'"
+            :title="`${currentFactLaggingDomains.join('、') || '事实层'}可能滞后`"
+            :description="currentSourceHealth.factLayerMessage || '镜像已更新，但统计事实尚未刷新到最新同步时间。'"
           />
         </template>
-        <el-empty v-else description="No source health diagnostics yet." />
+        <el-empty v-else description="暂无当前数据源诊断信息" />
       </el-card>
 
       <el-card shadow="never" class="panel-card table-sync-diagnostics-card">
         <template #header>
           <div class="panel-header">
             <div>
-              <div class="panel-title">琛ㄧ骇鍚屾璇婃柇</div>
+              <div class="panel-title">表级同步诊断</div>
               <div class="panel-subtitle">{{ tableSyncQueueSummary }}</div>
             </div>
             <el-button
@@ -835,22 +838,22 @@ onBeforeUnmount(() => {
               :disabled="savedConfigActionDisabled"
               @click="loadTableSyncDiagnostics(true)"
             >
-              鍒锋柊
+              刷新
             </el-button>
           </div>
         </template>
         <template v-if="tableSyncDiagnostics">
           <div class="table-sync-summary-grid">
             <div>
-              <span>Synced tables</span>
+              <span>同步表</span>
               <strong>{{ tableSyncDiagnostics.tableCount }}</strong>
             </div>
             <div>
-              <span>鑴忚〃</span>
+              <span>脏表</span>
               <strong>{{ tableSyncDiagnostics.dirtyTableCount }}</strong>
             </div>
             <div>
-              <span>Retrying</span>
+              <span>重试中</span>
               <strong>{{ tableSyncDiagnostics.retryingTaskCount }}</strong>
             </div>
           </div>
@@ -860,23 +863,23 @@ onBeforeUnmount(() => {
             :data="tableSyncDisplayRows"
             size="small"
           >
-            <el-table-column prop="sourceTable" label="婧愯〃" min-width="130" show-overflow-tooltip />
-            <el-table-column label="Status" width="86">
+            <el-table-column prop="sourceTable" label="源表" min-width="130" show-overflow-tooltip />
+            <el-table-column label="状态" width="86">
               <template #default="{ row }">
                 <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
                   {{ syncStatusText(row.latestTaskStatus) }}
                 </el-tag>
-                <el-tag v-else size="small" type="info">No task</el-tag>
+                <el-tag v-else size="small" type="info">无任务</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="鑴忚〃" width="64">
+            <el-table-column label="脏表" width="64">
               <template #default="{ row }">
-                  <el-tag size="small" :type="row.dirty ? 'warning' : 'success'" effect="plain">
-                    {{ row.dirty ? 'Yes' : 'No' }}
-                  </el-tag>
+                <el-tag size="small" :type="row.dirty ? 'warning' : 'success'" effect="plain">
+                  {{ row.dirty ? '是' : '否' }}
+                </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="姘翠綅/閿欒" min-width="180" show-overflow-tooltip>
+            <el-table-column label="水位/错误" min-width="180" show-overflow-tooltip>
               <template #default="{ row }">
                 <span v-if="row.lastError || row.latestTaskError">{{ row.lastError || row.latestTaskError }}</span>
                 <span v-else>{{ formatDateTime(row.lastWatermarkAt || row.lastSuccessAt) }}</span>
@@ -884,10 +887,10 @@ onBeforeUnmount(() => {
             </el-table-column>
           </el-table>
           <div v-if="tableSyncRows.length > tableSyncDisplayRows.length" class="table-sync-more">
-            浼樺厛灞曠ず寮傚父琛紝鍙︽湁 {{ tableSyncRows.length - tableSyncDisplayRows.length }} 寮犺〃鏈睍寮€銆?
+            优先展示异常表，另有 {{ tableSyncRows.length - tableSyncDisplayRows.length }} 张表未展开。
           </div>
         </template>
-        <el-empty v-else description="鏆傛棤琛ㄧ骇鍚屾璇婃柇" />
+        <el-empty v-else description="暂无表级同步诊断" />
       </el-card>
       </div>
     </div>
@@ -906,13 +909,13 @@ onBeforeUnmount(() => {
   >
     <div class="purge-dialog-body">
       <div class="purge-hero">
-        <div class="purge-hero-badge">High risk</div>
-        <div class="purge-hero-title">This action permanently deletes local mirror data.</div>
+        <div class="purge-hero-badge">高风险操作</div>
+        <div class="purge-hero-title">此操作会真实删除本地镜像数据，且不可恢复。</div>
         <div class="purge-hero-description">
           {{ purgeDialogCopy.detail }}
         </div>
         <div class="purge-hero-description">
-          Current scope: {{ currentSourceText }}
+          当前作用范围：{{ currentSourceText }}
         </div>
       </div>
 
@@ -922,16 +925,16 @@ onBeforeUnmount(() => {
         type="warning"
         :closable="false"
         show-icon
-        title="Deleting mirror data"
+        title="正在删除镜像数据"
         :description="purgeProgressText"
       />
 
       <div class="purge-scope-cards">
         <label class="purge-scope-card" :class="{ active: purgeScope === 'MIRROR_DATA_ONLY', disabled: isPurging }">
           <input v-model="purgeScope" type="radio" value="MIRROR_DATA_ONLY" :disabled="isPurging" />
-          <div class="purge-scope-card-title">Delete mirror data</div>
+          <div class="purge-scope-card-title">删除镜像数据</div>
           <div class="purge-scope-card-desc">
-            Delete all local mirror tables, registry entries, and summary data without affecting GitLab source data or local non-mirror data.
+            删除所有镜像表、镜像注册信息和旧镜像总表数据，不影响 GitLab 源端和本地非镜像数据。
           </div>
         </label>
 
@@ -945,31 +948,30 @@ onBeforeUnmount(() => {
             value="MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST"
             :disabled="isPurging"
           />
-          <div class="purge-scope-card-title">Delete mirror data outside the current whitelist</div>
+          <div class="purge-scope-card-title">删除镜像数据（排除当前设置的白名单）</div>
           <div class="purge-scope-card-desc">
-            Delete only mirror data outside the current whitelist and keep the mirror data for the tables that remain selected.
+            仅删除当前白名单之外的镜像数据，保留当前白名单内的镜像内容，不影响 GitLab 源端和本地非镜像数据。
           </div>
         </label>
       </div>
 
       <div class="purge-warning-list">
-        <div class="purge-warning-item">Make sure no sync task is running or queued before deleting.</div>
-        <div class="purge-warning-item">This only affects local mirror data and will not delete GitLab source data.</div>
-        <div class="purge-warning-item">Local non-mirror business data will be preserved.</div>
+        <div class="purge-warning-item">删除前请确认当前没有运行中或排队中的同步任务。</div>
+        <div class="purge-warning-item">本操作只作用于本地镜像数据，不会删除 GitLab 源端数据。</div>
+        <div class="purge-warning-item">本地非镜像业务数据不会被删除。</div>
       </div>
 
       <div class="purge-confirm-panel" :class="{ 'is-disabled': isPurging }">
-        <div class="purge-confirm-label">Type the confirmation phrase to continue</div>
+        <div class="purge-confirm-label">请输入确认短语以继续</div>
         <div class="purge-confirm-phrase">{{ purgeDialogCopy.confirmText }}</div>
         <el-input v-model="purgeConfirmText" :placeholder="purgeDialogCopy.confirmText" :disabled="isPurging" />
       </div>
     </div>
     <template #footer>
-      <el-button :disabled="isPurging" @click="closePurgeDialog">Cancel</el-button>
+      <el-button :disabled="isPurging" @click="closePurgeDialog">取消</el-button>
       <el-button type="danger" :loading="isPurging" :disabled="!purgeConfirmMatched || isPurging" @click="purgeMirrorData()">
-        Confirm deletion
+        确认删除
       </el-button>
     </template>
   </el-dialog>
 </template>
-
