@@ -16,6 +16,7 @@ import com.data.collection.platform.entity.GitlabTableSyncTaskType;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SyncStatus;
+import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.mapper.GitlabSyncJobMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncStateMapper;
@@ -59,6 +60,7 @@ public class GitlabTableSyncWorkerService {
   private final GitlabMirrorTableStorageService storageService;
   private final GitlabMirrorProperties properties;
   private final FactBuildTaskService factBuildTaskService;
+  private final GitlabSyncLogService logService;
   private final JsonUtils jsonUtils;
 
   public GitlabTableSyncWorkerService(
@@ -71,6 +73,7 @@ public class GitlabTableSyncWorkerService {
       GitlabMirrorTableStorageService storageService,
       GitlabMirrorProperties properties,
       FactBuildTaskService factBuildTaskService,
+      GitlabSyncLogService logService,
       JsonUtils jsonUtils) {
     this.taskMapper = taskMapper;
     this.stateMapper = stateMapper;
@@ -81,6 +84,7 @@ public class GitlabTableSyncWorkerService {
     this.storageService = storageService;
     this.properties = properties;
     this.factBuildTaskService = factBuildTaskService;
+    this.logService = logService;
     this.jsonUtils = jsonUtils;
   }
 
@@ -798,10 +802,43 @@ public class GitlabTableSyncWorkerService {
     job.setFinishedAt(now);
     job.setUpdatedAt(now);
     jobMapper.updateById(job);
+    logService.finishRunningLogsForCompletedJob(
+        job.getConfigId(),
+        syncTypeFromJob(job.getJobType()),
+        job.getCreatedAt(),
+        job.getFinishedAt(),
+        job.getStatus(),
+        buildJobCompletionMessage(job));
     if (shouldEnqueueFactRefresh(job)) {
       GitlabSyncConfig config = configService.getConfigById(job.getConfigId());
       factBuildTaskService.enqueueMirrorRefreshTasks(config, job.getJobType() == GitlabSyncJobType.DAILY_VERIFY);
     }
+  }
+
+  private SyncType syncTypeFromJob(GitlabSyncJobType jobType) {
+    if (jobType == null) {
+      return SyncType.INCREMENTAL;
+    }
+    return switch (jobType) {
+      case DAILY_VERIFY -> SyncType.FULL;
+      case COMPENSATION_SCAN -> SyncType.COMPENSATION;
+      case HOOK_WAKEUP -> SyncType.WEBHOOK;
+      case MANUAL_REFRESH, FACT_REFRESH -> SyncType.INCREMENTAL;
+    };
+  }
+
+  private String buildJobCompletionMessage(GitlabSyncJob job) {
+    if (job.getErrorMessage() != null && !job.getErrorMessage().isBlank()) {
+      return job.getErrorMessage();
+    }
+    String label = switch (syncTypeFromJob(job.getJobType())) {
+      case FULL -> "Full table verification";
+      case COMPENSATION -> "Compensation table sync";
+      case INCREMENTAL -> "Incremental table refresh";
+      case WEBHOOK -> "Webhook table refresh";
+      case PURGE -> "Mirror purge";
+    };
+    return "%s completed with status %s".formatted(label, job.getStatus());
   }
 
   private boolean shouldEnqueueFactRefresh(GitlabSyncJob job) {

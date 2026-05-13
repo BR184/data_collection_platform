@@ -7,12 +7,15 @@ import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabTableRowStrategy;
 import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncTaskType;
 import com.data.collection.platform.entity.SourceMode;
+import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.mapper.GitlabTableSyncStateMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncTaskMapper;
@@ -59,6 +62,36 @@ class GitlabTableSyncDiagnosticsServiceTest {
     assertThat(response.tables().get(0).latestTaskType()).isEqualTo(GitlabTableSyncTaskType.SHARD_REPAIR);
     assertThat(response.tables().get(0).latestTaskStatus()).isEqualTo(SyncStatus.RETRYING);
     assertThat(response.tables().get(0).latestTaskError()).isEqualTo("network timeout");
+  }
+
+  @Test
+  void shouldBuildProgressFromTableLevelTasks() {
+    GitlabConfigService configService = mock(GitlabConfigService.class);
+    GitlabTableSyncStateMapper stateMapper = mock(GitlabTableSyncStateMapper.class);
+    GitlabTableSyncTaskMapper taskMapper = mock(GitlabTableSyncTaskMapper.class);
+    GitlabTableSyncDiagnosticsService service =
+        new GitlabTableSyncDiagnosticsService(configService, stateMapper, taskMapper);
+    GitlabSyncJob job = new GitlabSyncJob();
+    job.setId(31L);
+    job.setJobType(GitlabSyncJobType.DAILY_VERIFY);
+    job.setStartedAt(LocalDateTime.of(2026, 5, 13, 10, 0));
+    GitlabTableSyncTask done = task("issues", GitlabTableSyncTaskType.DAILY_VERIFY, SyncStatus.SUCCESS);
+    done.setRowsApplied(10L);
+    GitlabTableSyncTask running = task("notes", GitlabTableSyncTaskType.DAILY_VERIFY, SyncStatus.RUNNING);
+    running.setRowsApplied(3L);
+    GitlabTableSyncTask queuedContinuation = task("notes", GitlabTableSyncTaskType.SHARD_REPAIR, SyncStatus.PENDING);
+    queuedContinuation.setRowsApplied(0L);
+
+    when(taskMapper.selectList(any(Wrapper.class))).thenReturn(List.of(done, running, queuedContinuation));
+
+    SyncProgress progress = service.buildProgress(job);
+
+    assertThat(progress.getPhase()).isEqualTo("FULL_SYNC");
+    assertThat(progress.getTotalTables()).isEqualTo(2);
+    assertThat(progress.getCompletedTables()).isEqualTo(1);
+    assertThat(progress.getCurrentTable()).isEqualTo("notes");
+    assertThat(progress.getSyncedRecords()).isEqualTo(13);
+    assertThat(progress.getStartedAt()).isEqualTo(LocalDateTime.of(2026, 5, 13, 10, 0));
   }
 
   private GitlabTableSyncState state(String sourceTable, boolean dirty) {

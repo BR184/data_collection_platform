@@ -28,6 +28,7 @@ import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.SyncStatus;
+import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.mapper.GitlabSyncJobMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncStateMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncTaskMapper;
@@ -50,6 +51,7 @@ class GitlabTableSyncWorkerServiceTest {
   private GitlabMirrorSchemaService mirrorSchemaService;
   private GitlabMirrorTableStorageService storageService;
   private FactBuildTaskService factBuildTaskService;
+  private GitlabSyncLogService logService;
   private GitlabTableSyncWorkerService service;
 
   @BeforeEach
@@ -62,6 +64,7 @@ class GitlabTableSyncWorkerServiceTest {
     mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
     storageService = mock(GitlabMirrorTableStorageService.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
+    logService = mock(GitlabSyncLogService.class);
     when(taskMapper.update(any(), ArgumentMatchers.<Wrapper<GitlabTableSyncTask>>any())).thenReturn(1);
     service = new GitlabTableSyncWorkerService(
         taskMapper,
@@ -73,6 +76,7 @@ class GitlabTableSyncWorkerServiceTest {
         storageService,
         new GitlabMirrorProperties(),
         factBuildTaskService,
+        logService,
         new JsonUtils(new ObjectMapper()));
   }
 
@@ -440,6 +444,7 @@ class GitlabTableSyncWorkerServiceTest {
     job.setConfigId(3L);
     job.setJobType(GitlabSyncJobType.COMPENSATION_SCAN);
     job.setStatus(SyncStatus.RUNNING);
+    job.setCreatedAt(LocalDateTime.of(2026, 1, 2, 3, 0));
     SourceTableSchema schema = new SourceTableSchema(
         "ods_gitlab_issues",
         List.of("id"),
@@ -467,6 +472,13 @@ class GitlabTableSyncWorkerServiceTest {
 
     verify(jobMapper).updateById(job);
     verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, false);
+    verify(logService).finishRunningLogsForCompletedJob(
+        eq(3L),
+        eq(SyncType.COMPENSATION),
+        eq(LocalDateTime.of(2026, 1, 2, 3, 0)),
+        any(),
+        eq(SyncStatus.SUCCESS),
+        any());
     assertThat(job.getStatus()).isEqualTo(SyncStatus.SUCCESS);
   }
 

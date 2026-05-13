@@ -2,17 +2,22 @@ package com.data.collection.platform.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabTableSyncState;
 import com.data.collection.platform.entity.GitlabTableSyncStateDiagnostics;
 import com.data.collection.platform.entity.GitlabTableSyncTask;
+import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.mapper.GitlabTableSyncStateMapper;
 import com.data.collection.platform.mapper.GitlabTableSyncTaskMapper;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -55,6 +60,42 @@ public class GitlabTableSyncDiagnosticsService {
         tables);
   }
 
+  public SyncProgress buildProgress(GitlabSyncJob job) {
+    if (job == null || job.getId() == null) {
+      return null;
+    }
+    List<GitlabTableSyncTask> tasks = taskMapper.selectList(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, job.getId())
+        .orderByAsc(GitlabTableSyncTask::getCreatedAt));
+    if (tasks.isEmpty()) {
+      return null;
+    }
+    Set<String> allTables = new LinkedHashSet<>();
+    Set<String> activeTables = new LinkedHashSet<>();
+    long syncedRecords = 0L;
+    String currentTable = null;
+    for (GitlabTableSyncTask task : tasks) {
+      allTables.add(task.getSourceTable());
+      if (task.getRowsApplied() != null) {
+        syncedRecords += task.getRowsApplied();
+      }
+      if (isActiveStatus(task.getStatus())) {
+        activeTables.add(task.getSourceTable());
+        if (currentTable == null || task.getStatus() == SyncStatus.RUNNING) {
+          currentTable = task.getSourceTable();
+        }
+      }
+    }
+    SyncProgress progress = new SyncProgress();
+    progress.setPhase(phaseFromJobType(job.getJobType()));
+    progress.setTotalTables(allTables.size());
+    progress.setCompletedTables(Math.max(0, allTables.size() - activeTables.size()));
+    progress.setSyncedRecords(syncedRecords > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) syncedRecords);
+    progress.setCurrentTable(currentTable);
+    progress.setStartedAt(job.getStartedAt() == null ? job.getCreatedAt() : job.getStartedAt());
+    return progress;
+  }
+
   private Map<String, GitlabTableSyncTask> latestTasksBySourceTable(Long configId, String sourceInstance) {
     List<GitlabTableSyncTask> tasks = taskMapper.selectList(new LambdaQueryWrapper<GitlabTableSyncTask>()
         .eq(GitlabTableSyncTask::getConfigId, configId)
@@ -73,6 +114,25 @@ public class GitlabTableSyncDiagnosticsService {
         .eq(GitlabTableSyncTask::getSourceInstance, sourceInstance)
         .eq(GitlabTableSyncTask::getStatus, status));
     return count == null ? 0L : count;
+  }
+
+  private boolean isActiveStatus(SyncStatus status) {
+    return status == SyncStatus.PENDING
+        || status == SyncStatus.QUEUED
+        || status == SyncStatus.RUNNING
+        || status == SyncStatus.RETRYING
+        || status == SyncStatus.CANCELLING;
+  }
+
+  private String phaseFromJobType(GitlabSyncJobType jobType) {
+    if (jobType == null) {
+      return "INCREMENTAL_SYNC";
+    }
+    return switch (jobType) {
+      case DAILY_VERIFY -> "FULL_SYNC";
+      case COMPENSATION_SCAN -> "COMPENSATION_SYNC";
+      case HOOK_WAKEUP, MANUAL_REFRESH, FACT_REFRESH -> "INCREMENTAL_SYNC";
+    };
   }
 
   private GitlabTableSyncStateDiagnostics toTableDiagnostics(

@@ -14,6 +14,8 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
@@ -154,6 +156,31 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
+  void incrementalSyncShouldReuseActiveTableJobInsteadOfCreatingZeroSecondPlan() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    GitlabSyncJob activeJob = new GitlabSyncJob();
+    activeJob.setId(99L);
+    activeJob.setConfigId(1L);
+    activeJob.setJobType(GitlabSyncJobType.DAILY_VERIFY);
+    activeJob.setStatus(SyncStatus.RUNNING);
+    activeJob.setTriggerType(SyncTriggerType.MANUAL);
+
+    when(configService.getConfig()).thenReturn(config);
+    when(tableSyncPlanningService.findActiveJob(1L)).thenReturn(activeJob);
+
+    SyncTaskSubmissionResult result =
+        syncService.startIncrementalSync(SyncTriggerType.MANUAL, "Manual recovery incremental sync");
+
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_ACTIVE);
+    assertThat(result.task().getId()).isEqualTo(99L);
+    assertThat(result.task().getStatus()).isEqualTo(SyncStatus.RUNNING);
+    assertThat(result.task().getTaskType()).isEqualTo(SyncType.FULL);
+    verify(tableSyncPlanningService, never()).createManualRefreshPlan(any(), any(), any(), any());
+    verify(tableSyncWorkerService, never()).drainReadyTasksForJob(any());
+  }
+
+  @Test
   void manualIncrementalTablePlanShouldWriteVisibleSyncLog() {
     GitlabSyncConfig config = baseConfig();
     config.setEnabled(true);
@@ -176,6 +203,28 @@ class GitlabMirrorSyncServiceTest {
 
     verify(logService).start(1L, SyncType.INCREMENTAL, List.of("issues"), "Manual recovery incremental sync");
     verify(logService).finish(eq(9L), eq(SyncStatus.SUCCESS), contains("表级同步"), eq(1), eq(0));
+  }
+
+  @Test
+  void manualFullSyncShouldLeaveLogRunningWhenJobContinuesAfterInitialDrain() {
+    GitlabSyncConfig config = baseConfig();
+    config.setEnabled(true);
+    List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createManualVerificationPlan(config, tables))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(100L, 1, 1, 0));
+    when(tableSyncWorkerService.drainReadyTasksForJob(100L)).thenReturn(200);
+    when(tableSyncPlanningService.findJobStatus(100L)).thenReturn(SyncStatus.RUNNING);
+    when(logService.start(1L, SyncType.FULL, List.of("issues"), "Manual full sync"))
+        .thenReturn(19L);
+
+    SyncTaskSubmissionResult result = syncService.startFullSync();
+
+    assertThat(result.task().getStatus()).isEqualTo(SyncStatus.RUNNING);
+    verify(logService).start(1L, SyncType.FULL, List.of("issues"), "Manual full sync");
+    verify(logService, never()).finish(eq(19L), any(), anyString(), any(Integer.class), any(Integer.class));
   }
 
   @Test

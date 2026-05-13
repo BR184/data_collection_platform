@@ -65,6 +65,8 @@ System Hook：只作为 dirty/wakeup 信号，不承担正确性
 - Phase 4：活跃同步路径的 `getPreparedMirrorTableForSync` 增加 schema check 到期判断，到期后复用 `prepareMirrorTable` 的安全 schema 演进逻辑。
 - Phase 5：白名单拆分 UI fallback 与 strict discovery；诊断和真实任务规划使用 strict 结果。
 - Phase 6：页面级手动刷新使用 strict 白名单；请求表不在白名单或属于 verify-only 时不再静默成功，会返回明确失败。
+- 状态语义补充：已有表级全量/校验/补偿/刷新 job 处于活动状态时，手动全量和手动增量请求复用活动 job 状态，不再创建一个 0 秒完成的新计划误导用户。
+- 产品语义补充：页面级刷新入口指业务页面/看板/列表页当前展示依赖的数据刷新；数据库浏览器中的单表刷新仅定位为管理员运维排查入口。
 
 已通过定向回归：
 
@@ -263,7 +265,9 @@ mvn -q "-Dtest=GitlabConfigServiceTest,GitlabWhitelistServiceTest,GitlabSyncCont
 
 ### 5.1 功能定位
 
-用户在某个页面点击“刷新最新数据”时，系统只刷新该页面依赖的源表，而不是刷新整个 GitLab 源。
+用户在某个业务页面、看板或列表页点击“刷新最新数据”时，系统只刷新该页面依赖的 GitLab 源表，而不是刷新整个 GitLab 源。
+
+这里的“当前页面依赖表”是产品功能语义，不是数据库浏览器中的任意 ODS/镜像物理表。数据库浏览器可以保留运维排查用的单表刷新入口，但它不应成为普通用户理解或使用的“页面级刷新”主入口。
 
 该能力用于解决：
 
@@ -276,6 +280,7 @@ mvn -q "-Dtest=GitlabConfigServiceTest,GitlabWhitelistServiceTest,GitlabSyncCont
 - 全平台严格实时。
 - 所有页面同时刷新。
 - 无法增量的未知大表实时刷新。
+- 普通用户从数据库浏览器任意选择物理表进行刷新。
 
 ### 5.2 目标链路
 
@@ -306,6 +311,7 @@ mvn -q "-Dtest=GitlabConfigServiceTest,GitlabWhitelistServiceTest,GitlabSyncCont
 - 依赖表声明是后端权威，前端不能传任意表名扩大范围。
 - 依赖表必须与当前页面事实构建逻辑保持一致。
 - 依赖表变更时必须补测试，防止页面刷新遗漏事实来源。
+- 数据库浏览器的刷新入口仅面向管理员/运维诊断；普通业务页面不得依赖用户输入的数据库表名决定刷新范围。
 
 ### 5.4 API 与返回状态
 

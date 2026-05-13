@@ -133,7 +133,21 @@ public class GitlabTableSyncPlanningService {
     if (configId == null) {
       return null;
     }
-    GitlabSyncJob activeJob = jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
+    GitlabSyncJob activeJob = findActiveJob(configId);
+    if (activeJob != null) {
+      return activeJob;
+    }
+    return jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
+        .eq(GitlabSyncJob::getConfigId, configId)
+        .orderByDesc(GitlabSyncJob::getCreatedAt)
+        .last("limit 1"));
+  }
+
+  public GitlabSyncJob findActiveJob(Long configId) {
+    if (configId == null) {
+      return null;
+    }
+    return jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
         .eq(GitlabSyncJob::getConfigId, configId)
         .in(GitlabSyncJob::getStatus, List.of(
             SyncStatus.PENDING,
@@ -141,13 +155,6 @@ public class GitlabTableSyncPlanningService {
             SyncStatus.RUNNING,
             SyncStatus.RETRYING,
             SyncStatus.CANCELLING))
-        .orderByDesc(GitlabSyncJob::getCreatedAt)
-        .last("limit 1"));
-    if (activeJob != null) {
-      return activeJob;
-    }
-    return jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
-        .eq(GitlabSyncJob::getConfigId, configId)
         .orderByDesc(GitlabSyncJob::getCreatedAt)
         .last("limit 1"));
   }

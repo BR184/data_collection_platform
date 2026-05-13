@@ -5,6 +5,8 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
@@ -187,6 +189,12 @@ public class GitlabMirrorSyncService {
       GitlabSyncConfig config,
       SyncTriggerType triggerType,
       String message) {
+    GitlabSyncJob activeJob = tableSyncPlanningService.findActiveJob(config.getId());
+    if (activeJob != null) {
+      return new SyncTaskSubmissionResult(
+          buildSummaryTaskFromJob(activeJob, syncTypeFromJob(activeJob.getJobType())),
+          SyncSubmissionAction.REUSED_ACTIVE);
+    }
     List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
     List<String> sourceTableNames = tables.stream().map(TableWhitelistOption::tableName).toList();
     long logId = logService.start(config.getId(), SyncType.INCREMENTAL, sourceTableNames, message);
@@ -196,12 +204,7 @@ public class GitlabMirrorSyncService {
       result = tableSyncPlanningService.createManualRefreshPlan(config, tables, sourceTableNames, message);
       processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
       SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
-      logService.finish(
-          logId,
-          status,
-          buildTablePlanCompletionMessage(SyncType.INCREMENTAL, status, result.plannedTasks(), processedTasks),
-          result.plannedTasks(),
-          0);
+      finishVisibleLogIfTerminal(logId, SyncType.INCREMENTAL, status, result.plannedTasks(), processedTasks);
     } catch (Exception e) {
       logService.finish(logId, SyncStatus.FAILED, e.getMessage(), processedTasks, 0);
       throw e;
@@ -215,6 +218,12 @@ public class GitlabMirrorSyncService {
   }
 
   private SyncTaskSubmissionResult submitManualFullTablePlan(GitlabSyncConfig config, String message) {
+    GitlabSyncJob activeJob = tableSyncPlanningService.findActiveJob(config.getId());
+    if (activeJob != null) {
+      return new SyncTaskSubmissionResult(
+          buildSummaryTaskFromJob(activeJob, syncTypeFromJob(activeJob.getJobType())),
+          SyncSubmissionAction.REUSED_ACTIVE);
+    }
     List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
     List<String> sourceTableNames = tables.stream().map(TableWhitelistOption::tableName).toList();
     long logId = logService.start(config.getId(), SyncType.FULL, sourceTableNames, message);
@@ -224,12 +233,7 @@ public class GitlabMirrorSyncService {
       result = tableSyncPlanningService.createManualVerificationPlan(config, tables);
       processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
       SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
-      logService.finish(
-          logId,
-          status,
-          buildTablePlanCompletionMessage(SyncType.FULL, status, result.plannedTasks(), processedTasks),
-          result.plannedTasks(),
-          0);
+      finishVisibleLogIfTerminal(logId, SyncType.FULL, status, result.plannedTasks(), processedTasks);
     } catch (Exception e) {
       logService.finish(logId, SyncStatus.FAILED, e.getMessage(), processedTasks, 0);
       throw e;
@@ -260,6 +264,32 @@ public class GitlabMirrorSyncService {
     return new SyncTaskSubmissionResult(task, SyncSubmissionAction.CREATED);
   }
 
+  private GitlabSyncTask buildSummaryTaskFromJob(GitlabSyncJob job, SyncType type) {
+    GitlabSyncTask task = new GitlabSyncTask();
+    task.setId(job.getId());
+    task.setConfigId(job.getConfigId());
+    task.setTaskType(type);
+    task.setTriggerType(job.getTriggerType());
+    task.setStatus(normalizeJobStatus(job.getStatus()));
+    task.setCreatedAt(job.getCreatedAt());
+    task.setStartedAt(job.getStartedAt());
+    task.setFinishedAt(job.getFinishedAt());
+    task.setUpdatedAt(job.getUpdatedAt());
+    return task;
+  }
+
+  private SyncType syncTypeFromJob(GitlabSyncJobType jobType) {
+    if (jobType == null) {
+      return SyncType.INCREMENTAL;
+    }
+    return switch (jobType) {
+      case DAILY_VERIFY -> SyncType.FULL;
+      case COMPENSATION_SCAN -> SyncType.COMPENSATION;
+      case HOOK_WAKEUP -> SyncType.WEBHOOK;
+      case MANUAL_REFRESH, FACT_REFRESH -> SyncType.INCREMENTAL;
+    };
+  }
+
   private String buildTablePlanCompletionMessage(
       SyncType type,
       SyncStatus status,
@@ -282,5 +312,26 @@ public class GitlabMirrorSyncService {
 
   private SyncStatus normalizeJobStatus(SyncStatus status) {
     return status == null ? SyncStatus.PENDING : status;
+  }
+
+  private void finishVisibleLogIfTerminal(
+      long logId,
+      SyncType type,
+      SyncStatus status,
+      int plannedTasks,
+      int processedTasks) {
+    if (status == SyncStatus.PENDING
+        || status == SyncStatus.QUEUED
+        || status == SyncStatus.RUNNING
+        || status == SyncStatus.RETRYING
+        || status == SyncStatus.CANCELLING) {
+      return;
+    }
+    logService.finish(
+        logId,
+        status,
+        buildTablePlanCompletionMessage(type, status, plannedTasks, processedTasks),
+        plannedTasks,
+        0);
   }
 }

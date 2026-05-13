@@ -127,7 +127,7 @@ public class GitlabSyncController {
     LocalDateTime currentStartedAt;
     if (preferJobStatus(displayJob, displayTask)) {
       currentTask = MirrorStatusTaskView.fromJob(displayJob, config.getSourceMode());
-      progress = null;
+      progress = displayJob == null ? null : tableSyncDiagnosticsService.buildProgress(displayJob);
       currentStatus = displayJob == null || displayJob.getStatus() == null ? SyncStatus.IDLE : displayJob.getStatus();
       currentMessage = extractJobMessage(displayJob);
       currentStartedAt = displayJob == null ? null : displayJob.getStartedAt();
