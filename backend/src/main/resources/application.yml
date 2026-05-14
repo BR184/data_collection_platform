@@ -54,16 +54,16 @@ platform:
     scheduler-delay-ms: 60000
     # 本地/内网 GitLab 访问地址，记录类页面和代码走查链接统一复用这里
     web-base-url: ${GITLAB_WEB_BASE_URL:http://localhost}
-    webhook-base-url: ${GITLAB_SYSTEM_HOOK_BASE_URL:${GITLAB_WEBHOOK_BASE_URL:http://host.docker.internal:18080/api/gitlab-sync/system-hook}}
+    system-hook-base-url: ${GITLAB_SYSTEM_HOOK_BASE_URL:http://host.docker.internal:18080/api/gitlab-sync/system-hook}
     docker-command: ${DOCKER_COMMAND:docker}
     heartbeat-timeout-seconds: 180
     dedupe-window-seconds: 15
     failure-backoff-minutes: 10
     schema-check-interval-minutes: 720
-    webhook-status-cache-seconds: 60
-    webhook-batch-window-seconds: 3
-    webhook-batch-size: 10
-    webhook-max-queue-size: ${GITLAB_WEBHOOK_MAX_QUEUE_SIZE:1000}
+    system-hook-status-cache-seconds: 60
+    system-hook-batch-window-seconds: 3
+    system-hook-batch-size: 10
+    system-hook-max-queue-size: ${GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE:1000}
     external-query-timeout-seconds: 120
     external-query-retry-attempts: 3
     external-query-retry-delay-ms: 1000

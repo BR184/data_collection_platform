@@ -60,13 +60,13 @@ class GitlabConfigServiceTest {
 
     GitlabSyncConfig input = baseInput();
     input.setDbPassword("");
-    input.setWebhookSecret(" ");
+    input.setSystemHookSecret(" ");
 
     configService.saveConfig(input);
 
     verify(configMapper).updateById(argThat((GitlabSyncConfig config) ->
         "stored-database-secret".equals(config.getDbPassword())
-            && "stored-webhook-secret".equals(config.getWebhookSecret())));
+            && "stored-systemHook-secret".equals(config.getSystemHookSecret())));
   }
 
   @Test
@@ -88,56 +88,56 @@ class GitlabConfigServiceTest {
   }
 
   @Test
-  void shouldRejectEnabledWebhookWithoutSecret() {
+  void shouldRejectEnabledSystemHookWithoutSecret() {
     when(configMapper.selectOne(any())).thenReturn(null);
 
     GitlabSyncConfig input = baseInput();
-    input.setWebhookEnabled(true);
-    input.setWebhookSecret("");
+    input.setSystemHookEnabled(true);
+    input.setSystemHookSecret("");
 
     assertThatThrownBy(() -> configService.saveConfig(input))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("Webhook Secret");
+        .hasMessageContaining("System Hook");
     verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
   }
 
   @Test
-  void shouldRejectDuplicateEnabledWebhookSecret() {
+  void shouldRejectDuplicateEnabledSystemHookSecret() {
     when(configMapper.selectOne(any())).thenReturn(null);
     GitlabSyncConfig existing = persistedConfig();
     existing.setId(99L);
     existing.setSourceEnabled(true);
-    existing.setWebhookEnabled(true);
-    existing.setWebhookSecret("shared-secret");
+    existing.setSystemHookEnabled(true);
+    existing.setSystemHookSecret("shared-secret");
     when(configMapper.selectList(any())).thenReturn(List.of(existing));
 
     GitlabSyncConfig input = baseInput();
-    input.setWebhookEnabled(true);
-    input.setWebhookSecret("shared-secret");
+    input.setSystemHookEnabled(true);
+    input.setSystemHookSecret("shared-secret");
 
     assertThatThrownBy(() -> configService.saveConfig(input))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("Webhook Secret");
+        .hasMessageContaining("System Hook Secret");
     verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
   }
 
   @Test
-  void shouldResolveWebhookConfigOnlyWhenWebhookEnabledAndSecretMatches() {
-    GitlabSyncConfig disabledWebhook = persistedConfig();
-    disabledWebhook.setId(1L);
-    disabledWebhook.setSourceEnabled(true);
-    disabledWebhook.setWebhookEnabled(false);
-    disabledWebhook.setWebhookSecret("disabled-secret");
-    GitlabSyncConfig enabledWebhook = persistedConfig();
-    enabledWebhook.setId(2L);
-    enabledWebhook.setSourceEnabled(true);
-    enabledWebhook.setWebhookEnabled(true);
-    enabledWebhook.setWebhookSecret("enabled-secret");
-    when(configMapper.selectList(any())).thenReturn(List.of(disabledWebhook, enabledWebhook));
+  void shouldResolveSystemHookConfigOnlyWhenSystemHookEnabledAndSecretMatches() {
+    GitlabSyncConfig disabledSystemHook = persistedConfig();
+    disabledSystemHook.setId(1L);
+    disabledSystemHook.setSourceEnabled(true);
+    disabledSystemHook.setSystemHookEnabled(false);
+    disabledSystemHook.setSystemHookSecret("disabled-secret");
+    GitlabSyncConfig enabledSystemHook = persistedConfig();
+    enabledSystemHook.setId(2L);
+    enabledSystemHook.setSourceEnabled(true);
+    enabledSystemHook.setSystemHookEnabled(true);
+    enabledSystemHook.setSystemHookSecret("enabled-secret");
+    when(configMapper.selectList(any())).thenReturn(List.of(disabledSystemHook, enabledSystemHook));
 
-    org.assertj.core.api.Assertions.assertThat(configService.getConfigForWebhook("enabled-secret"))
-        .isSameAs(enabledWebhook);
-    assertThatThrownBy(() -> configService.getConfigForWebhook("disabled-secret"))
+    org.assertj.core.api.Assertions.assertThat(configService.getConfigForSystemHook("enabled-secret"))
+        .isSameAs(enabledSystemHook);
+    assertThatThrownBy(() -> configService.getConfigForSystemHook("disabled-secret"))
         .isInstanceOf(BizException.class);
   }
 
@@ -198,7 +198,7 @@ class GitlabConfigServiceTest {
     config.setEnabled(true);
     config.setAutoSyncEnabled(true);
     config.setDbPassword("stored-database-secret");
-    config.setWebhookSecret("stored-webhook-secret");
+    config.setSystemHookSecret("stored-systemHook-secret");
     config.setCreatedAt(LocalDateTime.now().minusDays(1));
     return config;
   }
@@ -218,8 +218,8 @@ class GitlabConfigServiceTest {
     config.setDbUsername("gitlab");
     config.setDbPassword("new-database-secret");
     config.setDockerContainerName("gitlab-data-web-1");
-    config.setWebhookSecret("new-webhook-secret");
-    config.setWebhookProjectId(1L);
+    config.setSystemHookSecret("new-systemHook-secret");
+    config.setSystemHookProjectId(1L);
     config.setCompensationIntervalMinutes(10);
     return config;
   }

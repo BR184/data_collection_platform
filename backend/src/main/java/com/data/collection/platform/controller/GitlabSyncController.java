@@ -149,9 +149,7 @@ public class GitlabSyncController {
             currentStartedAt,
             progress,
             logs.stream().map(MirrorStatusLogView::from).toList(),
-            properties.getWebhookBaseUrl(),
-            null,
-            properties.getWebhookBaseUrl(),
+            properties.getSystemHookBaseUrl(),
             null));
   }
 
@@ -232,7 +230,7 @@ public class GitlabSyncController {
       case FULL -> "全量同步";
       case INCREMENTAL -> "增量同步";
       case COMPENSATION -> "补偿扫描";
-      case WEBHOOK -> "System Hook 唤醒";
+      case SYSTEM_HOOK -> "System Hook 唤醒";
       case PURGE -> "删除镜像数据";
     };
   }
@@ -331,14 +329,14 @@ public class GitlabSyncController {
 
     GitlabSystemHookRegistrationStatus systemHookStatus;
     try {
-      systemHookStatus = systemHookRegistrationService.getStatus(config, properties.getWebhookBaseUrl());
+      systemHookStatus = systemHookRegistrationService.getStatus(config, properties.getSystemHookBaseUrl());
     } catch (Exception e) {
       systemHookStatus = new GitlabSystemHookRegistrationStatus(
           false,
           false,
           false,
-          config.getWebhookProjectId(),
-          properties.getWebhookBaseUrl(),
+          config.getSystemHookProjectId(),
+          properties.getSystemHookBaseUrl(),
           e.getMessage(),
           List.of());
     }
@@ -360,16 +358,8 @@ public class GitlabSyncController {
         metadataDiagnostics.missingPrimaryKeyTableCount(),
         metadataDiagnostics.missingUpdatedAtTableCount(),
         metadataDiagnostics.sourceTables(),
-        properties.getWebhookBaseUrl(),
-        Boolean.TRUE.equals(config.getWebhookEnabled()),
-        systemHookConfigDiagnostics.secretConfigured(),
-        systemHookConfigDiagnostics.secretUnique(),
-        systemHookConfigDiagnostics.message(),
-        systemHookStatus.supported(),
-        systemHookStatus.registered(),
-        systemHookStatus.message(),
-        properties.getWebhookBaseUrl(),
-        Boolean.TRUE.equals(config.getWebhookEnabled()),
+        properties.getSystemHookBaseUrl(),
+        Boolean.TRUE.equals(config.getSystemHookEnabled()),
         systemHookConfigDiagnostics.secretConfigured(),
         systemHookConfigDiagnostics.secretUnique(),
         systemHookConfigDiagnostics.message(),
@@ -380,12 +370,12 @@ public class GitlabSyncController {
     return ApiResponse.success(response);
   }
 
-  @GetMapping({"/system-hook-registration-status", "/webhook-registration-status"})
+  @GetMapping("/system-hook-registration-status")
   public ApiResponse<GitlabSystemHookRegistrationStatus> systemHookRegistrationStatus(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return ApiResponse.success(
-        systemHookRegistrationService.getStatus(config, properties.getWebhookBaseUrl()));
+        systemHookRegistrationService.getStatus(config, properties.getSystemHookBaseUrl()));
   }
 
   @GetMapping("/whitelist-options")
@@ -415,9 +405,9 @@ public class GitlabSyncController {
     config.setDbUsername(request.dbUsername());
     config.setDbPassword(request.dbPassword());
     config.setDockerContainerName(request.dockerContainerName());
-    config.setWebhookSecret(request.webhookSecret());
-    config.setWebhookEnabled(request.webhookEnabled());
-    config.setWebhookProjectId(request.webhookProjectId());
+    config.setSystemHookSecret(request.systemHookSecret());
+    config.setSystemHookEnabled(request.systemHookEnabled());
+    config.setSystemHookProjectId(request.systemHookProjectId());
     config.setCompensationIntervalMinutes(request.compensationIntervalMinutes());
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "CONFIG");
         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Config_Save")) {
@@ -496,19 +486,19 @@ public class GitlabSyncController {
     return ApiResponse.success(submissionMessage(result, SyncType.INCREMENTAL), buildSubmissionResponse(result));
   }
 
-  @PostMapping({"/register-system-hook", "/register-webhook"})
+  @PostMapping("/register-system-hook")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabSystemHookRegistrationStatus> registerSystemHook() {
     return registerSystemHook(null);
   }
 
-  @PostMapping({"/register-system-hook/by-config", "/register-webhook/by-config"})
+  @PostMapping("/register-system-hook/by-config")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabSystemHookRegistrationStatus> registerSystemHook(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     GitlabSystemHookRegistrationStatus result =
-        systemHookRegistrationService.ensureRegistered(config, properties.getWebhookBaseUrl());
+        systemHookRegistrationService.ensureRegistered(config, properties.getSystemHookBaseUrl());
     return ApiResponse.success("GitLab System Hook 已注册", result);
   }
 
@@ -553,7 +543,7 @@ public class GitlabSyncController {
     return ApiResponse.success(message, result);
   }
 
-  @PostMapping({"/system-hook", "/webhook"})
+  @PostMapping("/system-hook")
   public ApiResponse<Map<String, Object>> systemHook(
       @RequestHeader(value = "X-Gitlab-Event", required = false) String eventType,
       @RequestHeader(value = "X-Gitlab-Token", required = false) String secret,
@@ -568,7 +558,7 @@ public class GitlabSyncController {
       boolean enabled,
       Boolean sourceEnabled,
       boolean autoSyncEnabled,
-      Boolean webhookEnabled,
+      Boolean systemHookEnabled,
       String sourceInstance,
       @NotNull SourceMode sourceMode,
       @NotNull WhitelistMode whitelistMode,
@@ -579,8 +569,8 @@ public class GitlabSyncController {
       String dbUsername,
       String dbPassword,
       String dockerContainerName,
-      String webhookSecret,
-      Long webhookProjectId,
+      String systemHookSecret,
+      Long systemHookProjectId,
       @NotNull Integer compensationIntervalMinutes) {}
 
   public record PurgeRequest(@NotNull MirrorPurgeScope scope, Long configId) {}
@@ -602,9 +592,9 @@ public class GitlabSyncController {
     sanitized.setDbUsername(source.getDbUsername());
     sanitized.setDbPassword("");
     sanitized.setDockerContainerName(source.getDockerContainerName());
-    sanitized.setWebhookSecret("");
-    sanitized.setWebhookEnabled(source.getWebhookEnabled() != null && source.getWebhookEnabled());
-    sanitized.setWebhookProjectId(source.getWebhookProjectId());
+    sanitized.setSystemHookSecret("");
+    sanitized.setSystemHookEnabled(source.getSystemHookEnabled() != null && source.getSystemHookEnabled());
+    sanitized.setSystemHookProjectId(source.getSystemHookProjectId());
     sanitized.setCompensationIntervalMinutes(source.getCompensationIntervalMinutes());
     sanitized.setLastFullSyncAt(source.getLastFullSyncAt());
     sanitized.setLastIncrementalSyncAt(source.getLastIncrementalSyncAt());
@@ -614,21 +604,21 @@ public class GitlabSyncController {
   }
 
   private SystemHookConfigDiagnostics diagnoseSystemHookConfig(GitlabSyncConfig config) {
-    boolean webhookEnabled = Boolean.TRUE.equals(config.getWebhookEnabled());
-    boolean secretConfigured = config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank();
+    boolean systemHookEnabled = Boolean.TRUE.equals(config.getSystemHookEnabled());
+    boolean secretConfigured = config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank();
     boolean secretUnique = true;
-    if (webhookEnabled && secretConfigured) {
-      String secret = config.getWebhookSecret();
+    if (systemHookEnabled && secretConfigured) {
+      String secret = config.getSystemHookSecret();
       List<GitlabSyncConfig> configs = configService.listConfigs();
       secretUnique = (configs == null ? List.<GitlabSyncConfig>of() : configs).stream()
           .filter(candidate -> candidate.getId() != null)
           .filter(candidate -> !candidate.getId().equals(config.getId()))
           .filter(candidate -> Boolean.TRUE.equals(candidate.getSourceEnabled()))
-          .filter(candidate -> Boolean.TRUE.equals(candidate.getWebhookEnabled()))
-          .noneMatch(candidate -> secret.equals(candidate.getWebhookSecret()));
+          .filter(candidate -> Boolean.TRUE.equals(candidate.getSystemHookEnabled()))
+          .noneMatch(candidate -> secret.equals(candidate.getSystemHookSecret()));
     }
     String message;
-    if (!webhookEnabled) {
+    if (!systemHookEnabled) {
       message = "System Hook 接收器未启用";
     } else if (!secretConfigured) {
       message = "System Hook 需要配置唯一密钥";
@@ -684,7 +674,7 @@ public class GitlabSyncController {
         case FULL -> "全量同步已完成";
         case COMPENSATION -> "补偿同步已完成";
         case INCREMENTAL -> "手动增量同步已完成";
-        case WEBHOOK -> "精确更新已完成";
+        case SYSTEM_HOOK -> "精确更新已完成";
         case PURGE -> "镜像数据删除已完成";
       };
     }
@@ -703,7 +693,7 @@ public class GitlabSyncController {
         case FULL -> "全量同步已开始";
         case COMPENSATION -> "补偿同步已开始";
         case INCREMENTAL -> "手动增量同步已开始";
-        case WEBHOOK -> "精确更新已开始";
+        case SYSTEM_HOOK -> "精确更新已开始";
         case PURGE -> "镜像数据删除已开始";
       };
       case QUEUED -> "当前已有同步任务执行中，本次请求已登记到下一轮";

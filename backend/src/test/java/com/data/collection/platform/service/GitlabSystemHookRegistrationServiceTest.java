@@ -23,26 +23,27 @@ class GitlabSystemHookRegistrationServiceTest {
   void directModeShouldReportAutomaticRegistrationUnsupported() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSourceMode(SourceMode.DIRECT);
-    config.setWebhookProjectId(325L);
+    config.setSystemHookEnabled(true);
+    config.setSystemHookProjectId(325L);
 
-    var status = service.getStatus(config, "http://platform.example.com/api/gitlab-sync/webhook");
+    var status = service.getStatus(config, "http://platform.example.com/api/gitlab-sync/system-hook");
 
     assertThat(status.supported()).isFalse();
     assertThat(status.configured()).isTrue();
     assertThat(status.registered()).isFalse();
     assertThat(status.projectId()).isEqualTo(325L);
-    assertThat(status.message()).contains("Docker");
+    assertThat(status.message()).contains("手动注册 System Hook");
   }
 
   @Test
   void directModeShouldRejectAutomaticRegistration() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSourceMode(SourceMode.DIRECT);
-    config.setWebhookProjectId(325L);
+    config.setSystemHookProjectId(325L);
 
     assertThatThrownBy(
-            () -> service.ensureRegistered(config, "http://platform.example.com/api/gitlab-sync/webhook"))
+            () -> service.ensureRegistered(config, "http://platform.example.com/api/gitlab-sync/system-hook"))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("Docker");
+        .hasMessageContaining("手动注册 System Hook");
   }
 }

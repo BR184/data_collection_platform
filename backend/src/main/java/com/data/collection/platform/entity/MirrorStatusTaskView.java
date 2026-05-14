@@ -62,7 +62,7 @@ public record MirrorStatusTaskView(
       case DAILY_VERIFY -> SyncType.FULL;
       case MANUAL_REFRESH, FACT_REFRESH -> SyncType.INCREMENTAL;
       case COMPENSATION_SCAN -> SyncType.COMPENSATION;
-      case HOOK_WAKEUP -> SyncType.WEBHOOK;
+      case HOOK_WAKEUP -> SyncType.SYSTEM_HOOK;
     };
   }
 }

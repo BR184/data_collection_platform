@@ -12,7 +12,5 @@ public record MirrorStatusResponse(
     SyncProgress progress,
     List<MirrorStatusLogView> logs,
     String systemHookUrl,
-    GitlabSystemHookRegistrationStatus systemHookRegistration,
-    String webhookUrl,
-    GitlabSystemHookRegistrationStatus webhookRegistration) {
+    GitlabSystemHookRegistrationStatus systemHookRegistration) {
 }

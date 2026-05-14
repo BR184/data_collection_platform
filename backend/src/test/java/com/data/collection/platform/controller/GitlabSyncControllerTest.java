@@ -107,7 +107,7 @@ class GitlabSyncControllerTest {
   @BeforeEach
   void setUp() {
     properties = new GitlabMirrorProperties();
-    properties.setWebhookBaseUrl("http://localhost:18080/api/gitlab-sync/system-hook");
+    properties.setSystemHookBaseUrl("http://localhost:18080/api/gitlab-sync/system-hook");
     GitlabSyncController controller = new GitlabSyncController(
         configService,
         syncService,
@@ -167,7 +167,7 @@ class GitlabSyncControllerTest {
   void statusShouldReturnTaskDrivenProgressPayloadWhenRunning() throws Exception {
     GitlabSyncConfig config = baseConfig();
     config.setDbPassword("database-secret");
-    config.setWebhookSecret("webhook-secret");
+    config.setSystemHookSecret("systemHook-secret");
     GitlabSyncTask task = new GitlabSyncTask();
     task.setId(10L);
     task.setStatus(SyncStatus.RUNNING);
@@ -195,8 +195,8 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.progress.totalTables").value(20))
         .andExpect(jsonPath("$.data.progress.completedTables").value(5))
         .andExpect(jsonPath("$.data.config.dbPassword").value(""))
-        .andExpect(jsonPath("$.data.config.webhookSecret").value(""))
-        .andExpect(jsonPath("$.data.webhookRegistration").doesNotExist());
+        .andExpect(jsonPath("$.data.config.systemHookSecret").value(""))
+        .andExpect(jsonPath("$.data.systemHookRegistration").doesNotExist());
   }
 
   @Test
@@ -240,15 +240,15 @@ class GitlabSyncControllerTest {
     saved.setSourceEnabled(true);
     saved.setAutoSyncEnabled(false);
     saved.setDbPassword("database-secret");
-    saved.setWebhookSecret("webhook-secret");
-    saved.setWebhookEnabled(true);
+    saved.setSystemHookSecret("systemHook-secret");
+    saved.setSystemHookEnabled(true);
     when(configService.saveConfig(argThat(config ->
         config.isEnabled()
             && Boolean.TRUE.equals(config.getSourceEnabled())
             && !config.isAutoSyncEnabled()
-            && Boolean.TRUE.equals(config.getWebhookEnabled())
+            && Boolean.TRUE.equals(config.getSystemHookEnabled())
             && "new-database-secret".equals(config.getDbPassword())
-            && "new-webhook-secret".equals(config.getWebhookSecret()))))
+            && "new-systemHook-secret".equals(config.getSystemHookSecret()))))
         .thenReturn(saved);
 
     mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/gitlab-sync/config")
@@ -259,7 +259,7 @@ class GitlabSyncControllerTest {
                   "enabled": true,
                   "sourceEnabled": true,
                   "autoSyncEnabled": false,
-                  "webhookEnabled": true,
+                  "systemHookEnabled": true,
                   "sourceMode": "DIRECT",
                   "whitelistMode": "RECOMMENDED",
                   "whitelistTables": [],
@@ -269,8 +269,8 @@ class GitlabSyncControllerTest {
                   "dbUsername": "gitlab",
                   "dbPassword": "new-database-secret",
                   "dockerContainerName": "gitlab-data-web-1",
-                  "webhookSecret": "new-webhook-secret",
-                  "webhookProjectId": 1,
+                  "systemHookSecret": "new-systemHook-secret",
+                  "systemHookProjectId": 1,
                   "compensationIntervalMinutes": 10
                 }
                 """))
@@ -278,9 +278,9 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.autoSyncEnabled").value(false))
         .andExpect(jsonPath("$.data.enabled").value(true))
         .andExpect(jsonPath("$.data.sourceEnabled").value(true))
-        .andExpect(jsonPath("$.data.webhookEnabled").value(true))
+        .andExpect(jsonPath("$.data.systemHookEnabled").value(true))
         .andExpect(jsonPath("$.data.dbPassword").value(""))
-        .andExpect(jsonPath("$.data.webhookSecret").value(""));
+        .andExpect(jsonPath("$.data.systemHookSecret").value(""));
 
     verify(configService, never()).saveConfig(argThat(config -> config.isAutoSyncEnabled() || !config.isEnabled()));
   }
@@ -345,8 +345,8 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = baseConfig();
     config.setSourceMode(SourceMode.DIRECT);
     config.setSourceInstance("inner-gitlab");
-    config.setWebhookEnabled(true);
-    config.setWebhookSecret("direct-secret");
+    config.setSystemHookEnabled(true);
+    config.setSystemHookSecret("direct-secret");
     when(configService.getConfig()).thenReturn(config);
     when(configService.listConfigs()).thenReturn(List.of(config));
     when(whitelistService.listOptionsStrict(config))
@@ -388,13 +388,13 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.missingPrimaryKeyTableCount").value(0))
         .andExpect(jsonPath("$.data.missingUpdatedAtTableCount").value(0))
         .andExpect(jsonPath("$.data.sourceTables[0].rowStrategy").value("INCREMENTAL"))
-        .andExpect(jsonPath("$.data.webhookEnabled").value(true))
-        .andExpect(jsonPath("$.data.webhookSecretConfigured").value(true))
-        .andExpect(jsonPath("$.data.webhookSecretUnique").value(true))
-        .andExpect(jsonPath("$.data.webhookConfigMessage").value("\u76f4\u8fde\u6a21\u5f0f\u652f\u6301\u63a5\u6536 System Hook\uff0c\u8bf7\u5728 GitLab \u7ba1\u7406\u540e\u53f0\u6ce8\u518c"))
-        .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/system-hook"))
-        .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
-        .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false))
+        .andExpect(jsonPath("$.data.systemHookEnabled").value(true))
+        .andExpect(jsonPath("$.data.systemHookSecretConfigured").value(true))
+        .andExpect(jsonPath("$.data.systemHookSecretUnique").value(true))
+        .andExpect(jsonPath("$.data.systemHookConfigMessage").value("\u76f4\u8fde\u6a21\u5f0f\u652f\u6301\u63a5\u6536 System Hook\uff0c\u8bf7\u5728 GitLab \u7ba1\u7406\u540e\u53f0\u6ce8\u518c"))
+        .andExpect(jsonPath("$.data.systemHookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/system-hook"))
+        .andExpect(jsonPath("$.data.systemHookAutoRegistrationSupported").value(false))
+        .andExpect(jsonPath("$.data.systemHookAutoRegistered").value(false))
         .andExpect(jsonPath("$.data.runtimeWarnings").isEmpty());
 
     verify(syncService).testConnection();
@@ -515,9 +515,9 @@ class GitlabSyncControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.connectionOk").value(true))
-        .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
-        .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false))
-        .andExpect(jsonPath("$.data.webhookMessage").value("docker command failed"));
+        .andExpect(jsonPath("$.data.systemHookAutoRegistrationSupported").value(false))
+        .andExpect(jsonPath("$.data.systemHookAutoRegistered").value(false))
+        .andExpect(jsonPath("$.data.systemHookMessage").value("docker command failed"));
   }
 
   @Test
@@ -694,7 +694,7 @@ class GitlabSyncControllerTest {
     config.setName("GitLab default source");
     config.setEnabled(true);
     config.setSourceEnabled(true);
-    config.setWebhookEnabled(false);
+    config.setSystemHookEnabled(false);
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);

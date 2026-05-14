@@ -1,9 +1,9 @@
 param(
   [string] $BaseUrl = "http://localhost:18080",
   [int] $ConfigId = 1,
-  [Alias("WebhookSecret")]
+  [Alias("SystemHookSecret")]
   [string] $SystemHookSecret = "",
-  [Alias("SimulateWebhook")]
+  [Alias("SimulateSystemHook")]
   [switch] $SimulateSystemHook,
   [switch] $StartIncrementalSync,
   [switch] $RunPageRefreshSmoke,
@@ -15,11 +15,11 @@ param(
   [string] $PageRefreshBoardKey = "system-test-defect-summary",
   [string] $ReviewDataContextResourceType = "merge_request",
   [int[]] $ReviewDataContextRecordIds = @(),
-  [Alias("WebhookProjectId")]
+  [Alias("SystemHookProjectId")]
   [int] $SystemHookProjectId = 10,
-  [Alias("WebhookObjectId")]
+  [Alias("SystemHookObjectId")]
   [int] $SystemHookObjectId = 101,
-  [Alias("WebhookTitle")]
+  [Alias("SystemHookTitle")]
   [string] $SystemHookTitle = "Simulated issue from direct sync check",
   [switch] $DryRun
 )
@@ -162,10 +162,10 @@ if (-not $DryRun) {
   Write-Host "connectionOk: $($data.connectionOk) - $($data.connectionMessage)"
   Write-Host "whitelistOk: $($data.whitelistOk) - $($data.whitelistMessage)"
   Write-Host "whitelistOptionCount: $($data.whitelistOptionCount)"
-  $systemHookReceiverUrl = if ($data.systemHookReceiverUrl) { $data.systemHookReceiverUrl } else { $data.webhookReceiverUrl }
-  $systemHookAutoRegistrationSupported = if ($null -ne $data.systemHookAutoRegistrationSupported) { $data.systemHookAutoRegistrationSupported } else { $data.webhookAutoRegistrationSupported }
-  $systemHookAutoRegistered = if ($null -ne $data.systemHookAutoRegistered) { $data.systemHookAutoRegistered } else { $data.webhookAutoRegistered }
-  $systemHookMessage = if ($data.systemHookMessage) { $data.systemHookMessage } else { $data.webhookMessage }
+  $systemHookReceiverUrl = if ($data.systemHookReceiverUrl) { $data.systemHookReceiverUrl } else { $data.systemHookReceiverUrl }
+  $systemHookAutoRegistrationSupported = if ($null -ne $data.systemHookAutoRegistrationSupported) { $data.systemHookAutoRegistrationSupported } else { $data.systemHookAutoRegistrationSupported }
+  $systemHookAutoRegistered = if ($null -ne $data.systemHookAutoRegistered) { $data.systemHookAutoRegistered } else { $data.systemHookAutoRegistered }
+  $systemHookMessage = if ($data.systemHookMessage) { $data.systemHookMessage } else { $data.systemHookMessage }
   Write-Host "systemHookReceiverUrl: $systemHookReceiverUrl"
   Write-Host "systemHookAutoRegistrationSupported: $systemHookAutoRegistrationSupported"
   Write-Host "systemHookAutoRegistered: $systemHookAutoRegistered"
@@ -209,7 +209,7 @@ if (-not $DryRun) {
     Write-Host "currentTaskTiming: queued=$($status.data.currentTask.queuedAt), started=$($status.data.currentTask.startedAt), finished=$($status.data.currentTask.finishedAt)"
   }
   $logs = @($status.data.logs)
-  foreach ($syncType in @("FULL", "INCREMENTAL", "WEBHOOK", "COMPENSATION")) {
+  foreach ($syncType in @("FULL", "INCREMENTAL", "SYSTEM_HOOK", "COMPENSATION")) {
     $latestLog = $logs | Where-Object { $_.syncType -eq $syncType } | Select-Object -First 1
     if ($latestLog -ne $null) {
       Write-Host "latest$($syncType)Log: id=$($latestLog.id), status=$($latestLog.status), tables=$($latestLog.tableCount), records=$($latestLog.recordCount), finished=$($latestLog.finishedAt), message=$($latestLog.message)"
@@ -220,7 +220,7 @@ if (-not $DryRun) {
   Write-Host "currentStatus: <api>"
   Write-Host "latestFULLLog: <api>"
   Write-Host "latestINCREMENTALLog: <api>"
-  Write-Host "latestWEBHOOKLog: <api>"
+  Write-Host "latestSystemHookLog: <api>"
 }
 
 Write-Section "Source health"

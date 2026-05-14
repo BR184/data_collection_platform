@@ -131,7 +131,7 @@ class GitlabMirrorSyncServiceTest {
   }
 
   @Test
-  void webhookTriggeredIncrementalShouldAlsoUseTablePlanInsteadOfLegacyTaskQueue() {
+  void systemHookTriggeredIncrementalShouldAlsoUseTablePlanInsteadOfLegacyTaskQueue() {
     GitlabSyncConfig config = baseConfig();
     config.setEnabled(true);
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
@@ -142,15 +142,15 @@ class GitlabMirrorSyncServiceTest {
             config,
             tables,
             List.of("issues"),
-            "Triggered by webhook"))
+            "Triggered by system hook"))
         .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(58L, 1, 1, 0));
     when(tableSyncPlanningService.findJobStatus(58L)).thenReturn(SyncStatus.SUCCESS);
 
     SyncTaskSubmissionResult result =
-        syncService.startIncrementalSync(SyncTriggerType.WEBHOOK, "Triggered by webhook");
+        syncService.startIncrementalSync(SyncTriggerType.SYSTEM_HOOK, "Triggered by system hook");
 
     assertThat(result.task().getId()).isEqualTo(58L);
-    assertThat(result.task().getTriggerType()).isEqualTo(SyncTriggerType.WEBHOOK);
+    assertThat(result.task().getTriggerType()).isEqualTo(SyncTriggerType.SYSTEM_HOOK);
     verify(tableSyncWorkerService).drainReadyTasksForJob(58L);
     verify(taskService, never()).submitTaskResult(any(), any(), any(), anyString(), any());
   }

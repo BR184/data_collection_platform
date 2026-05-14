@@ -44,9 +44,9 @@ const form = ref<GitlabSyncConfig>({
   dbUsername: 'gitlab',
   dbPassword: '',
   dockerContainerName: 'gitlab-data-web-1',
-  webhookSecret: '',
-  webhookEnabled: false,
-  webhookProjectId: null,
+  systemHookSecret: '',
+  systemHookEnabled: false,
+  systemHookProjectId: null,
   compensationIntervalMinutes: 10,
 });
 
@@ -138,7 +138,7 @@ const sourceSelectPlaceholder = computed(() =>
 );
 const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
 const systemHookAutoRegistrationDisabled = computed(() =>
-  savedConfigActionDisabled.value || !isDockerMode.value || !form.value.webhookEnabled,
+  savedConfigActionDisabled.value || !isDockerMode.value || !form.value.systemHookEnabled,
 );
 const systemHookStatusTagType = computed(() => {
   if (!isDockerMode.value || systemHookRegistrationLoading.value) {
@@ -434,7 +434,7 @@ function createNewConfig() {
     name: 'GitLab new source',
     sourceInstance: '',
     dbPassword: '',
-    webhookSecret: '',
+    systemHookSecret: '',
     lastFullSyncAt: null,
     lastIncrementalSyncAt: null,
   };
@@ -688,20 +688,20 @@ onBeforeUnmount(() => {
         <el-divider>System Hook 增量同步</el-divider>
 
         <el-form-item label="接收 System Hook">
-          <el-switch v-model="form.webhookEnabled" />
+          <el-switch v-model="form.systemHookEnabled" />
         </el-form-item>
         <el-form-item label="System Hook URL">
-          <el-input :model-value="status?.systemHookUrl || status?.webhookUrl || ''" readonly />
+          <el-input :model-value="status?.systemHookUrl || ''" readonly />
         </el-form-item>
         <el-form-item label="System Hook Secret">
-          <el-input v-model="form.webhookSecret" />
+          <el-input v-model="form.systemHookSecret" />
         </el-form-item>
         <el-form-item label="System Hook 状态">
-          <div class="webhook-status-line">
+          <div class="system-hook-status-line">
             <el-tag :type="systemHookStatusTagType" round>
               {{ systemHookStatusLabel }}
             </el-tag>
-            <span class="webhook-status-text">
+            <span class="system-hook-status-text">
               {{ systemHookStatusMessage }}
             </span>
           </div>

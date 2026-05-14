@@ -19,9 +19,9 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     dbUsername: undefined as unknown as string,
     dbPassword: undefined as unknown as string,
     dockerContainerName: undefined,
-    webhookSecret: '',
-    webhookEnabled: undefined,
-    webhookProjectId: undefined,
+    systemHookSecret: '',
+    systemHookEnabled: undefined,
+    systemHookProjectId: undefined,
     compensationIntervalMinutes: 10,
     ...overrides,
   };
@@ -37,8 +37,6 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
     logs: [],
     systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
     systemHookRegistration: null,
-    webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
-    webhookRegistration: null,
     ...overrides,
   };
 }
@@ -74,8 +72,8 @@ describe('useMirrorStatusController', () => {
       dbName: 'gitlabhq_production',
       dbUsername: 'gitlab',
       dbPassword: '',
-      webhookProjectId: null,
-      webhookEnabled: false,
+      systemHookProjectId: null,
+      systemHookEnabled: false,
     });
   });
 

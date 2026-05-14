@@ -191,7 +191,7 @@ public class GitlabSyncLogService {
       case FULL -> List.of(GitlabSyncJobType.DAILY_VERIFY);
       case COMPENSATION -> List.of(GitlabSyncJobType.COMPENSATION_SCAN);
       case INCREMENTAL -> List.of(GitlabSyncJobType.MANUAL_REFRESH);
-      case WEBHOOK -> List.of(GitlabSyncJobType.HOOK_WAKEUP);
+      case SYSTEM_HOOK -> List.of(GitlabSyncJobType.HOOK_WAKEUP);
       case PURGE -> List.of();
     };
   }
@@ -204,7 +204,7 @@ public class GitlabSyncLogService {
       case FULL -> "每日全量校验";
       case COMPENSATION -> "补偿扫描";
       case INCREMENTAL -> "手动增量刷新";
-      case WEBHOOK -> "System Hook 唤醒刷新";
+      case SYSTEM_HOOK -> "System Hook 唤醒刷新";
       case PURGE -> "镜像数据清理";
     };
     return "%s已结束，状态：%s".formatted(label, syncStatusLabel(job.getStatus()));

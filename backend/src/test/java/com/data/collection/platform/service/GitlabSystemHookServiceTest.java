@@ -53,8 +53,8 @@ class GitlabSystemHookServiceTest {
     config.setAutoSyncEnabled(false);
     config.setEnabled(true);
     config.setSourceEnabled(true);
-    config.setWebhookEnabled(true);
-    config.setWebhookSecret("secret");
+    config.setSystemHookEnabled(true);
+    config.setSystemHookSecret("secret");
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.ALL);
     Map<String, Object> payload = Map.of(
@@ -79,7 +79,7 @@ class GitlabSystemHookServiceTest {
     config.setAutoSyncEnabled(true);
     config.setEnabled(true);
     config.setSourceEnabled(true);
-    config.setWebhookEnabled(true);
+    config.setSystemHookEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.ALL);
     Map<String, Object> payload = Map.of(
@@ -103,7 +103,7 @@ class GitlabSystemHookServiceTest {
     config.setId(1L);
     config.setEnabled(true);
     config.setSourceEnabled(true);
-    config.setWebhookEnabled(true);
+    config.setSystemHookEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.ALL);
     Map<String, Object> payload = Map.of(

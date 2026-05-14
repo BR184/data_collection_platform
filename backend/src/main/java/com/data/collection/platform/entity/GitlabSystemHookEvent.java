@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@TableName("gitlab_webhook_events")
+@TableName("gitlab_system_hook_events")
 public class GitlabSystemHookEvent {
   @TableId(type = IdType.AUTO)
   private Long id;

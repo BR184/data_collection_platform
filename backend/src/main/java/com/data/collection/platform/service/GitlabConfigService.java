@@ -64,7 +64,7 @@ public class GitlabConfigService {
     List<GitlabSyncConfig> configs =
         configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
             .eq(GitlabSyncConfig::getSourceEnabled, true)
-            .eq(GitlabSyncConfig::getWebhookEnabled, true)
+            .eq(GitlabSyncConfig::getSystemHookEnabled, true)
             .orderByAsc(GitlabSyncConfig::getId));
     if (configs == null || configs.isEmpty()) {
       throw new BizException("未启用 GitLab System Hook 数据源");
@@ -72,15 +72,15 @@ public class GitlabConfigService {
     configs.forEach(this::normalizePersistedSourceInstance);
     configs = configs.stream()
         .filter(config -> Boolean.TRUE.equals(config.getSourceEnabled()))
-        .filter(config -> Boolean.TRUE.equals(config.getWebhookEnabled()))
+        .filter(config -> Boolean.TRUE.equals(config.getSystemHookEnabled()))
         .toList();
     if (configs.isEmpty()) {
       throw new BizException("未启用 GitLab System Hook 数据源");
     }
     if (secret != null && !secret.isBlank()) {
       List<GitlabSyncConfig> matches = configs.stream()
-          .filter(config -> config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank())
-          .filter(config -> config.getWebhookSecret().equals(secret))
+          .filter(config -> config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank())
+          .filter(config -> config.getSystemHookSecret().equals(secret))
           .toList();
       if (matches.size() == 1) {
         return matches.getFirst();
@@ -197,7 +197,7 @@ public class GitlabConfigService {
     config.setDbUsername("gitlab");
     config.setDbPassword("");
     config.setDockerContainerName("gitlab-data-web-1");
-    config.setWebhookEnabled(false);
+    config.setSystemHookEnabled(false);
     config.setCompensationIntervalMinutes(10);
     return config;
   }
@@ -208,8 +208,8 @@ public class GitlabConfigService {
     boolean autoSyncEnabled = config.isAutoSyncEnabled();
     String sourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance());
     validateSourceInstance(sourceInstance);
-    String resolvedWebhookSecret = resolveSecret(config.getWebhookSecret(), current.getWebhookSecret());
-    boolean webhookEnabled = resolveWebhookEnabled(config, current, resolvedWebhookSecret);
+    String resolvedSystemHookSecret = resolveSecret(config.getSystemHookSecret(), current.getSystemHookSecret());
+    boolean systemHookEnabled = resolveSystemHookEnabled(config, current, resolvedSystemHookSecret);
     normalized.setId(current.getId());
     normalized.setName(config.getName());
     normalized.setEnabled(sourceEnabled);
@@ -225,39 +225,39 @@ public class GitlabConfigService {
     normalized.setDbUsername(config.getDbUsername());
     normalized.setDbPassword(resolveSecret(config.getDbPassword(), current.getDbPassword()));
     normalized.setDockerContainerName(config.getDockerContainerName());
-    normalized.setWebhookSecret(resolvedWebhookSecret);
-    normalized.setWebhookEnabled(webhookEnabled);
-    normalized.setWebhookProjectId(config.getWebhookProjectId());
+    normalized.setSystemHookSecret(resolvedSystemHookSecret);
+    normalized.setSystemHookEnabled(systemHookEnabled);
+    normalized.setSystemHookProjectId(config.getSystemHookProjectId());
     normalized.setCompensationIntervalMinutes(normalizeCompensationInterval(config.getCompensationIntervalMinutes()));
-    validateWebhookConfig(normalized);
+    validateSystemHookConfig(normalized);
     return normalized;
   }
 
-  private boolean resolveWebhookEnabled(
+  private boolean resolveSystemHookEnabled(
       GitlabSyncConfig config,
       GitlabSyncConfig current,
-      String resolvedWebhookSecret) {
-    if (config.getWebhookEnabled() != null) {
-      return config.getWebhookEnabled();
+      String resolvedSystemHookSecret) {
+    if (config.getSystemHookEnabled() != null) {
+      return config.getSystemHookEnabled();
     }
-    if (current.getWebhookEnabled() != null) {
-      return current.getWebhookEnabled();
+    if (current.getSystemHookEnabled() != null) {
+      return current.getSystemHookEnabled();
     }
-    return resolvedWebhookSecret != null && !resolvedWebhookSecret.isBlank();
+    return resolvedSystemHookSecret != null && !resolvedSystemHookSecret.isBlank();
   }
 
-  private void validateWebhookConfig(GitlabSyncConfig normalized) {
-    if (!Boolean.TRUE.equals(normalized.getWebhookEnabled())) {
+  private void validateSystemHookConfig(GitlabSyncConfig normalized) {
+    if (!Boolean.TRUE.equals(normalized.getSystemHookEnabled())) {
       return;
     }
-    if (normalized.getWebhookSecret() == null || normalized.getWebhookSecret().isBlank()) {
+    if (normalized.getSystemHookSecret() == null || normalized.getSystemHookSecret().isBlank()) {
       throw new BizException("启用 System Hook 时必须配置唯一的 Secret");
     }
     List<GitlabSyncConfig> matches =
         configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
             .eq(GitlabSyncConfig::getSourceEnabled, true)
-            .eq(GitlabSyncConfig::getWebhookEnabled, true)
-            .eq(GitlabSyncConfig::getWebhookSecret, normalized.getWebhookSecret()));
+            .eq(GitlabSyncConfig::getSystemHookEnabled, true)
+            .eq(GitlabSyncConfig::getSystemHookSecret, normalized.getSystemHookSecret()));
     boolean duplicate = matches != null && matches.stream()
         .anyMatch(match -> match.getId() != null && !match.getId().equals(normalized.getId()));
     if (duplicate) {
@@ -300,8 +300,8 @@ public class GitlabConfigService {
     if (config.getSourceEnabled() == null) {
       config.setSourceEnabled(config.isEnabled());
     }
-    if (config.getWebhookEnabled() == null) {
-      config.setWebhookEnabled(config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank());
+    if (config.getSystemHookEnabled() == null) {
+      config.setSystemHookEnabled(config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank());
     }
   }
 }

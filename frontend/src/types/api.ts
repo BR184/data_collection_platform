@@ -4,7 +4,7 @@ export * from './integration-test';
 
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
-export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'WEBHOOK' | 'PURGE';
+export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'SYSTEM_HOOK' | 'PURGE';
 export type GitlabTableSyncTaskType =
   | 'COMPENSATION_INCREMENTAL'
   | 'DAILY_VERIFY'
@@ -41,9 +41,9 @@ export interface GitlabSyncConfig {
   dbUsername: string;
   dbPassword: string;
   dockerContainerName?: string;
-  webhookSecret?: string;
-  webhookEnabled?: boolean;
-  webhookProjectId?: number | null;
+  systemHookSecret?: string;
+  systemHookEnabled?: boolean;
+  systemHookProjectId?: number | null;
   compensationIntervalMinutes: number;
   lastFullSyncAt?: string | null;
   lastIncrementalSyncAt?: string | null;
@@ -163,8 +163,6 @@ export interface MirrorStatusResponse {
   logs: GitlabSyncLog[];
   systemHookUrl?: string;
   systemHookRegistration?: GitlabSystemHookRegistrationStatus | null;
-  webhookUrl: string;
-  webhookRegistration?: GitlabSystemHookRegistrationStatus | null;
 }
 
 export interface GitlabRegisteredSystemHook {
@@ -185,7 +183,6 @@ export interface GitlabSystemHookRegistrationStatus {
   registered: boolean;
   projectId?: number | null;
   systemHookUrl?: string;
-  webhookUrl?: string;
   message: string;
   hooks: GitlabRegisteredSystemHook[];
 }
@@ -223,14 +220,6 @@ export interface GitlabSyncDiagnosticsResponse {
   systemHookAutoRegistrationSupported?: boolean;
   systemHookAutoRegistered?: boolean;
   systemHookMessage?: string;
-  webhookReceiverUrl: string;
-  webhookEnabled: boolean;
-  webhookSecretConfigured: boolean;
-  webhookSecretUnique: boolean;
-  webhookConfigMessage: string;
-  webhookAutoRegistrationSupported: boolean;
-  webhookAutoRegistered: boolean;
-  webhookMessage: string;
   runtimeWarnings?: string[];
 }
 

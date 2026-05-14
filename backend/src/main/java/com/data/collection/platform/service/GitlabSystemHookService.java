@@ -48,7 +48,7 @@ public class GitlabSystemHookService {
     String effectiveEventType = eventType == null || eventType.isBlank()
         ? String.valueOf(payload.getOrDefault("object_kind", "system_hook"))
         : eventType;
-    try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.WEBHOOK.name());
+    try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.SYSTEM_HOOK.name());
          GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SystemHook_Received")) {
       log.info(
           "System Hook received, eventType={}, projectId={}, objectKind={}",
@@ -56,9 +56,9 @@ public class GitlabSystemHookService {
           extractProjectId(payload),
           payload.get("object_kind"));
     }
-    if (config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank()) {
-      if (!secretMatches(config.getWebhookSecret(), secret)) {
-        try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.WEBHOOK.name());
+    if (config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank()) {
+      if (!secretMatches(config.getSystemHookSecret(), secret)) {
+        try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.SYSTEM_HOOK.name());
              GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SystemHook_Received")) {
           log.warn("System Hook rejected because secret validation failed, eventType={}", effectiveEventType);
         }
@@ -102,7 +102,7 @@ public class GitlabSystemHookService {
 
   private GitlabHookEvent coalesceRecentHookEvent(GitlabHookEvent incomingEvent) {
     LocalDateTime since = incomingEvent.getReceivedAt()
-        .minusSeconds(Math.max(1, properties.getWebhookBatchWindowSeconds()));
+        .minusSeconds(Math.max(1, properties.getSystemHookBatchWindowSeconds()));
     GitlabHookEvent existing = hookEventMapper.selectOne(new LambdaQueryWrapper<GitlabHookEvent>()
         .eq(GitlabHookEvent::getConfigId, incomingEvent.getConfigId())
         .eq(GitlabHookEvent::getDedupeKey, incomingEvent.getDedupeKey())

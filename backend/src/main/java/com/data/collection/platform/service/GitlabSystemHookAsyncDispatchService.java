@@ -41,7 +41,7 @@ public class GitlabSystemHookAsyncDispatchService {
         "System Hook dirty signal: " + eventType);
     if (tableSyncPlanningService.hasActiveJob(config.getId(), GitlabSyncJobType.COMPENSATION_SCAN)) {
       try (GitlabSyncLogContext.Scope context =
-               GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
+               GitlabSyncLogContext.openConfig(config, "SYSTEM_HOOK_WAKEUP", eventType);
            GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_REUSED")) {
         log.info(
             "System Hook wakeup marked source dirty and reused active compensation scan, eventType={}, dirtyTables={}",
@@ -53,7 +53,7 @@ public class GitlabSystemHookAsyncDispatchService {
     GitlabTableSyncPlanningService.CompensationPlanResult result =
         tableSyncPlanningService.createCompensationScanPlan(config, tables);
     try (GitlabSyncLogContext.Scope context =
-             GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
+             GitlabSyncLogContext.openConfig(config, "SYSTEM_HOOK_WAKEUP", eventType);
          GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_QUEUED")) {
       log.info(
           "System Hook wakeup marked source dirty and queued compensation scan, eventType={}, dirtyTables={}, jobId={}, discoveredTables={}, plannedTasks={}, verifyOnlyTables={}",
@@ -66,7 +66,7 @@ public class GitlabSystemHookAsyncDispatchService {
     }
   }
 
-  @Scheduled(fixedDelayString = "${platform.gitlab-mirror.webhook-batch-window-seconds:3}000")
+  @Scheduled(fixedDelayString = "${platform.gitlab-mirror.system-hook-batch-window-seconds:3}000")
   public void scheduledFlush() {
     flushPending();
   }

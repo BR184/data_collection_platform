@@ -7,7 +7,7 @@ const SYNC_TYPE_LABELS: Record<GitlabSyncType, string> = {
   FULL: '全量同步',
   INCREMENTAL: '增量同步',
   COMPENSATION: '补偿扫描',
-  WEBHOOK: 'System Hook 唤醒',
+  SYSTEM_HOOK: 'System Hook 唤醒',
   PURGE: '删除镜像数据',
 };
 
@@ -15,7 +15,7 @@ const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'succ
   FULL: 'warning',
   INCREMENTAL: 'info',
   COMPENSATION: 'success',
-  WEBHOOK: '',
+  SYSTEM_HOOK: '',
   PURGE: 'danger',
 };
 
@@ -146,10 +146,10 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   if (/^Delete non-whitelist mirror data$/i.test(normalized) && syncType === 'PURGE') {
     return '删除白名单外镜像数据';
   }
-  if (syncType === 'WEBHOOK') {
-    const webhookMatch = normalized.match(/^Triggered by webhook:\s*(.+)$/i);
-    if (webhookMatch) {
-      return `System Hook 已唤醒同步：${webhookMatch[1]}`;
+  if (syncType === 'SYSTEM_HOOK') {
+    const systemHookMatch = normalized.match(/^Triggered by system hook:\s*(.+)$/i);
+    if (systemHookMatch) {
+      return `System Hook 已唤醒同步：${systemHookMatch[1]}`;
     }
   }
 
@@ -162,7 +162,7 @@ export function syncLogMessage(log: GitlabSyncLog) {
     return message;
   }
   switch (log.syncType) {
-    case 'WEBHOOK':
+    case 'SYSTEM_HOOK':
       return 'System Hook 触发了目标表更新。';
     case 'INCREMENTAL':
       return '手动增量同步。';

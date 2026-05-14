@@ -62,8 +62,8 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
       dbUsername: 'gitlab',
       dbPassword: '',
       dockerContainerName: 'gitlab-data-web-1',
-      webhookSecret: '',
-      webhookProjectId: null,
+      systemHookSecret: '',
+      systemHookProjectId: null,
       compensationIntervalMinutes: 10,
     },
     currentStatus: 'IDLE',
@@ -73,8 +73,6 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
     logs: [],
     systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
     systemHookRegistration: null,
-    webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
-    webhookRegistration: null,
     ...overrides,
   };
 }
@@ -117,13 +115,7 @@ describe('useMirrorStatusPresentation', () => {
   });
 
   it('uses recent log status when the current status is idle', () => {
-    const status = ref(
-      createStatus({
-        logs: [createLog()],
-      }),
-    );
-
-    const presentation = useMirrorStatusPresentation(status);
+    const presentation = useMirrorStatusPresentation(ref(createStatus({ logs: [createLog()] })));
 
     expect(presentation.latestLog.value?.id).toBe(1);
     expect(presentation.lastSyncDisplay.value).toBe('最近同步：invalid-start（成功）');

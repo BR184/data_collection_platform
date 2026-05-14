@@ -48,7 +48,7 @@ final class DatabaseBrowserSyncTableDefinitions {
             column("queued_at", "排队时间"),
             column("started_at", "开始时间"),
             column("finished_at", "结束时间")),
-        "gitlab_webhook_events",
+        "gitlab_system_hook_events",
         definition(
             "System Hook 事件",
             List.of("event_type", "project_path", "event_id", "delivery_id"),

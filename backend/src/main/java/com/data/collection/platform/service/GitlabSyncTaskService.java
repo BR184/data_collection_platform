@@ -76,8 +76,8 @@ public class GitlabSyncTaskService {
 
       GitlabSyncTask activeTask = findActiveByScope(scopeKey);
       if (activeTask != null) {
-        boolean preserveWebhookPayload = taskType == SyncType.WEBHOOK;
-        if (!preserveWebhookPayload && activeTask.getTaskType() == taskType) {
+        boolean preserveSystemHookPayload = taskType == SyncType.SYSTEM_HOOK;
+        if (!preserveSystemHookPayload && activeTask.getTaskType() == taskType) {
           log.info(
               "Task submit reused active task, existingTaskId={}, taskType={}, status={}",
               activeTask.getId(),
@@ -86,7 +86,7 @@ public class GitlabSyncTaskService {
           return new SyncTaskSubmissionResult(activeTask, SyncSubmissionAction.REUSED_ACTIVE);
         }
         GitlabSyncTask queuedTask = findLatestQueued(scopeKey);
-        if (!preserveWebhookPayload && queuedTask != null) {
+        if (!preserveSystemHookPayload && queuedTask != null) {
           log.info(
               "Task submit reused queued task, existingTaskId={}, taskType={}, status={}",
               queuedTask.getId(),

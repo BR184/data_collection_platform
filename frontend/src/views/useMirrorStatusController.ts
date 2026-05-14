@@ -28,8 +28,8 @@ function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
     dbName: config.dbName ?? 'gitlabhq_production',
     dbUsername: config.dbUsername ?? 'gitlab',
     dbPassword: config.dbPassword ?? '',
-    webhookProjectId: config.webhookProjectId ?? null,
-    webhookEnabled: config.webhookEnabled ?? Boolean(config.webhookSecret),
+    systemHookProjectId: config.systemHookProjectId ?? null,
+    systemHookEnabled: config.systemHookEnabled ?? Boolean(config.systemHookSecret),
   };
 }
 

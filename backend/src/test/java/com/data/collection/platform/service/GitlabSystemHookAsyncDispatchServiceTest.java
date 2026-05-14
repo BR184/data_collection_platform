@@ -35,7 +35,7 @@ class GitlabSystemHookAsyncDispatchServiceTest {
   }
 
   @Test
-  void shouldTreatWebhookAsWakeupAndQueueCompensationPlan() {
+  void shouldTreatSystemHookAsWakeupAndQueueCompensationPlan() {
     GitlabSyncConfig config = baseConfig();
     Map<String, Object> payload = Map.of("object_kind", "issue");
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));

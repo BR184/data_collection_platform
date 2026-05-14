@@ -17,7 +17,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldPlanIssueWebhookToIssuesTable() {
+  void shouldPlanIssueSystemHookToIssuesTable() {
     Map<String, Object> payload = Map.of(
         "object_kind", "issue",
         "object_attributes", Map.of("id", 101L));
@@ -32,7 +32,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldPlanMergeRequestWebhookToMergeRequestsAndMergeTrains() {
+  void shouldPlanMergeRequestSystemHookToMergeRequestsAndMergeTrains() {
     Map<String, Object> payload = Map.of(
         "object_kind", "merge_request",
         "object_attributes", Map.of("id", 202L));
@@ -49,7 +49,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldPlanNoteWebhookToNotesAndParentIssue() {
+  void shouldPlanNoteSystemHookToNotesAndParentIssue() {
     Map<String, Object> payload = Map.of(
         "object_kind", "note",
         "object_attributes", Map.of(
@@ -65,7 +65,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldPlanPipelineAndBuildWebhookToCiTables() {
+  void shouldPlanPipelineAndBuildSystemHookToCiTables() {
     Map<String, Object> pipelinePayload = Map.of(
         "object_kind", "pipeline",
         "object_attributes", Map.of("id", 505L));
@@ -80,7 +80,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldPlanDeploymentReleaseProjectAndUserWebhooks() {
+  void shouldPlanDeploymentReleaseProjectAndUserSystemHooks() {
     Map<String, Object> deploymentPayload = Map.of(
         "object_kind", "deployment",
         "object_attributes", Map.of("id", 707L));
@@ -109,7 +109,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldReturnEmptyTargetsForUnsupportedWebhook() {
+  void shouldReturnEmptyTargetsForUnsupportedSystemHook() {
     Map<String, Object> payload = Map.of(
         "object_kind", "push",
         "project", Map.of("id", 707L));
@@ -118,7 +118,7 @@ class GitlabSystemHookPreciseSyncPlannerTest {
   }
 
   @Test
-  void shouldBuildStableObjectKeyForIssueWebhook() {
+  void shouldBuildStableObjectKeyForIssueSystemHook() {
     Map<String, Object> payload = Map.of(
         "object_kind", "issue",
         "object_attributes", Map.of("id", 101L));

@@ -7,16 +7,16 @@ public class GitlabMirrorProperties {
   private boolean schedulerEnabled = true;
   private int schedulerDelayMs = 60000;
   private String webBaseUrl = "http://localhost";
-  private String webhookBaseUrl = "http://localhost:18080/api/gitlab-sync/system-hook";
+  private String systemHookBaseUrl = "http://localhost:18080/api/gitlab-sync/system-hook";
   private String dockerCommand = "docker";
   private int heartbeatTimeoutSeconds = 180;
   private int dedupeWindowSeconds = 15;
   private int failureBackoffMinutes = 10;
   private int schemaCheckIntervalMinutes = 720;
-  private int webhookStatusCacheSeconds = 60;
-  private int webhookBatchWindowSeconds = 3;
-  private int webhookBatchSize = 10;
-  private int webhookMaxQueueSize = 1000;
+  private int systemHookStatusCacheSeconds = 60;
+  private int systemHookBatchWindowSeconds = 3;
+  private int systemHookBatchSize = 10;
+  private int systemHookMaxQueueSize = 1000;
   private int externalQueryTimeoutSeconds = 120;
   private int externalQueryRetryAttempts = 3;
   private int externalQueryRetryDelayMs = 1000;
@@ -47,12 +47,12 @@ public class GitlabMirrorProperties {
     this.webBaseUrl = webBaseUrl;
   }
 
-  public String getWebhookBaseUrl() {
-    return webhookBaseUrl;
+  public String getSystemHookBaseUrl() {
+    return systemHookBaseUrl;
   }
 
-  public void setWebhookBaseUrl(String webhookBaseUrl) {
-    this.webhookBaseUrl = webhookBaseUrl;
+  public void setSystemHookBaseUrl(String systemHookBaseUrl) {
+    this.systemHookBaseUrl = systemHookBaseUrl;
   }
 
   public String getDockerCommand() {
@@ -95,36 +95,36 @@ public class GitlabMirrorProperties {
     this.schemaCheckIntervalMinutes = schemaCheckIntervalMinutes;
   }
 
-  public int getWebhookStatusCacheSeconds() {
-    return webhookStatusCacheSeconds;
+  public int getSystemHookStatusCacheSeconds() {
+    return systemHookStatusCacheSeconds;
   }
 
-  public void setWebhookStatusCacheSeconds(int webhookStatusCacheSeconds) {
-    this.webhookStatusCacheSeconds = webhookStatusCacheSeconds;
+  public void setSystemHookStatusCacheSeconds(int systemHookStatusCacheSeconds) {
+    this.systemHookStatusCacheSeconds = systemHookStatusCacheSeconds;
   }
 
-  public int getWebhookBatchWindowSeconds() {
-    return webhookBatchWindowSeconds;
+  public int getSystemHookBatchWindowSeconds() {
+    return systemHookBatchWindowSeconds;
   }
 
-  public void setWebhookBatchWindowSeconds(int webhookBatchWindowSeconds) {
-    this.webhookBatchWindowSeconds = webhookBatchWindowSeconds;
+  public void setSystemHookBatchWindowSeconds(int systemHookBatchWindowSeconds) {
+    this.systemHookBatchWindowSeconds = systemHookBatchWindowSeconds;
   }
 
-  public int getWebhookBatchSize() {
-    return webhookBatchSize;
+  public int getSystemHookBatchSize() {
+    return systemHookBatchSize;
   }
 
-  public void setWebhookBatchSize(int webhookBatchSize) {
-    this.webhookBatchSize = webhookBatchSize;
+  public void setSystemHookBatchSize(int systemHookBatchSize) {
+    this.systemHookBatchSize = systemHookBatchSize;
   }
 
-  public int getWebhookMaxQueueSize() {
-    return webhookMaxQueueSize;
+  public int getSystemHookMaxQueueSize() {
+    return systemHookMaxQueueSize;
   }
 
-  public void setWebhookMaxQueueSize(int webhookMaxQueueSize) {
-    this.webhookMaxQueueSize = webhookMaxQueueSize;
+  public void setSystemHookMaxQueueSize(int systemHookMaxQueueSize) {
+    this.systemHookMaxQueueSize = systemHookMaxQueueSize;
   }
 
   public int getExternalQueryTimeoutSeconds() {

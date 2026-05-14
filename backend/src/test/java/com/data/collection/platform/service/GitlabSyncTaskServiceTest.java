@@ -40,7 +40,7 @@ class GitlabSyncTaskServiceTest {
 
   @BeforeEach
   void cleanTables() {
-    jdbcTemplate.update("delete from gitlab_webhook_events");
+    jdbcTemplate.update("delete from gitlab_system_hook_events");
     jdbcTemplate.update("delete from gitlab_sync_logs");
     jdbcTemplate.update("delete from gitlab_mirror_records");
     jdbcTemplate.update("delete from gitlab_sync_tasks");
@@ -67,8 +67,8 @@ class GitlabSyncTaskServiceTest {
     GitlabSyncTask queued = taskService.submitTask(
         config,
         SyncType.INCREMENTAL,
-        SyncTriggerType.WEBHOOK,
-        "Triggered by webhook",
+        SyncTriggerType.SYSTEM_HOOK,
+        "Triggered by system hook",
         Map.of("event", "Issue Hook"));
 
     assertThat(queued.getStatus()).isEqualTo(SyncStatus.QUEUED);
@@ -76,22 +76,22 @@ class GitlabSyncTaskServiceTest {
   }
 
   @Test
-  void webhookTasksWithDifferentPayloadShouldQueueInsteadOfBeingReused() {
+  void systemHookTasksWithDifferentPayloadShouldQueueInsteadOfBeingReused() {
     GitlabSyncConfig config = configService.saveConfig(baseConfig());
     GitlabSyncTask first = taskService.submitTask(
         config,
-        SyncType.WEBHOOK,
-        SyncTriggerType.WEBHOOK,
-        "Triggered by webhook: issue",
-        Map.of("eventType", "Issue Hook", "webhookPayload", Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101))));
+        SyncType.SYSTEM_HOOK,
+        SyncTriggerType.SYSTEM_HOOK,
+        "Triggered by system hook: issue",
+        Map.of("eventType", "Issue Hook", "systemHookPayload", Map.of("object_kind", "issue", "object_attributes", Map.of("id", 101))));
     taskService.claimPendingTask(first.getId(), "tester");
 
     GitlabSyncTask second = taskService.submitTask(
         config,
-        SyncType.WEBHOOK,
-        SyncTriggerType.WEBHOOK,
-        "Triggered by webhook: note",
-        Map.of("eventType", "Note Hook", "webhookPayload", Map.of("object_kind", "note", "object_attributes", Map.of("id", 202))));
+        SyncType.SYSTEM_HOOK,
+        SyncTriggerType.SYSTEM_HOOK,
+        "Triggered by system hook: note",
+        Map.of("eventType", "Note Hook", "systemHookPayload", Map.of("object_kind", "note", "object_attributes", Map.of("id", 202))));
 
     assertThat(second.getId()).isNotEqualTo(first.getId());
     assertThat(second.getStatus()).isEqualTo(SyncStatus.QUEUED);

@@ -19,9 +19,9 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     dbUsername: 'gitlab',
     dbPassword: '',
     dockerContainerName: 'gitlab-data-web-1',
-    webhookSecret: '',
-    webhookEnabled: false,
-    webhookProjectId: null,
+    systemHookSecret: '',
+    systemHookEnabled: false,
+    systemHookProjectId: null,
     compensationIntervalMinutes: 10,
     ...overrides,
   };

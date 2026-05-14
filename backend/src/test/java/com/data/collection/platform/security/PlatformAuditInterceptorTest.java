@@ -25,7 +25,7 @@ class PlatformAuditInterceptorTest {
     rawRequest.setContentType("application/json");
     rawRequest.setContent(
         """
-        {"name":"CC","dbPassword":"plain-password","webhookSecret":"plain-secret"}
+        {"name":"CC","dbPassword":"plain-password","systemHookSecret":"plain-secret"}
         """
             .getBytes(StandardCharsets.UTF_8));
     ContentCachingRequestWrapper request = new ContentCachingRequestWrapper(rawRequest);
@@ -46,7 +46,7 @@ class PlatformAuditInterceptorTest {
                     summary.contains("configId=1")
                         && summary.contains("token=***")
                         && summary.contains("\"dbPassword\":\"***\"")
-                        && summary.contains("\"webhookSecret\":\"***\"")
+                        && summary.contains("\"systemHookSecret\":\"***\"")
                         && !summary.contains("plain-password")
                         && !summary.contains("plain-secret")
                         && !summary.contains("raw-token")));

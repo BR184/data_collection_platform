@@ -40,7 +40,7 @@ public class GitlabSystemHookRegistrationService {
   public GitlabSystemHookRegistrationStatus getStatus(GitlabSyncConfig config, String systemHookUrl) {
     String cacheKey = buildCacheKey(config, systemHookUrl);
     CacheEntry cacheEntry = statusCache.get(cacheKey);
-    long cacheSeconds = Math.max(5, properties.getWebhookStatusCacheSeconds());
+    long cacheSeconds = Math.max(5, properties.getSystemHookStatusCacheSeconds());
     if (cacheEntry != null && Duration.between(cacheEntry.loadedAt(), Instant.now()).getSeconds() < cacheSeconds) {
       return cacheEntry.status();
     }
@@ -49,9 +49,9 @@ public class GitlabSystemHookRegistrationService {
     if (config.getSourceMode() != SourceMode.DOCKER) {
       status = new GitlabSystemHookRegistrationStatus(
           false,
-          Boolean.TRUE.equals(config.getWebhookEnabled()),
+          Boolean.TRUE.equals(config.getSystemHookEnabled()),
           false,
-          null,
+          config.getSystemHookProjectId(),
           systemHookUrl,
           "直连模式需在 GitLab 手动注册 System Hook，平台无法自动检测注册状态",
           List.of());
@@ -91,7 +91,7 @@ public class GitlabSystemHookRegistrationService {
     List<String> command = buildDockerExecCommand(
         config,
         systemHookUrl,
-        config.getWebhookSecret(),
+        config.getSystemHookSecret(),
         buildEnsureHookScript());
     String output = runCommand(command, "SystemHook_Register");
     try {
@@ -108,16 +108,16 @@ public class GitlabSystemHookRegistrationService {
   }
 
   private boolean isSystemHookConfigured(GitlabSyncConfig config) {
-    return Boolean.TRUE.equals(config.getWebhookEnabled())
-        && config.getWebhookSecret() != null
-        && !config.getWebhookSecret().isBlank();
+    return Boolean.TRUE.equals(config.getSystemHookEnabled())
+        && config.getSystemHookSecret() != null
+        && !config.getSystemHookSecret().isBlank();
   }
 
   private List<RegisteredGitlabSystemHook> listHooks(GitlabSyncConfig config, String systemHookUrl) {
     List<String> command = buildDockerExecCommand(
         config,
         systemHookUrl,
-        config.getWebhookSecret(),
+        config.getSystemHookSecret(),
         buildListHooksScript());
     String output = runCommand(command, "SystemHook_Status");
     try {
@@ -150,9 +150,9 @@ public class GitlabSystemHookRegistrationService {
         properties.getDockerCommand(),
         "exec",
         "-e",
-        "WEBHOOK_URL=" + systemHookUrl,
+        "SYSTEM_HOOK_URL=" + systemHookUrl,
         "-e",
-        "WEBHOOK_SECRET=" + (systemHookSecret == null ? "" : systemHookSecret),
+        "SYSTEM_HOOK_SECRET=" + (systemHookSecret == null ? "" : systemHookSecret),
         config.getDockerContainerName(),
         "gitlab-rails",
         "runner",
@@ -192,8 +192,8 @@ public class GitlabSystemHookRegistrationService {
 
   private String buildListHooksScript() {
     return """
-        webhook_url = ENV.fetch('WEBHOOK_URL')
-        hooks = SystemHook.all.select { |h| h.url == webhook_url }.map do |h|
+        system_hook_url = ENV.fetch('SYSTEM_HOOK_URL')
+        hooks = SystemHook.all.select { |h| h.url == system_hook_url }.map do |h|
           {
             id: h.id,
             url: h.url,
@@ -212,16 +212,16 @@ public class GitlabSystemHookRegistrationService {
 
   private String buildEnsureHookScript() {
     return """
-        webhook_url = ENV.fetch('WEBHOOK_URL')
-        webhook_secret = ENV.fetch('WEBHOOK_SECRET', '')
-        hook = SystemHook.all.detect { |existing_hook| existing_hook.url == webhook_url }
-        hook ||= SystemHook.new(url: webhook_url)
+        system_hook_url = ENV.fetch('SYSTEM_HOOK_URL')
+        system_hook_secret = ENV.fetch('SYSTEM_HOOK_SECRET', '')
+        hook = SystemHook.all.detect { |existing_hook| existing_hook.url == system_hook_url }
+        hook ||= SystemHook.new(url: system_hook_url)
         hook.push_events = true if hook.respond_to?(:push_events=)
         hook.tag_push_events = true if hook.respond_to?(:tag_push_events=)
         hook.merge_requests_events = true if hook.respond_to?(:merge_requests_events=)
         hook.repository_update_events = true if hook.respond_to?(:repository_update_events=)
         hook.enable_ssl_verification = false if hook.respond_to?(:enable_ssl_verification=)
-        hook.token = webhook_secret
+        hook.token = system_hook_secret
         hook.save!
         puts({
           id: hook.id,
@@ -260,7 +260,7 @@ public class GitlabSystemHookRegistrationService {
         "|",
         Objects.toString(config.getSourceMode(), ""),
         Objects.toString(config.getDockerContainerName(), ""),
-        Objects.toString(config.getWebhookEnabled(), ""),
+        Objects.toString(config.getSystemHookEnabled(), ""),
         Objects.toString(systemHookUrl, ""));
   }
 

@@ -56,14 +56,14 @@ public class GitlabSyncConfig {
   @TableField("docker_container_name")
   private String dockerContainerName;
 
-  @TableField("webhook_secret")
-  private String webhookSecret;
+  @TableField("system_hook_secret")
+  private String systemHookSecret;
 
-  @TableField("webhook_enabled")
-  private Boolean webhookEnabled;
+  @TableField("system_hook_enabled")
+  private Boolean systemHookEnabled;
 
-  @TableField("webhook_project_id")
-  private Long webhookProjectId;
+  @TableField("system_hook_project_id")
+  private Long systemHookProjectId;
 
   @TableField("compensation_interval_minutes")
   private Integer compensationIntervalMinutes;

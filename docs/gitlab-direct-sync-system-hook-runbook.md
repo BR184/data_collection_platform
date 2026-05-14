@@ -530,7 +530,7 @@ Expected:
 | System Hook returns unauthorized/failed | Secret mismatch | `X-Gitlab-Token` and config `systemHookSecret` | Align GitLab secret token and platform config |
 | System Hook accepted but no precise update | Target outside whitelist or planner cannot resolve payload | Sync logs | Add table to whitelist or rely on fallback incremental sync |
 | Delete system hook accepted but row still visible | Payload not recognized as delete, or fact cache not rebuilt | Payload `action/state/event_name`; mirror row `mirror_deleted` | Confirm delete marker and rebuild dependent facts if needed |
-| Queue overflow warning | System Hook burst exceeds configured queue size | Logs `System Hook precise queue is full` | Increase `GITLAB_WEBHOOK_MAX_QUEUE_SIZE` or rely on fallback incremental sync |
+| Queue overflow warning | System Hook burst exceeds configured queue size | Logs `System Hook precise queue is full` | Increase `GITLAB_SYSTEM_HOOK_MAX_QUEUE_SIZE` or rely on fallback incremental sync |
 | Full backend tests fail on Flyway checksum locally | Persisted local test DB migration history mismatch | `FlywayMigrationSmokeTest` output | Reset local test schema or run non-Flyway regression command |
 
 ## Verification Commands

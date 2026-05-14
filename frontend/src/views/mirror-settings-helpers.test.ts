@@ -36,17 +36,18 @@ describe('mirror settings helpers', () => {
     expect(syncStatusTagType('PARTIAL_SUCCESS')).toBe('warning');
     expect(syncStatusText('IDLE')).toBe('空闲');
     expect(syncTypeText('PURGE')).toBe('删除镜像数据');
+    expect(syncTypeText('SYSTEM_HOOK')).toBe('System Hook 唤醒');
     expect(syncTypeTagType('FULL')).toBe('warning');
   });
 
   it('translates known sync messages and falls back to default log copy', () => {
     expect(translateSyncMessage('Sync completed successfully')).toBe('同步已完成');
-    expect(translateSyncMessage('Triggered by webhook: issue#1', 'WEBHOOK')).toBe('System Hook 已唤醒同步：issue#1');
+    expect(translateSyncMessage('Triggered by system hook: issue#1', 'SYSTEM_HOOK')).toBe('System Hook 已唤醒同步：issue#1');
     expect(
       translateSyncMessage(
         'Sync completed successfully, skipped 3 tables without time columns during compensation window scan',
       ),
-    ).toBe('同步已完成，补偿扫描跳过了 3 张缺少时间列的表。');
+    ).toBe('同步已完成，补偿扫描跳过 3 张缺少时间列的表。');
     expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('定时补偿扫描。');
   });
 

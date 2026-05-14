@@ -24,13 +24,5 @@ public record GitlabSyncDiagnosticsResponse(
     boolean systemHookAutoRegistrationSupported,
     boolean systemHookAutoRegistered,
     String systemHookMessage,
-    String webhookReceiverUrl,
-    boolean webhookEnabled,
-    boolean webhookSecretConfigured,
-    boolean webhookSecretUnique,
-    String webhookConfigMessage,
-    boolean webhookAutoRegistrationSupported,
-    boolean webhookAutoRegistered,
-    String webhookMessage,
     java.util.List<String> runtimeWarnings) {
 }

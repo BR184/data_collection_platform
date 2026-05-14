@@ -28,7 +28,7 @@ function fallbackPhaseText(task: GitlabSyncTask | null): string {
     case 'FULL':
       return '全量同步';
     case 'INCREMENTAL':
-    case 'WEBHOOK':
+    case 'SYSTEM_HOOK':
       return '增量同步';
     case 'COMPENSATION':
       return '补偿扫描';

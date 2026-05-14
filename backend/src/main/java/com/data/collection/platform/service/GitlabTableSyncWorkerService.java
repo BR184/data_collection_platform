@@ -862,7 +862,7 @@ public class GitlabTableSyncWorkerService {
     return switch (jobType) {
       case DAILY_VERIFY -> SyncType.FULL;
       case COMPENSATION_SCAN -> SyncType.COMPENSATION;
-      case HOOK_WAKEUP -> SyncType.WEBHOOK;
+      case HOOK_WAKEUP -> SyncType.SYSTEM_HOOK;
       case MANUAL_REFRESH, FACT_REFRESH -> SyncType.INCREMENTAL;
     };
   }
@@ -875,7 +875,7 @@ public class GitlabTableSyncWorkerService {
       case FULL -> "每日全量校验";
       case COMPENSATION -> "补偿扫描";
       case INCREMENTAL -> "手动增量刷新";
-      case WEBHOOK -> "System Hook 唤醒刷新";
+      case SYSTEM_HOOK -> "System Hook 唤醒刷新";
       case PURGE -> "镜像数据清理";
     };
     return "%s已结束，状态：%s".formatted(label, syncStatusLabel(job.getStatus()));
