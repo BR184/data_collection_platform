@@ -194,12 +194,31 @@ public class GitlabSyncLogService {
       return job.getErrorMessage();
     }
     String label = switch (syncType) {
-      case FULL -> "Full table verification";
-      case COMPENSATION -> "Compensation table sync";
-      case INCREMENTAL -> "Incremental table refresh";
-      case WEBHOOK -> "Webhook table refresh";
-      case PURGE -> "Mirror purge";
+      case FULL -> "每日全量校验";
+      case COMPENSATION -> "补偿扫描";
+      case INCREMENTAL -> "手动增量刷新";
+      case WEBHOOK -> "System Hook 唤醒刷新";
+      case PURGE -> "镜像数据清理";
     };
-    return "%s completed with status %s".formatted(label, job.getStatus());
+    return "%s已结束，状态：%s".formatted(label, syncStatusLabel(job.getStatus()));
+  }
+
+  private String syncStatusLabel(SyncStatus status) {
+    if (status == null) {
+      return "未知";
+    }
+    return switch (status) {
+      case PENDING -> "待执行";
+      case QUEUED -> "排队中";
+      case RUNNING -> "执行中";
+      case RETRYING -> "重试中";
+      case SUCCESS -> "成功";
+      case PARTIAL_SUCCESS -> "部分成功";
+      case FAILED -> "失败";
+      case CANCELLED -> "已取消";
+      case TIMEOUT -> "已超时";
+      case CANCELLING -> "取消中";
+      case IDLE -> "空闲";
+    };
   }
 }

@@ -26,35 +26,35 @@ defineEmits<{
     <template #header>
       <div class="panel-header">
         <div>
-          <div class="panel-title">Recent sync activity</div>
+          <div class="panel-title">最近同步日志</div>
         </div>
-        <el-button link :icon="Refresh" :loading="refreshing" @click="$emit('refresh')">Refresh</el-button>
+        <el-button link :icon="Refresh" :loading="refreshing" @click="$emit('refresh')">刷新</el-button>
       </div>
     </template>
 
     <div class="sync-log-table-shell">
       <el-table :data="logs" row-key="id" max-height="320" size="small" border class="sync-log-table">
-        <el-table-column label="Type" width="126">
+        <el-table-column label="类型" width="126">
           <template #default="{ row }">
             <el-tag size="small" effect="plain" :type="syncTypeTagType(row.syncType)">
               {{ syncTypeText(row.syncType) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Status" width="96">
+        <el-table-column label="状态" width="96">
           <template #default="{ row }">
             <el-tag size="small" :type="logStatusType(row.status)">{{ logStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Time" width="160">
+        <el-table-column label="时间" width="160">
           <template #default="{ row }">{{ formatLogTime(row) }}</template>
         </el-table-column>
-        <el-table-column label="Duration" width="90">
+        <el-table-column label="耗时" width="90">
           <template #default="{ row }">{{ formatDuration(row) }}</template>
         </el-table-column>
-        <el-table-column prop="tableCount" label="Tables" width="96" />
-        <el-table-column prop="recordCount" label="Records" width="88" />
-        <el-table-column label="Message" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="tableCount" label="表数" width="96" />
+        <el-table-column prop="recordCount" label="记录数" width="88" />
+        <el-table-column label="消息" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">{{ syncLogMessage(row) }}</template>
         </el-table-column>
       </el-table>

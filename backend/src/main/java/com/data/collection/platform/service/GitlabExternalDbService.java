@@ -757,6 +757,9 @@ public class GitlabExternalDbService {
         }
       }
     }
+    if (value instanceof Object[]) {
+      return normalizeArrayValue(value);
+    }
     return value;
   }
 

@@ -295,7 +295,7 @@ class GitlabSyncControllerTest {
             false,
             1L,
             "http://localhost:18080/api/gitlab-sync/webhook",
-            "尚未注册 GitLab Webhook",
+            "\u5c1a\u672a\u6ce8\u518c GitLab System Hook",
             List.of()));
 
     mockMvc.perform(get("/api/gitlab-sync/webhook-registration-status"))
@@ -317,7 +317,7 @@ class GitlabSyncControllerTest {
             "",
             null,
             SyncStatus.SUCCESS,
-            "同步完成",
+            "\u540c\u6b65\u5b8c\u6210",
             null,
             5,
             5,
@@ -370,7 +370,7 @@ class GitlabSyncControllerTest {
             false,
             1L,
             "http://localhost:18080/api/gitlab-sync/webhook",
-            "直连模式不支持自动注册，但 webhook 接收入口可用",
+            "\u76f4\u8fde\u6a21\u5f0f\u4e0d\u652f\u6301\u81ea\u52a8\u6ce8\u518c\uff0c\u4f46 System Hook \u63a5\u6536\u5165\u53e3\u53ef\u7528",
             List.of()));
 
     mockMvc.perform(post("/api/gitlab-sync/diagnostics"))
@@ -390,7 +390,7 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.webhookEnabled").value(true))
         .andExpect(jsonPath("$.data.webhookSecretConfigured").value(true))
         .andExpect(jsonPath("$.data.webhookSecretUnique").value(true))
-        .andExpect(jsonPath("$.data.webhookConfigMessage").value("直连模式支持 Webhook 接收，但需要在 GitLab 中手动注册"))
+        .andExpect(jsonPath("$.data.webhookConfigMessage").value("\u76f4\u8fde\u6a21\u5f0f\u652f\u6301\u63a5\u6536 System Hook\uff0c\u8bf7\u5728 GitLab \u7ba1\u7406\u540e\u53f0\u6ce8\u518c"))
         .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/webhook"))
         .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
         .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false));
@@ -508,7 +508,7 @@ class GitlabSyncControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.message").value("已真实删除 cc 镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
+        .andExpect(jsonPath("$.message").value("\u5df2\u771f\u5b9e\u5220\u9664 cc \u955c\u50cf\u6570\u636e\uff0cGitLab \u6e90\u7aef\u548c\u672c\u5730\u975e\u955c\u50cf\u6570\u636e\u5747\u4e0d\u53d7\u5f71\u54cd"))
         .andExpect(jsonPath("$.data.scope").value("MIRROR_DATA_ONLY"))
         .andExpect(jsonPath("$.data.droppedMirrorTables").value(12))
         .andExpect(jsonPath("$.data.truncatedTables").value(2));
@@ -537,7 +537,7 @@ class GitlabSyncControllerTest {
                 """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.message").value("已真实删除 dgm 当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响"))
+        .andExpect(jsonPath("$.message").value("\u5df2\u771f\u5b9e\u5220\u9664 dgm \u5f53\u524d\u767d\u540d\u5355\u4e4b\u5916\u7684\u955c\u50cf\u6570\u636e\uff0cGitLab \u6e90\u7aef\u548c\u672c\u5730\u975e\u955c\u50cf\u6570\u636e\u5747\u4e0d\u53d7\u5f71\u54cd"))
         .andExpect(jsonPath("$.data.syncTimestampsReset").value(false));
   }
 
@@ -627,17 +627,17 @@ class GitlabSyncControllerTest {
   void registerSystemHookShouldReturnRegistrationStatus() throws Exception {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
-    when(webhookRegistrationService.ensureRegistered(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+    when(webhookRegistrationService.ensureRegistered(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
         .thenReturn(new GitlabWebhookRegistrationStatus(
             true,
             true,
             true,
             1L,
-            "http://localhost:18080/api/gitlab-sync/system-hook",
-            "GitLab Webhook 已注册",
+            "http://localhost:18080/api/gitlab-sync/webhook",
+            "GitLab System Hook \u5df2\u6ce8\u518c",
             List.of(new GitlabWebhookRegistrationStatus.RegisteredGitlabWebhook(
                 1L,
-                "http://localhost:18080/api/gitlab-sync/system-hook",
+                "http://localhost:18080/api/gitlab-sync/webhook",
                 true,
                 true,
                 true,

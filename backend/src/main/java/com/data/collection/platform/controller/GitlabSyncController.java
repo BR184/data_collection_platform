@@ -1,4 +1,4 @@
-﻿package com.data.collection.platform.controller;
+package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.common.response.ApiResponse;
@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsRespon
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncJob;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
@@ -60,7 +61,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/gitlab-sync")
 @Slf4j
-// GitLab 鍚屾鎺у埗鍣ㄦ槸闀滃儚鏁版嵁鍏ュ彛鐨?API 闂ㄩ潰锛屽彧璐熻矗閰嶇疆銆佷换鍔°€乄ebhook 鍜屾竻鐞嗗姩浣滅紪鎺掋€?// 澶栭儴搴撹闂€佷换鍔″幓閲嶅拰浜嬪疄閲嶅缓閮戒笅娌夊埌 service锛岄伩鍏嶆帶鍒跺眰鎸佹湁鍚屾缁嗚妭銆?public class GitlabSyncController {
+// GitLab 同步控制器是镜像数据入口的 API 门面，只负责配置、任务、System Hook 和清理动作编排。
+// 外部库访问、任务去重和事实重建都下沉到 service，避免控制层持有同步细节。
+public class GitlabSyncController {
   private static final Set<SyncStatus> ACTIVE_SYNC_STATUSES = Set.of(
       SyncStatus.PENDING,
       SyncStatus.QUEUED,
@@ -217,7 +220,52 @@ import org.springframework.web.bind.annotation.RestController;
     if (job.getErrorMessage() != null && !job.getErrorMessage().isBlank()) {
       return job.getErrorMessage();
     }
-    return "%s / %s".formatted(job.getJobType(), job.getStatus());
+    return "%s / %s".formatted(syncTypeLabel(job.getJobType()), syncStatusLabel(job.getStatus()));
+  }
+
+  private String syncTypeLabel(SyncType type) {
+    if (type == null) {
+      return "同步任务";
+    }
+    return switch (type) {
+      case FULL -> "全量同步";
+      case INCREMENTAL -> "增量同步";
+      case COMPENSATION -> "补偿扫描";
+      case WEBHOOK -> "System Hook 唤醒";
+      case PURGE -> "删除镜像数据";
+    };
+  }
+
+  private String syncTypeLabel(GitlabSyncJobType type) {
+    if (type == null) {
+      return "同步任务";
+    }
+    return switch (type) {
+      case DAILY_VERIFY -> "每日全量校验";
+      case COMPENSATION_SCAN -> "补偿扫描";
+      case MANUAL_REFRESH -> "手动刷新";
+      case HOOK_WAKEUP -> "System Hook 唤醒";
+      case FACT_REFRESH -> "事实层刷新";
+    };
+  }
+
+  private String syncStatusLabel(SyncStatus status) {
+    if (status == null) {
+      return "空闲";
+    }
+    return switch (status) {
+      case PENDING -> "待执行";
+      case QUEUED -> "排队中";
+      case RUNNING -> "执行中";
+      case RETRYING -> "重试中";
+      case SUCCESS -> "成功";
+      case PARTIAL_SUCCESS -> "部分成功";
+      case FAILED -> "失败";
+      case CANCELLED -> "已取消";
+      case TIMEOUT -> "已超时";
+      case CANCELLING -> "取消中";
+      case IDLE -> "空闲";
+    };
   }
 
   @GetMapping("/configs")
@@ -249,7 +297,7 @@ import org.springframework.web.bind.annotation.RestController;
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     boolean connectionOk = true;
-    String connectionMessage = "GitLab PostgreSQL connection succeeded";
+    String connectionMessage = "GitLab PostgreSQL 连接成功";
     try {
       if (configId == null) {
         syncService.testConnection();
@@ -262,7 +310,7 @@ import org.springframework.web.bind.annotation.RestController;
     }
 
     boolean whitelistOk = true;
-    String whitelistMessage = "GitLab whitelist options resolved";
+    String whitelistMessage = "GitLab 白名单选项已加载";
     int whitelistOptionCount = 0;
     List<TableWhitelistOption> whitelistOptions = List.of();
     try {
@@ -377,7 +425,7 @@ import org.springframework.web.bind.annotation.RestController;
           request.sourceMode(),
           request.whitelistMode());
     }
-    return ApiResponse.success("閰嶇疆宸蹭繚瀛?, sanitizeConfigForResponse(configService.saveConfig(config)));
+    return ApiResponse.success("配置已保存", sanitizeConfigForResponse(configService.saveConfig(config)));
   }
 
   @PostMapping("/test-connection")
@@ -400,7 +448,7 @@ import org.springframework.web.bind.annotation.RestController;
     } else {
       syncService.testConnection(config.getId());
     }
-    return ApiResponse.success("GitLab PostgreSQL 杩炴帴鎴愬姛", Map.of("checked", true));
+    return ApiResponse.success("GitLab PostgreSQL 连接成功", Map.of("checked", true));
   }
 
   @PostMapping("/full-sync")
@@ -458,7 +506,7 @@ import org.springframework.web.bind.annotation.RestController;
     GitlabSyncConfig config = resolveConfig(configId);
     GitlabWebhookRegistrationStatus result =
         webhookRegistrationService.ensureRegistered(config, properties.getWebhookBaseUrl());
-    return ApiResponse.success("GitLab System Hook registered", result);
+    return ApiResponse.success("GitLab System Hook 已注册", result);
   }
 
   @PostMapping("/cancel")
@@ -477,11 +525,15 @@ import org.springframework.web.bind.annotation.RestController;
     }
     GitlabSyncTask task = syncService.requestCancel(config.getId());
     if (task == null) {
-      return ApiResponse.success("褰撳墠娌℃湁鍙腑姝㈢殑浠诲姟", Map.of("accepted", false));
+      return ApiResponse.success("当前没有可中止的任务", Map.of("accepted", false));
     }
     return ApiResponse.success(
-        "宸叉彁浜や腑姝㈣姹?,
-        Map.of("accepted", true, "taskId", task.getId(), "status", task.getStatus()));
+        "已提交中止请求",
+        Map.of(
+            "accepted", true,
+            "taskId", task.getId(),
+            "status", task.getStatus(),
+            "statusText", syncStatusLabel(task.getStatus())));
   }
 
   @PostMapping("/purge")
@@ -491,9 +543,9 @@ import org.springframework.web.bind.annotation.RestController;
     MirrorPurgeResult result = purgeService.purge(request.scope(), config.getId());
     String sourceLabel = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String message = switch (request.scope()) {
-      case MIRROR_DATA_ONLY -> "宸茬湡瀹炲垹闄?" + sourceLabel + " 闀滃儚鏁版嵁锛孏itLab 婧愮鍜屾湰鍦伴潪闀滃儚鏁版嵁鍧囦笉鍙楀奖鍝?;
+      case MIRROR_DATA_ONLY -> "已真实删除 " + sourceLabel + " 镜像数据，GitLab 源端和本地非镜像数据均不受影响";
       case MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST ->
-          "宸茬湡瀹炲垹闄?" + sourceLabel + " 褰撳墠鐧藉悕鍗曚箣澶栫殑闀滃儚鏁版嵁锛孏itLab 婧愮鍜屾湰鍦伴潪闀滃儚鏁版嵁鍧囦笉鍙楀奖鍝?;
+          "已真实删除 " + sourceLabel + " 当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响";
     };
     return ApiResponse.success(message, result);
   }
@@ -504,7 +556,7 @@ import org.springframework.web.bind.annotation.RestController;
       @RequestHeader(value = "X-Gitlab-Token", required = false) String secret,
       @RequestBody Map<String, Object> payload) {
     webhookService.accept(eventType, payload, secret);
-    return ApiResponse.success("GitLab System Hook accepted", Map.of("accepted", true));
+    return ApiResponse.success("GitLab System Hook 已接收", Map.of("accepted", true));
   }
 
   public record SaveConfigRequest(
@@ -574,15 +626,15 @@ import org.springframework.web.bind.annotation.RestController;
     }
     String message;
     if (!webhookEnabled) {
-      message = "System Hook receiver disabled";
+      message = "System Hook 接收器未启用";
     } else if (!secretConfigured) {
-      message = "System Hook requires a unique secret";
+      message = "System Hook 需要配置唯一密钥";
     } else if (!secretUnique) {
-      message = "System Hook secret is already used by another GitLab source";
+      message = "System Hook 密钥已被另一个 GitLab 源使用";
     } else if (config.getSourceMode() == SourceMode.DIRECT) {
-      message = "Direct mode supports System Hook reception; register it in GitLab Admin Area";
+      message = "直连模式支持接收 System Hook，请在 GitLab 管理后台注册";
     } else {
-      message = "System Hook configuration is available";
+      message = "System Hook 配置可用";
     }
     return new WebhookConfigDiagnostics(secretConfigured, secretUnique, message);
   }
@@ -603,7 +655,9 @@ import org.springframework.web.bind.annotation.RestController;
         "accepted", true,
         "taskId", task.getId(),
         "status", task.getStatus(),
+        "statusText", syncStatusLabel(task.getStatus()),
         "action", result.action(),
+        "typeText", syncTypeLabel(task.getTaskType()),
         "message", submissionMessage(result, task.getTaskType()));
   }
 
@@ -611,35 +665,35 @@ import org.springframework.web.bind.annotation.RestController;
     SyncStatus status = result.task().getStatus();
     if (status == SyncStatus.SUCCESS) {
       return switch (requestedType) {
-        case FULL -> "鍏ㄩ噺鍚屾宸插畬鎴?;
-        case COMPENSATION -> "琛ュ伩鍚屾宸插畬鎴?;
-        case INCREMENTAL -> "鎵嬪伐鎭㈠澧為噺宸插畬鎴?;
-        case WEBHOOK -> "绮剧‘鏇存柊宸插畬鎴?;
-        case PURGE -> "鍒犻櫎闀滃儚鏁版嵁宸插畬鎴?;
+        case FULL -> "全量同步已完成";
+        case COMPENSATION -> "补偿同步已完成";
+        case INCREMENTAL -> "手动增量同步已完成";
+        case WEBHOOK -> "精确更新已完成";
+        case PURGE -> "镜像数据删除已完成";
       };
     }
     if (status == SyncStatus.PARTIAL_SUCCESS) {
-      return "閮ㄥ垎琛ㄥ悓姝ュけ璐ワ紝璇锋煡鐪嬪悓姝ユ棩蹇楀拰琛ㄧ骇璇婃柇";
+      return "部分表同步失败，请查看同步日志和表级诊断";
     }
     if (status == SyncStatus.FAILED) {
-      return "鍚屾浠诲姟澶辫触锛岃鏌ョ湅鍚屾鏃ュ織鍜岃〃绾ц瘖鏂?;
+      return "同步任务失败，请查看同步日志和表级诊断";
     }
     if (status == SyncStatus.TIMEOUT) {
-      return "鍚屾浠诲姟瓒呮椂锛岃绋嶅悗閲嶈瘯鎴栨煡鐪嬭〃绾ц瘖鏂?;
+      return "同步任务超时，请稍后重试或查看表级诊断";
     }
     SyncSubmissionAction action = result.action();
     return switch (action) {
       case CREATED -> switch (requestedType) {
-        case FULL -> "鍏ㄩ噺鍚屾宸插紑濮?;
-        case COMPENSATION -> "琛ュ伩鍚屾宸插紑濮?;
-        case INCREMENTAL -> "鎵嬪伐鎭㈠澧為噺宸插紑濮?;
-        case WEBHOOK -> "绮剧‘鏇存柊宸插紑濮?;
-        case PURGE -> "鍒犻櫎闀滃儚鏁版嵁宸插紑濮?;
+        case FULL -> "全量同步已开始";
+        case COMPENSATION -> "补偿同步已开始";
+        case INCREMENTAL -> "手动增量同步已开始";
+        case WEBHOOK -> "精确更新已开始";
+        case PURGE -> "镜像数据删除已开始";
       };
-      case QUEUED -> "褰撳墠宸叉湁鍚屾浠诲姟鎵ц涓紝鏈璇锋眰宸茬櫥璁板埌涓嬩竴杞?;
-      case REUSED_ACTIVE -> "褰撳墠宸叉湁鍚岃寖鍥村悓姝ヤ换鍔℃墽琛屼腑锛屾湰娆¤姹傚凡鎺ユ敹锛屾棤闇€閲嶅鎿嶄綔";
-      case REUSED_QUEUED -> "褰撳墠宸叉湁鍚庣画鍚屾浠诲姟鎺掗槦涓紝鏈璇锋眰宸插悎骞跺埌鍚庣画鍚屾";
-      case DEDUPED -> "鍚屾浠诲姟宸叉彁浜わ紝璇峰嬁閲嶅鎿嶄綔";
+      case QUEUED -> "当前已有同步任务执行中，本次请求已登记到下一轮";
+      case REUSED_ACTIVE -> "当前已有同范围同步任务执行中，本次请求已接收，无需重复操作";
+      case REUSED_QUEUED -> "当前已有后续同步任务排队中，本次请求已合并到后续同步";
+      case DEDUPED -> "同步任务已提交，请勿重复操作";
     };
   }
 }

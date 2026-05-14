@@ -67,7 +67,7 @@ public class GitlabConfigService {
             .eq(GitlabSyncConfig::getWebhookEnabled, true)
             .orderByAsc(GitlabSyncConfig::getId));
     if (configs == null || configs.isEmpty()) {
-      throw new BizException("未启用 GitLab Webhook 数据源");
+      throw new BizException("未启用 GitLab System Hook 数据源");
     }
     configs.forEach(this::normalizePersistedSourceInstance);
     configs = configs.stream()
@@ -75,7 +75,7 @@ public class GitlabConfigService {
         .filter(config -> Boolean.TRUE.equals(config.getWebhookEnabled()))
         .toList();
     if (configs.isEmpty()) {
-      throw new BizException("未启用 GitLab Webhook 数据源");
+      throw new BizException("未启用 GitLab System Hook 数据源");
     }
     if (secret != null && !secret.isBlank()) {
       List<GitlabSyncConfig> matches = configs.stream()
@@ -86,10 +86,10 @@ public class GitlabConfigService {
         return matches.getFirst();
       }
       if (matches.size() > 1) {
-        throw new BizException("存在多个 GitLab 数据源使用相同的 Webhook Secret");
+        throw new BizException("存在多个 GitLab 数据源使用相同的 System Hook Secret");
       }
     }
-    throw new BizException("Webhook Secret 未提供或未匹配到已启用的数据源");
+    throw new BizException("System Hook Secret 未提供或未匹配到已启用的数据源");
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -251,7 +251,7 @@ public class GitlabConfigService {
       return;
     }
     if (normalized.getWebhookSecret() == null || normalized.getWebhookSecret().isBlank()) {
-      throw new BizException("启用 Webhook 时必须配置唯一的 Webhook Secret");
+      throw new BizException("启用 System Hook 时必须配置唯一的 Secret");
     }
     List<GitlabSyncConfig> matches =
         configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
@@ -261,7 +261,7 @@ public class GitlabConfigService {
     boolean duplicate = matches != null && matches.stream()
         .anyMatch(match -> match.getId() != null && !match.getId().equals(normalized.getId()));
     if (duplicate) {
-      throw new BizException("Webhook Secret 已被其他 GitLab 数据源使用");
+      throw new BizException("System Hook Secret 已被其他 GitLab 数据源使用");
     }
   }
 

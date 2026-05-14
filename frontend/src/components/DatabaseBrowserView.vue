@@ -75,6 +75,18 @@ const syncStatusTagType = computed(() => {
       return 'info';
   }
 });
+const syncStatusLabels: Record<string, string> = {
+  IDLE: '空闲',
+  SYNCING: '同步中',
+  ERROR: '异常',
+  SUCCESS: '成功',
+  FAILED: '失败',
+  PENDING: '待执行',
+  RUNNING: '执行中',
+  RETRYING: '重试中',
+  TIMEOUT: '已超时',
+  CANCELLED: '已取消',
+};
 const tableHeight = computed(() => Math.max(460, viewportHeight.value - 272));
 const editDialogVisible = ref(false);
 const editSaving = ref(false);
@@ -174,9 +186,12 @@ async function handleReset() {
 async function handleRefresh() {
   refreshingTable.value = true;
   try {
+    if (selectedTable.value) {
+      await api.refreshDatabaseTable(selectedTable.value);
+    }
     await loadTables();
     await loadRows();
-    ElMessage.success('当前表数据已重新加载');
+    ElMessage.success('当前表数据已刷新');
   } catch (error) {
     ElMessage.error((error as Error).message);
   } finally {
@@ -279,7 +294,8 @@ async function saveCollectFormEdit() {
 }
 
 function syncStatusText() {
-  return rowsResponse.value?.syncStatus || selectedOption.value?.syncStatus || 'IDLE';
+  const status = rowsResponse.value?.syncStatus || selectedOption.value?.syncStatus || 'IDLE';
+  return syncStatusLabels[status] ?? status;
 }
 
 function handleResize() {
@@ -360,7 +376,7 @@ onBeforeUnmount(() => {
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="handleReset">重置</el-button>
           <el-button :icon="Refresh" :loading="refreshingTable" @click="handleRefresh">重新加载表数据</el-button>
-          <span class="db-refresh-note">仅用于运维查看，不触发 GitLab 同步</span>
+          <span class="db-refresh-note">刷新会触发当前镜像表重新抓取源端数据</span>
         </div>
       </div>
 
@@ -377,7 +393,7 @@ onBeforeUnmount(() => {
             <div class="db-table-meta">
               <el-tag :type="syncStatusTagType" round>{{ syncStatusText() }}</el-tag>
               <SyncMetaBadge :value="formatTime(rowsResponse?.lastSyncTime || selectedOption?.lastSyncTime)" />
-              <span class="db-table-meta-text">Total: {{ total }}</span>
+              <span class="db-table-meta-text">总数：{{ total }}</span>
             </div>
           </div>
         </template>

@@ -117,7 +117,7 @@ describe('MirrorSettingsView mount smoke', () => {
           registered: true,
           projectId: 1,
           webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
-          message: 'GitLab System Hook registered',
+          message: 'GitLab System Hook 已注册',
           hooks: [],
         });
       }
@@ -155,32 +155,32 @@ describe('MirrorSettingsView mount smoke', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Recent sync activity');
-    expect(wrapper.text()).toContain('Delete mirror data');
-    expect(wrapper.text()).toContain('Success');
-    expect(wrapper.text()).toContain('Sync completed');
+    expect(wrapper.text()).toContain('最近同步日志');
+    expect(wrapper.text()).toContain('删除镜像数据');
+    expect(wrapper.text()).toContain('成功');
+    expect(wrapper.text()).toContain('同步已完成');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
 
-    const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('Delete mirror data'));
+    const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('删除镜像数据'));
     expect(openDialogButton).toBeTruthy();
     await openDialogButton!.trigger('click');
     await flushPromises();
 
     const confirmInput = wrapper.get('.purge-confirm-panel input');
-    await confirmInput.setValue('Delete mirror data');
+    await confirmInput.setValue('删除镜像数据');
     await flushPromises();
 
     const confirmButton = [...document.body.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Confirm deletion'),
+      button.textContent?.includes('确认删除'),
     ) as HTMLButtonElement | undefined;
     expect(confirmButton).toBeTruthy();
     confirmButton!.click();
     await flushPromises();
 
-    expect(document.body.textContent).toContain('Deleting mirror data');
+    expect(document.body.textContent).toContain('正在删除镜像数据');
     expect(document.body.textContent).toContain(
-      'Deleting local mirror data. Please keep this page open and avoid duplicate actions.',
+      '正在删除本地镜像数据，请勿关闭页面或重复操作。',
     );
     const scopeInputs = [...document.body.querySelectorAll('.purge-scope-card input')] as HTMLInputElement[];
     expect(scopeInputs).toHaveLength(2);
@@ -210,8 +210,8 @@ describe('MirrorSettingsView mount smoke', () => {
     await flushPromises();
 
     expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Dropped mirror tables: 3'),
-      'Deletion complete',
+      expect.stringContaining('删除镜像表：3'),
+      '删除完成',
       expect.objectContaining({ type: 'success' }),
     );
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/api/gitlab-sync/status')).length).toBeGreaterThanOrEqual(2);

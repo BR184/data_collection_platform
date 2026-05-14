@@ -30,7 +30,7 @@ function createLog(overrides: Partial<GitlabSyncLog> = {}): GitlabSyncLog {
 describe('mirror settings helpers', () => {
   it('formats sync status and type labels for display', () => {
     expect(syncStatusText('RUNNING')).toBe('执行中');
-    expect(syncStatusText('RETRYING')).toBe('等待重试');
+    expect(syncStatusText('RETRYING')).toBe('重试中');
     expect(syncStatusText('PARTIAL_SUCCESS')).toBe('部分成功');
     expect(syncStatusTagType('FAILED')).toBe('danger');
     expect(syncStatusTagType('PARTIAL_SUCCESS')).toBe('warning');
@@ -41,13 +41,13 @@ describe('mirror settings helpers', () => {
 
   it('translates known sync messages and falls back to default log copy', () => {
     expect(translateSyncMessage('Sync completed successfully')).toBe('同步已完成');
-    expect(translateSyncMessage('Triggered by webhook: issue#1', 'WEBHOOK')).toBe('Webhook 精确更新：issue#1');
+    expect(translateSyncMessage('Triggered by webhook: issue#1', 'WEBHOOK')).toBe('System Hook 已唤醒同步：issue#1');
     expect(
       translateSyncMessage(
         'Sync completed successfully, skipped 3 tables without time columns during compensation window scan',
       ),
-    ).toBe('同步已完成，补偿窗口扫描时跳过了 3 张缺少时间列的表');
-    expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('定时补偿窗口兜底同步。');
+    ).toBe('同步已完成，补偿扫描跳过了 3 张缺少时间列的表。');
+    expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('定时补偿扫描。');
   });
 
   it('formats log time and duration safely', () => {
@@ -69,8 +69,8 @@ describe('mirror settings helpers', () => {
       syncTimestampsReset: true,
     };
 
-    expect(buildPurgeSummaryHtml(result)).toContain('删除白名单外镜像数据已完成');
-    expect(buildPurgeSummaryHtml(result)).toContain('删除镜像表：3 张');
+    expect(buildPurgeSummaryHtml(result)).toContain('已删除白名单外镜像数据');
+    expect(buildPurgeSummaryHtml(result)).toContain('删除镜像表：3');
     expect(buildPurgeSummaryHtml(result)).toContain('同步时间：已重置');
   });
 });

@@ -11,7 +11,7 @@ function createRegistration(
     registered: true,
     projectId: 123,
     webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
-    message: 'GitLab System Hook registered',
+    message: 'GitLab System Hook 已注册',
     hooks: [],
     ...overrides,
   };
@@ -35,7 +35,7 @@ function setup() {
 describe('useMirrorWebhookRegistrationController', () => {
   it('loads system hook registration status into local state', async () => {
     const deps = setup();
-    const registration = createRegistration({ message: 'GitLab System Hook exists' });
+    const registration = createRegistration({ message: 'GitLab System Hook 已存在' });
     deps.getRegistrationStatus.mockResolvedValueOnce(registration);
     const controller = useMirrorWebhookRegistrationController(deps);
 
@@ -69,7 +69,7 @@ describe('useMirrorWebhookRegistrationController', () => {
 
     expect(deps.saveConfig).toHaveBeenCalledOnce();
     expect(deps.registerWebhook).toHaveBeenCalledOnce();
-    expect(deps.notifySuccess).toHaveBeenCalledWith('GitLab System Hook registered');
+    expect(deps.notifySuccess).toHaveBeenCalledWith('GitLab System Hook 已注册');
     expect(deps.loadStatus).toHaveBeenCalledWith(false, false);
     expect(deps.getRegistrationStatus).toHaveBeenCalledOnce();
     expect(controller.registeringWebhook.value).toBe(false);
