@@ -4,7 +4,7 @@
 
 **Goal:** 重构 GitLab 数据镜像同步体系，建立统一的任务调度、优先级、取消、进度、日志和监视能力，解决全量同步被插队、状态丢失、日志不可信、单表刷新边界不清和统计下钻无法跳转 GitLab 的问题。
 
-**Architecture:** 废弃旧的 `gitlab_sync_tasks` 执行语义，以新的统一 `sync_runs` 顶层运行单元承载全量、增量、单表刷新、System Hook、补偿扫描和事实层刷新。所有同步操作只提交任务，由后台调度器按数据源锁、优先级、线程预算和合并规则执行；前端只展示统一运行视图，不再从多个状态来源拼接当前状态。
+**Architecture:** 先删除旧同步模型及其入口，再建设新的统一 `sync_runs` 顶层运行单元，承载全量、增量、单表刷新、System Hook、补偿扫描和事实层刷新。所有同步操作只提交 `sync_runs`，由后台调度器按数据源锁、优先级、线程预算和合并规则执行；前端只展示统一运行视图，严禁从旧任务表、新任务表、日志表等多个状态来源拼接当前状态。
 
 **Tech Stack:** Spring Boot 3.5, Java 21, MyBatis Plus, PostgreSQL/Flyway, JdbcTemplate, Vue 3, Element Plus, Vitest, JUnit 5.
 
@@ -12,7 +12,7 @@
 
 ## Confirmed Problems From Code Reading
 
-当前系统同时存在两套任务模型：
+当前系统同时存在两套任务模型。对本方案而言，这两套都属于需要清理的旧/过渡模型，不能作为新运行时继续保留：
 
 - 旧模型：`gitlab_sync_tasks` / `gitlab_sync_logs`，保留了排队、取消、状态展示等逻辑。
 - 新模型：`gitlab_sync_jobs` / `gitlab_table_sync_tasks` / `gitlab_table_sync_states`，实际全量、增量、单表刷新主要走这里。
@@ -44,16 +44,142 @@
 - System Hook 允许高优先级，但必须按窗口合并，不允许无限创建小任务。
 - 事实层刷新只在镜像任务达到终态后触发，并显示独立阶段。
 
+## Hard Cutover Constraint
+
+This plan must be implemented as a hard cutover, not a compatibility migration.
+
+Mandatory rules:
+
+- Do not keep old and new schedulers runnable at the same time.
+- Do not keep controller branches such as "if old task exists, use old task; otherwise use sync run".
+- Do not keep UI fallback logic that reads legacy task/log tables for current status.
+- Do not keep request-thread direct drain behavior.
+- Do not keep old write paths behind feature flags.
+- Do not add `sync_runs` while continuing to submit work into `gitlab_sync_tasks` or `gitlab_sync_jobs`.
+- Historical data can be backed up before destructive cleanup, but runtime code must not read it as part of normal status, cancellation, progress, or logging.
+
+The implementation order is therefore:
+
+1. Delete or neutralize old model code and schema.
+2. Make the project compile with old model references removed.
+3. Add the new unified model.
+4. Implement every sync path only against the new model.
+
+## Task 0: Remove Legacy Sync Models Before Building the New One
+
+**Files:**
+
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabSyncTask.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabSyncLog.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabSyncJob.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabSyncJobType.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabTableSyncTask.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabTableSyncState.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabTableSyncTaskType.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabTableSyncDiagnosticsResponse.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/GitlabTableSyncStateDiagnostics.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/MirrorStatusTaskView.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/entity/MirrorStatusLogView.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/mapper/GitlabSyncTaskMapper.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/mapper/GitlabSyncLogMapper.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/mapper/GitlabSyncJobMapper.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/mapper/GitlabTableSyncTaskMapper.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/mapper/GitlabTableSyncStateMapper.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/service/GitlabSyncTaskService.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/service/GitlabSyncLogService.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncPlanningService.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncWorkerService.java`
+- Delete: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncDiagnosticsService.java`
+- Create: `backend/src/main/resources/db/migration/V20260515_00__remove_legacy_gitlab_sync_models.sql`
+- Modify: `backend/src/main/java/com/data/collection/platform/controller/GitlabSyncController.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabMirrorSyncService.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabSourceHealthService.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabCompensationScheduler.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabDailyVerificationScheduler.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/FactBuildTaskService.java`
+- Test: remove or rewrite legacy tests under `backend/src/test/java/com/data/collection/platform/service/GitlabSyncTaskServiceTest.java`
+- Test: update affected tests under `backend/src/test/java/com/data/collection/platform/controller/GitlabSyncControllerTest.java`
+
+**Step 1: Inventory all legacy references**
+
+Run:
+
+```bash
+rg "GitlabSyncTask|GitlabSyncLog|GitlabSyncJob|GitlabSyncJobType|GitlabTableSync|GitlabSyncTaskService|GitlabSyncLogService|GitlabSyncJobMapper|gitlab_sync_tasks|gitlab_sync_logs|gitlab_sync_jobs|gitlab_table_sync_tasks|gitlab_table_sync_states" backend/src
+```
+
+Expected: list all old model references before cleanup.
+
+**Step 2: Add a destructive cleanup migration for old runtime tables**
+
+Create `V20260515_00__remove_legacy_gitlab_sync_models.sql`.
+
+Minimum cleanup:
+
+```sql
+drop table if exists gitlab_table_sync_tasks cascade;
+drop table if exists gitlab_table_sync_states cascade;
+drop table if exists gitlab_sync_jobs cascade;
+drop table if exists gitlab_sync_tasks cascade;
+drop table if exists gitlab_sync_logs cascade;
+```
+
+If table-state data must be preserved for diagnosis, export it before running this migration. Do not keep these tables as runtime dependencies.
+
+**Step 3: Delete old Java model, mapper, and service files**
+
+Delete the files listed in this task. Do not leave deprecated wrappers.
+
+**Step 4: Remove old dependencies from constructors**
+
+Temporarily replace old runtime behavior with explicit unsupported placeholders while the new `sync_runs` services are added in later tasks.
+
+Acceptable temporary behavior:
+
+- `/status` returns `IDLE` with empty run/log arrays until `SyncRunStatusService` exists.
+- `/cancel` returns a clear message that cancellation is unavailable until `SyncRunCancellationService` is wired.
+
+Unacceptable temporary behavior:
+
+- Calling old task services.
+- Reading old task/log/job tables.
+- Directly draining old table job tasks.
+
+**Step 5: Prove no legacy references remain**
+
+Run:
+
+```bash
+rg "GitlabSyncTask|GitlabSyncLog|GitlabSyncJob|GitlabSyncJobType|GitlabTableSync|GitlabSyncTaskService|GitlabSyncLogService|GitlabSyncJobMapper|gitlab_sync_tasks|gitlab_sync_logs|gitlab_sync_jobs|gitlab_table_sync_tasks|gitlab_table_sync_states" backend/src
+```
+
+Expected: no matches, except inside this plan or intentionally archived docs outside `backend/src`.
+
+**Step 6: Compile to expose remaining coupling**
+
+Run:
+
+```bash
+cd backend
+mvn -DskipTests compile
+```
+
+Expected: pass after all legacy references have been removed or replaced by new-model TODO placeholders.
+
 ## Task 1: Add Unified Run Schema
 
 **Files:**
 
 - Create: `backend/src/main/resources/db/migration/V20260515_01__sync_orchestrator_core.sql`
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRun.java`
+- Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunTableTask.java`
+- Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunTableState.java`
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunType.java`
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunStatus.java`
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunPriority.java`
 - Create: `backend/src/main/java/com/data/collection/platform/mapper/SyncRunMapper.java`
+- Create: `backend/src/main/java/com/data/collection/platform/mapper/SyncRunTableTaskMapper.java`
+- Create: `backend/src/main/java/com/data/collection/platform/mapper/SyncRunTableStateMapper.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/FlywayMigrationSmokeTest.java`
 
 **Step 1: Write migration smoke coverage**
@@ -61,6 +187,8 @@
 Add assertions that the new tables exist after Flyway migration:
 
 - `sync_runs`
+- `sync_run_table_tasks`
+- `sync_run_table_states`
 - `sync_run_events`
 - `sync_worker_leases`
 
@@ -90,7 +218,7 @@ Expected: fail before migration exists, pass after migration.
 
 **Step 2: Create migration**
 
-Create `sync_runs` as the single source of truth for top-level status. Keep old tables in place for historical read-only fallback, but do not use them for new writes after the cutover task.
+Create `sync_runs` as the only runtime source of truth for top-level status. The old task/log/job tables must already be removed by Task 0, so this migration must not include compatibility views, fallback triggers, or bridge tables back to legacy models.
 
 Minimum schema:
 
@@ -131,6 +259,8 @@ Add indexes:
 - `(status, priority desc, created_at)`
 - `(config_id, source_instance, status)`
 - `(exclusive_scope, status)`
+
+Create `sync_run_table_tasks` and `sync_run_table_states` as new tables. They must not reuse the old `gitlab_table_sync_tasks` or `gitlab_table_sync_states` names.
 
 **Step 3: Create Java model and mapper**
 
@@ -212,8 +342,9 @@ Expected: pass.
 
 - Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunDispatcherService.java`
 - Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunWorkerService.java`
+- Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTablePlanningService.java`
+- Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTableWorkerService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabMirrorSyncService.java`
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncWorkerService.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/sync/SyncRunDispatcherServiceTest.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/sync/SyncRunWorkerServiceTest.java`
 
@@ -246,6 +377,7 @@ Change full/incremental/table refresh service methods so they only submit a `syn
 Do not call:
 
 - `tableSyncWorkerService.drainReadyTasksForJob(...)`
+- any method named `drainReadyTasksForJob(...)`
 
 from controller request paths.
 
@@ -317,7 +449,7 @@ Expected: pass.
 
 - Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunCancellationService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/controller/GitlabSyncController.java`
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncWorkerService.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTableWorkerService.java`
 - Modify: `frontend/src/views/useMirrorSyncActionsController.ts`
 - Test: `backend/src/test/java/com/data/collection/platform/service/sync/SyncRunCancellationServiceTest.java`
 - Test: `backend/src/test/java/com/data/collection/platform/controller/GitlabSyncControllerTest.java`
@@ -352,7 +484,7 @@ When cancellation is honored:
 
 ```bash
 cd backend
-mvn -Dtest=SyncRunCancellationServiceTest,GitlabSyncControllerTest,GitlabTableSyncWorkerServiceTest test
+mvn -Dtest=SyncRunCancellationServiceTest,GitlabSyncControllerTest,SyncRunTableWorkerServiceTest test
 ```
 
 Expected: pass.
@@ -364,8 +496,8 @@ Expected: pass.
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunProgressResponse.java`
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunLogResponse.java`
 - Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunStatusService.java`
+- Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunLogService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/controller/GitlabSyncController.java`
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabSyncLogService.java`
 - Modify: `frontend/src/types/api.ts`
 - Modify: `frontend/src/views/useMirrorStatusPresentation.ts`
 - Modify: `frontend/src/views/MirrorSyncStatusCard.vue`
@@ -435,11 +567,11 @@ Expected: pass.
 
 **Files:**
 
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncDiagnosticsService.java`
-- Modify: `backend/src/main/java/com/data/collection/platform/entity/GitlabTableSyncStateDiagnostics.java`
+- Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunTableStateDiagnostics.java`
+- Create: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTableDiagnosticsService.java`
 - Modify: `frontend/src/types/api.ts`
 - Modify: `frontend/src/views/MirrorSettingsView.vue`
-- Test: `backend/src/test/java/com/data/collection/platform/service/GitlabTableSyncDiagnosticsServiceTest.java`
+- Test: `backend/src/test/java/com/data/collection/platform/service/sync/SyncRunTableDiagnosticsServiceTest.java`
 - Test: `frontend/src/views/mirror-settings.mount-smoke.test.ts`
 
 **Step 1: Add diagnostic fields**
@@ -468,7 +600,7 @@ Show:
 
 ```bash
 cd backend
-mvn -Dtest=GitlabTableSyncDiagnosticsServiceTest test
+mvn -Dtest=SyncRunTableDiagnosticsServiceTest test
 
 cd ../frontend
 npm.cmd test -- src/views/mirror-settings.mount-smoke.test.ts
@@ -482,7 +614,7 @@ Expected: pass.
 
 - Modify: `backend/src/main/java/com/data/collection/platform/service/DatabaseBrowserService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabMirrorSyncService.java`
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabTableSyncPlanningService.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTablePlanningService.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/DatabaseBrowserServiceTest.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/GitlabMirrorSyncServiceTest.java`
 
@@ -652,26 +784,36 @@ npm.cmd run typecheck
 
 Expected: pass.
 
-## Task 12: Cut Over Old Task Model Safely
+## Task 12: Prove Single-Model Runtime and Document Operations
 
 **Files:**
 
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabSyncTaskService.java`
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabSyncLogService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/controller/GitlabSyncController.java`
+- Create: `backend/src/test/java/com/data/collection/platform/architecture/NoLegacySyncModelTest.java`
 - Create: `docs/gitlab-sync-orchestrator-runbook.md`
 - Test: `backend/src/test/java/com/data/collection/platform/controller/GitlabSyncControllerTest.java`
 
-**Step 1: Mark old model read-only**
+**Step 1: Add architecture guard test**
 
-Do not delete old tables in this phase. Stop using them for new submissions and cancellation.
+Create a test that fails if legacy model symbols return to runtime code.
 
-Allowed old-table use:
+Forbidden strings under `backend/src/main/java`:
 
-- Historical fallback display during migration.
-- One-time reconciliation if needed.
+- `GitlabSyncTask`
+- `GitlabSyncLog`
+- `GitlabSyncJob`
+- `GitlabSyncJobType`
+- `GitlabTableSync`
+- `GitlabSyncTaskService`
+- `GitlabSyncLogService`
+- `GitlabSyncJobMapper`
+- `gitlab_sync_tasks`
+- `gitlab_sync_logs`
+- `gitlab_sync_jobs`
+- `gitlab_table_sync_tasks`
+- `gitlab_table_sync_states`
 
-**Step 2: Controller compatibility**
+**Step 2: Verify endpoint implementation has no fallback branches**
 
 Existing endpoint paths may stay:
 
@@ -681,6 +823,13 @@ Existing endpoint paths may stay:
 - `/api/gitlab-sync/status`
 
 But their implementation must route through `SyncRunSubmissionService`, `SyncRunCancellationService`, and `SyncRunStatusService`.
+
+Forbidden controller patterns:
+
+- Reading old task/log/job mappers.
+- Returning status from old task/log/job tables.
+- Branching by old task existence.
+- Calling request-thread direct drain.
 
 **Step 3: Add runbook**
 
@@ -692,6 +841,7 @@ Runbook must include:
 - How to tune thread count.
 - How to interpret dirty table status.
 - What to collect for incident reports.
+- Explicit note that legacy task/log/job tables and services were removed and are not operational fallbacks.
 
 **Step 4: Run regression tests**
 
@@ -708,19 +858,20 @@ Expected: pass.
 
 ## Rollout Plan
 
-1. Ship schema and read-only monitor first, without changing write path.
-2. Enable new submission path behind property `platform.gitlab-mirror.sync-run-orchestrator-enabled`.
-3. Run full sync on staging with million-level data.
-4. Validate:
+1. Stop sync schedulers and block manual sync operations in the target environment.
+2. Back up the database if historical old task/log data must be retained outside runtime.
+3. Apply the destructive cleanup migration from Task 0.
+4. Deploy code with only the `sync_runs` runtime model.
+5. Run full sync on staging with million-level data.
+6. Validate:
    - No single-table refresh interrupts full sync.
    - Cancel works on active full sync.
    - Recent logs show running and terminal runs.
    - Record counts match `rows_applied`.
    - Fact layer refresh is visible after mirror completion.
    - Dirty table count matches diagnostics.
-5. Enable for production-like test source.
-6. Remove request-thread direct drain.
-7. Keep old tables for audit until a later cleanup migration.
+7. Run the architecture guard that proves no old model references exist.
+8. Enable for production-like test source.
 
 ## Acceptance Criteria
 
@@ -734,6 +885,8 @@ Expected: pass.
 - Thread count can be fixed or CPU-ratio based.
 - Frontend shows worker/thread usage and queue depth.
 - Statistic drilldown issue numbers open the corresponding GitLab issue page.
+- No runtime code references legacy sync task/log/job services, mappers, entities, or tables.
+- No endpoint uses a legacy fallback branch for current status, cancellation, progress, or logs.
 
 ## Verification Matrix
 
@@ -741,10 +894,13 @@ Backend targeted:
 
 ```bash
 cd backend
+rg "GitlabSyncTask|GitlabSyncLog|GitlabSyncJob|GitlabSyncJobType|GitlabTableSync|GitlabSyncTaskService|GitlabSyncLogService|GitlabSyncJobMapper|gitlab_sync_tasks|gitlab_sync_logs|gitlab_sync_jobs|gitlab_table_sync_tasks|gitlab_table_sync_states" src/main/java
 mvn -Dtest=SyncRunSubmissionServiceTest,SyncRunDispatcherServiceTest,SyncRunWorkerServiceTest,SyncRunCancellationServiceTest,SyncRunStatusServiceTest test
-mvn -Dtest=GitlabMirrorSyncServiceTest,GitlabTableSyncWorkerServiceTest,GitlabTableSyncDiagnosticsServiceTest test
+mvn -Dtest=GitlabMirrorSyncServiceTest,SyncRunTableWorkerServiceTest,SyncRunTableDiagnosticsServiceTest test
 mvn -Dtest=DatabaseBrowserServiceTest,FactBuildTaskServiceTest,FactRefreshTaskWorkerServiceTest test
 ```
+
+Expected for the `rg` command: no output.
 
 Frontend targeted:
 
@@ -786,8 +942,7 @@ Manual million-level scenario:
 
 ## Non-Goals
 
-- Do not preserve old `gitlab_sync_tasks` behavior for new execution.
+- Do not preserve old `gitlab_sync_tasks`, `gitlab_sync_logs`, `gitlab_sync_jobs`, `gitlab_table_sync_tasks`, or `gitlab_table_sync_states` behavior for new execution.
 - Do not optimize every mirror table query in this phase.
-- Do not delete historical old task/log tables in the same change.
 - Do not add arbitrary SQL execution to the database browser.
-
+- Do not build compatibility adapters from legacy tables into the new status model.
