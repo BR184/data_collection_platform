@@ -13,13 +13,13 @@ describe('mirrorApi system hook endpoints', () => {
   });
 
   it('uses system hook registration status path', () => {
-    mirrorApi.getWebhookRegistrationStatus(12);
+    mirrorApi.getSystemHookRegistrationStatus(12);
 
     expect(request).toHaveBeenCalledWith('/api/gitlab-sync/system-hook-registration-status?configId=12');
   });
 
   it('uses system hook registration path', () => {
-    mirrorApi.registerWebhook(12);
+    mirrorApi.registerSystemHook(12);
 
     expect(request).toHaveBeenCalledWith('/api/gitlab-sync/register-system-hook/by-config?configId=12', {
       method: 'POST',

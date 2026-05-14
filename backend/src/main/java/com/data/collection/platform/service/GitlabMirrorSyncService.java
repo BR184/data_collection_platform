@@ -40,7 +40,7 @@ public class GitlabMirrorSyncService {
   private final GitlabSyncLogService logService;
   private final GitlabSyncTaskService taskService;
   @SuppressWarnings("unused")
-  private final GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
+  private final GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
   @SuppressWarnings("unused")
   private final GitlabMirrorProperties properties;
   @SuppressWarnings("unused")
@@ -61,7 +61,7 @@ public class GitlabMirrorSyncService {
       GitlabMirrorRecordMapper mirrorRecordMapper,
       GitlabSyncLogService logService,
       GitlabSyncTaskService taskService,
-      GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner,
+      GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner,
       GitlabMirrorProperties properties,
       JsonUtils jsonUtils,
       FactBuildTaskService factBuildTaskService,
@@ -76,7 +76,7 @@ public class GitlabMirrorSyncService {
     this.mirrorRecordMapper = mirrorRecordMapper;
     this.logService = logService;
     this.taskService = taskService;
-    this.webhookPreciseSyncPlanner = webhookPreciseSyncPlanner;
+    this.systemHookPreciseSyncPlanner = systemHookPreciseSyncPlanner;
     this.properties = properties;
     this.jsonUtils = jsonUtils;
     this.factBuildTaskService = factBuildTaskService;

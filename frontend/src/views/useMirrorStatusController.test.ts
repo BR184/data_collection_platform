@@ -50,7 +50,7 @@ describe('useMirrorStatusController', () => {
     const deps = {
       form,
       loadStatusData: vi.fn(async () => response),
-      loadWebhookRegistration: vi.fn(),
+      loadSystemHookRegistration: vi.fn(),
       notifyError: vi.fn(),
     };
     const controller = useMirrorStatusController(deps);
@@ -79,12 +79,12 @@ describe('useMirrorStatusController', () => {
     });
   });
 
-  it('refreshes status without blocking and reloads webhook registration', async () => {
+  it('refreshes status without blocking and reloads system hook registration', async () => {
     const form = ref(createConfig());
     const deps = {
       form,
       loadStatusData: vi.fn(async () => createStatus()),
-      loadWebhookRegistration: vi.fn<() => void>(),
+      loadSystemHookRegistration: vi.fn<() => void>(),
       notifyError: vi.fn(),
     };
     const controller = useMirrorStatusController(deps);
@@ -93,7 +93,7 @@ describe('useMirrorStatusController', () => {
 
     expect(controller.refreshing.value).toBe(false);
     expect(controller.loading.value).toBe(false);
-    expect(deps.loadWebhookRegistration).toHaveBeenCalledOnce();
+    expect(deps.loadSystemHookRegistration).toHaveBeenCalledOnce();
   });
 
   it('starts and stops running status polling', () => {
@@ -103,7 +103,7 @@ describe('useMirrorStatusController', () => {
     const deps = {
       form,
       loadStatusData: vi.fn(async () => createStatus()),
-      loadWebhookRegistration: vi.fn(),
+      loadSystemHookRegistration: vi.fn(),
       notifyError: vi.fn(),
       setInterval: vi.fn((callback: () => void) => {
         intervalIds.push(intervalIds.length + 1);
@@ -132,7 +132,7 @@ describe('useMirrorStatusController', () => {
       loadStatusData: vi.fn(async () => {
         throw new Error('Status load failed');
       }),
-      loadWebhookRegistration: vi.fn(),
+      loadSystemHookRegistration: vi.fn(),
       notifyError: vi.fn(),
     };
     const controller = useMirrorStatusController(deps);

@@ -22,7 +22,7 @@ import com.data.collection.platform.entity.GitlabSyncJob;
 import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
-import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
+import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.SourceMode;
@@ -43,8 +43,8 @@ import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
 import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
 import com.data.collection.platform.service.GitlabTableSyncPlanningService;
-import com.data.collection.platform.service.GitlabWebhookRegistrationService;
-import com.data.collection.platform.service.GitlabWebhookService;
+import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
+import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -78,13 +78,13 @@ class GitlabSyncControllerTest {
   private GitlabWhitelistService whitelistService;
 
   @Mock
-  private GitlabWebhookService webhookService;
+  private GitlabSystemHookService systemHookService;
 
   @Mock
   private GitlabSyncTaskService taskService;
 
   @Mock
-  private GitlabWebhookRegistrationService webhookRegistrationService;
+  private GitlabSystemHookRegistrationService systemHookRegistrationService;
 
   @Mock
   private GitlabMirrorPurgeService purgeService;
@@ -107,16 +107,16 @@ class GitlabSyncControllerTest {
   @BeforeEach
   void setUp() {
     properties = new GitlabMirrorProperties();
-    properties.setWebhookBaseUrl("http://localhost:18080/api/gitlab-sync/webhook");
+    properties.setWebhookBaseUrl("http://localhost:18080/api/gitlab-sync/system-hook");
     GitlabSyncController controller = new GitlabSyncController(
         configService,
         syncService,
         logService,
         whitelistService,
         properties,
-        webhookService,
+        systemHookService,
         taskService,
-        webhookRegistrationService,
+        systemHookRegistrationService,
         purgeService,
         sourceHealthService,
         externalDbService,
@@ -286,20 +286,20 @@ class GitlabSyncControllerTest {
   }
 
   @Test
-  void webhookRegistrationStatusShouldReturnAsyncStatusPayload() throws Exception {
+  void systemHookRegistrationStatusShouldReturnAsyncStatusPayload() throws Exception {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
-    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
-        .thenReturn(new GitlabWebhookRegistrationStatus(
+    when(systemHookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+        .thenReturn(new GitlabSystemHookRegistrationStatus(
             true,
             true,
             false,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "\u5c1a\u672a\u6ce8\u518c GitLab System Hook",
             List.of()));
 
-    mockMvc.perform(get("/api/gitlab-sync/webhook-registration-status"))
+    mockMvc.perform(get("/api/gitlab-sync/system-hook-registration-status"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.registered").value(false))
@@ -341,7 +341,7 @@ class GitlabSyncControllerTest {
   }
 
   @Test
-  void diagnosticsShouldReturnDirectConnectionAndWebhookReadiness() throws Exception {
+  void diagnosticsShouldReturnDirectConnectionAndSystemHookReadiness() throws Exception {
     GitlabSyncConfig config = baseConfig();
     config.setSourceMode(SourceMode.DIRECT);
     config.setSourceInstance("inner-gitlab");
@@ -364,13 +364,13 @@ class GitlabSyncControllerTest {
             List.of(
                 new GitlabSourceTableDiagnosticsResponse("issues", "id", "updated_at", "INCREMENTAL", "abc123", true),
                 new GitlabSourceTableDiagnosticsResponse("merge_requests", "id", "updated_at", "INCREMENTAL", "def456", true))));
-    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
-        .thenReturn(new GitlabWebhookRegistrationStatus(
+    when(systemHookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+        .thenReturn(new GitlabSystemHookRegistrationStatus(
             false,
             true,
             false,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "\u76f4\u8fde\u6a21\u5f0f\u4e0d\u652f\u6301\u81ea\u52a8\u6ce8\u518c\uff0c\u4f46 System Hook \u63a5\u6536\u5165\u53e3\u53ef\u7528",
             List.of()));
 
@@ -392,7 +392,7 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.webhookSecretConfigured").value(true))
         .andExpect(jsonPath("$.data.webhookSecretUnique").value(true))
         .andExpect(jsonPath("$.data.webhookConfigMessage").value("\u76f4\u8fde\u6a21\u5f0f\u652f\u6301\u63a5\u6536 System Hook\uff0c\u8bf7\u5728 GitLab \u7ba1\u7406\u540e\u53f0\u6ce8\u518c"))
-        .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/webhook"))
+        .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/system-hook"))
         .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
         .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false))
         .andExpect(jsonPath("$.data.runtimeWarnings").isEmpty());
@@ -416,13 +416,13 @@ class GitlabSyncControllerTest {
             0,
             0,
             List.of()));
-    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
-        .thenReturn(new GitlabWebhookRegistrationStatus(
+    when(systemHookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+        .thenReturn(new GitlabSystemHookRegistrationStatus(
             true,
             true,
             false,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "not registered",
             List.of()));
 
@@ -448,13 +448,13 @@ class GitlabSyncControllerTest {
             0,
             0,
             List.of()));
-    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
-        .thenReturn(new GitlabWebhookRegistrationStatus(
+    when(systemHookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+        .thenReturn(new GitlabSystemHookRegistrationStatus(
             true,
             true,
             false,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "not registered",
             List.of()));
 
@@ -474,13 +474,13 @@ class GitlabSyncControllerTest {
     Mockito.doThrow(new BizException("metadata denied")).when(whitelistService).listOptionsStrict(config);
     when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
         .thenReturn(GitlabSourceMetadataDiagnosticsResponse.failure("metadata denied"));
-    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
-        .thenReturn(new GitlabWebhookRegistrationStatus(
+    when(systemHookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+        .thenReturn(new GitlabSystemHookRegistrationStatus(
             true,
             true,
             false,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "not registered",
             List.of()));
 
@@ -494,7 +494,7 @@ class GitlabSyncControllerTest {
   }
 
   @Test
-  void diagnosticsShouldReturnWebhookStatusFailureWithoutThrowing() throws Exception {
+  void diagnosticsShouldReturnSystemHookStatusFailureWithoutThrowing() throws Exception {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
     when(whitelistService.listOptionsStrict(config)).thenReturn(List.of());
@@ -508,8 +508,8 @@ class GitlabSyncControllerTest {
             0,
             List.of()));
     Mockito.doThrow(new BizException("docker command failed"))
-        .when(webhookRegistrationService)
-        .getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook"));
+        .when(systemHookRegistrationService)
+        .getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook"));
 
     mockMvc.perform(post("/api/gitlab-sync/diagnostics"))
         .andExpect(status().isOk())
@@ -649,7 +649,7 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.accepted").value(true));
 
-    verify(webhookService).accept(
+    verify(systemHookService).accept(
         eq("Issue Hook"),
         eq(Map.of(
             "object_kind", "issue",
@@ -662,17 +662,17 @@ class GitlabSyncControllerTest {
   void registerSystemHookShouldReturnRegistrationStatus() throws Exception {
     GitlabSyncConfig config = baseConfig();
     when(configService.getConfig()).thenReturn(config);
-    when(webhookRegistrationService.ensureRegistered(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
-        .thenReturn(new GitlabWebhookRegistrationStatus(
+    when(systemHookRegistrationService.ensureRegistered(eq(config), eq("http://localhost:18080/api/gitlab-sync/system-hook")))
+        .thenReturn(new GitlabSystemHookRegistrationStatus(
             true,
             true,
             true,
             1L,
-            "http://localhost:18080/api/gitlab-sync/webhook",
+            "http://localhost:18080/api/gitlab-sync/system-hook",
             "GitLab System Hook \u5df2\u6ce8\u518c",
-            List.of(new GitlabWebhookRegistrationStatus.RegisteredGitlabWebhook(
+            List.of(new GitlabSystemHookRegistrationStatus.RegisteredGitlabSystemHook(
                 1L,
-                "http://localhost:18080/api/gitlab-sync/webhook",
+                "http://localhost:18080/api/gitlab-sync/system-hook",
                 true,
                 true,
                 true,

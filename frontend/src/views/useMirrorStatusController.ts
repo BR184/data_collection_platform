@@ -6,7 +6,7 @@ const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNI
 export interface MirrorStatusControllerDependencies {
   form: Ref<GitlabSyncConfig>;
   loadStatusData: () => Promise<MirrorStatusResponse>;
-  loadWebhookRegistration: () => void;
+  loadSystemHookRegistration: () => void;
   notifyError: (message: string) => void;
   setInterval?: (callback: () => void, timeout: number) => number;
   clearInterval?: (timerId: number) => void;
@@ -60,7 +60,7 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
     refreshing.value = true;
     try {
       await loadStatus(false, false);
-      deps.loadWebhookRegistration();
+      deps.loadSystemHookRegistration();
     } finally {
       refreshing.value = false;
     }

@@ -11,12 +11,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class GitlabWebhookRegistrationServiceTest {
-  private GitlabWebhookRegistrationService service;
+class GitlabSystemHookRegistrationServiceTest {
+  private GitlabSystemHookRegistrationService service;
 
   @BeforeEach
   void setUp() {
-    service = new GitlabWebhookRegistrationService(new GitlabMirrorProperties(), new ObjectMapper());
+    service = new GitlabSystemHookRegistrationService(new GitlabMirrorProperties(), new ObjectMapper());
   }
 
   @Test

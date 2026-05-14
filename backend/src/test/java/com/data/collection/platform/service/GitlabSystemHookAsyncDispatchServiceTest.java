@@ -14,12 +14,12 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class GitlabWebhookAsyncDispatchServiceTest {
+class GitlabSystemHookAsyncDispatchServiceTest {
   private GitlabConfigService configService;
   private GitlabMirrorSchemaService mirrorSchemaService;
   private GitlabWhitelistService whitelistService;
   private GitlabTableSyncPlanningService tableSyncPlanningService;
-  private GitlabWebhookAsyncDispatchService service;
+  private GitlabSystemHookAsyncDispatchService service;
 
   @BeforeEach
   void setUp() {
@@ -27,7 +27,7 @@ class GitlabWebhookAsyncDispatchServiceTest {
     mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
     whitelistService = mock(GitlabWhitelistService.class);
     tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
-    service = new GitlabWebhookAsyncDispatchService(
+    service = new GitlabSystemHookAsyncDispatchService(
         configService,
         mirrorSchemaService,
         whitelistService,

@@ -12,13 +12,13 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-public class GitlabWebhookAsyncDispatchService {
+public class GitlabSystemHookAsyncDispatchService {
   private final GitlabConfigService configService;
   private final GitlabMirrorSchemaService mirrorSchemaService;
   private final GitlabWhitelistService whitelistService;
   private final GitlabTableSyncPlanningService tableSyncPlanningService;
 
-  public GitlabWebhookAsyncDispatchService(
+  public GitlabSystemHookAsyncDispatchService(
       GitlabConfigService configService,
       GitlabMirrorSchemaService mirrorSchemaService,
       GitlabWhitelistService whitelistService,
@@ -44,7 +44,7 @@ public class GitlabWebhookAsyncDispatchService {
                GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
            GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_REUSED")) {
         log.info(
-            "Webhook wakeup marked source dirty and reused active compensation scan, eventType={}, dirtyTables={}",
+            "System Hook wakeup marked source dirty and reused active compensation scan, eventType={}, dirtyTables={}",
             eventType,
             dirtyTables);
       }
@@ -56,7 +56,7 @@ public class GitlabWebhookAsyncDispatchService {
              GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
          GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_QUEUED")) {
       log.info(
-          "Webhook wakeup marked source dirty and queued compensation scan, eventType={}, dirtyTables={}, jobId={}, discoveredTables={}, plannedTasks={}, verifyOnlyTables={}",
+          "System Hook wakeup marked source dirty and queued compensation scan, eventType={}, dirtyTables={}, jobId={}, discoveredTables={}, plannedTasks={}, verifyOnlyTables={}",
           eventType,
           dirtyTables,
           result.jobId(),

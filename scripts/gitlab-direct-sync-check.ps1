@@ -1,9 +1,9 @@
 param(
   [string] $BaseUrl = "http://localhost:18080",
   [int] $ConfigId = 1,
-  [string] $WebhookSecret = "",
+  [Alias("WebhookSecret")]
   [string] $SystemHookSecret = "",
-  [switch] $SimulateWebhook,
+  [Alias("SimulateWebhook")]
   [switch] $SimulateSystemHook,
   [switch] $StartIncrementalSync,
   [switch] $RunPageRefreshSmoke,
@@ -15,9 +15,12 @@ param(
   [string] $PageRefreshBoardKey = "system-test-defect-summary",
   [string] $ReviewDataContextResourceType = "merge_request",
   [int[]] $ReviewDataContextRecordIds = @(),
-  [int] $WebhookProjectId = 10,
-  [int] $WebhookObjectId = 101,
-  [string] $WebhookTitle = "Simulated issue from direct sync check",
+  [Alias("WebhookProjectId")]
+  [int] $SystemHookProjectId = 10,
+  [Alias("WebhookObjectId")]
+  [int] $SystemHookObjectId = 101,
+  [Alias("WebhookTitle")]
+  [string] $SystemHookTitle = "Simulated issue from direct sync check",
   [switch] $DryRun
 )
 
@@ -159,17 +162,21 @@ if (-not $DryRun) {
   Write-Host "connectionOk: $($data.connectionOk) - $($data.connectionMessage)"
   Write-Host "whitelistOk: $($data.whitelistOk) - $($data.whitelistMessage)"
   Write-Host "whitelistOptionCount: $($data.whitelistOptionCount)"
-  Write-Host "webhookReceiverUrl: $($data.webhookReceiverUrl)"
-  Write-Host "webhookAutoRegistrationSupported: $($data.webhookAutoRegistrationSupported)"
-  Write-Host "webhookAutoRegistered: $($data.webhookAutoRegistered)"
-  Write-Host "webhookMessage: $($data.webhookMessage)"
+  $systemHookReceiverUrl = if ($data.systemHookReceiverUrl) { $data.systemHookReceiverUrl } else { $data.webhookReceiverUrl }
+  $systemHookAutoRegistrationSupported = if ($null -ne $data.systemHookAutoRegistrationSupported) { $data.systemHookAutoRegistrationSupported } else { $data.webhookAutoRegistrationSupported }
+  $systemHookAutoRegistered = if ($null -ne $data.systemHookAutoRegistered) { $data.systemHookAutoRegistered } else { $data.webhookAutoRegistered }
+  $systemHookMessage = if ($data.systemHookMessage) { $data.systemHookMessage } else { $data.webhookMessage }
+  Write-Host "systemHookReceiverUrl: $systemHookReceiverUrl"
+  Write-Host "systemHookAutoRegistrationSupported: $systemHookAutoRegistrationSupported"
+  Write-Host "systemHookAutoRegistered: $systemHookAutoRegistered"
+  Write-Host "systemHookMessage: $systemHookMessage"
 
   Write-Check "Database connection is healthy" ([bool] $data.connectionOk) $data.connectionMessage
   Write-Check "Whitelist discovery is healthy" ([bool] $data.whitelistOk) $data.whitelistMessage
   Write-Check "Whitelist has discovered tables" ([int] $data.whitelistOptionCount -gt 0) "count=$($data.whitelistOptionCount)"
-  Write-Check "Webhook receiver URL is present" (-not [string]::IsNullOrWhiteSpace($data.webhookReceiverUrl)) $data.webhookReceiverUrl
+  Write-Check "System Hook receiver URL is present" (-not [string]::IsNullOrWhiteSpace($systemHookReceiverUrl)) $systemHookReceiverUrl
   if ($data.sourceMode -eq "DIRECT") {
-    Write-Check "Direct mode skips automatic webhook registration as expected" (-not [bool] $data.webhookAutoRegistrationSupported) ""
+    Write-Check "Direct mode skips automatic System Hook registration as expected" (-not [bool] $systemHookAutoRegistrationSupported) ""
   }
 }
 
@@ -362,21 +369,21 @@ if ($StartIncrementalSync) {
   Wait-For-StableStatus
 }
 
-if ($SimulateWebhook -or $SimulateSystemHook) {
-  $effectiveSystemHookSecret = if (-not [string]::IsNullOrWhiteSpace($SystemHookSecret)) { $SystemHookSecret } else { $WebhookSecret }
+if ($SimulateSystemHook) {
+  $effectiveSystemHookSecret = $SystemHookSecret
   Write-Section "Simulated issue system hook"
   if ([string]::IsNullOrWhiteSpace($effectiveSystemHookSecret)) {
-    throw "SystemHookSecret or WebhookSecret is required when hook simulation is used"
+    throw "SystemHookSecret is required when hook simulation is used"
   }
 
   $payload = @{
     object_kind = "issue"
     event_type = "issue"
-    project_id = $WebhookProjectId
+    project_id = $SystemHookProjectId
     object_attributes = @{
-      id = $WebhookObjectId
-      iid = $WebhookObjectId
-      title = $WebhookTitle
+      id = $SystemHookObjectId
+      iid = $SystemHookObjectId
+      title = $SystemHookTitle
       action = "update"
     }
   }
@@ -385,10 +392,10 @@ if ($SimulateWebhook -or $SimulateSystemHook) {
     "X-Gitlab-Event" = "Issue Hook"
     "X-Gitlab-Token" = $effectiveSystemHookSecret
   }
-  $webhook = Invoke-PlatformApi -Method POST -Path "/api/gitlab-sync/system-hook" -Body $payload -Headers $headers
-  Assert-ApiSuccess "System hook receiver returned success" $webhook
+  $systemHook = Invoke-PlatformApi -Method POST -Path "/api/gitlab-sync/system-hook" -Body $payload -Headers $headers
+  Assert-ApiSuccess "System hook receiver returned success" $systemHook
   if (-not $DryRun) {
-    Write-Check "System hook receiver accepted payload" ([bool] $webhook.data.accepted) ""
+    Write-Check "System hook receiver accepted payload" ([bool] $systemHook.data.accepted) ""
   }
   Wait-For-StableStatus
 }

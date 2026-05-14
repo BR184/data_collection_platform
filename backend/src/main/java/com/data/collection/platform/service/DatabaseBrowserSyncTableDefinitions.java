@@ -50,7 +50,7 @@ final class DatabaseBrowserSyncTableDefinitions {
             column("finished_at", "结束时间")),
         "gitlab_webhook_events",
         definition(
-            "Webhook 事件",
+            "System Hook 事件",
             List.of("event_type", "project_path", "event_id", "delivery_id"),
             "id",
             column("id", "ID"),

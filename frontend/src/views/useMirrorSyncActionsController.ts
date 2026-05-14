@@ -9,7 +9,7 @@ export interface MirrorSyncActionsControllerDependencies {
   startIncrementalSyncData: () => Promise<SyncSubmissionResponse>;
   cancelSyncData: () => Promise<{ accepted: boolean; taskId?: number; status?: string }>;
   loadStatus: (showError: boolean, blocking: boolean) => Promise<void>;
-  loadWebhookRegistration: () => void;
+  loadSystemHookRegistration: () => void;
   notifySuccess: (message: string) => void;
   notifyWarning: (message: string) => void;
   notifyInfo: (message: string) => void;
@@ -51,7 +51,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
         deps.notifySuccess('配置已保存');
       }
       await deps.loadStatus(false, false);
-      deps.loadWebhookRegistration();
+      deps.loadSystemHookRegistration();
     } catch (error) {
       deps.notifyError((error as Error).message);
       throw error;

@@ -15,7 +15,7 @@ import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
 import { useMirrorStatusController } from './useMirrorStatusController';
 import { useMirrorStatusPresentation } from './useMirrorStatusPresentation';
 import { useMirrorSyncActionsController } from './useMirrorSyncActionsController';
-import { useMirrorWebhookRegistrationController } from './useMirrorWebhookRegistrationController';
+import { useMirrorSystemHookRegistrationController } from './useMirrorSystemHookRegistrationController';
 import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptionsController';
 
 const initialized = ref(false);
@@ -61,8 +61,8 @@ const {
 } = useMirrorStatusController({
   form,
   loadStatusData: () => api.getStatus(selectedConfigId.value),
-  loadWebhookRegistration: () => {
-    void loadWebhookRegistration(false);
+  loadSystemHookRegistration: () => {
+    void loadSystemHookRegistration(false);
   },
   notifyError: (message) => ElMessage.error(message),
 });
@@ -106,8 +106,8 @@ const {
   startIncrementalSyncData: () => api.startIncrementalSync(selectedConfigId.value),
   cancelSyncData: () => api.cancelSync(selectedConfigId.value),
   loadStatus: (showError, blocking) => loadStatus(showError, blocking),
-  loadWebhookRegistration: () => {
-    void loadWebhookRegistration(false);
+  loadSystemHookRegistration: () => {
+    void loadSystemHookRegistration(false);
   },
   notifySuccess: (message) => ElMessage.success(message),
   notifyWarning: (message) => ElMessage.warning(message),
@@ -116,15 +116,15 @@ const {
 });
 
 const {
-  registeringWebhook,
-  webhookRegistrationLoading,
-  webhookRegistration,
-  loadWebhookRegistration,
-  registerWebhook,
-} = useMirrorWebhookRegistrationController({
-  getRegistrationStatus: () => api.getWebhookRegistrationStatus(selectedConfigId.value),
+  registeringSystemHook,
+  systemHookRegistrationLoading,
+  systemHookRegistration,
+  loadSystemHookRegistration,
+  registerSystemHook,
+} = useMirrorSystemHookRegistrationController({
+  getRegistrationStatus: () => api.getSystemHookRegistrationStatus(selectedConfigId.value),
   saveConfig: () => saveConfig(false),
-  registerWebhook: () => api.registerWebhook(selectedConfigId.value),
+  registerSystemHook: () => api.registerSystemHook(selectedConfigId.value),
   loadStatus: (showError, blocking) => loadStatus(showError, blocking),
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
@@ -137,38 +137,62 @@ const sourceSelectPlaceholder = computed(() =>
   isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
 );
 const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
-const webhookAutoRegistrationDisabled = computed(() =>
+const systemHookAutoRegistrationDisabled = computed(() =>
   savedConfigActionDisabled.value || !isDockerMode.value || !form.value.webhookEnabled,
 );
 const systemHookStatusTagType = computed(() => {
-  if (!isDockerMode.value || webhookRegistrationLoading.value) {
+  if (!isDockerMode.value || systemHookRegistrationLoading.value) {
     return 'info';
   }
-  if (webhookRegistration.value?.registered) {
+  if (systemHookRegistration.value?.registered) {
     return 'success';
   }
-  return webhookRegistration.value?.configured ? 'warning' : 'info';
+  return systemHookRegistration.value?.configured ? 'warning' : 'info';
 });
 const systemHookStatusLabel = computed(() => {
-  if (webhookRegistrationLoading.value) {
+  if (systemHookRegistrationLoading.value) {
     return '检测中';
   }
   if (!isDockerMode.value) {
     return '需手动注册';
   }
-  if (webhookRegistration.value?.registered) {
+  if (systemHookRegistration.value?.registered) {
     return '已注册';
   }
-  return webhookRegistration.value?.configured ? '未注册' : '未配置';
+  return systemHookRegistration.value?.configured ? '未注册' : '未配置';
 });
 const systemHookStatusMessage = computed(() => {
-  if (webhookRegistrationLoading.value) {
+  if (systemHookRegistrationLoading.value) {
     return '正在异步检测 GitLab System Hook 状态，不影响页面其他信息加载。';
   }
   if (!isDockerMode.value) {
     return '直连模式需在 GitLab 管理后台手动注册 System Hook，平台无法自动检测注册状态。';
   }
-  return webhookRegistration.value?.message || '尚未检测 GitLab System Hook 状态。';
+  return systemHookRegistration.value?.message || '尚未检测 GitLab System Hook 状态。';
+});
+const duplicatePhysicalSourceMatches = computed(() => {
+  const currentFingerprint = physicalSourceFingerprint(form.value);
+  if (!currentFingerprint) {
+    return [];
+  }
+  return configs.value.filter((candidate) => {
+    if (!isSourceEnabled(candidate)) {
+      return false;
+    }
+    if (candidate.id != null && selectedConfigId.value != null && candidate.id === selectedConfigId.value) {
+      return false;
+    }
+    return physicalSourceFingerprint(candidate) === currentFingerprint;
+  });
+});
+const duplicatePhysicalSourceWarning = computed(() => {
+  if (!isSourceEnabled(form.value) || duplicatePhysicalSourceMatches.value.length === 0) {
+    return '';
+  }
+  const names = duplicatePhysicalSourceMatches.value
+    .map((item) => `${item.name || '未命名数据源'}（${item.sourceInstance || 'default'}）`)
+    .join('、');
+  return `当前数据源和 ${names} 指向同一个 GitLab 源库。平台不会阻止保存，但如果这些源同时启用，同一批 Issue、MR 和评论可能进入事实层多次，业务页面会看到重复数据。`;
 });
 const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
@@ -353,7 +377,7 @@ async function initializePage() {
   } finally {
     initialized.value = true;
   }
-  void loadWebhookRegistration(false);
+  void loadSystemHookRegistration(false);
 }
 
 async function loadConfigs() {
@@ -395,7 +419,7 @@ async function handleConfigSelection(configId: number) {
   await loadStatus(true, true);
   void loadSourceHealth();
   void loadTableSyncDiagnostics(true);
-  void loadWebhookRegistration(false);
+  void loadSystemHookRegistration(false);
 }
 
 function createNewConfig() {
@@ -415,6 +439,29 @@ function createNewConfig() {
     lastIncrementalSyncAt: null,
   };
   newConfigSnapshot.value = JSON.stringify(form.value);
+}
+
+function isSourceEnabled(config: GitlabSyncConfig) {
+  return config.sourceEnabled ?? config.enabled ?? true;
+}
+
+function physicalSourceFingerprint(config: GitlabSyncConfig) {
+  if (config.sourceMode === 'DOCKER') {
+    const containerName = normalizeFingerprintPart(config.dockerContainerName);
+    return containerName ? `docker:${containerName}` : '';
+  }
+  const host = normalizeFingerprintPart(config.dbHost);
+  const port = String(config.dbPort ?? 5432);
+  const database = normalizeFingerprintPart(config.dbName);
+  const username = normalizeFingerprintPart(config.dbUsername);
+  if (!host || !database) {
+    return '';
+  }
+  return `direct:${host}:${port}:${database}:${username}`;
+}
+
+function normalizeFingerprintPart(value: string | number | null | undefined) {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 async function cancelNewConfig() {
@@ -437,7 +484,7 @@ async function cancelNewConfig() {
   await loadStatus(true, true);
   void loadSourceHealth();
   void loadTableSyncDiagnostics(true);
-  void loadWebhookRegistration(false);
+  void loadSystemHookRegistration(false);
 }
 
 async function refreshCurrentStatus() {
@@ -666,6 +713,13 @@ onBeforeUnmount(() => {
           :closable="false"
           show-icon
         />
+        <el-alert
+          v-if="duplicatePhysicalSourceWarning"
+          :title="duplicatePhysicalSourceWarning"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
 
         <el-space wrap>
           <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
@@ -678,9 +732,9 @@ onBeforeUnmount(() => {
             测试连接
           </el-button>
           <el-button
-            :loading="registeringWebhook"
-            :disabled="webhookAutoRegistrationDisabled"
-            @click="registerWebhook"
+            :loading="registeringSystemHook"
+            :disabled="systemHookAutoRegistrationDisabled"
+            @click="registerSystemHook"
           >
             注册 System Hook
           </el-button>

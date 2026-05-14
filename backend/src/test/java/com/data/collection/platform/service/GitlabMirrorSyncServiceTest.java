@@ -39,7 +39,7 @@ class GitlabMirrorSyncServiceTest {
   private GitlabMirrorRecordMapper mirrorRecordMapper;
   private GitlabSyncLogService logService;
   private GitlabSyncTaskService taskService;
-  private GitlabWebhookPreciseSyncPlanner webhookPreciseSyncPlanner;
+  private GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
   private GitlabMirrorProperties properties;
   private JsonUtils jsonUtils;
   private FactBuildTaskService factBuildTaskService;
@@ -57,7 +57,7 @@ class GitlabMirrorSyncServiceTest {
     mirrorRecordMapper = mock(GitlabMirrorRecordMapper.class);
     logService = mock(GitlabSyncLogService.class);
     taskService = mock(GitlabSyncTaskService.class);
-    webhookPreciseSyncPlanner = mock(GitlabWebhookPreciseSyncPlanner.class);
+    systemHookPreciseSyncPlanner = mock(GitlabSystemHookPreciseSyncPlanner.class);
     properties = new GitlabMirrorProperties();
     jsonUtils = mock(JsonUtils.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
@@ -73,7 +73,7 @@ class GitlabMirrorSyncServiceTest {
             mirrorRecordMapper,
             logService,
             taskService,
-            webhookPreciseSyncPlanner,
+            systemHookPreciseSyncPlanner,
             properties,
             jsonUtils,
             factBuildTaskService,

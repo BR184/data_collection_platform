@@ -7,10 +7,10 @@ import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabHookEvent;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.GitlabWebhookEvent;
+import com.data.collection.platform.entity.GitlabSystemHookEvent;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.mapper.GitlabHookEventMapper;
-import com.data.collection.platform.mapper.GitlabWebhookEventMapper;
+import com.data.collection.platform.mapper.GitlabSystemHookEventMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -20,22 +20,22 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-public class GitlabWebhookService {
-  private final GitlabWebhookEventMapper webhookEventMapper;
+public class GitlabSystemHookService {
+  private final GitlabSystemHookEventMapper systemHookEventMapper;
   private final GitlabHookEventMapper hookEventMapper;
   private final GitlabConfigService configService;
-  private final GitlabWebhookAsyncDispatchService asyncDispatchService;
+  private final GitlabSystemHookAsyncDispatchService asyncDispatchService;
   private final JsonUtils jsonUtils;
   private final GitlabMirrorProperties properties;
 
-  public GitlabWebhookService(
-      GitlabWebhookEventMapper webhookEventMapper,
+  public GitlabSystemHookService(
+      GitlabSystemHookEventMapper systemHookEventMapper,
       GitlabHookEventMapper hookEventMapper,
       GitlabConfigService configService,
-      GitlabWebhookAsyncDispatchService asyncDispatchService,
+      GitlabSystemHookAsyncDispatchService asyncDispatchService,
       JsonUtils jsonUtils,
       GitlabMirrorProperties properties) {
-    this.webhookEventMapper = webhookEventMapper;
+    this.systemHookEventMapper = systemHookEventMapper;
     this.hookEventMapper = hookEventMapper;
     this.configService = configService;
     this.asyncDispatchService = asyncDispatchService;
@@ -44,14 +44,14 @@ public class GitlabWebhookService {
   }
 
   public void accept(String eventType, Map<String, Object> payload, String secret) {
-    GitlabSyncConfig config = configService.getConfigForWebhook(secret);
+    GitlabSyncConfig config = configService.getConfigForSystemHook(secret);
     String effectiveEventType = eventType == null || eventType.isBlank()
-        ? String.valueOf(payload.getOrDefault("object_kind", "webhook"))
+        ? String.valueOf(payload.getOrDefault("object_kind", "system_hook"))
         : eventType;
     try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.WEBHOOK.name());
-         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Webhook_Received")) {
+         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SystemHook_Received")) {
       log.info(
-          "Webhook received, eventType={}, projectId={}, objectKind={}",
+          "System Hook received, eventType={}, projectId={}, objectKind={}",
           effectiveEventType,
           extractProjectId(payload),
           payload.get("object_kind"));
@@ -59,15 +59,15 @@ public class GitlabWebhookService {
     if (config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank()) {
       if (!secretMatches(config.getWebhookSecret(), secret)) {
         try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.WEBHOOK.name());
-             GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Webhook_Received")) {
-          log.warn("Webhook rejected because secret validation failed, eventType={}", effectiveEventType);
+             GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SystemHook_Received")) {
+          log.warn("System Hook rejected because secret validation failed, eventType={}", effectiveEventType);
         }
-        throw new BizException("Invalid webhook secret");
+        throw new BizException("System Hook 密钥校验失败");
       }
     }
 
     String payloadJson = jsonUtils.toJson(payload);
-    GitlabWebhookEvent event = new GitlabWebhookEvent();
+    GitlabSystemHookEvent event = new GitlabSystemHookEvent();
     event.setConfigId(config.getId());
     event.setEventType(effectiveEventType);
     event.setProjectId(extractProjectId(payload));
@@ -75,7 +75,7 @@ public class GitlabWebhookService {
     event.setPayload(payloadJson);
     event.setProcessed(false);
     event.setReceivedAt(LocalDateTime.now());
-    webhookEventMapper.insert(event);
+    systemHookEventMapper.insert(event);
     GitlabHookEvent hookEvent = createHookEvent(config, effectiveEventType, payload, payloadJson, event.getReceivedAt());
     GitlabHookEvent coalescedEvent = coalesceRecentHookEvent(hookEvent);
     if (coalescedEvent != null) {

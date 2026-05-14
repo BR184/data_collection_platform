@@ -60,7 +60,7 @@ public class GitlabConfigService {
     return config;
   }
 
-  public GitlabSyncConfig getConfigForWebhook(String secret) {
+  public GitlabSyncConfig getConfigForSystemHook(String secret) {
     List<GitlabSyncConfig> configs =
         configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
             .eq(GitlabSyncConfig::getSourceEnabled, true)

@@ -4,8 +4,8 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
-import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus.RegisteredGitlabWebhook;
+import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
+import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus.RegisteredGitlabSystemHook;
 import com.data.collection.platform.entity.SourceMode;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,19 +25,19 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-public class GitlabWebhookRegistrationService {
+public class GitlabSystemHookRegistrationService {
   private static final TypeReference<List<Map<String, Object>>> LIST_TYPE = new TypeReference<>() {};
 
   private final ConcurrentMap<String, CacheEntry> statusCache = new ConcurrentHashMap<>();
   private final GitlabMirrorProperties properties;
   private final ObjectMapper objectMapper;
 
-  public GitlabWebhookRegistrationService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
+  public GitlabSystemHookRegistrationService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
     this.properties = properties;
     this.objectMapper = objectMapper;
   }
 
-  public GitlabWebhookRegistrationStatus getStatus(GitlabSyncConfig config, String systemHookUrl) {
+  public GitlabSystemHookRegistrationStatus getStatus(GitlabSyncConfig config, String systemHookUrl) {
     String cacheKey = buildCacheKey(config, systemHookUrl);
     CacheEntry cacheEntry = statusCache.get(cacheKey);
     long cacheSeconds = Math.max(5, properties.getWebhookStatusCacheSeconds());
@@ -45,9 +45,9 @@ public class GitlabWebhookRegistrationService {
       return cacheEntry.status();
     }
 
-    GitlabWebhookRegistrationStatus status;
+    GitlabSystemHookRegistrationStatus status;
     if (config.getSourceMode() != SourceMode.DOCKER) {
-      status = new GitlabWebhookRegistrationStatus(
+      status = new GitlabSystemHookRegistrationStatus(
           false,
           Boolean.TRUE.equals(config.getWebhookEnabled()),
           false,
@@ -56,7 +56,7 @@ public class GitlabWebhookRegistrationService {
           "直连模式需在 GitLab 手动注册 System Hook，平台无法自动检测注册状态",
           List.of());
     } else if (!isSystemHookConfigured(config)) {
-      status = new GitlabWebhookRegistrationStatus(
+      status = new GitlabSystemHookRegistrationStatus(
           true,
           false,
           false,
@@ -65,8 +65,8 @@ public class GitlabWebhookRegistrationService {
           "请先启用 System Hook 接收并配置密钥",
           List.of());
     } else {
-      List<RegisteredGitlabWebhook> hooks = listHooks(config, systemHookUrl);
-      status = new GitlabWebhookRegistrationStatus(
+      List<RegisteredGitlabSystemHook> hooks = listHooks(config, systemHookUrl);
+      status = new GitlabSystemHookRegistrationStatus(
           true,
           true,
           !hooks.isEmpty(),
@@ -80,7 +80,7 @@ public class GitlabWebhookRegistrationService {
     return status;
   }
 
-  public GitlabWebhookRegistrationStatus ensureRegistered(GitlabSyncConfig config, String systemHookUrl) {
+  public GitlabSystemHookRegistrationStatus ensureRegistered(GitlabSyncConfig config, String systemHookUrl) {
     if (config.getSourceMode() != SourceMode.DOCKER) {
       throw new BizException("直连模式需在 GitLab 手动注册 System Hook，平台无法自动注册");
     }
@@ -113,7 +113,7 @@ public class GitlabWebhookRegistrationService {
         && !config.getWebhookSecret().isBlank();
   }
 
-  private List<RegisteredGitlabWebhook> listHooks(GitlabSyncConfig config, String systemHookUrl) {
+  private List<RegisteredGitlabSystemHook> listHooks(GitlabSyncConfig config, String systemHookUrl) {
     List<String> command = buildDockerExecCommand(
         config,
         systemHookUrl,
@@ -122,9 +122,9 @@ public class GitlabWebhookRegistrationService {
     String output = runCommand(command, "SystemHook_Status");
     try {
       List<Map<String, Object>> rows = objectMapper.readValue(output, LIST_TYPE);
-      List<RegisteredGitlabWebhook> result = new ArrayList<>(rows.size());
+      List<RegisteredGitlabSystemHook> result = new ArrayList<>(rows.size());
       for (Map<String, Object> row : rows) {
-        result.add(new RegisteredGitlabWebhook(
+        result.add(new RegisteredGitlabSystemHook(
             asLong(row.get("id")),
             asString(row.get("url")),
             asBoolean(row.get("issues_events")),
@@ -264,6 +264,6 @@ public class GitlabWebhookRegistrationService {
         Objects.toString(systemHookUrl, ""));
   }
 
-  private record CacheEntry(Instant loadedAt, GitlabWebhookRegistrationStatus status) {
+  private record CacheEntry(Instant loadedAt, GitlabSystemHookRegistrationStatus status) {
   }
 }

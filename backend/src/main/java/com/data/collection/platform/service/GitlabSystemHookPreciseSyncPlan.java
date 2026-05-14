@@ -2,8 +2,8 @@ package com.data.collection.platform.service;
 
 import java.util.List;
 
-public record GitlabWebhookPreciseSyncPlan(
+public record GitlabSystemHookPreciseSyncPlan(
     String objectKey,
     String objectId,
-    List<GitlabWebhookPreciseSyncTarget> targets) {
+    List<GitlabSystemHookPreciseSyncTarget> targets) {
 }

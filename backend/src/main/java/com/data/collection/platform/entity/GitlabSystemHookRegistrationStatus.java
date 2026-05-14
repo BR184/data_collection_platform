@@ -1,17 +1,23 @@
 package com.data.collection.platform.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
-public record GitlabWebhookRegistrationStatus(
+public record GitlabSystemHookRegistrationStatus(
     boolean supported,
     boolean configured,
     boolean registered,
     Long projectId,
-    String webhookUrl,
+    String systemHookUrl,
     String message,
-    List<RegisteredGitlabWebhook> hooks) {
+    List<RegisteredGitlabSystemHook> hooks) {
 
-  public record RegisteredGitlabWebhook(
+  @JsonProperty("webhookUrl")
+  public String webhookUrl() {
+    return systemHookUrl;
+  }
+
+  public record RegisteredGitlabSystemHook(
       Long id,
       String url,
       boolean issuesEvents,

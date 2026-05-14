@@ -41,6 +41,27 @@ describe('MirrorSettingsView mount smoke', () => {
             webhookProjectId: null,
             compensationIntervalMinutes: 10,
           },
+          {
+            id: 2,
+            name: 'CC duplicate source',
+            enabled: true,
+            sourceEnabled: true,
+            sourceInstance: 'cc',
+            autoSyncEnabled: true,
+            sourceMode: 'DOCKER',
+            whitelistMode: 'RECOMMENDED',
+            whitelistTables: [],
+            dbHost: 'localhost',
+            dbPort: 5432,
+            dbName: 'gitlabhq_production',
+            dbUsername: 'gitlab',
+            dbPassword: '',
+            dockerContainerName: 'gitlab-data-web-1',
+            webhookSecret: '',
+            webhookEnabled: false,
+            webhookProjectId: null,
+            compensationIntervalMinutes: 10,
+          },
         ]);
       }
       if (url.includes('/api/gitlab-sync/status')) {
@@ -116,7 +137,7 @@ describe('MirrorSettingsView mount smoke', () => {
           configured: true,
           registered: true,
           projectId: 1,
-          webhookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
           message: 'GitLab System Hook 已注册',
           hooks: [],
         });
@@ -157,6 +178,7 @@ describe('MirrorSettingsView mount smoke', () => {
 
     expect(wrapper.text()).toContain('最近同步日志');
     expect(wrapper.text()).toContain('删除镜像数据');
+    expect(wrapper.text()).toContain('指向同一个 GitLab 源库');
     expect(wrapper.text()).toContain('成功');
     expect(wrapper.text()).toContain('同步已完成');
     expect(wrapper.text()).not.toContain('Sync completed successfully');

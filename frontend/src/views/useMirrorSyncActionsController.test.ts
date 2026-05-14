@@ -56,7 +56,7 @@ function setup(config: GitlabSyncConfig = createConfig()) {
       Promise.resolve({ accepted: true, taskId: 1, status: 'CANCELLING' }),
     ),
     loadStatus: vi.fn<(showError: boolean, blocking: boolean) => Promise<void>>(() => Promise.resolve()),
-    loadWebhookRegistration: vi.fn<() => void>(),
+    loadSystemHookRegistration: vi.fn<() => void>(),
     notifySuccess: vi.fn<(message: string) => void>(),
     notifyWarning: vi.fn<(message: string) => void>(),
     notifyInfo: vi.fn<(message: string) => void>(),
@@ -76,7 +76,7 @@ describe('useMirrorSyncActionsController', () => {
     expect(deps.saveConfigData).toHaveBeenCalledWith(deps.form.value);
     expect(deps.notifySuccess).toHaveBeenCalledWith('配置已保存');
     expect(deps.loadStatus).toHaveBeenCalledWith(false, false);
-    expect(deps.loadWebhookRegistration).toHaveBeenCalledOnce();
+    expect(deps.loadSystemHookRegistration).toHaveBeenCalledOnce();
     expect(controller.saving.value).toBe(false);
   });
 

@@ -8,26 +8,26 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
-// Webhook 精确同步规划器把 GitLab 事件转换成需要回读的镜像表和主键条件。
+// System Hook 精确同步规划器把 GitLab 事件转换成需要回读的镜像表和主键条件。
 // 无法定位精确目标时返回空计划，由外层决定是否退回补偿同步。
-public class GitlabWebhookPreciseSyncPlanner {
-  public GitlabWebhookPreciseSyncPlan plan(Map<String, Object> payload) {
+public class GitlabSystemHookPreciseSyncPlanner {
+  public GitlabSystemHookPreciseSyncPlan plan(Map<String, Object> payload) {
     if (payload == null || payload.isEmpty()) {
-      return new GitlabWebhookPreciseSyncPlan("webhook:unknown", "unknown", List.of());
+      return new GitlabSystemHookPreciseSyncPlan("system_hook:unknown", "unknown", List.of());
     }
     String objectKind = asString(payload.get("object_kind")).toLowerCase();
     Map<String, Object> attributes = asMap(payload.get("object_attributes"));
     String objectId = resolveObjectId(objectKind, payload, attributes);
-    return new GitlabWebhookPreciseSyncPlan(objectKind + ":" + objectId, objectId, planTargets(payload));
+    return new GitlabSystemHookPreciseSyncPlan(objectKind + ":" + objectId, objectId, planTargets(payload));
   }
 
-  public List<GitlabWebhookPreciseSyncTarget> planTargets(Map<String, Object> payload) {
+  public List<GitlabSystemHookPreciseSyncTarget> planTargets(Map<String, Object> payload) {
     if (payload == null || payload.isEmpty()) {
       return List.of();
     }
     String objectKind = asString(payload.get("object_kind")).toLowerCase();
     Map<String, Object> attributes = asMap(payload.get("object_attributes"));
-    Set<GitlabWebhookPreciseSyncTarget> targets = new LinkedHashSet<>();
+    Set<GitlabSystemHookPreciseSyncTarget> targets = new LinkedHashSet<>();
     switch (objectKind) {
       case "issue" -> {
         Object issueId = attributes.get("id");
@@ -79,9 +79,9 @@ public class GitlabWebhookPreciseSyncPlanner {
     return new ArrayList<>(targets);
   }
 
-  private void addIfPresent(Set<GitlabWebhookPreciseSyncTarget> targets, String tableName, String lookupColumn, Object lookupValue) {
+  private void addIfPresent(Set<GitlabSystemHookPreciseSyncTarget> targets, String tableName, String lookupColumn, Object lookupValue) {
     if (lookupValue != null && !(lookupValue instanceof String value && value.isBlank())) {
-      targets.add(new GitlabWebhookPreciseSyncTarget(tableName, lookupColumn, lookupValue));
+      targets.add(new GitlabSystemHookPreciseSyncTarget(tableName, lookupColumn, lookupValue));
     }
   }
 

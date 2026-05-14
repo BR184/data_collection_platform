@@ -162,12 +162,12 @@ export interface MirrorStatusResponse {
   progress?: SyncProgress | null;
   logs: GitlabSyncLog[];
   systemHookUrl?: string;
-  systemHookRegistration?: GitlabWebhookRegistrationStatus | null;
+  systemHookRegistration?: GitlabSystemHookRegistrationStatus | null;
   webhookUrl: string;
-  webhookRegistration?: GitlabWebhookRegistrationStatus | null;
+  webhookRegistration?: GitlabSystemHookRegistrationStatus | null;
 }
 
-export interface GitlabRegisteredWebhook {
+export interface GitlabRegisteredSystemHook {
   id: number;
   url: string;
   issuesEvents: boolean;
@@ -179,14 +179,15 @@ export interface GitlabRegisteredWebhook {
   enableSslVerification: boolean;
 }
 
-export interface GitlabWebhookRegistrationStatus {
+export interface GitlabSystemHookRegistrationStatus {
   supported: boolean;
   configured: boolean;
   registered: boolean;
   projectId?: number | null;
-  webhookUrl: string;
+  systemHookUrl?: string;
+  webhookUrl?: string;
   message: string;
-  hooks: GitlabRegisteredWebhook[];
+  hooks: GitlabRegisteredSystemHook[];
 }
 
 export interface GitlabSourceTableDiagnosticsResponse {

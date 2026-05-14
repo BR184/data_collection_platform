@@ -12,7 +12,7 @@ import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
-import com.data.collection.platform.entity.GitlabWebhookRegistrationStatus;
+import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.MirrorStatusLogView;
@@ -38,8 +38,8 @@ import com.data.collection.platform.service.GitlabSyncLogService;
 import com.data.collection.platform.service.GitlabSyncTaskService;
 import com.data.collection.platform.service.GitlabTableSyncPlanningService;
 import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
-import com.data.collection.platform.service.GitlabWebhookRegistrationService;
-import com.data.collection.platform.service.GitlabWebhookService;
+import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
+import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import com.data.collection.platform.security.RequireRole;
 import jakarta.validation.constraints.NotBlank;
@@ -77,9 +77,9 @@ public class GitlabSyncController {
   private final GitlabSyncLogService logService;
   private final GitlabWhitelistService whitelistService;
   private final GitlabMirrorProperties properties;
-  private final GitlabWebhookService webhookService;
+  private final GitlabSystemHookService systemHookService;
   private final GitlabSyncTaskService taskService;
-  private final GitlabWebhookRegistrationService webhookRegistrationService;
+  private final GitlabSystemHookRegistrationService systemHookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
@@ -92,9 +92,9 @@ public class GitlabSyncController {
       GitlabSyncLogService logService,
       GitlabWhitelistService whitelistService,
       GitlabMirrorProperties properties,
-      GitlabWebhookService webhookService,
+      GitlabSystemHookService systemHookService,
       GitlabSyncTaskService taskService,
-      GitlabWebhookRegistrationService webhookRegistrationService,
+      GitlabSystemHookRegistrationService systemHookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
       GitlabExternalDbService externalDbService,
@@ -105,9 +105,9 @@ public class GitlabSyncController {
     this.logService = logService;
     this.whitelistService = whitelistService;
     this.properties = properties;
-    this.webhookService = webhookService;
+    this.systemHookService = systemHookService;
     this.taskService = taskService;
-    this.webhookRegistrationService = webhookRegistrationService;
+    this.systemHookRegistrationService = systemHookRegistrationService;
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
@@ -329,11 +329,11 @@ public class GitlabSyncController {
       metadataDiagnostics = GitlabSourceMetadataDiagnosticsResponse.failure(e.getMessage());
     }
 
-    GitlabWebhookRegistrationStatus webhookStatus;
+    GitlabSystemHookRegistrationStatus systemHookStatus;
     try {
-      webhookStatus = webhookRegistrationService.getStatus(config, properties.getWebhookBaseUrl());
+      systemHookStatus = systemHookRegistrationService.getStatus(config, properties.getWebhookBaseUrl());
     } catch (Exception e) {
-      webhookStatus = new GitlabWebhookRegistrationStatus(
+      systemHookStatus = new GitlabSystemHookRegistrationStatus(
           false,
           false,
           false,
@@ -342,7 +342,7 @@ public class GitlabSyncController {
           e.getMessage(),
           List.of());
     }
-    WebhookConfigDiagnostics webhookConfigDiagnostics = diagnoseWebhookConfig(config);
+    SystemHookConfigDiagnostics systemHookConfigDiagnostics = diagnoseSystemHookConfig(config);
     List<String> runtimeWarnings = diagnoseRuntimeConfig();
     GitlabSyncDiagnosticsResponse response = new GitlabSyncDiagnosticsResponse(
         config.getId(),
@@ -362,30 +362,30 @@ public class GitlabSyncController {
         metadataDiagnostics.sourceTables(),
         properties.getWebhookBaseUrl(),
         Boolean.TRUE.equals(config.getWebhookEnabled()),
-        webhookConfigDiagnostics.secretConfigured(),
-        webhookConfigDiagnostics.secretUnique(),
-        webhookConfigDiagnostics.message(),
-        webhookStatus.supported(),
-        webhookStatus.registered(),
-        webhookStatus.message(),
+        systemHookConfigDiagnostics.secretConfigured(),
+        systemHookConfigDiagnostics.secretUnique(),
+        systemHookConfigDiagnostics.message(),
+        systemHookStatus.supported(),
+        systemHookStatus.registered(),
+        systemHookStatus.message(),
         properties.getWebhookBaseUrl(),
         Boolean.TRUE.equals(config.getWebhookEnabled()),
-        webhookConfigDiagnostics.secretConfigured(),
-        webhookConfigDiagnostics.secretUnique(),
-        webhookConfigDiagnostics.message(),
-        webhookStatus.supported(),
-        webhookStatus.registered(),
-        webhookStatus.message(),
+        systemHookConfigDiagnostics.secretConfigured(),
+        systemHookConfigDiagnostics.secretUnique(),
+        systemHookConfigDiagnostics.message(),
+        systemHookStatus.supported(),
+        systemHookStatus.registered(),
+        systemHookStatus.message(),
         runtimeWarnings);
     return ApiResponse.success(response);
   }
 
   @GetMapping({"/system-hook-registration-status", "/webhook-registration-status"})
-  public ApiResponse<GitlabWebhookRegistrationStatus> webhookRegistrationStatus(
+  public ApiResponse<GitlabSystemHookRegistrationStatus> systemHookRegistrationStatus(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     return ApiResponse.success(
-        webhookRegistrationService.getStatus(config, properties.getWebhookBaseUrl()));
+        systemHookRegistrationService.getStatus(config, properties.getWebhookBaseUrl()));
   }
 
   @GetMapping("/whitelist-options")
@@ -498,17 +498,17 @@ public class GitlabSyncController {
 
   @PostMapping({"/register-system-hook", "/register-webhook"})
   @RequireRole(AuthRole.ADMIN)
-  public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook() {
-    return registerWebhook(null);
+  public ApiResponse<GitlabSystemHookRegistrationStatus> registerSystemHook() {
+    return registerSystemHook(null);
   }
 
   @PostMapping({"/register-system-hook/by-config", "/register-webhook/by-config"})
   @RequireRole(AuthRole.ADMIN)
-  public ApiResponse<GitlabWebhookRegistrationStatus> registerWebhook(
+  public ApiResponse<GitlabSystemHookRegistrationStatus> registerSystemHook(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    GitlabWebhookRegistrationStatus result =
-        webhookRegistrationService.ensureRegistered(config, properties.getWebhookBaseUrl());
+    GitlabSystemHookRegistrationStatus result =
+        systemHookRegistrationService.ensureRegistered(config, properties.getWebhookBaseUrl());
     return ApiResponse.success("GitLab System Hook 已注册", result);
   }
 
@@ -558,7 +558,7 @@ public class GitlabSyncController {
       @RequestHeader(value = "X-Gitlab-Event", required = false) String eventType,
       @RequestHeader(value = "X-Gitlab-Token", required = false) String secret,
       @RequestBody Map<String, Object> payload) {
-    webhookService.accept(eventType, payload, secret);
+    systemHookService.accept(eventType, payload, secret);
     return ApiResponse.success("GitLab System Hook 已接收", Map.of("accepted", true));
   }
 
@@ -613,7 +613,7 @@ public class GitlabSyncController {
     return sanitized;
   }
 
-  private WebhookConfigDiagnostics diagnoseWebhookConfig(GitlabSyncConfig config) {
+  private SystemHookConfigDiagnostics diagnoseSystemHookConfig(GitlabSyncConfig config) {
     boolean webhookEnabled = Boolean.TRUE.equals(config.getWebhookEnabled());
     boolean secretConfigured = config.getWebhookSecret() != null && !config.getWebhookSecret().isBlank();
     boolean secretUnique = true;
@@ -639,10 +639,10 @@ public class GitlabSyncController {
     } else {
       message = "System Hook 配置可用";
     }
-    return new WebhookConfigDiagnostics(secretConfigured, secretUnique, message);
+    return new SystemHookConfigDiagnostics(secretConfigured, secretUnique, message);
   }
 
-  private record WebhookConfigDiagnostics(
+  private record SystemHookConfigDiagnostics(
       boolean secretConfigured,
       boolean secretUnique,
       String message) {
@@ -713,4 +713,3 @@ public class GitlabSyncController {
     };
   }
 }
-

@@ -7,13 +7,13 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class GitlabWebhookPreciseSyncPlannerTest {
+class GitlabSystemHookPreciseSyncPlannerTest {
 
-  private GitlabWebhookPreciseSyncPlanner planner;
+  private GitlabSystemHookPreciseSyncPlanner planner;
 
   @BeforeEach
   void setUp() {
-    planner = new GitlabWebhookPreciseSyncPlanner();
+    planner = new GitlabSystemHookPreciseSyncPlanner();
   }
 
   @Test
@@ -22,13 +22,13 @@ class GitlabWebhookPreciseSyncPlannerTest {
         "object_kind", "issue",
         "object_attributes", Map.of("id", 101L));
 
-    List<GitlabWebhookPreciseSyncTarget> targets = planner.planTargets(payload);
+    List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
 
     assertThat(targets).containsExactly(
-        new GitlabWebhookPreciseSyncTarget("issues", "id", 101L),
-        new GitlabWebhookPreciseSyncTarget("issue_assignees", "issue_id", 101L),
-        new GitlabWebhookPreciseSyncTarget("issue_metrics", "issue_id", 101L),
-        new GitlabWebhookPreciseSyncTarget("label_links", "target_id", 101L));
+        new GitlabSystemHookPreciseSyncTarget("issues", "id", 101L),
+        new GitlabSystemHookPreciseSyncTarget("issue_assignees", "issue_id", 101L),
+        new GitlabSystemHookPreciseSyncTarget("issue_metrics", "issue_id", 101L),
+        new GitlabSystemHookPreciseSyncTarget("label_links", "target_id", 101L));
   }
 
   @Test
@@ -37,15 +37,15 @@ class GitlabWebhookPreciseSyncPlannerTest {
         "object_kind", "merge_request",
         "object_attributes", Map.of("id", 202L));
 
-    List<GitlabWebhookPreciseSyncTarget> targets = planner.planTargets(payload);
+    List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
 
     assertThat(targets).containsExactly(
-        new GitlabWebhookPreciseSyncTarget("merge_requests", "id", 202L),
-        new GitlabWebhookPreciseSyncTarget("merge_request_assignees", "merge_request_id", 202L),
-        new GitlabWebhookPreciseSyncTarget("merge_request_reviewers", "merge_request_id", 202L),
-        new GitlabWebhookPreciseSyncTarget("merge_request_metrics", "merge_request_id", 202L),
-        new GitlabWebhookPreciseSyncTarget("label_links", "target_id", 202L),
-        new GitlabWebhookPreciseSyncTarget("merge_trains", "merge_request_id", 202L));
+        new GitlabSystemHookPreciseSyncTarget("merge_requests", "id", 202L),
+        new GitlabSystemHookPreciseSyncTarget("merge_request_assignees", "merge_request_id", 202L),
+        new GitlabSystemHookPreciseSyncTarget("merge_request_reviewers", "merge_request_id", 202L),
+        new GitlabSystemHookPreciseSyncTarget("merge_request_metrics", "merge_request_id", 202L),
+        new GitlabSystemHookPreciseSyncTarget("label_links", "target_id", 202L),
+        new GitlabSystemHookPreciseSyncTarget("merge_trains", "merge_request_id", 202L));
   }
 
   @Test
@@ -57,11 +57,11 @@ class GitlabWebhookPreciseSyncPlannerTest {
             "noteable_type", "Issue",
             "noteable_id", 404L));
 
-    List<GitlabWebhookPreciseSyncTarget> targets = planner.planTargets(payload);
+    List<GitlabSystemHookPreciseSyncTarget> targets = planner.planTargets(payload);
 
     assertThat(targets).containsExactly(
-        new GitlabWebhookPreciseSyncTarget("notes", "id", 303L),
-        new GitlabWebhookPreciseSyncTarget("issues", "id", 404L));
+        new GitlabSystemHookPreciseSyncTarget("notes", "id", 303L),
+        new GitlabSystemHookPreciseSyncTarget("issues", "id", 404L));
   }
 
   @Test
@@ -74,9 +74,9 @@ class GitlabWebhookPreciseSyncPlannerTest {
         "build_id", 606L);
 
     assertThat(planner.planTargets(pipelinePayload))
-        .containsExactly(new GitlabWebhookPreciseSyncTarget("ci_pipelines", "id", 505L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("ci_pipelines", "id", 505L));
     assertThat(planner.planTargets(buildPayload))
-        .containsExactly(new GitlabWebhookPreciseSyncTarget("ci_builds", "id", 606L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("ci_builds", "id", 606L));
   }
 
   @Test
@@ -95,17 +95,17 @@ class GitlabWebhookPreciseSyncPlannerTest {
         "object_attributes", Map.of("id", 1001L));
 
     assertThat(planner.planTargets(deploymentPayload))
-        .containsExactly(new GitlabWebhookPreciseSyncTarget("deployments", "id", 707L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("deployments", "id", 707L));
     assertThat(planner.planTargets(releasePayload))
-        .containsExactly(new GitlabWebhookPreciseSyncTarget("releases", "id", 808L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("releases", "id", 808L));
     assertThat(planner.planTargets(projectPayload))
         .containsExactly(
-            new GitlabWebhookPreciseSyncTarget("projects", "id", 909L),
-            new GitlabWebhookPreciseSyncTarget("members", "source_id", 909L),
-            new GitlabWebhookPreciseSyncTarget("environments", "project_id", 909L),
-            new GitlabWebhookPreciseSyncTarget("todos", "project_id", 909L));
+            new GitlabSystemHookPreciseSyncTarget("projects", "id", 909L),
+            new GitlabSystemHookPreciseSyncTarget("members", "source_id", 909L),
+            new GitlabSystemHookPreciseSyncTarget("environments", "project_id", 909L),
+            new GitlabSystemHookPreciseSyncTarget("todos", "project_id", 909L));
     assertThat(planner.planTargets(userPayload))
-        .containsExactly(new GitlabWebhookPreciseSyncTarget("users", "id", 1001L));
+        .containsExactly(new GitlabSystemHookPreciseSyncTarget("users", "id", 1001L));
   }
 
   @Test
@@ -123,7 +123,7 @@ class GitlabWebhookPreciseSyncPlannerTest {
         "object_kind", "issue",
         "object_attributes", Map.of("id", 101L));
 
-    GitlabWebhookPreciseSyncPlan plan = planner.plan(payload);
+    GitlabSystemHookPreciseSyncPlan plan = planner.plan(payload);
 
     assertThat(plan.objectKey()).isEqualTo("issue:101");
     assertThat(plan.objectId()).isEqualTo("101");

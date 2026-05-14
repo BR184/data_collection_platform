@@ -31,7 +31,7 @@
 **Files:**
 - Modify: `frontend/src/views/MirrorSettingsView.vue`
 - Modify: `frontend/src/views/mirror-settings.mount-smoke.test.ts`
-- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabWebhookRegistrationService.java`
+- Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabSystemHookRegistrationService.java`
 
 **Acceptance criteria:**
 - [x] Direct mode displays "需在 GitLab 手动注册，平台无法自动检测" instead of "未注册".
@@ -39,7 +39,7 @@
 - [x] Docker mode registration behavior remains unchanged.
 
 **Verification:**
-- [x] `npm.cmd test -- src/views/mirror-settings.mount-smoke.test.ts src/views/useMirrorWebhookRegistrationController.test.ts`
+- [x] `npm.cmd test -- src/views/mirror-settings.mount-smoke.test.ts src/views/useMirrorSystemHookRegistrationController.test.ts`
 
 ## Task 3: Trustworthy Recent Sync Record Count
 
@@ -77,8 +77,9 @@
 - Modify or create backend diagnostics only if needed.
 
 **Acceptance criteria:**
-- [ ] If two enabled sources point to the same physical GitLab DB/container, the settings page warns that business pages may show duplicate fact rows.
-- [ ] No source is blocked automatically in this task.
+- [x] If two enabled sources point to the same physical GitLab DB/container, the settings page warns that business pages may show duplicate fact rows.
+- [x] No source is blocked automatically in this task.
 
 **Verification:**
+- [x] Mount smoke covers duplicate physical source warning.
 - [ ] Manual UI check with `default` and `cc` pointing to the same source DB.
