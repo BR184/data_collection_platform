@@ -1,6 +1,5 @@
 package com.data.collection.platform.service;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,7 +36,6 @@ class GitlabCompensationSchedulerTest {
         properties,
         configService,
         syncService,
-        taskService,
         whitelistService,
         tableSyncPlanningService);
   }
@@ -46,8 +44,6 @@ class GitlabCompensationSchedulerTest {
   void shouldTriggerCompensationWhenLatestActivityExceededInterval() {
     GitlabSyncConfig config = baseConfig();
     when(configService.listConfigs()).thenReturn(List.of(config));
-    when(syncService.hasActiveTask(1L)).thenReturn(false);
-    when(taskService.isInCooldown(1L)).thenReturn(false);
     when(tableSyncPlanningService.resolveLatestActivityAt(1L)).thenReturn(LocalDateTime.now().minusMinutes(20));
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
     when(whitelistService.resolveOptions(config)).thenReturn(tables);
@@ -65,10 +61,7 @@ class GitlabCompensationSchedulerTest {
   void shouldBootstrapTableLevelCompensationWhenNoLegacyActivityExists() {
     GitlabSyncConfig config = baseConfig();
     when(configService.listConfigs()).thenReturn(List.of(config));
-    when(syncService.hasActiveTask(1L)).thenReturn(false);
-    when(taskService.isInCooldown(1L)).thenReturn(false);
     when(tableSyncPlanningService.resolveLatestActivityAt(1L)).thenReturn(null);
-    when(taskService.resolveLatestActivityAt(1L)).thenReturn(null);
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
     when(whitelistService.resolveOptions(config)).thenReturn(tables);
     when(tableSyncPlanningService.createCompensationScanPlan(config, tables))
@@ -81,15 +74,21 @@ class GitlabCompensationSchedulerTest {
   }
 
   @Test
-  void shouldSkipCompensationWhenActiveTaskExists() {
+  void shouldIgnoreLegacyActiveTaskWhenTableLevelIntervalIsDue() {
     GitlabSyncConfig config = baseConfig();
     when(configService.listConfigs()).thenReturn(List.of(config));
-    when(syncService.hasActiveTask(1L)).thenReturn(true);
+    when(tableSyncPlanningService.resolveLatestActivityAt(1L)).thenReturn(LocalDateTime.now().minusMinutes(20));
+    List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+    when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.createCompensationScanPlan(config, tables))
+        .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(13L, 1, 1, 0));
 
     scheduler.run();
 
     verify(syncService).recoverTimedOutTasks();
-    verify(tableSyncPlanningService, never()).createCompensationScanPlan(any(), any());
+    verify(tableSyncPlanningService).createCompensationScanPlan(config, tables);
+    verify(syncService, never()).hasActiveTask(1L);
+    verify(taskService, never()).isInCooldown(1L);
   }
 
   private GitlabSyncConfig baseConfig() {

@@ -230,6 +230,7 @@ export interface GitlabSyncDiagnosticsResponse {
   webhookAutoRegistrationSupported: boolean;
   webhookAutoRegistered: boolean;
   webhookMessage: string;
+  runtimeWarnings?: string[];
 }
 
 export interface GitlabTableSyncStateDiagnostics {

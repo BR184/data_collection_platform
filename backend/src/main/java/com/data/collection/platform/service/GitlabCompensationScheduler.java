@@ -17,7 +17,6 @@ public class GitlabCompensationScheduler {
   private final GitlabMirrorProperties properties;
   private final GitlabConfigService configService;
   private final GitlabMirrorSyncService syncService;
-  private final GitlabSyncTaskService taskService;
   private final GitlabWhitelistService whitelistService;
   private final GitlabTableSyncPlanningService tableSyncPlanningService;
 
@@ -25,13 +24,11 @@ public class GitlabCompensationScheduler {
       GitlabMirrorProperties properties,
       GitlabConfigService configService,
       GitlabMirrorSyncService syncService,
-      GitlabSyncTaskService taskService,
       GitlabWhitelistService whitelistService,
       GitlabTableSyncPlanningService tableSyncPlanningService) {
     this.properties = properties;
     this.configService = configService;
     this.syncService = syncService;
-    this.taskService = taskService;
     this.whitelistService = whitelistService;
     this.tableSyncPlanningService = tableSyncPlanningService;
   }
@@ -51,18 +48,11 @@ public class GitlabCompensationScheduler {
     if (config.getId() == null || !config.isEnabled() || !config.isAutoSyncEnabled()) {
       return;
     }
-    if (syncService.hasActiveTask(config.getId()) || taskService.isInCooldown(config.getId())) {
-      log.debug("Compensation skipped because task is active or cooldown is in effect, configId={}", config.getId());
-      return;
-    }
     if (tableSyncPlanningService.hasActiveJob(config.getId(), GitlabSyncJobType.COMPENSATION_SCAN)) {
       log.debug("Compensation skipped because table-level compensation job is already pending or running, configId={}", config.getId());
       return;
     }
     LocalDateTime latestActivityAt = tableSyncPlanningService.resolveLatestActivityAt(config.getId());
-    if (latestActivityAt == null) {
-      latestActivityAt = taskService.resolveLatestActivityAt(config.getId());
-    }
     long minutes = latestActivityAt == null ? Long.MAX_VALUE : Duration.between(latestActivityAt, LocalDateTime.now()).toMinutes();
     if (latestActivityAt == null || minutes >= config.getCompensationIntervalMinutes()) {
       log.info(

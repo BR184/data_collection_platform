@@ -40,12 +40,15 @@ class GitlabWebhookAsyncDispatchServiceTest {
     Map<String, Object> payload = Map.of("object_kind", "issue");
     List<TableWhitelistOption> tables = List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
     when(whitelistService.resolveOptions(config)).thenReturn(tables);
+    when(tableSyncPlanningService.markIncrementalTablesDirty(config, tables, "System Hook dirty signal: Issue Hook"))
+        .thenReturn(1);
     when(tableSyncPlanningService.createCompensationScanPlan(config, tables))
         .thenReturn(new GitlabTableSyncPlanningService.CompensationPlanResult(19L, 1, 1, 0));
 
     service.accept(config, "Issue Hook", payload);
 
     verify(whitelistService).resolveOptions(config);
+    verify(tableSyncPlanningService).markIncrementalTablesDirty(eq(config), eq(tables), eq("System Hook dirty signal: Issue Hook"));
     verify(tableSyncPlanningService).createCompensationScanPlan(eq(config), eq(tables));
   }
 

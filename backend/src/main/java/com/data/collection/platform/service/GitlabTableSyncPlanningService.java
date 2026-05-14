@@ -104,6 +104,34 @@ public class GitlabTableSyncPlanningService {
     return count != null && count > 0;
   }
 
+  @Transactional
+  public int markIncrementalTablesDirty(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions,
+      String reason) {
+    Objects.requireNonNull(config, "config must not be null");
+    if (config.getId() == null) {
+      throw new IllegalArgumentException("config id must not be null");
+    }
+    LocalDateTime now = LocalDateTime.now();
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    int dirtyTables = 0;
+    for (TableWhitelistOption option : whitelistOptions == null ? List.<TableWhitelistOption>of() : whitelistOptions) {
+      if (option == null || isBlank(option.tableName())) {
+        continue;
+      }
+      GitlabTableSyncState state = upsertState(config.getId(), sourceInstance, option, now);
+      if (state.isSyncEnabled() && state.getRowStrategy() == GitlabTableRowStrategy.INCREMENTAL) {
+        state.setDirtyFlag(true);
+        state.setLastError("");
+        state.setUpdatedAt(now);
+        stateMapper.updateById(state);
+        dirtyTables++;
+      }
+    }
+    return dirtyTables;
+  }
+
   public LocalDateTime resolveLatestActivityAt(Long configId) {
     if (configId == null) {
       return null;

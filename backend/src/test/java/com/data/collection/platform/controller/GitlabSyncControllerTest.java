@@ -101,11 +101,12 @@ class GitlabSyncControllerTest {
   @Mock
   private GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService;
 
+  private GitlabMirrorProperties properties;
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
-    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties = new GitlabMirrorProperties();
     properties.setWebhookBaseUrl("http://localhost:18080/api/gitlab-sync/webhook");
     GitlabSyncController controller = new GitlabSyncController(
         configService,
@@ -393,9 +394,43 @@ class GitlabSyncControllerTest {
         .andExpect(jsonPath("$.data.webhookConfigMessage").value("\u76f4\u8fde\u6a21\u5f0f\u652f\u6301\u63a5\u6536 System Hook\uff0c\u8bf7\u5728 GitLab \u7ba1\u7406\u540e\u53f0\u6ce8\u518c"))
         .andExpect(jsonPath("$.data.webhookReceiverUrl").value("http://localhost:18080/api/gitlab-sync/webhook"))
         .andExpect(jsonPath("$.data.webhookAutoRegistrationSupported").value(false))
-        .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false));
+        .andExpect(jsonPath("$.data.webhookAutoRegistered").value(false))
+        .andExpect(jsonPath("$.data.runtimeWarnings").isEmpty());
 
     verify(syncService).testConnection();
+  }
+
+  @Test
+  void diagnosticsShouldWarnWhenHeartbeatTimeoutIsLowerThanExternalQueryTimeout() throws Exception {
+    properties.setHeartbeatTimeoutSeconds(60);
+    properties.setExternalQueryTimeoutSeconds(120);
+    GitlabSyncConfig config = baseConfig();
+    when(configService.getConfig()).thenReturn(config);
+    when(whitelistService.listOptionsStrict(config)).thenReturn(List.of());
+    when(externalDbService.inspectSourceMetadata(eq(config), Mockito.anyList()))
+        .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(
+            true,
+            "GitLab source metadata discovered",
+            0,
+            0,
+            0,
+            0,
+            List.of()));
+    when(webhookRegistrationService.getStatus(eq(config), eq("http://localhost:18080/api/gitlab-sync/webhook")))
+        .thenReturn(new GitlabWebhookRegistrationStatus(
+            true,
+            true,
+            false,
+            1L,
+            "http://localhost:18080/api/gitlab-sync/webhook",
+            "not registered",
+            List.of()));
+
+    mockMvc.perform(post("/api/gitlab-sync/diagnostics"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.runtimeWarnings[0]").value(
+            "heartbeat-timeout-seconds \u5fc5\u987b\u5927\u4e8e\u5916\u90e8\u67e5\u8be2\u8d85\u65f6\uff0c\u5426\u5219\u957f\u67e5\u8be2\u53ef\u80fd\u88ab\u8bef\u5224\u4e3a\u8d85\u65f6\u4efb\u52a1\u3002"));
   }
 
   @Test

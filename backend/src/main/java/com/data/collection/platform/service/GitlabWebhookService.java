@@ -1,8 +1,10 @@
 package com.data.collection.platform.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabHookEvent;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabWebhookEvent;
@@ -24,18 +26,21 @@ public class GitlabWebhookService {
   private final GitlabConfigService configService;
   private final GitlabWebhookAsyncDispatchService asyncDispatchService;
   private final JsonUtils jsonUtils;
+  private final GitlabMirrorProperties properties;
 
   public GitlabWebhookService(
       GitlabWebhookEventMapper webhookEventMapper,
       GitlabHookEventMapper hookEventMapper,
       GitlabConfigService configService,
       GitlabWebhookAsyncDispatchService asyncDispatchService,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      GitlabMirrorProperties properties) {
     this.webhookEventMapper = webhookEventMapper;
     this.hookEventMapper = hookEventMapper;
     this.configService = configService;
     this.asyncDispatchService = asyncDispatchService;
     this.jsonUtils = jsonUtils;
+    this.properties = properties;
   }
 
   public void accept(String eventType, Map<String, Object> payload, String secret) {
@@ -71,9 +76,50 @@ public class GitlabWebhookService {
     event.setProcessed(false);
     event.setReceivedAt(LocalDateTime.now());
     webhookEventMapper.insert(event);
-    hookEventMapper.insert(createHookEvent(config, effectiveEventType, payload, payloadJson, event.getReceivedAt()));
+    GitlabHookEvent hookEvent = createHookEvent(config, effectiveEventType, payload, payloadJson, event.getReceivedAt());
+    GitlabHookEvent coalescedEvent = coalesceRecentHookEvent(hookEvent);
+    if (coalescedEvent != null) {
+      log.info(
+          "System Hook event coalesced, configId={}, dedupeKey={}, coalescedCount={}",
+          config.getId(),
+          coalescedEvent.getDedupeKey(),
+          coalescedEvent.getCoalescedCount());
+      return;
+    }
 
-    asyncDispatchService.accept(config, effectiveEventType, payload);
+    hookEventMapper.insert(hookEvent);
+    try {
+      asyncDispatchService.accept(config, effectiveEventType, payload);
+      hookEvent.setProcessedAt(LocalDateTime.now());
+      hookEventMapper.updateById(hookEvent);
+    } catch (RuntimeException e) {
+      hookEvent.setStatus("ERROR");
+      hookEvent.setProcessedAt(LocalDateTime.now());
+      hookEventMapper.updateById(hookEvent);
+      throw e;
+    }
+  }
+
+  private GitlabHookEvent coalesceRecentHookEvent(GitlabHookEvent incomingEvent) {
+    LocalDateTime since = incomingEvent.getReceivedAt()
+        .minusSeconds(Math.max(1, properties.getWebhookBatchWindowSeconds()));
+    GitlabHookEvent existing = hookEventMapper.selectOne(new LambdaQueryWrapper<GitlabHookEvent>()
+        .eq(GitlabHookEvent::getConfigId, incomingEvent.getConfigId())
+        .eq(GitlabHookEvent::getDedupeKey, incomingEvent.getDedupeKey())
+        .ge(GitlabHookEvent::getReceivedAt, since)
+        .in(GitlabHookEvent::getStatus, java.util.List.of("RECEIVED", "COALESCED"))
+        .orderByDesc(GitlabHookEvent::getReceivedAt)
+        .last("limit 1"));
+    if (existing == null) {
+      return null;
+    }
+    existing.setStatus("COALESCED");
+    existing.setCoalescedCount((existing.getCoalescedCount() == null ? 1 : existing.getCoalescedCount()) + 1);
+    existing.setPayload(incomingEvent.getPayload());
+    existing.setReceivedAt(incomingEvent.getReceivedAt());
+    existing.setProcessedAt(incomingEvent.getReceivedAt());
+    hookEventMapper.updateById(existing);
+    return existing;
   }
 
   private GitlabHookEvent createHookEvent(

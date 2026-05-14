@@ -45,6 +45,7 @@ import com.data.collection.platform.security.RequireRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -342,6 +343,7 @@ public class GitlabSyncController {
           List.of());
     }
     WebhookConfigDiagnostics webhookConfigDiagnostics = diagnoseWebhookConfig(config);
+    List<String> runtimeWarnings = diagnoseRuntimeConfig();
     GitlabSyncDiagnosticsResponse response = new GitlabSyncDiagnosticsResponse(
         config.getId(),
         GitlabSourceInstanceSupport.sourceInstanceOf(config),
@@ -373,7 +375,8 @@ public class GitlabSyncController {
         webhookConfigDiagnostics.message(),
         webhookStatus.supported(),
         webhookStatus.registered(),
-        webhookStatus.message());
+        webhookStatus.message(),
+        runtimeWarnings);
     return ApiResponse.success(response);
   }
 
@@ -643,6 +646,19 @@ public class GitlabSyncController {
       boolean secretConfigured,
       boolean secretUnique,
       String message) {
+  }
+
+  private List<String> diagnoseRuntimeConfig() {
+    List<String> warnings = new ArrayList<>();
+    int heartbeatTimeoutSeconds = properties.getHeartbeatTimeoutSeconds();
+    int queryTimeoutSeconds = properties.getExternalQueryTimeoutSeconds();
+    int minimumRecommendedSeconds = queryTimeoutSeconds + 30;
+    if (heartbeatTimeoutSeconds <= queryTimeoutSeconds) {
+      warnings.add("heartbeat-timeout-seconds 必须大于外部查询超时，否则长查询可能被误判为超时任务。");
+    } else if (heartbeatTimeoutSeconds <= minimumRecommendedSeconds) {
+      warnings.add("heartbeat-timeout-seconds 距离外部查询超时余量不足，慢盘批量写入时可能触发误恢复。");
+    }
+    return warnings;
   }
 
   private GitlabSyncConfig resolveConfig(Long configId) {

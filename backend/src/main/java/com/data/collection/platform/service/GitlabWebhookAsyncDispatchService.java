@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.logging.GitlabSyncLogContext;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.List;
 import java.util.Map;
@@ -34,14 +35,30 @@ public class GitlabWebhookAsyncDispatchService {
 
   public void accept(GitlabSyncConfig config, String eventType, Map<String, Object> payload) {
     List<TableWhitelistOption> tables = whitelistService.resolveOptions(config);
+    int dirtyTables = tableSyncPlanningService.markIncrementalTablesDirty(
+        config,
+        tables,
+        "System Hook dirty signal: " + eventType);
+    if (tableSyncPlanningService.hasActiveJob(config.getId(), GitlabSyncJobType.COMPENSATION_SCAN)) {
+      try (GitlabSyncLogContext.Scope context =
+               GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
+           GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_REUSED")) {
+        log.info(
+            "Webhook wakeup marked source dirty and reused active compensation scan, eventType={}, dirtyTables={}",
+            eventType,
+            dirtyTables);
+      }
+      return;
+    }
     GitlabTableSyncPlanningService.CompensationPlanResult result =
         tableSyncPlanningService.createCompensationScanPlan(config, tables);
     try (GitlabSyncLogContext.Scope context =
              GitlabSyncLogContext.openConfig(config, "WEBHOOK_WAKEUP", eventType);
          GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("COMPENSATION_QUEUED")) {
       log.info(
-          "Webhook wakeup queued compensation scan, eventType={}, jobId={}, discoveredTables={}, plannedTasks={}, verifyOnlyTables={}",
+          "Webhook wakeup marked source dirty and queued compensation scan, eventType={}, dirtyTables={}, jobId={}, discoveredTables={}, plannedTasks={}, verifyOnlyTables={}",
           eventType,
+          dirtyTables,
           result.jobId(),
           result.discoveredTables(),
           result.plannedTasks(),
