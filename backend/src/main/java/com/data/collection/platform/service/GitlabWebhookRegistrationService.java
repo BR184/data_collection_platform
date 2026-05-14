@@ -53,7 +53,7 @@ public class GitlabWebhookRegistrationService {
           false,
           null,
           systemHookUrl,
-          "System Hook status can only be checked automatically in Docker mode",
+          "直连模式需在 GitLab 手动注册 System Hook，平台无法自动检测注册状态",
           List.of());
     } else if (!isSystemHookConfigured(config)) {
       status = new GitlabWebhookRegistrationStatus(
@@ -62,7 +62,7 @@ public class GitlabWebhookRegistrationService {
           false,
           null,
           systemHookUrl,
-          "Configure System Hook receiver and secret before registration",
+          "请先启用 System Hook 接收并配置密钥",
           List.of());
     } else {
       List<RegisteredGitlabWebhook> hooks = listHooks(config, systemHookUrl);
@@ -72,7 +72,7 @@ public class GitlabWebhookRegistrationService {
           !hooks.isEmpty(),
           null,
           systemHookUrl,
-          hooks.isEmpty() ? "GitLab System Hook is not registered" : "GitLab System Hook registered",
+          hooks.isEmpty() ? "GitLab System Hook 尚未注册" : "GitLab System Hook 已注册",
           hooks);
     }
 
@@ -82,10 +82,10 @@ public class GitlabWebhookRegistrationService {
 
   public GitlabWebhookRegistrationStatus ensureRegistered(GitlabSyncConfig config, String systemHookUrl) {
     if (config.getSourceMode() != SourceMode.DOCKER) {
-      throw new BizException("System Hook can only be registered automatically in Docker mode");
+      throw new BizException("直连模式需在 GitLab 手动注册 System Hook，平台无法自动注册");
     }
     if (!isSystemHookConfigured(config)) {
-      throw new BizException("Configure System Hook receiver and secret before registration");
+      throw new BizException("请先启用 System Hook 接收并配置密钥");
     }
 
     List<String> command = buildDockerExecCommand(

@@ -6,10 +6,12 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabSyncJob;
 import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.GitlabSyncLog;
+import com.data.collection.platform.entity.GitlabTableSyncTask;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.mapper.GitlabSyncJobMapper;
 import com.data.collection.platform.mapper.GitlabSyncLogMapper;
+import com.data.collection.platform.mapper.GitlabTableSyncTaskMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -20,14 +22,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class GitlabSyncLogService {
   private final GitlabSyncLogMapper logMapper;
   private final GitlabSyncJobMapper jobMapper;
+  private final GitlabTableSyncTaskMapper tableTaskMapper;
   private final JsonUtils jsonUtils;
 
   public GitlabSyncLogService(
       GitlabSyncLogMapper logMapper,
       GitlabSyncJobMapper jobMapper,
+      GitlabTableSyncTaskMapper tableTaskMapper,
       JsonUtils jsonUtils) {
     this.logMapper = logMapper;
     this.jobMapper = jobMapper;
+    this.tableTaskMapper = tableTaskMapper;
     this.jsonUtils = jsonUtils;
   }
 
@@ -88,6 +93,8 @@ public class GitlabSyncLogService {
         .le(GitlabSyncLog::getStartedAt, finishedAt.plusSeconds(10))
         .set(GitlabSyncLog::getStatus, status)
         .set(GitlabSyncLog::getMessage, message)
+        .set(GitlabSyncLog::getTableCount, countDistinctTablesForJob(configId, syncType, jobCreatedAt, finishedAt))
+        .set(GitlabSyncLog::getRecordCount, sumRowsAppliedForJob(configId, syncType, jobCreatedAt, finishedAt))
         .set(GitlabSyncLog::getFinishedAt, finishedAt);
     logMapper.update(null, updateWrapper);
   }
@@ -149,8 +156,8 @@ public class GitlabSyncLogService {
           log.getId(),
           completedJob.getStatus(),
           buildCompletedJobMessage(completedJob, log.getSyncType()),
-          log.getTableCount() == null ? 0 : log.getTableCount(),
-          log.getRecordCount() == null ? 0 : log.getRecordCount(),
+          countDistinctTablesForJob(completedJob.getId()),
+          sumRowsAppliedForJob(completedJob.getId()),
           completedJob.getFinishedAt());
     }
   }
@@ -220,5 +227,75 @@ public class GitlabSyncLogService {
       case CANCELLING -> "取消中";
       case IDLE -> "空闲";
     };
+  }
+
+  public int countDistinctTablesForJob(Long jobId) {
+    if (jobId == null) {
+      return 0;
+    }
+    List<GitlabTableSyncTask> tasks = tableTaskMapper.selectList(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, jobId));
+    return (int) tasks.stream()
+        .map(GitlabTableSyncTask::getSourceTable)
+        .filter(table -> table != null && !table.isBlank())
+        .distinct()
+        .count();
+  }
+
+  public int sumRowsAppliedForJob(Long jobId) {
+    if (jobId == null) {
+      return 0;
+    }
+    List<GitlabTableSyncTask> tasks = tableTaskMapper.selectList(new LambdaQueryWrapper<GitlabTableSyncTask>()
+        .eq(GitlabTableSyncTask::getJobId, jobId));
+    long total = tasks.stream()
+        .map(GitlabTableSyncTask::getRowsApplied)
+        .filter(value -> value != null && value > 0)
+        .mapToLong(Long::longValue)
+        .sum();
+    return total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
+  }
+
+  private int countDistinctTablesForJob(
+      Long configId,
+      SyncType syncType,
+      LocalDateTime jobCreatedAt,
+      LocalDateTime jobFinishedAt) {
+    GitlabSyncJob job = findCompletedJob(configId, syncType, jobCreatedAt, jobFinishedAt);
+    return job == null ? 0 : countDistinctTablesForJob(job.getId());
+  }
+
+  private int sumRowsAppliedForJob(
+      Long configId,
+      SyncType syncType,
+      LocalDateTime jobCreatedAt,
+      LocalDateTime jobFinishedAt) {
+    GitlabSyncJob job = findCompletedJob(configId, syncType, jobCreatedAt, jobFinishedAt);
+    return job == null ? 0 : sumRowsAppliedForJob(job.getId());
+  }
+
+  private GitlabSyncJob findCompletedJob(
+      Long configId,
+      SyncType syncType,
+      LocalDateTime jobCreatedAt,
+      LocalDateTime jobFinishedAt) {
+    if (configId == null || jobCreatedAt == null) {
+      return null;
+    }
+    LocalDateTime finishedAt = jobFinishedAt == null ? LocalDateTime.now() : jobFinishedAt;
+    List<GitlabSyncJobType> jobTypes = syncType == null ? List.of() : jobTypesForSyncType(syncType);
+    return jobMapper.selectOne(new LambdaQueryWrapper<GitlabSyncJob>()
+        .eq(GitlabSyncJob::getConfigId, configId)
+        .in(!jobTypes.isEmpty(), GitlabSyncJob::getJobType, jobTypes)
+        .in(GitlabSyncJob::getStatus, List.of(
+            SyncStatus.SUCCESS,
+            SyncStatus.PARTIAL_SUCCESS,
+            SyncStatus.FAILED,
+            SyncStatus.TIMEOUT,
+            SyncStatus.CANCELLED))
+        .ge(GitlabSyncJob::getCreatedAt, jobCreatedAt.minusSeconds(10))
+        .le(GitlabSyncJob::getFinishedAt, finishedAt.plusSeconds(10))
+        .orderByDesc(GitlabSyncJob::getCreatedAt)
+        .last("limit 1"));
   }
 }

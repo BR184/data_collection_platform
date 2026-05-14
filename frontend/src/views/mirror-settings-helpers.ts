@@ -73,8 +73,8 @@ export function formatLogTime(log: GitlabSyncLog) {
   return formatDateTime(log.finishedAt || log.startedAt);
 }
 
-export function syncStatusText(statusValue: GitlabSyncStatus | 'IDLE') {
-  return SYNC_STATUS_LABELS[statusValue] ?? statusValue;
+export function syncStatusText(statusValue: GitlabSyncStatus | 'IDLE' | string) {
+  return SYNC_STATUS_LABELS[statusValue as GitlabSyncStatus | 'IDLE'] ?? statusValue;
 }
 
 export function syncStatusTagType(statusValue: GitlabSyncStatus | 'IDLE') {
@@ -107,7 +107,16 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
     /^Sync completed successfully, skipped (\d+) tables without time columns during compensation window scan$/i,
   );
   if (skippedTablesMatch) {
-    return `同步已完成，补偿扫描跳过了 ${skippedTablesMatch[1]} 张缺少时间列的表。`;
+    return `同步已完成，补偿扫描跳过 ${skippedTablesMatch[1]} 张缺少时间列的表。`;
+  }
+
+  const fullVerificationMatch = normalized.match(/^Full table verification completed with status\s+(.+)$/i);
+  if (fullVerificationMatch) {
+    return `全量表校验已完成，状态：${syncStatusText(fullVerificationMatch[1])}`;
+  }
+  const completedStatusMatch = normalized.match(/^(.+) completed with status\s+(.+)$/i);
+  if (completedStatusMatch) {
+    return `${completedStatusMatch[1]} 已完成，状态：${syncStatusText(completedStatusMatch[2])}`;
   }
 
   if (/^Sync completed successfully$/i.test(normalized)) {

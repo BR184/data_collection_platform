@@ -140,6 +140,36 @@ const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || se
 const webhookAutoRegistrationDisabled = computed(() =>
   savedConfigActionDisabled.value || !isDockerMode.value || !form.value.webhookEnabled,
 );
+const systemHookStatusTagType = computed(() => {
+  if (!isDockerMode.value || webhookRegistrationLoading.value) {
+    return 'info';
+  }
+  if (webhookRegistration.value?.registered) {
+    return 'success';
+  }
+  return webhookRegistration.value?.configured ? 'warning' : 'info';
+});
+const systemHookStatusLabel = computed(() => {
+  if (webhookRegistrationLoading.value) {
+    return '检测中';
+  }
+  if (!isDockerMode.value) {
+    return '需手动注册';
+  }
+  if (webhookRegistration.value?.registered) {
+    return '已注册';
+  }
+  return webhookRegistration.value?.configured ? '未注册' : '未配置';
+});
+const systemHookStatusMessage = computed(() => {
+  if (webhookRegistrationLoading.value) {
+    return '正在异步检测 GitLab System Hook 状态，不影响页面其他信息加载。';
+  }
+  if (!isDockerMode.value) {
+    return '直连模式需在 GitLab 管理后台手动注册 System Hook，平台无法自动检测注册状态。';
+  }
+  return webhookRegistration.value?.message || '尚未检测 GitLab System Hook 状态。';
+});
 const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
@@ -621,26 +651,11 @@ onBeforeUnmount(() => {
         </el-form-item>
         <el-form-item label="System Hook 状态">
           <div class="webhook-status-line">
-            <el-tag
-              :type="webhookRegistrationLoading ? 'info' : webhookRegistration?.registered ? 'success' : webhookRegistration?.configured ? 'warning' : 'info'"
-              round
-            >
-              {{
-                webhookRegistrationLoading
-                  ? '检测中'
-                  : webhookRegistration?.registered
-                    ? '已注册'
-                    : webhookRegistration?.configured
-                      ? '未注册'
-                      : '未配置'
-              }}
+            <el-tag :type="systemHookStatusTagType" round>
+              {{ systemHookStatusLabel }}
             </el-tag>
             <span class="webhook-status-text">
-              {{
-                webhookRegistrationLoading
-                  ? '正在异步检测 GitLab System Hook 状态，不影响页面其他信息加载。'
-                  : webhookRegistration?.message || '尚未检测 GitLab System Hook 状态'
-              }}
+              {{ systemHookStatusMessage }}
             </span>
           </div>
         </el-form-item>

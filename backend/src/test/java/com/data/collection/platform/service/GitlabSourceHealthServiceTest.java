@@ -25,9 +25,10 @@ class GitlabSourceHealthServiceTest {
     GitlabConfigService configService = mock(GitlabConfigService.class);
     GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
     GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    GitlabTableSyncPlanningService tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     GitlabSourceHealthService service =
-        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+        new GitlabSourceHealthService(configService, taskService, logService, tableSyncPlanningService, jdbcTemplate);
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(7L);
@@ -81,9 +82,10 @@ class GitlabSourceHealthServiceTest {
     GitlabConfigService configService = mock(GitlabConfigService.class);
     GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
     GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    GitlabTableSyncPlanningService tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     GitlabSourceHealthService service =
-        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+        new GitlabSourceHealthService(configService, taskService, logService, tableSyncPlanningService, jdbcTemplate);
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(8L);
@@ -124,9 +126,10 @@ class GitlabSourceHealthServiceTest {
     GitlabConfigService configService = mock(GitlabConfigService.class);
     GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
     GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    GitlabTableSyncPlanningService tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     GitlabSourceHealthService service =
-        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+        new GitlabSourceHealthService(configService, taskService, logService, tableSyncPlanningService, jdbcTemplate);
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(9L);
@@ -154,9 +157,10 @@ class GitlabSourceHealthServiceTest {
     GitlabConfigService configService = mock(GitlabConfigService.class);
     GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
     GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    GitlabTableSyncPlanningService tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     GitlabSourceHealthService service =
-        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+        new GitlabSourceHealthService(configService, taskService, logService, tableSyncPlanningService, jdbcTemplate);
 
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(10L);
@@ -191,9 +195,10 @@ class GitlabSourceHealthServiceTest {
     GitlabConfigService configService = mock(GitlabConfigService.class);
     GitlabSyncTaskService taskService = mock(GitlabSyncTaskService.class);
     GitlabSyncLogService logService = mock(GitlabSyncLogService.class);
+    GitlabTableSyncPlanningService tableSyncPlanningService = mock(GitlabTableSyncPlanningService.class);
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     GitlabSourceHealthService service =
-        new GitlabSourceHealthService(configService, taskService, logService, jdbcTemplate);
+        new GitlabSourceHealthService(configService, taskService, logService, tableSyncPlanningService, jdbcTemplate);
 
     GitlabSyncConfig blocked = new GitlabSyncConfig();
     blocked.setId(11L);

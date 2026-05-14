@@ -2,8 +2,10 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSyncJob;
 import com.data.collection.platform.entity.GitlabSyncLog;
 import com.data.collection.platform.entity.GitlabSyncTask;
+import com.data.collection.platform.entity.GitlabSyncJobType;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
 import java.time.LocalDateTime;
@@ -23,16 +25,19 @@ public class GitlabSourceHealthService {
   private final GitlabConfigService configService;
   private final GitlabSyncTaskService taskService;
   private final GitlabSyncLogService logService;
+  private final GitlabTableSyncPlanningService tableSyncPlanningService;
   private final JdbcTemplate jdbcTemplate;
 
   public GitlabSourceHealthService(
       GitlabConfigService configService,
       GitlabSyncTaskService taskService,
       GitlabSyncLogService logService,
+      GitlabTableSyncPlanningService tableSyncPlanningService,
       JdbcTemplate jdbcTemplate) {
     this.configService = configService;
     this.taskService = taskService;
     this.logService = logService;
+    this.tableSyncPlanningService = tableSyncPlanningService;
     this.jdbcTemplate = jdbcTemplate;
   }
 
@@ -48,6 +53,8 @@ public class GitlabSourceHealthService {
     boolean sourceEnabled = config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled();
     GitlabSyncTask task = taskService.findDisplayTask(config.getId());
     GitlabSyncLog latestLog = logService.findLatest(config.getId());
+    GitlabSyncJob displayJob = tableSyncPlanningService.findDisplayJob(config.getId());
+    LatestSyncView latestSync = latestSyncView(latestLog, displayJob);
     String blockedMessage = resolveBlockedMessage(config, task, latestLog);
     if (!sourceEnabled || blockedMessage != null) {
       String healthStatus = sourceEnabled ? "BLOCKED" : "DISABLED";
@@ -62,9 +69,9 @@ public class GitlabSourceHealthService {
           task == null ? SyncStatus.IDLE : task.getStatus(),
           task == null ? "" : task.getFinishedReason(),
           task == null ? null : task.getStartedAt(),
-          latestLog == null ? null : latestLog.getStatus(),
-          latestLog == null ? "" : latestLog.getMessage(),
-          latestLog == null ? null : latestLog.getFinishedAt(),
+          latestSync.status(),
+          latestSync.message(),
+          latestSync.finishedAt(),
           0,
           0,
           false,
@@ -83,7 +90,7 @@ public class GitlabSourceHealthService {
     LocalDateTime latestMergeRequestFactUpdatedAt =
         latestFactUpdatedAt("merge_request_fact", sourceInstance);
     boolean mergeRequestFactLagging =
-        isFactLayerLagging(latestLog, latestMergeRequestFactUpdatedAt, existingMirrorTables);
+        isFactLayerLagging(latestSync, latestMergeRequestFactUpdatedAt, existingMirrorTables);
     // 数据镜像设置的 CC/DGM 数据源健康只面向代码走查切源能力；
     // issue/integration-test 事实层仍展示计数，但不参与该数据源的健康滞后结论。
     boolean issueFactLagging = false;
@@ -91,12 +98,12 @@ public class GitlabSourceHealthService {
     boolean factLayerLagging = mergeRequestFactLagging || issueFactLagging || integrationTestFactLagging;
     List<String> missingRequiredMirrorTables = missingRequiredMirrorTables(sourceInstance);
     String healthStatus = resolveHealthStatus(
-        latestLog,
+        latestSync,
         factLayerLagging,
         registeredMirrorTables,
         existingMirrorTables,
         missingRequiredMirrorTables);
-    String healthMessage = resolveHealthMessage(healthStatus, latestLog, factLayerLagging, missingRequiredMirrorTables);
+    String healthMessage = resolveHealthMessage(healthStatus, latestSync, factLayerLagging, missingRequiredMirrorTables);
     return new GitlabSourceHealthResponse(
         config.getId(),
         config.getName(),
@@ -107,9 +114,9 @@ public class GitlabSourceHealthService {
         task == null ? SyncStatus.IDLE : task.getStatus(),
         task == null ? "" : task.getFinishedReason(),
         task == null ? null : task.getStartedAt(),
-        latestLog == null ? null : latestLog.getStatus(),
-        latestLog == null ? "" : latestLog.getMessage(),
-        latestLog == null ? null : latestLog.getFinishedAt(),
+        latestSync.status(),
+        latestSync.message(),
+        latestSync.finishedAt(),
         registeredMirrorTables.size(),
         existingMirrorTables,
         factLayerLagging,
@@ -149,7 +156,7 @@ public class GitlabSourceHealthService {
   }
 
   private String resolveHealthStatus(
-      GitlabSyncLog latestLog,
+      LatestSyncView latestSync,
       boolean factLayerLagging,
       List<String> registeredMirrorTables,
       int existingMirrorTables,
@@ -157,7 +164,7 @@ public class GitlabSourceHealthService {
     if (!missingRequiredMirrorTables.isEmpty()
         || existingMirrorTables < registeredMirrorTables.size()
         || factLayerLagging
-        || (latestLog != null && isDegradedStatus(latestLog.getStatus()))) {
+        || (latestSync.status() != null && isDegradedStatus(latestSync.status()))) {
       return "DEGRADED";
     }
     return "OK";
@@ -165,7 +172,7 @@ public class GitlabSourceHealthService {
 
   private String resolveHealthMessage(
       String healthStatus,
-      GitlabSyncLog latestLog,
+      LatestSyncView latestSync,
       boolean factLayerLagging,
       List<String> missingRequiredMirrorTables) {
     if ("OK".equals(healthStatus)) {
@@ -177,8 +184,8 @@ public class GitlabSourceHealthService {
     if (factLayerLagging) {
       return "Fact layer is lagging behind the latest successful mirror sync";
     }
-    if (latestLog != null && !isBlank(latestLog.getMessage())) {
-      return latestLog.getMessage();
+    if (!isBlank(latestSync.message())) {
+      return latestSync.message();
     }
     return "GitLab source is degraded";
   }
@@ -290,17 +297,83 @@ public class GitlabSourceHealthService {
   }
 
   private boolean isFactLayerLagging(
-      GitlabSyncLog latestLog, LocalDateTime latestFactUpdatedAt, int existingMirrorTables) {
-    if (latestLog == null
-        || latestLog.getStatus() != SyncStatus.SUCCESS
-        || latestLog.getFinishedAt() == null
+      LatestSyncView latestSync, LocalDateTime latestFactUpdatedAt, int existingMirrorTables) {
+    if (latestSync.status() != SyncStatus.SUCCESS
+        || latestSync.finishedAt() == null
         || existingMirrorTables <= 0) {
       return false;
     }
     if (latestFactUpdatedAt == null) {
       return true;
     }
-    return latestFactUpdatedAt.isBefore(latestLog.getFinishedAt().minusSeconds(5));
+    return latestFactUpdatedAt.isBefore(latestSync.finishedAt().minusSeconds(5));
+  }
+
+  private LatestSyncView latestSyncView(GitlabSyncLog latestLog, GitlabSyncJob displayJob) {
+    LocalDateTime logTime = latestLog == null ? null : latestLog.getFinishedAt();
+    LocalDateTime jobTime = latestJobTime(displayJob);
+    if (jobTime != null && (logTime == null || !jobTime.isBefore(logTime))) {
+      return new LatestSyncView(
+          displayJob.getStatus(),
+          buildJobMessage(displayJob),
+          displayJob.getFinishedAt() == null ? displayJob.getUpdatedAt() : displayJob.getFinishedAt());
+    }
+    return new LatestSyncView(
+        latestLog == null ? null : latestLog.getStatus(),
+        latestLog == null ? "" : latestLog.getMessage(),
+        latestLog == null ? null : latestLog.getFinishedAt());
+  }
+
+  private LocalDateTime latestJobTime(GitlabSyncJob job) {
+    if (job == null) {
+      return null;
+    }
+    if (job.getFinishedAt() != null) {
+      return job.getFinishedAt();
+    }
+    if (job.getUpdatedAt() != null) {
+      return job.getUpdatedAt();
+    }
+    if (job.getStartedAt() != null) {
+      return job.getStartedAt();
+    }
+    return job.getCreatedAt();
+  }
+
+  private String buildJobMessage(GitlabSyncJob job) {
+    if (job == null) {
+      return "";
+    }
+    if (!isBlank(job.getErrorMessage())) {
+      return job.getErrorMessage();
+    }
+    String label = switch (job.getJobType() == null ? GitlabSyncJobType.MANUAL_REFRESH : job.getJobType()) {
+      case DAILY_VERIFY -> "全量表校验";
+      case COMPENSATION_SCAN -> "补偿扫描";
+      case HOOK_WAKEUP -> "System Hook 补偿扫描";
+      case MANUAL_REFRESH -> "手动增量同步";
+      case FACT_REFRESH -> "事实层刷新";
+    };
+    return "%s已完成，状态：%s".formatted(label, syncStatusLabel(job.getStatus()));
+  }
+
+  private String syncStatusLabel(SyncStatus status) {
+    if (status == null) {
+      return "未知";
+    }
+    return switch (status) {
+      case PENDING -> "待执行";
+      case QUEUED -> "排队中";
+      case RUNNING -> "执行中";
+      case RETRYING -> "重试中";
+      case SUCCESS -> "成功";
+      case PARTIAL_SUCCESS -> "部分成功";
+      case FAILED -> "失败";
+      case CANCELLED -> "已取消";
+      case TIMEOUT -> "已超时";
+      case CANCELLING -> "取消中";
+      case IDLE -> "空闲";
+    };
   }
 
   private String factLayerMessage(
@@ -329,5 +402,11 @@ public class GitlabSourceHealthService {
 
   private boolean isBlank(String value) {
     return value == null || value.isBlank();
+  }
+
+  private record LatestSyncView(
+      SyncStatus status,
+      String message,
+      LocalDateTime finishedAt) {
   }
 }

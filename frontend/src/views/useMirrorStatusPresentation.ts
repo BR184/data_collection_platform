@@ -8,6 +8,14 @@ import {
 } from './mirror-settings-helpers';
 
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'CANCELLING'];
+const TERMINAL_STATUSES: Array<GitlabSyncStatus | 'IDLE'> = [
+  'SUCCESS',
+  'PARTIAL_SUCCESS',
+  'FAILED',
+  'CANCELLED',
+  'TIMEOUT',
+  'IDLE',
+];
 
 function fallbackPhaseText(task: GitlabSyncTask | null): string {
   if (!task || !ACTIVE_POLLING_STATUSES.includes(task.status)) {
@@ -31,6 +39,24 @@ function fallbackPhaseText(task: GitlabSyncTask | null): string {
   }
 }
 
+function terminalProgressHint(statusValue: GitlabSyncStatus | 'IDLE', progress: SyncProgress | null) {
+  const records = progress?.syncedRecords ?? 0;
+  switch (statusValue) {
+    case 'SUCCESS':
+      return records > 0 ? `同步已完成，本次写入 ${records} 条记录。` : '同步已完成，本次未发现需要写入的新记录。';
+    case 'PARTIAL_SUCCESS':
+      return records > 0 ? `同步部分成功，本次已写入 ${records} 条记录，请查看表级诊断。` : '同步部分成功，请查看表级诊断。';
+    case 'FAILED':
+      return '同步失败，请查看最近同步日志和表级诊断。';
+    case 'TIMEOUT':
+      return '同步超时，请稍后重试或查看表级诊断。';
+    case 'CANCELLED':
+      return '同步已取消。';
+    default:
+      return '当前没有正在执行的同步任务。';
+  }
+}
+
 export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | null>) {
   const progress = computed<SyncProgress | null>(() => status.value?.progress ?? null);
   const currentTask = computed<GitlabSyncTask | null>(() => status.value?.currentTask ?? null);
@@ -50,6 +76,10 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
 
   const progressPercent = computed(() => {
     const current = progress.value;
+    const currentStatus = status.value?.currentStatus ?? currentTask.value?.status ?? 'IDLE';
+    if (TERMINAL_STATUSES.includes(currentStatus)) {
+      return currentStatus === 'SUCCESS' || currentStatus === 'PARTIAL_SUCCESS' ? 100 : 0;
+    }
     if (!current) {
       return currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status) ? 5 : 0;
     }
@@ -92,6 +122,10 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
 
   const progressHint = computed(() => {
     const current = progress.value;
+    const currentStatus = status.value?.currentStatus ?? currentTask.value?.status ?? 'IDLE';
+    if (TERMINAL_STATUSES.includes(currentStatus)) {
+      return terminalProgressHint(currentStatus, current);
+    }
     if (!current) {
       if (currentTask.value?.status === 'PENDING') {
         return '同步任务已提交，正在等待执行。';

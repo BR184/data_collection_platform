@@ -254,7 +254,7 @@ public class GitlabMirrorSyncService {
       processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
       long mirrorTaskDurationMs = elapsedMs(drainStartedNanos);
       SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
-      finishVisibleLogIfTerminal(logId, SyncType.INCREMENTAL, status, result.plannedTasks(), processedTasks);
+      finishVisibleLogIfTerminal(logId, result.jobId(), SyncType.INCREMENTAL, status, result.plannedTasks(), processedTasks);
       log.info(
           "Incremental table plan completed, jobId={}, plannedTasks={}, processedTasks={}, planningDurationMs={}, mirrorTaskDurationMs={}, totalDurationMs={}",
           result.jobId(),
@@ -310,7 +310,7 @@ public class GitlabMirrorSyncService {
       processedTasks = tableSyncWorkerService.drainReadyTasksForJob(result.jobId());
       long mirrorTaskDurationMs = elapsedMs(drainStartedNanos);
       SyncStatus status = normalizeJobStatus(tableSyncPlanningService.findJobStatus(result.jobId()));
-      finishVisibleLogIfTerminal(logId, SyncType.FULL, status, result.plannedTasks(), processedTasks);
+      finishVisibleLogIfTerminal(logId, result.jobId(), SyncType.FULL, status, result.plannedTasks(), processedTasks);
       log.info(
           "Full table verification completed, jobId={}, plannedTasks={}, processedTasks={}, planningDurationMs={}, mirrorTaskDurationMs={}, totalDurationMs={}",
           result.jobId(),
@@ -405,6 +405,7 @@ public class GitlabMirrorSyncService {
 
   private void finishVisibleLogIfTerminal(
       long logId,
+      Long jobId,
       SyncType type,
       SyncStatus status,
       int plannedTasks,
@@ -421,7 +422,7 @@ public class GitlabMirrorSyncService {
         status,
         buildTablePlanCompletionMessage(type, status, plannedTasks, processedTasks),
         plannedTasks,
-        0);
+        logService.sumRowsAppliedForJob(jobId));
   }
 
   public record OnDemandRefreshResult(

@@ -130,9 +130,27 @@ describe('useMirrorStatusPresentation', () => {
     expect(presentation.displayStatus.value).toEqual({ text: '最近同步成功', type: 'success' });
   });
 
+  it('shows completed progress without preparing text', () => {
+    const status = ref(
+      createStatus({
+        currentStatus: 'SUCCESS',
+        currentMessage: 'Full table verification completed with status SUCCESS',
+        currentTask: createTask({ status: 'SUCCESS' }),
+        progress: createProgress({ totalTables: 4, completedTables: 4, syncedRecords: 35, currentTable: null }),
+      }),
+    );
+
+    const presentation = useMirrorStatusPresentation(status);
+
+    expect(presentation.progressPercent.value).toBe(100);
+    expect(presentation.progressHint.value).toBe('同步已完成，本次写入 35 条记录。');
+    expect(presentation.currentMessageText.value).toBe('全量表校验已完成，状态：成功');
+  });
+
   it('shows queued and zero-table progress hints', () => {
     const status = ref(
       createStatus({
+        currentStatus: 'QUEUED',
         currentTask: createTask({ status: 'QUEUED' }),
         progress: createProgress({ phase: 'INCREMENTAL_SYNC', totalTables: 0, completedTables: 0, currentTable: null }),
       }),
