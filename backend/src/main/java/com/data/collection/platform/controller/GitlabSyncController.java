@@ -28,6 +28,8 @@ import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.data.collection.platform.service.sync.SyncRunCancellationService;
+import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -60,6 +62,7 @@ public class GitlabSyncController {
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
   private final SyncThreadBudgetResolver threadBudgetResolver;
+  private final SyncRunCancellationService cancellationService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -71,7 +74,8 @@ public class GitlabSyncController {
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
       GitlabExternalDbService externalDbService,
-      SyncThreadBudgetResolver threadBudgetResolver) {
+      SyncThreadBudgetResolver threadBudgetResolver,
+      SyncRunCancellationService cancellationService) {
     this.configService = configService;
     this.syncService = syncService;
     this.whitelistService = whitelistService;
@@ -82,6 +86,7 @@ public class GitlabSyncController {
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
     this.threadBudgetResolver = threadBudgetResolver;
+    this.cancellationService = cancellationService;
   }
 
   @GetMapping("/status")
@@ -364,10 +369,17 @@ public class GitlabSyncController {
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Cancel_Request")) {
       log.info("Manual cancellation requested during cutover");
     }
-    boolean accepted = syncService.requestCancel(config.getId());
+    SyncRunCancellationResult result =
+        cancellationService.requestCancel(config.getId(), null, "Manual cancellation requested");
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("accepted", result.accepted());
+    response.put("runId", result.runId());
+    response.put("externalRunId", result.externalRunId());
+    response.put("status", result.status() == null ? null : result.status().name());
+    response.put("message", result.message());
     return ApiResponse.success(
-        accepted ? "Cancellation requested" : "Cancellation is unavailable until the unified run model is wired",
-        Map.of("accepted", accepted));
+        result.accepted() ? result.message() : "No cancellable sync run",
+        response);
   }
 
   @PostMapping("/purge")

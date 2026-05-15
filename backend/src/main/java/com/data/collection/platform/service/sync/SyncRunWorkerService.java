@@ -36,9 +36,21 @@ public class SyncRunWorkerService {
     }
     markRunning(run);
     try {
+      if (isCancellationRequested(run)) {
+        finishRun(run, SyncRunStatus.CANCELLED, 0, 0, "Sync run cancelled before processing");
+        return;
+      }
       if (run.getRunType() == SyncRunType.TABLE_REFRESH) {
         int planned = tablePlanningService.planRunTables(run.getId());
+        if (isCancellationRequested(run)) {
+          finishRun(run, SyncRunStatus.CANCELLED, planned, 0, "Sync run cancelled before table execution");
+          return;
+        }
         int finished = tableWorkerService.drainRunTasks(run.getId());
+        if (isCancellationRequested(run)) {
+          finishRun(run, SyncRunStatus.CANCELLED, planned, finished, "Sync run cancelled");
+          return;
+        }
         finishRun(run, SyncRunStatus.SUCCESS, planned, finished, null);
       } else {
         finishRun(run, SyncRunStatus.SUCCESS, 0, 0, null);
@@ -56,6 +68,22 @@ public class SyncRunWorkerService {
     run.setHeartbeatAt(LocalDateTime.now());
     run.setUpdatedAt(LocalDateTime.now());
     syncRunMapper.updateById(run);
+  }
+
+  private boolean isCancellationRequested(SyncRun run) {
+    SyncRun latest = syncRunMapper.selectById(run.getId());
+    if (latest == null) {
+      latest = run;
+    }
+    boolean cancelRequested =
+        Boolean.TRUE.equals(latest.getCancelRequested())
+            || latest.getStatus() == SyncRunStatus.CANCELLING
+            || latest.getStatus() == SyncRunStatus.CANCELLED;
+    if (cancelRequested) {
+      run.setCancelRequested(true);
+      run.setStatus(latest.getStatus() == SyncRunStatus.CANCELLED ? SyncRunStatus.CANCELLED : SyncRunStatus.CANCELLING);
+    }
+    return cancelRequested;
   }
 
   private void finishRun(SyncRun run, SyncRunStatus status, int planned, int finished, String errorMessage) {

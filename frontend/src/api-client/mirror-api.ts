@@ -65,7 +65,7 @@ export const mirrorApi = {
     });
   },
   cancelSync(configId?: number) {
-    return request<{ accepted: boolean; runId?: number; status?: string }>(withConfigId('/api/gitlab-sync/cancel/by-config', configId), {
+    return request<{ accepted: boolean; runId?: number; status?: string; message?: string }>(withConfigId('/api/gitlab-sync/cancel/by-config', configId), {
       method: 'POST',
     });
   },

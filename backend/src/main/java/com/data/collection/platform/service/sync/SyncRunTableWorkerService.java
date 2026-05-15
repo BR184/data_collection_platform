@@ -27,11 +27,53 @@ public class SyncRunTableWorkerService {
   public int drainRunTasks(Long runId) {
     int processed = 0;
     SyncRunTableTask task;
-    while ((task = claimNextQueuedTask(runId, "table-worker", 30)) != null) {
+    while (!isRunCancellationRequested(runId) && (task = claimNextQueuedTask(runId, "table-worker", 30)) != null) {
+      if (isRunCancellationRequested(runId)) {
+        finishTask(task.getId(), task.getRowsScanned(), task.getRowsApplied(), "CANCELLED", "Sync run cancelled");
+        cancelQueuedTasks(runId);
+        break;
+      }
       finishTask(task.getId(), 0L, 0L, "SUCCESS", null);
       processed++;
     }
+    if (isRunCancellationRequested(runId)) {
+      cancelQueuedTasks(runId);
+    }
     return processed;
+  }
+
+  public boolean isRunCancellationRequested(Long runId) {
+    if (runId == null) {
+      return false;
+    }
+    try {
+      Boolean cancelled =
+          jdbcTemplate.queryForObject(
+              """
+              select cancel_requested or status in ('CANCELLING', 'CANCELLED')
+                from sync_runs
+               where id = ?
+              """,
+              Boolean.class,
+              runId);
+      return Boolean.TRUE.equals(cancelled);
+    } catch (EmptyResultDataAccessException ex) {
+      return false;
+    }
+  }
+
+  public void cancelQueuedTasks(Long runId) {
+    jdbcTemplate.update(
+        """
+        update sync_run_table_tasks
+           set status = 'CANCELLED',
+               last_error = coalesce(last_error, 'Sync run cancelled'),
+               finished_at = current_timestamp,
+               updated_at = current_timestamp
+         where run_id = ?
+           and status = 'QUEUED'
+        """,
+        runId);
   }
 
   public SyncRunTableTask claimNextQueuedTask(Long runId, String owner, int leaseSeconds) {

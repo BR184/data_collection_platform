@@ -64,6 +64,23 @@ class SyncRunWorkerServiceTest {
     assertThat(run.getCompletedTableCount()).isEqualTo(2);
   }
 
+  @Test
+  void shouldStopBeforePlanningWhenCancellationWasRequested() {
+    SyncRun run = run(13L, SyncRunType.TABLE_REFRESH);
+    SyncRun cancelling = run(13L, SyncRunType.TABLE_REFRESH);
+    cancelling.setCancelRequested(true);
+    cancelling.setStatus(SyncRunStatus.CANCELLING);
+    when(syncRunMapper.selectById(13L)).thenReturn(cancelling);
+
+    workerService.executeRun(run);
+
+    verify(tablePlanningService, org.mockito.Mockito.never()).planRunTables(13L);
+    verify(tableWorkerService, org.mockito.Mockito.never()).drainRunTasks(13L);
+    verify(configService, org.mockito.Mockito.never()).updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
+    assertThat(run.getErrorMessage()).isEqualTo("Sync run cancelled before processing");
+  }
+
   private SyncRun run(Long id, SyncRunType runType) {
     SyncRun run = new SyncRun();
     run.setId(id);
