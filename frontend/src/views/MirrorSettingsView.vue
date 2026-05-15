@@ -8,7 +8,9 @@ import { api } from '../api';
 import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import { buildPurgeSummaryHtml, formatDateTime, syncStatusTagType, syncStatusText } from './mirror-settings-helpers';
+import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
+import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
+import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
 import { useMirrorPurgeDialog } from './useMirrorPurgeDialog';
@@ -23,6 +25,8 @@ const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
 const tableSyncDiagnostics = ref<SyncRunDiagnosticsResponse | null>(null);
 const tableSyncDiagnosticsLoading = ref(false);
+const tableTaskDrawerVisible = ref(false);
+const retryingFailedRun = ref(false);
 const selectedConfigId = ref<number | undefined>(undefined);
 const isCreatingNewConfig = ref(false);
 const previousConfigIdBeforeCreate = ref<number | undefined>(undefined);
@@ -93,6 +97,7 @@ const {
   startFullSync,
   startIncrementalSync,
   cancelSyncTask,
+  showSubmissionFeedback,
 } = useMirrorSyncActionsController({
   form,
   saveConfigData: async (config) => {
@@ -318,56 +323,6 @@ const missingRequiredMirrorTablesPreview = computed(() => {
     hiddenCount: Math.max(tables.length - 5, 0),
   };
 });
-const tableSyncRows = computed(() => tableSyncDiagnostics.value?.tables ?? []);
-const tableSyncProblemRows = computed(() =>
-  tableSyncRows.value.filter(
-    (row) =>
-      row.dirty ||
-      row.latestTaskStatus === 'FAILED' ||
-      row.latestTaskStatus === 'TIMEOUT' ||
-      row.latestTaskStatus === 'RETRYING',
-  ),
-);
-const tableSyncDisplayRows = computed(() =>
-  (tableSyncProblemRows.value.length > 0 ? tableSyncProblemRows.value : tableSyncRows.value).slice(0, 8),
-);
-const tableSyncQueueSummary = computed(() => {
-  const diagnostics = tableSyncDiagnostics.value;
-  if (!diagnostics) {
-    return '暂无表级任务诊断';
-  }
-  return [
-    `待执行 ${diagnostics.pendingTaskCount}`,
-    `运行中 ${diagnostics.runningTaskCount}`,
-    `重试中 ${diagnostics.retryingTaskCount}`,
-    `失败 ${diagnostics.failedTaskCount + diagnostics.timedOutTaskCount}`,
-  ].join(' · ');
-});
-function tableDirtyText(row: { dirty?: boolean; dirtyReason?: string | null; blockingRunId?: string | null }) {
-  if (row.blockingRunId) {
-    return `运行中：${row.blockingRunId}`;
-  }
-  if (row.dirty) {
-    return row.dirtyReason ? `脏表：${row.dirtyReason}` : '脏表';
-  }
-  return '正常';
-}
-function tableWatermarkText(row: {
-  lastError?: string | null;
-  latestTaskError?: string | null;
-  driftSummary?: string | null;
-  lastWatermarkAt?: string | null;
-  lastAppliedAt?: string | null;
-  lastSuccessAt?: string | null;
-}) {
-  if (row.lastError || row.latestTaskError) {
-    return row.lastError || row.latestTaskError;
-  }
-  if (row.driftSummary) {
-    return row.driftSummary;
-  }
-  return formatDateTime(row.lastWatermarkAt || row.lastAppliedAt || row.lastSuccessAt);
-}
 const {
   progress,
   currentTask,
@@ -542,6 +497,33 @@ async function refreshCurrentStatus() {
   }
   await refreshStatus();
   await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
+}
+
+function openTableTaskDrawer() {
+  tableTaskDrawerVisible.value = true;
+}
+
+async function cancelSyncFromMonitor() {
+  await cancelSyncTask();
+  await loadTableSyncDiagnostics(false);
+}
+
+async function retryFailedRun() {
+  if (savedConfigActionDisabled.value || retryingFailedRun.value) {
+    return;
+  }
+  retryingFailedRun.value = true;
+  try {
+    await saveConfig(false);
+    const result = await api.retryFailedSync(selectedConfigId.value);
+    showSubmissionFeedback(result);
+    await loadStatus(false, false);
+    await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
+  } catch (error) {
+    ElMessage.error((error as Error).message);
+  } finally {
+    retryingFailedRun.value = false;
+  }
 }
 
 onMounted(async () => {
@@ -847,6 +829,19 @@ onBeforeUnmount(() => {
         :current-started-at="status?.currentStartedAt"
       />
 
+      <MirrorRunMonitorPanel
+        :status="status"
+        :diagnostics="tableSyncDiagnostics"
+        :refreshing="refreshing || tableSyncDiagnosticsLoading"
+        :cancelling="cancelling"
+        :retrying="retryingFailedRun"
+        :disabled="savedConfigActionDisabled"
+        @refresh="refreshCurrentStatus"
+        @cancel="cancelSyncFromMonitor"
+        @retry="retryFailedRun"
+        @open-table-tasks="openTableTaskDrawer"
+      />
+
       <MirrorSyncLogTable :logs="recentLogs" :refreshing="refreshing" @refresh="refreshCurrentStatus" />
 
       <el-card shadow="never" class="panel-card source-health-card">
@@ -954,84 +949,11 @@ onBeforeUnmount(() => {
         </template>
         <el-empty v-else description="暂无当前数据源诊断信息" />
       </el-card>
-
-      <el-card shadow="never" class="panel-card table-sync-diagnostics-card">
-        <template #header>
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">表级同步诊断</div>
-              <div class="panel-subtitle">{{ tableSyncQueueSummary }}</div>
-            </div>
-            <el-button
-              size="small"
-              text
-              :loading="tableSyncDiagnosticsLoading"
-              :disabled="savedConfigActionDisabled"
-              @click="loadTableSyncDiagnostics(true)"
-            >
-              刷新
-            </el-button>
-          </div>
-        </template>
-        <template v-if="tableSyncDiagnostics">
-          <div class="table-sync-summary-grid">
-            <div>
-              <span>同步表</span>
-              <strong>{{ tableSyncDiagnostics.tableCount }}</strong>
-            </div>
-            <div>
-              <span>脏表</span>
-              <strong>{{ tableSyncDiagnostics.dirtyTableCount }}</strong>
-            </div>
-            <div>
-              <span>重试中</span>
-              <strong>{{ tableSyncDiagnostics.retryingTaskCount }}</strong>
-            </div>
-          </div>
-          <el-alert
-            class="source-health-alert"
-            type="info"
-            :closable="false"
-            show-icon
-            title="脏表 = 源表和镜像表可能不一致，需要增量修复或全量校验；运行中 = 已进入当前 run 的处理队列；事实层滞后 = 镜像已更新，但统计事实表还没有刷新。"
-          />
-          <el-table
-            v-loading="tableSyncDiagnosticsLoading"
-            class="table-sync-diagnostics-table"
-            :data="tableSyncDisplayRows"
-            size="small"
-          >
-            <el-table-column prop="sourceTable" label="源表" min-width="130" show-overflow-tooltip />
-            <el-table-column label="状态" width="86">
-              <template #default="{ row }">
-                <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
-                  {{ syncStatusText(row.latestTaskStatus) }}
-                </el-tag>
-                <el-tag v-else size="small" type="info">无任务</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="脏表" width="64">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.blockingRunId ? 'warning' : row.dirty ? 'warning' : 'success'" effect="plain">
-                  {{ row.blockingRunId ? '运行中' : row.dirty ? '是' : '否' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="语义/水位/漂移" min-width="220" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span>{{ tableDirtyText(row) }} · {{ tableWatermarkText(row) }}</span>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div v-if="tableSyncRows.length > tableSyncDisplayRows.length" class="table-sync-more">
-            优先展示异常表，另有 {{ tableSyncRows.length - tableSyncDisplayRows.length }} 张表未展开。
-          </div>
-        </template>
-        <el-empty v-else description="暂无表级同步诊断" />
-      </el-card>
       </div>
     </div>
   </PageStateShell>
+
+  <MirrorRunTableTaskDrawer v-model="tableTaskDrawerVisible" :diagnostics="tableSyncDiagnostics" />
 
   <el-dialog
     v-model="purgeDialogVisible"

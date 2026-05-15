@@ -298,6 +298,8 @@ export interface SyncRunDiagnosticsResponse {
   tables: SyncRunTableDiagnostics[];
 }
 
+export type MirrorRunMonitorOperatorAction = 'refresh' | 'cancel' | 'retry' | 'open_table_tasks';
+
 export interface StatisticFilterOption {
   label: string;
   value: string;

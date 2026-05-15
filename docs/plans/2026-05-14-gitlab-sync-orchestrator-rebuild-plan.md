@@ -760,6 +760,17 @@ npm.cmd run typecheck
 
 Expected: pass.
 
+**Verification:** Passed on 2026-05-15 with:
+
+```bash
+cd frontend
+npm.cmd test -- src/views/MirrorRunMonitorPanel.test.ts src/views/mirror-settings.mount-smoke.test.ts
+npm.cmd run typecheck
+
+cd ..
+git diff --check
+```
+
 ## Task 11: Add Statistic Drilldown GitLab Links
 
 **Files:**

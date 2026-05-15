@@ -59,6 +59,11 @@ export const mirrorApi = {
       method: 'POST',
     });
   },
+  retryFailedSync(configId?: number) {
+    return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/incremental-sync/by-config', configId), {
+      method: 'POST',
+    });
+  },
   registerSystemHook(configId?: number) {
     return request<GitlabSystemHookRegistrationStatus>(withConfigId('/api/gitlab-sync/register-system-hook/by-config', configId), {
       method: 'POST',
