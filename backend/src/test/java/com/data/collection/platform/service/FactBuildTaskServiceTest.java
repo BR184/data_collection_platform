@@ -116,6 +116,25 @@ class FactBuildTaskServiceTest {
   }
 
   @Test
+  void shouldBindQueuedMirrorRefreshTasksToSyncRun() {
+    GitlabSyncConfig config = config("corp-sync-run");
+
+    int created = factBuildTaskService.enqueueMirrorRefreshTasks(config, false, 901L);
+
+    assertThat(created).isEqualTo(3);
+    QueuedFactBuildTask task = factBuildTaskService.claimNextQueuedTaskForRun(901L, "test-worker", 30);
+    assertThat(task).isNotNull();
+    assertThat(task.configId()).isEqualTo(config.getId());
+    assertThat(task.factType()).isEqualTo("ISSUE");
+    String runId =
+        jdbcTemplate.queryForObject(
+            "select run_id from fact_build_tasks where id = ?",
+            String.class,
+            task.id());
+    assertThat(runId).isEqualTo("901");
+  }
+
+  @Test
   void shouldRecoverExpiredQueuedTaskLease() {
     GitlabSyncConfig config = config("corp-timeout");
     factBuildTaskService.enqueueMirrorRefreshTasks(config, true);

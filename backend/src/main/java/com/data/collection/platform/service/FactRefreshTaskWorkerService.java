@@ -49,7 +49,7 @@ public class FactRefreshTaskWorkerService {
     execute(task);
   }
 
-  void execute(QueuedFactBuildTask task) {
+  public FactBuildResponse execute(QueuedFactBuildTask task) {
     try {
       GitlabSyncConfig config = configService.getConfigById(task.configId());
       FactBuildResponse response = switch (normalizeFactType(task.factType())) {
@@ -59,9 +59,11 @@ public class FactRefreshTaskWorkerService {
         default -> throw new IllegalArgumentException("Unsupported fact refresh type: " + task.factType());
       };
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
+      return response;
     } catch (Exception e) {
       taskService.finishQueuedTask(task.id(), "FAILED", 0, "Fact refresh failed", e.getMessage());
       log.warn("Fact refresh task failed, taskId={}, factType={}", task.id(), task.factType(), e);
+      return null;
     }
   }
 

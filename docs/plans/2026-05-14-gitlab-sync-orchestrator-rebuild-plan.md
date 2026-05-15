@@ -668,12 +668,15 @@ npm.cmd run typecheck
 
 ## Task 9: Integrate Fact Refresh Into the Same Monitor
 
+**Status:** Completed on 2026-05-15.
+
 **Files:**
 
 - Modify: `backend/src/main/java/com/data/collection/platform/service/FactBuildTaskService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/service/FactRefreshTaskWorkerService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunWorkerService.java`
 - Modify: `frontend/src/views/MirrorSyncStatusCard.vue`
+- Modify: `backend/src/main/resources/db/migration/V20260515_02__sync_run_fact_refresh_parent.sql`
 - Test: `backend/src/test/java/com/data/collection/platform/service/FactBuildTaskServiceTest.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/FactRefreshTaskWorkerServiceTest.java`
 
@@ -700,6 +703,16 @@ mvn -Dtest=FactBuildTaskServiceTest,FactRefreshTaskWorkerServiceTest,SyncRunWork
 ```
 
 Expected: pass.
+
+**Verification:** Passed on 2026-05-15 with:
+
+```bash
+cd backend
+mvn -Dplatform.auth.secure-config-required=false -Dtest=FactBuildTaskServiceTest,FactRefreshTaskWorkerServiceTest,SyncRunWorkerServiceTest test
+
+cd ../frontend
+npm.cmd run typecheck
+```
 
 ## Task 10: Build Data Mirror Monitor UI
 

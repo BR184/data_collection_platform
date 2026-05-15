@@ -134,6 +134,7 @@ export interface SyncRunSummary {
   sourceMode: SourceMode;
   scopeKey: string;
   dedupeKey: string;
+  parentRunId?: number | null;
   status: GitlabSyncStatus;
   cancelRequested: boolean;
   pendingResync: boolean;

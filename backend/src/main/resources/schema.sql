@@ -190,7 +190,7 @@ create table if not exists review_problem_items (
     suggested_solution text,
     owner_name varchar(128),
     rejection_reason text,
-    problem_status varchar(128) not null default '鏂版彁浜?,
+    problem_status varchar(128) not null default 'NEW',
     deleted boolean not null default false,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp

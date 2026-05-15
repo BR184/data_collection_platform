@@ -58,6 +58,10 @@ defineProps<{
           <span class="meta-value">{{ progress?.runningTables || 0 }}</span>
         </div>
         <div class="meta-item">
+          <span class="meta-label">Fact stage</span>
+          <span class="meta-value">{{ progress?.factRefreshStatus || '-' }}</span>
+        </div>
+        <div class="meta-item">
           <span class="meta-label">失败表</span>
           <span class="meta-value">{{ progress?.failedTables || 0 }}</span>
         </div>

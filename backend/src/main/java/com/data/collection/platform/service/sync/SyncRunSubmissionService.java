@@ -95,6 +95,28 @@ public class SyncRunSubmissionService {
   }
 
   @Transactional
+  public SyncRunSubmissionResult submitFactRefresh(
+      GitlabSyncConfig config, Long parentRunId, boolean full, String reason) {
+    SyncRun activeChild = findActiveFactRefresh(parentRunId);
+    if (activeChild != null) {
+      return reusedRun(
+          activeChild,
+          SyncType.COMPENSATION,
+          "Fact refresh is already queued or running for this mirror run");
+    }
+    return submitRun(
+        config,
+        SyncType.COMPENSATION,
+        SyncRunType.FACT_REFRESH,
+        SyncTriggerType.SCHEDULE,
+        reason,
+        List.of(),
+        null,
+        parentRunId,
+        full);
+  }
+
+  @Transactional
   public SyncRunSubmissionResult submitRun(
       GitlabSyncConfig config,
       SyncType apiType,
@@ -103,6 +125,20 @@ public class SyncRunSubmissionService {
       String reason,
       List<String> sourceTables,
       String primaryTableName) {
+    return submitRun(config, apiType, runType, triggerType, reason, sourceTables, primaryTableName, null, null);
+  }
+
+  @Transactional
+  public SyncRunSubmissionResult submitRun(
+      GitlabSyncConfig config,
+      SyncType apiType,
+      SyncRunType runType,
+      SyncTriggerType triggerType,
+      String reason,
+      List<String> sourceTables,
+      String primaryTableName,
+      Long parentRunId,
+      Boolean fullBuild) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String exclusiveScope = policyService.exclusiveScopeOf(config, runType);
     LocalDateTime now = LocalDateTime.now();
@@ -134,10 +170,12 @@ public class SyncRunSubmissionService {
     run.setStatus(SyncRunStatus.QUEUED);
     run.setPriority(policyService.priorityOf(runType));
     run.setExclusiveScope(exclusiveScope);
+    run.setParentRunId(parentRunId);
     run.setCancelRequested(false);
     run.setSubmittedBy(null);
     run.setRequestReason(reason);
-    run.setPayloadJson(buildPayloadJson(apiType, triggerType, reason, sourceTables, primaryTableName));
+    run.setPayloadJson(
+        buildPayloadJson(apiType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild));
     run.setThreadMode(threadBudgetResolver.effectiveMode(config));
     run.setThreadValue(threadBudgetResolver.effectiveValue(config));
     run.setPlannedTableCount(sourceTables.size());
@@ -191,6 +229,24 @@ public class SyncRunSubmissionService {
     return runs.getFirst();
   }
 
+  private SyncRun findActiveFactRefresh(Long parentRunId) {
+    if (parentRunId == null) {
+      return null;
+    }
+    List<SyncRun> runs =
+        syncRunMapper.selectList(
+            new LambdaQueryWrapper<SyncRun>()
+                .eq(SyncRun::getParentRunId, parentRunId)
+                .eq(SyncRun::getRunType, SyncRunType.FACT_REFRESH)
+                .in(SyncRun::getStatus, ACTIVE_STATUSES)
+                .orderByAsc(SyncRun::getCreatedAt)
+                .last("limit 1"));
+    if (runs == null || runs.isEmpty()) {
+      return null;
+    }
+    return runs.getFirst();
+  }
+
   private void recordMergeEvent(
       SyncRun activeRun,
       GitlabSyncConfig config,
@@ -228,7 +284,9 @@ public class SyncRunSubmissionService {
       SyncTriggerType triggerType,
       String reason,
       List<String> sourceTables,
-      String primaryTableName) {
+      String primaryTableName,
+      Long parentRunId,
+      Boolean fullBuild) {
     Map<String, Object> payload = new java.util.LinkedHashMap<>();
     payload.put("syncType", apiType.name());
     if (triggerType != null) {
@@ -240,6 +298,12 @@ public class SyncRunSubmissionService {
     payload.put("sourceTables", sourceTables);
     if (primaryTableName != null) {
       payload.put("primaryTableName", primaryTableName);
+    }
+    if (parentRunId != null) {
+      payload.put("parentRunId", parentRunId);
+    }
+    if (fullBuild != null) {
+      payload.put("fullBuild", fullBuild);
     }
     return jsonUtils.toJson(payload);
   }

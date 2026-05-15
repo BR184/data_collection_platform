@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.time.Duration;
@@ -66,7 +67,7 @@ public class SyncRunStatusService {
         config,
         buildCurrentTask(currentRun),
         policyService.toApiStatus(currentRun),
-        "Sync run " + currentRun.getRunId() + " is " + currentRun.getStatus().name(),
+        currentMessage(currentRun),
         currentRun.getStartedAt(),
         progress,
         recentLogs(config),
@@ -166,6 +167,7 @@ public class SyncRunStatusService {
     task.put("sourceMode", null);
     task.put("scopeKey", run.getExclusiveScope());
     task.put("dedupeKey", run.getExclusiveScope());
+    task.put("parentRunId", run.getParentRunId());
     task.put("status", policyService.toApiStatus(run).name());
     task.put("cancelRequested", Boolean.TRUE.equals(run.getCancelRequested()));
     task.put("pendingResync", false);
@@ -180,6 +182,9 @@ public class SyncRunStatusService {
   }
 
   private SyncProgress buildProgress(SyncRun run) {
+    if (run.getRunType() == SyncRunType.FACT_REFRESH) {
+      return buildFactRefreshProgress(run);
+    }
     List<Map<String, Object>> rows =
         jdbcTemplate.queryForList(
             """
@@ -231,6 +236,81 @@ public class SyncRunStatusService {
     progress.setCurrentTable(String.join(", ", activeTables));
     progress.setStartedAt(run.getStartedAt() == null ? LocalDateTime.now() : run.getStartedAt());
     return progress;
+  }
+
+  private SyncProgress buildFactRefreshProgress(SyncRun run) {
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList(
+            """
+            select status,
+                   count(*) as count,
+                   coalesce(sum(affected_rows), 0) as affected_rows
+              from fact_build_tasks
+             where run_id = ?
+             group by status
+            """,
+            String.valueOf(run.getId()));
+    long totalTasks = 0L;
+    long completedTasks = 0L;
+    long runningTasks = 0L;
+    long failedTasks = 0L;
+    long affectedRows = 0L;
+    for (Map<String, Object> row : rows) {
+      String status = String.valueOf(row.get("status"));
+      long count = numberValue(row.get("count"));
+      totalTasks += count;
+      if (isCompletedStatus(status)) {
+        completedTasks += count;
+      }
+      if (SyncRunStatus.RUNNING.name().equals(status) || SyncRunStatus.RETRYING.name().equals(status)) {
+        runningTasks += count;
+      }
+      if (SyncRunStatus.FAILED.name().equals(status) || SyncRunStatus.TIMEOUT.name().equals(status)) {
+        failedTasks += count;
+      }
+      affectedRows += numberValue(row.get("affected_rows"));
+    }
+    SyncProgress progress = new SyncProgress();
+    progress.setPhase(SyncRunType.FACT_REFRESH.name());
+    progress.setTotalTables(Math.toIntExact(totalTasks));
+    progress.setCompletedTables(Math.toIntExact(completedTasks));
+    progress.setRunningTables(Math.toIntExact(runningTasks));
+    progress.setFailedTables(Math.toIntExact(failedTasks));
+    progress.setSyncedRecords(Math.toIntExact(affectedRows));
+    progress.setAppliedRows(affectedRows);
+    progress.setRecordsPerSecond(recordsPerSecond(run, affectedRows));
+    progress.setEstimatedRemainingSeconds(estimatedRemainingSeconds(run, totalTasks, completedTasks, affectedRows));
+    progress.setFactRefreshStatus(run.getStatus() == null ? null : run.getStatus().name());
+    progress.setActiveTableTasks(activeFactTasks(run.getId()));
+    progress.setCurrentTable(String.join(", ", progress.getActiveTableTasks()));
+    progress.setStartedAt(run.getStartedAt() == null ? LocalDateTime.now() : run.getStartedAt());
+    return progress;
+  }
+
+  private List<String> activeFactTasks(Long runId) {
+    List<Map<String, Object>> rows =
+        jdbcTemplate.queryForList(
+            """
+            select fact_type
+              from fact_build_tasks
+             where run_id = ?
+               and status in ('RUNNING', 'RETRYING')
+             order by started_at nulls last, id
+             limit ?
+            """,
+            String.valueOf(runId),
+            5);
+    return rows.stream()
+        .map(row -> String.valueOf(row.get("fact_type")))
+        .filter(value -> value != null && !value.isBlank() && !"null".equals(value))
+        .toList();
+  }
+
+  private String currentMessage(SyncRun currentRun) {
+    if (currentRun.getRunType() == SyncRunType.FACT_REFRESH) {
+      return "Fact refresh run " + currentRun.getRunId() + " is " + currentRun.getStatus().name();
+    }
+    return "Sync run " + currentRun.getRunId() + " is " + currentRun.getStatus().name();
   }
 
   private List<String> activeTables(Long runId) {

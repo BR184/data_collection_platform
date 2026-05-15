@@ -41,6 +41,9 @@ public class SyncRun {
   @TableField("exclusive_scope")
   private String exclusiveScope;
 
+  @TableField("parent_run_id")
+  private Long parentRunId;
+
   @TableField("cancel_requested")
   private Boolean cancelRequested;
 

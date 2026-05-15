@@ -72,13 +72,17 @@ public class FactBuildTaskService {
   }
 
   public int enqueueMirrorRefreshTasks(GitlabSyncConfig config, boolean full) {
+    return enqueueMirrorRefreshTasks(config, full, null);
+  }
+
+  public int enqueueMirrorRefreshTasks(GitlabSyncConfig config, boolean full, Long syncRunId) {
     if (config == null || config.getId() == null) {
       return 0;
     }
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    return enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full)
-        + enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full)
-        + enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full);
+    return enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, syncRunId)
+        + enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId)
+        + enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full, syncRunId);
   }
 
   public int recoverTimedOutQueuedTasks() {
@@ -150,6 +154,42 @@ public class FactBuildTaskService {
     return tasks.isEmpty() ? null : tasks.getFirst();
   }
 
+  public QueuedFactBuildTask claimNextQueuedTaskForRun(Long syncRunId, String owner, int leaseSeconds) {
+    if (syncRunId == null) {
+      return null;
+    }
+    List<QueuedFactBuildTask> tasks = jdbcTemplate.query(
+        """
+        update fact_build_tasks
+           set status = ?,
+               lock_owner = ?,
+               heartbeat_at = current_timestamp,
+               lease_until = current_timestamp + (? * interval '1 second'),
+               started_at = coalesce(started_at, current_timestamp),
+               updated_at = current_timestamp
+         where id = (
+           select id
+             from fact_build_tasks
+            where status = ?
+              and trigger_type = ?
+              and run_id = ?
+              and run_after <= current_timestamp
+            order by created_at asc, id asc
+            for update skip locked
+            limit 1
+         )
+         returning *
+        """,
+        (rs, rowNum) -> mapQueuedTask(rs),
+        STATUS_RUNNING,
+        owner,
+        Math.max(1, leaseSeconds),
+        STATUS_PENDING,
+        TRIGGER_MIRROR_SYNC,
+        String.valueOf(syncRunId));
+    return tasks.isEmpty() ? null : tasks.getFirst();
+  }
+
   public void finishQueuedTask(Long taskId, String status, int affectedRows, String message, String errorMessage) {
     finishTask(taskId, status, affectedRows, message, errorMessage);
   }
@@ -196,8 +236,12 @@ public class FactBuildTaskService {
         lockOwner);
   }
 
-  private int enqueueFactRefreshTask(Long configId, String sourceInstance, String factType, boolean full) {
+  private int enqueueFactRefreshTask(Long configId, String sourceInstance, String factType, boolean full, Long syncRunId) {
     String scope = factScope(factType, sourceInstance);
+    String runId = syncRunId == null ? UUID.randomUUID().toString() : String.valueOf(syncRunId);
+    if (syncRunId != null) {
+      return enqueueFactRefreshTaskForRun(configId, sourceInstance, factType, scope, full, runId);
+    }
     return jdbcTemplate.update(
         """
         insert into fact_build_tasks(
@@ -216,7 +260,7 @@ public class FactBuildTaskService {
              and status in (?, ?)
         )
         """,
-        UUID.randomUUID().toString(),
+        runId,
         scope,
         configId,
         sourceInstance,
@@ -229,6 +273,45 @@ public class FactBuildTaskService {
         sourceInstance,
         factType,
         full,
+        TRIGGER_MIRROR_SYNC,
+        STATUS_PENDING,
+        STATUS_RUNNING);
+  }
+
+  private int enqueueFactRefreshTaskForRun(
+      Long configId,
+      String sourceInstance,
+      String factType,
+      String scope,
+      boolean full,
+      String runId) {
+    return jdbcTemplate.update(
+        """
+        insert into fact_build_tasks(
+          run_id, scope, config_id, source_instance, fact_type, full_build, status, trigger_type,
+          retry_count, max_retry_count, run_after, created_at, updated_at
+        )
+        select ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, current_timestamp, current_timestamp, current_timestamp
+        where not exists (
+          select 1
+            from fact_build_tasks
+           where run_id = ?
+             and fact_type = ?
+             and trigger_type = ?
+             and status in (?, ?)
+        )
+        """,
+        runId,
+        scope,
+        configId,
+        sourceInstance,
+        factType,
+        full,
+        STATUS_PENDING,
+        TRIGGER_MIRROR_SYNC,
+        DEFAULT_MAX_RETRY_COUNT,
+        runId,
+        factType,
         TRIGGER_MIRROR_SYNC,
         STATUS_PENDING,
         STATUS_RUNNING);

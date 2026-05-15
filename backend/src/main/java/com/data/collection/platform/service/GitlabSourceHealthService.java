@@ -40,6 +40,7 @@ public class GitlabSourceHealthService {
     boolean sourceEnabled = config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled();
     String blockedMessage = resolveBlockedMessage(config);
     LatestSyncView latestSync = latestSyncView(config);
+    ActiveSyncView activeSync = activeSyncView(config, sourceInstance);
     if (!sourceEnabled || blockedMessage != null) {
       String healthStatus = sourceEnabled ? "BLOCKED" : "DISABLED";
       String healthMessage = sourceEnabled ? blockedMessage : "GitLab source is disabled";
@@ -77,7 +78,8 @@ public class GitlabSourceHealthService {
         isFactLayerLagging(latestSync, latestMergeRequestFactUpdatedAt, existingMirrorTables);
     boolean issueFactLagging = false;
     boolean integrationTestFactLagging = false;
-    boolean factLayerLagging = mergeRequestFactLagging || issueFactLagging || integrationTestFactLagging;
+    boolean factLayerLagging =
+        activeSync.factRefreshActive() || mergeRequestFactLagging || issueFactLagging || integrationTestFactLagging;
     List<String> missingRequiredMirrorTables = missingRequiredMirrorTables(sourceInstance);
     String healthStatus = resolveHealthStatus(
         latestSync,
@@ -93,16 +95,18 @@ public class GitlabSourceHealthService {
         sourceEnabled,
         healthStatus,
         healthMessage,
-        SyncStatus.IDLE,
-        "",
-        null,
+        activeSync.status(),
+        activeSync.message(),
+        activeSync.startedAt(),
         latestSync.status(),
         latestSync.message(),
         latestSync.finishedAt(),
         registeredMirrorTables.size(),
         existingMirrorTables,
         factLayerLagging,
-        factLayerLagging ? factLayerMessage(mergeRequestFactLagging, issueFactLagging, integrationTestFactLagging) : "",
+        factLayerLagging
+            ? factLayerMessage(activeSync.factRefreshActive(), mergeRequestFactLagging, issueFactLagging, integrationTestFactLagging)
+            : "",
         latestMergeRequestFactUpdatedAt,
         mergeRequestFactLagging,
         issueFactLagging,
@@ -167,6 +171,62 @@ public class GitlabSourceHealthService {
     return status == SyncStatus.FAILED
         || status == SyncStatus.TIMEOUT
         || status == SyncStatus.PARTIAL_SUCCESS;
+  }
+
+  private ActiveSyncView activeSyncView(GitlabSyncConfig config, String sourceInstance) {
+    try {
+      List<ActiveSyncView> rows =
+          jdbcTemplate.query(
+              """
+              select run_type, status, run_id, started_at, created_at
+                from sync_runs
+               where config_id = ?
+                 and source_instance = ?
+                 and status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+               order by case when status in ('RUNNING', 'CANCELLING') then 0 else 1 end, created_at asc, id asc
+               limit 1
+              """,
+              (rs, rowNum) -> {
+                String runType = rs.getString("run_type");
+                String status = rs.getString("status");
+                String runId = rs.getString("run_id");
+                LocalDateTime startedAt = rs.getTimestamp("started_at") == null
+                    ? null
+                    : rs.getTimestamp("started_at").toLocalDateTime();
+                boolean factRefreshActive = "FACT_REFRESH".equals(runType);
+                return new ActiveSyncView(
+                    toApiStatus(status),
+                    factRefreshActive
+                        ? "Fact layer refresh is " + status + " for run " + runId
+                        : "Mirror sync is " + status + " for run " + runId,
+                    startedAt,
+                    factRefreshActive);
+              },
+              config.getId(),
+              sourceInstance);
+      return rows.isEmpty() ? ActiveSyncView.idle() : rows.getFirst();
+    } catch (DataAccessException error) {
+      log.debug("Failed to load active sync run for source health, configId={}", config.getId(), error);
+      return ActiveSyncView.idle();
+    }
+  }
+
+  private SyncStatus toApiStatus(String status) {
+    if (status == null) {
+      return SyncStatus.IDLE;
+    }
+    return switch (status) {
+      case "SUBMITTED", "QUEUED" -> SyncStatus.QUEUED;
+      case "RUNNING" -> SyncStatus.RUNNING;
+      case "RETRYING" -> SyncStatus.RETRYING;
+      case "CANCELLING" -> SyncStatus.CANCELLING;
+      case "SUCCESS" -> SyncStatus.SUCCESS;
+      case "PARTIAL_SUCCESS" -> SyncStatus.PARTIAL_SUCCESS;
+      case "FAILED" -> SyncStatus.FAILED;
+      case "CANCELLED" -> SyncStatus.CANCELLED;
+      case "TIMEOUT" -> SyncStatus.TIMEOUT;
+      default -> SyncStatus.IDLE;
+    };
   }
 
   private List<String> registeredMirrorTables(Long configId) {
@@ -276,9 +336,13 @@ public class GitlabSourceHealthService {
   }
 
   private String factLayerMessage(
+      boolean factRefreshActive,
       boolean mergeRequestFactLagging,
       boolean issueFactLagging,
       boolean integrationTestFactLagging) {
+    if (factRefreshActive) {
+      return "Fact layer refresh is queued or running";
+    }
     List<String> laggingDomains = new ArrayList<>();
     if (mergeRequestFactLagging) {
       laggingDomains.add("merge request facts");
@@ -314,5 +378,16 @@ public class GitlabSourceHealthService {
       SyncStatus status,
       String message,
       LocalDateTime finishedAt) {
+  }
+
+  private record ActiveSyncView(
+      SyncStatus status,
+      String message,
+      LocalDateTime startedAt,
+      boolean factRefreshActive) {
+
+    private static ActiveSyncView idle() {
+      return new ActiveSyncView(SyncStatus.IDLE, "", null, false);
+    }
   }
 }

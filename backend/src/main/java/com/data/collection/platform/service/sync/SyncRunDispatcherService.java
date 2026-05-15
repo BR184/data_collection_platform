@@ -91,6 +91,7 @@ public class SyncRunDispatcherService {
     run.setStatus(SyncRunStatus.valueOf(rs.getString("status")));
     run.setPriority(rs.getInt("priority"));
     run.setExclusiveScope(rs.getString("exclusive_scope"));
+    run.setParentRunId(rs.getObject("parent_run_id") == null ? null : rs.getLong("parent_run_id"));
     run.setCancelRequested(rs.getBoolean("cancel_requested"));
     run.setSubmittedBy(rs.getString("submitted_by"));
     run.setRequestReason(rs.getString("request_reason"));
