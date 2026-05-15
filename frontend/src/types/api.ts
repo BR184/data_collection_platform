@@ -5,7 +5,7 @@ export * from './integration-test';
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
 export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'SYSTEM_HOOK' | 'PURGE';
-export type GitlabTableSyncTaskType =
+export type SyncRunTablePhase =
   | 'COMPENSATION_INCREMENTAL'
   | 'DAILY_VERIFY'
   | 'MANUAL_REFRESH'
@@ -84,7 +84,7 @@ export interface TableWhitelistOption {
   recommended: boolean;
 }
 
-export interface GitlabSyncLog {
+export interface SyncRunLog {
   id: number;
   syncType: GitlabSyncType;
   status: GitlabSyncStatus;
@@ -104,7 +104,7 @@ export interface SyncProgress {
   startedAt?: string | null;
 }
 
-export interface GitlabSyncTask {
+export interface SyncRunSummary {
   id: number;
   runId: string;
   taskType: GitlabSyncType;
@@ -136,7 +136,7 @@ export type SyncSubmissionAction =
 
 export interface SyncSubmissionResponse {
   accepted: boolean;
-  taskId: number;
+  runId?: number | string | null;
   status: string;
   action: SyncSubmissionAction;
   message: string;
@@ -155,12 +155,12 @@ export interface MirrorPurgeResult {
 
 export interface MirrorStatusResponse {
   config: GitlabSyncConfig;
-  currentTask?: GitlabSyncTask | null;
+  currentTask?: SyncRunSummary | null;
   currentStatus: GitlabSyncStatus | 'IDLE';
   currentMessage: string;
   currentStartedAt?: string | null;
   progress?: SyncProgress | null;
-  logs: GitlabSyncLog[];
+  logs: SyncRunLog[];
   systemHookUrl?: string;
   systemHookRegistration?: GitlabSystemHookRegistrationStatus | null;
 }
@@ -223,7 +223,7 @@ export interface GitlabSyncDiagnosticsResponse {
   runtimeWarnings?: string[];
 }
 
-export interface GitlabTableSyncStateDiagnostics {
+export interface SyncRunTableDiagnostics {
   sourceTable: string;
   mirrorTable: string;
   primaryKeyColumns: string;
@@ -240,7 +240,7 @@ export interface GitlabTableSyncStateDiagnostics {
   schemaFingerprint?: string | null;
   lastError?: string | null;
   retryCount?: number | null;
-  latestTaskType?: GitlabTableSyncTaskType | null;
+  latestTaskType?: SyncRunTablePhase | null;
   latestTaskStatus?: GitlabSyncStatus | null;
   latestTaskRunAfter?: string | null;
   latestTaskHeartbeatAt?: string | null;
@@ -250,10 +250,12 @@ export interface GitlabTableSyncStateDiagnostics {
   latestTaskError?: string | null;
 }
 
-export interface GitlabTableSyncDiagnosticsResponse {
-  configId: number;
+export interface SyncRunDiagnosticsResponse {
+  configId?: number | null;
   sourceInstance: string;
   generatedAt: string;
+  status?: string;
+  message?: string;
   tableCount: number;
   dirtyTableCount: number;
   pendingTaskCount: number;
@@ -261,7 +263,7 @@ export interface GitlabTableSyncDiagnosticsResponse {
   retryingTaskCount: number;
   failedTaskCount: number;
   timedOutTaskCount: number;
-  tables: GitlabTableSyncStateDiagnostics[];
+  tables: SyncRunTableDiagnostics[];
 }
 
 export interface StatisticFilterOption {

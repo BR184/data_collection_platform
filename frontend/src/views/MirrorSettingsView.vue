@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Tools } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
-import type { GitlabSourceHealthResponse, GitlabSyncConfig, GitlabTableSyncDiagnosticsResponse } from '../types/api';
+import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import { buildPurgeSummaryHtml, formatDateTime, syncStatusTagType, syncStatusText } from './mirror-settings-helpers';
@@ -21,7 +21,7 @@ import { useMirrorWhitelistOptionsController } from './useMirrorWhitelistOptions
 const initialized = ref(false);
 const configs = ref<GitlabSyncConfig[]>([]);
 const sourceHealth = ref<GitlabSourceHealthResponse[]>([]);
-const tableSyncDiagnostics = ref<GitlabTableSyncDiagnosticsResponse | null>(null);
+const tableSyncDiagnostics = ref<SyncRunDiagnosticsResponse | null>(null);
 const tableSyncDiagnosticsLoading = ref(false);
 const selectedConfigId = ref<number | undefined>(undefined);
 const isCreatingNewConfig = ref(false);

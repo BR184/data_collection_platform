@@ -3,7 +3,7 @@ import ElementPlus from 'element-plus';
 import { describe, expect, it } from 'vitest';
 import { defineComponent, h, inject, provide } from 'vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
-import type { GitlabSyncLog } from '../types/api';
+import type { SyncRunLog } from '../types/api';
 
 const tableRowsKey = Symbol('tableRows');
 
@@ -26,19 +26,19 @@ const tableStubs = {
       prop: String,
     },
     setup(props, { slots }) {
-      const rows = inject<GitlabSyncLog[]>(tableRowsKey, []);
+      const rows = inject<SyncRunLog[]>(tableRowsKey, []);
       return () =>
         h('div', { class: 'sync-log-table-column' }, [
           h('span', props.label),
           ...rows.map((row) =>
-            h('span', slots.default ? slots.default({ row }) : String(row[props.prop as keyof GitlabSyncLog] ?? '')),
+            h('span', slots.default ? slots.default({ row }) : String(row[props.prop as keyof SyncRunLog] ?? '')),
           ),
         ]);
     },
   }),
 };
 
-function createLog(overrides: Partial<GitlabSyncLog> = {}): GitlabSyncLog {
+function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
   return {
     id: 1,
     syncType: 'FULL',

@@ -1,24 +1,23 @@
 package com.data.collection.platform.common.logging;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.GitlabSyncTask;
 import com.data.collection.platform.entity.SourceMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.slf4j.MDC;
 
-public final class GitlabSyncLogContext {
-  private GitlabSyncLogContext() {
+public final class SyncRunLogContext {
+  private SyncRunLogContext() {
   }
 
-  public static Scope openTask(GitlabSyncTask task, GitlabSyncConfig config) {
+  public static Scope openRun(Long runId, String traceId, GitlabSyncConfig config, String runType, String scopeValue) {
     Scope scope = new Scope();
-    scope.put("traceId", task != null && task.getRunId() != null && !task.getRunId().isBlank() ? task.getRunId() : UUID.randomUUID().toString());
-    scope.put("taskId", task != null && task.getId() != null ? String.valueOf(task.getId()) : "");
-    scope.put("scope", task != null && task.getScopeKey() != null ? task.getScopeKey() : "");
+    scope.put("traceId", traceId == null || traceId.isBlank() ? UUID.randomUUID().toString() : traceId);
+    scope.put("runId", runId == null ? "" : String.valueOf(runId));
+    scope.put("scope", scopeValue == null ? "" : scopeValue);
     scope.put("gitlabUrl", resolveGitlabUrl(config));
-    scope.put("taskType", task != null && task.getTaskType() != null ? task.getTaskType().name() : "");
+    scope.put("runType", runType == null ? "" : runType);
     return scope;
   }
 
@@ -29,10 +28,10 @@ public final class GitlabSyncLogContext {
   public static Scope openConfig(GitlabSyncConfig config, String taskType, String scopeValue) {
     Scope scope = new Scope();
     scope.put("traceId", UUID.randomUUID().toString());
-    scope.put("taskId", "");
+    scope.put("runId", "");
     scope.put("scope", scopeValue == null ? "" : scopeValue);
     scope.put("gitlabUrl", resolveGitlabUrl(config));
-    scope.put("taskType", taskType == null ? "" : taskType);
+    scope.put("runType", taskType == null ? "" : taskType);
     return scope;
   }
 

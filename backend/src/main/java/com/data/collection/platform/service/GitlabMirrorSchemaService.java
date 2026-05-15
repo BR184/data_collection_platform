@@ -2,7 +2,7 @@ package com.data.collection.platform.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -84,7 +84,7 @@ public class GitlabMirrorSchemaService {
 
     if (schemaChanged) {
       ensureMirrorTableExists(mirrorTableName, sourceSchema);
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Schema_Sync")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Schema_Sync")) {
         log.info(
             "Mirror schema synced, sourceTableName={}, mirrorTableName={}, schemaFingerprint={}",
             option.tableName(),
@@ -92,7 +92,7 @@ public class GitlabMirrorSchemaService {
             schemaFingerprint);
       }
     } else {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Schema_Check")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Schema_Check")) {
         log.info(
             "Mirror schema reused from registry, sourceTableName={}, mirrorTableName={}, schemaFingerprint={}",
             option.tableName(),
@@ -146,7 +146,7 @@ public class GitlabMirrorSchemaService {
     String schemaFingerprint = buildSchemaFingerprint(sourceSchema);
     GitlabMirrorTableRegistry updatedRegistry =
         upsertRegistry(config, option, sourceSchema, mirrorTableName, schemaFingerprint, true);
-    try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Schema_Bootstrap")) {
+    try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Schema_Bootstrap")) {
       log.info(
           "Mirror table bootstrapped for sync, sourceTableName={}, mirrorTableName={}, schemaFingerprint={}",
           option.tableName(),

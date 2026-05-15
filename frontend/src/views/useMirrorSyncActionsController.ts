@@ -7,7 +7,7 @@ export interface MirrorSyncActionsControllerDependencies {
   testConnectionData: () => Promise<{ success: boolean; message: string }>;
   startFullSyncData: () => Promise<SyncSubmissionResponse>;
   startIncrementalSyncData: () => Promise<SyncSubmissionResponse>;
-  cancelSyncData: () => Promise<{ accepted: boolean; taskId?: number; status?: string }>;
+  cancelSyncData: () => Promise<{ accepted: boolean; runId?: number; status?: string }>;
   loadStatus: (showError: boolean, blocking: boolean) => Promise<void>;
   loadSystemHookRegistration: () => void;
   notifySuccess: (message: string) => void;

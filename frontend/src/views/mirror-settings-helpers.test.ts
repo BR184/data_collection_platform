@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GitlabSyncLog, MirrorPurgeResult } from '../types/api';
+import type { SyncRunLog, MirrorPurgeResult } from '../types/api';
 import {
   buildPurgeSummaryHtml,
   formatDateTime,
@@ -13,7 +13,7 @@ import {
   translateSyncMessage,
 } from './mirror-settings-helpers';
 
-function createLog(overrides: Partial<GitlabSyncLog> = {}): GitlabSyncLog {
+function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
   return {
     id: 1,
     syncType: 'FULL',

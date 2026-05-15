@@ -2,15 +2,20 @@ package com.data.collection.platform.entity;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record MirrorStatusResponse(
     GitlabSyncConfig config,
-    MirrorStatusTaskView currentTask,
+    Map<String, Object> currentTask,
     SyncStatus currentStatus,
     String currentMessage,
     LocalDateTime currentStartedAt,
     SyncProgress progress,
-    List<MirrorStatusLogView> logs,
+    List<Map<String, Object>> logs,
     String systemHookUrl,
     GitlabSystemHookRegistrationStatus systemHookRegistration) {
+
+  public MirrorStatusResponse {
+    logs = logs == null ? List.of() : List.copyOf(logs);
+  }
 }

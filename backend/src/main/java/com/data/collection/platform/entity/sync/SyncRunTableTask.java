@@ -1,4 +1,4 @@
-package com.data.collection.platform.entity;
+package com.data.collection.platform.entity.sync;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -10,16 +10,19 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@TableName("gitlab_table_sync_tasks")
-public class GitlabTableSyncTask {
+@TableName("sync_run_table_tasks")
+public class SyncRunTableTask {
   @TableId(type = IdType.AUTO)
   private Long id;
 
-  @TableField("job_id")
-  private Long jobId;
+  @TableField("run_id")
+  private Long runId;
 
   @TableField("config_id")
   private Long configId;
+
+  @TableField("state_id")
+  private Long stateId;
 
   @TableField("source_instance")
   private String sourceInstance;
@@ -31,12 +34,13 @@ public class GitlabTableSyncTask {
   private String mirrorTable;
 
   @TableField("task_type")
-  private GitlabTableSyncTaskType taskType;
+  private String taskType;
 
-  private SyncStatus status;
+  @TableField("status")
+  private SyncRunStatus status;
 
   @TableField("row_strategy")
-  private GitlabTableRowStrategy rowStrategy;
+  private String rowStrategy;
 
   @TableField("watermark_at")
   private LocalDateTime watermarkAt;

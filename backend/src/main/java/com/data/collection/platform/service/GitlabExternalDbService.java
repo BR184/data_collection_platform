@@ -1,7 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
@@ -101,7 +101,7 @@ public class GitlabExternalDbService {
     try {
       sourceAdapter(config).testConnection(config);
     } catch (Exception e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Connection_Test")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Connection_Test")) {
         log.error("GitLab PostgreSQL connection test failed", e);
       }
       throw e instanceof BizException bizException
@@ -151,7 +151,7 @@ public class GitlabExternalDbService {
           ((Number) row.get("ordinal_position")).intValue()));
     }
     if (columns.isEmpty()) {
-      throw new BizException("未发现源表结构: " + option.tableName());
+      throw new BizException("鏈彂鐜版簮琛ㄧ粨鏋? " + option.tableName());
     }
     List<String> primaryKeys = List.of(option.primaryKey().split(","))
         .stream()
@@ -732,7 +732,7 @@ public class GitlabExternalDbService {
         }
       });
     } catch (BizException e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Failed to query GitLab database via JDBC", e);
       }
       throw e;
@@ -800,7 +800,7 @@ public class GitlabExternalDbService {
         }
       });
     } catch (BizException e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Failed to query GitLab database via Docker", e);
       }
       throw e;
@@ -855,18 +855,18 @@ public class GitlabExternalDbService {
       }
       return lines;
     } catch (BizException e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Docker GitLab PostgreSQL command failed", e);
       }
       throw e;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Docker GitLab PostgreSQL command interrupted", e);
       }
       throw new BizException("Docker GitLab PostgreSQL command interrupted");
     } catch (Exception e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Data_Fetching")) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
         log.error("Docker GitLab PostgreSQL command failed", e);
       }
       throw new BizException("Docker GitLab PostgreSQL command failed: " + e.getMessage());

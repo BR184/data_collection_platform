@@ -1,7 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
@@ -178,12 +178,12 @@ public class GitlabSystemHookRegistrationService {
       }
       return output.toString().trim();
     } catch (BizException e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action(actionName)) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action(actionName)) {
         log.error("GitLab system hook operation failed", e);
       }
       throw e;
     } catch (Exception e) {
-      try (GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action(actionName)) {
+      try (SyncRunLogContext.Scope action = SyncRunLogContext.action(actionName)) {
         log.error("GitLab system hook operation failed", e);
       }
       throw new BizException("GitLab System Hook operation failed: " + e.getMessage());

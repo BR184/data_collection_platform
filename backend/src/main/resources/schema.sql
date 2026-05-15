@@ -24,125 +24,10 @@ create table if not exists gitlab_sync_configs (
     updated_at timestamp not null default current_timestamp
 );
 
-create table if not exists gitlab_sync_logs (
-    id bigserial primary key,
-    config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
-    sync_type varchar(32) not null,
-    status varchar(32) not null,
-    message text,
-    whitelist_snapshot text,
-    table_count integer not null default 0,
-    record_count integer not null default 0,
-    started_at timestamp not null default current_timestamp,
-    finished_at timestamp
-);
 
-create table if not exists gitlab_sync_tasks (
-    id bigserial primary key,
-    run_id varchar(64) not null,
-    config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
-    task_type varchar(32) not null,
-    trigger_type varchar(32) not null,
-    source_mode varchar(32) not null,
-    scope_key varchar(512) not null,
-    dedupe_key varchar(512) not null,
-    status varchar(32) not null,
-    cancel_requested boolean not null default false,
-    pending_resync boolean not null default false,
-    retry_count integer not null default 0,
-    cooldown_until timestamp,
-    heartbeat_at timestamp,
-    queued_at timestamp,
-    run_after timestamp,
-    started_at timestamp,
-    finished_at timestamp,
-    finished_reason text,
-    lock_owner varchar(128),
-    version integer not null default 0,
-    payload_json text,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
-);
 
-create table if not exists gitlab_sync_jobs (
-    id bigserial primary key,
-    run_id varchar(64) not null,
-    config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
-    source_instance varchar(128) not null,
-    job_type varchar(64) not null,
-    trigger_type varchar(32) not null,
-    status varchar(32) not null,
-    priority integer not null default 0,
-    run_after timestamp not null default current_timestamp,
-    heartbeat_at timestamp,
-    lease_owner varchar(128),
-    lease_until timestamp,
-    retry_count integer not null default 0,
-    max_retry_count integer not null default 3,
-    started_at timestamp,
-    finished_at timestamp,
-    error_code varchar(64),
-    error_message text,
-    payload_json text,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
-);
 
-create table if not exists gitlab_table_sync_states (
-    id bigserial primary key,
-    config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
-    source_instance varchar(128) not null,
-    source_table varchar(255) not null,
-    mirror_table varchar(255) not null,
-    primary_key_columns text not null,
-    updated_at_column varchar(255),
-    row_strategy varchar(32) not null default 'INCREMENTAL',
-    sync_enabled boolean not null default true,
-    dirty_flag boolean not null default false,
-    last_success_at timestamp,
-    last_full_verified_at timestamp,
-    last_watermark_at timestamp,
-    last_cursor_pk varchar(512),
-    source_max_updated_at timestamp,
-    source_row_count bigint,
-    mirror_row_count bigint,
-    schema_fingerprint varchar(128),
-    last_error text,
-    retry_count integer not null default 0,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp,
-    unique (config_id, source_instance, source_table),
-    unique (config_id, source_instance, mirror_table)
-);
 
-create table if not exists gitlab_table_sync_tasks (
-    id bigserial primary key,
-    job_id bigint not null references gitlab_sync_jobs(id) on delete cascade,
-    config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
-    source_instance varchar(128) not null,
-    source_table varchar(255) not null,
-    mirror_table varchar(255) not null,
-    task_type varchar(64) not null,
-    status varchar(32) not null,
-    row_strategy varchar(32) not null,
-    watermark_at timestamp,
-    cursor_updated_at timestamp,
-    cursor_pk varchar(512),
-    batch_size integer not null default 500,
-    run_after timestamp not null default current_timestamp,
-    lease_owner varchar(128),
-    lease_until timestamp,
-    heartbeat_at timestamp,
-    retry_count integer not null default 0,
-    max_retry_count integer not null default 3,
-    last_error text,
-    rows_scanned bigint not null default 0,
-    rows_applied bigint not null default 0,
-    started_at timestamp,
-    finished_at timestamp,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
-);
 
 create table if not exists gitlab_system_hook_events (
     id bigserial primary key,
@@ -230,7 +115,7 @@ create table if not exists collect_form_records (
     resource_type varchar(64) not null,
     resource_id varchar(255) not null,
     template_code varchar(128) not null,
-    form_title varchar(255) not null default '采集表单',
+    form_title varchar(255) not null default '閲囬泦琛ㄥ崟',
     reviewer varchar(128),
     review_duration_minutes integer not null default 0,
     specification_score integer not null default 0,
@@ -305,7 +190,7 @@ create table if not exists review_problem_items (
     suggested_solution text,
     owner_name varchar(128),
     rejection_reason text,
-    problem_status varchar(128) not null default '新提交',
+    problem_status varchar(128) not null default '鏂版彁浜?,
     deleted boolean not null default false,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp
@@ -571,26 +456,6 @@ alter table gitlab_sync_configs add column if not exists source_instance varchar
 alter table gitlab_sync_configs add column if not exists source_enabled boolean not null default true;
 alter table gitlab_sync_configs add column if not exists docker_container_name varchar(255);
 alter table gitlab_sync_configs add column if not exists system_hook_enabled boolean not null default false;
-alter table gitlab_sync_tasks add column if not exists run_id varchar(64);
-alter table gitlab_sync_tasks add column if not exists trigger_type varchar(32) default 'MANUAL';
-alter table gitlab_sync_tasks add column if not exists source_mode varchar(32) default 'DOCKER';
-alter table gitlab_sync_tasks add column if not exists scope_key varchar(512) default '';
-alter table gitlab_sync_tasks add column if not exists dedupe_key varchar(512) default '';
-alter table gitlab_sync_tasks add column if not exists cancel_requested boolean not null default false;
-alter table gitlab_sync_tasks add column if not exists pending_resync boolean not null default false;
-alter table gitlab_sync_tasks add column if not exists retry_count integer not null default 0;
-alter table gitlab_sync_tasks add column if not exists cooldown_until timestamp;
-alter table gitlab_sync_tasks add column if not exists heartbeat_at timestamp;
-alter table gitlab_sync_tasks add column if not exists queued_at timestamp;
-alter table gitlab_sync_tasks add column if not exists run_after timestamp;
-alter table gitlab_sync_tasks add column if not exists started_at timestamp;
-alter table gitlab_sync_tasks add column if not exists finished_at timestamp;
-alter table gitlab_sync_tasks add column if not exists finished_reason text;
-alter table gitlab_sync_tasks add column if not exists lock_owner varchar(128);
-alter table gitlab_sync_tasks add column if not exists version integer not null default 0;
-alter table gitlab_sync_tasks add column if not exists payload_json text;
-alter table gitlab_sync_tasks add column if not exists created_at timestamp not null default current_timestamp;
-alter table gitlab_sync_tasks add column if not exists updated_at timestamp not null default current_timestamp;
 alter table fact_build_tasks add column if not exists run_id varchar(64);
 alter table fact_build_tasks add column if not exists scope varchar(32);
 alter table fact_build_tasks alter column scope type varchar(128);
@@ -789,16 +654,6 @@ create unique index if not exists uk_module_dictionary_project on module_diction
 create index if not exists idx_module_dictionary_context on module_dictionary(dictionary_domain, project_id, enabled, priority desc);
 create index if not exists idx_sys_table_registry_config on sys_table_registry(config_id, source_table_name);
 create index if not exists idx_sys_table_registry_preview on sys_table_registry(config_id, preview_enabled, source_table_name);
-create index if not exists idx_gitlab_sync_logs_config on gitlab_sync_logs(config_id, started_at desc);
-create index if not exists idx_gitlab_sync_tasks_config on gitlab_sync_tasks(config_id, created_at desc);
-create index if not exists idx_gitlab_sync_tasks_scope_status on gitlab_sync_tasks(scope_key, status, created_at desc);
-create index if not exists idx_gitlab_sync_tasks_dedupe on gitlab_sync_tasks(dedupe_key, created_at desc);
-create index if not exists idx_gitlab_sync_jobs_dispatch on gitlab_sync_jobs(status, run_after, priority desc, created_at);
-create index if not exists idx_gitlab_sync_jobs_config on gitlab_sync_jobs(config_id, job_type, created_at desc);
-create index if not exists idx_gitlab_table_sync_states_dirty on gitlab_table_sync_states(config_id, dirty_flag, updated_at desc);
-create index if not exists idx_gitlab_table_sync_states_table on gitlab_table_sync_states(config_id, source_table);
-create index if not exists idx_gitlab_table_sync_tasks_dispatch on gitlab_table_sync_tasks(status, run_after, source_instance, created_at);
-create index if not exists idx_gitlab_table_sync_tasks_table on gitlab_table_sync_tasks(config_id, source_table, status, created_at desc);
 create index if not exists idx_gitlab_hook_events_status on gitlab_hook_events(config_id, status, received_at desc);
 create unique index if not exists uk_gitlab_sync_configs_source_instance on gitlab_sync_configs(source_instance);
 create unique index if not exists uk_gitlab_sync_configs_system_hook_secret_enabled

@@ -36,21 +36,18 @@ public class ReviewDataRecordService {
   private final ReviewDataFilterOptionService filterOptionService;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
-  private final GitlabTableSyncPlanningService tableSyncPlanningService;
 
   public ReviewDataRecordService(
       ReviewDataRecordQueryService queryService,
       ReviewDataRecordCommandService commandService,
       ReviewDataFilterOptionService filterOptionService,
       ReviewDataRecordPersistenceSupport persistenceSupport,
-      GitlabMirrorSyncService gitlabMirrorSyncService,
-      GitlabTableSyncPlanningService tableSyncPlanningService) {
+      GitlabMirrorSyncService gitlabMirrorSyncService) {
     this.queryService = queryService;
     this.commandService = commandService;
     this.filterOptionService = filterOptionService;
     this.persistenceSupport = persistenceSupport;
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
-    this.tableSyncPlanningService = tableSyncPlanningService;
   }
 
   public ReviewDataRecordListResponse listRecords(ReviewDataRecordQueryRequest request) {
@@ -120,50 +117,33 @@ public class ReviewDataRecordService {
           List.of(),
           0,
           false,
-          "当前评审记录没有关联 GitLab 上下文，仅需刷新本地列表");
+          "No GitLab context needs refreshing for the selected records.");
     }
 
     List<String> sourceTables = sourceTablesForResourceTypes(resourceTypes);
     GitlabMirrorSyncService.OnDemandRefreshResult result =
         gitlabMirrorSyncService.refreshTablesOnDemandDetailed(sourceTables, GITLAB_CONTEXT_REFRESH_REASON);
     return new ReviewDataGitlabContextRefreshResponse(
-        true,
+        false,
         result.jobId(),
         result.status().name(),
         resourceTypes,
         result.sourceTables(),
         result.plannedTasks(),
         false,
-        "已开始同步关联 GitLab 上下文，不会覆盖人工评审字段");
+        result.message());
   }
 
   public ReviewDataGitlabContextRefreshResponse getGitlabContextRefreshStatus(Long jobId) {
-    var job = tableSyncPlanningService.findJob(jobId);
-    if (job == null) {
-      return new ReviewDataGitlabContextRefreshResponse(
-          false,
-          jobId,
-          "MISSING",
-          List.of(),
-          List.of(),
-          0,
-          false,
-          "GitLab 上下文刷新任务不存在");
-    }
-    var tasks = tableSyncPlanningService.listTasksForJob(jobId);
     return new ReviewDataGitlabContextRefreshResponse(
-        true,
-        jobId,
-        job.getStatus() == null ? "PENDING" : job.getStatus().name(),
-        List.of(),
-        tasks.stream()
-            .map(task -> task.getSourceTable())
-            .filter(table -> table != null && !table.isBlank())
-            .distinct()
-            .toList(),
-        tasks.size(),
         false,
-        "GitLab 上下文刷新状态已更新");
+        jobId,
+        "UNAVAILABLE_DURING_CUTOVER",
+        List.of(),
+        List.of(),
+        0,
+        false,
+        "Legacy table refresh jobs have been removed. Unified run status will replace this lookup.");
   }
 
   private List<String> resolveResourceTypes(ReviewDataGitlabContextRefreshRequest request) {

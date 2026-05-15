@@ -1,12 +1,9 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
-import com.data.collection.platform.entity.SyncStatus;
-import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,8 +22,6 @@ public class GitlabMirrorPurgeService {
 
   private final JdbcTemplate jdbcTemplate;
   private final GitlabConfigService configService;
-  private final GitlabSyncLogService logService;
-  private final GitlabSyncTaskService taskService;
   private final GitlabWhitelistService whitelistService;
 
   @Transactional
@@ -37,29 +32,18 @@ public class GitlabMirrorPurgeService {
   @Transactional
   public MirrorPurgeResult purge(MirrorPurgeScope scope, Long configId) {
     GitlabSyncConfig config = ensurePersistedConfig(resolveConfig(configId));
-    if (config.getId() != null && taskService.hasActiveTask(config.getId())) {
-      throw new BizException("当前存在运行中或排队中的同步任务，请先等待任务结束或手动中止后再删除镜像库数据");
-    }
-
     List<String> droppedTables = new ArrayList<>();
     List<String> truncatedTables = new ArrayList<>();
     Set<String> preservedSourceTables = resolvePreservedSourceTables(config, scope);
-    long syncLogId =
-        logService.start(
-            config.getId(),
-            SyncType.PURGE,
-            preservedSourceTables.stream().sorted().toList(),
-            buildLogMessage(scope));
 
-    try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "PURGE");
-         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Mirror_Purge")) {
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "PURGE");
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Mirror_Purge")) {
       log.warn(
           "Mirror purge requested, configId={}, sourceInstance={}, scope={}",
           config.getId(),
           GitlabSourceInstanceSupport.sourceInstanceOf(config),
           scope);
-      Set<String> preservedMirrorTables =
-          resolvePreservedMirrorTablesFromRegistry(config.getId(), preservedSourceTables);
+      Set<String> preservedMirrorTables = resolvePreservedMirrorTablesFromRegistry(config.getId(), preservedSourceTables);
 
       for (String mirrorTable : listMirrorTables(config.getId())) {
         if (preservedMirrorTables.contains(mirrorTable)) {
@@ -71,10 +55,10 @@ public class GitlabMirrorPurgeService {
 
       if (scope == MirrorPurgeScope.MIRROR_DATA_ONLY) {
         deleteMirrorRegistryForConfig(config.getId(), truncatedTables);
-        deleteLegacyMirrorRecordsForConfig(config.getId(), truncatedTables);
+        deleteMirrorRecordsForConfig(config.getId(), truncatedTables);
       } else {
         deleteMirrorRegistryOutsideWhitelist(config.getId(), preservedMirrorTables, truncatedTables);
-        deleteLegacyMirrorRecordsOutsideWhitelist(config.getId(), preservedSourceTables, truncatedTables);
+        deleteMirrorRecordsOutsideWhitelist(config.getId(), preservedSourceTables, truncatedTables);
       }
 
       boolean syncTimestampsReset = scope == MirrorPurgeScope.MIRROR_DATA_ONLY;
@@ -87,30 +71,13 @@ public class GitlabMirrorPurgeService {
           scope,
           droppedTables.size(),
           truncatedTables.size());
-
-      MirrorPurgeResult result =
-          new MirrorPurgeResult(
-              scope,
-              droppedTables.size(),
-              droppedTables,
-              truncatedTables.size(),
-              truncatedTables,
-              syncTimestampsReset);
-      logService.finish(
-          syncLogId,
-          SyncStatus.SUCCESS,
-          buildLogMessage(scope),
-          affectedTableCount(result),
-          0);
-      return result;
-    } catch (RuntimeException error) {
-      logService.finish(
-          syncLogId,
-          SyncStatus.FAILED,
-          buildFailureLogMessage(scope, error),
-          droppedTables.size() + truncatedTables.size(),
-          0);
-      throw error;
+      return new MirrorPurgeResult(
+          scope,
+          droppedTables.size(),
+          droppedTables,
+          truncatedTables.size(),
+          truncatedTables,
+          syncTimestampsReset);
     }
   }
 
@@ -129,17 +96,12 @@ public class GitlabMirrorPurgeService {
         configId);
   }
 
-  private void truncateTable(String tableName, List<String> truncatedTables) {
-    jdbcTemplate.execute("truncate table " + quoteIdentifier(tableName));
-    truncatedTables.add(tableName);
-  }
-
   private void deleteMirrorRegistryForConfig(Long configId, List<String> touchedTables) {
     jdbcTemplate.update("delete from \"sys_table_registry\" where config_id = ?", configId);
     touchedTables.add("sys_table_registry");
   }
 
-  private void deleteLegacyMirrorRecordsForConfig(Long configId, List<String> touchedTables) {
+  private void deleteMirrorRecordsForConfig(Long configId, List<String> touchedTables) {
     jdbcTemplate.update("delete from \"gitlab_mirror_records\" where config_id = ?", configId);
     touchedTables.add("gitlab_mirror_records");
   }
@@ -163,10 +125,10 @@ public class GitlabMirrorPurgeService {
     touchedTables.add("sys_table_registry");
   }
 
-  private void deleteLegacyMirrorRecordsOutsideWhitelist(
+  private void deleteMirrorRecordsOutsideWhitelist(
       Long configId, Set<String> preservedSourceTables, List<String> touchedTables) {
     if (preservedSourceTables.isEmpty()) {
-      deleteLegacyMirrorRecordsForConfig(configId, touchedTables);
+      deleteMirrorRecordsForConfig(configId, touchedTables);
       return;
     }
     String placeholders = String.join(", ", java.util.Collections.nCopies(preservedSourceTables.size(), "?"));
@@ -216,24 +178,5 @@ public class GitlabMirrorPurgeService {
 
   private GitlabSyncConfig resolveConfig(Long configId) {
     return configId == null ? configService.getConfig() : configService.getConfigById(configId);
-  }
-
-  private String buildLogMessage(MirrorPurgeScope scope) {
-    return switch (scope) {
-      case MIRROR_DATA_ONLY -> "删除全部镜像数据";
-      case MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST -> "删除白名单外镜像数据";
-    };
-  }
-
-  private String buildFailureLogMessage(MirrorPurgeScope scope, RuntimeException error) {
-    String detail = error.getMessage();
-    if (detail == null || detail.isBlank()) {
-      return buildLogMessage(scope) + "失败";
-    }
-    return buildLogMessage(scope) + "失败: " + detail;
-  }
-
-  private int affectedTableCount(MirrorPurgeResult result) {
-    return result.droppedMirrorTables() + result.truncatedTables();
   }
 }

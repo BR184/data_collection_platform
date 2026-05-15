@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue';
-import type { GitlabSyncStatus, GitlabSyncTask, MirrorStatusResponse, SyncProgress } from '../types/api';
+import type { GitlabSyncStatus, SyncRunSummary, MirrorStatusResponse, SyncProgress } from '../types/api';
 import {
   formatDateTime,
   syncStatusTagType,
@@ -17,7 +17,7 @@ const TERMINAL_STATUSES: Array<GitlabSyncStatus | 'IDLE'> = [
   'IDLE',
 ];
 
-function fallbackPhaseText(task: GitlabSyncTask | null): string {
+function fallbackPhaseText(task: SyncRunSummary | null): string {
   if (!task || !ACTIVE_POLLING_STATUSES.includes(task.status)) {
     return '空闲';
   }
@@ -59,7 +59,7 @@ function terminalProgressHint(statusValue: GitlabSyncStatus | 'IDLE', progress: 
 
 export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | null>) {
   const progress = computed<SyncProgress | null>(() => status.value?.progress ?? null);
-  const currentTask = computed<GitlabSyncTask | null>(() => status.value?.currentTask ?? null);
+  const currentTask = computed<SyncRunSummary | null>(() => status.value?.currentTask ?? null);
   const recentLogs = computed(() => status.value?.logs ?? []);
   const latestLog = computed(() => recentLogs.value[0] ?? null);
   const canCancel = computed(

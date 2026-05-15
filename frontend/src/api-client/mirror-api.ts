@@ -2,7 +2,7 @@ import type {
   GitlabSyncConfig,
   GitlabSyncDiagnosticsResponse,
   GitlabSourceHealthResponse,
-  GitlabTableSyncDiagnosticsResponse,
+  SyncRunDiagnosticsResponse,
   GitlabSystemHookRegistrationStatus,
   MirrorPurgeResult,
   MirrorPurgeScope,
@@ -45,7 +45,7 @@ export const mirrorApi = {
     });
   },
   getTableSyncDiagnostics(configId?: number) {
-    return request<GitlabTableSyncDiagnosticsResponse>(
+    return request<SyncRunDiagnosticsResponse>(
       withConfigId('/api/gitlab-sync/table-sync-diagnostics', configId),
     );
   },
@@ -65,7 +65,7 @@ export const mirrorApi = {
     });
   },
   cancelSync(configId?: number) {
-    return request<{ accepted: boolean; taskId?: number; status?: string }>(withConfigId('/api/gitlab-sync/cancel/by-config', configId), {
+    return request<{ accepted: boolean; runId?: number; status?: string }>(withConfigId('/api/gitlab-sync/cancel/by-config', configId), {
       method: 'POST',
     });
   },

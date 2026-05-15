@@ -1,4 +1,4 @@
-import type { GitlabSyncLog, GitlabSyncStatus, GitlabSyncType, MirrorPurgeResult } from '../types/api';
+import type { SyncRunLog, GitlabSyncStatus, GitlabSyncType, MirrorPurgeResult } from '../types/api';
 import { formatBeijingDateTime } from '../utils/beijing-time';
 
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
@@ -51,7 +51,7 @@ export function formatDateTime(value?: string | null) {
   return formatBeijingDateTime(value);
 }
 
-export function formatDuration(log: GitlabSyncLog) {
+export function formatDuration(log: SyncRunLog) {
   if (!log.finishedAt || !log.startedAt) {
     return ACTIVE_POLLING_STATUSES.includes(log.status) ? '进行中' : '-';
   }
@@ -69,7 +69,7 @@ export function formatDuration(log: GitlabSyncLog) {
   return `${minutes} 分 ${remain} 秒`;
 }
 
-export function formatLogTime(log: GitlabSyncLog) {
+export function formatLogTime(log: SyncRunLog) {
   return formatDateTime(log.finishedAt || log.startedAt);
 }
 
@@ -156,7 +156,7 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   return normalized;
 }
 
-export function syncLogMessage(log: GitlabSyncLog) {
+export function syncLogMessage(log: SyncRunLog) {
   const message = translateSyncMessage(log.message, log.syncType);
   if (message) {
     return message;

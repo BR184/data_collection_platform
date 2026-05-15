@@ -1,17 +1,19 @@
-package com.data.collection.platform.entity;
+package com.data.collection.platform.entity.sync;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.data.collection.platform.entity.SyncTriggerType;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@TableName("gitlab_sync_jobs")
-public class GitlabSyncJob {
+@TableName("sync_runs")
+public class SyncRun {
   @TableId(type = IdType.AUTO)
   private Long id;
 
@@ -24,17 +26,50 @@ public class GitlabSyncJob {
   @TableField("source_instance")
   private String sourceInstance;
 
-  @TableField("job_type")
-  private GitlabSyncJobType jobType;
+  @TableField("run_type")
+  private SyncRunType runType;
 
   @TableField("trigger_type")
   private SyncTriggerType triggerType;
 
-  private SyncStatus status;
+  @TableField("status")
+  private SyncRunStatus status;
+
+  @TableField("priority")
   private Integer priority;
 
-  @TableField("run_after")
-  private LocalDateTime runAfter;
+  @TableField("exclusive_scope")
+  private String exclusiveScope;
+
+  @TableField("cancel_requested")
+  private Boolean cancelRequested;
+
+  @TableField("submitted_by")
+  private String submittedBy;
+
+  @TableField("request_reason")
+  private String requestReason;
+
+  @TableField("payload_json")
+  private String payloadJson;
+
+  @TableField("thread_mode")
+  private String threadMode;
+
+  @TableField("thread_value")
+  private BigDecimal threadValue;
+
+  @TableField("planned_table_count")
+  private Integer plannedTableCount;
+
+  @TableField("completed_table_count")
+  private Integer completedTableCount;
+
+  @TableField("scanned_rows")
+  private Long scannedRows;
+
+  @TableField("applied_rows")
+  private Long appliedRows;
 
   @TableField("heartbeat_at")
   private LocalDateTime heartbeatAt;
@@ -45,26 +80,14 @@ public class GitlabSyncJob {
   @TableField("lease_until")
   private LocalDateTime leaseUntil;
 
-  @TableField("retry_count")
-  private Integer retryCount;
-
-  @TableField("max_retry_count")
-  private Integer maxRetryCount;
-
   @TableField("started_at")
   private LocalDateTime startedAt;
 
   @TableField("finished_at")
   private LocalDateTime finishedAt;
 
-  @TableField("error_code")
-  private String errorCode;
-
   @TableField("error_message")
   private String errorMessage;
-
-  @TableField("payload_json")
-  private String payloadJson;
 
   @TableField("created_at")
   private LocalDateTime createdAt;

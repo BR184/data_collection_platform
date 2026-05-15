@@ -1,270 +1,97 @@
 package com.data.collection.platform.controller;
 
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import com.data.collection.platform.entity.AuthRole;
+import com.data.collection.platform.entity.GitlabSourceHealthResponse;
 import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
-import com.data.collection.platform.entity.GitlabSyncJob;
-import com.data.collection.platform.entity.GitlabSyncJobType;
-import com.data.collection.platform.entity.GitlabSourceHealthResponse;
-import com.data.collection.platform.entity.GitlabSyncLog;
-import com.data.collection.platform.entity.GitlabSyncTask;
-import com.data.collection.platform.entity.GitlabTableSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
-import com.data.collection.platform.entity.MirrorStatusLogView;
 import com.data.collection.platform.entity.MirrorStatusResponse;
-import com.data.collection.platform.entity.MirrorStatusTaskView;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.SourceMode;
-import com.data.collection.platform.entity.SyncProgress;
 import com.data.collection.platform.entity.SyncStatus;
-import com.data.collection.platform.entity.SyncSubmissionAction;
-import com.data.collection.platform.entity.SyncTaskSubmissionResult;
-import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSourceHealthService;
-import com.data.collection.platform.service.GitlabSyncLogService;
-import com.data.collection.platform.service.GitlabSyncTaskService;
-import com.data.collection.platform.service.GitlabTableSyncPlanningService;
-import com.data.collection.platform.service.GitlabTableSyncDiagnosticsService;
+import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
-import com.data.collection.platform.security.RequireRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/gitlab-sync")
 @Slf4j
-// GitLab 同步控制器是镜像数据入口的 API 门面，只负责配置、任务、System Hook 和清理动作编排。
-// 外部库访问、任务去重和事实重建都下沉到 service，避免控制层持有同步细节。
 public class GitlabSyncController {
-  private static final Set<SyncStatus> ACTIVE_SYNC_STATUSES = Set.of(
-      SyncStatus.PENDING,
-      SyncStatus.QUEUED,
-      SyncStatus.RUNNING,
-      SyncStatus.RETRYING,
-      SyncStatus.CANCELLING);
-
   private final GitlabConfigService configService;
   private final GitlabMirrorSyncService syncService;
-  private final GitlabSyncLogService logService;
   private final GitlabWhitelistService whitelistService;
   private final GitlabMirrorProperties properties;
   private final GitlabSystemHookService systemHookService;
-  private final GitlabSyncTaskService taskService;
   private final GitlabSystemHookRegistrationService systemHookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
-  private final GitlabTableSyncPlanningService tableSyncPlanningService;
-  private final GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
       GitlabMirrorSyncService syncService,
-      GitlabSyncLogService logService,
       GitlabWhitelistService whitelistService,
       GitlabMirrorProperties properties,
       GitlabSystemHookService systemHookService,
-      GitlabSyncTaskService taskService,
       GitlabSystemHookRegistrationService systemHookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
-      GitlabExternalDbService externalDbService,
-      GitlabTableSyncPlanningService tableSyncPlanningService,
-      GitlabTableSyncDiagnosticsService tableSyncDiagnosticsService) {
+      GitlabExternalDbService externalDbService) {
     this.configService = configService;
     this.syncService = syncService;
-    this.logService = logService;
     this.whitelistService = whitelistService;
     this.properties = properties;
     this.systemHookService = systemHookService;
-    this.taskService = taskService;
     this.systemHookRegistrationService = systemHookRegistrationService;
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
-    this.tableSyncPlanningService = tableSyncPlanningService;
-    this.tableSyncDiagnosticsService = tableSyncDiagnosticsService;
   }
 
   @GetMapping("/status")
   public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    List<GitlabSyncLog> logs = config.getId() == null ? List.of() : logService.listRecent(config.getId(), 20);
-    GitlabSyncTask displayTask = taskService.findDisplayTask(config.getId());
-    GitlabSyncJob displayJob = tableSyncPlanningService.findDisplayJob(config.getId());
-
-    MirrorStatusTaskView currentTask;
-    SyncProgress progress;
-    SyncStatus currentStatus;
-    String currentMessage;
-    LocalDateTime currentStartedAt;
-    if (preferJobStatus(displayJob, displayTask)) {
-      currentTask = MirrorStatusTaskView.fromJob(displayJob, config.getSourceMode());
-      progress = displayJob == null ? null : tableSyncDiagnosticsService.buildProgress(displayJob);
-      currentStatus = displayJob == null || displayJob.getStatus() == null ? SyncStatus.IDLE : displayJob.getStatus();
-      currentMessage = extractJobMessage(displayJob);
-      currentStartedAt = displayJob == null ? null : displayJob.getStartedAt();
-    } else {
-      currentTask = displayTask == null ? null : MirrorStatusTaskView.from(displayTask);
-      progress = displayTask == null ? null : syncService.getProgress(displayTask.getId());
-      currentStatus = displayTask == null ? SyncStatus.IDLE : displayTask.getStatus();
-      currentMessage = displayTask == null ? "" : taskService.extractMessage(displayTask);
-      currentStartedAt = displayTask == null ? null : displayTask.getStartedAt();
-    }
     return ApiResponse.success(
         new MirrorStatusResponse(
             sanitizeConfigForResponse(config),
-            currentTask,
-            currentStatus,
-            currentMessage,
-            currentStartedAt,
-            progress,
-            logs.stream().map(MirrorStatusLogView::from).toList(),
+            null,
+            SyncStatus.IDLE,
+            "Sync orchestrator cutover is in progress. No legacy runtime status is exposed.",
+            null,
+            null,
+            List.of(),
             properties.getSystemHookBaseUrl(),
             null));
-  }
-
-  private boolean preferJobStatus(GitlabSyncJob job, GitlabSyncTask task) {
-    if (job == null) {
-      return false;
-    }
-    if (task == null) {
-      return true;
-    }
-    boolean jobActive = isActiveStatus(job.getStatus());
-    boolean taskActive = isActiveStatus(task.getStatus());
-    if (jobActive != taskActive) {
-      return jobActive;
-    }
-    LocalDateTime jobTime = latestJobTime(job);
-    LocalDateTime taskTime = latestTaskTime(task);
-    if (jobTime == null) {
-      return false;
-    }
-    if (taskTime == null) {
-      return true;
-    }
-    return !jobTime.isBefore(taskTime);
-  }
-
-  private boolean isActiveStatus(SyncStatus status) {
-    return status != null && ACTIVE_SYNC_STATUSES.contains(status);
-  }
-
-  private LocalDateTime latestJobTime(GitlabSyncJob job) {
-    if (job == null) {
-      return null;
-    }
-    if (job.getUpdatedAt() != null) {
-      return job.getUpdatedAt();
-    }
-    if (job.getFinishedAt() != null) {
-      return job.getFinishedAt();
-    }
-    if (job.getStartedAt() != null) {
-      return job.getStartedAt();
-    }
-    return job.getCreatedAt();
-  }
-
-  private LocalDateTime latestTaskTime(GitlabSyncTask task) {
-    if (task == null) {
-      return null;
-    }
-    if (task.getUpdatedAt() != null) {
-      return task.getUpdatedAt();
-    }
-    if (task.getFinishedAt() != null) {
-      return task.getFinishedAt();
-    }
-    if (task.getStartedAt() != null) {
-      return task.getStartedAt();
-    }
-    return task.getCreatedAt();
-  }
-
-  private String extractJobMessage(GitlabSyncJob job) {
-    if (job == null) {
-      return "";
-    }
-    if (job.getErrorMessage() != null && !job.getErrorMessage().isBlank()) {
-      return job.getErrorMessage();
-    }
-    return "%s / %s".formatted(syncTypeLabel(job.getJobType()), syncStatusLabel(job.getStatus()));
-  }
-
-  private String syncTypeLabel(SyncType type) {
-    if (type == null) {
-      return "同步任务";
-    }
-    return switch (type) {
-      case FULL -> "全量同步";
-      case INCREMENTAL -> "增量同步";
-      case COMPENSATION -> "补偿扫描";
-      case SYSTEM_HOOK -> "System Hook 唤醒";
-      case PURGE -> "删除镜像数据";
-    };
-  }
-
-  private String syncTypeLabel(GitlabSyncJobType type) {
-    if (type == null) {
-      return "同步任务";
-    }
-    return switch (type) {
-      case DAILY_VERIFY -> "每日全量校验";
-      case COMPENSATION_SCAN -> "补偿扫描";
-      case MANUAL_REFRESH -> "手动刷新";
-      case HOOK_WAKEUP -> "System Hook 唤醒";
-      case FACT_REFRESH -> "事实层刷新";
-    };
-  }
-
-  private String syncStatusLabel(SyncStatus status) {
-    if (status == null) {
-      return "空闲";
-    }
-    return switch (status) {
-      case PENDING -> "待执行";
-      case QUEUED -> "排队中";
-      case RUNNING -> "执行中";
-      case RETRYING -> "重试中";
-      case SUCCESS -> "成功";
-      case PARTIAL_SUCCESS -> "部分成功";
-      case FAILED -> "失败";
-      case CANCELLED -> "已取消";
-      case TIMEOUT -> "已超时";
-      case CANCELLING -> "取消中";
-      case IDLE -> "空闲";
-    };
   }
 
   @GetMapping("/configs")
@@ -278,10 +105,24 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/table-sync-diagnostics")
-  public ApiResponse<GitlabTableSyncDiagnosticsResponse> tableSyncDiagnostics(
+  public ApiResponse<Map<String, Object>> tableSyncDiagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    return ApiResponse.success(tableSyncDiagnosticsService.diagnose(config.getId()));
+    Map<String, Object> response = new LinkedHashMap<>();
+    response.put("configId", config.getId());
+    response.put("sourceInstance", GitlabSourceInstanceSupport.sourceInstanceOf(config));
+    response.put("generatedAt", java.time.LocalDateTime.now().toString());
+    response.put("status", "UNAVAILABLE_DURING_CUTOVER");
+    response.put("message", "Legacy table diagnostics have been removed. Unified run diagnostics will replace this endpoint.");
+    response.put("tableCount", 0);
+    response.put("dirtyTableCount", 0);
+    response.put("pendingTaskCount", 0);
+    response.put("runningTaskCount", 0);
+    response.put("retryingTaskCount", 0);
+    response.put("failedTaskCount", 0);
+    response.put("timedOutTaskCount", 0);
+    response.put("tables", List.of());
+    return ApiResponse.success(response);
   }
 
   @PostMapping("/diagnostics")
@@ -296,7 +137,7 @@ public class GitlabSyncController {
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     boolean connectionOk = true;
-    String connectionMessage = "GitLab PostgreSQL 连接成功";
+    String connectionMessage = "GitLab PostgreSQL connection succeeded";
     try {
       if (configId == null) {
         syncService.testConnection();
@@ -309,7 +150,7 @@ public class GitlabSyncController {
     }
 
     boolean whitelistOk = true;
-    String whitelistMessage = "GitLab 白名单选项已加载";
+    String whitelistMessage = "GitLab whitelist options loaded";
     int whitelistOptionCount = 0;
     List<TableWhitelistOption> whitelistOptions = List.of();
     try {
@@ -374,8 +215,7 @@ public class GitlabSyncController {
   public ApiResponse<GitlabSystemHookRegistrationStatus> systemHookRegistrationStatus(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    return ApiResponse.success(
-        systemHookRegistrationService.getStatus(config, properties.getSystemHookBaseUrl()));
+    return ApiResponse.success(systemHookRegistrationService.getStatus(config, properties.getSystemHookBaseUrl()));
   }
 
   @GetMapping("/whitelist-options")
@@ -409,8 +249,8 @@ public class GitlabSyncController {
     config.setSystemHookEnabled(request.systemHookEnabled());
     config.setSystemHookProjectId(request.systemHookProjectId());
     config.setCompensationIntervalMinutes(request.compensationIntervalMinutes());
-    try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "CONFIG");
-        GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Config_Save")) {
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "CONFIG");
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Config_Save")) {
       log.info(
           "Saving GitLab sync config, enabled={}, autoSyncEnabled={}, sourceMode={}, whitelistMode={}",
           sourceEnabled,
@@ -418,7 +258,7 @@ public class GitlabSyncController {
           request.sourceMode(),
           request.whitelistMode());
     }
-    return ApiResponse.success("配置已保存", sanitizeConfigForResponse(configService.saveConfig(config)));
+    return ApiResponse.success("Config saved", sanitizeConfigForResponse(configService.saveConfig(config)));
   }
 
   @PostMapping("/test-connection")
@@ -431,9 +271,8 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> testConnection(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (GitlabSyncLogContext.Scope context =
-            GitlabSyncLogContext.openConfig(config, "TEST_CONNECTION");
-        GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Connection_Test")) {
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "TEST_CONNECTION");
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Connection_Test")) {
       log.info("Manual test connection requested");
     }
     if (configId == null) {
@@ -441,7 +280,7 @@ public class GitlabSyncController {
     } else {
       syncService.testConnection(config.getId());
     }
-    return ApiResponse.success("GitLab PostgreSQL 连接成功", Map.of("checked", true));
+    return ApiResponse.success("GitLab PostgreSQL connection succeeded", Map.of("checked", true));
   }
 
   @PostMapping("/full-sync")
@@ -454,14 +293,13 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> fullSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (GitlabSyncLogContext.Scope context =
-            GitlabSyncLogContext.openConfig(config, SyncType.FULL.name());
-        GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Submit")) {
-      log.info("Manual full sync requested");
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncType.FULL.name());
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
+      log.info("Manual full sync requested during cutover");
     }
-    SyncTaskSubmissionResult result =
+    GitlabMirrorSyncService.SubmissionResult result =
         configId == null ? syncService.startFullSync() : syncService.startFullSync(config.getId());
-    return ApiResponse.success(submissionMessage(result, SyncType.FULL), buildSubmissionResponse(result));
+    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
   @PostMapping("/incremental-sync")
@@ -474,16 +312,15 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> incrementalSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (GitlabSyncLogContext.Scope context =
-            GitlabSyncLogContext.openConfig(config, SyncType.INCREMENTAL.name());
-        GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Submit")) {
-      log.info("Manual recovery incremental sync requested");
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncType.INCREMENTAL.name());
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
+      log.info("Manual incremental sync requested during cutover");
     }
-    SyncTaskSubmissionResult result =
+    GitlabMirrorSyncService.SubmissionResult result =
         configId == null
-            ? syncService.startIncrementalSync(SyncTriggerType.MANUAL, "Manual recovery incremental sync")
-            : syncService.startIncrementalSync(config.getId(), SyncTriggerType.MANUAL, "Manual recovery incremental sync");
-    return ApiResponse.success(submissionMessage(result, SyncType.INCREMENTAL), buildSubmissionResponse(result));
+            ? syncService.startIncrementalSync(null, "Manual incremental sync")
+            : syncService.startIncrementalSync(config.getId(), null, "Manual incremental sync");
+    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
   @PostMapping("/register-system-hook")
@@ -499,7 +336,7 @@ public class GitlabSyncController {
     GitlabSyncConfig config = resolveConfig(configId);
     GitlabSystemHookRegistrationStatus result =
         systemHookRegistrationService.ensureRegistered(config, properties.getSystemHookBaseUrl());
-    return ApiResponse.success("GitLab System Hook 已注册", result);
+    return ApiResponse.success("GitLab System Hook registered", result);
   }
 
   @PostMapping("/cancel")
@@ -512,21 +349,14 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> cancel(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, "CANCEL");
-        GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("Task_Cancel_Request")) {
-      log.info("Manual task cancel requested");
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "CANCEL");
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Cancel_Request")) {
+      log.info("Manual cancellation requested during cutover");
     }
-    GitlabSyncTask task = syncService.requestCancel(config.getId());
-    if (task == null) {
-      return ApiResponse.success("当前没有可中止的任务", Map.of("accepted", false));
-    }
+    boolean accepted = syncService.requestCancel(config.getId());
     return ApiResponse.success(
-        "已提交中止请求",
-        Map.of(
-            "accepted", true,
-            "taskId", task.getId(),
-            "status", task.getStatus(),
-            "statusText", syncStatusLabel(task.getStatus())));
+        accepted ? "Cancellation requested" : "Cancellation is unavailable until the unified run model is wired",
+        Map.of("accepted", accepted));
   }
 
   @PostMapping("/purge")
@@ -534,13 +364,7 @@ public class GitlabSyncController {
   public ApiResponse<MirrorPurgeResult> purge(@RequestBody PurgeRequest request) {
     GitlabSyncConfig config = resolveConfig(request.configId());
     MirrorPurgeResult result = purgeService.purge(request.scope(), config.getId());
-    String sourceLabel = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    String message = switch (request.scope()) {
-      case MIRROR_DATA_ONLY -> "已真实删除 " + sourceLabel + " 镜像数据，GitLab 源端和本地非镜像数据均不受影响";
-      case MIRROR_DATA_EXCLUDING_CURRENT_WHITELIST ->
-          "已真实删除 " + sourceLabel + " 当前白名单之外的镜像数据，GitLab 源端和本地非镜像数据均不受影响";
-    };
-    return ApiResponse.success(message, result);
+    return ApiResponse.success("Mirror data purged", result);
   }
 
   @PostMapping("/system-hook")
@@ -549,7 +373,7 @@ public class GitlabSyncController {
       @RequestHeader(value = "X-Gitlab-Token", required = false) String secret,
       @RequestBody Map<String, Object> payload) {
     systemHookService.accept(eventType, payload, secret);
-    return ApiResponse.success("GitLab System Hook 已接收", Map.of("accepted", true));
+    return ApiResponse.success("GitLab System Hook accepted", Map.of("accepted", true));
   }
 
   public record SaveConfigRequest(
@@ -619,15 +443,13 @@ public class GitlabSyncController {
     }
     String message;
     if (!systemHookEnabled) {
-      message = "System Hook 接收器未启用";
+      message = "System Hook receiver is disabled";
     } else if (!secretConfigured) {
-      message = "System Hook 需要配置唯一密钥";
+      message = "System Hook requires a unique secret";
     } else if (!secretUnique) {
-      message = "System Hook 密钥已被另一个 GitLab 源使用";
-    } else if (config.getSourceMode() == SourceMode.DIRECT) {
-      message = "直连模式支持接收 System Hook，请在 GitLab 管理后台注册";
+      message = "System Hook secret is used by another GitLab source";
     } else {
-      message = "System Hook 配置可用";
+      message = "System Hook configuration is available";
     }
     return new SystemHookConfigDiagnostics(secretConfigured, secretUnique, message);
   }
@@ -644,10 +466,11 @@ public class GitlabSyncController {
     int queryTimeoutSeconds = properties.getExternalQueryTimeoutSeconds();
     int minimumRecommendedSeconds = queryTimeoutSeconds + 30;
     if (heartbeatTimeoutSeconds <= queryTimeoutSeconds) {
-      warnings.add("heartbeat-timeout-seconds 必须大于外部查询超时，否则长查询可能被误判为超时任务。");
+      warnings.add("heartbeat-timeout-seconds must be greater than external-query-timeout-seconds");
     } else if (heartbeatTimeoutSeconds <= minimumRecommendedSeconds) {
-      warnings.add("heartbeat-timeout-seconds 距离外部查询超时余量不足，慢盘批量写入时可能触发误恢复。");
+      warnings.add("heartbeat-timeout-seconds is close to external query timeout; long writes may be marked stale");
     }
+    warnings.add("Legacy sync runtime has been removed; unified run runtime is not wired yet.");
     return warnings;
   }
 
@@ -655,51 +478,33 @@ public class GitlabSyncController {
     return configId == null ? configService.getConfig() : configService.getConfigById(configId);
   }
 
-  private Map<String, Object> buildSubmissionResponse(SyncTaskSubmissionResult result) {
-    GitlabSyncTask task = result.task();
+  private Map<String, Object> buildSubmissionResponse(GitlabMirrorSyncService.SubmissionResult result) {
     return Map.of(
-        "accepted", true,
-        "taskId", task.getId(),
-        "status", task.getStatus(),
-        "statusText", syncStatusLabel(task.getStatus()),
+        "accepted", false,
+        "runId", result.runId() == null ? "" : result.runId(),
+        "status", result.status(),
+        "statusText", syncStatusLabel(result.status()),
         "action", result.action(),
-        "typeText", syncTypeLabel(task.getTaskType()),
-        "message", submissionMessage(result, task.getTaskType()));
+        "type", result.type(),
+        "message", result.message());
   }
 
-  private String submissionMessage(SyncTaskSubmissionResult result, SyncType requestedType) {
-    SyncStatus status = result.task().getStatus();
-    if (status == SyncStatus.SUCCESS) {
-      return switch (requestedType) {
-        case FULL -> "全量同步已完成";
-        case COMPENSATION -> "补偿同步已完成";
-        case INCREMENTAL -> "手动增量同步已完成";
-        case SYSTEM_HOOK -> "精确更新已完成";
-        case PURGE -> "镜像数据删除已完成";
-      };
+  private String syncStatusLabel(SyncStatus status) {
+    if (status == null) {
+      return "UNKNOWN";
     }
-    if (status == SyncStatus.PARTIAL_SUCCESS) {
-      return "部分表同步失败，请查看同步日志和表级诊断";
-    }
-    if (status == SyncStatus.FAILED) {
-      return "同步任务失败，请查看同步日志和表级诊断";
-    }
-    if (status == SyncStatus.TIMEOUT) {
-      return "同步任务超时，请稍后重试或查看表级诊断";
-    }
-    SyncSubmissionAction action = result.action();
-    return switch (action) {
-      case CREATED -> switch (requestedType) {
-        case FULL -> "全量同步已开始";
-        case COMPENSATION -> "补偿同步已开始";
-        case INCREMENTAL -> "手动增量同步已开始";
-        case SYSTEM_HOOK -> "精确更新已开始";
-        case PURGE -> "镜像数据删除已开始";
-      };
-      case QUEUED -> "当前已有同步任务执行中，本次请求已登记到下一轮";
-      case REUSED_ACTIVE -> "当前已有同范围同步任务执行中，本次请求已接收，无需重复操作";
-      case REUSED_QUEUED -> "当前已有后续同步任务排队中，本次请求已合并到后续同步";
-      case DEDUPED -> "同步任务已提交，请勿重复操作";
+    return switch (status) {
+      case PENDING -> "PENDING";
+      case QUEUED -> "QUEUED";
+      case RUNNING -> "RUNNING";
+      case RETRYING -> "RETRYING";
+      case SUCCESS -> "SUCCESS";
+      case PARTIAL_SUCCESS -> "PARTIAL_SUCCESS";
+      case FAILED -> "FAILED";
+      case CANCELLED -> "CANCELLED";
+      case TIMEOUT -> "TIMEOUT";
+      case CANCELLING -> "CANCELLING";
+      case IDLE -> "IDLE";
     };
   }
 }

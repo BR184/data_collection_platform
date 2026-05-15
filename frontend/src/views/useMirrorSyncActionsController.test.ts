@@ -30,7 +30,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
 function createSubmission(action: SyncSubmissionResponse['action'] = 'CREATED'): SyncSubmissionResponse {
   return {
     accepted: true,
-    taskId: 1,
+    runId: 1,
     status: action === 'CREATED' ? 'RUNNING' : 'QUEUED',
     action,
     message: `${action} message`,
@@ -52,8 +52,8 @@ function setup(config: GitlabSyncConfig = createConfig()) {
     startIncrementalSyncData: vi.fn<() => Promise<SyncSubmissionResponse>>(() =>
       Promise.resolve(createSubmission('QUEUED')),
     ),
-    cancelSyncData: vi.fn<() => Promise<{ accepted: boolean; taskId?: number; status?: string }>>(() =>
-      Promise.resolve({ accepted: true, taskId: 1, status: 'CANCELLING' }),
+    cancelSyncData: vi.fn<() => Promise<{ accepted: boolean; runId?: number; status?: string }>>(() =>
+      Promise.resolve({ accepted: true, runId: 1, status: 'CANCELLING' }),
     ),
     loadStatus: vi.fn<(showError: boolean, blocking: boolean) => Promise<void>>(() => Promise.resolve()),
     loadSystemHookRegistration: vi.fn<() => void>(),

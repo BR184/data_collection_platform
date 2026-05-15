@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import type { GitlabSyncLog } from '../types/api';
+import type { SyncRunLog } from '../types/api';
 import {
   formatDuration,
   formatLogTime,
@@ -12,7 +12,7 @@ import {
 } from './mirror-settings-helpers';
 
 defineProps<{
-  logs: GitlabSyncLog[];
+  logs: SyncRunLog[];
   refreshing: boolean;
 }>();
 

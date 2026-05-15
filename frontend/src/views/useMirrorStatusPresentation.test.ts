@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 import { useMirrorStatusPresentation } from './useMirrorStatusPresentation';
-import type { GitlabSyncLog, GitlabSyncTask, MirrorStatusResponse, SyncProgress } from '../types/api';
+import type { SyncRunLog, SyncRunSummary, MirrorStatusResponse, SyncProgress } from '../types/api';
 
-function createLog(overrides: Partial<GitlabSyncLog> = {}): GitlabSyncLog {
+function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
   return {
     id: 1,
     syncType: 'FULL',
@@ -17,7 +17,7 @@ function createLog(overrides: Partial<GitlabSyncLog> = {}): GitlabSyncLog {
   };
 }
 
-function createTask(overrides: Partial<GitlabSyncTask> = {}): GitlabSyncTask {
+function createTask(overrides: Partial<SyncRunSummary> = {}): SyncRunSummary {
   return {
     id: 1,
     runId: 'run-1',

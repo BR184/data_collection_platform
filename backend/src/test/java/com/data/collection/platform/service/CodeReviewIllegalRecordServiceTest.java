@@ -239,7 +239,7 @@ class CodeReviewIllegalRecordServiceTest {
     when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
             anyList(), eq(CodeReviewIllegalRecordService.WORKSPACE_KEY)))
         .thenReturn(new GitlabMirrorSyncService.OnDemandRefreshResult(
-            31L, List.of("merge_requests"), 1, List.of("label_links"), SyncStatus.SUCCESS));
+            31L, List.of("merge_requests"), 1, List.of("label_links"), SyncStatus.SUCCESS, "mirror ok"));
     when(factBuildService.rebuildMergeRequestFacts(false))
         .thenReturn(new FactBuildResponse("merge-request", false, 9, "fact ok"));
 

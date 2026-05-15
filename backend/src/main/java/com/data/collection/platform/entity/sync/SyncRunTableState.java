@@ -1,4 +1,4 @@
-package com.data.collection.platform.entity;
+package com.data.collection.platform.entity.sync;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -10,8 +10,8 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@TableName("gitlab_table_sync_states")
-public class GitlabTableSyncState {
+@TableName("sync_run_table_states")
+public class SyncRunTableState {
   @TableId(type = IdType.AUTO)
   private Long id;
 
@@ -34,13 +34,16 @@ public class GitlabTableSyncState {
   private String updatedAtColumn;
 
   @TableField("row_strategy")
-  private GitlabTableRowStrategy rowStrategy;
+  private String rowStrategy;
 
   @TableField("sync_enabled")
-  private boolean syncEnabled;
+  private Boolean syncEnabled;
 
   @TableField("dirty_flag")
-  private boolean dirtyFlag;
+  private Boolean dirtyFlag;
+
+  @TableField("dirty_reason")
+  private String dirtyReason;
 
   @TableField("last_success_at")
   private LocalDateTime lastSuccessAt;

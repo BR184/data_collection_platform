@@ -3,7 +3,7 @@ package com.data.collection.platform.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.common.logging.GitlabSyncLogContext;
+import com.data.collection.platform.common.logging.SyncRunLogContext;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabHookEvent;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -48,8 +48,8 @@ public class GitlabSystemHookService {
     String effectiveEventType = eventType == null || eventType.isBlank()
         ? String.valueOf(payload.getOrDefault("object_kind", "system_hook"))
         : eventType;
-    try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.SYSTEM_HOOK.name());
-         GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SystemHook_Received")) {
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncTriggerType.SYSTEM_HOOK.name());
+         SyncRunLogContext.Scope action = SyncRunLogContext.action("SystemHook_Received")) {
       log.info(
           "System Hook received, eventType={}, projectId={}, objectKind={}",
           effectiveEventType,
@@ -58,8 +58,8 @@ public class GitlabSystemHookService {
     }
     if (config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank()) {
       if (!secretMatches(config.getSystemHookSecret(), secret)) {
-        try (GitlabSyncLogContext.Scope context = GitlabSyncLogContext.openConfig(config, SyncTriggerType.SYSTEM_HOOK.name());
-             GitlabSyncLogContext.Scope action = GitlabSyncLogContext.action("SystemHook_Received")) {
+        try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncTriggerType.SYSTEM_HOOK.name());
+             SyncRunLogContext.Scope action = SyncRunLogContext.action("SystemHook_Received")) {
           log.warn("System Hook rejected because secret validation failed, eventType={}", effectiveEventType);
         }
         throw new BizException("System Hook 密钥校验失败");

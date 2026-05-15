@@ -2,9 +2,9 @@ import { mount } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import { describe, expect, it } from 'vitest';
 import MirrorSyncStatusCard from './MirrorSyncStatusCard.vue';
-import type { GitlabSyncTask, SyncProgress } from '../types/api';
+import type { SyncRunSummary, SyncProgress } from '../types/api';
 
-function createTask(overrides: Partial<GitlabSyncTask> = {}): GitlabSyncTask {
+function createTask(overrides: Partial<SyncRunSummary> = {}): SyncRunSummary {
   return {
     id: 1,
     runId: 'run-1',

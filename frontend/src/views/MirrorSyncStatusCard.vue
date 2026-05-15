@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GitlabSyncTask, SyncProgress } from '../types/api';
+import type { SyncRunSummary, SyncProgress } from '../types/api';
 import { formatDateTime } from './mirror-settings-helpers';
 
 defineProps<{
@@ -10,7 +10,7 @@ defineProps<{
   progressPercent: number;
   progressHint: string;
   progress: SyncProgress | null;
-  currentTask: GitlabSyncTask | null;
+  currentTask: SyncRunSummary | null;
   currentStartedAt?: string | null;
 }>();
 </script>
