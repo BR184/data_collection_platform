@@ -381,6 +381,13 @@ export interface StatisticDetailColumn {
   sortable: boolean;
 }
 
+export interface StatisticDetailLinkValue {
+  label: string;
+  href?: string | null;
+}
+
+export type StatisticDetailCellValue = string | StatisticDetailLinkValue;
+
 export interface StatisticBoardDefinition {
   boardKey: string;
   title: string;

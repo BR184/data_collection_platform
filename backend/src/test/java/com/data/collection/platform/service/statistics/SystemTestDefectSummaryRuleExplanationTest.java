@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
@@ -25,7 +26,8 @@ class SystemTestDefectSummaryRuleExplanationTest {
         .thenReturn(List.of());
     SystemTestDefectSummaryBoardService service = new SystemTestDefectSummaryBoardService(
         new JsonUtils(new ObjectMapper()),
-        runtimeSupport);
+        runtimeSupport,
+        mock(StatisticIssueLinkSupport.class));
 
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(Map.of());
 

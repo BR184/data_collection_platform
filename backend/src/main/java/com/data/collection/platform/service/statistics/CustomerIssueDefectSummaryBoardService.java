@@ -49,14 +49,17 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final IssueFactBoardRuntimeSupport runtimeSupport;
+  private final StatisticIssueLinkSupport issueLinkSupport;
 
   public CustomerIssueDefectSummaryBoardService(
       JsonUtils jsonUtils,
       CustomerIssueScopeProfile customerIssueScopeProfile,
-      IssueFactBoardRuntimeSupport runtimeSupport) {
+      IssueFactBoardRuntimeSupport runtimeSupport,
+      StatisticIssueLinkSupport issueLinkSupport) {
     super(jsonUtils);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.runtimeSupport = runtimeSupport;
+    this.issueLinkSupport = issueLinkSupport;
   }
 
   @Override
@@ -394,7 +397,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    record.put("iid", issue.iid());
+    issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
     record.put("title", issue.title());
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("projectName", issue.projectName());

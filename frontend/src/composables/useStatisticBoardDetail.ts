@@ -2,7 +2,9 @@ import { reactive, ref } from 'vue';
 import type { LocationQuery } from 'vue-router';
 import type {
   StatisticCellData,
+  StatisticDetailCellValue,
   StatisticDetailColumn,
+  StatisticDetailLinkValue,
   StatisticDetailResponse,
   StatisticFilterGroup,
   StatisticRowData,
@@ -61,10 +63,20 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     activeCell.value = null;
   }
 
-  function detailCellValue(record: Record<string, unknown>, column: StatisticDetailColumn) {
+  function isStructuredCellValue(value: unknown): value is StatisticDetailLinkValue {
+    return value != null && typeof value === 'object' && 'label' in value;
+  }
+
+  function detailCellValue(record: Record<string, unknown>, column: StatisticDetailColumn): StatisticDetailCellValue {
     const value = record[column.key];
     if (value == null || value === '') {
       return '-';
+    }
+    if (isStructuredCellValue(value)) {
+      return {
+        label: String(value.label ?? '-'),
+        href: typeof value.href === 'string' && value.href ? value.href : null,
+      };
     }
     if (typeof value === 'object') {
       return JSON.stringify(value);

@@ -4,6 +4,7 @@ import StatisticBoardDetailDialog from './StatisticBoardDetailDialog.vue';
 import type { StatisticDetailColumn, StatisticDetailResponse } from '../types/api';
 
 const columns: StatisticDetailColumn[] = [
+  { key: 'iid', label: 'IID', sortable: true },
   { key: 'title', label: 'Title', sortable: true },
   { key: 'status', label: 'Status', minWidth: 160, sortable: false },
 ];
@@ -13,8 +14,8 @@ const detail: StatisticDetailResponse = {
   description: 'Rows',
   columns,
   records: [
-    { title: 'Issue A', status: 'open' },
-    { title: 'Issue B', status: null },
+    { iid: { label: '301', href: 'http://gitlab.example.com/-/issues/301' }, title: 'Issue A', status: 'open' },
+    { iid: { label: '302' }, title: 'Issue B', status: null },
   ],
   total: 2,
   page: 1,
@@ -58,7 +59,8 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
         ElTableColumn: {
           name: 'ElTableColumn',
           props: ['prop', 'label', 'sortable'],
-          template: '<div class="column">{{ label }}: <slot :row="{ title: \'Issue A\', status: null }" /></div>',
+          template:
+            '<div class="column">{{ label }}: <slot :row="{ iid: { label: \'301\', href: \'http://gitlab.example.com/-/issues/301\' }, title: \'Issue A\', status: null }" /></div>',
         },
         ElPagination: {
           name: 'ElPagination',
@@ -76,6 +78,7 @@ describe('StatisticBoardDetailDialog', () => {
     const wrapper = mountDialog();
 
     expect(wrapper.text()).toContain('Issue detail');
+    expect(wrapper.text()).toContain('IID');
     expect(wrapper.text()).toContain('Title');
     expect(wrapper.text()).toContain('Issue A');
     expect(wrapper.text()).toContain('Status');
@@ -98,5 +101,28 @@ describe('StatisticBoardDetailDialog', () => {
     expect(onSortChange).toHaveBeenCalledWith({ prop: 'title', order: 'ascending' });
     expect(onCurrentChange).toHaveBeenCalledWith(2);
     expect(onSizeChange).toHaveBeenCalledWith(20);
+  });
+
+  it('renders structured href values as external links', () => {
+    const wrapper = mountDialog({
+      detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => record[column.key] as string,
+    });
+
+    const link = wrapper.find('a.detail-cell-link');
+    expect(link.exists()).toBe(true);
+    expect(link.text()).toBe('301');
+    expect(link.attributes('href')).toBe('http://gitlab.example.com/-/issues/301');
+    expect(link.attributes('target')).toBe('_blank');
+    expect(link.attributes('rel')).toContain('noopener');
+    expect(link.attributes('rel')).toContain('noreferrer');
+  });
+
+  it('falls back to plain text for structured values without href', () => {
+    const wrapper = mountDialog({
+      detailCellValue: () => ({ label: '302' }) as unknown as string,
+    });
+
+    expect(wrapper.find('a.detail-cell-link').exists()).toBe(false);
+    expect(wrapper.text()).toContain('302');
   });
 });

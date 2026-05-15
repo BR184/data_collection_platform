@@ -9,10 +9,13 @@ import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StatisticBoardControllerTest {
@@ -20,6 +23,19 @@ class StatisticBoardControllerTest {
 
   @Autowired
   private StatisticBoardController controller;
+
+  @Autowired
+  private JdbcTemplate jdbcTemplate;
+
+  @BeforeEach
+  void resetStatisticLinkFixtures() {
+    cleanStatisticLinkFixtures();
+  }
+
+  @AfterEach
+  void cleanStatisticLinkFixtures() {
+    jdbcTemplate.update("delete from issue_fact where source_instance = 'stat-link-test'");
+  }
 
   @Test
   void shouldLoadMirrorTableOverviewBoard() {
@@ -415,6 +431,71 @@ class StatisticBoardControllerTest {
   }
 
   @Test
+  void shouldExposeGitlabLinksInIssueStatisticDetails() {
+    seedStatisticLinkIssue(
+        325L,
+        11001L,
+        11001,
+        "CC_Product",
+        "Module A",
+        "Function A",
+        "",
+        "LEVEL1");
+    seedStatisticLinkIssue(
+        901L,
+        12001L,
+        12001,
+        "System Test Project",
+        "Module S",
+        "Function S",
+        "系统测试",
+        "LEVEL1");
+
+    assertIssueDetailLink(
+        controller.getDetails(
+                "customer-issue-defect-summary",
+                "Module A",
+                "level1_total",
+                1,
+                10,
+                null,
+                null,
+                Map.of("sourceInstance", "stat-link-test"))
+            .getData(),
+        11001,
+        325L,
+        "CC_Product");
+    assertIssueDetailLink(
+        controller.getDetails(
+                "customer-issue-by-function",
+                "Module A||Function A",
+                "total",
+                1,
+                10,
+                null,
+                null,
+                Map.of("sourceInstance", "stat-link-test"))
+            .getData(),
+        11001,
+        325L,
+        "CC_Product");
+    assertIssueDetailLink(
+        controller.getDetails(
+                "system-test-defect-summary",
+                "Module S",
+                "level1_total",
+                1,
+                10,
+                null,
+                null,
+                Map.of("sourceInstance", "stat-link-test"))
+            .getData(),
+        12001,
+        901L,
+        "System Test Project");
+  }
+
+  @Test
   void shouldExportBoardCsv() {
     ResponseEntity<String> response = controller.exportBoard("mirror-table-overview", Map.of());
     assertThat(response.getBody()).isNotNull();
@@ -427,5 +508,58 @@ class StatisticBoardControllerTest {
 
   private String numberFilter(String fieldKey, String operator, int value) {
     return "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"" + fieldKey + "\",\"operator\":\"" + operator + "\",\"value\":\"" + value + "\"}]}";
+  }
+
+  private void seedStatisticLinkIssue(
+      long projectId,
+      long issueId,
+      int issueIid,
+      String projectName,
+      String moduleName,
+      String functionName,
+      String testingPhase,
+      String severityLevel) {
+    jdbcTemplate.update(
+        """
+        insert into issue_fact(
+          source_instance, project_id, project_name, issue_id, issue_iid, title, issue_state,
+          milestone_title, author_name, created_at_source, updated_at_source, module_name,
+          primary_module_name, module_names, function_name, testing_phase, primary_phase_label,
+          severity_level, priority_level, label_names, is_excluded, is_fixed, deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, false, false)
+        """,
+        "stat-link-test",
+        projectId,
+        projectName,
+        issueId,
+        issueIid,
+        "Statistic link issue " + issueIid,
+        "opened",
+        "Milestone",
+        "Tester",
+        LocalDateTime.of(2026, 2, 1, 10, 0),
+        LocalDateTime.of(2026, 2, 2, 10, 0),
+        moduleName,
+        moduleName,
+        moduleName,
+        functionName,
+        testingPhase,
+        testingPhase,
+        severityLevel,
+        "P1",
+        "");
+  }
+
+  private void assertIssueDetailLink(
+      StatisticDetailResponse detail, int issueIid, long projectId, String projectName) {
+    assertThat(detail).isNotNull();
+    assertThat(detail.records()).hasSize(1);
+    Map<String, Object> record = detail.records().get(0);
+    assertThat(record).containsEntry("issueIid", issueIid);
+    assertThat(record).containsEntry("issueUrl", "http://localhost/-/issues/" + issueIid);
+    assertThat(record).containsEntry("projectId", projectId);
+    assertThat(record).containsEntry("projectName", projectName);
+    assertThat(record.get("iid"))
+        .isEqualTo(Map.of("label", String.valueOf(issueIid), "href", "http://localhost/-/issues/" + issueIid));
   }
 }

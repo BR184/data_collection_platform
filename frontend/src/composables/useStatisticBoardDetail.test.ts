@@ -107,6 +107,26 @@ describe('useStatisticBoardDetail', () => {
     expect(state.detailLoading.value).toBe(false);
   });
 
+  it('preserves structured detail cell link values', () => {
+    const deps = setup();
+    const state = useStatisticBoardDetail(deps);
+
+    expect(
+      state.detailCellValue(
+        {
+          iid: {
+            label: '301',
+            href: 'http://gitlab.example.com/-/issues/301',
+          },
+        },
+        { key: 'iid', label: 'IID', sortable: true },
+      ),
+    ).toEqual({
+      label: '301',
+      href: 'http://gitlab.example.com/-/issues/301',
+    });
+  });
+
   it('syncs and clears detail state from route query', async () => {
     const deps = setup();
     const state = useStatisticBoardDetail(deps);

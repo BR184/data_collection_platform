@@ -25,12 +25,15 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES = List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private final IssueFactBoardRuntimeSupport runtimeSupport;
+  private final StatisticIssueLinkSupport issueLinkSupport;
 
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
-      IssueFactBoardRuntimeSupport runtimeSupport) {
+      IssueFactBoardRuntimeSupport runtimeSupport,
+      StatisticIssueLinkSupport issueLinkSupport) {
     super(jsonUtils);
     this.runtimeSupport = runtimeSupport;
+    this.issueLinkSupport = issueLinkSupport;
   }
 
   @Override
@@ -287,7 +290,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private Map<String, Object> toDetailRecord(IssueSource i) {
     Map<String, Object> r = new LinkedHashMap<>();
-    r.put("iid", i.iid()); r.put("title", i.title()); r.put("moduleNames", String.join("、", i.moduleNames()));
+    issueLinkSupport.putIssueFields(r, i.iid(), i.projectId(), i.projectName());
+    r.put("title", i.title()); r.put("moduleNames", String.join("、", i.moduleNames()));
     r.put("projectName", i.projectName()); r.put("authorName", i.authorName()); r.put("state", i.isClosed() ? "已关闭" : "未关闭");
     r.put("labels", String.join(", ", i.labels())); r.put("updatedAt", i.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(i.updatedAt())); return r;
   }

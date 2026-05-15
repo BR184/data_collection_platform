@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import type { StatisticDetailColumn, StatisticDetailResponse } from '../types/api';
+import type {
+  StatisticDetailCellValue,
+  StatisticDetailColumn,
+  StatisticDetailLinkValue,
+  StatisticDetailResponse,
+} from '../types/api';
 // 统计板明细弹窗承接图表点击后的记录列表，保持和主看板一致的排序与分页语义。
 // 弹窗只负责展示和导出，明细数据的筛选口径由父级传入的查询上下文决定。
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
   loading: boolean;
   detail: StatisticDetailResponse | null;
@@ -12,7 +17,7 @@ defineProps<{
     size: number;
   };
   detailTableClass?: string;
-  detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => string;
+  detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => StatisticDetailCellValue;
   onSortChange: (event: { column: unknown; prop: string; order: 'ascending' | 'descending' | null }) => void;
   onCurrentChange: (page: number) => void;
   onSizeChange: (size: number) => void;
@@ -21,6 +26,26 @@ defineProps<{
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
 }>();
+
+function isStructuredCellValue(value: StatisticDetailCellValue): value is StatisticDetailLinkValue {
+  return value != null && typeof value === 'object' && 'label' in value;
+}
+
+function detailCellLabel(record: Record<string, unknown>, column: StatisticDetailColumn) {
+  const value = props.detailCellValue(record, column);
+  if (isStructuredCellValue(value)) {
+    return value.label || '-';
+  }
+  return value;
+}
+
+function detailCellLink(record: Record<string, unknown>, column: StatisticDetailColumn) {
+  const value = props.detailCellValue(record, column);
+  if (!isStructuredCellValue(value) || !value.href) {
+    return null;
+  }
+  return value.href;
+}
 </script>
 
 <template>
@@ -56,7 +81,16 @@ const emit = defineEmits<{
           show-overflow-tooltip
         >
           <template #default="{ row }">
-            <span class="detail-cell-text">{{ detailCellValue(row, column) }}</span>
+            <a
+              v-if="detailCellLink(row, column)"
+              class="detail-cell-link"
+              :href="detailCellLink(row, column) || undefined"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ detailCellLabel(row, column) }}
+            </a>
+            <span v-else class="detail-cell-text">{{ detailCellLabel(row, column) }}</span>
           </template>
         </el-table-column>
       </el-table>
