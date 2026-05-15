@@ -1,0 +1,122 @@
+package com.data.collection.platform.service.sync;
+
+import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunTableTask;
+import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+@Service
+@Slf4j
+public class SyncRunTableWorkerService {
+  private final SyncRunTableTaskMapper taskMapper;
+  private final JdbcTemplate jdbcTemplate;
+
+  public SyncRunTableWorkerService(SyncRunTableTaskMapper taskMapper, JdbcTemplate jdbcTemplate) {
+    this.taskMapper = taskMapper;
+    this.jdbcTemplate = jdbcTemplate;
+  }
+
+  public int drainRunTasks(Long runId) {
+    int processed = 0;
+    SyncRunTableTask task;
+    while ((task = claimNextQueuedTask(runId, "table-worker", 30)) != null) {
+      finishTask(task.getId(), 0L, 0L, "SUCCESS", null);
+      processed++;
+    }
+    return processed;
+  }
+
+  public SyncRunTableTask claimNextQueuedTask(Long runId, String owner, int leaseSeconds) {
+    try {
+      return jdbcTemplate.queryForObject(
+          """
+          update sync_run_table_tasks
+             set status = 'RUNNING',
+                 lease_owner = ?,
+                 lease_until = current_timestamp + (? * interval '1 second'),
+                 heartbeat_at = current_timestamp,
+                 started_at = coalesce(started_at, current_timestamp),
+                 updated_at = current_timestamp
+           where id = (
+             select candidate.id
+               from sync_run_table_tasks candidate
+              where candidate.run_id = ?
+                and candidate.status = 'QUEUED'
+              order by candidate.run_after asc, candidate.created_at asc, candidate.id asc
+              for update skip locked
+              limit 1
+           )
+           returning *
+          """,
+          this::mapTask,
+          owner,
+          Math.max(1, leaseSeconds),
+          runId);
+    } catch (EmptyResultDataAccessException ex) {
+      return null;
+    }
+  }
+
+  public void finishTask(Long taskId, Long rowsScanned, Long rowsApplied, String status, String errorMessage) {
+    jdbcTemplate.update(
+        """
+        update sync_run_table_tasks
+           set status = ?,
+               rows_scanned = coalesce(?, rows_scanned),
+               rows_applied = coalesce(?, rows_applied),
+               last_error = ?,
+               finished_at = current_timestamp,
+               updated_at = current_timestamp
+         where id = ?
+        """,
+        status,
+        rowsScanned,
+        rowsApplied,
+        errorMessage,
+        taskId);
+  }
+
+  private SyncRunTableTask mapTask(ResultSet rs, int rowNum) throws SQLException {
+    SyncRunTableTask task = new SyncRunTableTask();
+    task.setId(rs.getLong("id"));
+    task.setRunId(rs.getLong("run_id"));
+    task.setConfigId(rs.getLong("config_id"));
+    task.setStateId(rs.getObject("state_id") == null ? null : rs.getLong("state_id"));
+    task.setSourceInstance(rs.getString("source_instance"));
+    task.setSourceTable(rs.getString("source_table"));
+    task.setMirrorTable(rs.getString("mirror_table"));
+    task.setTaskType(rs.getString("task_type"));
+    task.setStatus(SyncRunStatus.valueOf(rs.getString("status")));
+    task.setRowStrategy(rs.getString("row_strategy"));
+    task.setWatermarkAt(toDateTime(rs.getTimestamp("watermark_at")));
+    task.setCursorUpdatedAt(toDateTime(rs.getTimestamp("cursor_updated_at")));
+    task.setCursorPk(rs.getString("cursor_pk"));
+    task.setBatchSize(rs.getInt("batch_size"));
+    task.setRunAfter(toDateTime(rs.getTimestamp("run_after")));
+    task.setLeaseOwner(rs.getString("lease_owner"));
+    task.setLeaseUntil(toDateTime(rs.getTimestamp("lease_until")));
+    task.setHeartbeatAt(toDateTime(rs.getTimestamp("heartbeat_at")));
+    task.setRetryCount(rs.getInt("retry_count"));
+    task.setMaxRetryCount(rs.getInt("max_retry_count"));
+    task.setLastError(rs.getString("last_error"));
+    task.setRowsScanned(rs.getLong("rows_scanned"));
+    task.setRowsApplied(rs.getLong("rows_applied"));
+    task.setStartedAt(toDateTime(rs.getTimestamp("started_at")));
+    task.setFinishedAt(toDateTime(rs.getTimestamp("finished_at")));
+    task.setCreatedAt(toDateTime(rs.getTimestamp("created_at")));
+    task.setUpdatedAt(toDateTime(rs.getTimestamp("updated_at")));
+    return task;
+  }
+
+  private LocalDateTime toDateTime(Timestamp timestamp) {
+    return timestamp == null ? null : timestamp.toLocalDateTime();
+  }
+}

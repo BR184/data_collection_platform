@@ -1,0 +1,83 @@
+package com.data.collection.platform.service.sync;
+
+import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.sync.SyncRun;
+import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunTableTask;
+import com.data.collection.platform.mapper.SyncRunMapper;
+import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
+import com.data.collection.platform.service.GitlabSourceInstanceSupport;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+@Service
+@Slf4j
+public class SyncRunTablePlanningService {
+  private final SyncRunMapper syncRunMapper;
+  private final SyncRunTableTaskMapper taskMapper;
+  private final JsonUtils jsonUtils;
+
+  public SyncRunTablePlanningService(
+      SyncRunMapper syncRunMapper,
+      SyncRunTableTaskMapper taskMapper,
+      JsonUtils jsonUtils) {
+    this.syncRunMapper = syncRunMapper;
+    this.taskMapper = taskMapper;
+    this.jsonUtils = jsonUtils;
+  }
+
+  public int planRunTables(Long runId) {
+    SyncRun run = syncRunMapper.selectById(runId);
+    if (run == null) {
+      return 0;
+    }
+    List<String> sourceTables = extractSourceTables(run.getPayloadJson());
+    if (sourceTables.isEmpty()) {
+      return 0;
+    }
+    LocalDateTime now = LocalDateTime.now();
+    int planned = 0;
+    for (String sourceTable : sourceTables) {
+      SyncRunTableTask task = new SyncRunTableTask();
+      task.setRunId(run.getId());
+      task.setConfigId(run.getConfigId());
+      task.setStateId(null);
+      task.setSourceInstance(run.getSourceInstance());
+      task.setSourceTable(sourceTable);
+      task.setMirrorTable(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable, run.getSourceInstance()));
+      task.setTaskType(run.getRunType().name());
+      task.setStatus(SyncRunStatus.QUEUED);
+      task.setRowStrategy("INCREMENTAL");
+      task.setBatchSize(500);
+      task.setRunAfter(now);
+      task.setRetryCount(0);
+      task.setMaxRetryCount(3);
+      task.setRowsScanned(0L);
+      task.setRowsApplied(0L);
+      task.setCreatedAt(now);
+      task.setUpdatedAt(now);
+      taskMapper.insert(task);
+      planned++;
+    }
+    log.info("Planned {} table tasks for run {}", planned, runId);
+    return planned;
+  }
+
+  private List<String> extractSourceTables(String payloadJson) {
+    Map<String, Object> payload = jsonUtils.toMap(payloadJson);
+    Object rawTables = payload.get("sourceTables");
+    if (!(rawTables instanceof List<?> tables) || tables.isEmpty()) {
+      return List.of();
+    }
+    return tables.stream()
+        .filter(String.class::isInstance)
+        .map(String.class::cast)
+        .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
+        .filter(table -> !table.isBlank())
+        .distinct()
+        .toList();
+  }
+}

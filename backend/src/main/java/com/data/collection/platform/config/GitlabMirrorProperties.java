@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class GitlabMirrorProperties {
   private boolean schedulerEnabled = true;
   private int schedulerDelayMs = 60000;
+  private int runDispatcherDelayMs = 2000;
   private String webBaseUrl = "http://localhost";
   private String systemHookBaseUrl = "http://localhost:18080/api/gitlab-sync/system-hook";
   private String dockerCommand = "docker";
@@ -37,6 +38,14 @@ public class GitlabMirrorProperties {
 
   public void setSchedulerDelayMs(int schedulerDelayMs) {
     this.schedulerDelayMs = schedulerDelayMs;
+  }
+
+  public int getRunDispatcherDelayMs() {
+    return runDispatcherDelayMs;
+  }
+
+  public void setRunDispatcherDelayMs(int runDispatcherDelayMs) {
+    this.runDispatcherDelayMs = runDispatcherDelayMs;
   }
 
   public String getWebBaseUrl() {

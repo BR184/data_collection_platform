@@ -52,6 +52,7 @@ platform:
   gitlab-mirror:
     scheduler-enabled: true
     scheduler-delay-ms: 60000
+    run-dispatcher-delay-ms: 2000
     # 本地/内网 GitLab 访问地址，记录类页面和代码走查链接统一复用这里
     web-base-url: ${GITLAB_WEB_BASE_URL:http://localhost}
     system-hook-base-url: ${GITLAB_SYSTEM_HOOK_BASE_URL:http://host.docker.internal:18080/api/gitlab-sync/system-hook}
