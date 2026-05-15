@@ -567,6 +567,8 @@ Expected: pass.
 
 ## Task 7: Clarify Dirty Table Semantics
 
+**Status:** Completed on 2026-05-15. Backend table diagnostics now exposes dirty reason, blocking run, row drift and watermark semantics; frontend displays the dirty/running/fact-lag explanation and table drift details.
+
 **Files:**
 
 - Create: `backend/src/main/java/com/data/collection/platform/entity/sync/SyncRunTableStateDiagnostics.java`

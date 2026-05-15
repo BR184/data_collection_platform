@@ -343,6 +343,31 @@ const tableSyncQueueSummary = computed(() => {
     `失败 ${diagnostics.failedTaskCount + diagnostics.timedOutTaskCount}`,
   ].join(' · ');
 });
+function tableDirtyText(row: { dirty?: boolean; dirtyReason?: string | null; blockingRunId?: string | null }) {
+  if (row.blockingRunId) {
+    return `运行中：${row.blockingRunId}`;
+  }
+  if (row.dirty) {
+    return row.dirtyReason ? `脏表：${row.dirtyReason}` : '脏表';
+  }
+  return '正常';
+}
+function tableWatermarkText(row: {
+  lastError?: string | null;
+  latestTaskError?: string | null;
+  driftSummary?: string | null;
+  lastWatermarkAt?: string | null;
+  lastAppliedAt?: string | null;
+  lastSuccessAt?: string | null;
+}) {
+  if (row.lastError || row.latestTaskError) {
+    return row.lastError || row.latestTaskError;
+  }
+  if (row.driftSummary) {
+    return row.driftSummary;
+  }
+  return formatDateTime(row.lastWatermarkAt || row.lastAppliedAt || row.lastSuccessAt);
+}
 const {
   progress,
   currentTask,
@@ -963,6 +988,13 @@ onBeforeUnmount(() => {
               <strong>{{ tableSyncDiagnostics.retryingTaskCount }}</strong>
             </div>
           </div>
+          <el-alert
+            class="source-health-alert"
+            type="info"
+            :closable="false"
+            show-icon
+            title="脏表 = 源表和镜像表可能不一致，需要增量修复或全量校验；运行中 = 已进入当前 run 的处理队列；事实层滞后 = 镜像已更新，但统计事实表还没有刷新。"
+          />
           <el-table
             v-loading="tableSyncDiagnosticsLoading"
             class="table-sync-diagnostics-table"
@@ -980,15 +1012,14 @@ onBeforeUnmount(() => {
             </el-table-column>
             <el-table-column label="脏表" width="64">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.dirty ? 'warning' : 'success'" effect="plain">
-                  {{ row.dirty ? '是' : '否' }}
+                <el-tag size="small" :type="row.blockingRunId ? 'warning' : row.dirty ? 'warning' : 'success'" effect="plain">
+                  {{ row.blockingRunId ? '运行中' : row.dirty ? '是' : '否' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="水位/错误" min-width="180" show-overflow-tooltip>
+            <el-table-column label="语义/水位/漂移" min-width="220" show-overflow-tooltip>
               <template #default="{ row }">
-                <span v-if="row.lastError || row.latestTaskError">{{ row.lastError || row.latestTaskError }}</span>
-                <span v-else>{{ formatDateTime(row.lastWatermarkAt || row.lastSuccessAt) }}</span>
+                <span>{{ tableDirtyText(row) }} · {{ tableWatermarkText(row) }}</span>
               </template>
             </el-table-column>
           </el-table>

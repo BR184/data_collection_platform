@@ -21,6 +21,7 @@ import com.data.collection.platform.service.GitlabWhitelistService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
 import com.data.collection.platform.service.sync.SyncRunStatusService;
+import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ class GitlabSyncControllerTest {
   private GitlabConfigService configService;
   private SyncRunCancellationService cancellationService;
   private SyncRunStatusService statusService;
+  private SyncRunTableDiagnosticsService tableDiagnosticsService;
   private GitlabSyncController controller;
 
   @BeforeEach
@@ -38,6 +40,7 @@ class GitlabSyncControllerTest {
     configService = mock(GitlabConfigService.class);
     cancellationService = mock(SyncRunCancellationService.class);
     statusService = mock(SyncRunStatusService.class);
+    tableDiagnosticsService = mock(SyncRunTableDiagnosticsService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     controller =
         new GitlabSyncController(
@@ -52,7 +55,8 @@ class GitlabSyncControllerTest {
             mock(GitlabExternalDbService.class),
             new SyncThreadBudgetResolver(properties),
             cancellationService,
-            statusService);
+            statusService,
+            tableDiagnosticsService);
   }
 
   @Test
@@ -86,16 +90,16 @@ class GitlabSyncControllerTest {
   }
 
   @Test
-  void shouldRouteTableSyncDiagnosticsToUnifiedStatusService() {
+  void shouldRouteTableSyncDiagnosticsToUnifiedTableDiagnosticsService() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(statusService.tableDiagnostics(config))
+    when(tableDiagnosticsService.tableDiagnostics(config))
         .thenReturn(Map.of("status", "RUNNING", "tableCount", 3));
 
     var response = controller.tableSyncDiagnostics(1L);
 
-    verify(statusService).tableDiagnostics(config);
+    verify(tableDiagnosticsService).tableDiagnostics(config);
     assertThat(response.getData())
         .containsEntry("status", "RUNNING")
         .containsEntry("tableCount", 3);

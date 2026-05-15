@@ -118,7 +118,26 @@ describe('MirrorSettingsView mount smoke', () => {
           retryingTaskCount: 0,
           failedTaskCount: 0,
           timedOutTaskCount: 0,
-          tables: [],
+          tables: [
+            {
+              sourceTable: 'issues',
+              mirrorTable: 'ods_gitlab_issues',
+              primaryKeyColumns: 'id',
+              updatedAtColumn: 'updated_at',
+              rowStrategy: 'INCREMENTAL',
+              syncEnabled: true,
+              dirty: true,
+              dirtyReason: 'row_count_drift',
+              blockingRunId: 'sr_full_alpha',
+              lastVerifiedAt: '2026-04-27T09:58:00',
+              lastAppliedAt: '2026-04-27T09:59:00',
+              lastWatermarkAt: '2026-04-27T09:59:00',
+              sourceRows: 120,
+              mirrorRows: 100,
+              driftSummary: 'source=120, mirror=100, delta=20',
+              latestTaskStatus: 'RUNNING',
+            },
+          ],
         });
       }
       if (url.includes('/api/gitlab-sync/purge')) {
@@ -143,6 +162,8 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
     expect(wrapper.text()).toContain('固定线程数');
     expect(wrapper.text()).toContain('预计本次配置会使用');
+    expect(wrapper.text()).toContain('脏表 = 源表和镜像表可能不一致');
+    expect(wrapper.text()).toContain('运行中：sr_full_alpha');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
 
     const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('删除镜像数据'));

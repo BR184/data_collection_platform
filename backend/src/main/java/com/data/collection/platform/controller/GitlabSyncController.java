@@ -31,6 +31,7 @@ import com.data.collection.platform.service.GitlabWhitelistService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
 import com.data.collection.platform.service.sync.SyncRunStatusService;
+import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -65,6 +66,7 @@ public class GitlabSyncController {
   private final SyncThreadBudgetResolver threadBudgetResolver;
   private final SyncRunCancellationService cancellationService;
   private final SyncRunStatusService statusService;
+  private final SyncRunTableDiagnosticsService tableDiagnosticsService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -78,7 +80,8 @@ public class GitlabSyncController {
       GitlabExternalDbService externalDbService,
       SyncThreadBudgetResolver threadBudgetResolver,
       SyncRunCancellationService cancellationService,
-      SyncRunStatusService statusService) {
+      SyncRunStatusService statusService,
+      SyncRunTableDiagnosticsService tableDiagnosticsService) {
     this.configService = configService;
     this.syncService = syncService;
     this.whitelistService = whitelistService;
@@ -91,6 +94,7 @@ public class GitlabSyncController {
     this.threadBudgetResolver = threadBudgetResolver;
     this.cancellationService = cancellationService;
     this.statusService = statusService;
+    this.tableDiagnosticsService = tableDiagnosticsService;
   }
 
   @GetMapping("/status")
@@ -126,7 +130,7 @@ public class GitlabSyncController {
   public ApiResponse<Map<String, Object>> tableSyncDiagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    return ApiResponse.success(statusService.tableDiagnostics(config));
+    return ApiResponse.success(tableDiagnosticsService.tableDiagnostics(config));
   }
 
   @PostMapping("/diagnostics")
