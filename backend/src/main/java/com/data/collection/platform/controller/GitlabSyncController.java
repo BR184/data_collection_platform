@@ -30,6 +30,7 @@ import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
+import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunStatusService;
 import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
@@ -64,6 +65,7 @@ public class GitlabSyncController {
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
   private final SyncThreadBudgetResolver threadBudgetResolver;
+  private final SyncRunSubmissionService submissionService;
   private final SyncRunCancellationService cancellationService;
   private final SyncRunStatusService statusService;
   private final SyncRunTableDiagnosticsService tableDiagnosticsService;
@@ -79,6 +81,7 @@ public class GitlabSyncController {
       GitlabSourceHealthService sourceHealthService,
       GitlabExternalDbService externalDbService,
       SyncThreadBudgetResolver threadBudgetResolver,
+      SyncRunSubmissionService submissionService,
       SyncRunCancellationService cancellationService,
       SyncRunStatusService statusService,
       SyncRunTableDiagnosticsService tableDiagnosticsService) {
@@ -92,6 +95,7 @@ public class GitlabSyncController {
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
     this.threadBudgetResolver = threadBudgetResolver;
+    this.submissionService = submissionService;
     this.cancellationService = cancellationService;
     this.statusService = statusService;
     this.tableDiagnosticsService = tableDiagnosticsService;
@@ -308,8 +312,7 @@ public class GitlabSyncController {
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
       log.info("Manual full sync requested during cutover");
     }
-    SyncRunSubmissionResult result =
-        configId == null ? syncService.startFullSync() : syncService.startFullSync(config.getId());
+    SyncRunSubmissionResult result = submissionService.submitFullSync(config, "Manual full sync");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
@@ -328,9 +331,7 @@ public class GitlabSyncController {
       log.info("Manual incremental sync requested during cutover");
     }
     SyncRunSubmissionResult result =
-        configId == null
-            ? syncService.startIncrementalSync(null, "Manual incremental sync")
-            : syncService.startIncrementalSync(config.getId(), null, "Manual incremental sync");
+        submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
@@ -494,7 +495,6 @@ public class GitlabSyncController {
     } else if (heartbeatTimeoutSeconds <= minimumRecommendedSeconds) {
       warnings.add("heartbeat-timeout-seconds is close to external query timeout; long writes may be marked stale");
     }
-    warnings.add("Legacy sync runtime has been removed; unified run runtime is not wired yet.");
     return warnings;
   }
 
