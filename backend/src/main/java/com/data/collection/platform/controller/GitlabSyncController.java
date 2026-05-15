@@ -30,6 +30,7 @@ import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
+import com.data.collection.platform.service.sync.SyncRunStatusService;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -63,6 +64,7 @@ public class GitlabSyncController {
   private final GitlabExternalDbService externalDbService;
   private final SyncThreadBudgetResolver threadBudgetResolver;
   private final SyncRunCancellationService cancellationService;
+  private final SyncRunStatusService statusService;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -75,7 +77,8 @@ public class GitlabSyncController {
       GitlabSourceHealthService sourceHealthService,
       GitlabExternalDbService externalDbService,
       SyncThreadBudgetResolver threadBudgetResolver,
-      SyncRunCancellationService cancellationService) {
+      SyncRunCancellationService cancellationService,
+      SyncRunStatusService statusService) {
     this.configService = configService;
     this.syncService = syncService;
     this.whitelistService = whitelistService;
@@ -87,22 +90,24 @@ public class GitlabSyncController {
     this.externalDbService = externalDbService;
     this.threadBudgetResolver = threadBudgetResolver;
     this.cancellationService = cancellationService;
+    this.statusService = statusService;
   }
 
   @GetMapping("/status")
   public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
+    MirrorStatusResponse status = statusService.getStatus(config);
     return ApiResponse.success(
         new MirrorStatusResponse(
             sanitizeConfigForResponse(config),
-            null,
-            SyncStatus.IDLE,
-            "Sync orchestrator cutover is in progress. No legacy runtime status is exposed.",
-            null,
-            null,
-            List.of(),
+            status.currentTask(),
+            status.currentStatus(),
+            status.currentMessage(),
+            status.currentStartedAt(),
+            status.progress(),
+            status.logs(),
             properties.getSystemHookBaseUrl(),
-            null,
+            status.systemHookRegistration(),
             Runtime.getRuntime().availableProcessors(),
             threadBudgetResolver.resolve(config)));
   }
@@ -121,21 +126,7 @@ public class GitlabSyncController {
   public ApiResponse<Map<String, Object>> tableSyncDiagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    Map<String, Object> response = new LinkedHashMap<>();
-    response.put("configId", config.getId());
-    response.put("sourceInstance", GitlabSourceInstanceSupport.sourceInstanceOf(config));
-    response.put("generatedAt", java.time.LocalDateTime.now().toString());
-    response.put("status", "UNAVAILABLE_DURING_CUTOVER");
-    response.put("message", "Legacy table diagnostics have been removed. Unified run diagnostics will replace this endpoint.");
-    response.put("tableCount", 0);
-    response.put("dirtyTableCount", 0);
-    response.put("pendingTaskCount", 0);
-    response.put("runningTaskCount", 0);
-    response.put("retryingTaskCount", 0);
-    response.put("failedTaskCount", 0);
-    response.put("timedOutTaskCount", 0);
-    response.put("tables", List.of());
-    return ApiResponse.success(response);
+    return ApiResponse.success(statusService.tableDiagnostics(config));
   }
 
   @PostMapping("/diagnostics")

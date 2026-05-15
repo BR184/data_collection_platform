@@ -2,10 +2,13 @@ package com.data.collection.platform.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.MirrorStatusResponse;
+import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabExternalDbService;
@@ -17,7 +20,9 @@ import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
+import com.data.collection.platform.service.sync.SyncRunStatusService;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,12 +30,14 @@ import org.junit.jupiter.api.Test;
 class GitlabSyncControllerTest {
   private GitlabConfigService configService;
   private SyncRunCancellationService cancellationService;
+  private SyncRunStatusService statusService;
   private GitlabSyncController controller;
 
   @BeforeEach
   void setUp() {
     configService = mock(GitlabConfigService.class);
     cancellationService = mock(SyncRunCancellationService.class);
+    statusService = mock(SyncRunStatusService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     controller =
         new GitlabSyncController(
@@ -44,7 +51,54 @@ class GitlabSyncControllerTest {
             mock(GitlabSourceHealthService.class),
             mock(GitlabExternalDbService.class),
             new SyncThreadBudgetResolver(properties),
-            cancellationService);
+            cancellationService,
+            statusService);
+  }
+
+  @Test
+  void shouldRouteStatusToUnifiedSyncRunStatusService() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    MirrorStatusResponse unifiedStatus =
+        new MirrorStatusResponse(
+            config,
+            Map.of("runId", "sr_1"),
+            SyncStatus.RUNNING,
+            "Sync run sr_1 is RUNNING",
+            null,
+            null,
+            List.of(),
+            "http://localhost/system-hook",
+            null,
+            8,
+            4);
+    when(statusService.getStatus(config)).thenReturn(unifiedStatus);
+
+    var response = controller.status(1L);
+
+    verify(statusService).getStatus(config);
+    assertThat(response.getData().currentTask()).isEqualTo(Map.of("runId", "sr_1"));
+    assertThat(response.getData().currentStatus()).isEqualTo(SyncStatus.RUNNING);
+    assertThat(response.getData().currentMessage()).isEqualTo("Sync run sr_1 is RUNNING");
+    assertThat(response.getData().systemHookUrl()).isEqualTo("http://localhost:18080/api/gitlab-sync/system-hook");
+    assertThat(response.getData().resolvedSyncThreads()).isEqualTo(2);
+  }
+
+  @Test
+  void shouldRouteTableSyncDiagnosticsToUnifiedStatusService() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(statusService.tableDiagnostics(config))
+        .thenReturn(Map.of("status", "RUNNING", "tableCount", 3));
+
+    var response = controller.tableSyncDiagnostics(1L);
+
+    verify(statusService).tableDiagnostics(config);
+    assertThat(response.getData())
+        .containsEntry("status", "RUNNING")
+        .containsEntry("tableCount", 3);
   }
 
   @Test

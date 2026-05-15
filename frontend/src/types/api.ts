@@ -90,20 +90,38 @@ export interface TableWhitelistOption {
 
 export interface SyncRunLog {
   id: number;
+  runId?: string | null;
   syncType: GitlabSyncType;
+  triggerType?: string | null;
   status: GitlabSyncStatus;
   message: string;
   tableCount: number;
+  completedTableCount?: number | null;
   recordCount: number;
+  queuedAt?: string | null;
   startedAt: string;
   finishedAt?: string | null;
+  errorSummary?: string | null;
 }
 
 export interface SyncProgress {
   phase: string;
+  runId?: string | null;
+  runType?: string | null;
+  status?: GitlabSyncStatus | string | null;
+  queuedRunsAhead?: number | null;
   totalTables: number;
+  runningTables?: number | null;
   completedTables: number;
+  failedTables?: number | null;
+  dirtyTables?: number | null;
   syncedRecords: number;
+  scannedRows?: number | null;
+  appliedRows?: number | null;
+  recordsPerSecond?: number | null;
+  estimatedRemainingSeconds?: number | null;
+  factRefreshStatus?: string | null;
+  activeTableTasks?: string[];
   currentTable?: string | null;
   startedAt?: string | null;
 }

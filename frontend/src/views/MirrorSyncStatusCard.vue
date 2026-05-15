@@ -44,16 +44,26 @@ defineProps<{
       <div class="progress-tip">{{ progressHint }}</div>
       <div class="progress-meta-grid">
         <div class="meta-item">
-          <span class="meta-label">当前表</span>
-          <span class="meta-value mono">{{ progress?.currentTable || '-' }}</span>
+          <span class="meta-label">正在处理表</span>
+          <span class="meta-value mono">
+            {{ progress?.activeTableTasks?.length ? progress.activeTableTasks.join(', ') : '-' }}
+          </span>
         </div>
         <div class="meta-item">
           <span class="meta-label">表进度</span>
           <span class="meta-value">{{ progress?.completedTables || 0 }}/{{ progress?.totalTables || 0 }}</span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">已同步记录</span>
-          <span class="meta-value">{{ progress?.syncedRecords || 0 }}</span>
+          <span class="meta-label">活跃线程</span>
+          <span class="meta-value">{{ progress?.runningTables || 0 }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">失败表</span>
+          <span class="meta-value">{{ progress?.failedTables || 0 }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">已写入记录</span>
+          <span class="meta-value">{{ progress?.appliedRows ?? progress?.syncedRecords ?? 0 }}</span>
         </div>
         <div class="meta-item">
           <span class="meta-label">开始时间</span>

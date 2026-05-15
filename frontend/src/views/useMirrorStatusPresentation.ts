@@ -141,6 +141,9 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
       }
       return '当前没有正在执行的同步任务。';
     }
+    if (current.activeTableTasks?.length) {
+      return `正在处理 ${current.activeTableTasks.length} 张表，已写入 ${current.appliedRows ?? current.syncedRecords} 条记录。`;
+    }
     if (current.currentTable) {
       return `正在处理表 ${current.currentTable}，已同步 ${current.syncedRecords} 条记录。`;
     }

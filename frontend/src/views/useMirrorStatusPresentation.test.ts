@@ -38,8 +38,12 @@ function createProgress(overrides: Partial<SyncProgress> = {}): SyncProgress {
   return {
     phase: 'FULL_SYNC',
     totalTables: 4,
+    runningTables: 2,
     completedTables: 1,
+    failedTables: 0,
     syncedRecords: 20,
+    appliedRows: 20,
+    activeTableTasks: ['issues', 'notes'],
     currentTable: 'issues',
     startedAt: 'invalid-progress-start',
     ...overrides,
@@ -113,7 +117,7 @@ describe('useMirrorStatusPresentation', () => {
     expect(presentation.canCancel.value).toBe(true);
     expect(presentation.displayStatus.value).toEqual({ text: '执行中', type: 'warning' });
     expect(presentation.phaseText.value).toBe('全量同步');
-    expect(presentation.progressHint.value).toBe('正在处理表 issues，已同步 20 条记录。');
+    expect(presentation.progressHint.value).toBe('正在处理 2 张表，已写入 20 条记录。');
     expect(presentation.currentMessageText.value).toBe('手动全量同步');
   });
 
@@ -147,7 +151,15 @@ describe('useMirrorStatusPresentation', () => {
       createStatus({
         currentStatus: 'QUEUED',
         currentTask: createTask({ status: 'QUEUED' }),
-        progress: createProgress({ phase: 'INCREMENTAL_SYNC', totalTables: 0, completedTables: 0, currentTable: null }),
+        progress: createProgress({
+          phase: 'INCREMENTAL_SYNC',
+          totalTables: 0,
+          completedTables: 0,
+          activeTableTasks: [],
+          appliedRows: 0,
+          syncedRecords: 0,
+          currentTable: null,
+        }),
       }),
     );
 
