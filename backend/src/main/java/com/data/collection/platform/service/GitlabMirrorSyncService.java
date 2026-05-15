@@ -1,13 +1,17 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabMirrorTableRegistry;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
+import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
+import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
+import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +33,8 @@ public class GitlabMirrorSyncService {
   @SuppressWarnings("unused")
   private final FactBuildTaskService factBuildTaskService;
   private final SyncRunSubmissionService syncRunSubmissionService;
+  private final GitlabMirrorTableRegistryMapper registryMapper;
+  private final SyncRunTableStateMapper tableStateMapper;
 
   public GitlabMirrorSyncService(
       GitlabConfigService configService,
@@ -38,7 +44,9 @@ public class GitlabMirrorSyncService {
       GitlabMirrorRecordMapper mirrorRecordMapper,
       GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner,
       FactBuildTaskService factBuildTaskService,
-      SyncRunSubmissionService syncRunSubmissionService) {
+      SyncRunSubmissionService syncRunSubmissionService,
+      GitlabMirrorTableRegistryMapper registryMapper,
+      SyncRunTableStateMapper tableStateMapper) {
     this.configService = configService;
     this.externalDbService = externalDbService;
     this.mirrorSchemaService = mirrorSchemaService;
@@ -47,6 +55,8 @@ public class GitlabMirrorSyncService {
     this.systemHookPreciseSyncPlanner = systemHookPreciseSyncPlanner;
     this.factBuildTaskService = factBuildTaskService;
     this.syncRunSubmissionService = syncRunSubmissionService;
+    this.registryMapper = registryMapper;
+    this.tableStateMapper = tableStateMapper;
   }
 
   public boolean hasActiveTask(Long configId) {
@@ -105,6 +115,7 @@ public class GitlabMirrorSyncService {
       String reason) {
     GitlabSyncConfig config = resolveConfig(configId);
     List<String> requestedTables = normalizeRequestedTables(sourceTableNames);
+    validateManualTableRefreshBoundaries(config, requestedTables);
     SyncRunSubmissionResult submission =
         syncRunSubmissionService.submitTableRefresh(config, requestedTables, reason);
     return new OnDemandRefreshResult(
@@ -114,6 +125,43 @@ public class GitlabMirrorSyncService {
         List.of(),
         submission.status(),
         submission.message());
+  }
+
+  private void validateManualTableRefreshBoundaries(GitlabSyncConfig config, List<String> sourceTables) {
+    for (String sourceTable : sourceTables) {
+      GitlabMirrorTableRegistry registry =
+          registryMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<GitlabMirrorTableRegistry>()
+              .eq(GitlabMirrorTableRegistry::getConfigId, config.getId())
+              .eq(GitlabMirrorTableRegistry::getSourceTableName, sourceTable)
+              .eq(GitlabMirrorTableRegistry::getInitialized, true)
+              .last("limit 1"));
+      if (registry == null) {
+        throw new com.data.collection.platform.common.exception.BizException(
+            "Source table is not registered in the mirror whitelist: " + sourceTable);
+      }
+      if (isBlank(registry.getPrimaryKeyColumns())) {
+        throw new com.data.collection.platform.common.exception.BizException(
+            "Manual table refresh requires known primary key columns: " + sourceTable);
+      }
+      if (isBlank(registry.getUpdatedAtColumn())) {
+        throw new com.data.collection.platform.common.exception.BizException(
+            "Manual table refresh requires an updated_at column: " + sourceTable);
+      }
+      SyncRunTableState state =
+          tableStateMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableState>()
+              .eq(SyncRunTableState::getConfigId, config.getId())
+              .eq(SyncRunTableState::getSourceInstance, GitlabSourceInstanceSupport.sourceInstanceOf(config))
+              .eq(SyncRunTableState::getSourceTable, sourceTable)
+              .last("limit 1"));
+      if (state == null || state.getLastWatermarkAt() == null) {
+        throw new com.data.collection.platform.common.exception.BizException(
+            "Manual table refresh requires a completed full sync baseline first: " + sourceTable);
+      }
+    }
+  }
+
+  private boolean isBlank(String value) {
+    return value == null || value.isBlank();
   }
 
   public boolean requestCancel(Long configId) {

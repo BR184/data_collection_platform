@@ -109,12 +109,22 @@ public class DatabaseBrowserService {
   }
 
   public int refreshTable(String tableName) {
+    return refreshTableDetailed(tableName).plannedTasks();
+  }
+
+  public GitlabMirrorSyncService.OnDemandRefreshResult refreshTableDetailed(String tableName) {
     DatabaseBrowserTableContext context = resolveTableContext(tableName);
     GitlabMirrorTableRegistry registry = context.registry();
     if (registry == null) {
-      return 0;
+      return new GitlabMirrorSyncService.OnDemandRefreshResult(
+          null,
+          List.of(),
+          0,
+          List.of(),
+          com.data.collection.platform.entity.SyncStatus.IDLE,
+          "Current table does not require mirror refresh");
     }
-    return gitlabMirrorSyncService.refreshTablesOnDemand(
+    return gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
         registry.getConfigId(),
         List.of(registry.getSourceTableName()),
         "database-browser:" + tableName);

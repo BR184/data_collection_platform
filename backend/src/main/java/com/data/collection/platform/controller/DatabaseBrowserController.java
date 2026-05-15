@@ -4,9 +4,12 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.database.DatabaseTableOption;
 import com.data.collection.platform.entity.database.DatabaseTableRowsResponse;
 import com.data.collection.platform.service.DatabaseBrowserService;
+import com.data.collection.platform.service.GitlabMirrorSyncService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,8 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/database-browser")
-// 数据库浏览控制器只提供受控表列表和分页查询，面向排查数据同步状态。
-// 可浏览表、列和排序字段由服务层白名单决定，不开放任意 SQL 执行。
 public class DatabaseBrowserController {
 
   private final DatabaseBrowserService databaseBrowserService;
@@ -43,10 +44,16 @@ public class DatabaseBrowserController {
   }
 
   @PostMapping("/refresh")
-  public ApiResponse<java.util.Map<String, Object>> refreshTable(@RequestParam @NotBlank String tableName) {
-    int plannedTasks = databaseBrowserService.refreshTable(tableName);
-    return ApiResponse.success(
-        plannedTasks > 0 ? "已刷新当前镜像表" : "当前表无需镜像刷新",
-        java.util.Map.of("accepted", true, "plannedTasks", plannedTasks));
+  public ApiResponse<Map<String, Object>> refreshTable(@RequestParam @NotBlank String tableName) {
+    GitlabMirrorSyncService.OnDemandRefreshResult result =
+        databaseBrowserService.refreshTableDetailed(tableName);
+    Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("accepted", result.plannedTasks() > 0);
+    payload.put("runId", result.jobId());
+    payload.put("status", result.status());
+    payload.put("message", result.message());
+    payload.put("sourceTables", result.sourceTables());
+    payload.put("plannedTasks", result.plannedTasks());
+    return ApiResponse.success(result.message(), payload);
   }
 }

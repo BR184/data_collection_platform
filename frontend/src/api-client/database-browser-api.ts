@@ -1,6 +1,15 @@
 import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
 import { request } from './request';
 
+export interface DatabaseTableRefreshResponse {
+  accepted: boolean;
+  runId: number | null;
+  status: string;
+  message: string | null;
+  sourceTables: string[];
+  plannedTasks: number;
+}
+
 export const databaseBrowserApi = {
   getDatabaseTables() {
     return request<DatabaseTableOption[]>('/api/database-browser/tables');
@@ -25,7 +34,7 @@ export const databaseBrowserApi = {
   },
   refreshDatabaseTable(tableName: string) {
     const query = new URLSearchParams({ tableName });
-    return request<{ accepted: boolean; plannedTasks: number }>(`/api/database-browser/refresh?${query.toString()}`, {
+    return request<DatabaseTableRefreshResponse>(`/api/database-browser/refresh?${query.toString()}`, {
       method: 'POST',
     });
   },

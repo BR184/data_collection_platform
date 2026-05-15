@@ -614,11 +614,14 @@ Expected: pass.
 
 ## Task 8: Enforce Single-Table Refresh Boundaries
 
+**Status:** Completed on 2026-05-15.
+
 **Files:**
 
 - Modify: `backend/src/main/java/com/data/collection/platform/service/DatabaseBrowserService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/service/GitlabMirrorSyncService.java`
 - Modify: `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTablePlanningService.java`
+- Modify: `frontend/src/api-client/database-browser-api.ts`
 - Test: `backend/src/test/java/com/data/collection/platform/service/DatabaseBrowserServiceTest.java`
 - Test: `backend/src/test/java/com/data/collection/platform/service/GitlabMirrorSyncServiceTest.java`
 
@@ -648,9 +651,20 @@ Otherwise return actionable message, not silent zero-task success.
 ```bash
 cd backend
 mvn -Dtest=DatabaseBrowserServiceTest,GitlabMirrorSyncServiceTest test
+cd ../frontend
+npm.cmd run typecheck
 ```
 
 Expected: pass.
+
+**Verification:** Passed on 2026-05-15 with:
+
+```bash
+cd backend
+mvn -Dtest=DatabaseBrowserServiceTest,GitlabMirrorSyncServiceTest test
+cd ../frontend
+npm.cmd run typecheck
+```
 
 ## Task 9: Integrate Fact Refresh Into the Same Monitor
 
