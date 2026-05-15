@@ -64,6 +64,16 @@ class FlywayMigrationSmokeTest {
     assertLegacyDrop(migration, "sync", "tasks");
   }
 
+  @Test
+  void shouldAddGitlabSyncThreadConfigMigration() throws IOException {
+    String migration = readMigration("V20260515_02__gitlab_sync_thread_config.sql");
+
+    assertThat(migration).contains("alter table gitlab_sync_configs");
+    assertThat(migration).contains("sync_thread_mode varchar(32) not null default 'fixed'");
+    assertThat(migration).contains("sync_thread_value numeric(8, 3) not null default 2");
+    assertThat(migration).contains("max_sync_threads integer");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

@@ -30,6 +30,9 @@ function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
     dbPassword: config.dbPassword ?? '',
     systemHookProjectId: config.systemHookProjectId ?? null,
     systemHookEnabled: config.systemHookEnabled ?? Boolean(config.systemHookSecret),
+    syncThreadMode: config.syncThreadMode ?? 'FIXED',
+    syncThreadValue: config.syncThreadValue ?? (config.syncThreadMode === 'CPU_RATIO' ? 0.8 : 2),
+    maxSyncThreads: config.maxSyncThreads ?? 16,
   };
 }
 

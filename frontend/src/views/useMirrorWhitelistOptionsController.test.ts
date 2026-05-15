@@ -21,6 +21,9 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     systemHookSecret: '',
     systemHookProjectId: null,
     compensationIntervalMinutes: 10,
+    syncThreadMode: 'FIXED',
+    syncThreadValue: 2,
+    maxSyncThreads: 16,
     ...overrides,
   };
 }

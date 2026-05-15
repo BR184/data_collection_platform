@@ -40,16 +40,19 @@ public class SyncRunSubmissionService {
   private final SyncRunPolicyService policyService;
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
+  private final SyncThreadBudgetResolver threadBudgetResolver;
 
   public SyncRunSubmissionService(
       SyncRunMapper syncRunMapper,
       SyncRunPolicyService policyService,
       JdbcTemplate jdbcTemplate,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      SyncThreadBudgetResolver threadBudgetResolver) {
     this.syncRunMapper = syncRunMapper;
     this.policyService = policyService;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
+    this.threadBudgetResolver = threadBudgetResolver;
   }
 
   @Transactional
@@ -135,6 +138,8 @@ public class SyncRunSubmissionService {
     run.setSubmittedBy(null);
     run.setRequestReason(reason);
     run.setPayloadJson(buildPayloadJson(apiType, triggerType, reason, sourceTables, primaryTableName));
+    run.setThreadMode(threadBudgetResolver.effectiveMode(config));
+    run.setThreadValue(threadBudgetResolver.effectiveValue(config));
     run.setPlannedTableCount(sourceTables.size());
     run.setCompletedTableCount(0);
     run.setScannedRows(0L);

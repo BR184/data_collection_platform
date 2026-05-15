@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Data;
@@ -67,6 +68,15 @@ public class GitlabSyncConfig {
 
   @TableField("compensation_interval_minutes")
   private Integer compensationIntervalMinutes;
+
+  @TableField("sync_thread_mode")
+  private String syncThreadMode;
+
+  @TableField("sync_thread_value")
+  private BigDecimal syncThreadValue;
+
+  @TableField("max_sync_threads")
+  private Integer maxSyncThreads;
 
   @TableField("last_full_sync_at")
   private LocalDateTime lastFullSyncAt;

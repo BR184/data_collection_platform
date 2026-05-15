@@ -392,6 +392,8 @@ Expected: pass after updating old assertions that expected immediate drain.
 
 ## Task 4: Add Configurable Thread Budget
 
+**Status:** Completed on 2026-05-15. Backend resolver/config persistence and frontend controls are implemented; targeted backend tests, frontend smoke test, and frontend typecheck passed.
+
 **Files:**
 
 - Modify: `backend/src/main/java/com/data/collection/platform/config/GitlabMirrorProperties.java`

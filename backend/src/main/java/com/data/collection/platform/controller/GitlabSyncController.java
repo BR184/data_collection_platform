@@ -28,8 +28,10 @@ import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,6 +59,7 @@ public class GitlabSyncController {
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
   private final GitlabExternalDbService externalDbService;
+  private final SyncThreadBudgetResolver threadBudgetResolver;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -67,7 +70,8 @@ public class GitlabSyncController {
       GitlabSystemHookRegistrationService systemHookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
-      GitlabExternalDbService externalDbService) {
+      GitlabExternalDbService externalDbService,
+      SyncThreadBudgetResolver threadBudgetResolver) {
     this.configService = configService;
     this.syncService = syncService;
     this.whitelistService = whitelistService;
@@ -77,6 +81,7 @@ public class GitlabSyncController {
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
     this.externalDbService = externalDbService;
+    this.threadBudgetResolver = threadBudgetResolver;
   }
 
   @GetMapping("/status")
@@ -92,7 +97,9 @@ public class GitlabSyncController {
             null,
             List.of(),
             properties.getSystemHookBaseUrl(),
-            null));
+            null,
+            Runtime.getRuntime().availableProcessors(),
+            threadBudgetResolver.resolve(config)));
   }
 
   @GetMapping("/configs")
@@ -250,6 +257,9 @@ public class GitlabSyncController {
     config.setSystemHookEnabled(request.systemHookEnabled());
     config.setSystemHookProjectId(request.systemHookProjectId());
     config.setCompensationIntervalMinutes(request.compensationIntervalMinutes());
+    config.setSyncThreadMode(request.syncThreadMode());
+    config.setSyncThreadValue(request.syncThreadValue());
+    config.setMaxSyncThreads(request.maxSyncThreads());
     try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "CONFIG");
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Config_Save")) {
       log.info(
@@ -396,7 +406,10 @@ public class GitlabSyncController {
       String dockerContainerName,
       String systemHookSecret,
       Long systemHookProjectId,
-      @NotNull Integer compensationIntervalMinutes) {}
+      @NotNull Integer compensationIntervalMinutes,
+      @NotBlank String syncThreadMode,
+      @NotNull BigDecimal syncThreadValue,
+      Integer maxSyncThreads) {}
 
   public record PurgeRequest(@NotNull MirrorPurgeScope scope, Long configId) {}
 
@@ -421,6 +434,9 @@ public class GitlabSyncController {
     sanitized.setSystemHookEnabled(source.getSystemHookEnabled() != null && source.getSystemHookEnabled());
     sanitized.setSystemHookProjectId(source.getSystemHookProjectId());
     sanitized.setCompensationIntervalMinutes(source.getCompensationIntervalMinutes());
+    sanitized.setSyncThreadMode(source.getSyncThreadMode());
+    sanitized.setSyncThreadValue(source.getSyncThreadValue());
+    sanitized.setMaxSyncThreads(source.getMaxSyncThreads());
     sanitized.setLastFullSyncAt(source.getLastFullSyncAt());
     sanitized.setLastIncrementalSyncAt(source.getLastIncrementalSyncAt());
     sanitized.setCreatedAt(source.getCreatedAt());

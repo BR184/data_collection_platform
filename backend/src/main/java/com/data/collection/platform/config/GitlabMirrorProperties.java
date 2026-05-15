@@ -23,6 +23,7 @@ public class GitlabMirrorProperties {
   private int externalQueryRetryDelayMs = 1000;
   private int externalQueryRetryMaxDelayMs = 30000;
   private int incrementalLookbackMinutes = 5;
+  private int maxSyncThreads = 16;
 
   public boolean isSchedulerEnabled() {
     return schedulerEnabled;
@@ -174,5 +175,13 @@ public class GitlabMirrorProperties {
 
   public void setIncrementalLookbackMinutes(int incrementalLookbackMinutes) {
     this.incrementalLookbackMinutes = incrementalLookbackMinutes;
+  }
+
+  public int getMaxSyncThreads() {
+    return maxSyncThreads;
+  }
+
+  public void setMaxSyncThreads(int maxSyncThreads) {
+    this.maxSyncThreads = maxSyncThreads;
   }
 }

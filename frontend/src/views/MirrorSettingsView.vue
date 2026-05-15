@@ -48,6 +48,9 @@ const form = ref<GitlabSyncConfig>({
   systemHookEnabled: false,
   systemHookProjectId: null,
   compensationIntervalMinutes: 10,
+  syncThreadMode: 'FIXED',
+  syncThreadValue: 2,
+  maxSyncThreads: 16,
 });
 
 const {
@@ -140,6 +143,27 @@ const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || se
 const systemHookAutoRegistrationDisabled = computed(() =>
   savedConfigActionDisabled.value || !isDockerMode.value || !form.value.systemHookEnabled,
 );
+const threadBudgetPreview = computed(() => {
+  const serverCpuThreads = status.value?.availableProcessors;
+  if (!serverCpuThreads) {
+    return '状态加载后显示服务器实际同步线程预算';
+  }
+  const maxThreads = Math.max(1, form.value.maxSyncThreads ?? 16);
+  const rawValue = Number(form.value.syncThreadValue ?? (form.value.syncThreadMode === 'CPU_RATIO' ? 0.8 : 2));
+  const requestedThreads =
+    form.value.syncThreadMode === 'CPU_RATIO'
+      ? Math.floor(Math.max(0, rawValue) * serverCpuThreads)
+      : Math.floor(Math.max(0, rawValue));
+  const resolvedThreads = Math.min(maxThreads, Math.max(1, requestedThreads));
+  const sourceText =
+    form.value.syncThreadMode === 'CPU_RATIO'
+      ? `CPU ${Math.round(rawValue * 100)}%`
+      : `${Math.floor(rawValue)} 固定线程`;
+  return `预计本次配置会使用 ${resolvedThreads} 个同步线程（${sourceText}，上限 ${maxThreads}，服务器检测 ${serverCpuThreads} 线程）`;
+});
+function handleSyncThreadModeChange(mode: string | number | boolean | undefined) {
+  form.value.syncThreadValue = mode === 'CPU_RATIO' ? 0.8 : 2;
+}
 const systemHookStatusTagType = computed(() => {
   if (!isDockerMode.value || systemHookRegistrationLoading.value) {
     return 'info';
@@ -659,6 +683,22 @@ onBeforeUnmount(() => {
         </el-form-item>
         <el-form-item label="补偿间隔(分钟)">
           <el-input-number v-model="form.compensationIntervalMinutes" :min="1" :max="720" />
+        </el-form-item>
+        <el-form-item label="同步线程模式">
+          <el-radio-group v-model="form.syncThreadMode" @change="handleSyncThreadModeChange">
+            <el-radio-button value="FIXED">固定线程数</el-radio-button>
+            <el-radio-button value="CPU_RATIO">动态 CPU 比例</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.syncThreadMode === 'FIXED'" label="固定线程数">
+          <el-input-number v-model="form.syncThreadValue" :min="1" :max="form.maxSyncThreads || 256" :precision="0" />
+        </el-form-item>
+        <el-form-item v-else label="CPU 使用比例">
+          <el-input-number v-model="form.syncThreadValue" :min="0.1" :max="1" :step="0.1" :precision="2" />
+        </el-form-item>
+        <el-form-item label="同步线程上限">
+          <el-input-number v-model="form.maxSyncThreads" :min="1" :max="256" :precision="0" />
+          <div class="form-help-text">{{ threadBudgetPreview }}</div>
         </el-form-item>
         <el-form-item label="白名单模式">
           <el-radio-group v-model="form.whitelistMode">

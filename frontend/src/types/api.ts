@@ -4,6 +4,7 @@ export * from './integration-test';
 
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
+export type SyncThreadMode = 'FIXED' | 'CPU_RATIO';
 export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'SYSTEM_HOOK' | 'PURGE';
 export type SyncRunTablePhase =
   | 'COMPENSATION_INCREMENTAL'
@@ -45,6 +46,9 @@ export interface GitlabSyncConfig {
   systemHookEnabled?: boolean;
   systemHookProjectId?: number | null;
   compensationIntervalMinutes: number;
+  syncThreadMode: SyncThreadMode;
+  syncThreadValue: number;
+  maxSyncThreads?: number | null;
   lastFullSyncAt?: string | null;
   lastIncrementalSyncAt?: string | null;
 }
@@ -163,6 +167,8 @@ export interface MirrorStatusResponse {
   logs: SyncRunLog[];
   systemHookUrl?: string;
   systemHookRegistration?: GitlabSystemHookRegistrationStatus | null;
+  availableProcessors?: number | null;
+  resolvedSyncThreads?: number | null;
 }
 
 export interface GitlabRegisteredSystemHook {

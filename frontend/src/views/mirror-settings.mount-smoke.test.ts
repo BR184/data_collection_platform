@@ -31,6 +31,9 @@ function baseConfig(id = 1, sourceInstance = 'default') {
     systemHookEnabled: false,
     systemHookProjectId: null,
     compensationIntervalMinutes: 10,
+    syncThreadMode: 'FIXED',
+    syncThreadValue: 2,
+    maxSyncThreads: 16,
   };
 }
 
@@ -88,6 +91,8 @@ describe('MirrorSettingsView mount smoke', () => {
           ],
           systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
           systemHookRegistration: null,
+          availableProcessors: 16,
+          resolvedSyncThreads: 2,
         });
       }
       if (url.includes('/api/gitlab-sync/system-hook-registration-status')) {
@@ -136,6 +141,8 @@ describe('MirrorSettingsView mount smoke', () => {
     await flushPromises();
 
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
+    expect(wrapper.text()).toContain('固定线程数');
+    expect(wrapper.text()).toContain('预计本次配置会使用');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
 
     const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('删除镜像数据'));

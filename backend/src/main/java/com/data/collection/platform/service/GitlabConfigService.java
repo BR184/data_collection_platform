@@ -3,12 +3,16 @@ package com.data.collection.platform.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.mapper.GitlabSyncConfigMapper;
+import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,9 +23,11 @@ public class GitlabConfigService {
   static final int MAX_COMPENSATION_INTERVAL_MINUTES = 720;
 
   private final GitlabSyncConfigMapper configMapper;
+  private final GitlabMirrorProperties properties;
 
-  public GitlabConfigService(GitlabSyncConfigMapper configMapper) {
+  public GitlabConfigService(GitlabSyncConfigMapper configMapper, GitlabMirrorProperties properties) {
     this.configMapper = configMapper;
+    this.properties = properties;
   }
 
   public GitlabSyncConfig getConfig() {
@@ -199,6 +205,9 @@ public class GitlabConfigService {
     config.setDockerContainerName("gitlab-data-web-1");
     config.setSystemHookEnabled(false);
     config.setCompensationIntervalMinutes(10);
+    config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
+    config.setSyncThreadValue(SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE);
+    config.setMaxSyncThreads(Math.max(1, properties.getMaxSyncThreads()));
     return config;
   }
 
@@ -229,6 +238,11 @@ public class GitlabConfigService {
     normalized.setSystemHookEnabled(systemHookEnabled);
     normalized.setSystemHookProjectId(config.getSystemHookProjectId());
     normalized.setCompensationIntervalMinutes(normalizeCompensationInterval(config.getCompensationIntervalMinutes()));
+    String syncThreadMode = normalizeSyncThreadMode(config.getSyncThreadMode(), current.getSyncThreadMode());
+    normalized.setSyncThreadMode(syncThreadMode);
+    normalized.setSyncThreadValue(
+        normalizeSyncThreadValue(syncThreadMode, config.getSyncThreadValue(), current.getSyncThreadValue()));
+    normalized.setMaxSyncThreads(normalizeMaxSyncThreads(config.getMaxSyncThreads(), current.getMaxSyncThreads()));
     validateSystemHookConfig(normalized);
     return normalized;
   }
@@ -278,6 +292,60 @@ public class GitlabConfigService {
     return effectiveValue;
   }
 
+  private String normalizeSyncThreadMode(String nextMode, String currentMode) {
+    String effectiveMode =
+        nextMode == null || nextMode.isBlank()
+            ? currentMode
+            : nextMode.trim().toUpperCase(Locale.ROOT);
+    if (effectiveMode == null || effectiveMode.isBlank()) {
+      return SyncThreadBudgetResolver.MODE_FIXED;
+    }
+    effectiveMode = effectiveMode.trim().toUpperCase(Locale.ROOT);
+    if (SyncThreadBudgetResolver.MODE_FIXED.equals(effectiveMode)
+        || SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(effectiveMode)) {
+      return effectiveMode;
+    }
+    throw new BizException("Unsupported sync thread mode: " + effectiveMode);
+  }
+
+  private BigDecimal normalizeSyncThreadValue(
+      String mode,
+      BigDecimal nextValue,
+      BigDecimal currentValue) {
+    BigDecimal effectiveValue =
+        nextValue == null
+            ? currentValue
+            : nextValue;
+    if (effectiveValue == null) {
+      effectiveValue =
+          SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(mode)
+              ? SyncThreadBudgetResolver.DEFAULT_CPU_RATIO_VALUE
+              : SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE;
+    }
+    if (effectiveValue.compareTo(BigDecimal.ZERO) <= 0) {
+      throw new BizException("Sync thread value must be greater than 0");
+    }
+    if (SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(mode) && effectiveValue.compareTo(BigDecimal.ONE) > 0) {
+      throw new BizException("CPU ratio thread value must be between 0 and 1");
+    }
+    if (SyncThreadBudgetResolver.MODE_FIXED.equals(mode)
+        && effectiveValue.remainder(BigDecimal.ONE).compareTo(BigDecimal.ZERO) != 0) {
+      throw new BizException("Fixed thread value must be an integer");
+    }
+    return effectiveValue;
+  }
+
+  private Integer normalizeMaxSyncThreads(Integer nextMaxThreads, Integer currentMaxThreads) {
+    Integer effectiveMaxThreads = nextMaxThreads == null ? currentMaxThreads : nextMaxThreads;
+    if (effectiveMaxThreads == null) {
+      effectiveMaxThreads = properties.getMaxSyncThreads();
+    }
+    if (effectiveMaxThreads < 1) {
+      throw new BizException("Max sync threads must be greater than 0");
+    }
+    return effectiveMaxThreads;
+  }
+
   private String resolveSecret(String nextValue, String currentValue) {
     if (nextValue == null || nextValue.isBlank()) {
       return currentValue == null ? "" : currentValue;
@@ -302,6 +370,24 @@ public class GitlabConfigService {
     }
     if (config.getSystemHookEnabled() == null) {
       config.setSystemHookEnabled(config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank());
+    }
+    if (config.getSyncThreadMode() == null || config.getSyncThreadMode().isBlank()) {
+      config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
+    } else {
+      config.setSyncThreadMode(config.getSyncThreadMode().trim().toUpperCase(Locale.ROOT));
+      if (!SyncThreadBudgetResolver.MODE_FIXED.equals(config.getSyncThreadMode())
+          && !SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(config.getSyncThreadMode())) {
+        config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
+      }
+    }
+    if (config.getSyncThreadValue() == null) {
+      config.setSyncThreadValue(
+          SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(config.getSyncThreadMode())
+              ? SyncThreadBudgetResolver.DEFAULT_CPU_RATIO_VALUE
+              : SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE);
+    }
+    if (config.getMaxSyncThreads() == null) {
+      config.setMaxSyncThreads(Math.max(1, properties.getMaxSyncThreads()));
     }
   }
 }

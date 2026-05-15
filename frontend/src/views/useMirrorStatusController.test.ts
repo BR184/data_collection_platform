@@ -23,6 +23,9 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     systemHookEnabled: undefined,
     systemHookProjectId: undefined,
     compensationIntervalMinutes: 10,
+    syncThreadMode: 'FIXED',
+    syncThreadValue: 2,
+    maxSyncThreads: 16,
     ...overrides,
   };
 }
@@ -74,6 +77,9 @@ describe('useMirrorStatusController', () => {
       dbPassword: '',
       systemHookProjectId: null,
       systemHookEnabled: false,
+      syncThreadMode: 'FIXED',
+      syncThreadValue: 2,
+      maxSyncThreads: 16,
     });
   });
 

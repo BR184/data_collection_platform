@@ -13,7 +13,9 @@ public record MirrorStatusResponse(
     SyncProgress progress,
     List<Map<String, Object>> logs,
     String systemHookUrl,
-    GitlabSystemHookRegistrationStatus systemHookRegistration) {
+    GitlabSystemHookRegistrationStatus systemHookRegistration,
+    Integer availableProcessors,
+    Integer resolvedSyncThreads) {
 
   public MirrorStatusResponse {
     logs = logs == null ? List.of() : List.copyOf(logs);

@@ -8,11 +8,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.mapper.GitlabSyncConfigMapper;
+import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +28,9 @@ class GitlabConfigServiceTest {
   @BeforeEach
   void setUp() {
     configMapper = mock(GitlabSyncConfigMapper.class);
-    configService = new GitlabConfigService(configMapper);
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setMaxSyncThreads(16);
+    configService = new GitlabConfigService(configMapper, properties);
   }
 
   @Test
@@ -153,6 +158,23 @@ class GitlabConfigServiceTest {
   }
 
   @Test
+  void shouldNormalizeMissingThreadBudgetToDefaults() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setSyncThreadMode(null);
+    input.setSyncThreadValue(null);
+    input.setMaxSyncThreads(null);
+
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        SyncThreadBudgetResolver.MODE_FIXED.equals(config.getSyncThreadMode())
+            && BigDecimal.valueOf(2).compareTo(config.getSyncThreadValue()) == 0
+            && Integer.valueOf(16).equals(config.getMaxSyncThreads())));
+  }
+
+  @Test
   void shouldRejectChangingConfigToExistingSourceInstance() {
     GitlabSyncConfig current = persistedConfig();
     current.setId(1L);
@@ -221,6 +243,9 @@ class GitlabConfigServiceTest {
     config.setSystemHookSecret("new-systemHook-secret");
     config.setSystemHookProjectId(1L);
     config.setCompensationIntervalMinutes(10);
+    config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
+    config.setSyncThreadValue(BigDecimal.valueOf(2));
+    config.setMaxSyncThreads(16);
     return config;
   }
 }

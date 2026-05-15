@@ -70,6 +70,7 @@ platform:
     external-query-retry-delay-ms: 1000
     external-query-retry-max-delay-ms: ${GITLAB_EXTERNAL_QUERY_RETRY_MAX_DELAY_MS:30000}
     incremental-lookback-minutes: 5
+    max-sync-threads: ${GITLAB_MAX_SYNC_THREADS:16}
   review-data:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
     search-index-backfill-delay-ms: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_DELAY_MS:300000}

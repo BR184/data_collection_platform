@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
@@ -20,6 +21,7 @@ import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,8 +39,14 @@ class SyncRunSubmissionServiceTest {
   void setUp() {
     syncRunMapper = org.mockito.Mockito.mock(SyncRunMapper.class);
     jdbcTemplate = org.mockito.Mockito.mock(JdbcTemplate.class);
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
     submissionService =
-        new SyncRunSubmissionService(syncRunMapper, new SyncRunPolicyService(), jdbcTemplate, new JsonUtils(new ObjectMapper()));
+        new SyncRunSubmissionService(
+            syncRunMapper,
+            new SyncRunPolicyService(),
+            jdbcTemplate,
+            new JsonUtils(new ObjectMapper()),
+            new SyncThreadBudgetResolver(properties));
   }
 
   @Test
@@ -57,6 +65,8 @@ class SyncRunSubmissionServiceTest {
     assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
     assertThat(saved.getPriority()).isEqualTo(100);
     assertThat(saved.getExclusiveScope()).isEqualTo("source:12:source_a:mirror");
+    assertThat(saved.getThreadMode()).isEqualTo(SyncThreadBudgetResolver.MODE_CPU_RATIO);
+    assertThat(saved.getThreadValue()).isEqualByComparingTo(new BigDecimal("0.8"));
     assertThat(saved.getRunId()).startsWith("sr_full_sync_source_a_");
     assertThat(result.runId()).isEqualTo(saved.getId());
     assertThat(result.type()).isEqualTo(SyncType.FULL);
@@ -119,6 +129,9 @@ class SyncRunSubmissionServiceTest {
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
+    config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_CPU_RATIO);
+    config.setSyncThreadValue(new BigDecimal("0.8"));
+    config.setMaxSyncThreads(16);
     return config;
   }
 
