@@ -17,6 +17,7 @@ import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
+import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabExternalDbService;
@@ -297,7 +298,7 @@ public class GitlabSyncController {
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
       log.info("Manual full sync requested during cutover");
     }
-    GitlabMirrorSyncService.SubmissionResult result =
+    SyncRunSubmissionResult result =
         configId == null ? syncService.startFullSync() : syncService.startFullSync(config.getId());
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
@@ -316,7 +317,7 @@ public class GitlabSyncController {
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
       log.info("Manual incremental sync requested during cutover");
     }
-    GitlabMirrorSyncService.SubmissionResult result =
+    SyncRunSubmissionResult result =
         configId == null
             ? syncService.startIncrementalSync(null, "Manual incremental sync")
             : syncService.startIncrementalSync(config.getId(), null, "Manual incremental sync");
@@ -478,9 +479,9 @@ public class GitlabSyncController {
     return configId == null ? configService.getConfig() : configService.getConfigById(configId);
   }
 
-  private Map<String, Object> buildSubmissionResponse(GitlabMirrorSyncService.SubmissionResult result) {
+  private Map<String, Object> buildSubmissionResponse(SyncRunSubmissionResult result) {
     return Map.of(
-        "accepted", false,
+        "accepted", result.status() != SyncStatus.IDLE,
         "runId", result.runId() == null ? "" : result.runId(),
         "status", result.status(),
         "statusText", syncStatusLabel(result.status()),

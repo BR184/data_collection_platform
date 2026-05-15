@@ -5,8 +5,9 @@ import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
+import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
+import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
-import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +28,7 @@ public class GitlabMirrorSyncService {
   private final GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
   @SuppressWarnings("unused")
   private final FactBuildTaskService factBuildTaskService;
+  private final SyncRunSubmissionService syncRunSubmissionService;
 
   public GitlabMirrorSyncService(
       GitlabConfigService configService,
@@ -35,7 +37,8 @@ public class GitlabMirrorSyncService {
       GitlabMirrorTableStorageService mirrorTableStorageService,
       GitlabMirrorRecordMapper mirrorRecordMapper,
       GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner,
-      FactBuildTaskService factBuildTaskService) {
+      FactBuildTaskService factBuildTaskService,
+      SyncRunSubmissionService syncRunSubmissionService) {
     this.configService = configService;
     this.externalDbService = externalDbService;
     this.mirrorSchemaService = mirrorSchemaService;
@@ -43,6 +46,7 @@ public class GitlabMirrorSyncService {
     this.mirrorRecordMapper = mirrorRecordMapper;
     this.systemHookPreciseSyncPlanner = systemHookPreciseSyncPlanner;
     this.factBuildTaskService = factBuildTaskService;
+    this.syncRunSubmissionService = syncRunSubmissionService;
   }
 
   public boolean hasActiveTask(Long configId) {
@@ -65,22 +69,22 @@ public class GitlabMirrorSyncService {
     externalDbService.testConnection(resolveConfig(configId));
   }
 
-  public SubmissionResult startFullSync() {
+  public SyncRunSubmissionResult startFullSync() {
     return startFullSync(null);
   }
 
-  public SubmissionResult startFullSync(Long configId) {
-    resolveConfig(configId);
-    return SubmissionResult.disabled(SyncType.FULL);
+  public SyncRunSubmissionResult startFullSync(Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
+    return syncRunSubmissionService.submitFullSync(config, "Manual full sync");
   }
 
-  public SubmissionResult startIncrementalSync(SyncTriggerType triggerType, String message) {
+  public SyncRunSubmissionResult startIncrementalSync(SyncTriggerType triggerType, String message) {
     return startIncrementalSync(null, triggerType, message);
   }
 
-  public SubmissionResult startIncrementalSync(Long configId, SyncTriggerType triggerType, String message) {
-    resolveConfig(configId);
-    return SubmissionResult.disabled(SyncType.INCREMENTAL);
+  public SyncRunSubmissionResult startIncrementalSync(Long configId, SyncTriggerType triggerType, String message) {
+    GitlabSyncConfig config = resolveConfig(configId);
+    return syncRunSubmissionService.submitIncrementalSync(config, triggerType, message);
   }
 
   public int refreshTablesOnDemand(List<String> sourceTableNames, String reason) {
@@ -99,19 +103,17 @@ public class GitlabMirrorSyncService {
       Long configId,
       List<String> sourceTableNames,
       String reason) {
-    resolveConfig(configId);
+    GitlabSyncConfig config = resolveConfig(configId);
     List<String> requestedTables = normalizeRequestedTables(sourceTableNames);
-    log.info(
-        "On-demand table refresh rejected during sync orchestrator cutover, reason={}, targetTables={}",
-        reason,
-        requestedTables);
+    SyncRunSubmissionResult submission =
+        syncRunSubmissionService.submitTableRefresh(config, requestedTables, reason);
     return new OnDemandRefreshResult(
-        null,
+        submission.runId(),
         requestedTables,
-        0,
+        requestedTables.isEmpty() ? 0 : requestedTables.size(),
         List.of(),
-        SyncStatus.IDLE,
-        "Sync orchestrator cutover is in progress. Table refresh will be re-enabled by the unified run model.");
+        submission.status(),
+        submission.message());
   }
 
   public boolean requestCancel(Long configId) {
@@ -135,25 +137,6 @@ public class GitlabMirrorSyncService {
 
   private GitlabSyncConfig resolveConfig(Long configId) {
     return configId == null ? configService.getConfig() : configService.getConfigById(configId);
-  }
-
-  public record SubmissionResult(
-      Long runId,
-      SyncType type,
-      SyncStatus status,
-      SyncSubmissionAction action,
-      LocalDateTime submittedAt,
-      String message) {
-
-    static SubmissionResult disabled(SyncType type) {
-      return new SubmissionResult(
-          null,
-          type,
-          SyncStatus.IDLE,
-          SyncSubmissionAction.DEDUPED,
-          LocalDateTime.now(),
-          "Sync orchestrator cutover is in progress. Submission will be re-enabled by the unified run model.");
-    }
   }
 
   public record OnDemandRefreshResult(
