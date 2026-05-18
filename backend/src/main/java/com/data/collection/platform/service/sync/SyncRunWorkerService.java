@@ -26,6 +26,7 @@ public class SyncRunWorkerService {
   private final FactBuildTaskService factBuildTaskService;
   private final FactRefreshTaskWorkerService factRefreshTaskWorkerService;
   private final JsonUtils jsonUtils;
+  private final SyncThreadBudgetResolver threadBudgetResolver;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
@@ -35,7 +36,8 @@ public class SyncRunWorkerService {
       SyncRunSubmissionService submissionService,
       FactBuildTaskService factBuildTaskService,
       FactRefreshTaskWorkerService factRefreshTaskWorkerService,
-      JsonUtils jsonUtils) {
+      JsonUtils jsonUtils,
+      SyncThreadBudgetResolver threadBudgetResolver) {
     this.syncRunMapper = syncRunMapper;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
@@ -44,6 +46,7 @@ public class SyncRunWorkerService {
     this.factBuildTaskService = factBuildTaskService;
     this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
     this.jsonUtils = jsonUtils;
+    this.threadBudgetResolver = threadBudgetResolver;
   }
 
   public void executeRun(SyncRun run) {
@@ -79,7 +82,7 @@ public class SyncRunWorkerService {
       finishRun(run, SyncRunStatus.CANCELLED, planned, 0, "Sync run cancelled before table execution");
       return;
     }
-    tableWorkerService.drainRunTasks(run.getId());
+    tableWorkerService.drainRunTasks(run.getId(), resolveTableWorkerCount(run));
     SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
     run.setScannedRows(summary.scannedRows());
     run.setAppliedRows(summary.appliedRows());
@@ -213,5 +216,19 @@ public class SyncRunWorkerService {
   private boolean factRefreshFullBuild(SyncRun run) {
     SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
     return payload != null && payload.fullBuildEnabled();
+  }
+
+  private int resolveTableWorkerCount(SyncRun run) {
+    GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
+    if (config == null) {
+      config = new GitlabSyncConfig();
+    }
+    if (run.getThreadMode() != null && !run.getThreadMode().isBlank()) {
+      config.setSyncThreadMode(run.getThreadMode());
+    }
+    if (run.getThreadValue() != null) {
+      config.setSyncThreadValue(run.getThreadValue());
+    }
+    return threadBudgetResolver.resolve(config);
   }
 }

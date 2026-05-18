@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -273,6 +274,22 @@ class SyncRunTableWorkerServiceTest {
     verify(jdbcTemplate, never())
         .queryForObject(contains("update sync_run_table_tasks"), any(RowMapper.class), any(), any(), any());
     verify(jdbcTemplate).update(contains("set status = 'CANCELLED'"), eq(44L));
+  }
+
+  @Test
+  void shouldDrainWithMultipleWorkersWhenNoTableTaskIsQueued() {
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(88L)))
+        .thenReturn(false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), contains("table-worker-"), eq(30), eq(88L)))
+        .thenThrow(new EmptyResultDataAccessException(1));
+
+    int processed = workerService.drainRunTasks(88L, 3);
+
+    assertThat(processed).isZero();
+    verify(jdbcTemplate, atLeast(3))
+        .queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), contains("table-worker-"), eq(30), eq(88L));
   }
 
   @Test

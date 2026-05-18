@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
@@ -19,6 +20,7 @@ import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
+import java.math.BigDecimal;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +37,7 @@ class SyncRunWorkerServiceTest {
   private FactBuildTaskService factBuildTaskService;
   private FactRefreshTaskWorkerService factRefreshTaskWorkerService;
   private JsonUtils jsonUtils;
+  private SyncThreadBudgetResolver threadBudgetResolver;
   private SyncRunWorkerService workerService;
 
   @BeforeEach
@@ -47,6 +50,7 @@ class SyncRunWorkerServiceTest {
     factBuildTaskService = mock(FactBuildTaskService.class);
     factRefreshTaskWorkerService = mock(FactRefreshTaskWorkerService.class);
     jsonUtils = new JsonUtils(new ObjectMapper());
+    threadBudgetResolver = new SyncThreadBudgetResolver(new GitlabMirrorProperties());
     workerService =
         new SyncRunWorkerService(
             syncRunMapper,
@@ -56,7 +60,8 @@ class SyncRunWorkerServiceTest {
             submissionService,
             factBuildTaskService,
             factRefreshTaskWorkerService,
-            jsonUtils);
+            jsonUtils,
+            threadBudgetResolver);
   }
 
   @Test
@@ -64,7 +69,7 @@ class SyncRunWorkerServiceTest {
     SyncRun run = run(11L, SyncRunType.FULL_SYNC);
     GitlabSyncConfig config = config();
     when(tablePlanningService.planRunTables(11L)).thenReturn(4);
-    when(tableWorkerService.drainRunTasks(11L)).thenReturn(4);
+    when(tableWorkerService.drainRunTasks(11L, 2)).thenReturn(4);
     when(tableWorkerService.summarizeRun(11L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(4, 4, 20L, 18L));
     when(configService.getConfigById(1L)).thenReturn(config);
@@ -72,7 +77,7 @@ class SyncRunWorkerServiceTest {
     workerService.executeRun(run);
 
     verify(tablePlanningService).planRunTables(11L);
-    verify(tableWorkerService).drainRunTasks(11L);
+    verify(tableWorkerService).drainRunTasks(11L, 2);
     verify(tableWorkerService).summarizeRun(11L);
     verify(syncRunMapper, times(2)).updateById(run);
     verify(configService).updateSyncTime(1L, true);
@@ -91,7 +96,7 @@ class SyncRunWorkerServiceTest {
     SyncRun run = run(12L, SyncRunType.TABLE_REFRESH);
     GitlabSyncConfig config = config();
     when(tablePlanningService.planRunTables(12L)).thenReturn(3);
-    when(tableWorkerService.drainRunTasks(12L)).thenReturn(2);
+    when(tableWorkerService.drainRunTasks(12L, 2)).thenReturn(2);
     when(tableWorkerService.summarizeRun(12L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 2, 7L, 5L));
     when(configService.getConfigById(1L)).thenReturn(config);
@@ -99,7 +104,7 @@ class SyncRunWorkerServiceTest {
     workerService.executeRun(run);
 
     verify(tablePlanningService).planRunTables(12L);
-    verify(tableWorkerService).drainRunTasks(12L);
+    verify(tableWorkerService).drainRunTasks(12L, 2);
     verify(tableWorkerService).summarizeRun(12L);
     verify(syncRunMapper, times(2)).updateById(run);
     verify(configService).updateSyncTime(1L, false);
@@ -115,7 +120,7 @@ class SyncRunWorkerServiceTest {
   void shouldMarkMirrorRunPartialSuccessWhenAnyTableTaskFailed() {
     SyncRun run = run(15L, SyncRunType.INCREMENTAL_SYNC);
     when(tablePlanningService.planRunTables(15L)).thenReturn(3);
-    when(tableWorkerService.drainRunTasks(15L)).thenReturn(2);
+    when(tableWorkerService.drainRunTasks(15L, 2)).thenReturn(2);
     when(tableWorkerService.summarizeRun(15L))
         .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 2, 7L, 5L, 1, 0, 0, 0, 0, 0));
 
@@ -130,6 +135,25 @@ class SyncRunWorkerServiceTest {
             org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
     assertThat(run.getErrorMessage()).isEqualTo("One or more table tasks failed");
+  }
+
+  @Test
+  void shouldUseRunThreadBudgetSnapshotWhenDrainingMirrorTasks() {
+    SyncRun run = run(16L, SyncRunType.TABLE_REFRESH);
+    run.setThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
+    run.setThreadValue(BigDecimal.valueOf(3));
+    GitlabSyncConfig config = config();
+    config.setMaxSyncThreads(5);
+    when(tablePlanningService.planRunTables(16L)).thenReturn(3);
+    when(tableWorkerService.drainRunTasks(16L, 3)).thenReturn(3);
+    when(tableWorkerService.summarizeRun(16L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 3, 8L, 6L));
+    when(configService.getConfigById(1L)).thenReturn(config);
+
+    workerService.executeRun(run);
+
+    verify(tableWorkerService).drainRunTasks(16L, 3);
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
   }
 
   @Test
@@ -199,6 +223,9 @@ class SyncRunWorkerServiceTest {
     config.setSourceInstance("alpha");
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
+    config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
+    config.setSyncThreadValue(BigDecimal.valueOf(2));
+    config.setMaxSyncThreads(4);
     return config;
   }
 }
