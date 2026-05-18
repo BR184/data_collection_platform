@@ -68,12 +68,12 @@ public class GitlabWhitelistService {
     FRIENDLY_LABELS.put("todos", "待办");
   }
 
-  private final GitlabExternalDbService externalDbService;
+  private final SourceMetadataInspector sourceMetadataInspector;
 
   private volatile CacheEntry cacheEntry;
 
-  public GitlabWhitelistService(GitlabExternalDbService externalDbService) {
-    this.externalDbService = externalDbService;
+  public GitlabWhitelistService(SourceMetadataInspector sourceMetadataInspector) {
+    this.sourceMetadataInspector = sourceMetadataInspector;
   }
 
   public List<TableWhitelistOption> listOptions(GitlabSyncConfig config) {
@@ -111,7 +111,7 @@ public class GitlabWhitelistService {
         && Duration.between(currentCache.loadedAt(), Instant.now()).compareTo(CACHE_TTL) < 0) {
       return currentCache.options();
     }
-    List<TableWhitelistOption> discovered = externalDbService.discoverTables(
+    List<TableWhitelistOption> discovered = sourceMetadataInspector.discoverTables(
         config,
         FRIENDLY_LABELS,
         new ArrayList<>(RECOMMENDED_TABLES));

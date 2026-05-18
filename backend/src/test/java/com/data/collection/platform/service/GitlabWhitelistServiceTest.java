@@ -19,14 +19,14 @@ class GitlabWhitelistServiceTest {
 
   @Test
   void customWhitelistShouldIgnoreTablesNotDiscoveredFromSource() {
-    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
-    GitlabWhitelistService whitelistService = new GitlabWhitelistService(externalDbService);
+    SourceMetadataInspector sourceMetadataInspector = mock(SourceMetadataInspector.class);
+    GitlabWhitelistService whitelistService = new GitlabWhitelistService(sourceMetadataInspector);
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSourceMode(SourceMode.DIRECT);
     config.setWhitelistMode(WhitelistMode.CUSTOM);
     config.setWhitelistTables(List.of("issues", "unknown_table"));
 
-    when(externalDbService.discoverTables(eq(config), anyMap(), anyList()))
+    when(sourceMetadataInspector.discoverTables(eq(config), anyMap(), anyList()))
         .thenReturn(List.of(new TableWhitelistOption("issues", "issues", "id", "updated_at", true)));
 
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
@@ -36,12 +36,12 @@ class GitlabWhitelistServiceTest {
 
   @Test
   void listOptionsShouldKeepFallbackForSettingsUiWhenDiscoveryFails() {
-    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
-    GitlabWhitelistService whitelistService = new GitlabWhitelistService(externalDbService);
+    SourceMetadataInspector sourceMetadataInspector = mock(SourceMetadataInspector.class);
+    GitlabWhitelistService whitelistService = new GitlabWhitelistService(sourceMetadataInspector);
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSourceMode(SourceMode.DIRECT);
 
-    when(externalDbService.discoverTables(eq(config), anyMap(), anyList()))
+    when(sourceMetadataInspector.discoverTables(eq(config), anyMap(), anyList()))
         .thenThrow(new BizException("metadata denied"));
 
     List<TableWhitelistOption> options = whitelistService.listOptions(config);
@@ -52,12 +52,12 @@ class GitlabWhitelistServiceTest {
 
   @Test
   void listOptionsStrictShouldSurfaceDiscoveryFailureForDiagnostics() {
-    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
-    GitlabWhitelistService whitelistService = new GitlabWhitelistService(externalDbService);
+    SourceMetadataInspector sourceMetadataInspector = mock(SourceMetadataInspector.class);
+    GitlabWhitelistService whitelistService = new GitlabWhitelistService(sourceMetadataInspector);
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setSourceMode(SourceMode.DIRECT);
 
-    when(externalDbService.discoverTables(eq(config), anyMap(), anyList()))
+    when(sourceMetadataInspector.discoverTables(eq(config), anyMap(), anyList()))
         .thenThrow(new BizException("metadata denied"));
 
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> whitelistService.listOptionsStrict(config))

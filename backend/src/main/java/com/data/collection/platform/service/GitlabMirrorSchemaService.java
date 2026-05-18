@@ -32,19 +32,19 @@ public class GitlabMirrorSchemaService {
   private static final int POSTGRES_IDENTIFIER_MAX_LENGTH = 63;
   private static final TypeReference<List<SourceTableColumn>> COLUMN_LIST_TYPE = new TypeReference<>() {};
 
-  private final GitlabExternalDbService externalDbService;
+  private final SourceMetadataInspector sourceMetadataInspector;
   private final GitlabMirrorTableRegistryMapper registryMapper;
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final GitlabMirrorProperties properties;
 
   public GitlabMirrorSchemaService(
-      GitlabExternalDbService externalDbService,
+      SourceMetadataInspector sourceMetadataInspector,
       GitlabMirrorTableRegistryMapper registryMapper,
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
       GitlabMirrorProperties properties) {
-    this.externalDbService = externalDbService;
+    this.sourceMetadataInspector = sourceMetadataInspector;
     this.registryMapper = registryMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
@@ -66,7 +66,7 @@ public class GitlabMirrorSchemaService {
       return new PreparedMirrorTable(cachedSchema, registry.getMirrorTableName(), true, registry);
     }
 
-    SourceTableSchema sourceSchema = externalDbService.discoverTableSchema(config, option);
+    SourceTableSchema sourceSchema = sourceMetadataInspector.discoverTableSchema(config, option);
     String schemaFingerprint = buildSchemaFingerprint(sourceSchema);
     String mirrorTableName =
         registry != null
@@ -134,7 +134,7 @@ public class GitlabMirrorSchemaService {
       return prepareMirrorTable(config, option);
     }
 
-    SourceTableSchema sourceSchema = externalDbService.discoverTableSchema(config, option);
+    SourceTableSchema sourceSchema = sourceMetadataInspector.discoverTableSchema(config, option);
     String mirrorTableName =
         registry != null
                 && expectedMirrorTableName.equals(registry.getMirrorTableName())
