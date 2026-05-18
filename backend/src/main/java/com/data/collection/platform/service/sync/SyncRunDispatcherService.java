@@ -21,15 +21,15 @@ public class SyncRunDispatcherService {
 
   private final GitlabMirrorProperties properties;
   private final JdbcTemplate jdbcTemplate;
-  private final SyncRunWorkerService workerService;
+  private final SyncRunExecutorService executorService;
 
   public SyncRunDispatcherService(
       GitlabMirrorProperties properties,
       JdbcTemplate jdbcTemplate,
-      SyncRunWorkerService workerService) {
+      SyncRunExecutorService executorService) {
     this.properties = properties;
     this.jdbcTemplate = jdbcTemplate;
-    this.workerService = workerService;
+    this.executorService = executorService;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.run-dispatcher-delay-ms:2000}")
@@ -37,11 +37,13 @@ public class SyncRunDispatcherService {
     if (!properties.isSchedulerEnabled()) {
       return;
     }
-    SyncRun nextRun = claimNextQueuedRun(DISPATCHER_OWNER, Math.max(1, properties.getHeartbeatTimeoutSeconds()));
-    if (nextRun == null) {
-      return;
+    while (executorService.hasCapacity()) {
+      SyncRun nextRun = claimNextQueuedRun(DISPATCHER_OWNER, Math.max(1, properties.getHeartbeatTimeoutSeconds()));
+      if (nextRun == null) {
+        return;
+      }
+      executorService.submit(nextRun);
     }
-    workerService.executeRun(nextRun);
   }
 
   public SyncRun claimNextQueuedRun(String owner, int leaseSeconds) {

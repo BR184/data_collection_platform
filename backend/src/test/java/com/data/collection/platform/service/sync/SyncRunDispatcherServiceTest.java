@@ -21,17 +21,18 @@ import org.mockito.ArgumentCaptor;
 
 class SyncRunDispatcherServiceTest {
   private JdbcTemplate jdbcTemplate;
-  private SyncRunWorkerService workerService;
+  private SyncRunExecutorService executorService;
   private SyncRunDispatcherService dispatcherService;
 
   @BeforeEach
   void setUp() {
     jdbcTemplate = mock(JdbcTemplate.class);
-    workerService = mock(SyncRunWorkerService.class);
+    executorService = mock(SyncRunExecutorService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setSchedulerEnabled(true);
     properties.setHeartbeatTimeoutSeconds(12);
-    dispatcherService = new SyncRunDispatcherService(properties, jdbcTemplate, workerService);
+    when(executorService.hasCapacity()).thenReturn(true).thenReturn(false);
+    dispatcherService = new SyncRunDispatcherService(properties, jdbcTemplate, executorService);
   }
 
   @Test
@@ -67,25 +68,35 @@ class SyncRunDispatcherServiceTest {
   }
 
   @Test
-  void shouldDispatchClaimedRunWhenSchedulerEnabled() {
+  void shouldSubmitClaimedRunToExecutorWhenSchedulerEnabled() {
     SyncRun claimed = queuedRun(22L, 100, "source:1:alpha:mirror");
     when(jdbcTemplate.queryForObject(any(String.class), any(RowMapper.class), eq("sync-dispatcher"), eq(12)))
         .thenReturn(claimed);
 
     dispatcherService.runOnce();
 
-    verify(workerService).executeRun(claimed);
+    verify(executorService).submit(claimed);
   }
 
   @Test
   void shouldNotDispatchWhenSchedulerDisabled() {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setSchedulerEnabled(false);
-    dispatcherService = new SyncRunDispatcherService(properties, jdbcTemplate, workerService);
+    dispatcherService = new SyncRunDispatcherService(properties, jdbcTemplate, executorService);
 
     dispatcherService.runOnce();
 
-    verify(workerService, org.mockito.Mockito.never()).executeRun(org.mockito.ArgumentMatchers.any());
+    verify(executorService, org.mockito.Mockito.never()).submit(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void shouldNotClaimWhenExecutorHasNoCapacity() {
+    when(executorService.hasCapacity()).thenReturn(false);
+
+    dispatcherService.runOnce();
+
+    verify(jdbcTemplate, org.mockito.Mockito.never())
+        .queryForObject(any(String.class), any(RowMapper.class), org.mockito.ArgumentMatchers.any());
   }
 
   private SyncRun queuedRun(Long id, int priority, String scope) {
