@@ -23,6 +23,7 @@ import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,7 @@ class SyncRunTablePlanningServiceTest {
     syncRunMapper = mock(SyncRunMapper.class);
     stateMapper = mock(SyncRunTableStateMapper.class);
     taskMapper = mock(SyncRunTableTaskMapper.class);
-    jsonUtils = mock(JsonUtils.class);
+    jsonUtils = new JsonUtils(new ObjectMapper());
     configService = mock(GitlabConfigService.class);
     whitelistService = mock(GitlabWhitelistService.class);
     planningService =
@@ -62,7 +63,6 @@ class SyncRunTablePlanningServiceTest {
     SyncRun run = run(SyncRunType.FULL_SYNC);
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(jsonUtils.toMap("{}")).thenReturn(Map.of());
     when(configService.getConfigById(1L)).thenReturn(config);
     when(whitelistService.resolveOptions(config))
         .thenReturn(
@@ -119,10 +119,10 @@ class SyncRunTablePlanningServiceTest {
         Map.of(
             "preciseTargets",
             List.of(
-                Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", "101"),
+                Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", 101),
                 Map.of("tableName", "issue_assignees", "lookupColumn", "issue_id", "lookupValue", "101")));
+    run.setPayloadJson(jsonUtils.toJson(payload));
     when(syncRunMapper.selectById(77L)).thenReturn(run);
-    when(jsonUtils.toMap("{}")).thenReturn(payload);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(whitelistService.resolveOptions(config))
         .thenReturn(
@@ -152,6 +152,41 @@ class SyncRunTablePlanningServiceTest {
     assertThat(taskCaptor.getAllValues())
         .extracting(SyncRunTableTask::getLookupValue)
         .containsExactly("101", "101");
+  }
+
+  @Test
+  void shouldIgnoreMalformedPreciseTargetsWithoutStringifyingNulls() {
+    SyncRun run = run(SyncRunType.SYSTEM_HOOK);
+    GitlabSyncConfig config = config();
+    run.setPayloadJson(
+        jsonUtils.toJson(
+            Map.of(
+                "preciseTargets",
+                List.of(
+                    Map.of("tableName", "issues", "lookupColumn", "id"),
+                    Map.of("tableName", "issues", "lookupValue", "101"),
+                    Map.of("lookupColumn", "id", "lookupValue", "101"),
+                    Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", "101")))));
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(91L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planRunTables(77L);
+
+    assertThat(planned).isEqualTo(1);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getValue().getLookupColumn()).isEqualTo("id");
+    assertThat(taskCaptor.getValue().getLookupValue()).isEqualTo("101");
   }
 
   private SyncRun run(SyncRunType runType) {

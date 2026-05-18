@@ -12,24 +12,14 @@ import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SyncRunStatusService {
-  private static final Set<SyncRunStatus> ACTIVE_STATUSES =
-      EnumSet.of(
-          SyncRunStatus.SUBMITTED,
-          SyncRunStatus.QUEUED,
-          SyncRunStatus.RUNNING,
-          SyncRunStatus.RETRYING,
-          SyncRunStatus.CANCELLING);
-
   private final SyncRunMapper syncRunMapper;
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunPolicyService policyService;
@@ -119,7 +109,7 @@ public class SyncRunStatusService {
             new LambdaQueryWrapper<SyncRun>()
                 .eq(SyncRun::getConfigId, config.getId())
                 .eq(SyncRun::getSourceInstance, sourceInstance)
-                .in(SyncRun::getStatus, ACTIVE_STATUSES)
+                .in(SyncRun::getStatus, SyncRunStateMachine.activeStatuses())
                 .orderByAsc(SyncRun::getCreatedAt)
                 .orderByAsc(SyncRun::getId));
     if (runs == null || runs.isEmpty()) {
@@ -333,8 +323,14 @@ public class SyncRunStatusService {
   }
 
   private boolean isCompletedStatus(String status) {
-    return SyncRunStatus.SUCCESS.name().equals(status)
-        || SyncRunStatus.PARTIAL_SUCCESS.name().equals(status);
+    if (status == null || status.isBlank()) {
+      return false;
+    }
+    try {
+      return SyncRunStateMachine.isCompleted(SyncRunStatus.valueOf(status));
+    } catch (IllegalArgumentException ignored) {
+      return false;
+    }
   }
 
   private long numberValue(Object value) {

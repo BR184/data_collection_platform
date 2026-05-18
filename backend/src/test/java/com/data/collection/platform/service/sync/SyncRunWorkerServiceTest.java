@@ -6,6 +6,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 class SyncRunWorkerServiceTest {
   private SyncRunMapper syncRunMapper;
@@ -32,6 +34,7 @@ class SyncRunWorkerServiceTest {
   private SyncRunSubmissionService submissionService;
   private FactBuildTaskService factBuildTaskService;
   private FactRefreshTaskWorkerService factRefreshTaskWorkerService;
+  private JsonUtils jsonUtils;
   private SyncRunWorkerService workerService;
 
   @BeforeEach
@@ -43,6 +46,7 @@ class SyncRunWorkerServiceTest {
     submissionService = mock(SyncRunSubmissionService.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
     factRefreshTaskWorkerService = mock(FactRefreshTaskWorkerService.class);
+    jsonUtils = new JsonUtils(new ObjectMapper());
     workerService =
         new SyncRunWorkerService(
             syncRunMapper,
@@ -51,7 +55,8 @@ class SyncRunWorkerServiceTest {
             configService,
             submissionService,
             factBuildTaskService,
-            factRefreshTaskWorkerService);
+            factRefreshTaskWorkerService,
+            jsonUtils);
   }
 
   @Test

@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
@@ -24,6 +25,7 @@ public class SyncRunWorkerService {
   private final SyncRunSubmissionService submissionService;
   private final FactBuildTaskService factBuildTaskService;
   private final FactRefreshTaskWorkerService factRefreshTaskWorkerService;
+  private final JsonUtils jsonUtils;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
@@ -32,7 +34,8 @@ public class SyncRunWorkerService {
       GitlabConfigService configService,
       SyncRunSubmissionService submissionService,
       FactBuildTaskService factBuildTaskService,
-      FactRefreshTaskWorkerService factRefreshTaskWorkerService) {
+      FactRefreshTaskWorkerService factRefreshTaskWorkerService,
+      JsonUtils jsonUtils) {
     this.syncRunMapper = syncRunMapper;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
@@ -40,6 +43,7 @@ public class SyncRunWorkerService {
     this.submissionService = submissionService;
     this.factBuildTaskService = factBuildTaskService;
     this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
+    this.jsonUtils = jsonUtils;
   }
 
   public void executeRun(SyncRun run) {
@@ -207,7 +211,7 @@ public class SyncRunWorkerService {
   }
 
   private boolean factRefreshFullBuild(SyncRun run) {
-    String payload = run.getPayloadJson();
-    return payload != null && payload.replace(" ", "").contains("\"fullBuild\":true");
+    SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
+    return payload != null && payload.fullBuildEnabled();
   }
 }

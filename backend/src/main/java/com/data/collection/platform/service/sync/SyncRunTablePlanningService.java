@@ -54,9 +54,9 @@ public class SyncRunTablePlanningService {
     if (run == null) {
       return 0;
     }
-    Map<String, Object> payload = jsonUtils.toMap(run.getPayloadJson());
-    List<String> sourceTables = extractSourceTables(payload);
-    List<PreciseTarget> preciseTargets = extractPreciseTargets(payload);
+    SyncRunPayload payload = parsePayload(run);
+    List<String> sourceTables = payload.normalizedSourceTables();
+    List<SyncRunPayload.PreciseTarget> preciseTargets = payload.runnablePreciseTargets();
     if (run.getRunType() == SyncRunType.SYSTEM_HOOK && !preciseTargets.isEmpty()) {
       return planPreciseTargets(run, preciseTargets);
     }
@@ -126,7 +126,7 @@ public class SyncRunTablePlanningService {
     return planned;
   }
 
-  private int planPreciseTargets(SyncRun run, List<PreciseTarget> targets) {
+  private int planPreciseTargets(SyncRun run, List<SyncRunPayload.PreciseTarget> targets) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     Map<String, TableWhitelistOption> optionsByTable =
         whitelistService.resolveOptions(config).stream()
@@ -137,7 +137,7 @@ public class SyncRunTablePlanningService {
                     (first, ignored) -> first));
     LocalDateTime now = LocalDateTime.now();
     int planned = 0;
-    for (PreciseTarget target : targets) {
+    for (SyncRunPayload.PreciseTarget target : targets) {
       TableWhitelistOption option = optionsByTable.get(target.tableName());
       if (option == null || isBlank(option.primaryKey()) || isBlank(target.lookupColumn()) || isBlank(target.lookupValue())) {
         log.info("Skipped precise target without runnable lookup, runId={}, sourceTable={}", run.getId(), target.tableName());
@@ -153,10 +153,6 @@ public class SyncRunTablePlanningService {
     }
     log.info("Planned {} precise table tasks for run {}", planned, run.getId());
     return planned;
-  }
-
-  private boolean isIncrementalCapable(TableWhitelistOption option) {
-    return option != null && !isBlank(option.primaryKey()) && !isBlank(option.updatedAtColumn());
   }
 
   private boolean isRunnableForRun(boolean fullSync, TableWhitelistOption option) {
@@ -278,38 +274,8 @@ public class SyncRunTablePlanningService {
     return value == null || value.isBlank();
   }
 
-  private List<String> extractSourceTables(Map<String, Object> payload) {
-    Object rawTables = payload.get("sourceTables");
-    if (!(rawTables instanceof List<?> tables) || tables.isEmpty()) {
-      return List.of();
-    }
-    return tables.stream()
-        .filter(String.class::isInstance)
-        .map(String.class::cast)
-        .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
-        .filter(table -> !table.isBlank())
-        .distinct()
-        .toList();
+  private SyncRunPayload parsePayload(SyncRun run) {
+    SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
+    return payload == null ? SyncRunPayload.empty() : payload;
   }
-
-  private List<PreciseTarget> extractPreciseTargets(Map<String, Object> payload) {
-    Object rawTargets = payload.get("preciseTargets");
-    if (!(rawTargets instanceof List<?> targets) || targets.isEmpty()) {
-      return List.of();
-    }
-    return targets.stream()
-        .filter(Map.class::isInstance)
-        .map(Map.class::cast)
-        .map(
-            target ->
-                new PreciseTarget(
-                    GitlabSourceInstanceSupport.normalizeSourceTableName(String.valueOf(target.get("tableName"))),
-                    String.valueOf(target.get("lookupColumn")),
-                    String.valueOf(target.get("lookupValue"))))
-        .filter(target -> !target.tableName().isBlank() && !target.lookupColumn().isBlank() && !target.lookupValue().isBlank())
-        .distinct()
-        .toList();
-  }
-
-  private record PreciseTarget(String tableName, String lookupColumn, String lookupValue) {}
 }

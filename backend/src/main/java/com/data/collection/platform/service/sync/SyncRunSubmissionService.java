@@ -14,7 +14,6 @@ import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.time.LocalDateTime;
-import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,14 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Slf4j
 public class SyncRunSubmissionService {
-  private static final Set<SyncRunStatus> ACTIVE_STATUSES =
-      EnumSet.of(
-          SyncRunStatus.SUBMITTED,
-          SyncRunStatus.QUEUED,
-          SyncRunStatus.RUNNING,
-          SyncRunStatus.RETRYING,
-          SyncRunStatus.CANCELLING);
-
   private final SyncRunMapper syncRunMapper;
   private final SyncRunPolicyService policyService;
   private final JdbcTemplate jdbcTemplate;
@@ -329,7 +320,7 @@ public class SyncRunSubmissionService {
                 .eq(SyncRun::getConfigId, configId)
                 .eq(SyncRun::getSourceInstance, sourceInstance)
                 .eq(SyncRun::getExclusiveScope, exclusiveScope)
-                .in(SyncRun::getStatus, ACTIVE_STATUSES)
+                .in(SyncRun::getStatus, SyncRunStateMachine.activeStatuses())
                 .orderByAsc(SyncRun::getCreatedAt)
                 .last("limit 1"));
     if (runs == null || runs.isEmpty()) {
@@ -379,28 +370,9 @@ public class SyncRunSubmissionService {
       Long parentRunId,
       Boolean fullBuild,
       Map<String, Object> extraPayload) {
-    Map<String, Object> payload = new java.util.LinkedHashMap<>();
-    payload.put("syncType", apiType.name());
-    if (triggerType != null) {
-      payload.put("triggerType", triggerType.name());
-    }
-    if (reason != null) {
-      payload.put("reason", reason);
-    }
-    payload.put("sourceTables", sourceTables);
-    if (primaryTableName != null) {
-      payload.put("primaryTableName", primaryTableName);
-    }
-    if (parentRunId != null) {
-      payload.put("parentRunId", parentRunId);
-    }
-    if (fullBuild != null) {
-      payload.put("fullBuild", fullBuild);
-    }
-    if (extraPayload != null && !extraPayload.isEmpty()) {
-      payload.putAll(extraPayload);
-    }
-    return jsonUtils.toJson(payload);
+    SyncRunPayload payload =
+        SyncRunPayload.create(apiType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild);
+    return jsonUtils.toJson(payload.toMap(extraPayload));
   }
 
   private String generateRunId(SyncRunType runType, String sourceInstance) {
@@ -411,14 +383,11 @@ public class SyncRunSubmissionService {
     if (run == null || run.getPayloadJson() == null || run.getPayloadJson().isBlank()) {
       return List.of();
     }
-    Object rawTables = jsonUtils.toMap(run.getPayloadJson()).get("sourceTables");
-    if (!(rawTables instanceof List<?> tables)) {
+    SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
+    if (payload == null) {
       return List.of();
     }
-    return tables.stream()
-        .filter(String.class::isInstance)
-        .map(String.class::cast)
-        .toList();
+    return payload.normalizedSourceTables();
   }
 
   private List<String> normalizeTables(List<String> sourceTables) {

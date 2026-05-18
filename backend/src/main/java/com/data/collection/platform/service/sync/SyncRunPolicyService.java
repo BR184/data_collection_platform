@@ -7,20 +7,10 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
-import java.util.EnumSet;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SyncRunPolicyService {
-  private static final Set<SyncRunStatus> ACTIVE_STATUSES =
-      EnumSet.of(
-          SyncRunStatus.SUBMITTED,
-          SyncRunStatus.QUEUED,
-          SyncRunStatus.RUNNING,
-          SyncRunStatus.RETRYING,
-          SyncRunStatus.CANCELLING);
-
   private static final String MIRROR_SCOPE_SUFFIX = ":mirror";
   private static final String FACT_SCOPE_SUFFIX = ":fact";
   private static final String COMPENSATION_SCOPE_SUFFIX = ":compensation";
@@ -78,7 +68,7 @@ public class SyncRunPolicyService {
   }
 
   public boolean isActiveStatus(SyncRunStatus status) {
-    return status != null && ACTIVE_STATUSES.contains(status);
+    return SyncRunStateMachine.isActive(status);
   }
 
   public boolean shouldReuseFullRun(SyncRun requestRunType, SyncRun candidate) {
@@ -98,20 +88,6 @@ public class SyncRunPolicyService {
   }
 
   public SyncStatus toApiStatus(SyncRun run) {
-    if (run == null || run.getStatus() == null) {
-      return SyncStatus.IDLE;
-    }
-    return switch (run.getStatus()) {
-      case SUBMITTED, QUEUED -> SyncStatus.QUEUED;
-      case RUNNING -> SyncStatus.RUNNING;
-      case RETRYING -> SyncStatus.RETRYING;
-      case CANCELLING -> SyncStatus.CANCELLING;
-      case SUCCESS -> SyncStatus.SUCCESS;
-      case PARTIAL_SUCCESS -> SyncStatus.PARTIAL_SUCCESS;
-      case FAILED -> SyncStatus.FAILED;
-      case CANCELLED -> SyncStatus.CANCELLED;
-      case TIMEOUT -> SyncStatus.TIMEOUT;
-      case MERGED -> SyncStatus.PENDING;
-    };
+    return SyncRunStateMachine.toApiStatus(run);
   }
 }
