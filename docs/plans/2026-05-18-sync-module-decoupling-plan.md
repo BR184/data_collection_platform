@@ -200,3 +200,13 @@
   - 验证命令：`tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml test "-Dtest=DatabaseBrowserServiceTest,DatabaseBrowserTableCatalogTest,EndpointAuthorizationContractTest"`；结果 6 个测试通过。
   - 验证命令：`frontend\node_modules\.bin\vitest.cmd run src\views\ux-interaction-regressions.test.ts src\feature-manifest-access.test.ts`；结果 10 个测试通过。
   - 验证命令：`frontend\node_modules\.bin\tsc.cmd --noEmit --pretty false`；结果通过。
+- 2026-05-18：真实链路测试补充，使用当前源码 jar 临时拉起 `dcp-current-backend:18083`，接入 `dcp-local-test_default` 平台库网络与 `gitlab-data_default` 本地 GitLab 网络；前端使用 Vite 代理当前后端，不再使用旧 `dcp-local-test-backend-1` 镜像作为结论来源。
+  - 启动阻塞发现并修复：当前源码后端首次启动失败，根因为 `SourceConnectionTester` 有两个构造器但没有标注注入构造器，Spring 尝试无参构造失败；已为生产构造器补 `@Autowired`，并通过 `SourceConnectionTesterTest,GitlabMirrorSyncServiceTest` 共 10 个测试。
+  - 数据源连接与诊断：`scripts\gitlab-direct-sync-check.ps1 -BaseUrl http://localhost:18083 -ConfigId 2 -SystemHookSecret sync-e2e-secret-20260514 -SimulateSystemHook -PollAfterSubmission` 通过；直连 GitLab PostgreSQL 成功，白名单发现 725 张表，表级诊断 20 张表、无 failed/timeout。
+  - System Hook：模拟 `Issue Hook` 后提交并完成 `SYSTEM_HOOK` run，`sync_runs.id=133`，`planned_table_count=4`、`completed_table_count=4`、`status=SUCCESS`；表任务覆盖 `issues`、`issue_assignees`、`issue_metrics`、`label_links`，均为 `SUCCESS`。
+  - 调度与异常源：启动当前后端后 `dgm` 已被迁移置为 `source_enabled=false, auto_sync_enabled=false`，日志显示补偿调度跳过 `dgm`，不再持续提交空密码失败任务；20 分钟窗口内新增 `COMPENSATION_SCAN`、`FACT_REFRESH`、`SYSTEM_HOOK` 共 7 个 run，均为 `SUCCESS`。
+  - 线程策略观测：当前 run executor lease 显示 `worker_type=RUN_EXECUTOR, max_threads=16, active_threads=0, queue_depth=0`；配置 1/2 为 `FIXED=2`，当前环境仍需另做低线程/高线程对比压测才能证明 table task 并发随预算变化。
+  - 来源表真实预览：`/api/database-browser/tables` 返回 95 个表项，`/api/database-browser/rows?tableName=source:2:issues&page=1&size=20` 约 516ms 成功返回；来源表只读预览不执行全表 count。
+  - 页面链路：Chrome + 当前 Vite 前端可以登录管理员并进入同步设置、数据库查看；同步设置页无 `Data mirror monitor` 英文残留。浏览器脚本发现从游客首页登录并快速切换到系统设置时，游客首页 4 个摘要请求会在路由切换时被浏览器 `ERR_ABORTED`，页面最终可交互但首屏/导航耗时被脚本放大到 40 秒；直接调用相同后端接口耗时为 `review-data/records/filter-options=26ms`、`statistic-boards/system-test-defect-summary=127ms`、`gitlab-sync/configs=7ms`、`gitlab-sync/status=11ms`、`database-browser/tables=56ms`。
+  - 真实链路遗留标记：`gitlab_system_hook_events` 中新事件 `processed=false`，但对应 `SYSTEM_HOOK` run/table tasks 已成功完成；需要后续决定该字段是否应表达“事件已转为 run”并在处理成功后更新，避免运维误读。
+  - 真实链路遗留标记：当前本地 GitLab 数据量仍远小于百万级，不能用本次小数据成功替代百万级结论；百万级仍需构造大表或接入内网大源，重点观察外部查询、表任务批次、worker lease、内存、慢 SQL 与幂等重试。

@@ -16,6 +16,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,6 +26,7 @@ public class SourceConnectionTester {
   private final ExecutorService executorService;
   private final ConcurrentMap<String, FailureCacheEntry> failureCache = new ConcurrentHashMap<>();
 
+  @Autowired
   public SourceConnectionTester(GitlabExternalDbService externalDbService, GitlabMirrorProperties properties) {
     this(externalDbService, properties, Executors.newCachedThreadPool(new SourceConnectionThreadFactory()));
   }
