@@ -7,6 +7,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,27 +21,47 @@ import org.springframework.stereotype.Service;
 public class SyncRunExecutorService {
   private final GitlabMirrorProperties properties;
   private final SyncRunWorkerService workerService;
+  private final SyncRunLeaseService leaseService;
   private final Executor executor;
   private final ExecutorService ownedExecutor;
+  private final ScheduledExecutorService heartbeatExecutor;
   private final AtomicInteger activeRuns = new AtomicInteger();
 
   @Autowired
-  public SyncRunExecutorService(GitlabMirrorProperties properties, SyncRunWorkerService workerService) {
-    this(properties, workerService, Executors.newCachedThreadPool(new SyncRunThreadFactory()), null);
+  public SyncRunExecutorService(
+      GitlabMirrorProperties properties,
+      SyncRunWorkerService workerService,
+      SyncRunLeaseService leaseService) {
+    this(
+        properties,
+        workerService,
+        leaseService,
+        Executors.newCachedThreadPool(new SyncRunThreadFactory("sync-run-worker")),
+        Executors.newSingleThreadScheduledExecutor(new SyncRunThreadFactory("sync-run-heartbeat")),
+        null);
   }
 
-  SyncRunExecutorService(GitlabMirrorProperties properties, SyncRunWorkerService workerService, Executor executor) {
-    this(properties, workerService, executor, null);
+  SyncRunExecutorService(
+      GitlabMirrorProperties properties,
+      SyncRunWorkerService workerService,
+      SyncRunLeaseService leaseService,
+      Executor executor,
+      ScheduledExecutorService heartbeatExecutor) {
+    this(properties, workerService, leaseService, executor, heartbeatExecutor, null);
   }
 
   private SyncRunExecutorService(
       GitlabMirrorProperties properties,
       SyncRunWorkerService workerService,
+      SyncRunLeaseService leaseService,
       Executor executor,
+      ScheduledExecutorService heartbeatExecutor,
       ExecutorService ownedExecutor) {
     this.properties = properties;
     this.workerService = workerService;
+    this.leaseService = leaseService;
     this.executor = executor;
+    this.heartbeatExecutor = heartbeatExecutor;
     this.ownedExecutor = ownedExecutor == null && executor instanceof ExecutorService service ? service : ownedExecutor;
   }
 
@@ -69,14 +91,26 @@ public class SyncRunExecutorService {
   }
 
   private void execute(SyncRun run) {
+    ScheduledFuture<?> heartbeat = startHeartbeat(run);
     try {
       workerService.executeRun(run);
     } catch (RuntimeException e) {
       log.error("Async sync run execution failed, runId={}", run.getRunId(), e);
       throw e;
     } finally {
+      heartbeat.cancel(false);
       activeRuns.decrementAndGet();
     }
+  }
+
+  private ScheduledFuture<?> startHeartbeat(SyncRun run) {
+    int leaseSeconds = Math.max(1, properties.getHeartbeatTimeoutSeconds());
+    int heartbeatSeconds = Math.max(1, leaseSeconds / 3);
+    return heartbeatExecutor.scheduleWithFixedDelay(
+        () -> leaseService.heartbeat(run.getId(), leaseSeconds),
+        0,
+        heartbeatSeconds,
+        TimeUnit.SECONDS);
   }
 
   private int maxConcurrentRuns() {
@@ -86,25 +120,39 @@ public class SyncRunExecutorService {
   @PreDestroy
   public void shutdown() {
     if (ownedExecutor == null) {
+      shutdownExecutor(heartbeatExecutor);
       return;
     }
-    ownedExecutor.shutdown();
+    shutdownExecutor(ownedExecutor);
+    shutdownExecutor(heartbeatExecutor);
+  }
+
+  private void shutdownExecutor(ExecutorService executorService) {
+    if (executorService == null) {
+      return;
+    }
+    executorService.shutdown();
     try {
-      if (!ownedExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-        ownedExecutor.shutdownNow();
+      if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+        executorService.shutdownNow();
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      ownedExecutor.shutdownNow();
+      executorService.shutdownNow();
     }
   }
 
   private static final class SyncRunThreadFactory implements ThreadFactory {
+    private final String prefix;
     private final AtomicInteger counter = new AtomicInteger();
+
+    private SyncRunThreadFactory(String prefix) {
+      this.prefix = prefix;
+    }
 
     @Override
     public Thread newThread(Runnable runnable) {
-      Thread thread = new Thread(runnable, "sync-run-worker-" + counter.incrementAndGet());
+      Thread thread = new Thread(runnable, prefix + "-" + counter.incrementAndGet());
       thread.setDaemon(true);
       return thread;
     }

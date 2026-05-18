@@ -10,7 +10,9 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import org.junit.jupiter.api.Test;
 
 class SyncRunExecutorServiceTest {
@@ -19,20 +21,27 @@ class SyncRunExecutorServiceTest {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setMaxSyncThreads(2);
     SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
+    SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
     CapturingExecutor executor = new CapturingExecutor();
-    SyncRunExecutorService service = new SyncRunExecutorService(properties, workerService, executor);
+    ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+    SyncRunExecutorService service =
+        new SyncRunExecutorService(properties, workerService, leaseService, executor, heartbeatExecutor);
     SyncRun run = run(11L);
 
-    service.submit(run);
+    try {
+      service.submit(run);
 
-    assertThat(service.activeRuns()).isEqualTo(1);
-    assertThat(service.availableSlots()).isEqualTo(1);
+      assertThat(service.activeRuns()).isEqualTo(1);
+      assertThat(service.availableSlots()).isEqualTo(1);
 
-    executor.runNext();
+      executor.runNext();
 
-    verify(workerService).executeRun(run);
-    assertThat(service.activeRuns()).isZero();
-    assertThat(service.availableSlots()).isEqualTo(2);
+      verify(workerService).executeRun(run);
+      assertThat(service.activeRuns()).isZero();
+      assertThat(service.availableSlots()).isEqualTo(2);
+    } finally {
+      heartbeatExecutor.shutdownNow();
+    }
   }
 
   @Test
@@ -40,12 +49,19 @@ class SyncRunExecutorServiceTest {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setMaxSyncThreads(1);
     SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
+    SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
     CapturingExecutor executor = new CapturingExecutor();
-    SyncRunExecutorService service = new SyncRunExecutorService(properties, workerService, executor);
+    ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+    SyncRunExecutorService service =
+        new SyncRunExecutorService(properties, workerService, leaseService, executor, heartbeatExecutor);
 
-    service.submit(run(12L));
+    try {
+      service.submit(run(12L));
 
-    assertThat(service.hasCapacity()).isFalse();
+      assertThat(service.hasCapacity()).isFalse();
+    } finally {
+      heartbeatExecutor.shutdownNow();
+    }
   }
 
   @Test
@@ -53,17 +69,25 @@ class SyncRunExecutorServiceTest {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setMaxSyncThreads(1);
     SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
+    SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
+    ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
     SyncRunExecutorService service =
         new SyncRunExecutorService(
             properties,
             workerService,
+            leaseService,
             command -> {
               throw new RejectedExecutionException("closed");
-            });
+            },
+            heartbeatExecutor);
 
-    assertThatThrownBy(() -> service.submit(run(13L))).isInstanceOf(RejectedExecutionException.class);
-    assertThat(service.activeRuns()).isZero();
-    assertThat(service.hasCapacity()).isTrue();
+    try {
+      assertThatThrownBy(() -> service.submit(run(13L))).isInstanceOf(RejectedExecutionException.class);
+      assertThat(service.activeRuns()).isZero();
+      assertThat(service.hasCapacity()).isTrue();
+    } finally {
+      heartbeatExecutor.shutdownNow();
+    }
   }
 
   private SyncRun run(Long id) {

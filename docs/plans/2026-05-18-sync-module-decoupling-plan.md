@@ -99,3 +99,4 @@
 
 - 2026-05-18：开始第一阶段，实现状态机与 typed payload 收口。
 - 2026-05-18：推进第二阶段第一片，新增 run executor，dispatcher 从直接执行改为领取后异步投递，避免 scheduled 线程长时间占用。
+- 2026-05-18：推进第二阶段第二片，新增 run lease heartbeat 与超时 run 恢复，补偿调度会先回收 stale run，再回收 stale table task。

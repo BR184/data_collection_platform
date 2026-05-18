@@ -18,6 +18,7 @@ import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
+import com.data.collection.platform.service.sync.SyncRunLeaseService;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ class GitlabMirrorSyncServiceTest {
   private GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
   private FactBuildTaskService factBuildTaskService;
   private SyncRunSubmissionService syncRunSubmissionService;
+  private SyncRunLeaseService syncRunLeaseService;
   private SyncRunTableWorkerService syncRunTableWorkerService;
   private GitlabMirrorTableRegistryMapper registryMapper;
   private SyncRunTableStateMapper tableStateMapper;
@@ -49,6 +51,7 @@ class GitlabMirrorSyncServiceTest {
     systemHookPreciseSyncPlanner = mock(GitlabSystemHookPreciseSyncPlanner.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
     syncRunSubmissionService = mock(SyncRunSubmissionService.class);
+    syncRunLeaseService = mock(SyncRunLeaseService.class);
     syncRunTableWorkerService = mock(SyncRunTableWorkerService.class);
     registryMapper = mock(GitlabMirrorTableRegistryMapper.class);
     tableStateMapper = mock(SyncRunTableStateMapper.class);
@@ -62,6 +65,7 @@ class GitlabMirrorSyncServiceTest {
             systemHookPreciseSyncPlanner,
             factBuildTaskService,
             syncRunSubmissionService,
+            syncRunLeaseService,
             syncRunTableWorkerService,
             registryMapper,
             tableStateMapper);
@@ -74,6 +78,7 @@ class GitlabMirrorSyncServiceTest {
     syncService.recoverTimedOutTasks();
 
     verify(mirrorSchemaService).recoverStaleSyncingStatuses();
+    verify(syncRunLeaseService).recoverTimedOutRuns();
     verify(syncRunTableWorkerService).recoverTimedOutTasks();
   }
 
