@@ -103,3 +103,4 @@
 - 2026-05-18：推进第二阶段第三片，表任务 drain 支持按 run 线程预算并发领取和执行，仍通过数据库 `for update skip locked` 保持任务互斥。
 - 2026-05-18：推进第二阶段第四片，run executor 写入 `sync_worker_leases`，记录 worker heartbeat、最大线程数、活跃线程数和队列深度。
 - 2026-05-18：推进第三阶段第一片，全量同步改为按主键游标分页读取，满批次自动续排下一批，最终批次再刷新 watermark，避免一次性 `select *` 拉取整表。
+- 2026-05-18：推进第三阶段第二片，抽出 `SourceTableReader`，表任务 worker 只依赖源读取契约，外部库读取细节继续收敛到独立边界。

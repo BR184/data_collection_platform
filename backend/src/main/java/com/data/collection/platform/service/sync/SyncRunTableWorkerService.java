@@ -10,7 +10,6 @@ import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.GitlabConfigService;
-import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import com.data.collection.platform.service.GitlabMirrorTableStorageService;
 import java.time.Instant;
@@ -43,7 +42,7 @@ public class SyncRunTableWorkerService {
   private final SyncRunTableStateMapper stateMapper;
   private final JdbcTemplate jdbcTemplate;
   private final GitlabConfigService configService;
-  private final GitlabExternalDbService externalDbService;
+  private final SourceTableReader sourceTableReader;
   private final GitlabMirrorSchemaService mirrorSchemaService;
   private final GitlabMirrorTableStorageService storageService;
 
@@ -52,14 +51,14 @@ public class SyncRunTableWorkerService {
       SyncRunTableStateMapper stateMapper,
       JdbcTemplate jdbcTemplate,
       GitlabConfigService configService,
-      GitlabExternalDbService externalDbService,
+      SourceTableReader sourceTableReader,
       GitlabMirrorSchemaService mirrorSchemaService,
       GitlabMirrorTableStorageService storageService) {
     this.taskMapper = taskMapper;
     this.stateMapper = stateMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.configService = configService;
-    this.externalDbService = externalDbService;
+    this.sourceTableReader = sourceTableReader;
     this.mirrorSchemaService = mirrorSchemaService;
     this.storageService = storageService;
   }
@@ -301,11 +300,11 @@ public class SyncRunTableWorkerService {
       }
       List<Map<String, Object>> rows =
           fullTask
-              ? externalDbService.fullCursorScan(
+              ? sourceTableReader.readFullBatch(
                   config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
               : preciseTask
-                  ? externalDbService.preciseScan(config, option, task.getLookupColumn(), task.getLookupValue())
-                  : externalDbService.incrementalCursorScan(
+                  ? sourceTableReader.readPrecise(config, option, task.getLookupColumn(), task.getLookupValue())
+                  : sourceTableReader.readIncrementalBatch(
                       config, option, scanStart, task.getCursorUpdatedAt(), task.getCursorPk(), batchSize);
       if (isRunCancellationRequested(task.getRunId())) {
         finishTask(task.getId(), 0L, 0L, "CANCELLED", "Sync run cancelled");
@@ -453,7 +452,7 @@ public class SyncRunTableWorkerService {
     if (state.getUpdatedAtColumn() == null || state.getUpdatedAtColumn().isBlank()) {
       return null;
     }
-    return externalDbService.findMaxUpdatedAt(config, option);
+    return sourceTableReader.findMaxUpdatedAt(config, option);
   }
 
   private int resolveBatchSize(SyncRunTableTask task) {

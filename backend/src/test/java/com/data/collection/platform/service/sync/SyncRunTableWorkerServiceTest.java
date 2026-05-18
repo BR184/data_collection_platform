@@ -24,7 +24,6 @@ import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.service.GitlabConfigService;
-import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import com.data.collection.platform.service.GitlabMirrorTableStorageService;
 import java.time.LocalDateTime;
@@ -41,7 +40,7 @@ class SyncRunTableWorkerServiceTest {
   private SyncRunTableTaskMapper taskMapper;
   private SyncRunTableStateMapper stateMapper;
   private GitlabConfigService configService;
-  private GitlabExternalDbService externalDbService;
+  private SourceTableReader sourceTableReader;
   private GitlabMirrorSchemaService mirrorSchemaService;
   private GitlabMirrorTableStorageService storageService;
   private SyncRunTableWorkerService workerService;
@@ -52,7 +51,7 @@ class SyncRunTableWorkerServiceTest {
     taskMapper = org.mockito.Mockito.mock(SyncRunTableTaskMapper.class);
     stateMapper = org.mockito.Mockito.mock(SyncRunTableStateMapper.class);
     configService = org.mockito.Mockito.mock(GitlabConfigService.class);
-    externalDbService = org.mockito.Mockito.mock(GitlabExternalDbService.class);
+    sourceTableReader = org.mockito.Mockito.mock(SourceTableReader.class);
     mirrorSchemaService = org.mockito.Mockito.mock(GitlabMirrorSchemaService.class);
     storageService = org.mockito.Mockito.mock(GitlabMirrorTableStorageService.class);
     workerService =
@@ -61,7 +60,7 @@ class SyncRunTableWorkerServiceTest {
             stateMapper,
             jdbcTemplate,
             configService,
-            externalDbService,
+            sourceTableReader,
             mirrorSchemaService,
             storageService);
   }
@@ -97,7 +96,7 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
-    when(externalDbService.incrementalCursorScan(
+    when(sourceTableReader.readIncrementalBatch(
             eq(config),
             argThat(option ->
                 "issues".equals(option.tableName())
@@ -152,7 +151,7 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
-    when(externalDbService.incrementalCursorScan(
+    when(sourceTableReader.readIncrementalBatch(
             eq(config),
             argThat(option -> "issues".equals(option.tableName())),
             eq(watermark),
@@ -196,7 +195,7 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
-    when(externalDbService.fullCursorScan(
+    when(sourceTableReader.readFullBatch(
             eq(config),
             argThat(option -> "issues".equals(option.tableName())),
             eq(mirrorSchema),
@@ -208,15 +207,15 @@ class SyncRunTableWorkerServiceTest {
     int processed = workerService.drainRunTasks(77L);
 
     assertThat(processed).isEqualTo(1);
-    verify(externalDbService)
-        .fullCursorScan(
+    verify(sourceTableReader)
+        .readFullBatch(
             eq(config),
             argThat(option -> "issues".equals(option.tableName())),
             eq(mirrorSchema),
             isNull(),
             eq(500));
-    verify(externalDbService, never())
-        .incrementalCursorScan(any(), any(), any(), any(), any(), anyInt());
+    verify(sourceTableReader, never())
+        .readIncrementalBatch(any(), any(), any(), any(), any(), anyInt());
     verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(2L), eq(2L), isNull(), eq(501L));
     verify(stateMapper)
         .updateById(
@@ -259,7 +258,7 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
-    when(externalDbService.fullCursorScan(
+    when(sourceTableReader.readFullBatch(
             eq(config),
             argThat(option -> "issues".equals(option.tableName())),
             eq(mirrorSchema),
@@ -279,7 +278,7 @@ class SyncRunTableWorkerServiceTest {
                         && "FULL".equals(nextTask.getRowStrategy())
                         && "102".equals(nextTask.getCursorPk())
                         && nextTask.getBatchSize().equals(2)));
-    verify(externalDbService, never()).findMaxUpdatedAt(any(), any());
+    verify(sourceTableReader, never()).findMaxUpdatedAt(any(), any());
     verify(stateMapper)
         .updateById(
             argThat(
@@ -320,14 +319,14 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
-    when(externalDbService.fullCursorScan(
+    when(sourceTableReader.readFullBatch(
             eq(config),
             argThat(option -> "issues".equals(option.tableName())),
             eq(mirrorSchema),
             eq("100"),
             eq(500)))
         .thenReturn(rows);
-    when(externalDbService.findMaxUpdatedAt(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+    when(sourceTableReader.findMaxUpdatedAt(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(maxUpdatedAt);
     when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
@@ -376,7 +375,7 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issue_assignees".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issue_assignees", true, null));
-    when(externalDbService.preciseScan(
+    when(sourceTableReader.readPrecise(
             eq(config),
             argThat(option -> "issue_assignees".equals(option.tableName())),
             eq("issue_id"),
@@ -387,7 +386,7 @@ class SyncRunTableWorkerServiceTest {
     int processed = workerService.drainRunTasks(77L);
 
     assertThat(processed).isEqualTo(1);
-    verify(externalDbService).preciseScan(eq(config), argThat(option -> "issue_assignees".equals(option.tableName())), eq("issue_id"), eq("101"));
+    verify(sourceTableReader).readPrecise(eq(config), argThat(option -> "issue_assignees".equals(option.tableName())), eq("issue_id"), eq("101"));
     verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(1L), eq(1L), isNull(), eq(501L));
   }
 
