@@ -58,7 +58,7 @@ const tableProgressText = computed(() => {
   return `${progress.value.completedTables}/${progress.value.totalTables}`;
 });
 const currentMessageText = computed(() =>
-  translateSyncMessage(props.status?.currentMessage, currentTask.value?.taskType) || 'No active sync run',
+  translateSyncMessage(props.status?.currentMessage, currentTask.value?.taskType) || '当前没有运行中的同步任务',
 );
 
 function submitRetry() {
@@ -83,23 +83,23 @@ function terminalTime(log: SyncRunLog) {
     <template #header>
       <div class="monitor-header">
         <div>
-          <div class="panel-title">Data mirror monitor</div>
+          <div class="panel-title">数据镜像监控</div>
           <div class="panel-subtitle">
-            {{ status?.config?.name || 'No source selected' }} · {{ diagnostics?.sourceInstance || status?.config?.sourceInstance || '-' }}
+            {{ status?.config?.name || '未选择数据源' }} / 来源 {{ diagnostics?.sourceInstance || status?.config?.sourceInstance || '-' }}
           </div>
         </div>
         <el-space wrap>
           <el-button size="small" text :icon="Refresh" :loading="refreshing" :disabled="disabled" @click="$emit('refresh')">
-            Refresh
+            刷新
           </el-button>
           <el-button size="small" text :icon="Close" :loading="cancelling" :disabled="!canCancel" @click="submitCancel">
-            Cancel
+            取消
           </el-button>
           <el-button size="small" text :icon="RefreshRight" :loading="retrying" :disabled="!canRetry" @click="submitRetry">
-            Retry failed
+            重试失败任务
           </el-button>
           <el-button size="small" text :icon="List" :disabled="!diagnostics" @click="$emit('openTableTasks')">
-            Table tasks
+            表任务
           </el-button>
         </el-space>
       </div>
@@ -108,23 +108,23 @@ function terminalTime(log: SyncRunLog) {
     <div class="monitor-stack">
       <section class="active-run-panel">
         <div class="active-run-main">
-          <span>Active run</span>
+          <span>当前运行</span>
           <strong>{{ currentTask?.runId || status?.currentStatus || 'IDLE' }}</strong>
           <small>{{ currentMessageText }}</small>
         </div>
         <div class="active-run-metrics">
           <div>
-            <span>Status</span>
+            <span>状态</span>
             <el-tag :type="syncStatusTagType((currentTask?.status || status?.currentStatus || 'IDLE') as GitlabSyncStatus)">
               {{ syncStatusText(currentTask?.status || status?.currentStatus || 'IDLE') }}
             </el-tag>
           </div>
           <div>
-            <span>Tables</span>
+            <span>表进度</span>
             <strong>{{ tableProgressText }}</strong>
           </div>
           <div>
-            <span>Applied rows</span>
+            <span>写入行数</span>
             <strong>{{ progress?.appliedRows ?? progress?.syncedRecords ?? 0 }}</strong>
           </div>
         </div>
@@ -141,39 +141,39 @@ function terminalTime(log: SyncRunLog) {
       <section class="table-task-panel">
         <div class="section-head">
           <div>
-            <div class="section-title">Active table tasks</div>
-            <div class="section-subtitle">{{ activeTableTasks.length }} running tables</div>
+            <div class="section-title">运行中的表任务</div>
+            <div class="section-subtitle">{{ activeTableTasks.length }} 张表正在执行</div>
           </div>
-          <el-button size="small" text :disabled="!diagnostics" @click="$emit('openTableTasks')">Inspect</el-button>
+          <el-button size="small" text :disabled="!diagnostics" @click="$emit('openTableTasks')">查看</el-button>
         </div>
         <div v-if="activeTableTasks.length" class="tag-list">
           <el-tag v-for="table in activeTableTaskPreview" :key="table" size="small" type="warning" effect="plain">{{ table }}</el-tag>
           <el-tag v-if="activeTableTaskHiddenCount" size="small" type="info" effect="plain">+{{ activeTableTaskHiddenCount }}</el-tag>
         </div>
-        <el-empty v-else description="No active table task" :image-size="48" />
+        <el-empty v-else description="暂无运行中的表任务" :image-size="48" />
       </section>
 
       <section class="dirty-panel">
         <div class="section-head">
           <div>
-            <div class="section-title">Dirty tables</div>
+            <div class="section-title">待修复表</div>
             <div class="section-subtitle">
-              {{ diagnostics?.dirtyTableCount ?? 0 }} dirty · {{ diagnostics?.failedTaskCount ?? 0 }} failed ·
-              {{ diagnostics?.timedOutTaskCount ?? 0 }} timeout
+              {{ diagnostics?.dirtyTableCount ?? 0 }} 张待修复 / {{ diagnostics?.failedTaskCount ?? 0 }} 个失败 /
+              {{ diagnostics?.timedOutTaskCount ?? 0 }} 个超时
             </div>
           </div>
         </div>
         <div v-if="dirtyTables.length" class="dirty-list">
           <div v-for="table in dirtyTables" :key="table.sourceTable" class="dirty-row">
             <strong>{{ table.sourceTable }}</strong>
-            <span>{{ table.blockingRunId || table.dirtyReason || table.latestTaskError || table.driftSummary || 'dirty' }}</span>
+            <span>{{ table.blockingRunId || table.dirtyReason || table.latestTaskError || table.driftSummary || '待修复' }}</span>
           </div>
         </div>
-        <el-empty v-else description="No dirty table" :image-size="48" />
+        <el-empty v-else description="暂无待修复表" :image-size="48" />
       </section>
 
       <section class="terminal-runs-panel">
-        <div class="section-title">Recent terminal runs</div>
+        <div class="section-title">最近完成的运行</div>
         <div v-if="terminalRuns.length" class="terminal-run-list">
           <div v-for="run in terminalRuns" :key="run.id" class="terminal-run-row">
             <el-tag size="small" effect="plain" :type="syncStatusTagType(run.status)">{{ syncStatusText(run.status) }}</el-tag>
@@ -181,7 +181,7 @@ function terminalTime(log: SyncRunLog) {
             <strong>{{ terminalTime(run) }}</strong>
           </div>
         </div>
-        <el-empty v-else description="No terminal run" :image-size="48" />
+        <el-empty v-else description="暂无已完成运行" :image-size="48" />
       </section>
         </div>
       </div>

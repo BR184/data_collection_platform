@@ -19,12 +19,12 @@ const threadPercent = computed(() => {
 });
 const modeLabel = computed(() => {
   if (!config.value) {
-    return 'unknown';
+    return '未知策略';
   }
   if (config.value.syncThreadMode === 'CPU_RATIO') {
-    return `CPU ratio ${Number(config.value.syncThreadValue ?? 0).toFixed(2)}`;
+    return `CPU 比例 ${Number(config.value.syncThreadValue ?? 0).toFixed(2)}`;
   }
-  return `fixed ${Math.floor(Number(config.value.syncThreadValue ?? 0))}`;
+  return `固定 ${Math.floor(Number(config.value.syncThreadValue ?? 0))} 线程`;
 });
 const recordsPerSecond = computed(() => progress.value?.recordsPerSecond ?? null);
 </script>
@@ -33,7 +33,7 @@ const recordsPerSecond = computed(() => progress.value?.recordsPerSecond ?? null
   <section class="worker-panel">
     <div class="worker-head">
       <div>
-        <div class="worker-title">Worker usage</div>
+        <div class="worker-title">同步线程使用</div>
         <div class="worker-subtitle">{{ modeLabel }}</div>
       </div>
       <el-icon class="worker-icon"><Cpu /></el-icon>
@@ -42,25 +42,25 @@ const recordsPerSecond = computed(() => progress.value?.recordsPerSecond ?? null
     <div class="worker-meter">
       <el-progress :percentage="threadPercent" :stroke-width="10" :show-text="false" />
       <div class="worker-meter-copy">
-        <span>{{ runningTables }} active</span>
-        <strong>{{ resolvedThreads || '-' }} threads</strong>
+        <span>{{ runningTables }} 个活跃任务</span>
+        <strong>{{ resolvedThreads || '-' }} 个线程</strong>
       </div>
     </div>
 
     <div class="worker-stats">
       <div>
-        <span>Server CPU</span>
+        <span>服务器 CPU</span>
         <strong>{{ status?.availableProcessors ?? '-' }}</strong>
       </div>
       <div>
-        <span>Write rate</span>
-        <strong>{{ recordsPerSecond == null ? '-' : `${recordsPerSecond}/s` }}</strong>
+        <span>写入速率</span>
+        <strong>{{ recordsPerSecond == null ? '-' : `${recordsPerSecond}/秒` }}</strong>
       </div>
       <div>
-        <span>ETA</span>
+        <span>预计剩余</span>
         <strong>
           <el-icon><Timer /></el-icon>
-          {{ progress?.estimatedRemainingSeconds == null ? '-' : `${progress.estimatedRemainingSeconds}s` }}
+          {{ progress?.estimatedRemainingSeconds == null ? '-' : `${progress.estimatedRemainingSeconds} 秒` }}
         </strong>
       </div>
     </div>

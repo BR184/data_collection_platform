@@ -24,7 +24,7 @@ function rowReason(row: SyncRunTableDiagnostics) {
     return row.latestTaskError || row.lastError;
   }
   if (row.blockingRunId) {
-    return `blocked by ${row.blockingRunId}`;
+    return `被运行 ${row.blockingRunId} 阻塞`;
   }
   if (row.dirtyReason) {
     return row.dirtyReason;
@@ -44,36 +44,36 @@ function rowTime(row: SyncRunTableDiagnostics) {
   <section class="queue-panel">
     <div class="queue-head">
       <div>
-        <div class="queue-title">Table task queue</div>
+        <div class="queue-title">表任务队列</div>
         <div class="queue-subtitle">
-          Pending {{ diagnostics?.pendingTaskCount ?? 0 }} · Running {{ diagnostics?.runningTaskCount ?? 0 }} · Retry
+          待执行 {{ diagnostics?.pendingTaskCount ?? 0 }} / 运行中 {{ diagnostics?.runningTaskCount ?? 0 }} / 重试中
           {{ diagnostics?.retryingTaskCount ?? 0 }}
         </div>
       </div>
-      <el-button size="small" text @click="$emit('openTableTasks')">Open drawer</el-button>
+      <el-button size="small" text @click="$emit('openTableTasks')">打开明细</el-button>
     </div>
 
     <el-table :data="rows" size="small" border class="queue-table" max-height="220">
-      <el-table-column prop="sourceTable" label="Source table" min-width="130" show-overflow-tooltip />
-      <el-table-column label="Task" width="112">
+      <el-table-column prop="sourceTable" label="源表" min-width="130" show-overflow-tooltip />
+      <el-table-column label="任务状态" width="112">
         <template #default="{ row }">
           <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
             {{ syncStatusText(row.latestTaskStatus) }}
           </el-tag>
-          <el-tag v-else size="small" type="info">idle</el-tag>
+          <el-tag v-else size="small" type="info">空闲</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Dirty" width="78">
+      <el-table-column label="待修复" width="78">
         <template #default="{ row }">
           <el-tag size="small" :type="row.dirty || row.blockingRunId ? 'warning' : 'success'" effect="plain">
-            {{ row.dirty || row.blockingRunId ? 'yes' : 'no' }}
+            {{ row.dirty || row.blockingRunId ? '是' : '否' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Reason" min-width="180" show-overflow-tooltip>
+      <el-table-column label="原因" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">{{ rowReason(row) }}</template>
       </el-table-column>
-      <el-table-column label="Updated" width="160">
+      <el-table-column label="更新时间" width="160">
         <template #default="{ row }">{{ rowTime(row) }}</template>
       </el-table-column>
     </el-table>

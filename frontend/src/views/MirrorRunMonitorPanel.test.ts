@@ -144,19 +144,19 @@ describe('MirrorRunMonitorPanel', () => {
       },
     });
 
-    expect(wrapper.text()).toContain('Data mirror monitor');
+    expect(wrapper.text()).toContain('数据镜像监控');
     expect(wrapper.text()).toContain('run-full-11');
-    expect(wrapper.text()).toContain('Worker usage');
-    expect(wrapper.text()).toContain('Table task queue');
-    expect(wrapper.text()).toContain('Active table tasks');
+    expect(wrapper.text()).toContain('同步线程使用');
+    expect(wrapper.text()).toContain('表任务队列');
+    expect(wrapper.text()).toContain('运行中的表任务');
     expect(wrapper.text()).toContain('issues');
-    expect(wrapper.text()).toContain('Dirty tables');
-    expect(wrapper.text()).toContain('Recent terminal runs');
+    expect(wrapper.text()).toContain('待修复表');
+    expect(wrapper.text()).toContain('最近完成的运行');
 
-    await wrapper.findAll('button').find((button) => button.text().includes('Refresh'))!.trigger('click');
-    await wrapper.findAll('button').find((button) => button.text().includes('Cancel'))!.trigger('click');
-    await wrapper.findAll('button').find((button) => button.text().includes('Retry failed'))!.trigger('click');
-    await wrapper.findAll('button').find((button) => button.text().includes('Table tasks'))!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text().includes('刷新'))!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text().includes('取消'))!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text().includes('重试失败任务'))!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text().includes('表任务'))!.trigger('click');
 
     expect(wrapper.emitted('refresh')).toHaveLength(1);
     expect(wrapper.emitted('cancel')).toHaveLength(1);
@@ -181,8 +181,8 @@ describe('MirrorRunMonitorPanel', () => {
       },
     });
 
-    const cancelButton = wrapper.findAll('button').find((button) => button.text().includes('Cancel'));
-    const retryButton = wrapper.findAll('button').find((button) => button.text().includes('Retry failed'));
+    const cancelButton = wrapper.findAll('button').find((button) => button.text().includes('取消'));
+    const retryButton = wrapper.findAll('button').find((button) => button.text().includes('重试失败任务'));
     expect(cancelButton?.attributes('disabled')).toBeDefined();
     expect(retryButton?.attributes('disabled')).toBeDefined();
   });

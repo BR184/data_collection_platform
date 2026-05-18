@@ -162,9 +162,9 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
     expect(wrapper.text()).toContain('固定线程数');
     expect(wrapper.text()).toContain('预计本次配置会使用');
-    expect(wrapper.text()).toContain('Data mirror monitor');
-    expect(wrapper.text()).toContain('Table task queue');
-    expect(wrapper.text()).toContain('blocked by sr_full_alpha');
+    expect(wrapper.text()).toContain('数据镜像监控');
+    expect(wrapper.text()).toContain('表任务队列');
+    expect(wrapper.text()).toContain('sr_full_alpha');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
 
     const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('删除镜像数据'));

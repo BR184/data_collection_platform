@@ -95,6 +95,32 @@
 - 游客只保留外部表单和未来脱敏公开摘要 API。
 - 完成外部来源表功能时必须以管理员权限、审计日志、脱敏展示作为默认约束。
 
+## 真实用户链路验收补充
+
+目标：
+
+- 使用本地拉起的 GitLab 作为真实数据源，不只依赖 mock、单元测试或开发者视角的接口测试。
+- 从管理员用户手动操作路径验证：登录、进入同步配置、保存数据源、测试连接、诊断、全量同步、增量同步、按表刷新、运行队列/监控展示、system hook 接收与触发。
+- 验证同步策略线程设置的真实效果：固定线程、按 CPU 比例、上限线程数在 run/table task 执行、worker lease、队列推进中的表现一致。
+- 将 Data mirror monitor 模块用户可见文案改为中文，保证管理员在真实使用时能理解运行状态、队列、错误和操作反馈。
+- 按百万级数据量风险评估链路：全量同步必须走游标/批次推进，不能因为少量测试数据通过就认为可上线；需要观察批次数、任务续排、内存、外部查询超时、lease 恢复和幂等重试。
+
+真实链路测试范围：
+
+- 数据源连接：使用本地 GitLab PostgreSQL 或本地 GitLab Docker 数据源配置，验证 `/api/gitlab-sync/test-connection/by-config` 与前端按钮表现一致。
+- 元数据诊断：通过前端诊断入口验证白名单、主键、`updated_at`、system hook 配置、运行时告警展示。
+- system hook：使用本地 GitLab hook 或等价 HTTP 请求携带 `X-Gitlab-Event`、`X-Gitlab-Token` 和真实 payload，确认 precise sync run 被提交并进入队列。
+- 线程策略：分别配置低线程与高线程，观察 `sync_worker_leases`、run/table task 状态、并发 table task 数是否随预算变化。
+- 大数据风险：若本地 GitLab 数据不足百万级，则需要构造百万级镜像源测试表或记录为阻塞项，不能用小数据结论替代百万级结论。
+
+验收记录格式：
+
+- 环境：本地 GitLab 地址、来源模式、后端地址、前端地址、数据库连接方式、测试账号角色。
+- 操作：按用户界面步骤记录，不只记录 API 命令。
+- 结果：每个步骤记录 UI 表现、关键 API 返回、数据库 run/task 状态和日志摘要。
+- 性能：记录数据量、批大小、线程配置、任务数、耗时、失败/重试次数。
+- 结论：通过、部分通过、阻塞；阻塞项必须标明是环境问题、数据量不足、功能缺口还是 bug。
+
 ## 执行记录
 
 - 2026-05-18：开始第一阶段，实现状态机与 typed payload 收口。
@@ -110,3 +136,4 @@
 - 2026-05-18：推进第四阶段第二片，抽出 `SyncFactRefreshRunExecutor`，FACT_REFRESH run 的队列领取与执行从通用 run worker 中移出。
 - 2026-05-18：补齐诊断边界收口，`GitlabSyncController` 的来源元数据诊断改为通过 `SourceMetadataInspector`，避免控制器直接依赖外部库访问服务。
 - 2026-05-18：继续收口旧同步门面，抽出 `SourceConnectionTester`，`GitlabMirrorSyncService` 不再直接依赖外部库服务并移除未使用的旧运行时依赖。
+- 2026-05-18：同步真实用户链路测试要求，后续以本地 GitLab、前端手动等价操作、system hook、线程策略和百万级数据风险为验收口径。
