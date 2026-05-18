@@ -15,7 +15,6 @@ import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
-import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.sync.SyncRunLeaseService;
@@ -28,12 +27,8 @@ import org.junit.jupiter.api.Test;
 
 class GitlabMirrorSyncServiceTest {
   private GitlabConfigService configService;
-  private GitlabExternalDbService externalDbService;
+  private SourceConnectionTester sourceConnectionTester;
   private GitlabMirrorSchemaService mirrorSchemaService;
-  private GitlabMirrorTableStorageService mirrorTableStorageService;
-  private GitlabMirrorRecordMapper mirrorRecordMapper;
-  private GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
-  private FactBuildTaskService factBuildTaskService;
   private SyncRunSubmissionService syncRunSubmissionService;
   private SyncRunLeaseService syncRunLeaseService;
   private SyncRunTableWorkerService syncRunTableWorkerService;
@@ -44,12 +39,8 @@ class GitlabMirrorSyncServiceTest {
   @BeforeEach
   void setUp() {
     configService = mock(GitlabConfigService.class);
-    externalDbService = mock(GitlabExternalDbService.class);
+    sourceConnectionTester = mock(SourceConnectionTester.class);
     mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
-    mirrorTableStorageService = mock(GitlabMirrorTableStorageService.class);
-    mirrorRecordMapper = mock(GitlabMirrorRecordMapper.class);
-    systemHookPreciseSyncPlanner = mock(GitlabSystemHookPreciseSyncPlanner.class);
-    factBuildTaskService = mock(FactBuildTaskService.class);
     syncRunSubmissionService = mock(SyncRunSubmissionService.class);
     syncRunLeaseService = mock(SyncRunLeaseService.class);
     syncRunTableWorkerService = mock(SyncRunTableWorkerService.class);
@@ -58,17 +49,23 @@ class GitlabMirrorSyncServiceTest {
     syncService =
         new GitlabMirrorSyncService(
             configService,
-            externalDbService,
+            sourceConnectionTester,
             mirrorSchemaService,
-            mirrorTableStorageService,
-            mirrorRecordMapper,
-            systemHookPreciseSyncPlanner,
-            factBuildTaskService,
             syncRunSubmissionService,
             syncRunLeaseService,
             syncRunTableWorkerService,
             registryMapper,
             tableStateMapper);
+  }
+
+  @Test
+  void shouldRouteConnectionTestThroughSourceConnectionTester() {
+    GitlabSyncConfig config = config();
+    when(configService.getConfigById(1L)).thenReturn(config);
+
+    syncService.testConnection(1L);
+
+    verify(sourceConnectionTester).testConnection(config);
   }
 
   @Test

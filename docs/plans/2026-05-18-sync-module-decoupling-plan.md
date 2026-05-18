@@ -109,3 +109,4 @@
 - 2026-05-18：推进第四阶段第一片，新增 `SyncRunCompletionEvent` 与 fact refresh 监听器，镜像 run worker 改为发布完成事件，不再直接提交 fact refresh。
 - 2026-05-18：推进第四阶段第二片，抽出 `SyncFactRefreshRunExecutor`，FACT_REFRESH run 的队列领取与执行从通用 run worker 中移出。
 - 2026-05-18：补齐诊断边界收口，`GitlabSyncController` 的来源元数据诊断改为通过 `SourceMetadataInspector`，避免控制器直接依赖外部库访问服务。
+- 2026-05-18：继续收口旧同步门面，抽出 `SourceConnectionTester`，`GitlabMirrorSyncService` 不再直接依赖外部库服务并移除未使用的旧运行时依赖。

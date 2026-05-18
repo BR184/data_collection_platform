@@ -11,7 +11,6 @@ import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunLeaseService;
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
-import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import java.util.LinkedHashSet;
@@ -24,16 +23,8 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class GitlabMirrorSyncService {
   private final GitlabConfigService configService;
-  private final GitlabExternalDbService externalDbService;
+  private final SourceConnectionTester sourceConnectionTester;
   private final GitlabMirrorSchemaService mirrorSchemaService;
-  @SuppressWarnings("unused")
-  private final GitlabMirrorTableStorageService mirrorTableStorageService;
-  @SuppressWarnings("unused")
-  private final GitlabMirrorRecordMapper mirrorRecordMapper;
-  @SuppressWarnings("unused")
-  private final GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
-  @SuppressWarnings("unused")
-  private final FactBuildTaskService factBuildTaskService;
   private final SyncRunSubmissionService syncRunSubmissionService;
   private final SyncRunLeaseService syncRunLeaseService;
   private final SyncRunTableWorkerService syncRunTableWorkerService;
@@ -42,24 +33,16 @@ public class GitlabMirrorSyncService {
 
   public GitlabMirrorSyncService(
       GitlabConfigService configService,
-      GitlabExternalDbService externalDbService,
+      SourceConnectionTester sourceConnectionTester,
       GitlabMirrorSchemaService mirrorSchemaService,
-      GitlabMirrorTableStorageService mirrorTableStorageService,
-      GitlabMirrorRecordMapper mirrorRecordMapper,
-      GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner,
-      FactBuildTaskService factBuildTaskService,
       SyncRunSubmissionService syncRunSubmissionService,
       SyncRunLeaseService syncRunLeaseService,
       SyncRunTableWorkerService syncRunTableWorkerService,
       GitlabMirrorTableRegistryMapper registryMapper,
       SyncRunTableStateMapper tableStateMapper) {
     this.configService = configService;
-    this.externalDbService = externalDbService;
+    this.sourceConnectionTester = sourceConnectionTester;
     this.mirrorSchemaService = mirrorSchemaService;
-    this.mirrorTableStorageService = mirrorTableStorageService;
-    this.mirrorRecordMapper = mirrorRecordMapper;
-    this.systemHookPreciseSyncPlanner = systemHookPreciseSyncPlanner;
-    this.factBuildTaskService = factBuildTaskService;
     this.syncRunSubmissionService = syncRunSubmissionService;
     this.syncRunLeaseService = syncRunLeaseService;
     this.syncRunTableWorkerService = syncRunTableWorkerService;
@@ -86,7 +69,7 @@ public class GitlabMirrorSyncService {
   }
 
   public void testConnection(Long configId) {
-    externalDbService.testConnection(resolveConfig(configId));
+    sourceConnectionTester.testConnection(resolveConfig(configId));
   }
 
   public SyncRunSubmissionResult startFullSync() {
