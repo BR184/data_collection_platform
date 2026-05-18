@@ -58,7 +58,7 @@ public class SyncRunWorkerService {
         executeFactRefreshRun(run);
         return;
       }
-      if (run.getRunType() == SyncRunType.TABLE_REFRESH) {
+      if (isMirrorRun(run)) {
         executeTableRefreshRun(run);
       } else {
         finishRun(run, SyncRunStatus.SUCCESS, 0, 0, null);

@@ -55,14 +55,28 @@ class SyncRunWorkerServiceTest {
   @Test
   void shouldCompleteFullRunAndUpdateSyncTimestamp() {
     SyncRun run = run(11L, SyncRunType.FULL_SYNC);
+    GitlabSyncConfig config = config();
+    when(tablePlanningService.planRunTables(11L)).thenReturn(4);
+    when(tableWorkerService.drainRunTasks(11L)).thenReturn(4);
+    when(tableWorkerService.summarizeRun(11L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(4, 4, 20L, 18L));
+    when(configService.getConfigById(1L)).thenReturn(config);
 
     workerService.executeRun(run);
 
+    verify(tablePlanningService).planRunTables(11L);
+    verify(tableWorkerService).drainRunTasks(11L);
+    verify(tableWorkerService).summarizeRun(11L);
     verify(syncRunMapper, times(2)).updateById(run);
     verify(configService).updateSyncTime(1L, true);
+    verify(submissionService).submitFactRefresh(config, 11L, true, "Mirror run completed; refresh fact layer");
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getStartedAt()).isNotNull();
     assertThat(run.getFinishedAt()).isNotNull();
+    assertThat(run.getPlannedTableCount()).isEqualTo(4);
+    assertThat(run.getCompletedTableCount()).isEqualTo(4);
+    assertThat(run.getScannedRows()).isEqualTo(20L);
+    assertThat(run.getAppliedRows()).isEqualTo(18L);
   }
 
   @Test
