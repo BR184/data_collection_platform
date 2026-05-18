@@ -2,6 +2,7 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,6 +73,23 @@ class SyncRunSubmissionServiceTest {
     assertThat(result.type()).isEqualTo(SyncType.FULL);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
+    verify(jdbcTemplate).queryForObject(
+        contains("pg_advisory_xact_lock"), eq(Object.class), eq("source:12:source_a:mirror"));
+  }
+
+  @Test
+  void shouldDefaultMissingTriggerTypeToManual() {
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectList(any())).thenReturn(List.of());
+
+    submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
+
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.INCREMENTAL_SYNC);
+    assertThat(saved.getTriggerType()).isEqualTo(SyncTriggerType.MANUAL);
+    assertThat(saved.getPayloadJson()).contains("\"triggerType\":\"MANUAL\"");
   }
 
   @Test

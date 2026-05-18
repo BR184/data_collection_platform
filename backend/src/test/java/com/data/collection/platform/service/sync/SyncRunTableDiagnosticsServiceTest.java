@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -14,6 +15,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -70,6 +72,12 @@ class SyncRunTableDiagnosticsServiceTest {
     assertThat(table.sourceRows()).isEqualTo(120L);
     assertThat(table.mirrorRows()).isEqualTo(100L);
     assertThat(table.driftSummary()).isEqualTo("source=120, mirror=100, delta=20");
+    ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), eq(1L), eq("alpha"));
+    assertThat(sql.getValue())
+        .contains("run.run_id as external_run_id")
+        .contains("blocking.external_run_id as blocking_run_id")
+        .doesNotContain("blocking.run_id as blocking_run_id");
   }
 
   private ResultSet dirtyTableRow() throws Exception {

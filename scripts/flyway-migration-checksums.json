@@ -12,5 +12,11 @@
   "V20260509_01__gitlab_table_level_sync_jobs.sql": "45a1bcffaf707c82242d879cf4400fd50486dbb5c1dd78db8410ddf3d4215c6b",
   "V20260509_02__durable_fact_refresh_tasks.sql": "d15042f5d24493a7d79f1fdbb98b4845e971d4c5093666cebdfd907c81e9ee58",
   "V20260509_03__gitlab_table_sync_task_backoff.sql": "45268ee2dff97e7f80cf3531e5572362414cf20bef47f540134484c0e0d32d92",
-  "V20260514_01__gitlab_system_hook_contract.sql": "72b211a762f4b2de19fe4c3f993cd396a3645084d5da78425a66445adf4ea1c0"
+  "V20260513_01__review_data_gitlab_context.sql": "f13e05e13bddba95fc60fee6b7e9f76b03dc46a27d3b736150b9cf6b2a0383f7",
+  "V20260514_01__gitlab_system_hook_contract.sql": "72b211a762f4b2de19fe4c3f993cd396a3645084d5da78425a66445adf4ea1c0",
+  "V20260515_00__remove_legacy_gitlab_sync_models.sql": "3d708593ccb659caff9660263411a7949ef152f0e29eece2f080c7c62dae50e8",
+  "V20260515_01__sync_orchestrator_core.sql": "53f622bdf204183c7685553976131d2fed9e18ac5fd034519679d5345e3bb33c",
+  "V20260515_02__gitlab_sync_thread_config.sql": "2acc5e86db240a23c6216ac8f1770e79abb748bac80f1dd1b81de446d15d61b4",
+  "V20260515_03__sync_run_fact_refresh_parent.sql": "a7f90061c7b032042995a4f9e72de6890a4232abff5c8a40b7d5a8ca14664c9e",
+  "V20260518_01__sync_run_precise_task_lookup.sql": "eb9835055b5090df9b21c26c31a659b188c1966677e31adc9112962ee4e68f2f"
 }

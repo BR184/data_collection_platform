@@ -171,6 +171,8 @@ public class SyncRunSubmissionService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String exclusiveScope = policyService.exclusiveScopeOf(config, runType);
     LocalDateTime now = LocalDateTime.now();
+    SyncTriggerType effectiveTriggerType = triggerType == null ? SyncTriggerType.MANUAL : triggerType;
+    lockExclusiveScope(exclusiveScope);
 
     SyncRun activeRun = findActiveRun(config.getId(), sourceInstance, exclusiveScope);
     if (runType == SyncRunType.FULL_SYNC && activeRun != null && activeRun.getRunType() == SyncRunType.FULL_SYNC) {
@@ -195,7 +197,7 @@ public class SyncRunSubmissionService {
     run.setConfigId(config.getId());
     run.setSourceInstance(sourceInstance);
     run.setRunType(runType);
-    run.setTriggerType(triggerType);
+    run.setTriggerType(effectiveTriggerType);
     run.setStatus(SyncRunStatus.QUEUED);
     run.setPriority(policyService.priorityOf(runType));
     run.setExclusiveScope(exclusiveScope);
@@ -204,7 +206,15 @@ public class SyncRunSubmissionService {
     run.setSubmittedBy(null);
     run.setRequestReason(reason);
     run.setPayloadJson(
-        buildPayloadJson(apiType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild, extraPayload));
+        buildPayloadJson(
+            apiType,
+            effectiveTriggerType,
+            reason,
+            sourceTables,
+            primaryTableName,
+            parentRunId,
+            fullBuild,
+            extraPayload));
     run.setThreadMode(threadBudgetResolver.effectiveMode(config));
     run.setThreadValue(threadBudgetResolver.effectiveValue(config));
     run.setPlannedTableCount(sourceTables.size());
@@ -240,6 +250,10 @@ public class SyncRunSubmissionService {
             : SyncSubmissionAction.REUSED_ACTIVE,
         LocalDateTime.now(),
         message);
+  }
+
+  private void lockExclusiveScope(String exclusiveScope) {
+    jdbcTemplate.queryForObject("select pg_advisory_xact_lock(hashtext(?))", Object.class, exclusiveScope);
   }
 
   private SyncRun findActiveRun(Long configId, String sourceInstance, String exclusiveScope) {

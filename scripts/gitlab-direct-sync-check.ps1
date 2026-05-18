@@ -1,11 +1,11 @@
 param(
   [string] $BaseUrl = "http://localhost:18080",
   [int] $ConfigId = 1,
-  [Alias("SystemHookSecret")]
   [string] $SystemHookSecret = "",
-  [Alias("SimulateSystemHook")]
   [switch] $SimulateSystemHook,
   [switch] $StartIncrementalSync,
+  [switch] $StartFullSync,
+  [switch] $RetryFailedSync,
   [switch] $RunPageRefreshSmoke,
   [switch] $RunReviewDataContextSmoke,
   [switch] $PollAfterSubmission,
@@ -15,12 +15,12 @@ param(
   [string] $PageRefreshBoardKey = "system-test-defect-summary",
   [string] $ReviewDataContextResourceType = "merge_request",
   [int[]] $ReviewDataContextRecordIds = @(),
-  [Alias("SystemHookProjectId")]
   [int] $SystemHookProjectId = 10,
-  [Alias("SystemHookObjectId")]
   [int] $SystemHookObjectId = 101,
-  [Alias("SystemHookTitle")]
   [string] $SystemHookTitle = "Simulated issue from direct sync check",
+  [string] $Username = "admin",
+  [string] $Password = "admin123",
+  [switch] $SkipLogin,
   [switch] $DryRun
 )
 
@@ -78,12 +78,32 @@ function Invoke-PlatformApi {
     Method = $Method
     Uri = $uri
     Headers = $Headers
+    WebSession = $script:WebSession
   }
   if ($Body -ne $null) {
     $request.ContentType = "application/json"
     $request.Body = ($Body | ConvertTo-Json -Depth 8)
   }
   return Invoke-RestMethod @request
+}
+
+function Invoke-Login {
+  if ($DryRun -or $SkipLogin) {
+    return
+  }
+  if ([string]::IsNullOrWhiteSpace($Username)) {
+    return
+  }
+
+  Write-Section "Authentication"
+  $login = Invoke-PlatformApi -Method POST -Path "/api/auth/login" -Body @{
+    username = $Username
+    password = $Password
+  }
+  Assert-ApiSuccess "Login endpoint returned success" $login
+  if ($login.success -eq $true -and $login.data -ne $null) {
+    Write-Host "user: $($login.data.username), role=$($login.data.role)"
+  }
 }
 
 function Test-ActiveStatus {
@@ -146,10 +166,12 @@ function Wait-For-StableStatus {
 
 $script:NormalizedBaseUrl = Normalize-BaseUrl $BaseUrl
 $script:FailureCount = 0
+$script:WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
 Write-Section "GitLab direct sync diagnostics"
 Write-Host "BaseUrl: $script:NormalizedBaseUrl"
 Write-Host "ConfigId: $ConfigId"
+Invoke-Login
 
 $diagnosticsPath = Build-ConfigPath "/api/gitlab-sync/diagnostics/by-config"
 $diagnostics = Invoke-PlatformApi -Method POST -Path $diagnosticsPath
@@ -365,6 +387,34 @@ if ($StartIncrementalSync) {
     Write-Host "status: $($incremental.data.status)"
     Write-Host "action: $($incremental.data.action)"
     Write-Host "message: $($incremental.data.message)"
+  }
+  Wait-For-StableStatus
+}
+
+if ($StartFullSync) {
+  Write-Section "Manual full sync"
+  $fullPath = Build-ConfigPath "/api/gitlab-sync/full-sync/by-config"
+  $full = Invoke-PlatformApi -Method POST -Path $fullPath
+  Assert-ApiSuccess "Full sync submission returned success" $full
+  if (-not $DryRun) {
+    Write-Host "taskId: $($full.data.taskId)"
+    Write-Host "status: $($full.data.status)"
+    Write-Host "action: $($full.data.action)"
+    Write-Host "message: $($full.data.message)"
+  }
+  Wait-For-StableStatus
+}
+
+if ($RetryFailedSync) {
+  Write-Section "Retry failed sync"
+  $retryPath = Build-ConfigPath "/api/gitlab-sync/retry-failed/by-config"
+  $retry = Invoke-PlatformApi -Method POST -Path $retryPath
+  Assert-ApiSuccess "Retry failed submission returned success" $retry
+  if (-not $DryRun) {
+    Write-Host "accepted: $($retry.data.accepted)"
+    Write-Host "status: $($retry.data.status)"
+    Write-Host "action: $($retry.data.action)"
+    Write-Host "message: $($retry.data.message)"
   }
   Wait-For-StableStatus
 }

@@ -84,7 +84,7 @@ public class SyncRunTableDiagnosticsService {
                state.sync_enabled,
                state.dirty_flag,
                state.dirty_reason,
-               blocking.run_id as blocking_run_id,
+               blocking.external_run_id as blocking_run_id,
                state.last_full_verified_at,
                state.last_success_at,
                state.last_watermark_at,
@@ -104,7 +104,7 @@ public class SyncRunTableDiagnosticsService {
                latest.last_error as latest_task_error
           from sync_run_table_states state
           left join lateral (
-              select task.*, run.run_id
+              select task.*, run.run_id as external_run_id
                 from sync_run_table_tasks task
                 join sync_runs run on run.id = task.run_id
                where task.config_id = state.config_id
