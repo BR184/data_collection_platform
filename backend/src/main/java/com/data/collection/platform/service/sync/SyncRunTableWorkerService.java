@@ -301,7 +301,8 @@ public class SyncRunTableWorkerService {
       }
       List<Map<String, Object>> rows =
           fullTask
-              ? externalDbService.fullTableScan(config, option)
+              ? externalDbService.fullCursorScan(
+                  config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
               : preciseTask
                   ? externalDbService.preciseScan(config, option, task.getLookupColumn(), task.getLookupValue())
                   : externalDbService.incrementalCursorScan(
@@ -318,9 +319,15 @@ public class SyncRunTableWorkerService {
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
-      RowCursor lastCursor = lastCursor(rows, state);
-      boolean hasMore = !fullTask && !preciseTask && rows.size() >= batchSize && lastCursor.updatedAt() != null;
-      markSuccess(task, state, rows.size(), writeResult.appliedRows(), lastCursor, hasMore);
+      RowCursor lastCursor = lastCursor(rows, state, fullTask);
+      boolean hasMore =
+          !preciseTask
+              && rows.size() >= batchSize
+              && (fullTask ? !lastCursor.primaryKey().isBlank() : lastCursor.updatedAt() != null);
+      RowCursor completionCursor = fullTask && !hasMore
+          ? new RowCursor(findFullSyncWatermark(config, option, state), lastCursor.primaryKey())
+          : lastCursor;
+      markSuccess(task, state, rows.size(), writeResult.appliedRows(), completionCursor, hasMore);
       if (hasMore && !isRunCancellationRequested(task.getRunId())) {
         taskMapper.insert(createContinuationTask(task, lastCursor, batchSize));
       }
@@ -423,14 +430,30 @@ public class SyncRunTableWorkerService {
         state.getSourceTable(), state.getSourceTable(), state.getPrimaryKeyColumns(), state.getUpdatedAtColumn(), true);
   }
 
-  private RowCursor lastCursor(List<Map<String, Object>> rows, SyncRunTableState state) {
-    if (rows == null || rows.isEmpty() || state.getUpdatedAtColumn() == null || state.getUpdatedAtColumn().isBlank()) {
+  private RowCursor lastCursor(List<Map<String, Object>> rows, SyncRunTableState state, boolean fullTask) {
+    if (rows == null || rows.isEmpty()) {
       return RowCursor.empty();
     }
     Map<String, Object> row = rows.get(rows.size() - 1);
+    if (fullTask) {
+      return new RowCursor(null, primaryKeySignature(state.getPrimaryKeyColumns(), row));
+    }
+    if (state.getUpdatedAtColumn() == null || state.getUpdatedAtColumn().isBlank()) {
+      return RowCursor.empty();
+    }
     LocalDateTime updatedAt = toLocalDateTime(row.get(state.getUpdatedAtColumn()));
     Object primaryKey = row.get(firstPrimaryKey(state.getPrimaryKeyColumns()));
     return new RowCursor(updatedAt, primaryKey == null ? "" : String.valueOf(primaryKey));
+  }
+
+  private LocalDateTime findFullSyncWatermark(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SyncRunTableState state) {
+    if (state.getUpdatedAtColumn() == null || state.getUpdatedAtColumn().isBlank()) {
+      return null;
+    }
+    return externalDbService.findMaxUpdatedAt(config, option);
   }
 
   private int resolveBatchSize(SyncRunTableTask task) {
@@ -446,6 +469,27 @@ public class SyncRunTableWorkerService {
         .filter(value -> !value.isBlank())
         .findFirst()
         .orElse("id");
+  }
+
+  private String primaryKeySignature(String primaryKeys, Map<String, Object> row) {
+    return primaryKeyColumns(primaryKeys).stream()
+        .map(primaryKey -> {
+          Object value = row.get(primaryKey);
+          return value == null ? "" : String.valueOf(value);
+        })
+        .reduce((left, right) -> left + "\u001F" + right)
+        .orElse("");
+  }
+
+  private List<String> primaryKeyColumns(String primaryKeys) {
+    if (primaryKeys == null || primaryKeys.isBlank()) {
+      return List.of("id");
+    }
+    List<String> columns = List.of(primaryKeys.split(",")).stream()
+        .map(String::trim)
+        .filter(value -> !value.isBlank())
+        .toList();
+    return columns.isEmpty() ? List.of("id") : columns;
   }
 
   private SyncRunTableTask mapTask(ResultSet rs, int rowNum) throws SQLException {

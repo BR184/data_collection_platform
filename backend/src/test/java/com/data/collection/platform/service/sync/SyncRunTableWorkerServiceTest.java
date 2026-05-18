@@ -170,7 +170,7 @@ class SyncRunTableWorkerServiceTest {
   }
 
   @Test
-  void shouldUseFullTableScanForFullSyncTask() {
+  void shouldUsePrimaryKeyCursorScanForFullSyncTask() {
     SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
     task.setTaskType("FULL_SYNC");
     task.setRowStrategy("FULL");
@@ -196,14 +196,25 @@ class SyncRunTableWorkerServiceTest {
     when(configService.getConfigById(1L)).thenReturn(config);
     when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
-    when(externalDbService.fullTableScan(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+    when(externalDbService.fullCursorScan(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq(mirrorSchema),
+            isNull(),
+            eq(500)))
         .thenReturn(rows);
     when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
     assertThat(processed).isEqualTo(1);
-    verify(externalDbService).fullTableScan(eq(config), argThat(option -> "issues".equals(option.tableName())));
+    verify(externalDbService)
+        .fullCursorScan(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq(mirrorSchema),
+            isNull(),
+            eq(500));
     verify(externalDbService, never())
         .incrementalCursorScan(any(), any(), any(), any(), any(), anyInt());
     verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(2L), eq(2L), isNull(), eq(501L));
@@ -215,6 +226,123 @@ class SyncRunTableWorkerServiceTest {
                         && Boolean.FALSE.equals(updated.getDirtyFlag())
                         && updated.getLastWatermarkAt() == null
                         && updated.getLastSuccessAt() != null));
+  }
+
+  @Test
+  void shouldQueueNextFullSyncBatchWhenPrimaryKeyCursorBatchIsFull() {
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("FULL_SYNC");
+    task.setRowStrategy("FULL");
+    task.setBatchSize(2);
+    SyncRunTableState state = state(null);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", true, 2)));
+    List<Map<String, Object>> rows =
+        List.of(
+            Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 17, 10, 1)),
+            Map.of("id", 102L, "updated_at", LocalDateTime.of(2026, 5, 17, 10, 2)));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), eq("table-worker"), eq(30), eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(externalDbService.fullCursorScan(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq(mirrorSchema),
+            isNull(),
+            eq(2)))
+        .thenReturn(rows);
+    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(taskMapper)
+        .insert(
+            argThat(
+                (SyncRunTableTask nextTask) ->
+                    nextTask.getRunId().equals(77L)
+                        && "FULL".equals(nextTask.getRowStrategy())
+                        && "102".equals(nextTask.getCursorPk())
+                        && nextTask.getBatchSize().equals(2)));
+    verify(externalDbService, never()).findMaxUpdatedAt(any(), any());
+    verify(stateMapper)
+        .updateById(
+            argThat(
+                (SyncRunTableState updated) ->
+                    updated.getId().equals(91L)
+                        && Boolean.TRUE.equals(updated.getDirtyFlag())
+                        && updated.getLastWatermarkAt() == null));
+  }
+
+  @Test
+  void shouldSetFullSyncWatermarkAfterFinalPrimaryKeyCursorBatch() {
+    LocalDateTime maxUpdatedAt = LocalDateTime.of(2026, 5, 17, 10, 9);
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("FULL_SYNC");
+    task.setRowStrategy("FULL");
+    task.setCursorPk("100");
+    task.setBatchSize(500);
+    SyncRunTableState state = state(null);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", true, 2)));
+    List<Map<String, Object>> rows =
+        List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 17, 10, 1)));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), eq("table-worker"), eq(30), eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(externalDbService.fullCursorScan(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq(mirrorSchema),
+            eq("100"),
+            eq(500)))
+        .thenReturn(rows);
+    when(externalDbService.findMaxUpdatedAt(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(maxUpdatedAt);
+    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
+    verify(stateMapper)
+        .updateById(
+            argThat(
+                (SyncRunTableState updated) ->
+                    updated.getId().equals(91L)
+                        && Boolean.FALSE.equals(updated.getDirtyFlag())
+                        && maxUpdatedAt.equals(updated.getLastWatermarkAt())
+                        && "101".equals(updated.getLastCursorPk())));
   }
 
   @Test

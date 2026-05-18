@@ -104,6 +104,30 @@ class GitlabExternalDbServiceTest {
   }
 
   @Test
+  void shouldBuildPrimaryKeyCursorSqlForFullScans() {
+    TableWhitelistOption option =
+        new TableWhitelistOption("label_links", "Label links", "label_id,target_id,target_type", null, true);
+    SourceTableSchema schema = new SourceTableSchema(
+        "ods_gitlab_label_links",
+        List.of("label_id", "target_id", "target_type"),
+        null,
+        List.of(
+            new SourceTableColumn("label_id", "bigint", false, 1),
+            new SourceTableColumn("target_id", "bigint", false, 2),
+            new SourceTableColumn("target_type", "text", false, 3)));
+
+    String sql = service.buildFullCursorScanSql(option, schema, "1\u001F101\u001FIssue", 100);
+
+    assertThat(sql)
+        .contains("select cursor_rows.\"label_id\", cursor_rows.\"target_id\", cursor_rows.\"target_type\"")
+        .contains("concat_ws(chr(31), source_rows.\"label_id\"::text, source_rows.\"target_id\"::text, source_rows.\"target_type\"::text) as pk_signature")
+        .contains("from \"public\".\"label_links\" source_rows")
+        .contains("where cursor_rows.pk_signature > '1\u001F101\u001FIssue'")
+        .contains("order by cursor_rows.pk_signature asc")
+        .contains("limit 100");
+  }
+
+  @Test
   void shouldQuoteSourceTableAndTimeColumnForWindowScans() {
     TableWhitelistOption option =
         new TableWhitelistOption("Issue Events", "Issue Events", "id", "Updated At", false);

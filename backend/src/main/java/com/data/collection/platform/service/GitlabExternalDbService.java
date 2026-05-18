@@ -166,6 +166,15 @@ public class GitlabExternalDbService {
     return executeSourceQuery(config, sql);
   }
 
+  public List<Map<String, Object>> fullCursorScan(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String cursorPk,
+      int batchSize) {
+    return executeSourceQuery(config, buildFullCursorScanSql(option, schema, cursorPk, batchSize));
+  }
+
   public List<Map<String, Object>> incrementalScan(GitlabSyncConfig config, TableWhitelistOption option, LocalDateTime since) {
     if (since == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()) {
       return List.of();
@@ -272,6 +281,36 @@ public class GitlabExternalDbService {
 
   String buildFullTableScanSql(TableWhitelistOption option) {
     return "select * from %s".formatted(quoteQualifiedPublicTable(option.tableName()));
+  }
+
+  String buildFullCursorScanSql(
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String cursorPk,
+      int batchSize) {
+    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), "source_rows");
+    String selectColumns = schema.columns().stream()
+        .map(column -> "cursor_rows." + quoteIdentifier(column.columnName()))
+        .collect(java.util.stream.Collectors.joining(", "));
+    String cursorPredicate = cursorPk == null || cursorPk.isBlank()
+        ? ""
+        : " where cursor_rows.pk_signature > " + toSqlLiteral(cursorPk);
+    return """
+        select %s
+          from (
+            select source_rows.*,
+                   %s as pk_signature
+              from %s source_rows
+          ) cursor_rows
+         %s
+         order by cursor_rows.pk_signature asc
+         limit %d
+        """.formatted(
+        selectColumns,
+        pkExpression,
+        quoteQualifiedPublicTable(option.tableName()),
+        cursorPredicate,
+        Math.max(1, batchSize)).strip();
   }
 
   String buildPreciseScanSql(TableWhitelistOption option, String lookupColumn, Object lookupValue) {
