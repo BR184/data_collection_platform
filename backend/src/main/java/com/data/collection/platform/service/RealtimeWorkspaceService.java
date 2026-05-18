@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class RealtimeWorkspaceService {
+  private static final Duration REFRESH_COOLDOWN = Duration.ofSeconds(15);
 
   private final GitlabConfigService configService;
   private final RealtimeWorkspaceService self;
@@ -61,13 +63,14 @@ public class RealtimeWorkspaceService {
       String workspaceKey,
       Supplier<RealtimeWorkspaceRefreshResult> refreshAction) {
     WorkspaceRefreshState state = states.computeIfAbsent(workspaceKey, key -> new WorkspaceRefreshState());
-    if (state.refreshing) {
+    LocalDateTime now = LocalDateTime.now();
+    if (state.refreshing || isCoolingDown(state, now)) {
       return toResponse(workspaceKey, state, resolveLastSyncedAt());
     }
-    LocalDateTime now = LocalDateTime.now();
     state.refreshing = true;
     state.status = "REFRESHING";
     state.message = "Refresh requested";
+    state.lastRefreshAcceptedAt = now;
     state.lastRefreshStartedAt = now;
     state.lastRefreshFinishedAt = null;
     state.jobId = null;
@@ -178,10 +181,16 @@ public class RealtimeWorkspaceService {
     return incremental.isAfter(full) ? incremental : full;
   }
 
+  private boolean isCoolingDown(WorkspaceRefreshState state, LocalDateTime now) {
+    return state.lastRefreshAcceptedAt != null
+        && Duration.between(state.lastRefreshAcceptedAt, now).compareTo(REFRESH_COOLDOWN) < 0;
+  }
+
   private static final class WorkspaceRefreshState {
     private boolean refreshing;
     private String status = "IDLE";
     private String message = "Refresh has not been requested";
+    private LocalDateTime lastRefreshAcceptedAt;
     private LocalDateTime lastRefreshStartedAt;
     private LocalDateTime lastRefreshFinishedAt;
     private Long jobId;

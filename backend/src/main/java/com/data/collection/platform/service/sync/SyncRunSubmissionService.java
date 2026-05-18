@@ -97,13 +97,6 @@ public class SyncRunSubmissionService {
   @Transactional
   public SyncRunSubmissionResult submitFactRefresh(
       GitlabSyncConfig config, Long parentRunId, boolean full, String reason) {
-    SyncRun activeChild = findActiveFactRefresh(parentRunId);
-    if (activeChild != null) {
-      return reusedRun(
-          activeChild,
-          SyncType.COMPENSATION,
-          "Fact refresh is already queued or running for this mirror run");
-    }
     return submitRun(
         config,
         SyncType.COMPENSATION,
@@ -177,6 +170,23 @@ public class SyncRunSubmissionService {
     SyncRun activeRun = findActiveRun(config.getId(), sourceInstance, exclusiveScope);
     if (runType == SyncRunType.FULL_SYNC && activeRun != null && activeRun.getRunType() == SyncRunType.FULL_SYNC) {
       return reusedRun(activeRun, apiType, "当前全量同步正在执行，已复用现有运行单元。");
+    }
+
+    if (runType == SyncRunType.FULL_SYNC) {
+      mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
+    } else if (runType == SyncRunType.FACT_REFRESH && activeRun != null) {
+      return reusedRun(activeRun, apiType, "Fact refresh is already queued or running for this source");
+    } else if (isMirrorRun(runType) && activeRun != null && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
+      if (runType == SyncRunType.TABLE_REFRESH) {
+        recordMergeEvent(activeRun, config, sourceTables, reason, primaryTableName, now);
+      }
+      return new SyncRunSubmissionResult(
+          activeRun.getId(),
+          apiType,
+          policyService.toApiStatus(activeRun),
+          SyncSubmissionAction.DEDUPED,
+          now,
+          "Refresh request was merged into an existing sync run for this source");
     }
 
     if (runType == SyncRunType.TABLE_REFRESH
@@ -256,6 +266,62 @@ public class SyncRunSubmissionService {
     jdbcTemplate.queryForObject("select pg_advisory_xact_lock(hashtext(?))", Object.class, exclusiveScope);
   }
 
+  private void mergeQueuedLowerPriorityMirrorRuns(
+      Long configId,
+      String sourceInstance,
+      String exclusiveScope,
+      LocalDateTime now) {
+    int merged =
+        jdbcTemplate.update(
+            """
+            update sync_runs
+               set status = 'MERGED',
+                   finished_at = coalesce(finished_at, ?),
+                   updated_at = ?,
+                   error_message = 'Merged into a full sync submitted for the same source'
+             where config_id = ?
+               and source_instance = ?
+               and exclusive_scope = ?
+               and status = 'QUEUED'
+               and priority < ?
+               and run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')
+            """,
+            now,
+            now,
+            configId,
+            sourceInstance,
+            exclusiveScope,
+            policyService.priorityOf(SyncRunType.FULL_SYNC));
+    if (merged > 0) {
+      log.info("Merged {} queued lower-priority mirror run(s) into submitted full sync, scope={}", merged, exclusiveScope);
+    }
+  }
+
+  private boolean isMirrorRun(SyncRunType runType) {
+    return runType == SyncRunType.FULL_SYNC
+        || runType == SyncRunType.INCREMENTAL_SYNC
+        || runType == SyncRunType.TABLE_REFRESH
+        || runType == SyncRunType.SYSTEM_HOOK;
+  }
+
+  private boolean shouldReuseMirrorRun(SyncRun activeRun, SyncRunType requestedType, List<String> requestedTables) {
+    if (activeRun == null || activeRun.getRunType() == null) {
+      return false;
+    }
+    if (activeRun.getRunType() == SyncRunType.FULL_SYNC
+        || activeRun.getRunType() == SyncRunType.INCREMENTAL_SYNC
+        || activeRun.getRunType() == SyncRunType.SYSTEM_HOOK) {
+      return true;
+    }
+    if (requestedType == SyncRunType.INCREMENTAL_SYNC || requestedType == SyncRunType.SYSTEM_HOOK) {
+      return true;
+    }
+    if (requestedType != SyncRunType.TABLE_REFRESH || activeRun.getRunType() != SyncRunType.TABLE_REFRESH) {
+      return false;
+    }
+    return normalizeTables(sourceTablesOf(activeRun)).equals(normalizeTables(requestedTables));
+  }
+
   private SyncRun findActiveRun(Long configId, String sourceInstance, String exclusiveScope) {
     List<SyncRun> runs =
         syncRunMapper.selectList(
@@ -263,24 +329,6 @@ public class SyncRunSubmissionService {
                 .eq(SyncRun::getConfigId, configId)
                 .eq(SyncRun::getSourceInstance, sourceInstance)
                 .eq(SyncRun::getExclusiveScope, exclusiveScope)
-                .in(SyncRun::getStatus, ACTIVE_STATUSES)
-                .orderByAsc(SyncRun::getCreatedAt)
-                .last("limit 1"));
-    if (runs == null || runs.isEmpty()) {
-      return null;
-    }
-    return runs.getFirst();
-  }
-
-  private SyncRun findActiveFactRefresh(Long parentRunId) {
-    if (parentRunId == null) {
-      return null;
-    }
-    List<SyncRun> runs =
-        syncRunMapper.selectList(
-            new LambdaQueryWrapper<SyncRun>()
-                .eq(SyncRun::getParentRunId, parentRunId)
-                .eq(SyncRun::getRunType, SyncRunType.FACT_REFRESH)
                 .in(SyncRun::getStatus, ACTIVE_STATUSES)
                 .orderByAsc(SyncRun::getCreatedAt)
                 .last("limit 1"));
@@ -357,6 +405,20 @@ public class SyncRunSubmissionService {
 
   private String generateRunId(SyncRunType runType, String sourceInstance) {
     return "sr_" + runType.name().toLowerCase() + "_" + sourceInstance + "_" + UUID.randomUUID().toString().replace("-", "");
+  }
+
+  private List<String> sourceTablesOf(SyncRun run) {
+    if (run == null || run.getPayloadJson() == null || run.getPayloadJson().isBlank()) {
+      return List.of();
+    }
+    Object rawTables = jsonUtils.toMap(run.getPayloadJson()).get("sourceTables");
+    if (!(rawTables instanceof List<?> tables)) {
+      return List.of();
+    }
+    return tables.stream()
+        .filter(String.class::isInstance)
+        .map(String.class::cast)
+        .toList();
   }
 
   private List<String> normalizeTables(List<String> sourceTables) {
