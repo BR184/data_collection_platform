@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { request } from './request';
+import { isRequestTimeoutError, request } from './request';
 
 describe('request', () => {
   afterEach(() => {
     document.cookie = 'XSRF-TOKEN=; Max-Age=0';
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -46,6 +47,51 @@ describe('request', () => {
     const headers = getFetchHeaders(fetchSpy);
     expect(headers.get('Content-Type')).toBe('text/plain');
     expect(headers.get('X-XSRF-TOKEN')).toBe('caller-token');
+  });
+
+  it('should abort requests after configured timeout', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        });
+      })),
+    );
+
+    const pending = request('/api/slow', { timeoutMs: 1000 });
+    const expectation = expect(pending).rejects.toMatchObject({ name: 'RequestTimeoutError' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expectation;
+  });
+
+  it('should preserve caller abort signal without reporting timeout', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        });
+      })),
+    );
+
+    const pending = request('/api/cancelled', { signal: controller.signal, timeoutMs: 1000 });
+    const expectation = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+
+    await expectation;
+  });
+
+  it('should identify request timeout errors', () => {
+    const error = new Error('timeout');
+    error.name = 'RequestTimeoutError';
+
+    expect(isRequestTimeoutError(error)).toBe(true);
+    expect(isRequestTimeoutError(new Error('other'))).toBe(false);
   });
 });
 

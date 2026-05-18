@@ -71,11 +71,41 @@ const systemTestRepairChartOption = computed(() => buildSystemTestRepairChartOpt
 const pageReady = computed(() => initialized.value);
 const isAdmin = computed(() => authState.currentUser.role === 'ADMIN');
 
+function clearReviewSummaries() {
+  reviewFilters.value = null;
+  demandReviewSummary.value = null;
+  designReviewSummary.value = null;
+}
+
+function clearCodeReviewSummaries() {
+  codeReviewCcOverview.value = null;
+  codeReviewDgmOverview.value = null;
+}
+
+function clearIntegrationSummary() {
+  integrationSummary.value = null;
+}
+
+function clearSystemTestSummary() {
+  systemTestSummaryBoard.value = null;
+}
+
+async function loadSection(sectionName: string, loader: () => Promise<void>) {
+  try {
+    await loader();
+    return true;
+  } catch (error) {
+    console.warn(`${sectionName} 加载失败`, error);
+    return false;
+  }
+}
+
 function pickReviewType(types: ReviewDataFilterOptionsResponse['reviewTypes'] | undefined, keyword: string) {
   return types?.find((item) => item.label.includes(keyword) || item.value.includes(keyword))?.value ?? '';
 }
 
 async function loadReviewSummaries() {
+  clearReviewSummaries();
   reviewFilters.value = await api.getReviewDataFilterOptions();
   const demandType = pickReviewType(reviewFilters.value.reviewTypes, '需求');
   const designType = pickReviewType(reviewFilters.value.reviewTypes, '设计');
@@ -92,6 +122,7 @@ async function loadReviewSummaries() {
 }
 
 async function loadCodeReviewSummaries() {
+  clearCodeReviewSummaries();
   const sourceOptions = await api.getCodeReviewMultiBoardSourceOptions();
   const hasCc = sourceOptions.some((item) => item.value === 'cc');
   const hasDgm = sourceOptions.some((item) => item.value === 'dgm');
@@ -104,6 +135,7 @@ async function loadCodeReviewSummaries() {
 }
 
 async function loadIntegrationSummary() {
+  clearIntegrationSummary();
   const projects = await api.getIntegrationTestProjectOptions();
   const firstProject = projects[0];
   if (!firstProject) {
@@ -123,18 +155,20 @@ async function loadIntegrationSummary() {
 }
 
 async function loadSystemTestSummary() {
+  clearSystemTestSummary();
   systemTestSummaryBoard.value = await api.getStatisticBoard('system-test-defect-summary');
 }
 
 async function loadPage() {
   loading.value = true;
   try {
-    await Promise.all([
-      loadReviewSummaries(),
-      loadCodeReviewSummaries(),
-      loadIntegrationSummary(),
-      loadSystemTestSummary(),
+    const results = await Promise.all([
+      loadSection('评审摘要', loadReviewSummaries),
+      loadSection('代码走查摘要', loadCodeReviewSummaries),
+      loadSection('集成测试摘要', loadIntegrationSummary),
+      loadSection('系统测试摘要', loadSystemTestSummary),
     ]);
+    return results.every(Boolean);
   } finally {
     loading.value = false;
     initialized.value = true;
@@ -142,22 +176,22 @@ async function loadPage() {
 }
 
 async function handleRefresh() {
-  try {
-    await loadPage();
+  const success = await loadPage();
+  if (success) {
     ElMessage.success('研发质量看板已刷新');
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '研发质量看板刷新失败');
+    return;
   }
+  ElMessage.warning('部分看板加载失败，已展示可用数据');
 }
 
 function goTo(path: string) {
   void router.push(path);
 }
 
-void loadPage().catch((error) => {
-  initialized.value = true;
-  loading.value = false;
-  ElMessage.error(error instanceof Error ? error.message : '研发质量看板加载失败');
+void loadPage().then((success) => {
+  if (!success) {
+    ElMessage.warning('部分看板加载失败，已展示可用数据');
+  }
 });
 </script>
 

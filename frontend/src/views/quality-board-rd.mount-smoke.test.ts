@@ -203,4 +203,108 @@ describe('QualityBoardRdView mount smoke', () => {
     wrapper.unmount();
     vi.unstubAllGlobals();
   });
+
+  it('keeps the page usable when one summary section fails', async () => {
+    const fetchSpy = vi.fn((url: string) => {
+      if (url.includes('/api/statistic-boards/system-test-defect-summary')) {
+        return Promise.resolve({
+          ok: false,
+          text: () => Promise.resolve(JSON.stringify({ success: false, message: '系统测试看板超时' })),
+        } as Response);
+      }
+      if (url.includes('/api/review-data/records/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          reviewOwners: [],
+          reviewTypes: [
+            { label: '需求评审', value: '需求评审' },
+            { label: '设计评审', value: '设计评审' },
+          ],
+          reviewExperts: [],
+          problemStatuses: [],
+          reviewCategories: [],
+          problemCategories: [],
+        });
+      }
+      if (url.includes('/api/review-data/records?')) {
+        return jsonResponse({
+          records: [],
+          total: 1,
+          page: 1,
+          size: 1,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+          summary: {
+            totalRecords: 2,
+            totalProblemItems: 4,
+            averageReviewScalePages: 8,
+            averageProblemCount: 2,
+          },
+        });
+      }
+      if (url.includes('/api/code-review/multi-board/source-options')) {
+        return jsonResponse([{ label: 'CC', value: 'cc' }]);
+      }
+      if (url.includes('/api/code-review/multi-board/overview?source=cc')) {
+        return jsonResponse({
+          source: 'cc',
+          sourceLabel: 'CC',
+          mergeRequestCount: 8,
+          completedCount: 6,
+          pendingCount: 2,
+          averageCommentRate: 18,
+          totalDefectCount: 7,
+          totalAddedLines: 320,
+          defectDensityPerKloc: 21.88,
+          averageReviewDurationMinutes: 16,
+          averageAddedLines: 40,
+          moduleRows: [],
+          ownerRows: [],
+        });
+      }
+      if (url.includes('/api/integration-tests/project-options')) {
+        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT' }]);
+      }
+      if (url.includes('/api/integration-tests/phase-options')) {
+        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R1集成测试', recordCount: 3 }]);
+      }
+      if (url.includes('/api/integration-tests/summary')) {
+        return jsonResponse({
+          projectId: 325,
+          testingPhase: 'R1集成测试',
+          moduleCount: 2,
+          totalIssueCount: 3,
+          factRefreshedAt: '2026-04-27T10:00:00',
+          rows: [],
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/quality-board/rd-quality-board', component: QualityBoardRdView, meta: { pageKey: 'quality-board-rd-quality-board' } }],
+    });
+
+    await router.push('/quality-board/rd-quality-board');
+    await router.isReady();
+
+    const wrapper = mount(QualityBoardRdView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('研发质量一屏概览');
+    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(4);
+    expect(warnSpy).toHaveBeenCalledWith('系统测试摘要 加载失败', expect.any(Error));
+
+    wrapper.unmount();
+    warnSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

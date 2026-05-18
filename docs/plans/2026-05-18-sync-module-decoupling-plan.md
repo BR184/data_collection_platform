@@ -176,3 +176,9 @@
   - 已新增迁移 `V20260518_02__disable_incomplete_auto_sync_sources.sql`，自动禁用已经存在的“启用自动同步但连接字段不完整”的数据源，覆盖 `dgm` 这类空密码配置。
   - 已补充回归测试：空读路径不触发 fact rebuild、默认草稿禁用、不完整 DIRECT 源禁止开启自动同步、调度器跳过未就绪源、表任务规划在白名单发现前快速失败。
   - 验证命令：`tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml test "-Dtest=GitlabConfigServiceTest,GitlabCompensationSchedulerTest,GitlabDailyVerificationSchedulerTest,SyncRunTablePlanningServiceTest,CodeReviewIllegalRecordSourceLoaderTest"`；结果 26 个测试通过。
+- 2026-05-18：加载平台慢 P0 前端修复执行记录：
+  - 已为前端统一 `request` 增加默认 15 秒超时、外部 `AbortSignal` 兼容和可识别的 `RequestTimeoutError`，避免弱网下浏览器请求无限等待。
+  - 已将研发质量默认首页改为分区容错加载：评审摘要、代码走查摘要、集成测试摘要、系统测试摘要并行加载，但单一区块失败只清空该区块并记录告警，页面仍进入可交互状态。
+  - 已补充前端回归测试：请求超时自动 abort、调用方主动 abort 不误报超时、首页某个摘要接口失败时仍渲染页面和图表。
+  - 验证命令：`frontend\node_modules\.bin\vitest.cmd run src\api-client\request.test.ts src\views\quality-board-rd.mount-smoke.test.ts`；结果 8 个测试通过。
+  - 验证命令：`frontend\node_modules\.bin\tsc.cmd --noEmit --pretty false`；结果通过。注意当前 PowerShell profile 中全局 `npm` 被重定向到不存在的其他项目 Node 路径，本次验证绕开全局 `npm`，直接使用项目内 `frontend\node_modules\.bin`。
