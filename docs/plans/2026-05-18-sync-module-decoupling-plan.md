@@ -182,3 +182,11 @@
   - 已补充前端回归测试：请求超时自动 abort、调用方主动 abort 不误报超时、首页某个摘要接口失败时仍渲染页面和图表。
   - 验证命令：`frontend\node_modules\.bin\vitest.cmd run src\api-client\request.test.ts src\views\quality-board-rd.mount-smoke.test.ts`；结果 8 个测试通过。
   - 验证命令：`frontend\node_modules\.bin\tsc.cmd --noEmit --pretty false`；结果通过。注意当前 PowerShell profile 中全局 `npm` 被重定向到不存在的其他项目 Node 路径，本次验证绕开全局 `npm`，直接使用项目内 `frontend\node_modules\.bin`。
+- 2026-05-18：加载平台慢闭环补充：
+  - 已为后端交互式数据源连接测试增加快探测保护：`interactive-connection-timeout-seconds` 默认 5 秒，避免“测试连接/诊断前置连接”沿用后台同步 120 秒级读源超时。
+  - 已为数据源连接测试增加短 TTL 失败缓存：`source-failure-cache-seconds` 默认 60 秒，同一物理源最近失败后直接返回上次失败原因，避免同一用户刷新或多用户进入页面时反复打满慢连接。
+  - 已将镜像设置页初始化改为局部容错：加载配置后，健康状态、表级诊断和同步状态分区加载，健康/诊断接口失败不会阻塞页面进入。
+  - 已补充回归测试：连接测试委托、交互式超时、近期失败熔断、镜像设置页诊断接口失败仍可进入页面。
+  - 验证命令：`tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml test "-Dtest=SourceConnectionTesterTest,GitlabMirrorSyncServiceTest"`；结果 10 个测试通过。
+  - 验证命令：`frontend\node_modules\.bin\vitest.cmd run src\views\mirror-settings.mount-smoke.test.ts src\api-client\request.test.ts src\views\quality-board-rd.mount-smoke.test.ts`；结果 10 个测试通过。
+  - 验证命令：`frontend\node_modules\.bin\tsc.cmd --noEmit --pretty false`；结果通过。

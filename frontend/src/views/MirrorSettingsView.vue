@@ -376,12 +376,25 @@ watch(
 async function initializePage() {
   try {
     await loadConfigs();
-    await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
-    await loadStatus(false, false);
+    await Promise.all([
+      loadMirrorSection('数据源健康状态', loadSourceHealth),
+      loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
+      loadMirrorSection('同步状态', () => loadStatus(false, false)),
+    ]);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载 GitLab 数据镜像设置失败');
   } finally {
     initialized.value = true;
   }
   void loadSystemHookRegistration(false);
+}
+
+async function loadMirrorSection(sectionName: string, loader: () => Promise<void>) {
+  try {
+    await loader();
+  } catch (error) {
+    console.warn(`${sectionName} 加载失败`, error);
+  }
 }
 
 async function loadConfigs() {
@@ -496,7 +509,10 @@ async function refreshCurrentStatus() {
     return;
   }
   await refreshStatus();
-  await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
+  await Promise.all([
+    loadMirrorSection('数据源健康状态', loadSourceHealth),
+    loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
+  ]);
 }
 
 function openTableTaskDrawer() {
@@ -518,7 +534,10 @@ async function retryFailedRun() {
     const result = await api.retryFailedSync(selectedConfigId.value);
     showSubmissionFeedback(result);
     await loadStatus(false, false);
-    await Promise.all([loadSourceHealth(), loadTableSyncDiagnostics(false)]);
+    await Promise.all([
+      loadMirrorSection('数据源健康状态', loadSourceHealth),
+      loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
+    ]);
   } catch (error) {
     ElMessage.error((error as Error).message);
   } finally {

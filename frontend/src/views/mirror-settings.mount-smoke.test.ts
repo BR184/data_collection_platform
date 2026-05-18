@@ -221,4 +221,66 @@ describe('MirrorSettingsView mount smoke', () => {
     alertSpy.mockRestore();
     vi.unstubAllGlobals();
   });
+
+  it('enters the settings page when local diagnostics fail during initialization', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/gitlab-sync/configs')) {
+        return jsonResponse([baseConfig()]);
+      }
+      if (url.includes('/api/gitlab-sync/source-health') || url.includes('/api/gitlab-sync/table-sync-diagnostics')) {
+        return Promise.resolve({
+          ok: false,
+          text: () => Promise.resolve(JSON.stringify({ success: false, message: '诊断接口暂不可用' })),
+        } as Response);
+      }
+      if (url.includes('/api/gitlab-sync/status')) {
+        return jsonResponse({
+          config: baseConfig(),
+          currentTask: null,
+          currentStatus: 'IDLE',
+          currentMessage: '',
+          currentStartedAt: null,
+          progress: null,
+          logs: [],
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          systemHookRegistration: null,
+          availableProcessors: 16,
+          resolvedSyncThreads: 2,
+        });
+      }
+      if (url.includes('/api/gitlab-sync/system-hook-registration-status')) {
+        return jsonResponse({
+          supported: false,
+          configured: false,
+          registered: false,
+          projectId: null,
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          message: '未检测',
+          hooks: [],
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const wrapper = mount(MirrorSettingsView, {
+      attachTo: document.body,
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('GitLab 数据镜像设置');
+    expect(wrapper.text()).toContain('GitLab default source');
+    expect(wrapper.text()).toContain('暂无当前数据源诊断信息');
+    expect(warnSpy).toHaveBeenCalledWith('数据源健康状态 加载失败', expect.any(Error));
+
+    wrapper.unmount();
+    warnSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
 });

@@ -22,6 +22,8 @@ public class GitlabMirrorProperties {
   private int externalQueryRetryAttempts = 3;
   private int externalQueryRetryDelayMs = 1000;
   private int externalQueryRetryMaxDelayMs = 30000;
+  private int interactiveConnectionTimeoutSeconds = 5;
+  private int sourceFailureCacheSeconds = 60;
   private int incrementalLookbackMinutes = 5;
   private int maxSyncThreads = 16;
 
@@ -167,6 +169,22 @@ public class GitlabMirrorProperties {
 
   public void setExternalQueryRetryMaxDelayMs(int externalQueryRetryMaxDelayMs) {
     this.externalQueryRetryMaxDelayMs = externalQueryRetryMaxDelayMs;
+  }
+
+  public int getInteractiveConnectionTimeoutSeconds() {
+    return interactiveConnectionTimeoutSeconds;
+  }
+
+  public void setInteractiveConnectionTimeoutSeconds(int interactiveConnectionTimeoutSeconds) {
+    this.interactiveConnectionTimeoutSeconds = interactiveConnectionTimeoutSeconds;
+  }
+
+  public int getSourceFailureCacheSeconds() {
+    return sourceFailureCacheSeconds;
+  }
+
+  public void setSourceFailureCacheSeconds(int sourceFailureCacheSeconds) {
+    this.sourceFailureCacheSeconds = sourceFailureCacheSeconds;
   }
 
   public int getIncrementalLookbackMinutes() {
