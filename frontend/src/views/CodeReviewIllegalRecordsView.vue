@@ -10,6 +10,7 @@ import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordRowResponse,
@@ -76,6 +77,7 @@ const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
 const sourceOptions = ref<OptionItemResponse[]>([]);
+const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
@@ -352,6 +354,7 @@ async function handleOpenRuleExplanation() {
         <div class="record-page-summary">
           <SyncMetaBadge :value="lastSyncedText" />
           <el-button
+            v-if="canRefreshLatestData"
             plain
             :icon="RefreshRight"
             :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"

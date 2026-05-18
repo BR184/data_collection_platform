@@ -103,6 +103,7 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/status")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     MirrorStatusResponse status = statusService.getStatus(config);
@@ -122,16 +123,19 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/configs")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<List<GitlabSyncConfig>> configs() {
     return ApiResponse.success(configService.listConfigs().stream().map(this::sanitizeConfigForResponse).toList());
   }
 
   @GetMapping("/source-health")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<List<GitlabSourceHealthResponse>> sourceHealth() {
     return ApiResponse.success(sourceHealthService.listHealth());
   }
 
   @GetMapping("/table-sync-diagnostics")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> tableSyncDiagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -225,6 +229,7 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/system-hook-registration-status")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<GitlabSystemHookRegistrationStatus> systemHookRegistrationStatus(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
@@ -232,6 +237,7 @@ public class GitlabSyncController {
   }
 
   @GetMapping("/whitelist-options")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<List<TableWhitelistOption>> whitelistOptions(
       @RequestParam(value = "configId", required = false) Long configId) {
     return ApiResponse.success(whitelistService.listOptions(resolveConfig(configId)));

@@ -95,6 +95,7 @@ public class ReviewDataController {
   }
 
   @PostMapping("/records/gitlab-context/refresh")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataGitlabContextRefreshResponse> refreshGitlabContext(
       @RequestBody(required = false) ReviewDataGitlabContextRefreshRequest request) {
     return ApiResponse.success(

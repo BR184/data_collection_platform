@@ -123,6 +123,8 @@ export const modules: ShellModule[] = [
         label: '评审数据管理',
         description: '展示评审主记录、评审专家以及问题清单明细。',
         path: '/review-data/home',
+        requiresLogin: true,
+        hiddenForApproval: true,
       },
     ],
   },

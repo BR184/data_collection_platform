@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import type {
   CodeReviewMultiBoardOverviewResponse,
   IntegrationTestSummaryResponse,
@@ -68,6 +69,7 @@ const integrationPassChartOption = computed(() => buildIntegrationPassChartOptio
 const systemTestRepairChartOption = computed(() => buildSystemTestRepairChartOption(systemTestSummaryBoard.value));
 
 const pageReady = computed(() => initialized.value);
+const isAdmin = computed(() => authState.currentUser.role === 'ADMIN');
 
 function pickReviewType(types: ReviewDataFilterOptionsResponse['reviewTypes'] | undefined, keyword: string) {
   return types?.find((item) => item.label.includes(keyword) || item.value.includes(keyword))?.value ?? '';
@@ -185,7 +187,7 @@ void loadPage().catch((error) => {
               <h3>评审密度对比</h3>
               <p>先看需求评审和设计评审的密度区间是否失衡。</p>
             </div>
-            <el-link underline="never" type="primary" @click="goTo('/review-data/home')">评审数据管理</el-link>
+            <el-link v-if="isAdmin" underline="never" type="primary" @click="goTo('/review-data/home')">评审数据管理</el-link>
           </div>
           <EChartPanel :option="reviewDensityChartOption" :loading="loading" :height="320" />
         </article>
@@ -196,7 +198,7 @@ void loadPage().catch((error) => {
               <h3>代码走查密度</h3>
               <p>用统一量纲比较 CC 与 DGM 两类代码源的整体风险密度。</p>
             </div>
-            <el-link underline="never" type="primary" @click="goTo('/code-review/multi-board')">代码走查看板</el-link>
+            <el-link v-if="isAdmin" underline="never" type="primary" @click="goTo('/code-review/multi-board')">代码走查看板</el-link>
           </div>
           <EChartPanel :option="codeReviewDensityChartOption" :loading="loading" :height="320" />
         </article>

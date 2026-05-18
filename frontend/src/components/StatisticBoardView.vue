@@ -10,6 +10,7 @@ import StatisticBoardDetailDialog from './StatisticBoardDetailDialog.vue';
 import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanationDrawer.vue';
 import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import {
   type StatisticBoardResponse,
 } from '../types/api';
@@ -58,6 +59,7 @@ const props = withDefaults(
 
 const route = useRoute();
 const router = useRouter();
+const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -336,6 +338,7 @@ watch(
           :last-synced-text="lastSyncedText"
           :rule-explanation-loading="ruleExplanationLoading"
           :realtime-status="syncStatus"
+          :can-refresh-realtime="canRefreshRealtime"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"
           @reset-filters="resetFilters"

@@ -9,18 +9,23 @@ describe('feature manifest access rules', () => {
   it('keeps guest users on query-oriented pages and hides login-only pages', () => {
     expect(canAccessPageKey('quality-board-rd-quality-board', guest)).toBe(true);
     expect(canAccessPageKey('question-metrics-illegal-records', guest)).toBe(true);
+    expect(canAccessPageKey('review-data-home', guest)).toBe(false);
     expect(canAccessPageKey('quality-board-other-board', guest)).toBe(false);
+    expect(canAccessPageKey('database-browser', guest)).toBe(false);
     expect(canAccessPageKey('testing-phase-definition', guest)).toBe(false);
   });
 
   it('lets admins see system settings and login-only charts', () => {
+    expect(canAccessPageKey('review-data-home', admin)).toBe(true);
     expect(canAccessPageKey('quality-board-other-board', admin)).toBe(true);
     expect(canAccessPageKey('code-review-multi-board', admin)).toBe(true);
+    expect(canAccessPageKey('database-browser', admin)).toBe(true);
     expect(canAccessPageKey('testing-phase-definition', admin)).toBe(true);
   });
 
   it('hides approval-restricted management pages from approval users', () => {
     expect(canAccessPageKey('quality-board-other-board', approval)).toBe(true);
+    expect(canAccessPageKey('review-data-home', approval)).toBe(false);
     expect(canAccessPageKey('code-review-illegal-records', approval)).toBe(false);
     expect(canAccessPageKey('question-metrics-home', approval)).toBe(false);
     expect(canAccessPageKey('customer-issues-cc-product-issues', approval)).toBe(false);

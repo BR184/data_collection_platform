@@ -1,9 +1,11 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CollectFormEditContext;
 import com.data.collection.platform.entity.CollectFormDetailResponse;
 import com.data.collection.platform.entity.CollectFormNotificationPayloadResponse;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CollectFormService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -91,6 +93,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/update-record")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<CollectFormDetailResponse> updateRecord(
       @Valid @RequestBody UpdateRecordRequest request,
       HttpServletRequest servletRequest) {

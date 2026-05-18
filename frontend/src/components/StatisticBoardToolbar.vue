@@ -15,11 +15,13 @@ const props = withDefaults(
     lastSyncedText: string;
     ruleExplanationLoading: boolean;
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
+    canRefreshRealtime?: boolean;
     uiHooks?: StatisticBoardUiHooks;
   }>(),
   {
     boardTitle: '',
     realtimeStatus: null,
+    canRefreshRealtime: true,
     uiHooks: () => ({}),
   },
 );
@@ -103,7 +105,7 @@ function formatStageStatus(label: string, status?: string | null) {
       </div>
       <el-button type="primary" :icon="Search" @click="emit('applyFilters')">查询</el-button>
       <el-button @click="emit('resetFilters')">重置</el-button>
-      <el-button :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
+      <el-button v-if="canRefreshRealtime" :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
       <el-button
         plain
         :icon="InfoFilled"

@@ -90,6 +90,7 @@ public class CodeReviewController {
   }
 
   @PostMapping("/illegal-records/refresh")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success("已开始刷新最新数据", codeReviewIllegalRecordService.requestRealtimeRefresh());
   }

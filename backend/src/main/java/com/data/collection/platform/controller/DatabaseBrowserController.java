@@ -1,8 +1,10 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.database.DatabaseTableOption;
 import com.data.collection.platform.entity.database.DatabaseTableRowsResponse;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.DatabaseBrowserService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import jakarta.validation.constraints.NotBlank;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/database-browser")
+@RequireRole(AuthRole.ADMIN)
 public class DatabaseBrowserController {
 
   private final DatabaseBrowserService databaseBrowserService;

@@ -67,6 +67,7 @@ public class FactBuildController {
   }
 
   @GetMapping("/build-tasks/latest")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<FactBuildTaskResponse> getLatestBuildTask(
       @RequestParam(required = false) String scope) {
     FactBuildTaskResponse response = factBuildTaskService.latest(scope);
@@ -74,12 +75,14 @@ public class FactBuildController {
   }
 
   @GetMapping("/issue-diagnostics")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<IssueFactDiagnosticsResponse> getIssueDiagnostics() {
     IssueFactDiagnosticsResponse response = issueFactDiagnosticsService.getDiagnostics();
     return ApiResponse.success("Issue Fact 验收诊断已生成", response);
   }
 
   @GetMapping("/issue-source-readiness")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<IssueSourceReadinessResponse> getIssueSourceReadiness() {
     IssueSourceReadinessResponse response = issueSourceReadinessService.getReadiness();
     return ApiResponse.success("Issue 源数据就绪度诊断已生成", response);

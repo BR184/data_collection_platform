@@ -95,3 +95,47 @@ Default cooldown: 15 seconds.
 ## Known Non-Code Environment Issue
 
 Local config `dgm` is enabled with an empty GitLab DB password. Its scheduled compensation runs fail independently of this dedup work. It should be fixed or disabled separately to keep health logs clean.
+
+## Permission Boundary Follow-Up
+
+### Context
+
+The sync refresh dedup work reduced duplicate jobs, but it does not decide who is allowed to view source data or trigger expensive refreshes. The external source table area is still incomplete and must be treated as an administrator-only capability until a dedicated product design is finished.
+
+### Permission Model
+
+| Capability | Guest | Approval | Admin |
+| --- | --- | --- | --- |
+| Public aggregate dashboards | Read-only | Read-only | Read-only |
+| Login-only aggregate dashboards | No access | Read-only when not approval-hidden | Read-only |
+| Review data records | Temporary read for aggregate reuse | No write access | Read/write |
+| GitLab source health, whitelist, diagnostics, configs | No access | No access | Read/write where applicable |
+| Database browser, mirror/source table rows | No access | No access | Read/refresh |
+| Manual sync, refresh, rebuild, cancel, purge | No access | No access | Execute |
+| External collection form | Signed external capability only | Not applicable | Manage |
+
+### Implementation Rules
+
+1. Backend authorization is the source of truth. Frontend menu hiding is only user experience.
+2. Source tables, mirror tables, database browser, GitLab sync configuration, source health, diagnostics, whitelist options, and manual refresh endpoints require `ADMIN`.
+3. Review data writes and GitLab-context refresh are administrator-only. Record reads remain temporarily available because the quality dashboard still reuses them for aggregate metrics; a dedicated public summary API should replace that dependency.
+4. Public dashboards may stay guest-readable only when they return aggregate or curated fact data, not raw source rows or operational metadata.
+5. External collection forms must not be modeled as generic guest writes. They need a signed, scoped, expiring link before broader external use.
+
+### Execution Checklist
+
+- [x] Protect backend source-table and sync-operation endpoints with `@RequireRole(AuthRole.ADMIN)`.
+- [x] Align frontend page visibility so guest and approval users cannot navigate into administrator-only source data pages.
+- [x] Add focused authorization tests for guest, approval, and admin access expectations.
+- [ ] Leave signed external form capability as a follow-up design unless required by the current release.
+- [ ] Add a follow-up task to split quality-dashboard public summaries away from raw review-data list APIs.
+
+### Verification Results
+
+- Backend targeted authorization tests passed with project-local Maven:
+  `tools/maven/apache-maven-3.9.9/bin/mvn.cmd -q "-Dtest=EndpointAuthorizationContractTest,PlatformAuthorizationInterceptorTest" test`
+- Frontend targeted access tests passed:
+  `npm.cmd test -- feature-manifest-access.test.ts StatisticBoardToolbar.test.ts`
+- Frontend typecheck and production build passed:
+  `npm.cmd run typecheck`
+  `npm.cmd run build`

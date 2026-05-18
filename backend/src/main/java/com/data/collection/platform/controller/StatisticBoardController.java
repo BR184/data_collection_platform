@@ -1,12 +1,14 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.service.statistics.RuleExplainableStatisticBoardSupport;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.statistics.RealtimeStatisticBoardSupport;
 import com.data.collection.platform.service.statistics.StatisticBoardRegistry;
@@ -103,6 +105,7 @@ public class StatisticBoardController {
   }
 
   @PostMapping("/{boardKey}/refresh")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshBoardRealtimeData(
       @PathVariable @NotBlank String boardKey) {
     var service = registry.getRequired(boardKey);
