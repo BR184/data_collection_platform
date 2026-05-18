@@ -68,6 +68,8 @@ class GitlabSystemHookServiceTest {
     systemHookService.accept("Issue Hook", payload, "secret");
 
     verify(systemHookEventMapper).insert(org.mockito.ArgumentMatchers.<GitlabSystemHookEvent>any());
+    verify(systemHookEventMapper)
+        .updateById(argThat((GitlabSystemHookEvent event) -> event.isProcessed()));
     verify(hookEventMapper).insert(org.mockito.ArgumentMatchers.<GitlabHookEvent>any());
     verify(asyncDispatchService).accept(eq(config), eq("Issue Hook"), eq(payload));
   }
@@ -126,6 +128,8 @@ class GitlabSystemHookServiceTest {
     verify(hookEventMapper, never()).insert(org.mockito.ArgumentMatchers.<GitlabHookEvent>any());
     verify(hookEventMapper).updateById(argThat((GitlabHookEvent event) ->
         "COALESCED".equals(event.getStatus()) && Integer.valueOf(2).equals(event.getCoalescedCount())));
+    verify(systemHookEventMapper)
+        .updateById(argThat((GitlabSystemHookEvent event) -> event.isProcessed()));
     verify(asyncDispatchService, never()).accept(eq(config), eq("Issue Hook"), eq(payload));
   }
 }

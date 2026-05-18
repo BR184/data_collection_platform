@@ -84,6 +84,7 @@ public class GitlabSystemHookService {
           config.getId(),
           coalescedEvent.getDedupeKey(),
           coalescedEvent.getCoalescedCount());
+      markSystemHookEventProcessed(event);
       return;
     }
 
@@ -92,12 +93,18 @@ public class GitlabSystemHookService {
       asyncDispatchService.accept(config, effectiveEventType, payload);
       hookEvent.setProcessedAt(LocalDateTime.now());
       hookEventMapper.updateById(hookEvent);
+      markSystemHookEventProcessed(event);
     } catch (RuntimeException e) {
       hookEvent.setStatus("ERROR");
       hookEvent.setProcessedAt(LocalDateTime.now());
       hookEventMapper.updateById(hookEvent);
       throw e;
     }
+  }
+
+  private void markSystemHookEventProcessed(GitlabSystemHookEvent event) {
+    event.setProcessed(true);
+    systemHookEventMapper.updateById(event);
   }
 
   private GitlabHookEvent coalesceRecentHookEvent(GitlabHookEvent incomingEvent) {
