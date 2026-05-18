@@ -83,6 +83,12 @@ public class SyncRunTableWorkerService {
         """
         select count(*) as planned_tasks,
                count(*) filter (where status in ('SUCCESS', 'PARTIAL_SUCCESS')) as completed_tasks,
+               count(*) filter (where status = 'FAILED') as failed_tasks,
+               count(*) filter (where status = 'TIMEOUT') as timed_out_tasks,
+               count(*) filter (where status = 'CANCELLED') as cancelled_tasks,
+               count(*) filter (where status = 'QUEUED') as pending_tasks,
+               count(*) filter (where status = 'RUNNING') as running_tasks,
+               count(*) filter (where status = 'RETRYING') as retrying_tasks,
                coalesce(sum(rows_scanned), 0) as scanned_rows,
                coalesce(sum(rows_applied), 0) as applied_rows
           from sync_run_table_tasks
@@ -93,8 +99,51 @@ public class SyncRunTableWorkerService {
                 rs.getInt("planned_tasks"),
                 rs.getInt("completed_tasks"),
                 rs.getLong("scanned_rows"),
-                rs.getLong("applied_rows")),
+                rs.getLong("applied_rows"),
+                rs.getInt("failed_tasks"),
+                rs.getInt("timed_out_tasks"),
+                rs.getInt("cancelled_tasks"),
+                rs.getInt("pending_tasks"),
+                rs.getInt("running_tasks"),
+                rs.getInt("retrying_tasks")),
         runId);
+  }
+
+  public int recoverTimedOutTasks() {
+    int retried =
+        jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = 'QUEUED',
+                   retry_count = retry_count + 1,
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   last_error = 'Table task lease timed out; retry queued',
+                   run_after = current_timestamp,
+                   updated_at = current_timestamp
+             where status = 'RUNNING'
+               and lease_until is not null
+               and lease_until < current_timestamp
+               and retry_count < max_retry_count
+            """);
+    int timedOut =
+        jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = 'TIMEOUT',
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   last_error = 'Table task lease timed out',
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where status = 'RUNNING'
+               and lease_until is not null
+               and lease_until < current_timestamp
+               and retry_count >= max_retry_count
+            """);
+    return retried + timedOut;
   }
 
   public boolean isRunCancellationRequested(Long runId) {
@@ -187,26 +236,50 @@ public class SyncRunTableWorkerService {
       if (state == null) {
         throw new IllegalStateException("Table sync state is missing");
       }
-      if (!Boolean.TRUE.equals(state.getSyncEnabled()) || !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
-        throw new IllegalStateException("Table task is not executable by incremental worker");
+      if (!Boolean.TRUE.equals(state.getSyncEnabled())) {
+        throw new IllegalStateException("Table sync state is disabled");
       }
       GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
       TableWhitelistOption option = tableOption(state);
       GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
           mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
       mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+      if (isRunCancellationRequested(task.getRunId())) {
+        finishTask(task.getId(), 0L, 0L, "CANCELLED", "Sync run cancelled");
+        mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+        return;
+      }
 
       int batchSize = resolveBatchSize(task);
       LocalDateTime scanStart = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
+      boolean fullTask = "FULL".equalsIgnoreCase(task.getRowStrategy());
+      boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
+      if (!fullTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
+        throw new IllegalStateException("Table task is not executable by incremental worker");
+      }
       List<Map<String, Object>> rows =
-          externalDbService.incrementalCursorScan(
-              config, option, scanStart, task.getCursorUpdatedAt(), task.getCursorPk(), batchSize);
+          fullTask
+              ? externalDbService.fullTableScan(config, option)
+              : preciseTask
+                  ? externalDbService.preciseScan(config, option, task.getLookupColumn(), task.getLookupValue())
+                  : externalDbService.incrementalCursorScan(
+                      config, option, scanStart, task.getCursorUpdatedAt(), task.getCursorPk(), batchSize);
+      if (isRunCancellationRequested(task.getRunId())) {
+        finishTask(task.getId(), 0L, 0L, "CANCELLED", "Sync run cancelled");
+        mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+        return;
+      }
       MirrorBatchWriteResult writeResult =
           storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+      if (isRunCancellationRequested(task.getRunId())) {
+        finishTask(task.getId(), (long) rows.size(), (long) writeResult.appliedRows(), "CANCELLED", "Sync run cancelled");
+        mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+        return;
+      }
       RowCursor lastCursor = lastCursor(rows, state);
-      boolean hasMore = rows.size() >= batchSize && lastCursor.updatedAt() != null;
+      boolean hasMore = !fullTask && !preciseTask && rows.size() >= batchSize && lastCursor.updatedAt() != null;
       markSuccess(task, state, rows.size(), writeResult.appliedRows(), lastCursor, hasMore);
-      if (hasMore) {
+      if (hasMore && !isRunCancellationRequested(task.getRunId())) {
         taskMapper.insert(createContinuationTask(task, lastCursor, batchSize));
       }
       mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
@@ -290,6 +363,8 @@ public class SyncRunTableWorkerService {
     task.setWatermarkAt(previousTask.getWatermarkAt());
     task.setCursorUpdatedAt(cursor.updatedAt());
     task.setCursorPk(cursor.primaryKey());
+    task.setLookupColumn(previousTask.getLookupColumn());
+    task.setLookupValue(previousTask.getLookupValue());
     task.setBatchSize(batchSize);
     task.setRunAfter(now);
     task.setRetryCount(0);
@@ -346,6 +421,8 @@ public class SyncRunTableWorkerService {
     task.setWatermarkAt(toDateTime(rs.getTimestamp("watermark_at")));
     task.setCursorUpdatedAt(toDateTime(rs.getTimestamp("cursor_updated_at")));
     task.setCursorPk(rs.getString("cursor_pk"));
+    task.setLookupColumn(rs.getString("lookup_column"));
+    task.setLookupValue(rs.getString("lookup_value"));
     task.setBatchSize(rs.getInt("batch_size"));
     task.setRunAfter(toDateTime(rs.getTimestamp("run_after")));
     task.setLeaseOwner(rs.getString("lease_owner"));
@@ -383,7 +460,20 @@ public class SyncRunTableWorkerService {
     return null;
   }
 
-  public record RunTableTaskSummary(int plannedTasks, int completedTasks, long scannedRows, long appliedRows) {
+  public record RunTableTaskSummary(
+      int plannedTasks,
+      int completedTasks,
+      long scannedRows,
+      long appliedRows,
+      int failedTasks,
+      int timedOutTasks,
+      int cancelledTasks,
+      int pendingTasks,
+      int runningTasks,
+      int retryingTasks) {
+    public RunTableTaskSummary(int plannedTasks, int completedTasks, long scannedRows, long appliedRows) {
+      this(plannedTasks, completedTasks, scannedRows, appliedRows, 0, 0, 0, 0, 0, 0);
+    }
   }
 
   private record RowCursor(LocalDateTime updatedAt, String primaryKey) {

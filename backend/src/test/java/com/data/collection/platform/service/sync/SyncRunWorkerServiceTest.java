@@ -18,9 +18,11 @@ import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 
 class SyncRunWorkerServiceTest {
   private SyncRunMapper syncRunMapper;
@@ -102,6 +104,34 @@ class SyncRunWorkerServiceTest {
     assertThat(run.getCompletedTableCount()).isEqualTo(2);
     assertThat(run.getScannedRows()).isEqualTo(7L);
     assertThat(run.getAppliedRows()).isEqualTo(5L);
+  }
+
+  @Test
+  void shouldMarkMirrorRunPartialSuccessWhenAnyTableTaskFailed() {
+    SyncRun run = run(15L, SyncRunType.INCREMENTAL_SYNC);
+    when(tablePlanningService.planRunTables(15L)).thenReturn(3);
+    when(tableWorkerService.drainRunTasks(15L)).thenReturn(2);
+    when(tableWorkerService.summarizeRun(15L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 2, 7L, 5L, 1, 0, 0, 0, 0, 0));
+
+    workerService.executeRun(run);
+
+    verify(configService).updateSyncTime(1L, false);
+    verify(submissionService, org.mockito.Mockito.never())
+        .submitFactRefresh(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyBoolean(),
+            org.mockito.ArgumentMatchers.any());
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
+    assertThat(run.getErrorMessage()).isEqualTo("One or more table tasks failed");
+  }
+
+  @Test
+  void shouldNotWrapWholeRunExecutionInSingleTransaction() throws Exception {
+    Method executeRun = SyncRunWorkerService.class.getMethod("executeRun", SyncRun.class);
+
+    assertThat(executeRun.isAnnotationPresent(Transactional.class)).isFalse();
   }
 
   @Test

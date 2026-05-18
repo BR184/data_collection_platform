@@ -2,6 +2,7 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -127,6 +128,141 @@ class SyncRunTableWorkerServiceTest {
   }
 
   @Test
+  void shouldCancelClaimedTaskAfterSourceScanBeforeMirrorWrite() {
+    LocalDateTime watermark = LocalDateTime.of(2026, 5, 17, 10, 0);
+    SyncRunTableTask task = task(watermark);
+    SyncRunTableState state = state(watermark);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(new SourceTableColumn("id", "bigint", false, 1)));
+    List<Map<String, Object>> rows =
+        List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 17, 10, 1)));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, true, true);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), eq("table-worker"), eq(30), eq(77L)))
+        .thenReturn(task);
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(externalDbService.incrementalCursorScan(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq(watermark),
+            isNull(),
+            isNull(),
+            eq(500)))
+        .thenReturn(rows);
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(storageService, never()).upsertBatch(any(), any(), any());
+    verify(jdbcTemplate)
+        .update(contains("set status = ?"), eq("CANCELLED"), eq(0L), eq(0L), eq("Sync run cancelled"), eq(501L));
+  }
+
+  @Test
+  void shouldUseFullTableScanForFullSyncTask() {
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("FULL_SYNC");
+    task.setRowStrategy("FULL");
+    SyncRunTableState state = state(null);
+    state.setUpdatedAtColumn("");
+    state.setRowStrategy("FULL_ONLY");
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "",
+            List.of(new SourceTableColumn("id", "bigint", false, 1)));
+    List<Map<String, Object>> rows = List.of(Map.of("id", 101L), Map.of("id", 102L));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), eq("table-worker"), eq(30), eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(externalDbService.fullTableScan(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(rows);
+    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(externalDbService).fullTableScan(eq(config), argThat(option -> "issues".equals(option.tableName())));
+    verify(externalDbService, never())
+        .incrementalCursorScan(any(), any(), any(), any(), any(), anyInt());
+    verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(2L), eq(2L), isNull(), eq(501L));
+    verify(stateMapper)
+        .updateById(
+            argThat(
+                (SyncRunTableState updated) ->
+                    updated.getId().equals(91L)
+                        && Boolean.FALSE.equals(updated.getDirtyFlag())
+                        && updated.getLastWatermarkAt() == null
+                        && updated.getLastSuccessAt() != null));
+  }
+
+  @Test
+  void shouldUsePreciseScanForSystemHookTask() {
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("SYSTEM_HOOK");
+    task.setRowStrategy("PRECISE");
+    task.setLookupColumn("issue_id");
+    task.setLookupValue("101");
+    SyncRunTableState state = state(null);
+    state.setSourceTable("issue_assignees");
+    state.setPrimaryKeyColumns("issue_id,user_id");
+    state.setUpdatedAtColumn("");
+    state.setRowStrategy("FULL_ONLY");
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issue_assignees",
+            List.of("issue_id", "user_id"),
+            "",
+            List.of(new SourceTableColumn("issue_id", "bigint", false, 1)));
+    List<Map<String, Object>> rows = List.of(Map.of("issue_id", 101L, "user_id", 7L));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), eq("table-worker"), eq(30), eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issue_assignees".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issue_assignees", true, null));
+    when(externalDbService.preciseScan(
+            eq(config),
+            argThat(option -> "issue_assignees".equals(option.tableName())),
+            eq("issue_id"),
+            eq("101")))
+        .thenReturn(rows);
+    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(externalDbService).preciseScan(eq(config), argThat(option -> "issue_assignees".equals(option.tableName())), eq("issue_id"), eq("101"));
+    verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(1L), eq(1L), isNull(), eq(501L));
+  }
+
+  @Test
   void shouldStopBeforeClaimingNextTableWhenRunIsCancelling() {
     when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(44L)))
         .thenReturn(true);
@@ -145,6 +281,16 @@ class SyncRunTableWorkerServiceTest {
         .thenThrow(new EmptyResultDataAccessException(1));
 
     assertThat(workerService.isRunCancellationRequested(99L)).isFalse();
+  }
+
+  @Test
+  void shouldRecoverTimedOutRunningTasks() {
+    when(jdbcTemplate.update(contains("retry_count = retry_count + 1"))).thenReturn(2);
+    when(jdbcTemplate.update(contains("set status = 'TIMEOUT'"))).thenReturn(1);
+
+    int recovered = workerService.recoverTimedOutTasks();
+
+    assertThat(recovered).isEqualTo(3);
   }
 
   private SyncRunTableTask task(LocalDateTime watermark) {

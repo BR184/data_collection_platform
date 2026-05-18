@@ -51,6 +51,12 @@ public class SyncRunTableTask {
   @TableField("cursor_pk")
   private String cursorPk;
 
+  @TableField("lookup_column")
+  private String lookupColumn;
+
+  @TableField("lookup_value")
+  private String lookupValue;
+
   @TableField("batch_size")
   private Integer batchSize;
 

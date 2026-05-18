@@ -13,7 +13,6 @@ import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Slf4j
@@ -43,7 +42,6 @@ public class SyncRunWorkerService {
     this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
   }
 
-  @Transactional
   public void executeRun(SyncRun run) {
     if (run == null || run.getId() == null) {
       return;
@@ -85,7 +83,8 @@ public class SyncRunWorkerService {
       finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), "Sync run cancelled");
       return;
     }
-    finishRun(run, SyncRunStatus.SUCCESS, planned, summary.completedTasks(), null);
+    SyncRunStatus status = tableRunStatus(summary);
+    finishRun(run, status, planned, summary.completedTasks(), tableRunErrorMessage(status, summary));
   }
 
   private void executeFactRefreshRun(SyncRun run) {
@@ -145,6 +144,9 @@ public class SyncRunWorkerService {
     if (!isMirrorRun(run)) {
       return;
     }
+    if (run.getStatus() != SyncRunStatus.SUCCESS && run.getStatus() != SyncRunStatus.PARTIAL_SUCCESS) {
+      return;
+    }
     boolean fullSync = run.getRunType() == SyncRunType.FULL_SYNC;
     configService.updateSyncTime(run.getConfigId(), fullSync);
   }
@@ -172,6 +174,36 @@ public class SyncRunWorkerService {
 
   private long appliedRows(SyncRun run) {
     return run.getAppliedRows() == null ? 0L : run.getAppliedRows();
+  }
+
+  private SyncRunStatus tableRunStatus(SyncRunTableWorkerService.RunTableTaskSummary summary) {
+    if (summary.failedTasks() > 0 || summary.timedOutTasks() > 0) {
+      return summary.completedTasks() > 0 || summary.appliedRows() > 0L
+          ? SyncRunStatus.PARTIAL_SUCCESS
+          : SyncRunStatus.FAILED;
+    }
+    if (summary.cancelledTasks() > 0) {
+      return SyncRunStatus.CANCELLED;
+    }
+    if (summary.pendingTasks() > 0 || summary.runningTasks() > 0 || summary.retryingTasks() > 0) {
+      return summary.completedTasks() > 0 ? SyncRunStatus.PARTIAL_SUCCESS : SyncRunStatus.FAILED;
+    }
+    return SyncRunStatus.SUCCESS;
+  }
+
+  private String tableRunErrorMessage(
+      SyncRunStatus status,
+      SyncRunTableWorkerService.RunTableTaskSummary summary) {
+    if (status == SyncRunStatus.SUCCESS) {
+      return null;
+    }
+    if (summary.failedTasks() > 0 || summary.timedOutTasks() > 0) {
+      return "One or more table tasks failed";
+    }
+    if (summary.cancelledTasks() > 0) {
+      return "Sync run cancelled";
+    }
+    return "One or more table tasks did not complete";
   }
 
   private boolean factRefreshFullBuild(SyncRun run) {

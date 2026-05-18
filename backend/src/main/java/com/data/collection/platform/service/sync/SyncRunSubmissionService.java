@@ -137,8 +137,37 @@ public class SyncRunSubmissionService {
       String reason,
       List<String> sourceTables,
       String primaryTableName,
+      Map<String, Object> extraPayload) {
+    return submitRun(config, apiType, runType, triggerType, reason, sourceTables, primaryTableName, null, null, extraPayload);
+  }
+
+  @Transactional
+  public SyncRunSubmissionResult submitRun(
+      GitlabSyncConfig config,
+      SyncType apiType,
+      SyncRunType runType,
+      SyncTriggerType triggerType,
+      String reason,
+      List<String> sourceTables,
+      String primaryTableName,
       Long parentRunId,
       Boolean fullBuild) {
+    return submitRun(
+        config, apiType, runType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild, null);
+  }
+
+  @Transactional
+  public SyncRunSubmissionResult submitRun(
+      GitlabSyncConfig config,
+      SyncType apiType,
+      SyncRunType runType,
+      SyncTriggerType triggerType,
+      String reason,
+      List<String> sourceTables,
+      String primaryTableName,
+      Long parentRunId,
+      Boolean fullBuild,
+      Map<String, Object> extraPayload) {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String exclusiveScope = policyService.exclusiveScopeOf(config, runType);
     LocalDateTime now = LocalDateTime.now();
@@ -175,7 +204,7 @@ public class SyncRunSubmissionService {
     run.setSubmittedBy(null);
     run.setRequestReason(reason);
     run.setPayloadJson(
-        buildPayloadJson(apiType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild));
+        buildPayloadJson(apiType, triggerType, reason, sourceTables, primaryTableName, parentRunId, fullBuild, extraPayload));
     run.setThreadMode(threadBudgetResolver.effectiveMode(config));
     run.setThreadValue(threadBudgetResolver.effectiveValue(config));
     run.setPlannedTableCount(sourceTables.size());
@@ -286,7 +315,8 @@ public class SyncRunSubmissionService {
       List<String> sourceTables,
       String primaryTableName,
       Long parentRunId,
-      Boolean fullBuild) {
+      Boolean fullBuild,
+      Map<String, Object> extraPayload) {
     Map<String, Object> payload = new java.util.LinkedHashMap<>();
     payload.put("syncType", apiType.name());
     if (triggerType != null) {
@@ -304,6 +334,9 @@ public class SyncRunSubmissionService {
     }
     if (fullBuild != null) {
       payload.put("fullBuild", fullBuild);
+    }
+    if (extraPayload != null && !extraPayload.isEmpty()) {
+      payload.putAll(extraPayload);
     }
     return jsonUtils.toJson(payload);
   }

@@ -9,6 +9,7 @@ import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
+import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
@@ -33,6 +34,7 @@ public class GitlabMirrorSyncService {
   @SuppressWarnings("unused")
   private final FactBuildTaskService factBuildTaskService;
   private final SyncRunSubmissionService syncRunSubmissionService;
+  private final SyncRunTableWorkerService syncRunTableWorkerService;
   private final GitlabMirrorTableRegistryMapper registryMapper;
   private final SyncRunTableStateMapper tableStateMapper;
 
@@ -45,6 +47,7 @@ public class GitlabMirrorSyncService {
       GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner,
       FactBuildTaskService factBuildTaskService,
       SyncRunSubmissionService syncRunSubmissionService,
+      SyncRunTableWorkerService syncRunTableWorkerService,
       GitlabMirrorTableRegistryMapper registryMapper,
       SyncRunTableStateMapper tableStateMapper) {
     this.configService = configService;
@@ -55,6 +58,7 @@ public class GitlabMirrorSyncService {
     this.systemHookPreciseSyncPlanner = systemHookPreciseSyncPlanner;
     this.factBuildTaskService = factBuildTaskService;
     this.syncRunSubmissionService = syncRunSubmissionService;
+    this.syncRunTableWorkerService = syncRunTableWorkerService;
     this.registryMapper = registryMapper;
     this.tableStateMapper = tableStateMapper;
   }
@@ -69,6 +73,7 @@ public class GitlabMirrorSyncService {
 
   public void recoverTimedOutTasks() {
     mirrorSchemaService.recoverStaleSyncingStatuses();
+    syncRunTableWorkerService.recoverTimedOutTasks();
   }
 
   public void testConnection() {

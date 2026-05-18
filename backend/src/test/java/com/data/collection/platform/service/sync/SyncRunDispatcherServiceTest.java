@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.mockito.ArgumentCaptor;
 
 class SyncRunDispatcherServiceTest {
   private JdbcTemplate jdbcTemplate;
@@ -48,6 +49,21 @@ class SyncRunDispatcherServiceTest {
             any(RowMapper.class),
             eq("sync-dispatcher"),
             eq(12));
+  }
+
+  @Test
+  void shouldNotLetQueuedRunsWithSameScopeBlockEachOther() {
+    SyncRun claimed = queuedRun(23L, 100, "source:1:alpha:mirror");
+    when(jdbcTemplate.queryForObject(any(String.class), any(RowMapper.class), eq("sync-dispatcher"), eq(12)))
+        .thenReturn(claimed);
+
+    dispatcherService.claimNextQueuedRun("sync-dispatcher", 12);
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate).queryForObject(sqlCaptor.capture(), any(RowMapper.class), eq("sync-dispatcher"), eq(12));
+    assertThat(sqlCaptor.getValue())
+        .contains("active.status in ('RUNNING', 'RETRYING', 'CANCELLING')")
+        .doesNotContain("active.status in ('SUBMITTED', 'QUEUED'");
   }
 
   @Test

@@ -19,6 +19,7 @@ import com.data.collection.platform.mapper.GitlabMirrorRecordMapper;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
+import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ class GitlabMirrorSyncServiceTest {
   private GitlabSystemHookPreciseSyncPlanner systemHookPreciseSyncPlanner;
   private FactBuildTaskService factBuildTaskService;
   private SyncRunSubmissionService syncRunSubmissionService;
+  private SyncRunTableWorkerService syncRunTableWorkerService;
   private GitlabMirrorTableRegistryMapper registryMapper;
   private SyncRunTableStateMapper tableStateMapper;
   private GitlabMirrorSyncService syncService;
@@ -47,6 +49,7 @@ class GitlabMirrorSyncServiceTest {
     systemHookPreciseSyncPlanner = mock(GitlabSystemHookPreciseSyncPlanner.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
     syncRunSubmissionService = mock(SyncRunSubmissionService.class);
+    syncRunTableWorkerService = mock(SyncRunTableWorkerService.class);
     registryMapper = mock(GitlabMirrorTableRegistryMapper.class);
     tableStateMapper = mock(SyncRunTableStateMapper.class);
     syncService =
@@ -59,8 +62,19 @@ class GitlabMirrorSyncServiceTest {
             systemHookPreciseSyncPlanner,
             factBuildTaskService,
             syncRunSubmissionService,
+            syncRunTableWorkerService,
             registryMapper,
             tableStateMapper);
+  }
+
+  @Test
+  void shouldRecoverTimedOutTableTasksThroughUnifiedWorker() {
+    when(syncRunTableWorkerService.recoverTimedOutTasks()).thenReturn(3);
+
+    syncService.recoverTimedOutTasks();
+
+    verify(mirrorSchemaService).recoverStaleSyncingStatuses();
+    verify(syncRunTableWorkerService).recoverTimedOutTasks();
   }
 
   @Test

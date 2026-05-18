@@ -160,6 +160,48 @@ class GitlabSyncControllerTest {
   }
 
   @Test
+  void shouldSubmitTableRefreshForRetryableFailedTables() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(tableDiagnosticsService.retryableTables(config)).thenReturn(List.of("issues", "issue_assignees"));
+    when(submissionService.submitTableRefresh(config, List.of("issues", "issue_assignees"), "Retry failed table sync tasks"))
+        .thenReturn(
+            new SyncRunSubmissionResult(
+                90L,
+                SyncType.INCREMENTAL,
+                SyncStatus.QUEUED,
+                SyncSubmissionAction.QUEUED,
+                LocalDateTime.of(2026, 5, 15, 9, 10),
+                "Queued retry"));
+
+    var response = controller.retryFailedSync(1L);
+
+    verify(submissionService).submitTableRefresh(config, List.of("issues", "issue_assignees"), "Retry failed table sync tasks");
+    assertThat(response.getData())
+        .containsEntry("runId", 90L)
+        .containsEntry("status", SyncStatus.QUEUED)
+        .containsEntry("type", SyncType.INCREMENTAL);
+  }
+
+  @Test
+  void shouldSkipRetryFailedWhenNoRetryableTablesExist() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(tableDiagnosticsService.retryableTables(config)).thenReturn(List.of());
+
+    var response = controller.retryFailedSync(1L);
+
+    verify(submissionService, never())
+        .submitTableRefresh(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    assertThat(response.getData())
+        .containsEntry("accepted", false)
+        .containsEntry("status", SyncStatus.IDLE)
+        .containsEntry("message", "No failed or dirty table tasks to retry");
+  }
+
+  @Test
   void shouldRouteTableSyncDiagnosticsToUnifiedTableDiagnosticsService() {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);

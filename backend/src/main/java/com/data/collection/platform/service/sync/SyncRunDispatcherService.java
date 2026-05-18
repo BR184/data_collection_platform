@@ -64,7 +64,7 @@ public class SyncRunDispatcherService {
                         from sync_runs active
                        where active.exclusive_scope = candidate.exclusive_scope
                          and active.id <> candidate.id
-                         and active.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+                         and active.status in ('RUNNING', 'RETRYING', 'CANCELLING')
                 )
               order by candidate.priority desc, candidate.created_at asc, candidate.id asc
               for update skip locked

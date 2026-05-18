@@ -14,6 +14,7 @@ import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
+import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
@@ -332,6 +333,35 @@ public class GitlabSyncController {
     }
     SyncRunSubmissionResult result =
         submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
+    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
+  }
+
+  @PostMapping("/retry-failed/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> retryFailedSync(@RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
+    List<String> retryableTables = tableDiagnosticsService.retryableTables(config);
+    if (retryableTables.isEmpty()) {
+      return ApiResponse.success(
+          "No failed or dirty table tasks to retry",
+          Map.of(
+              "accepted",
+              false,
+              "runId",
+              "",
+              "status",
+              SyncStatus.IDLE,
+              "statusText",
+              syncStatusLabel(SyncStatus.IDLE),
+              "action",
+              SyncSubmissionAction.DEDUPED,
+              "type",
+              SyncType.INCREMENTAL,
+              "message",
+              "No failed or dirty table tasks to retry"));
+    }
+    SyncRunSubmissionResult result =
+        submissionService.submitTableRefresh(config, retryableTables, "Retry failed table sync tasks");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,11 +65,14 @@ class SyncRunTablePlanningServiceTest {
     when(jsonUtils.toMap("{}")).thenReturn(Map.of());
     when(configService.getConfigById(1L)).thenReturn(config);
     when(whitelistService.resolveOptions(config))
-        .thenReturn(List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+        .thenReturn(
+            List.of(
+                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
+                new TableWhitelistOption("namespaces", "Namespaces", "id", "", true)));
     doAnswer(
             invocation -> {
               SyncRunTableState state = invocation.getArgument(0);
-              state.setId(91L);
+              state.setId("issues".equals(state.getSourceTable()) ? 91L : 92L);
               return 1;
             })
         .when(stateMapper)
@@ -76,31 +80,78 @@ class SyncRunTablePlanningServiceTest {
 
     int planned = planningService.planRunTables(77L);
 
-    assertThat(planned).isEqualTo(1);
+    assertThat(planned).isEqualTo(2);
 
     ArgumentCaptor<SyncRunTableState> stateCaptor = ArgumentCaptor.forClass(SyncRunTableState.class);
-    verify(stateMapper).insert(stateCaptor.capture());
-    SyncRunTableState state = stateCaptor.getValue();
-    assertThat(state.getConfigId()).isEqualTo(1L);
-    assertThat(state.getSourceInstance()).isEqualTo("alpha");
-    assertThat(state.getSourceTable()).isEqualTo("issues");
-    assertThat(state.getMirrorTable()).isEqualTo("ods_gitlab_alpha_issues");
-    assertThat(state.getPrimaryKeyColumns()).isEqualTo("id");
-    assertThat(state.getUpdatedAtColumn()).isEqualTo("updated_at");
-    assertThat(state.getSyncEnabled()).isTrue();
+    verify(stateMapper, times(2)).insert(stateCaptor.capture());
+    assertThat(stateCaptor.getAllValues())
+        .extracting(SyncRunTableState::getSourceTable)
+        .containsExactly("issues", "namespaces");
+    assertThat(stateCaptor.getAllValues())
+        .extracting(SyncRunTableState::getRowStrategy)
+        .containsExactly("INCREMENTAL", "FULL_ONLY");
 
     ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper).insert(taskCaptor.capture());
-    SyncRunTableTask task = taskCaptor.getValue();
-    assertThat(task.getRunId()).isEqualTo(77L);
-    assertThat(task.getConfigId()).isEqualTo(1L);
-    assertThat(task.getStateId()).isEqualTo(91L);
-    assertThat(task.getSourceInstance()).isEqualTo("alpha");
-    assertThat(task.getSourceTable()).isEqualTo("issues");
-    assertThat(task.getMirrorTable()).isEqualTo("ods_gitlab_alpha_issues");
-    assertThat(task.getTaskType()).isEqualTo("FULL_SYNC");
-    assertThat(task.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
-    assertThat(task.getWatermarkAt()).isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
+    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getSourceTable)
+        .containsExactly("issues", "namespaces");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getRowStrategy)
+        .containsExactly("FULL", "FULL");
+    assertThat(taskCaptor.getAllValues())
+        .allSatisfy(
+            task -> {
+              assertThat(task.getRunId()).isEqualTo(77L);
+              assertThat(task.getConfigId()).isEqualTo(1L);
+              assertThat(task.getSourceInstance()).isEqualTo("alpha");
+              assertThat(task.getTaskType()).isEqualTo("FULL_SYNC");
+              assertThat(task.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
+              assertThat(task.getWatermarkAt()).isEqualTo(LocalDateTime.of(1970, 1, 1, 0, 0));
+            });
+  }
+
+  @Test
+  void shouldPlanSystemHookPreciseTargetsFromPayload() {
+    SyncRun run = run(SyncRunType.SYSTEM_HOOK);
+    GitlabSyncConfig config = config();
+    Map<String, Object> payload =
+        Map.of(
+            "preciseTargets",
+            List.of(
+                Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", "101"),
+                Map.of("tableName", "issue_assignees", "lookupColumn", "issue_id", "lookupValue", "101")));
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(jsonUtils.toMap("{}")).thenReturn(payload);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
+                new TableWhitelistOption("issue_assignees", "Issue assignees", "issue_id,user_id", "", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId("issues".equals(state.getSourceTable()) ? 91L : 92L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planRunTables(77L);
+
+    assertThat(planned).isEqualTo(2);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getRowStrategy)
+        .containsExactly("PRECISE", "PRECISE");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getLookupColumn)
+        .containsExactly("id", "issue_id");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getLookupValue)
+        .containsExactly("101", "101");
   }
 
   private SyncRun run(SyncRunType runType) {

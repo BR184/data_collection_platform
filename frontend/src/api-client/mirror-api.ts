@@ -60,7 +60,7 @@ export const mirrorApi = {
     });
   },
   retryFailedSync(configId?: number) {
-    return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/incremental-sync/by-config', configId), {
+    return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/retry-failed/by-config', configId), {
       method: 'POST',
     });
   },

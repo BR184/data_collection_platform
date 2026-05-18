@@ -39,6 +39,40 @@ public class SyncRunTableDiagnosticsService {
     return response;
   }
 
+  public List<String> retryableTables(GitlabSyncConfig config) {
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    return jdbcTemplate.queryForList(
+        """
+        select state.source_table
+          from sync_run_table_states state
+          left join lateral (
+              select task.status
+                from sync_run_table_tasks task
+               where task.config_id = state.config_id
+                 and task.source_instance = state.source_instance
+                 and task.source_table = state.source_table
+               order by task.created_at desc, task.id desc
+               limit 1
+          ) latest on true
+         where state.config_id = ?
+           and state.source_instance = ?
+           and state.sync_enabled = true
+           and (state.dirty_flag = true or latest.status in ('FAILED', 'TIMEOUT'))
+           and not exists (
+              select 1
+                from sync_run_table_tasks active
+               where active.config_id = state.config_id
+                 and active.source_instance = state.source_instance
+                 and active.source_table = state.source_table
+                 and active.status in ('QUEUED', 'RUNNING', 'RETRYING')
+           )
+         order by state.source_table asc
+        """,
+        String.class,
+        config.getId(),
+        sourceInstance);
+  }
+
   private List<SyncRunTableStateDiagnostics> loadTableDiagnostics(GitlabSyncConfig config, String sourceInstance) {
     return jdbcTemplate.query(
         """
