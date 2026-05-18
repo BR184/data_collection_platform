@@ -162,6 +162,12 @@ class IntegrationTestFactPipelineTest {
   }
 
   private void cleanTables() {
+    jdbcTemplate.update("delete from sys_table_registry");
+    jdbcTemplate.update("delete from gitlab_mirror_records");
+    jdbcTemplate.update("delete from fact_build_tasks");
+    jdbcTemplate.update("delete from gitlab_hook_events");
+    jdbcTemplate.update("delete from gitlab_system_hook_events");
+    jdbcTemplate.update("delete from gitlab_sync_configs");
     jdbcTemplate.update("delete from integration_test_fact");
     jdbcTemplate.update("delete from module_dictionary");
     jdbcTemplate.update("delete from testing_phase_calendar");

@@ -16,7 +16,7 @@ const ACTIVE_TABLE_STATUSES = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING
 const rows = computed(() => {
   const tables = props.diagnostics?.tables ?? [];
   const prioritized = tables.filter((row) => row.dirty || ACTIVE_TABLE_STATUSES.has(row.latestTaskStatus ?? ''));
-  return (prioritized.length ? prioritized : tables).slice(0, 8);
+  return (prioritized.length ? prioritized : tables).slice(0, 5);
 });
 
 function rowReason(row: SyncRunTableDiagnostics) {
@@ -53,7 +53,7 @@ function rowTime(row: SyncRunTableDiagnostics) {
       <el-button size="small" text @click="$emit('openTableTasks')">Open drawer</el-button>
     </div>
 
-    <el-table :data="rows" size="small" border class="queue-table" max-height="280">
+    <el-table :data="rows" size="small" border class="queue-table" max-height="220">
       <el-table-column prop="sourceTable" label="Source table" min-width="130" show-overflow-tooltip />
       <el-table-column label="Task" width="112">
         <template #default="{ row }">

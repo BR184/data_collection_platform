@@ -45,10 +45,12 @@ const failedRun = computed(() => {
 const canRetry = computed(() => Boolean(failedRun.value && !props.disabled));
 const terminalRuns = computed(() => {
   const logs = props.status?.logs ?? [];
-  return logs.filter((log) => TERMINAL_STATUSES.has(log.status)).slice(0, 5);
+  return logs.filter((log) => TERMINAL_STATUSES.has(log.status)).slice(0, 3);
 });
 const activeTableTasks = computed(() => progress.value?.activeTableTasks ?? []);
-const dirtyTables = computed(() => (props.diagnostics?.tables ?? []).filter((row) => row.dirty || row.blockingRunId).slice(0, 6));
+const activeTableTaskPreview = computed(() => activeTableTasks.value.slice(0, 5));
+const activeTableTaskHiddenCount = computed(() => Math.max(activeTableTasks.value.length - activeTableTaskPreview.value.length, 0));
+const dirtyTables = computed(() => (props.diagnostics?.tables ?? []).filter((row) => row.dirty || row.blockingRunId).slice(0, 4));
 const tableProgressText = computed(() => {
   if (!progress.value) {
     return '-';
@@ -128,10 +130,14 @@ function terminalTime(log: SyncRunLog) {
         </div>
       </section>
 
-      <MirrorRunWorkerPanel :status="status" />
+      <div class="monitor-columns">
+        <div class="monitor-column">
+          <MirrorRunWorkerPanel :status="status" />
 
-      <MirrorRunQueueTable :diagnostics="diagnostics" @open-table-tasks="$emit('openTableTasks')" />
+          <MirrorRunQueueTable :diagnostics="diagnostics" @open-table-tasks="$emit('openTableTasks')" />
+        </div>
 
+        <div class="monitor-column">
       <section class="table-task-panel">
         <div class="section-head">
           <div>
@@ -141,7 +147,8 @@ function terminalTime(log: SyncRunLog) {
           <el-button size="small" text :disabled="!diagnostics" @click="$emit('openTableTasks')">Inspect</el-button>
         </div>
         <div v-if="activeTableTasks.length" class="tag-list">
-          <el-tag v-for="table in activeTableTasks" :key="table" size="small" type="warning" effect="plain">{{ table }}</el-tag>
+          <el-tag v-for="table in activeTableTaskPreview" :key="table" size="small" type="warning" effect="plain">{{ table }}</el-tag>
+          <el-tag v-if="activeTableTaskHiddenCount" size="small" type="info" effect="plain">+{{ activeTableTaskHiddenCount }}</el-tag>
         </div>
         <el-empty v-else description="No active table task" :image-size="48" />
       </section>
@@ -176,6 +183,8 @@ function terminalTime(log: SyncRunLog) {
         </div>
         <el-empty v-else description="No terminal run" :image-size="48" />
       </section>
+        </div>
+      </div>
     </div>
   </el-card>
 </template>
@@ -198,7 +207,20 @@ function terminalTime(log: SyncRunLog) {
 
 .monitor-stack {
   display: grid;
-  gap: 14px;
+  gap: 12px;
+}
+
+.monitor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.monitor-column {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 
 .panel-title,
@@ -219,7 +241,7 @@ function terminalTime(log: SyncRunLog) {
 .table-task-panel,
 .dirty-panel,
 .terminal-runs-panel {
-  padding: 14px;
+  padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
@@ -266,23 +288,23 @@ function terminalTime(log: SyncRunLog) {
 .tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .dirty-list,
 .terminal-run-list {
   display: grid;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .dirty-row {
   display: grid;
-  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: minmax(0, 110px) minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 6px;
   background: #f8fafc;
 }
@@ -307,7 +329,7 @@ function terminalTime(log: SyncRunLog) {
 
 .terminal-run-row {
   justify-content: flex-start;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 6px;
   background: #f8fafc;
 }
@@ -327,6 +349,10 @@ function terminalTime(log: SyncRunLog) {
 
   .active-run-metrics {
     justify-content: flex-start;
+  }
+
+  .monitor-columns {
+    grid-template-columns: 1fr;
   }
 }
 </style>

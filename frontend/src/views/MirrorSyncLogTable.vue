@@ -33,7 +33,7 @@ defineEmits<{
     </template>
 
     <div class="sync-log-table-shell">
-      <el-table :data="logs" row-key="id" max-height="320" size="small" border class="sync-log-table">
+      <el-table :data="logs" row-key="id" max-height="240" size="small" border class="sync-log-table">
         <el-table-column label="类型" width="126">
           <template #default="{ row }">
             <el-tag size="small" effect="plain" :type="syncTypeTagType(row.syncType)">

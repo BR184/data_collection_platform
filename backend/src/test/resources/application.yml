@@ -29,5 +29,11 @@ logging:
     com.zaxxer.hikari: warn
 
 platform:
+  auth:
+    admin-username: ${TEST_PLATFORM_ADMIN_USERNAME:admin}
+    admin-password: ${TEST_PLATFORM_ADMIN_PASSWORD:admin-test-2026}
+    approval-username: ${TEST_PLATFORM_APPROVAL_USERNAME:approval}
+    approval-password: ${TEST_PLATFORM_APPROVAL_PASSWORD:approval-test-2026}
   gitlab-mirror:
     scheduler-enabled: false
+    web-base-url: ${TEST_GITLAB_WEB_BASE_URL:http://gitlab.test.local:18080}

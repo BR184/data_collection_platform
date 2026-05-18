@@ -20,6 +20,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class StatisticBoardControllerTest {
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+  private static final String STAT_LINK_SOURCE_INSTANCE = "stat_link_test";
+  private static final String TEST_GITLAB_WEB_BASE_URL = "http://gitlab.test.local:18080";
 
   @Autowired
   private StatisticBoardController controller;
@@ -34,7 +36,7 @@ class StatisticBoardControllerTest {
 
   @AfterEach
   void cleanStatisticLinkFixtures() {
-    jdbcTemplate.update("delete from issue_fact where source_instance = 'stat-link-test'");
+    jdbcTemplate.update("delete from issue_fact where source_instance = ?", STAT_LINK_SOURCE_INSTANCE);
   }
 
   @Test
@@ -528,7 +530,7 @@ class StatisticBoardControllerTest {
           severity_level, priority_level, label_names, is_excluded, is_fixed, deleted
         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, false, false, false)
         """,
-        "stat-link-test",
+        STAT_LINK_SOURCE_INSTANCE,
         projectId,
         projectName,
         issueId,
@@ -555,11 +557,12 @@ class StatisticBoardControllerTest {
     assertThat(detail).isNotNull();
     assertThat(detail.records()).hasSize(1);
     Map<String, Object> record = detail.records().get(0);
+    String issueUrl = TEST_GITLAB_WEB_BASE_URL + "/-/issues/" + issueIid;
     assertThat(record).containsEntry("issueIid", issueIid);
-    assertThat(record).containsEntry("issueUrl", "http://localhost/-/issues/" + issueIid);
+    assertThat(record).containsEntry("issueUrl", issueUrl);
     assertThat(record).containsEntry("projectId", projectId);
     assertThat(record).containsEntry("projectName", projectName);
     assertThat(record.get("iid"))
-        .isEqualTo(Map.of("label", String.valueOf(issueIid), "href", "http://localhost/-/issues/" + issueIid));
+        .isEqualTo(Map.of("label", String.valueOf(issueIid), "href", issueUrl));
   }
 }
