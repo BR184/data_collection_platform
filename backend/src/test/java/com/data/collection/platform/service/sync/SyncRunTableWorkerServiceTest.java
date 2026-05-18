@@ -25,7 +25,6 @@ import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
-import com.data.collection.platform.service.GitlabMirrorTableStorageService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +41,7 @@ class SyncRunTableWorkerServiceTest {
   private GitlabConfigService configService;
   private SourceTableReader sourceTableReader;
   private GitlabMirrorSchemaService mirrorSchemaService;
-  private GitlabMirrorTableStorageService storageService;
+  private MirrorTableWriter mirrorTableWriter;
   private SyncRunTableWorkerService workerService;
 
   @BeforeEach
@@ -53,7 +52,7 @@ class SyncRunTableWorkerServiceTest {
     configService = org.mockito.Mockito.mock(GitlabConfigService.class);
     sourceTableReader = org.mockito.Mockito.mock(SourceTableReader.class);
     mirrorSchemaService = org.mockito.Mockito.mock(GitlabMirrorSchemaService.class);
-    storageService = org.mockito.Mockito.mock(GitlabMirrorTableStorageService.class);
+    mirrorTableWriter = org.mockito.Mockito.mock(MirrorTableWriter.class);
     workerService =
         new SyncRunTableWorkerService(
             taskMapper,
@@ -62,7 +61,7 @@ class SyncRunTableWorkerServiceTest {
             configService,
             sourceTableReader,
             mirrorSchemaService,
-            storageService);
+            mirrorTableWriter);
   }
 
   @Test
@@ -107,13 +106,13 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(500)))
         .thenReturn(rows);
-    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
     assertThat(processed).isEqualTo(1);
     verify(mirrorSchemaService).markTableSyncing(1L, "issues");
-    verify(storageService).upsertBatch(mirrorSchema, rows, 501L);
+    verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L);
     verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(2L), eq(2L), isNull(), eq(501L));
     verify(stateMapper)
         .updateById(
@@ -163,7 +162,7 @@ class SyncRunTableWorkerServiceTest {
     int processed = workerService.drainRunTasks(77L);
 
     assertThat(processed).isEqualTo(1);
-    verify(storageService, never()).upsertBatch(any(), any(), any());
+    verify(mirrorTableWriter, never()).writeBatch(any(), any(), any());
     verify(jdbcTemplate)
         .update(contains("set status = ?"), eq("CANCELLED"), eq(0L), eq(0L), eq("Sync run cancelled"), eq(501L));
   }
@@ -202,7 +201,7 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(500)))
         .thenReturn(rows);
-    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
@@ -265,7 +264,7 @@ class SyncRunTableWorkerServiceTest {
             isNull(),
             eq(2)))
         .thenReturn(rows);
-    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(2, 2, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
@@ -328,7 +327,7 @@ class SyncRunTableWorkerServiceTest {
         .thenReturn(rows);
     when(sourceTableReader.findMaxUpdatedAt(eq(config), argThat(option -> "issues".equals(option.tableName()))))
         .thenReturn(maxUpdatedAt);
-    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
     int processed = workerService.drainRunTasks(77L);
 
@@ -381,7 +380,7 @@ class SyncRunTableWorkerServiceTest {
             eq("issue_id"),
             eq("101")))
         .thenReturn(rows);
-    when(storageService.upsertBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
 
     int processed = workerService.drainRunTasks(77L);
 

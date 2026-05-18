@@ -11,7 +11,6 @@ import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
-import com.data.collection.platform.service.GitlabMirrorTableStorageService;
 import java.time.Instant;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -44,7 +43,7 @@ public class SyncRunTableWorkerService {
   private final GitlabConfigService configService;
   private final SourceTableReader sourceTableReader;
   private final GitlabMirrorSchemaService mirrorSchemaService;
-  private final GitlabMirrorTableStorageService storageService;
+  private final MirrorTableWriter mirrorTableWriter;
 
   public SyncRunTableWorkerService(
       SyncRunTableTaskMapper taskMapper,
@@ -53,14 +52,14 @@ public class SyncRunTableWorkerService {
       GitlabConfigService configService,
       SourceTableReader sourceTableReader,
       GitlabMirrorSchemaService mirrorSchemaService,
-      GitlabMirrorTableStorageService storageService) {
+      MirrorTableWriter mirrorTableWriter) {
     this.taskMapper = taskMapper;
     this.stateMapper = stateMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.configService = configService;
     this.sourceTableReader = sourceTableReader;
     this.mirrorSchemaService = mirrorSchemaService;
-    this.storageService = storageService;
+    this.mirrorTableWriter = mirrorTableWriter;
   }
 
   public int drainRunTasks(Long runId) {
@@ -312,7 +311,7 @@ public class SyncRunTableWorkerService {
         return;
       }
       MirrorBatchWriteResult writeResult =
-          storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+          mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
       if (isRunCancellationRequested(task.getRunId())) {
         finishTask(task.getId(), (long) rows.size(), (long) writeResult.appliedRows(), "CANCELLED", "Sync run cancelled");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
