@@ -3,6 +3,7 @@ package com.data.collection.platform.service.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
@@ -22,10 +23,11 @@ class SyncRunExecutorServiceTest {
     properties.setMaxSyncThreads(2);
     SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
     SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
+    SyncWorkerLeaseService workerLeaseService = mock(SyncWorkerLeaseService.class);
     CapturingExecutor executor = new CapturingExecutor();
     ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
     SyncRunExecutorService service =
-        new SyncRunExecutorService(properties, workerService, leaseService, executor, heartbeatExecutor);
+        new SyncRunExecutorService(properties, workerService, leaseService, workerLeaseService, executor, heartbeatExecutor);
     SyncRun run = run(11L);
 
     try {
@@ -37,6 +39,8 @@ class SyncRunExecutorServiceTest {
       executor.runNext();
 
       verify(workerService).executeRun(run);
+      verify(workerLeaseService, atLeastOnce()).heartbeatRunExecutor(2, 1, 0, 180);
+      verify(workerLeaseService, atLeastOnce()).heartbeatRunExecutor(2, 0, 0, 180);
       assertThat(service.activeRuns()).isZero();
       assertThat(service.availableSlots()).isEqualTo(2);
     } finally {
@@ -50,10 +54,11 @@ class SyncRunExecutorServiceTest {
     properties.setMaxSyncThreads(1);
     SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
     SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
+    SyncWorkerLeaseService workerLeaseService = mock(SyncWorkerLeaseService.class);
     CapturingExecutor executor = new CapturingExecutor();
     ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
     SyncRunExecutorService service =
-        new SyncRunExecutorService(properties, workerService, leaseService, executor, heartbeatExecutor);
+        new SyncRunExecutorService(properties, workerService, leaseService, workerLeaseService, executor, heartbeatExecutor);
 
     try {
       service.submit(run(12L));
@@ -70,12 +75,14 @@ class SyncRunExecutorServiceTest {
     properties.setMaxSyncThreads(1);
     SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
     SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
+    SyncWorkerLeaseService workerLeaseService = mock(SyncWorkerLeaseService.class);
     ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
     SyncRunExecutorService service =
         new SyncRunExecutorService(
             properties,
             workerService,
             leaseService,
+            workerLeaseService,
             command -> {
               throw new RejectedExecutionException("closed");
             },
@@ -83,6 +90,8 @@ class SyncRunExecutorServiceTest {
 
     try {
       assertThatThrownBy(() -> service.submit(run(13L))).isInstanceOf(RejectedExecutionException.class);
+      verify(workerLeaseService, atLeastOnce()).heartbeatRunExecutor(1, 1, 0, 180);
+      verify(workerLeaseService, atLeastOnce()).heartbeatRunExecutor(1, 0, 0, 180);
       assertThat(service.activeRuns()).isZero();
       assertThat(service.hasCapacity()).isTrue();
     } finally {

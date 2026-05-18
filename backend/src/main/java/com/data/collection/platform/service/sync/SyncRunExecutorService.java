@@ -22,6 +22,7 @@ public class SyncRunExecutorService {
   private final GitlabMirrorProperties properties;
   private final SyncRunWorkerService workerService;
   private final SyncRunLeaseService leaseService;
+  private final SyncWorkerLeaseService workerLeaseService;
   private final Executor executor;
   private final ExecutorService ownedExecutor;
   private final ScheduledExecutorService heartbeatExecutor;
@@ -31,11 +32,13 @@ public class SyncRunExecutorService {
   public SyncRunExecutorService(
       GitlabMirrorProperties properties,
       SyncRunWorkerService workerService,
-      SyncRunLeaseService leaseService) {
+      SyncRunLeaseService leaseService,
+      SyncWorkerLeaseService workerLeaseService) {
     this(
         properties,
         workerService,
         leaseService,
+        workerLeaseService,
         Executors.newCachedThreadPool(new SyncRunThreadFactory("sync-run-worker")),
         Executors.newSingleThreadScheduledExecutor(new SyncRunThreadFactory("sync-run-heartbeat")),
         null);
@@ -45,21 +48,24 @@ public class SyncRunExecutorService {
       GitlabMirrorProperties properties,
       SyncRunWorkerService workerService,
       SyncRunLeaseService leaseService,
+      SyncWorkerLeaseService workerLeaseService,
       Executor executor,
       ScheduledExecutorService heartbeatExecutor) {
-    this(properties, workerService, leaseService, executor, heartbeatExecutor, null);
+    this(properties, workerService, leaseService, workerLeaseService, executor, heartbeatExecutor, null);
   }
 
   private SyncRunExecutorService(
       GitlabMirrorProperties properties,
       SyncRunWorkerService workerService,
       SyncRunLeaseService leaseService,
+      SyncWorkerLeaseService workerLeaseService,
       Executor executor,
       ScheduledExecutorService heartbeatExecutor,
       ExecutorService ownedExecutor) {
     this.properties = properties;
     this.workerService = workerService;
     this.leaseService = leaseService;
+    this.workerLeaseService = workerLeaseService;
     this.executor = executor;
     this.heartbeatExecutor = heartbeatExecutor;
     this.ownedExecutor = ownedExecutor == null && executor instanceof ExecutorService service ? service : ownedExecutor;
@@ -82,10 +88,12 @@ public class SyncRunExecutorService {
       return;
     }
     activeRuns.incrementAndGet();
+    heartbeatWorkerLease();
     try {
       executor.execute(() -> execute(run));
     } catch (RejectedExecutionException e) {
       activeRuns.decrementAndGet();
+      heartbeatWorkerLease();
       throw e;
     }
   }
@@ -100,6 +108,7 @@ public class SyncRunExecutorService {
     } finally {
       heartbeat.cancel(false);
       activeRuns.decrementAndGet();
+      heartbeatWorkerLease();
     }
   }
 
@@ -107,10 +116,34 @@ public class SyncRunExecutorService {
     int leaseSeconds = Math.max(1, properties.getHeartbeatTimeoutSeconds());
     int heartbeatSeconds = Math.max(1, leaseSeconds / 3);
     return heartbeatExecutor.scheduleWithFixedDelay(
-        () -> leaseService.heartbeat(run.getId(), leaseSeconds),
+        () -> heartbeatRunAndWorker(run, leaseSeconds),
         0,
         heartbeatSeconds,
         TimeUnit.SECONDS);
+  }
+
+  private void heartbeatRunAndWorker(SyncRun run, int leaseSeconds) {
+    try {
+      leaseService.heartbeat(run.getId(), leaseSeconds);
+      heartbeatWorkerLease();
+    } catch (RuntimeException e) {
+      log.warn("Failed to heartbeat sync run worker lease, runId={}", run.getRunId(), e);
+    }
+  }
+
+  private void heartbeatWorkerLease() {
+    try {
+      int maxThreads = maxConcurrentRuns();
+      int activeThreads = Math.min(activeRuns.get(), maxThreads);
+      int queueDepth = Math.max(0, activeRuns.get() - maxThreads);
+      workerLeaseService.heartbeatRunExecutor(
+          maxThreads,
+          activeThreads,
+          queueDepth,
+          Math.max(1, properties.getHeartbeatTimeoutSeconds()));
+    } catch (RuntimeException e) {
+      log.warn("Failed to heartbeat sync worker lease", e);
+    }
   }
 
   private int maxConcurrentRuns() {
