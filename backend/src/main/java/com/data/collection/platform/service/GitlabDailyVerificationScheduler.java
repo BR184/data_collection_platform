@@ -33,7 +33,11 @@ public class GitlabDailyVerificationScheduler {
       return;
     }
     for (GitlabSyncConfig config : configService.listConfigs()) {
-      if (!isEnabled(config)) {
+      if (!configService.isReadyForScheduledSync(config)) {
+        log.info(
+            "Skipped daily verification scan for sourceInstance={}, reason={}",
+            config == null ? null : config.getSourceInstance(),
+            configService.sourceReadinessIssue(config));
         continue;
       }
       submissionService.submitRun(
@@ -47,10 +51,4 @@ public class GitlabDailyVerificationScheduler {
     }
   }
 
-  private boolean isEnabled(GitlabSyncConfig config) {
-    return config != null
-        && config.getId() != null
-        && Boolean.TRUE.equals(config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled())
-        && config.isAutoSyncEnabled();
-  }
 }

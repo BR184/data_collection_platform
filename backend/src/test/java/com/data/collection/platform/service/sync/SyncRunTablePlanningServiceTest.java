@@ -1,13 +1,16 @@
 package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
@@ -64,6 +67,7 @@ class SyncRunTablePlanningServiceTest {
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
@@ -124,6 +128,7 @@ class SyncRunTablePlanningServiceTest {
     run.setPayloadJson(jsonUtils.toJson(payload));
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
     when(whitelistService.resolveOptions(config))
         .thenReturn(
             List.of(
@@ -169,6 +174,7 @@ class SyncRunTablePlanningServiceTest {
                     Map.of("tableName", "issues", "lookupColumn", "id", "lookupValue", "101")))));
     when(syncRunMapper.selectById(77L)).thenReturn(run);
     when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
     when(whitelistService.resolveOptions(config))
         .thenReturn(List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
     doAnswer(
@@ -187,6 +193,22 @@ class SyncRunTablePlanningServiceTest {
     verify(taskMapper).insert(taskCaptor.capture());
     assertThat(taskCaptor.getValue().getLookupColumn()).isEqualTo("id");
     assertThat(taskCaptor.getValue().getLookupValue()).isEqualTo("101");
+  }
+
+  @Test
+  void shouldFailFastBeforeWhitelistDiscoveryWhenSourceIsIncomplete() {
+    SyncRun run = run(SyncRunType.FULL_SYNC);
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(false);
+
+    assertThatThrownBy(() -> planningService.planRunTables(77L))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("incomplete");
+
+    verify(whitelistService, never()).resolveOptions(any());
+    verify(taskMapper, never()).insert(any(SyncRunTableTask.class));
   }
 
   private SyncRun run(SyncRunType runType) {

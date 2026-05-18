@@ -42,13 +42,10 @@ public class CodeReviewIllegalRecordSourceLoader {
       """;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
-  private final FactBuildService factBuildService;
   private final MergeRequestFactQueryService mergeRequestFactQueryService;
 
   public CodeReviewIllegalRecordSourceLoader(
-      FactBuildService factBuildService,
       MergeRequestFactQueryService mergeRequestFactQueryService) {
-    this.factBuildService = factBuildService;
     this.mergeRequestFactQueryService = mergeRequestFactQueryService;
   }
 
@@ -75,8 +72,7 @@ public class CodeReviewIllegalRecordSourceLoader {
       if (page.total() > 0) {
         return page;
       }
-      factBuildService.rebuildMergeRequestFacts(true);
-      return loadDefaultIllegalPageOnce(query);
+      return page;
     } catch (DataAccessException e) {
       log.warn("Failed to load paged merge request illegal facts", e);
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
@@ -88,8 +84,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     if (!facts.isEmpty()) {
       return facts;
     }
-    factBuildService.rebuildMergeRequestFacts(true);
-    return mergeRequestFactQueryService.query(FACT_SQL, filters, this::mapFactSource);
+    return List.of();
   }
 
   private PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPageOnce(

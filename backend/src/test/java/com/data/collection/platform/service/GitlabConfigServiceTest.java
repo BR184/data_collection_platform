@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -212,6 +213,52 @@ class GitlabConfigServiceTest {
     assertThatThrownBy(() -> configService.getConfigById(999L))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("999");
+  }
+
+  @Test
+  void shouldReturnDisabledDraftConfigWhenNoConfigExists() {
+    when(configMapper.selectList(any())).thenReturn(List.of());
+
+    GitlabSyncConfig config = configService.listConfigs().getFirst();
+
+    assertThat(config.getId()).isNull();
+    assertThat(config.isEnabled()).isFalse();
+    assertThat(config.getSourceEnabled()).isFalse();
+    assertThat(config.isAutoSyncEnabled()).isFalse();
+  }
+
+  @Test
+  void shouldRejectAutoSyncForIncompleteDirectSource() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setEnabled(true);
+    input.setSourceEnabled(true);
+    input.setAutoSyncEnabled(true);
+    input.setDbPassword("");
+
+    assertThatThrownBy(() -> configService.saveConfig(input))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("incomplete");
+    verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
+  }
+
+  @Test
+  void shouldAllowEnabledIncompleteSourceWhenAutoSyncIsOff() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setEnabled(true);
+    input.setSourceEnabled(true);
+    input.setAutoSyncEnabled(false);
+    input.setDbPassword("");
+
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        config.isEnabled()
+            && Boolean.TRUE.equals(config.getSourceEnabled())
+            && !config.isAutoSyncEnabled()));
   }
 
   private GitlabSyncConfig persistedConfig() {

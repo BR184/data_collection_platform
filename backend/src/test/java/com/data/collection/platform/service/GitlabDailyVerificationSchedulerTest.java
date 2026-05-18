@@ -24,6 +24,9 @@ class GitlabDailyVerificationSchedulerTest {
     GitlabSyncConfig enabled = config(1L, true, true);
     GitlabSyncConfig disabled = config(2L, false, true);
     when(configService.listConfigs()).thenReturn(List.of(enabled, disabled));
+    when(configService.isReadyForScheduledSync(enabled)).thenReturn(true);
+    when(configService.isReadyForScheduledSync(disabled)).thenReturn(false);
+    when(configService.sourceReadinessIssue(disabled)).thenReturn("source is disabled");
 
     new GitlabDailyVerificationScheduler(properties, configService, submissionService).run();
 

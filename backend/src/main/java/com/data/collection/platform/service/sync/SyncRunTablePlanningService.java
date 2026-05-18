@@ -103,6 +103,7 @@ public class SyncRunTablePlanningService {
 
   private int planWhitelistTables(SyncRun run, List<String> requestedTables) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
+    ensureSourceConfigured(config);
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
     if (requestedTables != null && !requestedTables.isEmpty()) {
       options =
@@ -128,6 +129,7 @@ public class SyncRunTablePlanningService {
 
   private int planPreciseTargets(SyncRun run, List<SyncRunPayload.PreciseTarget> targets) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
+    ensureSourceConfigured(config);
     Map<String, TableWhitelistOption> optionsByTable =
         whitelistService.resolveOptions(config).stream()
             .collect(
@@ -153,6 +155,13 @@ public class SyncRunTablePlanningService {
     }
     log.info("Planned {} precise table tasks for run {}", planned, run.getId());
     return planned;
+  }
+
+  private void ensureSourceConfigured(GitlabSyncConfig config) {
+    if (configService.isSourceConfigured(config)) {
+      return;
+    }
+    throw new BizException("GitLab source connection settings are incomplete; skip external metadata discovery");
   }
 
   private boolean isRunnableForRun(boolean fullSync, TableWhitelistOption option) {

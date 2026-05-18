@@ -16,6 +16,7 @@ import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class GitlabConfigService {
@@ -118,6 +119,50 @@ public class GitlabConfigService {
     return getConfigById(normalized.getId());
   }
 
+  public boolean isReadyForScheduledSync(GitlabSyncConfig config) {
+    return config != null
+        && config.getId() != null
+        && isSourceEnabled(config)
+        && config.isAutoSyncEnabled()
+        && isSourceConfigured(config);
+  }
+
+  public boolean isSourceConfigured(GitlabSyncConfig config) {
+    if (config == null) {
+      return false;
+    }
+    SourceMode sourceMode = config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode();
+    if (sourceMode == SourceMode.DIRECT) {
+      return StringUtils.hasText(config.getDbHost())
+          && config.getDbPort() != null
+          && config.getDbPort() > 0
+          && StringUtils.hasText(config.getDbName())
+          && StringUtils.hasText(config.getDbUsername())
+          && StringUtils.hasText(config.getDbPassword());
+    }
+    return StringUtils.hasText(config.getDockerContainerName())
+        && StringUtils.hasText(config.getDbName());
+  }
+
+  public String sourceReadinessIssue(GitlabSyncConfig config) {
+    if (config == null) {
+      return "source config is missing";
+    }
+    if (config.getId() == null) {
+      return "source config is not persisted";
+    }
+    if (!isSourceEnabled(config)) {
+      return "source is disabled";
+    }
+    if (!config.isAutoSyncEnabled()) {
+      return "auto sync is disabled";
+    }
+    if (!isSourceConfigured(config)) {
+      return "source connection settings are incomplete";
+    }
+    return "";
+  }
+
   public void updateSyncTime(Long id, boolean fullSync) {
     LocalDateTime now = LocalDateTime.now();
     LambdaUpdateWrapper<GitlabSyncConfig> updateWrapper = new LambdaUpdateWrapper<GitlabSyncConfig>()
@@ -190,10 +235,10 @@ public class GitlabConfigService {
   private GitlabSyncConfig defaultConfig(String sourceInstance) {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setName("GitLab default source");
-    config.setEnabled(true);
-    config.setSourceEnabled(true);
+    config.setEnabled(false);
+    config.setSourceEnabled(false);
     config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
-    config.setAutoSyncEnabled(true);
+    config.setAutoSyncEnabled(false);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
     config.setWhitelistTables(List.of());
@@ -244,7 +289,20 @@ public class GitlabConfigService {
         normalizeSyncThreadValue(syncThreadMode, config.getSyncThreadValue(), current.getSyncThreadValue()));
     normalized.setMaxSyncThreads(normalizeMaxSyncThreads(config.getMaxSyncThreads(), current.getMaxSyncThreads()));
     validateSystemHookConfig(normalized);
+    validateSourceConfigForAutomaticSync(normalized);
     return normalized;
+  }
+
+  private void validateSourceConfigForAutomaticSync(GitlabSyncConfig normalized) {
+    if (!isSourceEnabled(normalized) || !normalized.isAutoSyncEnabled() || isSourceConfigured(normalized)) {
+      return;
+    }
+    throw new BizException(
+        "GitLab source connection settings are incomplete; disable auto sync or complete the source config");
+  }
+
+  private boolean isSourceEnabled(GitlabSyncConfig config) {
+    return Boolean.TRUE.equals(config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled());
   }
 
   private boolean resolveSystemHookEnabled(

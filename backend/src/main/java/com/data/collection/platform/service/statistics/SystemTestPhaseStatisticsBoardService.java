@@ -1,7 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -418,13 +417,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     if (!facts.isEmpty()) {
       return facts;
     }
-    try {
-      factBuildService.rebuildIssueFacts(true);
-    } catch (BizException error) {
-      log.warn("Skipped issue fact rebuild because GitLab source is not ready: {}", error.getMessage());
-      return List.of();
-    }
-    return loadSourcesFromFact(projectId, filters);
+    log.info("System test phase statistics board returned empty result without triggering synchronous rebuild");
+    return List.of();
   }
 
   private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters) {

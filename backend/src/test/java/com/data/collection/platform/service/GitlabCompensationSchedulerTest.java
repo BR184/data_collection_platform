@@ -42,6 +42,10 @@ class GitlabCompensationSchedulerTest {
     notDue.setCompensationIntervalMinutes(10);
     GitlabSyncConfig disabled = config(3L, false, true, LocalDateTime.now().minusMinutes(20));
     when(configService.listConfigs()).thenReturn(List.of(due, notDue, disabled));
+    when(configService.isReadyForScheduledSync(due)).thenReturn(true);
+    when(configService.isReadyForScheduledSync(notDue)).thenReturn(true);
+    when(configService.isReadyForScheduledSync(disabled)).thenReturn(false);
+    when(configService.sourceReadinessIssue(disabled)).thenReturn("source is disabled");
 
     scheduler.run();
 
@@ -67,6 +71,27 @@ class GitlabCompensationSchedulerTest {
     verify(submissionService, never())
         .submitRun(
             eq(disabled),
+            eq(SyncType.COMPENSATION),
+            eq(SyncRunType.COMPENSATION_SCAN),
+            eq(SyncTriggerType.SCHEDULE),
+            eq("Scheduled compensation scan"),
+            eq(List.of()),
+            eq(null));
+  }
+
+  @Test
+  void shouldSkipIncompleteSourceBeforeSubmittingCompensationRun() {
+    GitlabSyncConfig incomplete = config(4L, true, true, null);
+    when(configService.listConfigs()).thenReturn(List.of(incomplete));
+    when(configService.isReadyForScheduledSync(incomplete)).thenReturn(false);
+    when(configService.sourceReadinessIssue(incomplete)).thenReturn("source connection settings are incomplete");
+
+    scheduler.run();
+
+    verify(syncService).recoverTimedOutTasks();
+    verify(submissionService, never())
+        .submitRun(
+            eq(incomplete),
             eq(SyncType.COMPENSATION),
             eq(SyncRunType.COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),

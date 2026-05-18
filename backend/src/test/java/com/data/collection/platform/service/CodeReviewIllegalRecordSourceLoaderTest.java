@@ -271,6 +271,44 @@ class CodeReviewIllegalRecordSourceLoaderTest {
     verifyNoInteractions(factBuildService);
   }
 
+  @Test
+  void shouldNotRebuildMergeRequestFactsWhenReadPathIsEmpty() {
+    List<CodeReviewIllegalRecordSource> sources = sourceLoader.loadSources(Map.of());
+    PageSlice<CodeReviewIllegalRecordSource> page =
+        sourceLoader.loadDefaultIllegalPage(
+            new CodeReviewIllegalRecordSourcePageQuery(
+                new CodeReviewIllegalRecordQueryRequest(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "merge_request",
+                    null,
+                    null,
+                    null,
+                    CodeReviewIllegalRuleRegistry.MISSING_OWNER_LABEL,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "mergeRequestIid",
+                    "asc",
+                    null),
+                null,
+                1,
+                20,
+                "mergeRequestIid",
+                "asc"));
+
+    assertThat(sources).isEmpty();
+    assertThat(page.total()).isZero();
+    verifyNoInteractions(factBuildService);
+  }
+
   private void insertMergeRequestFact(
       Long projectId,
       String projectName,

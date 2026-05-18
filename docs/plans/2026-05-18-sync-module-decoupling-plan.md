@@ -137,3 +137,42 @@
 - 2026-05-18：补齐诊断边界收口，`GitlabSyncController` 的来源元数据诊断改为通过 `SourceMetadataInspector`，避免控制器直接依赖外部库访问服务。
 - 2026-05-18：继续收口旧同步门面，抽出 `SourceConnectionTester`，`GitlabMirrorSyncService` 不再直接依赖外部库服务并移除未使用的旧运行时依赖。
 - 2026-05-18：同步真实用户链路测试要求，后续以本地 GitLab、前端手动等价操作、system hook、线程策略和百万级数据风险为验收口径。
+- 2026-05-18：Data mirror monitor 用户可见英文文案已改为中文，并通过前端 `MirrorRunMonitorPanel` 与 `mirror-settings` 挂载冒烟测试、`npm run typecheck`。
+- 2026-05-18：真实链路前置排查发现，现有 `dcp-local-test-backend-1` 容器仍像旧后端镜像：调度日志持续访问已移除的 `gitlab_sync_tasks`，接口又查询旧 `webhook_secret` 字段；该容器不能代表当前源码验收结果。后续链路测试需使用当前源码本地拉起的后端，或先重建本地平台容器。
+- 2026-05-18：开始排查本地平台登录后加载慢问题，重点检查首页/系统设置页初始化 API、同步配置/状态接口、无数据源和有数据源两种场景下的耗时差异。
+- 2026-05-18：登录慢排查阶段结论补充：
+  - 已确认管理员登录后的默认入口为 `/quality-board/rd-quality-board`，该页不是单一登录请求，而是并行拉取评审筛选项、代码走查源选项、集成测试项目选项、系统测试统计看板等多个业务接口；因此用户体感的“登录慢”通常发生在登录成功后的首页数据加载阶段。
+  - 已确认数据镜像设置页初始化顺序为：先 `configs`，再并行 `source-health` 与 `table-sync-diagnostics`，再 `status`，最后异步加载 `system-hook-registration-status`。当前源码中这些初始化接口主要读本地平台库，正常情况下不应因为“没有连接数据源”而长时间阻塞整页进入。
+  - 现有 `dcp-local-test-frontend-1` 经 Nginx 代理访问 `/api/*` 返回 empty reply；直连 `dcp-local-test-backend-1:18082` 虽可登录，但同步相关接口因旧镜像/新库结构不匹配返回 500。该本地容器组合本身已经处于不可作为真实用户链路结论的异常状态。
+  - 现有 `dcp-target-backend:18080` 日志出现 `ClassNotFoundException` / `NoClassDefFoundError`，说明该后端运行包或运行时依赖也异常，不能用于判断当前源码性能。
+  - 使用当前源码 jar 临时拉起 `dcp-current-backend:18083` 并接入同一平台库后，本机接口耗时基线如下：登录约 211ms，`auth/current` 约 21ms，首页统计相关接口约 17-149ms，`gitlab-sync/configs` 约 251ms，`source-health` 约 59ms，`status` 约 71ms，`table-sync-diagnostics` 约 43ms，`system-hook-registration-status` 约 19ms。
+  - 将临时后端同时接入 GitLab 网络后，真实源连接相关接口耗时：`whitelist-options` 约 824-1214ms，`test-connection` 约 18-19ms，`diagnostics` 约 816-1002ms。本机小数据量且网络稳定时没有复现“长时间等待”。
+  - 内网弱网络风险判断：当前 `external-query-timeout-seconds` 默认为 120 秒，`external-query-retry-attempts` 默认为 3；白名单、诊断、元数据检查、同步读源等链路一旦遇到高延迟、半断连或 socket 读阻塞，单个用户操作可能被放大到分钟级等待。该风险与是否“已经配置数据源”无直接正相关，已配置但质量差的连接反而更容易触发长等待。
+  - 百万级数据风险判断：当前本地 GitLab 数据量仅为 projects=3、issues=385、merge_requests=3、notes=399，不能代表百万级内网环境；百万级结论必须使用大数据源或构造大表压测。尤其要关注首页统计表、镜像表诊断、白名单发现、事实层统计是否存在未分页 count、全表聚合和无索引过滤。
+- 2026-05-18：登录/数据源加载慢后续处理方案：
+  - P0：先重建本地平台前后端容器，确保前端代理、后端 jar、数据库迁移版本一致；当前 `18182/18082/18080` 运行态均不能作为性能结论依据。
+  - P0：把用户登录后的首页加载与数据源探测解耦。登录成功后应先进入可交互壳层，首页统计接口分区加载，任何单个看板接口失败或超时都不能阻塞整页。
+  - P0：数据镜像设置页初始化只允许依赖本地库状态；外部源连接检测、白名单发现、诊断、system hook 检测改为显式按钮或后台异步任务，页面先展示上一次健康状态与“正在后台检查”。
+  - P0：为前端 `request` 增加 AbortController 超时、错误分级与“重试/跳过”展示；弱网络下不能让浏览器 fetch 无上限等待。
+  - P1：将外部源交互拆分为快探测与深诊断。快探测建议 3-5 秒内返回连接状态；深诊断走后台 job，按步骤记录连接、白名单、主键、updated_at、system hook 结果。
+  - P1：内网环境配置建议下调交互式接口超时，例如连接测试 5 秒、白名单/元数据单步 10-15 秒、后台同步读源保留较长 socket timeout；避免把同步任务的长超时直接用于用户点击链路。
+  - P1：为外部源连接建立熔断和短 TTL 缓存；连续失败时 1-5 分钟内直接返回“源不可达/上次失败原因”，避免同一用户刷新或多用户同时进入页面时反复打满慢连接。
+  - P1：百万级压测前补齐大数据观测指标：每个接口耗时、SQL 慢查询、表扫描行数、外部查询重试次数、同步任务批次、队列深度、worker lease、内存与连接池使用。
+- 2026-05-18：登录/数据源加载慢根因复核：
+  - 已确认当前平台库存在 `dgm` 数据源配置，`source_enabled=true`、`auto_sync_enabled=true`，但数据库密码为空；补偿调度器每分钟都会提交一次 `COMPENSATION_SCAN`，最近失败原因均为 `The server requested SCRAM-based authentication, but the password is an empty string`。这会造成“后台一直在尝试连接数据源”的现象，并持续污染同步运行队列。
+  - 已确认同步调度路径未做“配置完整性/可连接性”前置闸门：`GitlabCompensationScheduler` 只检查启用状态、自动同步和间隔；计划表任务时 `SyncRunTablePlanningService` 会通过 `GitlabWhitelistService.resolveOptions` 访问外部源元数据。因此一个启用但不完整的数据源也会进入外部连接链路。
+  - 已确认空平台或事实表为空时，首页统计读路径存在同步重建事实层逻辑：`IssueFactBoardRuntimeSupport.loadFacts` 查询不到事实数据会直接调用 `factBuildService.rebuildIssueFacts(true)`，异常时才记录 `Skipped issue fact rebuild because GitLab source is not ready` 并返回空结果。该日志与用户描述的“等待一段时间后提示跳过”一致。
+  - “配置数据源后仍然慢”的主要原因不是登录接口本身，而是配置数据源不等于镜像层和事实层已经构建完成；只要首页所需事实表仍为空、过期或正在重建，首页读路径仍可能触发全量事实重建。在百万级数据下，这个读路径重建会显著放大首屏等待。
+  - 当前库中 `issue_fact=770`、`merge_request_fact=6`，`cc` 最近一次补偿同步和 fact refresh 成功；但 `dgm` 仍每分钟失败。若用户实际内网环境是空平台或大库首次接入，首页触发重建与后台失败重试会同时发生，体感会接近“第一次”和“配置后”都很慢。
+  - P0 修复细化：默认/草稿数据源不得启用自动同步；保存数据源时必须校验 DIRECT 模式必填项，未配置完整时强制 `source_enabled=false` 或阻止开启自动同步。
+  - P0 修复细化：补偿调度、每日校验、手动按白名单同步在进入外部元数据发现前必须经过 source readiness gate；缺密码、缺 host、缺容器名、近期熔断中的源直接跳过并写入可读状态，不提交 run。
+  - P0 修复细化：所有首页和看板 GET 接口禁止同步执行 `rebuildIssueFacts(true)`、`rebuildMergeRequestFacts(true)` 或 `refreshTablesOnDemand`；事实层为空时返回空状态和“等待同步/请管理员刷新”，重建改为后台任务或管理员显式触发。
+  - P0 修复细化：清理或迁移现有异常配置时，应将 `dgm` 这类密码为空但已启用自动同步的配置置为禁用/待配置，避免上线后继续每分钟失败。
+- 2026-05-18：加载平台慢 P0 修复执行记录：
+  - 已移除首页/看板读路径中的同步全量事实重建：`IssueFactBoardRuntimeSupport`、客户问题缺陷原因、系统测试缺陷原因、系统测试延期分析、系统测试阶段统计在事实表为空时直接返回空结果，不再调用 `rebuildIssueFacts(true)`。
+  - 已移除代码走查记录读路径中的同步 MR 事实重建：`CodeReviewIllegalRecordSourceLoader` 在 `merge_request_fact` 为空时直接返回空列表/空分页，不再调用 `rebuildMergeRequestFacts(true)`。
+  - 已将无持久化配置时返回的默认 GitLab 数据源改为禁用草稿：`enabled=false`、`source_enabled=false`、`auto_sync_enabled=false`，避免空平台启动后被当成已启用数据源。
+  - 已新增 source readiness gate：补偿调度、每日校验调度必须同时满足启用、自动同步、配置完整才提交 run；手动/系统 hook 规划表任务在白名单发现前先检查配置完整性，缺字段时快速失败，不进入外部元数据发现。
+  - 已新增迁移 `V20260518_02__disable_incomplete_auto_sync_sources.sql`，自动禁用已经存在的“启用自动同步但连接字段不完整”的数据源，覆盖 `dgm` 这类空密码配置。
+  - 已补充回归测试：空读路径不触发 fact rebuild、默认草稿禁用、不完整 DIRECT 源禁止开启自动同步、调度器跳过未就绪源、表任务规划在白名单发现前快速失败。
+  - 验证命令：`tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml test "-Dtest=GitlabConfigServiceTest,GitlabCompensationSchedulerTest,GitlabDailyVerificationSchedulerTest,SyncRunTablePlanningServiceTest,CodeReviewIllegalRecordSourceLoaderTest"`；结果 26 个测试通过。

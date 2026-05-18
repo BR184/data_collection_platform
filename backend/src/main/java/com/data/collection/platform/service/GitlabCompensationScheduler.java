@@ -57,8 +57,11 @@ public class GitlabCompensationScheduler {
     if (config == null || config.getId() == null) {
       return false;
     }
-    boolean enabled = Boolean.TRUE.equals(config.getSourceEnabled()) || config.isEnabled();
-    if (!enabled || !config.isAutoSyncEnabled()) {
+    if (!configService.isReadyForScheduledSync(config)) {
+      log.info(
+          "Skipped scheduled compensation scan for sourceInstance={}, reason={}",
+          config.getSourceInstance(),
+          configService.sourceReadinessIssue(config));
       return false;
     }
     LocalDateTime lastSyncAt = config.getLastIncrementalSyncAt();
