@@ -11,4 +11,6 @@ public class DatabaseTableOption {
   private String label;
   private String syncStatus;
   private LocalDateTime lastSyncTime;
+  private String tableKind;
+  private boolean refreshable;
 }

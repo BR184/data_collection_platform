@@ -484,6 +484,8 @@ export interface DatabaseTableOption {
   label: string;
   syncStatus: string;
   lastSyncTime?: string | null;
+  tableKind?: 'LOCAL' | 'MIRROR' | 'SOURCE' | string;
+  refreshable?: boolean;
 }
 
 export interface DatabaseTableColumn {
@@ -506,6 +508,8 @@ export interface DatabaseTableRowsResponse {
   syncStatus: string;
   lastSyncTime?: string | null;
   statusMessage?: string | null;
+  tableKind?: 'LOCAL' | 'MIRROR' | 'SOURCE' | string;
+  refreshable?: boolean;
 }
 
 export interface TestingPhaseDefinitionResponse {

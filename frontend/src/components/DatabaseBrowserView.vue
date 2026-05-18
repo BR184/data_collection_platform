@@ -48,9 +48,11 @@ const columns = computed(() => rowsResponse.value?.columns ?? []);
 const rows = computed(() => rowsResponse.value?.rows ?? []);
 const total = computed(() => rowsResponse.value?.total ?? 0);
 const selectedOption = computed(() => tableOptions.value.find((option) => option.tableName === selectedTable.value) ?? null);
+const tableKind = computed(() => rowsResponse.value?.tableKind ?? selectedOption.value?.tableKind ?? 'LOCAL');
+const currentTableRefreshable = computed(() => rowsResponse.value?.refreshable ?? selectedOption.value?.refreshable ?? false);
 const smartTableOptions = computed(() =>
   tableOptions.value.map((option) => ({
-    label: `${option.label} (${option.tableName})`,
+    label: `${tableKindLabel(option.tableKind)} ${option.label} (${option.tableName})`,
     value: option.tableName,
   })),
 );
@@ -184,6 +186,10 @@ async function handleReset() {
 }
 
 async function handleRefresh() {
+  if (!currentTableRefreshable.value) {
+    ElMessage.info(tableKind.value === 'SOURCE' ? '来源表为实时只读预览，不支持在此刷新' : '当前本地表不需要触发镜像刷新');
+    return;
+  }
   refreshingTable.value = true;
   try {
     if (selectedTable.value) {
@@ -298,6 +304,30 @@ function syncStatusText() {
   return syncStatusLabels[status] ?? status;
 }
 
+function tableKindLabel(kind?: string | null) {
+  switch (kind) {
+    case 'SOURCE':
+      return '来源表';
+    case 'MIRROR':
+      return '镜像表';
+    case 'LOCAL':
+      return '本地表';
+    default:
+      return '数据表';
+  }
+}
+
+function tableKindTagType(kind?: string | null) {
+  switch (kind) {
+    case 'SOURCE':
+      return 'warning';
+    case 'MIRROR':
+      return 'success';
+    default:
+      return 'info';
+  }
+}
+
 function handleResize() {
   viewportHeight.value = window.innerHeight;
 }
@@ -375,8 +405,17 @@ onBeforeUnmount(() => {
         <div class="db-toolbar-actions">
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button @click="handleReset">重置</el-button>
-          <el-button :icon="Refresh" :loading="refreshingTable" @click="handleRefresh">重新加载表数据</el-button>
-          <span class="db-refresh-note">刷新会触发当前镜像表重新抓取源端数据</span>
+          <el-button
+            :icon="Refresh"
+            :loading="refreshingTable"
+            :disabled="!currentTableRefreshable"
+            @click="handleRefresh"
+          >
+            重新加载表数据
+          </el-button>
+          <span class="db-refresh-note">
+            {{ currentTableRefreshable ? '刷新会触发当前镜像表重新抓取源端数据' : '来源表为管理员只读预览，本地表无需刷新' }}
+          </span>
         </div>
       </div>
 
@@ -387,6 +426,7 @@ onBeforeUnmount(() => {
               <el-tag v-if="rowsResponse?.label || selectedOption?.label" effect="plain" round>
                 {{ rowsResponse?.label || selectedOption?.label }}
               </el-tag>
+              <el-tag :type="tableKindTagType(tableKind)" effect="plain" round>{{ tableKindLabel(tableKind) }}</el-tag>
               <span class="db-table-name">{{ rowsResponse?.tableName || selectedTable || '-' }}</span>
             </div>
 

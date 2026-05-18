@@ -42,4 +42,11 @@ describe('UX interaction regressions', () => {
     expect(mirrorSettingsSource).toContain('savedConfigActionDisabled');
     expect(mirrorSettingsSource).toContain('refreshCurrentStatus');
   });
+
+  it('keeps source table browsing read-only and clearly labeled', () => {
+    expect(databaseBrowserSource).toContain("case 'SOURCE'");
+    expect(databaseBrowserSource).toContain('来源表为实时只读预览，不支持在此刷新');
+    expect(databaseBrowserSource).toContain(':disabled="!currentTableRefreshable"');
+    expect(databaseBrowserSource).toContain('来源表为管理员只读预览，本地表无需刷新');
+  });
 });

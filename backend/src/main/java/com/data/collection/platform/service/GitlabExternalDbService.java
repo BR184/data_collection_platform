@@ -214,6 +214,20 @@ public class GitlabExternalDbService {
     return executeSourceQuery(config, sql);
   }
 
+  public List<Map<String, Object>> previewTablePage(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String keyword,
+      String sortField,
+      String sortOrder,
+      int page,
+      int size) {
+    return executeSourceQuery(
+        config,
+        buildPreviewTablePageSql(option, schema, keyword, sortField, sortOrder, page, size));
+  }
+
   public GitlabTableProbe probeTable(GitlabSyncConfig config, TableWhitelistOption option) {
     List<Map<String, Object>> rows = executeSourceQuery(config, buildTableProbeSql(option));
     if (rows.isEmpty()) {
@@ -318,6 +332,49 @@ public class GitlabExternalDbService {
         quoteQualifiedPublicTable(option.tableName()),
         quoteIdentifier(lookupColumn),
         toSqlLiteral(lookupValue));
+  }
+
+  String buildPreviewTablePageSql(
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String keyword,
+      String sortField,
+      String sortOrder,
+      int page,
+      int size) {
+    int safePage = Math.max(1, page);
+    int safeSize = Math.max(1, Math.min(100, size));
+    String safeSortField = schema.columns().stream()
+        .map(SourceTableColumn::columnName)
+        .filter(column -> Objects.equals(column, sortField))
+        .findFirst()
+        .orElse(firstPrimaryKey(option));
+    String safeSortOrder = Objects.equals("asc", sortOrder) ? "asc" : "desc";
+    List<String> searchableFields = schema.columns().stream()
+        .map(SourceTableColumn::columnName)
+        .filter(this::isPreviewSearchableField)
+        .limit(6)
+        .toList();
+    String whereClause = "";
+    if (keyword != null && !keyword.isBlank() && !searchableFields.isEmpty()) {
+      String likeValue = "'%" + keyword.trim().replace("'", "''") + "%'";
+      whereClause = searchableFields.stream()
+          .map(field -> "cast(" + quoteIdentifier(field) + " as text) ilike " + likeValue)
+          .collect(java.util.stream.Collectors.joining(" or ", " where (", ")"));
+    }
+    return """
+        select *
+          from %s
+         %s
+         order by %s %s
+         limit %d offset %d
+        """.formatted(
+        quoteQualifiedPublicTable(option.tableName()),
+        whereClause,
+        quoteIdentifier(safeSortField),
+        safeSortOrder,
+        safeSize,
+        (safePage - 1) * safeSize).strip();
   }
 
   String buildTimeWindowScanSql(TableWhitelistOption option, LocalDateTime since) {
@@ -721,6 +778,11 @@ public class GitlabExternalDbService {
         .map(String::trim)
         .filter(value -> !value.isBlank())
         .toList();
+  }
+
+  private boolean isPreviewSearchableField(String columnName) {
+    return columnName != null
+        && !List.of("metadata", "payload", "description_html").contains(columnName);
   }
 
   private String firstPrimaryKey(TableWhitelistOption option) {

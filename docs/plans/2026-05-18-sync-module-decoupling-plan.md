@@ -94,6 +94,7 @@
 - 同步配置、源表浏览、诊断、运行队列全部归管理员域。
 - 游客只保留外部表单和未来脱敏公开摘要 API。
 - 完成外部来源表功能时必须以管理员权限、审计日志、脱敏展示作为默认约束。
+- System Hook 是当前唯一 hook 验收口径；旧 Webhook 方案已摒弃，不再作为本方案待办。
 
 ## 真实用户链路验收补充
 
@@ -189,4 +190,13 @@
   - 已补充回归测试：连接测试委托、交互式超时、近期失败熔断、镜像设置页诊断接口失败仍可进入页面。
   - 验证命令：`tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml test "-Dtest=SourceConnectionTesterTest,GitlabMirrorSyncServiceTest"`；结果 10 个测试通过。
   - 验证命令：`frontend\node_modules\.bin\vitest.cmd run src\views\mirror-settings.mount-smoke.test.ts src\api-client\request.test.ts src\views\quality-board-rd.mount-smoke.test.ts`；结果 10 个测试通过。
+  - 验证命令：`frontend\node_modules\.bin\tsc.cmd --noEmit --pretty false`；结果通过。
+- 2026-05-18：第五阶段来源表与权限域补齐：
+  - 已确认 `/api/database-browser` 使用 class 级 `@RequireRole(AuthRole.ADMIN)`，`/api/gitlab-sync` 的配置、状态、健康、诊断、白名单、同步、取消、清理、System Hook 注册等运维入口均为管理员入口；`/api/gitlab-sync/system-hook` 保持 GitLab 侧 secret 鉴权，不走平台登录态。
+  - 数据库查看页新增显式表类型：本地表 `LOCAL`、镜像表 `MIRROR`、来源表 `SOURCE`。来源表选项从本地已初始化镜像注册表推导，加载表列表时不访问外部 GitLab，避免弱内网首屏阻塞。
+  - 外部来源表以 `source:<configId>:<sourceTable>` 形式暴露给管理员，只读分页预览；打开具体来源表时才访问源端，并且受本地镜像注册表/白名单、数据源启用状态、配置完整性约束。
+  - 来源表预览不执行全表 `count(*)`，只按当前页读取并返回“为保护百万级内网源库，当前页不执行全表 count”的中文提示；来源表不可触发刷新，镜像表仍可触发表级刷新。
+  - 前端数据库查看页已展示“本地表/镜像表/来源表”中文类型，来源表刷新按钮禁用并显示只读说明。
+  - 验证命令：`tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml test "-Dtest=DatabaseBrowserServiceTest,DatabaseBrowserTableCatalogTest,EndpointAuthorizationContractTest"`；结果 6 个测试通过。
+  - 验证命令：`frontend\node_modules\.bin\vitest.cmd run src\views\ux-interaction-regressions.test.ts src\feature-manifest-access.test.ts`；结果 10 个测试通过。
   - 验证命令：`frontend\node_modules\.bin\tsc.cmd --noEmit --pretty false`；结果通过。

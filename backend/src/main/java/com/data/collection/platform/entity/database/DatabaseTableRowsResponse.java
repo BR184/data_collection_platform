@@ -22,4 +22,6 @@ public class DatabaseTableRowsResponse {
   private String syncStatus;
   private LocalDateTime lastSyncTime;
   private String statusMessage;
+  private String tableKind;
+  private boolean refreshable;
 }
