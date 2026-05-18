@@ -107,3 +107,4 @@
 - 2026-05-18：推进第三阶段第三片，抽出 `MirrorTableWriter`，表任务 worker 通过镜像写入契约落库，写入细节继续保留在 storage service 内。
 - 2026-05-18：推进第三阶段第四片，抽出 `SourceMetadataInspector`，白名单发现和镜像表结构发现通过元数据契约访问外部源。
 - 2026-05-18：推进第四阶段第一片，新增 `SyncRunCompletionEvent` 与 fact refresh 监听器，镜像 run worker 改为发布完成事件，不再直接提交 fact refresh。
+- 2026-05-18：推进第四阶段第二片，抽出 `SyncFactRefreshRunExecutor`，FACT_REFRESH run 的队列领取与执行从通用 run worker 中移出。

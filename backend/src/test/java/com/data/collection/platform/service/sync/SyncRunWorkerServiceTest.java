@@ -6,40 +6,31 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
-import com.data.collection.platform.service.FactBuildTaskService;
-import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
-import java.math.BigDecimal;
 import java.lang.reflect.Method;
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 class SyncRunWorkerServiceTest {
   private SyncRunMapper syncRunMapper;
   private SyncRunTablePlanningService tablePlanningService;
   private SyncRunTableWorkerService tableWorkerService;
   private GitlabConfigService configService;
-  private FactBuildTaskService factBuildTaskService;
-  private FactRefreshTaskWorkerService factRefreshTaskWorkerService;
-  private JsonUtils jsonUtils;
   private SyncThreadBudgetResolver threadBudgetResolver;
   private ApplicationEventPublisher eventPublisher;
+  private SyncFactRefreshRunExecutor factRefreshRunExecutor;
   private SyncRunWorkerService workerService;
 
   @BeforeEach
@@ -48,22 +39,18 @@ class SyncRunWorkerServiceTest {
     tablePlanningService = mock(SyncRunTablePlanningService.class);
     tableWorkerService = mock(SyncRunTableWorkerService.class);
     configService = mock(GitlabConfigService.class);
-    factBuildTaskService = mock(FactBuildTaskService.class);
-    factRefreshTaskWorkerService = mock(FactRefreshTaskWorkerService.class);
-    jsonUtils = new JsonUtils(new ObjectMapper());
     threadBudgetResolver = new SyncThreadBudgetResolver(new GitlabMirrorProperties());
     eventPublisher = mock(ApplicationEventPublisher.class);
+    factRefreshRunExecutor = mock(SyncFactRefreshRunExecutor.class);
     workerService =
         new SyncRunWorkerService(
             syncRunMapper,
             tablePlanningService,
             tableWorkerService,
             configService,
-            factBuildTaskService,
-            factRefreshTaskWorkerService,
-            jsonUtils,
             threadBudgetResolver,
-            eventPublisher);
+            eventPublisher,
+            factRefreshRunExecutor);
   }
 
   @Test
@@ -164,22 +151,14 @@ class SyncRunWorkerServiceTest {
   void shouldExecuteFactRefreshRunThroughQueuedFactTasks() {
     SyncRun run = run(14L, SyncRunType.FACT_REFRESH);
     run.setPayloadJson("{\"fullBuild\":true}");
-    GitlabSyncConfig config = config();
-    QueuedFactBuildTask task =
-        new QueuedFactBuildTask(101L, 1L, "alpha", "ISSUE", "alpha:issue", true, 0, 3, LocalDateTime.now().plusSeconds(30));
-    when(configService.getConfigById(1L)).thenReturn(config);
-    when(factBuildTaskService.enqueueMirrorRefreshTasks(config, true, 14L)).thenReturn(1);
-    when(factBuildTaskService.claimNextQueuedTaskForRun(14L, "fact-run-worker", 30))
-        .thenReturn(task)
-        .thenReturn(null);
-    when(factRefreshTaskWorkerService.execute(task))
-        .thenReturn(new FactBuildResponse("alpha:issue", true, 8, "issue facts built"));
+    when(factRefreshRunExecutor.execute(run))
+        .thenReturn(new SyncFactRefreshRunExecutor.Result(1, 1, 8L, SyncRunStatus.SUCCESS, null));
 
     workerService.executeRun(run);
 
-    verify(factBuildTaskService).enqueueMirrorRefreshTasks(config, true, 14L);
-    verify(factRefreshTaskWorkerService).execute(task);
+    verify(factRefreshRunExecutor).execute(run);
     verify(configService, org.mockito.Mockito.never()).updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
+    verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getPlannedTableCount()).isEqualTo(1);
     assertThat(run.getCompletedTableCount()).isEqualTo(1);

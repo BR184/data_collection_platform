@@ -1,16 +1,11 @@
 package com.data.collection.platform.service.sync;
 
-import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
-import com.data.collection.platform.service.FactBuildTaskService;
-import com.data.collection.platform.service.FactRefreshTaskWorkerService;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,31 +18,25 @@ public class SyncRunWorkerService {
   private final SyncRunTablePlanningService tablePlanningService;
   private final SyncRunTableWorkerService tableWorkerService;
   private final GitlabConfigService configService;
-  private final FactBuildTaskService factBuildTaskService;
-  private final FactRefreshTaskWorkerService factRefreshTaskWorkerService;
-  private final JsonUtils jsonUtils;
   private final SyncThreadBudgetResolver threadBudgetResolver;
   private final ApplicationEventPublisher eventPublisher;
+  private final SyncFactRefreshRunExecutor factRefreshRunExecutor;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
       SyncRunTablePlanningService tablePlanningService,
       SyncRunTableWorkerService tableWorkerService,
       GitlabConfigService configService,
-      FactBuildTaskService factBuildTaskService,
-      FactRefreshTaskWorkerService factRefreshTaskWorkerService,
-      JsonUtils jsonUtils,
       SyncThreadBudgetResolver threadBudgetResolver,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher,
+      SyncFactRefreshRunExecutor factRefreshRunExecutor) {
     this.syncRunMapper = syncRunMapper;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
     this.configService = configService;
-    this.factBuildTaskService = factBuildTaskService;
-    this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
-    this.jsonUtils = jsonUtils;
     this.threadBudgetResolver = threadBudgetResolver;
     this.eventPublisher = eventPublisher;
+    this.factRefreshRunExecutor = factRefreshRunExecutor;
   }
 
   public void executeRun(SyncRun run) {
@@ -96,22 +85,9 @@ public class SyncRunWorkerService {
   }
 
   private void executeFactRefreshRun(SyncRun run) {
-    GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
-    boolean full = factRefreshFullBuild(run);
-    int planned = factBuildTaskService.enqueueMirrorRefreshTasks(config, full, run.getId());
-    int completed = 0;
-    long affectedRows = 0L;
-    QueuedFactBuildTask task;
-    while ((task = factBuildTaskService.claimNextQueuedTaskForRun(run.getId(), "fact-run-worker", 30)) != null) {
-      FactBuildResponse response = factRefreshTaskWorkerService.execute(task);
-      if (response != null) {
-        completed++;
-        affectedRows += response.affectedRows();
-      }
-    }
-    run.setAppliedRows(affectedRows);
-    SyncRunStatus status = completed < planned ? SyncRunStatus.PARTIAL_SUCCESS : SyncRunStatus.SUCCESS;
-    finishRun(run, status, planned, completed, status == SyncRunStatus.SUCCESS ? null : "One or more fact refresh tasks failed");
+    SyncFactRefreshRunExecutor.Result result = factRefreshRunExecutor.execute(run);
+    run.setAppliedRows(result.affectedRows());
+    finishRun(run, result.status(), result.plannedTasks(), result.completedTasks(), result.errorMessage());
   }
 
   private void markRunning(SyncRun run) {
@@ -210,11 +186,6 @@ public class SyncRunWorkerService {
       return "Sync run cancelled";
     }
     return "One or more table tasks did not complete";
-  }
-
-  private boolean factRefreshFullBuild(SyncRun run) {
-    SyncRunPayload payload = jsonUtils.fromJson(run.getPayloadJson(), SyncRunPayload.typeReference());
-    return payload != null && payload.fullBuildEnabled();
   }
 
   private int resolveTableWorkerCount(SyncRun run) {
