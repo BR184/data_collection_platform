@@ -68,22 +68,26 @@ class SyncRunWorkerServiceTest {
   @Test
   void shouldPlanAndDrainTableRefreshRun() {
     SyncRun run = run(12L, SyncRunType.TABLE_REFRESH);
-    run.setAppliedRows(5L);
     GitlabSyncConfig config = config();
     when(tablePlanningService.planRunTables(12L)).thenReturn(3);
     when(tableWorkerService.drainRunTasks(12L)).thenReturn(2);
+    when(tableWorkerService.summarizeRun(12L))
+        .thenReturn(new SyncRunTableWorkerService.RunTableTaskSummary(3, 2, 7L, 5L));
     when(configService.getConfigById(1L)).thenReturn(config);
 
     workerService.executeRun(run);
 
     verify(tablePlanningService).planRunTables(12L);
     verify(tableWorkerService).drainRunTasks(12L);
+    verify(tableWorkerService).summarizeRun(12L);
     verify(syncRunMapper, times(2)).updateById(run);
     verify(configService).updateSyncTime(1L, false);
     verify(submissionService).submitFactRefresh(config, 12L, false, "Mirror run completed; refresh fact layer");
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getPlannedTableCount()).isEqualTo(3);
     assertThat(run.getCompletedTableCount()).isEqualTo(2);
+    assertThat(run.getScannedRows()).isEqualTo(7L);
+    assertThat(run.getAppliedRows()).isEqualTo(5L);
   }
 
   @Test

@@ -1,13 +1,27 @@
 package com.data.collection.platform.service.sync;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
+import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
+import com.data.collection.platform.mapper.SyncRunTableStateMapper;
+import com.data.collection.platform.service.GitlabConfigService;
+import com.data.collection.platform.service.GitlabExternalDbService;
+import com.data.collection.platform.service.GitlabMirrorSchemaService;
+import com.data.collection.platform.service.GitlabMirrorTableStorageService;
+import java.time.Instant;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,12 +30,31 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class SyncRunTableWorkerService {
-  private final SyncRunTableTaskMapper taskMapper;
-  private final JdbcTemplate jdbcTemplate;
+  private static final LocalDateTime INITIAL_WATERMARK = LocalDateTime.of(1970, 1, 1, 0, 0);
 
-  public SyncRunTableWorkerService(SyncRunTableTaskMapper taskMapper, JdbcTemplate jdbcTemplate) {
+  private final SyncRunTableTaskMapper taskMapper;
+  private final SyncRunTableStateMapper stateMapper;
+  private final JdbcTemplate jdbcTemplate;
+  private final GitlabConfigService configService;
+  private final GitlabExternalDbService externalDbService;
+  private final GitlabMirrorSchemaService mirrorSchemaService;
+  private final GitlabMirrorTableStorageService storageService;
+
+  public SyncRunTableWorkerService(
+      SyncRunTableTaskMapper taskMapper,
+      SyncRunTableStateMapper stateMapper,
+      JdbcTemplate jdbcTemplate,
+      GitlabConfigService configService,
+      GitlabExternalDbService externalDbService,
+      GitlabMirrorSchemaService mirrorSchemaService,
+      GitlabMirrorTableStorageService storageService) {
     this.taskMapper = taskMapper;
+    this.stateMapper = stateMapper;
     this.jdbcTemplate = jdbcTemplate;
+    this.configService = configService;
+    this.externalDbService = externalDbService;
+    this.mirrorSchemaService = mirrorSchemaService;
+    this.storageService = storageService;
   }
 
   public int drainRunTasks(Long runId) {
@@ -33,13 +66,35 @@ public class SyncRunTableWorkerService {
         cancelQueuedTasks(runId);
         break;
       }
-      finishTask(task.getId(), 0L, 0L, "SUCCESS", null);
+      executeTask(task);
       processed++;
     }
     if (isRunCancellationRequested(runId)) {
       cancelQueuedTasks(runId);
     }
     return processed;
+  }
+
+  public RunTableTaskSummary summarizeRun(Long runId) {
+    if (runId == null) {
+      return new RunTableTaskSummary(0, 0, 0L, 0L);
+    }
+    return jdbcTemplate.queryForObject(
+        """
+        select count(*) as planned_tasks,
+               count(*) filter (where status in ('SUCCESS', 'PARTIAL_SUCCESS')) as completed_tasks,
+               coalesce(sum(rows_scanned), 0) as scanned_rows,
+               coalesce(sum(rows_applied), 0) as applied_rows
+          from sync_run_table_tasks
+         where run_id = ?
+        """,
+        (rs, rowNum) ->
+            new RunTableTaskSummary(
+                rs.getInt("planned_tasks"),
+                rs.getInt("completed_tasks"),
+                rs.getLong("scanned_rows"),
+                rs.getLong("applied_rows")),
+        runId);
   }
 
   public boolean isRunCancellationRequested(Long runId) {
@@ -126,6 +181,156 @@ public class SyncRunTableWorkerService {
         taskId);
   }
 
+  private void executeTask(SyncRunTableTask task) {
+    SyncRunTableState state = findState(task);
+    try {
+      if (state == null) {
+        throw new IllegalStateException("Table sync state is missing");
+      }
+      if (!Boolean.TRUE.equals(state.getSyncEnabled()) || !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
+        throw new IllegalStateException("Table task is not executable by incremental worker");
+      }
+      GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
+      TableWhitelistOption option = tableOption(state);
+      GitlabMirrorSchemaService.PreparedMirrorTable preparedMirrorTable =
+          mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
+      mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
+
+      int batchSize = resolveBatchSize(task);
+      LocalDateTime scanStart = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
+      List<Map<String, Object>> rows =
+          externalDbService.incrementalCursorScan(
+              config, option, scanStart, task.getCursorUpdatedAt(), task.getCursorPk(), batchSize);
+      MirrorBatchWriteResult writeResult =
+          storageService.upsertBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+      RowCursor lastCursor = lastCursor(rows, state);
+      boolean hasMore = rows.size() >= batchSize && lastCursor.updatedAt() != null;
+      markSuccess(task, state, rows.size(), writeResult.appliedRows(), lastCursor, hasMore);
+      if (hasMore) {
+        taskMapper.insert(createContinuationTask(task, lastCursor, batchSize));
+      }
+      mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+    } catch (Exception e) {
+      markFailure(task, state, e);
+      log.warn(
+          "Sync run table task failed, taskId={}, configId={}, sourceTable={}",
+          task.getId(),
+          task.getConfigId(),
+          task.getSourceTable(),
+          e);
+    }
+  }
+
+  private SyncRunTableState findState(SyncRunTableTask task) {
+    if (task == null) {
+      return null;
+    }
+    if (task.getStateId() != null) {
+      SyncRunTableState state = stateMapper.selectById(task.getStateId());
+      if (state != null) {
+        return state;
+      }
+    }
+    return stateMapper.selectOne(
+        new LambdaQueryWrapper<SyncRunTableState>()
+            .eq(SyncRunTableState::getConfigId, task.getConfigId())
+            .eq(SyncRunTableState::getSourceInstance, task.getSourceInstance())
+            .eq(SyncRunTableState::getSourceTable, task.getSourceTable())
+            .last("limit 1"));
+  }
+
+  private void markSuccess(
+      SyncRunTableTask task,
+      SyncRunTableState state,
+      int scannedRows,
+      int appliedRows,
+      RowCursor lastCursor,
+      boolean hasMore) {
+    LocalDateTime now = LocalDateTime.now();
+    finishTask(task.getId(), (long) scannedRows, (long) appliedRows, "SUCCESS", null);
+
+    state.setDirtyFlag(hasMore);
+    state.setLastSuccessAt(now);
+    if (lastCursor.updatedAt() != null) {
+      state.setLastWatermarkAt(lastCursor.updatedAt());
+      state.setLastCursorPk(lastCursor.primaryKey());
+    }
+    state.setLastError("");
+    state.setRetryCount(0);
+    state.setUpdatedAt(now);
+    stateMapper.updateById(state);
+  }
+
+  private void markFailure(SyncRunTableTask task, SyncRunTableState state, Exception e) {
+    String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    mirrorSchemaService.markTableError(task.getConfigId(), task.getSourceTable());
+    finishTask(task.getId(), task.getRowsScanned(), task.getRowsApplied(), "FAILED", message);
+    if (state == null) {
+      return;
+    }
+    state.setDirtyFlag(true);
+    state.setLastError(message);
+    state.setRetryCount(state.getRetryCount() == null ? 1 : state.getRetryCount() + 1);
+    state.setUpdatedAt(LocalDateTime.now());
+    stateMapper.updateById(state);
+  }
+
+  private SyncRunTableTask createContinuationTask(SyncRunTableTask previousTask, RowCursor cursor, int batchSize) {
+    LocalDateTime now = LocalDateTime.now();
+    SyncRunTableTask task = new SyncRunTableTask();
+    task.setRunId(previousTask.getRunId());
+    task.setConfigId(previousTask.getConfigId());
+    task.setStateId(previousTask.getStateId());
+    task.setSourceInstance(previousTask.getSourceInstance());
+    task.setSourceTable(previousTask.getSourceTable());
+    task.setMirrorTable(previousTask.getMirrorTable());
+    task.setTaskType(previousTask.getTaskType());
+    task.setStatus(SyncRunStatus.QUEUED);
+    task.setRowStrategy(previousTask.getRowStrategy());
+    task.setWatermarkAt(previousTask.getWatermarkAt());
+    task.setCursorUpdatedAt(cursor.updatedAt());
+    task.setCursorPk(cursor.primaryKey());
+    task.setBatchSize(batchSize);
+    task.setRunAfter(now);
+    task.setRetryCount(0);
+    task.setMaxRetryCount(previousTask.getMaxRetryCount());
+    task.setRowsScanned(0L);
+    task.setRowsApplied(0L);
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    return task;
+  }
+
+  private TableWhitelistOption tableOption(SyncRunTableState state) {
+    return new TableWhitelistOption(
+        state.getSourceTable(), state.getSourceTable(), state.getPrimaryKeyColumns(), state.getUpdatedAtColumn(), true);
+  }
+
+  private RowCursor lastCursor(List<Map<String, Object>> rows, SyncRunTableState state) {
+    if (rows == null || rows.isEmpty() || state.getUpdatedAtColumn() == null || state.getUpdatedAtColumn().isBlank()) {
+      return RowCursor.empty();
+    }
+    Map<String, Object> row = rows.get(rows.size() - 1);
+    LocalDateTime updatedAt = toLocalDateTime(row.get(state.getUpdatedAtColumn()));
+    Object primaryKey = row.get(firstPrimaryKey(state.getPrimaryKeyColumns()));
+    return new RowCursor(updatedAt, primaryKey == null ? "" : String.valueOf(primaryKey));
+  }
+
+  private int resolveBatchSize(SyncRunTableTask task) {
+    return task.getBatchSize() == null || task.getBatchSize() < 1 ? 500 : task.getBatchSize();
+  }
+
+  private String firstPrimaryKey(String primaryKeys) {
+    if (primaryKeys == null || primaryKeys.isBlank()) {
+      return "id";
+    }
+    return List.of(primaryKeys.split(",")).stream()
+        .map(String::trim)
+        .filter(value -> !value.isBlank())
+        .findFirst()
+        .orElse("id");
+  }
+
   private SyncRunTableTask mapTask(ResultSet rs, int rowNum) throws SQLException {
     SyncRunTableTask task = new SyncRunTableTask();
     task.setId(rs.getLong("id"));
@@ -160,5 +365,30 @@ public class SyncRunTableWorkerService {
 
   private LocalDateTime toDateTime(Timestamp timestamp) {
     return timestamp == null ? null : timestamp.toLocalDateTime();
+  }
+
+  private LocalDateTime toLocalDateTime(Object value) {
+    if (value instanceof LocalDateTime localDateTime) {
+      return localDateTime;
+    }
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    if (value instanceof OffsetDateTime offsetDateTime) {
+      return offsetDateTime.toLocalDateTime();
+    }
+    if (value instanceof Instant instant) {
+      return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+    }
+    return null;
+  }
+
+  public record RunTableTaskSummary(int plannedTasks, int completedTasks, long scannedRows, long appliedRows) {
+  }
+
+  private record RowCursor(LocalDateTime updatedAt, String primaryKey) {
+    static RowCursor empty() {
+      return new RowCursor(null, "");
+    }
   }
 }

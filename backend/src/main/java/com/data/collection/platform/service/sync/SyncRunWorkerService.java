@@ -77,12 +77,15 @@ public class SyncRunWorkerService {
       finishRun(run, SyncRunStatus.CANCELLED, planned, 0, "Sync run cancelled before table execution");
       return;
     }
-    int finished = tableWorkerService.drainRunTasks(run.getId());
+    tableWorkerService.drainRunTasks(run.getId());
+    SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
+    run.setScannedRows(summary.scannedRows());
+    run.setAppliedRows(summary.appliedRows());
     if (isCancellationRequested(run)) {
-      finishRun(run, SyncRunStatus.CANCELLED, planned, finished, "Sync run cancelled");
+      finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), "Sync run cancelled");
       return;
     }
-    finishRun(run, SyncRunStatus.SUCCESS, planned, finished, null);
+    finishRun(run, SyncRunStatus.SUCCESS, planned, summary.completedTasks(), null);
   }
 
   private void executeFactRefreshRun(SyncRun run) {
