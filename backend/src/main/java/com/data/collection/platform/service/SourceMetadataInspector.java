@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import java.util.List;
@@ -24,5 +25,11 @@ public class SourceMetadataInspector {
 
   public SourceTableSchema discoverTableSchema(GitlabSyncConfig config, TableWhitelistOption option) {
     return externalDbService.discoverTableSchema(config, option);
+  }
+
+  public GitlabSourceMetadataDiagnosticsResponse inspectSourceMetadata(
+      GitlabSyncConfig config,
+      List<TableWhitelistOption> whitelistOptions) {
+    return externalDbService.inspectSourceMetadata(config, whitelistOptions);
   }
 }

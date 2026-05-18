@@ -21,7 +21,6 @@ import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.GitlabConfigService;
-import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
@@ -29,6 +28,7 @@ import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.data.collection.platform.service.SourceMetadataInspector;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
@@ -64,7 +64,7 @@ public class GitlabSyncController {
   private final GitlabSystemHookRegistrationService systemHookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
-  private final GitlabExternalDbService externalDbService;
+  private final SourceMetadataInspector sourceMetadataInspector;
   private final SyncThreadBudgetResolver threadBudgetResolver;
   private final SyncRunSubmissionService submissionService;
   private final SyncRunCancellationService cancellationService;
@@ -80,7 +80,7 @@ public class GitlabSyncController {
       GitlabSystemHookRegistrationService systemHookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
-      GitlabExternalDbService externalDbService,
+      SourceMetadataInspector sourceMetadataInspector,
       SyncThreadBudgetResolver threadBudgetResolver,
       SyncRunSubmissionService submissionService,
       SyncRunCancellationService cancellationService,
@@ -94,7 +94,7 @@ public class GitlabSyncController {
     this.systemHookRegistrationService = systemHookRegistrationService;
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
-    this.externalDbService = externalDbService;
+    this.sourceMetadataInspector = sourceMetadataInspector;
     this.threadBudgetResolver = threadBudgetResolver;
     this.submissionService = submissionService;
     this.cancellationService = cancellationService;
@@ -180,7 +180,7 @@ public class GitlabSyncController {
 
     GitlabSourceMetadataDiagnosticsResponse metadataDiagnostics;
     try {
-      metadataDiagnostics = externalDbService.inspectSourceMetadata(config, whitelistOptions);
+      metadataDiagnostics = sourceMetadataInspector.inspectSourceMetadata(config, whitelistOptions);
     } catch (Exception e) {
       metadataDiagnostics = GitlabSourceMetadataDiagnosticsResponse.failure(e.getMessage());
     }

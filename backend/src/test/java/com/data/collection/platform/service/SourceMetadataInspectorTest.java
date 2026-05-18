@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
@@ -49,5 +50,22 @@ class SourceMetadataInspectorTest {
 
     assertThat(actual).isEqualTo(expected);
     verify(externalDbService).discoverTableSchema(config, option);
+  }
+
+  @Test
+  void shouldDelegateMetadataDiagnosticsToExternalDbService() {
+    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
+    SourceMetadataInspector inspector = new SourceMetadataInspector(externalDbService);
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    List<TableWhitelistOption> options =
+        List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true));
+    GitlabSourceMetadataDiagnosticsResponse expected =
+        new GitlabSourceMetadataDiagnosticsResponse(true, "ok", 1, 1, 0, 0, List.of());
+    when(externalDbService.inspectSourceMetadata(config, options)).thenReturn(expected);
+
+    GitlabSourceMetadataDiagnosticsResponse actual = inspector.inspectSourceMetadata(config, options);
+
+    assertThat(actual).isEqualTo(expected);
+    verify(externalDbService).inspectSourceMetadata(config, options);
   }
 }

@@ -15,22 +15,22 @@ import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncType;
+import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.service.GitlabConfigService;
-import com.data.collection.platform.service.GitlabExternalDbService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
+import com.data.collection.platform.service.SourceMetadataInspector;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunStatusService;
 import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
 import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
-import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +41,7 @@ class GitlabSyncControllerTest {
   private GitlabConfigService configService;
   private GitlabMirrorSyncService syncService;
   private GitlabWhitelistService whitelistService;
-  private GitlabExternalDbService externalDbService;
+  private SourceMetadataInspector sourceMetadataInspector;
   private GitlabSystemHookRegistrationService systemHookRegistrationService;
   private SyncRunSubmissionService submissionService;
   private SyncRunCancellationService cancellationService;
@@ -54,7 +54,7 @@ class GitlabSyncControllerTest {
     configService = mock(GitlabConfigService.class);
     syncService = mock(GitlabMirrorSyncService.class);
     whitelistService = mock(GitlabWhitelistService.class);
-    externalDbService = mock(GitlabExternalDbService.class);
+    sourceMetadataInspector = mock(SourceMetadataInspector.class);
     systemHookRegistrationService = mock(GitlabSystemHookRegistrationService.class);
     submissionService = mock(SyncRunSubmissionService.class);
     cancellationService = mock(SyncRunCancellationService.class);
@@ -71,7 +71,7 @@ class GitlabSyncControllerTest {
             systemHookRegistrationService,
             mock(GitlabMirrorPurgeService.class),
             mock(GitlabSourceHealthService.class),
-            externalDbService,
+            sourceMetadataInspector,
             new SyncThreadBudgetResolver(properties),
             submissionService,
             cancellationService,
@@ -258,7 +258,7 @@ class GitlabSyncControllerTest {
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(whitelistService.listOptionsStrict(config)).thenReturn(List.of());
-    when(externalDbService.inspectSourceMetadata(config, List.of()))
+    when(sourceMetadataInspector.inspectSourceMetadata(config, List.of()))
         .thenReturn(new GitlabSourceMetadataDiagnosticsResponse(true, "ok", 0, 0, 0, 0, List.of()));
     when(systemHookRegistrationService.getStatus(config, "http://localhost:18080/api/gitlab-sync/system-hook"))
         .thenReturn(
