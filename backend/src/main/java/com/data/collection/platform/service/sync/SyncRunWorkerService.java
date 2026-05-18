@@ -13,6 +13,7 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,31 +23,31 @@ public class SyncRunWorkerService {
   private final SyncRunTablePlanningService tablePlanningService;
   private final SyncRunTableWorkerService tableWorkerService;
   private final GitlabConfigService configService;
-  private final SyncRunSubmissionService submissionService;
   private final FactBuildTaskService factBuildTaskService;
   private final FactRefreshTaskWorkerService factRefreshTaskWorkerService;
   private final JsonUtils jsonUtils;
   private final SyncThreadBudgetResolver threadBudgetResolver;
+  private final ApplicationEventPublisher eventPublisher;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
       SyncRunTablePlanningService tablePlanningService,
       SyncRunTableWorkerService tableWorkerService,
       GitlabConfigService configService,
-      SyncRunSubmissionService submissionService,
       FactBuildTaskService factBuildTaskService,
       FactRefreshTaskWorkerService factRefreshTaskWorkerService,
       JsonUtils jsonUtils,
-      SyncThreadBudgetResolver threadBudgetResolver) {
+      SyncThreadBudgetResolver threadBudgetResolver,
+      ApplicationEventPublisher eventPublisher) {
     this.syncRunMapper = syncRunMapper;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
     this.configService = configService;
-    this.submissionService = submissionService;
     this.factBuildTaskService = factBuildTaskService;
     this.factRefreshTaskWorkerService = factRefreshTaskWorkerService;
     this.jsonUtils = jsonUtils;
     this.threadBudgetResolver = threadBudgetResolver;
+    this.eventPublisher = eventPublisher;
   }
 
   public void executeRun(SyncRun run) {
@@ -69,7 +70,7 @@ public class SyncRunWorkerService {
         finishRun(run, SyncRunStatus.SUCCESS, 0, 0, null);
       }
       updateSyncTimestamps(run);
-      submitFactRefreshIfNeeded(run);
+      publishRunCompletion(run);
     } catch (Exception e) {
       finishRun(run, SyncRunStatus.FAILED, 0, 0, e.getMessage());
       log.error("Sync run failed, runId={}", run.getRunId(), e);
@@ -158,16 +159,18 @@ public class SyncRunWorkerService {
     configService.updateSyncTime(run.getConfigId(), fullSync);
   }
 
-  private void submitFactRefreshIfNeeded(SyncRun run) {
-    if (!isMirrorRun(run) || run.getStatus() != SyncRunStatus.SUCCESS || appliedRows(run) <= 0L) {
+  private void publishRunCompletion(SyncRun run) {
+    if (!isMirrorRun(run)) {
       return;
     }
-    GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
-    submissionService.submitFactRefresh(
-        config,
-        run.getId(),
-        run.getRunType() == SyncRunType.FULL_SYNC,
-        "Mirror run completed; refresh fact layer");
+    eventPublisher.publishEvent(
+        new SyncRunCompletionEvent(
+            run.getId(),
+            run.getConfigId(),
+            run.getSourceInstance(),
+            run.getRunType(),
+            run.getStatus(),
+            run.getAppliedRows()));
   }
 
   private boolean isMirrorRun(SyncRun run) {
@@ -177,10 +180,6 @@ public class SyncRunWorkerService {
             || run.getRunType() == SyncRunType.TABLE_REFRESH
             || run.getRunType() == SyncRunType.SYSTEM_HOOK
             || run.getRunType() == SyncRunType.COMPENSATION_SCAN);
-  }
-
-  private long appliedRows(SyncRun run) {
-    return run.getAppliedRows() == null ? 0L : run.getAppliedRows();
   }
 
   private SyncRunStatus tableRunStatus(SyncRunTableWorkerService.RunTableTaskSummary summary) {

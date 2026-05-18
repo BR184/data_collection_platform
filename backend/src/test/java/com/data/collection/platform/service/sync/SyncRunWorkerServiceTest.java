@@ -8,8 +8,8 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.config.GitlabMirrorProperties;
-import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.FactBuildResponse;
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.WhitelistMode;
@@ -23,8 +23,10 @@ import com.data.collection.platform.service.GitlabConfigService;
 import java.math.BigDecimal;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -33,11 +35,11 @@ class SyncRunWorkerServiceTest {
   private SyncRunTablePlanningService tablePlanningService;
   private SyncRunTableWorkerService tableWorkerService;
   private GitlabConfigService configService;
-  private SyncRunSubmissionService submissionService;
   private FactBuildTaskService factBuildTaskService;
   private FactRefreshTaskWorkerService factRefreshTaskWorkerService;
   private JsonUtils jsonUtils;
   private SyncThreadBudgetResolver threadBudgetResolver;
+  private ApplicationEventPublisher eventPublisher;
   private SyncRunWorkerService workerService;
 
   @BeforeEach
@@ -46,22 +48,22 @@ class SyncRunWorkerServiceTest {
     tablePlanningService = mock(SyncRunTablePlanningService.class);
     tableWorkerService = mock(SyncRunTableWorkerService.class);
     configService = mock(GitlabConfigService.class);
-    submissionService = mock(SyncRunSubmissionService.class);
     factBuildTaskService = mock(FactBuildTaskService.class);
     factRefreshTaskWorkerService = mock(FactRefreshTaskWorkerService.class);
     jsonUtils = new JsonUtils(new ObjectMapper());
     threadBudgetResolver = new SyncThreadBudgetResolver(new GitlabMirrorProperties());
+    eventPublisher = mock(ApplicationEventPublisher.class);
     workerService =
         new SyncRunWorkerService(
             syncRunMapper,
             tablePlanningService,
             tableWorkerService,
             configService,
-            submissionService,
             factBuildTaskService,
             factRefreshTaskWorkerService,
             jsonUtils,
-            threadBudgetResolver);
+            threadBudgetResolver,
+            eventPublisher);
   }
 
   @Test
@@ -81,7 +83,7 @@ class SyncRunWorkerServiceTest {
     verify(tableWorkerService).summarizeRun(11L);
     verify(syncRunMapper, times(2)).updateById(run);
     verify(configService).updateSyncTime(1L, true);
-    verify(submissionService).submitFactRefresh(config, 11L, true, "Mirror run completed; refresh fact layer");
+    verifyMirrorCompletionEvent(11L, SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 18L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getStartedAt()).isNotNull();
     assertThat(run.getFinishedAt()).isNotNull();
@@ -108,7 +110,7 @@ class SyncRunWorkerServiceTest {
     verify(tableWorkerService).summarizeRun(12L);
     verify(syncRunMapper, times(2)).updateById(run);
     verify(configService).updateSyncTime(1L, false);
-    verify(submissionService).submitFactRefresh(config, 12L, false, "Mirror run completed; refresh fact layer");
+    verifyMirrorCompletionEvent(12L, SyncRunType.TABLE_REFRESH, SyncRunStatus.SUCCESS, 5L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.SUCCESS);
     assertThat(run.getPlannedTableCount()).isEqualTo(3);
     assertThat(run.getCompletedTableCount()).isEqualTo(2);
@@ -127,12 +129,7 @@ class SyncRunWorkerServiceTest {
     workerService.executeRun(run);
 
     verify(configService).updateSyncTime(1L, false);
-    verify(submissionService, org.mockito.Mockito.never())
-        .submitFactRefresh(
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.any(),
-            org.mockito.ArgumentMatchers.anyBoolean(),
-            org.mockito.ArgumentMatchers.any());
+    verifyMirrorCompletionEvent(15L, SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.PARTIAL_SUCCESS, 5L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
     assertThat(run.getErrorMessage()).isEqualTo("One or more table tasks failed");
   }
@@ -202,6 +199,7 @@ class SyncRunWorkerServiceTest {
     verify(tablePlanningService, org.mockito.Mockito.never()).planRunTables(13L);
     verify(tableWorkerService, org.mockito.Mockito.never()).drainRunTasks(13L);
     verify(configService, org.mockito.Mockito.never()).updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
+    verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
     assertThat(run.getErrorMessage()).isEqualTo("Sync run cancelled before processing");
   }
@@ -227,5 +225,21 @@ class SyncRunWorkerServiceTest {
     config.setSyncThreadValue(BigDecimal.valueOf(2));
     config.setMaxSyncThreads(4);
     return config;
+  }
+
+  private void verifyMirrorCompletionEvent(
+      Long runId,
+      SyncRunType runType,
+      SyncRunStatus status,
+      Long appliedRows) {
+    ArgumentCaptor<SyncRunCompletionEvent> captor = ArgumentCaptor.forClass(SyncRunCompletionEvent.class);
+    verify(eventPublisher).publishEvent(captor.capture());
+    SyncRunCompletionEvent event = captor.getValue();
+    assertThat(event.runId()).isEqualTo(runId);
+    assertThat(event.configId()).isEqualTo(1L);
+    assertThat(event.sourceInstance()).isEqualTo("alpha");
+    assertThat(event.runType()).isEqualTo(runType);
+    assertThat(event.status()).isEqualTo(status);
+    assertThat(event.appliedRows()).isEqualTo(appliedRows);
   }
 }
