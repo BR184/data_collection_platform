@@ -2,7 +2,9 @@ package com.data.collection.platform.service.sync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -11,12 +13,14 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.mapper.SyncRunMapper;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 class SyncRunLogServiceTest {
   private SyncRunMapper syncRunMapper;
@@ -49,6 +53,14 @@ class SyncRunLogServiceTest {
     run.setStartedAt(LocalDateTime.of(2026, 5, 15, 10, 0));
     run.setFinishedAt(LocalDateTime.of(2026, 5, 15, 10, 5));
     when(syncRunMapper.selectList(any())).thenReturn(List.of(run));
+    when(jdbcTemplate.queryForObject(contains("from sync_run_table_tasks"), any(RowMapper.class), eq(31L)))
+        .thenAnswer(invocation -> {
+          RowMapper<?> mapper = invocation.getArgument(1);
+          ResultSet rs = mock(ResultSet.class);
+          when(rs.getInt("total_tasks")).thenReturn(42);
+          when(rs.getInt("completed_tasks")).thenReturn(39);
+          return mapper.mapRow(rs, 0);
+        });
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(31L)))
         .thenReturn("Run finished cleanly");
 
@@ -61,7 +73,8 @@ class SyncRunLogServiceTest {
         .containsEntry("syncType", "INCREMENTAL")
         .containsEntry("status", SyncStatus.SUCCESS.name())
         .containsEntry("message", "Run finished cleanly")
-        .containsEntry("tableCount", 6)
+        .containsEntry("tableCount", 42)
+        .containsEntry("completedTableCount", 39)
         .containsEntry("recordCount", 120L);
   }
 }

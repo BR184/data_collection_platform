@@ -120,7 +120,7 @@ function terminalTime(log: SyncRunLog) {
             </el-tag>
           </div>
           <div>
-            <span>表进度</span>
+            <span>总任务进度</span>
             <strong>{{ tableProgressText }}</strong>
           </div>
           <div>

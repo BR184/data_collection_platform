@@ -68,7 +68,7 @@ function createStatus(overrides: Partial<MirrorStatusResponse> = {}): MirrorStat
       dockerContainerName: 'gitlab-data-web-1',
       systemHookSecret: '',
       systemHookProjectId: null,
-      compensationIntervalMinutes: 10,
+      compensationIntervalMinutes: 360,
       syncThreadMode: 'FIXED',
       syncThreadValue: 2,
       maxSyncThreads: 16,
@@ -144,6 +144,20 @@ describe('useMirrorStatusPresentation', () => {
     expect(presentation.progressPercent.value).toBe(100);
     expect(presentation.progressHint.value).toBe('同步已完成，本次写入 35 条记录。');
     expect(presentation.currentMessageText.value).toBe('全量表校验已完成，状态：成功');
+  });
+
+  it('caps active progress below complete while the run is still expanding table tasks', () => {
+    const status = ref(
+      createStatus({
+        currentStatus: 'RUNNING',
+        currentTask: createTask({ status: 'RUNNING' }),
+        progress: createProgress({ totalTables: 20, completedTables: 20 }),
+      }),
+    );
+
+    const presentation = useMirrorStatusPresentation(status);
+
+    expect(presentation.progressPercent.value).toBe(95);
   });
 
   it('shows queued and zero-table progress hints', () => {

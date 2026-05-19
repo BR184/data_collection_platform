@@ -22,6 +22,7 @@ import org.springframework.util.StringUtils;
 public class GitlabConfigService {
   static final int MIN_COMPENSATION_INTERVAL_MINUTES = 1;
   static final int MAX_COMPENSATION_INTERVAL_MINUTES = 720;
+  static final int DEFAULT_COMPENSATION_INTERVAL_MINUTES = 360;
 
   private final GitlabSyncConfigMapper configMapper;
   private final GitlabMirrorProperties properties;
@@ -249,7 +250,7 @@ public class GitlabConfigService {
     config.setDbPassword("");
     config.setDockerContainerName("gitlab-data-web-1");
     config.setSystemHookEnabled(false);
-    config.setCompensationIntervalMinutes(10);
+    config.setCompensationIntervalMinutes(DEFAULT_COMPENSATION_INTERVAL_MINUTES);
     config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
     config.setSyncThreadValue(SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE);
     config.setMaxSyncThreads(Math.max(1, properties.getMaxSyncThreads()));
@@ -338,7 +339,7 @@ public class GitlabConfigService {
   }
 
   private Integer normalizeCompensationInterval(Integer intervalMinutes) {
-    int effectiveValue = intervalMinutes == null ? 10 : intervalMinutes;
+    int effectiveValue = intervalMinutes == null ? DEFAULT_COMPENSATION_INTERVAL_MINUTES : intervalMinutes;
     if (effectiveValue < MIN_COMPENSATION_INTERVAL_MINUTES || effectiveValue > MAX_COMPENSATION_INTERVAL_MINUTES) {
       throw new BizException(
           "补偿间隔仅支持 "

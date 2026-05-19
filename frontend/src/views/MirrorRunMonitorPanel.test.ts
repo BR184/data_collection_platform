@@ -38,7 +38,7 @@ function createStatus(): MirrorStatusResponse {
       dbName: 'gitlabhq_production',
       dbUsername: 'gitlab',
       dbPassword: '',
-      compensationIntervalMinutes: 10,
+      compensationIntervalMinutes: 360,
       syncThreadMode: 'CPU_RATIO',
       syncThreadValue: 0.8,
       maxSyncThreads: 16,

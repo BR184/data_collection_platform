@@ -68,7 +68,10 @@ public class GitlabCompensationScheduler {
     if (lastSyncAt == null) {
       return true;
     }
-    int intervalMinutes = config.getCompensationIntervalMinutes() == null ? 10 : config.getCompensationIntervalMinutes();
+    int intervalMinutes =
+        config.getCompensationIntervalMinutes() == null
+            ? GitlabConfigService.DEFAULT_COMPENSATION_INTERVAL_MINUTES
+            : config.getCompensationIntervalMinutes();
     return Duration.between(lastSyncAt, now).toMinutes() >= Math.max(1, intervalMinutes);
   }
 }

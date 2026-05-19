@@ -30,7 +30,7 @@ function baseConfig(id = 1, sourceInstance = 'default') {
     systemHookSecret: '',
     systemHookEnabled: false,
     systemHookProjectId: null,
-    compensationIntervalMinutes: 10,
+    compensationIntervalMinutes: 360,
     syncThreadMode: 'FIXED',
     syncThreadValue: 2,
     maxSyncThreads: 16,

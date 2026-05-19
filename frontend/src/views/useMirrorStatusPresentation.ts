@@ -17,6 +17,14 @@ const TERMINAL_STATUSES: Array<GitlabSyncStatus | 'IDLE'> = [
   'IDLE',
 ];
 
+function activeProgressPercent(completedTables: number, totalTables: number): number {
+  if (totalTables <= 0) {
+    return 5;
+  }
+  const rawPercent = Math.round((completedTables / totalTables) * 100);
+  return Math.min(95, Math.max(5, rawPercent));
+}
+
 function fallbackPhaseText(task: SyncRunSummary | null): string {
   if (!task || !ACTIVE_POLLING_STATUSES.includes(task.status)) {
     return '空闲';
@@ -86,7 +94,7 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
     if (current.totalTables <= 0) {
       return currentTask.value && ACTIVE_POLLING_STATUSES.includes(currentTask.value.status) ? 5 : 0;
     }
-    return Math.min(100, Math.round((current.completedTables / current.totalTables) * 100));
+    return activeProgressPercent(current.completedTables, current.totalTables);
   });
 
   const displayStatus = computed(() => {

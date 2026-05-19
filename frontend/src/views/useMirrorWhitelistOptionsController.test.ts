@@ -20,7 +20,7 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     dockerContainerName: 'gitlab-data-web-1',
     systemHookSecret: '',
     systemHookProjectId: null,
-    compensationIntervalMinutes: 10,
+    compensationIntervalMinutes: 360,
     syncThreadMode: 'FIXED',
     syncThreadValue: 2,
     maxSyncThreads: 16,
