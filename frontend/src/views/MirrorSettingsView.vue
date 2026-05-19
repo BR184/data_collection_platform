@@ -140,7 +140,7 @@ const {
 
 const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
 const sourceEnabled = computed(() => form.value.sourceEnabled ?? form.value.enabled);
-const syncEnabled = computed(() => sourceEnabled.value && form.value.autoSyncEnabled);
+const syncEnabled = computed(() => sourceEnabled.value);
 const sourceSelectPlaceholder = computed(() =>
   isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
 );
