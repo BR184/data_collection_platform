@@ -555,7 +555,7 @@ public class GitlabExternalDbService {
           on a.attrelid = c.oid
          and a.attnum = any(i.indkey)
         where n.nspname = 'public'
-          and c.relkind in ('r', 'p')
+          and c.relkind = 'r'
         group by c.relname
         order by c.relname
         """;
@@ -591,7 +591,7 @@ public class GitlabExternalDbService {
         join pg_class c on a.attrelid = c.oid
         join pg_namespace n on c.relnamespace = n.oid
         where n.nspname = 'public'
-          and c.relkind in ('r', 'p')
+          and c.relkind = 'r'
           and a.attnum > 0
           and not a.attisdropped
         order by c.relname, a.attnum

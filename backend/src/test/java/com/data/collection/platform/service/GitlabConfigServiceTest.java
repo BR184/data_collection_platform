@@ -176,7 +176,7 @@ class GitlabConfigServiceTest {
   }
 
   @Test
-  void shouldNormalizeAllWhitelistModeToRecommended() {
+  void shouldPersistAllWhitelistModeWithoutNormalization() {
     when(configMapper.selectOne(any())).thenReturn(null);
 
     GitlabSyncConfig input = baseInput();
@@ -186,7 +186,7 @@ class GitlabConfigServiceTest {
     configService.saveConfig(input);
 
     verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
-        config.getWhitelistMode() == WhitelistMode.RECOMMENDED
+        config.getWhitelistMode() == WhitelistMode.ALL
             && config.getWhitelistTables().equals(List.of("issues", "projects"))));
   }
 

@@ -307,7 +307,7 @@ public class GitlabConfigService {
   }
 
   private WhitelistMode normalizeWhitelistMode(WhitelistMode whitelistMode) {
-    if (whitelistMode == null || whitelistMode == WhitelistMode.ALL) {
+    if (whitelistMode == null) {
       return WhitelistMode.RECOMMENDED;
     }
     return whitelistMode;

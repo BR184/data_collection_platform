@@ -35,7 +35,7 @@ class GitlabWhitelistServiceTest {
   }
 
   @Test
-  void allWhitelistModeShouldResolveToRecommendedTablesOnly() {
+  void allWhitelistModeShouldResolveToAllDiscoveredTables() {
     SourceMetadataInspector sourceMetadataInspector = mock(SourceMetadataInspector.class);
     GitlabWhitelistService whitelistService = new GitlabWhitelistService(sourceMetadataInspector);
     GitlabSyncConfig config = new GitlabSyncConfig();
@@ -49,7 +49,8 @@ class GitlabWhitelistServiceTest {
 
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
 
-    assertThat(options).extracting(TableWhitelistOption::tableName).containsExactly("issues");
+    assertThat(options).extracting(TableWhitelistOption::tableName)
+        .containsExactly("issues", "audit_events");
   }
 
   @Test

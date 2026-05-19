@@ -92,9 +92,11 @@ public class GitlabWhitelistService {
     List<TableWhitelistOption> allOptions = listOptionsStrict(config);
     if (config == null
         || config.getWhitelistMode() == null
-        || config.getWhitelistMode() == WhitelistMode.RECOMMENDED
-        || config.getWhitelistMode() == WhitelistMode.ALL) {
+        || config.getWhitelistMode() == WhitelistMode.RECOMMENDED) {
       return allOptions.stream().filter(TableWhitelistOption::recommended).toList();
+    }
+    if (config.getWhitelistMode() == WhitelistMode.ALL) {
+      return allOptions;
     }
     List<String> tables = config.getWhitelistTables() == null ? List.of() : config.getWhitelistTables();
     return tables.stream()

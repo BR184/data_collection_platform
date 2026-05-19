@@ -729,8 +729,20 @@ onBeforeUnmount(() => {
         <el-form-item label="白名单模式">
           <el-radio-group v-model="form.whitelistMode">
             <el-radio value="RECOMMENDED">推荐业务表</el-radio>
+            <el-radio value="ALL">全部表</el-radio>
             <el-radio value="CUSTOM">自定义白名单</el-radio>
           </el-radio-group>
+          <el-alert
+            v-if="form.whitelistMode === 'ALL'"
+            title="全部表模式将同步源数据库中所有可发现的表。首次全量同步耗时较长，增量同步会自动跳过无变更的表。"
+            type="info"
+            :closable="false"
+            show-icon
+            style="margin-top: 8px"
+          />
+          <div v-if="form.whitelistMode === 'ALL' && whitelistOptionsLoaded" class="form-help-text">
+            将同步 {{ whitelistOptions.length }} 张表（其中 {{ recommendedCount }} 张为推荐业务表）。
+          </div>
         </el-form-item>
         <el-form-item v-if="form.whitelistMode === 'CUSTOM'" label="自定义白名单">
           <SmartSelect

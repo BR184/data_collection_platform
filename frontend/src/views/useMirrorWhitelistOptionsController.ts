@@ -43,7 +43,7 @@ export function useMirrorWhitelistOptionsController(
   watch(
     () => deps.form.value.whitelistMode,
     (nextMode) => {
-      if (nextMode === 'CUSTOM') {
+      if (nextMode === 'CUSTOM' || nextMode === 'ALL') {
         void ensureWhitelistOptions();
       }
     },
