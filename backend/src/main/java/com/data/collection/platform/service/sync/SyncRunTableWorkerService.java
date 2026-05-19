@@ -297,6 +297,16 @@ public class SyncRunTableWorkerService {
       if (!fullTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
         throw new IllegalStateException("Table task is not executable by incremental worker");
       }
+      if (!fullTask && !preciseTask && task.getCursorUpdatedAt() == null && task.getCursorPk() == null) {
+        LocalDateTime sourceMaxUpdatedAt = sourceTableReader.findMaxUpdatedAt(config, option);
+        if (sourceMaxUpdatedAt != null
+            && state.getLastWatermarkAt() != null
+            && !sourceMaxUpdatedAt.isAfter(state.getLastWatermarkAt())) {
+          markSuccess(task, state, 0, 0, new RowCursor(state.getLastWatermarkAt(), ""), false);
+          mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
+          return;
+        }
+      }
       List<Map<String, Object>> rows =
           fullTask
               ? sourceTableReader.readFullBatch(

@@ -167,6 +167,8 @@ public class SyncRunSubmissionService {
       mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
     } else if (runType == SyncRunType.FACT_REFRESH && activeRun != null) {
       return reusedRun(activeRun, apiType, "Fact refresh is already queued or running for this source");
+    } else if (runType == SyncRunType.COMPENSATION_SCAN && activeRun != null) {
+      return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
     } else if (isMirrorRun(runType) && activeRun != null && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
       if (runType == SyncRunType.TABLE_REFRESH) {
         recordMergeEvent(activeRun, config, sourceTables, reason, primaryTableName, now);
