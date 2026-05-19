@@ -74,6 +74,15 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).contains("max_sync_threads integer");
   }
 
+  @Test
+  void shouldDisableAllTableWhitelistModeMigration() throws IOException {
+    String migration = readMigration("V20260519_02__disable_all_table_whitelist_mode.sql");
+
+    assertThat(migration).contains("update gitlab_sync_configs");
+    assertThat(migration).contains("whitelist_mode = 'recommended'");
+    assertThat(migration).contains("where whitelist_mode = 'all'");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

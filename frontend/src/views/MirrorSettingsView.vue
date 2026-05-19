@@ -729,7 +729,6 @@ onBeforeUnmount(() => {
         <el-form-item label="白名单模式">
           <el-radio-group v-model="form.whitelistMode">
             <el-radio value="RECOMMENDED">推荐业务表</el-radio>
-            <el-radio value="ALL">全部表</el-radio>
             <el-radio value="CUSTOM">自定义白名单</el-radio>
           </el-radio-group>
         </el-form-item>

@@ -176,6 +176,21 @@ class GitlabConfigServiceTest {
   }
 
   @Test
+  void shouldNormalizeAllWhitelistModeToRecommended() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setWhitelistMode(WhitelistMode.ALL);
+    input.setWhitelistTables(List.of("issues", "projects"));
+
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        config.getWhitelistMode() == WhitelistMode.RECOMMENDED
+            && config.getWhitelistTables().equals(List.of("issues", "projects"))));
+  }
+
+  @Test
   void shouldRejectChangingConfigToExistingSourceInstance() {
     GitlabSyncConfig current = persistedConfig();
     current.setId(1L);

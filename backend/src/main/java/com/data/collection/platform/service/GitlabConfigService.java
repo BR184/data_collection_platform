@@ -272,7 +272,7 @@ public class GitlabConfigService {
     normalized.setSourceInstance(sourceInstance);
     normalized.setAutoSyncEnabled(autoSyncEnabled);
     normalized.setSourceMode(config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode());
-    normalized.setWhitelistMode(config.getWhitelistMode() == null ? WhitelistMode.RECOMMENDED : config.getWhitelistMode());
+    normalized.setWhitelistMode(normalizeWhitelistMode(config.getWhitelistMode()));
     normalized.setWhitelistTables(config.getWhitelistTables() == null ? List.of() : config.getWhitelistTables());
     normalized.setDbHost(config.getDbHost());
     normalized.setDbPort(config.getDbPort());
@@ -304,6 +304,13 @@ public class GitlabConfigService {
 
   private boolean isSourceEnabled(GitlabSyncConfig config) {
     return Boolean.TRUE.equals(config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled());
+  }
+
+  private WhitelistMode normalizeWhitelistMode(WhitelistMode whitelistMode) {
+    if (whitelistMode == null || whitelistMode == WhitelistMode.ALL) {
+      return WhitelistMode.RECOMMENDED;
+    }
+    return whitelistMode;
   }
 
   private boolean resolveSystemHookEnabled(
