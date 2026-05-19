@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.sync;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
@@ -16,8 +17,10 @@ import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -54,19 +57,23 @@ public class SyncRunTablePlanningService {
     if (run == null) {
       return 0;
     }
+    Set<String> existingTaskKeys = existingTaskKeys(runId);
     SyncRunPayload payload = parsePayload(run);
     List<String> sourceTables = payload.normalizedSourceTables();
     List<SyncRunPayload.PreciseTarget> preciseTargets = payload.runnablePreciseTargets();
     if (run.getRunType() == SyncRunType.SYSTEM_HOOK && !preciseTargets.isEmpty()) {
-      return planPreciseTargets(run, preciseTargets);
+      return planPreciseTargets(run, preciseTargets, existingTaskKeys);
     }
     if (shouldPlanFromWhitelist(run, sourceTables)) {
-      return planWhitelistTables(run, sourceTables);
+      return planWhitelistTables(run, sourceTables, existingTaskKeys);
     }
     LocalDateTime now = LocalDateTime.now();
-    int planned = 0;
+    int planned = existingTaskKeys.size();
     for (String sourceTable : sourceTables) {
       SyncRunTableState state = resolveRunnableState(run, sourceTable);
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+        continue;
+      }
       SyncRunTableTask task = new SyncRunTableTask();
       task.setRunId(run.getId());
       task.setConfigId(run.getConfigId());
@@ -88,6 +95,7 @@ public class SyncRunTablePlanningService {
       task.setUpdatedAt(now);
       taskMapper.insert(task);
       planned++;
+      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
     }
     log.info("Planned {} table tasks for run {}", planned, runId);
     return planned;
@@ -101,7 +109,7 @@ public class SyncRunTablePlanningService {
         && (run.getRunType() == SyncRunType.COMPENSATION_SCAN || run.getRunType() == SyncRunType.SYSTEM_HOOK);
   }
 
-  private int planWhitelistTables(SyncRun run, List<String> requestedTables) {
+  private int planWhitelistTables(SyncRun run, List<String> requestedTables, Set<String> existingTaskKeys) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     ensureSourceConfigured(config);
     List<TableWhitelistOption> options = whitelistService.resolveOptions(config);
@@ -112,7 +120,7 @@ public class SyncRunTablePlanningService {
               .toList();
     }
     LocalDateTime now = LocalDateTime.now();
-    int planned = 0;
+    int planned = existingTaskKeys.size();
     boolean fullSync = run.getRunType() == SyncRunType.FULL_SYNC;
     for (TableWhitelistOption option : options) {
       if (!isRunnableForRun(fullSync, option)) {
@@ -120,14 +128,18 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+        continue;
+      }
       taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
       planned++;
+      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
     }
     log.info("Planned {} whitelist table tasks for run {}", planned, run.getId());
     return planned;
   }
 
-  private int planPreciseTargets(SyncRun run, List<SyncRunPayload.PreciseTarget> targets) {
+  private int planPreciseTargets(SyncRun run, List<SyncRunPayload.PreciseTarget> targets, Set<String> existingTaskKeys) {
     GitlabSyncConfig config = configService.getConfigById(run.getConfigId());
     ensureSourceConfigured(config);
     Map<String, TableWhitelistOption> optionsByTable =
@@ -146,12 +158,17 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
+      String taskKey = taskKey(state.getSourceTable(), target.lookupColumn(), target.lookupValue());
+      if (existingTaskKeys.contains(taskKey)) {
+        continue;
+      }
       SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
       task.setRowStrategy("PRECISE");
       task.setLookupColumn(target.lookupColumn());
       task.setLookupValue(target.lookupValue());
       taskMapper.insert(task);
       planned++;
+      existingTaskKeys.add(taskKey);
     }
     log.info("Planned {} precise table tasks for run {}", planned, run.getId());
     return planned;
@@ -281,6 +298,31 @@ public class SyncRunTablePlanningService {
 
   private boolean isBlank(String value) {
     return value == null || value.isBlank();
+  }
+
+  private Set<String> existingTaskKeys(Long runId) {
+    if (runId == null) {
+      return new LinkedHashSet<>();
+    }
+    List<SyncRunTableTask> existingTasks =
+        taskMapper.selectList(
+            new QueryWrapper<SyncRunTableTask>()
+                .eq("run_id", runId)
+                .select("source_table", "lookup_column", "lookup_value"));
+    if (existingTasks == null || existingTasks.isEmpty()) {
+      return new LinkedHashSet<>();
+    }
+    return existingTasks.stream()
+        .map(task -> taskKey(task.getSourceTable(), task.getLookupColumn(), task.getLookupValue()))
+        .collect(Collectors.toCollection(LinkedHashSet::new));
+  }
+
+  private String taskKey(String sourceTable, String lookupColumn, String lookupValue) {
+    return String.join(
+        "|",
+        GitlabSourceInstanceSupport.normalizeSourceTableName(sourceTable),
+        lookupColumn == null ? "" : lookupColumn,
+        lookupValue == null ? "" : lookupValue);
   }
 
   private SyncRunPayload parsePayload(SyncRun run) {

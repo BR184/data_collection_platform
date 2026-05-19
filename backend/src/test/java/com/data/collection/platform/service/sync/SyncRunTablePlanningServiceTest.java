@@ -116,6 +116,37 @@ class SyncRunTablePlanningServiceTest {
   }
 
   @Test
+  void shouldNotDuplicateExistingTasksWhenRunIsPlannedAgain() {
+    SyncRun run = run(SyncRunType.FULL_SYNC);
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(taskMapper.selectList(any()))
+        .thenReturn(List.of(existingTask("issues", null, null)));
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
+                new TableWhitelistOption("namespaces", "Namespaces", "id", "updated_at", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId("issues".equals(state.getSourceTable()) ? 91L : 92L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planRunTables(77L);
+
+    assertThat(planned).isEqualTo(2);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("namespaces");
+  }
+
+  @Test
   void shouldPlanSystemHookPreciseTargetsFromPayload() {
     SyncRun run = run(SyncRunType.SYSTEM_HOOK);
     GitlabSyncConfig config = config();
@@ -220,6 +251,15 @@ class SyncRunTablePlanningServiceTest {
     run.setStatus(SyncRunStatus.QUEUED);
     run.setPayloadJson("{}");
     return run;
+  }
+
+  private SyncRunTableTask existingTask(String sourceTable, String lookupColumn, String lookupValue) {
+    SyncRunTableTask task = new SyncRunTableTask();
+    task.setRunId(77L);
+    task.setSourceTable(sourceTable);
+    task.setLookupColumn(lookupColumn);
+    task.setLookupValue(lookupValue);
+    return task;
   }
 
   private GitlabSyncConfig config() {
