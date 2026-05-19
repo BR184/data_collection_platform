@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,14 +19,13 @@ class SystemTestIssueSearchServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
+  @Mock private GitlabIssueLinkService issueLinkService;
 
   @Test
   void shouldUseSqlPageForPlainSearchRequests() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     SystemTestIssueSearchService service =
         new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, gitlabMirrorProperties);
+            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -75,11 +73,10 @@ class SystemTestIssueSearchServiceTest {
 
   @Test
   void shouldApplySystemTestSpecificFiltersThroughRequestObject() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     SystemTestIssueSearchService service =
         new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, gitlabMirrorProperties);
+            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    when(issueLinkService.issueUrl(1001L, 301)).thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -119,7 +116,7 @@ class SystemTestIssueSearchServiceTest {
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(301);
     assertThat(response.records().getFirst().issueLink())
-        .isEqualTo("http://gitlab.example.com/-/issues/301");
+        .isEqualTo("http://gitlab.example.com/group/project/-/issues/301");
     verify(issueFactRecordRepository)
         .findPage(
             argThat(

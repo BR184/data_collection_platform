@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -21,17 +20,16 @@ class CustomerIssueRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
+  @Mock private GitlabIssueLinkService issueLinkService;
 
   @Test
   void shouldUseSqlPageForPlainListRequests() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            gitlabMirrorProperties);
+            issueLinkService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -80,14 +78,13 @@ class CustomerIssueRecordServiceTest {
 
   @Test
   void shouldApplyTopicAndCommonFiltersThroughRequestObject() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            gitlabMirrorProperties);
+            issueLinkService);
+    when(issueLinkService.issueUrl(325L, 101)).thenReturn("http://gitlab.example.com/group/project/-/issues/101");
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -136,7 +133,7 @@ class CustomerIssueRecordServiceTest {
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(101);
     assertThat(response.records().getFirst().issueLink())
-        .isEqualTo("http://gitlab.example.com/-/issues/101");
+        .isEqualTo("http://gitlab.example.com/group/project/-/issues/101");
     verify(issueFactRecordRepository)
         .findPage(
             argThat(

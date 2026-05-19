@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -21,17 +20,16 @@ class CustomerIssueIllegalRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
+  @Mock private GitlabIssueLinkService issueLinkService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     CustomerIssueIllegalRecordService service =
         new CustomerIssueIllegalRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            gitlabMirrorProperties);
+            issueLinkService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
 
@@ -73,14 +71,13 @@ class CustomerIssueIllegalRecordServiceTest {
 
   @Test
   void shouldApplyIllegalFiltersThroughSharedPipeline() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     CustomerIssueIllegalRecordService service =
         new CustomerIssueIllegalRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            gitlabMirrorProperties);
+            issueLinkService);
+    when(issueLinkService.issueUrl(325L, 201)).thenReturn("http://gitlab.example.com/group/project/-/issues/201");
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -119,7 +116,7 @@ class CustomerIssueIllegalRecordServiceTest {
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(201);
     assertThat(response.records().getFirst().issueLink())
-        .isEqualTo("http://gitlab.example.com/-/issues/201");
+        .isEqualTo("http://gitlab.example.com/group/project/-/issues/201");
     verify(issueFactRecordRepository)
         .findPage(
             argThat(

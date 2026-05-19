@@ -5,8 +5,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -23,6 +23,7 @@ class SystemTestIllegalRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
+  @Mock private GitlabIssueLinkService issueLinkService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -138,7 +139,7 @@ class SystemTestIllegalRecordServiceTest {
     assertThat(response.records().getFirst().illegalReason())
         .isEqualTo(SystemTestIllegalReasonSupport.MISSING_MODULE);
     assertThat(response.records().getFirst().issueLink())
-        .isEqualTo("http://gitlab.example.com/-/issues/301");
+        .isEqualTo("http://gitlab.example.com/group/project/-/issues/301");
     verify(issueFactRecordRepository)
         .findPage(
             argThat(
@@ -217,13 +218,14 @@ class SystemTestIllegalRecordServiceTest {
   }
 
   private SystemTestIllegalRecordService service() {
-    GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
-    gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
+    lenient()
+        .when(issueLinkService.issueUrl(1001L, 301))
+        .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     return new SystemTestIllegalRecordService(
         issueFactRecordRepository,
         systemTestScopeProfile,
         new ObjectMapper(),
-        gitlabMirrorProperties);
+        issueLinkService);
   }
 
   private IssueFactRecord record(

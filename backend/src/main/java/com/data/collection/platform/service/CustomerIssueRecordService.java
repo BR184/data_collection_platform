@@ -1,6 +1,5 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
@@ -35,8 +34,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       ObjectMapper objectMapper,
-      GitlabMirrorProperties gitlabMirrorProperties) {
-    super(issueFactRecordRepository, gitlabMirrorProperties.getWebBaseUrl());
+      GitlabIssueLinkService issueLinkService) {
+    super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
   }
@@ -276,7 +275,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return new CustomerIssueRecordRowResponse(
         view.issueId(),
         view.issueIid(),
-        buildIssueLink(view.issueIid()),
+        buildIssueLink(view.projectId(), view.issueIid()),
         view.projectId(),
         view.projectName(),
         view.title(),

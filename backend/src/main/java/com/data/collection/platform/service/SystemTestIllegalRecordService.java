@@ -1,6 +1,5 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordRowResponse;
@@ -33,8 +32,8 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
       ObjectMapper objectMapper,
-      GitlabMirrorProperties gitlabMirrorProperties) {
-    super(issueFactRecordRepository, gitlabMirrorProperties.getWebBaseUrl());
+      GitlabIssueLinkService issueLinkService) {
+    super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
     this.objectMapper = objectMapper;
   }
@@ -309,7 +308,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return new SystemTestIllegalRecordRowResponse(
         view.issueId(),
         view.issueIid(),
-        buildIssueLink(view.issueIid()),
+        buildIssueLink(view.projectId(), view.issueIid()),
         view.projectId(),
         view.projectName(),
         view.title(),
