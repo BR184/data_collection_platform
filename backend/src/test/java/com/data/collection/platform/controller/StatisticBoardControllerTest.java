@@ -31,12 +31,14 @@ class StatisticBoardControllerTest {
 
   @BeforeEach
   void resetStatisticLinkFixtures() {
+    ensureStatisticLinkProjectTables();
     cleanStatisticLinkFixtures();
   }
 
   @AfterEach
   void cleanStatisticLinkFixtures() {
     jdbcTemplate.update("delete from issue_fact where source_instance = ?", STAT_LINK_SOURCE_INSTANCE);
+    jdbcTemplate.update("delete from ods_gitlab_projects where id in (?, ?)", 325L, 901L);
   }
 
   @Test
@@ -442,7 +444,8 @@ class StatisticBoardControllerTest {
         "Module A",
         "Function A",
         "",
-        "LEVEL1");
+        "LEVEL1",
+        "stat-links/cc-product");
     seedStatisticLinkIssue(
         901L,
         12001L,
@@ -451,7 +454,8 @@ class StatisticBoardControllerTest {
         "Module S",
         "Function S",
         "系统测试",
-        "LEVEL1");
+        "LEVEL1",
+        "stat-links/system-test-project");
 
     assertIssueDetailLink(
         controller.getDetails(
@@ -466,7 +470,8 @@ class StatisticBoardControllerTest {
             .getData(),
         11001,
         325L,
-        "CC_Product");
+        "CC_Product",
+        "stat-links/cc-product");
     assertIssueDetailLink(
         controller.getDetails(
                 "customer-issue-by-function",
@@ -480,7 +485,8 @@ class StatisticBoardControllerTest {
             .getData(),
         11001,
         325L,
-        "CC_Product");
+        "CC_Product",
+        "stat-links/cc-product");
     assertIssueDetailLink(
         controller.getDetails(
                 "system-test-defect-summary",
@@ -494,7 +500,8 @@ class StatisticBoardControllerTest {
             .getData(),
         12001,
         901L,
-        "System Test Project");
+        "System Test Project",
+        "stat-links/system-test-project");
   }
 
   @Test
@@ -520,7 +527,20 @@ class StatisticBoardControllerTest {
       String moduleName,
       String functionName,
       String testingPhase,
-      String severityLevel) {
+      String severityLevel,
+      String projectPath) {
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_projects(id, name, path, mirror_deleted)
+        values (?, ?, ?, false)
+        on conflict (id) do update
+          set name = excluded.name,
+              path = excluded.path,
+              mirror_deleted = false
+        """,
+        projectId,
+        projectName,
+        projectPath);
     jdbcTemplate.update(
         """
         insert into issue_fact(
@@ -553,16 +573,38 @@ class StatisticBoardControllerTest {
   }
 
   private void assertIssueDetailLink(
-      StatisticDetailResponse detail, int issueIid, long projectId, String projectName) {
+      StatisticDetailResponse detail, int issueIid, long projectId, String projectName, String projectPath) {
     assertThat(detail).isNotNull();
     assertThat(detail.records()).hasSize(1);
     Map<String, Object> record = detail.records().get(0);
-    String issueUrl = TEST_GITLAB_WEB_BASE_URL + "/-/issues/" + issueIid;
+    String issueUrl = TEST_GITLAB_WEB_BASE_URL + "/" + projectPath + "/-/issues/" + issueIid;
     assertThat(record).containsEntry("issueIid", issueIid);
     assertThat(record).containsEntry("issueUrl", issueUrl);
     assertThat(record).containsEntry("projectId", projectId);
     assertThat(record).containsEntry("projectName", projectName);
     assertThat(record.get("iid"))
         .isEqualTo(Map.of("label", String.valueOf(issueIid), "href", issueUrl));
+  }
+
+  private void ensureStatisticLinkProjectTables() {
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_projects (
+          id bigint primary key,
+          name varchar(255),
+          path varchar(255),
+          namespace_id bigint,
+          mirror_deleted boolean default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_namespaces (
+          id bigint primary key,
+          path varchar(255),
+          full_path varchar(255),
+          mirror_deleted boolean default false
+        )
+        """);
   }
 }

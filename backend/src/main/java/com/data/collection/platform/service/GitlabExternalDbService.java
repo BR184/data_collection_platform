@@ -849,6 +849,18 @@ public class GitlabExternalDbService {
     if (value instanceof Timestamp timestamp) {
       return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
     }
+    if (value instanceof java.sql.SQLXML sqlXml) {
+      try {
+        return sqlXml.getString();
+      } catch (Exception e) {
+        throw new BizException("Failed to normalize SQLXML value: " + e.getMessage());
+      } finally {
+        try {
+          sqlXml.free();
+        } catch (Exception ignored) {
+        }
+      }
+    }
     if (value instanceof java.sql.Array sqlArray) {
       try {
         Object array = sqlArray.getArray();

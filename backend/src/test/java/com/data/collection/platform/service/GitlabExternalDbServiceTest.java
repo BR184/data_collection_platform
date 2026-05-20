@@ -12,12 +12,14 @@ import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLXML;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.postgresql.util.PGobject;
 
 class GitlabExternalDbServiceTest {
 
@@ -357,6 +359,29 @@ class GitlabExternalDbServiceTest {
     assertThat(sqlArray.freed).isTrue();
   }
 
+  @Test
+  void shouldNormalizePostgresSpecificObjectsToRawValues() throws Exception {
+    PGobject inet = new PGobject();
+    inet.setType("inet");
+    inet.setValue("172.18.0.1");
+    PGobject searchVector = new PGobject();
+    searchVector.setType("tsvector");
+    searchVector.setValue("'sample':1 'vector':2");
+
+    assertThat(service.normalizeJdbcValue(inet)).isEqualTo("172.18.0.1");
+    assertThat(service.normalizeJdbcValue(searchVector)).isEqualTo("'sample':1 'vector':2");
+  }
+
+  @Test
+  void shouldNormalizeSqlXmlValuesToDetachedString() throws Exception {
+    StubSqlXml xml = new StubSqlXml("<root><value>ok</value></root>");
+
+    Object normalized = service.normalizeJdbcValue(xml);
+
+    assertThat(normalized).isEqualTo("<root><value>ok</value></root>");
+    assertThat(xml.freed).isTrue();
+  }
+
   private static final class StubSqlArray implements java.sql.Array {
     private final Object value;
     private boolean freed;
@@ -418,6 +443,60 @@ class GitlabExternalDbServiceTest {
     @Override
     public void free() throws SQLException {
       freed = true;
+    }
+  }
+
+  private static final class StubSqlXml implements SQLXML {
+    private final String value;
+    private boolean freed;
+
+    private StubSqlXml(String value) {
+      this.value = value;
+    }
+
+    @Override
+    public void free() throws SQLException {
+      freed = true;
+    }
+
+    @Override
+    public String getString() throws SQLException {
+      return value;
+    }
+
+    @Override
+    public void setString(String value) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public java.io.InputStream getBinaryStream() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public java.io.OutputStream setBinaryStream() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public java.io.Reader getCharacterStream() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public java.io.Writer setCharacterStream() throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T extends javax.xml.transform.Source> T getSource(Class<T> sourceClass) throws SQLException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T extends javax.xml.transform.Result> T setResult(Class<T> resultClass) throws SQLException {
+      throw new UnsupportedOperationException();
     }
   }
 }
