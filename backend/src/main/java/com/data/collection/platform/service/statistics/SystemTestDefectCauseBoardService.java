@@ -99,18 +99,21 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
+  private final StatisticIssueLinkSupport issueLinkSupport;
 
   public SystemTestDefectCauseBoardService(
       JsonUtils jsonUtils,
       GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
-      IssueFactQueryService issueFactQueryService) {
+      IssueFactQueryService issueFactQueryService,
+      StatisticIssueLinkSupport issueLinkSupport) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
+    this.issueLinkSupport = issueLinkSupport;
   }
 
   @Override
@@ -368,7 +371,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    record.put("iid", issue.iid());
+    issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
     record.put("title", issue.title());
     record.put("testingPhase", displayPhaseLabel(issue.primaryPhaseLabel(), null));
     record.put("reasonCategory", issue.reasonCategory());
@@ -427,6 +430,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         rs.getLong("id"),
         rs.getInt("iid"),
         StatisticSourceValueSupport.text(rs.getString("title"), ""),
+        rs.getLong("project_id"),
         StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
         StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
@@ -564,6 +568,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       Long id,
       Integer iid,
       String title,
+      Long projectId,
       String projectName,
       String authorName,
       LocalDateTime updatedAt,

@@ -5,7 +5,6 @@ interface StatisticBoardRefreshControllerDependencies {
   loading: Ref<boolean>;
   detailVisible: Ref<boolean>;
   loadBoard: () => Promise<void>;
-  loadRuleExplanation: () => Promise<void>;
   loadDetail: () => Promise<void>;
   requestRealtimeRefresh?: () => Promise<RealtimeWorkspaceStatusResponse>;
   loadRealtimeStatus?: () => Promise<RealtimeWorkspaceStatusResponse | null | void>;
@@ -22,7 +21,6 @@ export function useStatisticBoardRefreshController(deps: StatisticBoardRefreshCo
         await waitForRealtimeRefreshToSettle(refreshStatus);
       }
       await deps.loadBoard();
-      await deps.loadRuleExplanation();
       if (deps.detailVisible.value) {
         await deps.loadDetail();
       }

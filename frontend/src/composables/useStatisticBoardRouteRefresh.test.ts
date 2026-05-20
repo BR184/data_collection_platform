@@ -13,9 +13,6 @@ describe('refreshStatisticBoardRouteState', () => {
       loadRealtimeStatus: vi.fn(async () => {
         calls.push('load-realtime-status');
       }),
-      loadRuleExplanation: vi.fn(async () => {
-        calls.push('load-rule-explanation');
-      }),
       syncDetailFromRoute: vi.fn(async () => {
         calls.push('sync-detail');
       }),
@@ -28,7 +25,6 @@ describe('refreshStatisticBoardRouteState', () => {
       'sync-table-pagination',
       'load-board:false',
       'load-realtime-status',
-      'load-rule-explanation',
       'sync-detail',
       'loading:false',
     ]);
@@ -42,7 +38,6 @@ describe('refreshStatisticBoardRouteState', () => {
         throw new Error('load failed');
       }),
       loadRealtimeStatus: vi.fn(),
-      loadRuleExplanation: vi.fn(),
       syncDetailFromRoute: vi.fn(),
     };
 

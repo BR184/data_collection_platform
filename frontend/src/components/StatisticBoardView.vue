@@ -196,6 +196,7 @@ const {
   loadRuleExplanation,
   openRuleExplanation,
   handleRuleExplanationVisibleChange,
+  resetRuleExplanation,
 } = useRuleExplanationPanel({
   load: () =>
     api.getStatisticBoardRuleExplanation(props.boardKey, {
@@ -253,7 +254,6 @@ const {
   loading,
   detailVisible,
   loadBoard,
-  loadRuleExplanation,
   loadDetail,
   requestRealtimeRefresh: () => api.refreshStatisticBoardRealtime(props.boardKey),
   loadRealtimeStatus,
@@ -311,6 +311,7 @@ watch(
 watch(
   () => route.query,
   async () => {
+    resetRuleExplanation();
     await refreshStatisticBoardRouteState({
       setLoading: (nextLoading) => {
         loading.value = nextLoading;
@@ -318,7 +319,6 @@ watch(
       syncTablePaginationFromRoute,
       loadBoard,
       loadRealtimeStatus,
-      loadRuleExplanation,
       syncDetailFromRoute: () =>
         syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10),
     });

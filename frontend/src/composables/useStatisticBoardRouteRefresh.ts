@@ -3,7 +3,6 @@ export interface StatisticBoardRouteRefreshDependencies {
   syncTablePaginationFromRoute: () => void;
   loadBoard: (showError?: boolean) => Promise<void>;
   loadRealtimeStatus: () => Promise<void>;
-  loadRuleExplanation: () => Promise<void>;
   syncDetailFromRoute: () => Promise<void>;
 }
 
@@ -13,7 +12,6 @@ export async function refreshStatisticBoardRouteState(deps: StatisticBoardRouteR
     deps.syncTablePaginationFromRoute();
     await deps.loadBoard(false);
     await deps.loadRealtimeStatus();
-    await deps.loadRuleExplanation();
     await deps.syncDetailFromRoute();
   } finally {
     deps.setLoading(false);

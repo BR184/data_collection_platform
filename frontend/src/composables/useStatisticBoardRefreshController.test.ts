@@ -8,24 +8,21 @@ describe('useStatisticBoardRefreshController', () => {
     vi.restoreAllMocks();
   });
 
-  it('loads board and rule explanation when refreshing', async () => {
+  it('loads board without preloading rule explanation when refreshing', async () => {
     const loading = ref(false);
     const detailVisible = ref(false);
     const loadBoard = vi.fn(() => Promise.resolve());
-    const loadRuleExplanation = vi.fn(() => Promise.resolve());
     const loadDetail = vi.fn(() => Promise.resolve());
     const controller = useStatisticBoardRefreshController({
       loading,
       detailVisible,
       loadBoard,
-      loadRuleExplanation,
       loadDetail,
     });
 
     await controller.refreshBoard();
 
     expect(loadBoard).toHaveBeenCalledTimes(1);
-    expect(loadRuleExplanation).toHaveBeenCalledTimes(1);
     expect(loadDetail).not.toHaveBeenCalled();
     expect(loading.value).toBe(false);
   });
@@ -34,13 +31,11 @@ describe('useStatisticBoardRefreshController', () => {
     const loading = ref(false);
     const detailVisible = ref(true);
     const loadBoard = vi.fn(() => Promise.resolve());
-    const loadRuleExplanation = vi.fn(() => Promise.resolve());
     const loadDetail = vi.fn(() => Promise.resolve());
     const controller = useStatisticBoardRefreshController({
       loading,
       detailVisible,
       loadBoard,
-      loadRuleExplanation,
       loadDetail,
     });
 
@@ -57,7 +52,6 @@ describe('useStatisticBoardRefreshController', () => {
       loading,
       detailVisible,
       loadBoard: vi.fn(() => Promise.reject(error)),
-      loadRuleExplanation: vi.fn(() => Promise.resolve()),
       loadDetail: vi.fn(() => Promise.resolve()),
     });
 
@@ -71,7 +65,6 @@ describe('useStatisticBoardRefreshController', () => {
     const loading = ref(false);
     const detailVisible = ref(false);
     const loadBoard = vi.fn(() => Promise.resolve());
-    const loadRuleExplanation = vi.fn(() => Promise.resolve());
     const loadDetail = vi.fn(() => Promise.resolve());
     const notifySuccess = vi.fn();
     const requestRealtimeRefresh = vi.fn(() => Promise.resolve({
@@ -97,7 +90,6 @@ describe('useStatisticBoardRefreshController', () => {
       loading,
       detailVisible,
       loadBoard,
-      loadRuleExplanation,
       loadDetail,
       requestRealtimeRefresh,
       loadRealtimeStatus,
@@ -113,7 +105,6 @@ describe('useStatisticBoardRefreshController', () => {
     expect(loadRealtimeStatus).toHaveBeenCalledTimes(2);
     expect(notifySuccess).toHaveBeenCalledWith('镜像同步中');
     expect(loadBoard).toHaveBeenCalledOnce();
-    expect(loadRuleExplanation).toHaveBeenCalledOnce();
     expect(loading.value).toBe(false);
   });
 });
