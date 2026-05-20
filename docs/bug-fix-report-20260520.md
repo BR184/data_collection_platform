@@ -391,11 +391,11 @@ private int resolveMaxContinuationTasksPerTable() {
 
 | 补测项 | 本次修复后状态 | 后续行动 |
 |--------|---------------|----------|
-| 9.4 特殊 PostgreSQL 类型覆盖 | ✅ inet/cidr/macaddr/tsvector 等已通过反射统一处理 | 内网部署后对 `authentication_events` 等含 inet 列的表做端到端回归 |
-| 9.2/9.6 大数据性能压测 | ➖ 本次未涉及 | 内网预发布环境执行；重点观察 task 表增长、内存占用 |
-| 9.8 DGM 多源同步 | ➖ 本次未涉及 | 先修复 DGM proxy 网络连通性（运维侧） |
-| 9.9 真实 System Hook 端到端 | ➖ 本次未涉及 | 内网部署后配置真实 GitLab System Hook 回调 backend |
-| 9.7 真实进程中断恢复 | ➖ 本次未涉及（自动化已覆盖） | 内网部署后执行 kill backend + restart 验证 |
+| 9.4 特殊 PostgreSQL 类型覆盖 | ✅ 自动化通过；`GitlabExternalDbServiceTest` 已覆盖 PG 特殊类型归一化，`mvn test` 全量通过 | 内网部署后仍建议对 `authentication_events` 等含 inet 列的表做一次端到端回归 |
+| 9.2/9.6 大数据性能压测 | ➖ 按 2026-05-20 指示暂不执行 | 内网预发布环境执行；重点观察 task 表增长、内存占用 |
+| 9.8 多源隔离能力 | ✅ 自动化通过；外网不绑定 DGM 这个内网源名 | 内网部署后再用 CC/DGM 两个真实库做联调确认 |
+| 9.9 真实 System Hook 端到端 | ✅ 本地 GitLab 真实 HTTP 投递通过 | 内网部署后按相同链路复验，并确认 System Hook 日志包含事件来源 |
+| 9.7 真实进程中断恢复 | ⚠️ 自动化通过；真实 kill/restart 未补测 | 内网部署后执行 kill backend + restart 验证 |
 
 ### 内网部署验证清单
 
@@ -405,3 +405,78 @@ private int resolveMaxContinuationTasksPerTable() {
 2. **增量同步收敛性**: 在源表插入少量数据，触发增量同步，确认 task 数量 ≤ `ceil(变更行数 / batch_size) + 1`，无 task 爆炸。
 3. **watermark 推进**: 增量同步完成后查询 `sync_run_table_states.last_watermark_at`，确认推进到源表最新 `MAX(updated_at)`。
 4. **安全阀验证**（可选）: 临时将 `max-continuation-tasks-per-table` 调至 10，故意制造小 batch_size 触发上限，确认 task 被标记为 FAILED 而非无限增长。
+
+---
+
+## 九、2026-05-20 追加补测记录
+
+### 9.1 本轮补测范围
+
+本轮按要求跳过数据量压力测试，不执行 50K+ 增量、100 万+ 全量、内存占用和吞吐压测。补测重点放在非压力功能链路、自动化覆盖、直连诊断和 System Hook 真实链路。
+
+### 9.2 已完成并通过的测试
+
+| 测试项 | 结果 | 证据 |
+|--------|------|------|
+| 后端全量自动化测试 | ✅ 通过 | `mvn test`：400 tests, 0 failures, 0 errors, 4 skipped |
+| 前端同步进度/日志相关测试 | ✅ 通过 | `MirrorSyncStatusCard`、`MirrorRunMonitorPanel`、`MirrorSyncLogTable`、`mirror-settings-helpers`、`useMirrorStatusPresentation` 共 17 tests passed |
+| 前端 TypeScript 类型检查 | ✅ 通过 | `npm.cmd run typecheck` 无错误 |
+| GitLab 直连模式诊断 | ✅ 通过 | `sourceMode=DIRECT`，白名单发现 696 张表，当前同步状态 `IDLE` |
+| 同步任务幽灵状态检查 | ✅ 通过 | `sync_runs` 中 active runs 为 0；表诊断 `pending=0, running=0, retrying=0` |
+| System Hook 真实链路 | ✅ 通过 | GitLab `WebHookLog` 最新投递 `response_status=200`，平台 `sync_runs.id=279` 为 `SYSTEM_HOOK/SUCCESS` |
+| System Hook 精确同步任务 | ✅ 通过 | run 279 生成 4 个任务：`issues`、`issue_assignees`、`issue_metrics`、`label_links`，均为 `SUCCESS` |
+| 同步日志包含 System Hook 信息 | ✅ 通过 | `sync_runs.request_reason = System Hook 已唤醒同步：System Hook issue:387` |
+
+### 9.3 本轮仍未执行的测试
+
+| 测试项 | 状态 | 原因 |
+|--------|------|------|
+| 大数据性能压测 | ⏸ 跳过 | 用户明确要求除数据量压力测试外继续测试 |
+| 多源真实双库端到端 | ⚠️ 外网未执行真实双库；自动化隔离能力已通过 | 外网没有 CC/DGM 双库条件；内网用真实 CC/DGM 联调确认 |
+| 真实进程中断恢复 | ⚠️ 未执行 | 当前未构造长运行同步任务；自动化 lease/recovery 用例已通过 |
+| 内网真实含 inet 表端到端 | ⚠️ 未执行 | 本地自动化覆盖了归一化逻辑，内网仍建议对真实 `authentication_events` 回归 |
+
+---
+
+## 十、2026-05-20 新发现问题（暂不修改代码）
+
+### NEW-001：System Hook 项目白名单字段存在但未在入口生效
+
+- **严重程度**: P1
+- **现状**: `gitlab_sync_configs.system_hook_project_id` 字段已存在，配置 2 当前为空；`GitlabSystemHookService.accept()` 中尚未根据项目白名单做早期拦截。
+- **风险**: 使用实例级 System Hook 时，非目标项目事件仍会进入平台落库、去重和同步规划链路。即使 GitLab 不会把全部项目打包进单次 payload，高频非目标项目仍可能给平台造成额外压力。
+- **期望行为**: Secret 校验通过后立即提取 `project_id`，不在内存白名单时直接返回 200，不写入 `gitlab_system_hook_events`、`gitlab_hook_events`，不提交 `SYSTEM_HOOK` run。
+- **决策文档**: `docs/decisions/ADR-001-system-hook-project-memory-whitelist.md`
+- **处理状态**: 待实现，当前仅记录方案。
+
+### NEW-002：数据库查看未暴露完整同步日志存储表
+
+- **严重程度**: P2
+- **现状**: 最近同步日志页面只展示固定条数，底层数据分布在 `sync_runs`、`sync_run_events`、`sync_run_table_tasks`。当前数据库查看 API 中：
+  - `gitlab_system_hook_events` 可见
+  - `sync_runs` 不可见
+  - `sync_run_events` 不可见
+  - `sync_run_table_tasks` 不可见
+  - `gitlab_hook_events` 不可见
+- **影响**: 用户无法在页面里查询全部同步运行、事件消息和批次明细，只能通过 SQL 直查。
+- **期望行为**: 将同步运行相关表以只读方式加入数据库查看，至少支持按 `config_id`、`run_type`、`status`、`created_at`、`run_id` 查询。
+- **处理状态**: 待实现，当前仅记录问题。
+
+### NEW-003：历史同步日志中仍存在旧英文消息
+
+- **严重程度**: P3
+- **现状**: 历史 run 274/275/276 的 `request_reason` 或 `error_message` 仍包含旧英文，如 `Scheduled compensation scan`、`Manual incremental sync`、`Cancellation requested`。前端展示层已对常见旧英文做兼容翻译，但数据库原始记录不会被自动改写。
+- **影响**: 通过 SQL 或未来数据库查看直接看原始字段时，仍可能看到旧英文。
+- **期望行为**: 如果需要数据库原始记录也全中文，可考虑一次性数据修正脚本；否则保持前端展示层翻译即可。
+- **处理状态**: 暂不处理，记录为历史数据兼容问题。
+
+---
+
+## 十一、全平台功能冒烟矩阵
+
+为避免后续内网大数据同步后的冒烟测试与基础功能问题混在一起，已新增全平台功能标记与分组冒烟测试矩阵：
+
+- **文档**: `docs/platform-smoke-test-matrix-20260520.md`
+- **范围**: 后端 API、服务抽象、同步编排、System Hook、多源隔离、数据库查看、事实构建、各业务页面、前端组件、组合函数和工具函数。
+- **原则**: 先完成小数据/真实链路基础冒烟，再进入大数据量压力专项。
+- **当前新增缺口**: 测试阶段定义模块需要优先补自动化和真实 CRUD 链路；数据库查看需要补全同步日志表；System Hook 项目内存白名单待实现。

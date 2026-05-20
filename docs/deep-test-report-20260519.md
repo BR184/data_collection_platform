@@ -474,18 +474,21 @@ npm --prefix frontend run typecheck
 
 **结论**: 恢复机制自动化通过；真实进程中断恢复未通过。
 
-### 9.8 DGM 源数据同步 ❌ 未通过
+### 9.8 多源隔离能力 ⚠️ 自动化通过，真实双库联调待内网验证
 
-**计划**: 通过 DGM proxy 连接第二个 GitLab 实例，验证：
+**原计划**: 通过第二个 GitLab 数据源连接，验证：
 - 多源实例 (sourceInstance) 隔离正确
-- mirror 表命名 `ods_gitlab_dgm_*` 正确
+- mirror 表命名 `ods_gitlab_{sourceInstance}_*` 正确
 - 两个源的增量同步互不干扰
 
-**补测结果**:
-- ❌ DGM proxy 网络仍不可达，未能执行真实 DGM 同步。
-- ✅ 现有单元测试覆盖 sourceInstance 命名和隔离相关的部分工具逻辑。
+**补测结果更新**:
+- ✅ `GitlabSourceInstanceSupportTest` 覆盖 sourceInstance 归一化和镜像表命名：`cc` → `ods_gitlab_cc_*`，`DGM` → `ods_gitlab_dgm_*`。
+- ✅ `IssueFactSourceInstancePipelineTest` 覆盖事实层从指定来源镜像表构建，并确认不会写入 `default` 来源。
+- ✅ `SqlPushdownRealChainTest` 覆盖统计接口按 `sourceInstance=cc` 查询时不混入 `dgm` 数据。
+- ✅ 后端全量 `mvn test` 通过，包含多源隔离相关自动化。
+- ⚠️ 外网本地环境没有内网 CC/DGM 两个真实库，未执行真实双库端到端联调。
 
-**结论**: 未通过。需要先修复 DGM 网络连通性，再执行端到端同步。
+**结论**: 多源隔离能力已由自动化覆盖，不应表述为“DGM 不可达导致多源功能未通过”。内网部署后仍需用真实 CC/DGM 两个数据库做一次联调，确认配置、网络和数据同步端到端无污染。
 
 ### 9.9 System Hook 端到端验证 ⚠️ 部分通过
 
@@ -536,6 +539,42 @@ npm --prefix frontend run typecheck
 
 1. **特殊 PostgreSQL 类型覆盖**: `inet` 等类型仍未通过专项验证，BUG-002 仍需修复。
 2. **大数据性能压测**: 50K+ 增量、100 万+ 全量未执行真实压测。
-3. **多源 DGM 同步**: DGM 网络不可达，端到端未通过。
+3. **多源隔离真实双库联调**: 自动化隔离能力通过；外网没有内网 CC/DGM 双库条件，真实联调需在内网执行。
 4. **真实 System Hook 端到端**: 未配置真实 GitLab Hook，端到端未通过。
 5. **真实进程中断恢复**: 自动化恢复逻辑通过，但 kill/restart 场景未通过。
+
+---
+
+## 十一、2026-05-20 追加补测更新
+
+本节更新第九、十章中的部分状态。按要求，本轮跳过数据量压力测试，只执行非压力功能链路、真实 System Hook 链路、直连诊断和自动化回归。
+
+### 11.1 已完成并通过
+
+| 原测试项 | 最新状态 | 说明 |
+|----------|----------|------|
+| 9.4 特殊 PostgreSQL 类型覆盖 | ✅ 自动化通过 | `GitlabExternalDbServiceTest` 已覆盖 PG 特殊类型归一化；后端全量 `mvn test` 通过 |
+| 9.9 真实 System Hook 端到端 | ✅ 通过 | 本地 GitLab `WebHookLog` 最新投递 `response_status=200`；平台 `sync_runs.id=279` 为 `SYSTEM_HOOK/SUCCESS` |
+| System Hook 精确同步目标 | ✅ 通过 | run 279 生成 `issues`、`issue_assignees`、`issue_metrics`、`label_links` 4 个任务，全部 `SUCCESS` |
+| GitLab 直连模式 | ✅ 通过 | `sourceMode=DIRECT`，白名单发现 696 张表，当前同步状态 `IDLE` |
+| 同步幽灵任务检查 | ✅ 通过 | 当前 active run 为 0；表诊断 `pending=0, running=0, retrying=0` |
+| 后端全量自动化 | ✅ 通过 | 400 tests, 0 failures, 0 errors, 4 skipped |
+| 前端同步进度/日志相关自动化 | ✅ 通过 | 17 tests passed，TypeScript 类型检查通过 |
+
+### 11.2 仍未完成或本轮跳过
+
+| 原测试项 | 最新状态 | 原因 |
+|----------|----------|------|
+| 9.2 大表增量同步性能 | ⏸ 跳过 | 属于数据量压力测试 |
+| 9.6 超大单表全量同步 | ⏸ 跳过 | 属于数据量压力测试 |
+| 9.8 多源隔离能力 | ✅ 自动化通过；真实双库联调待内网验证 | 外网不绑定 DGM 源名；已覆盖 sourceInstance 命名、事实构建和统计查询隔离 |
+| 9.7 同步中断恢复真实链路 | ⚠️ 未执行 | 自动化恢复逻辑已通过；尚未构造真实长运行同步后 kill/restart |
+| 内网真实含 inet 表端到端 | ⚠️ 未执行 | 本地自动化覆盖代码路径，内网仍需针对真实 `authentication_events` 回归 |
+
+### 11.3 新发现问题
+
+| 编号 | 问题 | 状态 |
+|------|------|------|
+| NEW-001 | System Hook 项目白名单字段存在但未在入口生效 | 已记录到 `bug-fix-report-20260520.md` 和 `docs/decisions/ADR-001-system-hook-project-memory-whitelist.md`，暂未改代码 |
+| NEW-002 | 数据库查看未暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks` 等完整同步日志存储表 | 已记录到 `bug-fix-report-20260520.md`，暂未改代码 |
+| NEW-003 | 历史同步日志原始字段仍有旧英文消息 | 已记录到 `bug-fix-report-20260520.md`，前端展示层已有兼容翻译，暂未改历史数据 |
