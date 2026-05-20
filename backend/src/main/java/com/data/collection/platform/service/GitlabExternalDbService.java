@@ -28,7 +28,6 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -378,11 +377,10 @@ public class GitlabExternalDbService {
   }
 
   String buildTimeWindowScanSql(TableWhitelistOption option, LocalDateTime since) {
-    LocalDateTime gitlabSince = toGitlabSourceTime(since);
     return "select * from %s where %s >= timestamp '%s'".formatted(
         quoteQualifiedPublicTable(option.tableName()),
         quoteIdentifier(option.updatedAtColumn()),
-        gitlabSince.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        since.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
   }
 
   String buildCursorBatchScanSql(
@@ -391,7 +389,6 @@ public class GitlabExternalDbService {
       LocalDateTime cursorUpdatedAt,
       String cursorPk,
       int batchSize) {
-    LocalDateTime gitlabWatermark = toGitlabSourceTime(watermark);
     String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
     String primaryKeyColumn = quoteIdentifier(firstPrimaryKey(option));
     StringBuilder sql = new StringBuilder("select * from ")
@@ -399,18 +396,17 @@ public class GitlabExternalDbService {
         .append(" where ")
         .append(updatedAtColumn)
         .append(" >= timestamp '")
-        .append(gitlabWatermark.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+        .append(watermark.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
         .append("'");
     if (cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank()) {
-      LocalDateTime gitlabCursor = toGitlabSourceTime(cursorUpdatedAt);
       sql.append(" and (")
           .append(updatedAtColumn)
           .append(" > timestamp '")
-          .append(gitlabCursor.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+          .append(cursorUpdatedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
           .append("' or (")
           .append(updatedAtColumn)
           .append(" = timestamp '")
-          .append(gitlabCursor.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+          .append(cursorUpdatedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
           .append("' and ")
           .append(primaryKeyColumn)
           .append(" > ")
@@ -736,11 +732,14 @@ public class GitlabExternalDbService {
     if (value == null) {
       return null;
     }
+    if (value instanceof LocalDateTime localDateTime) {
+      return localDateTime;
+    }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
+      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof java.util.Date date) {
-      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
     }
     if (value instanceof String text) {
       return parseDateTime(text);
@@ -844,6 +843,12 @@ public class GitlabExternalDbService {
     if (value == null) {
       return null;
     }
+    if (value instanceof OffsetDateTime odt) {
+      return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+    }
     if (value instanceof java.sql.Array sqlArray) {
       try {
         Object array = sqlArray.getArray();
@@ -860,6 +865,13 @@ public class GitlabExternalDbService {
     }
     if (value instanceof Object[]) {
       return normalizeArrayValue(value);
+    }
+    if (value.getClass().getName().startsWith("org.postgresql.util.PG")) {
+      try {
+        return value.getClass().getMethod("getValue").invoke(value);
+      } catch (Exception ignored) {
+        return value.toString();
+      }
     }
     return value;
   }
@@ -1179,22 +1191,19 @@ public class GitlabExternalDbService {
     if (value instanceof LocalDateTime localDateTime) {
       return localDateTime;
     }
+    if (value instanceof OffsetDateTime odt) {
+      return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
+      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof java.util.Date date) {
-      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
     }
     if (value instanceof String text) {
       return parseDateTime(text);
     }
     return null;
-  }
-
-  private LocalDateTime toGitlabSourceTime(LocalDateTime localTime) {
-    return localTime.atZone(ZoneId.systemDefault())
-        .withZoneSameInstant(ZoneOffset.UTC)
-        .toLocalDateTime();
   }
 
   private interface GitlabSourceAdapter {

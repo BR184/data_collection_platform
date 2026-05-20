@@ -26,6 +26,7 @@ public class GitlabMirrorProperties {
   private int sourceFailureCacheSeconds = 60;
   private int incrementalLookbackMinutes = 5;
   private int maxSyncThreads = 16;
+  private int maxContinuationTasksPerTable = 50000;
 
   public boolean isSchedulerEnabled() {
     return schedulerEnabled;
@@ -201,5 +202,13 @@ public class GitlabMirrorProperties {
 
   public void setMaxSyncThreads(int maxSyncThreads) {
     this.maxSyncThreads = maxSyncThreads;
+  }
+
+  public int getMaxContinuationTasksPerTable() {
+    return maxContinuationTasksPerTable;
+  }
+
+  public void setMaxContinuationTasksPerTable(int maxContinuationTasksPerTable) {
+    this.maxContinuationTasksPerTable = maxContinuationTasksPerTable;
   }
 }

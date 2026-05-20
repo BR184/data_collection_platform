@@ -135,7 +135,7 @@ class GitlabExternalDbServiceTest {
     String sql = service.buildTimeWindowScanSql(option, LocalDateTime.of(2026, 1, 2, 3, 4, 5));
 
     assertThat(sql)
-        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-01 19:04:05'");
+        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-02 03:04:05'");
   }
 
   @Test
@@ -151,8 +151,8 @@ class GitlabExternalDbServiceTest {
         200);
 
     assertThat(sql)
-        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-01 19:04:05' "
-            + "and (\"Updated At\" > timestamp '2026-01-01 19:05:06' or (\"Updated At\" = timestamp '2026-01-01 19:05:06' "
+        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-02 03:04:05' "
+            + "and (\"Updated At\" > timestamp '2026-01-02 03:05:06' or (\"Updated At\" = timestamp '2026-01-02 03:05:06' "
             + "and \"Issue ID\" > '101')) order by \"Updated At\" asc, \"Issue ID\" asc limit 200");
   }
 
@@ -169,7 +169,7 @@ class GitlabExternalDbServiceTest {
         0);
 
     assertThat(sql)
-        .isEqualTo("select * from \"public\".\"issues\" where \"updated_at\" >= timestamp '2026-01-01 19:04:05' "
+        .isEqualTo("select * from \"public\".\"issues\" where \"updated_at\" >= timestamp '2026-01-02 03:04:05' "
             + "order by \"updated_at\" asc, \"id\" asc limit 1");
   }
 

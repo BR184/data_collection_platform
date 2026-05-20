@@ -11,7 +11,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -324,10 +324,10 @@ public class GitlabMirrorTableStorageService {
       return localDateTime;
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
+      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof java.util.Date date) {
-      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
     }
     return null;
   }

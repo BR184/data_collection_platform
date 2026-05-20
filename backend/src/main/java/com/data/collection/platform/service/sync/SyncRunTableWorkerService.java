@@ -1,6 +1,8 @@
 package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -17,7 +19,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
@@ -36,6 +38,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class SyncRunTableWorkerService {
   private static final LocalDateTime INITIAL_WATERMARK = LocalDateTime.of(1970, 1, 1, 0, 0);
+  private static final int DEFAULT_MAX_CONTINUATION_TASKS_PER_TABLE = 50000;
 
   private final SyncRunTableTaskMapper taskMapper;
   private final SyncRunTableStateMapper stateMapper;
@@ -44,6 +47,7 @@ public class SyncRunTableWorkerService {
   private final SourceTableReader sourceTableReader;
   private final GitlabMirrorSchemaService mirrorSchemaService;
   private final MirrorTableWriter mirrorTableWriter;
+  private final GitlabMirrorProperties mirrorProperties;
 
   public SyncRunTableWorkerService(
       SyncRunTableTaskMapper taskMapper,
@@ -52,7 +56,8 @@ public class SyncRunTableWorkerService {
       GitlabConfigService configService,
       SourceTableReader sourceTableReader,
       GitlabMirrorSchemaService mirrorSchemaService,
-      MirrorTableWriter mirrorTableWriter) {
+      MirrorTableWriter mirrorTableWriter,
+      GitlabMirrorProperties mirrorProperties) {
     this.taskMapper = taskMapper;
     this.stateMapper = stateMapper;
     this.jdbcTemplate = jdbcTemplate;
@@ -60,6 +65,7 @@ public class SyncRunTableWorkerService {
     this.sourceTableReader = sourceTableReader;
     this.mirrorSchemaService = mirrorSchemaService;
     this.mirrorTableWriter = mirrorTableWriter;
+    this.mirrorProperties = mirrorProperties;
   }
 
   public int drainRunTasks(Long runId) {
@@ -337,6 +343,19 @@ public class SyncRunTableWorkerService {
           : lastCursor;
       markSuccess(task, state, rows.size(), writeResult.appliedRows(), completionCursor, hasMore);
       if (hasMore && !isRunCancellationRequested(task.getRunId())) {
+        int maxContinuationTasks = resolveMaxContinuationTasksPerTable();
+        long existingTaskCount = taskMapper.selectCount(
+            new LambdaQueryWrapper<SyncRunTableTask>()
+                .eq(SyncRunTableTask::getRunId, task.getRunId())
+                .eq(SyncRunTableTask::getSourceTable, task.getSourceTable()));
+        if (existingTaskCount >= maxContinuationTasks) {
+          log.error("Exceeded max continuation tasks ({}) for table {}, runId={}, aborting further pagination",
+              maxContinuationTasks, task.getSourceTable(), task.getRunId());
+          markFailure(task, state, new BizException(
+              "Exceeded max continuation task limit (%d) for table %s".formatted(
+                  maxContinuationTasks, task.getSourceTable())));
+          return;
+        }
         taskMapper.insert(createContinuationTask(task, lastCursor, batchSize));
       }
       mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
@@ -468,6 +487,14 @@ public class SyncRunTableWorkerService {
     return task.getBatchSize() == null || task.getBatchSize() < 1 ? 500 : task.getBatchSize();
   }
 
+  private int resolveMaxContinuationTasksPerTable() {
+    if (mirrorProperties == null) {
+      return DEFAULT_MAX_CONTINUATION_TASKS_PER_TABLE;
+    }
+    int configured = mirrorProperties.getMaxContinuationTasksPerTable();
+    return configured > 0 ? configured : DEFAULT_MAX_CONTINUATION_TASKS_PER_TABLE;
+  }
+
   private String firstPrimaryKey(String primaryKeys) {
     if (primaryKeys == null || primaryKeys.isBlank()) {
       return "id";
@@ -485,7 +512,7 @@ public class SyncRunTableWorkerService {
           Object value = row.get(primaryKey);
           return value == null ? "" : String.valueOf(value);
         })
-        .reduce((left, right) -> left + "\u001F" + right)
+        .reduce((left, right) -> left + "" + right)
         .orElse("");
   }
 
@@ -543,13 +570,13 @@ public class SyncRunTableWorkerService {
       return localDateTime;
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toLocalDateTime();
+      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof OffsetDateTime offsetDateTime) {
-      return offsetDateTime.toLocalDateTime();
+      return offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof Instant instant) {
-      return LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+      return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
     }
     return null;
   }

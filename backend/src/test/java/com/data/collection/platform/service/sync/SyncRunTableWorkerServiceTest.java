@@ -12,6 +12,7 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.SourceMode;
@@ -61,7 +62,8 @@ class SyncRunTableWorkerServiceTest {
             configService,
             sourceTableReader,
             mirrorSchemaService,
-            mirrorTableWriter);
+            mirrorTableWriter,
+            new GitlabMirrorProperties());
   }
 
   @Test
