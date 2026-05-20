@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -27,6 +28,24 @@ class GitlabIssueLinkServiceTest {
   }
 
   @Test
+  void shouldUseRecursiveNamespacePathLookupForNestedProjects() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
+        .thenReturn("parent/subgroup/project");
+    GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, propertiesWithoutScheme());
+
+    assertThat(service.issueUrl(1001L, 1392)).isEqualTo("http://gitlab.example.com/parent/subgroup/project/-/issues/1392");
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate).queryForObject(sqlCaptor.capture(), eq(String.class), eq(1001L));
+    assertThat(sqlCaptor.getValue())
+        .contains("with recursive")
+        .contains("namespace_chain")
+        .contains("parent_id")
+        .contains("string_agg(namespace_path, '/' order by depth desc)");
+  }
+
+  @Test
   void shouldAvoidBrokenGlobalIssueUrlWhenProjectPathIsMissing() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
@@ -39,6 +58,12 @@ class GitlabIssueLinkServiceTest {
   private GitlabMirrorProperties properties() {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setWebBaseUrl("http://gitlab.example.com/");
+    return properties;
+  }
+
+  private GitlabMirrorProperties propertiesWithoutScheme() {
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setWebBaseUrl("gitlab.example.com/");
     return properties;
   }
 }

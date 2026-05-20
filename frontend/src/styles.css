@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap');
-
 :root {
   color-scheme: light;
   --shell-bg: #f5f7fa;
@@ -31,7 +29,7 @@ html {
 body {
   margin: 0;
   min-width: 1280px;
-  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text-main);
   background: var(--shell-bg);
 }
