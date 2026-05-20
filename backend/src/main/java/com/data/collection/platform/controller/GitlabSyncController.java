@@ -154,7 +154,7 @@ public class GitlabSyncController {
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     boolean connectionOk = true;
-    String connectionMessage = "GitLab PostgreSQL connection succeeded";
+    String connectionMessage = "GitLab PostgreSQL 连接成功";
     try {
       if (configId == null) {
         syncService.testConnection();
@@ -167,7 +167,7 @@ public class GitlabSyncController {
     }
 
     boolean whitelistOk = true;
-    String whitelistMessage = "GitLab whitelist options loaded";
+    String whitelistMessage = "GitLab 白名单选项已加载";
     int whitelistOptionCount = 0;
     List<TableWhitelistOption> whitelistOptions = List.of();
     try {
@@ -280,7 +280,7 @@ public class GitlabSyncController {
           request.sourceMode(),
           request.whitelistMode());
     }
-    return ApiResponse.success("Config saved", sanitizeConfigForResponse(configService.saveConfig(config)));
+    return ApiResponse.success("配置已保存", sanitizeConfigForResponse(configService.saveConfig(config)));
   }
 
   @PostMapping("/test-connection")
@@ -302,7 +302,7 @@ public class GitlabSyncController {
     } else {
       syncService.testConnection(config.getId());
     }
-    return ApiResponse.success("GitLab PostgreSQL connection succeeded", Map.of("checked", true));
+    return ApiResponse.success("GitLab PostgreSQL 连接成功", Map.of("checked", true));
   }
 
   @PostMapping("/full-sync")
@@ -319,7 +319,7 @@ public class GitlabSyncController {
         SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
       log.info("Manual full sync requested during cutover");
     }
-    SyncRunSubmissionResult result = submissionService.submitFullSync(config, "Manual full sync");
+    SyncRunSubmissionResult result = submissionService.submitFullSync(config, "手动全量同步");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
@@ -338,7 +338,7 @@ public class GitlabSyncController {
       log.info("Manual incremental sync requested during cutover");
     }
     SyncRunSubmissionResult result =
-        submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
+        submissionService.submitIncrementalSync(config, null, "手动增量同步");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
@@ -349,7 +349,7 @@ public class GitlabSyncController {
     List<String> retryableTables = tableDiagnosticsService.retryableTables(config);
     if (retryableTables.isEmpty()) {
       return ApiResponse.success(
-          "No failed or dirty table tasks to retry",
+          "没有需要重试的失败或待修复表任务",
           Map.of(
               "accepted",
               false,
@@ -364,10 +364,10 @@ public class GitlabSyncController {
               "type",
               SyncType.INCREMENTAL,
               "message",
-              "No failed or dirty table tasks to retry"));
+              "没有需要重试的失败或待修复表任务"));
     }
     SyncRunSubmissionResult result =
-        submissionService.submitTableRefresh(config, retryableTables, "Retry failed table sync tasks");
+        submissionService.submitTableRefresh(config, retryableTables, "重试失败表任务");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
@@ -384,7 +384,7 @@ public class GitlabSyncController {
     GitlabSyncConfig config = resolveConfig(configId);
     GitlabSystemHookRegistrationStatus result =
         systemHookRegistrationService.ensureRegistered(config, properties.getSystemHookBaseUrl());
-    return ApiResponse.success("GitLab System Hook registered", result);
+    return ApiResponse.success("GitLab System Hook 已注册", result);
   }
 
   @PostMapping("/cancel")
@@ -402,7 +402,7 @@ public class GitlabSyncController {
       log.info("Manual cancellation requested during cutover");
     }
     SyncRunCancellationResult result =
-        cancellationService.requestCancel(config.getId(), null, "Manual cancellation requested");
+        cancellationService.requestCancel(config.getId(), null, "用户手动请求取消");
     Map<String, Object> response = new LinkedHashMap<>();
     response.put("accepted", result.accepted());
     response.put("runId", result.runId());
@@ -410,7 +410,7 @@ public class GitlabSyncController {
     response.put("status", result.status() == null ? null : result.status().name());
     response.put("message", result.message());
     return ApiResponse.success(
-        result.accepted() ? result.message() : "No cancellable sync run",
+        result.accepted() ? result.message() : "当前没有可取消的同步任务",
         response);
   }
 
@@ -419,7 +419,7 @@ public class GitlabSyncController {
   public ApiResponse<MirrorPurgeResult> purge(@RequestBody PurgeRequest request) {
     GitlabSyncConfig config = resolveConfig(request.configId());
     MirrorPurgeResult result = purgeService.purge(request.scope(), config.getId());
-    return ApiResponse.success("Mirror data purged", result);
+    return ApiResponse.success("镜像数据已清理", result);
   }
 
   @PostMapping("/system-hook")
@@ -428,7 +428,7 @@ public class GitlabSyncController {
       @RequestHeader(value = "X-Gitlab-Token", required = false) String secret,
       @RequestBody Map<String, Object> payload) {
     systemHookService.accept(eventType, payload, secret);
-    return ApiResponse.success("GitLab System Hook accepted", Map.of("accepted", true));
+    return ApiResponse.success("GitLab System Hook 已接收", Map.of("accepted", true));
   }
 
   public record SaveConfigRequest(
@@ -504,13 +504,13 @@ public class GitlabSyncController {
     }
     String message;
     if (!systemHookEnabled) {
-      message = "System Hook receiver is disabled";
+      message = "System Hook 接收器未启用";
     } else if (!secretConfigured) {
-      message = "System Hook requires a unique secret";
+      message = "System Hook 需要配置唯一密钥";
     } else if (!secretUnique) {
-      message = "System Hook secret is used by another GitLab source";
+      message = "System Hook 密钥已被其他 GitLab 数据源使用";
     } else {
-      message = "System Hook configuration is available";
+      message = "System Hook 配置可用";
     }
     return new SystemHookConfigDiagnostics(secretConfigured, secretUnique, message);
   }
@@ -527,9 +527,9 @@ public class GitlabSyncController {
     int queryTimeoutSeconds = properties.getExternalQueryTimeoutSeconds();
     int minimumRecommendedSeconds = queryTimeoutSeconds + 30;
     if (heartbeatTimeoutSeconds <= queryTimeoutSeconds) {
-      warnings.add("heartbeat-timeout-seconds must be greater than external-query-timeout-seconds");
+      warnings.add("心跳超时时间必须大于外部查询超时时间");
     } else if (heartbeatTimeoutSeconds <= minimumRecommendedSeconds) {
-      warnings.add("heartbeat-timeout-seconds is close to external query timeout; long writes may be marked stale");
+      warnings.add("心跳超时时间接近外部查询超时时间，长时间写入可能被误判为过期任务");
     }
     return warnings;
   }
@@ -554,17 +554,17 @@ public class GitlabSyncController {
       return "UNKNOWN";
     }
     return switch (status) {
-      case PENDING -> "PENDING";
-      case QUEUED -> "QUEUED";
-      case RUNNING -> "RUNNING";
-      case RETRYING -> "RETRYING";
-      case SUCCESS -> "SUCCESS";
-      case PARTIAL_SUCCESS -> "PARTIAL_SUCCESS";
-      case FAILED -> "FAILED";
-      case CANCELLED -> "CANCELLED";
-      case TIMEOUT -> "TIMEOUT";
-      case CANCELLING -> "CANCELLING";
-      case IDLE -> "IDLE";
+      case PENDING -> "待执行";
+      case QUEUED -> "排队中";
+      case RUNNING -> "执行中";
+      case RETRYING -> "重试中";
+      case SUCCESS -> "成功";
+      case PARTIAL_SUCCESS -> "部分成功";
+      case FAILED -> "失败";
+      case CANCELLED -> "已取消";
+      case TIMEOUT -> "已超时";
+      case CANCELLING -> "取消中";
+      case IDLE -> "空闲";
     };
   }
 }

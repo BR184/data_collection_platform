@@ -85,11 +85,11 @@ class GitlabMirrorSyncServiceTest {
     when(configService.getConfig()).thenReturn(config);
     SyncRunSubmissionResult result =
         new SyncRunSubmissionResult(88L, SyncType.FULL, SyncStatus.QUEUED, com.data.collection.platform.entity.SyncSubmissionAction.QUEUED, null, "queued");
-    when(syncRunSubmissionService.submitFullSync(config, "Manual full sync")).thenReturn(result);
+    when(syncRunSubmissionService.submitFullSync(config, "手动全量同步")).thenReturn(result);
 
     SyncRunSubmissionResult actual = syncService.startFullSync();
 
-    verify(syncRunSubmissionService).submitFullSync(config, "Manual full sync");
+    verify(syncRunSubmissionService).submitFullSync(config, "手动全量同步");
     assertThat(actual).isSameAs(result);
   }
 
@@ -128,7 +128,7 @@ class GitlabMirrorSyncServiceTest {
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () -> syncService.refreshTablesOnDemandDetailed(List.of("issues"), "manual refresh"))
         .isInstanceOf(com.data.collection.platform.common.exception.BizException.class)
-        .hasMessageContaining("not registered");
+        .hasMessageContaining("源表未加入镜像白名单");
   }
 
   @Test
@@ -153,7 +153,7 @@ class GitlabMirrorSyncServiceTest {
     org.assertj.core.api.Assertions.assertThatThrownBy(
             () -> syncService.refreshTablesOnDemandDetailed(List.of("issues"), "manual refresh"))
         .isInstanceOf(com.data.collection.platform.common.exception.BizException.class)
-        .hasMessageContaining("full sync");
+        .hasMessageContaining("全量同步基线");
   }
 
   private GitlabSyncConfig config() {

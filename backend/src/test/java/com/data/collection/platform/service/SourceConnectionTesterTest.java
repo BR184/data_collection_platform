@@ -48,7 +48,7 @@ class SourceConnectionTesterTest {
         .hasMessageContaining("network down");
     assertThatThrownBy(() -> tester.testConnection(config))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("temporarily unavailable")
+        .hasMessageContaining("暂不可用")
         .hasMessageContaining("network down");
 
     verify(externalDbService).testConnection(config);
@@ -62,7 +62,7 @@ class SourceConnectionTesterTest {
 
     assertThatThrownBy(() -> tester.testConnection(config))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("timed out");
+        .hasMessageContaining("连接超时");
 
     verify(externalDbService, never()).testConnection(config);
   }

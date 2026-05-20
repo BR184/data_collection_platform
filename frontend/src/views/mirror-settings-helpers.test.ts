@@ -42,6 +42,10 @@ describe('mirror settings helpers', () => {
 
   it('translates known sync messages and falls back to default log copy', () => {
     expect(translateSyncMessage('Sync completed successfully')).toBe('同步已完成');
+    expect(translateSyncMessage('Cancellation requested')).toBe('已请求取消同步任务');
+    expect(translateSyncMessage('Queued sync run cancelled')).toBe('已取消排队中的同步任务');
+    expect(translateSyncMessage('Sync run cancelled')).toBe('同步运行已取消');
+    expect(translateSyncMessage('Cancelled before worker start')).toBe('任务启动前已取消');
     expect(translateSyncMessage('Triggered by system hook: issue#1', 'SYSTEM_HOOK')).toBe('System Hook 已唤醒同步：issue#1');
     expect(
       translateSyncMessage(

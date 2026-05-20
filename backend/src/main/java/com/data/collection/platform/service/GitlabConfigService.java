@@ -147,19 +147,19 @@ public class GitlabConfigService {
 
   public String sourceReadinessIssue(GitlabSyncConfig config) {
     if (config == null) {
-      return "source config is missing";
+      return "数据源配置缺失";
     }
     if (config.getId() == null) {
-      return "source config is not persisted";
+      return "数据源配置尚未保存";
     }
     if (!isSourceEnabled(config)) {
-      return "source is disabled";
+      return "数据源已停用";
     }
     if (!config.isAutoSyncEnabled()) {
-      return "auto sync is disabled";
+      return "自动同步已停用";
     }
     if (!isSourceConfigured(config)) {
-      return "source connection settings are incomplete";
+      return "数据源连接配置不完整";
     }
     return "";
   }
@@ -299,7 +299,7 @@ public class GitlabConfigService {
       return;
     }
     throw new BizException(
-        "GitLab source connection settings are incomplete; disable auto sync or complete the source config");
+        "GitLab 数据源连接配置不完整；请关闭自动同步或补全连接配置");
   }
 
   private boolean isSourceEnabled(GitlabSyncConfig config) {
@@ -371,7 +371,7 @@ public class GitlabConfigService {
         || SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(effectiveMode)) {
       return effectiveMode;
     }
-    throw new BizException("Unsupported sync thread mode: " + effectiveMode);
+    throw new BizException("不支持的同步线程模式：" + effectiveMode);
   }
 
   private BigDecimal normalizeSyncThreadValue(
@@ -389,14 +389,14 @@ public class GitlabConfigService {
               : SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE;
     }
     if (effectiveValue.compareTo(BigDecimal.ZERO) <= 0) {
-      throw new BizException("Sync thread value must be greater than 0");
+      throw new BizException("同步线程参数必须大于 0");
     }
     if (SyncThreadBudgetResolver.MODE_CPU_RATIO.equals(mode) && effectiveValue.compareTo(BigDecimal.ONE) > 0) {
-      throw new BizException("CPU ratio thread value must be between 0 and 1");
+      throw new BizException("CPU 比例线程参数必须在 0 到 1 之间");
     }
     if (SyncThreadBudgetResolver.MODE_FIXED.equals(mode)
         && effectiveValue.remainder(BigDecimal.ONE).compareTo(BigDecimal.ZERO) != 0) {
-      throw new BizException("Fixed thread value must be an integer");
+      throw new BizException("固定线程数必须是整数");
     }
     return effectiveValue;
   }
@@ -407,7 +407,7 @@ public class GitlabConfigService {
       effectiveMaxThreads = properties.getMaxSyncThreads();
     }
     if (effectiveMaxThreads < 1) {
-      throw new BizException("Max sync threads must be greater than 0");
+      throw new BizException("最大同步线程数必须大于 0");
     }
     return effectiveMaxThreads;
   }

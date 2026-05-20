@@ -71,11 +71,12 @@ class SyncRunTableDiagnosticsServiceTest {
     assertThat(table.lastAppliedAt()).isEqualTo(LocalDateTime.of(2026, 5, 15, 9, 5));
     assertThat(table.sourceRows()).isEqualTo(120L);
     assertThat(table.mirrorRows()).isEqualTo(100L);
-    assertThat(table.driftSummary()).isEqualTo("source=120, mirror=100, delta=20");
+    assertThat(table.driftSummary()).isEqualTo("源表=120，镜像表=100，差值=20");
     ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), eq(1L), eq("alpha"));
     assertThat(sql.getValue())
         .contains("run.run_id as external_run_id")
+        .contains("run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')")
         .contains("blocking.external_run_id as blocking_run_id")
         .doesNotContain("blocking.run_id as blocking_run_id");
   }

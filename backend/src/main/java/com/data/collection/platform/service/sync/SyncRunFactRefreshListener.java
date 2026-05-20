@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class SyncRunFactRefreshListener {
-  private static final String MIRROR_COMPLETION_REFRESH_REASON = "Mirror run completed; refresh fact layer";
+  private static final String MIRROR_COMPLETION_REFRESH_REASON = "镜像同步已完成，刷新事实层";
 
   private final GitlabConfigService configService;
   private final SyncRunSubmissionService submissionService;

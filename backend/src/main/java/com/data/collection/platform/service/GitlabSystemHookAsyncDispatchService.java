@@ -57,7 +57,7 @@ public class GitlabSystemHookAsyncDispatchService {
         SyncType.SYSTEM_HOOK,
         SyncRunType.SYSTEM_HOOK,
         SyncTriggerType.SYSTEM_HOOK,
-        "System Hook " + eventType + " " + plan.objectKey(),
+        "System Hook 已唤醒同步：" + eventType + " " + plan.objectKey(),
         sourceTables,
         sourceTables.getFirst(),
         Map.of(

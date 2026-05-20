@@ -78,7 +78,7 @@ public class GitlabSourceSchemaGuard {
   }
 
   public void verifyIssueFactSource(String sourceInstance) {
-    verify("issue fact", rewriteRequirements(ISSUE_FACT_SOURCE, sourceInstance));
+    verify("议题事实表", rewriteRequirements(ISSUE_FACT_SOURCE, sourceInstance));
   }
 
   public void verifyMergeRequestFactSource() {
@@ -86,7 +86,7 @@ public class GitlabSourceSchemaGuard {
   }
 
   public void verifyMergeRequestFactSource(String sourceInstance) {
-    verify("merge request fact", rewriteRequirements(MERGE_REQUEST_FACT_SOURCE, sourceInstance));
+    verify("合并请求事实表", rewriteRequirements(MERGE_REQUEST_FACT_SOURCE, sourceInstance));
   }
 
   public void verifyIntegrationTestSource() {
@@ -94,7 +94,7 @@ public class GitlabSourceSchemaGuard {
   }
 
   public void verifyIntegrationTestSource(String sourceInstance) {
-    verify("integration test fact", rewriteRequirements(INTEGRATION_TEST_SOURCE, sourceInstance));
+    verify("集成测试事实表", rewriteRequirements(INTEGRATION_TEST_SOURCE, sourceInstance));
   }
 
   private void verify(String scopeName, List<SourceTableRequirement> requirements) {
@@ -102,17 +102,17 @@ public class GitlabSourceSchemaGuard {
     for (SourceTableRequirement requirement : requirements) {
       Set<String> actualColumns = loadColumns(requirement.tableName());
       if (actualColumns.isEmpty()) {
-        missing.add("missing source table " + requirement.tableName());
+        missing.add("缺少源表 " + requirement.tableName());
         continue;
       }
       for (String column : requirement.requiredColumns()) {
         if (!actualColumns.contains(column.toLowerCase(Locale.ROOT))) {
-          missing.add("missing source column " + requirement.tableName() + "." + column);
+          missing.add("缺少源字段 " + requirement.tableName() + "." + column);
         }
       }
     }
     if (!missing.isEmpty()) {
-      throw new BizException("GitLab source schema is incomplete for " + scopeName + ": " + String.join("; ", missing));
+      throw new BizException("GitLab 源结构不完整（" + scopeName + "）：" + String.join("；", missing));
     }
   }
 
@@ -136,7 +136,7 @@ public class GitlabSourceSchemaGuard {
       }
       return columns;
     } catch (DataAccessException error) {
-      throw new BizException("Failed to inspect GitLab source schema: " + rootMessage(error));
+      throw new BizException("检查 GitLab 源结构失败：" + rootMessage(error));
     }
   }
 

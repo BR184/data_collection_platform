@@ -27,7 +27,7 @@ public class SyncRunTableDiagnosticsService {
     response.put("sourceInstance", sourceInstance);
     response.put("generatedAt", LocalDateTime.now().toString());
     response.put("status", diagnosticsStatus(config, sourceInstance));
-    response.put("message", "Unified sync run table diagnostics");
+    response.put("message", "统一同步表任务诊断");
     response.put("tableCount", countStates(config, sourceInstance));
     response.put("dirtyTableCount", countDirtyStates(config, sourceInstance));
     response.put("pendingTaskCount", countTasks(config, sourceInstance, "QUEUED"));
@@ -61,10 +61,12 @@ public class SyncRunTableDiagnosticsService {
            and not exists (
               select 1
                 from sync_run_table_tasks active
+                join sync_runs active_run on active_run.id = active.run_id
                where active.config_id = state.config_id
                  and active.source_instance = state.source_instance
                  and active.source_table = state.source_table
                  and active.status in ('QUEUED', 'RUNNING', 'RETRYING')
+                 and active_run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
            )
          order by state.source_table asc
         """,
@@ -111,6 +113,7 @@ public class SyncRunTableDiagnosticsService {
                  and task.source_instance = state.source_instance
                  and task.source_table = state.source_table
                  and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
+                 and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
                order by case task.status when 'RUNNING' then 0 when 'RETRYING' then 1 else 2 end,
                         task.started_at nulls last,
                         task.created_at desc,
@@ -206,10 +209,15 @@ public class SyncRunTableDiagnosticsService {
     return count(
         """
         select count(*)
-          from sync_run_table_tasks
-         where config_id = ?
-           and source_instance = ?
-           and status = ?
+          from sync_run_table_tasks task
+          join sync_runs run on run.id = task.run_id
+         where task.config_id = ?
+           and task.source_instance = ?
+           and task.status = ?
+           and (
+             task.status not in ('QUEUED', 'RUNNING', 'RETRYING')
+             or run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+           )
         """,
         config.getId(),
         sourceInstance,
@@ -223,13 +231,13 @@ public class SyncRunTableDiagnosticsService {
 
   private static String driftSummary(Long sourceRows, Long mirrorRows) {
     if (sourceRows == null || mirrorRows == null) {
-      return "row count unknown";
+      return "行数未知";
     }
     long delta = sourceRows - mirrorRows;
     if (delta == 0) {
-      return "source and mirror row counts match";
+      return "源表与镜像表行数一致";
     }
-    return "source=" + sourceRows + ", mirror=" + mirrorRows + ", delta=" + delta;
+    return "源表=" + sourceRows + "，镜像表=" + mirrorRows + "，差值=" + delta;
   }
 
   private static LocalDateTime toDateTime(Timestamp timestamp) {

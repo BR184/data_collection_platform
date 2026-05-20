@@ -53,7 +53,7 @@ class SyncRunCancellationServiceTest {
         eq(1L),
         eq("alpha"),
         eq("RUN_CANCELLATION_REQUESTED"),
-        eq("Cancellation requested"),
+        eq("已请求取消同步任务"),
         contains("manual stop"),
         any());
   }

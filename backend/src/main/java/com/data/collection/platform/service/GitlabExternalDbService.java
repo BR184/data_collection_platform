@@ -803,7 +803,7 @@ public class GitlabExternalDbService {
     SourceMode sourceMode = config == null || config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode();
     GitlabSourceAdapter adapter = sourceAdapters.get(sourceMode);
     if (adapter == null) {
-      throw new BizException("Unsupported GitLab source mode: " + sourceMode);
+      throw new BizException("不支持的 GitLab 数据源模式：" + sourceMode);
     }
     return adapter;
   }

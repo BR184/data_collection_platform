@@ -43,7 +43,7 @@ public class SyncRunStatusService {
           config,
           null,
           SyncStatus.IDLE,
-          "No active sync run",
+          "当前没有正在执行的同步任务",
           null,
           null,
           recentLogs(config),
@@ -74,7 +74,7 @@ public class SyncRunStatusService {
     response.put("sourceInstance", sourceInstance);
     response.put("generatedAt", LocalDateTime.now().toString());
     response.put("status", diagnosticsStatus(config));
-    response.put("message", "Unified sync run diagnostics");
+    response.put("message", "统一同步运行诊断");
     response.put("tableCount", countFor(config, sourceInstance, "select count(*) from sync_run_table_states where config_id = ? and source_instance = ?"));
     response.put(
         "dirtyTableCount",
@@ -298,9 +298,9 @@ public class SyncRunStatusService {
 
   private String currentMessage(SyncRun currentRun) {
     if (currentRun.getRunType() == SyncRunType.FACT_REFRESH) {
-      return "Fact refresh run " + currentRun.getRunId() + " is " + currentRun.getStatus().name();
+      return "事实刷新运行 " + currentRun.getRunId() + " 当前状态：" + currentRun.getStatus().name();
     }
-    return "Sync run " + currentRun.getRunId() + " is " + currentRun.getStatus().name();
+    return "同步运行 " + currentRun.getRunId() + " 当前状态：" + currentRun.getStatus().name();
   }
 
   private List<String> activeTables(Long runId) {

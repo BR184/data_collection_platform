@@ -52,7 +52,7 @@ defineEmits<{
         <el-table-column label="耗时" width="90">
           <template #default="{ row }">{{ formatDuration(row) }}</template>
         </el-table-column>
-        <el-table-column prop="tableCount" label="任务批次" width="96" />
+        <el-table-column prop="tableCount" label="计划批次" width="96" />
         <el-table-column prop="completedTableCount" label="完成批次" width="96" />
         <el-table-column prop="recordCount" label="写入记录" width="96" />
         <el-table-column label="消息" min-width="220" show-overflow-tooltip>

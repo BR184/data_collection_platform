@@ -236,7 +236,7 @@ class SyncRunTablePlanningServiceTest {
 
     assertThatThrownBy(() -> planningService.planRunTables(77L))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("incomplete");
+        .hasMessageContaining("连接配置不完整");
 
     verify(whitelistService, never()).resolveOptions(any());
     verify(taskMapper, never()).insert(any(SyncRunTableTask.class));

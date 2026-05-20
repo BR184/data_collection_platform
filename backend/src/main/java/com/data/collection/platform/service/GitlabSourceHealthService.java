@@ -43,7 +43,7 @@ public class GitlabSourceHealthService {
     ActiveSyncView activeSync = activeSyncView(config, sourceInstance);
     if (!sourceEnabled || blockedMessage != null) {
       String healthStatus = sourceEnabled ? "BLOCKED" : "DISABLED";
-      String healthMessage = sourceEnabled ? blockedMessage : "GitLab source is disabled";
+      String healthMessage = sourceEnabled ? blockedMessage : "GitLab 数据源已停用";
       return new GitlabSourceHealthResponse(
           config.getId(),
           config.getName(),
@@ -124,10 +124,10 @@ public class GitlabSourceHealthService {
           || isBlank(config.getDbName())
           || isBlank(config.getDbUsername())
           || isBlank(config.getDbPassword())) {
-        return "GitLab direct database configuration is incomplete";
+        return "GitLab 直连数据库配置不完整";
       }
     } else if (config.getSourceMode() == SourceMode.DOCKER && isBlank(config.getDockerContainerName())) {
-      return "GitLab Docker container name is not configured";
+      return "GitLab Docker 容器名未配置";
     }
     return null;
   }
@@ -153,18 +153,18 @@ public class GitlabSourceHealthService {
       boolean factLayerLagging,
       List<String> missingRequiredMirrorTables) {
     if ("OK".equals(healthStatus)) {
-      return "GitLab source is healthy";
+      return "GitLab 数据源正常";
     }
     if (!missingRequiredMirrorTables.isEmpty()) {
-      return "Missing required mirror tables: " + String.join(", ", missingRequiredMirrorTables);
+      return "缺少必要镜像表：" + String.join(", ", missingRequiredMirrorTables);
     }
     if (factLayerLagging) {
-      return "Fact layer is lagging behind the latest successful mirror sync";
+      return "事实层落后于最近一次成功的镜像同步";
     }
     if (!isBlank(latestSync.message())) {
       return latestSync.message();
     }
-    return "GitLab source is degraded";
+    return "GitLab 数据源状态异常";
   }
 
   private boolean isDegradedStatus(SyncStatus status) {
@@ -197,8 +197,8 @@ public class GitlabSourceHealthService {
                 return new ActiveSyncView(
                     toApiStatus(status),
                     factRefreshActive
-                        ? "Fact layer refresh is " + status + " for run " + runId
-                        : "Mirror sync is " + status + " for run " + runId,
+                        ? "事实刷新正在执行，状态：" + status + "，运行：" + runId
+                        : "镜像同步正在执行，状态：" + status + "，运行：" + runId,
                     startedAt,
                     factRefreshActive);
               },
@@ -330,9 +330,9 @@ public class GitlabSourceHealthService {
     LocalDateTime full = config.getLastFullSyncAt();
     LocalDateTime latest = max(incremental, full);
     if (latest == null) {
-      return new LatestSyncView(null, "Legacy sync logs have been removed during cutover", null);
+      return new LatestSyncView(null, "切换期间已清理旧版同步日志", null);
     }
-    return new LatestSyncView(SyncStatus.SUCCESS, "Last persisted sync timestamp", latest);
+    return new LatestSyncView(SyncStatus.SUCCESS, "最近一次持久化同步时间", latest);
   }
 
   private String factLayerMessage(
@@ -341,19 +341,19 @@ public class GitlabSourceHealthService {
       boolean issueFactLagging,
       boolean integrationTestFactLagging) {
     if (factRefreshActive) {
-      return "Fact layer refresh is queued or running";
+      return "事实刷新正在排队或执行";
     }
     List<String> laggingDomains = new ArrayList<>();
     if (mergeRequestFactLagging) {
-      laggingDomains.add("merge request facts");
+      laggingDomains.add("合并请求事实表");
     }
     if (issueFactLagging) {
-      laggingDomains.add("issue facts");
+      laggingDomains.add("议题事实表");
     }
     if (integrationTestFactLagging) {
-      laggingDomains.add("integration test facts");
+      laggingDomains.add("集成测试事实表");
     }
-    return "Mirror data is newer than " + String.join(", ", laggingDomains);
+    return "镜像数据新于" + String.join("、", laggingDomains);
   }
 
   private LocalDateTime max(LocalDateTime left, LocalDateTime right) {

@@ -62,16 +62,16 @@ public class SourceConnectionTester {
       return future.get(timeoutSeconds, TimeUnit.SECONDS);
     } catch (TimeoutException error) {
       future.cancel(true);
-      throw new BizException("GitLab source connection timed out after " + timeoutSeconds + " seconds");
+      throw new BizException("GitLab 数据源连接超时，超过 " + timeoutSeconds + " 秒");
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
-      throw new BizException("GitLab source connection test was interrupted");
+      throw new BizException("GitLab 数据源连接测试被中断");
     } catch (Exception error) {
       Throwable cause = error.getCause() == null ? error : error.getCause();
       if (cause instanceof RuntimeException runtimeException) {
         throw runtimeException;
       }
-      throw new BizException("GitLab source connection failed: " + cause.getMessage());
+      throw new BizException("GitLab 数据源连接失败：" + cause.getMessage());
     }
   }
 
@@ -85,7 +85,7 @@ public class SourceConnectionTester {
       failureCache.remove(signature, entry);
       return;
     }
-    throw new BizException("GitLab source is temporarily unavailable: " + entry.message());
+    throw new BizException("GitLab 数据源暂不可用：" + entry.message());
   }
 
   private void rememberFailure(String signature, RuntimeException error) {

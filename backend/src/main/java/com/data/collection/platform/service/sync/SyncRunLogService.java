@@ -120,6 +120,6 @@ public class SyncRunLogService {
     if (run.getRequestReason() != null && !run.getRequestReason().isBlank()) {
       return run.getRequestReason();
     }
-    return "Sync run " + run.getRunId() + " " + policyService.toApiStatus(run).name();
+    return "同步运行 " + run.getRunId() + " " + policyService.toApiStatus(run).name();
   }
 }

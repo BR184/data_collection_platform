@@ -178,7 +178,7 @@ public class SyncRunTablePlanningService {
     if (configService.isSourceConfigured(config)) {
       return;
     }
-    throw new BizException("GitLab source connection settings are incomplete; skip external metadata discovery");
+    throw new BizException("GitLab 数据源连接配置不完整，跳过外部元数据发现");
   }
 
   private boolean isRunnableForRun(boolean fullSync, TableWhitelistOption option) {
@@ -282,16 +282,16 @@ public class SyncRunTablePlanningService {
             .eq(SyncRunTableState::getSyncEnabled, true)
             .last("limit 1"));
     if (state == null) {
-      throw new BizException("Manual table refresh cannot run before mirror table state exists: " + sourceTable);
+      throw new BizException("镜像表状态创建前不能执行手动刷新：" + sourceTable);
     }
     if (isBlank(state.getPrimaryKeyColumns())) {
-      throw new BizException("Manual table refresh requires known primary key columns: " + sourceTable);
+      throw new BizException("手动刷新表需要已识别的主键列：" + sourceTable);
     }
     if (isBlank(state.getUpdatedAtColumn())) {
-      throw new BizException("Manual table refresh requires an updated_at column: " + sourceTable);
+      throw new BizException("手动刷新表需要 updated_at 列：" + sourceTable);
     }
     if (state.getLastWatermarkAt() == null) {
-      throw new BizException("Manual table refresh requires a completed full sync baseline first: " + sourceTable);
+      throw new BizException("手动刷新表需要先完成一次全量同步基线：" + sourceTable);
     }
     return state;
   }

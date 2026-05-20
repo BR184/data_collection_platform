@@ -34,7 +34,7 @@ class SyncRunFactRefreshListenerTest {
         new SyncRunCompletionEvent(11L, 1L, "alpha", SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 8L));
 
     verify(submissionService)
-        .submitFactRefresh(config, 11L, true, "Mirror run completed; refresh fact layer");
+        .submitFactRefresh(config, 11L, true, "镜像同步已完成，刷新事实层");
   }
 
   @Test

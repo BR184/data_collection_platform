@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 public class SyncRunPolicyService {
   private static final String MIRROR_SCOPE_SUFFIX = ":mirror";
   private static final String FACT_SCOPE_SUFFIX = ":fact";
-  private static final String COMPENSATION_SCOPE_SUFFIX = ":compensation";
 
   public SyncRunType toRunType(SyncType type) {
     if (type == null) {
@@ -60,10 +59,9 @@ public class SyncRunPolicyService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String configId = config == null || config.getId() == null ? "unknown" : String.valueOf(config.getId());
     return switch (type) {
-      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK ->
+      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK, COMPENSATION_SCAN ->
           "source:" + configId + ":" + sourceInstance + MIRROR_SCOPE_SUFFIX;
       case FACT_REFRESH -> "source:" + configId + ":" + sourceInstance + FACT_SCOPE_SUFFIX;
-      case COMPENSATION_SCAN -> "source:" + configId + ":" + sourceInstance + COMPENSATION_SCOPE_SUFFIX;
     };
   }
 

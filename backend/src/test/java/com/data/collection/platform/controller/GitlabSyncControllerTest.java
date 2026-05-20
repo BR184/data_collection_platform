@@ -114,7 +114,7 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(submissionService.submitFullSync(config, "Manual full sync"))
+    when(submissionService.submitFullSync(config, "手动全量同步"))
         .thenReturn(
             new SyncRunSubmissionResult(
                 88L,
@@ -126,7 +126,7 @@ class GitlabSyncControllerTest {
 
     var response = controller.fullSync(1L);
 
-    verify(submissionService).submitFullSync(config, "Manual full sync");
+    verify(submissionService).submitFullSync(config, "手动全量同步");
     verify(syncService, never()).startFullSync(1L);
     assertThat(response.getData())
         .containsEntry("runId", 88L)
@@ -139,7 +139,7 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(submissionService.submitIncrementalSync(config, null, "Manual incremental sync"))
+    when(submissionService.submitIncrementalSync(config, null, "手动增量同步"))
         .thenReturn(
             new SyncRunSubmissionResult(
                 89L,
@@ -151,8 +151,8 @@ class GitlabSyncControllerTest {
 
     var response = controller.incrementalSync(1L);
 
-    verify(submissionService).submitIncrementalSync(config, null, "Manual incremental sync");
-    verify(syncService, never()).startIncrementalSync(1L, null, "Manual incremental sync");
+    verify(submissionService).submitIncrementalSync(config, null, "手动增量同步");
+    verify(syncService, never()).startIncrementalSync(1L, null, "手动增量同步");
     assertThat(response.getData())
         .containsEntry("runId", 89L)
         .containsEntry("status", SyncStatus.QUEUED)
@@ -165,7 +165,7 @@ class GitlabSyncControllerTest {
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
     when(tableDiagnosticsService.retryableTables(config)).thenReturn(List.of("issues", "issue_assignees"));
-    when(submissionService.submitTableRefresh(config, List.of("issues", "issue_assignees"), "Retry failed table sync tasks"))
+    when(submissionService.submitTableRefresh(config, List.of("issues", "issue_assignees"), "重试失败表任务"))
         .thenReturn(
             new SyncRunSubmissionResult(
                 90L,
@@ -177,7 +177,7 @@ class GitlabSyncControllerTest {
 
     var response = controller.retryFailedSync(1L);
 
-    verify(submissionService).submitTableRefresh(config, List.of("issues", "issue_assignees"), "Retry failed table sync tasks");
+    verify(submissionService).submitTableRefresh(config, List.of("issues", "issue_assignees"), "重试失败表任务");
     assertThat(response.getData())
         .containsEntry("runId", 90L)
         .containsEntry("status", SyncStatus.QUEUED)
@@ -198,7 +198,7 @@ class GitlabSyncControllerTest {
     assertThat(response.getData())
         .containsEntry("accepted", false)
         .containsEntry("status", SyncStatus.IDLE)
-        .containsEntry("message", "No failed or dirty table tasks to retry");
+        .containsEntry("message", "没有需要重试的失败或待修复表任务");
   }
 
   @Test
@@ -222,18 +222,18 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(cancellationService.requestCancel(1L, null, "Manual cancellation requested"))
-        .thenReturn(new SyncRunCancellationResult(true, 77L, "sr_77", SyncRunStatus.CANCELLING, "Cancellation requested"));
+    when(cancellationService.requestCancel(1L, null, "用户手动请求取消"))
+        .thenReturn(new SyncRunCancellationResult(true, 77L, "sr_77", SyncRunStatus.CANCELLING, "已请求取消同步任务"));
 
     var response = controller.cancel(1L);
 
-    assertThat(response.getMessage()).isEqualTo("Cancellation requested");
+    assertThat(response.getMessage()).isEqualTo("已请求取消同步任务");
     assertThat(response.getData())
         .containsEntry("accepted", true)
         .containsEntry("runId", 77L)
         .containsEntry("externalRunId", "sr_77")
         .containsEntry("status", "CANCELLING")
-        .containsEntry("message", "Cancellation requested");
+        .containsEntry("message", "已请求取消同步任务");
   }
 
   @Test
@@ -241,15 +241,15 @@ class GitlabSyncControllerTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     when(configService.getConfigById(1L)).thenReturn(config);
-    when(cancellationService.requestCancel(1L, null, "Manual cancellation requested"))
-        .thenReturn(new SyncRunCancellationResult(false, null, null, null, "No cancellable sync run is available"));
+    when(cancellationService.requestCancel(1L, null, "用户手动请求取消"))
+        .thenReturn(new SyncRunCancellationResult(false, null, null, null, "当前没有可取消的同步任务"));
 
     var response = controller.cancel(1L);
     Map<String, Object> data = response.getData();
 
-    assertThat(response.getMessage()).isEqualTo("No cancellable sync run");
+    assertThat(response.getMessage()).isEqualTo("当前没有可取消的同步任务");
     assertThat(data).containsEntry("accepted", false);
-    assertThat(data.get("message")).isEqualTo("No cancellable sync run is available");
+    assertThat(data.get("message")).isEqualTo("当前没有可取消的同步任务");
   }
 
   @Test

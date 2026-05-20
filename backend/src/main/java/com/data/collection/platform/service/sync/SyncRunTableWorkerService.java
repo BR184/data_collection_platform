@@ -85,7 +85,7 @@ public class SyncRunTableWorkerService {
     SyncRunTableTask task;
     while (!isRunCancellationRequested(runId) && (task = claimNextQueuedTask(runId, owner, 30)) != null) {
       if (isRunCancellationRequested(runId)) {
-        finishTask(task.getId(), task.getRowsScanned(), task.getRowsApplied(), "CANCELLED", "Sync run cancelled");
+        finishTask(task.getId(), task.getRowsScanned(), task.getRowsApplied(), "CANCELLED", "同步运行已取消");
         cancelQueuedTasks(runId);
         break;
       }
@@ -112,9 +112,9 @@ public class SyncRunTableWorkerService {
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new IllegalStateException("Interrupted while draining sync table tasks", e);
+      throw new IllegalStateException("处理同步表任务时被中断", e);
     } catch (ExecutionException e) {
-      throw new IllegalStateException("Failed to drain sync table tasks", e.getCause());
+      throw new IllegalStateException("处理同步表任务失败", e.getCause());
     } finally {
       executor.shutdownNow();
     }
@@ -165,7 +165,7 @@ public class SyncRunTableWorkerService {
                    lease_owner = null,
                    lease_until = null,
                    heartbeat_at = null,
-                   last_error = 'Table task lease timed out; retry queued',
+                   last_error = '表任务租约超时，已重新排队',
                    run_after = current_timestamp,
                    updated_at = current_timestamp
              where status = 'RUNNING'
@@ -181,7 +181,7 @@ public class SyncRunTableWorkerService {
                    lease_owner = null,
                    lease_until = null,
                    heartbeat_at = null,
-                   last_error = 'Table task lease timed out',
+                   last_error = '表任务租约超时',
                    finished_at = current_timestamp,
                    updated_at = current_timestamp
              where status = 'RUNNING'
@@ -217,7 +217,7 @@ public class SyncRunTableWorkerService {
         """
         update sync_run_table_tasks
            set status = 'CANCELLED',
-               last_error = coalesce(last_error, 'Sync run cancelled'),
+               last_error = coalesce(last_error, '同步运行已取消'),
                finished_at = current_timestamp,
                updated_at = current_timestamp
          where run_id = ?
@@ -280,10 +280,10 @@ public class SyncRunTableWorkerService {
     SyncRunTableState state = findState(task);
     try {
       if (state == null) {
-        throw new IllegalStateException("Table sync state is missing");
+        throw new IllegalStateException("表同步状态缺失");
       }
       if (!Boolean.TRUE.equals(state.getSyncEnabled())) {
-        throw new IllegalStateException("Table sync state is disabled");
+        throw new IllegalStateException("表同步状态已停用");
       }
       GitlabSyncConfig config = configService.getConfigById(task.getConfigId());
       TableWhitelistOption option = tableOption(state);
@@ -291,7 +291,7 @@ public class SyncRunTableWorkerService {
           mirrorSchemaService.getPreparedMirrorTableForSync(config, option);
       mirrorSchemaService.markTableSyncing(config.getId(), state.getSourceTable());
       if (isRunCancellationRequested(task.getRunId())) {
-        finishTask(task.getId(), 0L, 0L, "CANCELLED", "Sync run cancelled");
+        finishTask(task.getId(), 0L, 0L, "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
@@ -301,7 +301,7 @@ public class SyncRunTableWorkerService {
       boolean fullTask = "FULL".equalsIgnoreCase(task.getRowStrategy());
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
       if (!fullTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
-        throw new IllegalStateException("Table task is not executable by incremental worker");
+        throw new IllegalStateException("当前表任务不能由增量同步执行器处理");
       }
       if (!fullTask && !preciseTask && task.getCursorUpdatedAt() == null && task.getCursorPk() == null) {
         LocalDateTime sourceMaxUpdatedAt = sourceTableReader.findMaxUpdatedAt(config, option);
@@ -322,14 +322,14 @@ public class SyncRunTableWorkerService {
                   : sourceTableReader.readIncrementalBatch(
                       config, option, scanStart, task.getCursorUpdatedAt(), task.getCursorPk(), batchSize);
       if (isRunCancellationRequested(task.getRunId())) {
-        finishTask(task.getId(), 0L, 0L, "CANCELLED", "Sync run cancelled");
+        finishTask(task.getId(), 0L, 0L, "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
       MirrorBatchWriteResult writeResult =
           mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
       if (isRunCancellationRequested(task.getRunId())) {
-        finishTask(task.getId(), (long) rows.size(), (long) writeResult.appliedRows(), "CANCELLED", "Sync run cancelled");
+        finishTask(task.getId(), (long) rows.size(), (long) writeResult.appliedRows(), "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
@@ -352,7 +352,7 @@ public class SyncRunTableWorkerService {
           log.error("Exceeded max continuation tasks ({}) for table {}, runId={}, aborting further pagination",
               maxContinuationTasks, task.getSourceTable(), task.getRunId());
           markFailure(task, state, new BizException(
-              "Exceeded max continuation task limit (%d) for table %s".formatted(
+              "表 %2$s 超过连续分页任务上限（%1$d）".formatted(
                   maxContinuationTasks, task.getSourceTable())));
           return;
         }

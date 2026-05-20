@@ -56,7 +56,7 @@ class GitlabSystemHookAsyncDispatchServiceTest {
             eq(SyncType.SYSTEM_HOOK),
             eq(SyncRunType.SYSTEM_HOOK),
             eq(SyncTriggerType.SYSTEM_HOOK),
-            eq("System Hook Issue Hook issue:101"),
+            eq("System Hook 已唤醒同步：Issue Hook issue:101"),
             eq(List.of("issues", "issue_assignees")),
             eq("issues"),
             argThat(payloadExtras ->

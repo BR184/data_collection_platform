@@ -166,7 +166,7 @@ class SyncRunTableWorkerServiceTest {
     assertThat(processed).isEqualTo(1);
     verify(mirrorTableWriter, never()).writeBatch(any(), any(), any());
     verify(jdbcTemplate)
-        .update(contains("set status = ?"), eq("CANCELLED"), eq(0L), eq(0L), eq("Sync run cancelled"), eq(501L));
+        .update(contains("set status = ?"), eq("CANCELLED"), eq(0L), eq(0L), eq("同步运行已取消"), eq(501L));
   }
 
   @Test

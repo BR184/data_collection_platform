@@ -124,7 +124,7 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
       case 'COMPENSATION_SYNC':
         return '补偿扫描';
       case 'FACT_REFRESH':
-        return 'Fact refresh';
+        return '事实刷新';
       default:
         return fallbackPhaseText(currentTask.value);
     }
@@ -153,8 +153,8 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
     }
     if (current.phase === 'FACT_REFRESH') {
       return current.factRefreshStatus
-        ? `Fact refresh status: ${syncStatusText(current.factRefreshStatus as GitlabSyncStatus)}`
-        : 'Mirror sync completed; fact refresh is running.';
+        ? `事实刷新状态：${syncStatusText(current.factRefreshStatus as GitlabSyncStatus)}`
+        : '镜像同步已完成，正在刷新事实表。';
     }
     if (current.activeTableTasks?.length) {
       return `正在处理 ${current.activeTableTasks.length} 张表，已写入 ${current.appliedRows ?? current.syncedRecords} 条记录。`;

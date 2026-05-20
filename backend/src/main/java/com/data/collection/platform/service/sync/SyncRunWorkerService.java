@@ -46,7 +46,7 @@ public class SyncRunWorkerService {
     markRunning(run);
     try {
       if (isCancellationRequested(run)) {
-        finishRun(run, SyncRunStatus.CANCELLED, 0, 0, "Sync run cancelled before processing");
+        finishRun(run, SyncRunStatus.CANCELLED, 0, 0, "同步运行在处理前已取消");
         return;
       }
       if (run.getRunType() == SyncRunType.FACT_REFRESH) {
@@ -69,7 +69,7 @@ public class SyncRunWorkerService {
   private void executeTableRefreshRun(SyncRun run) {
     int planned = tablePlanningService.planRunTables(run.getId());
     if (isCancellationRequested(run)) {
-      finishRun(run, SyncRunStatus.CANCELLED, planned, 0, "Sync run cancelled before table execution");
+      finishRun(run, SyncRunStatus.CANCELLED, planned, 0, "同步运行在表任务执行前已取消");
       return;
     }
     tableWorkerService.drainRunTasks(run.getId(), resolveTableWorkerCount(run));
@@ -77,7 +77,7 @@ public class SyncRunWorkerService {
     run.setScannedRows(summary.scannedRows());
     run.setAppliedRows(summary.appliedRows());
     if (isCancellationRequested(run)) {
-      finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), "Sync run cancelled");
+      finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), "同步运行已取消");
       return;
     }
     SyncRunStatus status = tableRunStatus(summary);
@@ -180,12 +180,12 @@ public class SyncRunWorkerService {
       return null;
     }
     if (summary.failedTasks() > 0 || summary.timedOutTasks() > 0) {
-      return "One or more table tasks failed";
+      return "一个或多个表任务失败";
     }
     if (summary.cancelledTasks() > 0) {
-      return "Sync run cancelled";
+      return "同步运行已取消";
     }
-    return "One or more table tasks did not complete";
+    return "一个或多个表任务未完成";
   }
 
   private int resolveTableWorkerCount(SyncRun run) {

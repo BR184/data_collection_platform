@@ -78,7 +78,7 @@ public class GitlabMirrorSyncService {
 
   public SyncRunSubmissionResult startFullSync(Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    return syncRunSubmissionService.submitFullSync(config, "Manual full sync");
+    return syncRunSubmissionService.submitFullSync(config, "手动全量同步");
   }
 
   public SyncRunSubmissionResult startIncrementalSync(SyncTriggerType triggerType, String message) {
@@ -130,15 +130,15 @@ public class GitlabMirrorSyncService {
               .last("limit 1"));
       if (registry == null) {
         throw new com.data.collection.platform.common.exception.BizException(
-            "Source table is not registered in the mirror whitelist: " + sourceTable);
+            "源表未加入镜像白名单：" + sourceTable);
       }
       if (isBlank(registry.getPrimaryKeyColumns())) {
         throw new com.data.collection.platform.common.exception.BizException(
-            "Manual table refresh requires known primary key columns: " + sourceTable);
+            "手动刷新表需要已识别的主键列：" + sourceTable);
       }
       if (isBlank(registry.getUpdatedAtColumn())) {
         throw new com.data.collection.platform.common.exception.BizException(
-            "Manual table refresh requires an updated_at column: " + sourceTable);
+            "手动刷新表需要 updated_at 列：" + sourceTable);
       }
       SyncRunTableState state =
           tableStateMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableState>()
@@ -148,7 +148,7 @@ public class GitlabMirrorSyncService {
               .last("limit 1"));
       if (state == null || state.getLastWatermarkAt() == null) {
         throw new com.data.collection.platform.common.exception.BizException(
-            "Manual table refresh requires a completed full sync baseline first: " + sourceTable);
+            "手动刷新表需要先完成一次全量同步基线：" + sourceTable);
       }
     }
   }

@@ -50,7 +50,7 @@ defineProps<{
           </span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">总任务进度</span>
+          <span class="meta-label">处理批次完成数</span>
           <span class="meta-value">{{ progress?.completedTables || 0 }}/{{ progress?.totalTables || 0 }}</span>
         </div>
         <div class="meta-item">
@@ -58,7 +58,7 @@ defineProps<{
           <span class="meta-value">{{ progress?.runningTables || 0 }}</span>
         </div>
         <div class="meta-item">
-          <span class="meta-label">Fact stage</span>
+          <span class="meta-label">事实刷新阶段</span>
           <span class="meta-value">{{ progress?.factRefreshStatus || '-' }}</span>
         </div>
         <div class="meta-item">

@@ -118,7 +118,7 @@ class SyncRunWorkerServiceTest {
     verify(configService).updateSyncTime(1L, false);
     verifyMirrorCompletionEvent(15L, SyncRunType.INCREMENTAL_SYNC, SyncRunStatus.PARTIAL_SUCCESS, 5L);
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
-    assertThat(run.getErrorMessage()).isEqualTo("One or more table tasks failed");
+    assertThat(run.getErrorMessage()).isEqualTo("一个或多个表任务失败");
   }
 
   @Test
@@ -180,7 +180,7 @@ class SyncRunWorkerServiceTest {
     verify(configService, org.mockito.Mockito.never()).updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
     verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
-    assertThat(run.getErrorMessage()).isEqualTo("Sync run cancelled before processing");
+    assertThat(run.getErrorMessage()).isEqualTo("同步运行在处理前已取消");
   }
 
   private SyncRun run(Long id, SyncRunType runType) {

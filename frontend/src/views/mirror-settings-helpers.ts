@@ -116,7 +116,7 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   }
   const completedStatusMatch = normalized.match(/^(.+) completed with status\s+(.+)$/i);
   if (completedStatusMatch) {
-    return `${completedStatusMatch[1]} 已完成，状态：${syncStatusText(completedStatusMatch[2])}`;
+    return `${syncRunNameText(completedStatusMatch[1])}已完成，状态：${syncStatusText(completedStatusMatch[2])}`;
   }
 
   if (/^Sync completed successfully$/i.test(normalized)) {
@@ -124,6 +124,18 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   }
   if (/^Sync cancelled by user$/i.test(normalized)) {
     return '同步已由用户取消';
+  }
+  if (/^Sync run cancelled$/i.test(normalized)) {
+    return '同步运行已取消';
+  }
+  if (/^Queued sync run cancelled$/i.test(normalized)) {
+    return '已取消排队中的同步任务';
+  }
+  if (/^Cancelled before worker start$/i.test(normalized)) {
+    return '任务启动前已取消';
+  }
+  if (/^Cancellation requested$/i.test(normalized)) {
+    return '已请求取消同步任务';
   }
   if (/^Task heartbeat timed out$/i.test(normalized)) {
     return '任务心跳超时';
@@ -153,6 +165,17 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
     }
   }
 
+  return normalized;
+}
+
+function syncRunNameText(value: string) {
+  const normalized = value.trim();
+  if (/^Sync run\b/i.test(normalized)) {
+    return '同步运行 ';
+  }
+  if (/^Fact refresh run\b/i.test(normalized)) {
+    return '事实刷新运行 ';
+  }
   return normalized;
 }
 

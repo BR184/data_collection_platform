@@ -183,10 +183,10 @@ public class DatabaseBrowserService {
     SourceTableSelection selection = parseSourceTableKey(tableName);
     GitlabSyncConfig config = configService.getConfigById(selection.configId());
     if (!isSourceEnabled(config)) {
-      throw new BizException("source is disabled");
+      throw new BizException("数据源已停用");
     }
     if (!configService.isSourceConfigured(config)) {
-      throw new BizException("source connection settings are incomplete");
+      throw new BizException("数据源连接配置不完整");
     }
     GitlabMirrorTableRegistry registry = findInitializedRegistry(selection.configId(), selection.sourceTable());
     TableWhitelistOption option = new TableWhitelistOption(

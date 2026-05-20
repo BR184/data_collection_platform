@@ -35,7 +35,7 @@ public class SyncRunCancellationService {
   public SyncRunCancellationResult requestCancel(Long configId, String requestedBy, String reason) {
     SyncRun run = findCancellableRun(configId);
     if (run == null) {
-      return SyncRunCancellationResult.rejected("No cancellable sync run is available");
+      return SyncRunCancellationResult.rejected("当前没有可取消的同步任务");
     }
 
     LocalDateTime now = LocalDateTime.now();
@@ -45,7 +45,7 @@ public class SyncRunCancellationService {
     run.setUpdatedAt(now);
     if (queued) {
       run.setFinishedAt(now);
-      run.setErrorMessage("Cancelled before worker start");
+      run.setErrorMessage("任务启动前已取消");
     }
     syncRunMapper.updateById(run);
     recordCancellationEvent(run, requestedBy, reason, now, queued);
@@ -54,7 +54,7 @@ public class SyncRunCancellationService {
         run.getId(),
         run.getRunId(),
         run.getStatus(),
-        queued ? "Queued sync run cancelled" : "Cancellation requested");
+        queued ? "已取消排队中的同步任务" : "已请求取消同步任务");
   }
 
   private SyncRun findCancellableRun(Long configId) {
@@ -101,7 +101,7 @@ public class SyncRunCancellationService {
         run.getConfigId(),
         run.getSourceInstance(),
         queued ? "RUN_CANCELLED_BEFORE_START" : "RUN_CANCELLATION_REQUESTED",
-        queued ? "Queued sync run cancelled" : "Cancellation requested",
+        queued ? "已取消排队中的同步任务" : "已请求取消同步任务",
         "{\"requestedBy\":\""
             + escapeJson(requestedBy)
             + "\",\"reason\":\""

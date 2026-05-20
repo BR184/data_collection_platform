@@ -254,7 +254,7 @@ class GitlabConfigServiceTest {
 
     assertThatThrownBy(() -> configService.saveConfig(input))
         .isInstanceOf(BizException.class)
-        .hasMessageContaining("incomplete");
+        .hasMessageContaining("连接配置不完整");
     verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
   }
 

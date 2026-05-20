@@ -120,7 +120,7 @@ function terminalTime(log: SyncRunLog) {
             </el-tag>
           </div>
           <div>
-            <span>总任务进度</span>
+            <span>处理批次完成数</span>
             <strong>{{ tableProgressText }}</strong>
           </div>
           <div>
@@ -282,7 +282,7 @@ function terminalTime(log: SyncRunLog) {
 .active-run-metrics > div {
   display: grid;
   gap: 5px;
-  min-width: 74px;
+  min-width: 92px;
 }
 
 .tag-list {
