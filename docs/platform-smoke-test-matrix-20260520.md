@@ -178,9 +178,9 @@
 | 通知 payload | `/notification-payload` | ✅ 自动化已验证，⚠️ 待真实链路 | 接口真实调用 |
 | 表单保存、删除、更新记录 | `/save`、`/delete`、`/update-record` | ✅ 自动化已验证，⚠️ 待真实链路 | 用测试 MR 闭环 |
 | 表单审计 | `CollectFormAuditService` | ✅ 自动化已验证 | 真实链路确认审计记录 |
-| 测试阶段定义列表 | `GET /api/testing-phases`、页面列表 | ❌ 待补覆盖 | 需要补后端/前端测试并真实打开 |
-| 项目选项 | `/api/testing-phases/project-options` | ❌ 待补覆盖 | 需要补接口测试 |
-| 测试阶段新增、编辑、启停、删除 | `POST/PUT/PATCH/DELETE /api/testing-phases` | ❌ 待补覆盖 | 用测试项目闭环 |
+| 测试阶段定义列表 | `GET /api/testing-phases`、页面列表 | ✅ 真实链路已验证 | `18181 -> 18080` 页面打开与接口查询通过 |
+| 项目选项 | `/api/testing-phases/project-options` | ✅ 真实链路已验证 | `18181 -> 18080` 接口抽样通过 |
+| 测试阶段新增、编辑、启停、删除 | `POST/PUT/PATCH/DELETE /api/testing-phases` | ✅ 真实链路已验证 | 使用临时 `projectId=99999901` 完成闭环 |
 
 ### G12 前端基础组件、组合函数与工具
 
@@ -231,7 +231,10 @@
 | NEW-001 | System Hook 项目白名单字段已存在，但入口尚未按内存白名单快速阻断 | 非目标项目高频事件仍可能进入平台处理链路 |
 | NEW-002 | 数据库查看暂未暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks`、`gitlab_hook_events` | 用户无法在页面查看完整同步日志和 hook 事件 |
 | NEW-003 | 历史数据库行中仍可能存在旧英文原始消息 | 历史日志展示可能中英混杂 |
-| GAP-001 | 测试阶段定义模块未找到足够自动化覆盖 | CRUD 和页面真实链路需要优先补测 |
+| NEW-009 | 浏览器真实路由冒烟发现 Element Plus radio 废弃 API 警告：`label act as value is about to be deprecated` | 当前不影响功能，但升级 Element Plus 3.x 前需要替换为 `value` |
+| NEW-010 | 最小白名单源只同步 `users/projects` 时，全量同步后仍触发事实层刷新，并因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | 小表集/白名单场景会出现非业务失败噪声，可能误导用户判断同步质量 |
+| NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | 平台说明仍有英文残留，需要中文化 |
+| GAP-001 | 测试阶段定义模块原覆盖缺口已补测通过 | 保留历史记录；后续只需按常规回归维护 |
 | GAP-002 | 部分前端组件只有页面间接覆盖，缺少独立组件测试 | 可先通过真实页面冒烟覆盖，后续补单测 |
 | GAP-003 | 外网/本地 Docker 环境无法验证内网 CC/DGM 非 Docker 真实直连 | 内网迁移后必须作为首轮真实链路验证项 |
 
@@ -285,6 +288,21 @@
 | G2 | System Hook 精确同步任务 | ✅ 最新链路通过 | 平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS`，同步日志包含 `System Hook 已唤醒同步：System Hook issue:391`，4 个表任务 `issues/issue_assignees/issue_metrics/label_links` 均 `SUCCESS` |
 | G2 | System Hook 环境反证 | ⚠️ 已定位为配置问题 | config 2 仍指向容器 DNS 时，GitLab 投递 `WebHookLog.id=55` 已 200，平台 run 288 失败于源库连接；改为 `localhost:15434` 后 run 289 成功 |
 | G1 | 同步任务幽灵状态复查 | ⚠️ 发现历史残留 | `sync_runs` 无 active run，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED`，挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
+| W1/W5/W6 | 浏览器真实路由冒烟 | ✅ 最新链路通过 | Playwright 打开 `18181 -> 18080` 共 26 个路由，覆盖质量看板、评审数据、代码走查、集成测试、系统测试、客户问题、数据镜像监控、数据库查看、测试阶段定义、外部采集表单和 404；无失败请求，报告见 `.tmp/browser-smoke-20260520/report.json` |
+| G0 | 审批用户页面权限链路 | ✅ 最新链路通过 | 浏览器登录 `approval` 用户后访问受限路由被引导至质量看板，当前用户返回 `APPROVAL` |
+| G1/G3 | 最小双源配置保存与诊断 | ✅ 最新链路通过 | 新增/复用 config 4 `smoke_cc` 与 config 5 `smoke_dgm`，均为 `sourceMode=DIRECT`、`whitelistTables=["users","projects"]`、`autoSyncEnabled=false`；连接测试、诊断和白名单校验均通过 |
+| G1/G3 | 最小双源全量同步 | ✅ 最新链路通过 | config 4 `smoke_cc` run 296 `FULL_SYNC/SUCCESS`，计划/完成 2 表，扫描/应用 6 行；config 5 `smoke_dgm` run 298 `FULL_SYNC/SUCCESS`，计划/完成 2 表，扫描/应用 3 行 |
+| G1 | 增量同步真实链路 | ✅ 最新链路通过 | config 4 `smoke_cc` run 300 `INCREMENTAL_SYNC/SUCCESS`，计划/完成 2 表；小数据无新增行时扫描/应用 0 行 |
+| G1 | 同源同步互斥与取消 | ✅ 最新链路通过 | run 302 验证活动任务取消为 `CANCELLED`；run 303 期间再次提交增量被合并到已有 run，未创建并行同步，随后取消成功 |
+| G1 | 失败重试与空取消 | ✅ 最新链路通过 | config 4 无失败任务时重试请求返回未创建新 run；无活动任务时取消请求返回未接受，状态保持 `IDLE` |
+| G4 | 数据库查看单表刷新 | ✅ 最新链路通过 | `ods_gitlab_smoke_cc_users` 已具备基线后刷新成功，run 301 `TABLE_REFRESH/SUCCESS` |
+| G3/G4 | 双源镜像表隔离 | ✅ 最新链路通过 | 实际生成独立表 `ods_gitlab_smoke_cc_users/projects` 与 `ods_gitlab_smoke_dgm_users/projects`；计数为 CC users=3、CC projects=3、DGM users=3、DGM projects=0，未混入同一张表 |
+| G5 | 事实构建真实接口 | ✅ 最新链路通过 | 使用 config 2 触发 issue fact rebuild、latest task 查询和 integration fact rebuild 均成功 |
+| G11/G13 | 采集表单与审计真实链路 | ✅ 最新链路通过 | 采集表单 save/update/delete 闭环成功；采集表单审计日志与操作审计日志均可查到新增记录 |
+| G1 | 白名单外镜像清理 | ✅ 最新链路通过 | config 4 执行 purge excluding current whitelist 成功，保留当前 `users/projects` 小表白名单 |
+| G5 | 最小白名单后的事实层自动刷新 | ⚠️ 发现新问题 | config 4/5 全量同步成功后自动触发 fact refresh run 297/299，但因最小白名单未包含 issue/MR 相关表，状态为 `PARTIAL_SUCCESS`，见 NEW-010 |
+| G7 | 浏览器控制台兼容性告警 | ⚠️ 发现新问题 | `/code-review/illegal-records` 出现 2 条 Element Plus radio 废弃 API warning，见 NEW-009 |
+| G1 | 同步互斥响应中文化 | ⚠️ 发现新问题 | 同源同步合并行为正确，但响应 message 仍为英文，见 NEW-011 |
 
 ### 新增问题
 
@@ -295,6 +313,9 @@
 | NEW-006 | 最新后端启动后，`SyncRunLeaseService.markTimedOutRunTasks` 在调度恢复时触发 SQL 错误：`column reference "finished_at" is ambiguous` | 待修复；可能影响异常退出后 run/table task 超时回收 |
 | NEW-007 | 数据库查看中镜像表可见且可触发单表刷新，但未完成全量同步基线时返回 400：`手动刷新表需要先完成一次全量同步基线` | 待评估；行为有保护意义，但页面/接口需要明确前置状态，避免用户误以为刷新功能不可用 |
 | NEW-008 | `sync_runs` 无活动任务时，`sync_run_table_tasks` 仍残留 22 条 `QUEUED`，对应 run 139/270/271/278/280 已为 `FAILED` 或 `TIMEOUT` | 待修复；状态恢复/取消/失败收敛时应同步终结子表任务，避免后续排查误判幽灵任务 |
+| NEW-009 | 浏览器真实路由冒烟时，`/code-review/illegal-records` 触发 Element Plus radio 废弃 API warning：`label act as value is about to be deprecated` | 待修复；功能可用但升级 Element Plus 3.x 前需处理 |
+| NEW-010 | 最小白名单源 `users/projects` 全量同步成功后仍自动触发事实层刷新，因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | 待评估；白名单未覆盖事实源表时应跳过相关事实刷新或给出明确非失败状态 |
+| NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | 待修复；属于平台中文化残留 |
 
 ## 下一步记录方式
 

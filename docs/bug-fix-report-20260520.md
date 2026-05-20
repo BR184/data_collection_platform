@@ -426,13 +426,26 @@ private int resolveMaxContinuationTasksPerTable() {
 | System Hook 真实链路 | ✅ 通过 | 最新后端 `18080` 复验通过：GitLab `WebHookLog.id=56` 投递到 `host.docker.internal:18080` 且 `response_status=200`，平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS` |
 | System Hook 精确同步任务 | ✅ 通过 | run 289 生成 4 个任务：`issues`、`issue_assignees`、`issue_metrics`、`label_links`，均为 `SUCCESS` |
 | 同步日志包含 System Hook 信息 | ✅ 通过 | `sync_runs.request_reason = System Hook 已唤醒同步：System Hook issue:391` |
+| 浏览器真实路由冒烟 | ✅ 通过 | `18181 -> 18080` 共 26 个路由通过，覆盖质量看板、评审数据、代码走查、集成测试、系统测试、客户问题、数据镜像监控、数据库查看、测试阶段定义、外部采集表单和 404；无失败请求，报告见 `.tmp/browser-smoke-20260520/report.json` |
+| 审批用户权限链路 | ✅ 通过 | 浏览器登录 `approval` 用户后访问受限路由被引导至质量看板，`/api/auth/current` 返回 `APPROVAL` |
+| 最小双源配置与诊断 | ✅ 通过 | config 4 `smoke_cc`、config 5 `smoke_dgm` 均为 `sourceMode=DIRECT`、`whitelistTables=["users","projects"]`、`autoSyncEnabled=false`；连接测试、诊断和白名单校验均成功 |
+| 最小双源全量同步 | ✅ 通过 | config 4 run 296 `FULL_SYNC/SUCCESS`，2/2 表完成，扫描/应用 6 行；config 5 run 298 `FULL_SYNC/SUCCESS`，2/2 表完成，扫描/应用 3 行 |
+| 增量同步真实链路 | ✅ 通过 | config 4 run 300 `INCREMENTAL_SYNC/SUCCESS`，2/2 表完成；小数据无新增行时扫描/应用 0 行 |
+| 同步互斥与取消 | ✅ 通过 | run 302 验证活动任务取消为 `CANCELLED`；run 303 期间提交增量被合并到已有 run，未创建并行同步，随后取消成功 |
+| 数据库查看单表刷新 | ✅ 通过 | `ods_gitlab_smoke_cc_users` 基线建立后刷新成功，run 301 `TABLE_REFRESH/SUCCESS` |
+| 双源镜像表隔离 | ✅ 通过 | 生成独立表 `ods_gitlab_smoke_cc_users/projects` 与 `ods_gitlab_smoke_dgm_users/projects`；计数为 CC users=3、CC projects=3、DGM users=3、DGM projects=0，未混入同一张表 |
+| 事实构建真实接口 | ✅ 通过 | 使用 config 2 触发 issue fact rebuild、latest task 查询和 integration fact rebuild 均成功 |
+| 采集表单与审计真实链路 | ✅ 通过 | 采集表单 save/update/delete 闭环成功；采集表单审计日志与操作审计日志均可查到新增记录 |
+| 最小白名单后的事实层自动刷新 | ⚠️ 发现新问题 | config 4/5 全量同步成功后自动触发 fact refresh run 297/299，但因最小白名单未包含 issue/MR 相关表，状态为 `PARTIAL_SUCCESS`，见 NEW-010 |
+| 浏览器控制台兼容性告警 | ⚠️ 发现新问题 | `/code-review/illegal-records` 出现 2 条 Element Plus radio 废弃 API warning，见 NEW-009 |
+| 同步互斥响应中文化 | ⚠️ 发现新问题 | 同源同步合并行为正确，但响应 message 仍为英文，见 NEW-011 |
 
 ### 9.3 本轮仍未执行的测试
 
 | 测试项 | 状态 | 原因 |
 |--------|------|------|
 | 大数据性能压测 | ⏸ 跳过 | 用户明确要求除数据量压力测试外继续测试 |
-| 多源真实双库端到端 | ⚠️ 外网未执行真实双库；自动化隔离能力已通过 | 外网没有 CC/DGM 双库条件；内网用真实 CC/DGM 联调确认 |
+| 多源真实双库端到端 | ✅ 已用最小双测试源验证；内网真实 CC/DGM 待部署后复验 | 外网使用 `smoke_cc`/`smoke_dgm` 两个本地测试源验证多源能力和表隔离；真实 CC/DGM 名称本身仍只能在内网验证 |
 | 真实进程中断恢复 | ⚠️ 未执行 | 当前未构造长运行同步任务；自动化 lease/recovery 用例已通过 |
 | 内网真实含 inet 表端到端 | ⚠️ 未执行 | 本地自动化覆盖了归一化逻辑，内网仍建议对真实 `authentication_events` 回归 |
 
@@ -511,6 +524,30 @@ private int resolveMaxContinuationTasksPerTable() {
 - **期望行为**: 父 run 进入 `FAILED/TIMEOUT/CANCELLED` 等终态时，所有未执行子表任务应同步终结为明确终态，例如 `FAILED/TIMEOUT/CANCELLED`，不得长期保持 `QUEUED`。
 - **处理状态**: 待修复，当前仅记录问题。
 
+### NEW-009：Element Plus radio 废弃 API 告警
+
+- **严重程度**: P3
+- **现状**: 2026-05-20 浏览器真实路由冒烟中，`/code-review/illegal-records` 出现 2 条 Element Plus warning：`[el-radio] [API] label act as value is about to be deprecated in version 3.0.0, please use value instead`。
+- **影响**: 当前不阻断功能，也没有失败请求；但升级 Element Plus 3.x 后可能变成兼容性问题。
+- **期望行为**: 将相关 `el-radio` 使用从 `label` 作为值改为显式 `value`，保留 `label` 只做展示语义。
+- **处理状态**: 待修复，当前仅记录问题。
+
+### NEW-010：最小白名单源同步后事实层刷新产生误导性 PARTIAL_SUCCESS
+
+- **严重程度**: P2
+- **现状**: config 4 `smoke_cc` 与 config 5 `smoke_dgm` 只同步 `users/projects`，全量同步本身成功，但随后自动触发的 fact refresh run 297/299 因缺少 issue/MR 相关源表而进入 `PARTIAL_SUCCESS`。
+- **影响**: 在小表集、白名单或专项同步场景中，用户会看到“同步成功后又有部分成功”的噪声，容易误判为镜像同步失败。
+- **期望行为**: 当白名单未覆盖事实构建所需源表时，应跳过对应事实刷新，或将其标记为“已跳过/不适用”，不要制造失败态。
+- **处理状态**: 待评估，当前仅记录问题。
+
+### NEW-011：同步互斥合并响应仍有英文残留
+
+- **严重程度**: P3
+- **现状**: 同一 source 已有同步 run 时，再提交增量同步会正确合并到已有 run，不会并行执行；但接口响应 message 为英文：`Refresh request was merged into an existing sync run for this source`。
+- **影响**: 行为正确，但违反“平台说明全部中文化”的要求。
+- **期望行为**: 将该响应改为中文，例如“本次刷新请求已合并到同一数据源正在执行的同步任务中”。
+- **处理状态**: 待修复，当前仅记录问题。
+
 ---
 
 ## 十一、全平台功能冒烟矩阵
@@ -521,3 +558,4 @@ private int resolveMaxContinuationTasksPerTable() {
 - **范围**: 后端 API、服务抽象、同步编排、System Hook、多源隔离、数据库查看、事实构建、各业务页面、前端组件、组合函数和工具函数。
 - **原则**: 先完成小数据/真实链路基础冒烟，再进入大数据量压力专项；内网源库验收必须按非 Docker 的 PostgreSQL 直连方式确认，Docker 容器直连只能作为本地 DIRECT 分支验证；功能真实链路测试以 `18181` 当前 Vite 源码前端 -> `18080` 当前源码后端为有效口径，`18083/18182` 只作为旧容器环境参考。
 - **当前新增缺口**: 测试阶段定义模块真实 CRUD 链路已补测通过；数据库查看需要补全同步日志表；System Hook 项目内存白名单待实现。
+- **最新真实链路补测**: 已用 `smoke_cc`/`smoke_dgm` 两个最小测试源完成直连配置、连接诊断、全量同步、增量同步、同步互斥、取消、数据库查看刷新、双源隔离、事实构建、采集表单和审计链路；除内网真实 CC/DGM 名称本身、大数据量压力和真实进程 kill/restart 外，当前外网可构造的真实链路已补测并记录。
