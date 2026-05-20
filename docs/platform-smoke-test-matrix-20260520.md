@@ -8,12 +8,21 @@
 
 本文档只做功能标记、分组和测试状态记录；数据量压力测试单独后置，不混入本轮功能冒烟。
 
+## 测试口径
+
+1. 内网部署使用 **GitLab PostgreSQL 直连模式**，不使用 Docker 方式连接源库。
+2. 本地 Docker 容器环境只能证明代码走通 `sourceMode=DIRECT` 分支，不能替代内网真实直连验证。
+3. 若后端运行在 Docker 容器内，`dbHost=qaflex-gitlab-cc-pg-proxy` 这类容器 DNS/代理地址记为“本地容器直连模式”，不得标记为“内网真实直连已验证”。
+4. 内网真实直连的通过标准是：平台后端直接连接内网 CC/DGM 两个 GitLab PostgreSQL 地址，配置中 `sourceMode=DIRECT`，不依赖 Docker network、socat proxy 或 GitLab 容器名。
+5. 当前代码/页面冒烟优先使用本工作区源码或确认过的当前构建版本；`18181` 是本机 Vite dev server，`18182` 是 Docker 静态构建前端，两者测试结果需分开记录。
+6. 自 2026-05-20 14:29 起，功能真实链路测试的有效口径调整为 `18181` 当前 Vite 源码前端 -> `18080` 当前源码后端。此前打到 `18083/18182` 的结果只作为旧容器环境健康参考，不作为最新版本功能通过依据。
+
 ## 状态标记
 
 | 标记 | 含义 |
 | --- | --- |
 | ✅ 自动化已验证 | 已有单元、集成或前端组件测试，并在 2026-05-20 本轮测试中通过 |
-| ✅ 真实链路已验证 | 已通过 HTTP、页面、真实 GitLab、本地 GitLab 或真实数据库链路验证 |
+| ✅ 真实链路已验证 | 已通过 HTTP、页面、真实 GitLab、本地 GitLab 或真实数据库链路验证；涉及源库时需注明是本地容器直连还是内网真实直连 |
 | ⚠️ 待真实链路 | 有自动化覆盖，但还需要按真实链路跑一遍 |
 | ❌ 待补覆盖 | 当前未找到足够的自动化或真实链路覆盖 |
 | ⏸ 后置专项 | 不属于基础冒烟，放到大数据量或内网专项中验证 |
@@ -36,7 +45,7 @@
 | 功能点 | 覆盖范围 | 当前状态 | 后续动作 |
 | --- | --- | --- | --- |
 | 数据源配置读写 | `/api/gitlab-sync/configs`、`PUT /api/gitlab-sync/config` | ✅ 自动化已验证，⚠️ 待真实链路 | 页面保存配置并刷新回显 |
-| 连接测试 | `/test-connection`、`/test-connection/by-config`、直连模式 | ✅ 自动化已验证，✅ 真实链路已验证 | 内网再对 CC/DGM 对应源直连验证 |
+| 连接测试 | `/test-connection`、`/test-connection/by-config`、直连模式 | ✅ 自动化已验证，⚠️ 本地容器直连已验证 | 内网再对 CC/DGM 对应源做真实直连验证 |
 | 白名单选项 | 推荐表、全部表、自定义表、项目白名单字段 | ✅ 自动化已验证，⚠️ 待真实链路 | 页面切换各模式并确认请求体 |
 | 全量同步 | `/full-sync`、`/full-sync/by-config`、表计划、worker、日志 | ✅ 自动化已验证，⚠️ 待真实链路 | 小表集真实同步冒烟 |
 | 增量同步 | `/incremental-sync`、同步窗口、排他策略 | ✅ 自动化已验证，⚠️ 待真实链路 | 与补偿扫描互斥验证 |
@@ -70,7 +79,7 @@
 | 事实表来源字段 | `source_instance` 写入、查询过滤、事实构建链路 | ✅ 自动化已验证 | 内网 CC/DGM 真实链路验证 |
 | 查询下推隔离 | 按 source instance 过滤，避免跨源混入 | ✅ 自动化已验证 | 真实数据库双源抽样核对 |
 | 代码走查多源看板 | source options、overview 查询 | ✅ 自动化已验证，⚠️ 待真实链路 | 页面切换不同源 |
-| 外网无 CC/DGM 的限制 | 外网只验证多源能力，不验证 CC/DGM 名称本身 | ⏸ 后置专项 | 内网环境验证真实 CC/DGM |
+| 外网无 CC/DGM 的限制 | 外网只验证多源能力，不验证 CC/DGM 名称本身 | ⏸ 后置专项 | 内网环境用非 Docker 直连方式验证真实 CC/DGM |
 
 说明：这里不再使用“DGM 多源”这种说法。平台要证明的是多源能力正常、不同源数据不互相污染；CC 和 DGM 是内网具体源名。
 
@@ -212,7 +221,7 @@
 | W4 | 多源隔离、事实构建、数据库查看 | 不同源数据隔离，事实表不串源 |
 | W5 | 评审数据、代码走查、客户问题、系统测试、集成测试 | 每个列表、筛选、导出、规则说明、下钻至少跑一遍 |
 | W6 | 统计看板、质量看板、采集表单、测试阶段定义 | 页面、接口、导出、刷新、增删改闭环 |
-| W7 | 内网 CC/DGM 真实双源验证 | CC/DGM 均可直连，数据互不污染 |
+| W7 | 内网 CC/DGM 真实双源验证 | CC/DGM 均以非 Docker 方式直连，数据互不污染 |
 | W8 | 大数据量压力专项 | 大量同步后再跑 W1-W6 抽样回归 |
 
 ## 已知缺口与新问题
@@ -224,7 +233,68 @@
 | NEW-003 | 历史数据库行中仍可能存在旧英文原始消息 | 历史日志展示可能中英混杂 |
 | GAP-001 | 测试阶段定义模块未找到足够自动化覆盖 | CRUD 和页面真实链路需要优先补测 |
 | GAP-002 | 部分前端组件只有页面间接覆盖，缺少独立组件测试 | 可先通过真实页面冒烟覆盖，后续补单测 |
-| GAP-003 | 外网环境无法验证内网 CC/DGM 真实双源 | 内网迁移后必须作为首轮真实链路验证项 |
+| GAP-003 | 外网/本地 Docker 环境无法验证内网 CC/DGM 非 Docker 真实直连 | 内网迁移后必须作为首轮真实链路验证项 |
+
+## 2026-05-20 分组测试记录
+
+### 环境识别
+
+| 项目 | 结果 | 结论 |
+| --- | --- | --- |
+| `18181` | 本机 `node ... vite --host 0.0.0.0 --port 18181`，加载 `/src/main.ts` | 当前工作区源码前端，用于验证最新前端代码 |
+| `18182` | Docker 容器 `dcp-local-test-frontend-1`，加载 `/assets/index-BbYOi15y.js`，容器静态文件时间为 2026-05-08 | Docker 静态构建前端，不是当前最新前端；不含“数据镜像监控”模块 |
+| `18083` | Docker 容器 `dcp-current-backend` 映射到容器内 `18080` | 可用于 HTTP 冒烟，但源库直连结果属于本地容器直连模式 |
+| `18080` | 2026-05-20 14:39 从当前工作区源码重新启动，日志显示 `target/classes`，平台库为 `jdbc:postgresql://localhost:15433/qaflex` | 最新后端源码链路，后续真实 HTTP 冒烟以此为准 |
+| GitLab 源配置 | 当前配置均为 `sourceMode=DIRECT`；2026-05-20 15:14 起，config 2/`cc` 已改为本机可达 `localhost:15434`，default/dgm 仍是本地容器 DNS | config 2 可用于最新本机后端直连链路测试；仍不等同于内网非 Docker 直连 |
+
+### 已执行
+
+| 分组 | 测试项 | 结果 | 备注 |
+| --- | --- | --- | --- |
+| W0 | 后端全量 `mvn test` | ✅ 通过 | 400 tests, 0 failures, 0 errors, 4 skipped |
+| W0 | 前端 `npm run typecheck` | ✅ 通过 | TypeScript 无错误 |
+| W0 | 前端全量 `npm test` | ⚠️ 主体通过但进程失败 | 75 files、221 tests passed；Vitest 捕获 2 个 teardown 后未处理异常，见 NEW-004 |
+| W0 | 单独复跑 `code-review-rule-config.mount-smoke.test.ts` | ✅ 通过 | 2 tests passed，说明全量失败更像测试环境回收/异步清理问题 |
+| G0 | 后端基础/安全模块测试 | ✅ 通过 | 20 tests, 0 failures |
+| G0 | 前端基础路由/manifest/request 测试 | ✅ 通过 | 5 files, 17 tests passed |
+| G0 | 登录/当前用户 HTTP 链路 | ✅ 通过 | `18083` 登录 admin 成功，`/api/auth/current` 返回 ADMIN |
+| G0 | 前端首页 HTTP | ✅ 最新链路通过 | `18181` 返回 Vite 源码入口，加载 `/src/main.ts`；`18182` 仅保留为旧容器参考 |
+| G1/G2 | GitLab 同步/System Hook 后端模块测试 | ✅ 通过 | 147 tests, 0 failures |
+| G1/G2 | 镜像设置前端模块测试 | ✅ 通过 | 12 files, 41 tests passed |
+| G1/G2 | 同步只读接口 HTTP | ✅ 通过 | configs/source-health/whitelist/table diagnostics/system hook status/status 均 success |
+| G1/G2 | 源库连接模式核对 | ⚠️ 本地容器直连 | API 配置为 DIRECT，但 host 为容器网络代理，内网非 Docker 直连待验证 |
+| G3/G4/G5 | 多源隔离/数据库查看/事实构建后端模块测试 | ✅ 通过 | 63 tests, 0 failures |
+| G3/G5 | 多源看板/集成测试分析前端冒烟 | ✅ 通过 | 2 files, 2 tests passed |
+| G4/G5 | 数据库查看、事实任务、诊断、集成测试选项 HTTP | ✅ 通过 | 只读接口均 success |
+| 最新链路复核 | `18181 -> 18080` 登录、镜像配置、连接测试、数据库查看、评审数据、代码走查、统计看板、测试阶段 | ✅ 通过 | 前端为当前 Vite 源码；后端为当前源码 Spring Boot；后续功能测试以该链路为准 |
+| G6/G7/G8/G9 | 评审数据、代码走查、客户问题、系统测试、集成测试后端模块测试 | ✅ 通过 | 106 tests, 0 failures |
+| G6/G7/G8/G9 | 业务页面前端模块测试 | ✅ 通过 | 14 files, 30 tests passed |
+| G10/G11/G12/G13 | 统计看板、采集表单、测试阶段、共享抽象后端模块测试 | ✅ 通过 | 70 tests, 0 failures |
+| G10/G12 | 统计看板、基础表格、共享组件前端模块测试 | ✅ 通过 | 8 files, 21 tests passed |
+| G10 | 统计看板真实接口 | ✅ 最新链路通过 | 8 个 boardKey 的 overview/export 均成功；有数据的看板 details 成功，零数据看板跳过下钻 |
+| G11 | 采集表单真实接口 | ✅ 最新链路通过 | `/api/collect-forms/detail`、`/notification-payload` 带必要参数调用成功 |
+| G11 | 测试阶段定义 CRUD | ✅ 最新链路通过 | 使用临时 `projectId=99999901` 完成 create/update/disable/delete 闭环 |
+| G4 | 数据库查看行查询 | ✅ 最新链路通过 | `gitlab_sync_configs` 与 `ods_gitlab_cc_environments` 行查询成功 |
+| G4 | 数据库查看单表刷新 | ⚠️ 被基线保护拦截 | 刷新 `ods_gitlab_cc_environments` 返回 400：需要先完成一次全量同步基线，见 NEW-007 |
+| G7/G8/G9/G10 | 业务导出真实接口 | ✅ 最新链路通过 | 代码走查、客户问题、系统测试、集成测试、统计看板导出接口均返回文件内容 |
+| G7 | 代码走查规则预览 | ✅ 最新链路通过 | `/api/code-review/illegal-records/rule-config/preview` 成功返回预览结果 |
+| G6 | 评审数据 CRUD | ✅ 最新链路通过 | 临时评审记录 create/detail/problem item create/update/delete/record delete 闭环成功 |
+| G1 | 自动同步测试隔离 | ✅ 已调整 | 为避免本地容器代理源库干扰冒烟，已将 cc/default/dgm 的 `autoSyncEnabled=false`；`enabled` 保持 true |
+| G1 | config 2 本机直连连通性 | ✅ 最新链路通过 | config 2/`cc` 调整为 `sourceMode=DIRECT`、`dbHost=localhost`、`dbPort=15434` 后，`/api/gitlab-sync/test-connection/by-config?configId=2` 成功 |
+| G2 | System Hook 最新后端真实投递 | ✅ 最新链路通过 | GitLab `SystemHook.execute` 投递到 `host.docker.internal:18080`，`WebHookLog.id=56 response_status=200`，平台 `gitlab_system_hook_events.id=10 processed=true` |
+| G2 | System Hook 精确同步任务 | ✅ 最新链路通过 | 平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS`，同步日志包含 `System Hook 已唤醒同步：System Hook issue:391`，4 个表任务 `issues/issue_assignees/issue_metrics/label_links` 均 `SUCCESS` |
+| G2 | System Hook 环境反证 | ⚠️ 已定位为配置问题 | config 2 仍指向容器 DNS 时，GitLab 投递 `WebHookLog.id=55` 已 200，平台 run 288 失败于源库连接；改为 `localhost:15434` 后 run 289 成功 |
+| G1 | 同步任务幽灵状态复查 | ⚠️ 发现历史残留 | `sync_runs` 无 active run，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED`，挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
+
+### 新增问题
+
+| 编号 | 问题 | 状态 |
+| --- | --- | --- |
+| NEW-004 | 前端全量 `npm test` 在所有测试主体通过后，Vitest 捕获 `CodeReviewIllegalRuleConfigView` 相关 teardown 后未处理异常：`document is not defined`，涉及 Element Plus loading/message | 待修复；单测单独运行通过，怀疑异步任务未等待或组件卸载后仍触发 UI 服务 |
+| NEW-005 | `18182` Docker 前端不是最新版本，静态构建产物时间为 2026-05-08，包内未包含当前源码已有的“数据镜像监控”模块 | 测试环境问题；前端页面真实冒烟应使用 `18181` 当前 Vite 源码服务，或先重建 `18182` 前端镜像 |
+| NEW-006 | 最新后端启动后，`SyncRunLeaseService.markTimedOutRunTasks` 在调度恢复时触发 SQL 错误：`column reference "finished_at" is ambiguous` | 待修复；可能影响异常退出后 run/table task 超时回收 |
+| NEW-007 | 数据库查看中镜像表可见且可触发单表刷新，但未完成全量同步基线时返回 400：`手动刷新表需要先完成一次全量同步基线` | 待评估；行为有保护意义，但页面/接口需要明确前置状态，避免用户误以为刷新功能不可用 |
+| NEW-008 | `sync_runs` 无活动任务时，`sync_run_table_tasks` 仍残留 22 条 `QUEUED`，对应 run 139/270/271/278/280 已为 `FAILED` 或 `TIMEOUT` | 待修复；状态恢复/取消/失败收敛时应同步终结子表任务，避免后续排查误判幽灵任务 |
 
 ## 下一步记录方式
 

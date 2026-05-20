@@ -421,11 +421,11 @@ private int resolveMaxContinuationTasksPerTable() {
 | 后端全量自动化测试 | ✅ 通过 | `mvn test`：400 tests, 0 failures, 0 errors, 4 skipped |
 | 前端同步进度/日志相关测试 | ✅ 通过 | `MirrorSyncStatusCard`、`MirrorRunMonitorPanel`、`MirrorSyncLogTable`、`mirror-settings-helpers`、`useMirrorStatusPresentation` 共 17 tests passed |
 | 前端 TypeScript 类型检查 | ✅ 通过 | `npm.cmd run typecheck` 无错误 |
-| GitLab 直连模式诊断 | ✅ 通过 | `sourceMode=DIRECT`，白名单发现 696 张表，当前同步状态 `IDLE` |
-| 同步任务幽灵状态检查 | ✅ 通过 | `sync_runs` 中 active runs 为 0；表诊断 `pending=0, running=0, retrying=0` |
-| System Hook 真实链路 | ✅ 通过 | GitLab `WebHookLog` 最新投递 `response_status=200`，平台 `sync_runs.id=279` 为 `SYSTEM_HOOK/SUCCESS` |
-| System Hook 精确同步任务 | ✅ 通过 | run 279 生成 4 个任务：`issues`、`issue_assignees`、`issue_metrics`、`label_links`，均为 `SUCCESS` |
-| 同步日志包含 System Hook 信息 | ✅ 通过 | `sync_runs.request_reason = System Hook 已唤醒同步：System Hook issue:387` |
+| GitLab 直连模式诊断 | ✅ 通过 | `sourceMode=DIRECT`；config 2/`cc` 在最新本机后端链路下改为 `localhost:15434` 后连接测试通过，当前同步状态 `IDLE` |
+| 同步任务幽灵状态检查 | ⚠️ 发现历史残留 | `sync_runs` 中 active runs 为 0，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED` 挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
+| System Hook 真实链路 | ✅ 通过 | 最新后端 `18080` 复验通过：GitLab `WebHookLog.id=56` 投递到 `host.docker.internal:18080` 且 `response_status=200`，平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS` |
+| System Hook 精确同步任务 | ✅ 通过 | run 289 生成 4 个任务：`issues`、`issue_assignees`、`issue_metrics`、`label_links`，均为 `SUCCESS` |
+| 同步日志包含 System Hook 信息 | ✅ 通过 | `sync_runs.request_reason = System Hook 已唤醒同步：System Hook issue:391` |
 
 ### 9.3 本轮仍未执行的测试
 
@@ -470,6 +470,47 @@ private int resolveMaxContinuationTasksPerTable() {
 - **期望行为**: 如果需要数据库原始记录也全中文，可考虑一次性数据修正脚本；否则保持前端展示层翻译即可。
 - **处理状态**: 暂不处理，记录为历史数据兼容问题。
 
+### NEW-004：前端全量测试存在 teardown 后未处理异常
+
+- **严重程度**: P2
+- **现状**: 2026-05-20 运行 `npm test` 时，75 个测试文件、221 个测试主体均通过，但 Vitest 在进程结束阶段捕获 2 个 unhandled errors，返回失败。错误来自 `CodeReviewIllegalRuleConfigView` 相关异步 UI：Element Plus `loading/message` 在环境回收后访问 `document`。
+- **复核**: 单独运行 `src/views/code-review-rule-config.mount-smoke.test.ts` 通过，说明更像全量并发/组件卸载后的异步清理问题。
+- **影响**: CI 或全量测试会失败，即使断言主体通过；也可能掩盖真实的异步 UI 问题。
+- **期望行为**: 规则配置预览测试应等待异步请求和 UI 状态完全收敛，组件卸载后不再触发 `ElMessage` 或 loading directive。
+- **处理状态**: 待修复，当前仅记录问题。
+
+### NEW-005：`18182` Docker 前端不是最新版本
+
+- **严重程度**: P2
+- **现状**: `18182` 对应 Docker 容器 `dcp-local-test-frontend-1`，静态文件时间为 2026-05-08，打包产物中未包含当前源码已有的“数据镜像监控”模块。`18181` 则是本机 Vite dev server，直接加载当前工作区 `frontend/src/main.ts`。
+- **影响**: 使用 `18182` 做真实页面冒烟会得到旧版本结果，可能误判新功能缺失或修复未生效。
+- **期望行为**: 前端真实页面冒烟使用 `18181` 当前源码服务；如必须使用 Docker 静态前端，需要先重建并替换 `18182` 对应镜像/容器。
+- **处理状态**: 待处理，当前先记录为测试环境版本问题。
+
+### NEW-006：同步任务超时回收 SQL 存在字段歧义
+
+- **严重程度**: P1
+- **现状**: 2026-05-20 最新源码后端在 `18080` 启动后，调度恢复链路调用 `SyncRunLeaseService.markTimedOutRunTasks` 时出现 PostgreSQL 错误：`column reference "finished_at" is ambiguous`。触发位置是 `update sync_run_table_tasks task ... from sync_runs run ...` 一类 SQL，`finished_at = coalesce(finished_at, current_timestamp)` 未明确限定表别名。
+- **影响**: 如果服务异常退出后存在超时 run/table task，恢复回收可能失败，进而影响后续同步状态收敛和任务互斥判断。
+- **期望行为**: SQL 中所有存在歧义的字段都显式使用目标表别名，例如 `task.finished_at`，调度恢复过程不应抛出 SQL 语法/解析错误。
+- **处理状态**: 待修复，当前仅记录问题。
+
+### NEW-007：数据库查看单表刷新缺少基线状态提示
+
+- **严重程度**: P2
+- **现状**: 最新链路下，数据库查看可正常查询 `gitlab_sync_configs` 和 `ods_gitlab_cc_environments` 行数据；但手动刷新 `ods_gitlab_cc_environments` 返回 400：`手动刷新表需要先完成一次全量同步基线：environments`。
+- **影响**: 保护逻辑本身合理，但页面或接口状态没有提前说明前置条件，用户可能误判为“数据库查看刷新功能坏了”。
+- **期望行为**: 刷新入口应在无基线时明确禁用或显示中文前置提示；接口响应继续保持中文、可操作的错误说明。
+- **处理状态**: 待评估，当前先作为可用性缺口记录。
+
+### NEW-008：历史 run 终态后仍残留 QUEUED 表任务
+
+- **严重程度**: P1
+- **现状**: 2026-05-20 复查时，`sync_runs` 已无 `PENDING/QUEUED/RUNNING/RETRYING/CANCELLING` 活动 run，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED`。这些任务挂在 run 139/270/271/278/280 下，对应父 run 已是 `FAILED` 或 `TIMEOUT`。
+- **影响**: 同步状态页面当前仍显示 `IDLE`，但数据库中存在子任务幽灵状态，后续排查同步卡住、失败恢复或任务互斥问题时容易误判。
+- **期望行为**: 父 run 进入 `FAILED/TIMEOUT/CANCELLED` 等终态时，所有未执行子表任务应同步终结为明确终态，例如 `FAILED/TIMEOUT/CANCELLED`，不得长期保持 `QUEUED`。
+- **处理状态**: 待修复，当前仅记录问题。
+
 ---
 
 ## 十一、全平台功能冒烟矩阵
@@ -478,5 +519,5 @@ private int resolveMaxContinuationTasksPerTable() {
 
 - **文档**: `docs/platform-smoke-test-matrix-20260520.md`
 - **范围**: 后端 API、服务抽象、同步编排、System Hook、多源隔离、数据库查看、事实构建、各业务页面、前端组件、组合函数和工具函数。
-- **原则**: 先完成小数据/真实链路基础冒烟，再进入大数据量压力专项。
-- **当前新增缺口**: 测试阶段定义模块需要优先补自动化和真实 CRUD 链路；数据库查看需要补全同步日志表；System Hook 项目内存白名单待实现。
+- **原则**: 先完成小数据/真实链路基础冒烟，再进入大数据量压力专项；内网源库验收必须按非 Docker 的 PostgreSQL 直连方式确认，Docker 容器直连只能作为本地 DIRECT 分支验证；功能真实链路测试以 `18181` 当前 Vite 源码前端 -> `18080` 当前源码后端为有效口径，`18083/18182` 只作为旧容器环境参考。
+- **当前新增缺口**: 测试阶段定义模块真实 CRUD 链路已补测通过；数据库查看需要补全同步日志表；System Hook 项目内存白名单待实现。
