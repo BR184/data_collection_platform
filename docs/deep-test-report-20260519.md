@@ -492,7 +492,7 @@ npm --prefix frontend run typecheck
 
 ### 9.9 System Hook 端到端验证 ⚠️ 部分通过
 
-**计划**: 模拟 GitLab System Hook 推送事件，验证：
+**计划**: 模拟平台 System Hook 接收器 payload，验证：
 - webhook 接收和解析正确
 - 精确同步仅更新目标行
 - hook secret 验证机制
@@ -504,7 +504,7 @@ npm --prefix frontend run typecheck
 - ✅ `GitlabSystemHookRegistrationServiceTest` 覆盖注册状态解析。
 - ❌ 未配置真实 GitLab System Hook 指向 backend，未执行 GitLab 到平台的端到端回调。
 
-**结论**: 后端 Hook 链路自动化通过；真实 GitLab Hook 端到端未通过。
+**结论**: 后端 Hook 链路自动化通过；模拟 issue payload 仅证明平台接收器和规划器能力。GitLab System Hook 不包含 Issue events，真实 issue 创建/修改应由增量同步和补偿扫描覆盖。
 
 ### 9.10 前端交互完整性 ✅ 通过
 
@@ -555,7 +555,7 @@ npm --prefix frontend run typecheck
 |----------|----------|------|
 | 9.4 特殊 PostgreSQL 类型覆盖 | ✅ 自动化通过 | `GitlabExternalDbServiceTest` 已覆盖 PG 特殊类型归一化；后端全量 `mvn test` 通过 |
 | 9.9 真实 System Hook 端到端 | ✅ 通过 | 本地 GitLab `WebHookLog` 最新投递 `response_status=200`；平台 `sync_runs.id=279` 为 `SYSTEM_HOOK/SUCCESS` |
-| System Hook 精确同步目标 | ✅ 通过 | run 279 生成 `issues`、`issue_assignees`、`issue_metrics`、`label_links` 4 个任务，全部 `SUCCESS` |
+| System Hook 接收与同步日志 | ✅ 通过 | 本地 GitLab System Hook 投递成功并生成 `SYSTEM_HOOK/SUCCESS`；issue 相关精确同步仅来自模拟 payload，不代表 GitLab System Hook 支持 Issue events |
 | GitLab 直连模式 | ✅ 通过 | `sourceMode=DIRECT`，白名单发现 696 张表，当前同步状态 `IDLE` |
 | 同步幽灵任务检查 | ✅ 通过 | 当前 active run 为 0；表诊断 `pending=0, running=0, retrying=0` |
 | 后端全量自动化 | ✅ 通过 | 400 tests, 0 failures, 0 errors, 4 skipped |

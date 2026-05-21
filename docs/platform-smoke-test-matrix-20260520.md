@@ -63,11 +63,11 @@
 | System Hook 注册状态 | `/system-hook-registration-status` | ✅ 自动化已验证，⚠️ 待真实链路 | 页面查看状态 |
 | System Hook 注册 | `/register-system-hook`、`/register-system-hook/by-config` | ✅ 自动化已验证，⚠️ 待真实链路 | 本地 GitLab 管理员真实注册 |
 | Hook 接收 | `POST /api/gitlab-sync/system-hook`、secret 校验、事件落库 | ✅ 自动化已验证，✅ 真实链路已验证 | 保持本地 GitLab 真实链路脚本 |
-| 精准同步计划 | event -> precise plan -> table target | ✅ 自动化已验证，✅ 真实链路已验证 | 覆盖更多 event 类型 |
+| 精准同步计划 | GitLab System Hook 支持的 MR/push/repository update 事件，以及平台合成 payload | ✅ 自动化已验证，✅ 真实链路已验证 | 不再把真实 issue 创建/修改列为 System Hook 覆盖范围 |
 | 异步派发 | hook 唤醒同步 run，生成 table tasks | ✅ 自动化已验证，✅ 真实链路已验证 | 继续验证日志可追踪 |
 | System Hook 日志可观测 | 同步日志包含 System Hook 信息 | ✅ 自动化已验证，✅ 真实链路已验证 | 数据库查看入口补齐后再验 |
 
-说明：System Hook 单次事件 payload 是事件级别，不会把 10000 个项目整体打包发送；僵尸项目没有事件时不会形成持续投递压力。平台侧不再规划项目级入口过滤方案，System Hook 仍按实例级入口接收事件并通过 secret 校验、去重和同步互斥控制处理压力。
+说明：System Hook 单次事件 payload 是事件级别，不会把 10000 个项目整体打包发送；僵尸项目没有事件时不会形成持续投递压力。GitLab System Hook 不包含 Issue events，issue 创建/修改由自动增量同步和补偿扫描保证最终一致。平台侧不再规划项目级入口过滤方案，System Hook 仍按实例级入口接收事件并通过 secret 校验、去重和同步互斥控制处理压力。
 
 ### G3 多源隔离与内网 CC/DGM 验证
 
@@ -232,6 +232,7 @@
 | NEW-009 | 浏览器真实路由冒烟发现 Element Plus radio 废弃 API 警告：`label act as value is about to be deprecated` | 当前不影响功能，但升级 Element Plus 3.x 前需要替换为 `value` |
 | NEW-010 | 最小白名单源只同步 `users/projects` 时，全量同步后仍触发事实层刷新，并因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | 小表集/白名单场景会出现非业务失败噪声，可能误导用户判断同步质量 |
 | NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | 平台说明仍有英文残留，需要中文化 |
+| NEW-012 | `sourceInstance` 较长时，增量/补偿 run_id 可能超过 `sync_runs.run_id varchar(64)`，导致提交同步 500 | ✅ 已修复；run type 改为短别名，source 片段限制为 24 位，保留 32 位随机串，保证 run_id 不超过 64 |
 | GAP-001 | 测试阶段定义模块原覆盖缺口已补测通过 | 保留历史记录；后续只需按常规回归维护 |
 | GAP-002 | 部分前端组件只有页面间接覆盖，缺少独立组件测试 | 可先通过真实页面冒烟覆盖，后续补单测 |
 | GAP-003 | 外网/本地 Docker 环境无法验证内网 CC/DGM 非 Docker 真实直连 | 内网迁移后必须作为首轮真实链路验证项 |
@@ -283,7 +284,7 @@
 | G1 | 自动同步测试隔离 | ✅ 已调整 | 为避免本地容器代理源库干扰冒烟，已将 cc/default/dgm 的 `autoSyncEnabled=false`；`enabled` 保持 true |
 | G1 | config 2 本机直连连通性 | ✅ 最新链路通过 | config 2/`cc` 调整为 `sourceMode=DIRECT`、`dbHost=localhost`、`dbPort=15434` 后，`/api/gitlab-sync/test-connection/by-config?configId=2` 成功 |
 | G2 | System Hook 最新后端真实投递 | ✅ 最新链路通过 | GitLab `SystemHook.execute` 投递到 `host.docker.internal:18080`，`WebHookLog.id=56 response_status=200`，平台 `gitlab_system_hook_events.id=10 processed=true` |
-| G2 | System Hook 精确同步任务 | ✅ 最新链路通过 | 平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS`，同步日志包含 `System Hook 已唤醒同步：System Hook issue:391`，4 个表任务 `issues/issue_assignees/issue_metrics/label_links` 均 `SUCCESS` |
+| G2 | System Hook 接收与同步日志 | ✅ 最新链路通过 | 平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS`，同步日志包含 `System Hook 唤醒`；issue 相关结果来自模拟 payload，不作为 GitLab System Hook 支持 Issue events 的证据 |
 | G2 | System Hook 环境反证 | ⚠️ 已定位为配置问题 | config 2 仍指向容器 DNS 时，GitLab 投递 `WebHookLog.id=55` 已 200，平台 run 288 失败于源库连接；改为 `localhost:15434` 后 run 289 成功 |
 | G1 | 同步任务幽灵状态复查 | ⚠️ 发现历史残留 | `sync_runs` 无 active run，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED`，挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
 | W1/W5/W6 | 浏览器真实路由冒烟 | ✅ 最新链路通过 | Playwright 打开 `18181 -> 18080` 共 26 个路由，覆盖质量看板、评审数据、代码走查、集成测试、系统测试、客户问题、数据镜像监控、数据库查看、测试阶段定义、外部采集表单和 404；无失败请求，报告见 `.tmp/browser-smoke-20260520/report.json` |
@@ -301,6 +302,9 @@
 | G5 | 最小白名单后的事实层自动刷新 | ⚠️ 发现新问题 | config 4/5 全量同步成功后自动触发 fact refresh run 297/299，但因最小白名单未包含 issue/MR 相关表，状态为 `PARTIAL_SUCCESS`，见 NEW-010 |
 | G7 | 浏览器控制台兼容性告警 | ⚠️ 发现新问题 | `/code-review/illegal-records` 出现 2 条 Element Plus radio 废弃 API warning，见 NEW-009 |
 | G1 | 同步互斥响应中文化 | ⚠️ 发现新问题 | 同源同步合并行为正确，但响应 message 仍为英文，见 NEW-011 |
+| G1 | 每分钟自动补偿与页面抖动 | ✅ 最新链路通过 | config 2 `jt` 指向本地 GitLab 直连源，白名单 12 张核心表；run 20 `COMPENSATION/SCHEDULE/SUCCESS`，耗时约 1 秒，`recordCount=0`；Playwright 在 `/customer-issues/cc-product-issues` 80 秒采样中路由变化 0、全局 loading 0、表格行数稳定 2、API 5xx 0、请求失败 0、控制台错误 0 |
+| G1 | 高频手动增量与页面抖动 | ✅ 最新链路通过 | 同一页面连续触发 5 次增量同步，HTTP 均 200；其中一次被合并到已有同源 run；页面路由变化 0、全局 loading 0、表格行数稳定 2、API 5xx 0、控制台错误 0 |
+| G1 | 同步 run_id 长度边界 | ✅ 已修复并复测 | 新增单测覆盖长 `sourceInstance=jitter_smoke`；真实 API 提交增量 run 29 成功，生成 `sr_is_jitter_smoke_3a3f092874014a2f8bbb6aed02a31bc0`，长度 51，状态 `SUCCESS` |
 
 ### 新增问题
 
@@ -314,6 +318,7 @@
 | NEW-009 | 浏览器真实路由冒烟时，`/code-review/illegal-records` 触发 Element Plus radio 废弃 API warning：`label act as value is about to be deprecated` | 待修复；功能可用但升级 Element Plus 3.x 前需处理 |
 | NEW-010 | 最小白名单源 `users/projects` 全量同步成功后仍自动触发事实层刷新，因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | 待评估；白名单未覆盖事实源表时应跳过相关事实刷新或给出明确非失败状态 |
 | NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | 待修复；属于平台中文化残留 |
+| NEW-012 | `sourceInstance` 较长时，同步 run_id 生成值超过 `sync_runs.run_id varchar(64)`，增量/补偿提交失败 500 | ✅ 已修复；`SyncRunSubmissionService` 使用短 run type 别名与截断 source 片段生成 run_id，单测和真实 API 均通过 |
 
 ## 下一步记录方式
 

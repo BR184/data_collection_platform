@@ -424,8 +424,8 @@ private int resolveMaxContinuationTasksPerTable() {
 | GitLab 直连模式诊断 | ✅ 通过 | `sourceMode=DIRECT`；config 2/`cc` 在最新本机后端链路下改为 `localhost:15434` 后连接测试通过，当前同步状态 `IDLE` |
 | 同步任务幽灵状态检查 | ⚠️ 发现历史残留 | `sync_runs` 中 active runs 为 0，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED` 挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
 | System Hook 真实链路 | ✅ 通过 | 最新后端 `18080` 复验通过：GitLab `WebHookLog.id=56` 投递到 `host.docker.internal:18080` 且 `response_status=200`，平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS` |
-| System Hook 精确同步任务 | ✅ 通过 | run 289 生成 4 个任务：`issues`、`issue_assignees`、`issue_metrics`、`label_links`，均为 `SUCCESS` |
-| 同步日志包含 System Hook 信息 | ✅ 通过 | `sync_runs.request_reason = System Hook 已唤醒同步：System Hook issue:391` |
+| System Hook 接收与同步日志 | ✅ 通过 | 同步日志已能体现 `System Hook 唤醒`；GitLab System Hook 不包含 Issue events，issue 创建/修改需由增量同步或补偿扫描覆盖 |
+| 模拟 Issue payload 接收 | ✅ 通过 | 平台接收器可处理合成 issue payload 并生成相关表任务；该结果仅证明平台接收器和规划器能力，不代表 GitLab System Hook 会投递真实 Issue Hook |
 | 浏览器真实路由冒烟 | ✅ 通过 | `18181 -> 18080` 共 26 个路由通过，覆盖质量看板、评审数据、代码走查、集成测试、系统测试、客户问题、数据镜像监控、数据库查看、测试阶段定义、外部采集表单和 404；无失败请求，报告见 `.tmp/browser-smoke-20260520/report.json` |
 | 审批用户权限链路 | ✅ 通过 | 浏览器登录 `approval` 用户后访问受限路由被引导至质量看板，`/api/auth/current` 返回 `APPROVAL` |
 | 最小双源配置与诊断 | ✅ 通过 | config 4 `smoke_cc`、config 5 `smoke_dgm` 均为 `sourceMode=DIRECT`、`whitelistTables=["users","projects"]`、`autoSyncEnabled=false`；连接测试、诊断和白名单校验均成功 |
@@ -439,6 +439,9 @@ private int resolveMaxContinuationTasksPerTable() {
 | 最小白名单后的事实层自动刷新 | ⚠️ 发现新问题 | config 4/5 全量同步成功后自动触发 fact refresh run 297/299，但因最小白名单未包含 issue/MR 相关表，状态为 `PARTIAL_SUCCESS`，见 NEW-010 |
 | 浏览器控制台兼容性告警 | ⚠️ 发现新问题 | `/code-review/illegal-records` 出现 2 条 Element Plus radio 废弃 API warning，见 NEW-009 |
 | 同步互斥响应中文化 | ⚠️ 发现新问题 | 同源同步合并行为正确，但响应 message 仍为英文，见 NEW-011 |
+| 每分钟自动补偿与页面抖动 | ✅ 通过 | 本地 GitLab 真实源 config 2 `jt` 全量基线 51599 行后，80 秒观察到 run 20 `COMPENSATION/SCHEDULE/SUCCESS`，耗时约 1 秒；客户问题明细页无全局 loading、无路由跳转、表格行数稳定、无 API 5xx/请求失败/控制台错误 |
+| 高频手动增量与页面抖动 | ✅ 通过 | 同一页面连续触发 5 次增量同步，HTTP 均 200，其中一次合并到已有同源 run；页面无抖动、无全局 loading、表格行数稳定 |
+| 同步 run_id 长度边界 | ✅ 已修复 | `sourceInstance=jitter_smoke` 的增量提交已复测通过，run 29 `INCREMENTAL_SYNC/SUCCESS`，新 run_id 长度 51，见 NEW-012 |
 
 ### 9.3 本轮仍未执行的测试
 
@@ -538,6 +541,21 @@ private int resolveMaxContinuationTasksPerTable() {
 - **影响**: 行为正确，但违反“平台说明全部中文化”的要求。
 - **期望行为**: 将该响应改为中文，例如“本次刷新请求已合并到同一数据源正在执行的同步任务中”。
 - **处理状态**: 待修复，当前仅记录问题。
+
+### NEW-012：同步 run_id 生成长度超过字段上限
+
+- **严重程度**: P1
+- **现状**: 2026-05-21 本地 GitLab 真实链路测试中，配置 `sourceInstance=jitter_smoke` 后，全量同步可以成功，但增量/补偿提交失败，后端日志显示 `ERROR: value too long for type character varying(64)`，写入表为 `sync_runs`。根因是 `sr_incremental_sync_jitter_smoke_<uuid>` 或 `sr_compensation_scan_jitter_smoke_<uuid>` 长度超过 `sync_runs.run_id varchar(64)`。
+- **影响**: 来源标识稍长时，增量同步和自动补偿扫描会 500，进而影响每分钟补偿方案。生产内网如果只用 `cc`/`dgm` 这类短标识不会触发，但当前校验允许更长 `sourceInstance`，存在隐患。
+- **期望行为**: `run_id` 生成规则必须保证不超过字段长度，例如压缩 run type、使用 sourceInstance 短 hash、缩短 uuid，或将 `sync_runs.run_id` 字段扩展并同步实体长度约束。
+- **根因定位**: `SyncRunSubmissionService.generateRunId()` 原实现使用 `sr_ + runType.name().toLowerCase() + sourceInstance + 32 位 uuid`。`INCREMENTAL_SYNC`、`COMPENSATION_SCAN` 这类 run type 名称较长，叠加稍长的 sourceInstance 后会突破 `sync_runs.run_id varchar(64)`。
+- **修复方案**: run type 改为固定短别名：`fs/is/tr/sh/cs/fr`；sourceInstance 在 run_id 中只保留最多 24 位可读片段；仍保留 32 位随机串保证唯一性。修复不改表结构，不影响已有历史 run_id。
+- **测试结果**:
+  - 已新增 `SyncRunSubmissionServiceTest.shouldKeepGeneratedRunIdWithinDatabaseLimitForLongSourceInstance`，先红后绿验证。
+  - `mvn -Dtest=SyncRunSubmissionServiceTest test` 通过：10 tests, 0 failures。
+  - `mvn -DskipTests compile` 通过。
+  - 最新后端真实 API 复测：`sourceInstance=jitter_smoke` 提交增量同步返回 200，run 29 `INCREMENTAL_SYNC/SUCCESS`，生成 `sr_is_jitter_smoke_3a3f092874014a2f8bbb6aed02a31bc0`，长度 51。
+- **处理状态**: 已修复并复测通过。
 
 ---
 

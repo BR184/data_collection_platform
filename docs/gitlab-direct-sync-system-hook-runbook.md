@@ -409,7 +409,7 @@ Invoke-RestMethod `
 
 ### 6. Register System Hook Manually in GitLab
 
-In direct mode, register the system hook manually in GitLab project settings.
+In direct mode, register the system hook manually in GitLab admin settings.
 
 Use the receiver URL from diagnostics:
 
@@ -422,24 +422,23 @@ Configure:
 - URL: `systemHookReceiverUrl`
 - Secret token: same value as platform `systemHookSecret`
 - Events:
-  - Issues events
   - Merge request events
-  - Note events
-  - Pipeline events
-  - Job events
-  - Release events
+  - Push events
+  - Tag push events
+  - Repository update events
 - SSL verification: follow internal TLS policy
 
 Important:
 
 - The platform validates `X-Gitlab-Token` against configured `systemHookSecret`.
 - If GitLab cannot reach the platform URL, direct database sync can work while system hook delivery still fails.
+- GitLab System Hook does not provide an Issue events trigger. Issue changes are covered by incremental sync and compensation scan, not by System Hook delivery.
 
 ### 7. Send Simulated System Hook Payload
 
-Use this only in a test environment or with a safe object id.
+Use this only in a test environment or with a safe object id. This verifies the platform receiver contract only; it does not mean GitLab System Hook can emit Issue Hook events.
 
-Issue update sample:
+Synthetic issue payload sample:
 
 ```powershell
 $baseUrl = "http://localhost:18080"
@@ -488,9 +487,9 @@ Invoke-RestMethod `
 
 Expected behavior:
 
-- If precise target is whitelisted, System Hook precise sync executes.
-- If precise target is outside whitelist, incremental fallback is submitted.
-- Logs may include skipped target table names when the planner returns mixed whitelist/non-whitelist targets.
+- The receiver accepts the payload when the secret matches.
+- The sync log records a System Hook-triggered run.
+- For real GitLab issue creation or modification, rely on automatic incremental sync or compensation scan instead of System Hook.
 
 ### 8. Verify Delete System Hook Behavior
 

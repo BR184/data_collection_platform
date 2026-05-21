@@ -67,7 +67,8 @@ class SyncRunSubmissionServiceTest {
     assertThat(saved.getExclusiveScope()).isEqualTo("source:12:source_a:mirror");
     assertThat(saved.getThreadMode()).isEqualTo(SyncThreadBudgetResolver.MODE_CPU_RATIO);
     assertThat(saved.getThreadValue()).isEqualByComparingTo(new BigDecimal("0.8"));
-    assertThat(saved.getRunId()).startsWith("sr_full_sync_source_a_");
+    assertThat(saved.getRunId()).startsWith("sr_fs_source_a_");
+    assertThat(saved.getRunId()).hasSizeLessThanOrEqualTo(64);
     assertThat(result.runId()).isEqualTo(saved.getId());
     assertThat(result.type()).isEqualTo(SyncType.FULL);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
@@ -89,6 +90,36 @@ class SyncRunSubmissionServiceTest {
     assertThat(saved.getRunType()).isEqualTo(SyncRunType.INCREMENTAL_SYNC);
     assertThat(saved.getTriggerType()).isEqualTo(SyncTriggerType.MANUAL);
     assertThat(saved.getPayloadJson()).contains("\"triggerType\":\"MANUAL\"");
+  }
+
+  @Test
+  void shouldKeepGeneratedRunIdWithinDatabaseLimitForLongSourceInstance() {
+    GitlabSyncConfig config = config();
+    config.setSourceInstance("jitter_smoke");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of());
+
+    submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
+
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunId()).hasSizeLessThanOrEqualTo(64);
+    assertThat(saved.getRunId()).startsWith("sr_is_jitter_smoke_");
+  }
+
+  @Test
+  void shouldTruncateGeneratedRunIdSourceSegmentWhenSourceInstanceIsNearLimit() {
+    GitlabSyncConfig config = config();
+    config.setSourceInstance("source_instance_with_a_very_long_internal_name_for_limit_check");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of());
+
+    submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
+
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunId()).hasSizeLessThanOrEqualTo(64);
+    assertThat(saved.getRunId()).startsWith("sr_is_source_instance_with_a_");
   }
 
   @Test

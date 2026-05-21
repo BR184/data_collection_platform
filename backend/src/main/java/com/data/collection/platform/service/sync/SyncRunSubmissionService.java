@@ -27,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Slf4j
 public class SyncRunSubmissionService {
+  private static final int RUN_ID_MAX_LENGTH = 64;
+  private static final int RUN_ID_SOURCE_SEGMENT_MAX_LENGTH = 24;
+
   private final SyncRunMapper syncRunMapper;
   private final SyncRunPolicyService policyService;
   private final JdbcTemplate jdbcTemplate;
@@ -378,7 +381,34 @@ public class SyncRunSubmissionService {
   }
 
   private String generateRunId(SyncRunType runType, String sourceInstance) {
-    return "sr_" + runType.name().toLowerCase() + "_" + sourceInstance + "_" + UUID.randomUUID().toString().replace("-", "");
+    String randomPart = UUID.randomUUID().toString().replace("-", "");
+    String sourceSegment = sourceInstance == null ? "default" : sourceInstance;
+    if (sourceSegment.length() > RUN_ID_SOURCE_SEGMENT_MAX_LENGTH) {
+      sourceSegment = sourceSegment.substring(0, RUN_ID_SOURCE_SEGMENT_MAX_LENGTH);
+    }
+    String runId = "sr_" + runTypeAlias(runType) + "_" + sourceSegment + "_" + randomPart;
+    if (runId.length() <= RUN_ID_MAX_LENGTH) {
+      return runId;
+    }
+    int allowedSourceLength =
+        RUN_ID_MAX_LENGTH
+            - "sr_".length()
+            - runTypeAlias(runType).length()
+            - 2
+            - randomPart.length();
+    sourceSegment = sourceSegment.substring(0, Math.max(1, allowedSourceLength));
+    return "sr_" + runTypeAlias(runType) + "_" + sourceSegment + "_" + randomPart;
+  }
+
+  private String runTypeAlias(SyncRunType runType) {
+    return switch (runType) {
+      case FULL_SYNC -> "fs";
+      case INCREMENTAL_SYNC -> "is";
+      case TABLE_REFRESH -> "tr";
+      case SYSTEM_HOOK -> "sh";
+      case COMPENSATION_SCAN -> "cs";
+      case FACT_REFRESH -> "fr";
+    };
   }
 
   private List<String> sourceTablesOf(SyncRun run) {
