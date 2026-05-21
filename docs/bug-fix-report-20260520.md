@@ -422,7 +422,7 @@ private int resolveMaxContinuationTasksPerTable() {
 | 前端同步进度/日志相关测试 | ✅ 通过 | `MirrorSyncStatusCard`、`MirrorRunMonitorPanel`、`MirrorSyncLogTable`、`mirror-settings-helpers`、`useMirrorStatusPresentation` 共 17 tests passed |
 | 前端 TypeScript 类型检查 | ✅ 通过 | `npm.cmd run typecheck` 无错误 |
 | GitLab 直连模式诊断 | ✅ 通过 | `sourceMode=DIRECT`；config 2/`cc` 在最新本机后端链路下改为 `localhost:15434` 后连接测试通过，当前同步状态 `IDLE` |
-| 同步任务幽灵状态检查 | ⚠️ 发现历史残留 | `sync_runs` 中 active runs 为 0，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED` 挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
+| 同步任务幽灵状态检查 | ✅ 已收敛 | 最新库复查：终态父 run 下 active 子任务数量为 0；超时回收 SQL 字段歧义已修复，见 NEW-006/NEW-008 |
 | System Hook 真实链路 | ✅ 通过 | 最新后端 `18080` 复验通过：GitLab `WebHookLog.id=56` 投递到 `host.docker.internal:18080` 且 `response_status=200`，平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS` |
 | System Hook 接收与同步日志 | ✅ 通过 | 同步日志已能体现 `System Hook 唤醒`；GitLab System Hook 不包含 Issue events，issue 创建/修改需由增量同步或补偿扫描覆盖 |
 | 模拟 Issue payload 接收 | ✅ 通过 | 平台接收器可处理合成 issue payload 并生成相关表任务；该结果仅证明平台接收器和规划器能力，不代表 GitLab System Hook 会投递真实 Issue Hook |
@@ -436,9 +436,9 @@ private int resolveMaxContinuationTasksPerTable() {
 | 双源镜像表隔离 | ✅ 通过 | 生成独立表 `ods_gitlab_smoke_cc_users/projects` 与 `ods_gitlab_smoke_dgm_users/projects`；计数为 CC users=3、CC projects=3、DGM users=3、DGM projects=0，未混入同一张表 |
 | 事实构建真实接口 | ✅ 通过 | 使用 config 2 触发 issue fact rebuild、latest task 查询和 integration fact rebuild 均成功 |
 | 采集表单与审计真实链路 | ✅ 通过 | 采集表单 save/update/delete 闭环成功；采集表单审计日志与操作审计日志均可查到新增记录 |
-| 最小白名单后的事实层自动刷新 | ⚠️ 发现新问题 | config 4/5 全量同步成功后自动触发 fact refresh run 297/299，但因最小白名单未包含 issue/MR 相关表，状态为 `PARTIAL_SUCCESS`，见 NEW-010 |
-| 浏览器控制台兼容性告警 | ⚠️ 发现新问题 | `/code-review/illegal-records` 出现 2 条 Element Plus radio 废弃 API warning，见 NEW-009 |
-| 同步互斥响应中文化 | ⚠️ 发现新问题 | 同源同步合并行为正确，但响应 message 仍为英文，见 NEW-011 |
+| 最小白名单后的事实层自动刷新 | ✅ 已修复 | 自定义白名单未覆盖事实源表时跳过自动事实刷新，避免最小表集同步后产生误导性 `PARTIAL_SUCCESS`，见 NEW-010 |
+| 浏览器控制台兼容性告警 | ✅ 已修复 | `DataScopeBar.vue` 已改用 `el-radio-button :value`，见 NEW-009 |
+| 同步互斥响应中文化 | ✅ 已修复 | 同源同步合并和 fact refresh 复用响应均已中文化，见 NEW-011 |
 | 每分钟自动补偿与页面抖动 | ✅ 通过 | 本地 GitLab 真实源 config 2 `jt` 全量基线 51599 行后，80 秒观察到 run 20 `COMPENSATION/SCHEDULE/SUCCESS`，耗时约 1 秒；客户问题明细页无全局 loading、无路由跳转、表格行数稳定、无 API 5xx/请求失败/控制台错误 |
 | 高频手动增量与页面抖动 | ✅ 通过 | 同一页面连续触发 5 次增量同步，HTTP 均 200，其中一次合并到已有同源 run；页面无抖动、无全局 loading、表格行数稳定 |
 | 同步 run_id 长度边界 | ✅ 已修复 | `sourceInstance=jitter_smoke` 的增量提交已复测通过，run 29 `INCREMENTAL_SYNC/SUCCESS`，新 run_id 长度 51，见 NEW-012 |
@@ -452,9 +452,25 @@ private int resolveMaxContinuationTasksPerTable() {
 | 真实进程中断恢复 | ⚠️ 未执行 | 当前未构造长运行同步任务；自动化 lease/recovery 用例已通过 |
 | 内网真实含 inet 表端到端 | ⚠️ 未执行 | 本地自动化覆盖了归一化逻辑，内网仍建议对真实 `authentication_events` 回归 |
 
+### 9.4 2026-05-21 最新版本问题复核
+
+本轮已重新拉起当前源码链路：`18181` 为 Vite 当前源码前端，`18080` 为当前 `target/classes` 后端。以下结论只按该链路计算，`18182` 旧 Docker 静态前端不再作为问题依据。
+
+| 项目 | 最新判定 | 证据 |
+|------|----------|------|
+| NEW-002 数据库查看同步日志表 | ✅ 已修复 | `/api/database-browser/tables` 已暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks`，真实接口行查询通过 |
+| NEW-004 前端全量测试 teardown 异常 | ✅ 已关闭 | `npm test -- --run` 通过：75 files、221 tests，无 unhandled errors |
+| NEW-005 `18182` 旧前端 | ✅ 不作为产品问题 | 当前有效测试口径为 `18181 -> 18080`；`18182` 仅是旧容器环境记录，不进入待修复问题 |
+| NEW-006 超时回收 SQL 歧义 | ✅ 已修复 | `markTimedOutRunTasks` 已使用 `task.finished_at`，新增单测覆盖 SQL 限定 |
+| NEW-008 终态 run 残留 QUEUED 子任务 | ✅ 已收敛 | 最新库终态父 run 下 active 子任务数量为 0；NEW-006 修复后超时恢复可继续收敛子任务 |
+| NEW-009 Element Plus radio 废弃 API | ✅ 已修复 | `DataScopeBar.vue` 已改为 `el-radio-button :value`，前端回归测试覆盖 |
+| NEW-010 最小白名单事实刷新噪声 | ✅ 已修复 | 自定义白名单未覆盖事实源表时跳过自动事实刷新，避免制造误导性 `PARTIAL_SUCCESS` |
+| NEW-011 同步互斥响应英文 | ✅ 已修复 | 同源同步合并和 fact refresh 复用响应均改为中文，源码扫描无旧英文残留 |
+| 统计下钻议题链接 | ✅ 已复核通过 | `StatisticBoardControllerTest#shouldExposeGitlabLinksInIssueStatisticDetails` 通过 |
+
 ---
 
-## 十、2026-05-20 新发现问题（暂不修改代码）
+## 十、2026-05-20 新发现问题与最新复核状态
 
 ### NEW-002：数据库查看未暴露完整同步日志存储表
 
@@ -467,7 +483,11 @@ private int resolveMaxContinuationTasksPerTable() {
   - `gitlab_hook_events` 不可见
 - **影响**: 用户无法在页面里查询全部同步运行、事件消息和批次明细，只能通过 SQL 直查。
 - **期望行为**: 将同步运行相关表以只读方式加入数据库查看，至少支持按 `config_id`、`run_type`、`status`、`created_at`、`run_id` 查询。
-- **处理状态**: 待实现，当前仅记录问题。
+- **修复方案**: 将 `sync_runs`、`sync_run_events`、`sync_run_table_tasks` 加入数据库查看白名单定义，全部作为本地只读表展示，不支持刷新。
+- **测试结果**:
+  - `DatabaseBrowserServiceTest.shouldExposeSyncRunTablesForOperationalTroubleshooting` 通过。
+  - 最新后端真实接口复核：`/api/database-browser/tables` 可见三张同步日志表；`sync_runs` 与 `sync_run_table_tasks` 行查询返回 200。
+- **处理状态**: 已修复并复测通过。
 
 ### NEW-003：历史同步日志中仍存在旧英文消息
 
@@ -484,7 +504,8 @@ private int resolveMaxContinuationTasksPerTable() {
 - **复核**: 单独运行 `src/views/code-review-rule-config.mount-smoke.test.ts` 通过，说明更像全量并发/组件卸载后的异步清理问题。
 - **影响**: CI 或全量测试会失败，即使断言主体通过；也可能掩盖真实的异步 UI 问题。
 - **期望行为**: 规则配置预览测试应等待异步请求和 UI 状态完全收敛，组件卸载后不再触发 `ElMessage` 或 loading directive。
-- **处理状态**: 待修复，当前仅记录问题。
+- **最新复核**: 2026-05-21 在最新前端源码下复跑 `npm test -- --run`，75 files、221 tests 全部通过，未再出现 unhandled errors。
+- **处理状态**: 已关闭，当前版本不再作为待修复问题。
 
 ### NEW-005：`18182` Docker 前端不是最新版本
 
@@ -492,7 +513,8 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: `18182` 对应 Docker 容器 `dcp-local-test-frontend-1`，静态文件时间为 2026-05-08，打包产物中未包含当前源码已有的“数据镜像监控”模块。`18181` 则是本机 Vite dev server，直接加载当前工作区 `frontend/src/main.ts`。
 - **影响**: 使用 `18182` 做真实页面冒烟会得到旧版本结果，可能误判新功能缺失或修复未生效。
 - **期望行为**: 前端真实页面冒烟使用 `18181` 当前源码服务；如必须使用 Docker 静态前端，需要先重建并替换 `18182` 对应镜像/容器。
-- **处理状态**: 待处理，当前先记录为测试环境版本问题。
+- **最新复核**: 2026-05-21 已重新拉起 `18181` Vite 当前源码前端，后续测试均以 `18181 -> 18080` 为准。
+- **处理状态**: 已关闭为测试环境记录，不作为平台产品问题或待修复缺陷。
 
 ### NEW-006：同步任务超时回收 SQL 存在字段歧义
 
@@ -500,7 +522,10 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: 2026-05-20 最新源码后端在 `18080` 启动后，调度恢复链路调用 `SyncRunLeaseService.markTimedOutRunTasks` 时出现 PostgreSQL 错误：`column reference "finished_at" is ambiguous`。触发位置是 `update sync_run_table_tasks task ... from sync_runs run ...` 一类 SQL，`finished_at = coalesce(finished_at, current_timestamp)` 未明确限定表别名。
 - **影响**: 如果服务异常退出后存在超时 run/table task，恢复回收可能失败，进而影响后续同步状态收敛和任务互斥判断。
 - **期望行为**: SQL 中所有存在歧义的字段都显式使用目标表别名，例如 `task.finished_at`，调度恢复过程不应抛出 SQL 语法/解析错误。
-- **处理状态**: 待修复，当前仅记录问题。
+- **最新复核**: 2026-05-21 在事务内构造 `TIMEOUT` 父 run 与 `QUEUED` 子任务，执行当前 `markTimedOutRunTasks` SQL，仍复现 `ERROR: column reference "finished_at" is ambiguous`，事务已回滚。
+- **修复方案**: 将子任务超时回收 SQL 中的 `coalesce(finished_at, current_timestamp)` 改为 `coalesce(task.finished_at, current_timestamp)`。
+- **测试结果**: `SyncRunLeaseServiceTest.shouldQualifyTaskFinishedAtWhenMarkingTimedOutTasks` 通过，覆盖 SQL 目标表别名。
+- **处理状态**: 已修复。
 
 ### NEW-007：数据库查看单表刷新缺少基线状态提示
 
@@ -508,7 +533,9 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: 最新链路下，数据库查看可正常查询 `gitlab_sync_configs` 和 `ods_gitlab_cc_environments` 行数据；但手动刷新 `ods_gitlab_cc_environments` 返回 400：`手动刷新表需要先完成一次全量同步基线：environments`。
 - **影响**: 保护逻辑本身合理，但页面或接口状态没有提前说明前置条件，用户可能误判为“数据库查看刷新功能坏了”。
 - **期望行为**: 刷新入口应在无基线时明确禁用或显示中文前置提示；接口响应继续保持中文、可操作的错误说明。
-- **处理状态**: 待评估，当前先作为可用性缺口记录。
+- **修复方案**: 镜像表只有在存在 `lastSyncTime` 基线时才标记为可刷新；无基线时返回中文状态说明：“该镜像表尚未完成全量同步基线，需先执行全量同步后才能单表刷新。”接口直调也返回 0 planned tasks 和同样的中文前置提示。
+- **测试结果**: `DatabaseBrowserServiceTest.shouldDisableMirrorRefreshUntilFullSyncBaselineExists` 通过。
+- **处理状态**: 已修复。
 
 ### NEW-008：历史 run 终态后仍残留 QUEUED 表任务
 
@@ -516,7 +543,8 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: 2026-05-20 复查时，`sync_runs` 已无 `PENDING/QUEUED/RUNNING/RETRYING/CANCELLING` 活动 run，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED`。这些任务挂在 run 139/270/271/278/280 下，对应父 run 已是 `FAILED` 或 `TIMEOUT`。
 - **影响**: 同步状态页面当前仍显示 `IDLE`，但数据库中存在子任务幽灵状态，后续排查同步卡住、失败恢复或任务互斥问题时容易误判。
 - **期望行为**: 父 run 进入 `FAILED/TIMEOUT/CANCELLED` 等终态时，所有未执行子表任务应同步终结为明确终态，例如 `FAILED/TIMEOUT/CANCELLED`，不得长期保持 `QUEUED`。
-- **处理状态**: 待修复，当前仅记录问题。
+- **最新复核**: 2026-05-21 查询最新库，终态父 run 下 `QUEUED/RUNNING/RETRYING` 子任务数量为 0，当前数据层不再复现历史残留。
+- **处理状态**: 已随 NEW-006 修复恢复收敛风险；最新库当前无幽灵子任务。
 
 ### NEW-009：Element Plus radio 废弃 API 告警
 
@@ -524,7 +552,10 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: 2026-05-20 浏览器真实路由冒烟中，`/code-review/illegal-records` 出现 2 条 Element Plus warning：`[el-radio] [API] label act as value is about to be deprecated in version 3.0.0, please use value instead`。
 - **影响**: 当前不阻断功能，也没有失败请求；但升级 Element Plus 3.x 后可能变成兼容性问题。
 - **期望行为**: 将相关 `el-radio` 使用从 `label` 作为值改为显式 `value`，保留 `label` 只做展示语义。
-- **处理状态**: 待修复，当前仅记录问题。
+- **最新复核**: 2026-05-21 已将 `frontend/src/components/data-scope/DataScopeBar.vue` 改为 `el-radio-button :value="option.value"`。
+- **修复方案**: 将 `DataScopeBar.vue` 中的 `el-radio-button :label` 值绑定改为 `:value`。
+- **测试结果**: `ux-interaction-regressions.test.ts` 新增回归用例并通过，确认不再出现 `:label="option.value"`。
+- **处理状态**: 已修复。
 
 ### NEW-010：最小白名单源同步后事实层刷新产生误导性 PARTIAL_SUCCESS
 
@@ -532,7 +563,10 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: config 4 `smoke_cc` 与 config 5 `smoke_dgm` 只同步 `users/projects`，全量同步本身成功，但随后自动触发的 fact refresh run 297/299 因缺少 issue/MR 相关源表而进入 `PARTIAL_SUCCESS`。
 - **影响**: 在小表集、白名单或专项同步场景中，用户会看到“同步成功后又有部分成功”的噪声，容易误判为镜像同步失败。
 - **期望行为**: 当白名单未覆盖事实构建所需源表时，应跳过对应事实刷新，或将其标记为“已跳过/不适用”，不要制造失败态。
-- **处理状态**: 待评估，当前仅记录问题。
+- **最新复核**: 2026-05-21 `SyncRunFactRefreshListener` 已增加自定义白名单事实源表覆盖判断。
+- **修复方案**: 自动事实刷新在 `CUSTOM` 白名单下先检查事实源表覆盖；若白名单未覆盖 `issues/projects/users/labels/label_links/notes/merge_requests`，则跳过自动事实刷新，避免最小表集同步后出现误导性的 `PARTIAL_SUCCESS`。
+- **测试结果**: `SyncRunFactRefreshListenerTest.shouldSkipFactRefreshWhenCustomWhitelistDoesNotCoverFactSourceTables` 通过。
+- **处理状态**: 已修复。
 
 ### NEW-011：同步互斥合并响应仍有英文残留
 
@@ -540,7 +574,10 @@ private int resolveMaxContinuationTasksPerTable() {
 - **现状**: 同一 source 已有同步 run 时，再提交增量同步会正确合并到已有 run，不会并行执行；但接口响应 message 为英文：`Refresh request was merged into an existing sync run for this source`。
 - **影响**: 行为正确，但违反“平台说明全部中文化”的要求。
 - **期望行为**: 将该响应改为中文，例如“本次刷新请求已合并到同一数据源正在执行的同步任务中”。
-- **处理状态**: 待修复，当前仅记录问题。
+- **最新复核**: 2026-05-21 `SyncRunSubmissionService` 中该响应和 fact refresh 复用响应均已改为中文，源码扫描未再发现旧英文。
+- **修复方案**: 同源镜像同步合并响应改为“本次刷新请求已合并到同一数据源正在执行的同步任务中。”；fact refresh 复用响应改为“事实刷新已在队列中或正在执行，已复用现有任务。”。
+- **测试结果**: `SyncRunSubmissionServiceTest` 对两类响应均已覆盖并通过；源码扫描未再找到旧英文响应。
+- **处理状态**: 已修复。
 
 ### NEW-012：同步 run_id 生成长度超过字段上限
 

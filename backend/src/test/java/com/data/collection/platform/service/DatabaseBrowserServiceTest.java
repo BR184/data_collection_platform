@@ -48,6 +48,7 @@ class DatabaseBrowserServiceTest {
   @Test
   void shouldReturnRunDetailsForMirrorTableRefresh() {
     GitlabMirrorTableRegistry registry = registry();
+    registry.setLastSyncTime(java.time.LocalDateTime.of(2026, 5, 21, 14, 0));
     when(registryMapper.selectOne(any())).thenReturn(registry);
     when(syncService.refreshTablesOnDemandDetailed(1L, List.of("issues"), "database-browser:ods_gitlab_issues"))
         .thenReturn(new GitlabMirrorSyncService.OnDemandRefreshResult(
@@ -97,6 +98,49 @@ class DatabaseBrowserServiceTest {
           assertThat(option.getTableName()).isEqualTo("source:1:issues");
           assertThat(option.getLabel()).isEqualTo("来源表 / issues / config 1");
           assertThat(option.getTableKind()).isEqualTo("SOURCE");
+          assertThat(option.isRefreshable()).isFalse();
+        });
+  }
+
+  @Test
+  void shouldExposeSyncRunTablesForOperationalTroubleshooting() {
+    when(registryMapper.selectList(any())).thenReturn(List.of());
+
+    var options = databaseBrowserService.listTables();
+
+    assertThat(options)
+        .anySatisfy(option -> {
+          assertThat(option.getTableName()).isEqualTo("sync_runs");
+          assertThat(option.getLabel()).isEqualTo("同步运行");
+          assertThat(option.isRefreshable()).isFalse();
+        })
+        .anySatisfy(option -> assertThat(option.getTableName()).isEqualTo("sync_run_events"))
+        .anySatisfy(option -> assertThat(option.getTableName()).isEqualTo("sync_run_table_tasks"));
+  }
+
+  @Test
+  void shouldDisableMirrorRefreshUntilFullSyncBaselineExists() {
+    GitlabMirrorTableRegistry registry = registry();
+    registry.setLastSyncTime(null);
+    registry.setSyncStatus("IDLE");
+    DatabaseBrowserMirrorTableDefinitionFactory factory = mock(DatabaseBrowserMirrorTableDefinitionFactory.class);
+    when(factory.buildMirrorLabel("issues")).thenReturn("镜像表 / issues");
+    when(registryMapper.selectList(any())).thenReturn(List.of(registry));
+    databaseBrowserService =
+        new DatabaseBrowserService(
+            mock(JdbcTemplate.class),
+            registryMapper,
+            factory,
+            syncService,
+            configService,
+            sourceMetadataInspector,
+            externalDbService);
+
+    var options = databaseBrowserService.listTables();
+
+    assertThat(options)
+        .anySatisfy(option -> {
+          assertThat(option.getTableName()).isEqualTo("ods_gitlab_issues");
           assertThat(option.isRefreshable()).isFalse();
         });
   }

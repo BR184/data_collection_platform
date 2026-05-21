@@ -72,7 +72,7 @@ public class DatabaseBrowserService {
                       registry.getSyncStatus(),
                       registry.getLastSyncTime(),
                       TABLE_KIND_MIRROR,
-                      true));
+                      hasMirrorBaseline(registry)));
               allTables.put(
                   sourceTableKey(registry),
                   new DatabaseTableOption(
@@ -141,7 +141,7 @@ public class DatabaseBrowserService {
         context.registry() == null ? null : context.registry().getLastSyncTime(),
         buildStatusMessage(context.registry()),
         context.registry() == null ? TABLE_KIND_LOCAL : TABLE_KIND_MIRROR,
-        context.registry() != null);
+        context.registry() != null && hasMirrorBaseline(context.registry()));
   }
 
   public int refreshTable(String tableName) {
@@ -159,6 +159,15 @@ public class DatabaseBrowserService {
           List.of(),
           com.data.collection.platform.entity.SyncStatus.IDLE,
           "Current table does not require mirror refresh");
+    }
+    if (!hasMirrorBaseline(registry)) {
+      return new GitlabMirrorSyncService.OnDemandRefreshResult(
+          null,
+          List.of(registry.getSourceTableName()),
+          0,
+          List.of(),
+          com.data.collection.platform.entity.SyncStatus.IDLE,
+          "手动刷新表需要先完成一次全量同步基线：" + registry.getSourceTableName());
     }
     return gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
         registry.getConfigId(),
@@ -331,10 +340,17 @@ public class DatabaseBrowserService {
   }
 
   private String buildStatusMessage(GitlabMirrorTableRegistry registry) {
+    if (registry != null && !hasMirrorBaseline(registry)) {
+      return "该镜像表尚未完成全量同步基线，需先执行全量同步后才能单表刷新。";
+    }
     if (registry != null && Objects.equals(registry.getSyncStatus(), "SYNCING")) {
       return "数据正在同步中，当前展示为历史稳定版本。";
     }
     return null;
+  }
+
+  private boolean hasMirrorBaseline(GitlabMirrorTableRegistry registry) {
+    return registry != null && registry.getLastSyncTime() != null;
   }
 
   private record SourceTableSelection(Long configId, String sourceTable) {

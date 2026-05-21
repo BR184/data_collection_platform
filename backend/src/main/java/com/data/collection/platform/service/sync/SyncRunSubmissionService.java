@@ -169,7 +169,7 @@ public class SyncRunSubmissionService {
     if (runType == SyncRunType.FULL_SYNC) {
       mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
     } else if (runType == SyncRunType.FACT_REFRESH && activeRun != null) {
-      return reusedRun(activeRun, apiType, "Fact refresh is already queued or running for this source");
+      return reusedRun(activeRun, apiType, "事实刷新已在队列中或正在执行，已复用现有任务。");
     } else if (runType == SyncRunType.COMPENSATION_SCAN && activeRun != null) {
       return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
     } else if (isMirrorRun(runType) && activeRun != null && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
@@ -182,7 +182,7 @@ public class SyncRunSubmissionService {
           policyService.toApiStatus(activeRun),
           SyncSubmissionAction.DEDUPED,
           now,
-          "Refresh request was merged into an existing sync run for this source");
+          "本次刷新请求已合并到同一数据源正在执行的同步任务中。");
     }
 
     if (runType == SyncRunType.TABLE_REFRESH

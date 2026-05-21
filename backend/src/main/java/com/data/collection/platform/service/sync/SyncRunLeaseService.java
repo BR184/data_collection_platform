@@ -59,7 +59,7 @@ public class SyncRunLeaseService {
                lease_until = null,
                heartbeat_at = null,
                last_error = coalesce(last_error, 'Parent sync run lease timed out'),
-               finished_at = coalesce(finished_at, current_timestamp),
+               finished_at = coalesce(task.finished_at, current_timestamp),
                updated_at = current_timestamp
           from sync_runs run
          where task.run_id = run.id

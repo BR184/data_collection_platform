@@ -163,7 +163,7 @@ class SyncRunSubmissionServiceTest {
     assertThat(result.runId()).isEqualTo(91L);
     assertThat(result.status()).isEqualTo(SyncStatus.RUNNING);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
-    assertThat(result.message()).isEqualTo("Refresh request was merged into an existing sync run for this source");
+    assertThat(result.message()).isEqualTo("本次刷新请求已合并到同一数据源正在执行的同步任务中。");
   }
 
   @Test
@@ -227,6 +227,7 @@ class SyncRunSubmissionServiceTest {
     assertThat(result.runId()).isEqualTo(104L);
     assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_QUEUED);
+    assertThat(result.message()).isEqualTo("事实刷新已在队列中或正在执行，已复用现有任务。");
   }
 
   private GitlabSyncConfig config() {

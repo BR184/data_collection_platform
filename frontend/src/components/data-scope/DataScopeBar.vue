@@ -68,7 +68,7 @@ function handleSelectChange(value: string | string[]) {
         <el-radio-button
           v-for="option in options"
           :key="option.value"
-          :label="option.value"
+          :value="option.value"
           :disabled="disabled || option.disabled"
         >
           {{ option.label }}

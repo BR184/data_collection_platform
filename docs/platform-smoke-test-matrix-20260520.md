@@ -53,7 +53,7 @@
 | 取消同步 | `/cancel`、`/cancel/by-config`、run/table task 状态机 | ✅ 自动化已验证，⚠️ 待真实链路 | 启动长任务后取消 |
 | 清理镜像 | `/purge`、镜像表清理 | ✅ 自动化已验证，⚠️ 待真实链路 | 测试前确认不影响用户数据 |
 | 同步状态卡片 | 当前任务、计划批次、处理批次完成数、worker 状态 | ✅ 自动化已验证，⚠️ 待真实链路 | 页面观察不同同步状态 |
-| 同步日志 | run events、table tasks、System Hook 唤醒日志 | ✅ 自动化已验证，✅ 真实链路已验证 | 数据库查看入口仍需补齐，见 NEW-002 |
+| 同步日志 | run events、table tasks、System Hook 唤醒日志 | ✅ 自动化已验证，✅ 真实链路已验证 | 数据库查看已补齐 `sync_runs`、`sync_run_events`、`sync_run_table_tasks` |
 | 同步并发抽象 | dispatcher、lease、state machine、policy、worker lease、thread budget | ✅ 自动化已验证 | 保持服务级覆盖 |
 
 ### G2 System Hook 真实链路
@@ -90,7 +90,7 @@
 | 行数据查询 | `/rows`、分页、排序、关键字 | ✅ 自动化已验证，⚠️ 待真实链路 | 页面查询多张表 |
 | 表刷新 | `/refresh`、镜像表单表刷新 | ✅ 自动化已验证，⚠️ 待真实链路 | 选一张小表刷新 |
 | 表定义抽象 | table catalog、definition factory、row mapper、SQL bundle | ✅ 自动化已验证 | 保持服务级覆盖 |
-| 同步日志全量查看 | `sync_runs`、`sync_run_events`、`sync_run_table_tasks`、`gitlab_hook_events` | ❌ 待补覆盖 | 已记录 NEW-002 |
+| 同步日志全量查看 | `sync_runs`、`sync_run_events`、`sync_run_table_tasks`、`gitlab_system_hook_events` | ✅ 真实链路已验证 | 三张同步运行表和 System Hook 事件表均可在数据库查看中只读查询 |
 
 ### G5 事实构建与事实刷新
 
@@ -227,11 +227,12 @@
 
 | 编号 | 问题 | 影响 |
 | --- | --- | --- |
-| NEW-002 | 数据库查看暂未暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks`、`gitlab_hook_events` | 用户无法在页面查看完整同步日志和 hook 事件 |
-| NEW-003 | 历史数据库行中仍可能存在旧英文原始消息 | 历史日志展示可能中英混杂 |
-| NEW-009 | 浏览器真实路由冒烟发现 Element Plus radio 废弃 API 警告：`label act as value is about to be deprecated` | 当前不影响功能，但升级 Element Plus 3.x 前需要替换为 `value` |
-| NEW-010 | 最小白名单源只同步 `users/projects` 时，全量同步后仍触发事实层刷新，并因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | 小表集/白名单场景会出现非业务失败噪声，可能误导用户判断同步质量 |
-| NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | 平台说明仍有英文残留，需要中文化 |
+| NEW-002 | 数据库查看暂未暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks`、`gitlab_hook_events` | ✅ 已修复；`sync_runs`、`sync_run_events`、`sync_run_table_tasks` 已作为只读表暴露并通过真实接口查询 |
+| NEW-003 | 历史数据库行中仍可能存在旧英文原始消息 | 已接受为历史数据兼容问题；前端展示层已有翻译时不作为当前待修复缺陷 |
+| NEW-006 | 同步任务超时回收 SQL 存在 `finished_at` 字段歧义 | ✅ 已修复；超时子任务回收 SQL 使用 `task.finished_at`，单测覆盖 |
+| NEW-009 | 浏览器真实路由冒烟发现 Element Plus radio 废弃 API 警告：`label act as value is about to be deprecated` | ✅ 已修复；`DataScopeBar.vue` 改用 `el-radio-button :value` |
+| NEW-010 | 最小白名单源只同步 `users/projects` 时，全量同步后仍触发事实层刷新，并因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | ✅ 已修复；自定义白名单未覆盖事实源表时跳过自动事实刷新 |
+| NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | ✅ 已修复；同步合并和 fact refresh 复用响应均已中文化 |
 | NEW-012 | `sourceInstance` 较长时，增量/补偿 run_id 可能超过 `sync_runs.run_id varchar(64)`，导致提交同步 500 | ✅ 已修复；run type 改为短别名，source 片段限制为 24 位，保留 32 位随机串，保证 run_id 不超过 64 |
 | GAP-001 | 测试阶段定义模块原覆盖缺口已补测通过 | 保留历史记录；后续只需按常规回归维护 |
 | GAP-002 | 部分前端组件只有页面间接覆盖，缺少独立组件测试 | 可先通过真实页面冒烟覆盖，后续补单测 |
@@ -255,7 +256,7 @@
 | --- | --- | --- | --- |
 | W0 | 后端全量 `mvn test` | ✅ 通过 | 400 tests, 0 failures, 0 errors, 4 skipped |
 | W0 | 前端 `npm run typecheck` | ✅ 通过 | TypeScript 无错误 |
-| W0 | 前端全量 `npm test` | ⚠️ 主体通过但进程失败 | 75 files、221 tests passed；Vitest 捕获 2 个 teardown 后未处理异常，见 NEW-004 |
+| W0 | 前端全量 `npm test` | ✅ 最新版本通过 | 2026-05-21 复跑 `npm test -- --run`：75 files、221 tests 全部通过，NEW-004 已关闭 |
 | W0 | 单独复跑 `code-review-rule-config.mount-smoke.test.ts` | ✅ 通过 | 2 tests passed，说明全量失败更像测试环境回收/异步清理问题 |
 | G0 | 后端基础/安全模块测试 | ✅ 通过 | 20 tests, 0 failures |
 | G0 | 前端基础路由/manifest/request 测试 | ✅ 通过 | 5 files, 17 tests passed |
@@ -277,7 +278,7 @@
 | G11 | 采集表单真实接口 | ✅ 最新链路通过 | `/api/collect-forms/detail`、`/notification-payload` 带必要参数调用成功 |
 | G11 | 测试阶段定义 CRUD | ✅ 最新链路通过 | 使用临时 `projectId=99999901` 完成 create/update/disable/delete 闭环 |
 | G4 | 数据库查看行查询 | ✅ 最新链路通过 | `gitlab_sync_configs` 与 `ods_gitlab_cc_environments` 行查询成功 |
-| G4 | 数据库查看单表刷新 | ⚠️ 被基线保护拦截 | 刷新 `ods_gitlab_cc_environments` 返回 400：需要先完成一次全量同步基线，见 NEW-007 |
+| G4 | 数据库查看单表刷新 | ✅ 基线提示已修复 | 无全量基线的镜像表会禁用刷新并显示中文前置提示；具备基线的镜像表刷新仍可执行 |
 | G7/G8/G9/G10 | 业务导出真实接口 | ✅ 最新链路通过 | 代码走查、客户问题、系统测试、集成测试、统计看板导出接口均返回文件内容 |
 | G7 | 代码走查规则预览 | ✅ 最新链路通过 | `/api/code-review/illegal-records/rule-config/preview` 成功返回预览结果 |
 | G6 | 评审数据 CRUD | ✅ 最新链路通过 | 临时评审记录 create/detail/problem item create/update/delete/record delete 闭环成功 |
@@ -286,7 +287,7 @@
 | G2 | System Hook 最新后端真实投递 | ✅ 最新链路通过 | GitLab `SystemHook.execute` 投递到 `host.docker.internal:18080`，`WebHookLog.id=56 response_status=200`，平台 `gitlab_system_hook_events.id=10 processed=true` |
 | G2 | System Hook 接收与同步日志 | ✅ 最新链路通过 | 平台 `sync_runs.id=289` 为 `SYSTEM_HOOK/SUCCESS`，同步日志包含 `System Hook 唤醒`；issue 相关结果来自模拟 payload，不作为 GitLab System Hook 支持 Issue events 的证据 |
 | G2 | System Hook 环境反证 | ⚠️ 已定位为配置问题 | config 2 仍指向容器 DNS 时，GitLab 投递 `WebHookLog.id=55` 已 200，平台 run 288 失败于源库连接；改为 `localhost:15434` 后 run 289 成功 |
-| G1 | 同步任务幽灵状态复查 | ⚠️ 发现历史残留 | `sync_runs` 无 active run，但 `sync_run_table_tasks` 仍有 22 条 `QUEUED`，挂在已 `FAILED/TIMEOUT` 的历史 run 下，见 NEW-008 |
+| G1 | 同步任务幽灵状态复查 | ✅ 已收敛 | 2026-05-21 最新库复查终态父 run 下 active 子任务数量为 0；NEW-006 超时回收 SQL 歧义已修复 |
 | W1/W5/W6 | 浏览器真实路由冒烟 | ✅ 最新链路通过 | Playwright 打开 `18181 -> 18080` 共 26 个路由，覆盖质量看板、评审数据、代码走查、集成测试、系统测试、客户问题、数据镜像监控、数据库查看、测试阶段定义、外部采集表单和 404；无失败请求，报告见 `.tmp/browser-smoke-20260520/report.json` |
 | G0 | 审批用户页面权限链路 | ✅ 最新链路通过 | 浏览器登录 `approval` 用户后访问受限路由被引导至质量看板，当前用户返回 `APPROVAL` |
 | G1/G3 | 最小双源配置保存与诊断 | ✅ 最新链路通过 | 新增/复用 config 4 `smoke_cc` 与 config 5 `smoke_dgm`，均为 `sourceMode=DIRECT`、`whitelistTables=["users","projects"]`、`autoSyncEnabled=false`；连接测试、诊断和白名单校验均通过 |
@@ -299,9 +300,9 @@
 | G5 | 事实构建真实接口 | ✅ 最新链路通过 | 使用 config 2 触发 issue fact rebuild、latest task 查询和 integration fact rebuild 均成功 |
 | G11/G13 | 采集表单与审计真实链路 | ✅ 最新链路通过 | 采集表单 save/update/delete 闭环成功；采集表单审计日志与操作审计日志均可查到新增记录 |
 | G1 | 白名单外镜像清理 | ✅ 最新链路通过 | config 4 执行 purge excluding current whitelist 成功，保留当前 `users/projects` 小表白名单 |
-| G5 | 最小白名单后的事实层自动刷新 | ⚠️ 发现新问题 | config 4/5 全量同步成功后自动触发 fact refresh run 297/299，但因最小白名单未包含 issue/MR 相关表，状态为 `PARTIAL_SUCCESS`，见 NEW-010 |
-| G7 | 浏览器控制台兼容性告警 | ⚠️ 发现新问题 | `/code-review/illegal-records` 出现 2 条 Element Plus radio 废弃 API warning，见 NEW-009 |
-| G1 | 同步互斥响应中文化 | ⚠️ 发现新问题 | 同源同步合并行为正确，但响应 message 仍为英文，见 NEW-011 |
+| G5 | 最小白名单后的事实层自动刷新 | ✅ 已修复 | 自定义白名单未覆盖事实源表时跳过自动事实刷新，避免最小表集同步后产生误导性 `PARTIAL_SUCCESS` |
+| G7 | 浏览器控制台兼容性告警 | ✅ 已修复 | `DataScopeBar.vue` 已改用 `el-radio-button :value`，回归测试通过 |
+| G1 | 同步互斥响应中文化 | ✅ 已修复 | 同源同步合并和 fact refresh 复用响应均已中文化 |
 | G1 | 每分钟自动补偿与页面抖动 | ✅ 最新链路通过 | config 2 `jt` 指向本地 GitLab 直连源，白名单 12 张核心表；run 20 `COMPENSATION/SCHEDULE/SUCCESS`，耗时约 1 秒，`recordCount=0`；Playwright 在 `/customer-issues/cc-product-issues` 80 秒采样中路由变化 0、全局 loading 0、表格行数稳定 2、API 5xx 0、请求失败 0、控制台错误 0 |
 | G1 | 高频手动增量与页面抖动 | ✅ 最新链路通过 | 同一页面连续触发 5 次增量同步，HTTP 均 200；其中一次被合并到已有同源 run；页面路由变化 0、全局 loading 0、表格行数稳定 2、API 5xx 0、控制台错误 0 |
 | G1 | 同步 run_id 长度边界 | ✅ 已修复并复测 | 新增单测覆盖长 `sourceInstance=jitter_smoke`；真实 API 提交增量 run 29 成功，生成 `sr_is_jitter_smoke_3a3f092874014a2f8bbb6aed02a31bc0`，长度 51，状态 `SUCCESS` |
@@ -310,14 +311,14 @@
 
 | 编号 | 问题 | 状态 |
 | --- | --- | --- |
-| NEW-004 | 前端全量 `npm test` 在所有测试主体通过后，Vitest 捕获 `CodeReviewIllegalRuleConfigView` 相关 teardown 后未处理异常：`document is not defined`，涉及 Element Plus loading/message | 待修复；单测单独运行通过，怀疑异步任务未等待或组件卸载后仍触发 UI 服务 |
-| NEW-005 | `18182` Docker 前端不是最新版本，静态构建产物时间为 2026-05-08，包内未包含当前源码已有的“数据镜像监控”模块 | 测试环境问题；前端页面真实冒烟应使用 `18181` 当前 Vite 源码服务，或先重建 `18182` 前端镜像 |
-| NEW-006 | 最新后端启动后，`SyncRunLeaseService.markTimedOutRunTasks` 在调度恢复时触发 SQL 错误：`column reference "finished_at" is ambiguous` | 待修复；可能影响异常退出后 run/table task 超时回收 |
-| NEW-007 | 数据库查看中镜像表可见且可触发单表刷新，但未完成全量同步基线时返回 400：`手动刷新表需要先完成一次全量同步基线` | 待评估；行为有保护意义，但页面/接口需要明确前置状态，避免用户误以为刷新功能不可用 |
-| NEW-008 | `sync_runs` 无活动任务时，`sync_run_table_tasks` 仍残留 22 条 `QUEUED`，对应 run 139/270/271/278/280 已为 `FAILED` 或 `TIMEOUT` | 待修复；状态恢复/取消/失败收敛时应同步终结子表任务，避免后续排查误判幽灵任务 |
-| NEW-009 | 浏览器真实路由冒烟时，`/code-review/illegal-records` 触发 Element Plus radio 废弃 API warning：`label act as value is about to be deprecated` | 待修复；功能可用但升级 Element Plus 3.x 前需处理 |
-| NEW-010 | 最小白名单源 `users/projects` 全量同步成功后仍自动触发事实层刷新，因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | 待评估；白名单未覆盖事实源表时应跳过相关事实刷新或给出明确非失败状态 |
-| NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | 待修复；属于平台中文化残留 |
+| NEW-004 | 前端全量 `npm test` 在所有测试主体通过后，Vitest 捕获 `CodeReviewIllegalRuleConfigView` 相关 teardown 后未处理异常：`document is not defined`，涉及 Element Plus loading/message | ✅ 已关闭；2026-05-21 最新版本复跑 `npm test -- --run`，75 files、221 tests 全部通过 |
+| NEW-005 | `18182` Docker 前端不是最新版本，静态构建产物时间为 2026-05-08，包内未包含当前源码已有的“数据镜像监控”模块 | ✅ 不作为产品问题；有效测试口径为 `18181 -> 18080`，18182 仅保留为旧容器环境记录 |
+| NEW-006 | 最新后端启动后，`SyncRunLeaseService.markTimedOutRunTasks` 在调度恢复时触发 SQL 错误：`column reference "finished_at" is ambiguous` | ✅ 已修复；SQL 使用 `task.finished_at`，单测通过 |
+| NEW-007 | 数据库查看中镜像表可见且可触发单表刷新，但未完成全量同步基线时返回 400：`手动刷新表需要先完成一次全量同步基线` | ✅ 已修复；无基线镜像表提前禁用刷新并显示中文前置提示 |
+| NEW-008 | `sync_runs` 无活动任务时，`sync_run_table_tasks` 仍残留 22 条 `QUEUED`，对应 run 139/270/271/278/280 已为 `FAILED` 或 `TIMEOUT` | ✅ 已收敛；当前库无幽灵子任务，NEW-006 修复恢复收敛风险 |
+| NEW-009 | 浏览器真实路由冒烟时，`/code-review/illegal-records` 触发 Element Plus radio 废弃 API warning：`label act as value is about to be deprecated` | ✅ 已修复；`DataScopeBar.vue` 使用 `value` |
+| NEW-010 | 最小白名单源 `users/projects` 全量同步成功后仍自动触发事实层刷新，因缺少 issue/MR 源表产生 `PARTIAL_SUCCESS` | ✅ 已修复；事实刷新监听器会跳过未覆盖事实源表的自定义白名单 |
+| NEW-011 | 同源同步互斥合并响应仍返回英文消息：`Refresh request was merged into an existing sync run for this source` | ✅ 已修复；旧英文响应源码扫描无残留 |
 | NEW-012 | `sourceInstance` 较长时，同步 run_id 生成值超过 `sync_runs.run_id varchar(64)`，增量/补偿提交失败 500 | ✅ 已修复；`SyncRunSubmissionService` 使用短 run type 别名与截断 source 片段生成 run_id，单测和真实 API 均通过 |
 
 ## 下一步记录方式

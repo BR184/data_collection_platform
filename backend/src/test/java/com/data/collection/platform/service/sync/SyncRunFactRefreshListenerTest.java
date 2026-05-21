@@ -6,9 +6,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.service.GitlabConfigService;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +37,25 @@ class SyncRunFactRefreshListenerTest {
 
     verify(submissionService)
         .submitFactRefresh(config, 11L, true, "镜像同步已完成，刷新事实层");
+  }
+
+  @Test
+  void shouldSkipFactRefreshWhenCustomWhitelistDoesNotCoverFactSourceTables() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    config.setWhitelistMode(WhitelistMode.CUSTOM);
+    config.setWhitelistTables(List.of("users", "projects"));
+    when(configService.getConfigById(1L)).thenReturn(config);
+
+    listener.onSyncRunCompleted(
+        new SyncRunCompletionEvent(15L, 1L, "alpha", SyncRunType.FULL_SYNC, SyncRunStatus.SUCCESS, 8L));
+
+    verify(submissionService, never())
+        .submitFactRefresh(
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.anyBoolean(),
+            org.mockito.ArgumentMatchers.any());
   }
 
   @Test
