@@ -575,6 +575,5 @@ npm --prefix frontend run typecheck
 
 | 编号 | 问题 | 状态 |
 |------|------|------|
-| NEW-001 | System Hook 项目白名单字段存在但未在入口生效 | 已记录到 `bug-fix-report-20260520.md` 和 `docs/decisions/ADR-001-system-hook-project-memory-whitelist.md`，暂未改代码 |
 | NEW-002 | 数据库查看未暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks` 等完整同步日志存储表 | 已记录到 `bug-fix-report-20260520.md`，暂未改代码 |
 | NEW-003 | 历史同步日志原始字段仍有旧英文消息 | 已记录到 `bug-fix-report-20260520.md`，前端展示层已有兼容翻译，暂未改历史数据 |

@@ -204,7 +204,6 @@ const {
     }),
   fallback: (reason) => createFallbackRuleExplanation(props.boardKey, reason),
   warn: (message) => ElMessage.warning(message),
-  openFallbackReason: '规则说明暂未加载完成，请稍后再试。',
   unsupportedWarning: '当前统计表暂不支持规则说明',
 });
 const {

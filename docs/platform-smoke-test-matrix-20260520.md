@@ -46,7 +46,7 @@
 | --- | --- | --- | --- |
 | 数据源配置读写 | `/api/gitlab-sync/configs`、`PUT /api/gitlab-sync/config` | ✅ 自动化已验证，⚠️ 待真实链路 | 页面保存配置并刷新回显 |
 | 连接测试 | `/test-connection`、`/test-connection/by-config`、直连模式 | ✅ 自动化已验证，⚠️ 本地容器直连已验证 | 内网再对 CC/DGM 对应源做真实直连验证 |
-| 白名单选项 | 推荐表、全部表、自定义表、项目白名单字段 | ✅ 自动化已验证，⚠️ 待真实链路 | 页面切换各模式并确认请求体 |
+| 白名单选项 | 推荐表、全部表、自定义表 | ✅ 自动化已验证，⚠️ 待真实链路 | 页面切换各模式并确认请求体 |
 | 全量同步 | `/full-sync`、`/full-sync/by-config`、表计划、worker、日志 | ✅ 自动化已验证，⚠️ 待真实链路 | 小表集真实同步冒烟 |
 | 增量同步 | `/incremental-sync`、同步窗口、排他策略 | ✅ 自动化已验证，⚠️ 待真实链路 | 与补偿扫描互斥验证 |
 | 补偿扫描 | scheduler、retry failed、排他策略 | ✅ 自动化已验证，⚠️ 待真实链路 | 确认同一时间只存在一个同步执行 |
@@ -65,10 +65,9 @@
 | Hook 接收 | `POST /api/gitlab-sync/system-hook`、secret 校验、事件落库 | ✅ 自动化已验证，✅ 真实链路已验证 | 保持本地 GitLab 真实链路脚本 |
 | 精准同步计划 | event -> precise plan -> table target | ✅ 自动化已验证，✅ 真实链路已验证 | 覆盖更多 event 类型 |
 | 异步派发 | hook 唤醒同步 run，生成 table tasks | ✅ 自动化已验证，✅ 真实链路已验证 | 继续验证日志可追踪 |
-| 项目内存白名单 | 只监听指定项目，非白名单项目快速丢弃 | ❌ 待补覆盖 | 已记录 NEW-001，方案见 ADR-001 |
 | System Hook 日志可观测 | 同步日志包含 System Hook 信息 | ✅ 自动化已验证，✅ 真实链路已验证 | 数据库查看入口补齐后再验 |
 
-说明：System Hook 单次事件 payload 是事件级别，不会把 10000 个项目整体打包发送。平台侧仍需要项目白名单做入口阻断，避免高频无关事件进入同步规划。
+说明：System Hook 单次事件 payload 是事件级别，不会把 10000 个项目整体打包发送；僵尸项目没有事件时不会形成持续投递压力。平台侧不再规划项目级入口过滤方案，System Hook 仍按实例级入口接收事件并通过 secret 校验、去重和同步互斥控制处理压力。
 
 ### G3 多源隔离与内网 CC/DGM 验证
 
@@ -228,7 +227,6 @@
 
 | 编号 | 问题 | 影响 |
 | --- | --- | --- |
-| NEW-001 | System Hook 项目白名单字段已存在，但入口尚未按内存白名单快速阻断 | 非目标项目高频事件仍可能进入平台处理链路 |
 | NEW-002 | 数据库查看暂未暴露 `sync_runs`、`sync_run_events`、`sync_run_table_tasks`、`gitlab_hook_events` | 用户无法在页面查看完整同步日志和 hook 事件 |
 | NEW-003 | 历史数据库行中仍可能存在旧英文原始消息 | 历史日志展示可能中英混杂 |
 | NEW-009 | 浏览器真实路由冒烟发现 Element Plus radio 废弃 API 警告：`label act as value is about to be deprecated` | 当前不影响功能，但升级 Element Plus 3.x 前需要替换为 `value` |

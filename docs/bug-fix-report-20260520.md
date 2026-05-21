@@ -453,15 +453,6 @@ private int resolveMaxContinuationTasksPerTable() {
 
 ## 十、2026-05-20 新发现问题（暂不修改代码）
 
-### NEW-001：System Hook 项目白名单字段存在但未在入口生效
-
-- **严重程度**: P1
-- **现状**: `gitlab_sync_configs.system_hook_project_id` 字段已存在，配置 2 当前为空；`GitlabSystemHookService.accept()` 中尚未根据项目白名单做早期拦截。
-- **风险**: 使用实例级 System Hook 时，非目标项目事件仍会进入平台落库、去重和同步规划链路。即使 GitLab 不会把全部项目打包进单次 payload，高频非目标项目仍可能给平台造成额外压力。
-- **期望行为**: Secret 校验通过后立即提取 `project_id`，不在内存白名单时直接返回 200，不写入 `gitlab_system_hook_events`、`gitlab_hook_events`，不提交 `SYSTEM_HOOK` run。
-- **决策文档**: `docs/decisions/ADR-001-system-hook-project-memory-whitelist.md`
-- **处理状态**: 待实现，当前仅记录方案。
-
 ### NEW-002：数据库查看未暴露完整同步日志存储表
 
 - **严重程度**: P2
@@ -557,5 +548,5 @@ private int resolveMaxContinuationTasksPerTable() {
 - **文档**: `docs/platform-smoke-test-matrix-20260520.md`
 - **范围**: 后端 API、服务抽象、同步编排、System Hook、多源隔离、数据库查看、事实构建、各业务页面、前端组件、组合函数和工具函数。
 - **原则**: 先完成小数据/真实链路基础冒烟，再进入大数据量压力专项；内网源库验收必须按非 Docker 的 PostgreSQL 直连方式确认，Docker 容器直连只能作为本地 DIRECT 分支验证；功能真实链路测试以 `18181` 当前 Vite 源码前端 -> `18080` 当前源码后端为有效口径，`18083/18182` 只作为旧容器环境参考。
-- **当前新增缺口**: 测试阶段定义模块真实 CRUD 链路已补测通过；数据库查看需要补全同步日志表；System Hook 项目内存白名单待实现。
+- **当前新增缺口**: 测试阶段定义模块真实 CRUD 链路已补测通过；数据库查看需要补全同步日志表。
 - **最新真实链路补测**: 已用 `smoke_cc`/`smoke_dgm` 两个最小测试源完成直连配置、连接诊断、全量同步、增量同步、同步互斥、取消、数据库查看刷新、双源隔离、事实构建、采集表单和审计链路；除内网真实 CC/DGM 名称本身、大数据量压力和真实进程 kill/restart 外，当前外网可构造的真实链路已补测并记录。
