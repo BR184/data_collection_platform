@@ -14,6 +14,7 @@ public class GitlabIssueLinkService {
   private final JdbcTemplate jdbcTemplate;
   private final String gitlabWebBaseUrl;
   private final Map<Long, Optional<String>> projectPathCache = new ConcurrentHashMap<>();
+  private volatile java.util.List<String> projectMirrorTables;
 
   public GitlabIssueLinkService(JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties) {
     this.jdbcTemplate = jdbcTemplate;
@@ -35,17 +36,44 @@ public class GitlabIssueLinkService {
   }
 
   private Optional<String> loadProjectPath(Long projectId) {
+    Optional<String> legacyPath = loadProjectPath(projectId, "ods_gitlab_projects", "ods_gitlab_namespaces");
+    if (legacyPath.isPresent()) {
+      return legacyPath;
+    }
+    for (String projectTable : projectMirrorTables()) {
+      String namespaceTable = namespaceTableFor(projectTable);
+      Optional<String> path = loadProjectPath(projectId, projectTable, namespaceTable);
+      if (path.isPresent()) {
+        return path;
+      }
+    }
+    return Optional.empty();
+  }
+
+  private Optional<String> loadProjectPath(Long projectId, String projectTable, String namespaceTable) {
     try {
       String path =
           jdbcTemplate.queryForObject(
-              """
+              quotedProjectPathSql(projectTable, namespaceTable),
+              String.class,
+              projectId);
+      return Optional.ofNullable(TextQuerySupport.trimToNull(path));
+    } catch (DataAccessException ignored) {
+      return Optional.empty();
+    }
+  }
+
+  private String quotedProjectPathSql(String projectTable, String namespaceTable) {
+    String quotedProjectTable = quoteIdentifier(projectTable);
+    String quotedNamespaceTable = quoteIdentifier(namespaceTable);
+    return """
               with recursive project_row as (
                 select p.id,
                        nullif(btrim(p.path), '') as project_path,
                        p.namespace_id,
                        nullif(btrim(to_jsonb(p)->>'path_with_namespace'), '') as path_with_namespace,
                        nullif(btrim(to_jsonb(p)->>'full_path'), '') as full_path
-                  from ods_gitlab_projects p
+                  from %s p
                  where p.id = ?
                    and coalesce(p.mirror_deleted, false) = false
                  limit 1
@@ -55,7 +83,7 @@ public class GitlabIssueLinkService {
                        nullif(btrim(ns.path), '') as namespace_path,
                        nullif(to_jsonb(ns)->>'parent_id', '')::bigint as parent_id,
                        0 as depth
-                  from ods_gitlab_namespaces ns
+                  from %s ns
                   join project_row p on p.namespace_id = ns.id
                  where coalesce(ns.mirror_deleted, false) = false
                 union all
@@ -63,7 +91,7 @@ public class GitlabIssueLinkService {
                        nullif(btrim(parent.path), '') as namespace_path,
                        nullif(to_jsonb(parent)->>'parent_id', '')::bigint as parent_id,
                        child.depth + 1 as depth
-                  from ods_gitlab_namespaces parent
+                  from %s parent
                   join namespace_chain child on child.parent_id = parent.id
                  where coalesce(parent.mirror_deleted, false) = false
                    and child.depth < 20
@@ -83,13 +111,43 @@ public class GitlabIssueLinkService {
                      ), '') as project_path
                 from project_row p
                 left join namespace_path np on true
-              """,
-              String.class,
-              projectId);
-      return Optional.ofNullable(TextQuerySupport.trimToNull(path));
-    } catch (DataAccessException ignored) {
-      return Optional.empty();
+              """
+        .formatted(quotedProjectTable, quotedNamespaceTable, quotedNamespaceTable);
+  }
+
+  private java.util.List<String> projectMirrorTables() {
+    java.util.List<String> cached = projectMirrorTables;
+    if (cached != null) {
+      return cached;
     }
+    try {
+      java.util.List<String> tables =
+          jdbcTemplate.queryForList(
+              """
+              select tablename
+                from pg_tables
+               where schemaname = 'public'
+                 and tablename like 'ods_gitlab\\_%\\_projects' escape '\\'
+                 and tablename <> 'ods_gitlab_projects'
+               order by tablename
+              """,
+              String.class);
+      projectMirrorTables = tables == null ? java.util.List.of() : tables;
+    } catch (DataAccessException ignored) {
+      projectMirrorTables = java.util.List.of();
+    }
+    return projectMirrorTables;
+  }
+
+  private String namespaceTableFor(String projectTable) {
+    return projectTable.replaceFirst("_projects$", "_namespaces");
+  }
+
+  private String quoteIdentifier(String identifier) {
+    if (!identifier.matches("[A-Za-z0-9_]+")) {
+      throw new IllegalArgumentException("Invalid table identifier: " + identifier);
+    }
+    return "\"" + identifier + "\"";
   }
 
   private String normalizeBaseUrl(String baseUrl) {

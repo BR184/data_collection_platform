@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -53,6 +54,26 @@ class GitlabIssueLinkServiceTest {
     GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, properties());
 
     assertThat(service.issueUrl(1001L, 25694)).isNull();
+  }
+
+  @Test
+  void shouldBuildIssueUrlFromSourceScopedMirrorTables() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
+        .thenThrow(new EmptyResultDataAccessException(1))
+        .thenReturn("source-group/source-project");
+    when(jdbcTemplate.queryForList(any(String.class), eq(String.class)))
+        .thenReturn(List.of("ods_gitlab_cc_projects"));
+    GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, properties());
+
+    assertThat(service.issueUrl(1001L, 25694))
+        .isEqualTo("http://gitlab.example.com/source-group/source-project/-/issues/25694");
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate, org.mockito.Mockito.times(2)).queryForObject(sqlCaptor.capture(), eq(String.class), eq(1001L));
+    assertThat(sqlCaptor.getAllValues().get(1))
+        .contains("\"ods_gitlab_cc_projects\"")
+        .contains("\"ods_gitlab_cc_namespaces\"");
   }
 
   private GitlabMirrorProperties properties() {

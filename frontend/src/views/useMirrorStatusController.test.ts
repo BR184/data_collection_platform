@@ -100,6 +100,50 @@ describe('useMirrorStatusController', () => {
     expect(deps.loadSystemHookRegistration).toHaveBeenCalledOnce();
   });
 
+  it('keeps local config edits during non-blocking status polling', async () => {
+    const form = ref(createConfig());
+    const deps = {
+      form,
+      loadStatusData: vi
+        .fn<() => Promise<MirrorStatusResponse>>()
+        .mockResolvedValueOnce(createStatus({ config: createConfig({ syncThreadMode: 'FIXED', syncThreadValue: 2 }) }))
+        .mockResolvedValueOnce(createStatus({ config: createConfig({ syncThreadMode: 'FIXED', syncThreadValue: 2 }) })),
+      loadSystemHookRegistration: vi.fn(),
+      notifyError: vi.fn(),
+    };
+    const controller = useMirrorStatusController(deps);
+
+    await controller.loadStatus(true, true);
+    form.value.syncThreadMode = 'CPU_RATIO';
+    form.value.syncThreadValue = 0.8;
+    await controller.loadStatus(false, false);
+
+    expect(form.value.syncThreadMode).toBe('CPU_RATIO');
+    expect(form.value.syncThreadValue).toBe(0.8);
+  });
+
+  it('can force remote config application after saving', async () => {
+    const form = ref(createConfig());
+    const deps = {
+      form,
+      loadStatusData: vi
+        .fn<() => Promise<MirrorStatusResponse>>()
+        .mockResolvedValueOnce(createStatus({ config: createConfig({ syncThreadMode: 'FIXED', syncThreadValue: 2 }) }))
+        .mockResolvedValueOnce(createStatus({ config: createConfig({ syncThreadMode: 'FIXED', syncThreadValue: 4 }) })),
+      loadSystemHookRegistration: vi.fn(),
+      notifyError: vi.fn(),
+    };
+    const controller = useMirrorStatusController(deps);
+
+    await controller.loadStatus(true, true);
+    form.value.syncThreadMode = 'CPU_RATIO';
+    form.value.syncThreadValue = 0.8;
+    await controller.loadStatus(false, false, { applyRemoteConfig: true });
+
+    expect(form.value.syncThreadMode).toBe('FIXED');
+    expect(form.value.syncThreadValue).toBe(4);
+  });
+
   it('uses faster polling while a run is active and falls back to idle polling', () => {
     const form = ref(createConfig());
     const intervalIds: number[] = [];

@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue';
 import type { GitlabSyncConfig, SyncSubmissionResponse } from '../types/api';
+import type { MirrorStatusLoadOptions } from './useMirrorStatusController';
 
 export interface MirrorSyncActionsControllerDependencies {
   form: Ref<GitlabSyncConfig>;
@@ -8,7 +9,7 @@ export interface MirrorSyncActionsControllerDependencies {
   startFullSyncData: () => Promise<SyncSubmissionResponse>;
   startIncrementalSyncData: () => Promise<SyncSubmissionResponse>;
   cancelSyncData: () => Promise<{ accepted: boolean; runId?: number; status?: string; message?: string }>;
-  loadStatus: (showError: boolean, blocking: boolean) => Promise<void>;
+  loadStatus: (showError: boolean, blocking: boolean, options?: MirrorStatusLoadOptions) => Promise<void>;
   loadSystemHookRegistration: () => void;
   notifySuccess: (message: string) => void;
   notifyWarning: (message: string) => void;
@@ -55,7 +56,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
           deps.notifySuccess('配置已保存');
         }
       }
-      await deps.loadStatus(false, false);
+      await deps.loadStatus(false, false, { applyRemoteConfig: true });
       deps.loadSystemHookRegistration();
     } catch (error) {
       deps.notifyError((error as Error).message);

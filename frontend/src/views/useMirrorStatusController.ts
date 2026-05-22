@@ -12,6 +12,10 @@ export interface MirrorStatusControllerDependencies {
   clearInterval?: (timerId: number) => void;
 }
 
+export interface MirrorStatusLoadOptions {
+  applyRemoteConfig?: boolean;
+}
+
 function normalizeConfig(config: GitlabSyncConfig): GitlabSyncConfig {
   return {
     ...config,
@@ -41,15 +45,32 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
   const refreshing = ref(false);
   const status = shallowRef<MirrorStatusResponse | null>(null);
   const refreshTimer = ref<number | null>(null);
+  const lastAppliedFormSnapshot = ref('');
   const setTimer = deps.setInterval ?? ((callback, timeout) => window.setInterval(callback, timeout));
   const clearTimer = deps.clearInterval ?? ((timerId) => window.clearInterval(timerId));
 
-  async function loadStatus(showError = true, blocking = true) {
+  function getConfigSnapshot(config: GitlabSyncConfig) {
+    return JSON.stringify(normalizeConfig(config));
+  }
+
+  function hasUnsavedFormChanges() {
+    return lastAppliedFormSnapshot.value !== '' && getConfigSnapshot(deps.form.value) !== lastAppliedFormSnapshot.value;
+  }
+
+  function applyRemoteConfig(config: GitlabSyncConfig) {
+    const normalizedConfig = normalizeConfig(config);
+    deps.form.value = normalizedConfig;
+    lastAppliedFormSnapshot.value = getConfigSnapshot(normalizedConfig);
+  }
+
+  async function loadStatus(showError = true, blocking = true, options: MirrorStatusLoadOptions = {}) {
     loading.value = blocking;
     try {
       const data = await deps.loadStatusData();
       status.value = data;
-      deps.form.value = normalizeConfig(data.config);
+      if (options.applyRemoteConfig === true || blocking || !hasUnsavedFormChanges()) {
+        applyRemoteConfig(data.config);
+      }
     } catch (error) {
       if (showError) {
         deps.notifyError((error as Error).message);

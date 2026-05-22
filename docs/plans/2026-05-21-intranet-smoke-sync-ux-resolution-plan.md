@@ -487,3 +487,38 @@
 - 最近同步日志的筛选、展开表级任务、合并/跳过原因详情尚未做成完整运维视图。
 - 业务页面进入时自动刷新页面数据的全局开关尚未实现；本批只处理同步页日志轮询，不触发业务页额外源库同步。
 - 系统测试议题查询仍是现有筛选结构，本批只收窄误导性文案；“满足全部/满足任意”的完整条件查询组件需后续单独改造。
+
+## 2026-05-22 同步策略回退修复与真实链路验证
+
+### 问题原因
+
+同步设置页新增空闲轮询后，`loadStatus(false, false)` 虽然只是为了刷新运行状态和最近同步日志，但它每次都会把后端返回的配置重新写回表单。用户切换“同步线程模式”后，如果尚未保存，3 秒一次的空闲轮询会把表单覆盖回后端旧配置，于是看起来像“无任何操作自己切回去”。
+
+### 修复方案
+
+- `useMirrorStatusController` 增加表单配置快照，只在阻塞加载、首次加载或表单没有本地改动时应用后端配置。
+- 非阻塞轮询继续刷新 `status/currentTask/logs`，但不覆盖未保存的同步策略、线程模式、白名单等表单输入。
+- 保存配置成功后调用 `loadStatus(false, false, { applyRemoteConfig: true })`，强制以服务端已保存配置更新表单基线。
+- 修复 `backend/run-backend.ps1`、`frontend/run-frontend.ps1` 中 dot-source `dev-env.ps1` 后目录变量被覆盖的问题，确保本地真实链路能从各自模块目录启动。
+
+### 回归测试
+
+- 前端针对性测试：`npm test -- --run src/views/useMirrorStatusController.test.ts src/views/useMirrorSyncActionsController.test.ts` 通过，13 个用例通过。
+- 前端全量测试：`npm test -- --run` 通过，75 个测试文件、225 个用例通过。
+- 前端构建：`npm run build` 通过。
+- 后端全量测试：`mvn test` 通过，408 个用例执行，0 失败，0 错误，4 个按条件跳过。
+- 代码空白检查：`git diff --check` 通过。
+
+### 真实链路测试
+
+- 使用当前代码重新拉起本地 18181 前端与 18080 后端；后端真实 `/api/gitlab-sync/status` 返回的最近同步日志已包含 `runType` 字段。
+- Playwright 登录平台后进入 `/#/system-settings/mirror-settings`，切换为“动态 CPU 比例”，等待 7.2 秒；期间实际发生 3 次 `/api/gitlab-sync/status` 轮询，线程模式仍保持“动态 CPU 比例”，比例输入保持 `0.80`，没有被覆盖回固定线程。
+- 最近同步日志真实页面检查未出现“排队中”“部分成功”；`FACT_REFRESH` 日志显示为“事实数据刷新 / 已完成，需查看明细”。
+
+### 统计下钻链接真实链路补充修复
+
+- 真实链路测试时发现：统计类下钻接口已经返回 `projectId` 和 `issueIid`，但 `issueUrl` 为空，前端因此无法渲染议题编号链接。
+- 根因是 `GitlabIssueLinkService` 只查询旧版固定表 `ods_gitlab_projects` / `ods_gitlab_namespaces`，而当前镜像库使用数据源隔离表，例如 `ods_gitlab_jitter_smoke_projects`。
+- 修复为优先兼容旧表；旧表不存在或查不到时，自动发现 `ods_gitlab_%_projects` 镜像表，并按同源命名查找对应 namespaces 表拼接 GitLab 议题链接。
+- 后端针对性测试：`mvn -Dtest=GitlabIssueLinkServiceTest test` 通过，覆盖数据源隔离镜像表的链接拼接。
+- 真实链路复测：`/api/statistic-boards/system-test-phase-statistics/details` 返回 `issueUrl`，页面弹窗内 `.detail-cell-link` 渲染为 `/-/issues/{iid}` 链接。

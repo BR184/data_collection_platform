@@ -114,7 +114,7 @@ const {
   startFullSyncData: () => api.startFullSync(selectedConfigId.value),
   startIncrementalSyncData: () => api.startIncrementalSync(selectedConfigId.value),
   cancelSyncData: () => api.cancelSync(selectedConfigId.value),
-  loadStatus: (showError, blocking) => loadStatus(showError, blocking),
+  loadStatus: (showError, blocking, options) => loadStatus(showError, blocking, options),
   loadSystemHookRegistration: () => {
     void loadSystemHookRegistration(false);
   },

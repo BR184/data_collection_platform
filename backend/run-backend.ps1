@@ -1,8 +1,8 @@
-$projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $projectRoot "..\scripts\dev-env.ps1")
-Set-Location $projectRoot
+$backendRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $backendRoot "..\scripts\dev-env.ps1")
+Set-Location $backendRoot
 
-$currentRepoRoot = (Resolve-Path (Join-Path $projectRoot "..")).Path
+$currentRepoRoot = (Resolve-Path (Join-Path $backendRoot "..")).Path
 $staleBackendProcesses = Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" |
   Where-Object {
     ($_.ExecutablePath -like "$currentRepoRoot*") -or

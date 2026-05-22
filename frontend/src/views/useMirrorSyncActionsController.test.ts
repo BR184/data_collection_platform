@@ -58,7 +58,9 @@ function setup(config: GitlabSyncConfig = createConfig()) {
     cancelSyncData: vi.fn<() => Promise<{ accepted: boolean; runId?: number; status?: string }>>(() =>
       Promise.resolve({ accepted: true, runId: 1, status: 'CANCELLING' }),
     ),
-    loadStatus: vi.fn<(showError: boolean, blocking: boolean) => Promise<void>>(() => Promise.resolve()),
+    loadStatus: vi.fn<(showError: boolean, blocking: boolean, options?: { applyRemoteConfig?: boolean }) => Promise<void>>(
+      () => Promise.resolve(),
+    ),
     loadSystemHookRegistration: vi.fn<() => void>(),
     notifySuccess: vi.fn<(message: string) => void>(),
     notifyWarning: vi.fn<(message: string) => void>(),
@@ -78,7 +80,7 @@ describe('useMirrorSyncActionsController', () => {
     expect(deps.form.value.autoSyncEnabled).toBe(false);
     expect(deps.saveConfigData).toHaveBeenCalledWith(deps.form.value);
     expect(deps.notifySuccess).toHaveBeenCalledWith('配置已保存');
-    expect(deps.loadStatus).toHaveBeenCalledWith(false, false);
+    expect(deps.loadStatus).toHaveBeenCalledWith(false, false, { applyRemoteConfig: true });
     expect(deps.loadSystemHookRegistration).toHaveBeenCalledOnce();
     expect(controller.saving.value).toBe(false);
   });
