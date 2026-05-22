@@ -100,7 +100,7 @@ describe('useMirrorStatusController', () => {
     expect(deps.loadSystemHookRegistration).toHaveBeenCalledOnce();
   });
 
-  it('starts and stops running status polling', () => {
+  it('uses faster polling while a run is active and falls back to idle polling', () => {
     const form = ref(createConfig());
     const intervalIds: number[] = [];
     const clearedIds: number[] = [];
@@ -109,7 +109,8 @@ describe('useMirrorStatusController', () => {
       loadStatusData: vi.fn(async () => createStatus()),
       loadSystemHookRegistration: vi.fn(),
       notifyError: vi.fn(),
-      setInterval: vi.fn((callback: () => void) => {
+      setInterval: vi.fn((callback: () => void, timeout: number) => {
+        expect([1500, 3000]).toContain(timeout);
         intervalIds.push(intervalIds.length + 1);
         callback();
         return intervalIds[intervalIds.length - 1];
@@ -123,10 +124,10 @@ describe('useMirrorStatusController', () => {
     controller.syncRunningRefresh('RUNNING');
     controller.syncRunningRefresh('SUCCESS');
 
-    expect(deps.setInterval).toHaveBeenCalledOnce();
-    expect(deps.loadStatusData).toHaveBeenCalledOnce();
+    expect(deps.setInterval).toHaveBeenCalledTimes(2);
+    expect(deps.loadStatusData).toHaveBeenCalledTimes(2);
     expect(clearedIds).toEqual([1]);
-    expect(controller.refreshTimer.value).toBeNull();
+    expect(controller.refreshTimer.value).toBe(2);
   });
 
   it('reports load errors only when requested', async () => {

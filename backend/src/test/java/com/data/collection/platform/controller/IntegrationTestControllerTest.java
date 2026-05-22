@@ -104,6 +104,7 @@ class IntegrationTestControllerTest {
                         1001L,
                         88L,
                         "#88",
+                        "http://gitlab.example.com/group/project/-/issues/88",
                         325L,
                         "CC_PRODUCT",
                         "草图命令异常",
@@ -144,6 +145,7 @@ class IntegrationTestControllerTest {
                 .param("moduleName", "草图"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.records[0].issueIid").value(88))
+        .andExpect(jsonPath("$.data.records[0].issueLink").value("http://gitlab.example.com/group/project/-/issues/88"))
         .andExpect(jsonPath("$.data.records[0].executor").value("张三"));
   }
 

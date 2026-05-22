@@ -44,9 +44,9 @@ function rowTime(row: SyncRunTableDiagnostics) {
   <section class="queue-panel">
     <div class="queue-head">
       <div>
-        <div class="queue-title">表任务队列</div>
+        <div class="queue-title">表任务状态</div>
         <div class="queue-subtitle">
-          待执行 {{ diagnostics?.pendingTaskCount ?? 0 }} / 运行中 {{ diagnostics?.runningTaskCount ?? 0 }} / 重试中
+          等待处理 {{ diagnostics?.pendingTaskCount ?? 0 }} / 处理中 {{ diagnostics?.runningTaskCount ?? 0 }} / 重试中
           {{ diagnostics?.retryingTaskCount ?? 0 }}
         </div>
       </div>

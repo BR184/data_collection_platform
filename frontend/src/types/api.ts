@@ -92,6 +92,7 @@ export interface SyncRunLog {
   id: number;
   runId?: string | null;
   syncType: GitlabSyncType;
+  runType?: string | null;
   triggerType?: string | null;
   status: GitlabSyncStatus;
   message: string;

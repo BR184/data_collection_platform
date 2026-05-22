@@ -14,6 +14,7 @@ export interface MirrorSyncActionsControllerDependencies {
   notifyWarning: (message: string) => void;
   notifyInfo: (message: string) => void;
   notifyError: (message: string) => void;
+  hasActiveSync?: () => boolean;
 }
 
 export function useMirrorSyncActionsController(deps: MirrorSyncActionsControllerDependencies) {
@@ -28,7 +29,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       return;
     }
     if (result.status === 'PARTIAL_SUCCESS') {
-      deps.notifyWarning(result.message);
+      deps.notifyWarning(result.message || '已完成，部分表需要查看明细');
       return;
     }
     if (result.action === 'CREATED') {
@@ -36,7 +37,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       return;
     }
     if (result.action === 'QUEUED') {
-      deps.notifyWarning(result.message);
+      deps.notifyInfo(result.message);
       return;
     }
     deps.notifyInfo(result.message);
@@ -48,7 +49,11 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       deps.form.value.enabled = deps.form.value.sourceEnabled ?? deps.form.value.enabled;
       await deps.saveConfigData(deps.form.value);
       if (showSuccess) {
-        deps.notifySuccess('配置已保存');
+        if (deps.hasActiveSync?.()) {
+          deps.notifyInfo('设置已保存。当前同步仍按启动时配置执行，新设置将在下一次同步生效。');
+        } else {
+          deps.notifySuccess('配置已保存');
+        }
       }
       await deps.loadStatus(false, false);
       deps.loadSystemHookRegistration();

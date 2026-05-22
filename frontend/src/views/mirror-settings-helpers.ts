@@ -5,10 +5,19 @@ const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNI
 
 const SYNC_TYPE_LABELS: Record<GitlabSyncType, string> = {
   FULL: '全量同步',
-  INCREMENTAL: '增量同步',
-  COMPENSATION: '补偿扫描',
+  INCREMENTAL: '刷新最新数据',
+  COMPENSATION: '自动补偿扫描',
   SYSTEM_HOOK: 'System Hook 唤醒',
   PURGE: '删除镜像数据',
+};
+
+const SYNC_RUN_TYPE_LABELS: Record<string, string> = {
+  FULL_SYNC: '全量同步',
+  INCREMENTAL_SYNC: '刷新最新数据',
+  TABLE_REFRESH: '单表刷新',
+  SYSTEM_HOOK: 'System Hook 唤醒',
+  COMPENSATION_SCAN: '自动补偿扫描',
+  FACT_REFRESH: '事实数据刷新',
 };
 
 const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'success' | 'warning'> = {
@@ -20,13 +29,13 @@ const SYNC_TYPE_TAG_TYPES: Record<GitlabSyncType, '' | 'danger' | 'info' | 'succ
 };
 
 const SYNC_STATUS_LABELS: Record<GitlabSyncStatus | 'IDLE', string> = {
-  PENDING: '待执行',
-  QUEUED: '排队中',
-  RUNNING: '执行中',
+  PENDING: '等待执行',
+  QUEUED: '等待当前同步完成',
+  RUNNING: '处理中',
   RETRYING: '重试中',
-  SUCCESS: '成功',
-  PARTIAL_SUCCESS: '部分成功',
-  FAILED: '失败',
+  SUCCESS: '已完成',
+  PARTIAL_SUCCESS: '已完成，需查看明细',
+  FAILED: '需要处理',
   CANCELLED: '已取消',
   TIMEOUT: '已超时',
   CANCELLING: '取消中',
@@ -85,6 +94,14 @@ export function syncTypeText(syncType: GitlabSyncType) {
   return SYNC_TYPE_LABELS[syncType] ?? syncType;
 }
 
+export function syncLogTypeText(log: Pick<SyncRunLog, 'syncType' | 'runType'>) {
+  const runType = log.runType?.trim();
+  if (runType && SYNC_RUN_TYPE_LABELS[runType]) {
+    return SYNC_RUN_TYPE_LABELS[runType];
+  }
+  return syncTypeText(log.syncType);
+}
+
 export function syncTypeTagType(syncType: GitlabSyncType) {
   return SYNC_TYPE_TAG_TYPES[syncType] ?? 'info';
 }
@@ -129,7 +146,7 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
     return '同步运行已取消';
   }
   if (/^Queued sync run cancelled$/i.test(normalized)) {
-    return '已取消排队中的同步任务';
+    return '已取消等待中的同步任务';
   }
   if (/^Cancelled before worker start$/i.test(normalized)) {
     return '任务启动前已取消';
@@ -147,10 +164,13 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
     return '手动全量同步';
   }
   if (/^Manual recovery incremental sync(?: requested)?$/i.test(normalized) && syncType === 'INCREMENTAL') {
-    return '手动增量同步';
+    return '手动刷新最新数据';
   }
   if (/^Scheduled compensation sync$/i.test(normalized) && syncType === 'COMPENSATION') {
-    return '定时补偿扫描';
+    return '自动补偿扫描';
+  }
+  if (/^Merged into a full sync submitted for the same source$/i.test(normalized)) {
+    return '已合并到当前全量同步，完成后以全量结果为准。';
   }
   if (/^Delete mirror data$/i.test(normalized) && syncType === 'PURGE') {
     return '删除镜像数据';
@@ -188,9 +208,9 @@ export function syncLogMessage(log: SyncRunLog) {
     case 'SYSTEM_HOOK':
       return 'System Hook 触发了目标表更新。';
     case 'INCREMENTAL':
-      return '手动增量同步。';
+      return log.runType === 'TABLE_REFRESH' ? '单表刷新。' : '刷新最新数据。';
     case 'COMPENSATION':
-      return '定时补偿扫描。';
+      return log.runType === 'FACT_REFRESH' ? '事实数据刷新。' : '自动补偿扫描。';
     case 'FULL':
       return '全量校验或初始化同步。';
     case 'PURGE':

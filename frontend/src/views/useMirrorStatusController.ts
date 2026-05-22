@@ -80,14 +80,21 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
     stopRunningRefresh();
     refreshTimer.value = setTimer(() => {
       void loadStatus(false, false);
-    }, 2000);
+    }, 1500);
+  }
+
+  function startIdleRefresh() {
+    stopRunningRefresh();
+    refreshTimer.value = setTimer(() => {
+      void loadStatus(false, false);
+    }, 3000);
   }
 
   function syncRunningRefresh(nextStatus: GitlabSyncStatus | null | undefined) {
     if (nextStatus && ACTIVE_POLLING_STATUSES.includes(nextStatus)) {
       startRunningRefresh();
     } else {
-      stopRunningRefresh();
+      startIdleRefresh();
     }
   }
 
@@ -98,6 +105,7 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
     refreshTimer,
     loadStatus,
     refreshStatus,
+    startIdleRefresh,
     startRunningRefresh,
     stopRunningRefresh,
     syncRunningRefresh,

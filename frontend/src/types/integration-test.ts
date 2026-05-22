@@ -43,6 +43,7 @@ export interface IntegrationTestDetailRowResponse {
   issueId: number;
   issueIid: number;
   issuableReference: string;
+  issueLink?: string | null;
   projectId: number;
   projectName: string;
   title: string;

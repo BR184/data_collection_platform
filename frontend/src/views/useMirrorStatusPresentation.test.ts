@@ -115,7 +115,7 @@ describe('useMirrorStatusPresentation', () => {
 
     expect(presentation.progressPercent.value).toBe(25);
     expect(presentation.canCancel.value).toBe(true);
-    expect(presentation.displayStatus.value).toEqual({ text: '执行中', type: 'warning' });
+    expect(presentation.displayStatus.value).toEqual({ text: '处理中', type: 'warning' });
     expect(presentation.phaseText.value).toBe('全量同步');
     expect(presentation.progressHint.value).toBe('正在处理 2 张表，已写入 20 条记录。');
     expect(presentation.currentMessageText.value).toBe('手动全量同步');
@@ -125,8 +125,8 @@ describe('useMirrorStatusPresentation', () => {
     const presentation = useMirrorStatusPresentation(ref(createStatus({ logs: [createLog()] })));
 
     expect(presentation.latestLog.value?.id).toBe(1);
-    expect(presentation.lastSyncDisplay.value).toBe('最近同步：invalid-start（成功）');
-    expect(presentation.displayStatus.value).toEqual({ text: '最近同步成功', type: 'success' });
+    expect(presentation.lastSyncDisplay.value).toBe('最近同步：invalid-start（已完成）');
+    expect(presentation.displayStatus.value).toEqual({ text: '最近同步已完成', type: 'success' });
   });
 
   it('shows completed progress without preparing text', () => {
@@ -143,7 +143,7 @@ describe('useMirrorStatusPresentation', () => {
 
     expect(presentation.progressPercent.value).toBe(100);
     expect(presentation.progressHint.value).toBe('同步已完成，本次写入 35 条记录。');
-    expect(presentation.currentMessageText.value).toBe('全量表校验已完成，状态：成功');
+    expect(presentation.currentMessageText.value).toBe('全量表校验已完成，状态：已完成');
   });
 
   it('caps active progress below complete while the run is still expanding table tasks', () => {
@@ -180,7 +180,7 @@ describe('useMirrorStatusPresentation', () => {
     const presentation = useMirrorStatusPresentation(status);
 
     expect(presentation.progressPercent.value).toBe(5);
-    expect(presentation.phaseText.value).toBe('增量同步');
+    expect(presentation.phaseText.value).toBe('刷新最新数据');
     expect(presentation.progressHint.value).toBe('同步任务已开始，正在准备表扫描。');
   });
 

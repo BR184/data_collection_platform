@@ -7,6 +7,7 @@ public record IntegrationTestDetailRowResponse(
     Long issueId,
     Long issueIid,
     String issuableReference,
+    String issueLink,
     Long projectId,
     String projectName,
     String title,

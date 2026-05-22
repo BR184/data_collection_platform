@@ -29,9 +29,9 @@ function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
 
 describe('mirror settings helpers', () => {
   it('formats sync status and type labels for display', () => {
-    expect(syncStatusText('RUNNING')).toBe('执行中');
+    expect(syncStatusText('RUNNING')).toBe('处理中');
     expect(syncStatusText('RETRYING')).toBe('重试中');
-    expect(syncStatusText('PARTIAL_SUCCESS')).toBe('部分成功');
+    expect(syncStatusText('PARTIAL_SUCCESS')).toBe('已完成，需查看明细');
     expect(syncStatusTagType('FAILED')).toBe('danger');
     expect(syncStatusTagType('PARTIAL_SUCCESS')).toBe('warning');
     expect(syncStatusText('IDLE')).toBe('空闲');
@@ -43,7 +43,7 @@ describe('mirror settings helpers', () => {
   it('translates known sync messages and falls back to default log copy', () => {
     expect(translateSyncMessage('Sync completed successfully')).toBe('同步已完成');
     expect(translateSyncMessage('Cancellation requested')).toBe('已请求取消同步任务');
-    expect(translateSyncMessage('Queued sync run cancelled')).toBe('已取消排队中的同步任务');
+    expect(translateSyncMessage('Queued sync run cancelled')).toBe('已取消等待中的同步任务');
     expect(translateSyncMessage('Sync run cancelled')).toBe('同步运行已取消');
     expect(translateSyncMessage('Cancelled before worker start')).toBe('任务启动前已取消');
     expect(translateSyncMessage('Triggered by system hook: issue#1', 'SYSTEM_HOOK')).toBe('System Hook 已唤醒同步：issue#1');
@@ -52,7 +52,8 @@ describe('mirror settings helpers', () => {
         'Sync completed successfully, skipped 3 tables without time columns during compensation window scan',
       ),
     ).toBe('同步已完成，补偿扫描跳过 3 张缺少时间列的表。');
-    expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('定时补偿扫描。');
+    expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('自动补偿扫描。');
+    expect(syncLogMessage(createLog({ syncType: 'INCREMENTAL', runType: 'TABLE_REFRESH', message: '' }))).toBe('单表刷新。');
   });
 
   it('formats log time and duration safely', () => {

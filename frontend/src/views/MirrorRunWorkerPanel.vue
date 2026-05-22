@@ -27,6 +27,16 @@ const modeLabel = computed(() => {
   return `固定 ${Math.floor(Number(config.value.syncThreadValue ?? 0))} 线程`;
 });
 const recordsPerSecond = computed(() => progress.value?.recordsPerSecond ?? null);
+const recordsPerSecondText = computed(() => {
+  const value = recordsPerSecond.value;
+  if (value == null) {
+    return '-';
+  }
+  if (value > 0 && value < 1) {
+    return '低于 1/秒';
+  }
+  return `${Math.round(value)}/秒`;
+});
 </script>
 
 <template>
@@ -54,7 +64,7 @@ const recordsPerSecond = computed(() => progress.value?.recordsPerSecond ?? null
       </div>
       <div>
         <span>写入速率</span>
-        <strong>{{ recordsPerSecond == null ? '-' : `${recordsPerSecond}/秒` }}</strong>
+        <strong>{{ recordsPerSecondText }}</strong>
       </div>
       <div>
         <span>预计剩余</span>

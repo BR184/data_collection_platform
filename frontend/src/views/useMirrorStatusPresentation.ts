@@ -30,14 +30,14 @@ function fallbackPhaseText(task: SyncRunSummary | null): string {
     return '空闲';
   }
   if (task.status === 'QUEUED') {
-    return '排队中';
+    return '等待当前同步完成';
   }
   switch (task.taskType) {
     case 'FULL':
       return '全量同步';
     case 'INCREMENTAL':
     case 'SYSTEM_HOOK':
-      return '增量同步';
+      return '刷新最新数据';
     case 'COMPENSATION':
       return '补偿扫描';
     case 'PURGE':
@@ -53,7 +53,7 @@ function terminalProgressHint(statusValue: GitlabSyncStatus | 'IDLE', progress: 
     case 'SUCCESS':
       return records > 0 ? `同步已完成，本次写入 ${records} 条记录。` : '同步已完成，本次未发现需要写入的新记录。';
     case 'PARTIAL_SUCCESS':
-      return records > 0 ? `同步部分成功，本次已写入 ${records} 条记录，请查看表级诊断。` : '同步部分成功，请查看表级诊断。';
+      return records > 0 ? `同步已完成，本次写入 ${records} 条记录，部分表需要查看明细。` : '同步已完成，部分表需要查看明细。';
     case 'FAILED':
       return '同步失败，请查看最近同步日志和表级诊断。';
     case 'TIMEOUT':
@@ -120,9 +120,9 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
       case 'FULL_SYNC':
         return '全量同步';
       case 'INCREMENTAL_SYNC':
-        return '增量同步';
+        return '刷新最新数据';
       case 'COMPENSATION_SYNC':
-        return '补偿扫描';
+        return '自动补偿扫描';
       case 'FACT_REFRESH':
         return '事实刷新';
       default:
@@ -144,7 +144,7 @@ export function useMirrorStatusPresentation(status: Ref<MirrorStatusResponse | n
         return '同步任务已开始，正在准备扫描和进度信息。';
       }
       if (currentTask.value?.status === 'QUEUED') {
-        return '已有同步任务执行中，本次请求正在排队。';
+        return '已有同源同步正在处理，本次请求会等待或合并到当前同步。';
       }
       if (currentTask.value?.status === 'CANCELLING') {
         return '已请求取消，当前批次正在安全停止。';

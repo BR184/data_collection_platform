@@ -126,7 +126,7 @@ const phaseScope = useDataScope({
 
 const detailRows = computed<Record<string, unknown>[]>(() =>
   detail.value.records.map((row) => ({
-    issuableReference: row.issuableReference || `#${row.issueIid}`,
+    issuableReference: buildIssueLinkCell(row),
     title: row.title || '-',
     functionName: row.functionName || '-',
     functionLabels: buildFunctionLabelTags(row.functionLabels),
@@ -407,6 +407,11 @@ function buildFunctionLabelTags(value?: string | null) {
     label,
     type: 'primary' as const,
   }));
+}
+
+function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number]) {
+  const label = row.issuableReference || `#${row.issueIid}`;
+  return row.issueLink ? { label, href: row.issueLink } : label;
 }
 
 </script>

@@ -78,8 +78,8 @@ describe('MirrorSyncLogTable', () => {
     expect(wrapper.text()).toContain('最近同步日志');
     expect(wrapper.text()).toContain('全量同步');
     expect(wrapper.text()).toContain('删除镜像数据');
-    expect(wrapper.text()).toContain('成功');
-    expect(wrapper.text()).toContain('失败');
+    expect(wrapper.text()).toContain('已完成');
+    expect(wrapper.text()).toContain('需要处理');
     expect(wrapper.text()).toContain('invalid-start');
     expect(wrapper.text()).toContain('3');
     expect(wrapper.text()).toContain('42');

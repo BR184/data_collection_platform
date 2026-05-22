@@ -69,6 +69,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
 
   function detailCellValue(record: Record<string, unknown>, column: StatisticDetailColumn): StatisticDetailCellValue {
     const value = record[column.key];
+    const fallbackLink = issueLinkForColumn(record, column);
     if (value == null || value === '') {
       return '-';
     }
@@ -78,10 +79,30 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         href: typeof value.href === 'string' && value.href ? value.href : null,
       };
     }
+    if (fallbackLink) {
+      return {
+        label: String(value),
+        href: fallbackLink,
+      };
+    }
     if (typeof value === 'object') {
       return JSON.stringify(value);
     }
     return String(value);
+  }
+
+  function issueLinkForColumn(record: Record<string, unknown>, column: StatisticDetailColumn) {
+    if (!isIssueColumn(column)) {
+      return null;
+    }
+    const candidates = [record.issueUrl, record.gitlabUrl, record.issueLink, record.webUrl];
+    const link = candidates.find((item) => typeof item === 'string' && item.trim());
+    return typeof link === 'string' ? link : null;
+  }
+
+  function isIssueColumn(column: StatisticDetailColumn) {
+    const key = column.key.toLowerCase();
+    return key === 'iid' || key === 'issueiid' || key === 'issueid' || key === 'issuenumber';
   }
 
   async function loadDetail() {

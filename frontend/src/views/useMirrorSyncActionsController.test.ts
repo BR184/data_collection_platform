@@ -128,8 +128,21 @@ describe('useMirrorSyncActionsController', () => {
     expect(deps.startFullSyncData).toHaveBeenCalledOnce();
     expect(deps.startIncrementalSyncData).toHaveBeenCalledOnce();
     expect(deps.notifySuccess).toHaveBeenCalledWith('CREATED message');
-    expect(deps.notifyWarning).toHaveBeenCalledWith('QUEUED message');
+    expect(deps.notifyInfo).toHaveBeenCalledWith('QUEUED message');
     expect(controller.syncing.value).toBe(false);
+  });
+
+  it('tells users saved strategy changes take effect next sync while a run is active', async () => {
+    const deps = setup();
+    const controller = useMirrorSyncActionsController({
+      ...deps,
+      hasActiveSync: () => true,
+    });
+
+    await controller.saveConfig();
+
+    expect(deps.notifyInfo).toHaveBeenCalledWith('设置已保存。当前同步仍按启动时配置执行，新设置将在下一次同步生效。');
+    expect(deps.notifySuccess).not.toHaveBeenCalledWith('配置已保存');
   });
 
   it('reports failed table-level submissions as errors instead of success', () => {

@@ -147,7 +147,7 @@ describe('MirrorRunMonitorPanel', () => {
     expect(wrapper.text()).toContain('数据镜像监控');
     expect(wrapper.text()).toContain('run-full-11');
     expect(wrapper.text()).toContain('同步线程使用');
-    expect(wrapper.text()).toContain('表任务队列');
+    expect(wrapper.text()).toContain('表任务状态');
     expect(wrapper.text()).toContain('运行中的表任务');
     expect(wrapper.text()).toContain('处理批次完成数');
     expect(wrapper.text()).toContain('issues');

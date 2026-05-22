@@ -39,9 +39,11 @@ public class IntegrationTestQueryService {
           Map.entry("updatedAtSource", "updated_at_source"));
 
   private final JdbcTemplate jdbcTemplate;
+  private final GitlabIssueLinkService issueLinkService;
 
-  public IntegrationTestQueryService(JdbcTemplate jdbcTemplate) {
+  public IntegrationTestQueryService(JdbcTemplate jdbcTemplate, GitlabIssueLinkService issueLinkService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.issueLinkService = issueLinkService;
   }
 
   public List<IntegrationTestProjectOptionResponse> listProjectOptions() {
@@ -379,6 +381,7 @@ public class IntegrationTestQueryService {
         rs.getLong("issue_id"),
         rs.getLong("issue_iid"),
         TextQuerySupport.normalizeDisplay(rs.getString("issuable_reference")),
+        issueLinkService.issueUrl(rs.getLong("project_id"), getIntegerIssueIid(rs, "issue_iid")),
         rs.getLong("project_id"),
         TextQuerySupport.normalizeDisplay(rs.getString("project_name")),
         TextQuerySupport.normalizeDisplay(rs.getString("title")),
@@ -406,6 +409,11 @@ public class IntegrationTestQueryService {
   private Integer getInteger(ResultSet rs, String column) throws SQLException {
     Object value = rs.getObject(column);
     return value instanceof Integer integer ? integer : null;
+  }
+
+  private Integer getIntegerIssueIid(ResultSet rs, String column) throws SQLException {
+    long value = rs.getLong(column);
+    return rs.wasNull() ? null : Math.toIntExact(value);
   }
 
   private LocalDateTime toLocalDateTime(Timestamp value) {

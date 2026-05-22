@@ -6,9 +6,9 @@ import {
   formatLogTime,
   logStatusText,
   logStatusType,
+  syncLogTypeText,
   syncLogMessage,
   syncTypeTagType,
-  syncTypeText,
 } from './mirror-settings-helpers';
 
 defineProps<{
@@ -37,7 +37,7 @@ defineEmits<{
         <el-table-column label="类型" width="126">
           <template #default="{ row }">
             <el-tag size="small" effect="plain" :type="syncTypeTagType(row.syncType)">
-              {{ syncTypeText(row.syncType) }}
+              {{ syncLogTypeText(row) }}
             </el-tag>
           </template>
         </el-table-column>

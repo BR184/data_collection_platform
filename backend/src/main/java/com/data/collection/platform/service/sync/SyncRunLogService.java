@@ -59,6 +59,7 @@ public class SyncRunLogService {
     row.put("id", run.getId());
     row.put("runId", run.getRunId());
     row.put("syncType", policyService.toApiType(run.getRunType()).name());
+    row.put("runType", run.getRunType() == null ? null : run.getRunType().name());
     row.put("triggerType", run.getTriggerType() == null ? null : run.getTriggerType().name());
     row.put("status", policyService.toApiStatus(run).name());
     row.put("message", latestEventMessage(run));

@@ -63,6 +63,7 @@ const {
   status,
   loadStatus,
   refreshStatus,
+  startIdleRefresh,
   stopRunningRefresh,
   syncRunningRefresh,
 } = useMirrorStatusController({
@@ -121,6 +122,7 @@ const {
   notifyWarning: (message) => ElMessage.warning(message),
   notifyInfo: (message) => ElMessage.info(message),
   notifyError: (message) => ElMessage.error(message),
+  hasActiveSync: () => Boolean(currentTask.value?.status && ACTIVE_SYNC_STATUSES.includes(currentTask.value.status)),
 });
 
 const {
@@ -547,6 +549,9 @@ async function retryFailedRun() {
 
 onMounted(async () => {
   await initializePage();
+  if (!currentTask.value?.status || !ACTIVE_SYNC_STATUSES.includes(currentTask.value.status)) {
+    startIdleRefresh();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -734,7 +739,7 @@ onBeforeUnmount(() => {
           </el-radio-group>
           <el-alert
             v-if="form.whitelistMode === 'ALL'"
-            title="全部表模式将同步源数据库中所有可发现的表。首次全量同步耗时较长，增量同步会自动跳过无变更的表。"
+            title="全部表模式将同步源数据库中所有可发现的表。首次全量同步耗时较长，刷新最新数据会自动跳过无变更的表。"
             type="info"
             :closable="false"
             show-icon
@@ -762,7 +767,7 @@ onBeforeUnmount(() => {
           </div>
         </el-form-item>
 
-        <el-divider>System Hook 增量同步</el-divider>
+        <el-divider>System Hook 唤醒</el-divider>
 
         <el-form-item label="接收 System Hook">
           <el-switch v-model="form.systemHookEnabled" />
@@ -828,7 +833,7 @@ onBeforeUnmount(() => {
             :disabled="!syncEnabled || savedConfigActionDisabled"
             @click="startIncrementalSync"
           >
-            立即增量同步
+            刷新最新数据
           </el-button>
           <el-button
             type="danger"
@@ -1045,7 +1050,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="purge-warning-list">
-        <div class="purge-warning-item">删除前请确认当前没有运行中或排队中的同步任务。</div>
+        <div class="purge-warning-item">删除前请确认当前没有正在处理或等待处理的同步任务。</div>
         <div class="purge-warning-item">本操作只作用于本地镜像数据，不会删除 GitLab 源端数据。</div>
         <div class="purge-warning-item">本地非镜像业务数据不会被删除。</div>
       </div>

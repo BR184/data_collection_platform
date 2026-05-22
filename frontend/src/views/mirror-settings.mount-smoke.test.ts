@@ -163,7 +163,7 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.text()).toContain('固定线程数');
     expect(wrapper.text()).toContain('预计本次配置会使用');
     expect(wrapper.text()).toContain('数据镜像监控');
-    expect(wrapper.text()).toContain('表任务队列');
+    expect(wrapper.text()).toContain('表任务状态');
     expect(wrapper.text()).toContain('sr_full_alpha');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
 
