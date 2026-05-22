@@ -147,6 +147,39 @@ class SyncRunTablePlanningServiceTest {
   }
 
   @Test
+  void shouldPlanFullCompensationFromWhitelistWithoutFullOverwriteStrategy() {
+    SyncRun run = run(SyncRunType.FULL_COMPENSATION_SCAN);
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(
+            List.of(
+                new TableWhitelistOption("issues", "Issues", "id", "updated_at", true),
+                new TableWhitelistOption("namespaces", "Namespaces", "id", "", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(91L);
+              state.setLastWatermarkAt(LocalDateTime.of(2026, 5, 20, 10, 0));
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planRunTables(77L);
+
+    assertThat(planned).isEqualTo(1);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getValue().getTaskType()).isEqualTo("FULL_COMPENSATION_SCAN");
+    assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("issues");
+    assertThat(taskCaptor.getValue().getRowStrategy()).isEqualTo("INCREMENTAL");
+    assertThat(taskCaptor.getValue().getWatermarkAt()).isEqualTo(LocalDateTime.of(2026, 5, 20, 10, 0));
+  }
+
+  @Test
   void shouldPlanSystemHookPreciseTargetsFromPayload() {
     SyncRun run = run(SyncRunType.SYSTEM_HOOK);
     GitlabSyncConfig config = config();

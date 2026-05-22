@@ -52,7 +52,11 @@ describe('mirror settings helpers', () => {
         'Sync completed successfully, skipped 3 tables without time columns during compensation window scan',
       ),
     ).toBe('同步已完成，补偿扫描跳过 3 张缺少时间列的表。');
+    expect(translateSyncMessage('Daily full compensation scan', 'COMPENSATION')).toBe('定时全量补偿');
     expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('自动补偿扫描。');
+    expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', runType: 'FULL_COMPENSATION_SCAN', message: '' }))).toBe(
+      '定时全量补偿。',
+    );
     expect(syncLogMessage(createLog({ syncType: 'INCREMENTAL', runType: 'TABLE_REFRESH', message: '' }))).toBe('单表刷新。');
   });
 

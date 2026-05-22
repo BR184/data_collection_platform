@@ -106,7 +106,9 @@ public class SyncRunTablePlanningService {
       return true;
     }
     return sourceTables.isEmpty()
-        && (run.getRunType() == SyncRunType.COMPENSATION_SCAN || run.getRunType() == SyncRunType.SYSTEM_HOOK);
+        && (run.getRunType() == SyncRunType.COMPENSATION_SCAN
+            || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN
+            || run.getRunType() == SyncRunType.SYSTEM_HOOK);
   }
 
   private int planWhitelistTables(SyncRun run, List<String> requestedTables, Set<String> existingTaskKeys) {

@@ -14,6 +14,7 @@ interface StatisticBoardSettingsActionsDependencies {
     afterRestore?: () => void,
     afterClose?: () => void,
   ) => void;
+  toggleAutoRefreshOnEnter?: () => void;
 }
 
 export function useStatisticBoardSettingsActions(deps: StatisticBoardSettingsActionsDependencies) {
@@ -35,6 +36,10 @@ export function useStatisticBoardSettingsActions(deps: StatisticBoardSettingsAct
     }
     if (command === 'clear-sort') {
       deps.clearCurrentSort();
+      return;
+    }
+    if (command === 'toggle-auto-refresh') {
+      deps.toggleAutoRefreshOnEnter?.();
       return;
     }
     if (command === 'restore-default-view') {

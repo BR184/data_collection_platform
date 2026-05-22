@@ -17,6 +17,7 @@ const SYNC_RUN_TYPE_LABELS: Record<string, string> = {
   TABLE_REFRESH: '单表刷新',
   SYSTEM_HOOK: 'System Hook 唤醒',
   COMPENSATION_SCAN: '自动补偿扫描',
+  FULL_COMPENSATION_SCAN: '定时全量补偿',
   FACT_REFRESH: '事实数据刷新',
 };
 
@@ -169,6 +170,12 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   if (/^Scheduled compensation sync$/i.test(normalized) && syncType === 'COMPENSATION') {
     return '自动补偿扫描';
   }
+  if (/^Daily full compensation scan$/i.test(normalized) && syncType === 'COMPENSATION') {
+    return '定时全量补偿';
+  }
+  if (/^Daily verification scan$/i.test(normalized) && syncType === 'COMPENSATION') {
+    return '定时全量补偿';
+  }
   if (/^Merged into a full sync submitted for the same source$/i.test(normalized)) {
     return '已合并到当前全量同步，完成后以全量结果为准。';
   }
@@ -210,7 +217,13 @@ export function syncLogMessage(log: SyncRunLog) {
     case 'INCREMENTAL':
       return log.runType === 'TABLE_REFRESH' ? '单表刷新。' : '刷新最新数据。';
     case 'COMPENSATION':
-      return log.runType === 'FACT_REFRESH' ? '事实数据刷新。' : '自动补偿扫描。';
+      if (log.runType === 'FACT_REFRESH') {
+        return '事实数据刷新。';
+      }
+      if (log.runType === 'FULL_COMPENSATION_SCAN') {
+        return '定时全量补偿。';
+      }
+      return '自动补偿扫描。';
     case 'FULL':
       return '全量校验或初始化同步。';
     case 'PURGE':

@@ -19,6 +19,7 @@ class SyncRunPolicyServiceTest {
 
     assertThat(policyService.exclusiveScopeOf(config, SyncRunType.INCREMENTAL_SYNC)).isEqualTo(mirrorScope);
     assertThat(policyService.exclusiveScopeOf(config, SyncRunType.COMPENSATION_SCAN)).isEqualTo(mirrorScope);
+    assertThat(policyService.exclusiveScopeOf(config, SyncRunType.FULL_COMPENSATION_SCAN)).isEqualTo(mirrorScope);
     assertThat(policyService.exclusiveScopeOf(config, SyncRunType.SYSTEM_HOOK)).isEqualTo(mirrorScope);
   }
 }

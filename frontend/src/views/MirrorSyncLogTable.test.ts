@@ -84,6 +84,8 @@ describe('MirrorSyncLogTable', () => {
     expect(wrapper.text()).toContain('3');
     expect(wrapper.text()).toContain('42');
     expect(wrapper.text()).toContain('同步已完成');
+    expect(wrapper.text()).toContain('运行编号');
+    expect(wrapper.text()).toContain('内部状态');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
   });

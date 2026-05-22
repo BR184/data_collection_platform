@@ -16,12 +16,14 @@ const props = withDefaults(
     ruleExplanationLoading: boolean;
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
     canRefreshRealtime?: boolean;
+    autoRefreshOnEnter?: boolean;
     uiHooks?: StatisticBoardUiHooks;
   }>(),
   {
     boardTitle: '',
     realtimeStatus: null,
     canRefreshRealtime: true,
+    autoRefreshOnEnter: true,
     uiHooks: () => ({}),
   },
 );
@@ -128,6 +130,9 @@ function formatStageStatus(label: string, status?: string | null) {
           <el-dropdown-menu>
             <el-dropdown-item command="open-settings">列显示设置</el-dropdown-item>
             <el-dropdown-item command="clear-sort">恢复默认排序</el-dropdown-item>
+            <el-dropdown-item command="toggle-auto-refresh">
+              {{ autoRefreshOnEnter ? '关闭进入页面自动刷新' : '开启进入页面自动刷新' }}
+            </el-dropdown-item>
             <el-dropdown-item command="restore-default-view">恢复默认视图</el-dropdown-item>
           </el-dropdown-menu>
         </template>

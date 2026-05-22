@@ -43,9 +43,9 @@ public class GitlabDailyVerificationScheduler {
       submissionService.submitRun(
           config,
           SyncType.COMPENSATION,
-          SyncRunType.COMPENSATION_SCAN,
+          SyncRunType.FULL_COMPENSATION_SCAN,
           SyncTriggerType.SCHEDULE,
-          "Daily verification scan",
+          "Daily full compensation scan",
           List.of(),
           null);
     }

@@ -170,7 +170,8 @@ public class SyncRunSubmissionService {
       mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
     } else if (runType == SyncRunType.FACT_REFRESH && activeRun != null) {
       return reusedRun(activeRun, apiType, "事实刷新已在队列中或正在执行，已复用现有任务。");
-    } else if (runType == SyncRunType.COMPENSATION_SCAN && activeRun != null) {
+    } else if ((runType == SyncRunType.COMPENSATION_SCAN || runType == SyncRunType.FULL_COMPENSATION_SCAN)
+        && activeRun != null) {
       return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
     } else if (isMirrorRun(runType) && activeRun != null && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
       if (runType == SyncRunType.TABLE_REFRESH) {
@@ -280,7 +281,7 @@ public class SyncRunSubmissionService {
                and exclusive_scope = ?
                and status = 'QUEUED'
                and priority < ?
-               and run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK')
+               and run_type in ('INCREMENTAL_SYNC', 'TABLE_REFRESH', 'SYSTEM_HOOK', 'COMPENSATION_SCAN', 'FULL_COMPENSATION_SCAN')
             """,
             now,
             now,
@@ -297,7 +298,9 @@ public class SyncRunSubmissionService {
     return runType == SyncRunType.FULL_SYNC
         || runType == SyncRunType.INCREMENTAL_SYNC
         || runType == SyncRunType.TABLE_REFRESH
-        || runType == SyncRunType.SYSTEM_HOOK;
+        || runType == SyncRunType.SYSTEM_HOOK
+        || runType == SyncRunType.COMPENSATION_SCAN
+        || runType == SyncRunType.FULL_COMPENSATION_SCAN;
   }
 
   private boolean shouldReuseMirrorRun(SyncRun activeRun, SyncRunType requestedType, List<String> requestedTables) {
@@ -306,10 +309,13 @@ public class SyncRunSubmissionService {
     }
     if (activeRun.getRunType() == SyncRunType.FULL_SYNC
         || activeRun.getRunType() == SyncRunType.INCREMENTAL_SYNC
-        || activeRun.getRunType() == SyncRunType.SYSTEM_HOOK) {
+        || activeRun.getRunType() == SyncRunType.SYSTEM_HOOK
+        || activeRun.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
       return true;
     }
-    if (requestedType == SyncRunType.INCREMENTAL_SYNC || requestedType == SyncRunType.SYSTEM_HOOK) {
+    if (requestedType == SyncRunType.INCREMENTAL_SYNC
+        || requestedType == SyncRunType.SYSTEM_HOOK
+        || requestedType == SyncRunType.FULL_COMPENSATION_SCAN) {
       return true;
     }
     if (requestedType != SyncRunType.TABLE_REFRESH || activeRun.getRunType() != SyncRunType.TABLE_REFRESH) {
@@ -407,6 +413,7 @@ public class SyncRunSubmissionService {
       case TABLE_REFRESH -> "tr";
       case SYSTEM_HOOK -> "sh";
       case COMPENSATION_SCAN -> "cs";
+      case FULL_COMPENSATION_SCAN -> "fc";
       case FACT_REFRESH -> "fr";
     };
   }

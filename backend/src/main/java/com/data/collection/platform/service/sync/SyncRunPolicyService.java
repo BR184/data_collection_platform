@@ -37,6 +37,7 @@ public class SyncRunPolicyService {
       case TABLE_REFRESH -> SyncType.INCREMENTAL;
       case SYSTEM_HOOK -> SyncType.SYSTEM_HOOK;
       case COMPENSATION_SCAN -> SyncType.COMPENSATION;
+      case FULL_COMPENSATION_SCAN -> SyncType.COMPENSATION;
       case FACT_REFRESH -> SyncType.COMPENSATION;
     };
   }
@@ -50,6 +51,7 @@ public class SyncRunPolicyService {
       case INCREMENTAL_SYNC -> 70;
       case SYSTEM_HOOK -> 60;
       case TABLE_REFRESH -> 40;
+      case FULL_COMPENSATION_SCAN -> 25;
       case COMPENSATION_SCAN -> 20;
       case FACT_REFRESH -> 10;
     };
@@ -59,7 +61,7 @@ public class SyncRunPolicyService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     String configId = config == null || config.getId() == null ? "unknown" : String.valueOf(config.getId());
     return switch (type) {
-      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK, COMPENSATION_SCAN ->
+      case FULL_SYNC, INCREMENTAL_SYNC, TABLE_REFRESH, SYSTEM_HOOK, COMPENSATION_SCAN, FULL_COMPENSATION_SCAN ->
           "source:" + configId + ":" + sourceInstance + MIRROR_SCOPE_SUFFIX;
       case FACT_REFRESH -> "source:" + configId + ":" + sourceInstance + FACT_SCOPE_SUFFIX;
     };

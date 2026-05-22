@@ -39,6 +39,7 @@ function setup(board = ref<StatisticBoardResponse | null>(createBoard())) {
   const syncDraftFromVisible = vi.fn();
   const saveVisibleColumnPrefs = vi.fn();
   const restoreDefaultViewPrefs = vi.fn();
+  const toggleAutoRefreshOnEnter = vi.fn();
   const actions = useStatisticBoardSettingsActions({
     board,
     draftVisibleColumnKeys,
@@ -48,6 +49,7 @@ function setup(board = ref<StatisticBoardResponse | null>(createBoard())) {
     syncDraftFromVisible,
     saveVisibleColumnPrefs,
     restoreDefaultViewPrefs,
+    toggleAutoRefreshOnEnter,
   });
   return {
     board,
@@ -58,6 +60,7 @@ function setup(board = ref<StatisticBoardResponse | null>(createBoard())) {
     syncDraftFromVisible,
     saveVisibleColumnPrefs,
     restoreDefaultViewPrefs,
+    toggleAutoRefreshOnEnter,
     actions,
   };
 }
@@ -68,10 +71,12 @@ describe('useStatisticBoardSettingsActions', () => {
 
     context.actions.handleSettingsCommand('open-settings');
     context.actions.handleSettingsCommand('clear-sort');
+    context.actions.handleSettingsCommand('toggle-auto-refresh');
     context.actions.handleSettingsCommand('restore-default-view');
 
     expect(context.openSettings).toHaveBeenCalledTimes(1);
     expect(context.clearCurrentSort).toHaveBeenCalledTimes(1);
+    expect(context.toggleAutoRefreshOnEnter).toHaveBeenCalledTimes(1);
     expect(context.restoreDefaultViewPrefs).toHaveBeenCalledWith(
       context.board.value?.definition,
       context.syncDraftFromVisible,

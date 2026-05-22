@@ -84,17 +84,17 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
   },
   {
     key: 'moduleName',
-    label: '模块',
+    label: '模块关键词',
     type: 'select',
     width: 180,
-    options: [{ label: '全部模块', value: '' }, ...filterOptions.value.moduleNames],
+    options: [{ label: '全部模块关键词', value: '' }, ...filterOptions.value.moduleNames],
   },
   {
     key: 'keyword',
-    label: '关键字',
+    label: '综合关键词',
     type: 'input',
     width: 260,
-    placeholder: '搜索议题编号、标题、模块、作者',
+    placeholder: '搜索议题编号、标题、模块、里程碑、轮次、作者',
   },
 ]);
 
@@ -169,8 +169,8 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
       value: `${values.updatedAtRange[0]} ~ ${values.updatedAtRange[1]}`,
     });
   }
-  if (values.moduleName) tags.push({ key: 'moduleName', label: '模块', value: String(values.moduleName) });
-  if (values.keyword) tags.push({ key: 'keyword', label: '关键字', value: String(values.keyword) });
+  if (values.moduleName) tags.push({ key: 'moduleName', label: '模块关键词', value: String(values.moduleName) });
+  if (values.keyword) tags.push({ key: 'keyword', label: '综合关键词', value: String(values.keyword) });
   if (values.issueIid) tags.push({ key: 'issueIid', label: '议题编号', value: String(values.issueIid) });
   if (values.title) tags.push({ key: 'title', label: '标题', value: String(values.title) });
   if (values.projectName) tags.push({ key: 'projectName', label: '项目名称', value: String(values.projectName) });

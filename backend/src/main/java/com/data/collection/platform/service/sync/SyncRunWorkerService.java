@@ -155,7 +155,8 @@ public class SyncRunWorkerService {
             || run.getRunType() == SyncRunType.INCREMENTAL_SYNC
             || run.getRunType() == SyncRunType.TABLE_REFRESH
             || run.getRunType() == SyncRunType.SYSTEM_HOOK
-            || run.getRunType() == SyncRunType.COMPENSATION_SCAN);
+            || run.getRunType() == SyncRunType.COMPENSATION_SCAN
+            || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN);
   }
 
   private SyncRunStatus tableRunStatus(SyncRunTableWorkerService.RunTableTaskSummary summary) {

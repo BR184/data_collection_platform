@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 // 统一统计板组件负责把查询条件、摘要卡片、图表和明细下钻串成同一套交互。
 // 各业务看板只传入 boardKey 和配置，避免每个页面重复实现刷新、排序和规则说明。
 import { ArrowDown, ArrowUp, Sort } from '@element-plus/icons-vue';
@@ -29,6 +29,7 @@ import { useStatisticBoardTableState } from '../composables/useStatisticBoardTab
 import { useStatisticBoardRuleExplanationState } from '../composables/useStatisticBoardRuleExplanationState';
 import { useStatisticBoardRefreshController } from '../composables/useStatisticBoardRefreshController';
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
+import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
 import {
   type SortDirection,
@@ -60,6 +61,11 @@ const props = withDefaults(
 const route = useRoute();
 const router = useRouter();
 const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
+const lastAutoRefreshAt = ref(0);
+const {
+  autoRefreshOnEnter,
+  toggleAutoRefreshOnEnter,
+} = usePageAutoRefreshPreference();
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -272,6 +278,7 @@ const {
   syncDraftFromVisible,
   saveVisibleColumnPrefs,
   restoreDefaultViewPrefs,
+  toggleAutoRefreshOnEnter,
 });
 
 const {
@@ -324,6 +331,26 @@ watch(
   },
   { immediate: true, deep: true },
 );
+
+onMounted(() => {
+  window.addEventListener('focus', handlePageFocus);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', handlePageFocus);
+});
+
+async function handlePageFocus() {
+  if (!autoRefreshOnEnter.value || loading.value) {
+    return;
+  }
+  const now = Date.now();
+  if (now - lastAutoRefreshAt.value < 10_000) {
+    return;
+  }
+  lastAutoRefreshAt.value = now;
+  await Promise.all([loadBoard(), loadRealtimeStatus()]);
+}
 </script>
 
 <template>
@@ -338,6 +365,7 @@ watch(
           :rule-explanation-loading="ruleExplanationLoading"
           :realtime-status="syncStatus"
           :can-refresh-realtime="canRefreshRealtime"
+          :auto-refresh-on-enter="autoRefreshOnEnter"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"
           @reset-filters="resetFilters"

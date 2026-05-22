@@ -37,6 +37,7 @@ function mountToolbar() {
         mirrorStatus: 'SUCCESS',
         factStatus: 'SUCCESS',
       },
+      autoRefreshOnEnter: true,
       uiHooks: {
         toolbarClass: 'toolbar-hook',
         toolbarMainClass: 'main-hook',
@@ -88,6 +89,7 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('已是最新');
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('镜像已完成');
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实已完成');
+    expect(wrapper.text()).toContain('关闭进入页面自动刷新');
     expect(wrapper.classes()).toContain('toolbar-hook');
     expect(wrapper.find('.stat-board-toolbar-main').classes()).toContain('main-hook');
     expect(wrapper.find('.stat-board-toolbar-actions').classes()).toContain('actions-hook');
@@ -108,6 +110,13 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.emitted('refreshBoard')).toHaveLength(1);
     expect(wrapper.emitted('openRuleExplanation')).toHaveLength(1);
     expect(wrapper.emitted('exportBoard')).toHaveLength(1);
+  });
+
+  it('shows the enable copy when page auto refresh is disabled', async () => {
+    const wrapper = mountToolbar();
+    await wrapper.setProps({ autoRefreshOnEnter: false });
+
+    expect(wrapper.text()).toContain('开启进入页面自动刷新');
   });
 
   it('shows two-stage refresh progress and failure copy', async () => {

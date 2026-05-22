@@ -34,18 +34,18 @@ class GitlabDailyVerificationSchedulerTest {
         .submitRun(
             eq(enabled),
             eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
+            eq(SyncRunType.FULL_COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Daily verification scan"),
+            eq("Daily full compensation scan"),
             eq(List.of()),
             eq(null));
     verify(submissionService, never())
         .submitRun(
             eq(disabled),
             eq(SyncType.COMPENSATION),
-            eq(SyncRunType.COMPENSATION_SCAN),
+            eq(SyncRunType.FULL_COMPENSATION_SCAN),
             eq(SyncTriggerType.SCHEDULE),
-            eq("Daily verification scan"),
+            eq("Daily full compensation scan"),
             eq(List.of()),
             eq(null));
   }

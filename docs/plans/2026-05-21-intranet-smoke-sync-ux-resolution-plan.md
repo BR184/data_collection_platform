@@ -492,10 +492,10 @@
 
 ### 尚未落地
 
-- 定时全量补偿同步尚未实现；该项需要新增配置、调度器、表级校验策略和源库压力保护，建议作为第二批独立功能处理。
-- 最近同步日志的筛选、展开表级任务、合并/跳过原因详情尚未做成完整运维视图。
-- 业务页面进入时自动刷新页面数据的全局开关尚未实现；本批只处理同步页日志轮询，不触发业务页额外源库同步。
-- 系统测试议题查询仍是现有筛选结构，本批只收窄误导性文案；“满足全部/满足任意”的完整条件查询组件需后续单独改造。
+- 定时全量补偿同步已建立最小运行类型闭环；后续仍需补充 UI 配置项、执行窗口和更完整的源库压力保护。
+- 最近同步日志已支持类型/结果筛选和展开诊断详情；展开表级任务和更细的合并/跳过原因详情仍可继续增强。
+- 统计类业务页面已支持进入/回到页面时自动刷新当前页面数据的本地开关；非统计类列表页后续可复用同一策略逐步接入。
+- 系统测试议题查询已把误导性的关键词文案收窄为“综合关键词/模块关键词”；“满足全部/满足任意”的完整条件查询组件仍需后续单独改造。
 
 ## 2026-05-22 同步策略回退修复与真实链路验证
 
@@ -556,3 +556,37 @@
 - 前端针对性测试：`npm test -- --run src/composables/useStatisticBoardRefreshController.test.ts src/App.test.ts src/utils/user-message.test.ts` 通过。
 - 前端类型检查：`npm run typecheck` 通过。
 - 后端针对性测试：`mvn -Dtest=RealtimeWorkspaceServiceTest test` 通过。
+
+## 2026-05-22 第二批未落地问题修复
+
+### 最近同步日志运维入口
+
+- 最近同步日志增加“类型”和“结果”筛选，用户可以只看单表刷新、System Hook 唤醒、定时全量补偿等特定类型，也可以按已完成、需要处理、处理中等结果过滤。
+- 每条日志支持展开诊断详情，默认表格仍只展示用户态类型和结果；展开后才显示运行编号、触发方式、内部类型、内部状态、错误信息和完整消息。
+- 该改动不改变同步提交、调度、合并和执行逻辑，只优化日志查找与诊断入口。
+
+### 系统测试议题查询文案收敛
+
+- 主查询框从“关键字”改为“综合关键词”，placeholder 明确包含议题编号、标题、模块、里程碑、轮次、作者。
+- 原“模块”筛选改为“模块关键词”，避免用户误以为该字段只包含严格拆分后的模块名称。
+- 当前只修正误导性文案，不改变查询参数、后端筛选逻辑或导出格式。
+
+### 定时全量补偿最小闭环
+
+- 新增内部运行类型 `FULL_COMPENSATION_SCAN`，用户侧显示为“定时全量补偿”。
+- 每日低峰校验调度从普通 `COMPENSATION_SCAN` 改为 `FULL_COMPENSATION_SCAN`，不再在日志里被误认为普通自动补偿扫描。
+- 该运行类型复用同源互斥范围，不能与全量、增量、单表刷新、System Hook 或普通补偿扫描并发执行。
+- 表任务策略仍按补偿扫描执行：优先使用更新时间水位进行差异补齐，不执行真正的全量重建，避免给 GitLab 源库带来全量重刷压力。
+
+### 业务页自动刷新当前页面数据
+
+- 统计类业务页面增加“进入页面自动刷新”本地开关，默认开启。
+- 回到页面焦点时只刷新当前统计页数据和实时状态，不触发 GitLab 源库同步，不重置筛选、排序、分页和下钻状态。
+- 自动刷新增加 10 秒节流，避免浏览器焦点切换造成页面频繁刷新或抖动。
+
+### 已验证
+
+- 前端针对性测试：`npm test -- --run src/views/MirrorSyncLogTable.test.ts src/views/mirror-settings-helpers.test.ts src/views/system-test-issue-search.mount-smoke.test.ts` 通过。
+- 前端自动刷新设置测试：`npm test -- --run src/components/StatisticBoardToolbar.test.ts src/composables/useStatisticBoardSettingsActions.test.ts src/composables/usePageAutoRefreshPreference.test.ts src/views/statistic-board-page.mount-smoke.test.ts` 通过。
+- 前端类型检查：`npm run typecheck` 通过。
+- 后端针对性测试：`mvn -Dtest=GitlabDailyVerificationSchedulerTest,SyncRunPolicyServiceTest,SyncRunSubmissionServiceTest,SyncRunTablePlanningServiceTest,SyncRunWorkerServiceTest test` 通过。
