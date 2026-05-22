@@ -8,6 +8,9 @@ import {
   syncLogMessage,
   syncStatusTagType,
   syncStatusText,
+  tableTaskStatusText,
+  tableDiagnosticNote,
+  tableRowStrategyText,
   syncTypeTagType,
   syncTypeText,
   translateSyncMessage,
@@ -38,6 +41,19 @@ describe('mirror settings helpers', () => {
     expect(syncTypeText('PURGE')).toBe('删除镜像数据');
     expect(syncTypeText('SYSTEM_HOOK')).toBe('System Hook 唤醒');
     expect(syncTypeTagType('FULL')).toBe('warning');
+    expect(tableTaskStatusText('QUEUED')).toBe('等待处理');
+    expect(tableTaskStatusText('RUNNING')).toBe('处理中');
+    expect(tableRowStrategyText('INCREMENTAL')).toBe('按更新时间补齐');
+    expect(tableDiagnosticNote({
+      sourceTable: 'issues',
+      mirrorTable: 'ods_gitlab_issues',
+      primaryKeyColumns: 'id',
+      rowStrategy: 'INCREMENTAL',
+      syncEnabled: true,
+      dirty: true,
+      dirtyReason: 'row_count_drift',
+      blockingRunId: 'run-1',
+    })).toBe('当前同步正在处理相关表');
   });
 
   it('translates known sync messages and falls back to default log copy', () => {

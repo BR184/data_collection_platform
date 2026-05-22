@@ -555,12 +555,12 @@ public class GitlabSyncController {
     }
     return switch (status) {
       case PENDING -> "待执行";
-      case QUEUED -> "排队中";
+      case QUEUED -> "等待执行";
       case RUNNING -> "执行中";
       case RETRYING -> "重试中";
       case SUCCESS -> "成功";
-      case PARTIAL_SUCCESS -> "部分成功";
-      case FAILED -> "失败";
+      case PARTIAL_SUCCESS -> "已完成，需查看明细";
+      case FAILED -> "需要处理";
       case CANCELLED -> "已取消";
       case TIMEOUT -> "已超时";
       case CANCELLING -> "取消中";

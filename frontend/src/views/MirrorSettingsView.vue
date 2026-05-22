@@ -8,7 +8,7 @@ import { api } from '../api';
 import type { GitlabSourceHealthResponse, GitlabSyncConfig, SyncRunDiagnosticsResponse } from '../types/api';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import { buildPurgeSummaryHtml } from './mirror-settings-helpers';
+import { buildPurgeSummaryHtml, syncStatusText, translateSyncMessage } from './mirror-settings-helpers';
 import MirrorRunMonitorPanel from './MirrorRunMonitorPanel.vue';
 import MirrorRunTableTaskDrawer from './MirrorRunTableTaskDrawer.vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
@@ -317,6 +317,21 @@ const currentSourceHealthSummary = computed(() => {
     return health.latestLogMessage || '最近一次同步部分表未成功，系统会继续按表级任务恢复。';
   }
   return '镜像表、事实层和最近同步状态未发现阻断问题。';
+});
+const currentSourceLatestSyncStatusText = computed(() => {
+  const health = currentSourceHealth.value;
+  if (!health) {
+    return '-';
+  }
+  const rawStatus = health.latestLogStatus || health.currentStatus;
+  return rawStatus ? syncStatusText(rawStatus) : '-';
+});
+const currentSourceHealthMessageText = computed(() => {
+  const health = currentSourceHealth.value;
+  if (!health) {
+    return '';
+  }
+  return translateSyncMessage(health.latestLogMessage || health.currentMessage) || '';
 });
 const missingRequiredMirrorTablesPreview = computed(() => {
   const tables = currentSourceHealth.value?.missingRequiredMirrorTables ?? [];
@@ -907,7 +922,7 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <span>最新同步</span>
-              <strong>{{ currentSourceHealth.latestLogStatus || currentSourceHealth.currentStatus || '-' }}</strong>
+              <strong>{{ currentSourceLatestSyncStatusText }}</strong>
             </div>
           </div>
           <div class="source-health-fact-grid">
@@ -959,9 +974,9 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div v-if="currentSourceHealth.latestLogMessage || currentSourceHealth.currentMessage" class="source-health-message">
+          <div v-if="currentSourceHealthMessageText" class="source-health-message">
             <span>近期信息</span>
-            <strong>{{ currentSourceHealth.latestLogMessage || currentSourceHealth.currentMessage }}</strong>
+            <strong>{{ currentSourceHealthMessageText }}</strong>
           </div>
           <el-alert
             v-if="currentSourceHealth.missingRequiredMirrorTables.length"

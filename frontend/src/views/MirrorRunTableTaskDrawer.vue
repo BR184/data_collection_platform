@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { SyncRunDiagnosticsResponse, SyncRunTableDiagnostics } from '../types/api';
-import { formatDateTime, syncStatusTagType, syncStatusText } from './mirror-settings-helpers';
+import { formatDateTime, syncStatusTagType, tableDiagnosticNote, tableTaskStatusText } from './mirror-settings-helpers';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -20,7 +20,7 @@ const visible = computed({
 const rows = computed(() => props.diagnostics?.tables ?? []);
 
 function tableNote(row: SyncRunTableDiagnostics) {
-  return row.latestTaskError || row.lastError || row.driftSummary || row.dirtyReason || row.rowStrategy;
+  return tableDiagnosticNote(row);
 }
 
 function tableTime(row: SyncRunTableDiagnostics) {
@@ -51,7 +51,7 @@ function tableTime(row: SyncRunTableDiagnostics) {
       <el-table-column label="状态" width="104">
         <template #default="{ row }">
           <el-tag v-if="row.latestTaskStatus" size="small" :type="syncStatusTagType(row.latestTaskStatus)">
-            {{ syncStatusText(row.latestTaskStatus) }}
+            {{ tableTaskStatusText(row.latestTaskStatus) }}
           </el-tag>
           <el-tag v-else size="small" type="info">空闲</el-tag>
         </template>

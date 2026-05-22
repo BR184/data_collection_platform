@@ -1,4 +1,11 @@
-import type { SyncRunLog, GitlabSyncStatus, GitlabSyncType, MirrorPurgeResult } from '../types/api';
+import type {
+  SyncRunLog,
+  GitlabSyncStatus,
+  GitlabSyncType,
+  MirrorPurgeResult,
+  SyncRunTableDiagnostics,
+  GitlabTableRowStrategy,
+} from '../types/api';
 import { formatBeijingDateTime } from '../utils/beijing-time';
 
 const ACTIVE_POLLING_STATUSES: GitlabSyncStatus[] = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
@@ -55,6 +62,32 @@ const SYNC_STATUS_TAG_TYPES: Record<GitlabSyncStatus | 'IDLE', 'danger' | 'info'
   TIMEOUT: 'danger',
   CANCELLING: 'warning',
   IDLE: 'info',
+};
+
+const TABLE_TASK_STATUS_LABELS: Record<GitlabSyncStatus, string> = {
+  PENDING: '等待处理',
+  QUEUED: '等待处理',
+  RUNNING: '处理中',
+  RETRYING: '重试中',
+  SUCCESS: '已完成',
+  PARTIAL_SUCCESS: '已完成，需查看明细',
+  FAILED: '需要处理',
+  CANCELLED: '已取消',
+  TIMEOUT: '已超时',
+  CANCELLING: '取消中',
+};
+
+const TABLE_ROW_STRATEGY_LABELS: Record<string, string> = {
+  INCREMENTAL: '按更新时间补齐',
+  FULL_SMALL_TABLE: '小表整表校验',
+  VERIFY_ONLY: '只校验',
+  UNSUPPORTED: '暂不支持自动写入',
+};
+
+const DIRTY_REASON_LABELS: Record<string, string> = {
+  row_count_drift: '源表与镜像表行数不一致',
+  schema_changed: '源表结构发生变化',
+  task_failed: '最近一次表任务未完成',
 };
 
 export function formatDateTime(value?: string | null) {
@@ -115,6 +148,33 @@ export function logStatusText(statusValue: GitlabSyncStatus) {
   return syncStatusText(statusValue);
 }
 
+export function tableTaskStatusText(statusValue: GitlabSyncStatus | string) {
+  return TABLE_TASK_STATUS_LABELS[statusValue as GitlabSyncStatus] ?? statusValue;
+}
+
+export function tableRowStrategyText(strategy: GitlabTableRowStrategy | string | null | undefined) {
+  if (!strategy) {
+    return '-';
+  }
+  return TABLE_ROW_STRATEGY_LABELS[strategy] ?? strategy;
+}
+
+export function tableDiagnosticNote(row: SyncRunTableDiagnostics) {
+  if (row.latestTaskError || row.lastError) {
+    return row.latestTaskError || row.lastError || '表任务需要查看明细';
+  }
+  if (row.blockingRunId) {
+    return '当前同步正在处理相关表';
+  }
+  if (row.dirtyReason) {
+    return DIRTY_REASON_LABELS[row.dirtyReason] ?? row.dirtyReason;
+  }
+  if (row.driftSummary) {
+    return row.driftSummary;
+  }
+  return tableRowStrategyText(row.rowStrategy);
+}
+
 export function translateSyncMessage(message?: string | null, syncType?: GitlabSyncType | null) {
   const normalized = message?.trim() ?? '';
   if (!normalized) {
@@ -146,7 +206,7 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   if (/^Sync run cancelled$/i.test(normalized)) {
     return '同步运行已取消';
   }
-  if (/^Queued sync run cancelled$/i.test(normalized)) {
+  if (/^Queued sync run cancelled$/i.test(normalized) || normalized === '已取消排队中的同步任务') {
     return '已取消等待中的同步任务';
   }
   if (/^Cancelled before worker start$/i.test(normalized)) {

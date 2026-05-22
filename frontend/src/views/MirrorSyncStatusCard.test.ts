@@ -56,7 +56,7 @@ describe('MirrorSyncStatusCard', () => {
     expect(wrapper.text()).toContain('首次全量同步');
     expect(wrapper.text()).toContain('50%');
     expect(wrapper.text()).toContain('issues');
-    expect(wrapper.text()).toContain('处理批次完成数');
+    expect(wrapper.text()).toContain('表项进度');
     expect(wrapper.text()).toContain('2/4');
     expect(wrapper.text()).toContain('42');
     expect(wrapper.text()).toContain('invalid-start');

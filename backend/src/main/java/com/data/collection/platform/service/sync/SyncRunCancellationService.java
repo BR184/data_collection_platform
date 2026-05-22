@@ -54,7 +54,7 @@ public class SyncRunCancellationService {
         run.getId(),
         run.getRunId(),
         run.getStatus(),
-        queued ? "已取消排队中的同步任务" : "已请求取消同步任务");
+        queued ? "已取消等待中的同步任务" : "已请求取消同步任务");
   }
 
   private SyncRun findCancellableRun(Long configId) {
@@ -101,7 +101,7 @@ public class SyncRunCancellationService {
         run.getConfigId(),
         run.getSourceInstance(),
         queued ? "RUN_CANCELLED_BEFORE_START" : "RUN_CANCELLATION_REQUESTED",
-        queued ? "已取消排队中的同步任务" : "已请求取消同步任务",
+        queued ? "已取消等待中的同步任务" : "已请求取消同步任务",
         "{\"requestedBy\":\""
             + escapeJson(requestedBy)
             + "\",\"reason\":\""

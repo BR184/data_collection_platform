@@ -590,3 +590,37 @@
 - 前端自动刷新设置测试：`npm test -- --run src/components/StatisticBoardToolbar.test.ts src/composables/useStatisticBoardSettingsActions.test.ts src/composables/usePageAutoRefreshPreference.test.ts src/views/statistic-board-page.mount-smoke.test.ts` 通过。
 - 前端类型检查：`npm run typecheck` 通过。
 - 后端针对性测试：`mvn -Dtest=GitlabDailyVerificationSchedulerTest,SyncRunPolicyServiceTest,SyncRunSubmissionServiceTest,SyncRunTablePlanningServiceTest,SyncRunWorkerServiceTest test` 通过。
+
+## 2026-05-22 第三批误导性文案收口与回归测试
+
+### 修复内容
+
+- 最近同步日志表头从“状态”改为“结果”，从“计划批次/完成批次”改为“计划表项/完成表项”，避免用户误以为这里展示的是业务表总数或真实进程批队列。
+- 同步状态卡片从“处理批次完成数/失败批次”改为“表项进度/异常表项”，只表达当前同步覆盖的表级任务进度，不暗示平台存在多个同源同步进程。
+- 数据镜像监控的“当前运行”改为“当前处理”，默认展示“全量同步/刷新最新数据/System Hook 唤醒”等用户态类型，不再把 runId 作为普通用户第一眼看到的主标题。
+- 表任务状态使用独立文案：表任务里的 `QUEUED` 显示为“等待处理”，不再复用同步运行里的“等待当前同步完成”，避免把表级任务误解为另一个同步进程。
+- 表任务原因和待修复说明收敛为用户可读文案，例如 `row_count_drift` 显示为“源表与镜像表行数不一致”，`blockingRunId` 显示为“当前同步正在处理相关表”，内部运行编号不再默认暴露。
+- 数据源健康卡片里的“最新同步”和“近期信息”统一走用户态状态/消息转换，不再直接展示 `PARTIAL_SUCCESS`、英文同步消息或“排队中”等内部说法。
+- 后端提交响应里的 `statusText` 从“排队中/部分成功/失败”改为“等待执行/已完成，需查看明细/需要处理”；取消等待中任务的文案从“排队中”改为“等待中”。
+
+### 新发现与处理
+
+- 前端全量测试发现 `mirror-settings.mount-smoke.test.ts` 仍断言页面必须展示内部运行号 `sr_full_alpha`。这与“普通用户视图不默认暴露内部运行编号”的新 UX 规则冲突。
+- 处理方式：保留运行编号在日志展开诊断区可见，普通镜像监控区改为展示“当前同步正在处理相关表”等用户态信息；同步更新测试断言，防止后续误把内部编号重新放回主视图。
+
+### 真实链路与回归验证
+
+- 确认本地 18181 前端进程和 18080 后端进程均来自当前工作区 `D:\projects\data_collection_platform`，不是旧版本服务。
+- 真实 API 链路：`/api/auth/login` 登录 200，`/api/gitlab-sync/status` 返回 200，`/api/statistic-boards/system-test-phase-statistics/details` 返回 200。
+- 前端针对性测试：`npm test -- --run src/views/mirror-settings-helpers.test.ts src/views/MirrorRunMonitorPanel.test.ts src/views/MirrorSyncStatusCard.test.ts src/views/MirrorSyncLogTable.test.ts src/views/useMirrorSyncActionsController.test.ts src/composables/useStatisticBoardDetail.test.ts src/components/StatisticBoardDetailDialog.test.ts` 通过，26 个用例通过。
+- 前端类型检查：`npm run typecheck` 通过。
+- 前端全量测试：`npm test -- --run` 通过，77 个测试文件、230 个用例通过。
+- 前端生产构建：`npm run build` 通过。
+- 后端针对性测试：`mvn -Dtest=GitlabSyncControllerTest,SyncRunCancellationServiceTest,SyncRunSubmissionServiceTest test` 通过，23 个用例通过。
+- 后端全量测试：`mvn test` 通过，409 个用例执行，0 失败，0 错误，4 个按条件跳过。
+
+### 仍需后续设计的问题
+
+- “满足全部/满足任意”的完整条件查询组件仍需单独设计与落地；当前只完成系统测试议题查询的误导性文案收敛。
+- 定时全量补偿目前已具备内部运行类型和低峰调度最小闭环，但 UI 可配置执行时间、执行窗口、最大表数/批次数和源库压力保护仍需后续增强。
+- 非统计类业务列表页尚未全部接入“进入页面自动刷新当前页面数据”开关；现阶段优先覆盖统计类业务页面，后续可复用同一偏好设置逐步接入。

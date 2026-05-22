@@ -164,7 +164,7 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.text()).toContain('预计本次配置会使用');
     expect(wrapper.text()).toContain('数据镜像监控');
     expect(wrapper.text()).toContain('表任务状态');
-    expect(wrapper.text()).toContain('sr_full_alpha');
+    expect(wrapper.text()).toContain('当前同步正在处理相关表');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
 
     const openDialogButton = wrapper.findAll('button').find((button) => button.text().includes('删除镜像数据'));

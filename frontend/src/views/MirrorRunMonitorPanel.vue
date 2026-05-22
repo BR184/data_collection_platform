@@ -7,6 +7,7 @@ import {
   syncStatusTagType,
   syncStatusText,
   syncTypeText,
+  tableDiagnosticNote,
   translateSyncMessage,
 } from './mirror-settings-helpers';
 import MirrorRunQueueTable from './MirrorRunQueueTable.vue';
@@ -56,6 +57,13 @@ const tableProgressText = computed(() => {
     return '-';
   }
   return `${progress.value.completedTables}/${progress.value.totalTables}`;
+});
+const currentRunTitle = computed(() => {
+  const task = currentTask.value;
+  if (!task) {
+    return '暂无运行中的同步';
+  }
+  return syncTypeText(task.taskType);
 });
 const currentMessageText = computed(() =>
   translateSyncMessage(props.status?.currentMessage, currentTask.value?.taskType) || '当前没有运行中的同步任务',
@@ -108,8 +116,8 @@ function terminalTime(log: SyncRunLog) {
     <div class="monitor-stack">
       <section class="active-run-panel">
         <div class="active-run-main">
-          <span>当前运行</span>
-          <strong>{{ currentTask?.runId || status?.currentStatus || 'IDLE' }}</strong>
+          <span>当前处理</span>
+          <strong>{{ currentRunTitle }}</strong>
           <small>{{ currentMessageText }}</small>
         </div>
         <div class="active-run-metrics">
@@ -120,7 +128,7 @@ function terminalTime(log: SyncRunLog) {
             </el-tag>
           </div>
           <div>
-            <span>处理批次完成数</span>
+            <span>表项进度</span>
             <strong>{{ tableProgressText }}</strong>
           </div>
           <div>
@@ -166,7 +174,7 @@ function terminalTime(log: SyncRunLog) {
         <div v-if="dirtyTables.length" class="dirty-list">
           <div v-for="table in dirtyTables" :key="table.sourceTable" class="dirty-row">
             <strong>{{ table.sourceTable }}</strong>
-            <span>{{ table.blockingRunId || table.dirtyReason || table.latestTaskError || table.driftSummary || '待修复' }}</span>
+            <span>{{ tableDiagnosticNote(table) || '待修复' }}</span>
           </div>
         </div>
         <el-empty v-else description="暂无待修复表" :image-size="48" />
