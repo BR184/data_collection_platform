@@ -59,6 +59,11 @@ export const mirrorApi = {
       method: 'POST',
     });
   },
+  startFullCompensationSync(configId?: number) {
+    return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/full-compensation-sync/by-config', configId), {
+      method: 'POST',
+    });
+  },
   retryFailedSync(configId?: number) {
     return request<SyncSubmissionResponse>(withConfigId('/api/gitlab-sync/retry-failed/by-config', configId), {
       method: 'POST',

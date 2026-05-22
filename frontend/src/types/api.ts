@@ -46,6 +46,8 @@ export interface GitlabSyncConfig {
   systemHookEnabled?: boolean;
   systemHookProjectId?: number | null;
   compensationIntervalMinutes: number;
+  fullCompensationEnabled?: boolean;
+  fullCompensationTime?: string;
   syncThreadMode: SyncThreadMode;
   syncThreadValue: number;
   maxSyncThreads?: number | null;

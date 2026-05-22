@@ -25,4 +25,12 @@ describe('mirrorApi system hook endpoints', () => {
       method: 'POST',
     });
   });
+
+  it('uses full compensation reconciliation path', () => {
+    mirrorApi.startFullCompensationSync(12);
+
+    expect(request).toHaveBeenCalledWith('/api/gitlab-sync/full-compensation-sync/by-config?configId=12', {
+      method: 'POST',
+    });
+  });
 });

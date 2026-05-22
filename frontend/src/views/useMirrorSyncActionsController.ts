@@ -8,6 +8,7 @@ export interface MirrorSyncActionsControllerDependencies {
   testConnectionData: () => Promise<{ success: boolean; message: string }>;
   startFullSyncData: () => Promise<SyncSubmissionResponse>;
   startIncrementalSyncData: () => Promise<SyncSubmissionResponse>;
+  startFullCompensationSyncData: () => Promise<SyncSubmissionResponse>;
   cancelSyncData: () => Promise<{ accepted: boolean; runId?: number; status?: string; message?: string }>;
   loadStatus: (showError: boolean, blocking: boolean, options?: MirrorStatusLoadOptions) => Promise<void>;
   loadSystemHookRegistration: () => void;
@@ -111,6 +112,20 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
     }
   }
 
+  async function startFullCompensationSync() {
+    syncing.value = true;
+    try {
+      await saveConfig(false);
+      const result = await deps.startFullCompensationSyncData();
+      showSubmissionFeedback(result);
+      await deps.loadStatus(false, false);
+    } catch (error) {
+      deps.notifyError((error as Error).message);
+    } finally {
+      syncing.value = false;
+    }
+  }
+
   async function cancelSyncTask() {
     cancelling.value = true;
     try {
@@ -137,6 +152,7 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
     testConnection,
     startFullSync,
     startIncrementalSync,
+    startFullCompensationSync,
     cancelSyncTask,
     showSubmissionFeedback,
   };

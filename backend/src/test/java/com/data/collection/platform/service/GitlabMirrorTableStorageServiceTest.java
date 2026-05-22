@@ -100,4 +100,35 @@ class GitlabMirrorTableStorageServiceTest {
     assertThat(sqlCaptor.getValue()).contains("\"id\"::text > ?");
     assertThat(sqlCaptor.getValue()).contains("order by \"id\"::text asc");
   }
+
+  @Test
+  void forceUpsertShouldBypassUpdatedAtConflictGuard() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    JsonUtils jsonUtils = mock(JsonUtils.class);
+    GitlabMirrorTableStorageService service = new GitlabMirrorTableStorageService(jdbcTemplate, jsonUtils);
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", true, 2),
+                new SourceTableColumn("title", "text", true, 3)));
+    List<Map<String, Object>> rows =
+        List.of(Map.of("id", 101L, "updated_at", "2026-05-21 10:00:00", "title", "source"));
+    when(jsonUtils.toJson(rows.get(0))).thenReturn("{\"id\":101}");
+    when(jdbcTemplate.batchUpdate(
+            ArgumentMatchers.anyString(),
+            ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class)))
+        .thenReturn(new int[] {1});
+
+    service.upsertBatch(schema, rows, 99L, true);
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    verify(jdbcTemplate).batchUpdate(
+        sqlCaptor.capture(),
+        ArgumentMatchers.any(org.springframework.jdbc.core.BatchPreparedStatementSetter.class));
+    assertThat(sqlCaptor.getValue()).doesNotContain("where excluded.\"updated_at\"");
+  }
 }

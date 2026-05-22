@@ -123,7 +123,7 @@ public class SyncRunTablePlanningService {
     }
     LocalDateTime now = LocalDateTime.now();
     int planned = existingTaskKeys.size();
-    boolean fullSync = run.getRunType() == SyncRunType.FULL_SYNC;
+    boolean fullSync = isFullTableRun(run);
     for (TableWhitelistOption option : options) {
       if (!isRunnableForRun(fullSync, option)) {
         log.info("Skipped table without runnable key columns, runId={}, sourceTable={}", run.getId(), option.tableName());
@@ -258,14 +258,20 @@ public class SyncRunTablePlanningService {
   }
 
   private LocalDateTime resolveTaskWatermark(SyncRun run, SyncRunTableState state) {
-    if (run.getRunType() == SyncRunType.FULL_SYNC) {
+    if (isFullTableRun(run)) {
       return INITIAL_WATERMARK;
     }
     return state.getLastWatermarkAt() == null ? INITIAL_WATERMARK : state.getLastWatermarkAt();
   }
 
   private String rowStrategyForTask(SyncRun run) {
-    return run.getRunType() == SyncRunType.FULL_SYNC ? "FULL" : "INCREMENTAL";
+    if (run.getRunType() == SyncRunType.FULL_SYNC) {
+      return "FULL";
+    }
+    if (run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
+      return "FULL_RECONCILE";
+    }
+    return "INCREMENTAL";
   }
 
   private String rowStrategyForState(SyncRun run, TableWhitelistOption option) {
@@ -300,6 +306,12 @@ public class SyncRunTablePlanningService {
 
   private boolean isBlank(String value) {
     return value == null || value.isBlank();
+  }
+
+  private boolean isFullTableRun(SyncRun run) {
+    return run != null
+        && (run.getRunType() == SyncRunType.FULL_SYNC
+            || run.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN);
   }
 
   private Set<String> existingTaskKeys(Long runId) {

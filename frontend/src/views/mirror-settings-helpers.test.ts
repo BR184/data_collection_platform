@@ -44,6 +44,7 @@ describe('mirror settings helpers', () => {
     expect(tableTaskStatusText('QUEUED')).toBe('等待处理');
     expect(tableTaskStatusText('RUNNING')).toBe('处理中');
     expect(tableRowStrategyText('INCREMENTAL')).toBe('按更新时间补齐');
+    expect(tableRowStrategyText('FULL_RECONCILE')).toBe('全量补偿对账');
     expect(tableDiagnosticNote({
       sourceTable: 'issues',
       mirrorTable: 'ods_gitlab_issues',
@@ -59,7 +60,7 @@ describe('mirror settings helpers', () => {
   it('translates known sync messages and falls back to default log copy', () => {
     expect(translateSyncMessage('Sync completed successfully')).toBe('同步已完成');
     expect(translateSyncMessage('Cancellation requested')).toBe('已请求取消同步任务');
-    expect(translateSyncMessage('Queued sync run cancelled')).toBe('已取消等待中的同步任务');
+    expect(translateSyncMessage('Queued sync run cancelled')).toBe('已取消尚未开始的同步任务');
     expect(translateSyncMessage('Sync run cancelled')).toBe('同步运行已取消');
     expect(translateSyncMessage('Cancelled before worker start')).toBe('任务启动前已取消');
     expect(translateSyncMessage('Triggered by system hook: issue#1', 'SYSTEM_HOOK')).toBe('System Hook 已唤醒同步：issue#1');
@@ -69,9 +70,10 @@ describe('mirror settings helpers', () => {
       ),
     ).toBe('同步已完成，补偿扫描跳过 3 张缺少时间列的表。');
     expect(translateSyncMessage('Daily full compensation scan', 'COMPENSATION')).toBe('定时全量补偿');
+    expect(translateSyncMessage('手动全量补偿对账', 'COMPENSATION')).toBe('手动全量补偿对账');
     expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', message: '' }))).toBe('自动补偿扫描。');
     expect(syncLogMessage(createLog({ syncType: 'COMPENSATION', runType: 'FULL_COMPENSATION_SCAN', message: '' }))).toBe(
-      '定时全量补偿。',
+      '全量补偿对账。',
     );
     expect(syncLogMessage(createLog({ syncType: 'INCREMENTAL', runType: 'TABLE_REFRESH', message: '' }))).toBe('单表刷新。');
   });

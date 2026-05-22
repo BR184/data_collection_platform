@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -12,9 +13,11 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
 import com.data.collection.platform.entity.MirrorStatusResponse;
+import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
 import com.data.collection.platform.entity.SyncType;
+import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.service.GitlabConfigService;
@@ -157,6 +160,79 @@ class GitlabSyncControllerTest {
         .containsEntry("runId", 89L)
         .containsEntry("status", SyncStatus.QUEUED)
         .containsEntry("type", SyncType.INCREMENTAL);
+  }
+
+  @Test
+  void shouldRouteFullCompensationSubmissionToUnifiedSyncRunSubmissionService() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setId(1L);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(submissionService.submitFullCompensationSync(
+            config,
+            com.data.collection.platform.entity.SyncTriggerType.MANUAL,
+            "手动全量补偿对账"))
+        .thenReturn(
+            new SyncRunSubmissionResult(
+                91L,
+                SyncType.COMPENSATION,
+                SyncStatus.QUEUED,
+                SyncSubmissionAction.QUEUED,
+                LocalDateTime.of(2026, 5, 15, 9, 8),
+                "Queued full compensation"));
+
+    var response = controller.fullCompensationSync(1L);
+
+    verify(submissionService)
+        .submitFullCompensationSync(
+            config,
+            com.data.collection.platform.entity.SyncTriggerType.MANUAL,
+            "手动全量补偿对账");
+    assertThat(response.getData())
+        .containsEntry("runId", 91L)
+        .containsEntry("status", SyncStatus.QUEUED)
+        .containsEntry("type", SyncType.COMPENSATION);
+  }
+
+  @Test
+  void shouldSaveFullCompensationScheduleConfig() {
+    GitlabSyncConfig saved = new GitlabSyncConfig();
+    saved.setId(1L);
+    saved.setName("GitLab default source");
+    saved.setFullCompensationEnabled(true);
+    saved.setFullCompensationTime("02:30");
+    when(configService.saveConfig(org.mockito.ArgumentMatchers.any(GitlabSyncConfig.class))).thenReturn(saved);
+
+    controller.saveConfig(
+        new GitlabSyncController.SaveConfigRequest(
+            1L,
+            "GitLab default source",
+            true,
+            true,
+            true,
+            false,
+            "default",
+            SourceMode.DIRECT,
+            WhitelistMode.RECOMMENDED,
+            List.of(),
+            "localhost",
+            5432,
+            "gitlabhq_production",
+            "gitlab",
+            "secret",
+            "",
+            "",
+            null,
+            360,
+            true,
+            "02:30",
+            SyncThreadBudgetResolver.MODE_FIXED,
+            java.math.BigDecimal.valueOf(2),
+            16));
+
+    verify(configService)
+        .saveConfig(argThat((GitlabSyncConfig config) ->
+            Boolean.TRUE.equals(config.getFullCompensationEnabled())
+                && "02:30".equals(config.getFullCompensationTime())));
   }
 
   @Test

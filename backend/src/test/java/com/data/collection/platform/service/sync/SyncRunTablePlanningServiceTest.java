@@ -147,7 +147,7 @@ class SyncRunTablePlanningServiceTest {
   }
 
   @Test
-  void shouldPlanFullCompensationFromWhitelistWithoutFullOverwriteStrategy() {
+  void shouldPlanFullCompensationFromWhitelistWithReconcileStrategy() {
     SyncRun run = run(SyncRunType.FULL_COMPENSATION_SCAN);
     GitlabSyncConfig config = config();
     when(syncRunMapper.selectById(77L)).thenReturn(run);
@@ -170,13 +170,21 @@ class SyncRunTablePlanningServiceTest {
 
     int planned = planningService.planRunTables(77L);
 
-    assertThat(planned).isEqualTo(1);
+    assertThat(planned).isEqualTo(2);
     ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
-    verify(taskMapper).insert(taskCaptor.capture());
-    assertThat(taskCaptor.getValue().getTaskType()).isEqualTo("FULL_COMPENSATION_SCAN");
-    assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("issues");
-    assertThat(taskCaptor.getValue().getRowStrategy()).isEqualTo("INCREMENTAL");
-    assertThat(taskCaptor.getValue().getWatermarkAt()).isEqualTo(LocalDateTime.of(2026, 5, 20, 10, 0));
+    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getTaskType)
+        .containsExactly("FULL_COMPENSATION_SCAN", "FULL_COMPENSATION_SCAN");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getSourceTable)
+        .containsExactly("issues", "namespaces");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getRowStrategy)
+        .containsExactly("FULL_RECONCILE", "FULL_RECONCILE");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getWatermarkAt)
+        .containsOnly(LocalDateTime.of(1970, 1, 1, 0, 0));
   }
 
   @Test

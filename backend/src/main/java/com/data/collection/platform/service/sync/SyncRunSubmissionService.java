@@ -75,6 +75,18 @@ public class SyncRunSubmissionService {
   }
 
   @Transactional
+  public SyncRunSubmissionResult submitFullCompensationSync(GitlabSyncConfig config, SyncTriggerType triggerType, String reason) {
+    return submitRun(
+        config,
+        SyncType.COMPENSATION,
+        SyncRunType.FULL_COMPENSATION_SCAN,
+        triggerType,
+        reason,
+        List.of(),
+        null);
+  }
+
+  @Transactional
   public SyncRunSubmissionResult submitTableRefresh(
       GitlabSyncConfig config, List<String> sourceTables, String reason) {
     List<String> normalizedTables = normalizeTables(sourceTables);

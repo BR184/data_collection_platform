@@ -23,6 +23,7 @@ public class GitlabConfigService {
   static final int MIN_COMPENSATION_INTERVAL_MINUTES = 1;
   static final int MAX_COMPENSATION_INTERVAL_MINUTES = 720;
   static final int DEFAULT_COMPENSATION_INTERVAL_MINUTES = 360;
+  static final String DEFAULT_FULL_COMPENSATION_TIME = "02:00";
 
   private final GitlabSyncConfigMapper configMapper;
   private final GitlabMirrorProperties properties;
@@ -251,6 +252,8 @@ public class GitlabConfigService {
     config.setDockerContainerName("gitlab-data-web-1");
     config.setSystemHookEnabled(false);
     config.setCompensationIntervalMinutes(DEFAULT_COMPENSATION_INTERVAL_MINUTES);
+    config.setFullCompensationEnabled(true);
+    config.setFullCompensationTime(DEFAULT_FULL_COMPENSATION_TIME);
     config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
     config.setSyncThreadValue(SyncThreadBudgetResolver.DEFAULT_FIXED_THREAD_VALUE);
     config.setMaxSyncThreads(Math.max(1, properties.getMaxSyncThreads()));
@@ -284,6 +287,8 @@ public class GitlabConfigService {
     normalized.setSystemHookEnabled(systemHookEnabled);
     normalized.setSystemHookProjectId(config.getSystemHookProjectId());
     normalized.setCompensationIntervalMinutes(normalizeCompensationInterval(config.getCompensationIntervalMinutes()));
+    normalized.setFullCompensationEnabled(config.getFullCompensationEnabled() == null ? true : config.getFullCompensationEnabled());
+    normalized.setFullCompensationTime(normalizeFullCompensationTime(config.getFullCompensationTime()));
     String syncThreadMode = normalizeSyncThreadMode(config.getSyncThreadMode(), current.getSyncThreadMode());
     normalized.setSyncThreadMode(syncThreadMode);
     normalized.setSyncThreadValue(
@@ -356,6 +361,16 @@ public class GitlabConfigService {
               + " 分钟");
     }
     return effectiveValue;
+  }
+
+  private String normalizeFullCompensationTime(String time) {
+    String effectiveTime = time == null || time.isBlank() ? DEFAULT_FULL_COMPENSATION_TIME : time.trim();
+    try {
+      return java.time.LocalTime.parse(effectiveTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+          .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+    } catch (java.time.format.DateTimeParseException ex) {
+      throw new BizException("全量补偿对账时间必须使用 HH:mm 格式");
+    }
   }
 
   private String normalizeSyncThreadMode(String nextMode, String currentMode) {

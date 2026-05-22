@@ -18,6 +18,8 @@ create table if not exists gitlab_sync_configs (
     system_hook_enabled boolean not null default false,
     system_hook_project_id bigint,
     compensation_interval_minutes integer not null default 360,
+    full_compensation_enabled boolean not null default true,
+    full_compensation_time varchar(5) not null default '02:00',
     sync_thread_mode varchar(32) not null default 'FIXED',
     sync_thread_value numeric(8, 3) not null default 2,
     max_sync_threads integer,

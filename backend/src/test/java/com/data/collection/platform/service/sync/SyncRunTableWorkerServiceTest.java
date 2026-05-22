@@ -15,9 +15,11 @@ import static org.mockito.Mockito.when;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SourceTableColumn;
 import com.data.collection.platform.entity.SourceTableSchema;
+import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
 import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
@@ -29,6 +31,7 @@ import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -343,6 +346,65 @@ class SyncRunTableWorkerServiceTest {
                         && Boolean.FALSE.equals(updated.getDirtyFlag())
                         && maxUpdatedAt.equals(updated.getLastWatermarkAt())
                         && "101".equals(updated.getLastCursorPk())));
+  }
+
+  @Test
+  void shouldReconcileFullCompensationTaskByUpsertingSourceRowsAndDeletingMirrorExtras() {
+    SyncRunTableTask task = task(LocalDateTime.of(1970, 1, 1, 0, 0));
+    task.setTaskType("FULL_COMPENSATION_SCAN");
+    task.setRowStrategy("FULL_RECONCILE");
+    task.setBatchSize(500);
+    SyncRunTableState state = state(null);
+    GitlabSyncConfig config = config();
+    SourceTableSchema mirrorSchema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", true, 2),
+                new SourceTableColumn("title", "text", true, 3)));
+    List<Map<String, Object>> rows =
+        List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 17, 10, 1), "title", "fixed"));
+    List<Map<String, Object>> mirrorKeys = List.of(Map.of("id", "101"), Map.of("id", "999"));
+    List<Map<String, Object>> mirrorOnlyKeys = List.of(Map.of("id", "999"));
+
+    when(jdbcTemplate.queryForObject(contains("select cancel_requested"), eq(Boolean.class), eq(77L)))
+        .thenReturn(false, false, false, false);
+    when(jdbcTemplate.queryForObject(
+            contains("update sync_run_table_tasks"), any(RowMapper.class), eq("table-worker"), eq(30), eq(77L)))
+        .thenReturn(task)
+        .thenThrow(new EmptyResultDataAccessException(1));
+    when(stateMapper.selectById(91L)).thenReturn(state);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(mirrorSchemaService.getPreparedMirrorTableForSync(eq(config), argThat(option -> "issues".equals(option.tableName()))))
+        .thenReturn(new GitlabMirrorSchemaService.PreparedMirrorTable(mirrorSchema, "ods_gitlab_alpha_issues", true, null));
+    when(sourceTableReader.readFullBatch(
+            eq(config),
+            argThat(option -> "issues".equals(option.tableName())),
+            eq(mirrorSchema),
+            isNull(),
+            eq(500)))
+        .thenReturn(rows);
+    when(sourceTableReader.findExistingPrimaryKeySignatures(
+            eq(config),
+            argThat((TableWhitelistOption option) -> "issues".equals(option.tableName())),
+            eq(mirrorKeys)))
+        .thenReturn(Set.of("101"));
+    when(mirrorTableWriter.writeBatch(mirrorSchema, rows, 501L, true)).thenReturn(new MirrorBatchWriteResult(1, 1, 0));
+    when(mirrorTableWriter.listActivePrimaryKeys(mirrorSchema, null, 500))
+        .thenReturn(new MirrorPrimaryKeyBatch(mirrorKeys, null));
+    when(mirrorTableWriter.markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyKeys, 501L))
+        .thenReturn(1);
+
+    int processed = workerService.drainRunTasks(77L);
+
+    assertThat(processed).isEqualTo(1);
+    verify(mirrorTableWriter).writeBatch(mirrorSchema, rows, 501L, true);
+    verify(sourceTableReader).findExistingPrimaryKeySignatures(eq(config), any(), eq(mirrorKeys));
+    verify(mirrorTableWriter).markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyKeys, 501L);
+    verify(jdbcTemplate).update(contains("set status = ?"), eq("SUCCESS"), eq(3L), eq(2L), isNull(), eq(501L));
   }
 
   @Test

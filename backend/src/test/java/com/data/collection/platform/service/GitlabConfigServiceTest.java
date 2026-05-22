@@ -59,6 +59,26 @@ class GitlabConfigServiceTest {
   }
 
   @Test
+  void shouldNormalizeFullCompensationScheduleSettings() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+
+    GitlabSyncConfig input = baseInput();
+    input.setFullCompensationEnabled(true);
+    input.setFullCompensationTime("2:00");
+
+    assertThatThrownBy(() -> configService.saveConfig(input))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("HH:mm");
+
+    input.setFullCompensationTime("02:00");
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        Boolean.TRUE.equals(config.getFullCompensationEnabled())
+            && "02:00".equals(config.getFullCompensationTime())));
+  }
+
+  @Test
   void shouldPreserveStoredSecretsWhenSaveRequestLeavesSecretsBlank() {
     GitlabSyncConfig current = persistedConfig();
     when(configMapper.selectOne(any())).thenReturn(current);
@@ -305,6 +325,8 @@ class GitlabConfigServiceTest {
     config.setSystemHookSecret("new-systemHook-secret");
     config.setSystemHookProjectId(1L);
     config.setCompensationIntervalMinutes(10);
+    config.setFullCompensationEnabled(true);
+    config.setFullCompensationTime("02:00");
     config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
     config.setSyncThreadValue(BigDecimal.valueOf(2));
     config.setMaxSyncThreads(16);

@@ -24,7 +24,7 @@ const SYNC_RUN_TYPE_LABELS: Record<string, string> = {
   TABLE_REFRESH: '单表刷新',
   SYSTEM_HOOK: 'System Hook 唤醒',
   COMPENSATION_SCAN: '自动补偿扫描',
-  FULL_COMPENSATION_SCAN: '定时全量补偿',
+  FULL_COMPENSATION_SCAN: '全量补偿对账',
   FACT_REFRESH: '事实数据刷新',
 };
 
@@ -79,6 +79,7 @@ const TABLE_TASK_STATUS_LABELS: Record<GitlabSyncStatus, string> = {
 
 const TABLE_ROW_STRATEGY_LABELS: Record<string, string> = {
   INCREMENTAL: '按更新时间补齐',
+  FULL_RECONCILE: '全量补偿对账',
   FULL_SMALL_TABLE: '小表整表校验',
   VERIFY_ONLY: '只校验',
   UNSUPPORTED: '暂不支持自动写入',
@@ -206,8 +207,12 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   if (/^Sync run cancelled$/i.test(normalized)) {
     return '同步运行已取消';
   }
-  if (/^Queued sync run cancelled$/i.test(normalized) || normalized === '已取消排队中的同步任务') {
-    return '已取消等待中的同步任务';
+  if (
+    /^Queued sync run cancelled$/i.test(normalized) ||
+    normalized === '已取消排队中的同步任务' ||
+    normalized === '已取消等待中的同步任务'
+  ) {
+    return '已取消尚未开始的同步任务';
   }
   if (/^Cancelled before worker start$/i.test(normalized)) {
     return '任务启动前已取消';
@@ -232,6 +237,9 @@ export function translateSyncMessage(message?: string | null, syncType?: GitlabS
   }
   if (/^Daily full compensation scan$/i.test(normalized) && syncType === 'COMPENSATION') {
     return '定时全量补偿';
+  }
+  if (normalized === '手动全量补偿对账' && syncType === 'COMPENSATION') {
+    return '手动全量补偿对账';
   }
   if (/^Daily verification scan$/i.test(normalized) && syncType === 'COMPENSATION') {
     return '定时全量补偿';
@@ -281,7 +289,7 @@ export function syncLogMessage(log: SyncRunLog) {
         return '事实数据刷新。';
       }
       if (log.runType === 'FULL_COMPENSATION_SCAN') {
-        return '定时全量补偿。';
+        return '全量补偿对账。';
       }
       return '自动补偿扫描。';
     case 'FULL':

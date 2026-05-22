@@ -23,6 +23,8 @@ function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConf
     systemHookEnabled: false,
     systemHookProjectId: null,
     compensationIntervalMinutes: 360,
+    fullCompensationEnabled: true,
+    fullCompensationTime: '02:00',
     syncThreadMode: 'FIXED',
     syncThreadValue: 2,
     maxSyncThreads: 16,
@@ -54,6 +56,9 @@ function setup(config: GitlabSyncConfig = createConfig()) {
     ),
     startIncrementalSyncData: vi.fn<() => Promise<SyncSubmissionResponse>>(() =>
       Promise.resolve(createSubmission('QUEUED')),
+    ),
+    startFullCompensationSyncData: vi.fn<() => Promise<SyncSubmissionResponse>>(() =>
+      Promise.resolve(createSubmission('CREATED')),
     ),
     cancelSyncData: vi.fn<() => Promise<{ accepted: boolean; runId?: number; status?: string }>>(() =>
       Promise.resolve({ accepted: true, runId: 1, status: 'CANCELLING' }),
@@ -120,15 +125,18 @@ describe('useMirrorSyncActionsController', () => {
     expect(controller.testing.value).toBe(false);
   });
 
-  it('starts full and incremental syncs with submission feedback', async () => {
+  it('starts full, incremental, and full compensation syncs with submission feedback', async () => {
     const deps = setup();
     const controller = useMirrorSyncActionsController(deps);
 
     await controller.startFullSync();
     await controller.startIncrementalSync();
+    await controller.startFullCompensationSync();
 
     expect(deps.startFullSyncData).toHaveBeenCalledOnce();
     expect(deps.startIncrementalSyncData).toHaveBeenCalledOnce();
+    expect(deps.startFullCompensationSyncData).toHaveBeenCalledOnce();
+    expect(deps.notifySuccess).toHaveBeenCalledTimes(2);
     expect(deps.notifySuccess).toHaveBeenCalledWith('CREATED message');
     expect(deps.notifyInfo).toHaveBeenCalledWith('QUEUED message');
     expect(controller.syncing.value).toBe(false);

@@ -52,6 +52,8 @@ const form = ref<GitlabSyncConfig>({
   systemHookEnabled: false,
   systemHookProjectId: null,
   compensationIntervalMinutes: 360,
+  fullCompensationEnabled: true,
+  fullCompensationTime: '02:00',
   syncThreadMode: 'FIXED',
   syncThreadValue: 2,
   maxSyncThreads: 16,
@@ -97,6 +99,7 @@ const {
   testConnection,
   startFullSync,
   startIncrementalSync,
+  startFullCompensationSync,
   cancelSyncTask,
   showSubmissionFeedback,
 } = useMirrorSyncActionsController({
@@ -113,6 +116,7 @@ const {
   testConnectionData: () => api.testConnection(selectedConfigId.value),
   startFullSyncData: () => api.startFullSync(selectedConfigId.value),
   startIncrementalSyncData: () => api.startIncrementalSync(selectedConfigId.value),
+  startFullCompensationSyncData: () => api.startFullCompensationSync(selectedConfigId.value),
   cancelSyncData: () => api.cancelSync(selectedConfigId.value),
   loadStatus: (showError, blocking, options) => loadStatus(showError, blocking, options),
   loadSystemHookRegistration: () => {
@@ -730,6 +734,18 @@ onBeforeUnmount(() => {
         <el-form-item label="补偿间隔(分钟)">
           <el-input-number v-model="form.compensationIntervalMinutes" :min="1" :max="720" />
         </el-form-item>
+        <el-form-item label="全量补偿对账">
+          <el-switch v-model="form.fullCompensationEnabled" />
+        </el-form-item>
+        <el-form-item label="每日对账时间">
+          <el-time-picker
+            v-model="form.fullCompensationTime"
+            format="HH:mm"
+            value-format="HH:mm"
+            :disabled="!form.fullCompensationEnabled"
+            placeholder="选择时间"
+          />
+        </el-form-item>
         <el-form-item label="同步线程模式">
           <el-radio-group v-model="form.syncThreadMode" @change="handleSyncThreadModeChange">
             <el-radio-button value="FIXED">固定线程数</el-radio-button>
@@ -849,6 +865,14 @@ onBeforeUnmount(() => {
             @click="startIncrementalSync"
           >
             刷新最新数据
+          </el-button>
+          <el-button
+            :loading="syncing"
+            :disabled="!syncEnabled || savedConfigActionDisabled"
+            title="按源库对镜像库做全量对账，纠正差异并清理源库不存在的镜像行"
+            @click="startFullCompensationSync"
+          >
+            全量补偿对账
           </el-button>
           <el-button
             type="danger"

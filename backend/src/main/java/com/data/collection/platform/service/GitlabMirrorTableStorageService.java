@@ -33,10 +33,18 @@ public class GitlabMirrorTableStorageService {
   }
 
   public MirrorBatchWriteResult upsertBatch(SourceTableSchema mirrorSchema, List<Map<String, Object>> rows, Long taskId) {
+    return upsertBatch(mirrorSchema, rows, taskId, false);
+  }
+
+  public MirrorBatchWriteResult upsertBatch(
+      SourceTableSchema mirrorSchema,
+      List<Map<String, Object>> rows,
+      Long taskId,
+      boolean forceUpdate) {
     if (rows == null || rows.isEmpty()) {
       return new MirrorBatchWriteResult(0, 0, 0);
     }
-    String sql = buildUpsertSql(mirrorSchema);
+    String sql = buildUpsertSql(mirrorSchema, forceUpdate);
     int[] results = jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
       @Override
       public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -209,6 +217,10 @@ public class GitlabMirrorTableStorageService {
   }
 
   private String buildUpsertSql(SourceTableSchema schema) {
+    return buildUpsertSql(schema, false);
+  }
+
+  private String buildUpsertSql(SourceTableSchema schema, boolean forceUpdate) {
     String tableName = quoteIdentifier(schema.tableName());
     List<String> sourceColumns = schema.columns().stream().map(SourceTableColumn::columnName).toList();
     String insertColumns = sourceColumns.stream().map(this::quoteIdentifier).collect(Collectors.joining(", "));
@@ -220,7 +232,7 @@ public class GitlabMirrorTableStorageService {
     String sourceUpdatedExpression = schema.updatedAtColumn() == null || schema.updatedAtColumn().isBlank()
         ? "null"
         : "p." + quoteIdentifier(schema.updatedAtColumn());
-    String conflictGuard = buildConflictGuard(schema);
+    String conflictGuard = forceUpdate ? "" : buildConflictGuard(schema);
     return """
         insert into %s (%s, mirror_task_id, source_updated_at, mirror_synced_at, mirror_deleted, mirror_updated_at)
         select %s, ?, %s, current_timestamp, false, current_timestamp

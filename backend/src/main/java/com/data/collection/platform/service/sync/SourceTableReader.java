@@ -7,6 +7,7 @@ import com.data.collection.platform.service.GitlabExternalDbService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,5 +47,12 @@ public class SourceTableReader {
 
   public LocalDateTime findMaxUpdatedAt(GitlabSyncConfig config, TableWhitelistOption option) {
     return externalDbService.findMaxUpdatedAt(config, option);
+  }
+
+  public Set<String> findExistingPrimaryKeySignatures(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      List<Map<String, Object>> primaryKeyRows) {
+    return externalDbService.findExistingPrimaryKeySignatures(config, option, primaryKeyRows);
   }
 }

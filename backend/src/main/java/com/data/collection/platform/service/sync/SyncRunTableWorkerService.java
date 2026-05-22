@@ -5,6 +5,7 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
+import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
@@ -13,6 +14,7 @@ import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
+import com.data.collection.platform.service.PrimaryKeySignatureSupport;
 import java.time.Instant;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -23,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -299,11 +302,12 @@ public class SyncRunTableWorkerService {
       int batchSize = resolveBatchSize(task);
       LocalDateTime scanStart = task.getWatermarkAt() == null ? INITIAL_WATERMARK : task.getWatermarkAt();
       boolean fullTask = "FULL".equalsIgnoreCase(task.getRowStrategy());
+      boolean fullReconcileTask = "FULL_RECONCILE".equalsIgnoreCase(task.getRowStrategy());
       boolean preciseTask = "PRECISE".equalsIgnoreCase(task.getRowStrategy());
-      if (!fullTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
+      if (!fullTask && !fullReconcileTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
         throw new IllegalStateException("当前表任务不能由增量同步执行器处理");
       }
-      if (!fullTask && !preciseTask && task.getCursorUpdatedAt() == null && task.getCursorPk() == null) {
+      if (!fullTask && !fullReconcileTask && !preciseTask && task.getCursorUpdatedAt() == null && task.getCursorPk() == null) {
         LocalDateTime sourceMaxUpdatedAt = sourceTableReader.findMaxUpdatedAt(config, option);
         if (sourceMaxUpdatedAt != null
             && state.getLastWatermarkAt() != null
@@ -314,7 +318,7 @@ public class SyncRunTableWorkerService {
         }
       }
       List<Map<String, Object>> rows =
-          fullTask
+          fullTask || fullReconcileTask
               ? sourceTableReader.readFullBatch(
                   config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
               : preciseTask
@@ -327,21 +331,31 @@ public class SyncRunTableWorkerService {
         return;
       }
       MirrorBatchWriteResult writeResult =
-          mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
+          fullReconcileTask
+              ? mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId(), true)
+              : mirrorTableWriter.writeBatch(preparedMirrorTable.mirrorSchema(), rows, task.getId());
       if (isRunCancellationRequested(task.getRunId())) {
         finishTask(task.getId(), (long) rows.size(), (long) writeResult.appliedRows(), "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
-      RowCursor lastCursor = lastCursor(rows, state, fullTask);
+      RowCursor lastCursor = lastCursor(rows, state, fullTask || fullReconcileTask);
       boolean hasMore =
           !preciseTask
               && rows.size() >= batchSize
-              && (fullTask ? !lastCursor.primaryKey().isBlank() : lastCursor.updatedAt() != null);
-      RowCursor completionCursor = fullTask && !hasMore
+              && ((fullTask || fullReconcileTask) ? !lastCursor.primaryKey().isBlank() : lastCursor.updatedAt() != null);
+      long scannedRows = rows.size();
+      long appliedRows = writeResult.appliedRows();
+      if (fullReconcileTask && !hasMore) {
+        ReconciliationResult reconciliationResult =
+            reconcileMirrorExtras(config, option, preparedMirrorTable.mirrorSchema(), task, batchSize);
+        scannedRows += reconciliationResult.scannedRows();
+        appliedRows += reconciliationResult.deletedRows();
+      }
+      RowCursor completionCursor = (fullTask || fullReconcileTask) && !hasMore
           ? new RowCursor(findFullSyncWatermark(config, option, state), lastCursor.primaryKey())
           : lastCursor;
-      markSuccess(task, state, rows.size(), writeResult.appliedRows(), completionCursor, hasMore);
+      markSuccess(task, state, scannedRows, appliedRows, completionCursor, hasMore);
       if (hasMore && !isRunCancellationRequested(task.getRunId())) {
         int maxContinuationTasks = resolveMaxContinuationTasksPerTable();
         long existingTaskCount = taskMapper.selectCount(
@@ -391,12 +405,12 @@ public class SyncRunTableWorkerService {
   private void markSuccess(
       SyncRunTableTask task,
       SyncRunTableState state,
-      int scannedRows,
-      int appliedRows,
+      long scannedRows,
+      long appliedRows,
       RowCursor lastCursor,
       boolean hasMore) {
     LocalDateTime now = LocalDateTime.now();
-    finishTask(task.getId(), (long) scannedRows, (long) appliedRows, "SUCCESS", null);
+    finishTask(task.getId(), scannedRows, appliedRows, "SUCCESS", null);
 
     state.setDirtyFlag(hasMore);
     state.setLastSuccessAt(now);
@@ -408,6 +422,37 @@ public class SyncRunTableWorkerService {
     state.setRetryCount(0);
     state.setUpdatedAt(now);
     stateMapper.updateById(state);
+  }
+
+  private ReconciliationResult reconcileMirrorExtras(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      com.data.collection.platform.entity.SourceTableSchema mirrorSchema,
+      SyncRunTableTask task,
+      int batchSize) {
+    String cursor = null;
+    long scannedRows = 0L;
+    long deletedRows = 0L;
+    do {
+      if (isRunCancellationRequested(task.getRunId())) {
+        return new ReconciliationResult(scannedRows, deletedRows);
+      }
+      MirrorPrimaryKeyBatch batch = mirrorTableWriter.listActivePrimaryKeys(mirrorSchema, cursor, batchSize);
+      if (batch == null || batch.keys() == null || batch.keys().isEmpty()) {
+        return new ReconciliationResult(scannedRows, deletedRows);
+      }
+      scannedRows += batch.keys().size();
+      Set<String> existingSourceKeys = sourceTableReader.findExistingPrimaryKeySignatures(config, option, batch.keys());
+      List<Map<String, Object>> mirrorOnlyRows =
+          batch.keys().stream()
+              .filter(keyRow -> !existingSourceKeys.contains(PrimaryKeySignatureSupport.signature(mirrorSchema.primaryKeys(), keyRow)))
+              .toList();
+      if (!mirrorOnlyRows.isEmpty()) {
+        deletedRows += mirrorTableWriter.markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyRows, task.getId());
+      }
+      cursor = batch.nextCursor();
+    } while (cursor != null && !cursor.isBlank());
+    return new ReconciliationResult(scannedRows, deletedRows);
   }
 
   private void markFailure(SyncRunTableTask task, SyncRunTableState state, Exception e) {
@@ -601,6 +646,9 @@ public class SyncRunTableWorkerService {
     static RowCursor empty() {
       return new RowCursor(null, "");
     }
+  }
+
+  private record ReconciliationResult(long scannedRows, long deletedRows) {
   }
 
   private static final class TableWorkerThreadFactory implements ThreadFactory {

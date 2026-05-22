@@ -37,4 +37,27 @@ class MirrorTableWriterTest {
     assertThat(actual).isEqualTo(expected);
     verify(storageService).upsertBatch(schema, rows, 501L);
   }
+
+  @Test
+  void shouldDelegateForceBatchWritesToStorageService() {
+    GitlabMirrorTableStorageService storageService = mock(GitlabMirrorTableStorageService.class);
+    MirrorTableWriter writer = new MirrorTableWriter(storageService);
+    SourceTableSchema schema =
+        new SourceTableSchema(
+            "ods_gitlab_alpha_issues",
+            List.of("id"),
+            "updated_at",
+            List.of(
+                new SourceTableColumn("id", "bigint", false, 1),
+                new SourceTableColumn("updated_at", "timestamp without time zone", true, 2)));
+    List<Map<String, Object>> rows =
+        List.of(Map.of("id", 101L, "updated_at", LocalDateTime.of(2026, 5, 18, 10, 0)));
+    MirrorBatchWriteResult expected = new MirrorBatchWriteResult(1, 1, 0);
+    when(storageService.upsertBatch(schema, rows, 501L, true)).thenReturn(expected);
+
+    MirrorBatchWriteResult actual = writer.writeBatch(schema, rows, 501L, true);
+
+    assertThat(actual).isEqualTo(expected);
+    verify(storageService).upsertBatch(schema, rows, 501L, true);
+  }
 }

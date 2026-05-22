@@ -7,13 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class PrimaryKeySignatureSupport {
+public final class PrimaryKeySignatureSupport {
   private static final String DELIMITER = "\u001F";
 
   private PrimaryKeySignatureSupport() {
   }
 
-  static List<String> primaryKeyColumns(SourceTableSchema schema) {
+  public static List<String> primaryKeyColumns(SourceTableSchema schema) {
     if (schema == null || schema.primaryKeys() == null || schema.primaryKeys().isEmpty()) {
       return List.of("id");
     }
@@ -24,21 +24,21 @@ final class PrimaryKeySignatureSupport {
     return keys.isEmpty() ? List.of("id") : keys;
   }
 
-  static String signature(List<String> primaryKeys, Map<String, Object> row) {
+  public static String signature(List<String> primaryKeys, Map<String, Object> row) {
     return primaryKeys.stream()
         .map(primaryKey -> Objects.toString(row.get(primaryKey), ""))
         .reduce((left, right) -> left + DELIMITER + right)
         .orElse("");
   }
 
-  static String encodeCursor(JsonUtils jsonUtils, List<String> primaryKeys, Map<String, Object> row) {
+  public static String encodeCursor(JsonUtils jsonUtils, List<String> primaryKeys, Map<String, Object> row) {
     List<String> values = primaryKeys.stream()
         .map(primaryKey -> Objects.toString(row.get(primaryKey), ""))
         .toList();
     return jsonUtils.toJson(values);
   }
 
-  static List<String> decodeCursor(JsonUtils jsonUtils, String cursor) {
+  public static List<String> decodeCursor(JsonUtils jsonUtils, String cursor) {
     List<String> values = jsonUtils.fromJson(cursor, new TypeReference<>() {});
     return values == null ? List.of() : values;
   }

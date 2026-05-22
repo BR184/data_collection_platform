@@ -15,6 +15,7 @@ import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.SyncStatus;
 import com.data.collection.platform.entity.SyncSubmissionAction;
+import com.data.collection.platform.entity.SyncTriggerType;
 import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
@@ -268,6 +269,8 @@ public class GitlabSyncController {
     config.setSystemHookEnabled(request.systemHookEnabled());
     config.setSystemHookProjectId(request.systemHookProjectId());
     config.setCompensationIntervalMinutes(request.compensationIntervalMinutes());
+    config.setFullCompensationEnabled(request.fullCompensationEnabled());
+    config.setFullCompensationTime(request.fullCompensationTime());
     config.setSyncThreadMode(request.syncThreadMode());
     config.setSyncThreadValue(request.syncThreadValue());
     config.setMaxSyncThreads(request.maxSyncThreads());
@@ -339,6 +342,26 @@ public class GitlabSyncController {
     }
     SyncRunSubmissionResult result =
         submissionService.submitIncrementalSync(config, null, "手动增量同步");
+    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
+  }
+
+  @PostMapping("/full-compensation-sync")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> fullCompensationSync() {
+    return fullCompensationSync(null);
+  }
+
+  @PostMapping("/full-compensation-sync/by-config")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Map<String, Object>> fullCompensationSync(
+      @RequestParam(value = "configId", required = false) Long configId) {
+    GitlabSyncConfig config = resolveConfig(configId);
+    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncType.COMPENSATION.name());
+        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
+      log.info("Manual full compensation reconciliation requested");
+    }
+    SyncRunSubmissionResult result =
+        submissionService.submitFullCompensationSync(config, SyncTriggerType.MANUAL, "手动全量补偿对账");
     return ApiResponse.success(result.message(), buildSubmissionResponse(result));
   }
 
@@ -451,6 +474,8 @@ public class GitlabSyncController {
       String systemHookSecret,
       Long systemHookProjectId,
       @NotNull Integer compensationIntervalMinutes,
+      Boolean fullCompensationEnabled,
+      String fullCompensationTime,
       @NotBlank String syncThreadMode,
       @NotNull BigDecimal syncThreadValue,
       Integer maxSyncThreads) {}
@@ -478,6 +503,8 @@ public class GitlabSyncController {
     sanitized.setSystemHookEnabled(source.getSystemHookEnabled() != null && source.getSystemHookEnabled());
     sanitized.setSystemHookProjectId(source.getSystemHookProjectId());
     sanitized.setCompensationIntervalMinutes(source.getCompensationIntervalMinutes());
+    sanitized.setFullCompensationEnabled(source.getFullCompensationEnabled());
+    sanitized.setFullCompensationTime(source.getFullCompensationTime());
     sanitized.setSyncThreadMode(source.getSyncThreadMode());
     sanitized.setSyncThreadValue(source.getSyncThreadValue());
     sanitized.setMaxSyncThreads(source.getMaxSyncThreads());
