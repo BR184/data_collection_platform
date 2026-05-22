@@ -1,5 +1,6 @@
 import type { Ref } from 'vue';
 import type { RealtimeWorkspaceStatusResponse } from '../types/api';
+import { toUserMessage } from '../utils/user-message';
 
 interface StatisticBoardRefreshControllerDependencies {
   loading: Ref<boolean>;
@@ -17,7 +18,7 @@ export function useStatisticBoardRefreshController(deps: StatisticBoardRefreshCo
     try {
       if (deps.requestRealtimeRefresh) {
         const refreshStatus = await deps.requestRealtimeRefresh();
-        deps.notifySuccess?.(refreshStatus.message || '已开始刷新最新数据');
+        deps.notifySuccess?.(toUserMessage(refreshStatus.message, '已开始刷新最新数据'));
         await waitForRealtimeRefreshToSettle(refreshStatus);
       }
       await deps.loadBoard();

@@ -1,7 +1,7 @@
 import { defineComponent, h, nextTick, ref } from 'vue';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from './element-plus-services';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
 

@@ -38,7 +38,7 @@ public class RealtimeWorkspaceService {
           workspaceKey,
           true,
           lastSyncedAt == null ? "IDLE" : "READY",
-          lastSyncedAt == null ? "No completed mirror sync timestamp is available" : "Showing latest persisted data",
+          lastSyncedAt == null ? "暂无已完成的镜像同步时间" : "已展示当前可用数据",
           false,
           lastSyncedAt,
           null,
@@ -69,7 +69,7 @@ public class RealtimeWorkspaceService {
     }
     state.refreshing = true;
     state.status = "REFRESHING";
-    state.message = "Refresh requested";
+    state.message = "已开始刷新最新数据";
     state.lastRefreshAcceptedAt = now;
     state.lastRefreshStartedAt = now;
     state.lastRefreshFinishedAt = null;
@@ -107,7 +107,7 @@ public class RealtimeWorkspaceService {
         state.status = "READY";
         state.message = result != null && result.message() != null
             ? result.message()
-            : "Refresh completed";
+            : "刷新已完成";
         state.lastRefreshFinishedAt = LocalDateTime.now();
         applyResult(state, result);
       }
@@ -117,7 +117,7 @@ public class RealtimeWorkspaceService {
         WorkspaceRefreshState state = states.computeIfAbsent(workspaceKey, key -> new WorkspaceRefreshState());
         state.refreshing = false;
         state.status = "FAILED";
-        state.message = "Refresh failed; showing latest persisted data";
+        state.message = "刷新未完成，已展示当前可用数据";
         state.lastRefreshFinishedAt = LocalDateTime.now();
         if (state.mirrorStatus == null || "REFRESHING".equals(state.mirrorStatus)) {
           state.mirrorStatus = "FAILED";
@@ -189,7 +189,7 @@ public class RealtimeWorkspaceService {
   private static final class WorkspaceRefreshState {
     private boolean refreshing;
     private String status = "IDLE";
-    private String message = "Refresh has not been requested";
+    private String message = "尚未请求刷新";
     private LocalDateTime lastRefreshAcceptedAt;
     private LocalDateTime lastRefreshStartedAt;
     private LocalDateTime lastRefreshFinishedAt;

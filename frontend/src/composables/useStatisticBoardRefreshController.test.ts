@@ -107,4 +107,30 @@ describe('useStatisticBoardRefreshController', () => {
     expect(loadBoard).toHaveBeenCalledOnce();
     expect(loading.value).toBe(false);
   });
+
+  it('converts backend refresh default messages to Chinese before notifying users', async () => {
+    const loading = ref(false);
+    const detailVisible = ref(false);
+    const notifySuccess = vi.fn();
+    const controller = useStatisticBoardRefreshController({
+      loading,
+      detailVisible,
+      loadBoard: vi.fn(() => Promise.resolve()),
+      loadDetail: vi.fn(() => Promise.resolve()),
+      requestRealtimeRefresh: vi.fn(() => Promise.resolve({
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'REFRESHING',
+        message: 'Refresh requested',
+        refreshing: false,
+        mirrorStatus: 'RUNNING',
+        factStatus: null,
+      })),
+      notifySuccess,
+    });
+
+    await controller.refreshBoard();
+
+    expect(notifySuccess).toHaveBeenCalledWith('已开始刷新最新数据');
+  });
 });

@@ -63,6 +63,7 @@ class RealtimeWorkspaceServiceTest {
     assertThat(refreshCount).hasValue(1);
     assertThat(first.status()).isEqualTo("READY");
     assertThat(second.status()).isEqualTo("READY");
+    assertThat(workspaceService.getStatus("other-board").message()).isEqualTo("已展示当前可用数据");
     assertThat(second.jobId()).isEqualTo(10L);
     assertThat(second.sourceTables()).containsExactly("issues");
   }
@@ -84,6 +85,7 @@ class RealtimeWorkspaceServiceTest {
                         return null;
                       });
               assertThat(concurrent.refreshing()).isTrue();
+              assertThat(concurrent.message()).isEqualTo("已开始刷新最新数据");
               return new RealtimeWorkspaceRefreshResult(
                   12L,
                   List.of("issues"),
