@@ -61,7 +61,7 @@ const props = withDefaults(
     advancedVisible: false,
     queryButtonText: '查询',
     keywordAutoSearch: false,
-    keywordAutoSearchDelay: 400,
+    keywordAutoSearchDelay: 600,
   },
 );
 

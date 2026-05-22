@@ -106,10 +106,11 @@ describe('useReviewDataRouteController', () => {
     await controller.handlePageChange(3);
     await controller.handleSizeChange(100);
 
-    expect(deps.debouncedPatchQuery).toHaveBeenCalledWith({ keyword: 'next', page: 1 });
-    expect(deps.patchQuery).toHaveBeenNthCalledWith(1, { sortBy: 'title', sortOrder: 'asc', page: 1 });
-    expect(deps.patchQuery).toHaveBeenNthCalledWith(2, { sortBy: 'updatedAt', sortOrder: 'desc', page: 1 });
-    expect(deps.patchQuery).toHaveBeenNthCalledWith(3, { page: 3 });
-    expect(deps.patchQuery).toHaveBeenNthCalledWith(4, { pageSize: 100, page: 1 });
+    expect(deps.debouncedPatchQuery).not.toHaveBeenCalled();
+    expect(deps.patchQuery).toHaveBeenNthCalledWith(1, { keyword: 'next', page: 1 });
+    expect(deps.patchQuery).toHaveBeenNthCalledWith(2, { sortBy: 'title', sortOrder: 'asc', page: 1 });
+    expect(deps.patchQuery).toHaveBeenNthCalledWith(3, { sortBy: 'updatedAt', sortOrder: 'desc', page: 1 });
+    expect(deps.patchQuery).toHaveBeenNthCalledWith(4, { page: 3 });
+    expect(deps.patchQuery).toHaveBeenNthCalledWith(5, { pageSize: 100, page: 1 });
   });
 });

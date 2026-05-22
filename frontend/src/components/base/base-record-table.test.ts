@@ -101,6 +101,33 @@ describe('BaseRecordTable', () => {
     expect(wrapper.emitted('query')).toBeFalsy();
   });
 
+  it('uses a calmer 600ms default for keyword auto search', async () => {
+    vi.useFakeTimers();
+
+    const wrapper = mount(BaseRecordTable, {
+      props: {
+        columns: [],
+        rows: [],
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        keywordAutoSearch: true,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    const input = wrapper.find('input');
+    await input.setValue('delay');
+
+    await vi.advanceTimersByTimeAsync(599);
+    expect(wrapper.emitted('search')).toBeFalsy();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(wrapper.emitted('search')).toEqual([['delay']]);
+  });
+
   it('debounces keyword filter updates while leaving manual query available for other conditions', async () => {
     vi.useFakeTimers();
 

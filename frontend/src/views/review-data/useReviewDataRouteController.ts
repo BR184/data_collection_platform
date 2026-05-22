@@ -15,7 +15,6 @@ export interface ReviewDataRouteControllerDependencies {
   getSortBy: () => string;
   getSortOrder: () => 'asc' | 'desc' | '';
   patchQuery: (patch: QueryPatch) => Promise<void>;
-  debouncedPatchQuery: (patch: QueryPatch) => void;
   initializeFromQuery: (query: LocationQuery) => void;
   buildFilterPayload: () => StatisticFilterGroup | null;
   resetDraft: () => void;
@@ -79,8 +78,8 @@ export function useReviewDataRouteController(deps: ReviewDataRouteControllerDepe
     }
   }
 
-  function handleKeywordSearch(nextKeyword: string) {
-    deps.debouncedPatchQuery({
+  async function handleKeywordSearch(nextKeyword: string) {
+    await deps.patchQuery({
       keyword: nextKeyword.trim(),
       page: 1,
     });

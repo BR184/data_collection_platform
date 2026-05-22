@@ -35,7 +35,7 @@ import {
   reviewProblemItemColumns,
 } from './review-data-management';
 
-const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, debouncedPatchQuery, bindLoader, isTableLoading } = useRouteTableState({
+const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoader, isTableLoading } = useRouteTableState({
   defaults: {
     page: 1,
     pageSize: 20,
@@ -161,7 +161,6 @@ const {
   getSortBy: () => sortBy.value,
   getSortOrder: () => sortOrder.value as 'asc' | 'desc' | '',
   patchQuery,
-  debouncedPatchQuery,
   initializeFromQuery,
   buildFilterPayload,
   resetDraft,
