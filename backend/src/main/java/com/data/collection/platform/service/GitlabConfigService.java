@@ -369,7 +369,7 @@ public class GitlabConfigService {
       return java.time.LocalTime.parse(effectiveTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
           .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
     } catch (java.time.format.DateTimeParseException ex) {
-      throw new BizException("全量补偿对账时间必须使用 HH:mm 格式");
+      throw new BizException("每日执行时间必须使用 HH:mm 格式");
     }
   }
 

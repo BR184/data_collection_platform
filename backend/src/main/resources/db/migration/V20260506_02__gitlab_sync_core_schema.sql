@@ -17,8 +17,6 @@ create table if not exists gitlab_sync_configs (
     webhook_secret varchar(255),
     webhook_project_id bigint,
     compensation_interval_minutes integer not null default 360,
-    full_compensation_enabled boolean not null default true,
-    full_compensation_time varchar(5) not null default '02:00',
     last_full_sync_at timestamp,
     last_incremental_sync_at timestamp,
     created_at timestamp not null default current_timestamp,
@@ -122,8 +120,6 @@ alter table gitlab_sync_configs add column if not exists docker_container_name v
 alter table gitlab_sync_configs add column if not exists webhook_secret varchar(255);
 alter table gitlab_sync_configs add column if not exists webhook_project_id bigint;
 alter table gitlab_sync_configs add column if not exists compensation_interval_minutes integer not null default 360;
-alter table gitlab_sync_configs add column if not exists full_compensation_enabled boolean not null default true;
-alter table gitlab_sync_configs add column if not exists full_compensation_time varchar(5) not null default '02:00';
 alter table gitlab_sync_configs add column if not exists last_full_sync_at timestamp;
 alter table gitlab_sync_configs add column if not exists last_incremental_sync_at timestamp;
 

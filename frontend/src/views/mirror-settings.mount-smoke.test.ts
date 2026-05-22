@@ -164,7 +164,7 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
     expect(wrapper.text()).toContain('固定线程数');
     expect(wrapper.text()).toContain('全量补偿对账');
-    expect(wrapper.text()).toContain('每日对账时间');
+    expect(wrapper.text()).toContain('每日执行时间');
     expect(wrapper.text()).toContain('预计本次配置会使用');
     expect(wrapper.text()).toContain('数据镜像监控');
     expect(wrapper.text()).toContain('表任务状态');

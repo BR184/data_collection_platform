@@ -9,6 +9,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ public class GitlabDailyVerificationScheduler {
   private final SyncRunSubmissionService submissionService;
   private final Clock clock;
 
+  @Autowired
   public GitlabDailyVerificationScheduler(
       GitlabMirrorProperties properties,
       GitlabConfigService configService,

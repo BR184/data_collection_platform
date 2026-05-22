@@ -737,7 +737,7 @@ onBeforeUnmount(() => {
         <el-form-item label="全量补偿对账">
           <el-switch v-model="form.fullCompensationEnabled" />
         </el-form-item>
-        <el-form-item label="每日对账时间">
+        <el-form-item label="每日执行时间">
           <el-time-picker
             v-model="form.fullCompensationTime"
             format="HH:mm"
