@@ -42,6 +42,8 @@ function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
   return {
     id: 1,
     syncType: 'FULL',
+    runType: 'FULL_SYNC',
+    triggerType: 'MANUAL',
     status: 'SUCCESS',
     message: 'Sync completed successfully',
     tableCount: 3,
@@ -77,7 +79,7 @@ describe('MirrorSyncLogTable', () => {
 
     expect(wrapper.text()).toContain('最近同步日志');
     expect(wrapper.text()).toContain('全量同步');
-    expect(wrapper.text()).toContain('删除镜像数据');
+    expect(wrapper.text()).toContain('删除全部镜像数据');
     expect(wrapper.text()).toContain('已完成');
     expect(wrapper.text()).toContain('需要处理');
     expect(wrapper.text()).toContain('invalid-start');
@@ -85,7 +87,13 @@ describe('MirrorSyncLogTable', () => {
     expect(wrapper.text()).toContain('42');
     expect(wrapper.text()).toContain('同步已完成');
     expect(wrapper.text()).toContain('运行编号');
-    expect(wrapper.text()).toContain('内部状态');
+    expect(wrapper.text()).toContain('同步内容');
+    expect(wrapper.text()).toContain('触发来源');
+    expect(wrapper.text()).toContain('当前结果');
+    expect(wrapper.text()).not.toContain('内部状态');
+    expect(wrapper.text()).not.toContain('MANUAL');
+    expect(wrapper.text()).not.toContain('FULL_SYNC');
+    expect(wrapper.text()).not.toContain('SUCCESS');
     expect(wrapper.text()).not.toContain('Sync completed successfully');
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
   });

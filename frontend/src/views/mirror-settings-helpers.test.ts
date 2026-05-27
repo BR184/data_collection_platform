@@ -35,6 +35,7 @@ describe('mirror settings helpers', () => {
     expect(syncStatusText('RUNNING')).toBe('处理中');
     expect(syncStatusText('RETRYING')).toBe('重试中');
     expect(syncStatusText('PARTIAL_SUCCESS')).toBe('已完成，需查看明细');
+    expect(syncStatusText('MERGED_INTO_ACTIVE_RUN')).toBe('未知状态');
     expect(syncStatusTagType('FAILED')).toBe('danger');
     expect(syncStatusTagType('PARTIAL_SUCCESS')).toBe('warning');
     expect(syncStatusText('IDLE')).toBe('空闲');
@@ -43,6 +44,7 @@ describe('mirror settings helpers', () => {
     expect(syncTypeTagType('FULL')).toBe('warning');
     expect(tableTaskStatusText('QUEUED')).toBe('等待处理');
     expect(tableTaskStatusText('RUNNING')).toBe('处理中');
+    expect(tableTaskStatusText('MERGED_INTO_ACTIVE_RUN')).toBe('未知状态');
     expect(tableRowStrategyText('INCREMENTAL')).toBe('按更新时间补齐');
     expect(tableRowStrategyText('FULL_RECONCILE')).toBe('全量补偿对账');
     expect(tableDiagnosticNote({

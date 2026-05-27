@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 @Service
 @Slf4j
@@ -55,7 +54,7 @@ public class CodeReviewIllegalRecordService {
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final FactBuildService factBuildService;
   private final CodeReviewIllegalRecordSourceLoader sourceLoader;
-  private final String defaultGitlabBaseUrl;
+  private final GitlabIssueLinkService issueLinkService;
   private final ObjectMapper objectMapper;
 
   public CodeReviewIllegalRecordService(
@@ -63,14 +62,15 @@ public class CodeReviewIllegalRecordService {
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
       CodeReviewIllegalRecordSourceLoader sourceLoader,
+      GitlabIssueLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties) {
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.sourceLoader = sourceLoader;
+    this.issueLinkService = issueLinkService;
     this.objectMapper = objectMapper;
-    this.defaultGitlabBaseUrl = gitlabMirrorProperties.getWebBaseUrl();
   }
 
   public CodeReviewIllegalRecordListResponse listRecords(CodeReviewIllegalRecordQueryRequest request) {
@@ -397,7 +397,7 @@ public class CodeReviewIllegalRecordService {
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {
     List<String> illegalTypes = CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source);
     String mergeRequestLink =
-        buildMergeRequestLink(source.repositoryName(), source.mergeRequestIid());
+        issueLinkService.mergeRequestUrl(source.projectId(), source.mergeRequestIid());
     return new CodeReviewIllegalRecordView(
         "merge_request",
         source.mergeRequestId(),
@@ -514,19 +514,6 @@ public class CodeReviewIllegalRecordService {
 
   private List<StatisticRuleFlowStepSample> sampleIllegalRecords(List<CodeReviewIllegalRecordView> rows) {
     return rows.stream().limit(3).map(this::toIllegalRecordSample).toList();
-  }
-
-  private String buildMergeRequestLink(String repositoryName, Integer mergeRequestIid) {
-    if (!StringUtils.hasText(defaultGitlabBaseUrl)
-        || !StringUtils.hasText(repositoryName)
-        || mergeRequestIid == null) {
-      return null;
-    }
-    return defaultGitlabBaseUrl.replaceAll("/+$", "")
-        + "/"
-        + repositoryName
-        + "/-/merge_requests/"
-        + mergeRequestIid;
   }
 
   private CodeReviewIllegalRecordRowResponse toResponse(CodeReviewIllegalRecordView row) {

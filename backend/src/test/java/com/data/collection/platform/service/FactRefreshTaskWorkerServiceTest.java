@@ -81,7 +81,7 @@ class FactRefreshTaskWorkerServiceTest {
 
     workerService.runOnce();
 
-    verify(taskService).finishQueuedTask(eq(11L), eq("FAILED"), eq(0), eq("Fact refresh failed"), anyString());
+    verify(taskService).finishQueuedTask(eq(11L), eq("FAILED"), eq(0), eq("事实数据刷新失败"), anyString());
   }
 
   private GitlabSyncConfig config() {

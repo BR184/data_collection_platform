@@ -24,6 +24,7 @@ class GitlabIssueLinkServiceTest {
     GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, properties());
 
     assertThat(service.issueUrl(1001L, 25694)).isEqualTo("http://gitlab.example.com/group/project/-/issues/25694");
+    assertThat(service.mergeRequestUrl(1001L, 18)).isEqualTo("http://gitlab.example.com/group/project/-/merge_requests/18");
     assertThat(service.issueUrl(1001L, 25695)).isEqualTo("http://gitlab.example.com/group/project/-/issues/25695");
     verify(jdbcTemplate).queryForObject(any(String.class), eq(String.class), eq(1001L));
   }

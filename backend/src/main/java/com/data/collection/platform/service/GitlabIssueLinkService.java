@@ -22,12 +22,20 @@ public class GitlabIssueLinkService {
   }
 
   public String issueUrl(Long projectId, Integer issueIid) {
+    return resourceUrl(projectId, issueIid, "issues");
+  }
+
+  public String mergeRequestUrl(Long projectId, Integer mergeRequestIid) {
+    return resourceUrl(projectId, mergeRequestIid, "merge_requests");
+  }
+
+  private String resourceUrl(Long projectId, Integer iid, String resourcePath) {
     String baseUrl = normalizeBaseUrl(gitlabWebBaseUrl);
-    if (!StringUtils.hasText(baseUrl) || projectId == null || issueIid == null) {
+    if (!StringUtils.hasText(baseUrl) || projectId == null || iid == null) {
       return null;
     }
     return projectPath(projectId)
-        .map(path -> baseUrl + "/" + path + "/-/issues/" + issueIid)
+        .map(path -> baseUrl + "/" + path + "/-/" + resourcePath + "/" + iid)
         .orElse(null);
   }
 

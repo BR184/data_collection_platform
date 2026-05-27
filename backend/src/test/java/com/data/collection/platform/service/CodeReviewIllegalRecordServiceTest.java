@@ -35,6 +35,7 @@ class CodeReviewIllegalRecordServiceTest {
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
   @Mock private FactBuildService factBuildService;
   @Mock private CodeReviewIllegalRecordSourceLoader sourceLoader;
+  @Mock private GitlabIssueLinkService gitlabIssueLinkService;
 
   private CodeReviewIllegalRecordService service;
 
@@ -48,6 +49,7 @@ class CodeReviewIllegalRecordServiceTest {
             realtimeWorkspaceService,
             factBuildService,
             sourceLoader,
+            gitlabIssueLinkService,
             new ObjectMapper(),
             gitlabMirrorProperties);
   }
@@ -107,6 +109,55 @@ class CodeReviewIllegalRecordServiceTest {
     assertThat(response.sortOrder()).isEqualTo("asc");
     assertThat(response.records()).extracting(item -> item.mergeRequestIid()).containsExactly(5, 12);
     assertThat(response.records()).allMatch(item -> item.mergeRequestLink() != null);
+  }
+
+  @Test
+  void shouldBuildMergeRequestLinkFromProjectIdInsteadOfRepositoryName() {
+    when(sourceLoader.loadDefaultIllegalPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(
+                    source(
+                        102L,
+                        5,
+                        "repo-short-name",
+                        "Bob",
+                        "Owner B",
+                        "",
+                        LocalDateTime.of(2026, 4, 9, 10, 0))),
+                1,
+                1,
+                20));
+    when(gitlabIssueLinkService.mergeRequestUrl(2001L, 5))
+        .thenReturn("http://gitlab.example.com/parent/subgroup/repo-short-name/-/merge_requests/5");
+
+    CodeReviewIllegalRecordListResponse response =
+        service.listRecords(
+            new CodeReviewIllegalRecordQueryRequest(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "merge_request",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20,
+                "mergeRequestIid",
+                "asc",
+                null));
+
+    assertThat(response.records())
+        .extracting(item -> item.mergeRequestLink())
+        .containsExactly("http://gitlab.example.com/parent/subgroup/repo-short-name/-/merge_requests/5");
   }
 
   @Test

@@ -80,7 +80,7 @@ class SyncFactRefreshRunExecutorTest {
     assertThat(result.status()).isEqualTo(SyncRunStatus.PARTIAL_SUCCESS);
     assertThat(result.plannedTasks()).isEqualTo(2);
     assertThat(result.completedTasks()).isZero();
-    assertThat(result.errorMessage()).isEqualTo("One or more fact refresh tasks failed");
+    assertThat(result.errorMessage()).isEqualTo("部分事实数据刷新任务未完成");
   }
 
   private SyncRun run(Long id) {
