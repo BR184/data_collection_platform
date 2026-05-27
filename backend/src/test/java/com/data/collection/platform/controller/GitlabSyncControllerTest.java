@@ -74,22 +74,27 @@ class GitlabSyncControllerTest {
             properties,
             systemHookRegistrationService,
             sourceMetadataInspector);
+    GitlabSyncCommandFacade commandFacade =
+        new GitlabSyncCommandFacade(
+            syncService,
+            submissionService,
+            cancellationService,
+            tableDiagnosticsService,
+            responseMapper);
     controller =
         new GitlabSyncController(
             configService,
-            syncService,
             whitelistService,
             properties,
             mock(GitlabSystemHookService.class),
             systemHookRegistrationService,
             mock(GitlabMirrorPurgeService.class),
             mock(GitlabSourceHealthService.class),
-            submissionService,
-            cancellationService,
             statusService,
             tableDiagnosticsService,
             responseMapper,
-            diagnosticsFacade);
+            diagnosticsFacade,
+            commandFacade);
   }
 
   @Test

@@ -12,30 +12,20 @@ import com.data.collection.platform.entity.MirrorPurgeResult;
 import com.data.collection.platform.entity.MirrorPurgeScope;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.SourceMode;
-import com.data.collection.platform.entity.SyncStatus;
-import com.data.collection.platform.entity.SyncSubmissionAction;
-import com.data.collection.platform.entity.SyncTriggerType;
-import com.data.collection.platform.entity.SyncType;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.WhitelistMode;
-import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
-import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
-import com.data.collection.platform.service.sync.SyncRunCancellationService;
-import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
-import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunStatusService;
 import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -53,49 +43,43 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class GitlabSyncController {
   private final GitlabConfigService configService;
-  private final GitlabMirrorSyncService syncService;
   private final GitlabWhitelistService whitelistService;
   private final GitlabMirrorProperties properties;
   private final GitlabSystemHookService systemHookService;
   private final GitlabSystemHookRegistrationService systemHookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
-  private final SyncRunSubmissionService submissionService;
-  private final SyncRunCancellationService cancellationService;
   private final SyncRunStatusService statusService;
   private final SyncRunTableDiagnosticsService tableDiagnosticsService;
   private final GitlabSyncControllerResponseMapper responseMapper;
   private final GitlabSyncDiagnosticsFacade diagnosticsFacade;
+  private final GitlabSyncCommandFacade commandFacade;
 
   public GitlabSyncController(
       GitlabConfigService configService,
-      GitlabMirrorSyncService syncService,
       GitlabWhitelistService whitelistService,
       GitlabMirrorProperties properties,
       GitlabSystemHookService systemHookService,
       GitlabSystemHookRegistrationService systemHookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
-      SyncRunSubmissionService submissionService,
-      SyncRunCancellationService cancellationService,
       SyncRunStatusService statusService,
       SyncRunTableDiagnosticsService tableDiagnosticsService,
       GitlabSyncControllerResponseMapper responseMapper,
-      GitlabSyncDiagnosticsFacade diagnosticsFacade) {
+      GitlabSyncDiagnosticsFacade diagnosticsFacade,
+      GitlabSyncCommandFacade commandFacade) {
     this.configService = configService;
-    this.syncService = syncService;
     this.whitelistService = whitelistService;
     this.properties = properties;
     this.systemHookService = systemHookService;
     this.systemHookRegistrationService = systemHookRegistrationService;
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
-    this.submissionService = submissionService;
-    this.cancellationService = cancellationService;
     this.statusService = statusService;
     this.tableDiagnosticsService = tableDiagnosticsService;
     this.responseMapper = responseMapper;
     this.diagnosticsFacade = diagnosticsFacade;
+    this.commandFacade = commandFacade;
   }
 
   @GetMapping("/status")
@@ -207,16 +191,7 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> testConnection(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "TEST_CONNECTION");
-        SyncRunLogContext.Scope action = SyncRunLogContext.action("Connection_Test")) {
-      log.info("Manual test connection requested");
-    }
-    if (configId == null) {
-      syncService.testConnection();
-    } else {
-      syncService.testConnection(config.getId());
-    }
-    return ApiResponse.success("GitLab PostgreSQL 连接成功", Map.of("checked", true));
+    return commandFacade.testConnection(config, configId == null);
   }
 
   @PostMapping("/full-sync")
@@ -229,12 +204,7 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> fullSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncType.FULL.name());
-        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
-      log.info("Manual full sync requested during cutover");
-    }
-    SyncRunSubmissionResult result = submissionService.submitFullSync(config, "手动全量同步");
-    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
+    return commandFacade.fullSync(config);
   }
 
   @PostMapping("/incremental-sync")
@@ -247,13 +217,7 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> incrementalSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncType.INCREMENTAL.name());
-        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
-      log.info("Manual incremental sync requested during cutover");
-    }
-    SyncRunSubmissionResult result =
-        submissionService.submitIncrementalSync(config, null, "手动增量同步");
-    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
+    return commandFacade.incrementalSync(config);
   }
 
   @PostMapping("/full-compensation-sync")
@@ -267,42 +231,14 @@ public class GitlabSyncController {
   public ApiResponse<Map<String, Object>> fullCompensationSync(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, SyncType.COMPENSATION.name());
-        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Submit")) {
-      log.info("Manual full compensation reconciliation requested");
-    }
-    SyncRunSubmissionResult result =
-        submissionService.submitFullCompensationSync(config, SyncTriggerType.MANUAL, "手动全量补偿对账");
-    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
+    return commandFacade.fullCompensationSync(config);
   }
 
   @PostMapping("/retry-failed/by-config")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> retryFailedSync(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    List<String> retryableTables = tableDiagnosticsService.retryableTables(config);
-    if (retryableTables.isEmpty()) {
-      return ApiResponse.success(
-          "没有需要重试的失败或待修复表任务",
-          Map.of(
-              "accepted",
-              false,
-              "runId",
-              "",
-              "status",
-              SyncStatus.IDLE,
-              "statusText",
-              responseMapper.syncStatusLabel(SyncStatus.IDLE),
-              "action",
-              SyncSubmissionAction.DEDUPED,
-              "type",
-              SyncType.INCREMENTAL,
-              "message",
-              "没有需要重试的失败或待修复表任务"));
-    }
-    SyncRunSubmissionResult result =
-        submissionService.submitTableRefresh(config, retryableTables, "重试失败表任务");
-    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
+    return commandFacade.retryFailedSync(config);
   }
 
   @PostMapping("/register-system-hook")
@@ -331,21 +267,7 @@ public class GitlabSyncController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Map<String, Object>> cancel(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    try (SyncRunLogContext.Scope context = SyncRunLogContext.openConfig(config, "CANCEL");
-        SyncRunLogContext.Scope action = SyncRunLogContext.action("Run_Cancel_Request")) {
-      log.info("Manual cancellation requested during cutover");
-    }
-    SyncRunCancellationResult result =
-        cancellationService.requestCancel(config.getId(), null, "用户手动请求取消");
-    Map<String, Object> response = new LinkedHashMap<>();
-    response.put("accepted", result.accepted());
-    response.put("runId", result.runId());
-    response.put("externalRunId", result.externalRunId());
-    response.put("status", result.status() == null ? null : result.status().name());
-    response.put("message", result.message());
-    return ApiResponse.success(
-        result.accepted() ? result.message() : "当前没有可取消的同步任务",
-        response);
+    return commandFacade.cancel(config);
   }
 
   @PostMapping("/purge")
