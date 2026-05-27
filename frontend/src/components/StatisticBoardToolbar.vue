@@ -6,6 +6,7 @@ import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
 import type { StatisticFilterDraftGroup } from './statistic-board-filters';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
+import { toUserMessage } from '../utils/user-message';
 
 const props = withDefaults(
   defineProps<{
@@ -39,6 +40,15 @@ const emit = defineEmits<{
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
 const failureStatuses = new Set(['FAILED', 'TIMEOUT', 'CANCELLED']);
+const partialStatuses = new Set(['PARTIAL_SUCCESS']);
+const internalStatusNames = new Set([
+  ...activeStatuses,
+  ...failureStatuses,
+  ...partialStatuses,
+  'READY',
+  'SUCCESS',
+  'STALE',
+]);
 
 const workspaceStatusText = computed(() => {
   const status = props.realtimeStatus;
@@ -54,7 +64,7 @@ const workspaceStatusText = computed(() => {
   if (status.status === 'READY') {
     return '已是最新';
   }
-  return status.message || status.status;
+  return formatWorkspaceMessage(status);
 });
 
 const workspaceStatusTagType = computed(() => {
@@ -84,10 +94,24 @@ function formatStageStatus(label: string, status?: string | null) {
   if (failureStatuses.has(status)) {
     return `${label}待更新`;
   }
+  if (partialStatuses.has(status)) {
+    return `${label}已更新，需查看明细`;
+  }
   if (status === 'SUCCESS' || status === 'READY') {
     return `${label}已完成`;
   }
-  return `${label}${status}`;
+  return `${label}待查看`;
+}
+
+function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
+  const message = toUserMessage(status.message, '');
+  if (message && !internalStatusNames.has(message)) {
+    return message;
+  }
+  if (status.status && !internalStatusNames.has(status.status)) {
+    return status.status;
+  }
+  return '状态待确认';
 }
 </script>
 

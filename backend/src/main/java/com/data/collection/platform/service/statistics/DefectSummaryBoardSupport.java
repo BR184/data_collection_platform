@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.SortSupport;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -32,22 +31,6 @@ public final class DefectSummaryBoardSupport {
                 .toList());
     rows.add(new AggregateBucket(totalRowLabel).acceptAll(sources).toRowData(sources.size(), totalRowKey));
     return rows;
-  }
-
-  public static Map<String, Object> toDetailRecord(
-      StatisticIssueFactSource source, DateTimeFormatter formatter) {
-    Map<String, Object> record = new LinkedHashMap<>();
-    record.put("iid", source.iid());
-    record.put("title", source.title());
-    record.put("moduleNames", String.join("、", source.moduleNames()));
-    record.put("projectName", source.projectName());
-    record.put("authorName", source.authorName());
-    record.put("state", source.isClosed() ? "已关闭" : "未关闭");
-    record.put("labels", String.join(", ", source.labels()));
-    record.put(
-        "updatedAt",
-        source.updatedAt() == null ? "" : formatter.format(source.updatedAt()));
-    return record;
   }
 
   public static Predicate<StatisticIssueFactSource> matchesMetric(String key) {

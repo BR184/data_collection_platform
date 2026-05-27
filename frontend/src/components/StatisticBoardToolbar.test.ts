@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import type { StatisticFilterDraftGroup } from './statistic-board-filters';
 import type { StatisticFilterField } from '../types/api';
+import { toUserMessage } from '../utils/user-message';
 
 const filterDraft: StatisticFilterDraftGroup = {
   logic: 'AND',
@@ -150,5 +151,28 @@ describe('StatisticBoardToolbar', () => {
     expect(statusText).toContain('已展示当前可用数据');
     expect(statusText).toContain('事实待更新');
     expect(statusText).not.toContain('失败');
+  });
+
+  it('does not expose backend internal refresh messages or partial status names', async () => {
+    const wrapper = mountToolbar();
+    await wrapper.setProps({
+      realtimeStatus: {
+        workspaceKey: 'system-test-defect-summary',
+        supported: true,
+        status: 'STALE',
+        message: 'Refresh requested',
+        refreshing: false,
+        mirrorStatus: 'PARTIAL_SUCCESS',
+        factStatus: 'QUEUED',
+      },
+    });
+
+    const statusText = wrapper.get('[data-testid="realtime-refresh-status"]').text();
+    expect(statusText).toContain(toUserMessage('Refresh requested'));
+    expect(statusText).toContain('镜像已更新，需查看明细');
+    expect(statusText).toContain('事实刷新中');
+    expect(statusText).not.toContain('Refresh requested');
+    expect(statusText).not.toContain('PARTIAL_SUCCESS');
+    expect(statusText).not.toContain('QUEUED');
   });
 });
