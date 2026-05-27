@@ -5,7 +5,6 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.GitlabSourceHealthResponse;
-import com.data.collection.platform.entity.GitlabSourceMetadataDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.GitlabSyncDiagnosticsResponse;
 import com.data.collection.platform.entity.GitlabSystemHookRegistrationStatus;
@@ -25,11 +24,9 @@ import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorPurgeService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.GitlabSourceHealthService;
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabSystemHookRegistrationService;
 import com.data.collection.platform.service.GitlabSystemHookService;
 import com.data.collection.platform.service.GitlabWhitelistService;
-import com.data.collection.platform.service.SourceMetadataInspector;
 import com.data.collection.platform.service.sync.SyncRunCancellationService;
 import com.data.collection.platform.service.sync.SyncRunCancellationService.SyncRunCancellationResult;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
@@ -38,7 +35,6 @@ import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,12 +60,12 @@ public class GitlabSyncController {
   private final GitlabSystemHookRegistrationService systemHookRegistrationService;
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
-  private final SourceMetadataInspector sourceMetadataInspector;
   private final SyncRunSubmissionService submissionService;
   private final SyncRunCancellationService cancellationService;
   private final SyncRunStatusService statusService;
   private final SyncRunTableDiagnosticsService tableDiagnosticsService;
   private final GitlabSyncControllerResponseMapper responseMapper;
+  private final GitlabSyncDiagnosticsFacade diagnosticsFacade;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -80,12 +76,12 @@ public class GitlabSyncController {
       GitlabSystemHookRegistrationService systemHookRegistrationService,
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
-      SourceMetadataInspector sourceMetadataInspector,
       SyncRunSubmissionService submissionService,
       SyncRunCancellationService cancellationService,
       SyncRunStatusService statusService,
       SyncRunTableDiagnosticsService tableDiagnosticsService,
-      GitlabSyncControllerResponseMapper responseMapper) {
+      GitlabSyncControllerResponseMapper responseMapper,
+      GitlabSyncDiagnosticsFacade diagnosticsFacade) {
     this.configService = configService;
     this.syncService = syncService;
     this.whitelistService = whitelistService;
@@ -94,12 +90,12 @@ public class GitlabSyncController {
     this.systemHookRegistrationService = systemHookRegistrationService;
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
-    this.sourceMetadataInspector = sourceMetadataInspector;
     this.submissionService = submissionService;
     this.cancellationService = cancellationService;
     this.statusService = statusService;
     this.tableDiagnosticsService = tableDiagnosticsService;
     this.responseMapper = responseMapper;
+    this.diagnosticsFacade = diagnosticsFacade;
   }
 
   @GetMapping("/status")
@@ -141,79 +137,7 @@ public class GitlabSyncController {
   public ApiResponse<GitlabSyncDiagnosticsResponse> diagnostics(
       @RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
-    boolean connectionOk = true;
-    String connectionMessage = "GitLab PostgreSQL 连接成功";
-    try {
-      if (configId == null) {
-        syncService.testConnection();
-      } else {
-        syncService.testConnection(config.getId());
-      }
-    } catch (Exception e) {
-      connectionOk = false;
-      connectionMessage = e.getMessage();
-    }
-
-    boolean whitelistOk = true;
-    String whitelistMessage = "GitLab 白名单选项已加载";
-    int whitelistOptionCount = 0;
-    List<TableWhitelistOption> whitelistOptions = List.of();
-    try {
-      whitelistOptions = whitelistService.listOptionsStrict(config);
-      whitelistOptionCount = whitelistOptions.size();
-    } catch (Exception e) {
-      whitelistOk = false;
-      whitelistMessage = e.getMessage();
-    }
-
-    GitlabSourceMetadataDiagnosticsResponse metadataDiagnostics;
-    try {
-      metadataDiagnostics = sourceMetadataInspector.inspectSourceMetadata(config, whitelistOptions);
-    } catch (Exception e) {
-      metadataDiagnostics = GitlabSourceMetadataDiagnosticsResponse.failure(e.getMessage());
-    }
-
-    GitlabSystemHookRegistrationStatus systemHookStatus;
-    try {
-      systemHookStatus = systemHookRegistrationService.getStatus(config, properties.getSystemHookBaseUrl());
-    } catch (Exception e) {
-      systemHookStatus = new GitlabSystemHookRegistrationStatus(
-          false,
-          false,
-          false,
-          config.getSystemHookProjectId(),
-          properties.getSystemHookBaseUrl(),
-          e.getMessage(),
-          List.of());
-    }
-    SystemHookConfigDiagnostics systemHookConfigDiagnostics = diagnoseSystemHookConfig(config);
-    List<String> runtimeWarnings = diagnoseRuntimeConfig();
-    GitlabSyncDiagnosticsResponse response = new GitlabSyncDiagnosticsResponse(
-        config.getId(),
-        GitlabSourceInstanceSupport.sourceInstanceOf(config),
-        config.getSourceMode(),
-        connectionOk,
-        connectionMessage,
-        whitelistOk,
-        whitelistMessage,
-        whitelistOptionCount,
-        metadataDiagnostics.metadataOk(),
-        metadataDiagnostics.metadataMessage(),
-        metadataDiagnostics.sourceTableCount(),
-        metadataDiagnostics.primaryKeyTableCount(),
-        metadataDiagnostics.missingPrimaryKeyTableCount(),
-        metadataDiagnostics.missingUpdatedAtTableCount(),
-        metadataDiagnostics.sourceTables(),
-        properties.getSystemHookBaseUrl(),
-        Boolean.TRUE.equals(config.getSystemHookEnabled()),
-        systemHookConfigDiagnostics.secretConfigured(),
-        systemHookConfigDiagnostics.secretUnique(),
-        systemHookConfigDiagnostics.message(),
-        systemHookStatus.supported(),
-        systemHookStatus.registered(),
-        systemHookStatus.message(),
-        runtimeWarnings);
-    return ApiResponse.success(response);
+    return ApiResponse.success(diagnosticsFacade.diagnose(config, configId == null));
   }
 
   @GetMapping("/system-hook-registration-status")
@@ -468,52 +392,6 @@ public class GitlabSyncController {
       Integer maxSyncThreads) {}
 
   public record PurgeRequest(@NotNull MirrorPurgeScope scope, Long configId) {}
-
-  private SystemHookConfigDiagnostics diagnoseSystemHookConfig(GitlabSyncConfig config) {
-    boolean systemHookEnabled = Boolean.TRUE.equals(config.getSystemHookEnabled());
-    boolean secretConfigured = config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank();
-    boolean secretUnique = true;
-    if (systemHookEnabled && secretConfigured) {
-      String secret = config.getSystemHookSecret();
-      List<GitlabSyncConfig> configs = configService.listConfigs();
-      secretUnique = (configs == null ? List.<GitlabSyncConfig>of() : configs).stream()
-          .filter(candidate -> candidate.getId() != null)
-          .filter(candidate -> !candidate.getId().equals(config.getId()))
-          .filter(candidate -> Boolean.TRUE.equals(candidate.getSourceEnabled()))
-          .filter(candidate -> Boolean.TRUE.equals(candidate.getSystemHookEnabled()))
-          .noneMatch(candidate -> secret.equals(candidate.getSystemHookSecret()));
-    }
-    String message;
-    if (!systemHookEnabled) {
-      message = "System Hook 接收器未启用";
-    } else if (!secretConfigured) {
-      message = "System Hook 需要配置唯一密钥";
-    } else if (!secretUnique) {
-      message = "System Hook 密钥已被其他 GitLab 数据源使用";
-    } else {
-      message = "System Hook 配置可用";
-    }
-    return new SystemHookConfigDiagnostics(secretConfigured, secretUnique, message);
-  }
-
-  private record SystemHookConfigDiagnostics(
-      boolean secretConfigured,
-      boolean secretUnique,
-      String message) {
-  }
-
-  private List<String> diagnoseRuntimeConfig() {
-    List<String> warnings = new ArrayList<>();
-    int heartbeatTimeoutSeconds = properties.getHeartbeatTimeoutSeconds();
-    int queryTimeoutSeconds = properties.getExternalQueryTimeoutSeconds();
-    int minimumRecommendedSeconds = queryTimeoutSeconds + 30;
-    if (heartbeatTimeoutSeconds <= queryTimeoutSeconds) {
-      warnings.add("心跳超时时间必须大于外部查询超时时间");
-    } else if (heartbeatTimeoutSeconds <= minimumRecommendedSeconds) {
-      warnings.add("心跳超时时间接近外部查询超时时间，长时间写入可能被误判为过期任务");
-    }
-    return warnings;
-  }
 
   private GitlabSyncConfig resolveConfig(Long configId) {
     return configId == null ? configService.getConfig() : configService.getConfigById(configId);

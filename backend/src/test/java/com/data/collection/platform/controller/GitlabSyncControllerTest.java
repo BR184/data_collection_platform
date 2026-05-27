@@ -66,6 +66,14 @@ class GitlabSyncControllerTest {
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     GitlabSyncControllerResponseMapper responseMapper =
         new GitlabSyncControllerResponseMapper(properties, new SyncThreadBudgetResolver(properties));
+    GitlabSyncDiagnosticsFacade diagnosticsFacade =
+        new GitlabSyncDiagnosticsFacade(
+            configService,
+            syncService,
+            whitelistService,
+            properties,
+            systemHookRegistrationService,
+            sourceMetadataInspector);
     controller =
         new GitlabSyncController(
             configService,
@@ -76,12 +84,12 @@ class GitlabSyncControllerTest {
             systemHookRegistrationService,
             mock(GitlabMirrorPurgeService.class),
             mock(GitlabSourceHealthService.class),
-            sourceMetadataInspector,
             submissionService,
             cancellationService,
             statusService,
             tableDiagnosticsService,
-            responseMapper);
+            responseMapper,
+            diagnosticsFacade);
   }
 
   @Test
