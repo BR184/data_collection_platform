@@ -35,7 +35,7 @@ class CodeReviewIllegalRecordServiceTest {
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
   @Mock private FactBuildService factBuildService;
   @Mock private CodeReviewIllegalRecordSourceLoader sourceLoader;
-  @Mock private GitlabIssueLinkService gitlabIssueLinkService;
+  @Mock private GitlabResourceLinkService gitlabResourceLinkService;
 
   private CodeReviewIllegalRecordService service;
 
@@ -49,7 +49,7 @@ class CodeReviewIllegalRecordServiceTest {
             realtimeWorkspaceService,
             factBuildService,
             sourceLoader,
-            gitlabIssueLinkService,
+            gitlabResourceLinkService,
             new ObjectMapper(),
             gitlabMirrorProperties);
   }
@@ -79,9 +79,9 @@ class CodeReviewIllegalRecordServiceTest {
                 2,
                 1,
                 20));
-    when(gitlabIssueLinkService.mergeRequestUrl(2001L, 5))
+    when(gitlabResourceLinkService.mergeRequestUrl(2001L, 5))
         .thenReturn("http://gitlab.example.com/group/repo-a/-/merge_requests/5");
-    when(gitlabIssueLinkService.mergeRequestUrl(2001L, 12))
+    when(gitlabResourceLinkService.mergeRequestUrl(2001L, 12))
         .thenReturn("http://gitlab.example.com/group/repo-b/-/merge_requests/12");
 
     CodeReviewIllegalRecordListResponse response =
@@ -132,7 +132,7 @@ class CodeReviewIllegalRecordServiceTest {
                 1,
                 1,
                 20));
-    when(gitlabIssueLinkService.mergeRequestUrl(2001L, 5))
+    when(gitlabResourceLinkService.mergeRequestUrl(2001L, 5))
         .thenReturn("http://gitlab.example.com/parent/subgroup/repo-short-name/-/merge_requests/5");
 
     CodeReviewIllegalRecordListResponse response =

@@ -24,7 +24,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
-      GitlabIssueLinkService issueLinkService) {
+      GitlabResourceLinkService issueLinkService) {
     super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
   }

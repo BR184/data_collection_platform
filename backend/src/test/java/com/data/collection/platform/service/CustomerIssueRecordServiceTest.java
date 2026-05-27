@@ -20,7 +20,7 @@ class CustomerIssueRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
-  @Mock private GitlabIssueLinkService issueLinkService;
+  @Mock private GitlabResourceLinkService issueLinkService;
 
   @Test
   void shouldUseSqlPageForPlainListRequests() {

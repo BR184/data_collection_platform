@@ -23,7 +23,7 @@ class SystemTestIllegalRecordServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
-  @Mock private GitlabIssueLinkService issueLinkService;
+  @Mock private GitlabResourceLinkService issueLinkService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {

@@ -14,14 +14,14 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-class GitlabIssueLinkServiceTest {
+class GitlabResourceLinkServiceTest {
 
   @Test
   void shouldBuildIssueUrlWithProjectPath() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenReturn("group/project");
-    GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, properties());
+    GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
 
     assertThat(service.issueUrl(1001L, 25694)).isEqualTo("http://gitlab.example.com/group/project/-/issues/25694");
     assertThat(service.mergeRequestUrl(1001L, 18)).isEqualTo("http://gitlab.example.com/group/project/-/merge_requests/18");
@@ -34,7 +34,7 @@ class GitlabIssueLinkServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenReturn("parent/subgroup/project");
-    GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, propertiesWithoutScheme());
+    GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, propertiesWithoutScheme());
 
     assertThat(service.issueUrl(1001L, 1392)).isEqualTo("http://gitlab.example.com/parent/subgroup/project/-/issues/1392");
 
@@ -52,7 +52,7 @@ class GitlabIssueLinkServiceTest {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
         .thenThrow(new EmptyResultDataAccessException(1));
-    GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, properties());
+    GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
 
     assertThat(service.issueUrl(1001L, 25694)).isNull();
   }
@@ -65,7 +65,7 @@ class GitlabIssueLinkServiceTest {
         .thenReturn("source-group/source-project");
     when(jdbcTemplate.queryForList(any(String.class), eq(String.class)))
         .thenReturn(List.of("ods_gitlab_cc_projects"));
-    GitlabIssueLinkService service = new GitlabIssueLinkService(jdbcTemplate, properties());
+    GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
 
     assertThat(service.issueUrl(1001L, 25694))
         .isEqualTo("http://gitlab.example.com/source-group/source-project/-/issues/25694");

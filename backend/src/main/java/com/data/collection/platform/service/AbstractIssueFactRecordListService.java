@@ -15,10 +15,10 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
   // 系统测试和客户问题记录页共享 issue_fact 记录查询骨架，差异通过子类的 scope profile 表达。
   // 这里保留公共分页、排序、日期、模块和规则说明逻辑，减少两个业务域的重复实现。
   private final IssueFactRecordRepository issueFactRecordRepository;
-  private final GitlabIssueLinkService issueLinkService;
+  private final GitlabResourceLinkService issueLinkService;
 
   protected AbstractIssueFactRecordListService(
-      IssueFactRecordRepository issueFactRecordRepository, GitlabIssueLinkService issueLinkService) {
+      IssueFactRecordRepository issueFactRecordRepository, GitlabResourceLinkService issueLinkService) {
     this.issueFactRecordRepository = issueFactRecordRepository;
     this.issueLinkService = issueLinkService;
   }

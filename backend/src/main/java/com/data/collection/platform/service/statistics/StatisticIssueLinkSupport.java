@@ -1,6 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
-import com.data.collection.platform.service.GitlabIssueLinkService;
+import com.data.collection.platform.service.GitlabResourceLinkService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -8,9 +8,9 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class StatisticIssueLinkSupport {
-  private final GitlabIssueLinkService issueLinkService;
+  private final GitlabResourceLinkService issueLinkService;
 
-  public StatisticIssueLinkSupport(GitlabIssueLinkService issueLinkService) {
+  public StatisticIssueLinkSupport(GitlabResourceLinkService issueLinkService) {
     this.issueLinkService = issueLinkService;
   }
 

@@ -34,7 +34,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
       IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       ObjectMapper objectMapper,
-      GitlabIssueLinkService issueLinkService) {
+      GitlabResourceLinkService issueLinkService) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;

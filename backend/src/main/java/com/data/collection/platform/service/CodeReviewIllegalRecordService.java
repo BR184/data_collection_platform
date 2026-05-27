@@ -54,7 +54,7 @@ public class CodeReviewIllegalRecordService {
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final FactBuildService factBuildService;
   private final CodeReviewIllegalRecordSourceLoader sourceLoader;
-  private final GitlabIssueLinkService issueLinkService;
+  private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
 
   public CodeReviewIllegalRecordService(
@@ -62,7 +62,7 @@ public class CodeReviewIllegalRecordService {
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
       CodeReviewIllegalRecordSourceLoader sourceLoader,
-      GitlabIssueLinkService issueLinkService,
+      GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties) {
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;

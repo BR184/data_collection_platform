@@ -39,9 +39,9 @@ public class IntegrationTestQueryService {
           Map.entry("updatedAtSource", "updated_at_source"));
 
   private final JdbcTemplate jdbcTemplate;
-  private final GitlabIssueLinkService issueLinkService;
+  private final GitlabResourceLinkService issueLinkService;
 
-  public IntegrationTestQueryService(JdbcTemplate jdbcTemplate, GitlabIssueLinkService issueLinkService) {
+  public IntegrationTestQueryService(JdbcTemplate jdbcTemplate, GitlabResourceLinkService issueLinkService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueLinkService = issueLinkService;
   }

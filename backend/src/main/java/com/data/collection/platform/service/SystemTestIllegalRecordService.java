@@ -32,7 +32,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
       ObjectMapper objectMapper,
-      GitlabIssueLinkService issueLinkService) {
+      GitlabResourceLinkService issueLinkService) {
     super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
     this.objectMapper = objectMapper;
