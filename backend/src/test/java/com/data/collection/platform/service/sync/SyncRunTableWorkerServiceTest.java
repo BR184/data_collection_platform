@@ -43,6 +43,7 @@ class SyncRunTableWorkerServiceTest {
   private SyncRunTableTaskMapper taskMapper;
   private SyncRunTableStateMapper stateMapper;
   private GitlabConfigService configService;
+  private SyncRunTableTaskLeaseService taskLeaseService;
   private SourceTableReader sourceTableReader;
   private GitlabMirrorSchemaService mirrorSchemaService;
   private MirrorTableWriter mirrorTableWriter;
@@ -54,6 +55,7 @@ class SyncRunTableWorkerServiceTest {
     taskMapper = org.mockito.Mockito.mock(SyncRunTableTaskMapper.class);
     stateMapper = org.mockito.Mockito.mock(SyncRunTableStateMapper.class);
     configService = org.mockito.Mockito.mock(GitlabConfigService.class);
+    taskLeaseService = new SyncRunTableTaskLeaseService(jdbcTemplate);
     sourceTableReader = org.mockito.Mockito.mock(SourceTableReader.class);
     mirrorSchemaService = org.mockito.Mockito.mock(GitlabMirrorSchemaService.class);
     mirrorTableWriter = org.mockito.Mockito.mock(MirrorTableWriter.class);
@@ -62,6 +64,7 @@ class SyncRunTableWorkerServiceTest {
             taskMapper,
             stateMapper,
             jdbcTemplate,
+            taskLeaseService,
             configService,
             sourceTableReader,
             mirrorSchemaService,
