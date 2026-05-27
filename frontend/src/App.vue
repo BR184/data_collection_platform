@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Lock, Loading, User } from '@element-plus/icons-vue';
+import zhCn from 'element-plus/es/locale/lang/zh-cn';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
 import { ElMessage } from './element-plus-services';
@@ -146,7 +147,8 @@ watch(
 </script>
 
 <template>
-  <div v-if="isStandalonePage" class="standalone-app-shell">
+  <el-config-provider :locale="zhCn">
+    <div v-if="isStandalonePage" class="standalone-app-shell">
     <main class="standalone-app-main">
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
@@ -154,7 +156,7 @@ watch(
     </main>
   </div>
 
-  <div v-else class="app-shell">
+    <div v-else class="app-shell">
     <header class="shell-header">
       <div class="brand-wrap">
         <div class="brand-mark">
@@ -319,5 +321,6 @@ watch(
         </div>
       </template>
     </el-dialog>
-  </div>
+    </div>
+  </el-config-provider>
 </template>

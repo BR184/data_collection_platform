@@ -10,7 +10,7 @@ function jsonResponse(data: unknown) {
 
 describe('CodeReviewIllegalRecordsView mount smoke', () => {
   it('mounts without route errors', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
+    const fetchMock = vi.fn((url: string) => {
       if (url.includes('/api/code-review/illegal-records/filter-options')) {
         return jsonResponse({
           requestTypes: [],
@@ -56,7 +56,8 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
         });
       }
       return jsonResponse({});
-    }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     const router = createRouter({
       history: createWebHashHistory(),
@@ -69,6 +70,7 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
     });
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/rule-explanation'))).toBe(false);
     vi.unstubAllGlobals();
   });
 

@@ -63,7 +63,7 @@ export const statisticBoardsApi = {
     const response = await fetch(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`);
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || `Export failed: ${response.status}`);
+      throw new Error(text || `导出失败，状态码：${response.status}`);
     }
     return response.text();
   },

@@ -89,7 +89,6 @@ const {
   ruleExplanation,
   ruleExplanationLoading,
   ruleExplanationVisible,
-  loadRuleExplanation: loadRuleExplanationPanel,
   openRuleExplanation: openRuleExplanationPanel,
 } = useRuleExplanationPanel({
   load: () => api.getCodeReviewIllegalRecordRuleExplanation(),
@@ -276,7 +275,6 @@ bindLoader(async () => {
     initializeFromQuery(route.query);
     await loadTableData();
     await loadSyncStatus();
-    await loadRuleExplanationPanel();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '非法记录数据加载失败');
     rows.value = [];

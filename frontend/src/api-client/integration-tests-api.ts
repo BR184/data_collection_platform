@@ -74,7 +74,7 @@ export const integrationTestsApi = {
     const response = await fetch(`/api/integration-tests/details/export${query.toString() ? `?${query.toString()}` : ''}`);
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || `Export failed: ${response.status}`);
+      throw new Error(text || `导出失败，状态码：${response.status}`);
     }
     return response.text();
   },

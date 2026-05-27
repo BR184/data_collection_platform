@@ -49,7 +49,7 @@ const workspaceStatusText = computed(() => {
     return activeStatuses.has(status.factStatus || '') ? '事实刷新中' : '镜像同步中';
   }
   if (failureStatuses.has(status.mirrorStatus || '') || failureStatuses.has(status.factStatus || '')) {
-    return '部分失败';
+    return '已展示当前可用数据';
   }
   if (status.status === 'READY') {
     return '已是最新';
@@ -66,7 +66,7 @@ const workspaceStatusTagType = computed(() => {
     return 'warning';
   }
   if (failureStatuses.has(status.mirrorStatus || '') || failureStatuses.has(status.factStatus || '')) {
-    return 'danger';
+    return 'warning';
   }
   return 'success';
 });
@@ -82,7 +82,7 @@ function formatStageStatus(label: string, status?: string | null) {
     return `${label}${label === '镜像' ? '同步' : '刷新'}中`;
   }
   if (failureStatuses.has(status)) {
-    return `${label}失败`;
+    return `${label}待更新`;
   }
   if (status === 'SUCCESS' || status === 'READY') {
     return `${label}已完成`;

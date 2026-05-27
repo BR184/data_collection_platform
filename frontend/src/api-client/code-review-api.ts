@@ -68,7 +68,7 @@ export const codeReviewApi = {
     const response = await fetch(`/api/code-review/illegal-records/export?${query.toString()}`);
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(text || `Export failed: ${response.status}`);
+      throw new Error(text || `导出失败，状态码：${response.status}`);
     }
     return text;
   },

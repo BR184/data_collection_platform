@@ -4,6 +4,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import { ElMessage } from './element-plus-services';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.vue';
+import appSource from './App.vue?raw';
 
 function jsonResponse(data: unknown) {
   return Promise.resolve({
@@ -114,6 +115,7 @@ describe('App auth dialog', () => {
           RouterView: RouterViewStub,
           'el-alert': passthroughStub,
           'el-button': buttonStub,
+          'el-config-provider': passthroughStub,
           'el-dialog': ElDialogStub,
           'el-form': passthroughStub,
           'el-form-item': passthroughStub,
@@ -138,5 +140,10 @@ describe('App auth dialog', () => {
 
     expect(warningSpy).toHaveBeenCalledWith('请输入密码');
     expect(document.activeElement).toBe(passwordInput.element);
+  });
+
+  it('wraps the application with Element Plus Chinese locale', () => {
+    expect(appSource).toContain('el-config-provider');
+    expect(appSource).toContain('zhCn');
   });
 });

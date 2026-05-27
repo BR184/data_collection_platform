@@ -5,9 +5,9 @@ spring:
   main:
     banner-mode: off
   datasource:
-    url: ${TEST_DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex?currentSchema=qaflex_test}
+    url: ${TEST_DATASOURCE_URL:jdbc:postgresql://localhost:15433/qaflex?currentSchema=qaflex_test}
     username: ${TEST_DATASOURCE_USERNAME:qaflex}
-    password: ${TEST_DATASOURCE_PASSWORD:qaflex_dev_2026}
+    password: ${TEST_DATASOURCE_PASSWORD:change_this_password}
     driver-class-name: org.postgresql.Driver
   sql:
     init:

@@ -67,12 +67,12 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   }
 
   if (!response.ok) {
-    throw new Error(payload?.message || rawText || `Request failed: ${response.status}`);
+    throw new Error(payload?.message || rawText || `请求失败，状态码：${response.status}`);
   }
 
   if (payload && typeof payload === 'object' && 'success' in payload) {
     if (!payload.success) {
-      throw new Error(payload.message || 'Request failed');
+      throw new Error(payload.message || '请求失败');
     }
     return payload.data as T;
   }

@@ -93,6 +93,31 @@ describe('request', () => {
     expect(isRequestTimeoutError(error)).toBe(true);
     expect(isRequestTimeoutError(new Error('other'))).toBe(false);
   });
+
+  it('should use Chinese fallback copy when a non-OK response has no body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        text: async () => '',
+      } as Response)),
+    );
+
+    await expect(request('/api/fail')).rejects.toThrow('请求失败，状态码：500');
+  });
+
+  it('should use Chinese fallback copy when an API envelope has no error message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        text: async () => JSON.stringify({ success: false }),
+      } as Response)),
+    );
+
+    await expect(request('/api/fail-envelope')).rejects.toThrow('请求失败');
+  });
 });
 
 function stubSuccessfulFetch() {

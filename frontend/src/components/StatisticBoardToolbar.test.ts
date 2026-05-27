@@ -119,7 +119,7 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.text()).toContain('开启进入页面自动刷新');
   });
 
-  it('shows two-stage refresh progress and failure copy', async () => {
+  it('shows two-stage refresh progress without absolute failure copy', async () => {
     const refreshing = mountToolbar();
     await refreshing.setProps({
       realtimeStatus: {
@@ -146,7 +146,9 @@ describe('StatisticBoardToolbar', () => {
         factStatus: 'FAILED',
       },
     });
-    expect(failed.get('[data-testid="realtime-refresh-status"]').text()).toContain('部分失败');
-    expect(failed.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实失败');
+    const statusText = failed.get('[data-testid="realtime-refresh-status"]').text();
+    expect(statusText).toContain('已展示当前可用数据');
+    expect(statusText).toContain('事实待更新');
+    expect(statusText).not.toContain('失败');
   });
 });
