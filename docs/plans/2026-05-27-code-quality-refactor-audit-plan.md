@@ -180,3 +180,404 @@ cd frontend
 - 不在未补测试前重写同步执行模型。
 - 不为了“拆小文件”引入过度抽象；只有当前已经重复或职责确实混杂的部分才拆。
 - 不删除历史兼容路径，除非先确认内网迁移包和既有数据不会依赖。
+
+## 解耦总方案
+
+本次解耦不以“文件变小”为目标，而以“职责单一、链路可测、用户语义稳定”为目标。拆分后的代码必须让后续修同步日志、System Hook、统计下钻、搜索体验时，只触碰对应职责模块，不再牵连无关功能。
+
+### 总体分层
+
+```text
+前端页面层
+  只负责用户任务编排、路由状态、面板组合
+
+前端组件/组合函数层
+  负责通用表格、搜索筛选、通知文案、统计看板交互
+
+API 客户端与类型层
+  负责接口契约、领域类型、响应归一化
+
+后端 Controller 层
+  只负责 HTTP 入参、权限、响应包装
+
+后端 Application Service 层
+  负责编排一个完整业务用例，例如启动同步、刷新事实、注册 System Hook
+
+后端 Domain Service 层
+  负责稳定领域能力，例如同步任务租约、源表读取、事实构建、统计聚合
+
+Repository / Gateway 层
+  负责数据库、GitLab 源库、Docker/直连适配等外部资源访问
+```
+
+### 依赖方向
+
+- 页面可以依赖组件、组合函数、API 类型；组件不得反向依赖具体页面。
+- Controller 可以依赖 Application Service；不得直接拼装复杂诊断、状态文案或业务流程。
+- Application Service 可以依赖多个 Domain Service；Domain Service 之间不得形成循环依赖。
+- Gateway 只提供外部访问能力，不承载业务判断。
+- 用户提示文案只允许在前端 presentation 层或后端明确的 response DTO 中出现，不允许散落在 worker、mapper、SQL 层。
+
+## 后端解耦方案
+
+### 1. GitLab 源读取解耦
+
+当前问题集中在 `GitlabExternalDbService`：它同时知道连接方式、SQL、schema、分页、重试和诊断。解耦后按以下边界拆分：
+
+| 新模块 | 职责 | 不允许承担的职责 |
+| --- | --- | --- |
+| `GitlabSourceConnectionFactory` | 根据配置创建直连或 Docker 查询通道 | 不拼 SQL、不判断业务同步策略 |
+| `GitlabSourceQueryExecutor` | 执行只读 SQL、处理超时、慢查询日志 | 不决定查哪些表、不改镜像表 |
+| `GitlabSourceSchemaDiscoveryService` | 读取源表字段、主键、更新时间列 | 不执行数据同步 |
+| `GitlabSourceScanSqlBuilder` | 构造全量、增量、游标续批 SQL | 不连接数据库、不写日志状态 |
+| `GitlabSourceDiagnosticsService` | 汇总源库连接和表结构诊断 | 不触发同步任务 |
+| `SqlIdentifierSupport` | 统一表名/字段名引用和校验 | 不包含业务表白名单 |
+
+验收标准：
+
+- `GitlabExternalDbService` 不再直接构造所有 SQL，只作为兼容门面或被完全替换。
+- 直连模式和 Docker 模式共用同一套 schema/SQL 构造逻辑。
+- 表名、字段名引用只允许从 `SqlIdentifierSupport` 进入。
+
+### 2. 同步运行模型解耦
+
+当前问题集中在 `SyncRunTableWorkerService` 和 `GitlabSyncController`：任务状态、执行、恢复、用户提示互相混在一起。解耦后按“提交、调度、执行、展示”拆分：
+
+| 新模块 | 职责 |
+| --- | --- |
+| `SyncRunCommandController` | 接收启动/取消/重试请求，返回受理结果 |
+| `SyncRunStatusController` | 查询当前运行、日志、进度、表级诊断 |
+| `SyncRunSubmissionService` | 判断当前是否已有运行、合并/拒绝/受理请求 |
+| `SyncRunLifecycleService` | 创建 run、完成 run、取消 run，统一状态流转 |
+| `SyncTaskLeaseService` | claim/heartbeat/recover 表级任务租约 |
+| `SyncTaskExecutor` | 执行单个表任务 |
+| `SyncTableContinuationPlanner` | 决定是否创建续批任务 |
+| `MirrorReconciliationService` | 处理全量补偿中多余镜像数据删除 |
+| `SyncRunUserStatusMapper` | 内部状态到用户可见状态的唯一映射 |
+
+状态边界：
+
+- 数据库可以保留 `QUEUED`、`PARTIAL_SUCCESS` 等内部状态。
+- 前端普通用户视角不得直接显示这些词；统一映射为“等待当前任务完成”“已完成，部分表需要查看明细”等中文短语。
+- 同步日志、当前运行、表级任务抽屉必须使用同一个状态映射工具。
+
+验收标准：
+
+- 全量同步中点击单表刷新，不显示“失败”，而显示“已受理，等待当前同步完成”或“当前数据已按已完成部分展示”。
+- System Hook 唤醒日志、自动补偿、手动全量、单表刷新使用一致的状态语义。
+- `GitlabSyncController` 不再注入十多个服务，复杂拼装迁移到门面服务。
+
+### 3. 事实构建解耦
+
+当前问题集中在 `FactBuildService`：Issue、MR、SQL、mapper、任务状态更新耦合。拆分为两条清晰链路：
+
+```text
+FactBuildOrchestrator
+  ├─ IssueFactBuildService
+  │   ├─ IssueFactSourceQuery
+  │   ├─ IssueFactRowMapper
+  │   └─ IssueFactWriter
+  └─ MergeRequestFactBuildService
+      ├─ MergeRequestFactSourceQuery
+      ├─ MergeRequestFactRowMapper
+      └─ MergeRequestFactWriter
+```
+
+设计规则：
+
+- SQL Provider 只负责 SQL 和参数。
+- Row Mapper 只负责字段到 fact 对象的转换。
+- Writer 只负责 upsert/delete。
+- Orchestrator 只负责任务编排、耗时、错误边界。
+
+验收标准：
+
+- Issue 和 MR 任一链路改字段，不影响另一条链路。
+- fallback SQL 不再复制整段主 SQL，只通过字段能力检测增减 join/字段。
+- 全量同步后事实表与镜像表一致性测试必须覆盖 Issue 和 MR。
+
+### 4. 统计看板解耦
+
+当前统计服务重复实现定义、聚合、规则说明和下钻。解耦为“定义、范围、指标、聚合、明细”五类能力：
+
+| 新模块 | 职责 |
+| --- | --- |
+| `StatisticBoardDefinitionFactory` | 构造列组、过滤器、明细列 |
+| `IssueScopePolicy` | 判断系统测试、客户问题、代码走查等业务范围 |
+| `MetricCatalog` | 定义指标 key、名称、是否可下钻、公式说明 |
+| `StatisticAggregator` | 对 fact 数据聚合为行/列 |
+| `StatisticDetailRecordMapper` | 生成下钻明细，统一议题链接字段 |
+| `StatisticRuleExplanationBuilder` | 构造规则说明与样例 |
+
+关键约束：
+
+- “议题编号超链接”必须在 `StatisticDetailRecordMapper` 或统一 link cell 工具中实现，不允许每个看板自己拼。
+- 系统测试与客户问题缺陷汇总共享聚合核心，只通过 `IssueScopePolicy` 和文案对象区分。
+- 新增指标时只新增 metric 定义和必要聚合逻辑，不复制整套看板服务。
+
+验收标准：
+
+- 所有统计类下钻表的议题编号都能跳转 GitLab。
+- 新增一个指标时，改动点可预测，不需要同时搜多个看板服务复制粘贴。
+- 规则说明、导出、下钻明细使用同一指标定义。
+
+## 前端解耦方案
+
+### 1. 镜像设置页解耦
+
+`MirrorSettingsView.vue` 拆为容器和面板：
+
+```text
+MirrorSettingsView.vue
+  ├─ MirrorSourceSelector.vue
+  ├─ MirrorSourceConfigPanel.vue
+  ├─ MirrorSyncStrategyPanel.vue
+  ├─ MirrorSystemHookPanel.vue
+  ├─ MirrorSourceHealthPanel.vue
+  ├─ MirrorRunMonitorPanel.vue
+  ├─ MirrorSyncLogTable.vue
+  └─ MirrorDangerZonePanel.vue
+```
+
+组合函数边界：
+
+- `useMirrorConfigState`：选源、新增、表单快照、保存状态。
+- `useMirrorSyncActions`：全量、增量、全量补偿、取消、连接测试。
+- `useMirrorSystemHookState`：System Hook URL、secret、注册状态。
+- `useMirrorHealthPresentation`：健康状态文案、颜色、摘要。
+- `useMirrorRunPolling`：空闲轮询、运行中轮询、停止条件。
+
+验收标准：
+
+- 切换线程策略不会被状态轮询覆盖回旧值。
+- System Hook URL 的显示、复制、可编辑边界明确；直连模式下不误导用户认为平台可自动注册。
+- 删除镜像数据、保存配置、启动同步互不影响 loading 状态。
+
+### 2. 统计看板前端解耦
+
+`StatisticBoardView.vue` 拆为四层：
+
+```text
+StatisticBoardRouteShell
+  负责路由、页面进入刷新、query 同步
+
+StatisticBoardToolbarShell
+  负责筛选、查询、导出、规则说明、视图设置
+
+StatisticBoardTableShell
+  负责表头、排序、列宽、列拖拽、分页
+
+StatisticBoardDetailShell
+  负责下钻弹窗、明细分页、明细排序、链接单元格
+```
+
+验收标准：
+
+- 自动刷新只刷新数据和实时状态，不重置用户正在编辑的筛选草稿。
+- 下钻弹窗打开时刷新页面能恢复明细状态。
+- 规则说明加载失败不影响主表查询。
+
+### 3. 通用表格搜索解耦
+
+`BaseRecordTable.vue` 拆为搜索状态、筛选草稿和表格展示：
+
+| 新模块 | 职责 |
+| --- | --- |
+| `BaseRecordTableToolbar.vue` | 搜索框、筛选项、查询/重置按钮 |
+| `useRecordTableKeywordSearch` | 关键词草稿、防抖、手动提交 |
+| `useRecordTableFilterDrafts` | 输入型筛选草稿、提交、清空 |
+| `BaseRecordTableBody.vue` | 表格、分页、排序、展开、插槽 |
+
+搜索体验规则：
+
+- 自动搜索只用于明确配置的关键词搜索。
+- 高级筛选输入框默认不自动提交，除非页面显式开启。
+- 防抖时间统一从配置读取，默认 600ms；用户点击“查询”必须立即执行。
+
+验收标准：
+
+- 用户输入停顿不会过早应用高级筛选。
+- 清空单个筛选只清空对应条件，不重置其他条件。
+- 记录表、数据库查看、问题查询共享一致的查询节奏。
+
+### 4. 数据库查看器解耦
+
+`DatabaseBrowserView.vue` 中的 `collect_form_records` 编辑能力迁移为注册式扩展：
+
+```text
+DatabaseBrowserView.vue
+  ├─ useDatabaseBrowserTableState
+  ├─ DatabaseTableToolbar.vue
+  ├─ DatabaseTableGrid.vue
+  └─ table-editors/
+      └─ CollectFormRecordEditorDialog.vue
+```
+
+设计规则：
+
+- 数据库查看器只知道“当前表是否存在编辑器”。
+- 具体业务表编辑器由 `databaseTableEditorRegistry` 注册。
+- 未注册编辑器的表只允许查看，不出现无效编辑入口。
+
+验收标准：
+
+- 切换任意表不会加载无关业务编辑状态。
+- `collect_form_records` 编辑逻辑可单独测试。
+- 数据库查看页面仍保持查看、排序、分页、刷新能力。
+
+### 5. 类型与 manifest 解耦
+
+类型拆分：
+
+```text
+frontend/src/types/api/
+  ├─ index.ts
+  ├─ sync.ts
+  ├─ statistics.ts
+  ├─ review-data.ts
+  ├─ database.ts
+  ├─ integration-test.ts
+  └─ common.ts
+```
+
+manifest 拆分：
+
+```text
+frontend/src/feature-manifest/
+  ├─ index.ts
+  ├─ route-contracts.ts
+  ├─ quality-dashboard.ts
+  ├─ review-data.ts
+  ├─ code-review.ts
+  ├─ integration-test.ts
+  ├─ system-test.ts
+  ├─ customer-issues.ts
+  └─ system-settings.ts
+```
+
+验收标准：
+
+- 旧导入路径可通过聚合导出兼容，避免一次性大爆炸改动。
+- 菜单、权限、历史 URL、页面 query 契约测试通过。
+
+## 实施任务拆分
+
+### Phase A：解耦前安全网
+
+**Task A1：补同步状态语义测试**
+
+- 验收：全量同步运行中触发单表刷新、System Hook、自动补偿时，用户状态文案不显示失败或原始枚举。
+- 验证：后端同步服务测试 + 前端日志文案单测。
+
+**Task A2：补统计下钻链接契约测试**
+
+- 验收：所有统计明细返回 `iid` 时必须同时具备可跳转链接字段或统一 link cell。
+- 验证：统计 controller/service 测试 + 前端 detail dialog 测试。
+
+**Task A3：补通用表格搜索节奏测试**
+
+- 验收：自动搜索、手动查询、清空筛选互不覆盖。
+- 验证：`BaseRecordTable` / 搜索 composable 单测。
+
+### Phase B：低风险公共能力抽取
+
+**Task B1：拆分同步文案与状态映射**
+
+- 依赖：A1
+- 触碰文件：`mirror-settings-helpers.ts` 及新增 label/translator 文件。
+- 验收：前端无原始内部状态 fallback。
+
+**Task B2：统一 GitLab 资源链接服务**
+
+- 依赖：A2
+- 触碰文件：`GitlabIssueLinkService.java` 及引用点。
+- 验收：Issue/MR 链接生成测试通过，类名语义正确。
+
+**Task B3：统一前端议题链接单元格**
+
+- 依赖：A2
+- 触碰文件：统计下钻、集成测试明细、记录表映射。
+- 验收：所有下钻表链接行为一致。
+
+### Phase C：同步模块解耦
+
+**Task C1：拆 Controller 门面**
+
+- 依赖：B1
+- 验收：旧 URL 不变，Controller 不再直接拼复杂诊断和提交响应。
+
+**Task C2：拆任务租约与恢复**
+
+- 依赖：A1
+- 验收：claim、heartbeat、timeout recover 可单测。
+
+**Task C3：拆表任务执行与续批规划**
+
+- 依赖：C2
+- 验收：小表、101 条超批、无更新时间列、取消场景均通过测试。
+
+**Task C4：拆全量补偿删除逻辑**
+
+- 依赖：C3
+- 验收：缺少数据补齐、多余镜像删除、错误数据纠正均有测试。
+
+### Phase D：源读取与事实层解耦
+
+**Task D1：拆源连接与执行器**
+
+- 依赖：C1
+- 验收：直连模式与 Docker 模式共用执行接口。
+
+**Task D2：拆 schema 探测与 SQL Builder**
+
+- 依赖：D1
+- 验收：表名/字段名统一引用，schema 缺失诊断不触发同步。
+
+**Task D3：拆 Issue/MR 事实构建链路**
+
+- 依赖：D2
+- 验收：Issue/MR 任一链路失败不污染另一链路状态。
+
+### Phase E：统计与前端页面解耦
+
+**Task E1：抽统计明细链接与列定义工厂**
+
+- 依赖：B3
+- 验收：所有统计下钻表链接统一。
+
+**Task E2：抽缺陷汇总聚合核心**
+
+- 依赖：E1
+- 验收：系统测试与客户问题汇总共用核心聚合，口径不变。
+
+**Task E3：拆镜像设置页面板**
+
+- 依赖：B1、C1
+- 验收：线程策略、System Hook、同步动作、清理弹窗互不覆盖状态。
+
+**Task E4：拆统计看板前端 shell**
+
+- 依赖：E1
+- 验收：筛选、排序、下钻、规则说明、自动刷新互不干扰。
+
+**Task E5：拆通用表格搜索与筛选**
+
+- 依赖：A3
+- 验收：高级搜索体验稳定，手动查询立即生效。
+
+### Phase F：收尾模块化
+
+**Task F1：拆 API 类型**
+
+- 验收：旧导入兼容，`npm run typecheck` 通过。
+
+**Task F2：拆 feature manifest**
+
+- 验收：菜单、路由、权限、历史 URL 冒烟测试通过。
+
+## 每阶段回归清单
+
+- 后端：同步启动、取消、全量补偿、单表刷新、System Hook 唤醒、事实构建。
+- 前端：登录、导航、镜像设置、同步日志、数据镜像监控、数据库查看、统计看板、统计下钻、规则说明、导出。
+- 体验：通知可手动关闭、中文提示、状态不误导、加载不抖动、用户编辑中的草稿不被轮询覆盖。
+- 构建：后端测试、前端测试、类型检查、生产构建全部通过。
