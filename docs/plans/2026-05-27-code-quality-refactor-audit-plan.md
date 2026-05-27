@@ -11,6 +11,30 @@
 - 外部真实 CC/DGM 数据源和内网 GitLab 全量生产数据无法在本地直接读取，因此涉及真实库规模、真实字段缺失率的判断需要在内网测试补充验证。
 - PowerShell 输出中中文存在终端编码显示问题，本计划不把终端乱码当成源码编码问题；后续若要确认源码编码，需用 IDE 或 UTF-8 原始字节方式单独验证。
 
+## 执行前评估修订
+
+评估结论：本计划识别的高耦合热点成立，可以作为重构主线；但执行前必须先修正验收命令、行为变更边界和任务粒度，避免一次性大爆炸重构。
+
+### 优先级分层
+
+- **P0：计划与安全网修正**
+  - 修正验收命令，避免在仓库根目录直接执行 Maven。
+  - 将 `scripts/verify-local.ps1` 作为项目特有守卫入口，按变更范围选择 `-SkipDatabase` 或完整执行。
+  - 明确“纯搬迁重构”和“用户语义变化”必须拆成不同提交/任务。
+- **P1：低风险公共能力抽取**
+  - 优先处理 `mirror-settings-helpers.ts` 文案映射、GitLab 资源链接命名、前端链接单元格、API 类型聚合拆分等低风险项。
+  - 每个任务保持旧 API、旧 URL、旧导入路径兼容。
+- **P2：核心链路分批解耦**
+  - 同步 worker、GitLab 源读取、事实构建、统计聚合必须按边界逐个拆分。
+  - 每次只拆一个职责边界，先做到无行为差异；任何状态语义、失败语义、统计口径变化都单独列为行为变更任务。
+
+### 执行粒度规则
+
+- 每个重构任务拆成两类切片：**纯搬迁切片** 和 **行为收敛切片**。纯搬迁只移动代码和补测试，不改变 DTO、URL、数据库结构、用户文案和统计口径。
+- 单个切片建议控制在 100-300 行有效改动；超过 1000 行必须继续拆分。
+- 硬依赖只用于编译或行为确实依赖的前置任务；文案、页面拆分、源读取拆分等可以并行推进的任务标记为软依赖，避免无意义串行化。
+- 在 `main` 工作区执行时，不提交大批未验证改动；每个切片完成后必须能通过对应最小验证。
+
 ## 铁律
 
 1. 重构期间不得改变用户可见业务语义；必须先用测试或快照锁定当前行为。
@@ -18,19 +42,21 @@
 3. 前端任何反馈类提示必须为中文，不允许把 `QUEUED`、`PARTIAL_SUCCESS`、内部策略枚举等原始实现概念直接暴露给普通用户。
 4. 改一个模块时必须检查相邻功能，不允许出现“同步日志实时性修复导致同步策略或 System Hook 体验异常”的连带问题。
 5. 简单逻辑三次重复、复杂逻辑两次重复，必须进入统一工具类、组合式函数或领域支持类。
+6. 重构和行为变更必须分离；如果验收目标会改变现有运行语义，必须先标记为行为变更并补产品/测试确认。
+7. 不把“文件变短”作为验收标准；只按职责边界、测试可达性、重复消除和用户语义稳定性判断是否值得拆。
 
 ## 违规清单
 
 - **[backend/src/main/java/com/data/collection/platform/service/GitlabExternalDbService.java]**
   - **定位**：`GitlabExternalDbService` 全类；`discoverTableSchema`、同步读取、SQL 构造、连接适配相关方法
   - **违规类型**：SRP / KISS / 相似相溶原则 / 再一再而不再三原则
-  - **问题简述**：一个 1186 行服务同时负责直连与 Docker 连接、SQL 构造、schema 探测、数据读取、诊断、超时控制和缓存，任何同步规则调整都可能牵动连接层和查询层。
+  - **问题简述**：一个 1273 行服务同时负责直连与 Docker 连接、SQL 构造、schema 探测、数据读取、诊断、超时控制和缓存，任何同步规则调整都可能牵动连接层和查询层。
   - **优化预判**：拆分为 `GitlabSourceConnectionFactory`、`GitlabSourceQueryExecutor`、`GitlabSourceSchemaDiscoveryService`、`GitlabSourceScanSqlBuilder`、`GitlabSourceDiagnosticsService`，并统一表名/字段名引用工具。
 
 - **[backend/src/main/java/com/data/collection/platform/service/FactBuildService.java]**
   - **定位**：`FactBuildService` 全类；`ISSUE_SOURCE_SQL`、`ISSUE_SOURCE_SQL_FALLBACK`、`MERGE_REQUEST_SOURCE_SQL`、事实构建与映射方法
   - **违规类型**：SRP / KISS / YAGNI / 再一再而不再三原则
-  - **问题简述**：Issue、MR、SQL 模板、字段映射、任务调度状态更新集中在一个 863 行服务中，且 fallback SQL 与主 SQL 高度重复。
+  - **问题简述**：Issue、MR、SQL 模板、字段映射、任务调度状态更新集中在一个 914 行服务中，且 fallback SQL 与主 SQL 高度重复。
   - **优化预判**：拆分 Issue/MR 两条事实构建链路，抽出 SQL Provider、Row Mapper 和 Build Orchestrator；fallback 改为可组合字段能力检测，避免整段 SQL 复制。
 
 - **[backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTableWorkerService.java]**
@@ -72,7 +98,7 @@
 - **[frontend/src/views/MirrorSettingsView.vue]**
   - **定位**：组件全体；配置表单、数据源健康、线程策略、System Hook、同步动作、清理弹窗、监控面板编排
   - **违规类型**：SRP / KISS / 维护为纲原则
-  - **问题简述**：1050 行页面虽然已抽出部分 controller，但仍把多数据源配置、同步策略、状态展示、健康诊断、System Hook 和清理流程揉在一起。
+  - **问题简述**：1102 行页面虽然已抽出部分 controller，但仍把多数据源配置、同步策略、状态展示、健康诊断、System Hook 和清理流程揉在一起。
   - **优化预判**：拆为 `MirrorSourceConfigPanel`、`MirrorSyncStrategyPanel`、`MirrorSystemHookPanel`、`MirrorSourceHealthPanel`、`MirrorDangerZonePanel`，页面只保留选源和保存编排。
 
 - **[frontend/src/views/mirror-settings-helpers.ts]**
@@ -108,13 +134,13 @@
 - **[frontend/src/types/api.ts]**
   - **定位**：文件全体
   - **违规类型**：KISS / 拓展预留原则
-  - **问题简述**：903 行集中 API 类型文件承载同步、统计、评审、系统测试、数据库浏览等多个领域，类型变更容易产生大面积冲突。
+  - **问题简述**：984 行集中 API 类型文件承载同步、统计、评审、系统测试、数据库浏览等多个领域，类型变更容易产生大面积冲突。
   - **优化预判**：拆为 `types/api/sync.ts`、`types/api/statistics.ts`、`types/api/review-data.ts`、`types/api/database.ts`，通过 `types/api/index.ts` 兼容导出。
 
 - **[frontend/src/feature-manifest.ts]**
   - **定位**：页面清单、路由契约、特殊路由契约、查询键定义
   - **违规类型**：SRP / 拓展预留原则
-  - **问题简述**：663 行 manifest 同时承载导航数据、路由契约、查询参数白名单和特殊页面定义，新增页面时容易误改全局契约。
+  - **问题简述**：690 行 manifest 同时承载导航数据、路由契约、查询参数白名单和特殊页面定义，新增页面时容易误改全局契约。
   - **优化预判**：拆为领域 manifest 文件和 `route-contracts.ts`，最终由 `feature-manifest/index.ts` 聚合。
 
 ## 分阶段重构路线图
@@ -167,11 +193,33 @@
 
 ```powershell
 cd D:\projects\data_collection_platform
+
+# 项目特有静态守卫、合约漂移、运行产物检查；无本地数据库时可先加 -SkipDatabase。
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-local.ps1 -SkipDatabase
+
+cd backend
 & 'D:\projects\data_collection_platform\tools\maven\apache-maven-3.9.9\bin\mvn.cmd' -q test
-cd frontend
-& 'C:\Program Files\nodejs\npm.cmd' test -- --run
+
+cd ..\frontend
+& 'C:\Program Files\nodejs\npm.cmd' test
 & 'C:\Program Files\nodejs\npm.cmd' run typecheck
 & 'C:\Program Files\nodejs\npm.cmd' run build
+```
+
+按变更范围的最小验证：
+
+```powershell
+# 后端同步/事实/统计变更
+cd D:\projects\data_collection_platform\backend
+& 'D:\projects\data_collection_platform\tools\maven\apache-maven-3.9.9\bin\mvn.cmd' -q -Dtest=SyncRunSubmissionServiceTest,SyncRunTableWorkerServiceTest test
+
+# 前端镜像设置/状态文案变更
+cd ..\frontend
+& 'C:\Program Files\nodejs\npm.cmd' test -- mirror-settings-helpers useMirrorStatusPresentation useMirrorSyncActionsController
+
+# 路由、manifest、类型变更
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- router feature-manifest
 ```
 
 ## 暂不立即重构的边界
@@ -525,7 +573,8 @@ frontend/src/feature-manifest/
 
 **Task D1：拆源连接与执行器**
 
-- 依赖：C1
+- 硬依赖：无
+- 软依赖：C1。源连接与执行器可以先在 `GitlabExternalDbService` 内部抽取，不要求 Controller 门面先完成。
 - 验收：直连模式与 Docker 模式共用执行接口。
 
 **Task D2：拆 schema 探测与 SQL Builder**
@@ -536,7 +585,7 @@ frontend/src/feature-manifest/
 **Task D3：拆 Issue/MR 事实构建链路**
 
 - 依赖：D2
-- 验收：Issue/MR 任一链路失败不污染另一链路状态。
+- 验收：Issue/MR 链路职责拆分后，单独入口可独立测试；`rebuildAllFacts` 的失败传播语义默认保持现状。若要改为“一条链路失败不阻断另一条链路”，必须另列行为变更任务并补产品确认与回归测试。
 
 ### Phase E：统计与前端页面解耦
 
@@ -552,7 +601,8 @@ frontend/src/feature-manifest/
 
 **Task E3：拆镜像设置页面板**
 
-- 依赖：B1、C1
+- 硬依赖：B1
+- 软依赖：C1。页面板块拆分可以先保持现有 API 与状态结构，Controller 门面完成后再收敛调用边界。
 - 验收：线程策略、System Hook、同步动作、清理弹窗互不覆盖状态。
 
 **Task E4：拆统计看板前端 shell**

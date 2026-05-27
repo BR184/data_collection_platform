@@ -133,8 +133,11 @@ export function syncStatusTagType(statusValue: GitlabSyncStatus | 'IDLE') {
   return SYNC_STATUS_TAG_TYPES[statusValue] ?? 'info';
 }
 
-export function syncTypeText(syncType: GitlabSyncType) {
-  return SYNC_TYPE_LABELS[syncType] ?? syncType;
+export function syncTypeText(syncType?: GitlabSyncType | string | null) {
+  if (!syncType) {
+    return '其他同步任务';
+  }
+  return SYNC_TYPE_LABELS[syncType as GitlabSyncType] ?? '其他同步任务';
 }
 
 export function syncLogTypeText(log: Pick<SyncRunLog, 'syncType' | 'runType'>) {
@@ -173,7 +176,7 @@ export function tableRowStrategyText(strategy: GitlabTableRowStrategy | string |
   if (!strategy) {
     return '-';
   }
-  return TABLE_ROW_STRATEGY_LABELS[strategy] ?? strategy;
+  return TABLE_ROW_STRATEGY_LABELS[strategy] ?? '其他处理策略';
 }
 
 export function tableDiagnosticNote(row: SyncRunTableDiagnostics) {
@@ -184,7 +187,7 @@ export function tableDiagnosticNote(row: SyncRunTableDiagnostics) {
     return '当前同步正在处理相关表';
   }
   if (row.dirtyReason) {
-    return DIRTY_REASON_LABELS[row.dirtyReason] ?? row.dirtyReason;
+    return DIRTY_REASON_LABELS[row.dirtyReason] ?? '表状态需要查看明细';
   }
   if (row.driftSummary) {
     return row.driftSummary;

@@ -59,6 +59,20 @@ describe('mirror settings helpers', () => {
     })).toBe('当前同步正在处理相关表');
   });
 
+  it('uses stable fallback copy for unknown backend enum values', () => {
+    expect(syncTypeText('UNKNOWN_SYNC_TYPE' as never)).toBe('其他同步任务');
+    expect(tableRowStrategyText('UNKNOWN_ROW_STRATEGY')).toBe('其他处理策略');
+    expect(tableDiagnosticNote({
+      sourceTable: 'issues',
+      mirrorTable: 'ods_gitlab_issues',
+      primaryKeyColumns: 'id',
+      rowStrategy: 'UNKNOWN_ROW_STRATEGY' as never,
+      syncEnabled: true,
+      dirty: true,
+      dirtyReason: 'unknown_dirty_reason',
+    })).toBe('表状态需要查看明细');
+  });
+
   it('translates known sync messages and falls back to default log copy', () => {
     expect(translateSyncMessage('Sync completed successfully')).toBe('同步已完成');
     expect(translateSyncMessage('Cancellation requested')).toBe('已请求取消同步任务');
