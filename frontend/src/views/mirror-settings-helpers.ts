@@ -91,6 +91,14 @@ const DIRTY_REASON_LABELS: Record<string, string> = {
   task_failed: '最近一次表任务未完成',
 };
 
+const TRIGGER_TYPE_LABELS: Record<string, string> = {
+  MANUAL: '手动触发',
+  SCHEDULED: '定时触发',
+  SYSTEM_HOOK: 'System Hook 触发',
+  AUTO: '自动触发',
+  API: '接口触发',
+};
+
 export function formatDateTime(value?: string | null) {
   return formatBeijingDateTime(value);
 }
@@ -118,7 +126,7 @@ export function formatLogTime(log: SyncRunLog) {
 }
 
 export function syncStatusText(statusValue: GitlabSyncStatus | 'IDLE' | string) {
-  return SYNC_STATUS_LABELS[statusValue as GitlabSyncStatus | 'IDLE'] ?? statusValue;
+  return SYNC_STATUS_LABELS[statusValue as GitlabSyncStatus | 'IDLE'] ?? '未知状态';
 }
 
 export function syncStatusTagType(statusValue: GitlabSyncStatus | 'IDLE') {
@@ -150,7 +158,15 @@ export function logStatusText(statusValue: GitlabSyncStatus) {
 }
 
 export function tableTaskStatusText(statusValue: GitlabSyncStatus | string) {
-  return TABLE_TASK_STATUS_LABELS[statusValue as GitlabSyncStatus] ?? statusValue;
+  return TABLE_TASK_STATUS_LABELS[statusValue as GitlabSyncStatus] ?? '未知状态';
+}
+
+export function syncTriggerTypeText(triggerType?: string | null) {
+  const normalized = triggerType?.trim();
+  if (!normalized) {
+    return '-';
+  }
+  return TRIGGER_TYPE_LABELS[normalized] ?? '其他触发';
 }
 
 export function tableRowStrategyText(strategy: GitlabTableRowStrategy | string | null | undefined) {

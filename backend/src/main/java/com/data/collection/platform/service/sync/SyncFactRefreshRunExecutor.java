@@ -49,7 +49,7 @@ public class SyncFactRefreshRunExecutor {
         completed,
         affectedRows,
         status,
-        status == SyncRunStatus.SUCCESS ? null : "One or more fact refresh tasks failed");
+        status == SyncRunStatus.SUCCESS ? null : "部分事实数据刷新任务未完成");
   }
 
   private boolean fullBuild(SyncRun run) {

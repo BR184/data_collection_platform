@@ -9,6 +9,7 @@ import {
   logStatusType,
   syncLogTypeText,
   syncLogMessage,
+  syncTriggerTypeText,
   syncTypeTagType,
 } from './mirror-settings-helpers';
 
@@ -82,16 +83,16 @@ function typeFilterKey(log: SyncRunLog) {
                 <strong>{{ row.runId || row.id }}</strong>
               </div>
               <div class="sync-log-detail-item">
-                <span>触发方式</span>
-                <strong>{{ row.triggerType || '-' }}</strong>
+                <span>触发来源</span>
+                <strong>{{ syncTriggerTypeText(row.triggerType) }}</strong>
               </div>
               <div class="sync-log-detail-item">
-                <span>内部类型</span>
-                <strong>{{ row.runType || row.syncType }}</strong>
+                <span>同步内容</span>
+                <strong>{{ syncLogTypeText(row) }}</strong>
               </div>
               <div class="sync-log-detail-item">
-                <span>内部状态</span>
-                <strong>{{ row.status }}</strong>
+                <span>当前结果</span>
+                <strong>{{ logStatusText(row.status) }}</strong>
               </div>
               <div class="sync-log-detail-item">
                 <span>写入记录</span>

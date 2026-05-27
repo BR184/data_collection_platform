@@ -301,7 +301,7 @@ async function saveCollectFormEdit() {
 
 function syncStatusText() {
   const status = rowsResponse.value?.syncStatus || selectedOption.value?.syncStatus || 'IDLE';
-  return syncStatusLabels[status] ?? status;
+  return syncStatusLabels[status] ?? '未知状态';
 }
 
 function tableKindLabel(kind?: string | null) {

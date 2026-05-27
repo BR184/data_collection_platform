@@ -229,3 +229,31 @@
 - 最近同步日志展开区仍显示 `触发方式 = MANUAL`、`内部类型 = FULL_SYNC / TABLE_REFRESH`、`内部状态 = SUCCESS / FAILED` 等内部枚举。主列已经中文化，但展开区仍会让用户看到两套口径；这与“不要出现误导性显示和提示”的原则冲突。建议把展开区改为“触发来源 / 同步内容 / 当前结果”的用户态文案，必要的内部 runId 只保留在运行编号里。
 - `mirror-settings-helpers.ts`、`DatabaseBrowserView.vue` 对未知状态仍有 `?? statusValue` 兜底。当前后端已覆盖已知状态，所以不是现行 bug；但后续新增状态时可能重新裸露英文枚举。建议统一改为“未知状态”并把原始值放到 tooltip 或诊断详情，不直接作为主文案。
 - 事实刷新异常仍存在少量英文后端消息，例如 `Fact refresh failed`、`One or more fact refresh tasks failed`。这些可能进入同步日志或详情错误信息。建议用户态消息改中文，原始异常保留在日志或诊断字段。
+
+## 2026-05-27 同类风险修复落地
+### 已完成修复
+- Code Review MR 链接统一走 `GitlabIssueLinkService.mergeRequestUrl(projectId, mergeRequestIid)`，不再由 `repository_name + /-/merge_requests/{iid}` 本地拼接，避免多级 GitLab group 下链接错误。
+- 最近同步日志展开区从“触发方式 / 内部类型 / 内部状态”调整为“触发来源 / 同步内容 / 当前结果”，展示用户态中文文案，不再直接暴露 `MANUAL`、`FULL_SYNC`、`SUCCESS` 等内部枚举。
+- 同步状态和表任务状态的未知兜底从直接显示原始枚举改为“未知状态”，数据库查看页的同步状态兜底也同步收敛，避免后续新增状态时把英文内部值直接展示给用户。
+- 事实刷新失败的用户态消息改为中文：“事实数据刷新失败”“部分事实数据刷新任务未完成”。原始异常仍保留在日志和错误详情中，方便研发排查。
+
+### 新增/更新回归测试
+- `GitlabIssueLinkServiceTest`：补充 MR 链接生成断言，复用项目路径解析能力。
+- `CodeReviewIllegalRecordServiceTest`：补充按 `projectId` 生成 MR 链接的契约，避免回退到仓库名拼接。
+- `MirrorSyncLogTable.test.ts`：覆盖最近同步日志展开区不出现内部状态、内部类型和英文枚举。
+- `mirror-settings-helpers.test.ts`：覆盖未知同步状态、未知表任务状态必须显示“未知状态”。
+- `FactRefreshTaskWorkerServiceTest`、`SyncFactRefreshRunExecutorTest`：覆盖事实刷新失败消息中文化。
+
+### 验证结果
+- 红灯验证：新增测试在实现前分别命中缺失的 `mergeRequestUrl`、同步日志内部枚举裸露、未知状态原样回显、事实刷新英文消息，证明测试覆盖了目标问题。
+- 定向回归通过：`mvn -q "-Dtest=GitlabIssueLinkServiceTest,CodeReviewIllegalRecordServiceTest,FactRefreshTaskWorkerServiceTest,SyncFactRefreshRunExecutorTest" test`。
+- 定向前端回归通过：`npm test -- --run src/views/MirrorSyncLogTable.test.ts src/views/mirror-settings-helpers.test.ts`。
+- 前端全量测试通过：`npm test -- --run`，78 个测试文件、239 个用例通过。
+- 后端全量测试通过：`mvn test`，测试日志中的异常栈来自既有异常处理、重试和失败路径用例，不是本次回归失败。
+- 前端类型检查通过：`npm run typecheck`。
+- 前端生产构建通过：`npm run build`。
+
+### 回归影响检查
+- 代码走查列表、导出、规则配置等前端冒烟测试均在全量测试中通过，MR 链接改造未影响 Code Review 页面渲染和导出。
+- 同步设置页、同步日志表、同步监控面板、状态展示相关测试均通过，日志展开区文案调整未影响筛选、刷新、取消、重试等同步操作。
+- 数据库查看页仅调整未知状态兜底文案，不改变表加载、单表刷新、只读源表提示和编辑 collect_form_records 的流程。

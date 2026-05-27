@@ -61,7 +61,7 @@ public class FactRefreshTaskWorkerService {
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
       return response;
     } catch (Exception e) {
-      taskService.finishQueuedTask(task.id(), "FAILED", 0, "Fact refresh failed", e.getMessage());
+      taskService.finishQueuedTask(task.id(), "FAILED", 0, "事实数据刷新失败", e.getMessage());
       log.warn("Fact refresh task failed, taskId={}, factType={}", task.id(), task.factType(), e);
       return null;
     }

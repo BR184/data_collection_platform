@@ -79,6 +79,10 @@ class CodeReviewIllegalRecordServiceTest {
                 2,
                 1,
                 20));
+    when(gitlabIssueLinkService.mergeRequestUrl(2001L, 5))
+        .thenReturn("http://gitlab.example.com/group/repo-a/-/merge_requests/5");
+    when(gitlabIssueLinkService.mergeRequestUrl(2001L, 12))
+        .thenReturn("http://gitlab.example.com/group/repo-b/-/merge_requests/12");
 
     CodeReviewIllegalRecordListResponse response =
         service.listRecords(
