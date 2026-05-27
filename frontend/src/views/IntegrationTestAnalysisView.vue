@@ -18,6 +18,7 @@ import type { RecordTableColumn } from '../types/record-table';
 import { INTEGRATION_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { buildGitlabResourceLinkCell } from '../utils/issue-record-links';
 
 const route = useRoute();
 const router = useRouter();
@@ -411,7 +412,7 @@ function buildFunctionLabelTags(value?: string | null) {
 
 function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number]) {
   const label = row.issuableReference || `#${row.issueIid}`;
-  return row.issueLink ? { label, href: row.issueLink } : label;
+  return buildGitlabResourceLinkCell(label, row.issueLink);
 }
 
 </script>

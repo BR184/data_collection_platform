@@ -44,6 +44,7 @@ describe('code review illegal records view helpers', () => {
     ]);
 
     expect(rows[0]).toMatchObject({
+      mergeRequestIid: { label: '101', href: 'http://gitlab/mr/101' },
       mergeRequestContent: 'demo',
       mergedAt: '2026-04-24 10:20:30',
       commentRate: '12.35%',

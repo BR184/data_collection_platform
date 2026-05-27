@@ -35,7 +35,6 @@ import com.data.collection.platform.service.sync.SyncRunCancellationService.Sync
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunStatusService;
 import com.data.collection.platform.service.sync.SyncRunTableDiagnosticsService;
-import com.data.collection.platform.service.sync.SyncThreadBudgetResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -66,11 +65,11 @@ public class GitlabSyncController {
   private final GitlabMirrorPurgeService purgeService;
   private final GitlabSourceHealthService sourceHealthService;
   private final SourceMetadataInspector sourceMetadataInspector;
-  private final SyncThreadBudgetResolver threadBudgetResolver;
   private final SyncRunSubmissionService submissionService;
   private final SyncRunCancellationService cancellationService;
   private final SyncRunStatusService statusService;
   private final SyncRunTableDiagnosticsService tableDiagnosticsService;
+  private final GitlabSyncControllerResponseMapper responseMapper;
 
   public GitlabSyncController(
       GitlabConfigService configService,
@@ -82,11 +81,11 @@ public class GitlabSyncController {
       GitlabMirrorPurgeService purgeService,
       GitlabSourceHealthService sourceHealthService,
       SourceMetadataInspector sourceMetadataInspector,
-      SyncThreadBudgetResolver threadBudgetResolver,
       SyncRunSubmissionService submissionService,
       SyncRunCancellationService cancellationService,
       SyncRunStatusService statusService,
-      SyncRunTableDiagnosticsService tableDiagnosticsService) {
+      SyncRunTableDiagnosticsService tableDiagnosticsService,
+      GitlabSyncControllerResponseMapper responseMapper) {
     this.configService = configService;
     this.syncService = syncService;
     this.whitelistService = whitelistService;
@@ -96,11 +95,11 @@ public class GitlabSyncController {
     this.purgeService = purgeService;
     this.sourceHealthService = sourceHealthService;
     this.sourceMetadataInspector = sourceMetadataInspector;
-    this.threadBudgetResolver = threadBudgetResolver;
     this.submissionService = submissionService;
     this.cancellationService = cancellationService;
     this.statusService = statusService;
     this.tableDiagnosticsService = tableDiagnosticsService;
+    this.responseMapper = responseMapper;
   }
 
   @GetMapping("/status")
@@ -108,25 +107,13 @@ public class GitlabSyncController {
   public ApiResponse<MirrorStatusResponse> status(@RequestParam(value = "configId", required = false) Long configId) {
     GitlabSyncConfig config = resolveConfig(configId);
     MirrorStatusResponse status = statusService.getStatus(config);
-    return ApiResponse.success(
-        new MirrorStatusResponse(
-            sanitizeConfigForResponse(config),
-            status.currentTask(),
-            status.currentStatus(),
-            status.currentMessage(),
-            status.currentStartedAt(),
-            status.progress(),
-            status.logs(),
-            properties.getSystemHookBaseUrl(),
-            status.systemHookRegistration(),
-            Runtime.getRuntime().availableProcessors(),
-            threadBudgetResolver.resolve(config)));
+    return ApiResponse.success(responseMapper.statusResponse(config, status));
   }
 
   @GetMapping("/configs")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<List<GitlabSyncConfig>> configs() {
-    return ApiResponse.success(configService.listConfigs().stream().map(this::sanitizeConfigForResponse).toList());
+    return ApiResponse.success(configService.listConfigs().stream().map(responseMapper::sanitizeConfigForResponse).toList());
   }
 
   @GetMapping("/source-health")
@@ -283,7 +270,7 @@ public class GitlabSyncController {
           request.sourceMode(),
           request.whitelistMode());
     }
-    return ApiResponse.success("配置已保存", sanitizeConfigForResponse(configService.saveConfig(config)));
+    return ApiResponse.success("配置已保存", responseMapper.sanitizeConfigForResponse(configService.saveConfig(config)));
   }
 
   @PostMapping("/test-connection")
@@ -323,7 +310,7 @@ public class GitlabSyncController {
       log.info("Manual full sync requested during cutover");
     }
     SyncRunSubmissionResult result = submissionService.submitFullSync(config, "手动全量同步");
-    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
+    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
   }
 
   @PostMapping("/incremental-sync")
@@ -342,7 +329,7 @@ public class GitlabSyncController {
     }
     SyncRunSubmissionResult result =
         submissionService.submitIncrementalSync(config, null, "手动增量同步");
-    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
+    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
   }
 
   @PostMapping("/full-compensation-sync")
@@ -362,7 +349,7 @@ public class GitlabSyncController {
     }
     SyncRunSubmissionResult result =
         submissionService.submitFullCompensationSync(config, SyncTriggerType.MANUAL, "手动全量补偿对账");
-    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
+    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
   }
 
   @PostMapping("/retry-failed/by-config")
@@ -381,7 +368,7 @@ public class GitlabSyncController {
               "status",
               SyncStatus.IDLE,
               "statusText",
-              syncStatusLabel(SyncStatus.IDLE),
+              responseMapper.syncStatusLabel(SyncStatus.IDLE),
               "action",
               SyncSubmissionAction.DEDUPED,
               "type",
@@ -391,7 +378,7 @@ public class GitlabSyncController {
     }
     SyncRunSubmissionResult result =
         submissionService.submitTableRefresh(config, retryableTables, "重试失败表任务");
-    return ApiResponse.success(result.message(), buildSubmissionResponse(result));
+    return ApiResponse.success(result.message(), responseMapper.submissionResponse(result));
   }
 
   @PostMapping("/register-system-hook")
@@ -482,39 +469,6 @@ public class GitlabSyncController {
 
   public record PurgeRequest(@NotNull MirrorPurgeScope scope, Long configId) {}
 
-  private GitlabSyncConfig sanitizeConfigForResponse(GitlabSyncConfig source) {
-    GitlabSyncConfig sanitized = new GitlabSyncConfig();
-    sanitized.setId(source.getId());
-    sanitized.setName(source.getName());
-    sanitized.setEnabled(source.isEnabled());
-    sanitized.setSourceEnabled(source.getSourceEnabled() == null ? source.isEnabled() : source.getSourceEnabled());
-    sanitized.setSourceInstance(source.getSourceInstance());
-    sanitized.setAutoSyncEnabled(source.isAutoSyncEnabled());
-    sanitized.setSourceMode(source.getSourceMode());
-    sanitized.setWhitelistMode(source.getWhitelistMode());
-    sanitized.setWhitelistTables(source.getWhitelistTables());
-    sanitized.setDbHost(source.getDbHost());
-    sanitized.setDbPort(source.getDbPort());
-    sanitized.setDbName(source.getDbName());
-    sanitized.setDbUsername(source.getDbUsername());
-    sanitized.setDbPassword("");
-    sanitized.setDockerContainerName(source.getDockerContainerName());
-    sanitized.setSystemHookSecret("");
-    sanitized.setSystemHookEnabled(source.getSystemHookEnabled() != null && source.getSystemHookEnabled());
-    sanitized.setSystemHookProjectId(source.getSystemHookProjectId());
-    sanitized.setCompensationIntervalMinutes(source.getCompensationIntervalMinutes());
-    sanitized.setFullCompensationEnabled(source.getFullCompensationEnabled());
-    sanitized.setFullCompensationTime(source.getFullCompensationTime());
-    sanitized.setSyncThreadMode(source.getSyncThreadMode());
-    sanitized.setSyncThreadValue(source.getSyncThreadValue());
-    sanitized.setMaxSyncThreads(source.getMaxSyncThreads());
-    sanitized.setLastFullSyncAt(source.getLastFullSyncAt());
-    sanitized.setLastIncrementalSyncAt(source.getLastIncrementalSyncAt());
-    sanitized.setCreatedAt(source.getCreatedAt());
-    sanitized.setUpdatedAt(source.getUpdatedAt());
-    return sanitized;
-  }
-
   private SystemHookConfigDiagnostics diagnoseSystemHookConfig(GitlabSyncConfig config) {
     boolean systemHookEnabled = Boolean.TRUE.equals(config.getSystemHookEnabled());
     boolean secretConfigured = config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank();
@@ -565,33 +519,4 @@ public class GitlabSyncController {
     return configId == null ? configService.getConfig() : configService.getConfigById(configId);
   }
 
-  private Map<String, Object> buildSubmissionResponse(SyncRunSubmissionResult result) {
-    return Map.of(
-        "accepted", result.status() != SyncStatus.IDLE,
-        "runId", result.runId() == null ? "" : result.runId(),
-        "status", result.status(),
-        "statusText", syncStatusLabel(result.status()),
-        "action", result.action(),
-        "type", result.type(),
-        "message", result.message());
-  }
-
-  private String syncStatusLabel(SyncStatus status) {
-    if (status == null) {
-      return "UNKNOWN";
-    }
-    return switch (status) {
-      case PENDING -> "待执行";
-      case QUEUED -> "等待执行";
-      case RUNNING -> "执行中";
-      case RETRYING -> "重试中";
-      case SUCCESS -> "成功";
-      case PARTIAL_SUCCESS -> "已完成，需查看明细";
-      case FAILED -> "需要处理";
-      case CANCELLED -> "已取消";
-      case TIMEOUT -> "已超时";
-      case CANCELLING -> "取消中";
-      case IDLE -> "空闲";
-    };
-  }
 }

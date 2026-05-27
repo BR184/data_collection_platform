@@ -5,6 +5,7 @@ import type {
   StatisticFilterField,
 } from '../types/api';
 import type { RecordTableColumn } from '../types/record-table';
+import { buildGitlabResourceLinkCell } from '../utils/issue-record-links';
 
 const DEFAULT_SELECT_WIDTH = 180;
 const DEFAULT_TEXT_WIDTH = 180;
@@ -141,9 +142,7 @@ export function mapCodeReviewIllegalTableRows(
 ): Record<string, unknown>[] {
   return rows.map((row) => ({
     __raw: row,
-    mergeRequestIid: row.mergeRequestLink
-      ? { label: String(row.mergeRequestIid), href: row.mergeRequestLink }
-      : String(row.mergeRequestIid),
+    mergeRequestIid: buildGitlabResourceLinkCell(row.mergeRequestIid, row.mergeRequestLink),
     mergeRequestContent: row.mergeRequestContent,
     owner: row.owner || '-',
     projectName: row.projectName || '-',

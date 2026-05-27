@@ -64,6 +64,8 @@ class GitlabSyncControllerTest {
     statusService = mock(SyncRunStatusService.class);
     tableDiagnosticsService = mock(SyncRunTableDiagnosticsService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    GitlabSyncControllerResponseMapper responseMapper =
+        new GitlabSyncControllerResponseMapper(properties, new SyncThreadBudgetResolver(properties));
     controller =
         new GitlabSyncController(
             configService,
@@ -75,11 +77,11 @@ class GitlabSyncControllerTest {
             mock(GitlabMirrorPurgeService.class),
             mock(GitlabSourceHealthService.class),
             sourceMetadataInspector,
-            new SyncThreadBudgetResolver(properties),
             submissionService,
             cancellationService,
             statusService,
-            tableDiagnosticsService);
+            tableDiagnosticsService,
+            responseMapper);
   }
 
   @Test
