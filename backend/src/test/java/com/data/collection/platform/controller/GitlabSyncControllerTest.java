@@ -81,10 +81,10 @@ class GitlabSyncControllerTest {
             cancellationService,
             tableDiagnosticsService,
             responseMapper);
+    GitlabSyncConfigFacade configFacade =
+        new GitlabSyncConfigFacade(configService, whitelistService, responseMapper);
     controller =
         new GitlabSyncController(
-            configService,
-            whitelistService,
             properties,
             mock(GitlabSystemHookService.class),
             systemHookRegistrationService,
@@ -94,7 +94,8 @@ class GitlabSyncControllerTest {
             tableDiagnosticsService,
             responseMapper,
             diagnosticsFacade,
-            commandFacade);
+            commandFacade,
+            configFacade);
   }
 
   @Test
@@ -218,7 +219,7 @@ class GitlabSyncControllerTest {
     when(configService.saveConfig(org.mockito.ArgumentMatchers.any(GitlabSyncConfig.class))).thenReturn(saved);
 
     controller.saveConfig(
-        new GitlabSyncController.SaveConfigRequest(
+        new GitlabSyncSaveConfigRequest(
             1L,
             "GitLab default source",
             true,
