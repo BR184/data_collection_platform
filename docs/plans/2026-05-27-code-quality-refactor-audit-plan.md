@@ -585,8 +585,9 @@ frontend/src/feature-manifest/
 **Phase D 当前执行记录（2026-05-28）**
 
 - D1 已完成纯迁移切片：已抽出 `GitlabSourceConnectionSettings`、`GitlabSourceQueryRetryPolicy`、`GitlabDockerPsqlExecutor`、`GitlabDirectJdbcExecutor`、`GitlabJdbcValueNormalizer`，`GitlabExternalDbService` 保留兼容门面与模式编排。
-- D2 已完成 SQL Builder 子切片：已抽出 `GitlabSourceScanSqlBuilder`；schema 探测与诊断仍在 `GitlabExternalDbService`，作为下一批继续拆分。
-- 已验证：`mvn -q "-Dtest=GitlabJdbcValueNormalizerTest,GitlabDockerPsqlExecutorTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest,GitlabSourceScanSqlBuilderTest,GitlabExternalDbServiceTest,SyncRunTableWorkerServiceTest,SourceTableReaderTest" test`，以及 `git diff --check`。
+- D2 已完成 SQL Builder 与 schema discovery 子切片：已抽出 `GitlabSourceScanSqlBuilder`、`GitlabSourceMetadataSupport`、`GitlabSourceSchemaDiscoveryService`；`GitlabExternalDbService` 保留兼容门面与扫描编排。
+- D3 已完成前两片纯迁移：已抽出 `GitlabFactSourceSqlProvider` 承载 Issue/MR 源 SQL，并抽出 `GitlabFactSourceQueryExecutor` 统一 sourceInstance 表名重写、增量条件拼接与慢 SQL 监控；`FactBuildService` 的 mapper、fallback 语义、写入和失败传播保持不变。
+- 已验证：`mvn -q "-Dtest=GitlabFactSourceQueryExecutorTest,GitlabFactSourceSqlProviderTest,IssueFactSourceInstancePipelineTest,GitlabSourceSchemaGuardTest,GitlabSourceSchemaDiscoveryServiceTest,GitlabSourceMetadataSupportTest,GitlabJdbcValueNormalizerTest,GitlabDockerPsqlExecutorTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest,GitlabSourceScanSqlBuilderTest,GitlabExternalDbServiceTest,SyncRunTableWorkerServiceTest,SourceTableReaderTest" test`，以及 `git diff --check`。
 
 **Task D3：拆 Issue/MR 事实构建链路**
 
