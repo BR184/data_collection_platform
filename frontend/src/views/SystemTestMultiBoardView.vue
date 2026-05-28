@@ -137,7 +137,6 @@ void loadBoards().catch((error) => {
         <div>
           <div class="system-test-multi-board__eyebrow">系统测试 / 多元看板</div>
           <h2>系统测试质量概览</h2>
-          <p>聚合正式统计板结果，只保留最适合管理判断的图表入口，不再把所有统计都塞进同一页。</p>
         </div>
         <div class="system-test-multi-board__hero-actions">
           <el-select

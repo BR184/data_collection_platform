@@ -111,3 +111,20 @@ function detailCellLink(record: Record<string, unknown>, column: StatisticDetail
     </div>
   </el-dialog>
 </template>
+
+<style scoped>
+.detail-cell-link {
+  color: #1677ff;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.detail-cell-link:hover {
+  color: #4096ff;
+}
+
+.detail-cell-text {
+  color: #1f2329;
+}
+</style>

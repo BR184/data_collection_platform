@@ -1,0 +1,16 @@
+current_url=http://localhost:18181/#/question-metrics/multi-board?projectName=2026R4
+summary_cards=系统测试缺陷
+15 | 未关闭缺陷
+10 | 已修复/未更新
+5 | 申请延期
+4
+panel_titles=严重程度分布 | 阶段分布 | 模块缺陷 Top 8 | 模块修复率 | 缺陷原因占比 | 延期原因分布
+project_options=2026R3 | 2026R4 | QA Flex Mirror Sync Acceptance
+no_data_default=0
+no_data_2026R3=0
+no_data_2026R4=0
+contains_2026R3=True
+contains_2026R4=True
+console_count=2
+debug: [vite] connecting...
+debug: [vite] connected.

@@ -1,0 +1,10 @@
+{
+  "checks": {
+    "hasTitle": false,
+    "hasImport": false,
+    "hasRule": false,
+    "hasRow1": false,
+    "hasOwner": false
+  },
+  "rows_ascii": "[]"
+}
