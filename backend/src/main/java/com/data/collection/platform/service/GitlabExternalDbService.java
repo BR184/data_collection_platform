@@ -84,6 +84,7 @@ public class GitlabExternalDbService {
   private final ObjectMapper objectMapper;
   private final GitlabSourceScanSqlBuilder scanSqlBuilder;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
+  private final GitlabSourceConnectionSettings connectionSettings;
   private final Map<SourceMode, GitlabSourceAdapter> sourceAdapters;
   private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
 
@@ -92,6 +93,7 @@ public class GitlabExternalDbService {
     this.objectMapper = objectMapper;
     this.scanSqlBuilder = new GitlabSourceScanSqlBuilder();
     this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
+    this.connectionSettings = new GitlabSourceConnectionSettings(properties);
     this.sourceAdapters = Map.of(
         SourceMode.DIRECT, new DirectJdbcSourceAdapter(),
         SourceMode.DOCKER, new DockerPsqlSourceAdapter());
@@ -706,13 +708,7 @@ public class GitlabExternalDbService {
       throw new BizException("Docker mode requires a container name");
     }
 
-    String script = """
-        gitlab-psql -d "%s" -At <<'SQL'
-        %s;
-        SQL
-        """.formatted(
-        sanitizeShell(normalizeDbName(config)),
-        sql);
+    String script = connectionSettings.buildDockerPsqlScript(config, sql);
 
     try {
       ProcessBuilder builder = new ProcessBuilder(
@@ -768,25 +764,16 @@ public class GitlabExternalDbService {
 
   private Connection openConnection(GitlabSyncConfig config) throws Exception {
     if (config != null && config.getSourceMode() == SourceMode.DIRECT) {
-      return directDataSources.computeIfAbsent(directDataSourceKey(config), ignored -> createDirectDataSource(config))
+      return directDataSources.computeIfAbsent(connectionSettings.directDataSourceKey(config), ignored -> createDirectDataSource(config))
           .getConnection();
     }
-    return DriverManager.getConnection(buildJdbcUrl(config), normalizeDbUser(config), config.getDbPassword());
-  }
-
-  private String directDataSourceKey(GitlabSyncConfig config) {
-    return "%s:%d/%s:%s:%s".formatted(
-        config.getDbHost(),
-        config.getDbPort(),
-        normalizeDbName(config),
-        normalizeDbUser(config),
-        Integer.toHexString(Objects.toString(config.getDbPassword(), "").hashCode()));
+    return DriverManager.getConnection(buildJdbcUrl(config), connectionSettings.normalizeDbUser(config), config.getDbPassword());
   }
 
   private HikariDataSource createDirectDataSource(GitlabSyncConfig config) {
     HikariConfig hikariConfig = new HikariConfig();
     hikariConfig.setJdbcUrl(buildJdbcUrl(config));
-    hikariConfig.setUsername(normalizeDbUser(config));
+    hikariConfig.setUsername(connectionSettings.normalizeDbUser(config));
     hikariConfig.setPassword(config.getDbPassword());
     hikariConfig.setMaximumPoolSize(2);
     hikariConfig.setMinimumIdle(0);
@@ -798,13 +785,7 @@ public class GitlabExternalDbService {
   }
 
   String buildJdbcUrl(GitlabSyncConfig config) {
-    int timeoutSeconds = resolveExternalQueryTimeoutSeconds();
-    return "jdbc:postgresql://%s:%d/%s?connectTimeout=%d&socketTimeout=%d&tcpKeepAlive=true".formatted(
-        config.getDbHost(),
-        config.getDbPort(),
-        normalizeDbName(config),
-        timeoutSeconds,
-        timeoutSeconds);
+    return connectionSettings.buildJdbcUrl(config);
   }
 
   <T> T executeExternalQueryWithRetry(String operation, Supplier<T> supplier) {
@@ -832,19 +813,7 @@ public class GitlabExternalDbService {
   }
 
   private int resolveExternalQueryTimeoutSeconds() {
-    return Math.max(1, properties.getExternalQueryTimeoutSeconds());
-  }
-
-  private String normalizeDbName(GitlabSyncConfig config) {
-    return config.getDbName() == null || config.getDbName().isBlank() ? "gitlabhq_production" : config.getDbName().trim();
-  }
-
-  private String normalizeDbUser(GitlabSyncConfig config) {
-    return config.getDbUsername() == null || config.getDbUsername().isBlank() ? "gitlab" : config.getDbUsername().trim();
-  }
-
-  private String sanitizeShell(String text) {
-    return text.replace("\"", "\\\"");
+    return connectionSettings.resolveExternalQueryTimeoutSeconds();
   }
 
   private LocalDateTime parseDateTime(String text) {
