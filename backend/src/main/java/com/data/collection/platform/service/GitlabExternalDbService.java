@@ -14,30 +14,17 @@ import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,49 +33,27 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class GitlabExternalDbService {
   private static final TypeReference<LinkedHashMap<String, Object>> MAP_TYPE = new TypeReference<>() {};
-  private static final List<String> UPDATED_AT_CANDIDATES = List.of(
-      "updatedat",
-      "modifiedat",
-      "lastmodifiedat",
-      "lastupdatedat",
-      "updatetime",
-      "modifiedtime",
-      "lastupdatetime",
-      "lastmodifytime",
-      "updatedon",
-      "modifiedon",
-      "lastmodifiedon",
-      "lastupdatedon",
-      "gmtmodified",
-      "operatetime",
-      "eventtime",
-      "synctime");
-  private static final List<String> CREATED_AT_CANDIDATES = List.of(
-      "createdat",
-      "createdon",
-      "createtime",
-      "inserttime",
-      "writetime",
-      "gmtcreate",
-      "loadtime",
-      "etltime");
 
-  private final GitlabMirrorProperties properties;
   private final ObjectMapper objectMapper;
   private final GitlabSourceScanSqlBuilder scanSqlBuilder;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final GitlabSourceConnectionSettings connectionSettings;
   private final GitlabDockerPsqlExecutor dockerPsqlExecutor;
+  private final GitlabJdbcValueNormalizer jdbcValueNormalizer;
+  private final GitlabDirectJdbcExecutor directJdbcExecutor;
+  private final GitlabSourceMetadataSupport metadataSupport;
   private final Map<SourceMode, GitlabSourceAdapter> sourceAdapters;
-  private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
 
   public GitlabExternalDbService(GitlabMirrorProperties properties, ObjectMapper objectMapper) {
-    this.properties = properties;
     this.objectMapper = objectMapper;
     this.scanSqlBuilder = new GitlabSourceScanSqlBuilder();
     this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
     this.connectionSettings = new GitlabSourceConnectionSettings(properties);
     this.dockerPsqlExecutor = new GitlabDockerPsqlExecutor(properties, connectionSettings);
+    this.jdbcValueNormalizer = new GitlabJdbcValueNormalizer();
+    this.directJdbcExecutor =
+        new GitlabDirectJdbcExecutor(connectionSettings, queryRetryPolicy, jdbcValueNormalizer);
+    this.metadataSupport = new GitlabSourceMetadataSupport();
     this.sourceAdapters = Map.of(
         SourceMode.DIRECT, new DirectJdbcSourceAdapter(),
         SourceMode.DOCKER, new DockerPsqlSourceAdapter());
@@ -479,20 +444,7 @@ public class GitlabExternalDbService {
   }
 
   String resolveUpdatedAtColumn(List<String> columnNames) {
-    return resolveCandidate(columnNames, UPDATED_AT_CANDIDATES)
-        .orElseGet(() -> resolveCandidate(columnNames, CREATED_AT_CANDIDATES).orElse(null));
-  }
-
-  private java.util.Optional<String> resolveCandidate(List<String> columnNames, List<String> candidates) {
-    return columnNames.stream()
-        .map(columnName -> Map.entry(columnName, normalizeColumnName(columnName)))
-        .filter(entry -> candidates.contains(entry.getValue()))
-        .min(Comparator.comparingInt(entry -> candidates.indexOf(entry.getValue())))
-        .map(Map.Entry::getKey);
-  }
-
-  private String normalizeColumnName(String columnName) {
-    return columnName == null ? "" : columnName.replaceAll("[^A-Za-z0-9]", "").toLowerCase();
+    return metadataSupport.resolveUpdatedAtColumn(columnNames);
   }
 
   public String buildRecordKey(TableWhitelistOption option, Map<String, Object> row) {
@@ -529,35 +481,15 @@ public class GitlabExternalDbService {
   }
 
   String resolveRowStrategy(String updatedAtColumn) {
-    return updatedAtColumn == null || updatedAtColumn.isBlank() ? "FULL_ONLY" : "INCREMENTAL";
+    return metadataSupport.resolveRowStrategy(updatedAtColumn);
   }
 
   String buildSchemaFingerprint(SourceTableSchema schema) {
-    String payload = schema.tableName()
-        + "|pk=" + String.join(",", schema.primaryKeys())
-        + "|updated=" + Objects.toString(schema.updatedAtColumn(), "")
-        + "|columns=" + schema.columns().stream()
-            .map(column -> column.columnName() + ":" + column.formattedType() + ":" + column.nullable())
-            .reduce((left, right) -> left + "|" + right)
-            .orElse("");
-    try {
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
-      return HexFormat.of().formatHex(hash).substring(0, 16);
-    } catch (Exception e) {
-      throw new IllegalStateException("Failed to hash source schema fingerprint", e);
-    }
+    return metadataSupport.buildSchemaFingerprint(schema);
   }
 
   private List<String> splitPrimaryKeys(String primaryKey) {
-    if (primaryKey == null || primaryKey.isBlank()) {
-      return List.of();
-    }
-    return List.of(primaryKey.split(","))
-        .stream()
-        .map(String::trim)
-        .filter(value -> !value.isBlank())
-        .toList();
+    return metadataSupport.splitPrimaryKeys(primaryKey);
   }
 
   private List<Map<String, Object>> executeSourceQuery(GitlabSyncConfig config, String sql) {
@@ -573,98 +505,8 @@ public class GitlabExternalDbService {
     return adapter;
   }
 
-  private List<Map<String, Object>> executeJdbcQuery(GitlabSyncConfig config, String sql) {
-    try {
-      return executeExternalQueryWithRetry("JDBC query", () -> {
-        try (Connection connection = openConnection(config);
-             Statement statement = connection.createStatement()) {
-          statement.setQueryTimeout(resolveExternalQueryTimeoutSeconds());
-          try (ResultSet resultSet = statement.executeQuery(sql)) {
-            List<Map<String, Object>> rows = new ArrayList<>();
-            ResultSetMetaData metaData = resultSet.getMetaData();
-            int count = metaData.getColumnCount();
-            while (resultSet.next()) {
-              Map<String, Object> row = new LinkedHashMap<>();
-              for (int i = 1; i <= count; i++) {
-                row.put(metaData.getColumnLabel(i), normalizeJdbcValue(resultSet.getObject(i)));
-              }
-              rows.add(row);
-            }
-            return rows;
-          }
-        } catch (Exception e) {
-          throw new BizException("Failed to query GitLab database: " + e.getMessage());
-        }
-      });
-    } catch (BizException e) {
-      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
-        log.error("Failed to query GitLab database via JDBC", e);
-      }
-      throw e;
-    }
-  }
-
   Object normalizeJdbcValue(Object value) {
-    if (value == null) {
-      return null;
-    }
-    if (value instanceof OffsetDateTime odt) {
-      return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
-    }
-    if (value instanceof Timestamp timestamp) {
-      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
-    }
-    if (value instanceof java.sql.SQLXML sqlXml) {
-      try {
-        return sqlXml.getString();
-      } catch (Exception e) {
-        throw new BizException("Failed to normalize SQLXML value: " + e.getMessage());
-      } finally {
-        try {
-          sqlXml.free();
-        } catch (Exception ignored) {
-        }
-      }
-    }
-    if (value instanceof java.sql.Array sqlArray) {
-      try {
-        Object array = sqlArray.getArray();
-        return normalizeArrayValue(array);
-      } catch (Exception e) {
-        throw new BizException("Failed to normalize SQL array value: " + e.getMessage());
-      } finally {
-        try {
-          sqlArray.free();
-        } catch (Exception ignored) {
-          // no-op
-        }
-      }
-    }
-    if (value instanceof Object[]) {
-      return normalizeArrayValue(value);
-    }
-    if (value.getClass().getName().startsWith("org.postgresql.util.PG")) {
-      try {
-        return value.getClass().getMethod("getValue").invoke(value);
-      } catch (Exception ignored) {
-        return value.toString();
-      }
-    }
-    return value;
-  }
-
-  private Object normalizeArrayValue(Object value) {
-    if (value == null) {
-      return null;
-    }
-    if (value instanceof Object[] array) {
-      List<Object> normalized = new ArrayList<>(array.length);
-      for (Object item : array) {
-        normalized.add(normalizeJdbcValue(item));
-      }
-      return normalized;
-    }
-    return value;
+    return jdbcValueNormalizer.normalize(value);
   }
 
   private List<Map<String, Object>> executeDockerQuery(GitlabSyncConfig config, String sql) {
@@ -697,28 +539,6 @@ public class GitlabExternalDbService {
     }
   }
 
-  private Connection openConnection(GitlabSyncConfig config) throws Exception {
-    if (config != null && config.getSourceMode() == SourceMode.DIRECT) {
-      return directDataSources.computeIfAbsent(connectionSettings.directDataSourceKey(config), ignored -> createDirectDataSource(config))
-          .getConnection();
-    }
-    return DriverManager.getConnection(buildJdbcUrl(config), connectionSettings.normalizeDbUser(config), config.getDbPassword());
-  }
-
-  private HikariDataSource createDirectDataSource(GitlabSyncConfig config) {
-    HikariConfig hikariConfig = new HikariConfig();
-    hikariConfig.setJdbcUrl(buildJdbcUrl(config));
-    hikariConfig.setUsername(connectionSettings.normalizeDbUser(config));
-    hikariConfig.setPassword(config.getDbPassword());
-    hikariConfig.setMaximumPoolSize(2);
-    hikariConfig.setMinimumIdle(0);
-    hikariConfig.setPoolName("gitlab-direct-" + config.getId());
-    hikariConfig.setConnectionTimeout(5000);
-    hikariConfig.setIdleTimeout(60000);
-    hikariConfig.setMaxLifetime(300000);
-    return new HikariDataSource(hikariConfig);
-  }
-
   String buildJdbcUrl(GitlabSyncConfig config) {
     return connectionSettings.buildJdbcUrl(config);
   }
@@ -733,10 +553,6 @@ public class GitlabExternalDbService {
 
   boolean isRetryableExternalFailure(RuntimeException e) {
     return queryRetryPolicy.isRetryableExternalFailure(e);
-  }
-
-  private int resolveExternalQueryTimeoutSeconds() {
-    return connectionSettings.resolveExternalQueryTimeoutSeconds();
   }
 
   private LocalDateTime parseDateTime(String text) {
@@ -814,20 +630,12 @@ public class GitlabExternalDbService {
 
     @Override
     public void testConnection(GitlabSyncConfig config) {
-      executeExternalQueryWithRetry("JDBC connection test", () -> {
-        try (Connection connection = openConnection(config); Statement statement = connection.createStatement()) {
-          statement.setQueryTimeout(resolveExternalQueryTimeoutSeconds());
-          statement.execute("select 1");
-          return null;
-        } catch (Exception e) {
-          throw new BizException("GitLab PostgreSQL connection failed: " + e.getMessage());
-        }
-      });
+      directJdbcExecutor.testConnection(config);
     }
 
     @Override
     public List<Map<String, Object>> query(GitlabSyncConfig config, String sql) {
-      return executeJdbcQuery(config, sql);
+      return directJdbcExecutor.query(config, sql);
     }
   }
 

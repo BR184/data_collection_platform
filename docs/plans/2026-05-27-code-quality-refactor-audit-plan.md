@@ -582,6 +582,12 @@ frontend/src/feature-manifest/
 - 依赖：D1
 - 验收：表名/字段名统一引用，schema 缺失诊断不触发同步。
 
+**Phase D 当前执行记录（2026-05-28）**
+
+- D1 已完成纯迁移切片：已抽出 `GitlabSourceConnectionSettings`、`GitlabSourceQueryRetryPolicy`、`GitlabDockerPsqlExecutor`、`GitlabDirectJdbcExecutor`、`GitlabJdbcValueNormalizer`，`GitlabExternalDbService` 保留兼容门面与模式编排。
+- D2 已完成 SQL Builder 子切片：已抽出 `GitlabSourceScanSqlBuilder`；schema 探测与诊断仍在 `GitlabExternalDbService`，作为下一批继续拆分。
+- 已验证：`mvn -q "-Dtest=GitlabJdbcValueNormalizerTest,GitlabDockerPsqlExecutorTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest,GitlabSourceScanSqlBuilderTest,GitlabExternalDbServiceTest,SyncRunTableWorkerServiceTest,SourceTableReaderTest" test`，以及 `git diff --check`。
+
 **Task D3：拆 Issue/MR 事实构建链路**
 
 - 依赖：D2
