@@ -16,8 +16,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Connection;
@@ -40,11 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -85,6 +78,7 @@ public class GitlabExternalDbService {
   private final GitlabSourceScanSqlBuilder scanSqlBuilder;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final GitlabSourceConnectionSettings connectionSettings;
+  private final GitlabDockerPsqlExecutor dockerPsqlExecutor;
   private final Map<SourceMode, GitlabSourceAdapter> sourceAdapters;
   private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
 
@@ -94,6 +88,7 @@ public class GitlabExternalDbService {
     this.scanSqlBuilder = new GitlabSourceScanSqlBuilder();
     this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
     this.connectionSettings = new GitlabSourceConnectionSettings(properties);
+    this.dockerPsqlExecutor = new GitlabDockerPsqlExecutor(properties, connectionSettings);
     this.sourceAdapters = Map.of(
         SourceMode.DIRECT, new DirectJdbcSourceAdapter(),
         SourceMode.DOCKER, new DockerPsqlSourceAdapter());
@@ -676,7 +671,7 @@ public class GitlabExternalDbService {
     try {
       return executeExternalQueryWithRetry("Docker query", () -> {
         try {
-          List<String> lines = executeDockerSql(config, "select row_to_json(t)::text from (%s) t".formatted(sql));
+          List<String> lines = dockerPsqlExecutor.execute(config, "select row_to_json(t)::text from (%s) t".formatted(sql));
           List<Map<String, Object>> rows = new ArrayList<>();
           for (String line : lines) {
             if (line == null || line.isBlank()) {
@@ -699,66 +694,6 @@ public class GitlabExternalDbService {
         log.error("Failed to query GitLab database via Docker", e);
       }
       throw e;
-    }
-  }
-
-  private List<String> executeDockerSql(GitlabSyncConfig config, String sql) {
-    String containerName = config.getDockerContainerName();
-    if (containerName == null || containerName.isBlank()) {
-      throw new BizException("Docker mode requires a container name");
-    }
-
-    String script = connectionSettings.buildDockerPsqlScript(config, sql);
-
-    try {
-      ProcessBuilder builder = new ProcessBuilder(
-          properties.getDockerCommand(),
-          "exec",
-          containerName,
-          "bash",
-          "-lc",
-          script);
-      builder.redirectErrorStream(true);
-      Process process = builder.start();
-      ExecutorService outputReader = Executors.newSingleThreadExecutor();
-      List<String> lines;
-      try {
-        Future<List<String>> outputFuture = outputReader.submit(() -> readProcessOutput(process));
-        boolean finished = process.waitFor(resolveExternalQueryTimeoutSeconds(), TimeUnit.SECONDS);
-        if (!finished) {
-          process.destroyForcibly();
-          throw new BizException("Docker GitLab PostgreSQL command timed out after "
-              + resolveExternalQueryTimeoutSeconds() + " seconds");
-        }
-        try {
-          lines = outputFuture.get(5, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-          throw new BizException("Docker GitLab PostgreSQL command output read timed out");
-        }
-      } finally {
-        outputReader.shutdownNow();
-      }
-      int exitCode = process.exitValue();
-      if (exitCode != 0) {
-        throw new BizException("Docker GitLab PostgreSQL command failed: " + String.join(System.lineSeparator(), lines));
-      }
-      return lines;
-    } catch (BizException e) {
-      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
-        log.error("Docker GitLab PostgreSQL command failed", e);
-      }
-      throw e;
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
-        log.error("Docker GitLab PostgreSQL command interrupted", e);
-      }
-      throw new BizException("Docker GitLab PostgreSQL command interrupted");
-    } catch (Exception e) {
-      try (SyncRunLogContext.Scope action = SyncRunLogContext.action("Data_Fetching")) {
-        log.error("Docker GitLab PostgreSQL command failed", e);
-      }
-      throw new BizException("Docker GitLab PostgreSQL command failed: " + e.getMessage());
     }
   }
 
@@ -798,18 +733,6 @@ public class GitlabExternalDbService {
 
   boolean isRetryableExternalFailure(RuntimeException e) {
     return queryRetryPolicy.isRetryableExternalFailure(e);
-  }
-
-  private List<String> readProcessOutput(Process process) throws Exception {
-    List<String> lines = new ArrayList<>();
-    try (BufferedReader reader = new BufferedReader(
-        new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        lines.add(line);
-      }
-    }
-    return lines;
   }
 
   private int resolveExternalQueryTimeoutSeconds() {
@@ -917,7 +840,7 @@ public class GitlabExternalDbService {
     @Override
     public void testConnection(GitlabSyncConfig config) {
       executeExternalQueryWithRetry("Docker connection test", () -> {
-        executeDockerSql(config, "select 1");
+        dockerPsqlExecutor.execute(config, "select 1");
         return null;
       });
     }
