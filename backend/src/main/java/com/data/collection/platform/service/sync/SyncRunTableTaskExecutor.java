@@ -4,14 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
-import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
-import com.data.collection.platform.service.PrimaryKeySignatureSupport;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -19,7 +17,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +28,7 @@ public class SyncRunTableTaskExecutor {
   private final SyncRunTableStateMapper stateMapper;
   private final SyncRunTableTaskLeaseService taskLeaseService;
   private final SyncTableContinuationPlanner continuationPlanner;
+  private final MirrorReconciliationService reconciliationService;
   private final GitlabConfigService configService;
   private final SourceTableReader sourceTableReader;
   private final GitlabMirrorSchemaService mirrorSchemaService;
@@ -40,6 +38,7 @@ public class SyncRunTableTaskExecutor {
       SyncRunTableStateMapper stateMapper,
       SyncRunTableTaskLeaseService taskLeaseService,
       SyncTableContinuationPlanner continuationPlanner,
+      MirrorReconciliationService reconciliationService,
       GitlabConfigService configService,
       SourceTableReader sourceTableReader,
       GitlabMirrorSchemaService mirrorSchemaService,
@@ -47,6 +46,7 @@ public class SyncRunTableTaskExecutor {
     this.stateMapper = stateMapper;
     this.taskLeaseService = taskLeaseService;
     this.continuationPlanner = continuationPlanner;
+    this.reconciliationService = reconciliationService;
     this.configService = configService;
     this.sourceTableReader = sourceTableReader;
     this.mirrorSchemaService = mirrorSchemaService;
@@ -121,8 +121,9 @@ public class SyncRunTableTaskExecutor {
       long scannedRows = rows.size();
       long appliedRows = writeResult.appliedRows();
       if (fullReconcileTask && !hasMore) {
-        ReconciliationResult reconciliationResult =
-            reconcileMirrorExtras(config, option, preparedMirrorTable.mirrorSchema(), task, batchSize);
+        MirrorReconciliationService.ReconciliationResult reconciliationResult =
+            reconciliationService.reconcileMirrorExtras(
+                config, option, preparedMirrorTable.mirrorSchema(), task, batchSize);
         scannedRows += reconciliationResult.scannedRows();
         appliedRows += reconciliationResult.deletedRows();
       }
@@ -197,37 +198,6 @@ public class SyncRunTableTaskExecutor {
     state.setRetryCount(0);
     state.setUpdatedAt(now);
     stateMapper.updateById(state);
-  }
-
-  private ReconciliationResult reconcileMirrorExtras(
-      GitlabSyncConfig config,
-      TableWhitelistOption option,
-      com.data.collection.platform.entity.SourceTableSchema mirrorSchema,
-      SyncRunTableTask task,
-      int batchSize) {
-    String cursor = null;
-    long scannedRows = 0L;
-    long deletedRows = 0L;
-    do {
-      if (isRunCancellationRequested(task.getRunId())) {
-        return new ReconciliationResult(scannedRows, deletedRows);
-      }
-      MirrorPrimaryKeyBatch batch = mirrorTableWriter.listActivePrimaryKeys(mirrorSchema, cursor, batchSize);
-      if (batch == null || batch.keys() == null || batch.keys().isEmpty()) {
-        return new ReconciliationResult(scannedRows, deletedRows);
-      }
-      scannedRows += batch.keys().size();
-      Set<String> existingSourceKeys = sourceTableReader.findExistingPrimaryKeySignatures(config, option, batch.keys());
-      List<Map<String, Object>> mirrorOnlyRows =
-          batch.keys().stream()
-              .filter(keyRow -> !existingSourceKeys.contains(PrimaryKeySignatureSupport.signature(mirrorSchema.primaryKeys(), keyRow)))
-              .toList();
-      if (!mirrorOnlyRows.isEmpty()) {
-        deletedRows += mirrorTableWriter.markRowsDeletedByPrimaryKeys(mirrorSchema, mirrorOnlyRows, task.getId());
-      }
-      cursor = batch.nextCursor();
-    } while (cursor != null && !cursor.isBlank());
-    return new ReconciliationResult(scannedRows, deletedRows);
   }
 
   private void markFailure(SyncRunTableTask task, SyncRunTableState state, Exception e) {
@@ -333,6 +303,4 @@ public class SyncRunTableTaskExecutor {
     }
   }
 
-  private record ReconciliationResult(long scannedRows, long deletedRows) {
-  }
 }

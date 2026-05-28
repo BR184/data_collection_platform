@@ -48,6 +48,7 @@ class SyncRunTableWorkerServiceTest {
   private GitlabMirrorSchemaService mirrorSchemaService;
   private MirrorTableWriter mirrorTableWriter;
   private SyncTableContinuationPlanner continuationPlanner;
+  private MirrorReconciliationService reconciliationService;
   private SyncRunTableTaskExecutor taskExecutor;
   private SyncRunTableWorkerService workerService;
 
@@ -62,11 +63,14 @@ class SyncRunTableWorkerServiceTest {
     mirrorSchemaService = org.mockito.Mockito.mock(GitlabMirrorSchemaService.class);
     mirrorTableWriter = org.mockito.Mockito.mock(MirrorTableWriter.class);
     continuationPlanner = new SyncTableContinuationPlanner(taskMapper, new GitlabMirrorProperties());
+    reconciliationService =
+        new MirrorReconciliationService(sourceTableReader, mirrorTableWriter, taskLeaseService);
     taskExecutor =
         new SyncRunTableTaskExecutor(
             stateMapper,
             taskLeaseService,
             continuationPlanner,
+            reconciliationService,
             configService,
             sourceTableReader,
             mirrorSchemaService,
