@@ -35,7 +35,6 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -44,7 +43,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -85,6 +83,7 @@ public class GitlabExternalDbService {
   private final GitlabMirrorProperties properties;
   private final ObjectMapper objectMapper;
   private final GitlabSourceScanSqlBuilder scanSqlBuilder;
+  private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final Map<SourceMode, GitlabSourceAdapter> sourceAdapters;
   private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
 
@@ -92,6 +91,7 @@ public class GitlabExternalDbService {
     this.properties = properties;
     this.objectMapper = objectMapper;
     this.scanSqlBuilder = new GitlabSourceScanSqlBuilder();
+    this.queryRetryPolicy = new GitlabSourceQueryRetryPolicy(properties);
     this.sourceAdapters = Map.of(
         SourceMode.DIRECT, new DirectJdbcSourceAdapter(),
         SourceMode.DOCKER, new DockerPsqlSourceAdapter());
@@ -808,68 +808,15 @@ public class GitlabExternalDbService {
   }
 
   <T> T executeExternalQueryWithRetry(String operation, Supplier<T> supplier) {
-    int attempts = Math.max(1, properties.getExternalQueryRetryAttempts());
-    RuntimeException lastFailure = null;
-    for (int attempt = 1; attempt <= attempts; attempt++) {
-      try {
-        return supplier.get();
-      } catch (RuntimeException e) {
-        lastFailure = e;
-        if (attempt >= attempts || !isRetryableExternalFailure(e)) {
-          throw e;
-        }
-        long retryDelayMs = computeExternalQueryRetryDelayMs(attempt);
-        log.warn(
-            "Transient GitLab external query failure, operation={}, attempt={}/{}, retryDelayMs={}, message={}",
-            operation,
-            attempt,
-            attempts,
-            retryDelayMs,
-            e.getMessage());
-        sleepBeforeRetry(retryDelayMs);
-      }
-    }
-    throw lastFailure;
+    return queryRetryPolicy.executeWithRetry(operation, supplier);
   }
 
   long computeExternalQueryRetryDelayMs(int attempt) {
-    long baseDelayMs = Math.max(0, properties.getExternalQueryRetryDelayMs());
-    if (baseDelayMs <= 0) {
-      return 0;
-    }
-    long maxDelayMs = Math.max(baseDelayMs, properties.getExternalQueryRetryMaxDelayMs());
-    int exponent = Math.max(0, Math.min(10, attempt - 1));
-    long exponentialDelay = baseDelayMs * (1L << exponent);
-    long cappedDelay = Math.min(exponentialDelay, maxDelayMs);
-    if (cappedDelay >= maxDelayMs) {
-      return maxDelayMs;
-    }
-    long jitterBound = Math.max(1, cappedDelay / 2);
-    long jitter = ThreadLocalRandom.current().nextLong(jitterBound + 1);
-    return Math.min(maxDelayMs, cappedDelay + jitter);
+    return queryRetryPolicy.computeRetryDelayMs(attempt);
   }
 
   boolean isRetryableExternalFailure(RuntimeException e) {
-    String message = flattenMessage(e);
-    if (message.isBlank()) {
-      return false;
-    }
-    if (message.contains("ERROR:") || message.contains("FATAL:") || message.toLowerCase(Locale.ROOT).contains("syntax error")) {
-      return false;
-    }
-    String lowerMessage = message.toLowerCase(Locale.ROOT);
-    return lowerMessage.contains("timeout")
-        || lowerMessage.contains("timed out")
-        || lowerMessage.contains("connection reset")
-        || lowerMessage.contains("connection refused")
-        || lowerMessage.contains("could not connect")
-        || lowerMessage.contains("connection has been closed")
-        || lowerMessage.contains("closed connection")
-        || lowerMessage.contains("broken pipe")
-        || lowerMessage.contains("i/o error")
-        || lowerMessage.contains("io exception")
-        || lowerMessage.contains("network")
-        || lowerMessage.contains("temporarily unavailable");
+    return queryRetryPolicy.isRetryableExternalFailure(e);
   }
 
   private List<String> readProcessOutput(Process process) throws Exception {
@@ -882,33 +829,6 @@ public class GitlabExternalDbService {
       }
     }
     return lines;
-  }
-
-  private void sleepBeforeRetry(long retryDelayMs) {
-    if (retryDelayMs <= 0) {
-      return;
-    }
-    try {
-      Thread.sleep(retryDelayMs);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new BizException("GitLab external query retry interrupted");
-    }
-  }
-
-  private String flattenMessage(Throwable throwable) {
-    StringBuilder message = new StringBuilder();
-    Throwable current = throwable;
-    while (current != null) {
-      if (current.getMessage() != null) {
-        if (!message.isEmpty()) {
-          message.append(' ');
-        }
-        message.append(current.getMessage());
-      }
-      current = current.getCause();
-    }
-    return message.toString();
   }
 
   private int resolveExternalQueryTimeoutSeconds() {
