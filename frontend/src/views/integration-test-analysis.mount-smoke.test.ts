@@ -20,6 +20,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
       if (url.includes('/api/integration-tests/phase-options')) {
         return jsonResponse([
           { projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R1 Integration', issueCount: 12 },
+          { projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R2 Integration', issueCount: 16 },
         ]);
       }
       if (url.includes('/api/integration-tests/summary')) {
@@ -49,6 +50,16 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
         return Promise.resolve({
           ok: true,
           text: () => Promise.resolve('"Issue","Title"\n"#101","Integration sample"\n'),
+        } as Response);
+      }
+      if (
+        url.includes('/api/integration-tests/module-function/export') ||
+        url.includes('/api/integration-tests/comparison/export')
+      ) {
+        return Promise.resolve({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(['xlsx'])),
+          text: () => Promise.resolve(''),
         } as Response);
       }
       if (url.includes('/api/integration-tests/details')) {
@@ -129,6 +140,37 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     expect(exportCall?.[0]).toContain('moduleName=Sketch');
     expect(createObjectUrl).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
+
+    const moduleExportButton = wrapper.findAll('button').find((button) => button.text().includes('导出集成测试数据'));
+    expect(moduleExportButton).toBeTruthy();
+    await moduleExportButton!.trigger('click');
+    await flushPromises();
+
+    const moduleExportCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/api/integration-tests/module-function/export'),
+    );
+    expect(moduleExportCall?.[0]).toContain('projectId=325');
+    expect(moduleExportCall?.[0]).toContain('testingPhase=R1+Integration');
+
+    const comparisonButton = wrapper.findAll('button').find((button) => button.text().includes('导出横向对比'));
+    expect(comparisonButton).toBeTruthy();
+    await comparisonButton!.trigger('click');
+    await flushPromises();
+    const confirmComparisonButton = Array.from(document.body.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === '导出',
+    );
+    expect(confirmComparisonButton).toBeTruthy();
+    confirmComparisonButton!.click();
+    await flushPromises();
+
+    const comparisonExportCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/api/integration-tests/comparison/export'),
+    );
+    expect(comparisonExportCall?.[0]).toContain('projectId=325');
+    expect(comparisonExportCall?.[0]).toContain('basePhase=R2+Integration');
+    expect(comparisonExportCall?.[0]).toContain('targetPhase=R1+Integration');
+    expect(createObjectUrl).toHaveBeenCalledTimes(3);
+    expect(click).toHaveBeenCalledTimes(3);
 
     wrapper.unmount();
     click.mockRestore();

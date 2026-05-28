@@ -78,4 +78,35 @@ export const integrationTestsApi = {
     }
     return response.text();
   },
+  async exportIntegrationTestModuleFunctionWorkbook(params: {
+    projectId?: string | number | null;
+    testingPhase?: string | null;
+  }) {
+    const query = new URLSearchParams({
+      ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
+      ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
+    });
+    return fetchWorkbook(`/api/integration-tests/module-function/export${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  async exportIntegrationTestComparisonWorkbook(params: {
+    projectId?: string | number | null;
+    basePhase: string;
+    targetPhase: string;
+  }) {
+    const query = new URLSearchParams({
+      ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
+      basePhase: params.basePhase,
+      targetPhase: params.targetPhase,
+    });
+    return fetchWorkbook(`/api/integration-tests/comparison/export?${query.toString()}`);
+  },
 };
+
+async function fetchWorkbook(url: string) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Excel 导出失败，状态码：${response.status}`);
+  }
+  return response.blob();
+}

@@ -15,6 +15,7 @@ import com.data.collection.platform.entity.IntegrationTestPhaseOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestProjectOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryRowResponse;
+import com.data.collection.platform.service.IntegrationTestExcelExportService;
 import com.data.collection.platform.service.IntegrationTestFactBuildService;
 import com.data.collection.platform.service.IntegrationTestQueryService;
 import com.data.collection.platform.service.FactBuildOperationGuard;
@@ -34,6 +35,7 @@ class IntegrationTestControllerTest {
 
   @Mock private IntegrationTestFactBuildService integrationTestFactBuildService;
   @Mock private IntegrationTestQueryService integrationTestQueryService;
+  @Mock private IntegrationTestExcelExportService integrationTestExcelExportService;
 
   private MockMvc mockMvc;
 
@@ -42,7 +44,10 @@ class IntegrationTestControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new IntegrationTestController(
-                    integrationTestFactBuildService, integrationTestQueryService, new FactBuildOperationGuard()))
+                    integrationTestFactBuildService,
+                    integrationTestQueryService,
+                    integrationTestExcelExportService,
+                    new FactBuildOperationGuard()))
             .build();
   }
 
@@ -178,5 +183,54 @@ class IntegrationTestControllerTest {
         .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
         .andExpect(header().string("Content-Disposition", "attachment; filename=\"integration-test-details.csv\""))
         .andExpect(content().string("\"议题编号\",\"标题\"\n\"#88\",\"草图命令异常\"\n"));
+  }
+  @Test
+  void shouldExportModuleFunctionWorkbook() throws Exception {
+    when(integrationTestExcelExportService.exportModuleFunctionWorkbook(325L, "CC2025R4集成测试", null))
+        .thenReturn(new byte[] {1, 2, 3});
+
+    mockMvc
+        .perform(
+            get("/api/integration-tests/module-function/export")
+                .param("projectId", "325")
+                .param("testingPhase", "CC2025R4集成测试"))
+        .andExpect(status().isOk())
+        .andExpect(
+            header()
+                .string(
+                    "Content-Type",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition",
+                    org.hamcrest.Matchers.containsString("filename*=")))
+        .andExpect(content().bytes(new byte[] {1, 2, 3}));
+  }
+
+  @Test
+  void shouldExportComparisonWorkbook() throws Exception {
+    when(integrationTestExcelExportService.exportComparisonWorkbook(
+            325L, "CC2025R2集成测试", "CC2025R3集成测试", null))
+        .thenReturn(new byte[] {4, 5, 6});
+
+    mockMvc
+        .perform(
+            get("/api/integration-tests/comparison/export")
+                .param("projectId", "325")
+                .param("basePhase", "CC2025R2集成测试")
+                .param("targetPhase", "CC2025R3集成测试"))
+        .andExpect(status().isOk())
+        .andExpect(
+            header()
+                .string(
+                    "Content-Type",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition",
+                    org.hamcrest.Matchers.containsString("filename*=")))
+        .andExpect(content().bytes(new byte[] {4, 5, 6}));
   }
 }

@@ -10,7 +10,9 @@ import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.IntegrationTestFactBuildService;
+import com.data.collection.platform.service.IntegrationTestExcelExportService;
 import com.data.collection.platform.service.IntegrationTestQueryService;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
@@ -29,14 +31,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class IntegrationTestController {
   private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final IntegrationTestQueryService integrationTestQueryService;
+  private final IntegrationTestExcelExportService integrationTestExcelExportService;
   private final FactBuildOperationGuard factBuildOperationGuard;
 
   public IntegrationTestController(
       IntegrationTestFactBuildService integrationTestFactBuildService,
       IntegrationTestQueryService integrationTestQueryService,
+      IntegrationTestExcelExportService integrationTestExcelExportService,
       FactBuildOperationGuard factBuildOperationGuard) {
     this.integrationTestFactBuildService = integrationTestFactBuildService;
     this.integrationTestQueryService = integrationTestQueryService;
+    this.integrationTestExcelExportService = integrationTestExcelExportService;
     this.factBuildOperationGuard = factBuildOperationGuard;
   }
 
@@ -109,5 +114,52 @@ public class IntegrationTestController {
         .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"integration-test-details.csv\"")
         .body(csv);
+  }
+
+  @GetMapping("/module-function/export")
+  public ResponseEntity<byte[]> exportModuleFunctionWorkbook(
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String testingPhase,
+      @RequestParam(required = false) String sourceInstance) {
+    byte[] workbook =
+        integrationTestExcelExportService.exportModuleFunctionWorkbook(projectId, testingPhase, sourceInstance);
+    return excelResponse(workbook, safeFilePart(testingPhase, "集成测试") + "集成测试数据.xlsx");
+  }
+
+  @GetMapping("/comparison/export")
+  public ResponseEntity<byte[]> exportComparisonWorkbook(
+      @RequestParam(required = false) Long projectId,
+      @RequestParam String basePhase,
+      @RequestParam String targetPhase,
+      @RequestParam(required = false) String sourceInstance) {
+    byte[] workbook =
+        integrationTestExcelExportService.exportComparisonWorkbook(projectId, basePhase, targetPhase, sourceInstance);
+    return excelResponse(
+        workbook,
+        safeFilePart(basePhase, "前阶段")
+            + "-"
+            + safeFilePart(targetPhase, "后阶段")
+            + "集成测试横向对比.xlsx");
+  }
+
+  private ResponseEntity<byte[]> excelResponse(byte[] workbook, String filename) {
+    return ResponseEntity.ok()
+        .contentType(
+            MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(filename))
+        .body(workbook);
+  }
+
+  private String contentDisposition(String filename) {
+    String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
+    return "attachment; filename=\"integration-test.xlsx\"; filename*=UTF-8''" + encoded;
+  }
+
+  private String safeFilePart(String value, String fallback) {
+    if (value == null || value.isBlank()) {
+      return fallback;
+    }
+    return value.replaceAll("[\\\\/:*?\"<>|]", "-");
   }
 }

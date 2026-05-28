@@ -4,7 +4,7 @@ import { computed, ref, watch } from 'vue';
 // 页面保留重建、导出和下钻的编排逻辑，事实解析和统计口径由后端事实层负责。
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
-import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
+import { Download, Refresh } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import { api } from '../api';
@@ -17,7 +17,7 @@ import type {
 import type { RecordTableColumn } from '../types/record-table';
 import { INTEGRATION_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
-import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob, downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import { buildGitlabResourceLinkCell } from '../utils/issue-record-links';
 
 const route = useRoute();
@@ -26,9 +26,13 @@ const router = useRouter();
 const initialized = ref(false);
 const toolbarLoading = ref(false);
 const summaryLoading = ref(false);
-const rebuildLoading = ref(false);
 const detailLoading = ref(false);
 const exportLoading = ref(false);
+const moduleExportLoading = ref(false);
+const comparisonExportLoading = ref(false);
+const comparisonDialogVisible = ref(false);
+const comparisonBasePhase = ref('');
+const comparisonTargetPhase = ref('');
 
 const projectOptions = ref<IntegrationTestProjectOptionResponse[]>([]);
 const phaseOptions = ref<IntegrationTestPhaseOptionResponse[]>([]);
@@ -283,22 +287,6 @@ async function handleRefresh() {
   }
 }
 
-async function handleRebuild() {
-  rebuildLoading.value = true;
-  try {
-    const response = await api.rebuildIntegrationTestFacts(false);
-    ElMessage.success(response.message || '集成测试事实已重建');
-    await syncPageData();
-    if (detailVisible.value && detailModule.value) {
-      await loadDetail();
-    }
-  } catch (error) {
-    ElMessage.error((error as Error).message);
-  } finally {
-    rebuildLoading.value = false;
-  }
-}
-
 async function openDetail(moduleName: string) {
   await replaceQuery({
     detailVisible: 'true',
@@ -360,6 +348,59 @@ async function handleExportDetail() {
     ElMessage.error(error instanceof Error ? error.message : '集成测试明细导出失败');
   } finally {
     exportLoading.value = false;
+  }
+}
+
+async function handleExportModuleFunction() {
+  if (!testingPhase.value) {
+    ElMessage.warning('请先选择测试阶段');
+    return;
+  }
+  moduleExportLoading.value = true;
+  try {
+    const blob = await api.exportIntegrationTestModuleFunctionWorkbook({
+      projectId: projectId.value,
+      testingPhase: testingPhase.value,
+    });
+    downloadBlob(blob, `${testingPhase.value}集成测试数据.xlsx`);
+    ElMessage.success('导出成功');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '集成测试数据导出失败');
+  } finally {
+    moduleExportLoading.value = false;
+  }
+}
+
+function openComparisonDialog() {
+  comparisonTargetPhase.value = testingPhase.value || phaseOptions.value[0]?.testingPhase || '';
+  comparisonBasePhase.value =
+    phaseOptions.value.find((item) => item.testingPhase !== comparisonTargetPhase.value)?.testingPhase || '';
+  comparisonDialogVisible.value = true;
+}
+
+async function handleExportComparison() {
+  if (!comparisonBasePhase.value || !comparisonTargetPhase.value) {
+    ElMessage.warning('请选择两个测试阶段');
+    return;
+  }
+  if (comparisonBasePhase.value === comparisonTargetPhase.value) {
+    ElMessage.warning('两个测试阶段不能相同');
+    return;
+  }
+  comparisonExportLoading.value = true;
+  try {
+    const blob = await api.exportIntegrationTestComparisonWorkbook({
+      projectId: projectId.value,
+      basePhase: comparisonBasePhase.value,
+      targetPhase: comparisonTargetPhase.value,
+    });
+    downloadBlob(blob, `${comparisonBasePhase.value}-${comparisonTargetPhase.value}集成测试横向对比.xlsx`);
+    comparisonDialogVisible.value = false;
+    ElMessage.success('导出成功');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '集成测试横向对比导出失败');
+  } finally {
+    comparisonExportLoading.value = false;
   }
 }
 
@@ -443,8 +484,11 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
           </div>
           <div class="integration-toolbar__actions">
             <el-button :icon="Refresh" :loading="summaryLoading" @click="handleRefresh">刷新</el-button>
-            <el-button :icon="RefreshRight" :loading="rebuildLoading" type="primary" @click="handleRebuild">
-              重建事实
+            <el-button :icon="Download" :loading="moduleExportLoading" @click="handleExportModuleFunction">
+              导出集成测试数据
+            </el-button>
+            <el-button :icon="Download" :loading="comparisonExportLoading" type="primary" @click="openComparisonDialog">
+              导出横向对比
             </el-button>
           </div>
         </div>
@@ -539,6 +583,33 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
           @sort-change="handleDetailSortChange"
         />
       </el-drawer>
+
+      <el-dialog v-model="comparisonDialogVisible" title="导出横向对比" width="520px">
+        <div class="integration-comparison-form">
+          <el-select v-model="comparisonBasePhase" placeholder="选择前阶段" filterable>
+            <el-option
+              v-for="item in phaseOptions"
+              :key="`base-${item.projectId}-${item.testingPhase}`"
+              :label="item.testingPhase"
+              :value="item.testingPhase"
+            />
+          </el-select>
+          <el-select v-model="comparisonTargetPhase" placeholder="选择后阶段" filterable>
+            <el-option
+              v-for="item in phaseOptions"
+              :key="`target-${item.projectId}-${item.testingPhase}`"
+              :label="item.testingPhase"
+              :value="item.testingPhase"
+            />
+          </el-select>
+        </div>
+        <template #footer>
+          <el-button @click="comparisonDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="comparisonExportLoading" @click="handleExportComparison">
+            导出
+          </el-button>
+        </template>
+      </el-dialog>
     </section>
   </PageStateShell>
 </template>
@@ -654,6 +725,11 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
   color: #6b7280;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.integration-comparison-form {
+  display: grid;
+  gap: 12px;
 }
 
 @media (max-width: 768px) {

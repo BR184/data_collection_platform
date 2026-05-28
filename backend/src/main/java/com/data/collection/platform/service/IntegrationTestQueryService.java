@@ -6,14 +6,19 @@ import com.data.collection.platform.entity.IntegrationTestPhaseOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestProjectOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryRowResponse;
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -329,6 +334,125 @@ public class IntegrationTestQueryService {
     return buildDetailsCsv(TextQuerySupport.trimToNull(testingPhase), rows);
   }
 
+  IntegrationTestModuleFunctionExportData getModuleFunctionExportData(
+      Long projectId, String testingPhase, String sourceInstance) {
+    String normalizedPhase = TextQuerySupport.trimToNull(testingPhase);
+    List<IntegrationTestFunctionExportRow> functionRows =
+        getFunctionExportRows(projectId, normalizedPhase, sourceInstance);
+    List<IntegrationTestModuleExportRow> moduleRows =
+        getModuleExportRows(projectId, normalizedPhase, sourceInstance);
+    return new IntegrationTestModuleFunctionExportData(normalizedPhase, functionRows, moduleRows);
+  }
+
+  IntegrationTestComparisonExportData getComparisonExportData(
+      Long projectId, String basePhase, String targetPhase, String sourceInstance) {
+    String normalizedBasePhase = TextQuerySupport.trimToNull(basePhase);
+    String normalizedTargetPhase = TextQuerySupport.trimToNull(targetPhase);
+    List<IntegrationTestFunctionExportRow> baseRows =
+        getFunctionExportRows(projectId, normalizedBasePhase, sourceInstance);
+    List<IntegrationTestFunctionExportRow> targetRows =
+        getFunctionExportRows(projectId, normalizedTargetPhase, sourceInstance);
+    Map<FunctionKey, IntegrationTestFunctionExportRow> baseByKey =
+        baseRows.stream()
+            .collect(
+                Collectors.toMap(
+                    IntegrationTestQueryService::functionKey,
+                    Function.identity(),
+                    (left, right) -> left,
+                    LinkedHashMap::new));
+
+    List<IntegrationTestComparisonExportRow> rows = new ArrayList<>();
+    for (IntegrationTestFunctionExportRow target : targetRows) {
+      IntegrationTestFunctionExportRow base = baseByKey.get(functionKey(target));
+      IntegrationTestComparisonMetric baseMetric = base == null ? null : comparisonMetric(base);
+      IntegrationTestComparisonMetric targetMetric = comparisonMetric(target);
+      IntegrationTestComparisonMetric diffMetric =
+          base == null ? null : diffMetric(baseMetric, targetMetric);
+      rows.add(
+          new IntegrationTestComparisonExportRow(
+              target.moduleName(), target.functionName(), baseMetric, targetMetric, diffMetric));
+    }
+    return new IntegrationTestComparisonExportData(normalizedBasePhase, normalizedTargetPhase, rows);
+  }
+
+  private List<IntegrationTestFunctionExportRow> getFunctionExportRows(
+      Long projectId, String testingPhase, String sourceInstance) {
+    List<Object> args = new ArrayList<>();
+    StringBuilder where =
+        new StringBuilder(
+            """
+            from integration_test_fact
+             where deleted = false
+            """);
+    appendSourceInstanceFilter(where, args, sourceInstance);
+    appendScopedFilters(where, args, projectId, testingPhase, null);
+    Long total =
+        jdbcTemplate.queryForObject(
+            "select count(*) from (select 1 " + where + " group by coalesce(module_name, '"
+                + UNKNOWN_MODULE
+                + "'), coalesce(function_name, '') limit "
+                + (CsvExportSupport.MAX_EXPORT_ROWS + 1)
+                + ") grouped",
+            Long.class,
+            args.toArray());
+    CsvExportSupport.ensureWithinRowLimit(total == null ? 0 : total);
+
+    return jdbcTemplate.query(
+        """
+        select coalesce(module_name, '鏈瘑鍒ā鍧?) as module_name,
+               coalesce(nullif(btrim(function_name), ''), '-') as function_name,
+               coalesce(sum(execute_case), 0) as execute_case,
+               coalesce(sum(pass_case), 0) as pass_case,
+               coalesce(sum(not_pass_case), 0) as not_pass_case,
+               coalesce(sum(not_pass_case_now), 0) as not_pass_case_now,
+               coalesce(sum(problem_case), 0) as problem_case,
+               coalesce(sum(exception_count), 0) as exception_count,
+               case
+                 when coalesce(sum(execute_case), 0) = 0 then 0
+                 else round(sum(pass_case)::numeric * 100 / nullif(sum(execute_case), 0), 2)
+               end as pass_rate,
+               string_agg(distinct nullif(btrim(function_labels), ''), ', ') as function_labels
+        """
+            + where
+            + """
+             group by coalesce(module_name, '鏈瘑鍒ā鍧?), coalesce(nullif(btrim(function_name), ''), '-')
+             order by lower(coalesce(module_name, '鏈瘑鍒ā鍧?)) asc,
+                      lower(coalesce(nullif(btrim(function_name), ''), '-')) asc
+            """,
+        this::mapFunctionExportRow,
+        args.toArray());
+  }
+
+  private List<IntegrationTestModuleExportRow> getModuleExportRows(
+      Long projectId, String testingPhase, String sourceInstance) {
+    List<Object> args = new ArrayList<>();
+    StringBuilder where =
+        new StringBuilder(
+            """
+            from integration_test_fact
+             where deleted = false
+            """);
+    appendSourceInstanceFilter(where, args, sourceInstance);
+    appendScopedFilters(where, args, projectId, testingPhase, null);
+    return jdbcTemplate.query(
+        """
+        select coalesce(module_name, '鏈瘑鍒ā鍧?) as module_name,
+               coalesce(sum(execute_case), 0) as execute_case,
+               coalesce(sum(pass_case), 0) as pass_case,
+               case
+                 when coalesce(sum(execute_case), 0) = 0 then 0
+                 else round(sum(pass_case)::numeric * 100 / nullif(sum(execute_case), 0), 2)
+               end as pass_rate
+        """
+            + where
+            + """
+             group by coalesce(module_name, '鏈瘑鍒ā鍧?)
+             order by lower(coalesce(module_name, '鏈瘑鍒ā鍧?)) asc
+            """,
+        this::mapModuleExportRow,
+        args.toArray());
+  }
+
   private void appendScopedFilters(
       StringBuilder where,
       List<Object> args,
@@ -404,6 +528,68 @@ public class IntegrationTestQueryService {
         TextQuerySupport.normalizeDisplay(rs.getString("assignee_name")),
         toLocalDateTime(rs.getTimestamp("note_updated_at_source")),
         toLocalDateTime(rs.getTimestamp("updated_at_source")));
+  }
+
+  private IntegrationTestFunctionExportRow mapFunctionExportRow(ResultSet rs, int rowNum)
+      throws SQLException {
+    return new IntegrationTestFunctionExportRow(
+        TextQuerySupport.normalizeDisplay(rs.getString("module_name")),
+        TextQuerySupport.normalizeDisplay(rs.getString("function_name")),
+        rs.getInt("execute_case"),
+        rs.getInt("pass_case"),
+        rs.getInt("not_pass_case"),
+        rs.getInt("not_pass_case_now"),
+        rs.getInt("problem_case"),
+        rs.getInt("exception_count"),
+        rs.getBigDecimal("pass_rate"),
+        TextQuerySupport.normalizeDisplay(rs.getString("function_labels")));
+  }
+
+  private IntegrationTestModuleExportRow mapModuleExportRow(ResultSet rs, int rowNum)
+      throws SQLException {
+    return new IntegrationTestModuleExportRow(
+        TextQuerySupport.normalizeDisplay(rs.getString("module_name")),
+        rs.getInt("execute_case"),
+        rs.getInt("pass_case"),
+        rs.getBigDecimal("pass_rate"));
+  }
+
+  private static FunctionKey functionKey(IntegrationTestFunctionExportRow row) {
+    return new FunctionKey(row.moduleName(), row.functionName());
+  }
+
+  private static IntegrationTestComparisonMetric comparisonMetric(
+      IntegrationTestFunctionExportRow row) {
+    return new IntegrationTestComparisonMetric(
+        row.executeCase(),
+        row.passCase(),
+        row.notPassCase(),
+        row.notPassCaseNow(),
+        row.problemCase(),
+        row.exceptionCount(),
+        row.passRate(),
+        row.functionLabels());
+  }
+
+  private static IntegrationTestComparisonMetric diffMetric(
+      IntegrationTestComparisonMetric base, IntegrationTestComparisonMetric target) {
+    return new IntegrationTestComparisonMetric(
+        diff(base.executeCase(), target.executeCase()),
+        diff(base.passCase(), target.passCase()),
+        diff(base.notPassCase(), target.notPassCase()),
+        diff(base.notPassCaseNow(), target.notPassCaseNow()),
+        diff(base.problemCase(), target.problemCase()),
+        diff(base.exceptionCount(), target.exceptionCount()),
+        diff(base.passRate(), target.passRate()),
+        null);
+  }
+
+  private static Integer diff(Integer base, Integer target) {
+    return base == null || target == null ? null : target - base;
+  }
+
+  private static BigDecimal diff(BigDecimal base, BigDecimal target) {
+    return base == null || target == null ? null : target.subtract(base);
   }
 
   private Integer getInteger(ResultSet rs, String column) throws SQLException {
@@ -498,5 +684,12 @@ public class IntegrationTestQueryService {
 
   private String csvText(Object value) {
     return value == null ? "" : String.valueOf(value);
+  }
+
+  private record FunctionKey(String moduleName, String functionName) {
+    private FunctionKey {
+      moduleName = Objects.toString(moduleName, "");
+      functionName = Objects.toString(functionName, "");
+    }
   }
 }
