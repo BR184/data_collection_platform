@@ -21,6 +21,8 @@ public record ReviewDataLegacyExcelRow(
     Double reviewDefectDensity,
     Double reviewEfficiency,
     Double reviewRate,
+    Integer independentProblemCount,
+    Integer meetingProblemCount,
     Double independentWorkloadHours,
     Double meetingWorkloadHours,
     String notReachStandardReason,

@@ -169,20 +169,21 @@ public class ReviewDataLegacyExcelImportService {
       return List.of();
     }
     double totalWorkload = safeDouble(row.independentWorkloadHours()) + safeDouble(row.meetingWorkloadHours());
-    double workloadPerItem = totalWorkload <= 0 ? 0D : round2(totalWorkload / total);
+    List<ReviewItemContext> contexts = buildReviewItemContexts(row, total, totalWorkload, issues);
     if (totalWorkload <= 0) {
       issues.add(issue(row.rowNumber(), "workloadHours", ReviewDataLegacyExcelIssueLevel.WARNING, "未读取到评审工作量，合成问题项工作量按 0 处理"));
     }
     String reviewer = experts.isEmpty() ? owner : experts.getFirst();
-    String reviewCategory = resolveReviewCategory(row.reviewCategoryText());
     List<ReviewDataProblemItemSaveRequest> items = new ArrayList<>();
+    int contextIndex = 0;
     for (Map.Entry<String, Integer> entry : counts.entrySet()) {
       for (int i = 0; i < entry.getValue(); i++) {
+        ReviewItemContext context = contexts.get(contextIndex++);
         items.add(
             new ReviewDataProblemItemSaveRequest(
                 reviewer,
-                workloadPerItem,
-                reviewCategory,
+                context.workloadPerItem(),
+                context.reviewCategory(),
                 "",
                 entry.getKey(),
                 "历史汇总导入：旧平台导出未提供逐条问题明细，按" + entry.getKey() + "汇总数量生成。",
@@ -193,6 +194,61 @@ public class ReviewDataLegacyExcelImportService {
       }
     }
     return items;
+  }
+
+  private List<ReviewItemContext> buildReviewItemContexts(
+      ReviewDataLegacyExcelRow row,
+      int total,
+      double totalWorkload,
+      List<ReviewDataLegacyExcelImportIssue> issues) {
+    double fallbackWorkload = totalWorkload <= 0 ? 0D : round2(totalWorkload / total);
+    int independentCount = safeInt(row.independentProblemCount());
+    int meetingCount = safeInt(row.meetingProblemCount());
+    if (independentCount + meetingCount == 0) {
+      return repeatedContext(total, resolveReviewCategory(row.reviewCategoryText()), fallbackWorkload);
+    }
+    if (independentCount + meetingCount != total) {
+      issues.add(
+          issue(
+              row.rowNumber(),
+              "reviewCategoryProblemCount",
+              ReviewDataLegacyExcelIssueLevel.WARNING,
+              "独立/会议评审问题数合计与问题分类合计不一致，已按问题分类总数补齐或截断"));
+    }
+    List<ReviewItemContext> contexts = new ArrayList<>();
+    addReviewContexts(
+        contexts,
+        Math.min(independentCount, total),
+        DEFAULT_REVIEW_CATEGORY,
+        workloadPerProblem(row.independentWorkloadHours(), independentCount, fallbackWorkload));
+    addReviewContexts(
+        contexts,
+        Math.min(meetingCount, Math.max(0, total - contexts.size())),
+        "会议评审",
+        workloadPerProblem(row.meetingWorkloadHours(), meetingCount, fallbackWorkload));
+    if (contexts.size() < total) {
+      contexts.addAll(
+          repeatedContext(total - contexts.size(), resolveReviewCategory(row.reviewCategoryText()), fallbackWorkload));
+    }
+    return contexts.size() > total ? contexts.subList(0, total) : contexts;
+  }
+
+  private List<ReviewItemContext> repeatedContext(int count, String reviewCategory, double workloadPerItem) {
+    List<ReviewItemContext> contexts = new ArrayList<>();
+    addReviewContexts(contexts, count, reviewCategory, workloadPerItem);
+    return contexts;
+  }
+
+  private void addReviewContexts(
+      List<ReviewItemContext> contexts, int count, String reviewCategory, double workloadPerItem) {
+    for (int i = 0; i < count; i++) {
+      contexts.add(new ReviewItemContext(reviewCategory, workloadPerItem));
+    }
+  }
+
+  private double workloadPerProblem(Double workloadHours, int problemCount, double fallbackWorkload) {
+    double workload = safeDouble(workloadHours);
+    return workload > 0 && problemCount > 0 ? round2(workload / problemCount) : fallbackWorkload;
   }
 
   private String resolveReviewCategory(String text) {
@@ -259,4 +315,6 @@ public class ReviewDataLegacyExcelImportService {
   private double round2(double value) {
     return Math.round(value * 100D) / 100D;
   }
+
+  private record ReviewItemContext(String reviewCategory, double workloadPerItem) {}
 }

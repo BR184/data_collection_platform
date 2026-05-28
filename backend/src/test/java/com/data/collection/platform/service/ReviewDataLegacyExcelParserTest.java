@@ -74,6 +74,8 @@ class ReviewDataLegacyExcelParserTest {
     assertEquals(2, row.integrityCount());
     assertEquals(1, row.functionalityCount());
     assertEquals(2, row.feasibilityCount());
+    assertEquals(4, row.independentProblemCount());
+    assertEquals(2, row.meetingProblemCount());
     assertTrue(result.issues().isEmpty());
   }
 
@@ -131,6 +133,70 @@ class ReviewDataLegacyExcelParserTest {
     assertEquals(2, preview.estimatedProblemItemCount());
     assertEquals("负责人", preview.rows().getFirst().record().reviewOwner());
     assertEquals("R4", preview.rows().getFirst().record().reviewVersion());
+  }
+
+  @Test
+  void shouldSplitSyntheticProblemItemsByIndependentAndMeetingProblemCounts() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of(
+                "评审的工作产品",
+                "评审类别",
+                "文档类型",
+                "评审缺陷个数",
+                "文档规范",
+                "完整性规范",
+                "功能性规范",
+                "可行性规范",
+                "评审规模",
+                "独立评审工作量合计(小时)",
+                "有效的独立评审问题数合计(个)",
+                "会议评审工作量(小时)",
+                "有效的会议评审问题数合计(个)",
+                "所属项目"),
+            List.of(
+                "【工具模块】需求规格说明书评审",
+                "[独立评审, 会议评审]",
+                "需求说明书评审",
+                4,
+                1,
+                1,
+                1,
+                1,
+                20,
+                2.0,
+                3,
+                1.0,
+                1,
+                "CC2026R4"));
+    ReviewDataLegacyExcelImportRequest request =
+        new ReviewDataLegacyExcelImportRequest(
+            LocalDate.of(2026, 5, 28),
+            "负责人",
+            List.of("专家A"),
+            "作者",
+            "R4",
+            "已关闭",
+            "SKIP");
+
+    ReviewDataLegacyExcelImportService service =
+        new ReviewDataLegacyExcelImportService(new ReviewDataLegacyExcelParser(), null, null);
+    ReviewDataLegacyExcelPreviewResponse preview =
+        service.preview(new ByteArrayInputStream(workbook), "legacy.xlsx", null, request);
+
+    List<String> categories =
+        preview.rows().getFirst().problemItems().stream()
+            .map(item -> item.reviewCategory())
+            .toList();
+    List<Double> workloads =
+        preview.rows().getFirst().problemItems().stream()
+            .map(item -> item.workloadHours())
+            .toList();
+    assertEquals(4, preview.estimatedProblemItemCount());
+    assertEquals(3, categories.stream().filter("独立评审"::equals).count());
+    assertEquals(1, categories.stream().filter("会议评审"::equals).count());
+    assertEquals(3, workloads.stream().filter(value -> value.equals(0.67D)).count());
+    assertEquals(1, workloads.stream().filter(value -> value.equals(1.0D)).count());
   }
 
   private byte[] workbook(List<String> headers, List<Object> values) throws Exception {

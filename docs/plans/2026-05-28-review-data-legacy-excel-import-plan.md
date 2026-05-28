@@ -1,7 +1,7 @@
 # 评审数据管理旧平台 Excel 导入方案
 
 日期：2026-05-28  
-状态：方案阶段，暂不实现代码  
+状态：已实现第一版，并完成旧平台口径对比验证  
 范围：`评审数据管理` 模块，从内网旧平台导出的 Excel 文件导入历史评审数据。
 
 ## 背景
@@ -75,8 +75,8 @@
 | 新平台字段 | 规则 |
 | --- | --- |
 | `reviewerName` | 优先默认专家；否则使用负责人 |
-| `reviewCategory` | 若旧平台导出“评审类别”能解析出独立评审或会议评审，则使用对应值；否则默认“独立评审”并给出警告 |
-| `workloadHours` | 将可用总工作量按生成的问题项数量均摊；没有工作量时为 0 并提示警告 |
+| `reviewCategory` | 优先读取旧平台“有效的独立评审问题数/有效的会议评审问题数”，分别生成“独立评审/会议评审”问题项；没有分类问题数字段时才回退解析“评审类别” |
+| `workloadHours` | 有独立/会议问题数时，分别用独立评审工作量、会议评审工作量除以对应问题数；缺少分类问题数时按总工作量均摊；没有工作量时为 0 并提示警告 |
 | `documentPosition` | 空 |
 | `problemCategory` | 来自分类字段 |
 | `problemDescription` | `历史汇总导入：旧平台导出未提供逐条问题明细，按{分类}汇总数量生成。` |
@@ -317,6 +317,40 @@ npm run typecheck
 5. 筛选项目、模块、负责人、专家时，导入值可见。
 6. 筛选文档规范、完整性、功能性、可行性问题项可查。
 7. 导入后再导出，新平台导出能包含导入记录。
+
+## 2026-05-28 对比验证记录
+
+本轮针对新实现的导入能力与旧平台页面、旧平台导出字段进行了对比。当前项目中确认存在的新增导入功能是评审数据管理旧平台 Excel 导入：
+
+- 后端接口：`POST /api/review-data/legacy-excel-import/preview`、`POST /api/review-data/legacy-excel-import/confirm`
+- 前端入口：评审数据管理页 `导入旧平台 Excel`
+- 集成测试模块本轮实现的是旧平台样式 Excel 导出，不包含导入入口。
+
+对比发现并已修正的差异：
+
+- 旧平台列表同时展示 `独立评审工作量合计(小时)`、`有效的独立评审问题数合计(个)`、`会议评审工作量(小时)`、`有效的会议评审问题数合计(个)`。
+- 第一版导入如果遇到一行同时包含 `[独立评审, 会议评审]`，可能把合成问题项全部归入单一评审类别，影响用户按评审类别筛选、统计的使用习惯。
+- 现已补充解析 `有效的独立问题数/有效的独立评审问题数` 和 `有效的会议评审问题数/有效的会议评审问题合计`，并在合成问题项时按数量拆分“独立评审”和“会议评审”。
+- 独立/会议问题数合计与问题分类合计不一致时，不直接静默吞掉，而是在预览里给出警告，并按问题分类总数补齐或截断。
+
+验证命令：
+
+```powershell
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest" test
+
+cd D:\projects\data_collection_platform\frontend
+npm run typecheck
+npm test -- review-data
+npm test -- integration-test-analysis
+```
+
+验证结果：
+
+- 后端评审导入解析、控制器、集成测试导出相关测试通过。
+- 前端类型检查通过。
+- 前端评审数据管理相关测试通过。
+- 前端集成测试分析页相关测试通过。
 
 ## 待确认问题
 

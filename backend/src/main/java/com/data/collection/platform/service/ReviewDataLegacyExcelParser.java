@@ -85,6 +85,8 @@ public class ReviewDataLegacyExcelParser {
     Double density = decimal(row, columns, "reviewDefectDensity");
     Double efficiency = decimal(row, columns, "reviewEfficiency");
     Double rate = decimal(row, columns, "reviewRate");
+    Integer independentProblemCount = integer(row, columns, "independentProblemCount");
+    Integer meetingProblemCount = integer(row, columns, "meetingProblemCount");
     Double independentWorkload = decimal(row, columns, "independentWorkload");
     Double meetingWorkload = decimal(row, columns, "meetingWorkload");
     String notReachReason = text(row, columns, "notReachStandardReason");
@@ -138,6 +140,8 @@ public class ReviewDataLegacyExcelParser {
         density,
         efficiency,
         rate,
+        independentProblemCount,
+        meetingProblemCount,
         independentWorkload,
         meetingWorkload,
         notReachReason,
@@ -221,6 +225,12 @@ public class ReviewDataLegacyExcelParser {
     }
     if (containsAny(header, "评审速率")) {
       return "reviewRate";
+    }
+    if (containsAny(header, "有效的独立问题数", "有效的独立评审问题数", "独立评审问题数合计")) {
+      return "independentProblemCount";
+    }
+    if (containsAny(header, "有效的会议评审问题数", "有效的会议评审问题合计", "会议评审问题数合计")) {
+      return "meetingProblemCount";
     }
     if (containsAny(header, "独立评审工作量")) {
       return "independentWorkload";
