@@ -2,6 +2,9 @@ import type {
   ReviewDataFilterOptionsResponse,
   ReviewDataGitlabContextRefreshRequest,
   ReviewDataGitlabContextRefreshResponse,
+  ReviewDataLegacyExcelConfirmResponse,
+  ReviewDataLegacyExcelImportRequest,
+  ReviewDataLegacyExcelPreviewResponse,
   ReviewDataProblemItemResponse,
   ReviewDataProblemItemSaveRequest,
   ReviewDataRecordDetailResponse,
@@ -102,4 +105,36 @@ export const reviewDataApi = {
       method: 'DELETE',
     });
   },
+  previewReviewDataLegacyExcelImport(file: File, payload: ReviewDataLegacyExcelImportRequest = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    appendOptional(formData, 'defaultReviewDate', payload.defaultReviewDate);
+    appendOptional(formData, 'defaultReviewOwner', payload.defaultReviewOwner);
+    appendOptional(formData, 'defaultAuthorName', payload.defaultAuthorName);
+    appendOptional(formData, 'defaultReviewVersion', payload.defaultReviewVersion);
+    appendOptional(formData, 'defaultProblemStatus', payload.defaultProblemStatus);
+    appendOptional(formData, 'duplicateStrategy', payload.duplicateStrategy);
+    for (const expert of payload.defaultReviewExperts ?? []) {
+      appendOptional(formData, 'defaultReviewExperts', expert);
+    }
+    return request<ReviewDataLegacyExcelPreviewResponse>('/api/review-data/legacy-excel-import/preview', {
+      method: 'POST',
+      body: formData,
+      headers: {},
+      timeoutMs: 60_000,
+    });
+  },
+  confirmReviewDataLegacyExcelImport(previewToken: string, duplicateStrategy = 'SKIP') {
+    return request<ReviewDataLegacyExcelConfirmResponse>('/api/review-data/legacy-excel-import/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ previewToken, duplicateStrategy }),
+      timeoutMs: 60_000,
+    });
+  },
 };
+
+function appendOptional(formData: FormData, key: string, value?: string | null) {
+  if (value && value.trim()) {
+    formData.append(key, value.trim());
+  }
+}

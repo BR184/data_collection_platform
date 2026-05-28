@@ -268,6 +268,36 @@ public class ReviewDataRecordReadRepository {
     return Boolean.TRUE.equals(exists);
   }
 
+  public boolean existsDuplicateRecord(
+      String projectName,
+      String title,
+      String reviewType,
+      java.time.LocalDate reviewDate,
+      String reviewVersion) {
+    Boolean exists =
+        jdbcTemplate.queryForObject(
+            """
+            select exists(
+              select 1
+              from review_records
+              where deleted = false
+                and project_name = ?
+                and title = ?
+                and review_type = ?
+                and review_date = ?
+                and review_version = ?
+              limit 1
+            )
+            """,
+            Boolean.class,
+            projectName,
+            title,
+            reviewType,
+            reviewDate,
+            reviewVersion);
+    return Boolean.TRUE.equals(exists);
+  }
+
   public ReviewDataRecordRowResponse getRecordOrThrow(Long recordId) {
     try {
       return jdbcTemplate.queryForObject(BASE_LIST_SQL + " and r.id = ?", this::mapRecordRow, recordId);

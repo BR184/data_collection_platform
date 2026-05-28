@@ -12,8 +12,14 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSearchIndexBackfillResponse;
 import com.data.collection.platform.security.RequireRole;
+import com.data.collection.platform.service.ReviewDataLegacyExcelConfirmRequest;
+import com.data.collection.platform.service.ReviewDataLegacyExcelConfirmResponse;
+import com.data.collection.platform.service.ReviewDataLegacyExcelImportRequest;
+import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
+import com.data.collection.platform.service.ReviewDataLegacyExcelPreviewResponse;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
+import java.io.IOException;
 import java.util.List;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/review-data")
@@ -34,12 +41,15 @@ public class ReviewDataController {
 
   private final ReviewDataRecordService reviewDataRecordService;
   private final ReviewDataRequestAssembler reviewDataRequestAssembler;
+  private final ReviewDataLegacyExcelImportService legacyExcelImportService;
 
   public ReviewDataController(
       ReviewDataRecordService reviewDataRecordService,
-      ReviewDataRequestAssembler reviewDataRequestAssembler) {
+      ReviewDataRequestAssembler reviewDataRequestAssembler,
+      ReviewDataLegacyExcelImportService legacyExcelImportService) {
     this.reviewDataRecordService = reviewDataRecordService;
     this.reviewDataRequestAssembler = reviewDataRequestAssembler;
+    this.legacyExcelImportService = legacyExcelImportService;
   }
 
   @GetMapping("/records")
@@ -92,6 +102,29 @@ public class ReviewDataController {
     return ApiResponse.success(
         "评审数据搜索索引回填已执行",
         reviewDataRecordService.backfillMissingSearchIndexes(batchSize));
+  }
+
+  @PostMapping("/legacy-excel-import/preview")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<ReviewDataLegacyExcelPreviewResponse> previewLegacyExcelImport(
+      @RequestParam MultipartFile file,
+      @RequestParam(required = false) String sheetName,
+      @ModelAttribute ReviewDataLegacyExcelImportRequest request)
+      throws IOException {
+    return ApiResponse.success(
+        "旧平台 Excel 解析完成",
+        legacyExcelImportService.preview(
+            file.getInputStream(),
+            file.getOriginalFilename(),
+            sheetName,
+            request));
+  }
+
+  @PostMapping("/legacy-excel-import/confirm")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<ReviewDataLegacyExcelConfirmResponse> confirmLegacyExcelImport(
+      @RequestBody ReviewDataLegacyExcelConfirmRequest request) {
+    return ApiResponse.success("旧平台 Excel 导入完成", legacyExcelImportService.confirm(request));
   }
 
   @PostMapping("/records/gitlab-context/refresh")

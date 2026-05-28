@@ -1,0 +1,262 @@
+package com.data.collection.platform.service;
+
+import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
+import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
+import java.io.InputStream;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class ReviewDataLegacyExcelImportService {
+  private static final String DEFAULT_PROBLEM_STATUS = "已关闭";
+  private static final String DEFAULT_REVIEW_CATEGORY = "独立评审";
+
+  private final ReviewDataLegacyExcelParser parser;
+  private final ReviewDataRecordCommandService commandService;
+  private final ReviewDataRecordPersistenceSupport persistenceSupport;
+  private final Map<String, ReviewDataLegacyExcelPreviewResponse> previewCache = new ConcurrentHashMap<>();
+
+  public ReviewDataLegacyExcelImportService(
+      ReviewDataLegacyExcelParser parser,
+      ReviewDataRecordCommandService commandService,
+      ReviewDataRecordPersistenceSupport persistenceSupport) {
+    this.parser = parser;
+    this.commandService = commandService;
+    this.persistenceSupport = persistenceSupport;
+  }
+
+  public ReviewDataLegacyExcelPreviewResponse preview(
+      InputStream inputStream,
+      String filename,
+      String sheetName,
+      ReviewDataLegacyExcelImportRequest request) {
+    ReviewDataLegacyExcelParseResult parseResult = parser.parse(inputStream, filename, sheetName);
+    List<ReviewDataLegacyExcelPreviewRowResponse> previewRows = new ArrayList<>();
+    List<ReviewDataLegacyExcelImportIssue> allIssues = new ArrayList<>(parseResult.issues());
+
+    for (ReviewDataLegacyExcelRow row : parseResult.rows()) {
+      ReviewDataLegacyExcelPreviewRowResponse previewRow = toPreviewRow(row, request);
+      previewRows.add(previewRow);
+      allIssues.addAll(previewRow.issues());
+    }
+
+    int importableRows = (int) previewRows.stream().filter(ReviewDataLegacyExcelPreviewRowResponse::importable).count();
+    int warningRows = countRowsByLevel(previewRows, ReviewDataLegacyExcelIssueLevel.WARNING);
+    int errorRows = countRowsByLevel(previewRows, ReviewDataLegacyExcelIssueLevel.ERROR);
+    int estimatedProblemItems =
+        previewRows.stream()
+            .filter(ReviewDataLegacyExcelPreviewRowResponse::importable)
+            .mapToInt(row -> row.problemItems().size())
+            .sum();
+    String token = UUID.randomUUID().toString();
+    ReviewDataLegacyExcelPreviewResponse response =
+        new ReviewDataLegacyExcelPreviewResponse(
+            token,
+            parseResult.sheetName(),
+            parseResult.rows().size(),
+            importableRows,
+            warningRows,
+            errorRows,
+            importableRows,
+            estimatedProblemItems,
+            previewRows,
+            allIssues);
+    previewCache.put(token, response);
+    return response;
+  }
+
+  @Transactional
+  public ReviewDataLegacyExcelConfirmResponse confirm(ReviewDataLegacyExcelConfirmRequest request) {
+    if (request == null || request.previewToken() == null || request.previewToken().isBlank()) {
+      throw new BizException("缺少导入预览 token，请先上传并预览 Excel");
+    }
+    ReviewDataLegacyExcelPreviewResponse preview = previewCache.get(request.previewToken());
+    if (preview == null) {
+      throw new BizException("导入预览已失效，请重新上传 Excel");
+    }
+    int importedRecords = 0;
+    int skippedRecords = 0;
+    int importedProblemItems = 0;
+    for (ReviewDataLegacyExcelPreviewRowResponse row : preview.rows()) {
+      if (!row.importable()) {
+        continue;
+      }
+      if (shouldSkipDuplicate(request, row.record())) {
+        skippedRecords++;
+        continue;
+      }
+      Long recordId = commandService.createRecord(row.record());
+      importedRecords++;
+      for (ReviewDataProblemItemSaveRequest item : row.problemItems()) {
+        commandService.createProblemItem(recordId, item);
+        importedProblemItems++;
+      }
+      if (persistenceSupport != null) {
+        persistenceSupport.refreshSearchIndex(recordId);
+      }
+    }
+    previewCache.remove(request.previewToken());
+    return new ReviewDataLegacyExcelConfirmResponse(importedRecords, skippedRecords, importedProblemItems, List.of());
+  }
+
+  private ReviewDataLegacyExcelPreviewRowResponse toPreviewRow(
+      ReviewDataLegacyExcelRow row,
+      ReviewDataLegacyExcelImportRequest request) {
+    List<ReviewDataLegacyExcelImportIssue> issues = new ArrayList<>(row.issues());
+    String owner = firstNonBlank(row.reviewOwner(), request == null ? "" : request.defaultReviewOwner());
+    LocalDate reviewDate = row.reviewDate() == null && request != null ? request.defaultReviewDate() : row.reviewDate();
+    String authorName = firstNonBlank(request == null ? "" : request.defaultAuthorName(), owner, "历史导入");
+    String reviewVersion = firstNonBlank(request == null ? "" : request.defaultReviewVersion(), row.projectName());
+    List<String> experts = request == null ? List.of() : request.defaultReviewExperts();
+    if (experts.isEmpty() && !owner.isBlank()) {
+      experts = List.of(owner);
+    }
+    String problemStatus = firstNonBlank(request == null ? "" : request.defaultProblemStatus(), DEFAULT_PROBLEM_STATUS);
+
+    if (owner.isBlank()) {
+      issues.add(issue(row.rowNumber(), "reviewOwner", ReviewDataLegacyExcelIssueLevel.ERROR, "负责人不能为空"));
+    }
+    if (reviewDate == null) {
+      issues.add(issue(row.rowNumber(), "reviewDate", ReviewDataLegacyExcelIssueLevel.ERROR, "评审日期不能为空"));
+    }
+    if (experts.isEmpty()) {
+      issues.add(issue(row.rowNumber(), "reviewExperts", ReviewDataLegacyExcelIssueLevel.ERROR, "评审专家不能为空"));
+    }
+    if (reviewVersion.isBlank()) {
+      issues.add(issue(row.rowNumber(), "reviewVersion", ReviewDataLegacyExcelIssueLevel.ERROR, "评审版本不能为空"));
+    }
+
+    ReviewDataRecordSaveRequest record =
+        new ReviewDataRecordSaveRequest(
+            firstNonBlank(row.projectName()),
+            firstNonBlank(row.title()),
+            firstNonBlank(row.moduleName()),
+            firstNonBlank(row.reviewType()),
+            reviewDate,
+            owner,
+            experts,
+            row.reviewScalePages() == null ? 0 : row.reviewScalePages(),
+            firstNonBlank(row.title()),
+            authorName,
+            reviewVersion);
+    List<ReviewDataProblemItemSaveRequest> problemItems =
+        buildProblemItems(row, owner, experts, problemStatus, issues);
+    boolean importable = issues.stream().noneMatch(issue -> issue.level() == ReviewDataLegacyExcelIssueLevel.ERROR);
+    return new ReviewDataLegacyExcelPreviewRowResponse(row.rowNumber(), importable, record, problemItems, issues);
+  }
+
+  private List<ReviewDataProblemItemSaveRequest> buildProblemItems(
+      ReviewDataLegacyExcelRow row,
+      String owner,
+      List<String> experts,
+      String problemStatus,
+      List<ReviewDataLegacyExcelImportIssue> issues) {
+    Map<String, Integer> counts = new LinkedHashMap<>();
+    counts.put("文档规范", safeInt(row.docSpecificationCount()));
+    counts.put("完整性", safeInt(row.integrityCount()));
+    counts.put("功能性", safeInt(row.functionalityCount()));
+    counts.put("可行性", safeInt(row.feasibilityCount()));
+    int total = counts.values().stream().mapToInt(Integer::intValue).sum();
+    if (total == 0) {
+      return List.of();
+    }
+    double totalWorkload = safeDouble(row.independentWorkloadHours()) + safeDouble(row.meetingWorkloadHours());
+    double workloadPerItem = totalWorkload <= 0 ? 0D : round2(totalWorkload / total);
+    if (totalWorkload <= 0) {
+      issues.add(issue(row.rowNumber(), "workloadHours", ReviewDataLegacyExcelIssueLevel.WARNING, "未读取到评审工作量，合成问题项工作量按 0 处理"));
+    }
+    String reviewer = experts.isEmpty() ? owner : experts.getFirst();
+    String reviewCategory = resolveReviewCategory(row.reviewCategoryText());
+    List<ReviewDataProblemItemSaveRequest> items = new ArrayList<>();
+    for (Map.Entry<String, Integer> entry : counts.entrySet()) {
+      for (int i = 0; i < entry.getValue(); i++) {
+        items.add(
+            new ReviewDataProblemItemSaveRequest(
+                reviewer,
+                workloadPerItem,
+                reviewCategory,
+                "",
+                entry.getKey(),
+                "历史汇总导入：旧平台导出未提供逐条问题明细，按" + entry.getKey() + "汇总数量生成。",
+                "",
+                "",
+                firstNonBlank(row.notReachStandardReason()),
+                problemStatus));
+      }
+    }
+    return items;
+  }
+
+  private String resolveReviewCategory(String text) {
+    String value = firstNonBlank(text);
+    if (value.contains("会议")) {
+      return "会议评审";
+    }
+    if (value.contains("走查")) {
+      return "走查";
+    }
+    return DEFAULT_REVIEW_CATEGORY;
+  }
+
+  private boolean shouldSkipDuplicate(
+      ReviewDataLegacyExcelConfirmRequest request,
+      ReviewDataRecordSaveRequest record) {
+    String strategy = firstNonBlank(request == null ? "" : request.duplicateStrategy(), "SKIP");
+    if (!"SKIP".equalsIgnoreCase(strategy) || persistenceSupport == null) {
+      return false;
+    }
+    return persistenceSupport.existsDuplicateRecord(
+        record.projectName(),
+        record.title(),
+        record.reviewType(),
+        record.reviewDate(),
+        record.reviewVersion());
+  }
+
+  private int countRowsByLevel(
+      List<ReviewDataLegacyExcelPreviewRowResponse> rows,
+      ReviewDataLegacyExcelIssueLevel level) {
+    return (int)
+        rows.stream()
+            .filter(row -> row.issues().stream().anyMatch(issue -> issue.level() == level))
+            .count();
+  }
+
+  private ReviewDataLegacyExcelImportIssue issue(
+      int rowNumber, String field, ReviewDataLegacyExcelIssueLevel level, String message) {
+    return new ReviewDataLegacyExcelImportIssue(rowNumber, field, level, message);
+  }
+
+  private String firstNonBlank(String... values) {
+    if (values == null) {
+      return "";
+    }
+    for (String value : values) {
+      String normalized = TextQuerySupport.trimToNull(value);
+      if (normalized != null) {
+        return normalized;
+      }
+    }
+    return "";
+  }
+
+  private int safeInt(Integer value) {
+    return value == null ? 0 : Math.max(0, value);
+  }
+
+  private double safeDouble(Double value) {
+    return value == null ? 0D : Math.max(0D, value);
+  }
+
+  private double round2(double value) {
+    return Math.round(value * 100D) / 100D;
+  }
+}

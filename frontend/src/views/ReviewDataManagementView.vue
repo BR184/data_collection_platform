@@ -1,11 +1,12 @@
 ﻿<script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
-import { Download, InfoFilled, Plus, Refresh } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
+import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
 import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
 import ReviewDataRowActions from './review-data/ReviewDataRowActions.vue';
@@ -129,6 +130,7 @@ const { exportLoading, exportExcel: handleExportExcel } = useReviewDataExport({
 
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
+const legacyImportVisible = ref(false);
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 const hasGitlabContextRows = computed(() =>
@@ -191,6 +193,12 @@ async function refreshReviewRecords() {
     page: page.value,
     size: pageSize.value,
   }));
+}
+
+async function handleLegacyImportSuccess(result: { importedRecords: number; importedProblemItems: number }) {
+  ElMessage.success(`已导入 ${result.importedRecords} 条评审记录，生成 ${result.importedProblemItems} 个问题项`);
+  await loadFilterOptions();
+  await refreshReviewRecords();
 }
 
 const {
@@ -291,6 +299,9 @@ const {
           <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">
             导出
           </el-button>
+          <el-button plain :icon="Upload" @click="legacyImportVisible = true">
+            导入旧平台 Excel
+          </el-button>
           <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
         </div>
       </template>
@@ -332,6 +343,15 @@ const {
     <ReviewDataRuleExplanationDrawer
       v-model:visible="ruleExplanationVisible"
       :content="reviewDataRuleExplanationContent"
+    />
+
+    <ReviewDataLegacyExcelImportDialog
+      v-model:visible="legacyImportVisible"
+      :filter-options="filterOptions"
+      :preview-import="api.previewReviewDataLegacyExcelImport"
+      :confirm-import="api.confirmReviewDataLegacyExcelImport"
+      @success="handleLegacyImportSuccess"
+      @error="ElMessage.error"
     />
 
     <ReviewRecordFormDialog

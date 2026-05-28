@@ -22,6 +22,7 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
+import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import java.time.LocalDate;
@@ -41,6 +42,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class ReviewDataControllerTest {
 
   @Mock private ReviewDataRecordService reviewDataRecordService;
+  @Mock private ReviewDataLegacyExcelImportService legacyExcelImportService;
 
   private MockMvc mockMvc;
 
@@ -50,7 +52,8 @@ class ReviewDataControllerTest {
         MockMvcBuilders.standaloneSetup(
                 new ReviewDataController(
                     reviewDataRecordService,
-                    new ReviewDataRequestAssembler()))
+                    new ReviewDataRequestAssembler(),
+                    legacyExcelImportService))
             .build();
   }
 

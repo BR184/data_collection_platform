@@ -749,6 +749,53 @@ export interface ReviewDataProblemItemSaveRequest {
   problemStatus: string;
 }
 
+export type ReviewDataLegacyExcelIssueLevel = 'ERROR' | 'WARNING';
+
+export interface ReviewDataLegacyExcelImportIssue {
+  rowNumber: number;
+  field: string;
+  level: ReviewDataLegacyExcelIssueLevel;
+  message: string;
+}
+
+export interface ReviewDataLegacyExcelImportRequest {
+  defaultReviewDate?: string | null;
+  defaultReviewOwner?: string | null;
+  defaultReviewExperts?: string[];
+  defaultAuthorName?: string | null;
+  defaultReviewVersion?: string | null;
+  defaultProblemStatus?: string | null;
+  duplicateStrategy?: string | null;
+}
+
+export interface ReviewDataLegacyExcelPreviewRowResponse {
+  rowNumber: number;
+  importable: boolean;
+  record: ReviewDataRecordSaveRequest;
+  problemItems: ReviewDataProblemItemSaveRequest[];
+  issues: ReviewDataLegacyExcelImportIssue[];
+}
+
+export interface ReviewDataLegacyExcelPreviewResponse {
+  previewToken: string;
+  sheetName: string;
+  totalRows: number;
+  importableRows: number;
+  warningRows: number;
+  errorRows: number;
+  estimatedRecordCount: number;
+  estimatedProblemItemCount: number;
+  rows: ReviewDataLegacyExcelPreviewRowResponse[];
+  issues: ReviewDataLegacyExcelImportIssue[];
+}
+
+export interface ReviewDataLegacyExcelConfirmResponse {
+  importedRecords: number;
+  skippedRecords: number;
+  importedProblemItems: number;
+  issues: ReviewDataLegacyExcelImportIssue[];
+}
+
 export interface CollectFormDetailResponse {
   id: number;
   gitlabBaseUrl: string;

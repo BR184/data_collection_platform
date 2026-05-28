@@ -49,6 +49,22 @@ describe('request', () => {
     expect(headers.get('X-XSRF-TOKEN')).toBe('caller-token');
   });
 
+  it('should let browser set multipart content type for form data uploads', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token';
+    const fetchSpy = stubSuccessfulFetch();
+    const body = new FormData();
+    body.append('file', new Blob(['demo']), 'legacy.xlsx');
+
+    await request('/api/upload', {
+      method: 'POST',
+      body,
+    });
+
+    const headers = getFetchHeaders(fetchSpy);
+    expect(headers.get('Content-Type')).toBeNull();
+    expect(headers.get('X-XSRF-TOKEN')).toBe('csrf-token');
+  });
+
   it('should abort requests after configured timeout', async () => {
     vi.useFakeTimers();
     vi.stubGlobal(

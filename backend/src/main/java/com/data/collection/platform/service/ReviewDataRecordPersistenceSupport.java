@@ -121,6 +121,16 @@ public class ReviewDataRecordPersistenceSupport {
     return recordReadRepository.hasMissingTitleSearchIndexes();
   }
 
+  public boolean existsDuplicateRecord(
+      String projectName,
+      String title,
+      String reviewType,
+      java.time.LocalDate reviewDate,
+      String reviewVersion) {
+    return recordReadRepository.existsDuplicateRecord(
+        projectName, title, reviewType, reviewDate, reviewVersion);
+  }
+
   public List<String> loadExpertOptions() {
     return expertRepository.loadExpertOptions();
   }
