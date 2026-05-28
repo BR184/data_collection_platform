@@ -2,16 +2,13 @@ package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.data.collection.platform.common.exception.BizException;
-import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorBatchWriteResult;
 import com.data.collection.platform.entity.MirrorPrimaryKeyBatch;
 import com.data.collection.platform.entity.TableWhitelistOption;
-import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
-import com.data.collection.platform.mapper.SyncRunTableTaskMapper;
 import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabMirrorSchemaService;
 import com.data.collection.platform.service.PrimaryKeySignatureSupport;
@@ -30,34 +27,30 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class SyncRunTableTaskExecutor {
   private static final LocalDateTime INITIAL_WATERMARK = LocalDateTime.of(1970, 1, 1, 0, 0);
-  private static final int DEFAULT_MAX_CONTINUATION_TASKS_PER_TABLE = 50000;
 
-  private final SyncRunTableTaskMapper taskMapper;
   private final SyncRunTableStateMapper stateMapper;
   private final SyncRunTableTaskLeaseService taskLeaseService;
+  private final SyncTableContinuationPlanner continuationPlanner;
   private final GitlabConfigService configService;
   private final SourceTableReader sourceTableReader;
   private final GitlabMirrorSchemaService mirrorSchemaService;
   private final MirrorTableWriter mirrorTableWriter;
-  private final GitlabMirrorProperties mirrorProperties;
 
   public SyncRunTableTaskExecutor(
-      SyncRunTableTaskMapper taskMapper,
       SyncRunTableStateMapper stateMapper,
       SyncRunTableTaskLeaseService taskLeaseService,
+      SyncTableContinuationPlanner continuationPlanner,
       GitlabConfigService configService,
       SourceTableReader sourceTableReader,
       GitlabMirrorSchemaService mirrorSchemaService,
-      MirrorTableWriter mirrorTableWriter,
-      GitlabMirrorProperties mirrorProperties) {
-    this.taskMapper = taskMapper;
+      MirrorTableWriter mirrorTableWriter) {
     this.stateMapper = stateMapper;
     this.taskLeaseService = taskLeaseService;
+    this.continuationPlanner = continuationPlanner;
     this.configService = configService;
     this.sourceTableReader = sourceTableReader;
     this.mirrorSchemaService = mirrorSchemaService;
     this.mirrorTableWriter = mirrorTableWriter;
-    this.mirrorProperties = mirrorProperties;
   }
 
   public void executeTask(SyncRunTableTask task) {
@@ -138,20 +131,13 @@ public class SyncRunTableTaskExecutor {
           : lastCursor;
       markSuccess(task, state, scannedRows, appliedRows, completionCursor, hasMore);
       if (hasMore && !isRunCancellationRequested(task.getRunId())) {
-        int maxContinuationTasks = resolveMaxContinuationTasksPerTable();
-        long existingTaskCount = taskMapper.selectCount(
-            new LambdaQueryWrapper<SyncRunTableTask>()
-                .eq(SyncRunTableTask::getRunId, task.getRunId())
-                .eq(SyncRunTableTask::getSourceTable, task.getSourceTable()));
-        if (existingTaskCount >= maxContinuationTasks) {
-          log.error("Exceeded max continuation tasks ({}) for table {}, runId={}, aborting further pagination",
-              maxContinuationTasks, task.getSourceTable(), task.getRunId());
-          markFailure(task, state, new BizException(
-              "表 %2$s 超过连续分页任务上限（%1$d）".formatted(
-                  maxContinuationTasks, task.getSourceTable())));
+        try {
+          continuationPlanner.enqueueContinuationTask(
+              task, lastCursor.updatedAt(), lastCursor.primaryKey(), batchSize);
+        } catch (BizException e) {
+          markFailure(task, state, e);
           return;
         }
-        taskMapper.insert(createContinuationTask(task, lastCursor, batchSize));
       }
       mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
     } catch (Exception e) {
@@ -258,34 +244,6 @@ public class SyncRunTableTaskExecutor {
     stateMapper.updateById(state);
   }
 
-  private SyncRunTableTask createContinuationTask(SyncRunTableTask previousTask, RowCursor cursor, int batchSize) {
-    LocalDateTime now = LocalDateTime.now();
-    SyncRunTableTask task = new SyncRunTableTask();
-    task.setRunId(previousTask.getRunId());
-    task.setConfigId(previousTask.getConfigId());
-    task.setStateId(previousTask.getStateId());
-    task.setSourceInstance(previousTask.getSourceInstance());
-    task.setSourceTable(previousTask.getSourceTable());
-    task.setMirrorTable(previousTask.getMirrorTable());
-    task.setTaskType(previousTask.getTaskType());
-    task.setStatus(SyncRunStatus.QUEUED);
-    task.setRowStrategy(previousTask.getRowStrategy());
-    task.setWatermarkAt(previousTask.getWatermarkAt());
-    task.setCursorUpdatedAt(cursor.updatedAt());
-    task.setCursorPk(cursor.primaryKey());
-    task.setLookupColumn(previousTask.getLookupColumn());
-    task.setLookupValue(previousTask.getLookupValue());
-    task.setBatchSize(batchSize);
-    task.setRunAfter(now);
-    task.setRetryCount(0);
-    task.setMaxRetryCount(previousTask.getMaxRetryCount());
-    task.setRowsScanned(0L);
-    task.setRowsApplied(0L);
-    task.setCreatedAt(now);
-    task.setUpdatedAt(now);
-    return task;
-  }
-
   private TableWhitelistOption tableOption(SyncRunTableState state) {
     return new TableWhitelistOption(
         state.getSourceTable(), state.getSourceTable(), state.getPrimaryKeyColumns(), state.getUpdatedAtColumn(), true);
@@ -319,14 +277,6 @@ public class SyncRunTableTaskExecutor {
 
   private int resolveBatchSize(SyncRunTableTask task) {
     return task.getBatchSize() == null || task.getBatchSize() < 1 ? 500 : task.getBatchSize();
-  }
-
-  private int resolveMaxContinuationTasksPerTable() {
-    if (mirrorProperties == null) {
-      return DEFAULT_MAX_CONTINUATION_TASKS_PER_TABLE;
-    }
-    int configured = mirrorProperties.getMaxContinuationTasksPerTable();
-    return configured > 0 ? configured : DEFAULT_MAX_CONTINUATION_TASKS_PER_TABLE;
   }
 
   private String firstPrimaryKey(String primaryKeys) {
