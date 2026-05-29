@@ -11,16 +11,19 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-public class SourceConnectionTester {
+public class SourceConnectionTester implements DisposableBean {
   private final GitlabExternalDbService externalDbService;
   private final GitlabMirrorProperties properties;
   private final ExecutorService executorService;
@@ -28,7 +31,7 @@ public class SourceConnectionTester {
 
   @Autowired
   public SourceConnectionTester(GitlabExternalDbService externalDbService, GitlabMirrorProperties properties) {
-    this(externalDbService, properties, Executors.newCachedThreadPool(new SourceConnectionThreadFactory()));
+    this(externalDbService, properties, createExecutor(properties));
   }
 
   SourceConnectionTester(
@@ -57,7 +60,12 @@ public class SourceConnectionTester {
 
   private <T> T runWithInteractiveTimeout(Callable<T> callable) {
     int timeoutSeconds = Math.max(1, properties.getInteractiveConnectionTimeoutSeconds());
-    Future<T> future = executorService.submit(callable);
+    Future<T> future;
+    try {
+      future = executorService.submit(callable);
+    } catch (RejectedExecutionException error) {
+      throw new BizException("GitLab data source connection tests are busy, please retry later");
+    }
     try {
       return future.get(timeoutSeconds, TimeUnit.SECONDS);
     } catch (TimeoutException error) {
@@ -119,6 +127,23 @@ public class SourceConnectionTester {
   }
 
   private record FailureCacheEntry(Instant failedAt, String message) {}
+
+  private static ExecutorService createExecutor(GitlabMirrorProperties properties) {
+    int maxThreads = Math.max(1, properties.getMaxConcurrentConnectionTests());
+    return new ThreadPoolExecutor(
+        maxThreads,
+        maxThreads,
+        0L,
+        TimeUnit.MILLISECONDS,
+        new LinkedBlockingQueue<>(Math.max(maxThreads, maxThreads * 4)),
+        new SourceConnectionThreadFactory(),
+        new ThreadPoolExecutor.AbortPolicy());
+  }
+
+  @Override
+  public void destroy() {
+    executorService.shutdownNow();
+  }
 
   private static class SourceConnectionThreadFactory implements ThreadFactory {
     @Override

@@ -27,6 +27,22 @@
 - 必要时拆出独立运维脚本，使用 `CREATE INDEX CONCURRENTLY`。
 - `CREATE INDEX CONCURRENTLY` 不能运行在普通 Flyway 事务迁移中，需单独设计执行入口和失败重试方式。
 
+## 销毁性迁移策略
+
+销毁性迁移包括但不限于 `DROP TABLE`、`DROP COLUMN`、表重命名、列重命名，以及会导致旧版本代码无法读取数据的结构变更。除非是全新未发布对象，否则不允许在同一个版本里直接删除。
+
+推荐流程：
+
+1. 第一阶段只做兼容迁移：新增新字段/新表，保留旧字段/旧表，运行时代码同时兼容新旧结构或完成数据回填。
+2. 第二阶段做灰度隔离：将旧对象 `RENAME TO *_legacy_yyyymmdd`，保留至少 2 个 release 或 2 周观察期，确认没有旧代码、报表、运维脚本继续读取。
+3. 第三阶段才允许正式 `DROP`，并在迁移文件头部写明：
+   - `-- destructive-migration-reviewed: <reviewer/date>`
+   - `-- destructive-migration-recovery: <backup/rollback/legacy object path>`
+
+新增 Flyway 文件中出现销毁性语句时，CI 会执行 `scripts/check_flyway_destructive_migrations.py`。该脚本只能拦截“裸 drop/rename”，不能替代人工确认观察期和回滚路径。
+
+历史上已经执行过的破坏性迁移不回写修改；若要补说明，写在新的文档或新的迁移说明中。
+
 ## 必跑检查
 
 修改 schema 或迁移后必须运行：

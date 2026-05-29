@@ -2,7 +2,9 @@ package com.data.collection.platform.common.exception;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.response.ResultCode;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalRestExceptionHandler {
   @ExceptionHandler(BizException.class)
   public ApiResponse<Void> handleBizException(BizException exception) {
@@ -47,12 +50,23 @@ public class GlobalRestExceptionHandler {
   }
 
   @ExceptionHandler(DataAccessException.class)
-  public ApiResponse<Void> handleDataAccessException(DataAccessException exception) {
+  public ApiResponse<Void> handleDataAccessException(
+      DataAccessException exception, HttpServletRequest request) {
+    log.error(
+        "Unhandled database exception, method={}, uri={}",
+        request.getMethod(),
+        request.getRequestURI(),
+        exception);
     return ApiResponse.fail(ResultCode.SYSTEM_ERROR, "数据库操作失败，请稍后重试");
   }
 
   @ExceptionHandler(Exception.class)
-  public ApiResponse<Void> handleException(Exception exception) {
+  public ApiResponse<Void> handleException(Exception exception, HttpServletRequest request) {
+    log.error(
+        "Unhandled REST exception, method={}, uri={}",
+        request.getMethod(),
+        request.getRequestURI(),
+        exception);
     return ApiResponse.fail(ResultCode.SYSTEM_ERROR, "系统异常，请稍后重试");
   }
 

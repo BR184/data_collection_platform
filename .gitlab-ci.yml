@@ -23,6 +23,7 @@ static-guards:
     - python scripts/check_schema_flyway_drift.py
     - python scripts/check_flyway_migration_immutability.py
     - python scripts/check_flyway_destructive_migrations.py
+    - python scripts/check_flyway_destructive_migrations_test.py
     - python scripts/check_backend_test_hygiene.py
     - python scripts/check_api_contract_drift.py
     - python scripts/check_frontend_api_boundary.py
@@ -40,7 +41,7 @@ backend-compile-and-guards:
     - cd backend
     - mvn -q -DskipTests compile
     - mvn -q -Dtest=GitlabSourceSchemaGuardTest test
-    - mvn -q -Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SystemTestIllegalRecordServiceTest test
+    - mvn -q -Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest test
 
 frontend-typecheck:
   stage: frontend

@@ -615,3 +615,157 @@ git diff --check
 ---
 
 附：本次审查不修改任何业务代码。如果需要把某条 finding 落到具体修改方案/补丁，请告诉我对应编号。
+
+---
+
+## Part 6 — 修复回归审查（2026-05-29 二审）
+
+针对五轮修复（commits `bf30fee` → `6c6ede3`）逐条对照源码做回归审查，结论如下。本节只标“仍有遗漏 / 部分修复 / 新引入的小问题”，已经干净落地的项目不再重复列出。
+
+### 6.1 已干净落地（全部通过二审）
+
+整改到位、可视为关闭：既有 F1（preview 重新基于 confirm 入参重建）、F2（`PreviewSessionStore` TTL 30 min + 容量 100）、F4（parser/controller 双层 `.xlsx` 校验）、F5（20 MB 上限 + 空文件校验）、F7（`integration-tests-api.ts` 全部走 `requestText`/`requestBlob`）、F8（confirm 循环里多余的 `refreshSearchIndex` 已移除）、A1（`SecurityFilterChain` 改为 `authenticated()` + 白名单 + `PlatformSessionAuthenticationFilter` 桥接 session）、A3（`csrfEnabled` 默认 `true`）、A4（`AuthController.recordAuthAudit` + `safeUsername` + `sanitize/truncate` 异常消息）、B2（`GitlabExternalDbService.destroy()` 关池 + Hikari 生命周期参数 + `pooledDataSourceCount` 测试）、B3（`GlobalRestExceptionHandler` 收口五类异常）、B4（`PreviewSessionStore` 抽象成型）、C1（统一 `requestBlob/requestText` 60s 超时）、C2（`router.beforeEach` 等 `loadCurrentUser` 后做 `routeAccessRedirect`）、C4（`watchedQuerySignature` 精准 watch + 防抖 + 卸载清理）、D1（CI 改用 `$TEST_POSTGRES_PASSWORD`）、D3（`baseline-on-migrate` 默认 `false`）、D4（`check_flyway_destructive_migrations.py` 入 CI 与 verify-local）、D5（`repair_demo_display_data.sql` 行尾归一化为 LF）。
+
+### 6.2 部分修复 / 仍有遗漏
+
+#### 6.2.1 Important: `SourceConnectionTester` 仍使用 `Executors.newCachedThreadPool()`（B1 没收尾）
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/service/SourceConnectionTester.java:31](../../backend/src/main/java/com/data/collection/platform/service/SourceConnectionTester.java#L31)
+
+现象：
+
+- B1 的整改只覆盖了 `SyncRunExecutorService`，但原文已经显式提示“同样的检查也适用于 `SourceConnectionTester`”。
+- 当前默认构造仍是 `Executors.newCachedThreadPool(new SourceConnectionThreadFactory())`，没有上限保护。
+
+影响：
+
+- 一旦“连接测试”入口被并发批量调用（例如多个管理员同时对一批 GitLab config 触发 test connection），线程会被一比一无限创建。
+- 与 `SyncRunExecutorService` 不同，这里没有应用层 `activeRuns` 计数兜底。
+
+建议：
+
+- 与 `SyncRunExecutorService` 保持一致：`ThreadPoolExecutor(maxThreads, maxThreads, 0, MS, LinkedBlockingQueue(maxThreads*4), AbortPolicy)`，配 `@PreDestroy` 关闭。
+- `maxThreads` 走配置（GitLab mirror properties 里的 `maxConcurrentConnectionTests` 之类），不要直接照抄 sync 的值。
+
+#### 6.2.2 Consider: `LocalPlatformAuthenticationProvider` 仍然兼容明文 `password` 形态
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/security/LocalPlatformAuthenticationProvider.java:40-50](../../backend/src/main/java/com/data/collection/platform/security/LocalPlatformAuthenticationProvider.java#L40-L50)
+- [backend/src/main/java/com/data/collection/platform/config/PlatformAuthProperties.java:11-13](../../backend/src/main/java/com/data/collection/platform/config/PlatformAuthProperties.java#L11-L13)
+
+现象：
+
+- 已经接入 `DelegatingPasswordEncoder` 与 `MessageDigest.isEqual` 常量时间比较，A2 主体修复到位。
+- 但兼容路径里：当 `configuredPassword` 不以 `{` 开头时，仍会走明文比较；`PlatformAuthProperties` 里的默认值 `admin123` / `approval` 还在，仅靠 `PlatformStartupSecurityGuard` + `secureConfigRequired=true` 兜底拦默认值。
+
+影响：
+
+- “生产强制 hash、demo/dev 仍可用明文”是临时形态，可以接受；但不应长期保留。
+- `PlatformStartupSecurityGuard` 一旦被某个环境把 `secureConfigRequired` 设成 `false`，明文默认密码即可登入。
+
+建议：
+
+- 在 README/`docs/` 里补一份 `PlatformStartupSecurityGuard` 期望与 hash 配置示例，写明唯一推荐用法是 `{bcrypt}...`。
+- 后续移除明文兼容分支，转为强制 hash；若要保留 LDAP，明文路径仅限单测。
+
+#### 6.2.3 Important: `GlobalRestExceptionHandler` 兜底分支吞掉了原始堆栈
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/common/exception/GlobalRestExceptionHandler.java:49-57](../../backend/src/main/java/com/data/collection/platform/common/exception/GlobalRestExceptionHandler.java#L49-L57)
+
+现象：
+
+- `handleDataAccessException` 与 `handleException` 都直接 `return ApiResponse.fail(...)`，没有 `log.error(message, exception)` 之类记录。
+- 这是新引入的代码，专项 review 当时未见，但本次回归时发现。
+
+影响：
+
+- DB 异常或未分类异常发生时，前端拿到“数据库操作失败，请稍后重试”/“系统异常，请稍后重试”，运维看不到原始堆栈，定位事故全靠运气。
+- Spring 默认对 `@RestControllerAdvice` 处理过的异常不会再打 ERROR 日志，所以一定会出现“线上某请求 500 但日志一片干净”的情况。
+
+建议：
+
+- 在 `handleDataAccessException`、`handleException` 里加 `log.error("unhandled exception, uri={}", request.getRequestURI(), exception)`（注入 `HttpServletRequest` 或 `WebRequest`）。
+- 业务可预期错误 `BizException` 不打 ERROR，仅 DEBUG 级；其他真实异常一律 ERROR 带堆栈。
+
+#### 6.2.4 Important: CI 仍未补 Checkstyle / SpotBugs / Jacoco / 依赖漏洞扫描（D2 仅做了一半）
+
+位置：
+
+- [.gitlab-ci.yml](../../.gitlab-ci.yml)
+
+现象：
+
+- `static-guards` 阶段已经接入大量项目自定义 Python 守护脚本（很有用，不重复审查）。
+- 但 D2 原本要求的标准质量工具（后端 lint / 测试覆盖率阈值 / OWASP Dependency-Check）仍未引入；前端 lint job 也未加入 CI。
+
+影响：
+
+- 第三方依赖漏洞回归无门禁；覆盖率回退不可见；前端 ESLint 规则违反可被合入。
+
+建议：
+
+- 第一步：加 Jacoco（先只产出报告，不卡阈值）、加 OWASP DC（输出 SARIF）、把现有 `npm run lint`（如果存在）接入 frontend job。
+- 第二步：选 1-2 个核心模块先卡覆盖率阈值（例如 `service/sync` 包 ≥ 70%），逐步推广。
+
+#### 6.2.5 Consider: D4 的“rename-then-drop”灰度流程仅落了静态门禁
+
+位置：
+
+- `scripts/check_flyway_destructive_migrations.py`、`docs/flyway-migration-rules.md`（如有）
+
+现象：
+
+- 静态门禁要求 destructive migration 必须带 `-- destructive-migration-reviewed:` / `-- destructive-migration-recovery:` 注释。第四轮修复记录也明确说“真正的 rename → 观察若干 release → drop 的发布流程，还需要在迁移规范文档和发布流程里再固化”。
+- 这部分目前只在落地记录里点到，规范文档/发布 checklist 还没看到对应条款。
+
+影响：
+
+- 新增的 destructive migration 评审主要靠 reviewer 注意力；门禁能挡住裸 drop，但挡不住“写了注释、其实没观察期”的伪合规。
+
+建议：
+
+- 把规则写入 `docs/flyway-migration-rules.md`：先 rename + 保留 N 个 release（例如至少 2 周），再 drop；CI 守护脚本可以校验同一对象在历史版本中是否经历过 rename。
+
+### 6.3 二审之外的小项
+
+- **既有 F3（负数静默归零）**：parser 中 `addNonNegativeIssue` 已经把负数标 ERROR；service 里仍保留 `safeInt`/`safeDouble`（无 clamp）和 `nonNegativeInt`/`nonNegativeDouble`（合成项使用）双轨并存。逻辑没问题，但相同语义出现了两份命名相近的工具方法，将来易混。建议下次清理时统一到 parser 一侧的工具类，service 只用一种。
+- **既有 F9（统计下钻 e2e）**：单测仍然覆盖；Playwright 端到端这次没加，专项 review 里也只是 Consider，留给后续。
+- **A2 残留**：`PlatformAuthProperties` 中 `adminPassword`/`approvalPassword` 字段仍以明文出现。`@ConfigurationProperties` 字段无法直接标记成“必须 hash”。可以在 `setAdminPassword` 等 setter 里偷偷加 `assert configuredPassword.startsWith("{") || environment.isLocal()` 之类的运行期断言，但成本不大、收益不高，作为长期治理项即可。
+
+### 6.4 二审后的优先级建议
+
+- **下次 PR 顺手处理**（成本极小）：6.2.1（`SourceConnectionTester` 线程池有界化）、6.2.3（`GlobalRestExceptionHandler` 加 `log.error`）。
+- **本季度内排上**：6.2.4（CI 接入 Jacoco / OWASP DC / 前端 lint）。
+- **进治理 backlog**：6.2.2（明文密码兼容路径退场）、6.2.5（rename-then-drop 发布流程文档化）、6.3 中的 `safeInt` 重复实现统一。
+
+二审结论：五轮修复总体完成度高，没有发现修反方向的回归；剩余项均可作为小步迭代继续推进，不阻塞当前批次合并。
+
+## 7. 二审后补丁落地记录
+
+### 7.1 本轮已处理
+
+- **6.2.1 B1 收尾**：`SourceConnectionTester` 已从 `newCachedThreadPool` 改为有界 `ThreadPoolExecutor`，并新增 `gitlab.mirror.max-concurrent-connection-tests` 配置。队列满时返回业务错误，避免交互式连接测试无限创建线程；Spring 销毁阶段会关闭线程池。
+- **6.2.3 兜底异常日志**：`GlobalRestExceptionHandler` 已在 `DataAccessException` 与未分类 `Exception` 分支记录 `method`、`uri` 和原始堆栈；`BizException` 仍保持业务错误响应，不升级为 ERROR。
+- **6.2.5 迁移发布规范**：`docs/flyway-migration-rules.md` 已补充 destructive migration 的兼容迁移、rename 灰度观察、最终 drop 三阶段流程，明确至少 2 个 release 或 2 周观察期。
+- **CI/本地守护补强**：`.gitlab-ci.yml` 与 `scripts/verify-local.ps1` 已接入 `check_flyway_destructive_migrations_test.py`，CI 后端目标测试补入 `SourceConnectionTesterTest` 和 `GitlabDirectJdbcExecutorTest`。
+
+### 7.2 继续延期的治理项
+
+- **6.2.4 D2 标准质量工具**：Jacoco、OWASP Dependency-Check、后端 Checkstyle、前端 ESLint job 仍按“本季度内排上”处理，本轮不把 CI 扩大到新工具链。
+- **6.2.2 A2 明文兼容路径**：当前仍保留明文密码兼容与默认值兜底，后续应在完成部署配置迁移后再强制 `{bcrypt}`。
+- **6.3 解析工具统一**：`safeInt`/`safeDouble` 的 service/parser 双轨问题不影响当前行为，留给下一次清理做低风险合并。
+
+### 7.3 本轮验证
+
+- `mvn -q "-Dtest=SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,ReviewDataControllerTest" test`
+- `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test`
+- `npm run typecheck`
+- `npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState`
+- `python scripts/check_flyway_destructive_migrations.py`
+- `python scripts/check_flyway_destructive_migrations_test.py`
+- `python scripts/check_text_whitespace.py`

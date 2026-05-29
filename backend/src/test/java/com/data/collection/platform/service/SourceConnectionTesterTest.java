@@ -1,17 +1,21 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -65,6 +69,21 @@ class SourceConnectionTesterTest {
         .hasMessageContaining("连接超时");
 
     verify(externalDbService, never()).testConnection(config);
+  }
+
+  @Test
+  void shouldReturnBusinessErrorWhenConnectionTestQueueIsFull() {
+    GitlabExternalDbService externalDbService = mock(GitlabExternalDbService.class);
+    ExecutorService rejectingExecutor = mock(ExecutorService.class);
+    executorService = rejectingExecutor;
+    when(rejectingExecutor.submit(any(Callable.class)))
+        .thenThrow(new RejectedExecutionException("full"));
+    SourceConnectionTester tester =
+        new SourceConnectionTester(externalDbService, properties(5, 0), rejectingExecutor);
+
+    assertThatThrownBy(() -> tester.testConnection(directConfig()))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("connection tests are busy");
   }
 
   private SourceConnectionTester newTester(
