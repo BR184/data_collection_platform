@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isRequestTimeoutError, request } from './request';
+import { isRequestTimeoutError, request, requestBlob, requestText } from './request';
 
 describe('request', () => {
   afterEach(() => {
@@ -133,6 +133,35 @@ describe('request', () => {
     );
 
     await expect(request('/api/fail-envelope')).rejects.toThrow('请求失败');
+  });
+
+  it('should request text downloads with csrf headers', async () => {
+    document.cookie = 'XSRF-TOKEN=csrf-token';
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      text: async () => 'csv',
+      headers: new Headers({ 'Content-Type': 'text/csv' }),
+    } as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(requestText('/api/export', { method: 'POST' })).resolves.toBe('csv');
+
+    const headers = getFetchHeaders(fetchSpy);
+    expect(headers.get('X-XSRF-TOKEN')).toBe('csrf-token');
+  });
+
+  it('should parse json error message for blob downloads', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+        text: async () => JSON.stringify({ success: false, message: '导出条件无效' }),
+      } as Response)),
+    );
+
+    await expect(requestBlob('/api/export.xlsx')).rejects.toThrow('导出条件无效');
   });
 });
 

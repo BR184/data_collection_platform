@@ -49,6 +49,34 @@ cd D:\projects\data_collection_platform\frontend
 
 ## Findings
 
+## 2026-05-29 修复记录
+
+本轮已落地：
+
+- Finding 1：确认导入会重新基于缓存的原始解析行套用 confirm 阶段默认值，避免预览后修改负责人、专家、作者、版本、问题状态不生效。
+- Finding 2：preview token 已增加 30 分钟 TTL 和 100 条本地容量上限，并在 confirm 的成功/异常路径清理 token。
+- Finding 3：解析阶段不再把负数静默归零，负数计数/工作量会生成可见 ERROR。
+- Finding 4：第一版明确只接受旧平台列表导出的 `.xlsx`，前端上传 accept 和后端校验都拒绝 `.xls` 模板。
+- Finding 5：评审数据 Excel 上传增加空文件、20MB 大小和扩展名边界校验。
+- Finding 7：前端导出/下载路径已统一走 `requestText` / `requestBlob`，复用超时、CSRF 头和 JSON 错误解析。
+- 补充修复：新增全局 REST 异常处理，避免导入/上传类业务异常散落成 500 或非统一响应。
+
+本轮保留：
+
+- Finding 8：批量写入性能优化仍保留为后续项；当前已避免重复显式刷新搜索索引之外的主要正确性问题。
+- Finding 9：统计下钻链接已有单测覆盖，端到端回归留到页面自动化测试专项中补齐。
+
+已验证：
+
+```powershell
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,AuthControllerTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,SystemTestIllegalRecordServiceTest" test
+
+cd D:\projects\data_collection_platform\frontend
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- request integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+```
+
 ### 1. Critical: 评审数据导入确认阶段复用 preview 快照，用户在预览后修改默认值不会生效
 
 位置：

@@ -60,7 +60,7 @@ public class ReviewDataLegacyExcelImportService {
         token,
         new PreviewSession(parseResult.sheetName(), parseResult.rows(), expiresAt()));
     trimPreviewCache();
-    return buildPreviewResponse(token, parseResult.sheetName(), parseResult.rows(), request);
+    return buildPreviewResponse(token, parseResult.sheetName(), parseResult.rows(), parseResult.issues(), request);
   }
 
   @Transactional
@@ -77,6 +77,7 @@ public class ReviewDataLegacyExcelImportService {
         request.previewToken(),
         session.sheetName(),
         session.rows(),
+        List.of(),
         toImportRequest(request));
     int importedRecords = 0;
     int skippedRecords = 0;
@@ -107,9 +108,10 @@ public class ReviewDataLegacyExcelImportService {
       String token,
       String sheetName,
       List<ReviewDataLegacyExcelRow> rows,
+      List<ReviewDataLegacyExcelImportIssue> globalIssues,
       ReviewDataLegacyExcelImportRequest request) {
     List<ReviewDataLegacyExcelPreviewRowResponse> previewRows = new ArrayList<>();
-    List<ReviewDataLegacyExcelImportIssue> allIssues = new ArrayList<>();
+    List<ReviewDataLegacyExcelImportIssue> allIssues = new ArrayList<>(globalIssues == null ? List.of() : globalIssues);
     for (ReviewDataLegacyExcelRow row : rows) {
       ReviewDataLegacyExcelPreviewRowResponse previewRow = toPreviewRow(row, request);
       previewRows.add(previewRow);

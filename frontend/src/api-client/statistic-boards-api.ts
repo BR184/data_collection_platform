@@ -5,7 +5,7 @@ import type {
   StatisticDetailResponse,
   StatisticFilterGroup,
 } from '../types/api';
-import { request } from './request';
+import { request, requestText } from './request';
 
 export interface StatisticBoardQueryParams {
   filters?: Record<string, string>;
@@ -60,12 +60,9 @@ export const statisticBoardsApi = {
     );
   },
   async exportStatisticBoard(boardKey: string, params?: StatisticBoardQueryParams) {
-    const response = await fetch(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`);
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `导出失败，状态码：${response.status}`);
-    }
-    return response.text();
+    return requestText(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`, {
+      timeoutMs: 60_000,
+    });
   },
   getStatisticBoardRealtimeStatus(boardKey: string) {
     return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/status`);

@@ -11,6 +11,7 @@ import com.data.collection.platform.security.LocalPlatformAuthenticationProvider
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
@@ -102,6 +103,27 @@ class AuthControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.role").value("APPROVAL"));
+  }
+
+  @Test
+  void loginShouldSupportEncodedLocalPasswords() throws Exception {
+    PlatformAuthProperties properties = new PlatformAuthProperties();
+    properties.setAdminUsername("admin");
+    properties.setAdminPassword(PasswordEncoderFactories.createDelegatingPasswordEncoder().encode("encoded-secret"));
+    MockMvc encodedMockMvc =
+        MockMvcBuilders.standaloneSetup(new AuthController(new LocalPlatformAuthenticationProvider(properties))).build();
+
+    encodedMockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "encoded-secret"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.role").value("ADMIN"));
   }
 
   @Test

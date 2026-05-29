@@ -11,7 +11,7 @@ import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
 } from '../types/api';
-import { request } from './request';
+import { request, requestText } from './request';
 
 type SystemTestIssueSearchQueryParams = {
   projectId?: string | number | null;
@@ -201,11 +201,7 @@ function buildCustomerIssueRecordQuery(params: {
 }
 
 async function requestCsv(url: string) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('导出失败');
-  }
-  return response.text();
+  return requestText(url, { timeoutMs: 60_000 });
 }
 
 export const issueRecordsApi = {

@@ -2,11 +2,19 @@ package com.data.collection.platform.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
+import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
@@ -133,6 +141,102 @@ class ReviewDataLegacyExcelParserTest {
     assertEquals(2, preview.estimatedProblemItemCount());
     assertEquals("负责人", preview.rows().getFirst().record().reviewOwner());
     assertEquals("R4", preview.rows().getFirst().record().reviewVersion());
+  }
+
+  @Test
+  void confirmShouldRebuildRowsWithLatestDefaultValues() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of(
+                "评审的工作产品",
+                "评审类别",
+                "文档类型",
+                "评审缺陷个数",
+                "文档规范",
+                "完整性规范",
+                "功能性规范",
+                "可行性规范",
+                "评审规模",
+                "所属项目"),
+            List.of("【工具模块】需求规格说明书评审", "[独立评审]", "需求说明书评审", 1, 1, 0, 0, 0, 10, "2026R4"));
+    ReviewDataRecordCommandService commandService = mock(ReviewDataRecordCommandService.class);
+    List<ReviewDataRecordSaveRequest> records = new ArrayList<>();
+    List<ReviewDataProblemItemSaveRequest> problemItems = new ArrayList<>();
+    when(commandService.createRecord(any())).thenAnswer(invocation -> {
+      records.add(invocation.getArgument(0));
+      return 100L;
+    });
+    when(commandService.createProblemItem(any(), any())).thenAnswer(invocation -> {
+      problemItems.add(invocation.getArgument(1));
+      return 200L;
+    });
+    ReviewDataLegacyExcelImportService service =
+        new ReviewDataLegacyExcelImportService(new ReviewDataLegacyExcelParser(), commandService, null);
+    ReviewDataLegacyExcelPreviewResponse preview =
+        service.preview(
+            new ByteArrayInputStream(workbook),
+            "legacy.xlsx",
+            null,
+            new ReviewDataLegacyExcelImportRequest(
+                LocalDate.of(2026, 5, 28),
+                "预览负责人",
+                List.of("预览专家"),
+                "预览作者",
+                "R3",
+                "已关闭",
+                "SKIP"));
+
+    service.confirm(
+        new ReviewDataLegacyExcelConfirmRequest(
+            preview.previewToken(),
+            "SKIP",
+            LocalDate.of(2026, 5, 29),
+            "确认负责人",
+            List.of("确认专家"),
+            "确认作者",
+            "R4",
+            "待整改"));
+
+    assertEquals("确认负责人", records.getFirst().reviewOwner());
+    assertEquals("确认作者", records.getFirst().authorName());
+    assertEquals("R4", records.getFirst().reviewVersion());
+    assertEquals("确认专家", records.getFirst().reviewExperts().getFirst());
+    assertEquals("待整改", problemItems.getFirst().problemStatus());
+  }
+
+  @Test
+  void shouldRejectNegativeNumbersInsteadOfSilentlyClampingThem() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of(
+                "评审的工作产品",
+                "评审类别",
+                "文档类型",
+                "评审缺陷个数",
+                "文档规范",
+                "完整性规范",
+                "功能性规范",
+                "可行性规范",
+                "评审规模",
+                "所属项目"),
+            List.of("【工具模块】需求规格说明书评审", "[独立评审]", "需求说明书评审", -1, -1, 0, 0, 0, -10, "2026R4"));
+
+    ReviewDataLegacyExcelParseResult result =
+        new ReviewDataLegacyExcelParser().parse(new ByteArrayInputStream(workbook), "legacy.xlsx", null);
+
+    assertTrue(result.issues().stream().anyMatch(issue -> issue.message().contains("不能为负数")));
+    assertEquals(-10, result.rows().getFirst().reviewScalePages());
+    assertEquals(-1, result.rows().getFirst().docSpecificationCount());
+  }
+
+  @Test
+  void shouldRejectLegacyXlsTemplateUntilItIsExplicitlySupported() {
+    BizException exception =
+        assertThrows(
+            BizException.class,
+            () -> new ReviewDataLegacyExcelParser().parse(new ByteArrayInputStream(new byte[0]), "legacy.xls", null));
+
+    assertTrue(exception.getMessage().contains(".xlsx"));
   }
 
   @Test

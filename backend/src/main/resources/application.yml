@@ -17,7 +17,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:false}
   jdbc:
     template:
       query-timeout: ${PLATFORM_QUERY_TIMEOUT_SECONDS:30}
@@ -38,7 +38,7 @@ platform:
     approval-username: ${PLATFORM_APPROVAL_USERNAME:approval}
     approval-password: ${PLATFORM_APPROVAL_PASSWORD:approval}
     secure-config-required: ${PLATFORM_SECURE_CONFIG_REQUIRED:true}
-    csrf-enabled: ${PLATFORM_AUTH_CSRF_ENABLED:false}
+    csrf-enabled: ${PLATFORM_AUTH_CSRF_ENABLED:true}
     ldap:
       url: ${PLATFORM_LDAP_URL:}
       base-dn: ${PLATFORM_LDAP_BASE_DN:}

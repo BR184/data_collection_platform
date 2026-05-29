@@ -9,7 +9,7 @@ import type {
   StatisticFilterGroup,
 } from '../types/api';
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from '../types/code-review-rule-config';
-import { request } from './request';
+import { request, requestText } from './request';
 
 interface CodeReviewIllegalRecordQueryParams {
   projectId?: string | number | null;
@@ -65,12 +65,7 @@ export const codeReviewApi = {
   },
   async exportCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams) {
     const query = buildIllegalRecordQuery(params, false);
-    const response = await fetch(`/api/code-review/illegal-records/export?${query.toString()}`);
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(text || `导出失败，状态码：${response.status}`);
-    }
-    return text;
+    return requestText(`/api/code-review/illegal-records/export?${query.toString()}`, { timeoutMs: 60_000 });
   },
   getCodeReviewIllegalRecordFilterOptions(projectId?: string | number | null, source?: string | null) {
     const query = new URLSearchParams(

@@ -2,6 +2,7 @@ package com.data.collection.platform.config;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.response.ResultCode;
+import com.data.collection.platform.security.PlatformCsrfCookieFilter;
 import com.data.collection.platform.security.PlatformSessionAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
@@ -38,6 +39,7 @@ public class PlatformSecurityConfiguration {
             .authenticationEntryPoint(authenticationEntryPoint)
             .accessDeniedHandler(accessDeniedHandler))
         .addFilterBefore(new PlatformSessionAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(new PlatformCsrfCookieFilter(), PlatformSessionAuthenticationFilter.class)
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
             .requestMatchers("/api/auth/**").permitAll()

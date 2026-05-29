@@ -57,10 +57,10 @@ flyway-smoke:
   variables:
     POSTGRES_DB: qaflex
     POSTGRES_USER: qaflex
-    POSTGRES_PASSWORD: qaflex_dev_2026
+    POSTGRES_PASSWORD: "$TEST_POSTGRES_PASSWORD"
     TEST_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/qaflex?currentSchema=qaflex_test"
     TEST_DATASOURCE_USERNAME: qaflex
-    TEST_DATASOURCE_PASSWORD: qaflex_dev_2026
+    TEST_DATASOURCE_PASSWORD: "$TEST_POSTGRES_PASSWORD"
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends postgresql-client

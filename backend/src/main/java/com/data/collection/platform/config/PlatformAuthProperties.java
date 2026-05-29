@@ -12,7 +12,7 @@ public class PlatformAuthProperties {
   private String approvalUsername = "approval";
   private String approvalPassword = "approval";
   private boolean secureConfigRequired = true;
-  private boolean csrfEnabled = false;
+  private boolean csrfEnabled = true;
   private Ldap ldap = new Ldap();
 
   public String getProvider() {

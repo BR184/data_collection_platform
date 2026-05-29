@@ -22,6 +22,7 @@ import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
+import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
@@ -35,7 +36,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +57,7 @@ class ReviewDataControllerTest {
                     reviewDataRecordService,
                     new ReviewDataRequestAssembler(),
                     legacyExcelImportService))
+            .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
   }
 
@@ -357,5 +361,20 @@ class ReviewDataControllerTest {
     mockMvc.perform(delete("/api/review-data/records/1"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true));
+  }
+
+  @Test
+  void legacyExcelPreviewShouldRejectUnsupportedXlsFile() throws Exception {
+    MockMultipartFile file =
+        new MockMultipartFile(
+            "file",
+            "legacy.xls",
+            "application/vnd.ms-excel",
+            new byte[] {1, 2, 3});
+
+    mockMvc.perform(multipart("/api/review-data/legacy-excel-import/preview").file(file))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(".xlsx")));
   }
 }

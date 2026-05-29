@@ -442,6 +442,36 @@
 
 ## Part 4 — 总体结论与优先级建议
 
+## 2026-05-29 修复落地记录
+
+本轮已修复：
+
+- 专项 Finding 1/2/3/4/5：评审数据 Excel 导入的 confirm 默认值、preview token TTL/容量、负数校验、`.xlsx` 边界和上传体积控制已处理。
+- 专项 Finding 7 + C1：所有前端 API-client 导出/下载路径已统一使用 `requestText` / `requestBlob`，保留超时、CSRF 和 JSON 错误解析。
+- A1/A3：Spring Security 默认兜底从 `permitAll` 收紧到认证要求，`/api/auth/**`、静态资源和健康检查显式白名单；新增 session 到 Spring Security 的桥接过滤器和 CSRF cookie 触发过滤器。
+- A2：本地认证支持 `{bcrypt}` 等 Spring Security password hash，同时保留现有明文配置兼容；明文比较改为常量时间比较。
+- B3：新增全局 `@RestControllerAdvice`，统一处理 `BizException`、参数校验、上传边界、DB 异常和兜底异常。
+- D1：`.gitlab-ci.yml` 中测试库密码改为引用 masked variable `$TEST_POSTGRES_PASSWORD`。
+- D3：默认 `baseline-on-migrate` 改为 `${SPRING_FLYWAY_BASELINE_ON_MIGRATE:false}`。
+
+本轮暂不处理：
+
+- A4：登录/登出审计需要和现有审计字段口径一起设计，避免记录密码或错误敏感信息。
+- B1/B2/B4：线程池有界化、外部数据源连接池全局化、统一 PreviewSessionStore 属于架构治理项，建议单独拆小 PR。
+- C2/C3/C4：前端路由权限守卫、大视图拆分、route query 精准 watch 暂不和导入修复混在一轮。
+- D2/D4/D5：CI 质量门禁、破坏性迁移灰度规则、SQL 行尾治理继续留在工程治理清单。
+
+已验证：
+
+```powershell
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,AuthControllerTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,SystemTestIllegalRecordServiceTest" test
+
+cd D:\projects\data_collection_platform\frontend
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- request integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+```
+
 按可观察影响 × 修复成本排序：
 
 **1. 本次必须先动**（合并风险大、修复成本不高）
