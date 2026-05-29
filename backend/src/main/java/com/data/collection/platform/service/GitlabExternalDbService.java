@@ -24,12 +24,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.DisposableBean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @Slf4j
-public class GitlabExternalDbService {
+public class GitlabExternalDbService implements DisposableBean {
   private static final TypeReference<LinkedHashMap<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
   private final ObjectMapper objectMapper;
@@ -401,6 +402,11 @@ public class GitlabExternalDbService {
 
   <T> T executeExternalQueryWithRetry(String operation, Supplier<T> supplier) {
     return queryRetryPolicy.executeWithRetry(operation, supplier);
+  }
+
+  @Override
+  public void destroy() {
+    directJdbcExecutor.close();
   }
 
   long computeExternalQueryRetryDelayMs(int attempt) {

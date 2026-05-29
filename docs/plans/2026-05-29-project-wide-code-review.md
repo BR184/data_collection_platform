@@ -507,9 +507,9 @@ cd D:\projects\data_collection_platform\frontend
 
 本轮继续保留：
 
-- B2：外部数据源连接池全局化还未处理，建议单独做数据源生命周期治理。
+- B2：外部数据源连接已补上 direct JDBC 池的生命周期回收；如果后续需要多服务共享/监控粒度更细的外部连接池，再单独做全局化治理。
 - C3/C4：大型视图拆分和 route query 精准 watch 仍建议跟页面功能变更一起拆小处理。
-- D4：破坏性迁移灰度规则仍未落地，需要结合发布流程确定白名单和审批策略。
+- D4：已补“变更中的 destructive migration 必须带审查/恢复标记”的静态门禁；更细的发布白名单和审批流仍需结合团队流程落地。
 
 已验证：
 
@@ -520,6 +520,36 @@ cd D:\projects\data_collection_platform\backend
 cd D:\projects\data_collection_platform
 python scripts\check_text_whitespace.py
 git diff --check
+
+cd D:\projects\data_collection_platform\frontend
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+```
+
+## 2026-05-29 第四轮修复落地记录
+
+本轮已修复：
+
+- B2：`GitlabDirectJdbcExecutor` 补充 direct JDBC 池的生命周期治理，`GitlabExternalDbService` 作为 Spring bean 销毁时会统一关闭缓存的 `HikariDataSource`；同时增加 `GitlabDirectJdbcExecutorTest` 覆盖等价连接复用同一池、服务销毁时释放池资源。
+- D4：新增 `scripts/check_flyway_destructive_migrations.py`，对本次变更中的 Flyway migration 做 destructive SQL 审查门禁；出现 `drop table`、`drop column`、`rename table/column` 时，必须显式写入 `-- destructive-migration-reviewed:` 和 `-- destructive-migration-recovery:` 标记。CI 和本地 `verify-local.ps1` 都已接入。
+- D4：新增 `scripts/check_flyway_destructive_migrations_test.py`，为 destructive SQL 识别和审查标记规则补了脚本级回归。
+
+本轮继续保留：
+
+- C3/C4：大型视图拆分和 route query 精准 watch 仍建议跟页面功能变更一起拆小处理。
+- D4：静态门禁已补，但真正的“先 rename 到 legacy、观察若干 release 再 drop”的发布流程，还需要在迁移规范文档和发布流程里再固化。
+
+已验证：
+
+```powershell
+cd D:\projects\data_collection_platform
+python scripts\check_flyway_destructive_migrations.py
+python scripts\check_flyway_destructive_migrations_test.py
+python scripts\check_text_whitespace.py
+git diff --check
+
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=PreviewSessionStoreTest,ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SystemTestIllegalRecordServiceTest,GitlabDirectJdbcExecutorTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test
 
 cd D:\projects\data_collection_platform\frontend
 & 'C:\Program Files\nodejs\npm.cmd' run typecheck

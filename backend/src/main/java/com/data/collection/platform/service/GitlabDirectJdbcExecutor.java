@@ -17,22 +17,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-class GitlabDirectJdbcExecutor {
+class GitlabDirectJdbcExecutor implements AutoCloseable {
   private final GitlabSourceConnectionSettings connectionSettings;
   private final GitlabSourceQueryRetryPolicy queryRetryPolicy;
   private final GitlabJdbcValueNormalizer jdbcValueNormalizer;
+  private final Function<GitlabSyncConfig, HikariDataSource> dataSourceFactory;
   private final ConcurrentMap<String, HikariDataSource> directDataSources = new ConcurrentHashMap<>();
 
   GitlabDirectJdbcExecutor(
       GitlabSourceConnectionSettings connectionSettings,
       GitlabSourceQueryRetryPolicy queryRetryPolicy,
       GitlabJdbcValueNormalizer jdbcValueNormalizer) {
+    this(connectionSettings, queryRetryPolicy, jdbcValueNormalizer, null);
+  }
+
+  GitlabDirectJdbcExecutor(
+      GitlabSourceConnectionSettings connectionSettings,
+      GitlabSourceQueryRetryPolicy queryRetryPolicy,
+      GitlabJdbcValueNormalizer jdbcValueNormalizer,
+      Function<GitlabSyncConfig, HikariDataSource> dataSourceFactory) {
     this.connectionSettings = connectionSettings;
     this.queryRetryPolicy = queryRetryPolicy;
     this.jdbcValueNormalizer = jdbcValueNormalizer;
+    this.dataSourceFactory = dataSourceFactory == null ? this::createDirectDataSource : dataSourceFactory;
   }
 
   void testConnection(GitlabSyncConfig config) {
@@ -78,9 +89,9 @@ class GitlabDirectJdbcExecutor {
     }
   }
 
-  private Connection openConnection(GitlabSyncConfig config) throws Exception {
+  Connection openConnection(GitlabSyncConfig config) throws Exception {
     if (config != null && config.getSourceMode() == SourceMode.DIRECT) {
-      return directDataSources.computeIfAbsent(connectionSettings.directDataSourceKey(config), ignored -> createDirectDataSource(config))
+      return directDataSources.computeIfAbsent(connectionSettings.directDataSourceKey(config), ignored -> dataSourceFactory.apply(config))
           .getConnection();
     }
     return DriverManager.getConnection(
@@ -101,5 +112,21 @@ class GitlabDirectJdbcExecutor {
     hikariConfig.setIdleTimeout(60000);
     hikariConfig.setMaxLifetime(300000);
     return new HikariDataSource(hikariConfig);
+  }
+
+  @Override
+  public void close() {
+    directDataSources.forEach((key, dataSource) -> {
+      try {
+        dataSource.close();
+      } catch (RuntimeException e) {
+        log.warn("Failed to close GitLab direct JDBC datasource, key={}", key, e);
+      }
+    });
+    directDataSources.clear();
+  }
+
+  int pooledDataSourceCount() {
+    return directDataSources.size();
   }
 }
