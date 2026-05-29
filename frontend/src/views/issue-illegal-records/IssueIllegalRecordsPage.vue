@@ -11,6 +11,7 @@ import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue'
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../../composables/useRecordPageController';
 import { useDataScope } from '../../composables/useDataScope';
+import { ISSUE_RECORD_QUERY_KEYS } from '../../composables/record-route-query-keys';
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
@@ -35,6 +36,7 @@ const {
     sortBy: props.defaultSortBy ?? 'updatedAt',
     sortOrder: props.defaultSortOrder ?? 'desc',
   },
+  watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
 });
 
 const rows = ref<IssueIllegalRecordRow[]>([]);

@@ -508,7 +508,7 @@ cd D:\projects\data_collection_platform\frontend
 本轮继续保留：
 
 - B2：外部数据源连接已补上 direct JDBC 池的生命周期回收；如果后续需要多服务共享/监控粒度更细的外部连接池，再单独做全局化治理。
-- C3/C4：大型视图拆分和 route query 精准 watch 仍建议跟页面功能变更一起拆小处理。
+- C3/C4：大型视图不做一次性拆分；本轮先收敛表格路由状态边界并修复 route query 精准 watch。
 - D4：已补“变更中的 destructive migration 必须带审查/恢复标记”的静态门禁；更细的发布白名单和审批流仍需结合团队流程落地。
 
 已验证：
@@ -554,6 +554,38 @@ cd D:\projects\data_collection_platform\backend
 cd D:\projects\data_collection_platform\frontend
 & 'C:\Program Files\nodejs\npm.cmd' run typecheck
 & 'C:\Program Files\nodejs\npm.cmd' test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+```
+
+## 2026-05-29 第五轮修复落地记录
+
+本轮已修复：
+
+- C4：`useRouteTableState` 不再 `deep:true` watch 整个 `route.query`；改为基于 `page/pageSize/sortBy/sortOrder/keyword + watchedQueryKeys` 生成稳定签名，只在表格关心的 query key 变化时触发 loader。
+- C4：为评审数据、代码走查非法记录、客户问题记录、系统测试问题检索、通用非法记录页和数据库浏览器显式声明各自关心的业务 query key，避免详情抽屉、独立弹层等无关 query 变化造成表格重复请求。
+- C3：新增 `record-route-query-keys.ts`，把几类大记录页的路由筛选边界集中管理；这不是一次性拆模板，但先把后续拆分最容易出错的状态边界固定下来。
+- C4：新增 `useRouteTableState.test.ts`，覆盖“无关 query 不触发 loader”“关心的 filter key 触发 loader”“默认分页排序仍触发 loader”。
+- CI：前端目标 Vitest 入口补充 `useRouteTableState`。
+
+本轮继续保留：
+
+- C3：`MirrorSettingsView.vue` 等超大视图仍建议后续按功能面板渐进拆分，避免在本轮引入大面积 UI diff。
+- D4：静态门禁已补，但发布流程层面的 legacy 观察期和审批规则仍需单独固化。
+
+已验证：
+
+```powershell
+cd D:\projects\data_collection_platform\frontend
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState mirror-settings
+
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=PreviewSessionStoreTest,ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SystemTestIllegalRecordServiceTest,GitlabDirectJdbcExecutorTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test
+
+cd D:\projects\data_collection_platform
+python scripts\check_flyway_destructive_migrations.py
+python scripts\check_flyway_destructive_migrations_test.py
+python scripts\check_text_whitespace.py
+git diff --check
 ```
 
 按可观察影响 × 修复成本排序：

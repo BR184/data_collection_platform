@@ -39,6 +39,7 @@ const {
     sortOrder: '',
     keyword: '',
   },
+  watchedQueryKeys: ['table'],
   debounceMs: 300,
 });
 

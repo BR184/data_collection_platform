@@ -19,6 +19,7 @@ import type {
 } from '../types/api';
 import { buildCustomerIssueRecordConditionFields } from './customer-issues/customer-issue-condition-fields';
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
+import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
@@ -43,6 +44,7 @@ const {
     sortBy: 'updatedAt',
     sortOrder: 'desc',
   },
+  watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
 });
 
 const rows = ref<CustomerIssueRecordRowResponse[]>([]);

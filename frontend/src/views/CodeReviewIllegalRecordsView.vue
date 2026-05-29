@@ -19,6 +19,7 @@ import type {
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
+import { CODE_REVIEW_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableActiveFilterTag } from '../types/record-table';
@@ -67,6 +68,7 @@ const {
     sortBy: 'mergedAt',
     sortOrder: 'desc',
   },
+  watchedQueryKeys: CODE_REVIEW_RECORD_QUERY_KEYS,
 });
 
 const rows = ref<CodeReviewIllegalRecordRowResponse[]>([]);

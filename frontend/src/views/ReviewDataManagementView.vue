@@ -28,6 +28,7 @@ import type {
   ReviewDataRecordRowResponse,
 } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
+import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import {
   buildReviewDataExportCsv,
@@ -43,6 +44,7 @@ const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoade
     sortBy: 'updatedAt',
     sortOrder: 'desc',
   },
+  watchedQueryKeys: REVIEW_DATA_RECORD_QUERY_KEYS,
 });
 
 const {

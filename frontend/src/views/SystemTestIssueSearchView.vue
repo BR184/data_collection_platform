@@ -13,6 +13,7 @@ import type {
   SystemTestIssueSearchRowResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
@@ -30,6 +31,7 @@ const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTabl
       sortBy: 'updatedAt',
       sortOrder: 'desc',
     },
+    watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
   });
 
 const advancedVisible = ref(false);

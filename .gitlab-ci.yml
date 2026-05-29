@@ -49,7 +49,7 @@ frontend-typecheck:
     - cd frontend
     - npm ci
     - npm run typecheck
-    - npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+    - npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState
 
 flyway-smoke:
   stage: database

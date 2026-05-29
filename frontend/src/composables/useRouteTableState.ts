@@ -22,9 +22,12 @@ export interface RouteTableStateOptions {
     sortOrder?: 'asc' | 'desc' | '';
     keyword?: string;
   };
+  watchedQueryKeys?: string[];
   debounceMs?: number;
   minLoadingMs?: number;
 }
+
+const DEFAULT_WATCHED_QUERY_KEYS = ['page', 'pageSize', 'sortBy', 'sortOrder', 'keyword'];
 
 export function useRouteTableState(options: RouteTableStateOptions = {}) {
   const route = useRoute();
@@ -78,7 +81,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
 
   function bindLoader(loader: () => Promise<void>) {
     watch(
-      () => route.query,
+      () => watchedQuerySignature(route.query, options.watchedQueryKeys),
       async () => {
         const runId = ++loaderRunId;
         const startedAt = Date.now();
@@ -96,7 +99,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
           }
         }
       },
-      { immediate: true, deep: true },
+      { immediate: true },
     );
   }
 
@@ -119,4 +122,17 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
     cancelDebouncedQuery,
     bindLoader,
   };
+}
+
+function watchedQuerySignature(query: Record<string, unknown>, additionalKeys: string[] = []) {
+  const keys = [...new Set([...DEFAULT_WATCHED_QUERY_KEYS, ...additionalKeys])].sort();
+  return keys
+    .map((key) => `${key}=${normalizeQueryValue(query[key])}`)
+    .join('&');
+}
+
+function normalizeQueryValue(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item ?? '')).join(',')
+    : String(value ?? '');
 }
