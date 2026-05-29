@@ -39,6 +39,7 @@ backend-compile-and-guards:
     - cd backend
     - mvn -q -DskipTests compile
     - mvn -q -Dtest=GitlabSourceSchemaGuardTest test
+    - mvn -q -Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SystemTestIllegalRecordServiceTest test
 
 frontend-typecheck:
   stage: frontend
@@ -47,6 +48,7 @@ frontend-typecheck:
     - cd frontend
     - npm ci
     - npm run typecheck
+    - npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
 
 flyway-smoke:
   stage: database

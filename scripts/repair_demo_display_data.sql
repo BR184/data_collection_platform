@@ -195,7 +195,8 @@ SET
   problem_status = CASE problem_status
     WHEN 'Ã¦ÂÂ°Ã¦ÂÂÃ¤ÂºÂ¤' THEN '新提交'
     WHEN 'Ã¥Â·Â²Ã¤Â¿Â®Ã¦ÂÂ¹' THEN '已修改'
-    WHEN 'Ã¥Â·Â²Ã¥ÂÂ³Ã©ÂÂ­' THEN '已关闭'
+    WHEN 'Ã¥Â·Â²Ã¥Â
+Â³Ã©ÂÂ­' THEN '已关闭'
     WHEN 'Ã¥Â·Â²Ã¦ÂÂÃ§Â»Â' THEN '已拒绝'
     WHEN 'Ã¦ÂÂªÃ¨Â¯ÂÃ¥Â®Â¡' THEN '未评审'
     ELSE problem_status

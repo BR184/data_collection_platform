@@ -5,15 +5,12 @@ import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import java.io.InputStream;
 import java.time.Clock;
-import java.time.Instant;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +24,7 @@ public class ReviewDataLegacyExcelImportService {
   private final ReviewDataLegacyExcelParser parser;
   private final ReviewDataRecordCommandService commandService;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
-  private final Clock clock;
-  private final Map<String, PreviewSession> previewCache = new ConcurrentHashMap<>();
+  private final PreviewSessionStore<PreviewSession> previewSessions;
 
   public ReviewDataLegacyExcelImportService(
       ReviewDataLegacyExcelParser parser,
@@ -45,7 +41,8 @@ public class ReviewDataLegacyExcelImportService {
     this.parser = parser;
     this.commandService = commandService;
     this.persistenceSupport = persistenceSupport;
-    this.clock = clock;
+    this.previewSessions =
+        new PreviewSessionStore<>(clock, Duration.ofSeconds(PREVIEW_TTL_SECONDS), MAX_PREVIEW_CACHE_SIZE);
   }
 
   public ReviewDataLegacyExcelPreviewResponse preview(
@@ -53,13 +50,8 @@ public class ReviewDataLegacyExcelImportService {
       String filename,
       String sheetName,
       ReviewDataLegacyExcelImportRequest request) {
-    cleanupExpiredPreviewSessions();
     ReviewDataLegacyExcelParseResult parseResult = parser.parse(inputStream, filename, sheetName);
-    String token = UUID.randomUUID().toString();
-    previewCache.put(
-        token,
-        new PreviewSession(parseResult.sheetName(), parseResult.rows(), expiresAt()));
-    trimPreviewCache();
+    String token = previewSessions.put(new PreviewSession(parseResult.sheetName(), parseResult.rows()));
     return buildPreviewResponse(token, parseResult.sheetName(), parseResult.rows(), parseResult.issues(), request);
   }
 
@@ -68,9 +60,8 @@ public class ReviewDataLegacyExcelImportService {
     if (request == null || request.previewToken() == null || request.previewToken().isBlank()) {
       throw new BizException("缺少导入预览 token，请先上传并预览 Excel");
     }
-    PreviewSession session = previewCache.get(request.previewToken());
-    if (session == null || session.expired(now())) {
-      previewCache.remove(request.previewToken());
+    PreviewSession session = previewSessions.getValid(request.previewToken()).orElse(null);
+    if (session == null) {
       throw new BizException("导入预览已失效，请重新上传 Excel");
     }
     ReviewDataLegacyExcelPreviewResponse preview = buildPreviewResponse(
@@ -99,7 +90,7 @@ public class ReviewDataLegacyExcelImportService {
         }
       }
     } finally {
-      previewCache.remove(request.previewToken());
+      previewSessions.remove(request.previewToken());
     }
     return new ReviewDataLegacyExcelConfirmResponse(importedRecords, skippedRecords, importedProblemItems, List.of());
   }
@@ -366,46 +357,14 @@ public class ReviewDataLegacyExcelImportService {
     return Math.round(value * 100D) / 100D;
   }
 
-  private Instant now() {
-    return Instant.now(clock);
-  }
-
-  private Instant expiresAt() {
-    return now().plusSeconds(PREVIEW_TTL_SECONDS);
-  }
-
-  private void cleanupExpiredPreviewSessions() {
-    Instant now = now();
-    previewCache.entrySet().removeIf(entry -> entry.getValue().expired(now));
-  }
-
-  private void trimPreviewCache() {
-    cleanupExpiredPreviewSessions();
-    if (previewCache.size() <= MAX_PREVIEW_CACHE_SIZE) {
-      return;
-    }
-    Iterator<Map.Entry<String, PreviewSession>> iterator =
-        previewCache.entrySet().stream()
-            .sorted(Map.Entry.comparingByValue((left, right) -> left.expiresAt().compareTo(right.expiresAt())))
-            .iterator();
-    while (previewCache.size() > MAX_PREVIEW_CACHE_SIZE && iterator.hasNext()) {
-      previewCache.remove(iterator.next().getKey());
-    }
-  }
-
   private record ReviewItemContext(String reviewCategory, double workloadPerItem) {}
 
   private record PreviewSession(
       String sheetName,
-      List<ReviewDataLegacyExcelRow> rows,
-      Instant expiresAt) {
+      List<ReviewDataLegacyExcelRow> rows) {
 
     PreviewSession {
       rows = rows == null ? List.of() : List.copyOf(rows);
-    }
-
-    boolean expired(Instant now) {
-      return !expiresAt.isAfter(now);
     }
   }
 }

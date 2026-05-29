@@ -497,6 +497,35 @@ cd D:\projects\data_collection_platform\frontend
 & 'C:\Program Files\nodejs\npm.cmd' test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
 ```
 
+## 2026-05-29 第三轮修复落地记录
+
+本轮已修复：
+
+- B4：新增通用 `PreviewSessionStore<T>`，将评审数据 Excel 导入的 preview token 缓存从业务服务中抽离；统一 TTL、容量裁剪、过期清理和确认后移除语义，并补充 `PreviewSessionStoreTest` 覆盖有效期、过期和容量裁剪。
+- D5：清理 `scripts/repair_demo_display_data.sql` 中残留的 NEL（U+0085）异常行分隔符；`scripts/check_text_whitespace.py` 增加对 NEL、bare CR、trailing whitespace 的检查。为避免把历史 CRLF 文件一次性纳入本轮范围，脚本只检查 CI diff、暂存/未暂存变更和未跟踪文本文件。
+- D2：`.gitlab-ci.yml` 增加本轮相关的后端目标测试和前端目标 Vitest 回归入口，覆盖评审导入、集成测试导出、鉴权审计、同步执行池、路由/API 边界和统计下钻相关组件。
+
+本轮继续保留：
+
+- B2：外部数据源连接池全局化还未处理，建议单独做数据源生命周期治理。
+- C3/C4：大型视图拆分和 route query 精准 watch 仍建议跟页面功能变更一起拆小处理。
+- D4：破坏性迁移灰度规则仍未落地，需要结合发布流程确定白名单和审批策略。
+
+已验证：
+
+```powershell
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=PreviewSessionStoreTest,ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SystemTestIllegalRecordServiceTest" test
+
+cd D:\projects\data_collection_platform
+python scripts\check_text_whitespace.py
+git diff --check
+
+cd D:\projects\data_collection_platform\frontend
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+```
+
 按可观察影响 × 修复成本排序：
 
 **1. 本次必须先动**（合并风险大、修复成本不高）

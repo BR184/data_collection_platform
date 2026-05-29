@@ -66,6 +66,11 @@ cd D:\projects\data_collection_platform\frontend
 - Finding 8：批量写入性能优化仍保留为后续项；当前已避免重复显式刷新搜索索引之外的主要正确性问题。
 - Finding 9：统计下钻链接已有单测覆盖，端到端回归留到页面自动化测试专项中补齐。
 
+第三轮补充：
+
+- Finding 2 的 preview token 缓存已从 `ReviewDataLegacyExcelImportService` 抽离为通用 `PreviewSessionStore<T>`，后续新增导入功能可复用同一套 TTL、容量裁剪和确认后清理语义，避免每个导入服务各自实现一份本地缓存。
+- CI 已增加评审导入、集成测试导出、前端 API/路由和统计下钻相关目标测试，新增导入能力后不再只依赖本地手工执行。
+
 已验证：
 
 ```powershell
