@@ -62,7 +62,7 @@ public class ReviewDataLegacyExcelParser {
       if (exception instanceof BizException bizException) {
         throw bizException;
       }
-      throw new BizException("Excel 文件解析失败：" + exception.getMessage());
+      throw new BizException("Excel 文件解析失败，请确认文件为旧平台列表导出的 .xlsx 文件");
     }
   }
 
@@ -111,6 +111,15 @@ public class ReviewDataLegacyExcelParser {
     if (reviewScalePages == null || reviewScalePages < 0) {
       issues.add(issue(rowNumber, "reviewScalePages", ReviewDataLegacyExcelIssueLevel.ERROR, "评审规模必须是非负整数"));
     }
+    addNonNegativeIssue(issues, rowNumber, "problemCount", problemCount, "评审缺陷个数");
+    addNonNegativeIssue(issues, rowNumber, "docSpecification", docSpecification, "文档规范");
+    addNonNegativeIssue(issues, rowNumber, "integrity", integrity, "完整性规范");
+    addNonNegativeIssue(issues, rowNumber, "functionality", functionality, "功能性规范");
+    addNonNegativeIssue(issues, rowNumber, "feasibility", feasibility, "可行性规范");
+    addNonNegativeIssue(issues, rowNumber, "independentProblemCount", independentProblemCount, "有效的独立评审问题数");
+    addNonNegativeIssue(issues, rowNumber, "meetingProblemCount", meetingProblemCount, "有效的会议评审问题数");
+    addNonNegativeIssue(issues, rowNumber, "independentWorkload", independentWorkload, "独立评审工作量");
+    addNonNegativeIssue(issues, rowNumber, "meetingWorkload", meetingWorkload, "会议评审工作量");
     int categorySum = safeInt(docSpecification) + safeInt(integrity) + safeInt(functionality) + safeInt(feasibility);
     if (problemCount != null && problemCount >= 0 && categorySum != problemCount) {
       issues.add(issue(rowNumber, "problemCount", ReviewDataLegacyExcelIssueLevel.ERROR, "问题总计与分类合计不一致"));
@@ -275,7 +284,7 @@ public class ReviewDataLegacyExcelParser {
 
   private Integer integer(Row row, Map<String, Integer> columns, String key) {
     Double value = decimal(row, columns, key);
-    return value == null ? null : Math.max(0, (int) Math.round(value));
+    return value == null ? null : (int) Math.round(value);
   }
 
   private Double decimal(Row row, Map<String, Integer> columns, String key) {
@@ -428,7 +437,29 @@ public class ReviewDataLegacyExcelParser {
   }
 
   private int safeInt(Integer value) {
-    return value == null ? 0 : Math.max(0, value);
+    return value == null ? 0 : value;
+  }
+
+  private void addNonNegativeIssue(
+      List<ReviewDataLegacyExcelImportIssue> issues,
+      int rowNumber,
+      String field,
+      Integer value,
+      String label) {
+    if (value != null && value < 0) {
+      issues.add(issue(rowNumber, field, ReviewDataLegacyExcelIssueLevel.ERROR, label + "不能为负数"));
+    }
+  }
+
+  private void addNonNegativeIssue(
+      List<ReviewDataLegacyExcelImportIssue> issues,
+      int rowNumber,
+      String field,
+      Double value,
+      String label) {
+    if (value != null && value < 0) {
+      issues.add(issue(rowNumber, field, ReviewDataLegacyExcelIssueLevel.ERROR, label + "不能为负数"));
+    }
   }
 
   private String stripTrailingZero(double value) {
@@ -440,8 +471,8 @@ public class ReviewDataLegacyExcelParser {
 
   private void validateFileName(String filename) {
     String lower = Objects.toString(filename, "").toLowerCase(Locale.ROOT);
-    if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls")) {
-      throw new BizException("只支持 Excel 文件（.xlsx 或 .xls）");
+    if (!lower.endsWith(".xlsx")) {
+      throw new BizException("当前仅支持旧平台列表导出的 .xlsx 文件；旧模板 .xls 暂未支持");
     }
   }
 

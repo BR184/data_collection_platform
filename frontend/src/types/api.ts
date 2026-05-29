@@ -796,6 +796,11 @@ export interface ReviewDataLegacyExcelConfirmResponse {
   issues: ReviewDataLegacyExcelImportIssue[];
 }
 
+export type ReviewDataLegacyExcelConfirmRequest =
+  ReviewDataLegacyExcelImportRequest & {
+    previewToken: string;
+  };
+
 export interface CollectFormDetailResponse {
   id: number;
   gitlabBaseUrl: string;

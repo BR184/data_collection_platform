@@ -2,6 +2,7 @@ package com.data.collection.platform.config;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.response.ResultCode;
+import com.data.collection.platform.security.PlatformSessionAuthenticationFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +13,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @Configuration
@@ -35,7 +37,12 @@ public class PlatformSecurityConfiguration {
         .exceptionHandling(exceptionHandling -> exceptionHandling
             .authenticationEntryPoint(authenticationEntryPoint)
             .accessDeniedHandler(accessDeniedHandler))
-        .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll());
+        .addFilterBefore(new PlatformSessionAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+        .authorizeHttpRequests(authorize -> authorize
+            .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
+            .requestMatchers("/api/auth/**").permitAll()
+            .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+            .anyRequest().authenticated());
     return http.build();
   }
 

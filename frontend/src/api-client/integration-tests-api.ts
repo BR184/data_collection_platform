@@ -5,7 +5,7 @@ import type {
   IntegrationTestProjectOptionResponse,
   IntegrationTestSummaryResponse,
 } from '../types/api';
-import { request } from './request';
+import { request, requestBlob, requestText } from './request';
 
 export const integrationTestsApi = {
   rebuildIntegrationTestFacts(full = false) {
@@ -71,12 +71,9 @@ export const integrationTestsApi = {
       ...(params.sortBy ? { sortField: params.sortBy } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });
-    const response = await fetch(`/api/integration-tests/details/export${query.toString() ? `?${query.toString()}` : ''}`);
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `导出失败，状态码：${response.status}`);
-    }
-    return response.text();
+    return requestText(`/api/integration-tests/details/export${query.toString() ? `?${query.toString()}` : ''}`, {
+      timeoutMs: 60_000,
+    });
   },
   async exportIntegrationTestModuleFunctionWorkbook(params: {
     projectId?: string | number | null;
@@ -103,10 +100,5 @@ export const integrationTestsApi = {
 };
 
 async function fetchWorkbook(url: string) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Excel 导出失败，状态码：${response.status}`);
-  }
-  return response.blob();
+  return requestBlob(url, { timeoutMs: 60_000 });
 }

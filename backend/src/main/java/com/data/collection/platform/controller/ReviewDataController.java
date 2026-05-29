@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
 import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshRequest;
@@ -38,6 +39,7 @@ import org.springframework.web.multipart.MultipartFile;
 // 评审数据控制器把 Web 查询参数组装成领域请求，记录、详情、问题项和导出都走同一服务入口。
 // 这里不直接拼 SQL，也不处理搜索 fallback，保证页面请求边界清晰。
 public class ReviewDataController {
+  private static final long LEGACY_EXCEL_IMPORT_MAX_BYTES = 20L * 1024L * 1024L;
 
   private final ReviewDataRecordService reviewDataRecordService;
   private final ReviewDataRequestAssembler reviewDataRequestAssembler;
@@ -111,6 +113,7 @@ public class ReviewDataController {
       @RequestParam(required = false) String sheetName,
       @ModelAttribute ReviewDataLegacyExcelImportRequest request)
       throws IOException {
+    validateLegacyExcelUpload(file);
     return ApiResponse.success(
         "旧平台 Excel 解析完成",
         legacyExcelImportService.preview(
@@ -118,6 +121,19 @@ public class ReviewDataController {
             file.getOriginalFilename(),
             sheetName,
             request));
+  }
+
+  private void validateLegacyExcelUpload(MultipartFile file) {
+    if (file == null || file.isEmpty()) {
+      throw new BizException("请选择旧平台列表导出的 .xlsx 文件");
+    }
+    if (file.getSize() > LEGACY_EXCEL_IMPORT_MAX_BYTES) {
+      throw new BizException("Excel 文件不能超过 20MB");
+    }
+    String filename = file.getOriginalFilename();
+    if (filename == null || !filename.toLowerCase(java.util.Locale.ROOT).endsWith(".xlsx")) {
+      throw new BizException("当前仅支持旧平台列表导出的 .xlsx 文件；旧模板 .xls 暂未支持");
+    }
   }
 
   @PostMapping("/legacy-excel-import/confirm")

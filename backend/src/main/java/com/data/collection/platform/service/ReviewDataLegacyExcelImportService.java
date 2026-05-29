@@ -4,8 +4,11 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import java.io.InputStream;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,19 +21,31 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReviewDataLegacyExcelImportService {
   private static final String DEFAULT_PROBLEM_STATUS = "已关闭";
   private static final String DEFAULT_REVIEW_CATEGORY = "独立评审";
+  private static final long PREVIEW_TTL_SECONDS = 30 * 60L;
+  private static final int MAX_PREVIEW_CACHE_SIZE = 100;
 
   private final ReviewDataLegacyExcelParser parser;
   private final ReviewDataRecordCommandService commandService;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
-  private final Map<String, ReviewDataLegacyExcelPreviewResponse> previewCache = new ConcurrentHashMap<>();
+  private final Clock clock;
+  private final Map<String, PreviewSession> previewCache = new ConcurrentHashMap<>();
 
   public ReviewDataLegacyExcelImportService(
       ReviewDataLegacyExcelParser parser,
       ReviewDataRecordCommandService commandService,
       ReviewDataRecordPersistenceSupport persistenceSupport) {
+    this(parser, commandService, persistenceSupport, Clock.systemUTC());
+  }
+
+  ReviewDataLegacyExcelImportService(
+      ReviewDataLegacyExcelParser parser,
+      ReviewDataRecordCommandService commandService,
+      ReviewDataRecordPersistenceSupport persistenceSupport,
+      Clock clock) {
     this.parser = parser;
     this.commandService = commandService;
     this.persistenceSupport = persistenceSupport;
+    this.clock = clock;
   }
 
   public ReviewDataLegacyExcelPreviewResponse preview(
@@ -38,16 +53,68 @@ public class ReviewDataLegacyExcelImportService {
       String filename,
       String sheetName,
       ReviewDataLegacyExcelImportRequest request) {
+    cleanupExpiredPreviewSessions();
     ReviewDataLegacyExcelParseResult parseResult = parser.parse(inputStream, filename, sheetName);
-    List<ReviewDataLegacyExcelPreviewRowResponse> previewRows = new ArrayList<>();
-    List<ReviewDataLegacyExcelImportIssue> allIssues = new ArrayList<>(parseResult.issues());
+    String token = UUID.randomUUID().toString();
+    previewCache.put(
+        token,
+        new PreviewSession(parseResult.sheetName(), parseResult.rows(), expiresAt()));
+    trimPreviewCache();
+    return buildPreviewResponse(token, parseResult.sheetName(), parseResult.rows(), request);
+  }
 
-    for (ReviewDataLegacyExcelRow row : parseResult.rows()) {
+  @Transactional
+  public ReviewDataLegacyExcelConfirmResponse confirm(ReviewDataLegacyExcelConfirmRequest request) {
+    if (request == null || request.previewToken() == null || request.previewToken().isBlank()) {
+      throw new BizException("缺少导入预览 token，请先上传并预览 Excel");
+    }
+    PreviewSession session = previewCache.get(request.previewToken());
+    if (session == null || session.expired(now())) {
+      previewCache.remove(request.previewToken());
+      throw new BizException("导入预览已失效，请重新上传 Excel");
+    }
+    ReviewDataLegacyExcelPreviewResponse preview = buildPreviewResponse(
+        request.previewToken(),
+        session.sheetName(),
+        session.rows(),
+        toImportRequest(request));
+    int importedRecords = 0;
+    int skippedRecords = 0;
+    int importedProblemItems = 0;
+    try {
+      for (ReviewDataLegacyExcelPreviewRowResponse row : preview.rows()) {
+        if (!row.importable()) {
+          continue;
+        }
+        if (shouldSkipDuplicate(request, row.record())) {
+          skippedRecords++;
+          continue;
+        }
+        Long recordId = commandService.createRecord(row.record());
+        importedRecords++;
+        for (ReviewDataProblemItemSaveRequest item : row.problemItems()) {
+          commandService.createProblemItem(recordId, item);
+          importedProblemItems++;
+        }
+      }
+    } finally {
+      previewCache.remove(request.previewToken());
+    }
+    return new ReviewDataLegacyExcelConfirmResponse(importedRecords, skippedRecords, importedProblemItems, List.of());
+  }
+
+  private ReviewDataLegacyExcelPreviewResponse buildPreviewResponse(
+      String token,
+      String sheetName,
+      List<ReviewDataLegacyExcelRow> rows,
+      ReviewDataLegacyExcelImportRequest request) {
+    List<ReviewDataLegacyExcelPreviewRowResponse> previewRows = new ArrayList<>();
+    List<ReviewDataLegacyExcelImportIssue> allIssues = new ArrayList<>();
+    for (ReviewDataLegacyExcelRow row : rows) {
       ReviewDataLegacyExcelPreviewRowResponse previewRow = toPreviewRow(row, request);
       previewRows.add(previewRow);
       allIssues.addAll(previewRow.issues());
     }
-
     int importableRows = (int) previewRows.stream().filter(ReviewDataLegacyExcelPreviewRowResponse::importable).count();
     int warningRows = countRowsByLevel(previewRows, ReviewDataLegacyExcelIssueLevel.WARNING);
     int errorRows = countRowsByLevel(previewRows, ReviewDataLegacyExcelIssueLevel.ERROR);
@@ -56,55 +123,28 @@ public class ReviewDataLegacyExcelImportService {
             .filter(ReviewDataLegacyExcelPreviewRowResponse::importable)
             .mapToInt(row -> row.problemItems().size())
             .sum();
-    String token = UUID.randomUUID().toString();
-    ReviewDataLegacyExcelPreviewResponse response =
-        new ReviewDataLegacyExcelPreviewResponse(
-            token,
-            parseResult.sheetName(),
-            parseResult.rows().size(),
-            importableRows,
-            warningRows,
-            errorRows,
-            importableRows,
-            estimatedProblemItems,
-            previewRows,
-            allIssues);
-    previewCache.put(token, response);
-    return response;
+    return new ReviewDataLegacyExcelPreviewResponse(
+        token,
+        sheetName,
+        rows.size(),
+        importableRows,
+        warningRows,
+        errorRows,
+        importableRows,
+        estimatedProblemItems,
+        previewRows,
+        allIssues);
   }
 
-  @Transactional
-  public ReviewDataLegacyExcelConfirmResponse confirm(ReviewDataLegacyExcelConfirmRequest request) {
-    if (request == null || request.previewToken() == null || request.previewToken().isBlank()) {
-      throw new BizException("缺少导入预览 token，请先上传并预览 Excel");
-    }
-    ReviewDataLegacyExcelPreviewResponse preview = previewCache.get(request.previewToken());
-    if (preview == null) {
-      throw new BizException("导入预览已失效，请重新上传 Excel");
-    }
-    int importedRecords = 0;
-    int skippedRecords = 0;
-    int importedProblemItems = 0;
-    for (ReviewDataLegacyExcelPreviewRowResponse row : preview.rows()) {
-      if (!row.importable()) {
-        continue;
-      }
-      if (shouldSkipDuplicate(request, row.record())) {
-        skippedRecords++;
-        continue;
-      }
-      Long recordId = commandService.createRecord(row.record());
-      importedRecords++;
-      for (ReviewDataProblemItemSaveRequest item : row.problemItems()) {
-        commandService.createProblemItem(recordId, item);
-        importedProblemItems++;
-      }
-      if (persistenceSupport != null) {
-        persistenceSupport.refreshSearchIndex(recordId);
-      }
-    }
-    previewCache.remove(request.previewToken());
-    return new ReviewDataLegacyExcelConfirmResponse(importedRecords, skippedRecords, importedProblemItems, List.of());
+  private ReviewDataLegacyExcelImportRequest toImportRequest(ReviewDataLegacyExcelConfirmRequest request) {
+    return new ReviewDataLegacyExcelImportRequest(
+        request.defaultReviewDate(),
+        request.defaultReviewOwner(),
+        request.defaultReviewExperts(),
+        request.defaultAuthorName(),
+        request.defaultReviewVersion(),
+        request.defaultProblemStatus(),
+        request.duplicateStrategy());
   }
 
   private ReviewDataLegacyExcelPreviewRowResponse toPreviewRow(
@@ -160,15 +200,15 @@ public class ReviewDataLegacyExcelImportService {
       String problemStatus,
       List<ReviewDataLegacyExcelImportIssue> issues) {
     Map<String, Integer> counts = new LinkedHashMap<>();
-    counts.put("文档规范", safeInt(row.docSpecificationCount()));
-    counts.put("完整性", safeInt(row.integrityCount()));
-    counts.put("功能性", safeInt(row.functionalityCount()));
-    counts.put("可行性", safeInt(row.feasibilityCount()));
+    counts.put("文档规范", nonNegativeInt(row.docSpecificationCount()));
+    counts.put("完整性", nonNegativeInt(row.integrityCount()));
+    counts.put("功能性", nonNegativeInt(row.functionalityCount()));
+    counts.put("可行性", nonNegativeInt(row.feasibilityCount()));
     int total = counts.values().stream().mapToInt(Integer::intValue).sum();
     if (total == 0) {
       return List.of();
     }
-    double totalWorkload = safeDouble(row.independentWorkloadHours()) + safeDouble(row.meetingWorkloadHours());
+    double totalWorkload = nonNegativeDouble(row.independentWorkloadHours()) + nonNegativeDouble(row.meetingWorkloadHours());
     List<ReviewItemContext> contexts = buildReviewItemContexts(row, total, totalWorkload, issues);
     if (totalWorkload <= 0) {
       issues.add(issue(row.rowNumber(), "workloadHours", ReviewDataLegacyExcelIssueLevel.WARNING, "未读取到评审工作量，合成问题项工作量按 0 处理"));
@@ -202,8 +242,8 @@ public class ReviewDataLegacyExcelImportService {
       double totalWorkload,
       List<ReviewDataLegacyExcelImportIssue> issues) {
     double fallbackWorkload = totalWorkload <= 0 ? 0D : round2(totalWorkload / total);
-    int independentCount = safeInt(row.independentProblemCount());
-    int meetingCount = safeInt(row.meetingProblemCount());
+    int independentCount = nonNegativeInt(row.independentProblemCount());
+    int meetingCount = nonNegativeInt(row.meetingProblemCount());
     if (independentCount + meetingCount == 0) {
       return repeatedContext(total, resolveReviewCategory(row.reviewCategoryText()), fallbackWorkload);
     }
@@ -305,16 +345,65 @@ public class ReviewDataLegacyExcelImportService {
   }
 
   private int safeInt(Integer value) {
-    return value == null ? 0 : Math.max(0, value);
+    return value == null ? 0 : value;
+  }
+
+  private int nonNegativeInt(Integer value) {
+    return Math.max(0, safeInt(value));
   }
 
   private double safeDouble(Double value) {
-    return value == null ? 0D : Math.max(0D, value);
+    return value == null ? 0D : value;
+  }
+
+  private double nonNegativeDouble(Double value) {
+    return Math.max(0D, safeDouble(value));
   }
 
   private double round2(double value) {
     return Math.round(value * 100D) / 100D;
   }
 
+  private Instant now() {
+    return Instant.now(clock);
+  }
+
+  private Instant expiresAt() {
+    return now().plusSeconds(PREVIEW_TTL_SECONDS);
+  }
+
+  private void cleanupExpiredPreviewSessions() {
+    Instant now = now();
+    previewCache.entrySet().removeIf(entry -> entry.getValue().expired(now));
+  }
+
+  private void trimPreviewCache() {
+    cleanupExpiredPreviewSessions();
+    if (previewCache.size() <= MAX_PREVIEW_CACHE_SIZE) {
+      return;
+    }
+    Iterator<Map.Entry<String, PreviewSession>> iterator =
+        previewCache.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue((left, right) -> left.expiresAt().compareTo(right.expiresAt())))
+            .iterator();
+    while (previewCache.size() > MAX_PREVIEW_CACHE_SIZE && iterator.hasNext()) {
+      previewCache.remove(iterator.next().getKey());
+    }
+  }
+
   private record ReviewItemContext(String reviewCategory, double workloadPerItem) {}
+
+  private record PreviewSession(
+      String sheetName,
+      List<ReviewDataLegacyExcelRow> rows,
+      Instant expiresAt) {
+
+    PreviewSession {
+      rows = rows == null ? List.of() : List.copyOf(rows);
+    }
+
+    boolean expired(Instant now) {
+      return !expiresAt.isAfter(now);
+    }
+  }
 }

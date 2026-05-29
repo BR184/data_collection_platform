@@ -124,10 +124,22 @@ export const reviewDataApi = {
       timeoutMs: 60_000,
     });
   },
-  confirmReviewDataLegacyExcelImport(previewToken: string, duplicateStrategy = 'SKIP') {
+  confirmReviewDataLegacyExcelImport(
+    previewToken: string,
+    payload: ReviewDataLegacyExcelImportRequest = {},
+  ) {
     return request<ReviewDataLegacyExcelConfirmResponse>('/api/review-data/legacy-excel-import/confirm', {
       method: 'POST',
-      body: JSON.stringify({ previewToken, duplicateStrategy }),
+      body: JSON.stringify({
+        previewToken,
+        duplicateStrategy: payload.duplicateStrategy ?? 'SKIP',
+        defaultReviewDate: payload.defaultReviewDate,
+        defaultReviewOwner: payload.defaultReviewOwner,
+        defaultReviewExperts: payload.defaultReviewExperts ?? [],
+        defaultAuthorName: payload.defaultAuthorName,
+        defaultReviewVersion: payload.defaultReviewVersion,
+        defaultProblemStatus: payload.defaultProblemStatus,
+      }),
       timeoutMs: 60_000,
     });
   },

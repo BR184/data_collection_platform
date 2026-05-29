@@ -80,6 +80,77 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   return payload as T;
 }
 
+export async function requestText(url: string, init?: RequestOptions): Promise<string> {
+  const response = await requestRaw(url, init);
+  return response.text();
+}
+
+export async function requestBlob(url: string, init?: RequestOptions): Promise<Blob> {
+  const response = await requestRaw(url, init);
+  return response.blob();
+}
+
+async function requestRaw(url: string, init?: RequestOptions): Promise<Response> {
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, signal, ...fetchInit } = init ?? {};
+  const timeoutController = timeoutMs > 0 ? new AbortController() : null;
+  let didTimeout = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let abortListener: (() => void) | undefined;
+
+  if (timeoutController) {
+    timeoutId = setTimeout(() => {
+      didTimeout = true;
+      timeoutController.abort();
+    }, timeoutMs);
+    if (signal?.aborted) {
+      timeoutController.abort();
+    } else if (signal) {
+      abortListener = () => timeoutController.abort();
+      signal.addEventListener('abort', abortListener, { once: true });
+    }
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...fetchInit,
+      signal: timeoutController?.signal ?? signal,
+      headers: buildRequestHeaders(fetchInit),
+    });
+  } catch (error) {
+    if (didTimeout && isAbortError(error)) {
+      throw new RequestTimeoutError(url, timeoutMs);
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+    if (signal && abortListener) {
+      signal.removeEventListener('abort', abortListener);
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+  return response;
+}
+
+async function parseErrorMessage(response: Response): Promise<string> {
+  const rawText = await response.text();
+  const contentType = response.headers.get('Content-Type') ?? '';
+  if (contentType.includes('application/json') && rawText) {
+    try {
+      const payload = JSON.parse(rawText);
+      return payload?.message || rawText;
+    } catch {
+      return rawText;
+    }
+  }
+  return rawText || `请求失败，状态码：${response.status}`;
+}
+
 function isAbortError(error: unknown): boolean {
   return typeof error === 'object'
     && error !== null

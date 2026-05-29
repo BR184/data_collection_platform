@@ -13,7 +13,10 @@ const visible = defineModel<boolean>('visible', { default: false });
 const props = defineProps<{
   filterOptions: ReviewDataFilterOptionsResponse;
   previewImport: (file: File, payload: ReviewDataLegacyExcelImportRequest) => Promise<ReviewDataLegacyExcelPreviewResponse>;
-  confirmImport: (previewToken: string, duplicateStrategy?: string) => Promise<ReviewDataLegacyExcelConfirmResponse>;
+  confirmImport: (
+    previewToken: string,
+    payload?: ReviewDataLegacyExcelImportRequest,
+  ) => Promise<ReviewDataLegacyExcelConfirmResponse>;
 }>();
 
 const emit = defineEmits<{
@@ -47,6 +50,13 @@ watch(visible, (next) => {
   }
 });
 
+watch(
+  () => ({ ...form, defaultReviewExperts: [...form.defaultReviewExperts] }),
+  () => {
+    preview.value = null;
+  },
+);
+
 function reset() {
   file.value = null;
   preview.value = null;
@@ -59,6 +69,18 @@ function handleFileChange(uploadFile: { raw?: File }) {
   preview.value = null;
 }
 
+function buildImportPayload(): ReviewDataLegacyExcelImportRequest {
+  return {
+    defaultReviewDate: form.defaultReviewDate,
+    defaultReviewOwner: form.defaultReviewOwner,
+    defaultReviewExperts: form.defaultReviewExperts,
+    defaultAuthorName: form.defaultAuthorName,
+    defaultReviewVersion: form.defaultReviewVersion,
+    defaultProblemStatus: form.defaultProblemStatus,
+    duplicateStrategy: form.duplicateStrategy,
+  };
+}
+
 async function handlePreview() {
   if (!file.value) {
     emit('error', '请选择旧平台导出的 Excel 文件');
@@ -66,15 +88,7 @@ async function handlePreview() {
   }
   previewLoading.value = true;
   try {
-    preview.value = await props.previewImport(file.value, {
-      defaultReviewDate: form.defaultReviewDate,
-      defaultReviewOwner: form.defaultReviewOwner,
-      defaultReviewExperts: form.defaultReviewExperts,
-      defaultAuthorName: form.defaultAuthorName,
-      defaultReviewVersion: form.defaultReviewVersion,
-      defaultProblemStatus: form.defaultProblemStatus,
-      duplicateStrategy: form.duplicateStrategy,
-    });
+    preview.value = await props.previewImport(file.value, buildImportPayload());
   } catch (error) {
     emit('error', error instanceof Error ? error.message : '旧平台 Excel 解析失败');
   } finally {
@@ -89,7 +103,7 @@ async function handleConfirm() {
   }
   confirmLoading.value = true;
   try {
-    const result = await props.confirmImport(preview.value.previewToken, form.duplicateStrategy);
+    const result = await props.confirmImport(preview.value.previewToken, buildImportPayload());
     visible.value = false;
     emit('success', result);
   } catch (error) {
@@ -107,7 +121,7 @@ async function handleConfirm() {
         drag
         :auto-upload="false"
         :limit="1"
-        accept=".xlsx,.xls"
+        accept=".xlsx"
         :on-change="handleFileChange"
       >
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
