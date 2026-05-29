@@ -47,7 +47,7 @@ public class PlatformAuditInterceptor implements HandlerInterceptor {
         request.getRequestURI(),
         request.getRemoteAddr(),
         response.getStatus(),
-        ex == null ? "" : ex.getClass().getSimpleName() + ": " + ex.getMessage(),
+        ex == null ? "" : sanitize(truncate(ex.getClass().getSimpleName() + ": " + ex.getMessage())),
         requestSummary(request));
   }
 

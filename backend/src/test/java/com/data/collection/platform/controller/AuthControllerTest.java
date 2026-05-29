@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.data.collection.platform.config.PlatformAuthProperties;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.data.collection.platform.security.LocalPlatformAuthenticationProvider;
+import com.data.collection.platform.service.OperationAuditService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,9 +19,14 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class AuthControllerTest {
   private MockMvc mockMvc;
+  private OperationAuditService operationAuditService;
 
   @BeforeEach
   void setUp() {
@@ -29,7 +35,11 @@ class AuthControllerTest {
     properties.setAdminPassword("secret");
     properties.setApprovalUsername("approval");
     properties.setApprovalPassword("approval-secret");
-    mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(new LocalPlatformAuthenticationProvider(properties))).build();
+    operationAuditService = mock(OperationAuditService.class);
+    mockMvc =
+        MockMvcBuilders.standaloneSetup(
+                new AuthController(new LocalPlatformAuthenticationProvider(properties), operationAuditService))
+            .build();
   }
 
   @AfterEach
@@ -74,7 +84,9 @@ class AuthControllerTest {
   void defaultAdminAccountShouldUseRequestedPassword() throws Exception {
     MockMvc defaultAuthMockMvc =
         MockMvcBuilders.standaloneSetup(
-            new AuthController(new LocalPlatformAuthenticationProvider(new PlatformAuthProperties()))).build();
+            new AuthController(
+                new LocalPlatformAuthenticationProvider(new PlatformAuthProperties()),
+                mock(OperationAuditService.class))).build();
 
     defaultAuthMockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
@@ -111,7 +123,10 @@ class AuthControllerTest {
     properties.setAdminUsername("admin");
     properties.setAdminPassword(PasswordEncoderFactories.createDelegatingPasswordEncoder().encode("encoded-secret"));
     MockMvc encodedMockMvc =
-        MockMvcBuilders.standaloneSetup(new AuthController(new LocalPlatformAuthenticationProvider(properties))).build();
+        MockMvcBuilders.standaloneSetup(
+            new AuthController(
+                new LocalPlatformAuthenticationProvider(properties),
+                mock(OperationAuditService.class))).build();
 
     encodedMockMvc.perform(post("/api/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
@@ -124,6 +139,53 @@ class AuthControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.role").value("ADMIN"));
+  }
+
+  @Test
+  void loginShouldWriteAuditWithoutPassword() throws Exception {
+    mockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "secret"
+                }
+                """))
+        .andExpect(status().isOk());
+
+    verify(operationAuditService)
+        .record(
+            any(AuthUserResponse.class),
+            eq("POST"),
+            eq("/api/auth/login"),
+            any(),
+            eq(200),
+            eq(""),
+            eq("username=admin"));
+  }
+
+  @Test
+  void failedLoginShouldWriteAuditWithoutPassword() throws Exception {
+    mockMvc.perform(post("/api/auth/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {
+                  "username": "admin",
+                  "password": "wrong"
+                }
+                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(false));
+
+    verify(operationAuditService)
+        .record(
+            any(AuthUserResponse.class),
+            eq("POST"),
+            eq("/api/auth/login"),
+            any(),
+            eq(400),
+            eq("LOGIN_FAILED"),
+            eq("username=admin"));
   }
 
   @Test

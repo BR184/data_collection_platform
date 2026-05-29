@@ -14,6 +14,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 class SyncRunExecutorServiceTest {
@@ -99,11 +100,45 @@ class SyncRunExecutorServiceTest {
     }
   }
 
+  @Test
+  void defaultExecutorShouldRejectWhenBoundedQueueIsFull() throws Exception {
+    GitlabMirrorProperties properties = new GitlabMirrorProperties();
+    properties.setMaxSyncThreads(1);
+    SyncRunWorkerService workerService = mock(SyncRunWorkerService.class);
+    org.mockito.Mockito.doAnswer(invocation -> {
+      Thread.sleep(TimeUnit.SECONDS.toMillis(5));
+      return null;
+    }).when(workerService).executeRun(org.mockito.ArgumentMatchers.any());
+    SyncRunLeaseService leaseService = mock(SyncRunLeaseService.class);
+    SyncWorkerLeaseService workerLeaseService = mock(SyncWorkerLeaseService.class);
+    SyncRunExecutorService service =
+        new SyncRunExecutorService(properties, workerService, leaseService, workerLeaseService);
+
+    try {
+      service.submit(run(100L));
+      waitUntilActive(service, 1);
+      for (long id = 101L; id <= 104L; id++) {
+        service.submit(run(id));
+      }
+      assertThatThrownBy(() -> service.submit(run(105L))).isInstanceOf(RejectedExecutionException.class);
+    } finally {
+      service.shutdown();
+    }
+  }
+
   private SyncRun run(Long id) {
     SyncRun run = new SyncRun();
     run.setId(id);
     run.setRunId("sr_" + id);
     return run;
+  }
+
+  private void waitUntilActive(SyncRunExecutorService service, int expected) throws InterruptedException {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+    while (System.nanoTime() < deadline && service.activeRuns() != expected) {
+      Thread.sleep(10);
+    }
+    assertThat(service.activeRuns()).isEqualTo(expected);
   }
 
   private static final class CapturingExecutor implements Executor {

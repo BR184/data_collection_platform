@@ -1,5 +1,15 @@
 import { createRouter, createWebHashHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router';
-import { buildPageRouteMeta, buildSpecialRouteMeta, getPagePath, type ModuleKey, type PageKey } from './feature-manifest';
+import {
+  buildPageRouteMeta,
+  buildSpecialRouteMeta,
+  canAccessPageKey,
+  getFirstAccessiblePagePath,
+  getPagePath,
+  type AccessUser,
+  type ModuleKey,
+  type PageKey,
+} from './feature-manifest';
+import { authState, loadCurrentUser } from './composables/auth-state';
 import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
 
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
@@ -24,6 +34,7 @@ const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
 type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
+type AccessCheckRoute = Pick<RouteLocationNormalized, 'meta' | 'path'>;
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -229,6 +240,21 @@ export function normalizeQuery(to: QueryNormalizableRoute, from?: QueryNormaliza
   return null;
 }
 
+export function routeAccessRedirect(to: AccessCheckRoute, user: AccessUser) {
+  if (to.meta.standalone) {
+    return null;
+  }
+  const pageKey = to.meta.pageKey as PageKey | undefined;
+  if (!pageKey) {
+    return null;
+  }
+  if (canAccessPageKey(pageKey, user)) {
+    return null;
+  }
+  const fallbackPath = getFirstAccessiblePagePath(user);
+  return fallbackPath === to.path ? null : fallbackPath;
+}
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
@@ -241,12 +267,22 @@ function shouldShowGlobalRouteLoading(to: RouteLocationNormalized, from: RouteLo
   return from.matched.length > 0 && to.path !== from.path;
 }
 
-router.beforeEach((to, from) => {
+router.beforeEach(async (to, from) => {
   clearRouteError();
   if (shouldShowGlobalRouteLoading(to, from)) {
     beginRouteLoading();
   } else {
     endRouteLoading();
+  }
+  if (!authState.initialized) {
+    await loadCurrentUser();
+  }
+  const accessRedirect = routeAccessRedirect(to, authState.currentUser);
+  if (accessRedirect) {
+    return {
+      path: accessRedirect,
+      replace: true,
+    };
   }
   const normalizedQuery = normalizeQuery(to, from);
   if (normalizedQuery) {

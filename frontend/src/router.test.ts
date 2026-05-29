@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import router, { normalizeQuery } from './router';
+import router, { normalizeQuery, routeAccessRedirect } from './router';
 
 describe('router query normalization', () => {
   beforeEach(() => {
@@ -73,5 +73,25 @@ describe('router query normalization', () => {
       projectId: '2002',
       mrIid: '123',
     });
+  });
+});
+
+describe('router access guard', () => {
+  it('redirects guests away from login-only pages before the page component loads', () => {
+    const to = router.resolve('/review-data/home');
+
+    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBe('/quality-board/rd-quality-board');
+  });
+
+  it('allows guests to visit public pages', () => {
+    const to = router.resolve('/quality-board/rd-quality-board');
+
+    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBeNull();
+  });
+
+  it('redirects approval users away from hidden pages', () => {
+    const to = router.resolve('/system-settings/mirror-settings');
+
+    expect(routeAccessRedirect(to, { role: 'APPROVAL', authenticated: true })).toBe('/quality-board/rd-quality-board');
   });
 });

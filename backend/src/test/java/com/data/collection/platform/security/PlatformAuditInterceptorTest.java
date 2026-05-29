@@ -51,4 +51,33 @@ class PlatformAuditInterceptorTest {
                         && !summary.contains("plain-secret")
                         && !summary.contains("raw-token")));
   }
+
+  @Test
+  void shouldSanitizeExceptionMessagesBeforeAudit() throws Exception {
+    OperationAuditService operationAuditService = mock(OperationAuditService.class);
+    PlatformAuditInterceptor interceptor = new PlatformAuditInterceptor(operationAuditService);
+    MockHttpServletRequest rawRequest = new MockHttpServletRequest("POST", "/api/gitlab-sync/config");
+    rawRequest.setRemoteAddr("127.0.0.1");
+    ContentCachingRequestWrapper request = new ContentCachingRequestWrapper(rawRequest);
+
+    interceptor.afterCompletion(
+        request,
+        new MockHttpServletResponse(),
+        null,
+        new IllegalStateException("dbPassword=plain-password token=raw-token"));
+
+    verify(operationAuditService)
+        .record(
+            argThat(user -> user != null && "guest".equals(user.username())),
+            eq("POST"),
+            eq("/api/gitlab-sync/config"),
+            eq("127.0.0.1"),
+            eq(200),
+            argThat(message ->
+                message.contains("dbPassword=***")
+                    && message.contains("token=***")
+                    && !message.contains("plain-password")
+                    && !message.contains("raw-token")),
+            eq(""));
+  }
 }

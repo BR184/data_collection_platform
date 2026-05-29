@@ -472,6 +472,31 @@ cd D:\projects\data_collection_platform\frontend
 & 'C:\Program Files\nodejs\npm.cmd' test -- request integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
 ```
 
+## 2026-05-29 第二轮修复落地记录
+
+本轮已修复：
+
+- A4：登录成功、登录失败、登出已通过 `OperationAuditService` 显式记录审计；审计摘要只记录用户名，不记录密码。`PlatformAuditInterceptor` 写入异常信息前也会脱敏并截断，避免 token/password/secret 泄漏到审计表。
+- B1：`SyncRunExecutorService` 默认 worker executor 从 `newCachedThreadPool()` 改为有界 `ThreadPoolExecutor`，线程数按 `maxSyncThreads` 固定，队列容量按 `maxSyncThreads * 4` 设置，超出后拒绝提交，避免绕过容量检查时无限建线程。
+- C2：前端路由增加统一访问守卫，路由组件加载前即按 `feature-manifest` 的 `requiresLogin/hiddenForApproval` 判定可访问性，避免依赖 `App.vue` watch 兜底导致页面先加载再跳转。
+
+本轮继续保留：
+
+- B2/B4：外部数据源连接池全局化、统一 PreviewSessionStore 仍建议单独拆架构 PR。
+- C3/C4：大型视图拆分、route query 精准 watch 仍建议随对应页面功能改动逐步治理。
+- D2/D4/D5：CI 质量门禁、破坏性迁移灰度规则、SQL 行尾治理仍保留在工程治理清单。
+
+已验证：
+
+```powershell
+cd D:\projects\data_collection_platform\backend
+..\tools\maven\apache-maven-3.9.9\bin\mvn.cmd -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,SystemTestIllegalRecordServiceTest" test
+
+cd D:\projects\data_collection_platform\frontend
+& 'C:\Program Files\nodejs\npm.cmd' run typecheck
+& 'C:\Program Files\nodejs\npm.cmd' test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board
+```
+
 按可观察影响 × 修复成本排序：
 
 **1. 本次必须先动**（合并风险大、修复成本不高）

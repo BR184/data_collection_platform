@@ -5,11 +5,12 @@ import com.data.collection.platform.entity.sync.SyncRun;
 import jakarta.annotation.PreDestroy;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
@@ -39,8 +40,8 @@ public class SyncRunExecutorService {
         workerService,
         leaseService,
         workerLeaseService,
-        Executors.newCachedThreadPool(new SyncRunThreadFactory("sync-run-worker")),
-        Executors.newSingleThreadScheduledExecutor(new SyncRunThreadFactory("sync-run-heartbeat")),
+        createBoundedWorkerExecutor(properties),
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(new SyncRunThreadFactory("sync-run-heartbeat")),
         null);
   }
 
@@ -148,6 +149,18 @@ public class SyncRunExecutorService {
 
   private int maxConcurrentRuns() {
     return Math.max(1, properties.getMaxSyncThreads());
+  }
+
+  private static ExecutorService createBoundedWorkerExecutor(GitlabMirrorProperties properties) {
+    int maxThreads = Math.max(1, properties.getMaxSyncThreads());
+    return new ThreadPoolExecutor(
+        maxThreads,
+        maxThreads,
+        0L,
+        TimeUnit.MILLISECONDS,
+        new LinkedBlockingQueue<>(Math.max(maxThreads, maxThreads * 4)),
+        new SyncRunThreadFactory("sync-run-worker"),
+        new ThreadPoolExecutor.AbortPolicy());
   }
 
   @PreDestroy

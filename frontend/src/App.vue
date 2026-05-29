@@ -81,10 +81,7 @@ function ensureRouteAccess() {
     return;
   }
   const pageKey = route.meta.pageKey as PageKey | undefined;
-  if (!pageKey || !pageByKey.has(pageKey)) {
-    return;
-  }
-  if (canAccessPageKey(pageKey, currentUser.value)) {
+  if (!pageKey || !pageByKey.has(pageKey) || canAccessPageKey(pageKey, currentUser.value)) {
     return;
   }
   void router.replace(getFirstAccessiblePagePath(currentUser.value));
@@ -136,12 +133,13 @@ async function handleLogout() {
 }
 
 onMounted(async () => {
-  await loadCurrentUser();
-  ensureRouteAccess();
+  if (!authState.initialized) {
+    await loadCurrentUser();
+  }
 });
 
 watch(
-  () => [route.path, currentUser.value.role, currentUser.value.authenticated] as const,
+  () => [currentUser.value.role, currentUser.value.authenticated] as const,
   () => ensureRouteAccess(),
 );
 </script>
