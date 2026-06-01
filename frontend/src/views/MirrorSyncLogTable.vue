@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { SyncRunLog } from '../types/api';
 import {
   formatDuration,
@@ -25,8 +25,15 @@ defineEmits<{
 const typeFilter = ref('');
 const statusFilter = ref('');
 const tableRef = ref<{ doLayout?: () => void }>();
+const tableShellRef = ref<HTMLElement>();
+const horizontalScrollbarRef = ref<HTMLElement>();
 const scrollbarAwake = ref(false);
+const hasHorizontalOverflow = ref(false);
+const horizontalSpacerWidth = ref(0);
 let scrollbarAwakeTimer: number | undefined;
+let observedTableScrollWrap: HTMLElement | undefined;
+let resizeObserver: ResizeObserver | undefined;
+let syncingHorizontalScroll = false;
 
 const typeOptions = computed(() => {
   const optionMap = new Map<string, string>();
@@ -57,6 +64,7 @@ function typeFilterKey(log: SyncRunLog) {
 }
 
 function wakeHorizontalScrollbar() {
+  updateHorizontalScrollbar();
   scrollbarAwake.value = true;
   if (scrollbarAwakeTimer !== undefined) {
     window.clearTimeout(scrollbarAwakeTimer);
@@ -70,6 +78,7 @@ function wakeHorizontalScrollbar() {
 async function handleExpandChange() {
   await nextTick();
   tableRef.value?.doLayout?.();
+  updateHorizontalScrollbar();
   wakeHorizontalScrollbar();
 }
 
@@ -77,7 +86,7 @@ function handleHorizontalWheel(event: WheelEvent) {
   if (!event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
     return;
   }
-  const tableBody = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('.el-scrollbar__wrap');
+  const tableBody = getTableScrollWrap();
   if (!tableBody) {
     return;
   }
@@ -86,10 +95,90 @@ function handleHorizontalWheel(event: WheelEvent) {
   wakeHorizontalScrollbar();
 }
 
+function getTableScrollWrap() {
+  return tableShellRef.value?.querySelector<HTMLElement>('.el-table__body-wrapper .el-scrollbar__wrap')
+    ?? tableShellRef.value?.querySelector<HTMLElement>('.el-scrollbar__wrap');
+}
+
+function updateHorizontalScrollbar() {
+  const tableBody = getTableScrollWrap();
+  if (!tableBody) {
+    hasHorizontalOverflow.value = false;
+    horizontalSpacerWidth.value = 0;
+    return;
+  }
+
+  attachTableScrollListener(tableBody);
+  horizontalSpacerWidth.value = tableBody.scrollWidth;
+  hasHorizontalOverflow.value = tableBody.scrollWidth > tableBody.clientWidth + 1;
+  syncFloatingScrollbarFromTable();
+}
+
+function attachTableScrollListener(tableBody: HTMLElement) {
+  if (observedTableScrollWrap === tableBody) {
+    return;
+  }
+  observedTableScrollWrap?.removeEventListener('scroll', syncFloatingScrollbarFromTable);
+  observedTableScrollWrap = tableBody;
+  observedTableScrollWrap.addEventListener('scroll', syncFloatingScrollbarFromTable, { passive: true });
+}
+
+function syncFloatingScrollbarFromTable() {
+  if (syncingHorizontalScroll) {
+    return;
+  }
+  const tableBody = getTableScrollWrap();
+  const horizontalScrollbar = horizontalScrollbarRef.value;
+  if (!tableBody || !horizontalScrollbar) {
+    return;
+  }
+  syncingHorizontalScroll = true;
+  horizontalScrollbar.scrollLeft = tableBody.scrollLeft;
+  window.requestAnimationFrame(() => {
+    syncingHorizontalScroll = false;
+  });
+}
+
+function handleFloatingHorizontalScroll() {
+  if (syncingHorizontalScroll) {
+    return;
+  }
+  const tableBody = getTableScrollWrap();
+  const horizontalScrollbar = horizontalScrollbarRef.value;
+  if (!tableBody || !horizontalScrollbar) {
+    return;
+  }
+  syncingHorizontalScroll = true;
+  tableBody.scrollLeft = horizontalScrollbar.scrollLeft;
+  window.requestAnimationFrame(() => {
+    syncingHorizontalScroll = false;
+  });
+  wakeHorizontalScrollbar();
+}
+
+async function scheduleHorizontalScrollbarUpdate() {
+  await nextTick();
+  updateHorizontalScrollbar();
+}
+
+watch(filteredLogs, () => {
+  void scheduleHorizontalScrollbarUpdate();
+});
+
+onMounted(() => {
+  void scheduleHorizontalScrollbarUpdate();
+  if (typeof ResizeObserver !== 'undefined' && tableShellRef.value) {
+    resizeObserver = new ResizeObserver(() => updateHorizontalScrollbar());
+    resizeObserver.observe(tableShellRef.value);
+  }
+});
+
 onBeforeUnmount(() => {
   if (scrollbarAwakeTimer !== undefined) {
     window.clearTimeout(scrollbarAwakeTimer);
   }
+  observedTableScrollWrap?.removeEventListener('scroll', syncFloatingScrollbarFromTable);
+  resizeObserver?.disconnect();
 });
 </script>
 
@@ -113,16 +202,19 @@ onBeforeUnmount(() => {
     </template>
 
     <div
+      ref="tableShellRef"
       class="sync-log-table-shell"
-      :class="{ 'is-scrollbar-awake': scrollbarAwake }"
+      :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
       tabindex="0"
+      @mouseenter="wakeHorizontalScrollbar"
+      @mousemove="wakeHorizontalScrollbar"
+      @focusin="wakeHorizontalScrollbar"
       @wheel="handleHorizontalWheel"
     >
       <el-table
         ref="tableRef"
         :data="filteredLogs"
         row-key="id"
-        max-height="280"
         size="small"
         border
         class="sync-log-table"
@@ -187,6 +279,16 @@ onBeforeUnmount(() => {
           <template #default="{ row }">{{ syncLogMessage(row) }}</template>
         </el-table-column>
       </el-table>
+      <div
+        v-show="hasHorizontalOverflow"
+        ref="horizontalScrollbarRef"
+        class="sync-log-floating-horizontal"
+        aria-hidden="true"
+        @mouseenter="wakeHorizontalScrollbar"
+        @scroll="handleFloatingHorizontalScroll"
+      >
+        <div class="sync-log-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+      </div>
     </div>
   </el-card>
 </template>
@@ -204,46 +306,56 @@ onBeforeUnmount(() => {
 
 .sync-log-table-shell {
   position: relative;
-  padding-bottom: 10px;
   outline: none;
   scrollbar-gutter: stable;
 }
 
-.sync-log-table-shell::after {
-  position: absolute;
-  right: 0;
-  bottom: 10px;
-  width: 36px;
-  height: 28px;
-  pointer-events: none;
-  content: '';
-  opacity: 0;
-  background: linear-gradient(90deg, rgb(255 255 255 / 0%), rgb(255 255 255 / 92%));
-  transition: opacity 0.16s ease;
+.sync-log-table {
+  width: 100%;
 }
 
-.sync-log-table-shell:hover::after,
-.sync-log-table-shell:focus-within::after,
-.sync-log-table-shell.is-scrollbar-awake::after {
-  opacity: 1;
+.sync-log-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  display: none !important;
 }
 
-.sync-log-table-shell :deep(.el-scrollbar__bar.is-horizontal) {
+.sync-log-floating-horizontal {
+  position: sticky;
+  right: 14px;
   bottom: 2px;
-  height: 10px;
-  opacity: 0.24;
-  transition: opacity 0.16s ease, height 0.16s ease;
+  left: 0;
+  z-index: 3;
+  height: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: none;
+  opacity: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 72%) transparent;
+  transition: opacity 0.14s ease;
 }
 
-.sync-log-table-shell:hover :deep(.el-scrollbar__bar.is-horizontal),
-.sync-log-table-shell:focus-within :deep(.el-scrollbar__bar.is-horizontal),
-.sync-log-table-shell.is-scrollbar-awake :deep(.el-scrollbar__bar.is-horizontal) {
-  height: 12px;
+.sync-log-table-shell:hover .sync-log-floating-horizontal,
+.sync-log-table-shell:focus-within .sync-log-floating-horizontal,
+.sync-log-table-shell.is-scrollbar-awake .sync-log-floating-horizontal {
+  pointer-events: auto;
   opacity: 1;
 }
 
-.sync-log-table-shell :deep(.el-scrollbar__thumb) {
-  min-width: 48px;
+.sync-log-floating-horizontal::-webkit-scrollbar {
+  height: 8px;
+}
+
+.sync-log-floating-horizontal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sync-log-floating-horizontal::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(148 163 184 / 72%);
+}
+
+.sync-log-floating-horizontal-spacer {
+  height: 1px;
 }
 
 .sync-log-detail {

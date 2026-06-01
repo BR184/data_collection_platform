@@ -213,3 +213,34 @@
 
 本文仅为方案设计，未改动任何业务代码。各项实施需各自走构建与测试验证（后端 `mvn -f backend/pom.xml test`，前端 `npm run test` / `npm run typecheck`）。
 
+## 追加修正：最近同步日志滚动条体验
+
+### 问题
+
+用户复测发现，最近同步日志表格的滚动条增强过于臃肿：
+
+- 横向滚动条仍挂在 Element Plus 表格内部，必须先把常驻纵向滚动条拖到底才容易看到。
+- 展开/收起日志后虽然会唤醒横向条，但横向条的位置仍受表格内部滚动区域影响。
+- 期望交互其实更简单：只保留一个常驻纵向滚动条；横向滚动条在日志区域底部按需浮现，并且不依赖纵向滚动位置。
+
+### 已实施方案
+
+- `MirrorSyncLogTable.vue` 移除表格内部纵向滚动限制，不再出现“页面/表格双纵向滚动条”。
+- 上下滚动统一交给页面/外层面板处理，最近同步日志表格自身只负责横向溢出。
+- 隐藏 Element Plus 表格内部横向滚动条。
+- 在最近同步日志表格外层新增独立的 sticky 横向滚动条，贴在日志区域当前可视底部。
+- 外层横向滚动条与表格 body 的 `scrollLeft` 双向同步。
+- hover、focus、鼠标移动、展开/收起日志、Shift + 滚轮横向滚动时都会唤醒横向条。
+- 横向条不再要求用户先把纵向滚动条拖到底。
+
+### 验证
+
+- `npm.cmd run test -- MirrorSyncLogTable.test.ts` 通过。
+- `npm.cmd run typecheck` 通过。
+- Playwright 实测数据：
+  - Element 内部横向条：`display: none`
+- 表格内部纵向 overflow：`false`
+- Element 纵向条：`display: none`
+- 外层横向条：默认 `opacity: 0`，hover 后 `opacity: 1`
+- 外层横向条：`position: sticky`
+- 证据目录：`.tmp/sync-log-scrollbar-check-3/`

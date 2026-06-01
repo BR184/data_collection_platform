@@ -151,7 +151,9 @@ describe('MirrorSyncLogTable', () => {
 
   it('keeps the sync log scrollbar enhancement scoped to this table', () => {
     expect(mirrorSyncLogTableSource).toContain('.sync-log-table-shell.is-scrollbar-awake');
-    expect(mirrorSyncLogTableSource).toContain('.sync-log-table-shell:hover :deep(.el-scrollbar__bar.is-horizontal)');
+    expect(mirrorSyncLogTableSource).toContain('.sync-log-floating-horizontal');
+    expect(mirrorSyncLogTableSource).toContain('.el-table__body-wrapper .el-scrollbar__bar.is-horizontal');
+    expect(mirrorSyncLogTableSource).not.toContain('max-height="280"');
     expect(mirrorSyncLogTableSource).toContain('@expand-change="handleExpandChange"');
     expect(mirrorSyncLogTableSource).toContain('tableRef.value?.doLayout?.()');
   });
