@@ -770,6 +770,8 @@ git diff --check
 - **导出错误文案恢复**：`requestText/requestBlob` 支持 `errorPrefix`，统计板、代码走查、集成测试、议题记录导出均显式使用“导出失败”/“Excel 导出失败”前缀；`parseErrorMessage` 同时兼容无 `headers` 的测试 Response。
 - **旧平台 Excel 导入迁移引导**：导入弹窗已明确说明只支持旧平台列表导出的 `.xlsx`，旧模板 `文档评审.xls` 暂不支持；`docs/plans/2026-05-28-review-data-legacy-excel-import-plan.md` 已同步修正为当前不支持模板 `.xls`。
 - **旧平台 Excel 上传上限配置化**：`platform.review-data.legacy-import-max-bytes` 默认改为 50MB，并在超限提示里引导用户按项目或时间分批导出。
+- **导入入口文案简化**：评审数据管理工具栏按钮和弹窗标题已统一改为“导入”，上传框内仅提示支持 `.xlsx` 文件。
+- **预览会话驱逐稳定化**：`PreviewSessionStore` 已增加单调序号作为同过期时间下的次级排序键，避免并发预览时容量驱逐顺序依赖 `ConcurrentHashMap` 迭代顺序。
 
 ### 7.3 本轮验证
 
@@ -778,7 +780,9 @@ git diff --check
 - `mvn -q "-Dtest=PlatformSecurityConfigurationTest,PlatformStartupSecurityGuardTest,AuthControllerTest,GitlabSyncControllerTest" test`
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,ReviewDataProblemItemRepositoryTest,ReviewDataRecordWriteRepositoryTest" test`
 - `mvn -q "-Dtest=ReviewDataControllerTest" test`
+- `mvn -q "-Dtest=PreviewSessionStoreTest" test`
 - `npm test -- request export-error-messages integration-test-analysis issue statistic-board`
+- `npm test -- review-data`
 - `npm run typecheck`
 - `npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState`
 - `python scripts/check_flyway_destructive_migrations.py`

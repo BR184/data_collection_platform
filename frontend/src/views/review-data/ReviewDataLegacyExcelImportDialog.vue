@@ -115,7 +115,7 @@ async function handleConfirm() {
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="导入旧平台 Excel" width="920px" destroy-on-close>
+  <el-dialog v-model="visible" title="导入" width="920px" destroy-on-close>
     <div class="legacy-import-layout">
       <el-upload
         drag
@@ -125,11 +125,8 @@ async function handleConfirm() {
         :on-change="handleFileChange"
       >
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">拖入旧平台导出的 Excel，或点击选择</div>
+        <div class="el-upload__text">拖入 .xlsx 文件，或点击选择</div>
       </el-upload>
-      <p class="legacy-import-help">
-        仅支持旧平台“评审数据管理”列表导出的 .xlsx 文件。旧平台“文档评审.xls”属于模板导入格式，当前版本暂不支持；请在旧平台页面执行列表导出后再上传。
-      </p>
 
       <el-form class="legacy-import-form" label-width="118px">
         <el-form-item label="默认评审日期">
@@ -209,13 +206,6 @@ async function handleConfirm() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 16px;
-}
-
-.legacy-import-help {
-  margin: -6px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  line-height: 1.6;
 }
 
 .legacy-import-form :deep(.el-form-item) {

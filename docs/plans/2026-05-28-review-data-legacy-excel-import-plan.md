@@ -136,7 +136,7 @@ projectName + title + reviewType + reviewDate + reviewVersion
 前端入口：
 
 - 位置：评审数据管理页面工具栏。
-- 按钮：`导入旧平台 Excel`。
+- 按钮：`导入`。
 - 权限：仅管理员可见。
 - 支持文件：第一版 `.xlsx`；若需要支持旧模板 `.xls`，后续新增“模板文件导入”模式。
 
@@ -323,7 +323,7 @@ npm run typecheck
 本轮针对新实现的导入能力与旧平台页面、旧平台导出字段进行了对比。当前项目中确认存在的新增导入功能是评审数据管理旧平台 Excel 导入：
 
 - 后端接口：`POST /api/review-data/legacy-excel-import/preview`、`POST /api/review-data/legacy-excel-import/confirm`
-- 前端入口：评审数据管理页 `导入旧平台 Excel`
+- 前端入口：评审数据管理页 `导入`
 - 集成测试模块本轮实现的是旧平台样式 Excel 导出，不包含导入入口。
 
 对比发现并已修正的差异：

@@ -10,12 +10,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PreviewSessionStore<T> {
   private final Clock clock;
   private final Duration ttl;
   private final int maximumSize;
   private final Map<String, Entry<T>> sessions = new ConcurrentHashMap<>();
+  private final AtomicLong sequence = new AtomicLong();
 
   public PreviewSessionStore(Clock clock, Duration ttl, int maximumSize) {
     if (ttl == null || ttl.isNegative() || ttl.isZero()) {
@@ -32,7 +34,7 @@ public class PreviewSessionStore<T> {
   public String put(T value) {
     cleanupExpired();
     String token = UUID.randomUUID().toString();
-    sessions.put(token, new Entry<>(value, expiresAt()));
+    sessions.put(token, new Entry<>(value, expiresAt(), sequence.incrementAndGet()));
     trimToMaximumSize();
     return token;
   }
@@ -82,14 +84,17 @@ public class PreviewSessionStore<T> {
     }
     Iterator<Map.Entry<String, Entry<T>>> iterator =
         sessions.entrySet().stream()
-            .sorted(Comparator.comparing(entry -> entry.getValue().expiresAt()))
+            .sorted(
+                Comparator
+                    .comparing((Map.Entry<String, Entry<T>> entry) -> entry.getValue().expiresAt())
+                    .thenComparingLong(entry -> entry.getValue().sequence()))
             .iterator();
     while (sessions.size() > maximumSize && iterator.hasNext()) {
       sessions.remove(iterator.next().getKey());
     }
   }
 
-  private record Entry<T>(T value, Instant expiresAt) {
+  private record Entry<T>(T value, Instant expiresAt, long sequence) {
     boolean expired(Instant now) {
       return !expiresAt.isAfter(now);
     }

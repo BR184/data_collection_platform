@@ -46,6 +46,19 @@ class PreviewSessionStoreTest {
     assertThat(store.getValid(third)).contains("third");
   }
 
+  @Test
+  void shouldTrimByInsertionOrderWhenExpiryTimesAreEqual() {
+    MutableClock clock = new MutableClock(Instant.parse("2026-05-29T00:00:00Z"));
+    PreviewSessionStore<String> store = new PreviewSessionStore<>(clock, Duration.ofMinutes(30), 2);
+    String first = store.put("first");
+    String second = store.put("second");
+    String third = store.put("third");
+
+    assertThat(store.getValid(first)).isEmpty();
+    assertThat(store.getValid(second)).contains("second");
+    assertThat(store.getValid(third)).contains("third");
+  }
+
   private static final class MutableClock extends Clock {
     private Instant instant;
 

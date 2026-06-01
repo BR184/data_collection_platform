@@ -302,7 +302,7 @@ const {
             导出
           </el-button>
           <el-button plain :icon="Upload" @click="legacyImportVisible = true">
-            导入旧平台 Excel
+            导入
           </el-button>
           <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
         </div>
