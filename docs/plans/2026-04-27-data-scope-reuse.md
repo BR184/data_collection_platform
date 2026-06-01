@@ -1,5 +1,9 @@
-# Data Scope Reuse Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# Data Scope Reuse Plan
 更新时间：2026-04-27
 
 ## 目标

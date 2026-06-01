@@ -1,5 +1,9 @@
-# GitLab Sync Orchestrator Task 12 Smoke Report
+<!-- DOC_STATUS_START -->
+> 文档状态：遗留待确认
+> 说明：仍有环境、验收或业务口径确认项。
+<!-- DOC_STATUS_END -->
 
+# GitLab Sync Orchestrator Task 12 Smoke Report
 Date: 2026-05-15
 
 Scope:

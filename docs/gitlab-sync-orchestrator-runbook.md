@@ -1,5 +1,9 @@
-# GitLab Sync Orchestrator Runbook
+<!-- DOC_STATUS_START -->
+> 文档状态：常驻 Runbook
+> 说明：当前运维和排查说明，继续有效。
+<!-- DOC_STATUS_END -->
 
+# GitLab Sync Orchestrator Runbook
 ## Scope
 
 This runbook covers the unified GitLab mirror sync runtime backed by `sync_runs`,

@@ -1,5 +1,9 @@
-# CodeReview 阶段一重构设计
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# CodeReview 阶段一重构设计
 更新时间：2026-04-24
 
 ## 目标

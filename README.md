@@ -1,5 +1,9 @@
-# QA Flex Platform
+<!-- DOC_STATUS_START -->
+> 文档状态：常驻入口
+> 说明：项目启动、运行和模块说明入口，继续维护。
+<!-- DOC_STATUS_END -->
 
+# QA Flex Platform
 Standard separated project structure:
 
 - `backend/`: Java 21 + Spring Boot

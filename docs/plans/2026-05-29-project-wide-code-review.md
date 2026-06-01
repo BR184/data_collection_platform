@@ -1,5 +1,9 @@
-# 2026-05-29 全项目 Code Review 报告
+<!-- DOC_STATUS_START -->
+> 文档状态：审计记录 / 遗留验证项
+> 说明：项目级 code review 记录保留；7.1/7.2/7.4 等项可作为后续验证 backlog。
+<!-- DOC_STATUS_END -->
 
+# 2026-05-29 全项目 Code Review 报告
 ## 审查范围与方法
 
 本次 review 覆盖整个 `data_collection_platform` 仓库（backend Spring Boot 3 / Java 21 + frontend Vue 3 / TS + 数据库迁移 + CI / 脚本），并对已有的专项审查文档 [`2026-05-29-import-and-new-feature-code-review.md`](2026-05-29-import-and-new-feature-code-review.md) 做二次复核。

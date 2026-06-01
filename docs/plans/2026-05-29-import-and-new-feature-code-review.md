@@ -1,5 +1,9 @@
-# 2026-05-29 新增导入与 Excel 能力专项 Code Review
+<!-- DOC_STATUS_START -->
+> 文档状态：审计记录 / 大部分已修复
+> 说明：Code review 记录保留；Consider 类建议按需进入后续 backlog。
+<!-- DOC_STATUS_END -->
 
+# 2026-05-29 新增导入与 Excel 能力专项 Code Review
 ## 审查范围
 
 本次只做审查和记录，不修改业务代码。重点覆盖近期新增或受影响的能力：

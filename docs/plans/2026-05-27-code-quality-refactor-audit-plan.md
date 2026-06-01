@@ -1,5 +1,9 @@
-# 代码质量深度审计与重构计划
+<!-- DOC_STATUS_START -->
+> 文档状态：长期遗留 / 分阶段执行
+> 说明：仍包含可持续优化项，应作为技术债 backlog 分阶段处理。
+<!-- DOC_STATUS_END -->
 
+# 代码质量深度审计与重构计划
 日期：2026-05-27  
 范围：`backend/src/main/java`、`backend/src/test/java`、`frontend/src`  
 目标：按 KISS、YAGNI、SOLID 及项目个人底线原则，清理职责耦合、重复逻辑、误导性状态展示和维护成本高的代码。

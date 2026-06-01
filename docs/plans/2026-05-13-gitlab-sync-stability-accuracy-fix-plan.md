@@ -1,5 +1,9 @@
-# GitLab 数据同步稳定性与准确性修复方案
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成 / 被后续吸收
+> 说明：主体已完成，后续由新架构或新方案继续承接。
+<!-- DOC_STATUS_END -->
 
+# GitLab 数据同步稳定性与准确性修复方案
 日期：2026-05-13
 
 状态：Backend core fixes implemented，待联调和发布前验证

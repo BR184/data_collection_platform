@@ -1,5 +1,9 @@
-# GitLab Sync Orchestrator Rebuild Implementation Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# GitLab Sync Orchestrator Rebuild Implementation Plan
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 重构 GitLab 数据镜像同步体系，建立统一的任务调度、优先级、取消、进度、日志和监视能力，解决全量同步被插队、状态丢失、日志不可信、单表刷新边界不清和统计下钻无法跳转 GitLab 的问题。

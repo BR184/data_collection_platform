@@ -1,5 +1,9 @@
-# System Test Illegal Records Implementation Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# System Test Illegal Records Implementation Plan
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Implement the `系统测试非法数据` page using the new platform architecture and existing reusable services/components.

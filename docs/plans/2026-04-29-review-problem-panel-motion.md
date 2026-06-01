@@ -1,5 +1,9 @@
-# Review Problem Panel Motion Implementation Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# Review Problem Panel Motion Implementation Plan
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make the review problem list feel like a smooth drawer when it opens from the review data table.

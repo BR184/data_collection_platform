@@ -1,5 +1,9 @@
-# 2026-05-21 Issue 事件最终一致性方案
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成 / 策略记录
+> 说明：策略判断已形成，可作为后续方向参考。
+<!-- DOC_STATUS_END -->
 
+# 2026-05-21 Issue 事件最终一致性方案
 ## 背景
 
 内网验证确认 GitLab System Hook 可正常投递到平台，同步日志中已经能看到 `System Hook 唤醒`。但 GitLab System Hook 的触发器不包含 Issue events，创建或修改 issue 不会产生 GitLab System Hook 投递。Issue Hook 属于项目/群组 Webhook 事件，不属于实例级 System Hook。

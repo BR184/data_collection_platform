@@ -1,5 +1,9 @@
-# 数据采集平台项目主文档
+<!-- DOC_STATUS_START -->
+> 文档状态：进度快照
+> 说明：项目阶段性进展记录，保留作历史，不等同于当前任务列表。
+<!-- DOC_STATUS_END -->
 
+# 数据采集平台项目主文档
 更新时间：2026-05-07
 适用项目：`D:\projects\data_collection_platform`
 

@@ -1,5 +1,9 @@
-# ECharts Board Rollout Implementation Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# ECharts Board Rollout Implementation Plan
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace the remaining placeholder board pages with real Apache ECharts dashboards and upgrade the existing code-review board to a chart-first experience that matches the new platform's shell, filters, and data-scope model.

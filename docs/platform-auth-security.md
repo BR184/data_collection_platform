@@ -1,5 +1,9 @@
-# 平台认证安全配置
+<!-- DOC_STATUS_START -->
+> 文档状态：常驻规则
+> 说明：继续作为当前工程规则或实现约束使用。
+<!-- DOC_STATUS_END -->
 
+# 平台认证安全配置
 生产或内网正式部署时，`platform.auth.secure-config-required` 默认为 `true`。本地认证模式下，管理员与审批账号密码必须使用 Spring Security password hash，推荐 `{bcrypt}`。
 
 ## 必填配置

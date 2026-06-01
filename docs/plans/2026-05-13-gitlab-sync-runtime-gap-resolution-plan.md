@@ -1,5 +1,9 @@
-# GitLab Sync Runtime Gap Resolution Implementation Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成 / 被后续吸收
+> 说明：主体已完成，后续由新架构或新方案继续承接。
+<!-- DOC_STATUS_END -->
 
+# GitLab Sync Runtime Gap Resolution Implementation Plan
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 修复 GitLab 同步模块在运行态暴露出的状态、指标、页面级刷新和效率差异，让用户能判断链路是否真的跑通，并在业务页面按需刷新最新 GitLab 上下文。

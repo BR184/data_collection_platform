@@ -1,5 +1,9 @@
-# GitLab Sync User Acceptance Gap Fix Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成
+> 说明：方案或修复已落地，保留为历史追溯。
+<!-- DOC_STATUS_END -->
 
+# GitLab Sync User Acceptance Gap Fix Plan
 > **For Claude:** REQUIRED SUB-SKILL: Use executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix the gaps found during user-perspective GitLab sync acceptance so operators can trust System Hook, sync logs, source health, and progress states.

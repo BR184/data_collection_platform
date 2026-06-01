@@ -1,5 +1,9 @@
-# 2026-05-18 Sync Refresh Dedup And Priority Plan
+<!-- DOC_STATUS_START -->
+> 文档状态：已完成 / 遗留环境项
+> 说明：主体已完成；环境相关问题仍作排查参考。
+<!-- DOC_STATUS_END -->
 
+# 2026-05-18 Sync Refresh Dedup And Priority Plan
 ## Goal
 
 Prevent short-window duplicate refreshes from creating repeated mirror and fact runs while preserving the existing priority ordering:

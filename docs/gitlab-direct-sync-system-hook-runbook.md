@@ -1,5 +1,9 @@
-# GitLab Direct Sync and System Hook Runbook
+<!-- DOC_STATUS_START -->
+> 文档状态：遗留 Runbook / 待降级
+> 说明：System Hook 仍有历史运维价值，但实时主路径已倾向增量补偿；后续应降级或归档。
+<!-- DOC_STATUS_END -->
 
+# GitLab Direct Sync and System Hook Runbook
 ## Purpose
 
 This document records the GitLab mirror sync hardening work for direct database access and System Hook-driven updates.
