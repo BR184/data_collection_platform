@@ -766,12 +766,14 @@ git diff --check
 - **CSRF 请求头兼容**：后端 CSRF handler 改为 `CsrfTokenRequestAttributeHandler`，和前端从 `XSRF-TOKEN` cookie 读取原值的做法保持一致。
 - **安全回归测试**：已新增 `PlatformSecurityConfigurationTest`，覆盖 system-hook 匿名回调与原始 cookie CSRF 的真实 MockMvc 路径。
 - **CI 回归覆盖**：`PlatformSecurityConfigurationTest` 已并入后端 CI 测试列表。
+- **数值工具收拢**：`safeInt/safeDouble` 的重复实现已收拢到 `ReviewDataNumberSupport`，`ReviewDataLegacyExcelParser`、`ReviewDataLegacyExcelImportService`、`ReviewDataProblemItemRepository`、`ReviewDataRecordWriteRepository` 统一复用同一套实现。
 
 ### 7.3 本轮验证
 
 - `mvn -q "-Dtest=SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,ReviewDataControllerTest" test`
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test`
 - `mvn -q "-Dtest=PlatformSecurityConfigurationTest,PlatformStartupSecurityGuardTest,AuthControllerTest,GitlabSyncControllerTest" test`
+- `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,ReviewDataProblemItemRepositoryTest,ReviewDataRecordWriteRepositoryTest" test`
 - `npm run typecheck`
 - `npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState`
 - `python scripts/check_flyway_destructive_migrations.py`

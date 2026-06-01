@@ -193,15 +193,17 @@ public class ReviewDataLegacyExcelImportService {
       String problemStatus,
       List<ReviewDataLegacyExcelImportIssue> issues) {
     Map<String, Integer> counts = new LinkedHashMap<>();
-    counts.put("文档规范", nonNegativeInt(row.docSpecificationCount()));
-    counts.put("完整性", nonNegativeInt(row.integrityCount()));
-    counts.put("功能性", nonNegativeInt(row.functionalityCount()));
-    counts.put("可行性", nonNegativeInt(row.feasibilityCount()));
+    counts.put("文档规范", ReviewDataNumberSupport.nonNegativeInt(row.docSpecificationCount()));
+    counts.put("完整性", ReviewDataNumberSupport.nonNegativeInt(row.integrityCount()));
+    counts.put("功能性", ReviewDataNumberSupport.nonNegativeInt(row.functionalityCount()));
+    counts.put("可行性", ReviewDataNumberSupport.nonNegativeInt(row.feasibilityCount()));
     int total = counts.values().stream().mapToInt(Integer::intValue).sum();
     if (total == 0) {
       return List.of();
     }
-    double totalWorkload = nonNegativeDouble(row.independentWorkloadHours()) + nonNegativeDouble(row.meetingWorkloadHours());
+    double totalWorkload =
+        ReviewDataNumberSupport.nonNegativeDouble(row.independentWorkloadHours())
+            + ReviewDataNumberSupport.nonNegativeDouble(row.meetingWorkloadHours());
     List<ReviewItemContext> contexts = buildReviewItemContexts(row, total, totalWorkload, issues);
     if (totalWorkload <= 0) {
       issues.add(issue(row.rowNumber(), "workloadHours", ReviewDataLegacyExcelIssueLevel.WARNING, "未读取到评审工作量，合成问题项工作量按 0 处理"));
@@ -235,8 +237,8 @@ public class ReviewDataLegacyExcelImportService {
       double totalWorkload,
       List<ReviewDataLegacyExcelImportIssue> issues) {
     double fallbackWorkload = totalWorkload <= 0 ? 0D : round2(totalWorkload / total);
-    int independentCount = nonNegativeInt(row.independentProblemCount());
-    int meetingCount = nonNegativeInt(row.meetingProblemCount());
+    int independentCount = ReviewDataNumberSupport.nonNegativeInt(row.independentProblemCount());
+    int meetingCount = ReviewDataNumberSupport.nonNegativeInt(row.meetingProblemCount());
     if (independentCount + meetingCount == 0) {
       return repeatedContext(total, resolveReviewCategory(row.reviewCategoryText()), fallbackWorkload);
     }
@@ -280,7 +282,7 @@ public class ReviewDataLegacyExcelImportService {
   }
 
   private double workloadPerProblem(Double workloadHours, int problemCount, double fallbackWorkload) {
-    double workload = safeDouble(workloadHours);
+    double workload = ReviewDataNumberSupport.safeDouble(workloadHours);
     return workload > 0 && problemCount > 0 ? round2(workload / problemCount) : fallbackWorkload;
   }
 
@@ -335,22 +337,6 @@ public class ReviewDataLegacyExcelImportService {
       }
     }
     return "";
-  }
-
-  private int safeInt(Integer value) {
-    return value == null ? 0 : value;
-  }
-
-  private int nonNegativeInt(Integer value) {
-    return Math.max(0, safeInt(value));
-  }
-
-  private double safeDouble(Double value) {
-    return value == null ? 0D : value;
-  }
-
-  private double nonNegativeDouble(Double value) {
-    return Math.max(0D, safeDouble(value));
   }
 
   private double round2(double value) {

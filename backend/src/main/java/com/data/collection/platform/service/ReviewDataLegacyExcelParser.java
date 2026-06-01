@@ -120,7 +120,11 @@ public class ReviewDataLegacyExcelParser {
     addNonNegativeIssue(issues, rowNumber, "meetingProblemCount", meetingProblemCount, "有效的会议评审问题数");
     addNonNegativeIssue(issues, rowNumber, "independentWorkload", independentWorkload, "独立评审工作量");
     addNonNegativeIssue(issues, rowNumber, "meetingWorkload", meetingWorkload, "会议评审工作量");
-    int categorySum = safeInt(docSpecification) + safeInt(integrity) + safeInt(functionality) + safeInt(feasibility);
+    int categorySum =
+        ReviewDataNumberSupport.safeInt(docSpecification)
+            + ReviewDataNumberSupport.safeInt(integrity)
+            + ReviewDataNumberSupport.safeInt(functionality)
+            + ReviewDataNumberSupport.safeInt(feasibility);
     if (problemCount != null && problemCount >= 0 && categorySum != problemCount) {
       issues.add(issue(rowNumber, "problemCount", ReviewDataLegacyExcelIssueLevel.ERROR, "问题总计与分类合计不一致"));
     }
@@ -434,10 +438,6 @@ public class ReviewDataLegacyExcelParser {
 
   private boolean isBlank(String value) {
     return value == null || value.isBlank();
-  }
-
-  private int safeInt(Integer value) {
-    return value == null ? 0 : value;
   }
 
   private void addNonNegativeIssue(

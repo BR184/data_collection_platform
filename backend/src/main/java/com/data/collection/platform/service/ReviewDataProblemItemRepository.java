@@ -127,7 +127,7 @@ public class ReviewDataProblemItemRepository {
                   new String[] {"id"});
           statement.setLong(1, recordId);
           statement.setString(2, normalizeText(reviewerName));
-          statement.setBigDecimal(3, BigDecimal.valueOf(safeDouble(workloadHours)));
+          statement.setBigDecimal(3, BigDecimal.valueOf(ReviewDataNumberSupport.safeDouble(workloadHours)));
           statement.setString(4, normalizeText(reviewCategory));
           statement.setString(5, normalizeNullableText(documentPosition));
           statement.setString(6, normalizeText(problemCategory));
@@ -173,7 +173,7 @@ public class ReviewDataProblemItemRepository {
         where id = ? and review_record_id = ?
         """,
         normalizeText(reviewerName),
-        BigDecimal.valueOf(safeDouble(workloadHours)),
+        BigDecimal.valueOf(ReviewDataNumberSupport.safeDouble(workloadHours)),
         normalizeText(reviewCategory),
         normalizeNullableText(documentPosition),
         normalizeText(problemCategory),
@@ -224,7 +224,4 @@ public class ReviewDataProblemItemRepository {
     return TextQuerySupport.trimToNull(value);
   }
 
-  private double safeDouble(Double value) {
-    return value == null ? 0D : Math.max(value, 0D);
-  }
 }

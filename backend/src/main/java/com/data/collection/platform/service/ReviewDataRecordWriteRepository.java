@@ -84,7 +84,7 @@ public class ReviewDataRecordWriteRepository {
           statement.setString(4, normalizeText(reviewType));
           statement.setDate(5, reviewDate == null ? null : Date.valueOf(reviewDate));
           statement.setString(6, normalizeText(reviewOwner));
-          statement.setInt(7, safeInt(reviewScalePages));
+          statement.setInt(7, ReviewDataNumberSupport.safeInt(reviewScalePages));
           statement.setString(8, normalizeText(reviewProduct));
           statement.setString(9, normalizeText(authorName));
           statement.setString(10, normalizeText(reviewVersion));
@@ -149,7 +149,7 @@ public class ReviewDataRecordWriteRepository {
         normalizeText(reviewType),
         reviewDate == null ? null : Date.valueOf(reviewDate),
         normalizeText(reviewOwner),
-        safeInt(reviewScalePages),
+        ReviewDataNumberSupport.safeInt(reviewScalePages),
         normalizeText(reviewProduct),
         normalizeText(authorName),
         normalizeText(reviewVersion),
@@ -245,7 +245,4 @@ public class ReviewDataRecordWriteRepository {
     return Objects.requireNonNullElse(TextQuerySupport.trimToNull(value), "");
   }
 
-  private int safeInt(Integer value) {
-    return value == null ? 0 : Math.max(value, 0);
-  }
 }
