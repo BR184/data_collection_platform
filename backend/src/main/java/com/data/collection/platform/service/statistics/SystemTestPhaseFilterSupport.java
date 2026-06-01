@@ -2,7 +2,6 @@ package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
-import java.util.List;
 import java.util.Locale;
 import org.springframework.util.StringUtils;
 

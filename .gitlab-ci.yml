@@ -1,6 +1,7 @@
 stages:
   - static
   - backend
+  - security
   - frontend
   - database
 
@@ -40,6 +41,8 @@ backend-compile-and-guards:
   script:
     - cd backend
     - mvn -q -DskipTests compile
+    - mvn -q checkstyle:check
+    - mvn -q spotbugs:check
     - mvn -q -Dtest=GitlabSourceSchemaGuardTest test
     - mvn -q -Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformSecurityConfigurationTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest test
     - mvn -q jacoco:report
@@ -48,6 +51,22 @@ backend-compile-and-guards:
     expire_in: 7 days
     paths:
       - backend/target/site/jacoco/
+      - backend/target/spotbugsXml.xml
+
+dependency-check:
+  stage: security
+  image: maven:3.9.9-eclipse-temurin-21
+  allow_failure: true
+  script:
+    - cd backend
+    - mvn -q org.owasp:dependency-check-maven:check
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - backend/target/dependency-check-report.html
+      - backend/target/dependency-check-report.json
+      - backend/target/dependency-check-report.xml
 
 frontend-typecheck:
   stage: frontend
@@ -55,6 +74,7 @@ frontend-typecheck:
   script:
     - cd frontend
     - npm ci
+    - npm audit --audit-level=high
     - npm run lint
     - npm run typecheck
     - npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState

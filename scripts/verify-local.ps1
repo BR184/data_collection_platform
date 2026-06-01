@@ -34,6 +34,8 @@ try {
 Push-Location (Join-Path $projectRoot "backend")
 try {
   mvn -q -DskipTests compile
+  mvn -q checkstyle:check
+  mvn -q spotbugs:check
   mvn -q -Dtest=GitlabSourceSchemaGuardTest test
   if (-not $SkipDatabase) {
     mvn -q -Dtest=FlywayMigrationSmokeTest test
@@ -45,6 +47,8 @@ try {
 
 Push-Location (Join-Path $projectRoot "frontend")
 try {
+  npm.cmd audit --audit-level=high
+  npm.cmd run lint
   npm.cmd run typecheck
 } finally {
   Pop-Location

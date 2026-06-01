@@ -740,7 +740,7 @@ git diff --check
 ### 6.4 二审后的优先级建议
 
 - **下次 PR 顺手处理**（成本极小）：6.2.1（`SourceConnectionTester` 线程池有界化）、6.2.3（`GlobalRestExceptionHandler` 加 `log.error`）。
-- **本季度内排上**：6.2.4（CI 继续接入 OWASP DC / 后端 Checkstyle 或 SpotBugs；Jacoco 报告与前端 ESLint 已先行落地）。
+- **本季度内排上**：6.2.4（OWASP Dependency-Check 待配置内网 NVD 镜像或 API key 后改为阻断；Jacoco、前端 ESLint/audit、后端 Checkstyle/SpotBugs 已先行落地）。
 - **进治理 backlog**：6.2.2（明文密码兼容路径退场）、6.2.5（rename-then-drop 发布流程文档化）、6.3 中的 `safeInt` 重复实现统一。
 
 二审结论：五轮修复总体完成度高，没有发现修反方向的回归；剩余项均可作为小步迭代继续推进，不阻塞当前批次合并。
@@ -756,7 +756,7 @@ git diff --check
 
 ### 7.2 继续延期的治理项
 
-- **6.2.4 D2 标准质量工具**：Jacoco 报告与前端 ESLint job 已接入；OWASP Dependency-Check、后端 Checkstyle/SpotBugs 仍按“本季度内排上”处理，避免首次接入时把内网漏洞库下载、历史风格问题和业务修复混在一起。
+- **6.2.4 D2 标准质量工具**：Jacoco、前端 ESLint/audit、后端 Checkstyle/SpotBugs 已接入 CI；OWASP Dependency-Check 已接为独立 `dependency-check` job 并保留报告 artifact，但因 NVD/KEV 数据源在当前网络下会 SSL 握手失败，暂设为 `allow_failure`，待配置内网漏洞库镜像或 NVD API key 后再改成阻断。
 - **6.2.2 A2 明文兼容路径**：当前仍保留明文密码兼容与默认值兜底，后续应在完成部署配置迁移后再强制 `{bcrypt}`。
 - **6.3 解析工具统一**：`safeInt`/`safeDouble` 的 service/parser 双轨问题不影响当前行为，留给下一次清理做低风险合并。
 
@@ -776,6 +776,8 @@ git diff --check
 - **认证明文兼容收窄**：`secureConfigRequired=true` 且本地认证模式下，`PLATFORM_ADMIN_PASSWORD` / `PLATFORM_APPROVAL_PASSWORD` 必须使用 `{bcrypt}` 等 Spring Security password hash；明文兼容仅保留给显式关闭安全守卫的本地开发/测试。新增 `docs/platform-auth-security.md` 说明部署配置与 hash 生成方式。
 - **启动上下文构造器歧义修复**：`LocalPlatformAuthenticationProvider` 与 `ReviewDataLegacyExcelImportService` 的生产构造器已显式标记 `@Autowired`，保留测试专用构造器，同时避免完整 Spring Boot 上下文启动时退回查找无参构造器。
 - **前端 ESLint 最小门禁**：新增 `frontend/eslint.config.js` 与 `npm run lint`，CI 前端 job 已在 typecheck/test 前执行 lint。规则先覆盖明显无用变量、基础 JS/TS/Vue 问题，并对现有 Vue 模板变量与历史双向编辑组件做低噪音边界。
+- **后端静态分析门禁**：新增 `backend/checkstyle.xml`、`backend/spotbugs-exclude.xml` 和 Maven 插件配置；CI 与 `scripts/verify-local.ps1` 已执行 `mvn checkstyle:check` 与 `mvn spotbugs:check`。Checkstyle 首版只卡星号 import / 无用 import，避免一次性引入历史行宽噪音。
+- **依赖安全扫描**：前端已执行 `npm audit fix` 并将 `npm audit --audit-level=high` 加入 CI/本地验证；后端 OWASP Dependency-Check 已配置 suppressions 文件和独立 CI job，当前本地运行因 NVD/KEV SSL 握手失败无法生成报告，后续需接入内网漏洞数据源后改为阻断。
 
 ### 7.3 本轮验证
 
@@ -787,6 +789,10 @@ git diff --check
 - `mvn -q "-Dtest=PreviewSessionStoreTest" test`
 - `mvn -q "-Dtest=PlatformStartupSecurityGuardTest,AuthControllerTest" test`
 - `mvn -q "-Dtest=PlatformStartupSecurityGuardTest,AuthControllerTest,FactBuildTaskServiceTest" test`
+- `mvn -q -DskipTests compile checkstyle:check spotbugs:check`
+- `mvn -q "-Dtest=GitlabSourceSchemaGuardTest,ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformSecurityConfigurationTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest" test`
+- `mvn -q org.owasp:dependency-check-maven:check`（未通过：NVD/KEV 数据源 SSL 握手失败，未生成漏洞报告；CI 已作为独立 allow_failure job 接入）
+- `npm audit --audit-level=high`
 - `npm run lint`
 - `npm test -- request export-error-messages integration-test-analysis issue statistic-board`
 - `npm test -- review-data`

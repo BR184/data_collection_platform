@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
-import com.data.collection.platform.service.IssueFactRecord;
 import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import java.util.List;
