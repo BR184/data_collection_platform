@@ -163,6 +163,37 @@ describe('request', () => {
 
     await expect(requestBlob('/api/export.xlsx')).rejects.toThrow('导出条件无效');
   });
+
+  it('should use caller error prefix for raw download fallbacks', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 504,
+        headers: new Headers(),
+        text: async () => '',
+      } as Response)),
+    );
+
+    await expect(requestText('/api/export.csv', { errorPrefix: '导出失败' }))
+      .rejects
+      .toThrow('导出失败，状态码：504');
+  });
+
+  it('should tolerate response stubs without headers when parsing raw errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 503,
+        text: async () => '',
+      } as Response)),
+    );
+
+    await expect(requestBlob('/api/export.xlsx', { errorPrefix: 'Excel 导出失败' }))
+      .rejects
+      .toThrow('Excel 导出失败，状态码：503');
+  });
 });
 
 function stubSuccessfulFetch() {

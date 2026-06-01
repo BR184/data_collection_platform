@@ -35,6 +35,7 @@ function stubEmptyExportFailure(status: number) {
     vi.fn(async () => ({
       ok: false,
       status,
+      headers: new Headers(),
       text: async () => '',
     } as Response)),
   );

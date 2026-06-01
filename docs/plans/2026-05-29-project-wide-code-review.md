@@ -767,6 +767,7 @@ git diff --check
 - **安全回归测试**：已新增 `PlatformSecurityConfigurationTest`，覆盖 system-hook 匿名回调与原始 cookie CSRF 的真实 MockMvc 路径。
 - **CI 回归覆盖**：`PlatformSecurityConfigurationTest` 已并入后端 CI 测试列表。
 - **数值工具收拢**：`safeInt/safeDouble` 的重复实现已收拢到 `ReviewDataNumberSupport`，`ReviewDataLegacyExcelParser`、`ReviewDataLegacyExcelImportService`、`ReviewDataProblemItemRepository`、`ReviewDataRecordWriteRepository` 统一复用同一套实现。
+- **导出错误文案恢复**：`requestText/requestBlob` 支持 `errorPrefix`，统计板、代码走查、集成测试、议题记录导出均显式使用“导出失败”/“Excel 导出失败”前缀；`parseErrorMessage` 同时兼容无 `headers` 的测试 Response。
 
 ### 7.3 本轮验证
 
@@ -774,6 +775,7 @@ git diff --check
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test`
 - `mvn -q "-Dtest=PlatformSecurityConfigurationTest,PlatformStartupSecurityGuardTest,AuthControllerTest,GitlabSyncControllerTest" test`
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,ReviewDataProblemItemRepositoryTest,ReviewDataRecordWriteRepositoryTest" test`
+- `npm test -- request export-error-messages integration-test-analysis issue statistic-board`
 - `npm run typecheck`
 - `npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState`
 - `python scripts/check_flyway_destructive_migrations.py`

@@ -201,7 +201,10 @@ function buildCustomerIssueRecordQuery(params: {
 }
 
 async function requestCsv(url: string) {
-  return requestText(url, { timeoutMs: 60_000 });
+  return requestText(url, {
+    errorPrefix: '导出失败',
+    timeoutMs: 60_000,
+  });
 }
 
 export const issueRecordsApi = {

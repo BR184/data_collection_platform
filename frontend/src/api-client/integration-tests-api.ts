@@ -72,6 +72,7 @@ export const integrationTestsApi = {
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });
     return requestText(`/api/integration-tests/details/export${query.toString() ? `?${query.toString()}` : ''}`, {
+      errorPrefix: '导出失败',
       timeoutMs: 60_000,
     });
   },
@@ -100,5 +101,8 @@ export const integrationTestsApi = {
 };
 
 async function fetchWorkbook(url: string) {
-  return requestBlob(url, { timeoutMs: 60_000 });
+  return requestBlob(url, {
+    errorPrefix: 'Excel 导出失败',
+    timeoutMs: 60_000,
+  });
 }

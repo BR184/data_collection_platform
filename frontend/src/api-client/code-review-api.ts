@@ -65,7 +65,10 @@ export const codeReviewApi = {
   },
   async exportCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams) {
     const query = buildIllegalRecordQuery(params, false);
-    return requestText(`/api/code-review/illegal-records/export?${query.toString()}`, { timeoutMs: 60_000 });
+    return requestText(`/api/code-review/illegal-records/export?${query.toString()}`, {
+      errorPrefix: '导出失败',
+      timeoutMs: 60_000,
+    });
   },
   getCodeReviewIllegalRecordFilterOptions(projectId?: string | number | null, source?: string | null) {
     const query = new URLSearchParams(

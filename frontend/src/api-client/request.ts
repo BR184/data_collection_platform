@@ -5,6 +5,7 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
+  errorPrefix?: string;
 }
 
 export class RequestTimeoutError extends Error {
@@ -19,7 +20,7 @@ export function isRequestTimeoutError(error: unknown): error is RequestTimeoutEr
 }
 
 export async function request<T>(url: string, init?: RequestOptions): Promise<T> {
-  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, signal, ...fetchInit } = init ?? {};
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, errorPrefix: _errorPrefix, signal, ...fetchInit } = init ?? {};
   const timeoutController = timeoutMs > 0 ? new AbortController() : null;
   let didTimeout = false;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -91,7 +92,7 @@ export async function requestBlob(url: string, init?: RequestOptions): Promise<B
 }
 
 async function requestRaw(url: string, init?: RequestOptions): Promise<Response> {
-  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, signal, ...fetchInit } = init ?? {};
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, errorPrefix, signal, ...fetchInit } = init ?? {};
   const timeoutController = timeoutMs > 0 ? new AbortController() : null;
   let didTimeout = false;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -132,14 +133,14 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
   }
 
   if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+    throw new Error(await parseErrorMessage(response, errorPrefix));
   }
   return response;
 }
 
-async function parseErrorMessage(response: Response): Promise<string> {
+async function parseErrorMessage(response: Response, errorPrefix = '请求失败'): Promise<string> {
   const rawText = await response.text();
-  const contentType = response.headers.get('Content-Type') ?? '';
+  const contentType = response.headers?.get('Content-Type') ?? '';
   if (contentType.includes('application/json') && rawText) {
     try {
       const payload = JSON.parse(rawText);
@@ -148,7 +149,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
       return rawText;
     }
   }
-  return rawText || `请求失败，状态码：${response.status}`;
+  return rawText || `${errorPrefix}，状态码：${response.status}`;
 }
 
 function isAbortError(error: unknown): boolean {
