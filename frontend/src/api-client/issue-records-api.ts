@@ -11,7 +11,7 @@ import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
 } from '../types/api';
-import { request, requestText } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
 
 type SystemTestIssueSearchQueryParams = {
   projectId?: string | number | null;
@@ -203,7 +203,7 @@ function buildCustomerIssueRecordQuery(params: {
 async function requestCsv(url: string) {
   return requestText(url, {
     errorPrefix: '导出失败',
-    timeoutMs: 60_000,
+    timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
   });
 }
 

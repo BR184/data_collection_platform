@@ -2,6 +2,7 @@ const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const CSRF_HEADER_NAME = 'X-XSRF-TOKEN';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+export const EXPORT_REQUEST_TIMEOUT_MS = 180_000;
 
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;

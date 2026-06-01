@@ -772,6 +772,7 @@ git diff --check
 - **旧平台 Excel 上传上限配置化**：`platform.review-data.legacy-import-max-bytes` 默认改为 50MB，并在超限提示里引导用户按项目或时间分批导出。
 - **导入入口文案简化**：评审数据管理工具栏按钮和弹窗标题已统一改为“导入”，上传框内仅提示支持 `.xlsx` 文件。
 - **预览会话驱逐稳定化**：`PreviewSessionStore` 已增加单调序号作为同过期时间下的次级排序键，避免并发预览时容量驱逐顺序依赖 `ConcurrentHashMap` 迭代顺序。
+- **导出超时放宽**：前端新增 `EXPORT_REQUEST_TIMEOUT_MS = 180000`，统计板、代码走查、议题记录、集成测试 CSV/XLSX 导出统一使用 180 秒超时；普通 API 仍保持默认 15 秒。
 
 ### 7.3 本轮验证
 

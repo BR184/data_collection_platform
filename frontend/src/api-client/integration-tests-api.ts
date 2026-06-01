@@ -5,7 +5,7 @@ import type {
   IntegrationTestProjectOptionResponse,
   IntegrationTestSummaryResponse,
 } from '../types/api';
-import { request, requestBlob, requestText } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob, requestText } from './request';
 
 export const integrationTestsApi = {
   rebuildIntegrationTestFacts(full = false) {
@@ -73,7 +73,7 @@ export const integrationTestsApi = {
     });
     return requestText(`/api/integration-tests/details/export${query.toString() ? `?${query.toString()}` : ''}`, {
       errorPrefix: '导出失败',
-      timeoutMs: 60_000,
+      timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
   },
   async exportIntegrationTestModuleFunctionWorkbook(params: {
@@ -103,6 +103,6 @@ export const integrationTestsApi = {
 async function fetchWorkbook(url: string) {
   return requestBlob(url, {
     errorPrefix: 'Excel 导出失败',
-    timeoutMs: 60_000,
+    timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
   });
 }
