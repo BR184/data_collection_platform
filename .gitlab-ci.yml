@@ -55,6 +55,7 @@ frontend-typecheck:
   script:
     - cd frontend
     - npm ci
+    - npm run lint
     - npm run typecheck
     - npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState
 

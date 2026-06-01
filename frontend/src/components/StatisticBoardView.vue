@@ -199,7 +199,6 @@ const {
   ruleExplanation,
   ruleExplanationLoading,
   ruleExplanationVisible,
-  loadRuleExplanation,
   openRuleExplanation,
   handleRuleExplanationVisibleChange,
   resetRuleExplanation,

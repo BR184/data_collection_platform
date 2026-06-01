@@ -61,12 +61,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
     }
   }
   const rawText = await response.text();
-  let payload: any = null;
-  try {
-    payload = rawText ? JSON.parse(rawText) : null;
-  } catch {
-    payload = null;
-  }
+  const payload: any = parseJsonPayload(rawText);
 
   if (!response.ok) {
     throw new Error(payload?.message || rawText || `请求失败，状态码：${response.status}`);
@@ -80,6 +75,14 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   }
 
   return payload as T;
+}
+
+function parseJsonPayload(rawText: string): any {
+  try {
+    return rawText ? JSON.parse(rawText) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function requestText(url: string, init?: RequestOptions): Promise<string> {

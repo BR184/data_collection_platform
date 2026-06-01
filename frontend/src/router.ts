@@ -15,7 +15,6 @@ import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } fr
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
 const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
 const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
-const ModulePlaceholderView = () => import('./views/ModulePlaceholderView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const CollectFormView = () => import('./views/CollectFormView.vue');
 const CodeReviewIllegalRecordsView = () => import('./views/CodeReviewIllegalRecordsView.vue');
@@ -59,10 +58,6 @@ function buildShellRoute(pageKey: PageKey, component: RouteComponent): RouteReco
     component,
     meta: buildPageRouteMeta(pageKey),
   };
-}
-
-function buildPlaceholderRoute(pageKey: PageKey): RouteRecordRaw {
-  return buildShellRoute(pageKey, ModulePlaceholderView);
 }
 
 const routes: RouteRecordRaw[] = [

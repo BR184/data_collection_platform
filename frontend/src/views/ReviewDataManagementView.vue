@@ -24,7 +24,6 @@ import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import type {
-  ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
 } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';

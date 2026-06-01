@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.AuthUserResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ public class LocalPlatformAuthenticationProvider implements PlatformAuthenticati
   private final PlatformAuthProperties properties;
   private final PasswordEncoder passwordEncoder;
 
+  @Autowired
   public LocalPlatformAuthenticationProvider(PlatformAuthProperties properties) {
     this(properties, PasswordEncoderFactories.createDelegatingPasswordEncoder());
   }

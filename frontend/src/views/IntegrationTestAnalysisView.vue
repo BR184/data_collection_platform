@@ -114,7 +114,7 @@ const detailColumns = computed<RecordTableColumn[]>(() => [
   { key: 'noteUpdatedAt', label: '备注更新时间', sortable: true, minWidth: 170 },
 ]);
 
-const phaseScope = useDataScope({
+useDataScope({
   provider: INTEGRATION_PHASE_SCOPE_PROVIDER,
   options: phaseSelectOptions,
   mountToShell: true,

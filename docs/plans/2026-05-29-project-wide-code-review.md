@@ -740,7 +740,7 @@ git diff --check
 ### 6.4 二审后的优先级建议
 
 - **下次 PR 顺手处理**（成本极小）：6.2.1（`SourceConnectionTester` 线程池有界化）、6.2.3（`GlobalRestExceptionHandler` 加 `log.error`）。
-- **本季度内排上**：6.2.4（CI 接入 Jacoco / OWASP DC / 前端 lint）。
+- **本季度内排上**：6.2.4（CI 继续接入 OWASP DC / 后端 Checkstyle 或 SpotBugs；Jacoco 报告与前端 ESLint 已先行落地）。
 - **进治理 backlog**：6.2.2（明文密码兼容路径退场）、6.2.5（rename-then-drop 发布流程文档化）、6.3 中的 `safeInt` 重复实现统一。
 
 二审结论：五轮修复总体完成度高，没有发现修反方向的回归；剩余项均可作为小步迭代继续推进，不阻塞当前批次合并。
@@ -756,7 +756,7 @@ git diff --check
 
 ### 7.2 继续延期的治理项
 
-- **6.2.4 D2 标准质量工具**：Jacoco、OWASP Dependency-Check、后端 Checkstyle、前端 ESLint job 仍按“本季度内排上”处理，本轮不把 CI 扩大到新工具链。
+- **6.2.4 D2 标准质量工具**：Jacoco 报告与前端 ESLint job 已接入；OWASP Dependency-Check、后端 Checkstyle/SpotBugs 仍按“本季度内排上”处理，避免首次接入时把内网漏洞库下载、历史风格问题和业务修复混在一起。
 - **6.2.2 A2 明文兼容路径**：当前仍保留明文密码兼容与默认值兜底，后续应在完成部署配置迁移后再强制 `{bcrypt}`。
 - **6.3 解析工具统一**：`safeInt`/`safeDouble` 的 service/parser 双轨问题不影响当前行为，留给下一次清理做低风险合并。
 
@@ -773,6 +773,9 @@ git diff --check
 - **导入入口文案简化**：评审数据管理工具栏按钮和弹窗标题已统一改为“导入”，上传框内仅提示支持 `.xlsx` 文件。
 - **预览会话驱逐稳定化**：`PreviewSessionStore` 已增加单调序号作为同过期时间下的次级排序键，避免并发预览时容量驱逐顺序依赖 `ConcurrentHashMap` 迭代顺序。
 - **导出超时放宽**：前端新增 `EXPORT_REQUEST_TIMEOUT_MS = 180000`，统计板、代码走查、议题记录、集成测试 CSV/XLSX 导出统一使用 180 秒超时；普通 API 仍保持默认 15 秒。
+- **认证明文兼容收窄**：`secureConfigRequired=true` 且本地认证模式下，`PLATFORM_ADMIN_PASSWORD` / `PLATFORM_APPROVAL_PASSWORD` 必须使用 `{bcrypt}` 等 Spring Security password hash；明文兼容仅保留给显式关闭安全守卫的本地开发/测试。新增 `docs/platform-auth-security.md` 说明部署配置与 hash 生成方式。
+- **启动上下文构造器歧义修复**：`LocalPlatformAuthenticationProvider` 与 `ReviewDataLegacyExcelImportService` 的生产构造器已显式标记 `@Autowired`，保留测试专用构造器，同时避免完整 Spring Boot 上下文启动时退回查找无参构造器。
+- **前端 ESLint 最小门禁**：新增 `frontend/eslint.config.js` 与 `npm run lint`，CI 前端 job 已在 typecheck/test 前执行 lint。规则先覆盖明显无用变量、基础 JS/TS/Vue 问题，并对现有 Vue 模板变量与历史双向编辑组件做低噪音边界。
 
 ### 7.3 本轮验证
 
@@ -782,6 +785,9 @@ git diff --check
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,ReviewDataProblemItemRepositoryTest,ReviewDataRecordWriteRepositoryTest" test`
 - `mvn -q "-Dtest=ReviewDataControllerTest" test`
 - `mvn -q "-Dtest=PreviewSessionStoreTest" test`
+- `mvn -q "-Dtest=PlatformStartupSecurityGuardTest,AuthControllerTest" test`
+- `mvn -q "-Dtest=PlatformStartupSecurityGuardTest,AuthControllerTest,FactBuildTaskServiceTest" test`
+- `npm run lint`
 - `npm test -- request export-error-messages integration-test-analysis issue statistic-board`
 - `npm test -- review-data`
 - `npm run typecheck`

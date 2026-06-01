@@ -1,0 +1,32 @@
+# 平台认证安全配置
+
+生产或内网正式部署时，`platform.auth.secure-config-required` 默认为 `true`。本地认证模式下，管理员与审批账号密码必须使用 Spring Security password hash，推荐 `{bcrypt}`。
+
+## 必填配置
+
+```properties
+PLATFORM_ADMIN_USERNAME=admin
+PLATFORM_ADMIN_PASSWORD={bcrypt}<bcrypt-hash>
+PLATFORM_APPROVAL_USERNAME=approval
+PLATFORM_APPROVAL_PASSWORD={bcrypt}<bcrypt-hash>
+DATASOURCE_PASSWORD=<database-password>
+GITLAB_WEB_BASE_URL=https://gitlab.example.com
+```
+
+`PLATFORM_ADMIN_PASSWORD` 和 `PLATFORM_APPROVAL_PASSWORD` 不允许继续使用明文值。若仍配置明文，应用会在启动阶段失败并提示对应变量必须使用 password hash。
+
+## 生成 bcrypt hash
+
+可以使用 Spring Security 的 `DelegatingPasswordEncoder` 生成带 `{bcrypt}` 前缀的 hash。示例：
+
+```java
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+
+public class PasswordHashGenerator {
+  public static void main(String[] args) {
+    System.out.println(PasswordEncoderFactories.createDelegatingPasswordEncoder().encode(args[0]));
+  }
+}
+```
+
+临时本地开发可设置 `PLATFORM_SECURE_CONFIG_REQUIRED=false` 保留明文兼容；该配置不应用于正式环境。

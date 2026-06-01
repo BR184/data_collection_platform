@@ -1,4 +1,4 @@
-import type { StatisticBoardResponse, StatisticCellData, StatisticRowData } from '../types/api';
+import type { StatisticBoardResponse, StatisticRowData } from '../types/api';
 import {
   buildColumnBarOption,
   buildDonutOption,
