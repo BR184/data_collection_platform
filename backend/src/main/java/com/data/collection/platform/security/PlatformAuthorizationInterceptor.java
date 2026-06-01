@@ -2,7 +2,6 @@ package com.data.collection.platform.security;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.response.ResultCode;
-import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.AuthUserResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;

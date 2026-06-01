@@ -23,6 +23,9 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <jacoco.agent.argLine></jacoco.agent.argLine>
     <mockito.agent.path>${project.build.directory}/agents/mockito-core.jar</mockito.agent.path>
+    <checkstyle.plugin.version>3.6.0</checkstyle.plugin.version>
+    <spotbugs.plugin.version>4.9.3.0</spotbugs.plugin.version>
+    <dependency-check.plugin.version>12.1.0</dependency-check.plugin.version>
   </properties>
 
   <dependencies>
@@ -137,6 +140,40 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>${checkstyle.plugin.version}</version>
+        <configuration>
+          <configLocation>checkstyle.xml</configLocation>
+          <consoleOutput>true</consoleOutput>
+          <failOnViolation>true</failOnViolation>
+          <includeTestSourceDirectory>true</includeTestSourceDirectory>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>${spotbugs.plugin.version}</version>
+        <configuration>
+          <effort>Max</effort>
+          <threshold>High</threshold>
+          <failOnError>true</failOnError>
+          <excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.owasp</groupId>
+        <artifactId>dependency-check-maven</artifactId>
+        <version>${dependency-check.plugin.version}</version>
+        <configuration>
+          <format>ALL</format>
+          <failBuildOnCVSS>9.0</failBuildOnCVSS>
+          <suppressionFiles>
+            <suppressionFile>${project.basedir}/dependency-check-suppressions.xml</suppressionFile>
+          </suppressionFiles>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

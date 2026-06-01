@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+  <!-- Keep the first CI gate focused on high-confidence findings. Add temporary
+       exclusions here only with a linked finding and review date. -->
+</FindBugsFilter>
