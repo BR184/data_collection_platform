@@ -14,6 +14,26 @@ Legacy task/log/job tables and services were removed from the runtime path. They
 are not operational fallbacks for status, cancellation, progress, logs, or table
 diagnostics.
 
+## Legacy Sync Model Status
+
+The following names are historical only and must not be used for new runtime code:
+
+- `gitlab_sync_tasks`
+- `gitlab_sync_logs`
+- `gitlab_sync_jobs`
+- `gitlab_table_sync_tasks`
+- `gitlab_table_sync_states`
+- `GitlabSyncTask*`
+- `GitlabSyncLog*`
+- `GitlabSyncJob*`
+- `GitlabTableSync*`
+
+They may still appear in old Flyway migrations, historical plans, or audit
+documents because those files describe the migration path from the pre-orchestrator
+runtime. Current Java runtime code is protected by
+`NoLegacySyncModelTest`; if one of those symbols appears in active runtime code,
+treat it as a regression.
+
 ## Inspect Active Runs
 
 Use the status API for the current source:

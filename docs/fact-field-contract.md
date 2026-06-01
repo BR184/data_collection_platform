@@ -6,6 +6,22 @@
 # 事实字段契约
 本文档记录 Java 事实构建、SQL 查询字段和前端筛选字段之间的边界。新增事实字段时，先更新本文档，再修改代码和迁移。
 
+## 统计看板排查路线
+
+统计看板不直接读取 GitLab 源库。看板和记录页通常读取本地事实层：
+
+- Issue 类页面和看板：`issue_fact`
+- 代码走查类页面和看板：`merge_request_fact`
+- 集成测试分析：`integration_test_fact`
+
+看板数据异常时按以下顺序排查：
+
+1. 检查 `sync_runs`、`sync_run_table_tasks`、`sync_run_table_states`，确认镜像同步是否成功、是否还有排队/失败/重试任务。
+2. 检查对应 `ods_gitlab_*` 镜像表，确认源表数据是否已经落到本地镜像层。
+3. 检查 `issue_fact` / `merge_request_fact` / `integration_test_fact`，确认事实构建是否完成、`source_instance` 是否正确。
+4. 检查看板过滤条件、路由 query、`sourceInstance` 传递和统计范围规则。
+5. 只有前三层都正常时，才优先怀疑看板聚合、下钻或前端展示逻辑。
+
 ## 维护规则
 
 1. Java 负责生成归一化字段、拼音字段、首字母字段和业务分类字段。
