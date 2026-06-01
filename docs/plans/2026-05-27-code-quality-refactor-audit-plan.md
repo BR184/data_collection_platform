@@ -636,6 +636,32 @@ frontend/src/feature-manifest/
 
 - 验收：菜单、路由、权限、历史 URL 冒烟测试通过。
 
+**Phase F 当前执行记录（2026-06-01）**
+
+- F1 已完成：`frontend/src/types/api.ts` 保留为兼容聚合出口，实际类型按领域拆到 `frontend/src/types/api/`：
+  - `sync.ts`
+  - `statistics.ts`
+  - `database.ts`
+  - `system-settings.ts`
+  - `code-review.ts`
+  - `review-data.ts`
+  - `collect-form.ts`
+  - `realtime.ts`
+  - `system-test.ts`
+  - `customer-issues.ts`
+  - `common.ts`
+  - `index.ts`
+- F2 已完成：`frontend/src/feature-manifest.ts` 保留为兼容聚合出口，实际 manifest 拆到 `frontend/src/feature-manifest/`：
+  - `types.ts`
+  - `modules.ts`
+  - `lookups.ts`
+  - `access.ts`
+  - `route-contracts.ts`
+  - `index.ts`
+- 已验证：
+  - `npm.cmd run typecheck`
+  - `npm.cmd run test -- feature-manifest-access.test.ts request.test.ts`
+
 ## 每阶段回归清单
 
 - 后端：同步启动、取消、全量补偿、单表刷新、System Hook 唤醒、事实构建。
