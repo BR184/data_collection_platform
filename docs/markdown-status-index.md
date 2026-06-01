@@ -29,6 +29,7 @@
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/frontend-record-page-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
+| `docs/intranet-offline-packaging-standard.md` | 常驻发布标准 | 定义内网离线发布包的固定结构、拓扑、镜像标签与验收清单。 |
 | `docs/gitlab-direct-sync-system-hook-runbook.md` | 遗留 Runbook / 待降级 | System Hook 仍有历史运维价值，但实时主路径已倾向增量补偿；后续应降级或归档。 |
 | `docs/gitlab-sync-orchestrator-runbook.md` | 常驻 Runbook | 当前运维和排查说明，继续有效。 |
 | `docs/markdown-status-index.md` | 常驻索引 | 汇总所有项目自维护 Markdown 的当前有效性、遗留项和废弃说明。 |
