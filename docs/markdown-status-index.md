@@ -54,7 +54,8 @@
 | `docs/plans/2026-05-28-review-data-legacy-excel-import-plan.md` | 已完成 / 遗留业务确认 | 主体已完成；末尾待确认问题属于业务口径确认。 |
 | `docs/plans/2026-05-29-import-and-new-feature-code-review.md` | 审计记录 / 大部分已修复 | Code review 记录保留；Consider 类建议按需进入后续 backlog。 |
 | `docs/plans/2026-05-29-project-wide-code-review.md` | 审计记录 / 遗留验证项 | 项目级 code review 记录保留；7.1/7.2/7.4 等项可作为后续验证 backlog。 |
-| `docs/plans/2026-06-01-project-wide-user-journey-test-report.md` | 发布级用户旅程测试报告 / 待修复问题已标记 | 本地浏览器发布级用户路径测试报告；健康检查、同源提示文案、游客态质量看板请求策略、窄屏登录点击区域、镜像设置离页草稿保护待后续修复；全量类同步二次确认需在无同源冲突数据源上复测。 |
+| `docs/plans/2026-06-01-project-wide-user-journey-test-report.md` | 发布级用户旅程测试报告 / 已转修复方案 | 本地浏览器发布级用户路径测试报告；问题已转入 `docs/plans/2026-06-01-user-journey-test-fixes-plan.md` 跟踪修复。 |
+| `docs/plans/2026-06-01-user-journey-test-fixes-plan.md` | 待实施修复方案 | 针对用户旅程测试报告的代码级修复方案：健康检查 endpoint、同源文案对齐、游客态质量看板请求策略、窄屏登录、镜像设置离页草稿保护、全量同步二次确认（待复测）。仅方案未改代码。 |
 | `docs/plans/2026-06-01-sync-source-duplication-log-scroll-compensation-investigation.md` | 已实施并验证 | 同源保护、同步日志滚动条、补偿 planning/缓存优化已落地并通过相关测试。 |
 | `docs/platform-auth-security.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/platform-smoke-test-matrix-20260520.md` | 历史报告 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
