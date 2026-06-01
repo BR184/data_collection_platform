@@ -74,6 +74,7 @@ platform:
   review-data:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
     search-index-backfill-delay-ms: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_DELAY_MS:300000}
+    legacy-import-max-bytes: ${REVIEW_DATA_LEGACY_IMPORT_MAX_BYTES:52428800}
   fact-build:
     guard-timeout-ms: ${FACT_BUILD_GUARD_TIMEOUT_MS:7200000}
     search-index-backfill-batch-size: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_BATCH_SIZE:200}

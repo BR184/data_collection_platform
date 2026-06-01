@@ -2,6 +2,7 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.config.ReviewDataProperties;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
 import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshRequest;
@@ -39,19 +40,20 @@ import org.springframework.web.multipart.MultipartFile;
 // 评审数据控制器把 Web 查询参数组装成领域请求，记录、详情、问题项和导出都走同一服务入口。
 // 这里不直接拼 SQL，也不处理搜索 fallback，保证页面请求边界清晰。
 public class ReviewDataController {
-  private static final long LEGACY_EXCEL_IMPORT_MAX_BYTES = 20L * 1024L * 1024L;
-
   private final ReviewDataRecordService reviewDataRecordService;
   private final ReviewDataRequestAssembler reviewDataRequestAssembler;
   private final ReviewDataLegacyExcelImportService legacyExcelImportService;
+  private final ReviewDataProperties reviewDataProperties;
 
   public ReviewDataController(
       ReviewDataRecordService reviewDataRecordService,
       ReviewDataRequestAssembler reviewDataRequestAssembler,
-      ReviewDataLegacyExcelImportService legacyExcelImportService) {
+      ReviewDataLegacyExcelImportService legacyExcelImportService,
+      ReviewDataProperties reviewDataProperties) {
     this.reviewDataRecordService = reviewDataRecordService;
     this.reviewDataRequestAssembler = reviewDataRequestAssembler;
     this.legacyExcelImportService = legacyExcelImportService;
+    this.reviewDataProperties = reviewDataProperties;
   }
 
   @GetMapping("/records")
@@ -127,13 +129,19 @@ public class ReviewDataController {
     if (file == null || file.isEmpty()) {
       throw new BizException("请选择旧平台列表导出的 .xlsx 文件");
     }
-    if (file.getSize() > LEGACY_EXCEL_IMPORT_MAX_BYTES) {
-      throw new BizException("Excel 文件不能超过 20MB");
+    long maxBytes = reviewDataProperties.getLegacyImportMaxBytes();
+    if (file.getSize() > maxBytes) {
+      throw new BizException("Excel 文件不能超过 " + formatFileSize(maxBytes) + "，请从旧平台按项目或时间分批导出后再导入");
     }
     String filename = file.getOriginalFilename();
     if (filename == null || !filename.toLowerCase(java.util.Locale.ROOT).endsWith(".xlsx")) {
       throw new BizException("当前仅支持旧平台列表导出的 .xlsx 文件；旧模板 .xls 暂未支持");
     }
+  }
+
+  private String formatFileSize(long bytes) {
+    long megabytes = Math.max(1L, bytes / 1024L / 1024L);
+    return megabytes + "MB";
   }
 
   @PostMapping("/legacy-excel-import/confirm")

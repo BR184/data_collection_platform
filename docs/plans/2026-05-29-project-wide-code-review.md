@@ -768,6 +768,8 @@ git diff --check
 - **CI 回归覆盖**：`PlatformSecurityConfigurationTest` 已并入后端 CI 测试列表。
 - **数值工具收拢**：`safeInt/safeDouble` 的重复实现已收拢到 `ReviewDataNumberSupport`，`ReviewDataLegacyExcelParser`、`ReviewDataLegacyExcelImportService`、`ReviewDataProblemItemRepository`、`ReviewDataRecordWriteRepository` 统一复用同一套实现。
 - **导出错误文案恢复**：`requestText/requestBlob` 支持 `errorPrefix`，统计板、代码走查、集成测试、议题记录导出均显式使用“导出失败”/“Excel 导出失败”前缀；`parseErrorMessage` 同时兼容无 `headers` 的测试 Response。
+- **旧平台 Excel 导入迁移引导**：导入弹窗已明确说明只支持旧平台列表导出的 `.xlsx`，旧模板 `文档评审.xls` 暂不支持；`docs/plans/2026-05-28-review-data-legacy-excel-import-plan.md` 已同步修正为当前不支持模板 `.xls`。
+- **旧平台 Excel 上传上限配置化**：`platform.review-data.legacy-import-max-bytes` 默认改为 50MB，并在超限提示里引导用户按项目或时间分批导出。
 
 ### 7.3 本轮验证
 
@@ -775,6 +777,7 @@ git diff --check
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test`
 - `mvn -q "-Dtest=PlatformSecurityConfigurationTest,PlatformStartupSecurityGuardTest,AuthControllerTest,GitlabSyncControllerTest" test`
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,ReviewDataProblemItemRepositoryTest,ReviewDataRecordWriteRepositoryTest" test`
+- `mvn -q "-Dtest=ReviewDataControllerTest" test`
 - `npm test -- request export-error-messages integration-test-analysis issue statistic-board`
 - `npm run typecheck`
 - `npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState`

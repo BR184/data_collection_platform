@@ -23,6 +23,7 @@ import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
 import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
+import com.data.collection.platform.config.ReviewDataProperties;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
@@ -48,15 +49,18 @@ class ReviewDataControllerTest {
   @Mock private ReviewDataLegacyExcelImportService legacyExcelImportService;
 
   private MockMvc mockMvc;
+  private ReviewDataProperties reviewDataProperties;
 
   @BeforeEach
   void setUp() {
+    reviewDataProperties = new ReviewDataProperties();
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new ReviewDataController(
                     reviewDataRecordService,
                     new ReviewDataRequestAssembler(),
-                    legacyExcelImportService))
+                    legacyExcelImportService,
+                    reviewDataProperties))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
   }
@@ -376,5 +380,22 @@ class ReviewDataControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(".xlsx")));
+  }
+
+  @Test
+  void legacyExcelPreviewShouldUseConfiguredUploadLimit() throws Exception {
+    reviewDataProperties.setLegacyImportMaxBytes(3);
+    MockMultipartFile file =
+        new MockMultipartFile(
+            "file",
+            "AllData.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            new byte[] {1, 2, 3, 4});
+
+    mockMvc.perform(multipart("/api/review-data/legacy-excel-import/preview").file(file))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("1MB")))
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("分批导出")));
   }
 }
