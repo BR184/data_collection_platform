@@ -16,9 +16,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 public class PlatformSecurityConfiguration {
+  private static final String SYSTEM_HOOK_PATH = "/api/gitlab-sync/system-hook";
+
   @Bean
   public SecurityFilterChain platformSecurityFilterChain(
       HttpSecurity http,
@@ -26,7 +29,10 @@ public class PlatformSecurityConfiguration {
       AuthenticationEntryPoint authenticationEntryPoint,
       AccessDeniedHandler accessDeniedHandler) throws Exception {
     if (authProperties.isCsrfEnabled()) {
-      http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()));
+      http.csrf(csrf -> csrf
+          .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+          .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+          .ignoringRequestMatchers(SYSTEM_HOOK_PATH));
     } else {
       http.csrf(AbstractHttpConfigurer::disable);
     }
@@ -43,6 +49,7 @@ public class PlatformSecurityConfiguration {
         .authorizeHttpRequests(authorize -> authorize
             .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
             .requestMatchers("/api/auth/**").permitAll()
+            .requestMatchers(SYSTEM_HOOK_PATH).permitAll()
             .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
             .anyRequest().authenticated());
     return http.build();

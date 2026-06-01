@@ -41,7 +41,13 @@ backend-compile-and-guards:
     - cd backend
     - mvn -q -DskipTests compile
     - mvn -q -Dtest=GitlabSourceSchemaGuardTest test
-    - mvn -q -Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest test
+    - mvn -q -Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformSecurityConfigurationTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest test
+    - mvn -q jacoco:report
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - backend/target/site/jacoco/
 
 frontend-typecheck:
   stage: frontend

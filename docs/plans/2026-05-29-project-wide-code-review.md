@@ -760,10 +760,18 @@ git diff --check
 - **6.2.2 A2 明文兼容路径**：当前仍保留明文密码兼容与默认值兜底，后续应在完成部署配置迁移后再强制 `{bcrypt}`。
 - **6.3 解析工具统一**：`safeInt`/`safeDouble` 的 service/parser 双轨问题不影响当前行为，留给下一次清理做低风险合并。
 
+### 7.4 新增修复记录
+
+- **GitLab system-hook 放行**：已在 `PlatformSecurityConfiguration` 中显式放行 `/api/gitlab-sync/system-hook`，并将其加入 CSRF 忽略列表，避免系统钩子在安全层被 401/403 提前拦截。
+- **CSRF 请求头兼容**：后端 CSRF handler 改为 `CsrfTokenRequestAttributeHandler`，和前端从 `XSRF-TOKEN` cookie 读取原值的做法保持一致。
+- **安全回归测试**：已新增 `PlatformSecurityConfigurationTest`，覆盖 system-hook 匿名回调与原始 cookie CSRF 的真实 MockMvc 路径。
+- **CI 回归覆盖**：`PlatformSecurityConfigurationTest` 已并入后端 CI 测试列表。
+
 ### 7.3 本轮验证
 
 - `mvn -q "-Dtest=SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,ReviewDataControllerTest" test`
 - `mvn -q "-Dtest=ReviewDataLegacyExcelParserTest,ReviewDataControllerTest,PreviewSessionStoreTest,IntegrationTestControllerTest,IntegrationTestExcelExportServiceTest,AuthControllerTest,PlatformAuditInterceptorTest,SyncRunExecutorServiceTest,SourceConnectionTesterTest,GitlabDirectJdbcExecutorTest,SystemTestIllegalRecordServiceTest,GitlabExternalDbServiceTest,GitlabSourceConnectionSettingsTest,GitlabSourceQueryRetryPolicyTest" test`
+- `mvn -q "-Dtest=PlatformSecurityConfigurationTest,PlatformStartupSecurityGuardTest,AuthControllerTest,GitlabSyncControllerTest" test`
 - `npm run typecheck`
 - `npm test -- request router App integration-test-analysis review-data StatisticBoardDetailDialog code-review issue statistic-board useRouteTableState`
 - `python scripts/check_flyway_destructive_migrations.py`
