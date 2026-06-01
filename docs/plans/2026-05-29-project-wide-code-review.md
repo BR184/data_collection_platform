@@ -769,3 +769,227 @@ git diff --check
 - `python scripts/check_flyway_destructive_migrations.py`
 - `python scripts/check_flyway_destructive_migrations_test.py`
 - `python scripts/check_text_whitespace.py`
+
+---
+
+## Part 7 — 功能回归审查（对比 2026-05-21 内网部署版本）
+
+### 审查范围与方法
+
+- 基线：内网当前部署的 `qa-flex-platform-intranet-20260521-runnable-envfix-r2-ubuntu2404-offline.tar.gz`，对应仓库内 commit `0a65843`（2026-05-21）。
+- 当前版本：`HEAD = 3f83e9b`（2026-05-29）。
+- 区间内 43 个 commit、162 个文件、约 +7300 / −2500 LOC。
+- 方法：列出区间所有用户路径上的行为变化，结合源码与现有测试结果（`npm test`：1 个文件 / 3 个用例失败，其余 247 个用例通过）。
+- 本节只列“可能影响用户使用、需要在上线前确认”的真实功能回归，已在 Part 6 中处理过的安全/重构项不再重复。
+
+### 7.1 已验证的功能 Bug
+
+#### 7.1.1 Critical: GitLab 系统钩子回调将被 401 拦截，sync 链路全断
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/controller/GitlabSyncController.java:233-240](../../backend/src/main/java/com/data/collection/platform/controller/GitlabSyncController.java#L233-L240)
+- [backend/src/main/java/com/data/collection/platform/config/PlatformSecurityConfiguration.java:43-47](../../backend/src/main/java/com/data/collection/platform/config/PlatformSecurityConfiguration.java#L43-L47)
+
+现象：
+
+- `/api/gitlab-sync/system-hook` 是 GitLab System Hook 的回调端点，靠 `X-Gitlab-Token` 头自校验，没有也不应该有 `@RequireRole`。
+- A1 修复后白名单只包含 `/`、`/index.html`、`/assets/**`、`/favicon.ico`、`/api/auth/**`、`/actuator/health`，没有放行 `/api/gitlab-sync/system-hook`。
+- GitLab 推回调时不带 session、不带 X-XSRF-TOKEN，会同时被 Spring Security 401 + CSRF 403。
+
+影响：
+
+- **生产即坏**：内网部署接入了 GitLab System Hook 后，仓库事件、议题事件、MR 事件全部丢失；sync 进入“仅日定时对账”降级，业务方实际看到的是 issue/MR 状态延迟。
+- 旧版（`permitAll` + `csrfEnabled=false`）下这条链路是通的；本次升级直接打断。
+
+建议方案（先不动代码）：
+
+- 白名单增加 `/api/gitlab-sync/system-hook`，同时 `csrf.ignoringRequestMatchers("/api/gitlab-sync/system-hook")`。
+- 写一条 MockMvc 集成测试：未登录、无 CSRF token，POST `/api/gitlab-sync/system-hook` + `X-Gitlab-Token` 应当 200，token 不对应当业务级 401，但都不能在 Spring Security 层先被挡掉。
+
+#### 7.1.2 Critical: `csrfEnabled` 默认 `true` 与 Spring Security 6 默认 Xor handler 组合，浏览器登录后 POST 可能直接 403
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/config/PlatformSecurityConfiguration.java:25-32](../../backend/src/main/java/com/data/collection/platform/config/PlatformSecurityConfiguration.java#L25-L32)
+- `frontend/src/api-client/request.ts:1-2, 168-172`
+- Spring Boot 版本：3.5.0（→ Spring Security 6.x）
+
+现象：
+
+- A3 修复把 `csrfEnabled` 改为 `true` 默认；后端只配了 `CookieCsrfTokenRepository.withHttpOnlyFalse()`，没有显式设 `csrfTokenRequestHandler`。
+- Spring Security 6 默认是 `XorCsrfTokenRequestAttributeHandler`：cookie 里写 raw token、请求头需要带 XOR 编码后的值；前端 `request.ts` 直接读 `XSRF-TOKEN` cookie 原值并放进 `X-XSRF-TOKEN` 头。
+- 现有测试无任何端到端 CSRF 验证（`AuthControllerTest` 用 `MockMvcBuilders.standaloneSetup` 绕过了 Spring Security）。
+
+影响：
+
+- 极有可能是“登录成功，做任何 POST/PUT/DELETE 都 403”。这条最难在 dev 模式发现，因为 dev 通常 csrf 关闭；但内网部署一旦从老版本（csrf disabled）升上来，所有“登录、刷新、保存”都会失败。
+- 不能 100% 在源码里断言行为，必须在真实浏览器/真实 Spring 环境下验证一次。
+
+建议方案：
+
+- 上线前必须手动跑：登录 → 任意 mutating 操作（如 GitLab 配置保存）→ 看是否 200。
+- 若 403，把 CSRF 改为 `CsrfTokenRequestAttributeHandler`：
+  ```java
+  http.csrf(csrf -> csrf
+      .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+      .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()));
+  ```
+- 同步加一条 MockMvc + `springSecurity()` 的真实 CSRF 集成测试，覆盖“GET 拿 cookie → POST 带 cookie 头”路径。
+
+#### 7.1.3 Important: 三个导出端点的错误提示从“导出失败”退化为通用“请求失败”
+
+位置：
+
+- [frontend/src/api-client/request.ts:140-152](../../frontend/src/api-client/request.ts#L140-L152)
+- [frontend/src/api-client/export-error-messages.test.ts](../../frontend/src/api-client/export-error-messages.test.ts)（当前 3/3 失败）
+- 调用方：`statistic-boards-api.ts` 502、`code-review-api.ts` 503、`integration-tests-api.ts` 504
+
+现象：
+
+- 旧实现的导出端点会抛 `Error('导出失败，状态码：${status}')` 或 `Error('Excel 导出失败，状态码：${status}')`，文案明确告知用户“是导出动作失败”。
+- 新的统一封装 `requestText`/`requestBlob` → `parseErrorMessage` 在响应体为空时返回 `\`请求失败，状态码：${response.status}\``——文案变成通用“请求失败”，没有“导出”语义。
+- 现有 `export-error-messages.test.ts` 三条用例就是 1:1 对照旧文案的，现在全部失败（命令行实测：`npm test -- --run` 248 通过 / 3 失败，全部集中在该文件）。
+
+影响：
+
+- 用户在“导出 CSV/XLSX”按钮处看到 toast “请求失败，状态码：504”，会以为是页面整体请求失败，可能会反复刷新或误以为登录态丢失。
+- 老版本的“导出失败”引导用户去重新点击导出按钮，新版本反而误导。
+- CI 当前会因为这 3 条失败而红，需要在 CI 红前同步处理。
+
+建议方案：
+
+- 让 `requestBlob/requestText` 接受一个 `errorPrefix?: string` 选项（缺省仍为“请求失败”），导出 API 显式传 `'导出失败'` / `'Excel 导出失败'`。
+- 或者在 `parseErrorMessage` 兜底分支里保留旧文案——不推荐，因为别的非导出场景也会用到该 helper。
+- 同步把 `export-error-messages.test.ts` 改回与新文案一致，并补一条断言验证 prefix 选项生效。
+
+#### 7.1.4 Important: 旧平台 `.xls` 模板上传被硬拒绝，没有迁移引导
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/service/ReviewDataLegacyExcelParser.java:472-477](../../backend/src/main/java/com/data/collection/platform/service/ReviewDataLegacyExcelParser.java#L472-L477)
+- [backend/src/main/java/com/data/collection/platform/controller/ReviewDataController.java:133-136](../../backend/src/main/java/com/data/collection/platform/controller/ReviewDataController.java#L133-L136)
+- [frontend/src/views/review-data/ReviewDataLegacyExcelImportDialog.vue](../../frontend/src/views/review-data/ReviewDataLegacyExcelImportDialog.vue)（`accept=".xlsx"`）
+
+现象：
+
+- 旧版本前后端都允许 `.xls` 与 `.xlsx`，遇到模板格式 `.xls` 时虽然解析器识别不了，但至少能让用户选中文件。
+- 当前版本 controller `validateLegacyExcelUpload` 直接抛 BizException“当前仅支持旧平台列表导出的 .xlsx 文件；旧模板 .xls 暂未支持”，前端文件选择对话框也只允许 `.xlsx`。
+
+影响：
+
+- 真实使用时，老平台导出的 `AllData.xlsx` 是可以的，但用户从历史邮件/共享盘找到的“评审模板.xls”会被一刀切拒绝。
+- 错误文案虽然准确，但页面没有“点这里下载列表导出指南”之类引导，用户容易卡住直接放弃。
+- 如果团队里还有人继续在用 `.xls` 模板存档，这次升级会让他们感受到“功能回退”。
+
+建议方案：
+
+- 不要在第一版恢复 `.xls` 解析；保留拒绝策略。
+- 在导入弹窗的“支持的文件”下方加一段帮助文字，例如：“旧平台请走 ‘列表导出’ → 下载 .xlsx；如使用模板 .xls，请联系平台管理员”。
+- 把 `docs/plans/2026-05-28-review-data-legacy-excel-import-plan.md` 第 11 行的“第二格式 .xls”更新成“当前不支持”，避免新人按计划文档来理解。
+
+#### 7.1.5 Important: 旧平台 Excel 单文件 20MB 上限，可能挡住真实历史导出
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/controller/ReviewDataController.java:42, 130-132](../../backend/src/main/java/com/data/collection/platform/controller/ReviewDataController.java#L42)
+
+现象：
+
+- 旧版本没有上限控制（专项 review F5），新版本上限固定 20MB。
+- 旧平台 `AllData.xlsx` 在 5000 行 × 30 列 + 复杂样式时已经能压到 15-18 MB；客户长期项目导出超过 20 MB 完全可能。
+
+影响：
+
+- 真实用户场景下，本来想一次性导入历史数据，被“Excel 文件不能超过 20MB”拦截，且没有“分文件导入”的指引。
+- 老版本至少能让 POI 试着读，失败是后端日志层面，用户不会直接撞墙。
+
+建议方案：
+
+- 把上限做成可配置（`platform.review-data.legacy-import.max-bytes`，默认 50MB）；同时 Spring multipart 全局上限保持比业务上限大。
+- 前端文件选中后即时提示文件大小，而不是上传完才报。
+- `MAX_ROWS=5000` 仍然有用，作为安全网保留。
+
+### 7.2 部分确认 / 待真实环境验证
+
+#### 7.2.1 Important: 导出 60s 超时对最大数据量场景偏紧
+
+位置：
+
+- 全部 export API：`code-review-api.ts:68`、`issue-records-api.ts:204`、`statistic-boards-api.ts:64`、`integration-tests-api.ts:75/103`、`review-data-api.ts:124/143`
+
+现象：
+
+- 旧实现裸 `fetch()` 没有超时；新封装统一 60s。
+- 一个真实场景：管理员导出全量集成测试明细 + 排序 + 过滤，后端要扫几千行、组装 CSV/XLSX，再回传。本地慢盘 + 大表，60s 不一定够。
+
+影响：
+
+- 偶发的“导出某个大数据集时弹超时”，体验上比“慢但能拉下来”更难解释。
+- 现在 toast 是“请求超时，请检查网络后重试（60 秒）”，但实际可能只是后端在压数据。
+
+建议方案：
+
+- 真实跑一次最大数据集导出，看后端单次平均耗时；超过 30s 的导出，前端建议把超时调到 180s 并加一个“正在导出，可能需要 1-2 分钟”的提示。
+- 长期方案：导出走异步任务，后端完成后回调或前端轮询；避免长连接占请求线程。
+
+#### 7.2.2 Consider: `PreviewSessionStore` 容量驱逐顺序非确定，并发预览时可能误杀仍在用的 token
+
+位置：
+
+- [backend/src/main/java/com/data/collection/platform/service/PreviewSessionStore.java:78-90](../../backend/src/main/java/com/data/collection/platform/service/PreviewSessionStore.java#L78-L90)
+
+现象：
+
+- 当 size > 100 时，按 `expiresAt` 升序剔除，但同一时刻批量 `put` 会出现大量相同 `expiresAt`，`ConcurrentHashMap` 迭代顺序不确定。
+- 在“多个管理员同时上传旧平台 Excel”这种少见场景下，会出现“我刚预览完，还没点确认，就提示‘导入预览已失效’”。
+
+影响：
+
+- 概率很低（要 100+ 并发 preview 才到容量门槛），但触发后用户体验是“丢操作”。
+
+建议方案：
+
+- 用 `LinkedHashMap` 保 insertion order，或在 `Entry` 里加 `nanoCreated`/`AtomicLong sequence` 做次级排序。
+- 测试加一条：`put` 101 次后第 1 个 token 应被驱逐、最后 100 个保留。
+
+#### 7.2.3 Consider: `parseErrorMessage` 对 “没有 headers 的 Response” 直接抛 TypeError
+
+位置：
+
+- [frontend/src/api-client/request.ts:140-152](../../frontend/src/api-client/request.ts#L140-L152)
+
+现象：
+
+- `response.headers.get('Content-Type')` 默认假定 `headers` 一定存在；浏览器 `fetch` 实际行为是 `headers` 始终是 `Headers` 对象，不会触发问题。
+- 但本次 `npm test` 失败的真实根因就是测试 stub 写了 `{ ok: false, status, text }` 没有 `headers` → 直接 `TypeError: Cannot read properties of undefined`。
+- 真实场景下不会遇到，但说明这条路径完全没有 null-guard。
+
+影响：
+
+- 无生产影响；CI 因测试 stub 不全而红，是一个“工程信号”。
+
+建议方案：
+
+- `parseErrorMessage` 把 `response.headers?.get(...)` 加 optional chaining；同时把 `export-error-messages.test.ts` 里 stub 升级为完整 `Headers`（或直接用 `new Response(...)`）。
+
+### 7.3 复核中被排除的“伪报警”
+
+为了让这份报告本身可被信赖，列出 sub-agent 之前给出但本次复核被否的几条：
+
+| Sub-agent 原说法 | 复核结论 |
+|---|---|
+| `DatabaseBrowserView.vue` 的 `watchedQueryKeys: ['table']` 不会触发分页/排序 reload | 错。`useRouteTableState` 的 `DEFAULT_WATCHED_QUERY_KEYS` 已经包含 `page/pageSize/sortBy/sortOrder/keyword`，`watchedQueryKeys` 是叠加项，不是替换。 |
+| `CustomerIssueRecordsView.vue` 改成精准 watch 后丢了 `projectId` | 错。`ISSUE_RECORD_QUERY_KEYS` 第一项就是 `projectId`，且 `watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS` 已传入。 |
+| confirm 循环里去掉 `refreshSearchIndex` 会让搜索索引漏更新 | 错。`commandService.createRecord(...)` 内部仍然 `refreshSearchIndex(recordId)`；旧实现是“两次刷新”，新实现是“一次刷新”，没有漏。 |
+| `loadCurrentUser` 失败会让导航卡死 | 错。`auth-state.ts:loadCurrentUser` 内部 `try/catch/finally`，无论后端是否可达都会 `initialized = true` + 设回 guest，路由不会卡。 |
+
+### 7.4 上线前必跑的 5 步真实环境验证清单
+
+1. **GitLab System Hook 联通**：在内网测试库注册一次，触发 push/issue 事件，确认日志里有“GitLab System Hook 已接收”而不是 401 / 403。
+2. **登录后任意 POST**：浏览器登录后任意页面执行一次保存动作（GitLab 配置保存、新建评审记录、生效用户白名单），看返回 200 还是 403。
+3. **旧平台 Excel 导入端到端**：用一份 18-19 MB 真实 `AllData.xlsx`（如果手头有更大的，再用更大的）走预览→修改默认负责人→确认；关注 search index 是否回填，确认结果与预览数量一致。
+4. **统计下钻 / 集成测试导出**：分别从最大数据集页面点一次导出 CSV、一次 Excel；看是否在 60s 内完成，错误时文案是否合理。
+5. **匿名/换角色访问**：用未登录态直接访问 `/system-settings/...`，看是否被路由守卫挡到 fallback 页（不应卡空白页）；用 APPROVAL 角色访问 `hiddenForApproval` 的页面，同样验证 fallback。
+
+任何一步不过都对应 7.1 / 7.2 中的某条 finding，先回到本节复核再决定要不要回滚或紧急修复。
