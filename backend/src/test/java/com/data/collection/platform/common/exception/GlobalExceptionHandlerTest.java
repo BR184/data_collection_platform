@@ -47,6 +47,14 @@ class GlobalExceptionHandlerTest {
         .andExpect(jsonPath("$.code").value("C0001"));
   }
 
+  @Test
+  void shouldReturnNotFoundForMissingResources() throws Exception {
+    mockMvc.perform(get("/missing-resource"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("A0404"));
+  }
+
   @RestController
   private static class FailingController {
     @GetMapping("/failure/biz")

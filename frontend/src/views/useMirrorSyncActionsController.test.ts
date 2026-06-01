@@ -1,7 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
+import { ElMessageBox } from '../element-plus-services';
 import { useMirrorSyncActionsController } from './useMirrorSyncActionsController';
 import type { GitlabSyncConfig, SyncSubmissionResponse } from '../types/api';
+
+vi.mock('../element-plus-services', () => ({
+  ElMessageBox: {
+    confirm: vi.fn(() => Promise.resolve('confirm')),
+  },
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(ElMessageBox.confirm).mockResolvedValue('confirm' as never);
+});
 
 function createConfig(overrides: Partial<GitlabSyncConfig> = {}): GitlabSyncConfig {
   return {
@@ -136,9 +148,22 @@ describe('useMirrorSyncActionsController', () => {
     expect(deps.startFullSyncData).toHaveBeenCalledOnce();
     expect(deps.startIncrementalSyncData).toHaveBeenCalledOnce();
     expect(deps.startFullCompensationSyncData).toHaveBeenCalledOnce();
+    expect(ElMessageBox.confirm).toHaveBeenCalledTimes(2);
     expect(deps.notifySuccess).toHaveBeenCalledTimes(2);
     expect(deps.notifySuccess).toHaveBeenCalledWith('CREATED message');
     expect(deps.notifyInfo).toHaveBeenCalledWith('QUEUED message');
+    expect(controller.syncing.value).toBe(false);
+  });
+
+  it('does not submit heavy sync operations when users cancel confirmation', async () => {
+    const deps = setup();
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce(new Error('cancel'));
+    const controller = useMirrorSyncActionsController(deps);
+
+    await controller.startFullSync();
+
+    expect(deps.saveConfigData).not.toHaveBeenCalled();
+    expect(deps.startFullSyncData).not.toHaveBeenCalled();
     expect(controller.syncing.value).toBe(false);
   });
 

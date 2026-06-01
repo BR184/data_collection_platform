@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 // 研发质量看板是质量域的首页信号，负责展示强指标和关键趋势。
 // 页面只绑定看板配置，统计口径继续通过统一统计板运行时提供。
 import { ElMessage } from '../element-plus-services';
@@ -70,6 +70,7 @@ const systemTestRepairChartOption = computed(() => buildSystemTestRepairChartOpt
 
 const pageReady = computed(() => initialized.value);
 const isAdmin = computed(() => authState.currentUser.role === 'ADMIN');
+const isAuthenticated = computed(() => Boolean(authState.currentUser.authenticated));
 
 function clearReviewSummaries() {
   reviewFilters.value = null;
@@ -160,6 +161,15 @@ async function loadSystemTestSummary() {
 }
 
 async function loadPage() {
+  if (!isAuthenticated.value) {
+    clearReviewSummaries();
+    clearCodeReviewSummaries();
+    clearIntegrationSummary();
+    clearSystemTestSummary();
+    initialized.value = true;
+    loading.value = false;
+    return true;
+  }
   loading.value = true;
   try {
     const results = await Promise.all([
@@ -176,6 +186,10 @@ async function loadPage() {
 }
 
 async function handleRefresh() {
+  if (!isAuthenticated.value) {
+    ElMessage.info('登录后查看研发质量看板数据');
+    return;
+  }
   const success = await loadPage();
   if (success) {
     ElMessage.success('研发质量看板已刷新');
@@ -189,10 +203,23 @@ function goTo(path: string) {
 }
 
 void loadPage().then((success) => {
-  if (!success) {
+  if (isAuthenticated.value && !success) {
     ElMessage.warning('部分看板加载失败，已展示可用数据');
   }
 });
+
+watch(
+  () => authState.currentUser.authenticated,
+  (authenticated, previousAuthenticated) => {
+    if (authenticated && !previousAuthenticated) {
+      void loadPage().then((success) => {
+        if (!success) {
+          ElMessage.warning('部分看板加载失败，已展示可用数据');
+        }
+      });
+    }
+  },
+);
 </script>
 
 <template>
@@ -214,7 +241,12 @@ void loadPage().then((success) => {
         </article>
       </section>
 
-      <section class="quality-board-rd__grid">
+      <section v-if="!isAuthenticated" class="quality-board-rd__guest-empty">
+        <h3>登录后查看研发质量看板数据</h3>
+        <p>游客模式仅保留导航入口，不请求受权限保护的评审、代码走查、集成测试和系统测试摘要。</p>
+      </section>
+
+      <section v-else class="quality-board-rd__grid">
         <article class="quality-board-rd__panel">
           <div class="quality-board-rd__panel-head">
             <div>
@@ -342,6 +374,25 @@ void loadPage().then((success) => {
 
 .quality-board-rd__summary-card[data-tone='danger'] strong {
   color: #d92d20;
+}
+
+.quality-board-rd__guest-empty {
+  padding: 28px 24px;
+  border: 1px dashed #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quality-board-rd__guest-empty h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #111827;
+}
+
+.quality-board-rd__guest-empty p {
+  margin: 8px 0 0;
+  color: #667085;
+  line-height: 1.7;
 }
 
 .quality-board-rd__grid {

@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 @Slf4j
@@ -29,6 +31,14 @@ public class GlobalExceptionHandler {
   public ApiResponse<Void> handleBadRequest(Exception e) {
     log.warn("Bad request: {}", e.getMessage());
     return ApiResponse.fail(ResultCode.BAD_REQUEST, e.getMessage());
+  }
+
+  @ResponseBody
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+  public ApiResponse<Void> handleNotFound(Exception e) {
+    log.warn("Resource not found: {}", e.getMessage());
+    return ApiResponse.fail(ResultCode.NOT_FOUND, "请求资源不存在");
   }
 
   @ResponseBody

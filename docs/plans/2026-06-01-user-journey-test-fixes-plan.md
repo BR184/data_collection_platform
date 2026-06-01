@@ -1,6 +1,6 @@
 <!-- DOC_STATUS_START -->
-> 文档状态：待实施修复方案
-> 说明：针对 2026-06-01 用户旅程测试报告中的问题给出代码级解决方案，仅做方案设计，未改动业务代码。
+> 文档状态：已实施并验证
+> 说明：针对 2026-06-01 用户旅程测试报告中的 5 项问题与 1 项待复测风险，已完成代码修复、聚焦测试、前端 typecheck、后端打包和本地 health HTTP 验证。
 <!-- DOC_STATUS_END -->
 
 # 2026-06-01 用户旅程测试问题修复方案
@@ -9,7 +9,27 @@
 
 本方案对应测试报告：[2026-06-01-project-wide-user-journey-test-report.md](2026-06-01-project-wide-user-journey-test-report.md)。
 
-报告“发布级最终问题清单”共 5 项 + 1 项发布前待复测风险。本文逐项给出根因定位（已对照源码确认）、修复方案、影响面与验证方式。本轮不改业务代码。
+报告“发布级最终问题清单”共 5 项 + 1 项发布前待复测风险。本文逐项给出根因定位（已对照源码确认）、修复方案、影响面与验证方式，并记录本轮实施结果。
+
+## 实施结果总览
+
+| 编号 | 问题 | 实施状态 | 主要改动 |
+| --- | --- | --- | --- |
+| P1-1 | `/actuator/health` 返回 500 | 已修复 | 引入 actuator，仅暴露 health；不存在资源返回 404 而非 500 |
+| P1-2 | 同源重复配置前端文案过时 | 已修复 | 文案改为“自动同步冲突会阻止保存”，前端 Docker 指纹对齐后端 |
+| P2-1 | 游客态质量看板 401 噪声与“加载失败” | 已修复 | 游客态不请求受保护摘要，显示登录引导；登录后自动加载 |
+| P2-2 | 窄屏登录入口/弹窗点击区域不可靠 | 已修复（档位 A） | 768px 以下取消桌面最小宽、头部换行、登录弹窗适配视口 |
+| P3-1 | 离开镜像设置页静默丢失草稿 | 已修复 | 增加表单基线快照、路由离开确认、同页切源确认 |
+| R-1 | 全量类同步缺二次确认 | 已修复 | 首次全量同步和全量补偿对账增加二次确认；增量刷新保持无确认 |
+
+## 本轮验证记录
+
+- 前端聚焦测试：`npm.cmd run test -- useMirrorSyncActionsController.test.ts quality-board-rd.mount-smoke.test.ts ux-interaction-regressions.test.ts mirror-settings.mount-smoke.test.ts MirrorSyncLogTable.test.ts useMirrorStatusController.test.ts`，30 个测试通过。
+- 前端类型检查：`npm.cmd run typecheck` 通过。
+- 后端聚焦测试：`D:\projects\data_collection_platform\tools\apache-maven-3.9.6\bin\mvn.cmd -f backend\pom.xml -Dtest=GlobalExceptionHandlerTest test`，4 个测试通过。
+- 后端打包：`D:\projects\data_collection_platform\tools\apache-maven-3.9.6\bin\mvn.cmd -f backend\pom.xml -DskipTests package` 通过。
+- 本地 HTTP 验证：使用 `DATASOURCE_PASSWORD=change_this_password` 与 `PLATFORM_SECURE_CONFIG_REQUIRED=false` 启动新 jar 后，`GET http://localhost:18080/actuator/health` 返回 200。
+- 注意：未登录访问 `/api/not-exist` 会先被安全层返回 401，这是受保护 `/api/**` 的预期行为；不存在资源的 404 映射由 `GlobalExceptionHandlerTest` 覆盖。
 
 ## 问题与方案总览
 
@@ -211,7 +231,7 @@
 
 ## 说明
 
-本文仅为方案设计，未改动任何业务代码。各项实施需各自走构建与测试验证（后端 `mvn -f backend/pom.xml test`，前端 `npm run test` / `npm run typecheck`）。
+本节以上保留原方案、根因和验证口径，当前代码已按“实施结果总览”完成落地。后续若继续扩展移动端完整响应式，按 P2-2 的“档位 B”单列计划，不并入本轮发布修复。
 
 ## 追加修正：最近同步日志滚动条体验
 

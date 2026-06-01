@@ -1870,6 +1870,77 @@ button {
   }
 }
 
+@media (max-width: 768px) {
+  body {
+    min-width: 0;
+  }
+
+  .shell-header {
+    height: auto;
+    min-height: 64px;
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    padding: 10px 12px;
+  }
+
+  .brand-wrap {
+    min-width: 0;
+    height: auto;
+  }
+
+  .brand-title {
+    font-size: 16px;
+  }
+
+  .top-nav {
+    grid-column: 1 / -1;
+    order: 3;
+    width: 100%;
+    padding-bottom: 2px;
+  }
+
+  .top-nav-item {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .header-actions {
+    position: relative;
+    z-index: 2;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .header-actions .el-tag {
+    display: none;
+  }
+
+  .auth-dialog.el-dialog {
+    width: min(92vw, 360px) !important;
+  }
+
+  .auth-card-head {
+    min-height: 96px;
+    padding: 20px;
+  }
+
+  .auth-form {
+    padding: 20px 20px 12px;
+  }
+
+  .auth-dialog .el-dialog__footer {
+    padding: 0 20px 20px;
+  }
+
+  .auth-footer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
 /* Ant Design style alignment for Element Plus */
 .el-link,
 .el-button.is-link,

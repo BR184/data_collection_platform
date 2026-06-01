@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import ElementPlus, { ElMessageBox } from 'element-plus';
 import { describe, expect, it, vi } from 'vitest';
+import { createRouter, createWebHashHistory } from 'vue-router';
 import MirrorSettingsView from './MirrorSettingsView.vue';
 
 function jsonResponse(data: unknown) {
@@ -40,6 +41,26 @@ function baseConfig(id = 1, sourceInstance = 'default') {
 }
 
 describe('MirrorSettingsView mount smoke', () => {
+  async function mountWithRouter() {
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/mirror-settings', component: MirrorSettingsView }],
+    });
+    await router.push('/mirror-settings');
+    await router.isReady();
+    return mount(
+      {
+        template: '<router-view />',
+      },
+      {
+      attachTo: document.body,
+      global: {
+        plugins: [router, ElementPlus],
+      },
+      },
+    );
+  }
+
   it('shows translated purge logs and keeps the purge dialog locked while deleting', async () => {
     let resolvePurgeResponse: ((value: Response) => void) | null = null;
     const purgeResponsePromise = new Promise<Response>((resolve) => {
@@ -151,12 +172,7 @@ describe('MirrorSettingsView mount smoke', () => {
     vi.stubGlobal('fetch', fetchMock);
     const alertSpy = vi.spyOn(ElMessageBox, 'alert').mockResolvedValue('confirm' as never);
 
-    const wrapper = mount(MirrorSettingsView, {
-      attachTo: document.body,
-      global: {
-        plugins: [ElementPlus],
-      },
-    });
+    const wrapper = await mountWithRouter();
 
     await flushPromises();
     await flushPromises();
@@ -268,12 +284,7 @@ describe('MirrorSettingsView mount smoke', () => {
     vi.stubGlobal('fetch', fetchMock);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const wrapper = mount(MirrorSettingsView, {
-      attachTo: document.body,
-      global: {
-        plugins: [ElementPlus],
-      },
-    });
+    const wrapper = await mountWithRouter();
 
     await flushPromises();
     await flushPromises();

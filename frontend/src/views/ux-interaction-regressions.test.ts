@@ -28,6 +28,10 @@ describe('UX interaction regressions', () => {
     expect(collectFormSource).toContain('作废表单记录');
     expect(ruleConfigSource).toContain('beforeunload');
     expect(ruleConfigSource).toContain('handleBeforeUnload');
+    expect(mirrorSettingsSource).toContain('onBeforeRouteLeave');
+    expect(mirrorSettingsSource).toContain('confirmDiscardUnsavedChanges');
+    expect(mirrorSettingsSource).toContain('未保存修改');
+    expect(mirrorSettingsSource).toContain('平台会阻止保存');
   });
 
   it('shows loading feedback while testing the mirror connection', () => {

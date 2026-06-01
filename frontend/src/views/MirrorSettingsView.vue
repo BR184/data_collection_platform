@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
 // 镜像设置页集中管理同步配置、白名单、System Hook 和清理动作，是数据入口的运维面板。
 // 每组操作拆到独立 controller，页面只负责把表单状态和反馈动作组合起来。
 import { Tools } from '@element-plus/icons-vue';
@@ -31,6 +32,7 @@ const selectedConfigId = ref<number | undefined>(undefined);
 const isCreatingNewConfig = ref(false);
 const previousConfigIdBeforeCreate = ref<number | undefined>(undefined);
 const newConfigSnapshot = ref('');
+const savedFormSnapshot = ref('');
 const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
 const form = ref<GitlabSyncConfig>({
@@ -75,6 +77,9 @@ const {
     void loadSystemHookRegistration(false);
   },
   notifyError: (message) => ElMessage.error(message),
+  onRemoteConfigApplied: (config) => {
+    savedFormSnapshot.value = formSnapshot(config);
+  },
 });
 
 const {
@@ -111,6 +116,7 @@ const {
     isCreatingNewConfig.value = false;
     previousConfigIdBeforeCreate.value = undefined;
     newConfigSnapshot.value = '';
+    savedFormSnapshot.value = formSnapshot(saved);
     return saved;
   },
   testConnectionData: () => api.testConnection(selectedConfigId.value),
@@ -227,8 +233,15 @@ const duplicatePhysicalSourceWarning = computed(() => {
   const names = duplicatePhysicalSourceMatches.value
     .map((item) => `${item.name || '未命名数据源'}（${item.sourceInstance || 'default'}）`)
     .join('、');
-  return `当前数据源和 ${names} 指向同一个 GitLab 源库。平台不会阻止保存，但如果这些源同时启用，同一批 Issue、MR 和评论可能进入事实层多次，业务页面会看到重复数据。`;
+  const hasAutomaticSyncConflict =
+    Boolean(form.value.autoSyncEnabled)
+    || duplicatePhysicalSourceMatches.value.some((item) => Boolean(item.autoSyncEnabled));
+  if (hasAutomaticSyncConflict) {
+    return `当前数据源和 ${names} 指向同一个 GitLab 源库。若双方任一开启自动同步，平台会阻止保存；请停用其中一个数据源，或关闭自动同步后仅作为测试源保留。`;
+  }
+  return `当前数据源和 ${names} 指向同一个 GitLab 源库。当前双方均未开启自动同步，可以作为测试源保存；后续若同时启用自动同步，同一批 Issue、MR 和评论可能重复进入事实层。`;
 });
+const isFormDirty = computed(() => savedFormSnapshot.value !== '' && formSnapshot(form.value) !== savedFormSnapshot.value);
 const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
@@ -394,6 +407,15 @@ watch(
   },
 );
 
+watch(
+  () => formSnapshot(form.value),
+  (snapshot) => {
+    if (!isCreatingNewConfig.value && savedFormSnapshot.value === '') {
+      savedFormSnapshot.value = snapshot;
+    }
+  },
+);
+
 async function initializePage() {
   try {
     await loadConfigs();
@@ -452,15 +474,26 @@ async function handleConfigSelection(configId: number) {
   if (isCreatingNewConfig.value) {
     return;
   }
+  const previousConfigId = form.value.id ?? selectedConfigId.value;
+  const canLeave = await confirmDiscardUnsavedChanges('切换数据源将放弃当前未保存的同步策略修改。');
+  if (!canLeave) {
+    selectedConfigId.value = previousConfigId;
+    return;
+  }
   selectedConfigId.value = configId;
   whitelistOptionsLoaded.value = false;
   await loadStatus(true, true);
+  savedFormSnapshot.value = formSnapshot(form.value);
   void loadSourceHealth();
   void loadTableSyncDiagnostics(true);
   void loadSystemHookRegistration(false);
 }
 
-function createNewConfig() {
+async function createNewConfig() {
+  const canLeave = await confirmDiscardUnsavedChanges('新增数据源将放弃当前未保存的同步策略修改。');
+  if (!canLeave) {
+    return;
+  }
   previousConfigIdBeforeCreate.value = selectedConfigId.value;
   isCreatingNewConfig.value = true;
   stopRunningRefresh();
@@ -477,6 +510,7 @@ function createNewConfig() {
     lastIncrementalSyncAt: null,
   };
   newConfigSnapshot.value = JSON.stringify(form.value);
+  savedFormSnapshot.value = formSnapshot(form.value);
 }
 
 function isSourceEnabled(config: GitlabSyncConfig) {
@@ -486,7 +520,9 @@ function isSourceEnabled(config: GitlabSyncConfig) {
 function physicalSourceFingerprint(config: GitlabSyncConfig) {
   if (config.sourceMode === 'DOCKER') {
     const containerName = normalizeFingerprintPart(config.dockerContainerName);
-    return containerName ? `docker:${containerName}` : '';
+    const database = normalizeFingerprintPart(config.dbName);
+    const username = normalizeFingerprintPart(config.dbUsername);
+    return containerName && database ? `docker:${containerName}:${database}:${username}` : '';
   }
   const host = normalizeFingerprintPart(config.dbHost);
   const port = String(config.dbPort ?? 5432);
@@ -520,9 +556,55 @@ async function cancelNewConfig() {
   newConfigSnapshot.value = '';
   whitelistOptionsLoaded.value = false;
   await loadStatus(true, true);
+  savedFormSnapshot.value = formSnapshot(form.value);
   void loadSourceHealth();
   void loadTableSyncDiagnostics(true);
   void loadSystemHookRegistration(false);
+}
+
+function formSnapshot(config: GitlabSyncConfig) {
+  return JSON.stringify({
+    id: config.id ?? null,
+    name: config.name ?? '',
+    enabled: Boolean(config.sourceEnabled ?? config.enabled),
+    sourceEnabled: Boolean(config.sourceEnabled ?? config.enabled),
+    sourceInstance: normalizeFingerprintPart(config.sourceInstance) || 'default',
+    autoSyncEnabled: Boolean(config.autoSyncEnabled),
+    sourceMode: config.sourceMode ?? 'DOCKER',
+    whitelistMode: config.whitelistMode ?? 'RECOMMENDED',
+    whitelistTables: [...(config.whitelistTables ?? [])].sort(),
+    dbHost: normalizeFingerprintPart(config.dbHost),
+    dbPort: Number(config.dbPort ?? 5432),
+    dbName: normalizeFingerprintPart(config.dbName),
+    dbUsername: normalizeFingerprintPart(config.dbUsername),
+    dbPassword: config.dbPassword ?? '',
+    dockerContainerName: normalizeFingerprintPart(config.dockerContainerName),
+    systemHookSecret: config.systemHookSecret ?? '',
+    systemHookEnabled: Boolean(config.systemHookEnabled),
+    systemHookProjectId: config.systemHookProjectId ?? null,
+    compensationIntervalMinutes: Number(config.compensationIntervalMinutes ?? 360),
+    fullCompensationEnabled: config.fullCompensationEnabled ?? true,
+    fullCompensationTime: config.fullCompensationTime ?? '02:00',
+    syncThreadMode: config.syncThreadMode ?? 'FIXED',
+    syncThreadValue: Number(config.syncThreadValue ?? 2),
+    maxSyncThreads: Number(config.maxSyncThreads ?? 16),
+  });
+}
+
+async function confirmDiscardUnsavedChanges(message = '存在未保存的同步策略修改，确认离开将丢失这些修改。') {
+  if (!isFormDirty.value) {
+    return true;
+  }
+  try {
+    await ElMessageBox.confirm(message, '未保存修改', {
+      type: 'warning',
+      confirmButtonText: '放弃修改',
+      cancelButtonText: '继续编辑',
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function refreshCurrentStatus() {
@@ -575,6 +657,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopRunningRefresh();
+});
+
+onBeforeRouteLeave(async () => {
+  return confirmDiscardUnsavedChanges();
 });
 </script>
 

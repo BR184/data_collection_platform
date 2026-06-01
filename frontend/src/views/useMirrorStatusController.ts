@@ -8,6 +8,7 @@ export interface MirrorStatusControllerDependencies {
   loadStatusData: () => Promise<MirrorStatusResponse>;
   loadSystemHookRegistration: () => void;
   notifyError: (message: string) => void;
+  onRemoteConfigApplied?: (config: GitlabSyncConfig) => void;
   setInterval?: (callback: () => void, timeout: number) => number;
   clearInterval?: (timerId: number) => void;
 }
@@ -61,6 +62,7 @@ export function useMirrorStatusController(deps: MirrorStatusControllerDependenci
     const normalizedConfig = normalizeConfig(config);
     deps.form.value = normalizedConfig;
     lastAppliedFormSnapshot.value = getConfigSnapshot(normalizedConfig);
+    deps.onRemoteConfigApplied?.(normalizedConfig);
   }
 
   async function loadStatus(showError = true, blocking = true, options: MirrorStatusLoadOptions = {}) {

@@ -1,8 +1,9 @@
 import { defineComponent } from 'vue';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
+import { authState } from '../composables/auth-state';
 import QualityBoardRdView from './QualityBoardRdView.vue';
 
 vi.mock('../components/charts/EChartPanel.vue', () => ({
@@ -58,6 +59,18 @@ function cell(columnKey: string, numericValue: number) {
 }
 
 describe('QualityBoardRdView mount smoke', () => {
+  beforeEach(() => {
+    authState.currentUser = {
+      username: 'admin',
+      displayName: '管理员',
+      role: 'ADMIN',
+      authenticated: true,
+    };
+    authState.initialized = true;
+    authState.loading = false;
+    authState.error = '';
+  });
+
   it('loads summary sources and renders the quality overview', async () => {
     const fetchSpy = vi.fn((url: string) => {
       if (url.includes('/api/review-data/records/filter-options')) {
@@ -305,6 +318,38 @@ describe('QualityBoardRdView mount smoke', () => {
 
     wrapper.unmount();
     warnSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not request protected summaries for guest users', async () => {
+    authState.currentUser = {
+      username: 'guest',
+      displayName: '游客',
+      role: 'GUEST',
+      authenticated: false,
+    };
+    const fetchSpy = vi.fn(() => jsonResponse({}));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/quality-board/rd-quality-board', component: QualityBoardRdView, meta: { pageKey: 'quality-board-rd-quality-board' } }],
+    });
+
+    await router.push('/quality-board/rd-quality-board');
+    await router.isReady();
+
+    const wrapper = mount(QualityBoardRdView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('登录后查看研发质量看板数据');
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    wrapper.unmount();
     vi.unstubAllGlobals();
   });
 });

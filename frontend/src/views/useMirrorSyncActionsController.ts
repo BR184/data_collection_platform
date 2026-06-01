@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue';
+import { ElMessageBox } from '../element-plus-services';
 import type { GitlabSyncConfig, SyncSubmissionResponse } from '../types/api';
 import type { MirrorStatusLoadOptions } from './useMirrorStatusController';
 
@@ -87,6 +88,13 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   async function startFullSync() {
     syncing.value = true;
     try {
+      const confirmed = await confirmHeavySync(
+        '首次全量同步会按当前白名单重新读取源库数据，耗时和资源占用通常高于增量刷新。确认现在提交？',
+        '确认首次全量同步',
+      );
+      if (!confirmed) {
+        return;
+      }
       await saveConfig(false);
       const result = await deps.startFullSyncData();
       showSubmissionFeedback(result);
@@ -115,6 +123,13 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
   async function startFullCompensationSync() {
     syncing.value = true;
     try {
+      const confirmed = await confirmHeavySync(
+        '全量补偿对账会对源库和镜像库做完整差异校验，可能耗时较长。建议在业务低峰执行，确认现在提交？',
+        '确认全量补偿对账',
+      );
+      if (!confirmed) {
+        return;
+      }
       await saveConfig(false);
       const result = await deps.startFullCompensationSyncData();
       showSubmissionFeedback(result);
@@ -123,6 +138,19 @@ export function useMirrorSyncActionsController(deps: MirrorSyncActionsController
       deps.notifyError((error as Error).message);
     } finally {
       syncing.value = false;
+    }
+  }
+
+  async function confirmHeavySync(message: string, title: string) {
+    try {
+      await ElMessageBox.confirm(message, title, {
+        type: 'warning',
+        confirmButtonText: '确认提交',
+        cancelButtonText: '取消',
+      });
+      return true;
+    } catch {
+      return false;
     }
   }
 
