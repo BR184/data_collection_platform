@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import collectFormSource from './CollectFormView.vue?raw';
-import testingPhaseSource from './TestingPhaseDefinitionView.vue?raw';
 import mirrorSettingsSource from './MirrorSettingsView.vue?raw';
 import ruleConfigSource from './CodeReviewIllegalRuleConfigView.vue?raw';
 import reviewRecordDialogSource from './review-data/ReviewRecordFormDialog.vue?raw';
@@ -12,7 +11,6 @@ describe('UX interaction regressions', () => {
   it('keeps edit forms submittable with Enter', () => {
     expect(reviewRecordDialogSource).toContain('@submit.prevent="handleSubmit"');
     expect(reviewProblemDialogSource).toContain('@submit.prevent="handleSubmit"');
-    expect(testingPhaseSource).toContain('@submit.prevent="savePhase"');
     expect(databaseBrowserSource).toContain('@submit.prevent="saveCollectFormEdit"');
     expect(collectFormSource).toContain('@submit.prevent="saveForm"');
   });
@@ -20,7 +18,6 @@ describe('UX interaction regressions', () => {
   it('focuses the first invalid field instead of only showing a toast', () => {
     expect(reviewRecordDialogSource).toContain('focusFirstInvalidFormField(formRef.value)');
     expect(reviewProblemDialogSource).toContain('focusFirstInvalidFormField(formRef.value)');
-    expect(testingPhaseSource).toContain('focusFirstInvalidFormField(instance)');
   });
 
   it('guards destructive and unsaved-change flows', () => {

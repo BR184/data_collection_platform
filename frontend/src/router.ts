@@ -25,7 +25,6 @@ const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIlleg
 const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.vue');
 const SystemTestIllegalRecordsView = () => import('./views/SystemTestIllegalRecordsView.vue');
 const CodeReviewMultiBoardView = () => import('./views/CodeReviewMultiBoardView.vue');
-const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
 const QualityBoardRdView = () => import('./views/QualityBoardRdView.vue');
 const QualityBoardOtherView = () => import('./views/QualityBoardOtherView.vue');
@@ -148,9 +147,6 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('database-browser', DatabaseBrowserView),
-  },
-  {
-    ...buildShellRoute('testing-phase-definition', TestingPhaseDefinitionView),
   },
   {
     path: '/:pathMatch(.*)*',

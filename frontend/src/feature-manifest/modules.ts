@@ -221,14 +221,6 @@ export const modules: ShellModule[] = [
         requiresLogin: true,
         hiddenForApproval: true,
       },
-      {
-        key: 'testing-phase-definition',
-        label: '议题测试阶段定义',
-        description: '对齐老平台系统设置中的议题测试阶段定义入口。',
-        path: '/system-settings/testing-phase-definition',
-        requiresLogin: true,
-        hiddenForApproval: true,
-      },
     ],
   },
 ];

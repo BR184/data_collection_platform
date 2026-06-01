@@ -261,10 +261,6 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryKeys: ['table', 'keyword', 'page', 'pageSize', 'sortBy', 'sortOrder', 'projectId'],
     persistedQueryKeys: ['projectId'],
   },
-  'testing-phase-definition': {
-    allowedQueryKeys: ['projectId', 'keyword', 'enabled'],
-    persistedQueryKeys: ['projectId'],
-  },
 };
 
 const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> = {
