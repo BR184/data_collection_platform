@@ -1,11 +1,13 @@
 import { mount } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, inject, provide } from 'vue';
 import MirrorSyncLogTable from './MirrorSyncLogTable.vue';
+import mirrorSyncLogTableSource from './MirrorSyncLogTable.vue?raw';
 import type { SyncRunLog } from '../types/api';
 
 const tableRowsKey = Symbol('tableRows');
+const doLayoutSpy = vi.fn();
 
 const tableStubs = {
   ElTable: defineComponent({
@@ -18,6 +20,9 @@ const tableStubs = {
     setup(props, { slots }) {
       provide(tableRowsKey, props.data);
       return () => h('div', { class: 'sync-log-table' }, slots.default?.());
+    },
+    methods: {
+      doLayout: doLayoutSpy,
     },
   }),
   ElTableColumn: defineComponent({
@@ -55,6 +60,10 @@ function createLog(overrides: Partial<SyncRunLog> = {}): SyncRunLog {
 }
 
 describe('MirrorSyncLogTable', () => {
+  beforeEach(() => {
+    doLayoutSpy.mockClear();
+  });
+
   it('renders localized sync logs', () => {
     const wrapper = mount(MirrorSyncLogTable, {
       global: {
@@ -110,5 +119,40 @@ describe('MirrorSyncLogTable', () => {
     await wrapper.get('button').trigger('click');
 
     expect(wrapper.emitted('refresh')).toHaveLength(1);
+  });
+
+  it('recalculates layout and wakes the horizontal scrollbar after expanding a log row', async () => {
+    vi.useFakeTimers();
+    const wrapper = mount(MirrorSyncLogTable, {
+      global: {
+        plugins: [ElementPlus],
+        stubs: tableStubs,
+      },
+      props: {
+        logs: [createLog()],
+        refreshing: false,
+      },
+    });
+
+    await wrapper.getComponent(tableStubs.ElTable).vm.$emit('expand-change', createLog(), [createLog()]);
+    await wrapper.vm.$nextTick();
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(doLayoutSpy).toHaveBeenCalledTimes(1);
+    expect(wrapper.get('.sync-log-table-shell').classes()).toContain('is-scrollbar-awake');
+
+    vi.advanceTimersByTime(1200);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('.sync-log-table-shell').classes()).not.toContain('is-scrollbar-awake');
+    vi.useRealTimers();
+  });
+
+  it('keeps the sync log scrollbar enhancement scoped to this table', () => {
+    expect(mirrorSyncLogTableSource).toContain('.sync-log-table-shell.is-scrollbar-awake');
+    expect(mirrorSyncLogTableSource).toContain('.sync-log-table-shell:hover :deep(.el-scrollbar__bar.is-horizontal)');
+    expect(mirrorSyncLogTableSource).toContain('@expand-change="handleExpandChange"');
+    expect(mirrorSyncLogTableSource).toContain('tableRef.value?.doLayout?.()');
   });
 });

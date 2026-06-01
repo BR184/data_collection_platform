@@ -148,6 +148,61 @@ class GitlabConfigServiceTest {
   }
 
   @Test
+  void shouldRejectEnabledAutoSyncWhenAnotherEnabledSourceUsesSameDirectDatabase() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+    GitlabSyncConfig existing = baseInput();
+    existing.setId(99L);
+    existing.setSourceInstance("smoke_cc");
+    existing.setSourceEnabled(true);
+    existing.setAutoSyncEnabled(false);
+    existing.setSystemHookEnabled(false);
+    existing.setDbHost(" LOCALHOST ");
+    existing.setDbPort(5432);
+    existing.setDbName("GITLABHQ_PRODUCTION");
+    existing.setDbUsername("GitLab");
+    when(configMapper.selectList(any())).thenReturn(List.of(existing));
+
+    GitlabSyncConfig input = baseInput();
+    input.setSourceEnabled(true);
+    input.setAutoSyncEnabled(true);
+    input.setSystemHookEnabled(false);
+    input.setDbHost("localhost");
+    input.setDbPort(5432);
+    input.setDbName("gitlabhq_production");
+    input.setDbUsername("gitlab");
+
+    assertThatThrownBy(() -> configService.saveConfig(input))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("smoke_cc");
+    verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
+  }
+
+  @Test
+  void shouldAllowSamePhysicalSourceWhenSavedAsDisabledTestSource() {
+    when(configMapper.selectOne(any())).thenReturn(null);
+    GitlabSyncConfig existing = baseInput();
+    existing.setId(99L);
+    existing.setSourceInstance("cc");
+    existing.setSourceEnabled(true);
+    existing.setAutoSyncEnabled(true);
+    existing.setSystemHookEnabled(false);
+    when(configMapper.selectList(any())).thenReturn(List.of(existing));
+
+    GitlabSyncConfig input = baseInput();
+    input.setSourceInstance("smoke_cc");
+    input.setSourceEnabled(false);
+    input.setAutoSyncEnabled(false);
+    input.setSystemHookEnabled(false);
+
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        "smoke_cc".equals(config.getSourceInstance())
+            && !Boolean.TRUE.equals(config.getSourceEnabled())
+            && !config.isAutoSyncEnabled()));
+  }
+
+  @Test
   void shouldResolveSystemHookConfigOnlyWhenSystemHookEnabledAndSecretMatches() {
     GitlabSyncConfig disabledSystemHook = persistedConfig();
     disabledSystemHook.setId(1L);

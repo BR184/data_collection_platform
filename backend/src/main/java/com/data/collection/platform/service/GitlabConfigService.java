@@ -296,7 +296,75 @@ public class GitlabConfigService {
     normalized.setMaxSyncThreads(normalizeMaxSyncThreads(config.getMaxSyncThreads(), current.getMaxSyncThreads()));
     validateSystemHookConfig(normalized);
     validateSourceConfigForAutomaticSync(normalized);
+    validatePhysicalSourceUniqueness(normalized);
     return normalized;
+  }
+
+  private void validatePhysicalSourceUniqueness(GitlabSyncConfig normalized) {
+    if (!isSourceEnabled(normalized)) {
+      return;
+    }
+    String fingerprint = physicalSourceFingerprint(normalized);
+    if (!StringUtils.hasText(fingerprint)) {
+      return;
+    }
+    List<GitlabSyncConfig> enabledConfigs =
+        configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
+            .eq(GitlabSyncConfig::getSourceEnabled, true));
+    if (enabledConfigs == null || enabledConfigs.isEmpty()) {
+      return;
+    }
+    for (GitlabSyncConfig existing : enabledConfigs) {
+      normalizePersistedSourceInstance(existing);
+      if (existing.getId() != null && existing.getId().equals(normalized.getId())) {
+        continue;
+      }
+      if (!fingerprint.equals(physicalSourceFingerprint(existing))) {
+        continue;
+      }
+      if (!normalized.isAutoSyncEnabled() && !existing.isAutoSyncEnabled()) {
+        continue;
+      }
+      throw new BizException(
+          "同一个 GitLab 源库已由 "
+              + existing.getSourceInstance()
+              + " 启用；请停用其中一个，或关闭自动同步后作为测试源保存");
+    }
+  }
+
+  private String physicalSourceFingerprint(GitlabSyncConfig config) {
+    if (config == null) {
+      return "";
+    }
+    SourceMode sourceMode = config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode();
+    if (sourceMode == SourceMode.DIRECT) {
+      if (!StringUtils.hasText(config.getDbHost())
+          || config.getDbPort() == null
+          || !StringUtils.hasText(config.getDbName())
+          || !StringUtils.hasText(config.getDbUsername())) {
+        return "";
+      }
+      return String.join(
+          "|",
+          "direct",
+          normalizeFingerprintPart(config.getDbHost()),
+          String.valueOf(config.getDbPort()),
+          normalizeFingerprintPart(config.getDbName()),
+          normalizeFingerprintPart(config.getDbUsername()));
+    }
+    if (!StringUtils.hasText(config.getDockerContainerName()) || !StringUtils.hasText(config.getDbName())) {
+      return "";
+    }
+    return String.join(
+        "|",
+        "docker",
+        normalizeFingerprintPart(config.getDockerContainerName()),
+        normalizeFingerprintPart(config.getDbName()),
+        normalizeFingerprintPart(config.getDbUsername()));
+  }
+
+  private String normalizeFingerprintPart(String value) {
+    return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
   }
 
   private void validateSourceConfigForAutomaticSync(GitlabSyncConfig normalized) {

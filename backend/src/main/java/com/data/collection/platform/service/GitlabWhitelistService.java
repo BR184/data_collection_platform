@@ -11,12 +11,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 @Service
 public class GitlabWhitelistService {
-  private static final Duration CACHE_TTL = Duration.ofMinutes(1);
+  private static final Duration CACHE_TTL = Duration.ofHours(12);
+  private static final int MAX_CACHE_ENTRIES = 16;
 
   private static final Map<String, String> FRIENDLY_LABELS = new LinkedHashMap<>();
   private static final Set<String> RECOMMENDED_TABLES = Set.of(
@@ -70,7 +72,7 @@ public class GitlabWhitelistService {
 
   private final SourceMetadataInspector sourceMetadataInspector;
 
-  private volatile CacheEntry cacheEntry;
+  private final Map<String, CacheEntry> cacheEntries = new ConcurrentHashMap<>();
 
   public GitlabWhitelistService(SourceMetadataInspector sourceMetadataInspector) {
     this.sourceMetadataInspector = sourceMetadataInspector;
@@ -105,11 +107,10 @@ public class GitlabWhitelistService {
         .collect(Collectors.toList());
   }
 
-  private List<TableWhitelistOption> loadAvailableTables(GitlabSyncConfig config) {
+  private synchronized List<TableWhitelistOption> loadAvailableTables(GitlabSyncConfig config) {
     String signature = buildSignature(config);
-    CacheEntry currentCache = cacheEntry;
+    CacheEntry currentCache = cacheEntries.get(signature);
     if (currentCache != null
-        && currentCache.signature().equals(signature)
         && Duration.between(currentCache.loadedAt(), Instant.now()).compareTo(CACHE_TTL) < 0) {
       return currentCache.options();
     }
@@ -117,8 +118,19 @@ public class GitlabWhitelistService {
         config,
         FRIENDLY_LABELS,
         new ArrayList<>(RECOMMENDED_TABLES));
-    cacheEntry = new CacheEntry(signature, Instant.now(), discovered);
-    return discovered;
+    evictOldestEntryIfNecessary(signature);
+    List<TableWhitelistOption> options = List.copyOf(discovered);
+    cacheEntries.put(signature, new CacheEntry(Instant.now(), options));
+    return options;
+  }
+
+  private void evictOldestEntryIfNecessary(String signature) {
+    if (cacheEntries.containsKey(signature) || cacheEntries.size() < MAX_CACHE_ENTRIES) {
+      return;
+    }
+    cacheEntries.entrySet().stream()
+        .min(Map.Entry.comparingByValue((first, second) -> first.loadedAt().compareTo(second.loadedAt())))
+        .ifPresent(entry -> cacheEntries.remove(entry.getKey()));
   }
 
   private String buildSignature(GitlabSyncConfig config) {
@@ -148,6 +160,6 @@ public class GitlabWhitelistService {
     return options;
   }
 
-  private record CacheEntry(String signature, Instant loadedAt, List<TableWhitelistOption> options) {
+  private record CacheEntry(Instant loadedAt, List<TableWhitelistOption> options) {
   }
 }

@@ -188,6 +188,64 @@ class SyncRunTablePlanningServiceTest {
   }
 
   @Test
+  void shouldPlanCompensationFromExistingStatesWithoutWhitelistDiscovery() {
+    SyncRun run = run(SyncRunType.COMPENSATION_SCAN);
+    SyncRunTableState issueState = existingState(91L, "issues", "id", "updated_at");
+    issueState.setLastWatermarkAt(LocalDateTime.of(2026, 5, 20, 10, 0));
+    SyncRunTableState noteState = existingState(92L, "notes", "id", "updated_at");
+    noteState.setLastWatermarkAt(LocalDateTime.of(2026, 5, 20, 11, 0));
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(stateMapper.selectList(any())).thenReturn(List.of(issueState, noteState));
+
+    int planned = planningService.planRunTables(77L);
+
+    assertThat(planned).isEqualTo(2);
+    verify(whitelistService, never()).resolveOptions(any());
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper, times(2)).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getSourceTable)
+        .containsExactly("issues", "notes");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getRowStrategy)
+        .containsExactly("INCREMENTAL", "INCREMENTAL");
+    assertThat(taskCaptor.getAllValues())
+        .extracting(SyncRunTableTask::getWatermarkAt)
+        .containsExactly(
+            LocalDateTime.of(2026, 5, 20, 10, 0),
+            LocalDateTime.of(2026, 5, 20, 11, 0));
+  }
+
+  @Test
+  void shouldFallBackToWhitelistDiscoveryWhenCompensationHasNoExistingStates() {
+    SyncRun run = run(SyncRunType.COMPENSATION_SCAN);
+    GitlabSyncConfig config = config();
+    when(syncRunMapper.selectById(77L)).thenReturn(run);
+    when(stateMapper.selectList(any())).thenReturn(List.of());
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(configService.isSourceConfigured(config)).thenReturn(true);
+    when(whitelistService.resolveOptions(config))
+        .thenReturn(List.of(new TableWhitelistOption("issues", "Issues", "id", "updated_at", true)));
+    doAnswer(
+            invocation -> {
+              SyncRunTableState state = invocation.getArgument(0);
+              state.setId(91L);
+              return 1;
+            })
+        .when(stateMapper)
+        .insert(any(SyncRunTableState.class));
+
+    int planned = planningService.planRunTables(77L);
+
+    assertThat(planned).isEqualTo(1);
+    verify(whitelistService).resolveOptions(config);
+    ArgumentCaptor<SyncRunTableTask> taskCaptor = ArgumentCaptor.forClass(SyncRunTableTask.class);
+    verify(taskMapper).insert(taskCaptor.capture());
+    assertThat(taskCaptor.getValue().getSourceTable()).isEqualTo("issues");
+    assertThat(taskCaptor.getValue().getRowStrategy()).isEqualTo("INCREMENTAL");
+  }
+
+  @Test
   void shouldPlanSystemHookPreciseTargetsFromPayload() {
     SyncRun run = run(SyncRunType.SYSTEM_HOOK);
     GitlabSyncConfig config = config();
@@ -301,6 +359,20 @@ class SyncRunTablePlanningServiceTest {
     task.setLookupColumn(lookupColumn);
     task.setLookupValue(lookupValue);
     return task;
+  }
+
+  private SyncRunTableState existingState(Long id, String sourceTable, String primaryKeys, String updatedAtColumn) {
+    SyncRunTableState state = new SyncRunTableState();
+    state.setId(id);
+    state.setConfigId(1L);
+    state.setSourceInstance("alpha");
+    state.setSourceTable(sourceTable);
+    state.setMirrorTable("gitlab_" + sourceTable + "_alpha");
+    state.setPrimaryKeyColumns(primaryKeys);
+    state.setUpdatedAtColumn(updatedAtColumn);
+    state.setRowStrategy("INCREMENTAL");
+    state.setSyncEnabled(true);
+    return state;
   }
 
   private GitlabSyncConfig config() {

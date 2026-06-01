@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import type { SyncRunLog } from '../types/api';
 import {
   formatDuration,
@@ -24,6 +24,9 @@ defineEmits<{
 
 const typeFilter = ref('');
 const statusFilter = ref('');
+const tableRef = ref<{ doLayout?: () => void }>();
+const scrollbarAwake = ref(false);
+let scrollbarAwakeTimer: number | undefined;
 
 const typeOptions = computed(() => {
   const optionMap = new Map<string, string>();
@@ -52,6 +55,42 @@ const filteredLogs = computed(() =>
 function typeFilterKey(log: SyncRunLog) {
   return log.runType?.trim() || log.syncType;
 }
+
+function wakeHorizontalScrollbar() {
+  scrollbarAwake.value = true;
+  if (scrollbarAwakeTimer !== undefined) {
+    window.clearTimeout(scrollbarAwakeTimer);
+  }
+  scrollbarAwakeTimer = window.setTimeout(() => {
+    scrollbarAwake.value = false;
+    scrollbarAwakeTimer = undefined;
+  }, 1200);
+}
+
+async function handleExpandChange() {
+  await nextTick();
+  tableRef.value?.doLayout?.();
+  wakeHorizontalScrollbar();
+}
+
+function handleHorizontalWheel(event: WheelEvent) {
+  if (!event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+    return;
+  }
+  const tableBody = (event.currentTarget as HTMLElement | null)?.querySelector<HTMLElement>('.el-scrollbar__wrap');
+  if (!tableBody) {
+    return;
+  }
+  tableBody.scrollLeft += event.deltaY;
+  event.preventDefault();
+  wakeHorizontalScrollbar();
+}
+
+onBeforeUnmount(() => {
+  if (scrollbarAwakeTimer !== undefined) {
+    window.clearTimeout(scrollbarAwakeTimer);
+  }
+});
 </script>
 
 <template>
@@ -73,8 +112,22 @@ function typeFilterKey(log: SyncRunLog) {
       </div>
     </template>
 
-    <div class="sync-log-table-shell">
-      <el-table :data="filteredLogs" row-key="id" max-height="280" size="small" border class="sync-log-table">
+    <div
+      class="sync-log-table-shell"
+      :class="{ 'is-scrollbar-awake': scrollbarAwake }"
+      tabindex="0"
+      @wheel="handleHorizontalWheel"
+    >
+      <el-table
+        ref="tableRef"
+        :data="filteredLogs"
+        row-key="id"
+        max-height="280"
+        size="small"
+        border
+        class="sync-log-table"
+        @expand-change="handleExpandChange"
+      >
         <el-table-column type="expand" width="44">
           <template #default="{ row }">
             <div class="sync-log-detail">
@@ -147,6 +200,50 @@ function typeFilterKey(log: SyncRunLog) {
 
 .sync-log-filter {
   width: 140px;
+}
+
+.sync-log-table-shell {
+  position: relative;
+  padding-bottom: 10px;
+  outline: none;
+  scrollbar-gutter: stable;
+}
+
+.sync-log-table-shell::after {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  width: 36px;
+  height: 28px;
+  pointer-events: none;
+  content: '';
+  opacity: 0;
+  background: linear-gradient(90deg, rgb(255 255 255 / 0%), rgb(255 255 255 / 92%));
+  transition: opacity 0.16s ease;
+}
+
+.sync-log-table-shell:hover::after,
+.sync-log-table-shell:focus-within::after,
+.sync-log-table-shell.is-scrollbar-awake::after {
+  opacity: 1;
+}
+
+.sync-log-table-shell :deep(.el-scrollbar__bar.is-horizontal) {
+  bottom: 2px;
+  height: 10px;
+  opacity: 0.24;
+  transition: opacity 0.16s ease, height 0.16s ease;
+}
+
+.sync-log-table-shell:hover :deep(.el-scrollbar__bar.is-horizontal),
+.sync-log-table-shell:focus-within :deep(.el-scrollbar__bar.is-horizontal),
+.sync-log-table-shell.is-scrollbar-awake :deep(.el-scrollbar__bar.is-horizontal) {
+  height: 12px;
+  opacity: 1;
+}
+
+.sync-log-table-shell :deep(.el-scrollbar__thumb) {
+  min-width: 48px;
 }
 
 .sync-log-detail {

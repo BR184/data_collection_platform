@@ -64,6 +64,13 @@ public class SyncRunTablePlanningService {
     if (run.getRunType() == SyncRunType.SYSTEM_HOOK && !preciseTargets.isEmpty()) {
       return planPreciseTargets(run, preciseTargets, existingTaskKeys);
     }
+    if (run.getRunType() == SyncRunType.COMPENSATION_SCAN && sourceTables.isEmpty()) {
+      int existingTaskCount = existingTaskKeys.size();
+      int plannedFromStates = planCompensationFromExistingStates(run, existingTaskKeys);
+      if (plannedFromStates > existingTaskCount) {
+        return plannedFromStates;
+      }
+    }
     if (shouldPlanFromWhitelist(run, sourceTables)) {
       return planWhitelistTables(run, sourceTables, existingTaskKeys);
     }
@@ -138,6 +145,33 @@ public class SyncRunTablePlanningService {
       existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
     }
     log.info("Planned {} whitelist table tasks for run {}", planned, run.getId());
+    return planned;
+  }
+
+  private int planCompensationFromExistingStates(SyncRun run, Set<String> existingTaskKeys) {
+    List<SyncRunTableState> states =
+        stateMapper.selectList(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SyncRunTableState>()
+                .eq(SyncRunTableState::getConfigId, run.getConfigId())
+                .eq(SyncRunTableState::getSourceInstance, run.getSourceInstance())
+                .eq(SyncRunTableState::getSyncEnabled, true));
+    if (states == null || states.isEmpty()) {
+      return existingTaskKeys.size();
+    }
+    LocalDateTime now = LocalDateTime.now();
+    int planned = existingTaskKeys.size();
+    for (SyncRunTableState state : states) {
+      if (!isRunnableIncrementalState(state)) {
+        continue;
+      }
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+        continue;
+      }
+      taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
+      planned++;
+      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+    }
+    log.info("Planned {} compensation table tasks from existing states for run {}", planned, run.getId());
     return planned;
   }
 
@@ -302,6 +336,12 @@ public class SyncRunTablePlanningService {
       throw new BizException("手动刷新表需要先完成一次全量同步基线：" + sourceTable);
     }
     return state;
+  }
+
+  private boolean isRunnableIncrementalState(SyncRunTableState state) {
+    return state != null
+        && !isBlank(state.getPrimaryKeyColumns())
+        && !isBlank(state.getUpdatedAtColumn());
   }
 
   private boolean isBlank(String value) {
