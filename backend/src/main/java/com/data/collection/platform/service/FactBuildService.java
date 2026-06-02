@@ -383,6 +383,7 @@ public class FactBuildService {
     fact.setIssueState(closed ? "closed" : "opened");
     fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
     fact.setAuthorName(defaultText(rs.getString("author_name")));
+    fact.setAssigneeName(defaultText(rs.getString("assignee_names")));
     fact.setCreatedAtSource(createdAt);
     fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at")));
     fact.setOdsUpdatedAt(toLocalDateTime(rs.getTimestamp("ods_updated_at")));

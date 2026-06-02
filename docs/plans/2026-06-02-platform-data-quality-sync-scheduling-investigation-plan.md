@@ -777,3 +777,27 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ### 未跑通/阻塞
 - 老平台在当前本地 GitLab 16 API 时间格式下无法完成 issue 入库，外网新老平台同批展示对比暂不能继续声称通过。
 - 后续若要继续以老平台为准做外网对比，需要准备与老平台兼容的旧 GitLab/API 时间格式源，或增加测试用兼容代理/本地补丁，仅用于恢复老平台外网采集能力后再按 `OC-*` 逐项比较。
+
+## 2026-06-02 第十九批真实新老同批对比与修复记录
+
+### 已实施
+- 按用户要求继续拉起老平台，而不是停留在“拉不起来”：在 `D:\projects\spidergitdata-dev` 增加本地测试补丁，让老平台 `TimeUtil.parseStrToDate` 兼容 GitLab 16 返回的 `+08:00` 时间格式。
+- 针对项目 1 issue #1 notes 分页长时间不结束的问题，在老平台本地测试运行中给 `getAllIssueNotes` 增加 `old.platform.issue.notes.max.pages` 上限，避免外网样本阻塞全量 issue 入库。该补丁只用于外网对比，不纳入新平台仓库。
+- 新增 `scripts/compare_old_platform_issue_data_to_new_facts.py`，直接比较老平台 MySQL `spider_issue_data` 与新平台 PostgreSQL `issue_fact` 的同批 issue 数量、IID 和展示字段。
+- 修复新平台 issue fact 构建漏填处理人的问题：`GitlabFactSourceSqlProvider` 新增 `issue_assignee_names` 聚合，`FactBuildService` 写入 `assignee_name`。
+- 更新 `docs/local-gitlab-old-new-comparison-20260602.md` 和 `docs/real-chain-old-platform-comparison-ledger-20260602.md`，把新老同批对比从“环境阻塞”更新为“真实跑通但字段失败”。
+
+### 已验证
+- 老平台 `8091` 重新拉起后，`POST /spiderCCProduct/updateIssueInfo2Spider_issue_data?projectId=2` 返回 200，旧库 project 2 为 6 行。
+- 老平台 project 1 导入返回 200，旧库 project 1 为 382 行。
+- `python scripts/compare_old_platform_issue_data_to_new_facts.py --project-id 1 --source-instance cc --output .tmp/old-vs-new-issue-project1-20260602.json`：数量和 IID 通过，字段展示口径失败。
+- `python scripts/compare_old_platform_issue_data_to_new_facts.py --project-id 2 --source-instance cc --output .tmp/old-vs-new-issue-project2-20260602-after-assignee-fix.json`：数量和 IID 通过；处理人修复后，project 2 剩余 display mismatch 为 `moduleName=2`、`urgency=2`、`bugStatus=6`、`testingPhase=1`。
+- `mvn -q -Dtest=IssueFactSourceInstancePipelineTest test`：通过，覆盖 issue assignee 聚合写入 `issue_fact.assignee_name`。
+- 当前源码后端 `18080` 重启后 `POST /api/facts/rebuild?scope=issue&full=true&configId=2` 返回 200，影响 389 行。
+- `python scripts/real_chain_api_smoke.py --base-url http://localhost:18080 --output-dir .tmp/api-real-smoke-18080-compare-20260602`：通过，28 个真实 API 全部成功。
+- 登录后调用 `GET /api/question-metrics/issues?projectId=2&sourceInstance=cc&page=1&size=10` 返回 issue `#2`，`assigneeName=Administrator`。
+
+### 未跑通/阻塞
+- 还不能标 `PASS_SAME_DATA`：字段口径仍未和老平台完全一致，尤其是 `bugStatus`。老平台本地结果把无缺陷状态标签显示为 `未设定议题状态`，新平台显示为 `未关闭`。
+- 老平台本地 API `/issueStaticData/filter` 对项目 ID 有硬编码分支，只接受旧项目 `9/325`；当前本地 GitLab project `1/2` 暂时无法直接走老平台同 URL API 页面级对比，只能先做 DB-backed 对比。
+- 仍未完成导出文件对比、统计看板聚合对比、页面截图对比和排序/筛选/分页对比。

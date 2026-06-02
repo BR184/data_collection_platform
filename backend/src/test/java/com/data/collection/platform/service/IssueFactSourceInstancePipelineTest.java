@@ -42,6 +42,10 @@ class IssueFactSourceInstancePipelineTest {
         501L,
         "reviewer-a");
     jdbcTemplate.update(
+        "insert into ods_gitlab_cc_users(id, name, mirror_deleted) values (?, ?, false)",
+        601L,
+        "assignee-a");
+    jdbcTemplate.update(
         """
         insert into ods_gitlab_cc_issues(
           id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
@@ -55,6 +59,10 @@ class IssueFactSourceInstancePipelineTest {
         now.minusHours(1),
         now,
         1);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_cc_issue_assignees(issue_id, user_id, mirror_deleted) values (?, ?, false)",
+        9001L,
+        601L);
 
     FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
 
@@ -65,6 +73,9 @@ class IssueFactSourceInstancePipelineTest {
     assertThat(jdbcTemplate.queryForObject(
         "select count(*) from issue_fact where source_instance = 'default' and issue_id = 9001",
         Integer.class)).isZero();
+    assertThat(jdbcTemplate.queryForObject(
+        "select assignee_name from issue_fact where source_instance = 'cc' and issue_id = 9001",
+        String.class)).isEqualTo("assignee-a");
   }
 
   @Test
@@ -185,6 +196,14 @@ class IssueFactSourceInstancePipelineTest {
           mirror_deleted boolean default false
         )
         """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_cc_issue_assignees (
+          issue_id bigint,
+          user_id bigint,
+          mirror_deleted boolean default false
+        )
+        """);
   }
 
   private void cleanTables() {
@@ -193,6 +212,7 @@ class IssueFactSourceInstancePipelineTest {
     jdbcTemplate.update("delete from testing_phase_calendar");
     jdbcTemplate.update("delete from gitlab_sync_configs");
     jdbcTemplate.update("delete from ods_gitlab_cc_label_links");
+    jdbcTemplate.update("delete from ods_gitlab_cc_issue_assignees");
     jdbcTemplate.update("delete from ods_gitlab_cc_labels");
     jdbcTemplate.update("delete from ods_gitlab_cc_notes");
     jdbcTemplate.update("delete from ods_gitlab_cc_issues");
@@ -227,7 +247,7 @@ class IssueFactSourceInstancePipelineTest {
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.CUSTOM);
-    config.setWhitelistTables(List.of("issues", "projects", "users"));
+    config.setWhitelistTables(List.of("issues", "issue_assignees", "projects", "users"));
     config.setDbHost("localhost");
     config.setDbPort(5432);
     config.setDbName("gitlabhq_production");

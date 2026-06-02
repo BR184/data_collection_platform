@@ -21,6 +21,16 @@ class GitlabFactSourceSqlProvider {
           from distinct_issue_labels
          group by issue_id
       ),
+      issue_assignee_names as (
+        select ia.issue_id,
+               string_agg(distinct u.name, ', ' order by u.name) as assignee_names
+          from ods_gitlab_issue_assignees ia
+          join ods_gitlab_users u
+            on u.id = ia.user_id
+           and coalesce(u.mirror_deleted, false) = false
+         where coalesce(ia.mirror_deleted, false) = false
+         group by ia.issue_id
+      ),
       issue_notes as (
         select n.noteable_id as issue_id,
                string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text
@@ -37,6 +47,7 @@ class GitlabFactSourceSqlProvider {
         coalesce(milestone.title, '') as milestone_title,
         i.title,
         coalesce(author.name, '') as author_name,
+        coalesce(assignees.assignee_names, '') as assignee_names,
         i.created_at,
         i.updated_at,
         coalesce(i.updated_at, i.created_at) as ods_updated_at,
@@ -56,6 +67,8 @@ class GitlabFactSourceSqlProvider {
        and coalesce(author.mirror_deleted, false) = false
       left join issue_labels labels
         on labels.issue_id = i.id
+      left join issue_assignee_names assignees
+        on assignees.issue_id = i.id
       left join issue_notes notes
         on notes.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
@@ -81,6 +94,16 @@ class GitlabFactSourceSqlProvider {
           from distinct_issue_labels
          group by issue_id
       ),
+      issue_assignee_names as (
+        select ia.issue_id,
+               string_agg(distinct u.name, ', ' order by u.name) as assignee_names
+          from ods_gitlab_issue_assignees ia
+          join ods_gitlab_users u
+            on u.id = ia.user_id
+           and coalesce(u.mirror_deleted, false) = false
+         where coalesce(ia.mirror_deleted, false) = false
+         group by ia.issue_id
+      ),
       issue_notes as (
         select n.noteable_id as issue_id,
                string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text
@@ -97,6 +120,7 @@ class GitlabFactSourceSqlProvider {
         '' as milestone_title,
         i.title,
         coalesce(author.name, '') as author_name,
+        coalesce(assignees.assignee_names, '') as assignee_names,
         i.created_at,
         i.updated_at,
         coalesce(i.updated_at, i.created_at) as ods_updated_at,
@@ -113,6 +137,8 @@ class GitlabFactSourceSqlProvider {
        and coalesce(author.mirror_deleted, false) = false
       left join issue_labels labels
         on labels.issue_id = i.id
+      left join issue_assignee_names assignees
+        on assignees.issue_id = i.id
       left join issue_notes notes
         on notes.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
