@@ -612,3 +612,20 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ### 已验证
 - `npm test -- --run src/views/quality-board.test.ts src/views/system-test-multi-board.test.ts`：通过，覆盖 `numericValue=14569`、`displayValue=80.00%` 时图表数据为 `80`，并覆盖无 `%` 时回退 `numericValue`。
 - `npm run typecheck`：通过。
+
+## 2026-06-02 第七批修复记录
+
+### 已实施
+- 系统测试议题查询下拉新增历史脏模块值防御过滤，过滤 `9007`、`前端`、`分支：发布`、`CC2023R3客户`、纯数字和跨字段前缀值，避免旧 `issue_fact.module_names` 污染继续进入模块选项。
+- 数据库浏览页单表刷新改为展示接口提交状态：`QUEUED` / `RUNNING` 提示刷新请求已提交，`DEDUPED` 提示已合并到现有任务，只有 `SUCCESS` 才提示当前表数据已刷新。
+- 自动补偿扫描新增 `INTERVAL`、`DAILY_TIME`、`WINDOWED_INTERVAL` 三种调度模式，支持每日执行时间、运行窗口起止时间和错过窗口策略；旧配置默认保持 `INTERVAL`。
+- 镜像设置页补充自动补偿模式、执行时间、运行窗口和错过窗口策略表单项，并纳入配置变更检测。
+- 新增 Flyway 迁移 `V20260602_01__compensation_schedule_window_config.sql`，并同步 `schema.sql` 与本次迁移 checksum。
+
+### 已验证
+- `mvn -Dtest=SystemTestIssueSearchServiceTest,GitlabCompensationSchedulerTest,GitlabConfigServiceTest test`：通过，26 个测试覆盖系统测试下拉过滤、自动补偿每日定时/窗口内间隔调度和配置保存归一化。
+- `npm test -- --run src/components/DatabaseBrowserView.test.ts src/views/system-test-issue-search.mount-smoke.test.ts src/views/mirror-settings.mount-smoke.test.ts`：通过，7 个测试覆盖刷新状态文案、系统测试查询页 smoke 和镜像设置页自动补偿配置展示。
+- `npm run typecheck`：通过。
+- `python scripts/check_flyway_destructive_migrations.py`：通过。
+- `python scripts/check_schema_flyway_drift.py`：仍失败，但本次新增的自动补偿列已从 drift 中消除；剩余为既有 `gitlab_system_hook_events` / 旧同步表 / webhook 字段等历史差异。
+- `python scripts/check_flyway_migration_immutability.py`：仍失败，但本次新增迁移已锁定；剩余为历史 `V20260506_02` changed 和 `V20260518_02`、`V20260519_01`、`V20260519_02`、`V20260522_01` unlocked。

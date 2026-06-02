@@ -128,10 +128,50 @@ class SystemTestIssueSearchServiceTest {
                         && "draft".equals(query.listRequest().keyword())));
   }
 
+  @Test
+  void shouldFilterDirtyHistoricalModuleValuesFromFilterOptions() {
+    SystemTestIssueSearchService service =
+        new SystemTestIssueSearchService(
+            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(null))
+        .thenReturn(
+            List.of(
+                recordWithModules(
+                    302,
+                    "mixed module values",
+                    List.of("草图", "9007", "前端", "分支：发布", "CC2023R3客户"),
+                    "phase1 system test",
+                    "alice",
+                    "bob"),
+                recordWithModules(
+                    303,
+                    "another module",
+                    List.of("曲线"),
+                    "phase1 system test",
+                    "alice",
+                    "bob")));
+
+    List<String> moduleOptions =
+        service.getFilterOptions(null).moduleNames().stream().map(option -> option.value()).toList();
+
+    assertThat(moduleOptions).containsExactly("曲线", "草图");
+  }
+
   private IssueFactRecord record(
       int issueIid,
       String title,
       String moduleName,
+      String testingPhase,
+      String authorName,
+      String assigneeName) {
+    return recordWithModules(issueIid, title, List.of(moduleName), testingPhase, authorName, assigneeName);
+  }
+
+  private IssueFactRecord recordWithModules(
+      int issueIid,
+      String title,
+      List<String> moduleNames,
       String testingPhase,
       String authorName,
       String assigneeName) {
@@ -160,7 +200,7 @@ class SystemTestIssueSearchServiceTest {
         "CC2026R1",
         authorName,
         assigneeName,
-        List.of(moduleName),
+        moduleNames,
         List.of(testingPhase, "system test"),
         false,
         "",

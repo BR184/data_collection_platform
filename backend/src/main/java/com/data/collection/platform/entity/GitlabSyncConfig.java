@@ -69,6 +69,21 @@ public class GitlabSyncConfig {
   @TableField("compensation_interval_minutes")
   private Integer compensationIntervalMinutes;
 
+  @TableField("compensation_schedule_mode")
+  private String compensationScheduleMode;
+
+  @TableField("compensation_time")
+  private String compensationTime;
+
+  @TableField("compensation_window_start")
+  private String compensationWindowStart;
+
+  @TableField("compensation_window_end")
+  private String compensationWindowEnd;
+
+  @TableField("compensation_missed_window_policy")
+  private String compensationMissedWindowPolicy;
+
   @TableField("full_compensation_enabled")
   private Boolean fullCompensationEnabled;
 

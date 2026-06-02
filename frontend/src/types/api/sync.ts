@@ -1,6 +1,8 @@
 export type WhitelistMode = 'RECOMMENDED' | 'ALL' | 'CUSTOM';
 export type SourceMode = 'DIRECT' | 'DOCKER';
 export type SyncThreadMode = 'FIXED' | 'CPU_RATIO';
+export type CompensationScheduleMode = 'INTERVAL' | 'DAILY_TIME' | 'WINDOWED_INTERVAL';
+export type CompensationMissedWindowPolicy = 'SKIP' | 'RUN_NEXT_WINDOW';
 export type GitlabSyncType = 'FULL' | 'INCREMENTAL' | 'COMPENSATION' | 'SYSTEM_HOOK' | 'PURGE';
 export type SyncRunTablePhase =
   | 'COMPENSATION_INCREMENTAL'
@@ -42,6 +44,11 @@ export interface GitlabSyncConfig {
   systemHookEnabled?: boolean;
   systemHookProjectId?: number | null;
   compensationIntervalMinutes: number;
+  compensationScheduleMode?: CompensationScheduleMode;
+  compensationTime?: string;
+  compensationWindowStart?: string | null;
+  compensationWindowEnd?: string | null;
+  compensationMissedWindowPolicy?: CompensationMissedWindowPolicy;
   fullCompensationEnabled?: boolean;
   fullCompensationTime?: string;
   syncThreadMode: SyncThreadMode;

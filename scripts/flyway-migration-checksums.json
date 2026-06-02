@@ -18,5 +18,6 @@
   "V20260515_01__sync_orchestrator_core.sql": "53f622bdf204183c7685553976131d2fed9e18ac5fd034519679d5345e3bb33c",
   "V20260515_02__gitlab_sync_thread_config.sql": "2acc5e86db240a23c6216ac8f1770e79abb748bac80f1dd1b81de446d15d61b4",
   "V20260515_03__sync_run_fact_refresh_parent.sql": "a7f90061c7b032042995a4f9e72de6890a4232abff5c8a40b7d5a8ca14664c9e",
-  "V20260518_01__sync_run_precise_task_lookup.sql": "eb9835055b5090df9b21c26c31a659b188c1966677e31adc9112962ee4e68f2f"
+  "V20260518_01__sync_run_precise_task_lookup.sql": "eb9835055b5090df9b21c26c31a659b188c1966677e31adc9112962ee4e68f2f",
+  "V20260602_01__compensation_schedule_window_config.sql": "864fdbc68f53137e7f1dcdd12dec8118831b1cabfef7d284d8e6cacaf17e68dd"
 }

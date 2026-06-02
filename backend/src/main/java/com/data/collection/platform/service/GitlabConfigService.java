@@ -23,6 +23,11 @@ public class GitlabConfigService {
   static final int MIN_COMPENSATION_INTERVAL_MINUTES = 1;
   static final int MAX_COMPENSATION_INTERVAL_MINUTES = 720;
   static final int DEFAULT_COMPENSATION_INTERVAL_MINUTES = 360;
+  static final String COMPENSATION_SCHEDULE_INTERVAL = "INTERVAL";
+  static final String COMPENSATION_SCHEDULE_DAILY_TIME = "DAILY_TIME";
+  static final String COMPENSATION_SCHEDULE_WINDOWED_INTERVAL = "WINDOWED_INTERVAL";
+  static final String DEFAULT_COMPENSATION_TIME = "03:30";
+  static final String DEFAULT_COMPENSATION_MISSED_WINDOW_POLICY = "SKIP";
   static final String DEFAULT_FULL_COMPENSATION_TIME = "02:00";
 
   private final GitlabSyncConfigMapper configMapper;
@@ -252,6 +257,11 @@ public class GitlabConfigService {
     config.setDockerContainerName("gitlab-data-web-1");
     config.setSystemHookEnabled(false);
     config.setCompensationIntervalMinutes(DEFAULT_COMPENSATION_INTERVAL_MINUTES);
+    config.setCompensationScheduleMode(COMPENSATION_SCHEDULE_INTERVAL);
+    config.setCompensationTime(DEFAULT_COMPENSATION_TIME);
+    config.setCompensationWindowStart(null);
+    config.setCompensationWindowEnd(null);
+    config.setCompensationMissedWindowPolicy(DEFAULT_COMPENSATION_MISSED_WINDOW_POLICY);
     config.setFullCompensationEnabled(true);
     config.setFullCompensationTime(DEFAULT_FULL_COMPENSATION_TIME);
     config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);
@@ -287,6 +297,16 @@ public class GitlabConfigService {
     normalized.setSystemHookEnabled(systemHookEnabled);
     normalized.setSystemHookProjectId(config.getSystemHookProjectId());
     normalized.setCompensationIntervalMinutes(normalizeCompensationInterval(config.getCompensationIntervalMinutes()));
+    normalized.setCompensationScheduleMode(
+        normalizeCompensationScheduleMode(config.getCompensationScheduleMode(), current.getCompensationScheduleMode()));
+    normalized.setCompensationTime(
+        normalizeTime(config.getCompensationTime(), DEFAULT_COMPENSATION_TIME, "自动补偿每日执行时间必须使用 HH:mm 格式"));
+    normalized.setCompensationWindowStart(
+        normalizeOptionalTime(config.getCompensationWindowStart(), "自动补偿运行窗口开始时间必须使用 HH:mm 格式"));
+    normalized.setCompensationWindowEnd(
+        normalizeOptionalTime(config.getCompensationWindowEnd(), "自动补偿运行窗口结束时间必须使用 HH:mm 格式"));
+    normalized.setCompensationMissedWindowPolicy(
+        normalizeMissedWindowPolicy(config.getCompensationMissedWindowPolicy(), current.getCompensationMissedWindowPolicy()));
     normalized.setFullCompensationEnabled(config.getFullCompensationEnabled() == null ? true : config.getFullCompensationEnabled());
     normalized.setFullCompensationTime(normalizeFullCompensationTime(config.getFullCompensationTime()));
     String syncThreadMode = normalizeSyncThreadMode(config.getSyncThreadMode(), current.getSyncThreadMode());
@@ -431,13 +451,54 @@ public class GitlabConfigService {
     return effectiveValue;
   }
 
+  private String normalizeCompensationScheduleMode(String nextMode, String currentMode) {
+    String effectiveMode =
+        nextMode == null || nextMode.isBlank()
+            ? currentMode
+            : nextMode.trim().toUpperCase(Locale.ROOT);
+    if (effectiveMode == null || effectiveMode.isBlank()) {
+      return COMPENSATION_SCHEDULE_INTERVAL;
+    }
+    if (COMPENSATION_SCHEDULE_INTERVAL.equals(effectiveMode)
+        || COMPENSATION_SCHEDULE_DAILY_TIME.equals(effectiveMode)
+        || COMPENSATION_SCHEDULE_WINDOWED_INTERVAL.equals(effectiveMode)) {
+      return effectiveMode;
+    }
+    throw new BizException("不支持的自动补偿调度模式：" + effectiveMode);
+  }
+
+  private String normalizeMissedWindowPolicy(String nextPolicy, String currentPolicy) {
+    String effectivePolicy =
+        nextPolicy == null || nextPolicy.isBlank()
+            ? currentPolicy
+            : nextPolicy.trim().toUpperCase(Locale.ROOT);
+    if (effectivePolicy == null || effectivePolicy.isBlank()) {
+      return DEFAULT_COMPENSATION_MISSED_WINDOW_POLICY;
+    }
+    if ("SKIP".equals(effectivePolicy) || "RUN_NEXT_WINDOW".equals(effectivePolicy)) {
+      return effectivePolicy;
+    }
+    throw new BizException("不支持的自动补偿错过窗口策略：" + effectivePolicy);
+  }
+
   private String normalizeFullCompensationTime(String time) {
-    String effectiveTime = time == null || time.isBlank() ? DEFAULT_FULL_COMPENSATION_TIME : time.trim();
+    return normalizeTime(time, DEFAULT_FULL_COMPENSATION_TIME, "每日执行时间必须使用 HH:mm 格式");
+  }
+
+  private String normalizeOptionalTime(String time, String errorMessage) {
+    if (time == null || time.isBlank()) {
+      return null;
+    }
+    return normalizeTime(time, time, errorMessage);
+  }
+
+  private String normalizeTime(String time, String fallback, String errorMessage) {
+    String effectiveTime = time == null || time.isBlank() ? fallback : time.trim();
     try {
       return java.time.LocalTime.parse(effectiveTime, java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
           .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
     } catch (java.time.format.DateTimeParseException ex) {
-      throw new BizException("每日执行时间必须使用 HH:mm 格式");
+      throw new BizException(errorMessage);
     }
   }
 
@@ -537,6 +598,15 @@ public class GitlabConfigService {
     }
     if (config.getMaxSyncThreads() == null) {
       config.setMaxSyncThreads(Math.max(1, properties.getMaxSyncThreads()));
+    }
+    config.setCompensationScheduleMode(
+        normalizeCompensationScheduleMode(config.getCompensationScheduleMode(), COMPENSATION_SCHEDULE_INTERVAL));
+    if (config.getCompensationTime() == null || config.getCompensationTime().isBlank()) {
+      config.setCompensationTime(DEFAULT_COMPENSATION_TIME);
+    }
+    if (config.getCompensationMissedWindowPolicy() == null
+        || config.getCompensationMissedWindowPolicy().isBlank()) {
+      config.setCompensationMissedWindowPolicy(DEFAULT_COMPENSATION_MISSED_WINDOW_POLICY);
     }
   }
 }

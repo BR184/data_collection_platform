@@ -32,6 +32,11 @@ function baseConfig(id = 1, sourceInstance = 'default') {
     systemHookEnabled: false,
     systemHookProjectId: null,
     compensationIntervalMinutes: 360,
+    compensationScheduleMode: 'INTERVAL',
+    compensationTime: '03:30',
+    compensationWindowStart: '01:00',
+    compensationWindowEnd: '05:00',
+    compensationMissedWindowPolicy: 'SKIP',
     fullCompensationEnabled: true,
     fullCompensationTime: '02:00',
     syncThreadMode: 'FIXED',
@@ -180,6 +185,9 @@ describe('MirrorSettingsView mount smoke', () => {
     expect(wrapper.find('.sync-log-table-shell').exists()).toBe(true);
     expect(wrapper.text()).toContain('固定线程数');
     expect(wrapper.text()).toContain('全量补偿对账');
+    expect(wrapper.text()).toContain('自动补偿模式');
+    expect(wrapper.text()).toContain('自动补偿执行时间');
+    expect(wrapper.text()).toContain('自动补偿运行窗口');
     expect(wrapper.text()).toContain('每日执行时间');
     expect(wrapper.text()).toContain('预计本次配置会使用');
     expect(wrapper.text()).toContain('数据镜像监控');

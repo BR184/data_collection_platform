@@ -7,7 +7,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -15,6 +18,13 @@ import org.springframework.util.StringUtils;
 public class SystemTestIssueSearchService extends AbstractIssueFactRecordListService {
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final int EXPORT_PAGE_SIZE = 100;
+  private static final Pattern NUMERIC_ONLY_MODULE = Pattern.compile("^\\d+$");
+  private static final Pattern CROSS_FIELD_PREFIX_MODULE =
+      Pattern.compile("^(?:项目|分支|客户|状态|阶段|测试阶段|严重程度|类别|延期原因|版本|里程碑|project|branch|customer|status|phase)\\s*[:：].*",
+          Pattern.CASE_INSENSITIVE);
+  private static final Pattern CUSTOMER_RELEASE_MODULE = Pattern.compile("^cc\\d{4}r\\d+.*客户.*$", Pattern.CASE_INSENSITIVE);
+  private static final Set<String> DIRTY_HISTORICAL_MODULE_VALUES =
+      Set.of("前端", "未识别模块", "未设定模块", "未标记模块");
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
@@ -173,7 +183,10 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     List<IssueFactRecord> scopedViews = loadScopedViews(projectId);
     return new SystemTestIssueSearchFilterOptionsResponse(
         toOptions(scopedViews, IssueFactRecord::projectName),
-        toOptions(scopedViews.stream().flatMap(view -> view.moduleNames().stream()).toList()),
+        toOptions(scopedViews.stream()
+            .flatMap(view -> view.moduleNames().stream())
+            .filter(SystemTestIssueSearchService::isCleanModuleOption)
+            .toList()),
         toOptions(
             scopedViews.stream()
                 .map(IssueFactRecord::phaseFilterValue)
@@ -192,6 +205,24 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     return loadFacts(projectId).stream()
         .filter(view -> systemTestScopeProfile.matches(view.scopeContext()))
         .toList();
+  }
+
+  private static boolean isCleanModuleOption(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return false;
+    }
+    if (DIRTY_HISTORICAL_MODULE_VALUES.contains(normalized)) {
+      return false;
+    }
+    if (NUMERIC_ONLY_MODULE.matcher(normalized).matches()) {
+      return false;
+    }
+    if (CROSS_FIELD_PREFIX_MODULE.matcher(normalized).matches()) {
+      return false;
+    }
+    String lower = normalized.toLowerCase(Locale.ROOT);
+    return !CUSTOMER_RELEASE_MODULE.matcher(lower).matches() && !normalized.endsWith("客户");
   }
 
   private SystemTestIssueSearchRowResponse toResponse(IssueFactRecord view) {

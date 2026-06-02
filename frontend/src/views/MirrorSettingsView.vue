@@ -54,6 +54,11 @@ const form = ref<GitlabSyncConfig>({
   systemHookEnabled: false,
   systemHookProjectId: null,
   compensationIntervalMinutes: 360,
+  compensationScheduleMode: 'INTERVAL',
+  compensationTime: '03:30',
+  compensationWindowStart: null,
+  compensationWindowEnd: null,
+  compensationMissedWindowPolicy: 'SKIP',
   fullCompensationEnabled: true,
   fullCompensationTime: '02:00',
   syncThreadMode: 'FIXED',
@@ -583,6 +588,11 @@ function formSnapshot(config: GitlabSyncConfig) {
     systemHookEnabled: Boolean(config.systemHookEnabled),
     systemHookProjectId: config.systemHookProjectId ?? null,
     compensationIntervalMinutes: Number(config.compensationIntervalMinutes ?? 360),
+    compensationScheduleMode: config.compensationScheduleMode ?? 'INTERVAL',
+    compensationTime: config.compensationTime ?? '03:30',
+    compensationWindowStart: config.compensationWindowStart ?? null,
+    compensationWindowEnd: config.compensationWindowEnd ?? null,
+    compensationMissedWindowPolicy: config.compensationMissedWindowPolicy ?? 'SKIP',
     fullCompensationEnabled: config.fullCompensationEnabled ?? true,
     fullCompensationTime: config.fullCompensationTime ?? '02:00',
     syncThreadMode: config.syncThreadMode ?? 'FIXED',
@@ -817,8 +827,57 @@ onBeforeRouteLeave(async () => {
         <el-form-item label="自动同步">
           <el-switch v-model="form.autoSyncEnabled" />
         </el-form-item>
+        <el-form-item label="自动补偿模式">
+          <el-radio-group v-model="form.compensationScheduleMode">
+            <el-radio-button value="INTERVAL">按间隔</el-radio-button>
+            <el-radio-button value="DAILY_TIME">每日定时</el-radio-button>
+            <el-radio-button value="WINDOWED_INTERVAL">窗口内间隔</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="补偿间隔(分钟)">
-          <el-input-number v-model="form.compensationIntervalMinutes" :min="1" :max="720" />
+          <el-input-number
+            v-model="form.compensationIntervalMinutes"
+            :min="1"
+            :max="720"
+            :disabled="form.compensationScheduleMode === 'DAILY_TIME'"
+          />
+        </el-form-item>
+        <el-form-item label="自动补偿执行时间">
+          <el-time-picker
+            v-model="form.compensationTime"
+            format="HH:mm"
+            value-format="HH:mm"
+            :disabled="form.compensationScheduleMode !== 'DAILY_TIME'"
+            placeholder="选择时间"
+          />
+        </el-form-item>
+        <el-form-item label="自动补偿运行窗口">
+          <div class="mirror-window-row">
+            <el-time-picker
+              v-model="form.compensationWindowStart"
+              format="HH:mm"
+              value-format="HH:mm"
+              :disabled="form.compensationScheduleMode !== 'WINDOWED_INTERVAL'"
+              placeholder="开始时间"
+            />
+            <span class="mirror-window-separator">至</span>
+            <el-time-picker
+              v-model="form.compensationWindowEnd"
+              format="HH:mm"
+              value-format="HH:mm"
+              :disabled="form.compensationScheduleMode !== 'WINDOWED_INTERVAL'"
+              placeholder="结束时间"
+            />
+          </div>
+        </el-form-item>
+        <el-form-item label="错过窗口策略">
+          <el-select
+            v-model="form.compensationMissedWindowPolicy"
+            :disabled="form.compensationScheduleMode !== 'WINDOWED_INTERVAL'"
+          >
+            <el-option label="跳过，等待下个窗口" value="SKIP" />
+            <el-option label="下个窗口补跑" value="RUN_NEXT_WINDOW" />
+          </el-select>
         </el-form-item>
         <el-form-item label="全量补偿对账">
           <el-switch v-model="form.fullCompensationEnabled" />
@@ -1194,3 +1253,17 @@ onBeforeRouteLeave(async () => {
     </template>
   </el-dialog>
 </template>
+
+<style scoped>
+.mirror-window-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mirror-window-separator {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+</style>

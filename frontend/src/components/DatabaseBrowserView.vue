@@ -4,6 +4,7 @@ import { ElMessage } from '../element-plus-services';
 import { Edit, Refresh, WarningFilled } from '@element-plus/icons-vue';
 import { api } from '../api';
 import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/api';
+import type { DatabaseTableRefreshResponse } from '../api-client/database-browser-api';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import SmartSelect from './base/SmartSelect.vue';
 import BaseSearchInput from './base/BaseSearchInput.vue';
@@ -193,16 +194,36 @@ async function handleRefresh() {
   }
   refreshingTable.value = true;
   try {
+    let refreshResult: DatabaseTableRefreshResponse | null = null;
     if (selectedTable.value) {
-      await api.refreshDatabaseTable(selectedTable.value);
+      refreshResult = await api.refreshDatabaseTable(selectedTable.value);
     }
     await loadTables();
     await loadRows();
-    ElMessage.success('当前表数据已刷新');
+    ElMessage.success(refreshSubmissionMessage(refreshResult));
   } catch (error) {
     ElMessage.error((error as Error).message);
   } finally {
     refreshingTable.value = false;
+  }
+}
+
+function refreshSubmissionMessage(result: DatabaseTableRefreshResponse | null) {
+  if (result?.message?.trim()) {
+    return result.message;
+  }
+  const runSuffix = result?.runId ? `，同步任务 #${result.runId}` : '';
+  switch (result?.status) {
+    case 'SUCCESS':
+      return `当前表数据已刷新${runSuffix}`;
+    case 'RUNNING':
+      return `刷新请求已提交，正在同步执行${runSuffix}`;
+    case 'DEDUPED':
+      return `刷新请求已合并到现有同步任务，完成后生效${runSuffix}`;
+    case 'QUEUED':
+      return `刷新请求已提交，正在排队等待同步执行${runSuffix}`;
+    default:
+      return result?.accepted === false ? '当前表暂无可刷新的同步任务' : `刷新请求已提交${runSuffix}`;
   }
 }
 
