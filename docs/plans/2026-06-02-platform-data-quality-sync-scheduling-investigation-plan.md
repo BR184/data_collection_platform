@@ -733,3 +733,26 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ### 已验证
 - `python scripts/check_verification_ledger.py`：通过，确认当前台账 24 个跟踪项均有明确状态和后续动作。
 - `python -m py_compile scripts/check_verification_ledger.py`：通过，确认 Python 语法有效。
+
+## 2026-06-02 第十七批真实链路验证记录
+
+### 已实施
+- 新增 `scripts/browser_route_real_smoke.py`，通过真实登录、真实 CSRF/cookie 和 Vite 代理打开 28 个前端 hash 路由，不再 mock `/api/**`。
+- 新增 `scripts/real_chain_api_smoke.py`，通过前端 `18181` 代理登录后调用 28 个只读核心 API，覆盖配置、数据库查看、评审、代码走查、集成测试、系统测试、客户问题和统计看板。
+- 修复 `scripts/check_issue_fact_module_pollution.py` 在 Windows 上通过 `psql -c` 传递中文 SQL 时可能触发编码问题的缺陷，改为通过 stdin 向 `psql` 投递 SQL，并设置 `PGCLIENTENCODING=UTF8`。
+- 使用真实平台库对 `cc/default/dgm` 三个主要源执行 issue fact full rebuild，清理历史 `module_names` 污染。
+- 更新 `docs/real-chain-old-platform-comparison-ledger-20260602.md`：新平台真实路由、只读 API 和模块污染复查已标为真实链路结果；新老同批数据对比因老平台运行环境缺失标为 `BLOCKED_ENV`。
+
+### 已验证
+- 后端 `18080` health 返回 `{"status":"UP"}`；Java 进程来自当前工作区 `D:\projects\data_collection_platform`。
+- 前端 `18181` 返回 Vite 当前源码入口；Vite 进程来自当前工作区 `frontend`。
+- 平台 PostgreSQL `15432/15433` 可用，密码为本地测试库 `change_this_password`。
+- `python scripts/browser_route_real_smoke.py --base-url http://localhost:18181`：通过，28 个真实路由全部通过，报告见 `.tmp/browser-real-smoke-20260602-153211/report.json`。
+- `python scripts/real_chain_api_smoke.py --base-url http://localhost:18181`：通过，28 个只读核心接口全部通过，报告见 `.tmp/api-real-smoke-20260602-153042/report.json`。
+- `DATASOURCE_PASSWORD=change_this_password python scripts/check_issue_fact_module_pollution.py --limit 20`：重建前发现 3 组污染值；对 `cc/default/dgm` full rebuild 后复跑通过，`issue_fact rows=1177 rows_with_module_names=24`，无可疑模块值。
+- `python -m py_compile scripts/check_issue_fact_module_pollution.py scripts/browser_route_real_smoke.py scripts/real_chain_api_smoke.py`：通过。
+
+### 未跑通/阻塞
+- 老平台 `D:\projects\spidergitdata-dev` 默认依赖 MySQL `localhost:3306/gitlab_spider` 和 `gitlab_spider_dgm`，当前 `3306` 未监听。
+- 老平台 `8091/8092` 当前未监听，`target` 下无可直接运行 jar，因此本轮无法完成 `PASS_SAME_DATA` 级别的新老平台同批数据对比。
+- 本轮未执行导出下载、写操作、补偿调度、取消任务、kill/restart 恢复和逐页筛选/排序/分页/详情/下钻深度操作路径。

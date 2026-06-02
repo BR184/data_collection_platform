@@ -148,6 +148,7 @@ def find_psql(explicit_path: str) -> str | None:
 def run_psql(psql: str, options: ConnectionOptions, sql: str, limit: int) -> list[dict[str, str]]:
     env = os.environ.copy()
     env.setdefault("PGCONNECT_TIMEOUT", os.getenv("FACT_CHECK_CONNECT_TIMEOUT_SECONDS", "5"))
+    env.setdefault("PGCLIENTENCODING", "UTF8")
     if options.password:
         env["PGPASSWORD"] = options.password
     if options.schema:
@@ -170,8 +171,7 @@ def run_psql(psql: str, options: ConnectionOptions, sql: str, limit: int) -> lis
         "-d",
         options.database,
     ]
-    command.extend(["-c", sql])
-    completed = subprocess.run(command, check=False, capture_output=True, env=env, text=True, encoding="utf-8")
+    completed = subprocess.run(command, input=sql, check=False, capture_output=True, env=env, text=True, encoding="utf-8")
     if completed.returncode != 0:
         raise RuntimeError((completed.stderr or completed.stdout).strip())
     return list(csv.DictReader(completed.stdout.splitlines()))
