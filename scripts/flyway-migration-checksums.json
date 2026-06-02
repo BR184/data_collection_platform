@@ -19,5 +19,9 @@
   "V20260515_02__gitlab_sync_thread_config.sql": "2acc5e86db240a23c6216ac8f1770e79abb748bac80f1dd1b81de446d15d61b4",
   "V20260515_03__sync_run_fact_refresh_parent.sql": "a7f90061c7b032042995a4f9e72de6890a4232abff5c8a40b7d5a8ca14664c9e",
   "V20260518_01__sync_run_precise_task_lookup.sql": "eb9835055b5090df9b21c26c31a659b188c1966677e31adc9112962ee4e68f2f",
+  "V20260518_02__disable_incomplete_auto_sync_sources.sql": "73b10dffaa544bb9d9100f1c7dfcee7fdc3ed7ceca68e5c391fc9f37aa091560",
+  "V20260519_01__gitlab_sync_compensation_default.sql": "897870059785ae1dfe1d5daa2831116cb8b7da446cc0701f6ba7e4ad65c339a5",
+  "V20260519_02__disable_all_table_whitelist_mode.sql": "6def13ed3285e26271e68c4df50f28b08f7811db8e87da94695e538548cdbaf4",
+  "V20260522_01__full_compensation_schedule_config.sql": "c5e67aa8814bf9a5a7d2c4e0ec8e479e8ec33faed826c901c50868155c83276c",
   "V20260602_01__compensation_schedule_window_config.sql": "864fdbc68f53137e7f1dcdd12dec8118831b1cabfef7d284d8e6cacaf17e68dd"
 }

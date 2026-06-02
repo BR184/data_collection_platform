@@ -629,3 +629,21 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 - `python scripts/check_flyway_destructive_migrations.py`：通过。
 - `python scripts/check_schema_flyway_drift.py`：仍失败，但本次新增的自动补偿列已从 drift 中消除；剩余为既有 `gitlab_system_hook_events` / 旧同步表 / webhook 字段等历史差异。
 - `python scripts/check_flyway_migration_immutability.py`：仍失败，但本次新增迁移已锁定；剩余为历史 `V20260506_02` changed 和 `V20260518_02`、`V20260519_01`、`V20260519_02`、`V20260522_01` unlocked。
+
+## 2026-06-02 第八批修复记录
+
+### 已实施
+- 收口 Flyway/schema 历史残留：`check_schema_flyway_drift.py` 改为按迁移顺序计算最终结构，支持 `DROP TABLE`、`DROP INDEX`、表重命名、列删除、列重命名，以及同一 `ALTER TABLE` 中的多个 `ADD COLUMN`，避免把已删除旧同步表和已重命名 webhook 表误报为当前漂移。
+- `schema.sql` 补齐当前最终存在的 sync orchestrator 基线表、索引和列，包括 `sync_runs`、`sync_run_table_states`、`sync_run_table_tasks`、`sync_run_events`、`sync_worker_leases`，以及后续迁移追加的 `parent_run_id`、`lookup_column`、`lookup_value`。
+- `schema.sql` 补齐 `idx_review_records_gitlab_context`，与 `V20260513_01__review_data_gitlab_context.sql` 保持一致。
+- 还原历史迁移 `V20260506_02__gitlab_sync_core_schema.sql` 中被误改的 `compensation_interval_minutes` 初始默认值为 `10`；最终默认值继续由后续 `V20260519_01__gitlab_sync_compensation_default.sql` 设置为 `360`，避免修改已锁历史迁移。
+- 将已审阅但未锁定的 `V20260518_02`、`V20260519_01`、`V20260519_02`、`V20260522_01` 纳入 `flyway-migration-checksums.json`。
+
+### 已验证
+- `python scripts/check_schema_flyway_drift.py`：通过，当前为 23 张表、121 个索引、1 个扩展，字段集合一致。
+- `python scripts/check_flyway_migration_immutability.py`：通过，25 个迁移均已锁定。
+- `python scripts/check_flyway_destructive_migrations.py`：通过。
+- `python scripts/check_flyway_destructive_migrations_test.py`：通过。
+- `python scripts/check_flyway_profile_smoke_coverage.py`：通过。
+- `python scripts/check_fact_field_contract.py`：通过。
+- `mvn -q -Dtest=FlywayMigrationSmokeTest test`：通过。
