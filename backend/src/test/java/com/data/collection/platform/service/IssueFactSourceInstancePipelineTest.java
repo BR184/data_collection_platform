@@ -67,6 +67,50 @@ class IssueFactSourceInstancePipelineTest {
         Integer.class)).isZero();
   }
 
+  @Test
+  void shouldNormalizeModuleAndToolboxLabelsWhenBuildingIssueFacts() {
+    LocalDateTime now = LocalDateTime.of(2026, 5, 7, 9, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_cc_projects(id, name, mirror_deleted) values (?, ?, false)",
+        101L,
+        "CC_PRODUCT");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_cc_users(id, name, mirror_deleted) values (?, ?, false)",
+        502L,
+        "reviewer-b");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_cc_issues(
+          id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
+        """,
+        9002L,
+        89L,
+        101L,
+        "module normalized issue",
+        502L,
+        now.minusHours(1),
+        now,
+        1);
+    insertLabel(1L, "模块：草图");
+    insertLabel(2L, "工具箱:草图");
+    insertLabel(3L, "9007");
+    insertLabel(4L, "分支：发布");
+    insertLabel(5L, "前端");
+    linkLabel(1L, 9002L);
+    linkLabel(2L, 9002L);
+    linkLabel(3L, 9002L);
+    linkLabel(4L, 9002L);
+    linkLabel(5L, 9002L);
+
+    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+
+    assertThat(response.affectedRows()).isEqualTo(1);
+    assertThat(jdbcTemplate.queryForObject(
+        "select module_names from issue_fact where source_instance = 'cc' and issue_id = 9002",
+        String.class)).isEqualTo("草图");
+  }
+
   private void createMinimalCcOdsTables() {
     jdbcTemplate.execute(
         """
@@ -155,6 +199,25 @@ class IssueFactSourceInstancePipelineTest {
     jdbcTemplate.update("delete from ods_gitlab_cc_milestones");
     jdbcTemplate.update("delete from ods_gitlab_cc_users");
     jdbcTemplate.update("delete from ods_gitlab_cc_projects");
+  }
+
+  private void insertLabel(long id, String title) {
+    jdbcTemplate.update(
+        "insert into ods_gitlab_cc_labels(id, title, mirror_deleted) values (?, ?, false)",
+        id,
+        title);
+  }
+
+  private void linkLabel(long labelId, long issueId) {
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_cc_label_links(
+          id, label_id, target_id, target_type, source_updated_at, updated_at, created_at, mirror_deleted
+        ) values (?, ?, ?, 'Issue', current_timestamp, current_timestamp, current_timestamp, false)
+        """,
+        labelId,
+        labelId,
+        issueId);
   }
 
   private GitlabSyncConfig baseConfig() {

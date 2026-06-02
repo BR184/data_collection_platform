@@ -4,6 +4,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class IssueLabelRules {
   private static final Map<String, List<String>> SEVERITY_TOKENS = IssueRuleSupport.ordered(
@@ -28,6 +30,8 @@ final class IssueLabelRules {
       "NEW_FUNCTION",
       "OLD_FUNCTION",
       "ENHANCE_FUNCTION");
+  private static final Pattern MODULE_LABEL_PATTERN =
+      Pattern.compile("^(?:模块|module|工具箱)\\s*[:：-]\\s*(.+)$", Pattern.CASE_INSENSITIVE);
   private static final Set<String> NON_MODULE_TOKENS = new LinkedHashSet<>(List.of(
       "一级缺陷", "一级严重", "二级缺陷", "二级严重", "三级缺陷", "三级严重",
       "建议", "需求", "需求如此", "P1", "P2", "P3",
@@ -126,9 +130,29 @@ final class IssueLabelRules {
           || isTestingPhase(label)) {
         continue;
       }
-      modules.add(label.trim());
+      String moduleName = extractModuleName(label);
+      if (moduleName != null) {
+        modules.add(moduleName);
+      }
     }
     return List.copyOf(modules);
+  }
+
+  private static String extractModuleName(String label) {
+    String trimmed = label.trim();
+    Matcher matcher = MODULE_LABEL_PATTERN.matcher(trimmed);
+    if (matcher.matches()) {
+      return normalizeModuleValue(matcher.group(1));
+    }
+    if (trimmed.endsWith("模块") && trimmed.length() > "模块".length()) {
+      return normalizeModuleValue(trimmed);
+    }
+    return null;
+  }
+
+  private static String normalizeModuleValue(String value) {
+    String normalized = IssueRuleSupport.normalizeText(value);
+    return normalized == null ? null : value.trim();
   }
 
   private static boolean isKnownSeverityAlias(String label) {

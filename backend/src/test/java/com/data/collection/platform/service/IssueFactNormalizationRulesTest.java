@@ -47,6 +47,28 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void shouldNormalizeModuleAndToolboxLabelsBeforeDictionaryMapping() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
+        "模块：草图",
+        "模块:草图",
+        "module：草图",
+        "module:草图",
+        "工具箱：草图",
+        "工具箱:草图",
+        "前端",
+        "9007",
+        "分支：发布",
+        "CC2023R3客户")))
+        .containsExactly("草图");
+  }
+
+  @Test
+  void shouldKeepDifferentModuleAndToolboxValuesAsSeparateModules() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：草图", "工具箱：曲线")))
+        .containsExactly("草图", "曲线");
+  }
+
+  @Test
   void shouldRecognizeSpecialLevelOneAndIllegalCases() {
     List<String> level1 = List.of("一级缺陷", "模块A");
     assertThat(IssueFactNormalizationRules.isRegression(level1, "模型回退导致显示错误")).isTrue();
