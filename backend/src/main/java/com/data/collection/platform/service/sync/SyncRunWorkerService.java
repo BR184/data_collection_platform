@@ -21,6 +21,7 @@ public class SyncRunWorkerService {
   private final SyncThreadBudgetResolver threadBudgetResolver;
   private final ApplicationEventPublisher eventPublisher;
   private final SyncFactRefreshRunExecutor factRefreshRunExecutor;
+  private final SyncRunDeadlineGuard deadlineGuard;
 
   public SyncRunWorkerService(
       SyncRunMapper syncRunMapper,
@@ -29,7 +30,8 @@ public class SyncRunWorkerService {
       GitlabConfigService configService,
       SyncThreadBudgetResolver threadBudgetResolver,
       ApplicationEventPublisher eventPublisher,
-      SyncFactRefreshRunExecutor factRefreshRunExecutor) {
+      SyncFactRefreshRunExecutor factRefreshRunExecutor,
+      SyncRunDeadlineGuard deadlineGuard) {
     this.syncRunMapper = syncRunMapper;
     this.tablePlanningService = tablePlanningService;
     this.tableWorkerService = tableWorkerService;
@@ -37,6 +39,7 @@ public class SyncRunWorkerService {
     this.threadBudgetResolver = threadBudgetResolver;
     this.eventPublisher = eventPublisher;
     this.factRefreshRunExecutor = factRefreshRunExecutor;
+    this.deadlineGuard = deadlineGuard;
   }
 
   public void executeRun(SyncRun run) {
@@ -45,8 +48,8 @@ public class SyncRunWorkerService {
     }
     markRunning(run);
     try {
-      if (isCancellationRequested(run)) {
-        finishRun(run, SyncRunStatus.CANCELLED, 0, 0, "同步运行在处理前已取消");
+      if (isCancellationRequested(run) || isDeadlineExpired(run)) {
+        finishRun(run, SyncRunStatus.CANCELLED, 0, 0, cancellationMessage(run, "同步运行在处理前已取消"));
         return;
       }
       if (run.getRunType() == SyncRunType.FACT_REFRESH) {
@@ -68,16 +71,16 @@ public class SyncRunWorkerService {
 
   private void executeTableRefreshRun(SyncRun run) {
     int planned = tablePlanningService.planRunTables(run.getId());
-    if (isCancellationRequested(run)) {
-      finishRun(run, SyncRunStatus.CANCELLED, planned, 0, "同步运行在表任务执行前已取消");
+    if (isCancellationRequested(run) || isDeadlineExpired(run)) {
+      finishRun(run, SyncRunStatus.CANCELLED, planned, 0, cancellationMessage(run, "同步运行在表任务执行前已取消"));
       return;
     }
     tableWorkerService.drainRunTasks(run.getId(), resolveTableWorkerCount(run));
     SyncRunTableWorkerService.RunTableTaskSummary summary = tableWorkerService.summarizeRun(run.getId());
     run.setScannedRows(summary.scannedRows());
     run.setAppliedRows(summary.appliedRows());
-    if (isCancellationRequested(run)) {
-      finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), "同步运行已取消");
+    if (isCancellationRequested(run) || isDeadlineExpired(run)) {
+      finishRun(run, SyncRunStatus.CANCELLED, planned, summary.completedTasks(), cancellationMessage(run, "同步运行已取消"));
       return;
     }
     SyncRunStatus status = tableRunStatus(summary);
@@ -112,6 +115,14 @@ public class SyncRunWorkerService {
       run.setStatus(latest.getStatus() == SyncRunStatus.CANCELLED ? SyncRunStatus.CANCELLED : SyncRunStatus.CANCELLING);
     }
     return cancelRequested;
+  }
+
+  private boolean isDeadlineExpired(SyncRun run) {
+    return deadlineGuard.requestCancellationIfExpired(run);
+  }
+
+  private String cancellationMessage(SyncRun run, String fallback) {
+    return run.getErrorMessage() == null || run.getErrorMessage().isBlank() ? fallback : run.getErrorMessage();
   }
 
   private void finishRun(SyncRun run, SyncRunStatus status, int planned, int finished, String errorMessage) {

@@ -67,6 +67,8 @@ platform:
     system-hook-base-url: ${GITLAB_SYSTEM_HOOK_BASE_URL:http://host.docker.internal:18080/api/gitlab-sync/system-hook}
     docker-command: ${DOCKER_COMMAND:docker}
     heartbeat-timeout-seconds: 180
+    max-run-duration-minutes: ${GITLAB_MIRROR_MAX_RUN_DURATION_MINUTES:720}
+    cancel-compensation-runs-at-day-boundary: ${GITLAB_CANCEL_COMPENSATION_RUNS_AT_DAY_BOUNDARY:true}
     dedupe-window-seconds: 15
     failure-backoff-minutes: 10
     schema-check-interval-minutes: 720

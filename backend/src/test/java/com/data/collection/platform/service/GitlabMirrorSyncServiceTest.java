@@ -16,6 +16,7 @@ import com.data.collection.platform.entity.sync.SyncRunTableState;
 import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
+import com.data.collection.platform.service.sync.SyncRunDeadlineGuard;
 import com.data.collection.platform.service.sync.SyncRunLeaseService;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
@@ -30,6 +31,7 @@ class GitlabMirrorSyncServiceTest {
   private GitlabMirrorSchemaService mirrorSchemaService;
   private SyncRunSubmissionService syncRunSubmissionService;
   private SyncRunLeaseService syncRunLeaseService;
+  private SyncRunDeadlineGuard syncRunDeadlineGuard;
   private SyncRunTableWorkerService syncRunTableWorkerService;
   private GitlabMirrorTableRegistryMapper registryMapper;
   private SyncRunTableStateMapper tableStateMapper;
@@ -42,6 +44,7 @@ class GitlabMirrorSyncServiceTest {
     mirrorSchemaService = mock(GitlabMirrorSchemaService.class);
     syncRunSubmissionService = mock(SyncRunSubmissionService.class);
     syncRunLeaseService = mock(SyncRunLeaseService.class);
+    syncRunDeadlineGuard = mock(SyncRunDeadlineGuard.class);
     syncRunTableWorkerService = mock(SyncRunTableWorkerService.class);
     registryMapper = mock(GitlabMirrorTableRegistryMapper.class);
     tableStateMapper = mock(SyncRunTableStateMapper.class);
@@ -52,6 +55,7 @@ class GitlabMirrorSyncServiceTest {
             mirrorSchemaService,
             syncRunSubmissionService,
             syncRunLeaseService,
+            syncRunDeadlineGuard,
             syncRunTableWorkerService,
             registryMapper,
             tableStateMapper);
@@ -75,6 +79,7 @@ class GitlabMirrorSyncServiceTest {
 
     verify(mirrorSchemaService).recoverStaleSyncingStatuses();
     verify(syncRunLeaseService).recoverTimedOutRuns();
+    verify(syncRunDeadlineGuard).requestCancellationForExpiredRuns();
     verify(syncRunTableWorkerService).recoverTimedOutTasks();
   }
 

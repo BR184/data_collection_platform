@@ -668,3 +668,14 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ### 已验证
 - `npm test -- --run src/views/MirrorRunMonitorPanel.test.ts src/views/MirrorRunQueueTable.test.ts`：覆盖取消等待诊断、当前表、租约持有者、最近心跳，以及表任务队列中的心跳和租约到期时间展示。
 - `npm run typecheck`：覆盖本批前端类型检查。
+
+## 2026-06-02 第十一批修复记录
+
+### 已实施
+- 新增 `SyncRunDeadlineGuard`，对活跃同步 run 增加业务截止保护：超过全局最大运行时长、补偿 run 跨过日界，或窗口模式补偿 run 超过配置窗口结束时间时，主动写入 `cancel_requested=true` 并将 run 标记为 `CANCELLING`。
+- 将 deadline guard 接入 `GitlabMirrorSyncService.recoverTimedOutTasks()`，让定时恢复循环除了 lease 超时外，也会定期扫描业务截止条件；已进入手工 `CANCELLING` 的 run 不会被重复覆盖取消原因。
+- `SyncRunWorkerService` 在开始后、表任务规划后和表任务 drain 后都检查 deadline guard；命中后不再继续派发表任务，并保留 deadline 原因作为最终取消消息。
+- 新增配置 `platform.gitlab-mirror.max-run-duration-minutes`，默认 `720`；新增 `platform.gitlab-mirror.cancel-compensation-runs-at-day-boundary`，默认 `true`。
+
+### 已验证
+- `mvn -q -Dtest=SyncRunDeadlineGuardTest,SyncRunWorkerServiceTest,GitlabMirrorSyncServiceTest test`：通过，覆盖最大运行时长、补偿跨日、补偿窗口截止、统一恢复链路接入，以及 worker 在 deadline 命中后停止派发表任务。

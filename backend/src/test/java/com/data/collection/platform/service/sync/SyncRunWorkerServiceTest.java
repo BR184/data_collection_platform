@@ -31,6 +31,7 @@ class SyncRunWorkerServiceTest {
   private SyncThreadBudgetResolver threadBudgetResolver;
   private ApplicationEventPublisher eventPublisher;
   private SyncFactRefreshRunExecutor factRefreshRunExecutor;
+  private SyncRunDeadlineGuard deadlineGuard;
   private SyncRunWorkerService workerService;
 
   @BeforeEach
@@ -42,6 +43,7 @@ class SyncRunWorkerServiceTest {
     threadBudgetResolver = new SyncThreadBudgetResolver(new GitlabMirrorProperties());
     eventPublisher = mock(ApplicationEventPublisher.class);
     factRefreshRunExecutor = mock(SyncFactRefreshRunExecutor.class);
+    deadlineGuard = mock(SyncRunDeadlineGuard.class);
     workerService =
         new SyncRunWorkerService(
             syncRunMapper,
@@ -50,7 +52,8 @@ class SyncRunWorkerServiceTest {
             configService,
             threadBudgetResolver,
             eventPublisher,
-            factRefreshRunExecutor);
+            factRefreshRunExecutor,
+            deadlineGuard);
   }
 
   @Test
@@ -181,6 +184,30 @@ class SyncRunWorkerServiceTest {
     verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
     assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
     assertThat(run.getErrorMessage()).isEqualTo("同步运行在处理前已取消");
+  }
+
+  @Test
+  void shouldStopBeforeDrainingTablesWhenDeadlineExpiredAfterPlanning() {
+    SyncRun run = run(17L, SyncRunType.FULL_COMPENSATION_SCAN);
+    when(tablePlanningService.planRunTables(17L)).thenReturn(8);
+    when(deadlineGuard.requestCancellationIfExpired(run))
+        .thenReturn(false)
+        .thenAnswer(invocation -> {
+          run.setErrorMessage("Sync run exceeded maximum runtime of 60 minutes");
+          return true;
+        });
+
+    workerService.executeRun(run);
+
+    verify(tableWorkerService, org.mockito.Mockito.never())
+        .drainRunTasks(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyInt());
+    verify(configService, org.mockito.Mockito.never())
+        .updateSyncTime(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyBoolean());
+    verify(eventPublisher, org.mockito.Mockito.never()).publishEvent(org.mockito.ArgumentMatchers.any());
+    assertThat(run.getStatus()).isEqualTo(SyncRunStatus.CANCELLED);
+    assertThat(run.getErrorMessage()).isEqualTo("Sync run exceeded maximum runtime of 60 minutes");
+    assertThat(run.getPlannedTableCount()).isEqualTo(8);
+    assertThat(run.getCompletedTableCount()).isZero();
   }
 
   private SyncRun run(Long id, SyncRunType runType) {

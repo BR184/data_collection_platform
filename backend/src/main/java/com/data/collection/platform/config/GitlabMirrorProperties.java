@@ -11,6 +11,8 @@ public class GitlabMirrorProperties {
   private String systemHookBaseUrl = "http://localhost:18080/api/gitlab-sync/system-hook";
   private String dockerCommand = "docker";
   private int heartbeatTimeoutSeconds = 180;
+  private int maxRunDurationMinutes = 720;
+  private boolean cancelCompensationRunsAtDayBoundary = true;
   private int dedupeWindowSeconds = 15;
   private int failureBackoffMinutes = 10;
   private int schemaCheckIntervalMinutes = 720;
@@ -83,6 +85,22 @@ public class GitlabMirrorProperties {
 
   public void setHeartbeatTimeoutSeconds(int heartbeatTimeoutSeconds) {
     this.heartbeatTimeoutSeconds = heartbeatTimeoutSeconds;
+  }
+
+  public int getMaxRunDurationMinutes() {
+    return maxRunDurationMinutes;
+  }
+
+  public void setMaxRunDurationMinutes(int maxRunDurationMinutes) {
+    this.maxRunDurationMinutes = maxRunDurationMinutes;
+  }
+
+  public boolean isCancelCompensationRunsAtDayBoundary() {
+    return cancelCompensationRunsAtDayBoundary;
+  }
+
+  public void setCancelCompensationRunsAtDayBoundary(boolean cancelCompensationRunsAtDayBoundary) {
+    this.cancelCompensationRunsAtDayBoundary = cancelCompensationRunsAtDayBoundary;
   }
 
   public int getDedupeWindowSeconds() {
