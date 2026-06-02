@@ -187,4 +187,39 @@ describe('MirrorRunMonitorPanel', () => {
     expect(cancelButton?.attributes('disabled')).toBeDefined();
     expect(retryButton?.attributes('disabled')).toBeDefined();
   });
+
+  it('shows cancellation waiting diagnostics for the active table task', () => {
+    const status = createStatus();
+    status.currentStatus = 'CANCELLING';
+    status.currentTask = createTask({
+      status: 'CANCELLING',
+      cancelRequested: true,
+      startedAt: '2026-05-15T10:00:00',
+      heartbeatAt: '2026-05-15T10:05:00',
+      lockOwner: 'worker-1',
+    });
+    status.progress = {
+      ...status.progress!,
+      currentTable: 'issues',
+      activeTableTasks: ['issues'],
+    };
+
+    const wrapper = mount(MirrorRunMonitorPanel, {
+      global: { plugins: [ElementPlus] },
+      props: {
+        status,
+        diagnostics: createDiagnostics(),
+        refreshing: false,
+        cancelling: false,
+        retrying: false,
+      },
+    });
+
+    expect(wrapper.text()).toContain('取消中，正在等待当前表任务停止');
+    expect(wrapper.text()).toContain('当前表');
+    expect(wrapper.text()).toContain('issues');
+    expect(wrapper.text()).toContain('租约持有者');
+    expect(wrapper.text()).toContain('worker-1');
+    expect(wrapper.text()).toContain('最近心跳');
+  });
 });

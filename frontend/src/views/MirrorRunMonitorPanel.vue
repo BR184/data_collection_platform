@@ -52,6 +52,10 @@ const activeTableTasks = computed(() => progress.value?.activeTableTasks ?? []);
 const activeTableTaskPreview = computed(() => activeTableTasks.value.slice(0, 5));
 const activeTableTaskHiddenCount = computed(() => Math.max(activeTableTasks.value.length - activeTableTaskPreview.value.length, 0));
 const dirtyTables = computed(() => (props.diagnostics?.tables ?? []).filter((row) => row.dirty || row.blockingRunId).slice(0, 4));
+const isCancelWaiting = computed(() => {
+  const task = currentTask.value;
+  return Boolean(task?.cancelRequested || task?.status === 'CANCELLING' || props.status?.currentStatus === 'CANCELLING');
+});
 const tableProgressText = computed(() => {
   if (!progress.value) {
     return '-';
@@ -68,6 +72,10 @@ const currentRunTitle = computed(() => {
 const currentMessageText = computed(() =>
   translateSyncMessage(props.status?.currentMessage, currentTask.value?.taskType) || '当前没有运行中的同步任务',
 );
+const runRuntimeText = computed(() => elapsedFrom(currentTask.value?.startedAt || progress.value?.startedAt || props.status?.currentStartedAt));
+const currentTableText = computed(() => progress.value?.currentTable || activeTableTasks.value.join(', ') || '-');
+const heartbeatText = computed(() => formatDateTime(currentTask.value?.heartbeatAt));
+const leaseOwnerText = computed(() => currentTask.value?.lockOwner || '-');
 
 function submitRetry() {
   if (canRetry.value) {
@@ -83,6 +91,28 @@ function submitCancel() {
 
 function terminalTime(log: SyncRunLog) {
   return formatDateTime(log.finishedAt || log.startedAt);
+}
+
+function elapsedFrom(value?: string | null) {
+  if (!value) {
+    return '-';
+  }
+  const start = new Date(value).getTime();
+  if (Number.isNaN(start)) {
+    return '-';
+  }
+  const seconds = Math.max(0, Math.round((Date.now() - start) / 1000));
+  if (seconds < 60) {
+    return `${seconds} 秒`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remain = seconds % 60;
+  if (minutes < 60) {
+    return `${minutes} 分 ${remain} 秒`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const minuteRemain = minutes % 60;
+  return `${hours} 小时 ${minuteRemain} 分`;
 }
 </script>
 
@@ -134,6 +164,31 @@ function terminalTime(log: SyncRunLog) {
           <div>
             <span>写入行数</span>
             <strong>{{ progress?.appliedRows ?? progress?.syncedRecords ?? 0 }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="isCancelWaiting" class="cancel-diagnostic-panel">
+        <div>
+          <div class="section-title">取消中，正在等待当前表任务停止</div>
+          <div class="section-subtitle">同步会在表任务读写边界响应取消，长表任务可能需要等待当前批次结束。</div>
+        </div>
+        <div class="diagnostic-grid">
+          <div>
+            <span>当前表</span>
+            <strong>{{ currentTableText }}</strong>
+          </div>
+          <div>
+            <span>运行时长</span>
+            <strong>{{ runRuntimeText }}</strong>
+          </div>
+          <div>
+            <span>租约持有者</span>
+            <strong>{{ leaseOwnerText }}</strong>
+          </div>
+          <div>
+            <span>最近心跳</span>
+            <strong>{{ heartbeatText }}</strong>
           </div>
         </div>
       </section>
@@ -246,6 +301,7 @@ function terminalTime(log: SyncRunLog) {
 }
 
 .active-run-panel,
+.cancel-diagnostic-panel,
 .table-task-panel,
 .dirty-panel,
 .terminal-runs-panel {
@@ -253,6 +309,40 @@ function terminalTime(log: SyncRunLog) {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.cancel-diagnostic-panel {
+  display: grid;
+  gap: 10px;
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.diagnostic-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.diagnostic-grid span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.diagnostic-grid strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #111827;
 }
 
 .active-run-main {
@@ -361,6 +451,10 @@ function terminalTime(log: SyncRunLog) {
 
   .monitor-columns {
     grid-template-columns: 1fr;
+  }
+
+  .diagnostic-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 </style>

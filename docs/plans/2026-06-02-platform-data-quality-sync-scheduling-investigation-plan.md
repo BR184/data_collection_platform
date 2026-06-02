@@ -658,3 +658,13 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ### 已验证
 - `mvn -q -Dtest=SyncRunSubmissionServiceTest test`：通过，新增覆盖 `FULL_COMPENSATION_SCAN` 运行中提交 `TABLE_REFRESH` 时返回 `QUEUED`。
 - `mvn -q -Dtest=SyncRunSubmissionServiceTest,SyncRunDispatcherServiceTest,DatabaseBrowserServiceTest test`：通过，覆盖提交策略、同 scope 排他调度和数据库浏览页刷新提交状态服务。
+
+## 2026-06-02 第十批修复记录
+
+### 已实施
+- 镜像运行监控面板在 run 或当前表任务处于取消中时，新增“取消中，正在等待当前表任务停止”诊断区，展示当前表、运行时长、租约持有者和最近心跳，避免用户误以为取消请求没有生效。
+- 表任务队列表将原来的“更新时间”拆成“最近心跳”和“租约到期”，直接暴露后端已有的表任务 lease/heartbeat 诊断字段，方便判断任务是否仍由 worker 持有。
+
+### 已验证
+- `npm test -- --run src/views/MirrorRunMonitorPanel.test.ts src/views/MirrorRunQueueTable.test.ts`：覆盖取消等待诊断、当前表、租约持有者、最近心跳，以及表任务队列中的心跳和租约到期时间展示。
+- `npm run typecheck`：覆盖本批前端类型检查。

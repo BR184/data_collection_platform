@@ -26,6 +26,10 @@ function rowReason(row: SyncRunTableDiagnostics) {
 function rowTime(row: SyncRunTableDiagnostics) {
   return formatDateTime(row.latestTaskHeartbeatAt || row.latestTaskRunAfter || row.lastAppliedAt || row.lastVerifiedAt);
 }
+
+function leaseTime(row: SyncRunTableDiagnostics) {
+  return formatDateTime(row.latestTaskLeaseUntil);
+}
 </script>
 
 <template>
@@ -61,8 +65,11 @@ function rowTime(row: SyncRunTableDiagnostics) {
       <el-table-column label="原因" min-width="180" show-overflow-tooltip>
         <template #default="{ row }">{{ rowReason(row) }}</template>
       </el-table-column>
-      <el-table-column label="更新时间" width="160">
+      <el-table-column label="最近心跳" width="160">
         <template #default="{ row }">{{ rowTime(row) }}</template>
+      </el-table-column>
+      <el-table-column label="租约到期" width="160">
+        <template #default="{ row }">{{ leaseTime(row) }}</template>
       </el-table-column>
     </el-table>
   </section>
