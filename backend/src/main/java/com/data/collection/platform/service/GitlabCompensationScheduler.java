@@ -60,6 +60,12 @@ public class GitlabCompensationScheduler {
       if (!isDue(config, now)) {
         continue;
       }
+      if (submissionService.hasActiveFullCompensationRun(config)) {
+        log.info(
+            "Skipped scheduled compensation scan for sourceInstance={}, reason=active full compensation run",
+            config.getSourceInstance());
+        continue;
+      }
       submissionService.submitRun(
           config,
           SyncType.COMPENSATION,

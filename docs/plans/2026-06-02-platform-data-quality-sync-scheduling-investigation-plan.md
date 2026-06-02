@@ -688,3 +688,12 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 
 ### 已验证
 - `npm test -- --run src/composables/useStatisticBoardRefreshController.test.ts`：通过，覆盖手动刷新通知、自动刷新静默提交 realtime refresh、等待实时状态和重新加载看板数据。
+
+## 2026-06-02 第十三批修复记录
+
+### 已实施
+- 自动补偿调度器在普通 `COMPENSATION_SCAN` 到期后，提交前先检查同 source 是否已有活跃 `FULL_COMPENSATION_SCAN`；命中时记录跳过原因，不再把普通自动补偿提交给底层复用逻辑。
+- `SyncRunSubmissionService` 新增只读判断 `hasActiveFullCompensationRun`，按 `configId + sourceInstance + exclusiveScope + runType + activeStatuses` 查询活跃全量补偿，底层提交去重仍作为并发兜底。
+
+### 已验证
+- `mvn -q -Dtest=GitlabCompensationSchedulerTest,GitlabDailyVerificationSchedulerTest,SyncRunSubmissionServiceTest,SyncRunDispatcherServiceTest test`：通过，覆盖全量补偿活跃时自动补偿调度跳过、同 source 活跃全量补偿查询、每日全量补偿调度和同 scope 排他调度。

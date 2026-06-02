@@ -115,6 +115,25 @@ public class SyncRunSubmissionService {
         full);
   }
 
+  @Transactional(readOnly = true)
+  public boolean hasActiveFullCompensationRun(GitlabSyncConfig config) {
+    if (config == null || config.getId() == null) {
+      return false;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    String exclusiveScope = policyService.exclusiveScopeOf(config, SyncRunType.FULL_COMPENSATION_SCAN);
+    List<SyncRun> runs =
+        syncRunMapper.selectList(
+            new LambdaQueryWrapper<SyncRun>()
+                .eq(SyncRun::getConfigId, config.getId())
+                .eq(SyncRun::getSourceInstance, sourceInstance)
+                .eq(SyncRun::getExclusiveScope, exclusiveScope)
+                .eq(SyncRun::getRunType, SyncRunType.FULL_COMPENSATION_SCAN)
+                .in(SyncRun::getStatus, SyncRunStateMachine.activeStatuses())
+                .last("limit 1"));
+    return runs != null && !runs.isEmpty();
+  }
+
   @Transactional
   public SyncRunSubmissionResult submitRun(
       GitlabSyncConfig config,

@@ -188,6 +188,18 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
+  void shouldDetectActiveFullCompensationRunForSameSource() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun =
+        activeRun(93L, SyncRunType.FULL_COMPENSATION_SCAN, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
+
+    assertThat(submissionService.hasActiveFullCompensationRun(config)).isTrue();
+
+    verify(syncRunMapper).selectList(any());
+  }
+
+  @Test
   void shouldDeduplicateIncrementalWhenMirrorRunAlreadyExists() {
     GitlabSyncConfig config = config();
     SyncRun activeRun = activeRun(101L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:mirror");

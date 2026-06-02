@@ -104,6 +104,30 @@ class GitlabCompensationSchedulerTest {
   }
 
   @Test
+  void shouldSkipScheduledCompensationWhenFullCompensationIsActive() {
+    GitlabSyncConfig due = config(9L, true, true, LocalDateTime.now().minusMinutes(20));
+    due.setCompensationIntervalMinutes(10);
+    when(configService.listConfigs()).thenReturn(List.of(due));
+    when(configService.isReadyForScheduledSync(due)).thenReturn(true);
+    when(submissionService.hasActiveFullCompensationRun(due)).thenReturn(true);
+
+    scheduler.run();
+
+    verify(syncService).recoverTimedOutTasks();
+    verify(submissionService)
+        .hasActiveFullCompensationRun(eq(due));
+    verify(submissionService, never())
+        .submitRun(
+            eq(due),
+            eq(SyncType.COMPENSATION),
+            eq(SyncRunType.COMPENSATION_SCAN),
+            eq(SyncTriggerType.SCHEDULE),
+            eq("Scheduled compensation scan"),
+            eq(List.of()),
+            eq(null));
+  }
+
+  @Test
   void shouldSubmitDailyTimeCompensationOnlyAtConfiguredMinute() {
     Clock clock = Clock.fixed(Instant.parse("2026-06-02T03:30:00Z"), ZoneId.of("UTC"));
     scheduler = new GitlabCompensationScheduler(properties, syncService, configService, submissionService, clock);
