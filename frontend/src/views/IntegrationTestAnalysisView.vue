@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-// 集成测试分析页以项目和阶段作为主范围，汇总区与明细抽屉共享同一套路由状态。
+// 集成测试分析页以测试阶段作为主范围，汇总区与明细抽屉共享同一套路由状态。
 // 页面保留重建、导出和下钻的编排逻辑，事实解析和统计口径由后端事实层负责。
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
@@ -11,7 +11,6 @@ import { api } from '../api';
 import type {
   IntegrationTestDetailResponse,
   IntegrationTestPhaseOptionResponse,
-  IntegrationTestProjectOptionResponse,
   IntegrationTestSummaryResponse,
 } from '../types/api';
 import type { RecordTableColumn } from '../types/record-table';
@@ -34,7 +33,6 @@ const comparisonDialogVisible = ref(false);
 const comparisonBasePhase = ref('');
 const comparisonTargetPhase = ref('');
 
-const projectOptions = ref<IntegrationTestProjectOptionResponse[]>([]);
 const phaseOptions = ref<IntegrationTestPhaseOptionResponse[]>([]);
 const summary = ref<IntegrationTestSummaryResponse>({
   projectId: null,
@@ -53,14 +51,6 @@ const detail = ref<IntegrationTestDetailResponse>({
   sortOrder: 'desc',
 });
 
-const projectId = computed<number | null>(() => {
-  const raw = route.query.projectId;
-  if (raw == null || raw === '') {
-    return null;
-  }
-  const value = Number(raw);
-  return Number.isFinite(value) ? value : null;
-});
 const testingPhase = computed(() => String(route.query.testingPhase ?? ''));
 const detailVisible = computed(() => String(route.query.detailVisible ?? '') === 'true');
 const detailModule = computed(() => String(route.query.detailModule ?? ''));
@@ -73,13 +63,6 @@ const detailSortOrder = computed<'asc' | 'desc'>(() =>
 
 const pageReady = computed(() => initialized.value);
 const summaryRows = computed(() => summary.value.rows ?? []);
-const selectedProjectLabel = computed(() => {
-  if (projectId.value == null) {
-    return '全部项目';
-  }
-  const match = projectOptions.value.find((item) => item.projectId === projectId.value);
-  return match?.projectName ? `${match.projectName} (${match.projectId})` : String(projectId.value);
-});
 const selectedPhaseLabel = computed(() => testingPhase.value || '未选择测试阶段');
 const detailTitle = computed(() => (detailModule.value ? `${detailModule.value} 明细` : '模块明细'));
 const validationRuleText =
@@ -87,17 +70,14 @@ const validationRuleText =
 const phaseSelectOptions = computed(() =>
   buildScopeOptions(
     phaseOptions.value.map((item) => ({
-      label:
-        projectId.value == null && item.projectName
-          ? `${item.projectName} / ${item.testingPhase}`
-          : item.testingPhase,
+      label: item.testingPhase,
       value: item.testingPhase,
     })),
   ),
 );
 
 const detailColumns = computed<RecordTableColumn[]>(() => [
-  { key: 'issuableReference', label: '议题编号', sortable: true, width: 110, fixed: 'left' },
+  { key: 'issuableReference', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'functionName', label: '功能', sortable: true, minWidth: 160 },
   { key: 'functionLabels', label: '功能标签', type: 'tags', minWidth: 160 },
@@ -152,7 +132,7 @@ const detailRows = computed<Record<string, unknown>[]>(() =>
 let syncing = false;
 
 watch(
-  () => [projectId.value, testingPhase.value],
+  () => [testingPhase.value],
   async () => {
     await syncPageData();
   },
@@ -167,7 +147,6 @@ watch(
     detailPageSize.value,
     detailSortBy.value,
     detailSortOrder.value,
-    projectId.value,
     testingPhase.value,
   ],
   async () => {
@@ -185,11 +164,12 @@ async function syncPageData() {
   syncing = true;
   toolbarLoading.value = true;
   try {
-    projectOptions.value = await api.getIntegrationTestProjectOptions();
-    phaseOptions.value = await api.getIntegrationTestPhaseOptions(projectId.value);
+    phaseOptions.value = await api.getIntegrationTestPhaseOptions();
     const expectedPhase = resolveExpectedPhase();
-    if (expectedPhase !== testingPhase.value) {
+    const shouldNormalizeQuery = 'projectId' in route.query || expectedPhase !== testingPhase.value;
+    if (shouldNormalizeQuery) {
       await replaceQuery({
+        projectId: undefined,
         testingPhase: expectedPhase || undefined,
         detailVisible: undefined,
         detailModule: undefined,
@@ -198,7 +178,6 @@ async function syncPageData() {
         detailSortBy: undefined,
         detailSortOrder: undefined,
       });
-      return;
     }
     await loadSummary();
     initialized.value = true;
@@ -215,7 +194,6 @@ async function loadSummary() {
   summaryLoading.value = true;
   try {
     summary.value = await api.getIntegrationTestSummary({
-      projectId: projectId.value,
       testingPhase: testingPhase.value || undefined,
     });
   } finally {
@@ -227,7 +205,6 @@ async function loadDetail() {
   detailLoading.value = true;
   try {
     detail.value = await api.getIntegrationTestDetails({
-      projectId: projectId.value,
       testingPhase: testingPhase.value,
       moduleName: detailModule.value,
       page: detailPage.value,
@@ -260,19 +237,6 @@ async function replaceQuery(patch: Record<string, string | number | undefined>) 
     nextQuery[key] = String(value);
   }
   await router.replace({ query: nextQuery });
-}
-
-async function handleProjectChange(value: string | number) {
-  await replaceQuery({
-    projectId: value ? String(value) : undefined,
-    testingPhase: undefined,
-    detailVisible: undefined,
-    detailModule: undefined,
-    detailPage: undefined,
-    detailPageSize: undefined,
-    detailSortBy: undefined,
-    detailSortOrder: undefined,
-  });
 }
 
 async function handleRefresh() {
@@ -336,7 +300,6 @@ async function handleExportDetail() {
   exportLoading.value = true;
   try {
     const csv = await api.exportIntegrationTestDetails({
-      projectId: projectId.value,
       testingPhase: testingPhase.value,
       moduleName: detailModule.value,
       sortBy: detailSortBy.value,
@@ -359,7 +322,6 @@ async function handleExportModuleFunction() {
   moduleExportLoading.value = true;
   try {
     const blob = await api.exportIntegrationTestModuleFunctionWorkbook({
-      projectId: projectId.value,
       testingPhase: testingPhase.value,
     });
     downloadBlob(blob, `${testingPhase.value}集成测试数据.xlsx`);
@@ -390,7 +352,6 @@ async function handleExportComparison() {
   comparisonExportLoading.value = true;
   try {
     const blob = await api.exportIntegrationTestComparisonWorkbook({
-      projectId: projectId.value,
       basePhase: comparisonBasePhase.value,
       targetPhase: comparisonTargetPhase.value,
     });
@@ -463,25 +424,6 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
     <section class="integration-test-page">
       <el-card shadow="never" class="integration-toolbar-card">
         <div class="integration-toolbar">
-          <div class="integration-toolbar__filters">
-            <el-select
-              :model-value="projectId == null ? '' : String(projectId)"
-              placeholder="全部项目"
-              clearable
-              filterable
-              class="integration-select"
-              :loading="toolbarLoading"
-              @change="handleProjectChange"
-            >
-              <el-option label="全部项目" value="" />
-              <el-option
-                v-for="item in projectOptions"
-                :key="item.projectId"
-                :label="item.projectName ? `${item.projectName} (${item.projectId})` : String(item.projectId)"
-                :value="String(item.projectId)"
-              />
-            </el-select>
-          </div>
           <div class="integration-toolbar__actions">
             <el-button :icon="Refresh" :loading="summaryLoading" @click="handleRefresh">刷新</el-button>
             <el-button :icon="Download" :loading="moduleExportLoading" @click="handleExportModuleFunction">
@@ -495,10 +437,6 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
       </el-card>
 
       <div class="integration-stats">
-        <el-card shadow="never" class="integration-stat-card">
-          <span>当前项目</span>
-          <strong>{{ selectedProjectLabel }}</strong>
-        </el-card>
         <el-card shadow="never" class="integration-stat-card">
           <span>测试阶段</span>
           <strong>{{ selectedPhaseLabel }}</strong>
@@ -643,10 +581,6 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
   flex-wrap: wrap;
 }
 
-.integration-select {
-  width: 220px;
-}
-
 .integration-select--phase {
   width: 280px;
 }
@@ -733,7 +667,6 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
 }
 
 @media (max-width: 768px) {
-  .integration-select,
   .integration-select--phase {
     width: 100%;
   }

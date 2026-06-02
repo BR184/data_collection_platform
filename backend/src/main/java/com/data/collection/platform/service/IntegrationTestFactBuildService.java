@@ -231,7 +231,7 @@ public class IntegrationTestFactBuildService {
         moduleDictionary.normalizeIssueModules(
             projectId, IssueFactNormalizationRules.normalizeModuleNames(labels));
     List<String> functionLabels = IntegrationTestFactRules.extractFunctionLabels(labels);
-    String moduleName = moduleNames.isEmpty() ? "未识别模块" : moduleNames.get(0);
+    String moduleName = moduleNames.isEmpty() ? null : moduleNames.get(0);
 
     IntegrationTestFact fact = new IntegrationTestFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);

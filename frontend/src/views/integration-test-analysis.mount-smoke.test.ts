@@ -68,6 +68,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
             {
               issueIid: 101,
               issuableReference: '#101',
+              issueLink: 'http://gitlab.example.com/-/issues/101',
               title: 'Integration sample',
               functionName: 'Function A',
               functionLabels: 'NewFeature',
@@ -118,7 +119,10 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
 
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
-    expect(wrapper.text()).toContain('CC_PRODUCT');
+    expect(wrapper.text()).toContain('R1 Integration');
+    expect(wrapper.text()).not.toContain('全部项目');
+    expect(wrapper.text()).not.toContain('当前项目');
+    expect(router.currentRoute.value.query.projectId).toBeUndefined();
 
     const trigger = wrapper.get('.integration-summary-table .el-button');
     await trigger.trigger('click');
@@ -128,6 +132,10 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     expect(document.body.textContent).toContain('Integration sample');
     expect(document.body.textContent).toContain('Need to confirm execute/pass counts');
     expect(document.body.textContent).toContain('校验口径：执行用例总数 = 通过用例数 + 本次未通过用例数');
+    expect(document.body.textContent).not.toContain('{"label"');
+    expect(document.body.querySelector('a[href="http://gitlab.example.com/-/issues/101"]')?.textContent).toContain(
+      '#101',
+    );
 
     const exportButton = wrapper.findAll('button').find((button) => button.text().includes('导出明细'));
     expect(exportButton).toBeTruthy();
@@ -135,7 +143,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     await flushPromises();
 
     const exportCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/integration-tests/details/export'));
-    expect(exportCall?.[0]).toContain('projectId=325');
+    expect(exportCall?.[0]).not.toContain('projectId=');
     expect(exportCall?.[0]).toContain('testingPhase=R1+Integration');
     expect(exportCall?.[0]).toContain('moduleName=Sketch');
     expect(createObjectUrl).toHaveBeenCalledOnce();
@@ -149,7 +157,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     const moduleExportCall = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/api/integration-tests/module-function/export'),
     );
-    expect(moduleExportCall?.[0]).toContain('projectId=325');
+    expect(moduleExportCall?.[0]).not.toContain('projectId=');
     expect(moduleExportCall?.[0]).toContain('testingPhase=R1+Integration');
 
     const comparisonButton = wrapper.findAll('button').find((button) => button.text().includes('导出横向对比'));
@@ -166,7 +174,7 @@ describe('IntegrationTestAnalysisView mount smoke', () => {
     const comparisonExportCall = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/api/integration-tests/comparison/export'),
     );
-    expect(comparisonExportCall?.[0]).toContain('projectId=325');
+    expect(comparisonExportCall?.[0]).not.toContain('projectId=');
     expect(comparisonExportCall?.[0]).toContain('basePhase=R2+Integration');
     expect(comparisonExportCall?.[0]).toContain('targetPhase=R1+Integration');
     expect(createObjectUrl).toHaveBeenCalledTimes(3);

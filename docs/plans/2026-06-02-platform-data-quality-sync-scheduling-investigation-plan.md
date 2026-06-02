@@ -2,7 +2,7 @@
 
 ## 状态
 
-第一阶段修复中。已完成 `issue_fact` 模块/工具箱标签归一化的最小修复与后端测试；其余问题仍按本文方案分批推进。
+第一阶段修复中。已完成 `issue_fact` 模块/工具箱标签归一化、评审导入空默认值放开、集成测试页阶段主导与议题链接展示修复；其余问题仍按本文方案分批推进。
 
 ## 2026-06-02 第一阶段修复记录
 
@@ -32,6 +32,32 @@
 
 - `mvn -Dtest=ReviewDataLegacyExcelParserTest test`：通过，覆盖空默认值预览、确认导入、负数拒绝和历史模板解析。
 
+### 2026-06-02 第三批修复记录
+
+#### 已实施
+
+- `IntegrationTestAnalysisView` 去掉“全部项目/当前项目”的页面主筛选语义，集成测试分析页改为以 `testingPhase` 作为主范围。
+- 旧路由中如果带有 `projectId`，页面会自动清理该 query，并保留/归一到有效测试阶段。
+- 集成测试汇总、明细、明细导出、模块功能导出、横向对比导出不再从前端传 `projectId`，避免用户视角出现“全部项目”或项目维度主导。
+- 集成测试明细的 `issuableReference` 列改为 `link` 类型，后端返回 `issueLink` 时渲染为可点击议题链接，不再把 `{label, href}` 对象当 JSON 文本显示。
+
+#### 已验证
+
+- `npm test -- --run src/views/integration-test-analysis.mount-smoke.test.ts`：通过，覆盖旧 `projectId` query 自动清理、页面不显示“全部项目/当前项目”、导出请求不带 `projectId`、议题编号渲染为链接且不显示 JSON。
+- `npm test -- --run src/components/base/base-record-table.test.ts src/utils/issue-record-links.test.ts src/views/integration-test-analysis.mount-smoke.test.ts`：通过，覆盖通用表格 link cell、议题链接工具函数和集成测试页 smoke。
+
+### 2026-06-02 第四批修复记录
+
+#### 已实施
+
+- `IntegrationTestFactBuildService` 在无法识别规范模块时不再写入 `未识别模块`，而是保留 `module_name=null`。
+- `IntegrationTestQueryService` 汇总、明细、CSV 明细导出、模块功能 Excel 导出、横向对比数据源统一过滤空模块，只展示可识别的规范模块。
+- 模块详情筛选改为 `module_name = ?` 精确匹配，不再通过 `coalesce(module_name, '未识别模块')` 把空模块纳入业务维度。
+
+#### 已验证
+
+- `mvn -Dtest=IntegrationTestFactPipelineTest test`：通过，新增覆盖只有 `前端`、`9007`、`分支：发布` 等噪声标签时，事实构建仍发生但集成测试汇总和明细不展示该记录。
+
 ### 尚未完成的验收
 
 - 尚未将同一份真实数据分别导入老平台和新平台做深度对比；需要等后续导入、看板、集成测试页面修复继续推进后统一执行。
@@ -39,7 +65,7 @@
 
 ### 本轮新发现但暂不抢修
 
-- `IntegrationTestFactBuildService` 在模块无法识别时仍会写入 `未识别模块` 到 `integration_test_fact.module_name`。这与本文“无法识别模块不要进入业务展示维度”的新口径不一致。本轮先标记，后续在集成测试页整改批次中统一修复。
+- 集成测试后端接口仍保留 `projectId` 参数和 `/project-options` 接口，当前前端已不再使用它们作为主筛选。若后续要彻底删除项目维度，需要单独做 API 契约迁移、兼容期评估和导出接口回归。
 - `IssueFactNormalizationRules.normalizeModuleNames` 目前仍兼容 `草图模块` 这种旧式裸模块标签。长期方案应由模块字典/标签组配置接管裸值识别，本轮保留是为了降低回归风险。
 - 评审导入虽然已放开空默认值，但当前前端预览文案和错误分级仍可能把 warning 看起来像“有问题”；后续要把预览页的 `warning` / `error` 视觉和导入结果拆清楚，避免用户误以为仍不可导入。
 

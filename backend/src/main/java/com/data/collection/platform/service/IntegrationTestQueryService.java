@@ -24,8 +24,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class IntegrationTestQueryService {
-  private static final String UNKNOWN_MODULE = "未识别模块";
-
   private static final Map<String, String> DETAIL_SORT_FIELDS =
       Map.ofEntries(
           Map.entry("issueIid", "issue_iid"),
@@ -132,11 +130,12 @@ public class IntegrationTestQueryService {
             """);
     appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, null);
+    appendRecognizedModuleFilter(where);
 
     List<IntegrationTestSummaryRowResponse> rows =
         jdbcTemplate.query(
             """
-            select coalesce(module_name, '未识别模块') as module_name,
+            select module_name,
                    count(*) as issue_count,
                    coalesce(sum(execute_case), 0) as execute_case,
                    coalesce(sum(pass_case), 0) as pass_case,
@@ -152,8 +151,8 @@ public class IntegrationTestQueryService {
             """
                 + where
                 + """
-                 group by coalesce(module_name, '未识别模块')
-                 order by lower(coalesce(module_name, '未识别模块')) asc
+                 group by module_name
+                 order by lower(module_name) asc
                 """,
             this::mapSummaryRow,
             args.toArray());
@@ -208,6 +207,7 @@ public class IntegrationTestQueryService {
             """);
     appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, moduleName);
+    appendRecognizedModuleFilter(where);
 
     List<Object> queryArgs = new ArrayList<>(args);
     queryArgs.add(safeSize);
@@ -221,7 +221,7 @@ public class IntegrationTestQueryService {
                    project_id,
                    project_name,
                    title,
-                   coalesce(module_name, '未识别模块') as module_name,
+                   module_name,
                    function_name,
                    function_labels,
                    executor,
@@ -289,6 +289,7 @@ public class IntegrationTestQueryService {
             """);
     appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, moduleName);
+    appendRecognizedModuleFilter(where);
 
     Long total =
         jdbcTemplate.queryForObject("select count(*) " + where, Long.class, args.toArray());
@@ -303,7 +304,7 @@ public class IntegrationTestQueryService {
                    project_id,
                    project_name,
                    title,
-                   coalesce(module_name, '未识别模块') as module_name,
+                   module_name,
                    function_name,
                    function_labels,
                    executor,
@@ -386,11 +387,10 @@ public class IntegrationTestQueryService {
             """);
     appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, null);
+    appendRecognizedModuleFilter(where);
     Long total =
         jdbcTemplate.queryForObject(
-            "select count(*) from (select 1 " + where + " group by coalesce(module_name, '"
-                + UNKNOWN_MODULE
-                + "'), coalesce(function_name, '') limit "
+            "select count(*) from (select 1 " + where + " group by module_name, coalesce(function_name, '') limit "
                 + (CsvExportSupport.MAX_EXPORT_ROWS + 1)
                 + ") grouped",
             Long.class,
@@ -399,7 +399,7 @@ public class IntegrationTestQueryService {
 
     return jdbcTemplate.query(
         """
-        select coalesce(module_name, '鏈瘑鍒ā鍧?) as module_name,
+        select module_name,
                coalesce(nullif(btrim(function_name), ''), '-') as function_name,
                coalesce(sum(execute_case), 0) as execute_case,
                coalesce(sum(pass_case), 0) as pass_case,
@@ -415,8 +415,8 @@ public class IntegrationTestQueryService {
         """
             + where
             + """
-             group by coalesce(module_name, '鏈瘑鍒ā鍧?), coalesce(nullif(btrim(function_name), ''), '-')
-             order by lower(coalesce(module_name, '鏈瘑鍒ā鍧?)) asc,
+             group by module_name, coalesce(nullif(btrim(function_name), ''), '-')
+             order by lower(module_name) asc,
                       lower(coalesce(nullif(btrim(function_name), ''), '-')) asc
             """,
         this::mapFunctionExportRow,
@@ -434,9 +434,10 @@ public class IntegrationTestQueryService {
             """);
     appendSourceInstanceFilter(where, args, sourceInstance);
     appendScopedFilters(where, args, projectId, testingPhase, null);
+    appendRecognizedModuleFilter(where);
     return jdbcTemplate.query(
         """
-        select coalesce(module_name, '鏈瘑鍒ā鍧?) as module_name,
+        select module_name,
                coalesce(sum(execute_case), 0) as execute_case,
                coalesce(sum(pass_case), 0) as pass_case,
                case
@@ -446,8 +447,8 @@ public class IntegrationTestQueryService {
         """
             + where
             + """
-             group by coalesce(module_name, '鏈瘑鍒ā鍧?)
-             order by lower(coalesce(module_name, '鏈瘑鍒ā鍧?)) asc
+             group by module_name
+             order by lower(module_name) asc
             """,
         this::mapModuleExportRow,
         args.toArray());
@@ -470,9 +471,13 @@ public class IntegrationTestQueryService {
     }
     String normalizedModule = TextQuerySupport.trimToNull(moduleName);
     if (normalizedModule != null) {
-      where.append(" and coalesce(module_name, '").append(UNKNOWN_MODULE).append("') = ?");
+      where.append(" and module_name = ?");
       args.add(normalizedModule);
     }
+  }
+
+  private void appendRecognizedModuleFilter(StringBuilder where) {
+    where.append(" and nullif(btrim(coalesce(module_name, '')), '') is not null");
   }
 
   private void appendSourceInstanceFilter(StringBuilder where, List<Object> args, String sourceInstance) {

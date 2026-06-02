@@ -98,6 +98,21 @@ class IntegrationTestFactPipelineTest {
     assertThat(ccDetails.records().getFirst().issueIid()).isEqualTo(101L);
   }
 
+  @Test
+  void shouldHideIntegrationRowsWhenModuleCannotBeRecognized() {
+    insertIssueWithoutRecognizedModuleLabel();
+
+    FactBuildResponse buildResponse = factBuildService.rebuildFacts(true);
+    IntegrationTestSummaryResponse summary = queryService.getSummary(null, "R3集成测试");
+    IntegrationTestDetailResponse details =
+        queryService.getDetails(null, "R3集成测试", null, 1, 20, "noteUpdatedAt", "desc");
+
+    assertThat(buildResponse.affectedRows()).isEqualTo(1);
+    assertThat(summary.totalIssueCount()).isZero();
+    assertThat(summary.rows()).isEmpty();
+    assertThat(details.records()).isEmpty();
+  }
+
   private void createMinimalOdsTables() {
     jdbcTemplate.execute(
         """
@@ -273,6 +288,56 @@ class IntegrationTestFactPipelineTest {
     linkLabel(11L, 1002L);
     linkLabel(12L, 1002L);
     linkLabel(13L, 1002L);
+  }
+
+  private void insertIssueWithoutRecognizedModuleLabel() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 26, 9, 0);
+    LocalDateTime updatedAt = LocalDateTime.of(2026, 4, 26, 10, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
+        327L,
+        "NO_MODULE_PRODUCT");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
+        503L,
+        "赵六");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+          id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, mirror_deleted
+        ) values (?, ?, ?, ?, ?, ?, ?, null, ?, false)
+        """,
+        1003L,
+        90L,
+        327L,
+        "集成测试无规范模块标签样例",
+        503L,
+        createdAt,
+        updatedAt,
+        1);
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(id, noteable_id, noteable_type, note, created_at, updated_at, mirror_deleted)
+        values (?, ?, 'Issue', ?, ?, ?, false)
+        """,
+        7003L,
+        1003L,
+        """
+        ## 集成测试数据
+        | 功能 | 执行人 | 执行用例总数 | 本次通过用例数 | 初始未通过用例数 | 本次未通过用例数 | 本次问题用例数 | 用例外问题数 |
+        | --- | --- | --- | --- | --- | --- | --- | --- |
+        | 渲染 | 赵六 | 10 | 8 | 2 | 2 | 1 | 0 |
+        """,
+        createdAt.plusMinutes(30),
+        updatedAt);
+    insertLabel(21L, "前端");
+    insertLabel(22L, "9007");
+    insertLabel(23L, "分支：发布");
+    insertLabel(24L, "R3集成测试");
+    linkLabel(21L, 1003L);
+    linkLabel(22L, 1003L);
+    linkLabel(23L, 1003L);
+    linkLabel(24L, 1003L);
   }
 
   private void insertLabel(long id, String title) {
