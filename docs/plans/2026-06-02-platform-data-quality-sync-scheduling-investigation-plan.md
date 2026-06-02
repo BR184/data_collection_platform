@@ -756,3 +756,24 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 - 老平台 `D:\projects\spidergitdata-dev` 默认依赖 MySQL `localhost:3306/gitlab_spider` 和 `gitlab_spider_dgm`，当前 `3306` 未监听。
 - 老平台 `8091/8092` 当前未监听，`target` 下无可直接运行 jar，因此本轮无法完成 `PASS_SAME_DATA` 级别的新老平台同批数据对比。
 - 本轮未执行导出下载、写操作、补偿调度、取消任务、kill/restart 恢复和逐页筛选/排序/分页/详情/下钻深度操作路径。
+
+## 2026-06-02 第十八批真实同源对比记录
+
+### 已实施
+- 启动老平台依赖的本地 MySQL/Mongo：`spidergitdata-mysql`、`spidergitdata-mongo`。
+- 补齐老平台 DGM MySQL schema：将 `gitlab_spider` 空表结构复制到 `gitlab_spider_dgm`，避免启动阶段因 DGM 表缺失直接失败。
+- 使用仓库内 JDK/Maven 启动老平台后端 `8091`，并通过命令行参数把 GitLab API token 和本地 GitLab 地址注入老平台进程。
+- 新增 `scripts/compare_gitlab_source_to_new_facts.py`，直接对比本地 GitLab 源库与新平台事实层的 issue/MR 数量和 IID 集合，不依赖本机 `psql` 或 Python PostgreSQL 驱动。
+
+### 已验证
+- 老平台 `http://localhost:8091` 已监听；`/spiderCCProduct/updateGitProject` 成功从本地 GitLab 拉到 3 个项目，老平台 `gitlab_spider.git_project` 行数为 3。
+- 本地 GitLab API token 可用：`GET http://localhost/api/v4/projects/2/issues?per_page=5&page=1` 返回 200。
+- 老平台同批 issue 采集未跑通：`POST http://localhost:8091/spiderCCProduct/updateIssueInfo2Spider_issue_data?projectId=2` 返回 500，响应体为 `Cannot invoke "com.huayun.entity.Issue.getProjectId()" because "issue" is null`。
+- 失败根因已定位到老平台 `TimeUtil.parseStrToDate`：它先按 `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'` 解析，解析异常后不会继续尝试 `+08:00` 格式；当前本地 GitLab 16 API 返回 `2026-05-20T11:13:58.275+08:00`，导致 `IssueServiceImpl.parseIssueItem` 返回 null。
+- 老平台 `gitlab_spider.spider_issue_data` 仍为 0，因此没有完成 `PASS_SAME_DATA` 级别页面/API 展示对比。
+- `python scripts/compare_gitlab_source_to_new_facts.py --source-instance cc --project-id 1 --project-id 2 --project-id 3 --output .tmp/gitlab-source-vs-new-facts-20260602.json`：通过。GitLab 源库 issue 数 `382/6/1` 与新平台 `issue_fact` 一致；MR 数 `2/1` 与 `merge_request_fact` 一致；没有 missing/extra IID。
+- `python -m py_compile scripts/compare_gitlab_source_to_new_facts.py`：通过。
+
+### 未跑通/阻塞
+- 老平台在当前本地 GitLab 16 API 时间格式下无法完成 issue 入库，外网新老平台同批展示对比暂不能继续声称通过。
+- 后续若要继续以老平台为准做外网对比，需要准备与老平台兼容的旧 GitLab/API 时间格式源，或增加测试用兼容代理/本地补丁，仅用于恢复老平台外网采集能力后再按 `OC-*` 逐项比较。
