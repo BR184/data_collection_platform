@@ -697,3 +697,14 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 
 ### 已验证
 - `mvn -q -Dtest=GitlabCompensationSchedulerTest,GitlabDailyVerificationSchedulerTest,SyncRunSubmissionServiceTest,SyncRunDispatcherServiceTest test`：通过，覆盖全量补偿活跃时自动补偿调度跳过、同 source 活跃全量补偿查询、每日全量补偿调度和同 scope 排他调度。
+
+## 2026-06-02 第十四批修复记录
+
+### 已实施
+- 新增 `scripts/browser_route_smoke.py`，用 Python Playwright 打开真实 Vite hash 路由，并拦截 `/api/**` 返回最小成功响应，避免依赖本地后端或真实数据库。
+- smoke 脚本逐页检查 `#app` 非空、页面尺寸、console error、page error 和 4xx/5xx 响应；每个路由使用独立 page，避免后台轮询串扰；失败时写入截图。
+- 默认覆盖 28 个路由，包括质量看板、评审数据、代码走查、集成测试、系统测试、客户问题、镜像设置、数据库查看、外部采集表单和 404。
+
+### 已验证
+- `python scripts/browser_route_smoke.py --help`：通过，确认脚本入口可用。
+- `python C:\Users\admin\.codex\skills\webapp-testing\scripts\with_server.py --server "cmd /c cd frontend && npm.cmd run dev -- --host 0.0.0.0 --port 18181" --port 18181 --timeout 90 -- python scripts/browser_route_smoke.py --base-url http://localhost:18181`：通过，28 个真实路由 smoke 全部通过，报告见 `.tmp/browser-smoke-20260602-140730/report.json`。
