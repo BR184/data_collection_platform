@@ -24,6 +24,18 @@ function cellNumber(row: StatisticRowData | null | undefined, key: string) {
   return Number.isFinite(value) ? Number(value) : 0;
 }
 
+function cellPercentNumber(row: StatisticRowData | null | undefined, key: string) {
+  const cell = cellMap(row).get(key);
+  const displayValue = cell?.displayValue?.trim() ?? '';
+  if (displayValue.includes('%')) {
+    const parsed = Number(displayValue.replace('%', '').trim());
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return Number.isFinite(cell?.numericValue) ? Number(cell?.numericValue) : 0;
+}
+
 function totalRow(board: StatisticBoardResponse | null) {
   return board?.rows.find((row) => row.rowKey === TOTAL_ROW_KEY) ?? null;
 }
@@ -118,7 +130,7 @@ export function buildRepairRateChartOption(summaryBoard: StatisticBoardResponse 
     subtitle: '仅展示当前缺陷量最高的模块，便于对比修复进度',
     items: rows.map((item) => ({
       name: item.row.rowLabel,
-      value: Number(cellNumber(item.row, 'fix_rate').toFixed(2)),
+      value: Number(cellPercentNumber(item.row, 'fix_rate').toFixed(2)),
     })),
     color: '#36cfc9',
     valueFormatter: (value) => `${value.toFixed(2)}%`,

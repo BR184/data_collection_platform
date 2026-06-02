@@ -22,6 +22,18 @@ function cellNumber(row: StatisticRowData | null | undefined, key: string) {
   return Number.isFinite(cell?.numericValue) ? Number(cell?.numericValue) : 0;
 }
 
+function cellPercentNumber(row: StatisticRowData | null | undefined, key: string) {
+  const cell = (row?.cells ?? []).find((item) => item.columnKey === key);
+  const displayValue = cell?.displayValue?.trim() ?? '';
+  if (displayValue.includes('%')) {
+    const parsed = Number(displayValue.replace('%', '').trim());
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return Number.isFinite(cell?.numericValue) ? Number(cell?.numericValue) : 0;
+}
+
 function totalRow(board: StatisticBoardResponse | null) {
   return board?.rows.find((row) => row.rowKey === TOTAL_ROW_KEY) ?? null;
 }
@@ -171,7 +183,7 @@ export function buildSystemTestRepairChartOption(board: StatisticBoardResponse |
     .filter((row) => row.rowKey !== TOTAL_ROW_KEY)
     .map((row) => ({
       name: row.rowLabel,
-      value: Number(cellNumber(row, 'fix_rate').toFixed(2)),
+      value: Number(cellPercentNumber(row, 'fix_rate').toFixed(2)),
       weight: cellNumber(row, 'module_total'),
     }))
     .filter((item) => item.weight > 0)

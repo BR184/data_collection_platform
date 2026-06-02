@@ -58,6 +58,93 @@
 
 - `mvn -Dtest=IntegrationTestFactPipelineTest test`：通过，新增覆盖只有 `前端`、`9007`、`分支：发布` 等噪声标签时，事实构建仍发生但集成测试汇总和明细不展示该记录。
 
+### 2026-06-02 第五批调研记录（未改代码）
+
+#### 新发现 1：系统测试/质量看板图表百分比把“数量”当成“百分比”
+
+现象关联：截图中“模块修复率”出现 2108%、14569%、16318% 等异常值。
+
+已确认代码路径：
+
+- `backend/src/main/java/com/data/collection/platform/service/statistics/SystemTestDefectSummaryBoardService.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/DefectSummaryBoardSupport.java`
+- `frontend/src/views/quality-board.ts`
+- `frontend/src/views/system-test-multi-board.ts`
+
+根因判断：
+
+- 后端统计单元格 `StatisticCellData.numericValue` 在 `fix_rate`、`level*_rate`、`p*_fix_rate` 等比例列里保存的是分子数量，例如 `solved`、`level1Fixed`，而 `displayValue` 才是 `80.00%` 这种百分比文本。
+- 前端图表 `buildSystemTestRepairChartOption`、`buildRepairRateChartOption` 用 `cellNumber(row, 'fix_rate')` 读取 `numericValue`，再追加 `%` 展示。
+- 因此当某模块已修复数量是 14569 时，图表会显示为 `14569.00%`，并不是后端公式直接算出了 14569%。
+
+建议方案：
+
+1. 统一 `StatisticCellData` 的比例列语义：比例类单元格的 `numericValue` 应为百分比数值，例如 `80.00`，`displayValue` 为 `80.00%`。
+2. 如果仍需要保留分子数量用于下钻或排序，新增字段或 detail param，例如 `rawNumerator`、`rawDenominator`，不要复用 `numericValue`。
+3. 前端图表在修复前可临时解析 `displayValue` 作为比例值，但长期应由后端统一输出结构化比例数值。
+4. 为 `quality-board.ts` 和 `system-test-multi-board.ts` 增加回归测试：当后端 `numericValue=14569`、`displayValue=80.00%` 时，图表不能显示 `14569.00%`。
+
+#### 新发现 2：系统测试下拉选项仍依赖事实字段质量，需在事实重建后验证
+
+已确认代码路径：
+
+- `backend/src/main/java/com/data/collection/platform/service/SystemTestIssueSearchService.java`
+- `backend/src/main/java/com/data/collection/platform/service/IssueFactRecordRepository.java`
+
+根因判断：
+
+- 系统测试议题查询的模块下拉来自 `IssueFactRecord.moduleNames()` 的 distinct 拆分结果。
+- 当前代码路径没有再次识别 GitLab 原始 label，而是消费 `issue_fact.module_names`。
+- 因此模块下拉污染的主因仍是事实层污染；修复模块归一化后，必须重建 `issue_fact` 并抽样验证下拉。
+- 但如果历史脏数据没有重建，前端仍可能继续看到 `9007`、`前端`、`分支：发布` 等旧值。
+
+建议方案：
+
+1. 模块归一化修复发布后，必须触发全量事实重建或按源实例重建 `issue_fact`。
+2. 下拉接口增加防御性过滤：过滤空值、`未识别模块`、明显非模块前缀值、项目/分支/客户类值。
+3. 为系统测试下拉增加后端测试，覆盖 `模块：草图`、`工具箱:草图`、`前端`、`9007`、`分支：发布` 混合输入时，选项只保留 `草图`。
+
+#### 新发现 3：数据库浏览页单表刷新仍把“提交请求”显示为“刷新完成”
+
+已确认代码路径：
+
+- `frontend/src/components/DatabaseBrowserView.vue`
+- `backend/src/main/java/com/data/collection/platform/controller/DatabaseBrowserController.java`
+
+根因判断：
+
+- 后端 `/api/database-browser/refresh` 返回 `accepted`、`runId`、`status`、`message`、`plannedTasks`，语义是刷新任务提交/复用/排队状态。
+- 前端收到接口返回后立即 `loadTables()`、`loadRows()` 并提示 `当前表数据已刷新`。
+- 如果后端返回的实际状态是 `QUEUED`、`RUNNING`、`DEDUPED`，页面仍会给用户“已经完成”的错觉。
+
+建议方案：
+
+1. 前端文案改为“刷新请求已提交”，按后端 `status` 分别提示“排队中/执行中/已合并/无可刷新任务”。
+2. 数据表状态卡展示 `runId`，允许用户跳转同步日志查看真实进度。
+3. 只有表级任务确认 `SUCCESS` 后才提示“当前表数据已刷新”。
+4. 增加 `DatabaseBrowserView` 前端测试，模拟 `QUEUED` 和 `DEDUPED` 响应，确保不出现“已刷新完成”。
+
+#### 新发现 4：自动补偿扫描仍只有间隔模式，没有手动定时/运行窗口
+
+已确认代码路径：
+
+- `backend/src/main/java/com/data/collection/platform/service/GitlabCompensationScheduler.java`
+- `backend/src/main/java/com/data/collection/platform/service/GitlabDailyVerificationScheduler.java`
+- `backend/src/main/java/com/data/collection/platform/entity/GitlabSyncConfig.java`
+
+根因判断：
+
+- 自动补偿扫描使用 `@Scheduled(fixedDelayString = "${platform.gitlab-mirror.scheduler-delay-ms:60000}")` 每 60 秒检查一次。
+- 是否触发由 `lastIncrementalSyncAt + compensationIntervalMinutes` 决定。
+- 全量补偿有 `fullCompensationTime`，但自动补偿没有等价的“每天几点执行”或“运行窗口”设置。
+
+建议方案：
+
+1. 为自动补偿增加 `compensationScheduleMode`：`INTERVAL` / `DAILY_TIME` / `WINDOWED_INTERVAL`。
+2. 增加配置字段：`compensationTime`、`compensationWindowStart`、`compensationWindowEnd`、`missedWindowPolicy`。
+3. UI 在镜像设置页提供模式切换，间隔模式保留当前行为，定时模式允许用户手动设置时间。
+4. 调度器在全量补偿运行中应跳过自动补偿并记录跳过原因，避免任务堆叠。
+
 ### 尚未完成的验收
 
 - 尚未将同一份真实数据分别导入老平台和新平台做深度对比；需要等后续导入、看板、集成测试页面修复继续推进后统一执行。
@@ -514,3 +601,14 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 1. 自动补偿扫描是希望“每天固定时间运行一次”，还是“每天多个时间点/时间窗口内按间隔运行”？
 2. 单表刷新遇到正在运行的全量补偿时，是否允许自动暂停补偿任务，还是先只做明确排队展示？
 3. 集成测试是否完全移除项目筛选，还是保留为高级过滤但默认隐藏？
+
+## 2026-06-02 第六批修复记录
+
+### 已实施
+- 系统测试质量看板 `buildSystemTestRepairChartOption` 修复率图表改为优先解析 `displayValue` 中的百分比值。
+- 系统测试多看板 `buildRepairRateChartOption` 修复率图表同样优先解析 `displayValue` 中的百分比值。
+- 当 `displayValue` 不包含 `%` 或无法解析时，仍回退使用 `numericValue`，避免破坏后端已返回结构化百分比数值的场景。
+
+### 已验证
+- `npm test -- --run src/views/quality-board.test.ts src/views/system-test-multi-board.test.ts`：通过，覆盖 `numericValue=14569`、`displayValue=80.00%` 时图表数据为 `80`，并覆盖无 `%` 时回退 `numericValue`。
+- `npm run typecheck`：通过。
