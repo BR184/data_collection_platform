@@ -133,4 +133,46 @@ describe('useStatisticBoardRefreshController', () => {
 
     expect(notifySuccess).toHaveBeenCalledWith('已开始刷新最新数据');
   });
+  it('requests realtime refresh without a toast when auto refreshing page data', async () => {
+    const loading = ref(false);
+    const detailVisible = ref(false);
+    const loadBoard = vi.fn(() => Promise.resolve());
+    const loadDetail = vi.fn(() => Promise.resolve());
+    const notifySuccess = vi.fn();
+    const requestRealtimeRefresh = vi.fn(() => Promise.resolve({
+      workspaceKey: 'system-test-defect-summary',
+      supported: true,
+      status: 'READY',
+      message: 'Refresh requested',
+      refreshing: false,
+      mirrorStatus: 'QUEUED',
+      factStatus: null,
+    }));
+    const loadRealtimeStatus = vi.fn(() => Promise.resolve({
+      workspaceKey: 'system-test-defect-summary',
+      supported: true,
+      status: 'READY',
+      message: 'ready',
+      refreshing: false,
+      mirrorStatus: 'QUEUED',
+      factStatus: null,
+    }));
+    const controller = useStatisticBoardRefreshController({
+      loading,
+      detailVisible,
+      loadBoard,
+      loadDetail,
+      requestRealtimeRefresh,
+      loadRealtimeStatus,
+      notifySuccess,
+    });
+
+    await controller.autoRefreshBoard();
+
+    expect(requestRealtimeRefresh).toHaveBeenCalledOnce();
+    expect(loadRealtimeStatus).toHaveBeenCalledOnce();
+    expect(loadBoard).toHaveBeenCalledOnce();
+    expect(notifySuccess).not.toHaveBeenCalled();
+    expect(loading.value).toBe(false);
+  });
 });

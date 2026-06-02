@@ -679,3 +679,12 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 
 ### 已验证
 - `mvn -q -Dtest=SyncRunDeadlineGuardTest,SyncRunWorkerServiceTest,GitlabMirrorSyncServiceTest test`：通过，覆盖最大运行时长、补偿跨日、补偿窗口截止、统一恢复链路接入，以及 worker 在 deadline 命中后停止派发表任务。
+
+## 2026-06-02 第十二批修复记录
+
+### 已实施
+- 统计看板“进入页面自动刷新”从仅重新加载页面数据和实时状态，调整为首次进入和窗口重新聚焦时静默提交一次 realtime refresh，再刷新看板数据。
+- 自动刷新复用手动“刷新最新数据”的等待链路，但不弹成功提示；仍保留 10 秒节流和用户关闭自动刷新偏好。
+
+### 已验证
+- `npm test -- --run src/composables/useStatisticBoardRefreshController.test.ts`：通过，覆盖手动刷新通知、自动刷新静默提交 realtime refresh、等待实时状态和重新加载看板数据。

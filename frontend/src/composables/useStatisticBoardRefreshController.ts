@@ -30,7 +30,24 @@ export function useStatisticBoardRefreshController(deps: StatisticBoardRefreshCo
     }
   }
 
+  async function autoRefreshBoard() {
+    deps.loading.value = true;
+    try {
+      if (deps.requestRealtimeRefresh) {
+        const refreshStatus = await deps.requestRealtimeRefresh();
+        await waitForRealtimeRefreshToSettle(refreshStatus);
+      }
+      await deps.loadBoard();
+      if (deps.detailVisible.value) {
+        await deps.loadDetail();
+      }
+    } finally {
+      deps.loading.value = false;
+    }
+  }
+
   return {
+    autoRefreshBoard,
     refreshBoard,
   };
 

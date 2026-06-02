@@ -253,6 +253,7 @@ const {
 });
 
 const {
+  autoRefreshBoard,
   refreshBoard,
 } = useStatisticBoardRefreshController({
   loading,
@@ -333,6 +334,7 @@ watch(
 
 onMounted(() => {
   window.addEventListener('focus', handlePageFocus);
+  void autoRefreshPageData();
 });
 
 onBeforeUnmount(() => {
@@ -340,6 +342,10 @@ onBeforeUnmount(() => {
 });
 
 async function handlePageFocus() {
+  await autoRefreshPageData();
+}
+
+async function autoRefreshPageData() {
   if (!autoRefreshOnEnter.value || loading.value) {
     return;
   }
@@ -348,7 +354,7 @@ async function handlePageFocus() {
     return;
   }
   lastAutoRefreshAt.value = now;
-  await Promise.all([loadBoard(), loadRealtimeStatus()]);
+  await autoRefreshBoard();
 }
 </script>
 
