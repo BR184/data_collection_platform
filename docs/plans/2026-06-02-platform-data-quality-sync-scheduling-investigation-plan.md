@@ -721,3 +721,15 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 - `python scripts/check_issue_fact_module_pollution.py --print-sql`：通过，确认污染检测 SQL 可打印。
 - `python -m py_compile scripts/check_issue_fact_module_pollution.py`：通过，确认 Python 语法有效。
 - `python scripts/check_issue_fact_module_pollution.py --limit 20`：本机环境快速返回连接错误，说明当前 `localhost:15432/qaflex` 未提供可用无密码连接；现场需要配置 `DATASOURCE_PASSWORD` 或 `FACT_CHECK_DSN` 后复跑。
+
+## 2026-06-02 第十六批修复记录
+
+### 已实施
+- 新增 `docs/real-chain-old-platform-comparison-ledger-20260602.md`，把真实链路、mock-only、unit-only、环境阻塞、未执行和老平台同批数据对比项统一登记。
+- 台账明确 `PASS_SAME_DATA`、`PASS_REAL`、`PARTIAL_REAL`、`PASS_MOCK_ONLY`、`PASS_UNIT_ONLY`、`FAILED`、`BLOCKED_ENV`、`NOT_RUN` 状态口径，避免把 mock 路由 smoke 或单测误标为真实通过。
+- 台账把 2026-06-02 最新修复后尚未真实复跑的项全部保留为 `NOT_RUN`、`BLOCKED_ENV`、`PARTIAL_REAL` 或 `PASS_UNIT_ONLY`，并记录后续统一跑通动作。
+- 新增 `scripts/check_verification_ledger.py`，校验台账内每条状态表行都有合法状态；非真实通过项必须写清楚阻塞/说明和后续动作。
+
+### 已验证
+- `python scripts/check_verification_ledger.py`：通过，确认当前台账 24 个跟踪项均有明确状态和后续动作。
+- `python -m py_compile scripts/check_verification_ledger.py`：通过，确认 Python 语法有效。
