@@ -20,6 +20,18 @@
 - `mvn -Dtest=IssueFactSourceInstancePipelineTest test`：通过，覆盖 GitLab ODS label 进入 `issue_fact` 后只保留 `草图`，不保留 `9007`、`前端`、`分支：发布`。
 - `mvn -Dtest=IntegrationTestFactPipelineTest test`：通过，确认本次改动未破坏当前集成测试事实构建样例。
 
+### 2026-06-02 第二批修复记录
+
+#### 已实施
+
+- `ReviewDataLegacyExcelImportService` 中默认负责人、默认日期、默认专家、默认版本为空时，不再作为阻断性 `ERROR`。
+- 这些字段改为 `WARNING`，允许预览和确认导入继续执行。
+- 评审导入预览和确认导入都保持空值可导入语义，默认空字段只作为补充信息，不再把有效行拦成 0 可导入。
+
+#### 已验证
+
+- `mvn -Dtest=ReviewDataLegacyExcelParserTest test`：通过，覆盖空默认值预览、确认导入、负数拒绝和历史模板解析。
+
 ### 尚未完成的验收
 
 - 尚未将同一份真实数据分别导入老平台和新平台做深度对比；需要等后续导入、看板、集成测试页面修复继续推进后统一执行。
@@ -29,6 +41,7 @@
 
 - `IntegrationTestFactBuildService` 在模块无法识别时仍会写入 `未识别模块` 到 `integration_test_fact.module_name`。这与本文“无法识别模块不要进入业务展示维度”的新口径不一致。本轮先标记，后续在集成测试页整改批次中统一修复。
 - `IssueFactNormalizationRules.normalizeModuleNames` 目前仍兼容 `草图模块` 这种旧式裸模块标签。长期方案应由模块字典/标签组配置接管裸值识别，本轮保留是为了降低回归风险。
+- 评审导入虽然已放开空默认值，但当前前端预览文案和错误分级仍可能把 warning 看起来像“有问题”；后续要把预览页的 `warning` / `error` 视觉和导入结果拆清楚，避免用户误以为仍不可导入。
 
 ## 背景
 

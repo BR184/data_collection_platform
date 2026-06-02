@@ -144,6 +144,39 @@ class ReviewDataLegacyExcelParserTest {
   }
 
   @Test
+  void shouldAllowEmptyDefaultsWhenPreviewingLegacyImport() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of(
+                "评审的工作产品",
+                "评审类别",
+                "文档类型",
+                "评审缺陷个数",
+                "文档规范",
+                "完整性规范",
+                "功能性规范",
+                "可行性规范",
+                "评审规模",
+                "所属项目"),
+            List.of("【草图模块】需求规格说明书评审", "[独立评审]", "需求说明书评审", 2, 1, 1, 0, 0, 10, "CC2026R4"));
+    ReviewDataLegacyExcelImportRequest request =
+        new ReviewDataLegacyExcelImportRequest(null, "", List.of(), "", "", "已关闭", "SKIP");
+
+    ReviewDataLegacyExcelImportService service =
+        new ReviewDataLegacyExcelImportService(new ReviewDataLegacyExcelParser(), null, null);
+    ReviewDataLegacyExcelPreviewResponse preview =
+        service.preview(new ByteArrayInputStream(workbook), "legacy.xlsx", null, request);
+
+    assertEquals(1, preview.totalRows());
+    assertEquals(1, preview.importableRows());
+    assertTrue(preview.rows().getFirst().importable());
+    assertTrue(preview.rows().getFirst().record().reviewOwner().isBlank());
+    assertTrue(preview.rows().getFirst().record().reviewExperts().isEmpty());
+    assertEquals("CC2026R4", preview.rows().getFirst().record().reviewVersion());
+    assertTrue(preview.rows().getFirst().issues().stream().noneMatch(issue -> issue.level() == ReviewDataLegacyExcelIssueLevel.ERROR));
+  }
+
+  @Test
   void confirmShouldRebuildRowsWithLatestDefaultValues() throws Exception {
     byte[] workbook =
         workbook(
@@ -202,6 +235,55 @@ class ReviewDataLegacyExcelParserTest {
     assertEquals("R4", records.getFirst().reviewVersion());
     assertEquals("确认专家", records.getFirst().reviewExperts().getFirst());
     assertEquals("待整改", problemItems.getFirst().problemStatus());
+  }
+
+  @Test
+  void confirmShouldImportRowsWhenDefaultMetadataIsEmpty() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of(
+                "评审的工作产品",
+                "评审类别",
+                "文档类型",
+                "评审缺陷个数",
+                "文档规范",
+                "完整性规范",
+                "功能性规范",
+                "可行性规范",
+                "评审规模",
+                "所属项目"),
+            List.of("【工具模块】需求规格说明书评审", "[独立评审]", "需求说明书评审", 1, 1, 0, 0, 0, 10, "2026R4"));
+    ReviewDataRecordCommandService commandService = mock(ReviewDataRecordCommandService.class);
+    List<ReviewDataRecordSaveRequest> records = new ArrayList<>();
+    when(commandService.createRecord(any())).thenAnswer(invocation -> {
+      records.add(invocation.getArgument(0));
+      return 100L;
+    });
+    when(commandService.createProblemItem(any(), any())).thenReturn(200L);
+    ReviewDataLegacyExcelImportService service =
+        new ReviewDataLegacyExcelImportService(new ReviewDataLegacyExcelParser(), commandService, null);
+    ReviewDataLegacyExcelPreviewResponse preview =
+        service.preview(
+            new ByteArrayInputStream(workbook),
+            "legacy.xlsx",
+            null,
+            new ReviewDataLegacyExcelImportRequest(null, "", List.of(), "", "", "已关闭", "SKIP"));
+
+    ReviewDataLegacyExcelConfirmResponse confirm =
+        service.confirm(new ReviewDataLegacyExcelConfirmRequest(
+            preview.previewToken(),
+            "SKIP",
+            null,
+            "",
+            List.of(),
+            "",
+            "",
+            "已关闭"));
+
+    assertEquals(1, confirm.importedRecords());
+    assertEquals(1, records.size());
+    assertTrue(records.getFirst().reviewOwner().isBlank());
+    assertTrue(records.getFirst().reviewExperts().isEmpty());
   }
 
   @Test

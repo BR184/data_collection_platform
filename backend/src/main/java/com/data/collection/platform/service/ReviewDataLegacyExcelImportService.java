@@ -157,16 +157,16 @@ public class ReviewDataLegacyExcelImportService {
     String problemStatus = firstNonBlank(request == null ? "" : request.defaultProblemStatus(), DEFAULT_PROBLEM_STATUS);
 
     if (owner.isBlank()) {
-      issues.add(issue(row.rowNumber(), "reviewOwner", ReviewDataLegacyExcelIssueLevel.ERROR, "负责人不能为空"));
+      issues.add(issue(row.rowNumber(), "reviewOwner", ReviewDataLegacyExcelIssueLevel.WARNING, "负责人为空，将按空值导入"));
     }
     if (reviewDate == null) {
-      issues.add(issue(row.rowNumber(), "reviewDate", ReviewDataLegacyExcelIssueLevel.ERROR, "评审日期不能为空"));
+      issues.add(issue(row.rowNumber(), "reviewDate", ReviewDataLegacyExcelIssueLevel.WARNING, "评审日期为空，将按空值导入"));
     }
     if (experts.isEmpty()) {
-      issues.add(issue(row.rowNumber(), "reviewExperts", ReviewDataLegacyExcelIssueLevel.ERROR, "评审专家不能为空"));
+      issues.add(issue(row.rowNumber(), "reviewExperts", ReviewDataLegacyExcelIssueLevel.WARNING, "评审专家为空，将按空列表导入"));
     }
     if (reviewVersion.isBlank()) {
-      issues.add(issue(row.rowNumber(), "reviewVersion", ReviewDataLegacyExcelIssueLevel.ERROR, "评审版本不能为空"));
+      issues.add(issue(row.rowNumber(), "reviewVersion", ReviewDataLegacyExcelIssueLevel.WARNING, "评审版本为空，将按空值导入"));
     }
 
     ReviewDataRecordSaveRequest record =
