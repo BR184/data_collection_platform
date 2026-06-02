@@ -708,3 +708,16 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ### 已验证
 - `python scripts/browser_route_smoke.py --help`：通过，确认脚本入口可用。
 - `python C:\Users\admin\.codex\skills\webapp-testing\scripts\with_server.py --server "cmd /c cd frontend && npm.cmd run dev -- --host 0.0.0.0 --port 18181" --port 18181 --timeout 90 -- python scripts/browser_route_smoke.py --base-url http://localhost:18181`：通过，28 个真实路由 smoke 全部通过，报告见 `.tmp/browser-smoke-20260602-140730/report.json`。
+
+## 2026-06-02 第十五批修复记录
+
+### 已实施
+- 新增 `scripts/check_issue_fact_module_pollution.py`，用于现场只读检查 `issue_fact.module_names` 是否仍残留跨字段污染值。
+- 检查脚本通过 `psql` 展开 `module_names`，识别纯数字、`前端/后端`、跨字段前缀、客户/版本样式值和 `未识别模块/缺失模块/未设定模块` 占位值，并输出可疑值、数量和样例 issue 引用。
+- 脚本支持 `FACT_CHECK_DSN`、`DATASOURCE_URL`、`DATASOURCE_USERNAME`、`DATASOURCE_PASSWORD`、`DATASOURCE_SCHEMA` 和显式命令行参数；默认连接 `localhost:15432/qaflex`，并设置连接超时和非交互密码模式，避免现场检查卡住。
+
+### 已验证
+- `python scripts/check_issue_fact_module_pollution.py --help`：通过，确认脚本入口可用。
+- `python scripts/check_issue_fact_module_pollution.py --print-sql`：通过，确认污染检测 SQL 可打印。
+- `python -m py_compile scripts/check_issue_fact_module_pollution.py`：通过，确认 Python 语法有效。
+- `python scripts/check_issue_fact_module_pollution.py --limit 20`：本机环境快速返回连接错误，说明当前 `localhost:15432/qaflex` 未提供可用无密码连接；现场需要配置 `DATASOURCE_PASSWORD` 或 `FACT_CHECK_DSN` 后复跑。
