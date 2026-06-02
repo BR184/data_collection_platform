@@ -167,6 +167,27 @@ class SyncRunSubmissionServiceTest {
   }
 
   @Test
+  void shouldQueueTableRefreshBehindActiveFullCompensationInsteadOfDeduplicating() {
+    GitlabSyncConfig config = config();
+    SyncRun activeRun =
+        activeRun(92L, SyncRunType.FULL_COMPENSATION_SCAN, SyncRunStatus.RUNNING, "source:12:source_a:mirror");
+    when(syncRunMapper.selectList(any())).thenReturn(List.of(activeRun));
+
+    var result = submissionService.submitTableRefresh(config, List.of("Issues"), "Need refresh");
+
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.TABLE_REFRESH);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.QUEUED);
+    assertThat(saved.getPriority()).isEqualTo(40);
+    assertThat(saved.getExclusiveScope()).isEqualTo("source:12:source_a:mirror");
+    assertThat(saved.getPayloadJson()).contains("\"sourceTables\":[\"issues\"]");
+    assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
+    assertThat(result.action()).isEqualTo(SyncSubmissionAction.QUEUED);
+  }
+
+  @Test
   void shouldDeduplicateIncrementalWhenMirrorRunAlreadyExists() {
     GitlabSyncConfig config = config();
     SyncRun activeRun = activeRun(101L, SyncRunType.TABLE_REFRESH, SyncRunStatus.QUEUED, "source:12:source_a:mirror");

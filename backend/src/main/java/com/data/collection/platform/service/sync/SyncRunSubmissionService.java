@@ -319,6 +319,10 @@ public class SyncRunSubmissionService {
     if (activeRun == null || activeRun.getRunType() == null) {
       return false;
     }
+    if (requestedType == SyncRunType.TABLE_REFRESH
+        && activeRun.getRunType() == SyncRunType.FULL_COMPENSATION_SCAN) {
+      return false;
+    }
     if (activeRun.getRunType() == SyncRunType.FULL_SYNC
         || activeRun.getRunType() == SyncRunType.INCREMENTAL_SYNC
         || activeRun.getRunType() == SyncRunType.SYSTEM_HOOK

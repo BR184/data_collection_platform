@@ -647,3 +647,14 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 - `python scripts/check_flyway_profile_smoke_coverage.py`：通过。
 - `python scripts/check_fact_field_contract.py`：通过。
 - `mvn -q -Dtest=FlywayMigrationSmokeTest test`：通过。
+
+## 2026-06-02 第九批修复记录
+
+### 已实施
+- 修复全量补偿运行中单表刷新被静默合并的问题：`TABLE_REFRESH` 遇到活跃 `FULL_COMPENSATION_SCAN` 时不再返回 `DEDUPED`，而是创建独立的 `QUEUED` 单表刷新 run。
+- 保留同一 `exclusive_scope`，因此全量补偿已在运行时，单表刷新会明确排队等待；若全量补偿尚未开始且仍在队列中，单表刷新凭借更高优先级会先被 dispatcher 调度。
+- 保留既有行为：单表刷新遇到普通全量同步仍可复用全量结果；相同表的重复单表刷新仍去重。
+
+### 已验证
+- `mvn -q -Dtest=SyncRunSubmissionServiceTest test`：通过，新增覆盖 `FULL_COMPENSATION_SCAN` 运行中提交 `TABLE_REFRESH` 时返回 `QUEUED`。
+- `mvn -q -Dtest=SyncRunSubmissionServiceTest,SyncRunDispatcherServiceTest,DatabaseBrowserServiceTest test`：通过，覆盖提交策略、同 scope 排他调度和数据库浏览页刷新提交状态服务。
