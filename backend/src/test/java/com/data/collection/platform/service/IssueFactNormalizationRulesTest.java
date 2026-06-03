@@ -63,6 +63,26 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void shouldRecognizeBareKnownModuleLabelsOnly() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
+        "草图",
+        "工程图",
+        "前端",
+        "9007",
+        "分支：发布",
+        "CC2023R3客户",
+        "系统测试",
+        "一级缺陷")))
+        .containsExactly("草图", "工程图");
+  }
+
+  @Test
+  void shouldCollapseRepeatedModuleSeparators() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：：草图", "工具箱::工程图")))
+        .containsExactly("草图", "工程图");
+  }
+
+  @Test
   void shouldKeepDifferentModuleAndToolboxValuesAsSeparateModules() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：草图", "工具箱：曲线")))
         .containsExactly("草图", "曲线");

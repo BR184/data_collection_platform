@@ -30,6 +30,19 @@ final class IssueLabelRules {
       "NEW_FUNCTION",
       "OLD_FUNCTION",
       "ENHANCE_FUNCTION");
+  private static final Map<String, String> BARE_MODULE_LABELS = bareModuleLabels(List.of(
+      "工具",
+      "草图",
+      "BOM",
+      "渲染",
+      "看板",
+      "报表",
+      "用户管理",
+      "装配",
+      "工程图",
+      "同步",
+      "权限",
+      "平台"));
   private static final Pattern MODULE_LABEL_PATTERN =
       Pattern.compile("^(?:模块|module|工具箱)\\s*[:：-]\\s*(.+)$", Pattern.CASE_INSENSITIVE);
   private static final Set<String> NON_MODULE_TOKENS = new LinkedHashSet<>(List.of(
@@ -147,12 +160,33 @@ final class IssueLabelRules {
     if (trimmed.endsWith("模块") && trimmed.length() > "模块".length()) {
       return normalizeModuleValue(trimmed);
     }
-    return null;
+    return normalizeBareModuleName(trimmed);
   }
 
   private static String normalizeModuleValue(String value) {
+    String cleaned = value.trim().replaceFirst("^[\\s:：-]+", "").trim();
+    String normalized = IssueRuleSupport.normalizeText(cleaned);
+    return normalized == null ? null : cleaned;
+  }
+
+  private static String normalizeBareModuleName(String value) {
+    return BARE_MODULE_LABELS.get(moduleLabelKey(value));
+  }
+
+  private static Map<String, String> bareModuleLabels(List<String> labels) {
+    Map<String, String> result = new java.util.LinkedHashMap<>();
+    for (String label : labels) {
+      result.put(moduleLabelKey(label), label);
+    }
+    return Map.copyOf(result);
+  }
+
+  private static String moduleLabelKey(String value) {
     String normalized = IssueRuleSupport.normalizeText(value);
-    return normalized == null ? null : value.trim();
+    if (normalized == null) {
+      return "";
+    }
+    return normalized.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_\\-./\\\\:：,，;；|｜]+", "");
   }
 
   private static boolean isKnownSeverityAlias(String label) {

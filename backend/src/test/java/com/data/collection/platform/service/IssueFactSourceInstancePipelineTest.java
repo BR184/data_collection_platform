@@ -108,18 +108,22 @@ class IssueFactSourceInstancePipelineTest {
     insertLabel(3L, "9007");
     insertLabel(4L, "分支：发布");
     insertLabel(5L, "前端");
+    insertLabel(6L, "模块：：草图");
+    insertLabel(7L, "工程图");
     linkLabel(1L, 9002L);
     linkLabel(2L, 9002L);
     linkLabel(3L, 9002L);
     linkLabel(4L, 9002L);
     linkLabel(5L, 9002L);
+    linkLabel(6L, 9002L);
+    linkLabel(7L, 9002L);
 
     FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
         "select module_names from issue_fact where source_instance = 'cc' and issue_id = 9002",
-        String.class)).isEqualTo("草图");
+        String.class)).isEqualTo("草图, 工程图");
   }
 
   private void createMinimalCcOdsTables() {
