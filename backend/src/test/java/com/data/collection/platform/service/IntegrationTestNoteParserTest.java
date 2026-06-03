@@ -92,6 +92,34 @@ class IntegrationTestNoteParserTest {
   }
 
   @Test
+  void shouldParseLegacyHeadingFieldsInsideIntegrationTestSection() {
+    String note =
+        """
+        ## 集成测试数据
+        ### 功能：快速阵列
+        ### 执行人：王工
+        ### 执行用例总数：200
+        ### 通过用例数：194
+        ### 未通过用例数：6
+        ### 问题用例数：2
+        ### 用例外问题数：1
+        ## 其他内容
+        ### 执行用例总数：999
+        """;
+
+    IntegrationTestNoteParser.ParsedIntegrationNote parsed = IntegrationTestNoteParser.parse(note);
+
+    assertThat(parsed.functionName()).isEqualTo("快速阵列");
+    assertThat(parsed.executor()).isEqualTo("王工");
+    assertThat(parsed.executeCase()).isEqualTo(200);
+    assertThat(parsed.passCase()).isEqualTo(194);
+    assertThat(parsed.notPassCase()).isEqualTo(6);
+    assertThat(parsed.notPassCaseNow()).isEqualTo(6);
+    assertThat(parsed.problemCase()).isEqualTo(2);
+    assertThat(parsed.exceptionCount()).isEqualTo(1);
+  }
+
+  @Test
   void shouldParseHorizontalMarkdownTableRowsAndValidate() {
     String note =
         """

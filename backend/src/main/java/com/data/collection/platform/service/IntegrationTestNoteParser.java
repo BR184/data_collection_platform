@@ -42,7 +42,7 @@ final class IntegrationTestNoteParser {
         }
         continue;
       }
-      if (heading && !line.contains("集成测试数据")) {
+      if (heading && !line.contains("集成测试数据") && !isIntegrationFieldLine(line)) {
         break;
       }
       List<String> tableCells = splitMarkdownTableCells(line);
@@ -129,6 +129,33 @@ final class IntegrationTestNoteParser {
   private static boolean isMarkdownHeading(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized != null && normalized.matches("#{1,6}\\s+.*");
+  }
+
+  private static boolean isIntegrationFieldLine(String line) {
+    KeyValue keyValue = splitKeyValue(line);
+    String key = keyValue == null ? line : keyValue.key();
+    return IntegrationTestFactRules.matchesKey(
+        key,
+        "功能标签",
+        "功能",
+        "执行人",
+        "执行用例总数",
+        "执行用例数",
+        "初始未通过用例数",
+        "初始未通过",
+        "本次未通过用例数",
+        "本次未通过",
+        "本次问题用例数",
+        "本次问题用例",
+        "本次通过用例数",
+        "通过用例数",
+        "通过用例",
+        "未通过用例数",
+        "未通过用例",
+        "问题用例数",
+        "问题用例",
+        "用例外问题数",
+        "例外问题数");
   }
 
   private static KeyValue splitKeyValue(String line) {
@@ -283,11 +310,11 @@ final class IntegrationTestNoteParser {
     if (IntegrationTestFactRules.matchesKey(key, "本次问题用例数", "本次问题用例")) {
       return current.withProblemCase(IntegrationTestFactRules.parseNumericValue(value));
     }
+    if (IntegrationTestFactRules.matchesKey(key, "未通过用例数", "未通过用例")) {
+      return current.withLegacyNotPassCase(IntegrationTestFactRules.parseNumericValue(value));
+    }
     if (IntegrationTestFactRules.matchesKey(key, "本次通过用例数", "通过用例数", "通过用例")) {
       return current.withPassCase(IntegrationTestFactRules.parseNumericValue(value));
-    }
-    if (IntegrationTestFactRules.matchesKey(key, "未通过用例数", "未通过用例")) {
-      return current.withNotPassCaseNow(IntegrationTestFactRules.parseNumericValue(value));
     }
     if (IntegrationTestFactRules.matchesKey(key, "问题用例数", "问题用例")) {
       return current.withProblemCase(IntegrationTestFactRules.parseNumericValue(value));
@@ -331,6 +358,18 @@ final class IntegrationTestNoteParser {
     private ParsedIntegrationNote withNotPassCaseNow(Integer value) {
       return new ParsedIntegrationNote(
           functionName, executor, executeCase, passCase, notPassCase, value, problemCase, exceptionCount);
+    }
+
+    private ParsedIntegrationNote withLegacyNotPassCase(Integer value) {
+      return new ParsedIntegrationNote(
+          functionName,
+          executor,
+          executeCase,
+          passCase,
+          notPassCase == null ? value : notPassCase,
+          notPassCaseNow == null ? value : notPassCaseNow,
+          problemCase,
+          exceptionCount);
     }
 
     private ParsedIntegrationNote withProblemCase(Integer value) {
