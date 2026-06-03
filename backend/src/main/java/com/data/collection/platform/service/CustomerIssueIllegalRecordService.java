@@ -247,7 +247,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     return new CustomerIssueIllegalRecordRowResponse(
         view.issueId(),
         view.issueIid(),
-        buildIssueLink(view.projectId(), view.issueIid()),
+        buildIssueLink(view.sourceInstance(), view.projectId(), view.issueIid()),
         view.projectId(),
         view.projectName(),
         view.title(),

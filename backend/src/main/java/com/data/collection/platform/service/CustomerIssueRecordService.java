@@ -272,7 +272,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return new CustomerIssueRecordRowResponse(
         view.issueId(),
         view.issueIid(),
-        buildIssueLink(view.projectId(), view.issueIid()),
+        buildIssueLink(view.sourceInstance(), view.projectId(), view.issueIid()),
         view.projectId(),
         view.projectName(),
         view.title(),

@@ -3,6 +3,7 @@ package com.data.collection.platform.controller;
 public class IssueFactRecordListWebRequest {
   private Long projectId;
   private String keyword;
+  private String searchType;
   private String issueIid;
   private String title;
   private String projectName;
@@ -37,6 +38,14 @@ public class IssueFactRecordListWebRequest {
 
   public void setKeyword(String keyword) {
     this.keyword = keyword;
+  }
+
+  public String getSearchType() {
+    return searchType;
+  }
+
+  public void setSearchType(String searchType) {
+    this.searchType = searchType;
   }
 
   public String getIssueIid() {

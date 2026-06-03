@@ -4,6 +4,7 @@ export interface SystemTestIssueSearchRowResponse {
   issueId: number;
   issueIid: number;
   issueLink?: string | null;
+  sourceInstance?: string | null;
   projectId: number;
   projectName: string;
   title: string;

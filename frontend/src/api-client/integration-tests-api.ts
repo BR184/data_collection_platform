@@ -17,9 +17,12 @@ export const integrationTestsApi = {
   getIntegrationTestProjectOptions() {
     return request<IntegrationTestProjectOptionResponse[]>('/api/integration-tests/project-options');
   },
-  getIntegrationTestPhaseOptions(projectId?: string | number | null) {
+  getIntegrationTestPhaseOptions(projectId?: string | number | null, sourceInstance?: string | null) {
     const query = new URLSearchParams(
-      projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
+      {
+        ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+        ...(sourceInstance ? { sourceInstance } : {}),
+      },
     );
     return request<IntegrationTestPhaseOptionResponse[]>(
       `/api/integration-tests/phase-options${query.toString() ? `?${query.toString()}` : ''}`,
@@ -28,10 +31,12 @@ export const integrationTestsApi = {
   getIntegrationTestSummary(params?: {
     projectId?: string | number | null;
     testingPhase?: string | null;
+    sourceInstance?: string | null;
   }) {
     const query = new URLSearchParams({
       ...(params?.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
       ...(params?.testingPhase ? { testingPhase: params.testingPhase } : {}),
+      ...(params?.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     });
     return request<IntegrationTestSummaryResponse>(
       `/api/integration-tests/summary${query.toString() ? `?${query.toString()}` : ''}`,
@@ -41,6 +46,7 @@ export const integrationTestsApi = {
     projectId?: string | number | null;
     testingPhase?: string | null;
     moduleName?: string | null;
+    sourceInstance?: string | null;
     page?: number;
     size?: number;
     sortBy?: string;
@@ -52,6 +58,7 @@ export const integrationTestsApi = {
       ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
       ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
       ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+      ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
       ...(params.sortBy ? { sortField: params.sortBy } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });
@@ -61,6 +68,7 @@ export const integrationTestsApi = {
     projectId?: string | number | null;
     testingPhase?: string | null;
     moduleName?: string | null;
+    sourceInstance?: string | null;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) {
@@ -68,6 +76,7 @@ export const integrationTestsApi = {
       ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
       ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
       ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+      ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
       ...(params.sortBy ? { sortField: params.sortBy } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });
@@ -79,15 +88,18 @@ export const integrationTestsApi = {
   async exportIntegrationTestModuleFunctionWorkbook(params: {
     projectId?: string | number | null;
     testingPhase?: string | null;
+    sourceInstance?: string | null;
   }) {
     const query = new URLSearchParams({
       ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
       ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
+      ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     });
     return fetchWorkbook(`/api/integration-tests/module-function/export${query.toString() ? `?${query.toString()}` : ''}`);
   },
   async exportIntegrationTestComparisonWorkbook(params: {
     projectId?: string | number | null;
+    sourceInstance?: string | null;
     basePhase: string;
     targetPhase: string;
   }) {
@@ -95,6 +107,7 @@ export const integrationTestsApi = {
       ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
       basePhase: params.basePhase,
       targetPhase: params.targetPhase,
+      ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     });
     return fetchWorkbook(`/api/integration-tests/comparison/export?${query.toString()}`);
   },

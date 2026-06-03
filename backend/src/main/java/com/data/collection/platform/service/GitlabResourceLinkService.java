@@ -13,7 +13,7 @@ import org.springframework.util.StringUtils;
 public class GitlabResourceLinkService {
   private final JdbcTemplate jdbcTemplate;
   private final String gitlabWebBaseUrl;
-  private final Map<Long, Optional<String>> projectPathCache = new ConcurrentHashMap<>();
+  private final Map<ProjectPathCacheKey, Optional<String>> projectPathCache = new ConcurrentHashMap<>();
   private volatile java.util.List<String> projectMirrorTables;
 
   public GitlabResourceLinkService(JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties) {
@@ -22,35 +22,50 @@ public class GitlabResourceLinkService {
   }
 
   public String issueUrl(Long projectId, Integer issueIid) {
-    return resourceUrl(projectId, issueIid, "issues");
+    return issueUrl(null, projectId, issueIid);
+  }
+
+  public String issueUrl(String sourceInstance, Long projectId, Integer issueIid) {
+    return resourceUrl(sourceInstance, projectId, issueIid, "issues");
   }
 
   public String mergeRequestUrl(Long projectId, Integer mergeRequestIid) {
-    return resourceUrl(projectId, mergeRequestIid, "merge_requests");
+    return mergeRequestUrl(null, projectId, mergeRequestIid);
   }
 
-  private String resourceUrl(Long projectId, Integer iid, String resourcePath) {
+  public String mergeRequestUrl(String sourceInstance, Long projectId, Integer mergeRequestIid) {
+    return resourceUrl(sourceInstance, projectId, mergeRequestIid, "merge_requests");
+  }
+
+  private String resourceUrl(String sourceInstance, Long projectId, Integer iid, String resourcePath) {
     String baseUrl = normalizeBaseUrl(gitlabWebBaseUrl);
     if (!StringUtils.hasText(baseUrl) || projectId == null || iid == null) {
       return null;
     }
-    return projectPath(projectId)
+    return projectPath(sourceInstance, projectId)
         .map(path -> baseUrl + "/" + path + "/-/" + resourcePath + "/" + iid)
         .orElse(null);
   }
 
-  private Optional<String> projectPath(Long projectId) {
-    return projectPathCache.computeIfAbsent(projectId, this::loadProjectPath);
+  private Optional<String> projectPath(String sourceInstance, Long projectId) {
+    String normalizedSourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return projectPathCache.computeIfAbsent(
+        new ProjectPathCacheKey(normalizedSourceInstance, projectId), this::loadProjectPath);
   }
 
-  private Optional<String> loadProjectPath(Long projectId) {
-    Optional<String> legacyPath = loadProjectPath(projectId, "ods_gitlab_projects", "ods_gitlab_namespaces");
+  private Optional<String> loadProjectPath(ProjectPathCacheKey key) {
+    if (!GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(key.sourceInstance())) {
+      String projectTable = GitlabSourceInstanceSupport.buildMirrorTableName("projects", key.sourceInstance());
+      String namespaceTable = GitlabSourceInstanceSupport.buildMirrorTableName("namespaces", key.sourceInstance());
+      return loadProjectPath(key.projectId(), projectTable, namespaceTable);
+    }
+    Optional<String> legacyPath = loadProjectPath(key.projectId(), "ods_gitlab_projects", "ods_gitlab_namespaces");
     if (legacyPath.isPresent()) {
       return legacyPath;
     }
     for (String projectTable : projectMirrorTables()) {
       String namespaceTable = namespaceTableFor(projectTable);
-      Optional<String> path = loadProjectPath(projectId, projectTable, namespaceTable);
+      Optional<String> path = loadProjectPath(key.projectId(), projectTable, namespaceTable);
       if (path.isPresent()) {
         return path;
       }
@@ -166,4 +181,6 @@ public class GitlabResourceLinkService {
     String withScheme = trimmed.matches("(?i)^https?://.*") ? trimmed : "http://" + trimmed;
     return withScheme.replaceAll("/+$", "");
   }
+
+  private record ProjectPathCacheKey(String sourceInstance, Long projectId) {}
 }

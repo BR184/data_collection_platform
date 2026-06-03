@@ -40,6 +40,11 @@ const summary = ref<IntegrationTestSummaryResponse>({
   moduleCount: 0,
   totalIssueCount: 0,
   factRefreshedAt: null,
+  diagnostics: {
+    totalParsedRows: 0,
+    includedModuleRows: 0,
+    excludedMissingModuleRows: 0,
+  },
   rows: [],
 });
 const detail = ref<IntegrationTestDetailResponse>({
@@ -52,6 +57,7 @@ const detail = ref<IntegrationTestDetailResponse>({
 });
 
 const testingPhase = computed(() => String(route.query.testingPhase ?? ''));
+const sourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
 const detailVisible = computed(() => String(route.query.detailVisible ?? '') === 'true');
 const detailModule = computed(() => String(route.query.detailModule ?? ''));
 const detailPage = computed(() => normalizePositiveNumber(route.query.detailPage, 1));
@@ -63,6 +69,11 @@ const detailSortOrder = computed<'asc' | 'desc'>(() =>
 
 const pageReady = computed(() => initialized.value);
 const summaryRows = computed(() => summary.value.rows ?? []);
+const summaryDiagnostics = computed(() => ({
+  totalParsedRows: summary.value.diagnostics?.totalParsedRows ?? summary.value.totalIssueCount,
+  includedModuleRows: summary.value.diagnostics?.includedModuleRows ?? summary.value.totalIssueCount,
+  excludedMissingModuleRows: summary.value.diagnostics?.excludedMissingModuleRows ?? 0,
+}));
 const selectedPhaseLabel = computed(() => testingPhase.value || '未选择测试阶段');
 const detailTitle = computed(() => (detailModule.value ? `${detailModule.value} 明细` : '模块明细'));
 const validationRuleText =
@@ -132,7 +143,7 @@ const detailRows = computed<Record<string, unknown>[]>(() =>
 let syncing = false;
 
 watch(
-  () => [testingPhase.value],
+  () => [testingPhase.value, sourceInstance.value],
   async () => {
     await syncPageData();
   },
@@ -148,6 +159,7 @@ watch(
     detailSortBy.value,
     detailSortOrder.value,
     testingPhase.value,
+    sourceInstance.value,
   ],
   async () => {
     if (!detailVisible.value || !detailModule.value || !testingPhase.value) {
@@ -164,7 +176,7 @@ async function syncPageData() {
   syncing = true;
   toolbarLoading.value = true;
   try {
-    phaseOptions.value = await api.getIntegrationTestPhaseOptions();
+    phaseOptions.value = await api.getIntegrationTestPhaseOptions(null, sourceInstance.value || undefined);
     const expectedPhase = resolveExpectedPhase();
     const shouldNormalizeQuery = 'projectId' in route.query || expectedPhase !== testingPhase.value;
     if (shouldNormalizeQuery) {
@@ -195,6 +207,7 @@ async function loadSummary() {
   try {
     summary.value = await api.getIntegrationTestSummary({
       testingPhase: testingPhase.value || undefined,
+      sourceInstance: sourceInstance.value || undefined,
     });
   } finally {
     summaryLoading.value = false;
@@ -207,6 +220,7 @@ async function loadDetail() {
     detail.value = await api.getIntegrationTestDetails({
       testingPhase: testingPhase.value,
       moduleName: detailModule.value,
+      sourceInstance: sourceInstance.value || undefined,
       page: detailPage.value,
       size: detailPageSize.value,
       sortBy: detailSortBy.value,
@@ -302,6 +316,7 @@ async function handleExportDetail() {
     const csv = await api.exportIntegrationTestDetails({
       testingPhase: testingPhase.value,
       moduleName: detailModule.value,
+      sourceInstance: sourceInstance.value || undefined,
       sortBy: detailSortBy.value,
       sortOrder: detailSortOrder.value,
     });
@@ -323,6 +338,7 @@ async function handleExportModuleFunction() {
   try {
     const blob = await api.exportIntegrationTestModuleFunctionWorkbook({
       testingPhase: testingPhase.value,
+      sourceInstance: sourceInstance.value || undefined,
     });
     downloadBlob(blob, `${testingPhase.value}集成测试数据.xlsx`);
     ElMessage.success('导出成功');
@@ -354,6 +370,7 @@ async function handleExportComparison() {
     const blob = await api.exportIntegrationTestComparisonWorkbook({
       basePhase: comparisonBasePhase.value,
       targetPhase: comparisonTargetPhase.value,
+      sourceInstance: sourceInstance.value || undefined,
     });
     downloadBlob(blob, `${comparisonBasePhase.value}-${comparisonTargetPhase.value}集成测试横向对比.xlsx`);
     comparisonDialogVisible.value = false;
@@ -448,6 +465,14 @@ function buildIssueLinkCell(row: IntegrationTestDetailResponse['records'][number
         <el-card shadow="never" class="integration-stat-card">
           <span>记录数</span>
           <strong>{{ summary.totalIssueCount }}</strong>
+        </el-card>
+        <el-card shadow="never" class="integration-stat-card">
+          <span>空模块排除</span>
+          <strong>{{ summaryDiagnostics.excludedMissingModuleRows }}</strong>
+        </el-card>
+        <el-card shadow="never" class="integration-stat-card">
+          <span>解析总数</span>
+          <strong>{{ summaryDiagnostics.totalParsedRows }}</strong>
         </el-card>
         <el-card shadow="never" class="integration-stat-card">
           <span>最近重建</span>

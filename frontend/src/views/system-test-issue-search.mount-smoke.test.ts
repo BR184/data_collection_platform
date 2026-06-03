@@ -98,7 +98,7 @@ describe('SystemTestIssueSearchView mount smoke', () => {
       history: createWebHashHistory(),
       routes: [{ path: '/question-metrics/issue-search', component: SystemTestIssueSearchView }],
     });
-    await router.push('/question-metrics/issue-search?projectId=1001&keyword=sample&moduleName=Sketch&sortBy=updatedAt&sortOrder=desc');
+    await router.push('/question-metrics/issue-search?projectId=1001&sourceInstance=cc&keyword=sample&moduleName=Sketch&sortBy=updatedAt&sortOrder=desc');
     await router.isReady();
     const wrapper = mount(SystemTestIssueSearchView, {
       global: { plugins: [router, ElementPlus] },
@@ -109,12 +109,72 @@ describe('SystemTestIssueSearchView mount smoke', () => {
     await flushPromises();
 
     const exportCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/question-metrics/issues/export'));
+    const filterOptionsCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/api/question-metrics/issues/filter-options'),
+    );
+    expect(String(filterOptionsCall?.[0])).toContain('sourceInstance=cc');
     expect(String(exportCall?.[0])).toContain('projectId=1001');
+    expect(String(exportCall?.[0])).toContain('sourceInstance=cc');
     expect(String(exportCall?.[0])).toContain('keyword=sample');
     expect(String(exportCall?.[0])).toContain('moduleName=Sketch');
     expect(String(exportCall?.[0])).not.toContain('page=');
 
     clickSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('reloads issue options and rows when sourceInstance changes', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/question-metrics/issues/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          testingPhases: [],
+          authorNames: [],
+          assigneeNames: [],
+          issueStates: [],
+          severityLevels: [],
+          bugStatuses: [],
+          categories: [],
+          milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/question-metrics/issues?')) {
+        return jsonResponse({
+          records: [],
+          total: 0,
+          page: 1,
+          size: 20,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/question-metrics/issue-search', component: SystemTestIssueSearchView }],
+    });
+    await router.push('/question-metrics/issue-search?sourceInstance=cc');
+    await router.isReady();
+    mount(SystemTestIssueSearchView, {
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    fetchMock.mockClear();
+    await router.push('/question-metrics/issue-search?sourceInstance=dgm');
+    await flushPromises();
+
+    expect(fetchMock.mock.calls.some(([url]) =>
+      String(url).includes('/api/question-metrics/issues/filter-options?sourceInstance=dgm'),
+    )).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) =>
+      String(url).includes('/api/question-metrics/issues?page=1&size=20&sourceInstance=dgm'),
+    )).toBe(true);
+
     vi.unstubAllGlobals();
   });
 });

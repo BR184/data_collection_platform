@@ -10,6 +10,7 @@ public class IssueFactRecordListRequestAssembler {
     return new IssueFactRecordListRequest(
         request.getProjectId(),
         request.getKeyword(),
+        request.getSearchType(),
         request.getIssueIid(),
         request.getTitle(),
         request.getProjectName(),

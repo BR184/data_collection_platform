@@ -15,6 +15,7 @@ public class IssueFactRecordRepository {
   private static final String FACT_SELECT_SQL =
       """
       select project_id,
+             coalesce(source_instance, 'default') as source_instance,
              coalesce(project_name, '') as project_name,
              issue_id,
              issue_iid,
@@ -135,6 +136,9 @@ public class IssueFactRecordRepository {
 
   private void appendScope(
       StringBuilder where, List<Object> args, IssueFactRecordPageQuery.Scope scope) {
+    if (scope == IssueFactRecordPageQuery.Scope.ALL) {
+      return;
+    }
     if (scope == IssueFactRecordPageQuery.Scope.SYSTEM_TEST) {
       appendSystemTestScope(where, args);
       return;
@@ -188,13 +192,9 @@ public class IssueFactRecordRepository {
       return;
     }
     appendEq(where, args, "project_id", request.projectId());
-    appendIndexedSearch(
-        where,
-        args,
-        List.of("search_text", "search_compact", "search_spell", "search_initials"),
-        request.keyword());
+    appendKeywordSearch(where, args, request, useDisplayModuleFilter);
     appendIssueIid(where, args, request.issueIid());
-    appendIndexedSearch(
+    appendIndexedSearchWithRawFallback(
         where,
         args,
         List.of(
@@ -202,6 +202,8 @@ public class IssueFactRecordRepository {
             "title_search_compact",
             "title_search_spell",
             "title_search_initials"),
+        List.of("title"),
+        false,
         request.title());
     appendEqIgnoreCase(where, args, "project_name", request.projectName());
     appendModuleFilter(where, args, request.moduleName(), useDisplayModuleFilter);
@@ -228,6 +230,63 @@ public class IssueFactRecordRepository {
     }
     where.append(" and lower(coalesce(source_instance, 'default')) = ?");
     args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
+  }
+
+  private void appendKeywordSearch(
+      StringBuilder where,
+      List<Object> args,
+      IssueFactRecordListRequest request,
+      boolean useDisplayModuleFilter) {
+    String searchType = TextQuerySupport.trimToNull(request.searchType());
+    if (searchType == null || "all".equalsIgnoreCase(searchType) || "comprehensive".equalsIgnoreCase(searchType)) {
+      appendIndexedSearchWithRawFallback(
+          where,
+          args,
+          List.of("search_text", "search_compact", "search_spell", "search_initials"),
+          List.of(
+              "title",
+              "project_name",
+              "module_names",
+              "milestone_title",
+              "author_name",
+              "assignee_name"),
+          true,
+          request.keyword());
+      return;
+    }
+    switch (searchType) {
+      case "issueIid" -> appendIssueIid(where, args, request.keyword());
+      case "title" ->
+          appendIndexedSearchWithRawFallback(
+              where,
+              args,
+              List.of(
+                  "title_search_text",
+                  "title_search_compact",
+                  "title_search_spell",
+                  "title_search_initials"),
+              List.of("title"),
+              false,
+              request.keyword());
+      case "moduleName" -> appendModuleFilter(where, args, request.keyword(), useDisplayModuleFilter);
+      case "milestoneTitle" -> appendContainsIgnoreCase(where, args, "milestone_title", request.keyword());
+      case "authorName" -> appendContainsIgnoreCase(where, args, "author_name", request.keyword());
+      case "assigneeName" -> appendContainsIgnoreCase(where, args, "assignee_name", request.keyword());
+      default ->
+          appendIndexedSearchWithRawFallback(
+              where,
+              args,
+              List.of("search_text", "search_compact", "search_spell", "search_initials"),
+              List.of(
+                  "title",
+                  "project_name",
+                  "module_names",
+                  "milestone_title",
+                  "author_name",
+                  "assignee_name"),
+              true,
+              request.keyword());
+    }
   }
 
   private void appendAuthorAssigneeFilters(
@@ -314,6 +373,40 @@ public class IssueFactRecordRepository {
     where.append(" and (").append(String.join(" or ", predicates)).append(")");
   }
 
+  private void appendIndexedSearchWithRawFallback(
+      StringBuilder where,
+      List<Object> args,
+      List<String> indexedColumns,
+      List<String> rawTextColumns,
+      boolean includeIssueIid,
+      String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    List<String> candidates = FactSearchIndexSupport.keywordCandidates(normalized);
+    List<String> predicates = new ArrayList<>();
+    for (String candidate : candidates) {
+      String pattern = "%" + candidate + "%";
+      for (String column : indexedColumns) {
+        predicates.add(column + " like ?");
+        args.add(pattern);
+      }
+    }
+    String rawPattern = "%" + normalized.toLowerCase(java.util.Locale.ROOT) + "%";
+    if (includeIssueIid) {
+      predicates.add("cast(issue_iid as varchar) like ?");
+      args.add("%" + normalized + "%");
+    }
+    for (String column : rawTextColumns) {
+      predicates.add("lower(coalesce(" + column + ", '')) like ?");
+      args.add(rawPattern);
+    }
+    if (!predicates.isEmpty()) {
+      where.append(" and (").append(String.join(" or ", predicates)).append(")");
+    }
+  }
+
   private void appendIssueIid(StringBuilder where, List<Object> args, String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     if (normalized == null) {
@@ -393,6 +486,7 @@ public class IssueFactRecordRepository {
   private IssueFactRecord mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueFactRecord(
         rs.getLong("project_id"),
+        IssueFactValueSupport.text(rs.getString("source_instance")),
         IssueFactValueSupport.text(rs.getString("project_name")),
         rs.getLong("issue_id"),
         rs.getInt("issue_iid"),

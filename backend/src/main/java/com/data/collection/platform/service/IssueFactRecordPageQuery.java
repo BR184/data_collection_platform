@@ -22,6 +22,7 @@ public record IssueFactRecordPageQuery(
     String sortOrder) {
 
   public enum Scope {
+    ALL,
     CUSTOMER,
     SYSTEM_TEST
   }

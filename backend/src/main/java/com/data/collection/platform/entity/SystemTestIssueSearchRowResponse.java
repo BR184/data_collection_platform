@@ -7,6 +7,7 @@ public record SystemTestIssueSearchRowResponse(
     Long issueId,
     Integer issueIid,
     String issueLink,
+    String sourceInstance,
     Long projectId,
     String projectName,
     String title,

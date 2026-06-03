@@ -219,7 +219,7 @@ class SystemTestIllegalRecordServiceTest {
 
   private SystemTestIllegalRecordService service() {
     lenient()
-        .when(issueLinkService.issueUrl(1001L, 301))
+        .when(issueLinkService.issueUrl("default", 1001L, 301))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     return new SystemTestIllegalRecordService(
         issueFactRecordRepository,

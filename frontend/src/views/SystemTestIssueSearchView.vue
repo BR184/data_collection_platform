@@ -51,12 +51,23 @@ const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   milestoneTitles: [],
 });
 
+const searchTypeOptions = [
+  { label: '综合搜索', value: 'all' },
+  { label: '议题编号', value: 'issueIid' },
+  { label: '标题', value: 'title' },
+  { label: '模块名', value: 'moduleName' },
+  { label: '里程碑', value: 'milestoneTitle' },
+  { label: '提交人', value: 'authorName' },
+  { label: '处理人', value: 'assigneeName' },
+];
+
 const filterValues = computed<Record<string, unknown>>(() => {
   const createdAtStart = String(route.query.createdAtStart ?? '');
   const createdAtEnd = String(route.query.createdAtEnd ?? '');
   const updatedAtStart = String(route.query.updatedAtStart ?? '');
   const updatedAtEnd = String(route.query.updatedAtEnd ?? '');
   return {
+    searchType: String(route.query.searchType ?? 'all'),
     keyword: String(route.query.keyword ?? ''),
     testingPhase: String(route.query.testingPhase ?? ''),
     moduleName: String(route.query.moduleName ?? ''),
@@ -76,6 +87,13 @@ const filterValues = computed<Record<string, unknown>>(() => {
 });
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
+  {
+    key: 'searchType',
+    label: '搜索类型',
+    type: 'select',
+    width: 130,
+    options: searchTypeOptions,
+  },
   {
     key: 'updatedAtRange',
     label: '更新时间',
@@ -200,6 +218,8 @@ useDataScope({
 });
 
 const columns = computed<RecordTableColumn[]>(() => [
+  { key: 'sourceInstance', label: '数据源', width: 100 },
+  { key: 'projectId', label: '项目ID', sortable: true, width: 100 },
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'projectName', label: '项目名称', sortable: true, minWidth: 140 },
@@ -215,8 +235,11 @@ const columns = computed<RecordTableColumn[]>(() => [
 const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
     __raw: row,
+    identityKey: `${row.sourceInstance || 'default'}:${row.projectId}:${row.issueIid}`,
     issueId: row.issueId,
     issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
+    sourceInstance: row.sourceInstance || 'default',
+    projectId: row.projectId,
     title: row.title || '-',
     projectName: row.projectName || '-',
     moduleNames: splitDisplayList(row.moduleNames).map((label) => ({ label, type: 'info' as const })),
@@ -242,6 +265,7 @@ bindLoader(async () => {
 async function loadFilterOptions() {
   filterOptions.value = await api.getSystemTestIssueSearchFilterOptions(
     route.query.projectId as string | undefined,
+    String(route.query.sourceInstance ?? '') || undefined,
   );
 }
 
@@ -254,6 +278,8 @@ async function loadTableData() {
 function buildCurrentQueryParams(includePagination: boolean) {
   return {
     projectId: route.query.projectId as string | undefined,
+    sourceInstance: String(route.query.sourceInstance ?? ''),
+    searchType: String(route.query.searchType ?? ''),
     keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),
@@ -343,6 +369,7 @@ async function handleReset() {
     sortBy: 'updatedAt',
     sortOrder: 'desc',
     keyword: null,
+    searchType: null,
     testingPhase: null,
     moduleName: null,
     updatedAtStart: null,
@@ -413,7 +440,7 @@ async function handleRefresh() {
       :page="page"
       :page-size="pageSize"
       :total="total"
-      row-key="issueId"
+      row-key="identityKey"
       :keyword-auto-search="true"
       :primary-filters="primaryFilters"
       :advanced-filters="advancedFilters"

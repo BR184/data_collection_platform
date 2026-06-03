@@ -84,7 +84,8 @@ class CustomerIssueRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService);
-    when(issueLinkService.issueUrl(325L, 101)).thenReturn("http://gitlab.example.com/group/project/-/issues/101");
+    when(issueLinkService.issueUrl("default", 325L, 101))
+        .thenReturn("http://gitlab.example.com/group/project/-/issues/101");
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(

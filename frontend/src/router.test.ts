@@ -74,6 +74,36 @@ describe('router query normalization', () => {
       mrIid: '123',
     });
   });
+
+  it('preserves source instance and search type on system-test issue search routes', () => {
+    const to = router.resolve({
+      path: '/question-metrics/issue-search',
+      query: {
+        sourceInstance: 'cc',
+        searchType: 'issueIid',
+        keyword: '22637',
+        projectId: '1001',
+      },
+    });
+
+    expect(normalizeQuery(to)).toBeNull();
+  });
+
+  it('drops legacy projectId but preserves source instance on integration-test routes', () => {
+    const to = router.resolve({
+      path: '/integration-test/home',
+      query: {
+        projectId: '325',
+        sourceInstance: 'cc',
+        testingPhase: 'R1 Integration',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      sourceInstance: 'cc',
+      testingPhase: 'R1 Integration',
+    });
+  });
 });
 
 describe('router access guard', () => {

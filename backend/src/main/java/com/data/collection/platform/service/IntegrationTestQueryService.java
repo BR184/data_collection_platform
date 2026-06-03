@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.IntegrationTestDetailResponse;
 import com.data.collection.platform.entity.IntegrationTestDetailRowResponse;
 import com.data.collection.platform.entity.IntegrationTestPhaseOptionResponse;
 import com.data.collection.platform.entity.IntegrationTestProjectOptionResponse;
+import com.data.collection.platform.entity.IntegrationTestSummaryDiagnosticsResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryResponse;
 import com.data.collection.platform.entity.IntegrationTestSummaryRowResponse;
 import java.math.BigDecimal;
@@ -122,15 +123,16 @@ public class IntegrationTestQueryService {
 
   public IntegrationTestSummaryResponse getSummary(Long projectId, String testingPhase, String sourceInstance) {
     List<Object> args = new ArrayList<>();
-    StringBuilder where =
+    StringBuilder baseWhere =
         new StringBuilder(
             """
             from integration_test_fact
              where deleted = false
             """);
-    appendSourceInstanceFilter(where, args, sourceInstance);
-    appendScopedFilters(where, args, projectId, testingPhase, null);
-    appendRecognizedModuleFilter(where);
+    appendSourceInstanceFilter(baseWhere, args, sourceInstance);
+    appendScopedFilters(baseWhere, args, projectId, testingPhase, null);
+    StringBuilder moduleWhere = new StringBuilder(baseWhere);
+    appendRecognizedModuleFilter(moduleWhere);
 
     List<IntegrationTestSummaryRowResponse> rows =
         jdbcTemplate.query(
@@ -149,7 +151,7 @@ public class IntegrationTestQueryService {
                    end as pass_rate,
                    coalesce(sum(case when legal = false then 1 else 0 end), 0) as illegal_count
             """
-                + where
+                + moduleWhere
                 + """
                  group by module_name
                  order by lower(module_name) asc
@@ -158,10 +160,17 @@ public class IntegrationTestQueryService {
             args.toArray());
 
     Long totalIssueCount =
-        jdbcTemplate.queryForObject("select count(*) " + where, Long.class, args.toArray());
+        jdbcTemplate.queryForObject("select count(*) " + moduleWhere, Long.class, args.toArray());
+    Long totalParsedRows =
+        jdbcTemplate.queryForObject("select count(*) " + baseWhere, Long.class, args.toArray());
+    Long excludedMissingModuleRows =
+        jdbcTemplate.queryForObject(
+            "select count(*) " + baseWhere + " and nullif(btrim(coalesce(module_name, '')), '') is null",
+            Long.class,
+            args.toArray());
     LocalDateTime factRefreshedAt =
         jdbcTemplate.queryForObject(
-            "select max(fact_refreshed_at) " + where,
+            "select max(fact_refreshed_at) " + moduleWhere,
             LocalDateTime.class,
             args.toArray());
     return new IntegrationTestSummaryResponse(
@@ -170,7 +179,11 @@ public class IntegrationTestQueryService {
         rows.size(),
         totalIssueCount == null ? 0 : totalIssueCount,
         factRefreshedAt,
-        rows);
+        rows,
+        new IntegrationTestSummaryDiagnosticsResponse(
+            totalParsedRows == null ? 0 : totalParsedRows,
+            totalIssueCount == null ? 0 : totalIssueCount,
+            excludedMissingModuleRows == null ? 0 : excludedMissingModuleRows));
   }
 
   public IntegrationTestDetailResponse getDetails(
@@ -216,6 +229,7 @@ public class IntegrationTestQueryService {
         jdbcTemplate.query(
             """
             select issue_id,
+                   coalesce(source_instance, 'default') as source_instance,
                    issue_iid,
                    issuable_reference,
                    project_id,
@@ -299,6 +313,7 @@ public class IntegrationTestQueryService {
         jdbcTemplate.query(
             """
             select issue_id,
+                   coalesce(source_instance, 'default') as source_instance,
                    issue_iid,
                    issuable_reference,
                    project_id,
@@ -510,7 +525,8 @@ public class IntegrationTestQueryService {
         rs.getLong("issue_id"),
         rs.getLong("issue_iid"),
         TextQuerySupport.normalizeDisplay(rs.getString("issuable_reference")),
-        issueLinkService.issueUrl(rs.getLong("project_id"), getIntegerIssueIid(rs, "issue_iid")),
+        issueLinkService.issueUrl(
+            rs.getString("source_instance"), rs.getLong("project_id"), getIntegerIssueIid(rs, "issue_iid")),
         rs.getLong("project_id"),
         TextQuerySupport.normalizeDisplay(rs.getString("project_name")),
         TextQuerySupport.normalizeDisplay(rs.getString("title")),

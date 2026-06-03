@@ -104,7 +104,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   },
   'integration-test-home': {
     allowedQueryKeys: [
-      'projectId',
+      'sourceInstance',
       'testingPhase',
       'detailVisible',
       'detailModule',
@@ -113,7 +113,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'detailSortBy',
       'detailSortOrder',
     ],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
   },
   'question-metrics-home': {
     allowedQueryKeys: statisticBoardQueryKeys,
@@ -146,6 +146,8 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'sortBy',
       'sortOrder',
       'projectId',
+      'sourceInstance',
+      'searchType',
       'keyword',
       'issueIid',
       'title',

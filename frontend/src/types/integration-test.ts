@@ -36,6 +36,11 @@ export interface IntegrationTestSummaryResponse {
   moduleCount: number;
   totalIssueCount: number;
   factRefreshedAt?: string | null;
+  diagnostics?: {
+    totalParsedRows: number;
+    includedModuleRows: number;
+    excludedMissingModuleRows: number;
+  };
   rows: IntegrationTestSummaryRowResponse[];
 }
 

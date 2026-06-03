@@ -86,6 +86,7 @@ class QuestionMetricsControllerTest {
                         9001L,
                         809,
                         "http://gitlab.example.com/-/issues/809",
+                        "default",
                         1001L,
                         "Rocksdb",
                         "草图模块崩溃问题",
@@ -142,7 +143,7 @@ class QuestionMetricsControllerTest {
 
   @Test
   void shouldReturnIssueSearchFilterOptions() throws Exception {
-    when(systemTestIssueSearchService.getFilterOptions(1001L))
+    when(systemTestIssueSearchService.getFilterOptions(1001L, "cc"))
         .thenReturn(
             new SystemTestIssueSearchFilterOptionsResponse(
                 List.of(new OptionItemResponse("Rocksdb", "Rocksdb")),
@@ -156,7 +157,10 @@ class QuestionMetricsControllerTest {
                 List.of(new OptionItemResponse("功能缺陷", "功能缺陷")),
                 List.of(new OptionItemResponse("CC2026R1", "CC2026R1"))));
 
-    mockMvc.perform(get("/api/question-metrics/issues/filter-options").param("projectId", "1001"))
+    mockMvc.perform(
+            get("/api/question-metrics/issues/filter-options")
+                .param("projectId", "1001")
+                .param("sourceInstance", "cc"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.projectNames[0].value").value("Rocksdb"))

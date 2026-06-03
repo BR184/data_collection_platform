@@ -50,7 +50,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
-                  IssueFactRecordPageQuery.Scope.SYSTEM_TEST,
+                  IssueFactRecordPageQuery.Scope.ALL,
                   listRequest,
                   null,
                   null,
@@ -102,6 +102,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
               new IssueFactRecordListRequest(
                   listRequest.projectId(),
                   listRequest.keyword(),
+                  listRequest.searchType(),
                   listRequest.issueIid(),
                   listRequest.title(),
                   listRequest.projectName(),
@@ -138,6 +139,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         String.join(
             ",",
             List.of(
+                "sourceInstance",
+                "projectId",
                 "问题编号",
                 "项目",
                 "模块",
@@ -159,6 +162,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
           String.join(
               ",",
               List.of(
+                  CsvExportSupport.cell(row.sourceInstance()),
+                  CsvExportSupport.cell(row.projectId()),
                   CsvExportSupport.cell(row.issueIid()),
                   CsvExportSupport.cell(row.projectName()),
                   CsvExportSupport.cell(row.moduleNames()),
@@ -180,7 +185,11 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId) {
-    List<IssueFactRecord> scopedViews = loadScopedViews(projectId);
+    return getFilterOptions(projectId, null);
+  }
+
+  public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId, String sourceInstance) {
+    List<IssueFactRecord> scopedViews = loadIssueSearchOptionFacts(projectId, sourceInstance);
     return new SystemTestIssueSearchFilterOptionsResponse(
         toOptions(scopedViews, IssueFactRecord::projectName),
         toOptions(scopedViews.stream()
@@ -199,6 +208,19 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         toOptions(scopedViews, IssueFactRecord::bugStatus),
         toOptions(scopedViews, IssueFactRecord::category),
         toOptions(scopedViews, IssueFactRecord::milestoneTitle));
+  }
+
+  private List<IssueFactRecord> loadIssueSearchOptionFacts(Long projectId, String sourceInstance) {
+    String normalizedSourceInstance = TextQuerySupport.trimToNull(sourceInstance);
+    if (normalizedSourceInstance == null) {
+      return loadFacts(projectId);
+    }
+    Map<String, String> filters = new LinkedHashMap<>();
+    filters.put("sourceInstance", normalizedSourceInstance);
+    if (projectId != null) {
+      filters.put("projectId", String.valueOf(projectId));
+    }
+    return issueFactRecordRepository.findByFilters(filters);
   }
 
   private List<IssueFactRecord> loadScopedViews(Long projectId) {
@@ -229,7 +251,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     return new SystemTestIssueSearchRowResponse(
         view.issueId(),
         view.issueIid(),
-        buildIssueLink(view.projectId(), view.issueIid()),
+        buildIssueLink(view.sourceInstance(), view.projectId(), view.issueIid()),
+        view.sourceInstance(),
         view.projectId(),
         view.projectName(),
         view.title(),

@@ -110,6 +110,9 @@ class IntegrationTestFactPipelineTest {
     assertThat(buildResponse.affectedRows()).isEqualTo(1);
     assertThat(summary.totalIssueCount()).isZero();
     assertThat(summary.rows()).isEmpty();
+    assertThat(summary.diagnostics().totalParsedRows()).isEqualTo(1);
+    assertThat(summary.diagnostics().includedModuleRows()).isZero();
+    assertThat(summary.diagnostics().excludedMissingModuleRows()).isEqualTo(1);
     assertThat(details.records()).isEmpty();
   }
 

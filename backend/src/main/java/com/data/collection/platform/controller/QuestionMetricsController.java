@@ -57,8 +57,9 @@ public class QuestionMetricsController {
 
   @GetMapping("/issues/filter-options")
   public ApiResponse<SystemTestIssueSearchFilterOptionsResponse> getIssueFilterOptions(
-      @RequestParam(required = false) Long projectId) {
-    return ApiResponse.success(systemTestIssueSearchService.getFilterOptions(projectId));
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String sourceInstance) {
+    return ApiResponse.success(systemTestIssueSearchService.getFilterOptions(projectId, sourceInstance));
   }
 
   @GetMapping("/illegal-records")

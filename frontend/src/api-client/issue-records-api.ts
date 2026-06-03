@@ -16,7 +16,9 @@ import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
 type SystemTestIssueSearchQueryParams = {
   projectId?: string | number | null;
   keyword?: string;
+  searchType?: string;
   issueIid?: string;
+  sourceInstance?: string | null;
   title?: string;
   projectName?: string;
   moduleName?: string;
@@ -49,7 +51,9 @@ function buildSystemTestIssueSearchQuery(params: SystemTestIssueSearchQueryParam
     ...(includePagination ? { page: String(params.page ?? 1), size: String(params.size ?? 20) } : {}),
     ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
     ...(params.keyword ? { keyword: params.keyword } : {}),
+    ...(params.searchType ? { searchType: params.searchType } : {}),
     ...(params.issueIid ? { issueIid: params.issueIid } : {}),
+    ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     ...(params.title ? { title: params.title } : {}),
     ...(params.projectName ? { projectName: params.projectName } : {}),
     ...(params.moduleName ? { moduleName: params.moduleName } : {}),
@@ -216,9 +220,15 @@ export const issueRecordsApi = {
     const query = buildSystemTestIssueSearchQuery(params, false);
     return requestCsv(`/api/question-metrics/issues/export${query.toString() ? `?${query.toString()}` : ''}`);
   },
-  getSystemTestIssueSearchFilterOptions(projectId?: string | number | null) {
+  getSystemTestIssueSearchFilterOptions(
+    projectId?: string | number | null,
+    sourceInstance?: string | null,
+  ) {
     const query = new URLSearchParams(
-      projectId != null && projectId !== '' ? { projectId: String(projectId) } : {},
+      {
+        ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+        ...(sourceInstance ? { sourceInstance } : {}),
+      },
     );
     return request<SystemTestIssueSearchFilterOptionsResponse>(
       `/api/question-metrics/issues/filter-options${query.toString() ? `?${query.toString()}` : ''}`,

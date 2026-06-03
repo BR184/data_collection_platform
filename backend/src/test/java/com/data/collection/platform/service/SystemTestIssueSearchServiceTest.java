@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
@@ -67,7 +68,7 @@ class SystemTestIssueSearchServiceTest {
         .findPage(
             argThat(
                 query ->
-                    query.scope() == IssueFactRecordPageQuery.Scope.SYSTEM_TEST
+                    "ALL".equals(query.scope().name())
                         && !query.illegalOnly()));
   }
 
@@ -76,7 +77,8 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service =
         new SystemTestIssueSearchService(
             issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
-    when(issueLinkService.issueUrl(1001L, 301)).thenReturn("http://gitlab.example.com/group/project/-/issues/301");
+    when(issueLinkService.issueUrl("default", 1001L, 301))
+        .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -121,7 +123,7 @@ class SystemTestIssueSearchServiceTest {
         .findPage(
             argThat(
                 query ->
-                    query.scope() == IssueFactRecordPageQuery.Scope.SYSTEM_TEST
+                    "ALL".equals(query.scope().name())
                         && "phase1".equals(query.testingPhase())
                         && "alice".equals(query.authorName())
                         && "bob".equals(query.assigneeName())
@@ -133,7 +135,6 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service =
         new SystemTestIssueSearchService(
             issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(null))
         .thenReturn(
             List.of(
@@ -156,6 +157,52 @@ class SystemTestIssueSearchServiceTest {
         service.getFilterOptions(null).moduleNames().stream().map(option -> option.value()).toList();
 
     assertThat(moduleOptions).containsExactly("曲线", "草图");
+  }
+
+  @Test
+  void shouldBuildIssueSearchFilterOptionsFromAllIssueFacts() {
+    SystemTestIssueSearchService service =
+        new SystemTestIssueSearchService(
+            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    when(issueFactRecordRepository.findByProjectId(null))
+        .thenReturn(
+            List.of(
+                recordWithModules(
+                    304,
+                    "general issue",
+                    List.of("通用模块"),
+                    "需求阶段",
+                    "carol",
+                    "dave")));
+
+    List<String> moduleOptions =
+        service.getFilterOptions(null).moduleNames().stream().map(option -> option.value()).toList();
+
+    assertThat(moduleOptions).containsExactly("通用模块");
+  }
+
+  @Test
+  void shouldBuildIssueSearchFilterOptionsWithinSourceInstance() {
+    SystemTestIssueSearchService service =
+        new SystemTestIssueSearchService(
+            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    when(issueFactRecordRepository.findByFilters(any()))
+        .thenReturn(
+            List.of(
+                recordWithModules(
+                    305,
+                    "cc issue",
+                    List.of("CC模块"),
+                    "需求阶段",
+                    "carol",
+                    "dave")));
+
+    List<String> moduleOptions =
+        service.getFilterOptions(null, "cc").moduleNames().stream().map(option -> option.value()).toList();
+
+    assertThat(moduleOptions).containsExactly("CC模块");
+    verify(issueFactRecordRepository).findByFilters(argThat(filters -> "cc".equals(filters.get("sourceInstance"))));
+    verify(issueFactRecordRepository, never()).findByProjectId(null);
   }
 
   private IssueFactRecord record(
