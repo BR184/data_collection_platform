@@ -32,6 +32,7 @@
 | `docs/intranet-offline-packaging-standard.md` | 常驻发布标准 | 定义内网离线发布包的固定结构、拓扑、镜像标签与验收清单。 |
 | `docs/gitlab-direct-sync-system-hook-runbook.md` | 遗留 Runbook / 待降级 | System Hook 仍有历史运维价值，但实时主路径已倾向增量补偿；后续应降级或归档。 |
 | `docs/gitlab-sync-orchestrator-runbook.md` | 常驻 Runbook | 当前运维和排查说明，继续有效。 |
+| `docs/legacy-table-display-policy-investigation-20260603.md` | 调查报告 / 待实施对齐 | 旧平台表格展示口径、模块行骨架、过滤规则和下钻差异调查；本轮只记录结论，未改业务代码。 |
 | `docs/markdown-status-index.md` | 常驻索引 | 汇总所有项目自维护 Markdown 的当前有效性、遗留项和废弃说明。 |
 | `docs/plans/2026-04-24-code-review-phase1-design.md` | 已完成 | 方案或修复已落地，保留为历史追溯。 |
 | `docs/plans/2026-04-27-data-scope-reuse.md` | 已完成 | 方案或修复已落地，保留为历史追溯。 |
