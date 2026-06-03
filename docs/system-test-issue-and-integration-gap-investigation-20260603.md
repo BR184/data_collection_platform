@@ -21,6 +21,199 @@ No production code was changed in this investigation. One local DB probe was att
 | Integration-test summary/export filters out blank `module_name`. | Confirmed by code | Records parsed from notes but without recognized module labels do not contribute to module counts/exports. |
 | Backend supports `sourceInstance` for both issue-query and integration-test APIs, but the current frontend calls do not send it. | Confirmed by code | In multi-source environments such as CC/DGM/default, counts can mix or omit source-specific data depending on how facts were built and queried. |
 
+## Solution Direction To Sync
+
+The recommended direction is to align with the old platform's business semantics and page behavior, not with the old platform's code structure.
+
+The new platform should keep its current architecture:
+
+- `issue_fact`
+- `integration_test_fact`
+- `sourceInstance`
+- search indexes
+- fact rebuild and refresh tasks
+
+The changes should focus on query scope, export rules, module statistics semantics, and old/new acceptance comparison.
+
+### Issue Query Should Match The Handover Document
+
+The handover document describes the issue-query module as a general CrownCAD issue query page for issues collected by the platform. It supports frontend filtering by:
+
+- search type
+- update date
+- created/submitted date
+- module name
+- testing phase
+- author
+- assignee
+- issue state
+- severity
+- test status
+- issue category
+- milestone
+- issue number
+- issue title
+
+Therefore `System Test -> Issue Query` should not behave as a system-test statistics page. It should not apply a default system/regression-test scope. It should query all active CrownCAD issues in `issue_fact` and only apply user-entered filters.
+
+Implementation direction:
+
+- Add or enable an `ALL` scope in `IssueFactRecordPageQuery`.
+- Make the issue-query page use `issue_fact where deleted = false`.
+- Layer only explicit user filters on top: project, source instance, module, title, `issueIid`, date range, status, author, assignee, testing phase, severity, test status, category, milestone, and keyword/search type.
+- Keep system-test scoped predicates for statistics pages and illegal-record pages where that scope is actually intended.
+
+Suggested field mapping:
+
+| Handover field | New platform query field |
+| --- | --- |
+| Update date | `updatedAtStart` / `updatedAtEnd` |
+| Created/submitted date | `createdAtStart` / `createdAtEnd` |
+| Module name | `moduleName` |
+| Testing phase | `testingPhase` |
+| Author | `authorName` |
+| Assignee | `assigneeName` |
+| Issue state | `issueState` |
+| Severity | `severityLevel` |
+| Test status | `bugStatus` |
+| Issue category | `category` |
+| Milestone | `milestoneTitle` |
+| Issue number | `issueIid` |
+| Issue title | `title` |
+
+Add a search-type selector so users do not accidentally search a number through the wrong field:
+
+- comprehensive search
+- issue number
+- title
+- module name
+- milestone
+- author
+- assignee
+
+### Search Must Be Stable, Not Only Index-Dependent
+
+Keep `search_text`, `search_compact`, `search_spell`, `search_initials`, and title search indexes for performance.
+
+However, SQL query logic should have a fallback when search-index columns are missing or empty. Search should still be able to match original fields such as:
+
+- `issue_iid`
+- `title`
+- `project_name`
+- `module_names`
+- `milestone_title`
+- `author_name`
+- `assignee_names`
+
+Fact rebuild should also validate or backfill `search_*` fields after rebuilding facts so "data exists but cannot be searched" is caught early.
+
+### Issue Number Identity Must Be Explicit
+
+GitLab `iid` is not globally unique. It is usually unique only inside one project. In a multi-source platform, the same displayed issue number can also appear under different GitLab source instances.
+
+This means multiple rows with `issue_iid = 1` are normal when they belong to different projects or source instances.
+
+Correct identity keys:
+
+- user-facing identity: `source_instance + project_id + issue_iid`
+- internal identity: `source_instance + project_id + issue_id`
+
+Implications:
+
+- Querying issue number `1` may correctly return multiple rows.
+- The page must display project name/project id and source instance clearly enough to explain apparent duplicates.
+- Table row keys must not use only `issueIid`.
+- Export and old/new comparison must not use only `issueIid`.
+- GitLab jump links must resolve using source instance plus project identity plus `issue_iid`.
+
+Acceptance example for `iid=22637`:
+
+```sql
+select *
+  from issue_fact
+ where issue_iid = 22637
+   and deleted = false;
+```
+
+After the issue-query scope fix, any row returned by this SQL should be findable on the issue-query page, even if it is not a system-test issue.
+
+### Source Instance Must Enter Frontend Queries
+
+Backend request models already support `sourceInstance`, but the frontend issue-query and integration-test paths currently do not send it.
+
+Implementation direction:
+
+- Connect the issue-query page to the shared data-source selector.
+- Connect integration-test summary, details, export, rebuild, and phase/module option requests to the same source instance.
+- Default to the current sync config or an explicit `cc` / `dgm` / `default` source instead of mixing silently.
+- Ensure list, filter options, export, rebuild, and statistics for the same page all use the same `sourceInstance`.
+
+### Integration Test Should Match Old Materialized Page Semantics
+
+The old platform's integration page effectively reads materialized integration data such as `spider_integration_data`, filtered by fields like `testing_phase` and `module_name`.
+
+The new platform should not copy that table or old code. Instead, `integration_test_fact` should be made equivalent in behavior:
+
+- Continue sourcing from mirrored GitLab issue/note/label data.
+- Continue parsing integration-test template comments.
+- Align fields such as `testing_phase`, `module_name`, `function_name`, executor, execute case count, pass case count, and export columns with the old platform's page/export effect.
+- Query, pagination, and export should follow old semantics such as `testing_phase = ?` and `module_name = ?`.
+- Define the empty-module policy explicitly: whether blank/unrecognized modules are hidden from the page, hidden from export, retained only as diagnostics, or shown as an "unrecognized module" bucket.
+
+### Integration Module Statistics Must Not Silently Drop Rows
+
+`appendRecognizedModuleFilter` currently excludes blank `module_name`. Keep the filter if it is required for page semantics, but add diagnostics so count differences can be explained.
+
+Diagnostics should include:
+
+- total parsed integration-test fact rows
+- rows entering module statistics
+- rows excluded because `module_name` is blank or unrecognized
+- an exportable excluded-row diagnostic list
+
+This makes Excel mismatches traceable as "not parsed", "parsed but filtered", or "field mismatch".
+
+### Add Old/New Alignment Acceptance Script
+
+Do not compare only total counts such as 30k vs 24k. Compare by identity keys.
+
+Issue identity key:
+
+```text
+source_instance + project_id + issue_iid
+```
+
+Integration-test identity key:
+
+```text
+source_instance + testing_phase + issue_iid + module_name + function_name
+```
+
+The script should output:
+
+- old has row, new does not
+- new has row, old does not
+- same key exists but important fields differ
+
+This is more reliable than judging alignment by aggregate totals only.
+
+### Suggested Implementation Order
+
+1. Fix issue-query scope from system-test scope to all active issue facts.
+2. Pass `sourceInstance` through issue-query and integration-test pages, filters, exports, rebuild, and statistics.
+3. Add search fallback and search-index validation/backfill.
+4. Align integration-test fact/query/export semantics and add empty-module diagnostics.
+5. Add old/new alignment script and regression tests.
+6. Repackage and verify an empty-platform deployment.
+
+### Acceptance Criteria
+
+- If `issue_fact.issue_iid = 22637 and deleted = false`, the issue-query page can find it regardless of system-test scope.
+- With no user filters, issue-query row count is close to `issue_fact where deleted = false` for the selected `sourceInstance`, not only the system-test subset.
+- Searching by issue number, title keyword, and module name all returns stable matches.
+- Integration-test Excel module/function/case-count output aligns with the old platform for the same phase and source.
+- Differences can be exported as a key-based diagnostic list instead of being visible only as aggregate count mismatches.
+
 ## New Platform Code Path: System-Test Issue Query
 
 The frontend page is `frontend/src/views/SystemTestIssueSearchView.vue`.
