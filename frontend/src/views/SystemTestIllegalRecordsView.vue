@@ -142,6 +142,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     export-filename-prefix="系统测试非法数据"
     :load-filter-options="api.getSystemTestIllegalRecordFilterOptions"
     :load-rule-explanation="api.getSystemTestIllegalRecordRuleExplanation"
+    :load-realtime-status="api.getSystemTestIllegalRecordRealtimeStatus"
+    :request-realtime-refresh="api.refreshSystemTestIllegalRecordRealtime"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :columns="columns"

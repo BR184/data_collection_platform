@@ -107,4 +107,12 @@ export const codeReviewApi = {
       `/api/code-review/multi-board/overview${query.toString() ? `?${query.toString()}` : ''}`,
     );
   },
+  getCodeReviewMultiBoardRealtimeStatus() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/code-review/multi-board/status');
+  },
+  refreshCodeReviewMultiBoardRealtime() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/code-review/multi-board/refresh', {
+      method: 'POST',
+    });
+  },
 };

@@ -3,9 +3,11 @@ import { computed, ref } from 'vue';
 // 系统测试议题查询页承担 issue_fact 的明细检索入口，路由参数就是可分享的查询状态。
 // 组件内部只处理页面交互，阶段、模块和非法规则的口径由共享条件字段提供。
 import { ElMessage } from '../element-plus-services';
-import { Download } from '@element-plus/icons-vue';
+import { Download, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import type {
@@ -13,6 +15,7 @@ import type {
   SystemTestIssueSearchRowResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import type {
   RecordTableActiveFilterTag,
@@ -38,6 +41,8 @@ const advancedVisible = ref(false);
 const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
+const realtimeRefreshLoading = ref(false);
+const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
@@ -49,6 +54,15 @@ const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   bugStatuses: [],
   categories: [],
   milestoneTitles: [],
+});
+
+const {
+  syncStatus,
+  lastSyncedText,
+  loadRealtimeStatus: loadSyncStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => api.getSystemTestIssueSearchRealtimeStatus(),
+  emptyText: '-',
 });
 
 const searchTypeOptions = [
@@ -254,7 +268,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 
 bindLoader(async () => {
   try {
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await Promise.all([loadFilterOptions(), loadTableData(), loadSyncStatus()]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '议题查询数据加载失败');
     rows.value = [];
@@ -267,6 +281,28 @@ async function loadFilterOptions() {
     route.query.projectId as string | undefined,
     String(route.query.sourceInstance ?? '') || undefined,
   );
+}
+
+async function handleRefreshLatestData() {
+  realtimeRefreshLoading.value = true;
+  try {
+    let status = await api.refreshSystemTestIssueSearchRealtime();
+    ElMessage.success(status.message || '已开始刷新最新数据');
+    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
+      await sleep(1000);
+      status = (await loadSyncStatus()) ?? status;
+    }
+    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+  } finally {
+    realtimeRefreshLoading.value = false;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function loadTableData() {
@@ -460,6 +496,16 @@ async function handleRefresh() {
       @refresh="handleRefresh"
     >
       <template #toolbar-actions>
+        <SyncMetaBadge :value="lastSyncedText" />
+        <el-button
+          v-if="canRefreshLatestData"
+          plain
+          :icon="RefreshRight"
+          :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+          @click="handleRefreshLatestData"
+        >
+          刷新最新数据
+        </el-button>
         <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
           导出
         </el-button>

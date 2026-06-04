@@ -3,17 +3,20 @@ import { computed, ref, watch } from 'vue';
 // 非法记录通用页承接系统测试和客户问题两类场景，差异通过配置和接口适配传入。
 // 页面内部统一处理关键词、条件筛选、规则说明、分页和导出，避免两个业务域重复实现。
 import { ElMessage } from '../../element-plus-services';
-import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
+import SyncMetaBadge from '../../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
+import { authState } from '../../composables/auth-state';
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../../composables/useRecordPageController';
 import { useDataScope } from '../../composables/useDataScope';
 import { ISSUE_RECORD_QUERY_KEYS } from '../../composables/record-route-query-keys';
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
+import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspaceStatus';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
 import { downloadCsv, formatExportFileDate } from '../../utils/csv-download';
@@ -46,9 +49,22 @@ const filterOptionsLoaded = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
+const realtimeRefreshLoading = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const filterOptions = ref({ ...props.initialFilterOptions });
+const canRefreshLatestData = computed(
+  () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
+);
+
+const {
+  syncStatus,
+  lastSyncedText,
+  loadRealtimeStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => props.loadRealtimeStatus?.() ?? Promise.reject(new Error('Realtime status is not configured')),
+  emptyText: '-',
+});
 
 const {
   ruleExplanation,
@@ -199,10 +215,36 @@ async function handleExport() {
   }
 }
 
+async function handleRefreshLatestData() {
+  if (!props.requestRealtimeRefresh) {
+    return;
+  }
+  realtimeRefreshLoading.value = true;
+  try {
+    let status = await props.requestRealtimeRefresh();
+    ElMessage.success(status.message || '已开始刷新最新数据');
+    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
+      await sleep(1000);
+      status = (await loadRealtimeStatus()) ?? status;
+    }
+    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await loadRealtimeStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+  } finally {
+    realtimeRefreshLoading.value = false;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 bindLoader(async () => {
   try {
     initializeFromQuery(route.query);
     await loadTableData();
+    await loadRealtimeStatus();
     pageInitialized.value = true;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : `${props.title}加载失败`);
@@ -285,6 +327,16 @@ function openDetailDrawer(row: Record<string, unknown>) {
 
         <template #primary-actions>
           <div class="issue-illegal-toolbar-actions customer-illegal-toolbar-actions">
+            <SyncMetaBadge v-if="props.loadRealtimeStatus" :value="lastSyncedText" />
+            <el-button
+              v-if="canRefreshLatestData"
+              plain
+              :icon="RefreshRight"
+              :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+              @click="handleRefreshLatestData"
+            >
+              刷新最新数据
+            </el-button>
             <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
             <el-button
               plain

@@ -1,5 +1,6 @@
 import type {
   OptionItemResponse,
+  RealtimeWorkspaceStatusResponse,
   StatisticBoardRuleExplanationResponse,
   StatisticFilterField,
   StatisticFilterGroup,
@@ -96,6 +97,8 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   exportFilenamePrefix?: string;
   loadFilterOptions: (projectId?: string | number | null) => Promise<IssueIllegalRecordFilterOptions>;
   loadRuleExplanation: (projectId?: string | number | null) => Promise<StatisticBoardRuleExplanationResponse>;
+  loadRealtimeStatus?: () => Promise<RealtimeWorkspaceStatusResponse>;
+  requestRealtimeRefresh?: () => Promise<RealtimeWorkspaceStatusResponse>;
   initialFilterOptions: IssueIllegalRecordFilterOptions;
   buildConditionFields: (options: IssueIllegalRecordFilterOptions) => StatisticFilterField[];
   columns: RecordTableColumn[];

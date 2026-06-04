@@ -114,6 +114,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     export-filename-prefix="客户问题非法数据"
     :load-filter-options="api.getCustomerIssueIllegalRecordFilterOptions"
     :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
+    :load-realtime-status="api.getCustomerIssueIllegalRecordRealtimeStatus"
+    :request-realtime-refresh="api.refreshCustomerIssueIllegalRecordRealtime"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :columns="columns"

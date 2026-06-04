@@ -1,18 +1,23 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
+import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordService;
+import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,17 +27,24 @@ import org.springframework.web.bind.annotation.RestController;
 // 客户问题控制器复用 issue_fact 记录查询能力，只暴露客户问题域的正式记录和非法记录接口。
 // 系统测试共用逻辑留在底层服务，避免两个控制器复制筛选和导出规则。
 public class CustomerIssueController {
+  private static final String TOPIC_DELAY = "delay";
+  private static final String TOPIC_CC_PRODUCT = "cc-product";
+  private static final String ILLEGAL_RECORDS_WORKSPACE_KEY = "customer-issue-illegal-records";
+
   private final CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
   private final CustomerIssueRecordService customerIssueRecordService;
   private final CustomerIssueRequestAssembler customerIssueRequestAssembler;
+  private final IssueFactRealtimeRefreshService realtimeRefreshService;
 
   public CustomerIssueController(
       CustomerIssueIllegalRecordService customerIssueIllegalRecordService,
       CustomerIssueRecordService customerIssueRecordService,
-      CustomerIssueRequestAssembler customerIssueRequestAssembler) {
+      CustomerIssueRequestAssembler customerIssueRequestAssembler,
+      IssueFactRealtimeRefreshService realtimeRefreshService) {
     this.customerIssueIllegalRecordService = customerIssueIllegalRecordService;
     this.customerIssueRecordService = customerIssueRecordService;
     this.customerIssueRequestAssembler = customerIssueRequestAssembler;
+    this.realtimeRefreshService = realtimeRefreshService;
   }
 
   @GetMapping("/records")
@@ -69,6 +81,20 @@ public class CustomerIssueController {
     return ApiResponse.success(customerIssueRecordService.getRuleExplanation(topic, projectId));
   }
 
+  @GetMapping("/records/status")
+  public ApiResponse<RealtimeWorkspaceStatusResponse> getRecordRealtimeStatus(
+      @RequestParam(required = false) String topic) {
+    return ApiResponse.success(realtimeRefreshService.getStatus(recordWorkspaceKey(topic)));
+  }
+
+  @PostMapping("/records/refresh")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<RealtimeWorkspaceStatusResponse> refreshRecords(
+      @RequestParam(required = false) String topic) {
+    return ApiResponse.success(
+        "已开始刷新最新数据", realtimeRefreshService.requestRefresh(recordWorkspaceKey(topic)));
+  }
+
   @GetMapping("/illegal-records")
   public ApiResponse<CustomerIssueIllegalRecordListResponse> listIllegalRecords(
       @ModelAttribute CustomerIssueIllegalRecordListWebRequest request) {
@@ -99,5 +125,21 @@ public class CustomerIssueController {
   public ApiResponse<StatisticBoardRuleExplanationResponse> getIllegalRecordRuleExplanation(
       @RequestParam(required = false) Long projectId) {
     return ApiResponse.success(customerIssueIllegalRecordService.getRuleExplanation(projectId));
+  }
+
+  @GetMapping("/illegal-records/status")
+  public ApiResponse<RealtimeWorkspaceStatusResponse> getIllegalRecordRealtimeStatus() {
+    return ApiResponse.success(realtimeRefreshService.getStatus(ILLEGAL_RECORDS_WORKSPACE_KEY));
+  }
+
+  @PostMapping("/illegal-records/refresh")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
+    return ApiResponse.success(
+        "已开始刷新最新数据", realtimeRefreshService.requestRefresh(ILLEGAL_RECORDS_WORKSPACE_KEY));
+  }
+
+  private String recordWorkspaceKey(String topic) {
+    return TOPIC_DELAY.equalsIgnoreCase(topic) ? "customer-issue-delay-records" : "customer-issue-cc-product-records";
   }
 }

@@ -4,6 +4,7 @@ import type {
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordListResponse,
   CustomerIssueRecordTopic,
+  RealtimeWorkspaceStatusResponse,
   StatisticFilterGroup,
   StatisticBoardRuleExplanationResponse,
   SystemTestIllegalRecordFilterOptionsResponse,
@@ -234,6 +235,14 @@ export const issueRecordsApi = {
       `/api/question-metrics/issues/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
     );
   },
+  getSystemTestIssueSearchRealtimeStatus() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/issues/status');
+  },
+  refreshSystemTestIssueSearchRealtime() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/issues/refresh', {
+      method: 'POST',
+    });
+  },
   getSystemTestIllegalRecords(params: SystemTestIllegalRecordQueryParams) {
     const query = buildSystemTestIllegalRecordQuery(params);
     return request<SystemTestIllegalRecordListResponse>(`/api/question-metrics/illegal-records?${query.toString()}`);
@@ -257,6 +266,14 @@ export const issueRecordsApi = {
     return request<StatisticBoardRuleExplanationResponse>(
       `/api/question-metrics/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
     );
+  },
+  getSystemTestIllegalRecordRealtimeStatus() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/illegal-records/status');
+  },
+  refreshSystemTestIllegalRecordRealtime() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/illegal-records/refresh', {
+      method: 'POST',
+    });
   },
   getCustomerIssueIllegalRecords(params: {
     projectId?: string | number | null;
@@ -327,6 +344,14 @@ export const issueRecordsApi = {
     return request<StatisticBoardRuleExplanationResponse>(
       `/api/customer-issues/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
     );
+  },
+  getCustomerIssueIllegalRecordRealtimeStatus() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/customer-issues/illegal-records/status');
+  },
+  refreshCustomerIssueIllegalRecordRealtime() {
+    return request<RealtimeWorkspaceStatusResponse>('/api/customer-issues/illegal-records/refresh', {
+      method: 'POST',
+    });
   },
   getCustomerIssueRecords(params: {
     topic: CustomerIssueRecordTopic;
@@ -399,5 +424,15 @@ export const issueRecordsApi = {
     return request<StatisticBoardRuleExplanationResponse>(
       `/api/customer-issues/records/rule-explanation?${query.toString()}`,
     );
+  },
+  getCustomerIssueRecordRealtimeStatus(topic: CustomerIssueRecordTopic) {
+    const query = new URLSearchParams({ topic });
+    return request<RealtimeWorkspaceStatusResponse>(`/api/customer-issues/records/status?${query.toString()}`);
+  },
+  refreshCustomerIssueRecordRealtime(topic: CustomerIssueRecordTopic) {
+    const query = new URLSearchParams({ topic });
+    return request<RealtimeWorkspaceStatusResponse>(`/api/customer-issues/records/refresh?${query.toString()}`, {
+      method: 'POST',
+    });
   },
 };

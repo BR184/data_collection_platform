@@ -2,12 +2,14 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordRowResponse;
@@ -17,6 +19,7 @@ import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
+import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import com.data.collection.platform.service.SystemTestIllegalRecordQueryRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
@@ -37,6 +40,7 @@ class QuestionMetricsControllerTest {
 
   @Mock private SystemTestIssueSearchService systemTestIssueSearchService;
   @Mock private SystemTestIllegalRecordService systemTestIllegalRecordService;
+  @Mock private IssueFactRealtimeRefreshService realtimeRefreshService;
 
   private MockMvc mockMvc;
 
@@ -47,7 +51,8 @@ class QuestionMetricsControllerTest {
                 new QuestionMetricsController(
                     systemTestIssueSearchService,
                     systemTestIllegalRecordService,
-                    new QuestionMetricsRequestAssembler(new IssueFactRecordListRequestAssembler())))
+                    new QuestionMetricsRequestAssembler(new IssueFactRecordListRequestAssembler()),
+                    realtimeRefreshService))
             .build();
   }
 
@@ -398,5 +403,41 @@ class QuestionMetricsControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.title").value("系统测试非法数据规则说明"))
         .andExpect(jsonPath("$.data.metricDefinitions[0].label").value("未设定模块"));
+  }
+
+  @Test
+  void shouldReturnIssueSearchRealtimeStatusAndRefreshMessage() throws Exception {
+    RealtimeWorkspaceStatusResponse status =
+        new RealtimeWorkspaceStatusResponse(
+            "system-test-issues", true, "READY", "刷新完成", false, null, null, null);
+    when(realtimeRefreshService.getStatus("system-test-issues")).thenReturn(status);
+    when(realtimeRefreshService.requestRefresh("system-test-issues")).thenReturn(status);
+
+    mockMvc.perform(get("/api/question-metrics/issues/status"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("system-test-issues"));
+
+    mockMvc.perform(post("/api/question-metrics/issues/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.message").value("已开始刷新最新数据"))
+        .andExpect(jsonPath("$.data.workspaceKey").value("system-test-issues"));
+  }
+
+  @Test
+  void shouldReturnIllegalRecordRealtimeStatusAndRefreshMessage() throws Exception {
+    RealtimeWorkspaceStatusResponse status =
+        new RealtimeWorkspaceStatusResponse(
+            "system-test-illegal-records", true, "READY", "刷新完成", false, null, null, null);
+    when(realtimeRefreshService.getStatus("system-test-illegal-records")).thenReturn(status);
+    when(realtimeRefreshService.requestRefresh("system-test-illegal-records")).thenReturn(status);
+
+    mockMvc.perform(get("/api/question-metrics/illegal-records/status"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("system-test-illegal-records"));
+
+    mockMvc.perform(post("/api/question-metrics/illegal-records/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.message").value("已开始刷新最新数据"))
+        .andExpect(jsonPath("$.data.workspaceKey").value("system-test-illegal-records"));
   }
 }

@@ -3,12 +3,14 @@ import { computed, ref, watch } from 'vue';
 // 客户问题正式记录页复用共享记录页底座，只在这里定义客户问题自己的范围和列展示。
 // 查询条件统一落到 issue_fact 口径，避免页面层再重复实现筛选规则。
 import { ElMessage } from '../element-plus-services';
-import { Download, InfoFilled, Refresh } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
+import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import type {
   CustomerIssueRecordFilterOptionsResponse,
@@ -21,6 +23,7 @@ import { buildCustomerIssueRecordConditionFields } from './customer-issues/custo
 import { useRuleExplanationPanel } from '../composables/useRuleExplanationPanel';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableColumn } from '../types/record-table';
@@ -54,6 +57,7 @@ const filterOptionsLoaded = ref(false);
 const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
 const exportLoading = ref(false);
+const realtimeRefreshLoading = ref(false);
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
@@ -74,9 +78,19 @@ const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const isDelayTopic = computed(() => topic.value === 'delay');
 const pageTitle = computed(() => (isDelayTopic.value ? '延期问题明细' : 'CC_PRODUCT 议题明细'));
+const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 const emptyDescription = computed(() =>
   isDelayTopic.value ? '当前筛选条件下没有延期问题。' : '当前筛选条件下没有 CC_PRODUCT 议题。',
 );
+
+const {
+  syncStatus,
+  lastSyncedText,
+  loadRealtimeStatus: loadSyncStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => api.getCustomerIssueRecordRealtimeStatus(topic.value),
+  emptyText: '-',
+});
 
 const {
   ruleExplanation,
@@ -290,10 +304,33 @@ async function handleExport() {
   }
 }
 
+async function handleRefreshLatestData() {
+  realtimeRefreshLoading.value = true;
+  try {
+    let status = await api.refreshCustomerIssueRecordRealtime(topic.value);
+    ElMessage.success(status.message || '已开始刷新最新数据');
+    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
+      await sleep(1000);
+      status = (await loadSyncStatus()) ?? status;
+    }
+    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+  } finally {
+    realtimeRefreshLoading.value = false;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 bindLoader(async () => {
   try {
     initializeFromQuery(route.query);
     await loadTableData();
+    await loadSyncStatus();
     pageInitialized.value = true;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}加载失败`);
@@ -377,6 +414,16 @@ function openDetailDrawer(row: Record<string, unknown>) {
 
         <template #primary-actions>
           <div class="customer-record-toolbar-actions">
+            <SyncMetaBadge :value="lastSyncedText" />
+            <el-button
+              v-if="canRefreshLatestData"
+              plain
+              :icon="RefreshRight"
+              :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+              @click="handleRefreshLatestData"
+            >
+              刷新最新数据
+            </el-button>
             <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
             <el-button
               plain

@@ -2,6 +2,7 @@ package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,12 +15,14 @@ import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsRespo
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueRecordService;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
+import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +39,7 @@ class CustomerIssueControllerTest {
 
   @Mock private CustomerIssueIllegalRecordService customerIssueIllegalRecordService;
   @Mock private CustomerIssueRecordService customerIssueRecordService;
+  @Mock private IssueFactRealtimeRefreshService realtimeRefreshService;
 
   private MockMvc mockMvc;
 
@@ -46,7 +50,8 @@ class CustomerIssueControllerTest {
                 new CustomerIssueController(
                     customerIssueIllegalRecordService,
                     customerIssueRecordService,
-                    new CustomerIssueRequestAssembler(new IssueFactRecordListRequestAssembler())))
+                    new CustomerIssueRequestAssembler(new IssueFactRecordListRequestAssembler()),
+                    realtimeRefreshService))
             .build();
   }
 
@@ -400,5 +405,39 @@ class CustomerIssueControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.boardKey").value("customer-issue-illegal-records"))
         .andExpect(jsonPath("$.data.title").value("客户问题缺陷非法数据规则说明"));
+  }
+
+  @Test
+  void shouldReturnCustomerIssueRecordRealtimeStatusAndRefreshMessage() throws Exception {
+    RealtimeWorkspaceStatusResponse status =
+        new RealtimeWorkspaceStatusResponse(
+            "customer-issue-delay-records", true, "READY", "refresh done", false, null, null, null);
+    when(realtimeRefreshService.getStatus("customer-issue-delay-records")).thenReturn(status);
+    when(realtimeRefreshService.requestRefresh("customer-issue-delay-records")).thenReturn(status);
+
+    mockMvc.perform(get("/api/customer-issues/records/status").param("topic", "delay"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("customer-issue-delay-records"));
+
+    mockMvc.perform(post("/api/customer-issues/records/refresh").param("topic", "delay"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("customer-issue-delay-records"));
+  }
+
+  @Test
+  void shouldReturnCustomerIssueIllegalRecordRealtimeStatusAndRefreshMessage() throws Exception {
+    RealtimeWorkspaceStatusResponse status =
+        new RealtimeWorkspaceStatusResponse(
+            "customer-issue-illegal-records", true, "READY", "refresh done", false, null, null, null);
+    when(realtimeRefreshService.getStatus("customer-issue-illegal-records")).thenReturn(status);
+    when(realtimeRefreshService.requestRefresh("customer-issue-illegal-records")).thenReturn(status);
+
+    mockMvc.perform(get("/api/customer-issues/illegal-records/status"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("customer-issue-illegal-records"));
+
+    mockMvc.perform(post("/api/customer-issues/illegal-records/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("customer-issue-illegal-records"));
   }
 }

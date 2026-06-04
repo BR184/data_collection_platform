@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
+import com.data.collection.platform.service.MergeRequestFactRealtimeRefreshService;
 import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,18 +29,22 @@ import org.springframework.web.bind.annotation.RestController;
 // 代码走查控制器同时承接非法记录、规则配置和多元看板入口。
 // 请求对象先经 assembler 收口，再交给服务层处理规则、筛选和导出。
 public class CodeReviewController {
+  private static final String MULTI_BOARD_WORKSPACE_KEY = "code-review-multi-board";
 
   private final CodeReviewIllegalRecordService codeReviewIllegalRecordService;
   private final CodeReviewMultiBoardService codeReviewMultiBoardService;
   private final CodeReviewRequestAssembler codeReviewRequestAssembler;
+  private final MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService;
 
   public CodeReviewController(
       CodeReviewIllegalRecordService codeReviewIllegalRecordService,
       CodeReviewMultiBoardService codeReviewMultiBoardService,
-      CodeReviewRequestAssembler codeReviewRequestAssembler) {
+      CodeReviewRequestAssembler codeReviewRequestAssembler,
+      MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService) {
     this.codeReviewIllegalRecordService = codeReviewIllegalRecordService;
     this.codeReviewMultiBoardService = codeReviewMultiBoardService;
     this.codeReviewRequestAssembler = codeReviewRequestAssembler;
+    this.multiBoardRealtimeRefreshService = multiBoardRealtimeRefreshService;
   }
 
   @GetMapping("/illegal-records")
@@ -106,5 +111,18 @@ public class CodeReviewController {
     return ApiResponse.success(
         codeReviewMultiBoardService.getOverview(
             codeReviewRequestAssembler.toMultiBoardOverviewRequest(request)));
+  }
+
+  @GetMapping("/multi-board/status")
+  public ApiResponse<RealtimeWorkspaceStatusResponse> getMultiBoardRealtimeStatus() {
+    return ApiResponse.success(multiBoardRealtimeRefreshService.getStatus(MULTI_BOARD_WORKSPACE_KEY));
+  }
+
+  @PostMapping("/multi-board/refresh")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<RealtimeWorkspaceStatusResponse> refreshMultiBoard() {
+    return ApiResponse.success(
+        "已开始刷新最新数据",
+        multiBoardRealtimeRefreshService.requestRefresh(MULTI_BOARD_WORKSPACE_KEY));
   }
 }

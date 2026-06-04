@@ -3,16 +3,19 @@ import { computed, ref, watch } from 'vue';
 // 代码走查多元看板是代码域的统计板入口，负责选择数据源并展示统一图表结果。
 // 看板配置和字段口径放在独立模块中，页面保持为薄编排层。
 import { ElMessage } from '../element-plus-services';
-import { Refresh } from '@element-plus/icons-vue';
+import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
+import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import type {
   CodeReviewMultiBoardOverviewResponse,
   OptionItemResponse,
 } from '../types/api';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import {
   buildCodeReviewSummaryCards,
   buildModuleDensityChartOption,
@@ -27,6 +30,7 @@ import {
 
 const initialized = ref(false);
 const loading = ref(false);
+const realtimeRefreshLoading = ref(false);
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const overview = ref<CodeReviewMultiBoardOverviewResponse>({
   source: '',
@@ -62,6 +66,16 @@ const moduleDensityChartOption = computed(() => buildModuleDensityChartOption(ov
 const moduleVolumeChartOption = computed(() => buildModuleVolumeChartOption(overview.value));
 const ownerDensityChartOption = computed(() => buildOwnerDensityChartOption(overview.value));
 const ownerCompletionChartOption = computed(() => buildOwnerCompletionChartOption(overview.value));
+const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+
+const {
+  syncStatus,
+  lastSyncedText,
+  loadRealtimeStatus: loadSyncStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => api.getCodeReviewMultiBoardRealtimeStatus(),
+  emptyText: '-',
+});
 
 watch(
   () => sourceScope.value.value,
@@ -95,10 +109,33 @@ async function refreshPage() {
   }
 }
 
+async function refreshLatestData() {
+  realtimeRefreshLoading.value = true;
+  try {
+    let status = await api.refreshCodeReviewMultiBoardRealtime();
+    ElMessage.success(status.message || '已开始刷新最新数据');
+    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
+      await sleep(1000);
+      status = (await loadSyncStatus()) ?? status;
+    }
+    await Promise.all([loadSourceOptions(), loadOverview()]);
+    await loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+  } finally {
+    realtimeRefreshLoading.value = false;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 async function initializePage() {
   try {
     await loadSourceOptions();
     await loadOverview();
+    await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '代码走查多元看板加载失败');
   } finally {
@@ -118,7 +155,18 @@ void initializePage();
           <h2>代码走查质量概览</h2>
           <p>{{ sourceDescription }}</p>
         </div>
-        <el-button :icon="Refresh" :loading="loading" @click="refreshPage">刷新</el-button>
+        <div class="code-review-multi-board__hero-actions">
+          <SyncMetaBadge :value="lastSyncedText" />
+          <el-button
+            v-if="canRefreshLatestData"
+            :icon="RefreshRight"
+            :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+            @click="refreshLatestData"
+          >
+            刷新最新数据
+          </el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="refreshPage">刷新</el-button>
+        </div>
       </section>
 
       <section class="code-review-multi-board__summary">
@@ -287,6 +335,14 @@ void initializePage();
   max-width: 720px;
   color: #667085;
   line-height: 1.7;
+}
+
+.code-review-multi-board__hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .code-review-multi-board__summary {

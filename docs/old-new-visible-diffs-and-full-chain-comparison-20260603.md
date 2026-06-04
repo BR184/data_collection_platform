@@ -146,7 +146,7 @@ The review-data fix intentionally removes new-only demo records from the parity 
 2. 当时源库连接是否依赖已关机 PC 的隧道、Docker、端口转发或本地 GitLab。
 3. 同步日志中上万“计划表项”按 `source_table` 聚合后，是分页 continuation task 造成，还是配置选了全部表并且表状态过多。
 4. `COMPENSATION_SCAN` 和 `FULL_COMPENSATION_SCAN` 在最近日志中的触发时间、`runType`、`triggerType`、任务数、扫描行数、写入行数和耗时。
-5. 设置页是否需要增加“运行时节拍说明”：补偿调度器心跳 60 秒、run dispatcher 2 秒、System Hook flush 3 秒、页面轮询 1 秒均不是业务同步频率。
+5. 设置页不增加“运行时节拍说明”：该文案容易被误读为否认“增量同步可约 1 秒完成”，已决定删除。
 
 ## 2026-06-04 复核与补充：机械层定位和落地方案
 
@@ -178,9 +178,9 @@ The review-data fix intentionally removes new-only demo records from the parity 
    - 后端：`GitlabSyncControllerResponseMapper` 在 `runItemResponse` 输出里追加 `runType` 和 `requestReason`（已存在，未透出）。
    - 前端：[MirrorSyncLogTable.vue](../frontend/src/views/MirrorSyncLogTable.vue) 展开行模板增加“运行类型 / 来源页面”两列。
    - 解决“补偿/对账分不清”和“是哪个页面触发的刷新”两个体感问题。
-2. **[小改动] 设置页加“运行时节拍说明”面板**
-   - 在 [MirrorSettingsView.vue](../frontend/src/views/MirrorSettingsView.vue) 顶部 collapse 一段说明，列出 60s / 2s / 3s / 1s 四个节拍的语义和它们和“业务同步频率”的关系。文案直接复用本报告 §三个容易混淆的时间参数 表格。
-   - 防止用户再次把 `scheduler-delay-ms` 误读为“1 秒增量”。
+2. **[已取消] 设置页“运行时节拍说明”面板**
+   - 用户已确认不需要增加这段说明。
+   - 增量同步在无新数据或少量变更时约 1 秒完成是正常体验；不再用额外说明干扰设置页。
 3. **[低风险后端改动] 同步日志按 `run_type` 着色 / 分组**
    - 在 `MirrorRunQueueTable.vue` / `MirrorSyncLogTable.vue` 引入 `runType` 标签，独立于 `syncType`。`SyncRunType` 枚举在前端已存在（系统中可见 `COMPENSATION_SCAN` / `FULL_COMPENSATION_SCAN` 标签），只需让主视觉用 `runType`、副信息用 `syncType`。
 4. **[需要排期] 把 `request_reason` 标准化为结构化字段**
@@ -243,7 +243,7 @@ select date_trunc('hour', created_at) as hour, run_type, count(*)
 ### 验证清单
 
 - [ ] 同步日志展开详情显示 `runType` 与来源页面后，用户在不询问后端的情况下能直接区分“自动补偿/全量对账/单表刷新/System Hook”。
-- [ ] 设置页运行时节拍说明上线后，再次问“是不是 1 秒增量”不应再出现。
+- [x] 设置页“运行时节拍说明”不再上线，避免把“1 秒完成”误解释成“不存在 1 秒增量体验”。
 - [ ] 上述四条 SQL 跑过后，原报告 §需要后续用真实运行数据确认的问题 全部勾掉。
 
 ## 2026-06-04 续：「同步日志好像并不全」的根因与修复

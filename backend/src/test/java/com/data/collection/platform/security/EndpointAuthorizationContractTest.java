@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.data.collection.platform.controller.CodeReviewController;
 import com.data.collection.platform.controller.CollectFormController;
+import com.data.collection.platform.controller.CustomerIssueController;
 import com.data.collection.platform.controller.DatabaseBrowserController;
 import com.data.collection.platform.controller.FactBuildController;
 import com.data.collection.platform.controller.GitlabSyncController;
+import com.data.collection.platform.controller.QuestionMetricsController;
 import com.data.collection.platform.controller.ReviewDataController;
 import com.data.collection.platform.controller.StatisticBoardController;
 import com.data.collection.platform.entity.AuthRole;
@@ -33,6 +35,11 @@ class EndpointAuthorizationContractTest {
 
     assertAdminRequired(StatisticBoardController.class, "refreshBoardRealtimeData");
     assertAdminRequired(CodeReviewController.class, "refreshIllegalRecords");
+    assertAdminRequired(CodeReviewController.class, "refreshMultiBoard");
+    assertAdminRequired(QuestionMetricsController.class, "refreshIssues");
+    assertAdminRequired(QuestionMetricsController.class, "refreshIllegalRecords");
+    assertAdminRequired(CustomerIssueController.class, "refreshRecords");
+    assertAdminRequired(CustomerIssueController.class, "refreshIllegalRecords");
     assertAdminRequired(ReviewDataController.class, "refreshGitlabContext");
     assertAdminRequired(CollectFormController.class, "updateRecord");
   }

@@ -4,11 +4,14 @@ import { computed, ref } from 'vue';
 // 统计计算不在前端重复推导，所有口径都通过统一统计板接口获取。
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
-import { Refresh } from '@element-plus/icons-vue';
+import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
+import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import type { StatisticBoardResponse, SystemTestIssueSearchFilterOptionsResponse } from '../types/api';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import {
   buildCauseChartOption,
   buildDelayCauseChartOption,
@@ -26,6 +29,7 @@ const router = useRouter();
 
 const initialized = ref(false);
 const loading = ref(false);
+const realtimeRefreshLoading = ref(false);
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
@@ -55,6 +59,16 @@ const moduleChartOption = computed(() => buildModuleChartOption(summaryBoard.val
 const repairRateChartOption = computed(() => buildRepairRateChartOption(summaryBoard.value));
 const causeChartOption = computed(() => buildCauseChartOption(causeBoard.value));
 const delayCauseChartOption = computed(() => buildDelayCauseChartOption(delayBoard.value));
+const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+
+const {
+  syncStatus,
+  lastSyncedText,
+  loadRealtimeStatus: loadSyncStatus,
+} = useRealtimeWorkspaceStatus({
+  loadStatus: () => api.getStatisticBoardRealtimeStatus('system-test-defect-summary'),
+  emptyText: '-',
+});
 
 async function replaceQuery(patch: Record<string, string | undefined>) {
   const nextQuery: Record<string, string> = {};
@@ -102,6 +116,28 @@ async function handleRefresh() {
   }
 }
 
+async function handleRefreshLatestData() {
+  realtimeRefreshLoading.value = true;
+  try {
+    let status = await api.refreshStatisticBoardRealtime('system-test-defect-summary');
+    ElMessage.success(status.message || '已开始刷新最新数据');
+    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
+      await sleep(1000);
+      status = (await loadSyncStatus()) ?? status;
+    }
+    await loadBoards();
+    await loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
+  } finally {
+    realtimeRefreshLoading.value = false;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function buildFilterLink(path: string) {
   if (!selectedProjectName.value) {
     return { path };
@@ -123,7 +159,7 @@ function buildFilterLink(path: string) {
   };
 }
 
-void loadBoards().catch((error) => {
+void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
   initialized.value = true;
   loading.value = false;
   ElMessage.error(error instanceof Error ? error.message : '系统测试多元看板加载失败');
@@ -139,6 +175,15 @@ void loadBoards().catch((error) => {
           <h2>系统测试质量概览</h2>
         </div>
         <div class="system-test-multi-board__hero-actions">
+          <SyncMetaBadge :value="lastSyncedText" />
+          <el-button
+            v-if="canRefreshLatestData"
+            :icon="RefreshRight"
+            :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
+            @click="handleRefreshLatestData"
+          >
+            刷新最新数据
+          </el-button>
           <el-select
             :model-value="selectedProjectName"
             placeholder="全部项目"

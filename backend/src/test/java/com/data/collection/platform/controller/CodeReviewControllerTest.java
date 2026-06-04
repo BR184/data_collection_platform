@@ -25,6 +25,7 @@ import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewMultiBoardOverviewRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
+import com.data.collection.platform.service.MergeRequestFactRealtimeRefreshService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,9 @@ class CodeReviewControllerTest {
   @Mock
   private CodeReviewMultiBoardService codeReviewMultiBoardService;
 
+  @Mock
+  private MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService;
+
   private MockMvc mockMvc;
 
   @BeforeEach
@@ -53,7 +57,8 @@ class CodeReviewControllerTest {
                 new CodeReviewController(
                     codeReviewIllegalRecordService,
                     codeReviewMultiBoardService,
-                    new CodeReviewRequestAssembler()))
+                    new CodeReviewRequestAssembler(),
+                    multiBoardRealtimeRefreshService))
             .build();
   }
 
@@ -324,5 +329,22 @@ class CodeReviewControllerTest {
         .andExpect(jsonPath("$.data.sourceLabel").value("DGM"))
         .andExpect(jsonPath("$.data.defectDensityPerKloc").value(28.04))
         .andExpect(jsonPath("$.data.moduleRows[0].rowLabel").value("支付中心"));
+  }
+
+  @Test
+  void shouldReturnMultiBoardRealtimeStatusAndRefreshMessage() throws Exception {
+    RealtimeWorkspaceStatusResponse status =
+        new RealtimeWorkspaceStatusResponse(
+            "code-review-multi-board", true, "ready", "ok", false, null, null, null);
+    when(multiBoardRealtimeRefreshService.getStatus("code-review-multi-board")).thenReturn(status);
+    when(multiBoardRealtimeRefreshService.requestRefresh("code-review-multi-board")).thenReturn(status);
+
+    mockMvc.perform(get("/api/code-review/multi-board/status"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("code-review-multi-board"));
+
+    mockMvc.perform(post("/api/code-review/multi-board/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.workspaceKey").value("code-review-multi-board"));
   }
 }
