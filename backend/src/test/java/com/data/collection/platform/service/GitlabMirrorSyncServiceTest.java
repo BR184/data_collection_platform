@@ -22,6 +22,7 @@ import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import com.data.collection.platform.service.sync.SyncRunTableWorkerService;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -121,6 +122,39 @@ class GitlabMirrorSyncServiceTest {
     assertThat(result.plannedTasks()).isEqualTo(1);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
     assertThat(result.message()).isEqualTo("queued");
+  }
+
+  @Test
+  void shouldSubmitOnDemandRefreshWithStructuredSourceContext() {
+    GitlabSyncConfig config = config();
+    when(configService.getConfig()).thenReturn(config);
+    when(registryMapper.selectOne(any())).thenReturn(registry("issues", "id", "updated_at"));
+    when(tableStateMapper.selectOne(any())).thenReturn(tableState("issues", LocalDateTime.of(2026, 5, 15, 10, 0)));
+    when(syncRunSubmissionService.submitTableRefresh(
+            config,
+            List.of("issues"),
+            "system-test-defect-summary",
+            Map.of("sourcePageKey", "system-test-defect-summary", "triggerSurface", "STATISTIC_BOARD")))
+        .thenReturn(
+            new SyncRunSubmissionResult(
+                100L,
+                SyncType.INCREMENTAL,
+                SyncStatus.QUEUED,
+                com.data.collection.platform.entity.SyncSubmissionAction.QUEUED,
+                null,
+                "queued"));
+
+    GitlabMirrorSyncService.OnDemandRefreshResult result =
+        syncService.refreshTablesOnDemandDetailed(
+            List.of("Issues"), "system-test-defect-summary", "system-test-defect-summary", "STATISTIC_BOARD");
+
+    verify(syncRunSubmissionService)
+        .submitTableRefresh(
+            config,
+            List.of("issues"),
+            "system-test-defect-summary",
+            Map.of("sourcePageKey", "system-test-defect-summary", "triggerSurface", "STATISTIC_BOARD"));
+    assertThat(result.jobId()).isEqualTo(100L);
   }
 
   @Test

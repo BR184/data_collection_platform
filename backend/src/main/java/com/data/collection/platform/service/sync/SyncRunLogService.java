@@ -1,10 +1,12 @@
 package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.sync.SyncRun;
 import com.data.collection.platform.mapper.SyncRunMapper;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,14 +19,17 @@ public class SyncRunLogService {
   private final SyncRunMapper syncRunMapper;
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunPolicyService policyService;
+  private final JsonUtils jsonUtils;
 
   public SyncRunLogService(
       SyncRunMapper syncRunMapper,
       JdbcTemplate jdbcTemplate,
-      SyncRunPolicyService policyService) {
+      SyncRunPolicyService policyService,
+      JsonUtils jsonUtils) {
     this.syncRunMapper = syncRunMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.policyService = policyService;
+    this.jsonUtils = jsonUtils;
   }
 
   private record TaskLogSummary(int totalTasks, int completedTasks) {}
@@ -55,12 +60,24 @@ public class SyncRunLogService {
         taskSummary.totalTasks() > 0
             ? taskSummary.completedTasks()
             : run.getCompletedTableCount() == null ? 0 : run.getCompletedTableCount();
+    Map<String, Object> payload = payloadMap(run);
     Map<String, Object> row = new LinkedHashMap<>();
     row.put("id", run.getId());
     row.put("runId", run.getRunId());
     row.put("syncType", policyService.toApiType(run.getRunType()).name());
     row.put("runType", run.getRunType() == null ? null : run.getRunType().name());
-    row.put("triggerType", run.getTriggerType() == null ? null : run.getTriggerType().name());
+    row.put("runStatus", run.getStatus() == null ? null : run.getStatus().name());
+    row.put(
+        "triggerType",
+        run.getTriggerType() == null ? stringValue(payload.get("triggerType")) : run.getTriggerType().name());
+    row.put("requestReason", run.getRequestReason());
+    row.put("sourcePageKey", stringValue(payload.get("sourcePageKey")));
+    row.put("triggerSurface", stringValue(payload.get("triggerSurface")));
+    row.put("sourceTables", stringList(payload.get("sourceTables")));
+    row.put("primaryTableName", stringValue(payload.get("primaryTableName")));
+    row.put("parentRunId", run.getParentRunId() == null ? payload.get("parentRunId") : run.getParentRunId());
+    row.put("parentRunRunId", stringValue(payload.get("parentRunRunId")));
+    row.put("fullBuild", payload.get("fullBuild"));
     row.put("status", policyService.toApiStatus(run).name());
     row.put("message", latestEventMessage(run));
     row.put("tableCount", tableCount);
@@ -71,6 +88,39 @@ public class SyncRunLogService {
     row.put("queuedAt", run.getCreatedAt());
     row.put("errorSummary", run.getErrorMessage());
     return row;
+  }
+
+  private Map<String, Object> payloadMap(SyncRun run) {
+    if (run == null || run.getPayloadJson() == null || run.getPayloadJson().isBlank() || jsonUtils == null) {
+      return Map.of();
+    }
+    try {
+      return jsonUtils.toMap(run.getPayloadJson());
+    } catch (IllegalStateException ignored) {
+      return Map.of();
+    }
+  }
+
+  private String stringValue(Object value) {
+    if (value == null) {
+      return null;
+    }
+    String text = String.valueOf(value).trim();
+    return text.isEmpty() || "null".equalsIgnoreCase(text) ? null : text;
+  }
+
+  private List<String> stringList(Object value) {
+    if (!(value instanceof List<?> values)) {
+      return List.of();
+    }
+    List<String> result = new ArrayList<>();
+    for (Object item : values) {
+      String text = stringValue(item);
+      if (text != null) {
+        result.add(text);
+      }
+    }
+    return List.copyOf(result);
   }
 
   private TaskLogSummary taskLogSummary(SyncRun run) {

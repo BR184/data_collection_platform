@@ -89,6 +89,12 @@ public class SyncRunSubmissionService {
   @Transactional
   public SyncRunSubmissionResult submitTableRefresh(
       GitlabSyncConfig config, List<String> sourceTables, String reason) {
+    return submitTableRefresh(config, sourceTables, reason, null);
+  }
+
+  @Transactional
+  public SyncRunSubmissionResult submitTableRefresh(
+      GitlabSyncConfig config, List<String> sourceTables, String reason, Map<String, Object> extraPayload) {
     List<String> normalizedTables = normalizeTables(sourceTables);
     return submitRun(
         config,
@@ -97,7 +103,8 @@ public class SyncRunSubmissionService {
         SyncTriggerType.MANUAL,
         reason,
         normalizedTables,
-        normalizedTables.isEmpty() ? null : normalizedTables.getFirst());
+        normalizedTables.isEmpty() ? null : normalizedTables.getFirst(),
+        extraPayload);
   }
 
   @Transactional
@@ -194,20 +201,77 @@ public class SyncRunSubmissionService {
 
     SyncRun activeRun = findActiveRun(config.getId(), sourceInstance, exclusiveScope);
     if (runType == SyncRunType.FULL_SYNC && activeRun != null && activeRun.getRunType() == SyncRunType.FULL_SYNC) {
+      recordAbsorbedSubmission(
+          config,
+          apiType,
+          runType,
+          effectiveTriggerType,
+          reason,
+          sourceTables,
+          primaryTableName,
+          fullBuild,
+          extraPayload,
+          activeRun,
+          reuseAction(activeRun),
+          sourceInstance,
+          exclusiveScope,
+          now);
       return reusedRun(activeRun, apiType, "当前全量同步正在执行，已复用现有运行单元。");
     }
 
     if (runType == SyncRunType.FULL_SYNC) {
       mergeQueuedLowerPriorityMirrorRuns(config.getId(), sourceInstance, exclusiveScope, now);
     } else if (runType == SyncRunType.FACT_REFRESH && activeRun != null) {
+      recordAbsorbedSubmission(
+          config,
+          apiType,
+          runType,
+          effectiveTriggerType,
+          reason,
+          sourceTables,
+          primaryTableName,
+          fullBuild,
+          extraPayload,
+          activeRun,
+          reuseAction(activeRun),
+          sourceInstance,
+          exclusiveScope,
+          now);
       return reusedRun(activeRun, apiType, "事实刷新已在队列中或正在执行，已复用现有任务。");
     } else if ((runType == SyncRunType.COMPENSATION_SCAN || runType == SyncRunType.FULL_COMPENSATION_SCAN)
         && activeRun != null) {
+      recordAbsorbedSubmission(
+          config,
+          apiType,
+          runType,
+          effectiveTriggerType,
+          reason,
+          sourceTables,
+          primaryTableName,
+          fullBuild,
+          extraPayload,
+          activeRun,
+          reuseAction(activeRun),
+          sourceInstance,
+          exclusiveScope,
+          now);
       return reusedRun(activeRun, apiType, "补偿同步已在队列中或正在执行，跳过重复提交。");
     } else if (isMirrorRun(runType) && activeRun != null && shouldReuseMirrorRun(activeRun, runType, sourceTables)) {
-      if (runType == SyncRunType.TABLE_REFRESH) {
-        recordMergeEvent(activeRun, config, sourceTables, reason, primaryTableName, now);
-      }
+      recordAbsorbedSubmission(
+          config,
+          apiType,
+          runType,
+          effectiveTriggerType,
+          reason,
+          sourceTables,
+          primaryTableName,
+          fullBuild,
+          extraPayload,
+          activeRun,
+          SyncSubmissionAction.DEDUPED,
+          sourceInstance,
+          exclusiveScope,
+          now);
       return new SyncRunSubmissionResult(
           activeRun.getId(),
           apiType,
@@ -220,7 +284,21 @@ public class SyncRunSubmissionService {
     if (runType == SyncRunType.TABLE_REFRESH
         && activeRun != null
         && policyService.shouldMergeTableRefresh(activeRun)) {
-      recordMergeEvent(activeRun, config, sourceTables, reason, primaryTableName, now);
+      recordAbsorbedSubmission(
+          config,
+          apiType,
+          runType,
+          effectiveTriggerType,
+          reason,
+          sourceTables,
+          primaryTableName,
+          fullBuild,
+          extraPayload,
+          activeRun,
+          SyncSubmissionAction.DEDUPED,
+          sourceInstance,
+          exclusiveScope,
+          now);
       return new SyncRunSubmissionResult(
           activeRun.getId(),
           apiType,
@@ -283,11 +361,91 @@ public class SyncRunSubmissionService {
         activeRun.getId(),
         apiType,
         policyService.toApiStatus(activeRun),
-        activeRun.getStatus() == SyncRunStatus.QUEUED
-            ? SyncSubmissionAction.REUSED_QUEUED
-            : SyncSubmissionAction.REUSED_ACTIVE,
+        reuseAction(activeRun),
         LocalDateTime.now(),
         message);
+  }
+
+  private SyncSubmissionAction reuseAction(SyncRun activeRun) {
+    return activeRun != null && activeRun.getStatus() == SyncRunStatus.QUEUED
+        ? SyncSubmissionAction.REUSED_QUEUED
+        : SyncSubmissionAction.REUSED_ACTIVE;
+  }
+
+  private void recordAbsorbedSubmission(
+      GitlabSyncConfig config,
+      SyncType apiType,
+      SyncRunType runType,
+      SyncTriggerType triggerType,
+      String reason,
+      List<String> sourceTables,
+      String primaryTableName,
+      Boolean fullBuild,
+      Map<String, Object> extraPayload,
+      SyncRun absorbedInto,
+      SyncSubmissionAction action,
+      String sourceInstance,
+      String exclusiveScope,
+      LocalDateTime now) {
+    if (absorbedInto == null || absorbedInto.getId() == null) {
+      return;
+    }
+    SyncRun run = new SyncRun();
+    run.setRunId(generateRunId(runType, sourceInstance));
+    run.setConfigId(config.getId());
+    run.setSourceInstance(sourceInstance);
+    run.setRunType(runType);
+    run.setTriggerType(triggerType);
+    run.setStatus(SyncRunStatus.MERGED);
+    run.setPriority(policyService.priorityOf(runType));
+    run.setExclusiveScope(exclusiveScope);
+    run.setParentRunId(absorbedInto.getId());
+    run.setCancelRequested(false);
+    run.setSubmittedBy(null);
+    run.setRequestReason(reason);
+    run.setPayloadJson(
+        buildPayloadJson(
+            apiType,
+            triggerType,
+            reason,
+            sourceTables,
+            primaryTableName,
+            absorbedInto.getId(),
+            fullBuild,
+            payloadWithAbsorbedAction(extraPayload, action, absorbedInto.getRunId())));
+    run.setThreadMode(threadBudgetResolver.effectiveMode(config));
+    run.setThreadValue(threadBudgetResolver.effectiveValue(config));
+    run.setPlannedTableCount(sourceTables == null ? 0 : sourceTables.size());
+    run.setCompletedTableCount(0);
+    run.setScannedRows(0L);
+    run.setAppliedRows(0L);
+    run.setFinishedAt(now);
+    run.setCreatedAt(now);
+    run.setUpdatedAt(now);
+    syncRunMapper.insert(run);
+    log.info(
+        "Recorded absorbed sync submission, runId={}, type={}, absorbedInto={}, action={}",
+        run.getRunId(),
+        runType,
+        absorbedInto.getRunId(),
+        action);
+  }
+
+  private Map<String, Object> payloadWithAbsorbedAction(
+      Map<String, Object> extraPayload,
+      SyncSubmissionAction action,
+      String absorbedIntoRunId) {
+    Map<String, Object> payload = new java.util.LinkedHashMap<>();
+    if (extraPayload != null) {
+      payload.putAll(extraPayload);
+    }
+    if (action != null) {
+      payload.put("absorbedAction", action.name());
+    }
+    if (absorbedIntoRunId != null && !absorbedIntoRunId.isBlank()) {
+      payload.put("parentRunRunId", absorbedIntoRunId);
+    }
+    return payload;
   }
 
   private void lockExclusiveScope(String exclusiveScope) {
@@ -373,38 +531,6 @@ public class SyncRunSubmissionService {
       return null;
     }
     return runs.getFirst();
-  }
-
-  private void recordMergeEvent(
-      SyncRun activeRun,
-      GitlabSyncConfig config,
-      List<String> sourceTables,
-      String reason,
-      String primaryTableName,
-      LocalDateTime now) {
-    Map<String, Object> payload = new java.util.LinkedHashMap<>();
-    payload.put("requestType", SyncRunType.TABLE_REFRESH.name());
-    payload.put("mergedIntoRunId", activeRun.getId());
-    payload.put("configId", config.getId());
-    payload.put("sourceInstance", activeRun.getSourceInstance());
-    payload.put("sourceTables", sourceTables);
-    if (reason != null) {
-      payload.put("reason", reason);
-    }
-    String payloadJson = jsonUtils.toJson(payload);
-    jdbcTemplate.update(
-        """
-        insert into sync_run_events (run_id, config_id, source_instance, event_type, table_name, message, payload_json, created_at)
-        values (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        activeRun.getId(),
-        config.getId(),
-        activeRun.getSourceInstance(),
-        "TABLE_REFRESH_MERGED",
-        primaryTableName,
-        "已合并到当前全量同步，完成后将以全量结果为准。",
-        payloadJson,
-        now);
   }
 
   private String buildPayloadJson(

@@ -98,7 +98,16 @@ export interface SyncRunLog {
   runId?: string | null;
   syncType: GitlabSyncType;
   runType?: string | null;
+  runStatus?: string | null;
   triggerType?: string | null;
+  requestReason?: string | null;
+  sourcePageKey?: string | null;
+  triggerSurface?: string | null;
+  sourceTables?: string[];
+  primaryTableName?: string | null;
+  parentRunId?: number | string | null;
+  parentRunRunId?: string | null;
+  fullBuild?: boolean | null;
   status: GitlabSyncStatus;
   message: string;
   tableCount: number;

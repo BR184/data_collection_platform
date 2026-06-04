@@ -130,7 +130,14 @@ class SyncRunSubmissionServiceTest {
 
     var result = submissionService.submitFullSync(config, "Manual full sync");
 
-    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.FULL_SYNC);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
+    assertThat(saved.getParentRunId()).isEqualTo(77L);
+    assertThat(saved.getFinishedAt()).isNotNull();
+    assertThat(saved.getPayloadJson()).contains("\"absorbedAction\":\"REUSED_ACTIVE\"");
     verify(jdbcTemplate, never()).update(
         ArgumentMatchers.anyString(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
         ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any());
@@ -147,19 +154,26 @@ class SyncRunSubmissionServiceTest {
 
     var result = submissionService.submitTableRefresh(config, List.of("Issues", "labels"), "Need refresh");
 
-    verify(syncRunMapper, never()).insert(any(SyncRun.class));
-    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(jdbcTemplate).update(
-        sqlCaptor.capture(),
-        eq(91L),
-        eq(12L),
-        eq("source_a"),
-        eq("TABLE_REFRESH_MERGED"),
-        eq("issues"),
-        ArgumentMatchers.anyString(),
-        ArgumentMatchers.anyString(),
-        ArgumentMatchers.any());
-    assertThat(sqlCaptor.getValue()).contains("insert into sync_run_events");
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.TABLE_REFRESH);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
+    assertThat(saved.getParentRunId()).isEqualTo(91L);
+    assertThat(saved.getRequestReason()).isEqualTo("Need refresh");
+    assertThat(saved.getPlannedTableCount()).isEqualTo(2);
+    assertThat(saved.getCompletedTableCount()).isZero();
+    assertThat(saved.getFinishedAt()).isNotNull();
+    assertThat(saved.getPayloadJson())
+        .contains("\"sourceTables\":[\"issues\",\"labels\"]")
+        .contains("\"primaryTableName\":\"issues\"")
+        .contains("\"parentRunId\":91")
+        .contains("\"parentRunRunId\":\"sr_existing_91\"")
+        .contains("\"absorbedAction\":\"DEDUPED\"");
+    verify(jdbcTemplate, never())
+        .update(
+            ArgumentMatchers.contains("insert into sync_run_events"),
+            ArgumentMatchers.<Object[]>any());
     assertThat(result.runId()).isEqualTo(91L);
     assertThat(result.status()).isEqualTo(SyncStatus.RUNNING);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
@@ -208,7 +222,15 @@ class SyncRunSubmissionServiceTest {
 
     var result = submissionService.submitIncrementalSync(config, null, "Manual incremental sync");
 
-    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.INCREMENTAL_SYNC);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
+    assertThat(saved.getParentRunId()).isEqualTo(101L);
+    assertThat(saved.getTriggerType()).isEqualTo(SyncTriggerType.MANUAL);
+    assertThat(saved.getFinishedAt()).isNotNull();
+    assertThat(saved.getPayloadJson()).contains("\"absorbedAction\":\"DEDUPED\"");
     assertThat(result.runId()).isEqualTo(101L);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
@@ -223,7 +245,13 @@ class SyncRunSubmissionServiceTest {
 
     var result = submissionService.submitTableRefresh(config, List.of("Issues", "notes"), "Board refresh");
 
-    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.TABLE_REFRESH);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
+    assertThat(saved.getParentRunId()).isEqualTo(102L);
+    assertThat(saved.getPayloadJson()).contains("\"sourceTables\":[\"issues\",\"notes\"]");
     assertThat(result.runId()).isEqualTo(102L);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.DEDUPED);
   }
@@ -256,7 +284,13 @@ class SyncRunSubmissionServiceTest {
 
     var result = submissionService.submitFactRefresh(config, 91L, true, "Mirror run completed");
 
-    verify(syncRunMapper, never()).insert(any(SyncRun.class));
+    ArgumentCaptor<SyncRun> runCaptor = ArgumentCaptor.forClass(SyncRun.class);
+    verify(syncRunMapper).insert(runCaptor.capture());
+    SyncRun saved = runCaptor.getValue();
+    assertThat(saved.getRunType()).isEqualTo(SyncRunType.FACT_REFRESH);
+    assertThat(saved.getStatus()).isEqualTo(SyncRunStatus.MERGED);
+    assertThat(saved.getParentRunId()).isEqualTo(104L);
+    assertThat(saved.getPayloadJson()).contains("\"parentRunId\":104");
     assertThat(result.runId()).isEqualTo(104L);
     assertThat(result.type()).isEqualTo(SyncType.COMPENSATION);
     assertThat(result.action()).isEqualTo(SyncSubmissionAction.REUSED_QUEUED);

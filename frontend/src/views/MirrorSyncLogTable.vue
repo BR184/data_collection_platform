@@ -46,7 +46,7 @@ const typeOptions = computed(() => {
 const statusOptions = computed(() => {
   const optionMap = new Map<string, string>();
   for (const log of props.logs) {
-    optionMap.set(log.status, logStatusText(log.status));
+    optionMap.set(statusFilterKey(log), logDisplayStatusText(log));
   }
   return Array.from(optionMap, ([value, label]) => ({ value, label }));
 });
@@ -54,13 +54,40 @@ const statusOptions = computed(() => {
 const filteredLogs = computed(() =>
   props.logs.filter((log) => {
     const typeMatched = !typeFilter.value || typeFilterKey(log) === typeFilter.value;
-    const statusMatched = !statusFilter.value || log.status === statusFilter.value;
+    const statusMatched = !statusFilter.value || statusFilterKey(log) === statusFilter.value;
     return typeMatched && statusMatched;
   }),
 );
 
 function typeFilterKey(log: SyncRunLog) {
   return log.runType?.trim() || log.syncType;
+}
+
+function isMergedLog(log: SyncRunLog) {
+  return log.runStatus === 'MERGED';
+}
+
+function statusFilterKey(log: SyncRunLog) {
+  return isMergedLog(log) ? 'MERGED' : log.status;
+}
+
+function logDisplayStatusText(log: SyncRunLog) {
+  return isMergedLog(log) ? '已合并' : logStatusText(log.status);
+}
+
+function logDisplayStatusType(log: SyncRunLog) {
+  return isMergedLog(log) ? 'info' : logStatusType(log.status);
+}
+
+function mergedTargetText(log: SyncRunLog) {
+  const parentRun = log.parentRunRunId || log.parentRunId;
+  return parentRun == null || String(parentRun).trim() === ''
+    ? '-'
+    : String(parentRun);
+}
+
+function sourcePageText(log: SyncRunLog) {
+  return log.sourcePageKey || log.requestReason || '-';
 }
 
 function wakeHorizontalScrollbar() {
@@ -237,7 +264,15 @@ onBeforeUnmount(() => {
               </div>
               <div class="sync-log-detail-item">
                 <span>当前结果</span>
-                <strong>{{ logStatusText(row.status) }}</strong>
+                <strong>{{ logDisplayStatusText(row) }}</strong>
+              </div>
+              <div v-if="isMergedLog(row)" class="sync-log-detail-item">
+                <span>已并入</span>
+                <strong>{{ mergedTargetText(row) }}</strong>
+              </div>
+              <div class="sync-log-detail-item">
+                <span>来源页面</span>
+                <strong>{{ sourcePageText(row) }}</strong>
               </div>
               <div class="sync-log-detail-item">
                 <span>写入记录</span>
@@ -263,7 +298,7 @@ onBeforeUnmount(() => {
         </el-table-column>
         <el-table-column label="结果" width="96">
           <template #default="{ row }">
-            <el-tag size="small" :type="logStatusType(row.status)">{{ logStatusText(row.status) }}</el-tag>
+            <el-tag size="small" :type="logDisplayStatusType(row)">{{ logDisplayStatusText(row) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="时间" width="160">

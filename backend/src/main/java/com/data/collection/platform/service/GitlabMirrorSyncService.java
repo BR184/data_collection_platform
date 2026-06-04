@@ -14,6 +14,7 @@ import com.data.collection.platform.mapper.GitlabMirrorTableRegistryMapper;
 import com.data.collection.platform.mapper.SyncRunTableStateMapper;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -109,11 +110,32 @@ public class GitlabMirrorSyncService {
       Long configId,
       List<String> sourceTableNames,
       String reason) {
+    return refreshTablesOnDemandDetailed(configId, sourceTableNames, reason, reason, "ON_DEMAND_REFRESH");
+  }
+
+  public OnDemandRefreshResult refreshTablesOnDemandDetailed(
+      List<String> sourceTableNames,
+      String reason,
+      String sourcePageKey,
+      String triggerSurface) {
+    return refreshTablesOnDemandDetailed(null, sourceTableNames, reason, sourcePageKey, triggerSurface);
+  }
+
+  public OnDemandRefreshResult refreshTablesOnDemandDetailed(
+      Long configId,
+      List<String> sourceTableNames,
+      String reason,
+      String sourcePageKey,
+      String triggerSurface) {
     GitlabSyncConfig config = resolveConfig(configId);
     List<String> requestedTables = normalizeRequestedTables(sourceTableNames);
     validateManualTableRefreshBoundaries(config, requestedTables);
     SyncRunSubmissionResult submission =
-        syncRunSubmissionService.submitTableRefresh(config, requestedTables, reason);
+        syncRunSubmissionService.submitTableRefresh(
+            config,
+            requestedTables,
+            reason,
+            structuredRefreshContext(sourcePageKey, triggerSurface));
     return new OnDemandRefreshResult(
         submission.runId(),
         requestedTables,
@@ -121,6 +143,17 @@ public class GitlabMirrorSyncService {
         List.of(),
         submission.status(),
         submission.message());
+  }
+
+  private Map<String, Object> structuredRefreshContext(String sourcePageKey, String triggerSurface) {
+    java.util.LinkedHashMap<String, Object> context = new java.util.LinkedHashMap<>();
+    if (!isBlank(sourcePageKey)) {
+      context.put("sourcePageKey", sourcePageKey.trim());
+    }
+    if (!isBlank(triggerSurface)) {
+      context.put("triggerSurface", triggerSurface.trim());
+    }
+    return Map.copyOf(context);
   }
 
   private void validateManualTableRefreshBoundaries(GitlabSyncConfig config, List<String> sourceTables) {

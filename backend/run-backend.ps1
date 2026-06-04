@@ -1,3 +1,5 @@
+# Local development only. Production backend JVM must run on the Ubuntu server
+# under systemd; do not use this script as a production entrypoint.
 $backendRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $backendRoot "..\scripts\dev-env.ps1")
 Set-Location $backendRoot
