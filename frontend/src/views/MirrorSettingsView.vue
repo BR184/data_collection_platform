@@ -824,6 +824,15 @@ onBeforeRouteLeave(async () => {
 
         <el-divider>同步策略</el-divider>
 
+        <el-alert
+          class="runtime-cadence-note"
+          type="info"
+          :closable="false"
+          show-icon
+          title="运行时节拍说明"
+          description="自动补偿按下方策略触发；后台补偿调度器每 60 秒检查一次，运行队列派发器每 2 秒认领任务，System Hook 默认 3 秒批量入队，页面 1 秒轮询只是等待刷新结果，不代表后台在做 1 秒增量同步。"
+        />
+
         <el-form-item label="自动同步">
           <el-switch v-model="form.autoSyncEnabled" />
         </el-form-item>
@@ -1255,6 +1264,10 @@ onBeforeRouteLeave(async () => {
 </template>
 
 <style scoped>
+.runtime-cadence-note {
+  margin-bottom: 16px;
+}
+
 .mirror-window-row {
   display: flex;
   align-items: center;

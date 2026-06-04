@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.SyncProgress;
@@ -24,16 +25,19 @@ public class SyncRunStatusService {
   private final JdbcTemplate jdbcTemplate;
   private final SyncRunPolicyService policyService;
   private final SyncRunLogService logService;
+  private final GitlabMirrorProperties properties;
 
   public SyncRunStatusService(
       SyncRunMapper syncRunMapper,
       JdbcTemplate jdbcTemplate,
       SyncRunPolicyService policyService,
-      SyncRunLogService logService) {
+      SyncRunLogService logService,
+      GitlabMirrorProperties properties) {
     this.syncRunMapper = syncRunMapper;
     this.jdbcTemplate = jdbcTemplate;
     this.policyService = policyService;
     this.logService = logService;
+    this.properties = properties;
   }
 
   public MirrorStatusResponse getStatus(GitlabSyncConfig config) {
@@ -99,7 +103,14 @@ public class SyncRunStatusService {
   }
 
   private List<Map<String, Object>> recentLogs(GitlabSyncConfig config) {
-    return logService == null ? List.of() : logService.recentLogs(config, 10);
+    return logService == null ? List.of() : logService.recentLogs(config, recentLogsLimit());
+  }
+
+  private int recentLogsLimit() {
+    if (properties == null) {
+      return 100;
+    }
+    return Math.max(1, properties.getRecentLogsLimit());
   }
 
   private SyncRun findCurrentRun(GitlabSyncConfig config) {

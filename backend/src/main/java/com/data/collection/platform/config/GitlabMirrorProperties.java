@@ -20,6 +20,7 @@ public class GitlabMirrorProperties {
   private int systemHookBatchWindowSeconds = 3;
   private int systemHookBatchSize = 10;
   private int systemHookMaxQueueSize = 1000;
+  private int recentLogsLimit = 100;
   private int externalQueryTimeoutSeconds = 120;
   private int externalQueryRetryAttempts = 3;
   private int externalQueryRetryDelayMs = 1000;
@@ -157,6 +158,14 @@ public class GitlabMirrorProperties {
 
   public void setSystemHookMaxQueueSize(int systemHookMaxQueueSize) {
     this.systemHookMaxQueueSize = systemHookMaxQueueSize;
+  }
+
+  public int getRecentLogsLimit() {
+    return recentLogsLimit;
+  }
+
+  public void setRecentLogsLimit(int recentLogsLimit) {
+    this.recentLogsLimit = recentLogsLimit;
   }
 
   public int getExternalQueryTimeoutSeconds() {

@@ -3,8 +3,10 @@ package com.data.collection.platform.service.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.MirrorStatusResponse;
 import com.data.collection.platform.entity.SyncStatus;
@@ -24,6 +26,7 @@ class SyncRunStatusServiceTest {
   private SyncRunMapper syncRunMapper;
   private JdbcTemplate jdbcTemplate;
   private SyncRunLogService logService;
+  private GitlabMirrorProperties properties;
   private SyncRunStatusService statusService;
 
   @BeforeEach
@@ -31,7 +34,9 @@ class SyncRunStatusServiceTest {
     syncRunMapper = org.mockito.Mockito.mock(SyncRunMapper.class);
     jdbcTemplate = org.mockito.Mockito.mock(JdbcTemplate.class);
     logService = org.mockito.Mockito.mock(SyncRunLogService.class);
-    statusService = new SyncRunStatusService(syncRunMapper, jdbcTemplate, new SyncRunPolicyService(), logService);
+    properties = new GitlabMirrorProperties();
+    statusService = new SyncRunStatusService(
+        syncRunMapper, jdbcTemplate, new SyncRunPolicyService(), logService, properties);
   }
 
   @Test
@@ -67,6 +72,17 @@ class SyncRunStatusServiceTest {
     assertThat(response.progress().getCompletedTables()).isEqualTo(3);
     assertThat(response.progress().getSyncedRecords()).isEqualTo(80);
     assertThat(response.progress().getCurrentTable()).isEqualTo("issues, notes");
+  }
+
+  @Test
+  void shouldUseConfiguredRecentLogLimit() {
+    GitlabSyncConfig config = config();
+    properties.setRecentLogsLimit(150);
+    when(syncRunMapper.selectList(any())).thenReturn(List.of());
+
+    statusService.getStatus(config);
+
+    verify(logService).recentLogs(config, 150);
   }
 
   @Test
