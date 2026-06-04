@@ -166,6 +166,28 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
 </template>
 
 <style scoped>
+.stat-board-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.stat-board-toolbar-main {
+  min-width: 0;
+}
+
+.stat-board-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: min(100%, 760px);
+}
+
 .stat-board-refresh-status {
   display: inline-flex;
   align-items: center;
@@ -174,5 +196,16 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
   color: rgba(15, 23, 42, 0.68);
   font-size: 12px;
   white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .stat-board-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-board-toolbar-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
 }
 </style>

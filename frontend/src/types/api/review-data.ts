@@ -30,6 +30,7 @@ export interface ReviewDataRecordRowResponse {
   meetingReviewProblemCount?: number | null;
   notReachStandardReason?: string | null;
   reachStandard?: boolean | null;
+  createdAt?: string | null;
   updatedAt?: string | null;
   deleted: boolean;
   gitlabProjectId?: number | null;
@@ -94,22 +95,6 @@ export interface ReviewDataRecordSaveRequest {
   reviewVersion: string;
   notReachStandardReason?: string | null;
   createPendingProblemItems?: boolean | null;
-}
-
-export interface ReviewDataGitlabContextRefreshRequest {
-  recordIds?: number[];
-  resourceType?: string | null;
-}
-
-export interface ReviewDataGitlabContextRefreshResponse {
-  accepted: boolean;
-  jobId?: number | null;
-  status: string;
-  resourceTypes: string[];
-  sourceTables: string[];
-  plannedTasks: number;
-  manualFieldsTouched: boolean;
-  message: string;
 }
 
 export interface ReviewDataProblemItemSaveRequest {

@@ -1,7 +1,5 @@
 import type {
   ReviewDataFilterOptionsResponse,
-  ReviewDataGitlabContextRefreshRequest,
-  ReviewDataGitlabContextRefreshResponse,
   ReviewDataLegacyExcelConfirmResponse,
   ReviewDataLegacyExcelImportRequest,
   ReviewDataLegacyExcelPreviewResponse,
@@ -68,17 +66,6 @@ export const reviewDataApi = {
     return request<void>(`/api/review-data/records/${recordId}`, {
       method: 'DELETE',
     });
-  },
-  refreshReviewDataGitlabContext(payload: ReviewDataGitlabContextRefreshRequest) {
-    return request<ReviewDataGitlabContextRefreshResponse>('/api/review-data/records/gitlab-context/refresh', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-  getReviewDataGitlabContextRefreshStatus(jobId: string | number) {
-    return request<ReviewDataGitlabContextRefreshResponse>(
-      `/api/review-data/records/gitlab-context/refresh/${jobId}`,
-    );
   },
   getReviewDataProblemItems(recordId: string | number) {
     return request<ReviewDataProblemItemResponse[]>(`/api/review-data/records/${recordId}/problem-items`);

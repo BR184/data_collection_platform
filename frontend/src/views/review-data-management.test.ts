@@ -170,6 +170,14 @@ describe('review-data-management helpers', () => {
       'reviewScalePages',
       'problemCount',
       'problemDensity',
+      'reviewEfficiency',
+      'reviewRate',
+      'independentReviewWorkload',
+      'independentReviewProblemCount',
+      'meetingReviewWorkload',
+      'meetingReviewProblemCount',
+      'notReachStandardReason',
+      'createdAt',
       'reviewDate',
     ]);
     expect(fields.find((field) => field.key === 'projectName')?.options).toBe(filterOptions.projectNames);

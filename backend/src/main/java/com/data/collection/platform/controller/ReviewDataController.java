@@ -5,8 +5,6 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.ReviewDataProperties;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
-import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshRequest;
-import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
@@ -23,7 +21,6 @@ import com.data.collection.platform.service.ReviewDataExcelExportService;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
 import java.io.IOException;
-import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -186,22 +183,6 @@ public class ReviewDataController {
   public ApiResponse<ReviewDataLegacyExcelConfirmResponse> confirmLegacyExcelImport(
       @RequestBody ReviewDataLegacyExcelConfirmRequest request) {
     return ApiResponse.success("旧平台 Excel 导入完成", legacyExcelImportService.confirm(request));
-  }
-
-  @PostMapping("/records/gitlab-context/refresh")
-  @RequireRole(AuthRole.ADMIN)
-  public ApiResponse<ReviewDataGitlabContextRefreshResponse> refreshGitlabContext(
-      @RequestBody(required = false) ReviewDataGitlabContextRefreshRequest request) {
-    return ApiResponse.success(
-        "GitLab 上下文同步请求已处理",
-        reviewDataRecordService.refreshGitlabContext(
-            request == null ? new ReviewDataGitlabContextRefreshRequest(List.of(), null) : request));
-  }
-
-  @GetMapping("/records/gitlab-context/refresh/{jobId}")
-  public ApiResponse<ReviewDataGitlabContextRefreshResponse> getGitlabContextRefreshStatus(
-      @PathVariable Long jobId) {
-    return ApiResponse.success(reviewDataRecordService.getGitlabContextRefreshStatus(jobId));
   }
 
   @PostMapping("/records/{recordId}/problem-items")

@@ -66,6 +66,10 @@ final class ReviewDataRecordSortSupport {
               Comparator.comparing(
                   ReviewDataRecordRowResponse::reachStandard,
                   Comparator.nullsLast(Boolean::compareTo));
+          case "createdAt" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::createdAt,
+                  Comparator.nullsLast(LocalDateTime::compareTo));
           case "updatedAt" ->
               Comparator.comparing(
                   ReviewDataRecordRowResponse::updatedAt,
@@ -103,6 +107,7 @@ final class ReviewDataRecordSortSupport {
           "meetingReviewWorkload",
           "meetingReviewProblemCount",
           "reachStandard",
+          "createdAt",
           "updatedAt" -> normalized;
       default -> "updatedAt";
     };

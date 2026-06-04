@@ -22,6 +22,16 @@ final class ReviewDataRecordFilterGroupSupport {
           Map.entry("reviewScalePages", List.of("eq", "gt", "gte", "lt", "lte", "between")),
           Map.entry("problemCount", List.of("eq", "gt", "gte", "lt", "lte", "between")),
           Map.entry("problemDensity", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry("reviewEfficiency", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry("reviewRate", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry("independentReviewWorkload", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry("independentReviewProblemCount", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry("meetingReviewWorkload", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry("meetingReviewProblemCount", List.of("eq", "gt", "gte", "lt", "lte", "between")),
+          Map.entry(
+              "notReachStandardReason",
+              List.of("contains", "notContains", "eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("createdAt", List.of("day", "before", "after", "between")),
           Map.entry("reviewDate", List.of("day", "before", "after", "between")));
 
   private ReviewDataRecordFilterGroupSupport() {}
@@ -130,6 +140,16 @@ final class ReviewDataRecordFilterGroupSupport {
       case "reviewScalePages" -> List.of(Objects.toString(row.reviewScalePages(), ""));
       case "problemCount" -> List.of(Objects.toString(row.problemCount(), ""));
       case "problemDensity" -> List.of(Objects.toString(row.problemDensity(), ""));
+      case "reviewEfficiency" -> List.of(Objects.toString(row.reviewEfficiency(), ""));
+      case "reviewRate" -> List.of(Objects.toString(row.reviewRate(), ""));
+      case "independentReviewWorkload" ->
+          List.of(Objects.toString(row.independentReviewWorkload(), ""));
+      case "independentReviewProblemCount" ->
+          List.of(Objects.toString(row.independentReviewProblemCount(), ""));
+      case "meetingReviewWorkload" -> List.of(Objects.toString(row.meetingReviewWorkload(), ""));
+      case "meetingReviewProblemCount" -> List.of(Objects.toString(row.meetingReviewProblemCount(), ""));
+      case "notReachStandardReason" -> List.of(Objects.toString(row.notReachStandardReason(), ""));
+      case "createdAt" -> List.of(row.createdAt() == null ? "" : row.createdAt().toString());
       case "reviewDate" -> List.of(row.reviewDate() == null ? "" : row.reviewDate().toString());
       default -> List.of();
     };
@@ -206,7 +226,7 @@ final class ReviewDataRecordFilterGroupSupport {
   }
 
   private static boolean matchesBetween(String value, StatisticFilterCondition condition) {
-    return "reviewDate".equals(condition.fieldKey())
+    return "reviewDate".equals(condition.fieldKey()) || "createdAt".equals(condition.fieldKey())
         ? matchesDateBetween(value, condition)
         : matchesNumber(value, condition);
   }

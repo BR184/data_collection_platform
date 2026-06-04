@@ -1,53 +1,31 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
-import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshRequest;
-import com.data.collection.platform.entity.ReviewDataGitlabContextRefreshResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
-import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSearchIndexBackfillResponse;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ReviewDataRecordService {
-  private static final String GITLAB_CONTEXT_REFRESH_REASON = "review-data-gitlab-context";
-  private static final List<String> MERGE_REQUEST_CONTEXT_TABLES =
-      List.of(
-          "merge_requests",
-          "merge_request_metrics",
-          "merge_request_reviewers",
-          "merge_request_assignees",
-          "projects",
-          "users",
-          "namespaces");
-  private static final List<String> ISSUE_CONTEXT_TABLES =
-      List.of("issues", "projects", "users", "labels", "label_links", "notes");
-
   private final ReviewDataRecordQueryService queryService;
   private final ReviewDataRecordCommandService commandService;
   private final ReviewDataFilterOptionService filterOptionService;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
-  private final GitlabMirrorSyncService gitlabMirrorSyncService;
 
   public ReviewDataRecordService(
       ReviewDataRecordQueryService queryService,
       ReviewDataRecordCommandService commandService,
       ReviewDataFilterOptionService filterOptionService,
-      ReviewDataRecordPersistenceSupport persistenceSupport,
-      GitlabMirrorSyncService gitlabMirrorSyncService) {
+      ReviewDataRecordPersistenceSupport persistenceSupport) {
     this.queryService = queryService;
     this.commandService = commandService;
     this.filterOptionService = filterOptionService;
     this.persistenceSupport = persistenceSupport;
-    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
   }
 
   public ReviewDataRecordListResponse listRecords(ReviewDataRecordQueryRequest request) {
@@ -103,93 +81,5 @@ public class ReviewDataRecordService {
         safeBatchSize,
         persistenceSupport.hasMissingSearchIndexes(),
         persistenceSupport.hasMissingTitleSearchIndexes());
-  }
-
-  public ReviewDataGitlabContextRefreshResponse refreshGitlabContext(
-      ReviewDataGitlabContextRefreshRequest request) {
-    List<String> resourceTypes = resolveResourceTypes(request);
-    if (resourceTypes.isEmpty()) {
-      return new ReviewDataGitlabContextRefreshResponse(
-          false,
-          null,
-          "SKIPPED",
-          List.of(),
-          List.of(),
-          0,
-          false,
-          "No GitLab context needs refreshing for the selected records.");
-    }
-
-    List<String> sourceTables = sourceTablesForResourceTypes(resourceTypes);
-    GitlabMirrorSyncService.OnDemandRefreshResult result =
-        gitlabMirrorSyncService.refreshTablesOnDemandDetailed(sourceTables, GITLAB_CONTEXT_REFRESH_REASON);
-    return new ReviewDataGitlabContextRefreshResponse(
-        false,
-        result.jobId(),
-        result.status().name(),
-        resourceTypes,
-        result.sourceTables(),
-        result.plannedTasks(),
-        false,
-        result.message());
-  }
-
-  public ReviewDataGitlabContextRefreshResponse getGitlabContextRefreshStatus(Long jobId) {
-    return new ReviewDataGitlabContextRefreshResponse(
-        false,
-        jobId,
-        "UNAVAILABLE_DURING_CUTOVER",
-        List.of(),
-        List.of(),
-        0,
-        false,
-        "Legacy table refresh jobs have been removed. Unified run status will replace this lookup.");
-  }
-
-  private List<String> resolveResourceTypes(ReviewDataGitlabContextRefreshRequest request) {
-    Set<String> resourceTypes = new LinkedHashSet<>();
-    if (request != null && request.resourceType() != null && !request.resourceType().isBlank()) {
-      addSupportedResourceType(resourceTypes, request.resourceType());
-    }
-    if (request != null) {
-      for (Long recordId : request.recordIds()) {
-        if (recordId == null) {
-          continue;
-        }
-        ReviewDataRecordRowResponse row = queryService.getRecordDetail(recordId).record();
-        if (hasGitlabContext(row)) {
-          addSupportedResourceType(resourceTypes, row.gitlabResourceType());
-        }
-      }
-    }
-    return List.copyOf(resourceTypes);
-  }
-
-  private boolean hasGitlabContext(ReviewDataRecordRowResponse row) {
-    return row != null
-        && row.gitlabProjectId() != null
-        && row.gitlabResourceIid() != null
-        && row.gitlabResourceType() != null
-        && !row.gitlabResourceType().isBlank();
-  }
-
-  private void addSupportedResourceType(Set<String> resourceTypes, String rawResourceType) {
-    String resourceType = rawResourceType.trim().toLowerCase(Locale.ROOT);
-    if ("merge_request".equals(resourceType) || "issue".equals(resourceType)) {
-      resourceTypes.add(resourceType);
-    }
-  }
-
-  private List<String> sourceTablesForResourceTypes(List<String> resourceTypes) {
-    Set<String> sourceTables = new LinkedHashSet<>();
-    for (String resourceType : resourceTypes) {
-      if ("merge_request".equals(resourceType)) {
-        sourceTables.addAll(MERGE_REQUEST_CONTEXT_TABLES);
-      }
-      if ("issue".equals(resourceType)) {
-        sourceTables.addAll(ISSUE_CONTEXT_TABLES);
-      }
-    }
-    return List.copyOf(sourceTables);
   }
 }

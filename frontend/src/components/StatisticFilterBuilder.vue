@@ -198,3 +198,96 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
     <el-button plain @click="addFilterCondition">{{ addButtonText }}</el-button>
   </div>
 </template>
+
+<style scoped>
+.stat-filter-builder {
+  display: grid;
+  grid-template-columns: minmax(132px, auto) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.stat-filter-logic {
+  width: max-content;
+  max-width: 100%;
+}
+
+.stat-filter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.stat-filter-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.15fr) minmax(136px, 0.72fr) minmax(220px, 1.1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.stat-filter-field,
+.stat-filter-operator,
+.stat-filter-value {
+  width: 100%;
+  min-width: 0;
+}
+
+.stat-filter-value.secondary {
+  grid-column: 3;
+}
+
+.stat-filter-row > .el-button {
+  width: 58px;
+  justify-self: end;
+}
+
+:deep(.el-input-number),
+:deep(.el-date-editor.el-input),
+:deep(.el-select),
+:deep(.el-input) {
+  width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .stat-filter-builder {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-filter-list {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-filter-row {
+    grid-template-columns: minmax(180px, 1fr) minmax(132px, 0.7fr) minmax(220px, 1fr) 58px;
+  }
+
+  .stat-filter-value.secondary {
+    grid-column: 3;
+  }
+}
+
+@media (max-width: 760px) {
+  .stat-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-filter-value.secondary,
+  .stat-filter-row > .el-button {
+    grid-column: auto;
+  }
+
+  .stat-filter-row > .el-button {
+    justify-self: start;
+  }
+}
+</style>

@@ -445,10 +445,15 @@ function handleStandaloneKeywordClear() {
 }
 
 .record-filter-primary {
-  display: flex;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.record-filter-primary > :slotted(.stat-filter-builder) {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .record-filter-primary-actions {
@@ -456,18 +461,24 @@ function handleStandaloneKeywordClear() {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 0 0 auto;
 }
 
 .record-filter-slot-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  min-width: min(100%, 520px);
+  justify-content: flex-end;
   flex-wrap: wrap;
 }
 
 .record-filter-primary-actions-inline {
   flex: 0 0 auto;
+}
+
+.record-filter-primary-actions-inline + .record-filter-slot-actions {
+  justify-self: end;
 }
 
 .record-filter-advanced {
@@ -590,5 +601,16 @@ function handleStandaloneKeywordClear() {
 
 :deep(.record-table-expand-column-hidden .el-table__expand-icon) {
   display: none;
+}
+
+@media (max-width: 960px) {
+  .record-filter-primary {
+    grid-template-columns: 1fr;
+  }
+
+  .record-filter-slot-actions {
+    justify-content: flex-start;
+    min-width: 0;
+  }
 }
 </style>

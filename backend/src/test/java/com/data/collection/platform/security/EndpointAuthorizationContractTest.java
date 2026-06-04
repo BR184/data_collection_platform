@@ -40,7 +40,6 @@ class EndpointAuthorizationContractTest {
     assertAdminRequired(QuestionMetricsController.class, "refreshIllegalRecords");
     assertAdminRequired(CustomerIssueController.class, "refreshRecords");
     assertAdminRequired(CustomerIssueController.class, "refreshIllegalRecords");
-    assertAdminRequired(ReviewDataController.class, "refreshGitlabContext");
     assertAdminRequired(CollectFormController.class, "updateRecord");
   }
 

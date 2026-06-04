@@ -35,6 +35,7 @@ public class ReviewDataRecordReadRepository {
         r.gitlab_project_id,
         r.gitlab_resource_iid,
         r.gitlab_resource_type,
+        r.created_at,
         r.updated_at,
         r.deleted,
         coalesce(expert.expert_names, '') as review_experts_summary,
@@ -152,6 +153,7 @@ public class ReviewDataRecordReadRepository {
             r.gitlab_project_id,
             r.gitlab_resource_iid,
             r.gitlab_resource_type,
+            r.created_at,
             r.updated_at,
             r.deleted,
             coalesce(problem.problem_count, 0) as problem_count,
@@ -208,6 +210,7 @@ public class ReviewDataRecordReadRepository {
           page_records.gitlab_project_id,
           page_records.gitlab_resource_iid,
           page_records.gitlab_resource_type,
+          page_records.created_at,
           page_records.updated_at,
           page_records.deleted,
           coalesce(expert.expert_names, '') as review_experts_summary,
@@ -371,6 +374,7 @@ public class ReviewDataRecordReadRepository {
         getIntegerOrDefault(rs, "meeting_review_problem_count"),
         TextQuerySupport.normalizeDisplay(rs.getString("not_reach_standard_reason")),
         isReachStandard(problemCount, reviewScalePages),
+        rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime(),
         rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime(),
         rs.getBoolean("deleted"),
         (Long) rs.getObject("gitlab_project_id"),
@@ -472,6 +476,7 @@ public class ReviewDataRecordReadRepository {
           case "meetingReviewProblemCount" -> "fr.meeting_review_problem_count";
           case "reachStandard" ->
               "case when fr.problem_density >= 0.2 and fr.problem_density <= 0.6 then 1 else 0 end";
+          case "createdAt" -> "fr.created_at";
           default -> "fr.updated_at";
         };
     return " order by " + expression + " " + direction + " nulls last, fr.id asc";

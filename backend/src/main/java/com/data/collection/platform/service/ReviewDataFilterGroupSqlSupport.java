@@ -52,6 +52,22 @@ final class ReviewDataFilterGroupSqlSupport {
       case "problemDensity" -> numberCondition(
           "case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end",
           condition);
+      case "reviewEfficiency" -> numberCondition(
+          "case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / problem.total_workload_hours end",
+          condition);
+      case "reviewRate" -> numberCondition(
+          "case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else r.review_scale_pages::numeric / problem.total_workload_hours end",
+          condition);
+      case "independentReviewWorkload" ->
+          numberCondition("coalesce(problem.independent_review_workload, 0)", condition);
+      case "independentReviewProblemCount" ->
+          numberCondition("coalesce(problem.independent_review_problem_count, 0)", condition);
+      case "meetingReviewWorkload" ->
+          numberCondition("coalesce(problem.meeting_review_workload, 0)", condition);
+      case "meetingReviewProblemCount" ->
+          numberCondition("coalesce(problem.meeting_review_problem_count, 0)", condition);
+      case "notReachStandardReason" -> textCondition("r.not_reach_standard_reason", condition, true);
+      case "createdAt" -> dateCondition("cast(r.created_at as date)", condition);
       case "reviewDate" -> dateCondition("r.review_date", condition);
       default -> Optional.empty();
     };
