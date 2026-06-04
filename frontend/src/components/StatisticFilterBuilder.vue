@@ -388,7 +388,7 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   gap: 6px;
   min-width: 0;
   max-width: 100%;
@@ -399,6 +399,7 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-left: 168px;
   min-height: 32px;
 }
 
@@ -491,6 +492,7 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
 @media (max-width: 1180px) {
   .stat-filter-actions {
     order: 4;
+    margin-left: 0;
   }
 
   .stat-filter-row {
