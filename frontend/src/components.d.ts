@@ -64,6 +64,7 @@ declare module 'vue' {
     ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElTimePicker: typeof import('element-plus/es')['ElTimePicker']
+    ElTooltip: typeof import('element-plus/es')['ElTooltip']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     PageStateShell: typeof import('./components/base/PageStateShell.vue')['default']
     RecordTableFilterFieldRenderer: typeof import('./components/base/RecordTableFilterFieldRenderer.vue')['default']

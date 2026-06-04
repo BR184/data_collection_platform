@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import { ArrowUp, Delete, MoreFilled } from '@element-plus/icons-vue';
 import SmartSelect from './base/SmartSelect.vue';
+import { ElMessageBox } from '../element-plus-services';
 // 高级筛选构建器把字段、操作符和值拆成可组合条件，供记录页和统计板复用。
 // 组件只维护前端草稿结构，最终查询表达式由调用方序列化后交给接口。
 import type { StatisticFilterField, StatisticFilterOperator } from '../types/api';
@@ -12,6 +15,8 @@ import {
   type StatisticFilterDraftGroup,
 } from './statistic-board-filters';
 
+const visibleConditionLimit = 2;
+
 const props = withDefaults(
   defineProps<{
     modelValue: StatisticFilterDraftGroup;
@@ -20,6 +25,36 @@ const props = withDefaults(
   }>(),
   {
     addButtonText: '添加条件',
+  },
+);
+
+const conditionsExpanded = ref(false);
+const batchDeleteMode = ref(false);
+const selectedConditionIds = ref<string[]>([]);
+
+const visibleConditions = computed(() => {
+  if (conditionsExpanded.value || props.modelValue.conditions.length <= visibleConditionLimit) {
+    return props.modelValue.conditions;
+  }
+  return props.modelValue.conditions.slice(0, visibleConditionLimit);
+});
+
+const hiddenConditionsCount = computed(() => Math.max(0, props.modelValue.conditions.length - visibleConditions.value.length));
+const selectedConditionCount = computed(() => selectedConditionIds.value.length);
+const allConditionsSelected = computed(
+  () => props.modelValue.conditions.length > 0 && selectedConditionIds.value.length === props.modelValue.conditions.length,
+);
+
+watch(
+  () => props.modelValue.conditions.length,
+  (length) => {
+    if (length <= visibleConditionLimit) {
+      conditionsExpanded.value = false;
+    }
+    selectedConditionIds.value = selectedConditionIds.value.filter((id) => props.modelValue.conditions.some((condition) => condition.id === id));
+    if (!length) {
+      batchDeleteMode.value = false;
+    }
   },
 );
 
@@ -32,6 +67,82 @@ function removeFilterCondition(conditionId: string) {
   const index = props.modelValue.conditions.findIndex((condition) => condition.id === conditionId);
   if (index >= 0) {
     props.modelValue.conditions.splice(index, 1);
+  }
+}
+
+async function confirmRemoveFilterCondition(conditionId: string) {
+  try {
+    await ElMessageBox.confirm('确认删除这条筛选条件吗？', '删除条件', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    });
+    removeFilterCondition(conditionId);
+  } catch {
+    // 用户取消删除。
+  }
+}
+
+function openBatchDeleteMode() {
+  batchDeleteMode.value = true;
+  conditionsExpanded.value = true;
+  selectedConditionIds.value = [];
+}
+
+function closeBatchDeleteMode() {
+  batchDeleteMode.value = false;
+  selectedConditionIds.value = [];
+}
+
+function toggleSelectAllConditions() {
+  if (allConditionsSelected.value) {
+    selectedConditionIds.value = [];
+    return;
+  }
+  selectedConditionIds.value = props.modelValue.conditions.map((condition) => condition.id);
+}
+
+function removeConditionsByIds(conditionIds: string[]) {
+  const selectedIds = new Set(conditionIds);
+  props.modelValue.conditions.splice(
+    0,
+    props.modelValue.conditions.length,
+    ...props.modelValue.conditions.filter((condition) => !selectedIds.has(condition.id)),
+  );
+  selectedConditionIds.value = [];
+}
+
+async function confirmRemoveSelectedConditions() {
+  if (!selectedConditionCount.value) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${selectedConditionCount.value} 条筛选条件吗？`, '批量删除条件', {
+      type: 'warning',
+      confirmButtonText: '删除选中',
+      cancelButtonText: '取消',
+    });
+    removeConditionsByIds(selectedConditionIds.value);
+    closeBatchDeleteMode();
+  } catch {
+    // 用户取消删除。
+  }
+}
+
+async function confirmClearFilterConditions() {
+  if (!props.modelValue.conditions.length) {
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(`确认清空全部 ${props.modelValue.conditions.length} 条筛选条件吗？`, '清空条件', {
+      type: 'warning',
+      confirmButtonText: '清空全部',
+      cancelButtonText: '取消',
+    });
+    props.modelValue.conditions.splice(0, props.modelValue.conditions.length);
+    closeBatchDeleteMode();
+  } catch {
+    // 用户取消清空。
   }
 }
 
@@ -121,15 +232,28 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
 </script>
 
 <template>
-  <div class="stat-filter-builder">
+  <div class="stat-filter-builder" :class="{ 'is-expanded': conditionsExpanded }">
     <el-segmented
       :model-value="modelValue.logic"
       :options="[{ label: '满足全部', value: 'AND' }, { label: '满足任意', value: 'OR' }]"
       class="stat-filter-logic"
       @update:model-value="modelValue.logic = $event === 'OR' ? 'OR' : 'AND'"
     />
+    <el-button plain class="stat-filter-add" @click="addFilterCondition">{{ addButtonText }}</el-button>
     <div v-if="modelValue.conditions.length" class="stat-filter-list">
-      <div v-for="condition in modelValue.conditions" :key="condition.id" class="stat-filter-row">
+      <div
+        v-for="condition in visibleConditions"
+        :key="condition.id"
+        class="stat-filter-row"
+        :class="{ 'is-selecting': batchDeleteMode }"
+      >
+        <el-checkbox
+          v-if="batchDeleteMode"
+          v-model="selectedConditionIds"
+          :value="condition.id"
+          class="stat-filter-check"
+          aria-label="选择条件"
+        />
         <SmartSelect
           :model-value="condition.fieldKey"
           class="stat-filter-field"
@@ -192,47 +316,125 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
           placeholder="结束值"
           clearable
         />
-        <el-button text type="danger" @click="removeFilterCondition(condition.id)">删除</el-button>
+        <el-tooltip content="删除条件" placement="top">
+          <el-button
+            :icon="Delete"
+            text
+            type="danger"
+            class="stat-filter-remove"
+            aria-label="删除条件"
+            @click="confirmRemoveFilterCondition(condition.id)"
+          />
+        </el-tooltip>
       </div>
+      <el-tooltip v-if="hiddenConditionsCount > 0" :content="`展开 ${hiddenConditionsCount} 条隐藏条件`" placement="top">
+        <el-button
+          :icon="MoreFilled"
+          text
+          class="stat-filter-more"
+          aria-label="展开隐藏条件"
+          @click="conditionsExpanded = true"
+        >
+          {{ hiddenConditionsCount }}
+        </el-button>
+      </el-tooltip>
+      <el-tooltip v-else-if="conditionsExpanded && modelValue.conditions.length > visibleConditionLimit" content="收起条件" placement="top">
+        <el-button
+          :icon="ArrowUp"
+          text
+          class="stat-filter-more"
+          aria-label="收起条件"
+          @click="conditionsExpanded = false"
+        />
+      </el-tooltip>
     </div>
-    <el-button plain @click="addFilterCondition">{{ addButtonText }}</el-button>
+    <div v-if="modelValue.conditions.length" class="stat-filter-actions">
+      <template v-if="batchDeleteMode">
+        <span class="stat-filter-selected">已选 {{ selectedConditionCount }}</span>
+        <el-button text @click="toggleSelectAllConditions">{{ allConditionsSelected ? '取消全选' : '全选' }}</el-button>
+        <el-button text type="danger" :disabled="!selectedConditionCount" @click="confirmRemoveSelectedConditions">删除选中</el-button>
+        <el-button text @click="closeBatchDeleteMode">取消</el-button>
+      </template>
+      <template v-else>
+        <el-button v-if="modelValue.conditions.length > 1" text @click="openBatchDeleteMode">批量删除</el-button>
+        <el-button text type="danger" @click="confirmClearFilterConditions">清空全部</el-button>
+      </template>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .stat-filter-builder {
-  display: grid;
-  grid-template-columns: minmax(132px, auto) minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   min-width: 0;
 }
 
 .stat-filter-logic {
+  flex: 0 0 auto;
   width: max-content;
   max-width: 100%;
 }
 
+.stat-filter-add {
+  flex: 0 0 auto;
+  width: max-content;
+}
+
 .stat-filter-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
-  gap: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  gap: 6px;
   min-width: 0;
+  max-width: 100%;
+}
+
+.stat-filter-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+}
+
+.stat-filter-selected {
+  padding: 0 4px;
+  color: rgba(15, 23, 42, 0.56);
+  font-size: 13px;
+}
+
+.stat-filter-builder.is-expanded .stat-filter-list {
+  max-height: 118px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .stat-filter-row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.15fr) minmax(136px, 0.72fr) minmax(220px, 1.1fr) auto;
+  grid-template-columns: 112px 82px 124px 28px;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
   min-width: 0;
-  min-height: 56px;
-  padding: 10px 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-height: 32px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid rgba(29, 78, 216, 0.12);
+  border-radius: 6px;
+  background: rgba(248, 250, 252, 0.94);
+}
+
+.stat-filter-row.is-selecting {
+  grid-template-columns: 24px 112px 82px 124px 28px;
+}
+
+.stat-filter-check {
+  justify-self: center;
 }
 
 .stat-filter-field,
@@ -246,9 +448,25 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
   grid-column: 3;
 }
 
-.stat-filter-row > .el-button {
-  width: 58px;
+.stat-filter-row.is-selecting .stat-filter-value.secondary {
+  grid-column: 4;
+}
+
+.stat-filter-remove {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
   justify-self: end;
+}
+
+.stat-filter-more {
+  height: 32px;
+  min-width: 36px;
+  padding: 0 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  background: #fff;
+  color: rgba(15, 23, 42, 0.62);
 }
 
 :deep(.el-input-number),
@@ -258,35 +476,58 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
   width: 100%;
 }
 
-@media (max-width: 1180px) {
-  .stat-filter-builder {
-    grid-template-columns: 1fr;
-  }
+:deep(.el-input__wrapper),
+:deep(.el-select__wrapper) {
+  min-height: 28px;
+  box-shadow: none;
+  background: #fff;
+}
 
-  .stat-filter-list {
-    grid-template-columns: 1fr;
+:deep(.el-input__inner) {
+  height: 28px;
+  font-size: 13px;
+}
+
+@media (max-width: 1180px) {
+  .stat-filter-actions {
+    order: 4;
   }
 
   .stat-filter-row {
-    grid-template-columns: minmax(180px, 1fr) minmax(132px, 0.7fr) minmax(220px, 1fr) 58px;
+    grid-template-columns: minmax(116px, 1fr) minmax(84px, 0.7fr) minmax(128px, 1fr) 28px;
+    width: min(100%, 394px);
+  }
+
+  .stat-filter-row.is-selecting {
+    grid-template-columns: 24px minmax(116px, 1fr) minmax(84px, 0.7fr) minmax(128px, 1fr) 28px;
+    width: min(100%, 422px);
   }
 
   .stat-filter-value.secondary {
     grid-column: 3;
   }
+
+  .stat-filter-row.is-selecting .stat-filter-value.secondary {
+    grid-column: 4;
+  }
 }
 
 @media (max-width: 760px) {
+  .stat-filter-list,
+  .stat-filter-actions {
+    flex-basis: 100%;
+  }
+
   .stat-filter-row {
     grid-template-columns: 1fr;
   }
 
   .stat-filter-value.secondary,
-  .stat-filter-row > .el-button {
+  .stat-filter-remove {
     grid-column: auto;
   }
 
-  .stat-filter-row > .el-button {
+  .stat-filter-remove {
     justify-self: start;
   }
 }

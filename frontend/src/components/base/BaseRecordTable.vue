@@ -253,45 +253,46 @@ function handleStandaloneKeywordClear() {
     </section>
 
     <section v-if="hasFilterBuilder || hasPrimaryActions || hasPrimaryFilters || hasAdvancedFilters || showSearch" class="record-filter-panel">
-      <div class="record-filter-primary">
+      <div v-if="hasFilterBuilder" class="record-condition-panel">
         <slot name="filter-builder" />
+      </div>
 
-        <RecordTableFilterFields
-          :filters="primaryFilters"
-          :filter-values="filterValues"
-          :input-drafts="inputFilterDrafts"
-          keyword-field-visible
-          :default-input-width="168"
-          :default-select-width="180"
-          :default-date-range-width="280"
-          @input-update="handleInputFilterUpdate"
-          @input-change="commitInputFilterValue"
-          @input-search="handleInputFilterSearch"
-          @input-clear="handleInputFilterClear"
-          @filter-change="handleFilterChange"
-        />
+      <div class="record-filter-primary">
+        <div class="record-filter-query-strip">
+          <RecordTableFilterFields
+            :filters="primaryFilters"
+            :filter-values="filterValues"
+            :input-drafts="inputFilterDrafts"
+            keyword-field-visible
+            :default-input-width="168"
+            :default-select-width="180"
+            :default-date-range-width="280"
+            @input-update="handleInputFilterUpdate"
+            @input-change="commitInputFilterValue"
+            @input-search="handleInputFilterSearch"
+            @input-clear="handleInputFilterClear"
+            @filter-change="handleFilterChange"
+          />
 
-        <BaseSearchInput
-          v-if="hasStandaloneSearch"
-          :model-value="keywordDraft"
-          class="record-table-search"
-          :placeholder="searchPlaceholder"
-          @update:model-value="handleStandaloneKeywordUpdate"
-          @search="handleStandaloneKeywordSearch"
-          @clear="handleStandaloneKeywordClear"
-        />
+          <BaseSearchInput
+            v-if="hasStandaloneSearch"
+            :model-value="keywordDraft"
+            class="record-table-search"
+            :placeholder="searchPlaceholder"
+            @update:model-value="handleStandaloneKeywordUpdate"
+            @search="handleStandaloneKeywordSearch"
+            @clear="handleStandaloneKeywordClear"
+          />
 
-        <div
-          class="record-filter-primary-actions"
-          :class="{ 'record-filter-primary-actions-inline': hasFilterBuilder }"
-        >
-          <el-button v-if="hasAdvancedFilters" @click="toggleAdvancedVisible">
-            {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
-          </el-button>
-          <el-button @click="handleReset">重置</el-button>
-          <el-button type="primary" @click="handleQueryClick">
-            {{ queryButtonText }}
-          </el-button>
+          <div class="record-filter-primary-actions">
+            <el-button v-if="hasAdvancedFilters" @click="toggleAdvancedVisible">
+              {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
+            </el-button>
+            <el-button @click="handleReset">重置</el-button>
+            <el-button type="primary" @click="handleQueryClick">
+              {{ queryButtonText }}
+            </el-button>
+          </div>
         </div>
 
         <div v-if="hasPrimaryActions" class="record-filter-slot-actions">
@@ -434,8 +435,8 @@ function handleStandaloneKeywordClear() {
 
 .record-filter-panel {
   display: grid;
-  gap: 10px;
-  padding: 4px 2px 10px;
+  gap: 8px;
+  padding: 2px 2px 8px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
 
@@ -447,13 +448,30 @@ function handleStandaloneKeywordClear() {
 .record-filter-primary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   gap: 8px;
 }
 
-.record-filter-primary > :slotted(.stat-filter-builder) {
-  grid-column: 1 / -1;
+.record-condition-panel {
   min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.record-condition-panel > :slotted(.stat-filter-builder) {
+  min-width: 0;
+}
+
+.record-filter-query-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  justify-self: start;
+  min-height: 32px;
 }
 
 .record-filter-primary-actions {
@@ -468,17 +486,24 @@ function handleStandaloneKeywordClear() {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: min(100%, 520px);
+  min-width: 0;
   justify-content: flex-end;
   flex-wrap: wrap;
 }
 
-.record-filter-primary-actions-inline {
-  flex: 0 0 auto;
+.record-filter-slot-actions {
+  justify-self: end;
 }
 
-.record-filter-primary-actions-inline + .record-filter-slot-actions {
-  justify-self: end;
+@media (max-width: 1180px) {
+  .record-filter-primary {
+    grid-template-columns: 1fr;
+  }
+
+  .record-filter-slot-actions {
+    justify-self: start;
+    justify-content: flex-start;
+  }
 }
 
 .record-filter-advanced {
