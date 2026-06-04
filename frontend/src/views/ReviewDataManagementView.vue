@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
-import { Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
+import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
@@ -14,7 +14,7 @@ import ReviewDataRuleExplanationDrawer from './review-data/ReviewDataRuleExplana
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
-import { downloadCsv, useReviewDataExport } from './review-data/useReviewDataExport';
+import { useReviewDataExport, formatExportFileDate } from './review-data/useReviewDataExport';
 import { useReviewDataDetail } from './review-data/useReviewDataDetail';
 import { useReviewDataPageActions } from './review-data/useReviewDataPageActions';
 import { useReviewDataRecords } from './review-data/useReviewDataRecords';
@@ -23,6 +23,7 @@ import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDi
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
+import { downloadBlob } from '../utils/csv-download';
 import type {
   ReviewDataRecordRowResponse,
 } from '../types/api';
@@ -30,7 +31,6 @@ import { useConditionFilterGroupState } from '../composables/useConditionFilterG
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import {
-  buildReviewDataExportCsv,
   buildReviewDataFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
@@ -120,11 +120,15 @@ const {
   notifyError: (message) => ElMessage.error(message),
 });
 
-const { exportLoading, exportExcel: handleExportExcel } = useReviewDataExport({
-  fetchRecords: (page, size) => api.getReviewDataRecords(buildReviewDataRecordQueryParams({ page, size })),
-  buildCsv: (exportRows) => buildReviewDataExportCsv(exportRows),
-  downloadCsv,
-  getExpectedTotal: () => Math.max(total.value, rows.value.length),
+const {
+  recordExportLoading,
+  problemExportLoading,
+  exportReviewRecords: handleExportReviewRecords,
+  exportProblemDetails: handleExportProblemDetails,
+} = useReviewDataExport({
+  exportReviewRecords: () => api.exportReviewDataRecordsWorkbook(buildReviewDataRecordQueryParams()),
+  exportProblemDetails: () => api.exportReviewDataProblemDetailsWorkbook(buildReviewDataRecordQueryParams()),
+  downloadWorkbook: downloadBlob,
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
 });
@@ -200,6 +204,28 @@ async function handleLegacyImportSuccess(result: { importedRecords: number; impo
   ElMessage.success(`已导入 ${result.importedRecords} 条评审记录，生成 ${result.importedProblemItems} 个问题项`);
   await loadFilterOptions();
   await refreshReviewRecords();
+}
+
+async function handleExportRecordProblemDetails(row: Record<string, unknown>) {
+  const raw = row.__raw as ReviewDataRecordRowResponse | undefined;
+  if (!raw?.id) {
+    return;
+  }
+  try {
+    const blob = await api.exportReviewDataRecordProblemDetailsWorkbook(raw.id);
+    downloadBlob(blob, `评审问题详情_${raw.id}_${formatExportFileDate(new Date())}.xlsx`);
+    ElMessage.success('已导出当前评审的问题详情');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '评审问题详情导出失败');
+  }
+}
+
+function handleExportCommand(command: string) {
+  if (command === 'records') {
+    void handleExportReviewRecords();
+    return;
+  }
+  void handleExportProblemDetails();
 }
 
 const {
@@ -297,9 +323,22 @@ const {
           >
             同步关联 GitLab 上下文
           </el-button>
-          <el-button plain :icon="Download" :loading="exportLoading" @click="handleExportExcel">
-            导出
-          </el-button>
+          <el-dropdown @command="handleExportCommand">
+            <el-button
+              plain
+              :icon="Download"
+              :loading="recordExportLoading || problemExportLoading"
+            >
+              导出
+              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="records">导出评审列表</el-dropdown-item>
+                <el-dropdown-item command="problems">导出问题列表</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button plain :icon="Upload" @click="legacyImportVisible = true">
             导入
           </el-button>
@@ -334,6 +373,7 @@ const {
           :on-open-detail="handleOpenDetail"
           :on-edit-record="handleEditRecord"
           :on-create-problem-item="handleCreateProblemItemByRow"
+          :on-export-problem-details="handleExportRecordProblemDetails"
           :on-delete-record="handleDeleteRecord"
         />
       </template>

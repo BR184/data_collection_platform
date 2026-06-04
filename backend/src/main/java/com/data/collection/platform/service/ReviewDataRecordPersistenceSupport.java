@@ -85,6 +85,10 @@ public class ReviewDataRecordPersistenceSupport {
     return problemItemRepository.listProblemItems(recordId);
   }
 
+  public Map<Long, List<ReviewDataProblemItemResponse>> listProblemItemsByRecordIds(List<Long> recordIds) {
+    return problemItemRepository.listProblemItemsByRecordIds(recordIds);
+  }
+
   public ReviewDataProblemItemResponse getProblemItemOrThrow(Long recordId, Long itemId) {
     return problemItemRepository.getProblemItemOrThrow(recordId, itemId);
   }
@@ -145,7 +149,8 @@ public class ReviewDataRecordPersistenceSupport {
       Integer reviewScalePages,
       String reviewProduct,
       String authorName,
-      String reviewVersion) {
+      String reviewVersion,
+      String notReachStandardReason) {
     return recordWriteRepository.insertRecord(
         projectName,
         title,
@@ -156,7 +161,8 @@ public class ReviewDataRecordPersistenceSupport {
         reviewScalePages,
         reviewProduct,
         authorName,
-        reviewVersion);
+        reviewVersion,
+        notReachStandardReason);
   }
 
   public void updateRecord(
@@ -170,7 +176,8 @@ public class ReviewDataRecordPersistenceSupport {
       Integer reviewScalePages,
       String reviewProduct,
       String authorName,
-      String reviewVersion) {
+      String reviewVersion,
+      String notReachStandardReason) {
     recordWriteRepository.updateRecord(
         recordId,
         projectName,
@@ -182,7 +189,8 @@ public class ReviewDataRecordPersistenceSupport {
         reviewScalePages,
         reviewProduct,
         authorName,
-        reviewVersion);
+        reviewVersion,
+        notReachStandardReason);
   }
 
   public void softDeleteRecord(Long recordId) {

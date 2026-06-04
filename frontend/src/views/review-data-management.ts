@@ -25,6 +25,7 @@ export interface ReviewRecordFormModel {
   reviewProduct: string;
   authorName: string;
   reviewVersion: string;
+  notReachStandardReason: string;
 }
 
 export interface ReviewProblemItemFormModel {
@@ -47,10 +48,18 @@ export function reviewDataColumns(): RecordTableColumn[] {
     { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 90, align: 'right' },
     { key: 'problemDensity', label: '评审缺陷密度(个/页)', sortable: true, width: 150, align: 'right' },
+    { key: 'reviewEfficiency', label: '评审效率(个/小时)', sortable: true, width: 150, align: 'right' },
+    { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 150, align: 'right' },
     { key: 'reviewType', label: '评审类型', sortable: true, minWidth: 140 },
     { key: 'moduleName', label: '模块', sortable: true, minWidth: 120 },
     { key: 'reviewOwner', label: '负责人', sortable: true, width: 110 },
     { key: 'reviewExpertsSummary', label: '评审专家', minWidth: 180 },
+    { key: 'independentReviewWorkload', label: '独立评审工作量合计(小时)', sortable: true, width: 190, align: 'right' },
+    { key: 'independentReviewProblemCount', label: '有效独立评审问题数合计(个)', sortable: true, width: 210, align: 'right' },
+    { key: 'meetingReviewWorkload', label: '会议评审工作量合计(小时)', sortable: true, width: 190, align: 'right' },
+    { key: 'meetingReviewProblemCount', label: '有效会议评审问题数合计(个)', sortable: true, width: 210, align: 'right' },
+    { key: 'notReachStandardReason', label: '不达标说明', minWidth: 180 },
+    { key: 'reachStandard', label: '是否达标', type: 'tag', sortable: true, width: 110, align: 'center' },
     { key: 'reviewDate', label: '评审日期', sortable: true, width: 120 },
     { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
   ];
@@ -163,10 +172,18 @@ export function buildReviewDataTableRows(rows: ReviewDataRecordRowResponse[]) {
     problemCount: row.problemCount ?? 0,
     reviewScalePages: row.reviewScalePages ?? 0,
     problemDensity: formatNullableNumber(row.problemDensity, 2),
+    reviewEfficiency: formatNullableNumber(row.reviewEfficiency, 2),
+    reviewRate: formatNullableNumber(row.reviewRate, 2),
     reviewType: row.reviewType || '-',
     moduleName: row.moduleName || '-',
     reviewOwner: row.reviewOwner || '-',
     reviewExpertsSummary: row.reviewExpertsSummary || '-',
+    independentReviewWorkload: formatNullableNumber(row.independentReviewWorkload, 2),
+    independentReviewProblemCount: row.independentReviewProblemCount ?? 0,
+    meetingReviewWorkload: formatNullableNumber(row.meetingReviewWorkload, 2),
+    meetingReviewProblemCount: row.meetingReviewProblemCount ?? 0,
+    notReachStandardReason: row.notReachStandardReason || '-',
+    reachStandard: [reachStandardTag(row.reachStandard)],
     reviewDate: formatDate(row.reviewDate),
     updatedAt: formatDateTime(row.updatedAt),
   }));
@@ -187,6 +204,14 @@ export function buildReviewDataExportCsv(rows: ReviewDataRecordRowResponse[]) {
     { label: '评审版本', value: (row) => row.reviewVersion },
     { label: '问题合计(个)', value: (row) => row.problemCount },
     { label: '缺陷密度(个/页)', value: (row) => formatNullableNumber(row.problemDensity, 2) },
+    { label: '评审效率(个/小时)', value: (row) => formatNullableNumber(row.reviewEfficiency, 2) },
+    { label: '评审速率(页/小时)', value: (row) => formatNullableNumber(row.reviewRate, 2) },
+    { label: '独立评审工作量合计(小时)', value: (row) => formatNullableNumber(row.independentReviewWorkload, 2) },
+    { label: '有效独立评审问题数合计(个)', value: (row) => row.independentReviewProblemCount },
+    { label: '会议评审工作量合计(小时)', value: (row) => formatNullableNumber(row.meetingReviewWorkload, 2) },
+    { label: '有效会议评审问题数合计(个)', value: (row) => row.meetingReviewProblemCount },
+    { label: '不达标说明', value: (row) => row.notReachStandardReason },
+    { label: '是否达标', value: (row) => (row.reachStandard ? '是' : '否') },
     { label: '更新时间', value: (row) => formatDateTime(row.updatedAt) },
     { label: '状态', value: (row) => (row.deleted ? '已删除' : '有效') },
   ];
@@ -257,6 +282,7 @@ export function createEmptyReviewRecordForm(): ReviewRecordFormModel {
     reviewProduct: '',
     authorName: '',
     reviewVersion: '',
+    notReachStandardReason: '',
   };
 }
 
@@ -276,6 +302,7 @@ export function createReviewRecordFormFromRow(
     reviewProduct: row.reviewProduct || '',
     authorName: row.authorName || '',
     reviewVersion: row.reviewVersion || '',
+    notReachStandardReason: row.notReachStandardReason || '',
   };
 }
 
@@ -331,6 +358,12 @@ function problemStatusTag(status: string): RecordTableTagValue {
     default:
       return { label: status || '新提交', type: 'warning' };
   }
+}
+
+function reachStandardTag(reachStandard: boolean | null | undefined): RecordTableTagValue {
+  return reachStandard
+    ? { label: '是', type: 'success' }
+    : { label: '否', type: 'danger' };
 }
 
 function formatNullableNumber(value: number | null | undefined, fractionDigits = 0) {

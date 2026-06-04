@@ -5,7 +5,12 @@ import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -43,6 +48,45 @@ public class ReviewDataProblemItemRepository {
         """,
         this::mapProblemItem,
         recordId);
+  }
+
+  public Map<Long, List<ReviewDataProblemItemResponse>> listProblemItemsByRecordIds(List<Long> recordIds) {
+    List<Long> safeRecordIds = recordIds == null ? List.of() : recordIds.stream().filter(Objects::nonNull).toList();
+    if (safeRecordIds.isEmpty()) {
+      return Map.of();
+    }
+    String placeholders = safeRecordIds.stream().map(ignored -> "?").collect(Collectors.joining(","));
+    return jdbcTemplate.query(
+        """
+        select
+          id,
+          review_record_id,
+          reviewer_name,
+          workload_hours,
+          review_category,
+          document_position,
+          problem_category,
+          problem_description,
+          suggested_solution,
+          owner_name,
+          rejection_reason,
+          problem_status,
+          updated_at
+        from review_problem_items
+        where deleted = false and review_record_id in (
+        """ + placeholders + """
+        )
+        order by review_record_id asc, updated_at desc, id desc
+        """,
+        rs -> {
+          Map<Long, List<ReviewDataProblemItemResponse>> result = new LinkedHashMap<>();
+          while (rs.next()) {
+            ReviewDataProblemItemResponse item = mapProblemItem(rs, 0);
+            result.computeIfAbsent(item.reviewRecordId(), ignored -> new ArrayList<>()).add(item);
+          }
+          return result;
+        },
+        safeRecordIds.toArray());
   }
 
   public ReviewDataProblemItemResponse getProblemItemOrThrow(Long recordId, Long itemId) {

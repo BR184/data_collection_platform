@@ -43,7 +43,8 @@ public class ReviewDataRecordWriteRepository {
       Integer reviewScalePages,
       String reviewProduct,
       String authorName,
-      String reviewVersion) {
+      String reviewVersion,
+      String notReachStandardReason) {
     KeyHolder keyHolder = new GeneratedKeyHolder();
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
@@ -65,6 +66,7 @@ public class ReviewDataRecordWriteRepository {
                     review_product,
                     author_name,
                     review_version,
+                    not_reach_standard_reason,
                     search_text,
                     search_compact,
                     search_spell,
@@ -75,7 +77,7 @@ public class ReviewDataRecordWriteRepository {
                     title_search_initials,
                     created_at,
                     updated_at
-                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                   """,
                   new String[] {"id"});
           statement.setString(1, normalizeText(projectName));
@@ -88,14 +90,15 @@ public class ReviewDataRecordWriteRepository {
           statement.setString(8, normalizeText(reviewProduct));
           statement.setString(9, normalizeText(authorName));
           statement.setString(10, normalizeText(reviewVersion));
-          statement.setString(11, searchIndex.normalized());
-          statement.setString(12, searchIndex.compact());
-          statement.setString(13, searchIndex.spell());
-          statement.setString(14, searchIndex.initials());
-          statement.setString(15, titleSearchIndex.normalized());
-          statement.setString(16, titleSearchIndex.compact());
-          statement.setString(17, titleSearchIndex.spell());
-          statement.setString(18, titleSearchIndex.initials());
+          statement.setString(11, normalizeNullableText(notReachStandardReason));
+          statement.setString(12, searchIndex.normalized());
+          statement.setString(13, searchIndex.compact());
+          statement.setString(14, searchIndex.spell());
+          statement.setString(15, searchIndex.initials());
+          statement.setString(16, titleSearchIndex.normalized());
+          statement.setString(17, titleSearchIndex.compact());
+          statement.setString(18, titleSearchIndex.spell());
+          statement.setString(19, titleSearchIndex.initials());
           return statement;
         },
         keyHolder);
@@ -113,7 +116,8 @@ public class ReviewDataRecordWriteRepository {
       Integer reviewScalePages,
       String reviewProduct,
       String authorName,
-      String reviewVersion) {
+      String reviewVersion,
+      String notReachStandardReason) {
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
             title, projectName, moduleName, reviewOwner, reviewType, List.of());
@@ -132,6 +136,7 @@ public class ReviewDataRecordWriteRepository {
           review_product = ?,
           author_name = ?,
           review_version = ?,
+          not_reach_standard_reason = ?,
           search_text = ?,
           search_compact = ?,
           search_spell = ?,
@@ -153,6 +158,7 @@ public class ReviewDataRecordWriteRepository {
         normalizeText(reviewProduct),
         normalizeText(authorName),
         normalizeText(reviewVersion),
+        normalizeNullableText(notReachStandardReason),
         searchIndex.normalized(),
         searchIndex.compact(),
         searchIndex.spell(),
@@ -243,6 +249,10 @@ public class ReviewDataRecordWriteRepository {
 
   private String normalizeText(String value) {
     return Objects.requireNonNullElse(TextQuerySupport.trimToNull(value), "");
+  }
+
+  private String normalizeNullableText(String value) {
+    return TextQuerySupport.trimToNull(value);
   }
 
 }

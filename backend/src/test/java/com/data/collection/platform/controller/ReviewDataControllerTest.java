@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -25,6 +26,7 @@ import com.data.collection.platform.entity.ReviewDataSummaryResponse;
 import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
 import com.data.collection.platform.config.ReviewDataProperties;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
+import com.data.collection.platform.service.ReviewDataExcelExportService;
 import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import java.time.LocalDate;
@@ -47,6 +49,7 @@ class ReviewDataControllerTest {
 
   @Mock private ReviewDataRecordService reviewDataRecordService;
   @Mock private ReviewDataLegacyExcelImportService legacyExcelImportService;
+  @Mock private ReviewDataExcelExportService excelExportService;
 
   private MockMvc mockMvc;
   private ReviewDataProperties reviewDataProperties;
@@ -60,6 +63,7 @@ class ReviewDataControllerTest {
                     reviewDataRecordService,
                     new ReviewDataRequestAssembler(),
                     legacyExcelImportService,
+                    excelExportService,
                     reviewDataProperties))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
@@ -224,6 +228,44 @@ class ReviewDataControllerTest {
         .andExpect(jsonPath("$.data.record.projectName").value("CrownCAD"))
         .andExpect(jsonPath("$.data.reviewExperts[0]").value("Bob"))
         .andExpect(jsonPath("$.data.problemItems[0].problemDescription").value("Heading format is inconsistent"));
+  }
+
+  @Test
+  void shouldExportReviewRecordWorkbook() throws Exception {
+    when(excelExportService.exportReviewRecordsWorkbook(any(ReviewDataRecordQueryRequest.class)))
+        .thenReturn(new byte[] {1, 2, 3});
+
+    mockMvc.perform(get("/api/review-data/records/export").param("keyword", "review"))
+        .andExpect(status().isOk())
+        .andExpect(
+            header()
+                .string(
+                    "Content-Type",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition",
+                    "attachment; filename=\"review-data-records.xlsx\""));
+
+    var requestCaptor = org.mockito.ArgumentCaptor.forClass(ReviewDataRecordQueryRequest.class);
+    verify(excelExportService).exportReviewRecordsWorkbook(requestCaptor.capture());
+    Assertions.assertEquals("review", requestCaptor.getValue().keyword());
+  }
+
+  @Test
+  void shouldExportProblemDetailsWorkbookForRecord() throws Exception {
+    when(excelExportService.exportProblemDetailsWorkbook(1L)).thenReturn(new byte[] {1, 2, 3});
+
+    mockMvc.perform(get("/api/review-data/records/1/problem-items/export"))
+        .andExpect(status().isOk())
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition",
+                    "attachment; filename=\"review-data-problem-details-1.xlsx\""));
+
+    verify(excelExportService).exportProblemDetailsWorkbook(1L);
   }
 
   @Test

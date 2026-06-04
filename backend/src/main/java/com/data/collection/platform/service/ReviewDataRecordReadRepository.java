@@ -31,13 +31,21 @@ public class ReviewDataRecordReadRepository {
         r.review_product,
         r.author_name,
         r.review_version,
+        r.not_reach_standard_reason,
         r.gitlab_project_id,
         r.gitlab_resource_iid,
         r.gitlab_resource_type,
         r.updated_at,
         r.deleted,
         coalesce(expert.expert_names, '') as review_experts_summary,
-        coalesce(problem.problem_count, 0) as problem_count
+        coalesce(problem.problem_count, 0) as problem_count,
+        coalesce(problem.total_workload_hours, 0) as total_workload_hours,
+        coalesce(problem.independent_review_workload, 0) as independent_review_workload,
+        coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
+        coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
+        coalesce(problem.meeting_review_problem_count, 0) as meeting_review_problem_count,
+        case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / problem.total_workload_hours end as review_efficiency,
+        case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else r.review_scale_pages::numeric / problem.total_workload_hours end as review_rate
       from review_records r
       left join (
         select
@@ -50,7 +58,20 @@ public class ReviewDataRecordReadRepository {
       left join (
         select
           review_record_id,
-          count(*)::integer as problem_count
+          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category <> '无问题')::integer as problem_count,
+          coalesce(sum(workload_hours), 0) as total_workload_hours,
+          coalesce(sum(workload_hours) filter (where review_category = '独立评审'), 0) as independent_review_workload,
+          count(*) filter (
+            where review_category = '独立评审'
+              and problem_status not in ('已拒绝', '未评审', '无问题')
+              and problem_category <> '无问题'
+          )::integer as independent_review_problem_count,
+          coalesce(sum(workload_hours) filter (where review_category = '会议评审'), 0) as meeting_review_workload,
+          count(*) filter (
+            where review_category = '会议评审'
+              and problem_status not in ('已拒绝', '未评审', '无问题')
+              and problem_category <> '无问题'
+          )::integer as meeting_review_problem_count
         from review_problem_items
         where deleted = false
         group by review_record_id
@@ -127,13 +148,21 @@ public class ReviewDataRecordReadRepository {
             r.review_product,
             r.author_name,
             r.review_version,
+            r.not_reach_standard_reason,
             r.gitlab_project_id,
             r.gitlab_resource_iid,
             r.gitlab_resource_type,
             r.updated_at,
             r.deleted,
             coalesce(problem.problem_count, 0) as problem_count,
-            case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end as problem_density
+            coalesce(problem.total_workload_hours, 0) as total_workload_hours,
+            coalesce(problem.independent_review_workload, 0) as independent_review_workload,
+            coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
+            coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
+            coalesce(problem.meeting_review_problem_count, 0) as meeting_review_problem_count,
+            case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end as problem_density,
+            case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / problem.total_workload_hours end as review_efficiency,
+            case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else r.review_scale_pages::numeric / problem.total_workload_hours end as review_rate
         """
             + from.sql()
             + """
@@ -175,6 +204,7 @@ public class ReviewDataRecordReadRepository {
           page_records.review_product,
           page_records.author_name,
           page_records.review_version,
+          page_records.not_reach_standard_reason,
           page_records.gitlab_project_id,
           page_records.gitlab_resource_iid,
           page_records.gitlab_resource_type,
@@ -182,6 +212,13 @@ public class ReviewDataRecordReadRepository {
           page_records.deleted,
           coalesce(expert.expert_names, '') as review_experts_summary,
           coalesce(page_records.problem_count, 0) as problem_count,
+          coalesce(page_records.total_workload_hours, 0) as total_workload_hours,
+          coalesce(page_records.independent_review_workload, 0) as independent_review_workload,
+          coalesce(page_records.independent_review_problem_count, 0) as independent_review_problem_count,
+          coalesce(page_records.meeting_review_workload, 0) as meeting_review_workload,
+          coalesce(page_records.meeting_review_problem_count, 0) as meeting_review_problem_count,
+          coalesce(page_records.review_efficiency, 0) as review_efficiency,
+          coalesce(page_records.review_rate, 0) as review_rate,
           page_records.page_row_number
         from summary
         left join page_records on true
@@ -309,6 +346,8 @@ public class ReviewDataRecordReadRepository {
   private ReviewDataRecordRowResponse mapRecordRow(ResultSet rs, int rowNum) throws SQLException {
     Integer reviewScalePages = (Integer) rs.getObject("review_scale_pages");
     Integer problemCount = (Integer) rs.getObject("problem_count");
+    Double reviewEfficiency = getDoubleOrDefault(rs, "review_efficiency");
+    Double reviewRate = getDoubleOrDefault(rs, "review_rate");
     return new ReviewDataRecordRowResponse(
         rs.getLong("id"),
         TextQuerySupport.normalizeDisplay(rs.getString("project_name")),
@@ -324,6 +363,14 @@ public class ReviewDataRecordReadRepository {
         TextQuerySupport.normalizeDisplay(rs.getString("review_version")),
         problemCount == null ? 0 : problemCount,
         calculateProblemDensity(problemCount, reviewScalePages),
+        reviewEfficiency,
+        reviewRate,
+        getDoubleOrDefault(rs, "independent_review_workload"),
+        getIntegerOrDefault(rs, "independent_review_problem_count"),
+        getDoubleOrDefault(rs, "meeting_review_workload"),
+        getIntegerOrDefault(rs, "meeting_review_problem_count"),
+        TextQuerySupport.normalizeDisplay(rs.getString("not_reach_standard_reason")),
+        isReachStandard(problemCount, reviewScalePages),
         rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime(),
         rs.getBoolean("deleted"),
         (Long) rs.getObject("gitlab_project_id"),
@@ -336,6 +383,21 @@ public class ReviewDataRecordReadRepository {
       return 0D;
     }
     return problemCount.doubleValue() / reviewScalePages.doubleValue();
+  }
+
+  private Boolean isReachStandard(Integer problemCount, Integer reviewScalePages) {
+    Double density = calculateProblemDensity(problemCount, reviewScalePages);
+    return density >= 0.2D && density <= 0.6D;
+  }
+
+  private Double getDoubleOrDefault(ResultSet rs, String columnName) throws SQLException {
+    Object value = rs.getObject(columnName);
+    return value == null ? 0D : rs.getDouble(columnName);
+  }
+
+  private Integer getIntegerOrDefault(ResultSet rs, String columnName) throws SQLException {
+    Object value = rs.getObject(columnName);
+    return value == null ? 0 : rs.getInt(columnName);
   }
 
   private SqlParts buildFilteredFromSql(
@@ -353,7 +415,24 @@ public class ReviewDataRecordReadRepository {
             """
              from review_records r
              left join lateral (
-               select count(*)::integer as problem_count
+               select
+                 count(*) filter (
+                   where problem_status not in ('已拒绝', '未评审', '无问题')
+                     and problem_category <> '无问题'
+                 )::integer as problem_count,
+                 coalesce(sum(workload_hours), 0) as total_workload_hours,
+                 coalesce(sum(workload_hours) filter (where review_category = '独立评审'), 0) as independent_review_workload,
+                 count(*) filter (
+                   where review_category = '独立评审'
+                     and problem_status not in ('已拒绝', '未评审', '无问题')
+                     and problem_category <> '无问题'
+                 )::integer as independent_review_problem_count,
+                 coalesce(sum(workload_hours) filter (where review_category = '会议评审'), 0) as meeting_review_workload,
+                 count(*) filter (
+                   where review_category = '会议评审'
+                     and problem_status not in ('已拒绝', '未评审', '无问题')
+                     and problem_category <> '无问题'
+                 )::integer as meeting_review_problem_count
                from review_problem_items
                where review_record_id = r.id and deleted = false
              ) problem on true
@@ -385,6 +464,14 @@ public class ReviewDataRecordReadRepository {
           case "reviewScalePages" -> "fr.review_scale_pages";
           case "problemCount" -> "fr.problem_count";
           case "problemDensity" -> "fr.problem_density";
+          case "reviewEfficiency" -> "fr.review_efficiency";
+          case "reviewRate" -> "fr.review_rate";
+          case "independentReviewWorkload" -> "fr.independent_review_workload";
+          case "independentReviewProblemCount" -> "fr.independent_review_problem_count";
+          case "meetingReviewWorkload" -> "fr.meeting_review_workload";
+          case "meetingReviewProblemCount" -> "fr.meeting_review_problem_count";
+          case "reachStandard" ->
+              "case when fr.problem_density >= 0.2 and fr.problem_density <= 0.6 then 1 else 0 end";
           default -> "fr.updated_at";
         };
     return " order by " + expression + " " + direction + " nulls last, fr.id asc";

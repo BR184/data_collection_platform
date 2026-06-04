@@ -1,58 +1,50 @@
 import { ref } from 'vue';
-import type { ReviewDataRecordListResponse, ReviewDataRecordRowResponse } from '../../types/api';
 
 export interface ReviewDataExportDependencies {
-  fetchRecords: (page: number, size: number) => Promise<ReviewDataRecordListResponse>;
-  buildCsv: (rows: ReviewDataRecordRowResponse[]) => string;
-  downloadCsv: (csv: string, filename: string) => void;
-  getExpectedTotal: () => number;
+  exportReviewRecords: () => Promise<Blob>;
+  exportProblemDetails: () => Promise<Blob>;
+  downloadWorkbook: (blob: Blob, filename: string) => void;
   now?: () => Date;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
 }
 
 export function useReviewDataExport(deps: ReviewDataExportDependencies) {
-  const exportLoading = ref(false);
+  const recordExportLoading = ref(false);
+  const problemExportLoading = ref(false);
 
-  async function exportExcel() {
-    exportLoading.value = true;
+  async function exportReviewRecords() {
+    recordExportLoading.value = true;
     try {
-      const exportRows: ReviewDataRecordRowResponse[] = [];
-      let nextPage = 1;
-      let expectedTotal = Math.max(deps.getExpectedTotal(), 0);
-      do {
-        const response = await deps.fetchRecords(nextPage, 100);
-        exportRows.push(...response.records);
-        expectedTotal = response.total;
-        nextPage += 1;
-      } while (exportRows.length < expectedTotal && nextPage < 1000);
-
-      const csv = deps.buildCsv(exportRows);
-      deps.downloadCsv(csv, `评审数据管理_${formatExportFileDate((deps.now ?? (() => new Date()))())}.csv`);
-      deps.notifySuccess(`已导出 ${exportRows.length} 条评审记录`);
+      const blob = await deps.exportReviewRecords();
+      deps.downloadWorkbook(blob, `评审数据管理_${formatExportFileDate((deps.now ?? (() => new Date()))())}.xlsx`);
+      deps.notifySuccess('已导出评审列表');
     } catch (error) {
-      deps.notifyError(error instanceof Error ? error.message : '评审数据导出失败');
+      deps.notifyError(error instanceof Error ? error.message : '评审列表导出失败');
     } finally {
-      exportLoading.value = false;
+      recordExportLoading.value = false;
+    }
+  }
+
+  async function exportProblemDetails() {
+    problemExportLoading.value = true;
+    try {
+      const blob = await deps.exportProblemDetails();
+      deps.downloadWorkbook(blob, `评审问题详情_${formatExportFileDate((deps.now ?? (() => new Date()))())}.xlsx`);
+      deps.notifySuccess('已导出问题列表');
+    } catch (error) {
+      deps.notifyError(error instanceof Error ? error.message : '评审问题详情导出失败');
+    } finally {
+      problemExportLoading.value = false;
     }
   }
 
   return {
-    exportLoading,
-    exportExcel,
+    recordExportLoading,
+    problemExportLoading,
+    exportReviewRecords,
+    exportProblemDetails,
   };
-}
-
-export function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
 }
 
 export function formatExportFileDate(date: Date) {

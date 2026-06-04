@@ -40,6 +40,32 @@ final class ReviewDataRecordSortSupport {
           case "problemDensity" ->
               Comparator.comparing(
                   ReviewDataRecordRowResponse::problemDensity, Comparator.nullsLast(Double::compareTo));
+          case "reviewEfficiency" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::reviewEfficiency, Comparator.nullsLast(Double::compareTo));
+          case "reviewRate" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::reviewRate, Comparator.nullsLast(Double::compareTo));
+          case "independentReviewWorkload" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::independentReviewWorkload,
+                  Comparator.nullsLast(Double::compareTo));
+          case "independentReviewProblemCount" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::independentReviewProblemCount,
+                  Comparator.nullsLast(Integer::compareTo));
+          case "meetingReviewWorkload" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::meetingReviewWorkload,
+                  Comparator.nullsLast(Double::compareTo));
+          case "meetingReviewProblemCount" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::meetingReviewProblemCount,
+                  Comparator.nullsLast(Integer::compareTo));
+          case "reachStandard" ->
+              Comparator.comparing(
+                  ReviewDataRecordRowResponse::reachStandard,
+                  Comparator.nullsLast(Boolean::compareTo));
           case "updatedAt" ->
               Comparator.comparing(
                   ReviewDataRecordRowResponse::updatedAt,
@@ -70,6 +96,13 @@ final class ReviewDataRecordSortSupport {
           "reviewScalePages",
           "problemCount",
           "problemDensity",
+          "reviewEfficiency",
+          "reviewRate",
+          "independentReviewWorkload",
+          "independentReviewProblemCount",
+          "meetingReviewWorkload",
+          "meetingReviewProblemCount",
+          "reachStandard",
           "updatedAt" -> normalized;
       default -> "updatedAt";
     };

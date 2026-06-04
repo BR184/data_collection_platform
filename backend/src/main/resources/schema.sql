@@ -284,6 +284,7 @@ create table if not exists review_records (
     review_product varchar(255) not null,
     author_name varchar(128) not null,
     review_version varchar(128) not null,
+    not_reach_standard_reason text,
     gitlab_project_id bigint,
     gitlab_resource_iid bigint,
     gitlab_resource_type varchar(64),

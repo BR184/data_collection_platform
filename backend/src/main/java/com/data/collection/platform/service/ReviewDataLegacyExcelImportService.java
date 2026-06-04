@@ -181,7 +181,9 @@ public class ReviewDataLegacyExcelImportService {
             row.reviewScalePages() == null ? 0 : row.reviewScalePages(),
             firstNonBlank(row.title()),
             authorName,
-            reviewVersion);
+            reviewVersion,
+            firstNonBlank(row.notReachStandardReason()),
+            false);
     List<ReviewDataProblemItemSaveRequest> problemItems =
         buildProblemItems(row, owner, experts, problemStatus, issues);
     boolean importable = issues.stream().noneMatch(issue -> issue.level() == ReviewDataLegacyExcelIssueLevel.ERROR);

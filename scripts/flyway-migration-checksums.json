@@ -23,5 +23,6 @@
   "V20260519_01__gitlab_sync_compensation_default.sql": "897870059785ae1dfe1d5daa2831116cb8b7da446cc0701f6ba7e4ad65c339a5",
   "V20260519_02__disable_all_table_whitelist_mode.sql": "6def13ed3285e26271e68c4df50f28b08f7811db8e87da94695e538548cdbaf4",
   "V20260522_01__full_compensation_schedule_config.sql": "c5e67aa8814bf9a5a7d2c4e0ec8e479e8ec33faed826c901c50868155c83276c",
-  "V20260602_01__compensation_schedule_window_config.sql": "864fdbc68f53137e7f1dcdd12dec8118831b1cabfef7d284d8e6cacaf17e68dd"
+  "V20260602_01__compensation_schedule_window_config.sql": "864fdbc68f53137e7f1dcdd12dec8118831b1cabfef7d284d8e6cacaf17e68dd",
+  "V20260604_01__review_data_legacy_metrics.sql": "b17772dbd1103317894f66e813578ea3db45722fc299a63dcf0a932a322601f3"
 }

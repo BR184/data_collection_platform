@@ -46,6 +46,14 @@ describe('review-data-management helpers', () => {
         reviewVersion: 'V1.0',
         problemCount: 5,
         problemDensity: 0.2083,
+        reviewEfficiency: 2.5,
+        reviewRate: 12,
+        independentReviewWorkload: 1.2,
+        independentReviewProblemCount: 3,
+        meetingReviewWorkload: 0.8,
+        meetingReviewProblemCount: 2,
+        notReachStandardReason: '样本不足',
+        reachStandard: true,
         updatedAt: '2026-04-12T10:00:00',
         deleted: false,
       },
@@ -54,6 +62,14 @@ describe('review-data-management helpers', () => {
     const tableRows = buildReviewDataTableRows(rows);
     expect(tableRows[0].title).toBe('草图功能设计说明书评审');
     expect(tableRows[0].problemDensity).toBe('0.21');
+    expect(tableRows[0].reviewEfficiency).toBe('2.50');
+    expect(tableRows[0].reviewRate).toBe('12.00');
+    expect(tableRows[0].independentReviewWorkload).toBe('1.20');
+    expect(tableRows[0].independentReviewProblemCount).toBe(3);
+    expect(tableRows[0].meetingReviewWorkload).toBe('0.80');
+    expect(tableRows[0].meetingReviewProblemCount).toBe(2);
+    expect(tableRows[0].notReachStandardReason).toBe('样本不足');
+    expect((tableRows[0].reachStandard as Array<{ label: string }>)[0].label).toBe('是');
     expect(tableRows[0].reviewDate).toBe('2026-04-10');
     expect(tableRows[0].updatedAt).toBe('2026-04-12 10:00:00');
   });
@@ -75,6 +91,14 @@ describe('review-data-management helpers', () => {
         reviewVersion: 'V1.0',
         problemCount: 5,
         problemDensity: 0.2083,
+        reviewEfficiency: 2.5,
+        reviewRate: 12,
+        independentReviewWorkload: 1.2,
+        independentReviewProblemCount: 3,
+        meetingReviewWorkload: 0.8,
+        meetingReviewProblemCount: 2,
+        notReachStandardReason: '样本不足',
+        reachStandard: false,
         updatedAt: '2026-04-12T10:00:00',
         deleted: false,
       },
@@ -84,6 +108,9 @@ describe('review-data-management helpers', () => {
     expect(csv).toContain('"标题","项目","模块"');
     expect(csv).toContain('"\'=风险标题"');
     expect(csv).toContain('"0.21"');
+    expect(csv).toContain('"2.50"');
+    expect(csv).toContain('"样本不足"');
+    expect(csv).toContain('"否"');
     expect(csv).toContain('"有效"');
   });
 
@@ -114,6 +141,7 @@ describe('review-data-management helpers', () => {
 
   it('should create empty form defaults', () => {
     expect(createEmptyReviewRecordForm().reviewExperts).toEqual([]);
+    expect(createEmptyReviewRecordForm().notReachStandardReason).toBe('');
     expect(createEmptyProblemItemForm().problemStatus).toBe('');
   });
 

@@ -21,6 +21,10 @@ function displayText(value: unknown) {
 function formatDate(value?: string | null) {
   return value ? value.slice(0, 10) : '-';
 }
+
+function formatNumber(value?: number | null, digits = 2) {
+  return Number.isFinite(value) ? Number(value).toFixed(digits) : '0';
+}
 </script>
 
 <template>
@@ -50,6 +54,7 @@ function formatDate(value?: string | null) {
           <el-descriptions-item label="评审工作产品">{{ displayText(detailData.record.reviewProduct) }}</el-descriptions-item>
           <el-descriptions-item label="作者">{{ displayText(detailData.record.authorName) }}</el-descriptions-item>
           <el-descriptions-item label="评审版本">{{ displayText(detailData.record.reviewVersion) }}</el-descriptions-item>
+          <el-descriptions-item label="不达标说明">{{ displayText(detailData.record.notReachStandardReason) }}</el-descriptions-item>
         </el-descriptions>
       </section>
 
@@ -59,7 +64,14 @@ function formatDate(value?: string | null) {
         </header>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="问题合计">{{ detailData.record.problemCount }}</el-descriptions-item>
-          <el-descriptions-item label="缺陷密度">{{ detailData.record.problemDensity.toFixed(2) }}</el-descriptions-item>
+          <el-descriptions-item label="缺陷密度">{{ formatNumber(detailData.record.problemDensity) }}</el-descriptions-item>
+          <el-descriptions-item label="评审效率">{{ formatNumber(detailData.record.reviewEfficiency) }}</el-descriptions-item>
+          <el-descriptions-item label="评审速率">{{ formatNumber(detailData.record.reviewRate) }}</el-descriptions-item>
+          <el-descriptions-item label="独立评审工作量">{{ formatNumber(detailData.record.independentReviewWorkload) }}</el-descriptions-item>
+          <el-descriptions-item label="有效独立问题数">{{ detailData.record.independentReviewProblemCount ?? 0 }}</el-descriptions-item>
+          <el-descriptions-item label="会议评审工作量">{{ formatNumber(detailData.record.meetingReviewWorkload) }}</el-descriptions-item>
+          <el-descriptions-item label="有效会议问题数">{{ detailData.record.meetingReviewProblemCount ?? 0 }}</el-descriptions-item>
+          <el-descriptions-item label="是否达标">{{ detailData.record.reachStandard ? '是' : '否' }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">
             {{ displayText(detailData.record.updatedAt?.replace('T', ' ').slice(0, 19)) }}
           </el-descriptions-item>

@@ -12,40 +12,39 @@ import type {
   ReviewDataRecordSaveRequest,
   StatisticFilterGroup,
 } from '../types/api';
-import { request } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
+
+export interface ReviewDataRecordQueryParams {
+  keyword?: string;
+  title?: string;
+  projectName?: string;
+  moduleName?: string;
+  reviewOwner?: string;
+  reviewType?: string;
+  problemStatus?: string;
+  reviewExpert?: string;
+  filterGroup?: StatisticFilterGroup | null;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
 
 export const reviewDataApi = {
-  getReviewDataRecords(params: {
-    keyword?: string;
-    title?: string;
-    projectName?: string;
-    moduleName?: string;
-    reviewOwner?: string;
-    reviewType?: string;
-    problemStatus?: string;
-    reviewExpert?: string;
-    filterGroup?: StatisticFilterGroup | null;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
-    const query = new URLSearchParams({
-      page: String(params.page ?? 1),
-      size: String(params.size ?? 20),
-      ...(params.keyword ? { keyword: params.keyword } : {}),
-      ...(params.title ? { title: params.title } : {}),
-      ...(params.projectName ? { projectName: params.projectName } : {}),
-      ...(params.moduleName ? { moduleName: params.moduleName } : {}),
-      ...(params.reviewOwner ? { reviewOwner: params.reviewOwner } : {}),
-      ...(params.reviewType ? { reviewType: params.reviewType } : {}),
-      ...(params.problemStatus ? { problemStatus: params.problemStatus } : {}),
-      ...(params.reviewExpert ? { reviewExpert: params.reviewExpert } : {}),
-      ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
-      ...(params.sortBy ? { sortBy: params.sortBy } : {}),
-      ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
-    });
+  getReviewDataRecords(params: ReviewDataRecordQueryParams) {
+    const query = buildReviewDataRecordQuery(params);
     return request<ReviewDataRecordListResponse>(`/api/review-data/records?${query.toString()}`);
+  },
+  exportReviewDataRecordsWorkbook(params: ReviewDataRecordQueryParams) {
+    const query = buildReviewDataRecordQuery(params, false);
+    return fetchWorkbook(`/api/review-data/records/export${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  exportReviewDataProblemDetailsWorkbook(params: ReviewDataRecordQueryParams) {
+    const query = buildReviewDataRecordQuery(params, false);
+    return fetchWorkbook(`/api/review-data/problem-items/export${query.toString() ? `?${query.toString()}` : ''}`);
+  },
+  exportReviewDataRecordProblemDetailsWorkbook(recordId: string | number) {
+    return fetchWorkbook(`/api/review-data/records/${recordId}/problem-items/export`);
   },
   getReviewDataFilterOptions() {
     return request<ReviewDataFilterOptionsResponse>('/api/review-data/records/filter-options');
@@ -149,4 +148,28 @@ function appendOptional(formData: FormData, key: string, value?: string | null) 
   if (value && value.trim()) {
     formData.append(key, value.trim());
   }
+}
+
+function buildReviewDataRecordQuery(params: ReviewDataRecordQueryParams, includePagination = true) {
+  return new URLSearchParams({
+    ...(includePagination ? { page: String(params.page ?? 1), size: String(params.size ?? 20) } : {}),
+    ...(params.keyword ? { keyword: params.keyword } : {}),
+    ...(params.title ? { title: params.title } : {}),
+    ...(params.projectName ? { projectName: params.projectName } : {}),
+    ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+    ...(params.reviewOwner ? { reviewOwner: params.reviewOwner } : {}),
+    ...(params.reviewType ? { reviewType: params.reviewType } : {}),
+    ...(params.problemStatus ? { problemStatus: params.problemStatus } : {}),
+    ...(params.reviewExpert ? { reviewExpert: params.reviewExpert } : {}),
+    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.sortBy ? { sortBy: params.sortBy } : {}),
+    ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
+  });
+}
+
+function fetchWorkbook(url: string) {
+  return requestBlob(url, {
+    errorPrefix: 'Excel 导出失败',
+    timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+  });
 }

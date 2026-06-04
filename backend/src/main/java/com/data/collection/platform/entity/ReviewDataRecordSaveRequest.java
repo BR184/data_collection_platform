@@ -18,4 +18,35 @@ public record ReviewDataRecordSaveRequest(
     @NotNull @Min(0) Integer reviewScalePages,
     @NotBlank String reviewProduct,
     @NotBlank String authorName,
-    @NotBlank String reviewVersion) {}
+    @NotBlank String reviewVersion,
+    String notReachStandardReason,
+    Boolean createPendingProblemItems) {
+
+  public ReviewDataRecordSaveRequest(
+      String projectName,
+      String title,
+      String moduleName,
+      String reviewType,
+      LocalDate reviewDate,
+      String reviewOwner,
+      List<String> reviewExperts,
+      Integer reviewScalePages,
+      String reviewProduct,
+      String authorName,
+      String reviewVersion) {
+    this(
+        projectName,
+        title,
+        moduleName,
+        reviewType,
+        reviewDate,
+        reviewOwner,
+        reviewExperts,
+        reviewScalePages,
+        reviewProduct,
+        authorName,
+        reviewVersion,
+        null,
+        false);
+  }
+}

@@ -36,6 +36,7 @@ const form = reactive<ReviewRecordFormModel>({
   reviewProduct: '',
   authorName: '',
   reviewVersion: '',
+  notReachStandardReason: '',
 });
 
 watch(
@@ -53,6 +54,7 @@ watch(
       reviewProduct: value.reviewProduct,
       authorName: value.authorName,
       reviewVersion: value.reviewVersion,
+      notReachStandardReason: value.notReachStandardReason,
     });
   },
   { immediate: true, deep: true },
@@ -97,6 +99,8 @@ async function handleSubmit() {
     reviewProduct: form.reviewProduct.trim(),
     authorName: form.authorName.trim(),
     reviewVersion: form.reviewVersion.trim(),
+    notReachStandardReason: form.notReachStandardReason.trim(),
+    createPendingProblemItems: !props.editMode,
   });
 }
 
@@ -164,6 +168,14 @@ function handleClose() {
         <el-form-item label="评审版本" prop="reviewVersion">
           <el-input v-model="form.reviewVersion" placeholder="请输入评审版本" />
         </el-form-item>
+        <el-form-item label="不达标说明" prop="notReachStandardReason" class="review-form-wide">
+          <el-input
+            v-model="form.notReachStandardReason"
+            type="textarea"
+            :rows="2"
+            placeholder="评审缺陷密度不达标时填写原因说明"
+          />
+        </el-form-item>
       </div>
     </el-form>
 
@@ -205,6 +217,10 @@ function handleClose() {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.review-form-wide {
+  grid-column: 1 / -1;
 }
 
 :deep(.el-input-number .el-input__wrapper) {

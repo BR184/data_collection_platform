@@ -7,6 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ReviewDataRecordCommandService {
+  private static final String DEFAULT_PENDING_REVIEW_STATUS = "未评审";
+  private static final String DEFAULT_PENDING_REVIEW_CATEGORY = "独立评审";
+  private static final String DEFAULT_PENDING_PROBLEM_CATEGORY = "无问题";
+  private static final String DEFAULT_PENDING_PROBLEM_DESCRIPTION = "待评审";
+
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
 
   public ReviewDataRecordCommandService(ReviewDataRecordPersistenceSupport persistenceSupport) {
@@ -26,12 +31,16 @@ public class ReviewDataRecordCommandService {
             request.reviewScalePages(),
             request.reviewProduct(),
             request.authorName(),
-            request.reviewVersion());
+            request.reviewVersion(),
+            request.notReachStandardReason());
     if (recordId == null) {
       throw new IllegalStateException("创建评审记录失败");
     }
 
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
+    if (Boolean.TRUE.equals(request.createPendingProblemItems())) {
+      createPendingProblemItems(recordId, request.reviewExperts());
+    }
     persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
   }
@@ -50,7 +59,8 @@ public class ReviewDataRecordCommandService {
         request.reviewScalePages(),
         request.reviewProduct(),
         request.authorName(),
-        request.reviewVersion());
+        request.reviewVersion(),
+        request.notReachStandardReason());
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
     persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
@@ -112,6 +122,30 @@ public class ReviewDataRecordCommandService {
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.assertProblemItemExists(recordId, itemId);
     persistenceSupport.softDeleteProblemItem(recordId, itemId);
+    persistenceSupport.touchRecord(recordId);
+  }
+
+  private void createPendingProblemItems(Long recordId, java.util.List<String> experts) {
+    if (experts == null || experts.isEmpty()) {
+      return;
+    }
+    for (String expert : experts) {
+      if (TextQuerySupport.trimToNull(expert) == null) {
+        continue;
+      }
+      persistenceSupport.insertProblemItem(
+          recordId,
+          expert,
+          0D,
+          DEFAULT_PENDING_REVIEW_CATEGORY,
+          "",
+          DEFAULT_PENDING_PROBLEM_CATEGORY,
+          DEFAULT_PENDING_PROBLEM_DESCRIPTION,
+          "",
+          "",
+          "",
+          DEFAULT_PENDING_REVIEW_STATUS);
+    }
     persistenceSupport.touchRecord(recordId);
   }
 }

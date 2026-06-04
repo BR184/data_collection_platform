@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { ArrowDown } from '@element-plus/icons-vue';
-// 评审数据行操作集中收口查看、编辑和问题项展开入口，保证表格每一行的动作顺序一致。
-// 组件只发出意图事件，确认弹窗和接口调用由页面动作层统一处理。
 
 defineProps<{
   row: Record<string, unknown>;
@@ -10,6 +8,7 @@ defineProps<{
   onOpenDetail: (row: Record<string, unknown>) => void | Promise<void>;
   onEditRecord: (row: Record<string, unknown>) => void | Promise<void>;
   onCreateProblemItem: (row: Record<string, unknown>) => void | Promise<void>;
+  onExportProblemDetails: (row: Record<string, unknown>) => void | Promise<void>;
   onDeleteRecord: (row: Record<string, unknown>) => void | Promise<void>;
 }>();
 </script>
@@ -26,7 +25,9 @@ defineProps<{
     >
       {{ expanded ? '收起' : '清单' }}
     </el-button>
-    <el-button class="record-actions-link" type="primary" plain size="small" @click="onOpenDetail(row)">查看</el-button>
+    <el-button class="record-actions-link" type="primary" plain size="small" @click="onOpenDetail(row)">
+      查看
+    </el-button>
     <el-dropdown>
       <span class="record-actions-more">
         更多
@@ -36,6 +37,7 @@ defineProps<{
         <el-dropdown-menu>
           <el-dropdown-item @click="onEditRecord(row)">编辑评审</el-dropdown-item>
           <el-dropdown-item @click="onCreateProblemItem(row)">新增问题</el-dropdown-item>
+          <el-dropdown-item @click="onExportProblemDetails(row)">导出问题详情</el-dropdown-item>
           <el-dropdown-item divided @click="onDeleteRecord(row)">删除评审</el-dropdown-item>
         </el-dropdown-menu>
       </template>

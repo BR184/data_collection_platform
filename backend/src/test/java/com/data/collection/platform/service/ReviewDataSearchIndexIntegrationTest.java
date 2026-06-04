@@ -138,6 +138,47 @@ class ReviewDataSearchIndexIntegrationTest {
         .containsExactly("\u9700\u6c42\u8bc4\u5ba1\u5355");
   }
 
+  @Test
+  void shouldCreatePendingProblemItemsForExpertsWithoutCountingThemAsDefects() {
+    ReviewDataRecordDetailResponse created =
+        reviewDataRecordService.createRecord(
+            new ReviewDataRecordSaveRequest(
+                "\u9879\u76eeA",
+                "\u9700\u6c42\u8bc4\u5ba1\u5355",
+                "\u6a21\u5757A",
+                "\u9700\u6c42\u8bf4\u660e\u4e66\u8bc4\u5ba1",
+                LocalDate.of(2026, 4, 29),
+                "\u8d1f\u8d23\u4ebaA",
+                List.of("\u4e13\u5bb6A", "\u4e13\u5bb6B"),
+                10,
+                "\u9700\u6c42\u6587\u6863",
+                "\u4f5c\u8005A",
+                "V1.0",
+                "\u7f3a\u5c11\u4f1a\u8bae\u8bb0\u5f55",
+                true));
+
+    assertThat(created.record().problemCount()).isZero();
+    assertThat(created.record().notReachStandardReason()).isEqualTo("\u7f3a\u5c11\u4f1a\u8bae\u8bb0\u5f55");
+    assertThat(created.problemItems())
+        .extracting(item -> item.reviewerName())
+        .containsExactlyInAnyOrder("\u4e13\u5bb6A", "\u4e13\u5bb6B");
+    assertThat(created.problemItems())
+        .allSatisfy(
+            item -> {
+              assertThat(item.problemStatus()).isEqualTo("\u672a\u8bc4\u5ba1");
+              assertThat(item.problemCategory()).isEqualTo("\u65e0\u95ee\u9898");
+              assertThat(item.workloadHours()).isZero();
+            });
+
+    ReviewDataRecordListResponse response =
+        reviewDataRecordService.listRecords(
+            new ReviewDataRecordQueryRequest(
+                null, null, null, null, null, null, null, null, null, 1, 20, "title", "asc"));
+    assertThat(response.records()).hasSize(1);
+    assertThat(response.records().getFirst().problemCount()).isZero();
+    assertThat(response.records().getFirst().problemDensity()).isZero();
+  }
+
   private List<String> titlesForKeyword(String keyword) {
     ReviewDataRecordListResponse response =
         reviewDataRecordService.listRecords(

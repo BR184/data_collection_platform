@@ -19,10 +19,14 @@ import com.data.collection.platform.service.ReviewDataLegacyExcelConfirmResponse
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportRequest;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataLegacyExcelPreviewResponse;
+import com.data.collection.platform.service.ReviewDataExcelExportService;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,16 +47,19 @@ public class ReviewDataController {
   private final ReviewDataRecordService reviewDataRecordService;
   private final ReviewDataRequestAssembler reviewDataRequestAssembler;
   private final ReviewDataLegacyExcelImportService legacyExcelImportService;
+  private final ReviewDataExcelExportService excelExportService;
   private final ReviewDataProperties reviewDataProperties;
 
   public ReviewDataController(
       ReviewDataRecordService reviewDataRecordService,
       ReviewDataRequestAssembler reviewDataRequestAssembler,
       ReviewDataLegacyExcelImportService legacyExcelImportService,
+      ReviewDataExcelExportService excelExportService,
       ReviewDataProperties reviewDataProperties) {
     this.reviewDataRecordService = reviewDataRecordService;
     this.reviewDataRequestAssembler = reviewDataRequestAssembler;
     this.legacyExcelImportService = legacyExcelImportService;
+    this.excelExportService = excelExportService;
     this.reviewDataProperties = reviewDataProperties;
   }
 
@@ -71,6 +78,27 @@ public class ReviewDataController {
   @GetMapping("/records/{recordId}")
   public ApiResponse<ReviewDataRecordDetailResponse> getRecordDetail(@PathVariable Long recordId) {
     return ApiResponse.success(reviewDataRecordService.getRecordDetail(recordId));
+  }
+
+  @GetMapping("/records/export")
+  public ResponseEntity<byte[]> exportRecords(@ModelAttribute ReviewDataRecordListRequest request) {
+    return excelResponse(
+        excelExportService.exportReviewRecordsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
+        "review-data-records.xlsx");
+  }
+
+  @GetMapping("/problem-items/export")
+  public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request) {
+    return excelResponse(
+        excelExportService.exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
+        "review-data-problem-details.xlsx");
+  }
+
+  @GetMapping("/records/{recordId}/problem-items/export")
+  public ResponseEntity<byte[]> exportRecordProblemDetails(@PathVariable Long recordId) {
+    return excelResponse(
+        excelExportService.exportProblemDetailsWorkbook(recordId),
+        "review-data-problem-details-" + recordId + ".xlsx");
   }
 
   @PostMapping("/records")
@@ -142,6 +170,15 @@ public class ReviewDataController {
   private String formatFileSize(long bytes) {
     long megabytes = Math.max(1L, bytes / 1024L / 1024L);
     return megabytes + "MB";
+  }
+
+  private ResponseEntity<byte[]> excelResponse(byte[] workbook, String filename) {
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+        .contentType(
+            MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .body(workbook);
   }
 
   @PostMapping("/legacy-excel-import/confirm")

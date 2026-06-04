@@ -22,6 +22,14 @@ export interface ReviewDataRecordRowResponse {
   reviewVersion: string;
   problemCount: number;
   problemDensity: number;
+  reviewEfficiency?: number | null;
+  reviewRate?: number | null;
+  independentReviewWorkload?: number | null;
+  independentReviewProblemCount?: number | null;
+  meetingReviewWorkload?: number | null;
+  meetingReviewProblemCount?: number | null;
+  notReachStandardReason?: string | null;
+  reachStandard?: boolean | null;
   updatedAt?: string | null;
   deleted: boolean;
   gitlabProjectId?: number | null;
@@ -84,6 +92,8 @@ export interface ReviewDataRecordSaveRequest {
   reviewProduct: string;
   authorName: string;
   reviewVersion: string;
+  notReachStandardReason?: string | null;
+  createPendingProblemItems?: boolean | null;
 }
 
 export interface ReviewDataGitlabContextRefreshRequest {

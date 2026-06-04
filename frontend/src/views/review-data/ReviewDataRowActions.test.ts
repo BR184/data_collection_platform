@@ -10,6 +10,7 @@ describe('ReviewDataRowActions', () => {
     const onOpenDetail = vi.fn();
     const onEditRecord = vi.fn();
     const onCreateProblemItem = vi.fn();
+    const onExportProblemDetails = vi.fn();
     const onDeleteRecord = vi.fn();
 
     const wrapper = mount(ReviewDataRowActions, {
@@ -21,6 +22,7 @@ describe('ReviewDataRowActions', () => {
         onOpenDetail,
         onEditRecord,
         onCreateProblemItem,
+        onExportProblemDetails,
         onDeleteRecord,
       },
     });
@@ -36,9 +38,11 @@ describe('ReviewDataRowActions', () => {
     (items[0] as HTMLElement)?.click();
     (items[1] as HTMLElement)?.click();
     (items[2] as HTMLElement)?.click();
+    (items[3] as HTMLElement)?.click();
 
     expect(onEditRecord).toHaveBeenCalledWith(row);
     expect(onCreateProblemItem).toHaveBeenCalledWith(row);
+    expect(onExportProblemDetails).toHaveBeenCalledWith(row);
     expect(onDeleteRecord).toHaveBeenCalledWith(row);
   });
 });
