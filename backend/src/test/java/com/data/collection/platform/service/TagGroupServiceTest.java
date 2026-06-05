@@ -31,15 +31,15 @@ class TagGroupServiceTest {
             invocation -> {
               RowMapper<?> mapper = invocation.getArgument(1);
               return List.of(
-                  mapValue(mapper, 11L, 1L, "sketch", "草图", "standard", 1, false, null));
+                  mapValue(mapper, 11L, 1L, "sketch", "草图", "standard", 1, false));
             });
     when(jdbcTemplate.query(ArgumentMatchers.contains("from tag_value_mapping"), ArgumentMatchers.any(RowMapper.class)))
         .thenAnswer(
             invocation -> {
               RowMapper<?> mapper = invocation.getArgument(1);
               return List.of(
-                  mapMapping(mapper, 101L, 11L, "global-sketch", null),
-                  mapMapping(mapper, 102L, 11L, "cc-sketch", "cc"));
+                  mapMapping(mapper, 101L, 11L, "global-sketch", null, "placeholder_value"),
+                  mapMapping(mapper, 102L, 11L, "cc-sketch", "cc", null));
             });
 
     TagGroupService service = new TagGroupService(jdbcTemplate);
@@ -52,6 +52,8 @@ class TagGroupServiceTest {
     assertThat(response.groups()).hasSize(1);
     assertThat(response.groups().getFirst().matchStrategyName()).isEqualTo("split_exact_comma");
     assertThat(response.groups().getFirst().values().getFirst().label()).isEqualTo("草图");
+    assertThat(response.groups().getFirst().values().getFirst().unmappedReason())
+        .isEqualTo("placeholder_value");
     assertThat(mappings).containsExactly("cc-sketch");
   }
 
@@ -66,6 +68,19 @@ class TagGroupServiceTest {
     service.getTagGroups("issue");
     service.reload();
     service.getTagGroups("issue");
+
+    verify(jdbcTemplate, times(6)).query(ArgumentMatchers.anyString(), ArgumentMatchers.any(RowMapper.class));
+  }
+
+  @Test
+  void shouldLoadAtStartupAndRefreshScheduledCacheEveryTime() {
+    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+    when(jdbcTemplate.query(ArgumentMatchers.anyString(), ArgumentMatchers.any(RowMapper.class)))
+        .thenReturn(List.of());
+    TagGroupService service = new TagGroupService(jdbcTemplate);
+
+    service.loadAtStartup();
+    service.refreshExpiredCache();
 
     verify(jdbcTemplate, times(6)).query(ArgumentMatchers.anyString(), ArgumentMatchers.any(RowMapper.class));
   }
@@ -99,8 +114,7 @@ class TagGroupServiceTest {
       String label,
       String valueType,
       int sortOrder,
-      boolean disabled,
-      String unmappedReason)
+      boolean disabled)
       throws Exception {
     ResultSet rs = mock(ResultSet.class);
     when(rs.getLong("id")).thenReturn(id);
@@ -110,7 +124,6 @@ class TagGroupServiceTest {
     when(rs.getString("value_type")).thenReturn(valueType);
     when(rs.getInt("sort_order")).thenReturn(sortOrder);
     when(rs.getBoolean("disabled")).thenReturn(disabled);
-    when(rs.getString("unmapped_reason")).thenReturn(unmappedReason);
     return mapper.mapRow(rs, 0);
   }
 
@@ -119,13 +132,15 @@ class TagGroupServiceTest {
       Long id,
       Long valueId,
       String rawValue,
-      String sourceInstance)
+      String sourceInstance,
+      String unmappedReason)
       throws Exception {
     ResultSet rs = mock(ResultSet.class);
     when(rs.getLong("id")).thenReturn(id);
     when(rs.getLong("value_id")).thenReturn(valueId);
     when(rs.getString("raw_value")).thenReturn(rawValue);
     when(rs.getString("source_instance")).thenReturn(sourceInstance);
+    when(rs.getString("unmapped_reason")).thenReturn(unmappedReason);
     return mapper.mapRow(rs, 0);
   }
 }

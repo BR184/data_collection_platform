@@ -63,6 +63,12 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void normalizeModuleNamesContractStableForTagGroupConversion() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：草图")))
+        .containsExactly("草图");
+  }
+
+  @Test
   void shouldRecognizeBareKnownModuleLabelsOnly() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
         "草图",

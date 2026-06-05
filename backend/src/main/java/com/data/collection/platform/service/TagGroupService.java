@@ -1,6 +1,9 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.TagGroupResponse;
+import com.data.collection.platform.entity.TagGroupAdminMappingResponse;
+import com.data.collection.platform.entity.TagGroupAdminResponse;
+import com.data.collection.platform.entity.TagGroupAdminValueResponse;
 import com.data.collection.platform.entity.TagGroupValueResponse;
 import com.data.collection.platform.entity.TagGroupsResponse;
 import jakarta.annotation.PostConstruct;
@@ -40,10 +43,7 @@ public class TagGroupService {
 
   @Scheduled(fixedDelayString = "${platform.tag-groups.cache-ttl-ms:1800000}")
   public void refreshExpiredCache() {
-    CacheSnapshot current = cache;
-    if (current == null || current.loadedAt().plus(CACHE_TTL).isBefore(Instant.now())) {
-      reload();
-    }
+    reload();
   }
 
   public synchronized void reload() {
@@ -71,8 +71,7 @@ public class TagGroupService {
                    label,
                    value_type,
                    sort_order,
-                   disabled,
-                   unmapped_reason
+                   disabled
               from tag_value
              where enabled = true
              order by group_id, sort_order, value_key
@@ -84,7 +83,8 @@ public class TagGroupService {
             select id,
                    value_id,
                    raw_value,
-                   source_instance
+                   source_instance,
+                   unmapped_reason
               from tag_value_mapping
              where enabled = true
                and lower(coalesce(match_type, 'exact')) <> 'regex'
@@ -110,7 +110,7 @@ public class TagGroupService {
                           value.valueType(),
                           value.sortOrder(),
                           value.disabled(),
-                          value.unmappedReason()))
+                          snapshot.unmappedReasonsByValueId().get(value.id())))
               .toList();
       responses.add(
           new TagGroupResponse(
@@ -122,6 +122,109 @@ public class TagGroupService {
               valueResponses));
     }
     return new TagGroupsResponse(normalizedDomain, schemaHash(responses), responses);
+  }
+
+  public List<TagGroupAdminResponse> getAllTagGroups() {
+    Map<Long, TagGroupAdminResponseBuilder> groups = new LinkedHashMap<>();
+    jdbcTemplate.query(
+        """
+        select id,
+               lower(domain) as domain,
+               group_key,
+               label,
+               selection_mode,
+               sort_order,
+               match_strategy_name,
+               enabled,
+               remark
+          from tag_group
+         order by lower(domain), sort_order, group_key
+        """,
+        rs -> {
+          long groupId = rs.getLong("id");
+          groups.put(
+              groupId,
+              new TagGroupAdminResponseBuilder(
+                  groupId,
+                  normalizeDomain(rs.getString("domain")),
+                  normalizeKey(rs.getString("group_key")),
+                  TextQuerySupport.normalizeDisplay(rs.getString("label")),
+                  normalizeSelectionMode(rs.getString("selection_mode")),
+                  rs.getInt("sort_order"),
+                  TagGroupMatchStrategyRegistry.normalize(rs.getString("match_strategy_name")),
+                  rs.getBoolean("enabled"),
+                  TextQuerySupport.trimToNull(rs.getString("remark"))));
+        });
+
+    Map<Long, TagGroupAdminValueResponseBuilder> values = new LinkedHashMap<>();
+    jdbcTemplate.query(
+        """
+        select id,
+               group_id,
+               value_key,
+               label,
+               value_type,
+               sort_order,
+               enabled,
+               disabled,
+               remark
+          from tag_value
+         order by group_id, sort_order, value_key
+        """,
+        rs -> {
+          long valueId = rs.getLong("id");
+          TagGroupAdminResponseBuilder group = groups.get(rs.getLong("group_id"));
+          if (group == null) {
+            return;
+          }
+          TagGroupAdminValueResponseBuilder value =
+              new TagGroupAdminValueResponseBuilder(
+                  valueId,
+                  normalizeKey(rs.getString("value_key")),
+                  TextQuerySupport.normalizeDisplay(rs.getString("label")),
+                  normalizeValueType(rs.getString("value_type")),
+                  rs.getInt("sort_order"),
+                  rs.getBoolean("enabled"),
+                  rs.getBoolean("disabled"),
+                  TextQuerySupport.trimToNull(rs.getString("remark")));
+          values.put(valueId, value);
+          group.values().add(value);
+        });
+
+    jdbcTemplate.query(
+        """
+        select id,
+               value_id,
+               source_type,
+               source_field,
+               raw_value,
+               match_type,
+               source_instance,
+               unmapped_reason,
+               enabled,
+               remark
+          from tag_value_mapping
+         order by value_id, source_instance nulls last, raw_value
+        """,
+        rs -> {
+          TagGroupAdminValueResponseBuilder value = values.get(rs.getLong("value_id"));
+          if (value == null) {
+            return;
+          }
+          value.mappings().add(
+              new TagGroupAdminMappingResponse(
+                  rs.getLong("id"),
+                  normalizeKey(rs.getString("source_type")),
+                  TextQuerySupport.trimToNull(rs.getString("source_field")),
+                  TextQuerySupport.normalizeDisplay(rs.getString("raw_value")),
+                  normalizeKey(rs.getString("match_type")),
+                  TextQuerySupport.trimToNull(rs.getString("source_instance")),
+                  TextQuerySupport.trimToNull(rs.getString("unmapped_reason")),
+                  rs.getBoolean("enabled"),
+                  TextQuerySupport.trimToNull(rs.getString("remark"))));
+        });
+
+    return groups.values().stream().map(TagGroupAdminResponseBuilder::build).toList();
   }
 
   public List<String> resolveMappings(
@@ -174,8 +277,7 @@ public class TagGroupService {
         TextQuerySupport.normalizeDisplay(rs.getString("label")),
         normalizeValueType(rs.getString("value_type")),
         rs.getInt("sort_order"),
-        rs.getBoolean("disabled"),
-        TextQuerySupport.trimToNull(rs.getString("unmapped_reason")));
+        rs.getBoolean("disabled"));
   }
 
   private TagValueMappingRecord mapMapping(ResultSet rs, int rowNum) throws SQLException {
@@ -183,7 +285,8 @@ public class TagGroupService {
         rs.getLong("id"),
         rs.getLong("value_id"),
         TextQuerySupport.normalizeDisplay(rs.getString("raw_value")),
-        TextQuerySupport.trimToNull(rs.getString("source_instance")));
+        TextQuerySupport.trimToNull(rs.getString("source_instance")),
+        TextQuerySupport.trimToNull(rs.getString("unmapped_reason")));
   }
 
   private static String normalizeDomain(String value) {
@@ -260,19 +363,20 @@ public class TagGroupService {
       String label,
       String valueType,
       int sortOrder,
-      boolean disabled,
-      String unmappedReason) {}
+      boolean disabled) {}
 
   private record TagValueMappingRecord(
       long id,
       long valueId,
       String rawValue,
-      String sourceInstance) {}
+      String sourceInstance,
+      String unmappedReason) {}
 
   private record CacheSnapshot(
       Map<String, List<TagGroupRecord>> groupsByDomain,
       Map<Long, List<TagValueRecord>> valuesByGroupId,
       Map<String, List<TagValueMappingRecord>> mappingsByDomainGroupAndValue,
+      Map<Long, String> unmappedReasonsByValueId,
       Instant loadedAt) {
 
     static CacheSnapshot from(
@@ -295,10 +399,14 @@ public class TagGroupService {
       }
 
       Map<String, List<TagValueMappingRecord>> mappingsByDomainGroupAndValue = new LinkedHashMap<>();
+      Map<Long, String> unmappedReasonsByValueId = new LinkedHashMap<>();
       for (TagValueMappingRecord mapping : mappings) {
         TagValueRecord value = valueById.get(mapping.valueId());
         if (value == null) {
           continue;
+        }
+        if (TextQuerySupport.trimToNull(mapping.unmappedReason()) != null) {
+          unmappedReasonsByValueId.putIfAbsent(mapping.valueId(), mapping.unmappedReason());
         }
         TagGroupRecord group = groupById.get(value.groupId());
         if (group == null) {
@@ -314,7 +422,95 @@ public class TagGroupService {
           Map.copyOf(groupsByDomain),
           Map.copyOf(valuesByGroupId),
           Map.copyOf(mappingsByDomainGroupAndValue),
+          Map.copyOf(unmappedReasonsByValueId),
           loadedAt);
+    }
+  }
+
+  private record TagGroupAdminResponseBuilder(
+      long id,
+      String domain,
+      String groupKey,
+      String label,
+      String selectionMode,
+      int sortOrder,
+      String matchStrategyName,
+      boolean enabled,
+      String remark,
+      List<TagGroupAdminValueResponseBuilder> values) {
+
+    TagGroupAdminResponseBuilder(
+        long id,
+        String domain,
+        String groupKey,
+        String label,
+        String selectionMode,
+        int sortOrder,
+        String matchStrategyName,
+        boolean enabled,
+        String remark) {
+      this(
+          id,
+          domain,
+          groupKey,
+          label,
+          selectionMode,
+          sortOrder,
+          matchStrategyName,
+          enabled,
+          remark,
+          new ArrayList<>());
+    }
+
+    TagGroupAdminResponse build() {
+      return new TagGroupAdminResponse(
+          id,
+          domain,
+          groupKey,
+          label,
+          selectionMode,
+          sortOrder,
+          matchStrategyName,
+          enabled,
+          remark,
+          values.stream().map(TagGroupAdminValueResponseBuilder::build).toList());
+    }
+  }
+
+  private record TagGroupAdminValueResponseBuilder(
+      long id,
+      String valueKey,
+      String label,
+      String valueType,
+      int sortOrder,
+      boolean enabled,
+      boolean disabled,
+      String remark,
+      List<TagGroupAdminMappingResponse> mappings) {
+
+    TagGroupAdminValueResponseBuilder(
+        long id,
+        String valueKey,
+        String label,
+        String valueType,
+        int sortOrder,
+        boolean enabled,
+        boolean disabled,
+        String remark) {
+      this(id, valueKey, label, valueType, sortOrder, enabled, disabled, remark, new ArrayList<>());
+    }
+
+    TagGroupAdminValueResponse build() {
+      return new TagGroupAdminValueResponse(
+          id,
+          valueKey,
+          label,
+          valueType,
+          sortOrder,
+          enabled,
+          disabled,
+          remark,
+          List.copyOf(mappings));
     }
   }
 }

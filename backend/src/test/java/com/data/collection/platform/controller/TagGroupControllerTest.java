@@ -1,6 +1,5 @@
 package com.data.collection.platform.controller;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
+import com.data.collection.platform.entity.TagGroupAdminMappingResponse;
+import com.data.collection.platform.entity.TagGroupAdminResponse;
+import com.data.collection.platform.entity.TagGroupAdminValueResponse;
 import com.data.collection.platform.entity.TagGroupResponse;
 import com.data.collection.platform.entity.TagGroupValueResponse;
 import com.data.collection.platform.entity.TagGroupsResponse;
@@ -78,5 +80,53 @@ class TagGroupControllerTest {
         .andExpect(jsonPath("$.success").value(true));
 
     verify(tagGroupService).reload();
+  }
+
+  @Test
+  void shouldReturnAllTagGroupConfigsForAdminEndpoint() throws Exception {
+    when(tagGroupService.getAllTagGroups())
+        .thenReturn(
+            List.of(
+                new TagGroupAdminResponse(
+                    1L,
+                    "issue",
+                    "module",
+                    "模块",
+                    "multiple",
+                    10,
+                    "split_exact_comma",
+                    true,
+                    "模块组",
+                    List.of(
+                        new TagGroupAdminValueResponse(
+                            11L,
+                            "sketch",
+                            "草图",
+                            "standard",
+                            1,
+                            true,
+                            false,
+                            null,
+                            List.of(
+                                new TagGroupAdminMappingResponse(
+                                    101L,
+                                    "normalized_field",
+                                    "module_names",
+                                    "草图",
+                                    "exact",
+                                    "cc",
+                                    "placeholder_value",
+                                    true,
+                                    null)))))));
+
+    mockMvc.perform(get("/api/admin/tag-groups/all"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data[0].domain").value("issue"))
+        .andExpect(jsonPath("$.data[0].values[0].valueKey").value("sketch"))
+        .andExpect(jsonPath("$.data[0].values[0].mappings[0].sourceType").value("normalized_field"))
+        .andExpect(jsonPath("$.data[0].values[0].mappings[0].unmappedReason").value("placeholder_value"));
+
+    verify(tagGroupService).getAllTagGroups();
   }
 }
