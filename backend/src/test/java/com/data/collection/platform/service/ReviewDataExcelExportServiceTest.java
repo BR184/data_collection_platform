@@ -130,6 +130,7 @@ class ReviewDataExcelExportServiceTest {
         "样本不足",
         true,
         LocalDateTime.of(2026, 4, 12, 10, 0),
+        LocalDateTime.of(2026, 4, 12, 10, 0),
         false,
         null,
         null,

@@ -101,7 +101,7 @@ public class ReviewDataLegacyExcelParser {
       moduleName = extractModuleName(title);
     }
     if (isBlank(moduleName)) {
-      issues.add(issue(rowNumber, "moduleName", ReviewDataLegacyExcelIssueLevel.ERROR, "模块不能为空"));
+      issues.add(issue(rowNumber, "moduleName", ReviewDataLegacyExcelIssueLevel.WARNING, "模块为空，将按“未归类模块”导入"));
     }
     if (isBlank(reviewType)) {
       issues.add(issue(rowNumber, "reviewType", ReviewDataLegacyExcelIssueLevel.ERROR, "评审类型不能为空，请确认导出文件包含文档类型/sourceType列"));

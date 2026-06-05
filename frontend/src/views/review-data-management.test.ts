@@ -12,6 +12,7 @@ import {
   buildReviewDataTableRows,
   createEmptyProblemItemForm,
   createEmptyReviewRecordForm,
+  reviewDataColumns,
 } from './review-data-management';
 
 describe('review-data-management helpers', () => {
@@ -72,6 +73,13 @@ describe('review-data-management helpers', () => {
     expect((tableRows[0].reachStandard as Array<{ label: string }>)[0].label).toBe('是');
     expect(tableRows[0].reviewDate).toBe('2026-04-10');
     expect(tableRows[0].updatedAt).toBe('2026-04-12 10:00:00');
+  });
+
+  it('should keep title and reach-standard columns fixed on the left', () => {
+    const columns = reviewDataColumns();
+
+    expect(columns[0]).toMatchObject({ key: 'title', fixed: 'left' });
+    expect(columns[1]).toMatchObject({ key: 'reachStandard', fixed: 'left' });
   });
 
   it('should export review data rows as Excel friendly csv', () => {

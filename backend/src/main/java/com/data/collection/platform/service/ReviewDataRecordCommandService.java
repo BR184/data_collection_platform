@@ -1,7 +1,9 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +77,24 @@ public class ReviewDataRecordCommandService {
   @Transactional
   public Long createProblemItem(Long recordId, ReviewDataProblemItemSaveRequest request) {
     persistenceSupport.assertRecordExists(recordId);
+    ReviewDataProblemItemResponse pendingItem = findPendingProblemItem(recordId, request.reviewerName());
+    if (pendingItem != null) {
+      persistenceSupport.updateProblemItem(
+          recordId,
+          pendingItem.id(),
+          request.reviewerName(),
+          request.workloadHours(),
+          request.reviewCategory(),
+          request.documentPosition(),
+          request.problemCategory(),
+          request.problemDescription(),
+          request.suggestedSolution(),
+          request.ownerName(),
+          request.rejectionReason(),
+          request.problemStatus());
+      persistenceSupport.touchRecord(recordId);
+      return pendingItem.id();
+    }
     Long itemId =
         persistenceSupport.insertProblemItem(
             recordId,
@@ -147,5 +167,17 @@ public class ReviewDataRecordCommandService {
           DEFAULT_PENDING_REVIEW_STATUS);
     }
     persistenceSupport.touchRecord(recordId);
+  }
+
+  private ReviewDataProblemItemResponse findPendingProblemItem(Long recordId, String reviewerName) {
+    String normalizedReviewer = TextQuerySupport.normalizeForMatch(reviewerName);
+    if (normalizedReviewer == null) {
+      return null;
+    }
+    return persistenceSupport.listProblemItems(recordId).stream()
+        .filter(item -> Objects.equals(TextQuerySupport.normalizeForMatch(item.reviewerName()), normalizedReviewer))
+        .filter(item -> DEFAULT_PENDING_REVIEW_STATUS.equals(item.problemStatus()))
+        .findFirst()
+        .orElse(null);
   }
 }

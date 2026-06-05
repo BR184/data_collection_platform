@@ -44,6 +44,7 @@ export interface ReviewProblemItemFormModel {
 export function reviewDataColumns(): RecordTableColumn[] {
   return [
     { key: 'title', label: '标题', sortable: true, width: 300, fixed: 'left' },
+    { key: 'reachStandard', label: '是否达标', type: 'tag', sortable: true, width: 110, align: 'center', fixed: 'left' },
     { key: 'projectName', label: '项目', sortable: true, width: 120 },
     { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 110, align: 'right' },
@@ -58,7 +59,6 @@ export function reviewDataColumns(): RecordTableColumn[] {
     { key: 'meetingReviewWorkload', label: '会议评审工作量(小时）', sortable: true, width: 120, align: 'right' },
     { key: 'meetingReviewProblemCount', label: '有效的会议评审问题数合计(个)', sortable: true, width: 150, align: 'right' },
     { key: 'notReachStandardReason', label: '不达标说明', width: 150 },
-    { key: 'reachStandard', label: '是否达标', type: 'tag', sortable: true, width: 110, align: 'center' },
   ];
 }
 

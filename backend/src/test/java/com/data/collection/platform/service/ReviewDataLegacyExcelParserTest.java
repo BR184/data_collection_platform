@@ -170,9 +170,43 @@ class ReviewDataLegacyExcelParserTest {
     assertEquals(1, preview.totalRows());
     assertEquals(1, preview.importableRows());
     assertTrue(preview.rows().getFirst().importable());
-    assertTrue(preview.rows().getFirst().record().reviewOwner().isBlank());
-    assertTrue(preview.rows().getFirst().record().reviewExperts().isEmpty());
+    assertEquals("历史导入", preview.rows().getFirst().record().reviewOwner());
+    assertEquals("历史导入", preview.rows().getFirst().record().reviewExperts().getFirst());
     assertEquals("CC2026R4", preview.rows().getFirst().record().reviewVersion());
+    assertTrue(preview.rows().getFirst().issues().stream().noneMatch(issue -> issue.level() == ReviewDataLegacyExcelIssueLevel.ERROR));
+  }
+
+  @Test
+  void shouldImportLegacyRowsWithMissingModuleAndOwnerAsWarnings() throws Exception {
+    byte[] workbook =
+        workbook(
+            List.of(
+                "评审的工作产品",
+                "评审类别",
+                "文档类型",
+                "评审缺陷个数",
+                "文档规范",
+                "完整性规范",
+                "功能性规范",
+                "可行性规范",
+                "评审规模",
+                "所属项目"),
+            List.of("无模块标题需求说明书评审", "[独立评审]", "需求说明书评审", 1, 1, 0, 0, 0, 10, "CC2026R4"));
+    ReviewDataLegacyExcelImportRequest request =
+        new ReviewDataLegacyExcelImportRequest(null, "", List.of(), "", "", "已关闭", "SKIP");
+
+    ReviewDataLegacyExcelImportService service =
+        new ReviewDataLegacyExcelImportService(new ReviewDataLegacyExcelParser(), null, null);
+    ReviewDataLegacyExcelPreviewResponse preview =
+        service.preview(new ByteArrayInputStream(workbook), "legacy.xlsx", null, request);
+
+    assertEquals(1, preview.totalRows());
+    assertEquals(1, preview.importableRows());
+    assertEquals(1, preview.warningRows());
+    assertEquals(0, preview.errorRows());
+    assertEquals("未归类模块", preview.rows().getFirst().record().moduleName());
+    assertEquals("历史导入", preview.rows().getFirst().record().reviewOwner());
+    assertEquals("历史导入", preview.rows().getFirst().record().reviewExperts().getFirst());
     assertTrue(preview.rows().getFirst().issues().stream().noneMatch(issue -> issue.level() == ReviewDataLegacyExcelIssueLevel.ERROR));
   }
 
@@ -282,8 +316,8 @@ class ReviewDataLegacyExcelParserTest {
 
     assertEquals(1, confirm.importedRecords());
     assertEquals(1, records.size());
-    assertTrue(records.getFirst().reviewOwner().isBlank());
-    assertTrue(records.getFirst().reviewExperts().isEmpty());
+    assertEquals("历史导入", records.getFirst().reviewOwner());
+    assertEquals("历史导入", records.getFirst().reviewExperts().getFirst());
   }
 
   @Test

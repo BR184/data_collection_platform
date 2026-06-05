@@ -19,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReviewDataLegacyExcelImportService {
   private static final String DEFAULT_PROBLEM_STATUS = "已关闭";
   private static final String DEFAULT_REVIEW_CATEGORY = "独立评审";
+  private static final String FALLBACK_MODULE_NAME = "未归类模块";
+  private static final String FALLBACK_REVIEW_OWNER = "历史导入";
+  private static final String FALLBACK_REVIEW_EXPERT = "历史导入";
+  private static final String FALLBACK_REVIEW_VERSION = "历史导入";
   private static final long PREVIEW_TTL_SECONDS = 30 * 60L;
   private static final int MAX_PREVIEW_CACHE_SIZE = 100;
 
@@ -128,7 +132,7 @@ public class ReviewDataLegacyExcelImportService {
         importableRows,
         estimatedProblemItems,
         previewRows,
-        allIssues);
+        distinctIssues(allIssues));
   }
 
   private ReviewDataLegacyExcelImportRequest toImportRequest(ReviewDataLegacyExcelConfirmRequest request) {
@@ -148,35 +152,38 @@ public class ReviewDataLegacyExcelImportService {
     List<ReviewDataLegacyExcelImportIssue> issues = new ArrayList<>(row.issues());
     String owner = firstNonBlank(row.reviewOwner(), request == null ? "" : request.defaultReviewOwner());
     LocalDate reviewDate = row.reviewDate() == null && request != null ? request.defaultReviewDate() : row.reviewDate();
+    String moduleName = firstNonBlank(row.moduleName(), FALLBACK_MODULE_NAME);
+    String reviewOwner = firstNonBlank(owner, FALLBACK_REVIEW_OWNER);
     String authorName = firstNonBlank(request == null ? "" : request.defaultAuthorName(), owner, "历史导入");
-    String reviewVersion = firstNonBlank(request == null ? "" : request.defaultReviewVersion(), row.projectName());
-    List<String> experts = request == null ? List.of() : request.defaultReviewExperts();
-    if (experts.isEmpty() && !owner.isBlank()) {
-      experts = List.of(owner);
+    String reviewVersion = firstNonBlank(request == null ? "" : request.defaultReviewVersion(), row.projectName(), FALLBACK_REVIEW_VERSION);
+    List<String> requestedExperts = request == null ? List.of() : request.defaultReviewExperts();
+    List<String> experts = requestedExperts;
+    if (experts.isEmpty()) {
+      experts = List.of(firstNonBlank(owner, FALLBACK_REVIEW_EXPERT));
     }
     String problemStatus = firstNonBlank(request == null ? "" : request.defaultProblemStatus(), DEFAULT_PROBLEM_STATUS);
 
     if (owner.isBlank()) {
-      issues.add(issue(row.rowNumber(), "reviewOwner", ReviewDataLegacyExcelIssueLevel.WARNING, "负责人为空，将按空值导入"));
+      issues.add(issue(row.rowNumber(), "reviewOwner", ReviewDataLegacyExcelIssueLevel.WARNING, "负责人为空，已按“" + FALLBACK_REVIEW_OWNER + "”导入"));
     }
     if (reviewDate == null) {
       issues.add(issue(row.rowNumber(), "reviewDate", ReviewDataLegacyExcelIssueLevel.WARNING, "评审日期为空，将按空值导入"));
     }
-    if (experts.isEmpty()) {
-      issues.add(issue(row.rowNumber(), "reviewExperts", ReviewDataLegacyExcelIssueLevel.WARNING, "评审专家为空，将按空列表导入"));
+    if (requestedExperts.isEmpty() && owner.isBlank()) {
+      issues.add(issue(row.rowNumber(), "reviewExperts", ReviewDataLegacyExcelIssueLevel.WARNING, "评审专家为空，已按“" + FALLBACK_REVIEW_EXPERT + "”导入"));
     }
     if (reviewVersion.isBlank()) {
-      issues.add(issue(row.rowNumber(), "reviewVersion", ReviewDataLegacyExcelIssueLevel.WARNING, "评审版本为空，将按空值导入"));
+      issues.add(issue(row.rowNumber(), "reviewVersion", ReviewDataLegacyExcelIssueLevel.WARNING, "评审版本为空，已按“" + FALLBACK_REVIEW_VERSION + "”导入"));
     }
 
     ReviewDataRecordSaveRequest record =
         new ReviewDataRecordSaveRequest(
             firstNonBlank(row.projectName()),
             firstNonBlank(row.title()),
-            firstNonBlank(row.moduleName()),
+            moduleName,
             firstNonBlank(row.reviewType()),
             reviewDate,
-            owner,
+            reviewOwner,
             experts,
             row.reviewScalePages() == null ? 0 : row.reviewScalePages(),
             firstNonBlank(row.title()),
@@ -185,7 +192,7 @@ public class ReviewDataLegacyExcelImportService {
             firstNonBlank(row.notReachStandardReason()),
             false);
     List<ReviewDataProblemItemSaveRequest> problemItems =
-        buildProblemItems(row, owner, experts, problemStatus, issues);
+        buildProblemItems(row, reviewOwner, experts, problemStatus, issues);
     boolean importable = issues.stream().noneMatch(issue -> issue.level() == ReviewDataLegacyExcelIssueLevel.ERROR);
     return new ReviewDataLegacyExcelPreviewRowResponse(row.rowNumber(), importable, record, problemItems, issues);
   }
@@ -328,6 +335,16 @@ public class ReviewDataLegacyExcelImportService {
   private ReviewDataLegacyExcelImportIssue issue(
       int rowNumber, String field, ReviewDataLegacyExcelIssueLevel level, String message) {
     return new ReviewDataLegacyExcelImportIssue(rowNumber, field, level, message);
+  }
+
+  private List<ReviewDataLegacyExcelImportIssue> distinctIssues(
+      List<ReviewDataLegacyExcelImportIssue> issues) {
+    Map<String, ReviewDataLegacyExcelImportIssue> deduplicated = new LinkedHashMap<>();
+    for (ReviewDataLegacyExcelImportIssue issue : issues == null ? List.<ReviewDataLegacyExcelImportIssue>of() : issues) {
+      String key = issue.rowNumber() + "|" + issue.field() + "|" + issue.level() + "|" + issue.message();
+      deduplicated.putIfAbsent(key, issue);
+    }
+    return List.copyOf(deduplicated.values());
   }
 
   private String firstNonBlank(String... values) {

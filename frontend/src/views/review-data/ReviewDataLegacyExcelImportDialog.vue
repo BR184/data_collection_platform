@@ -44,6 +44,24 @@ const statusOptions = computed(() => props.filterOptions.problemStatuses);
 const previewRows = computed(() => preview.value?.rows.slice(0, 50) ?? []);
 const hasImportableRows = computed(() => Boolean(preview.value && preview.value.importableRows > 0));
 
+function rowHasIssues(row: ReviewDataLegacyExcelPreviewResponse['rows'][number]) {
+  return row.issues.length > 0;
+}
+
+function rowStatusType(row: ReviewDataLegacyExcelPreviewResponse['rows'][number]) {
+  if (!row.importable) {
+    return 'danger';
+  }
+  return rowHasIssues(row) ? 'warning' : 'success';
+}
+
+function rowStatusText(row: ReviewDataLegacyExcelPreviewResponse['rows'][number]) {
+  if (!row.importable) {
+    return '有错误';
+  }
+  return rowHasIssues(row) ? '有警告' : '可导入';
+}
+
 watch(visible, (next) => {
   if (!next) {
     reset();
@@ -159,6 +177,7 @@ async function handleConfirm() {
         <div class="legacy-import-summary">
           <el-statistic title="总行数" :value="preview.totalRows" />
           <el-statistic title="可导入" :value="preview.importableRows" />
+          <el-statistic title="警告行" :value="preview.warningRows" />
           <el-statistic title="错误行" :value="preview.errorRows" />
           <el-statistic title="预计问题项" :value="preview.estimatedProblemItemCount" />
         </div>
@@ -174,8 +193,8 @@ async function handleConfirm() {
           </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.importable ? 'success' : 'danger'" effect="plain">
-                {{ row.importable ? '可导入' : '有错误' }}
+              <el-tag :type="rowStatusType(row)" effect="plain">
+                {{ rowStatusText(row) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -225,7 +244,7 @@ async function handleConfirm() {
 
 .legacy-import-summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 </style>
