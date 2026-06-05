@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ArrowDown, ArrowUp, Search, Star, StarFilled } from '@element-plus/icons-vue';
 import type {
   TagGroupResponse,
@@ -8,12 +8,13 @@ import type {
   TagSelectionRequest,
 } from '../types/api';
 import {
-  createTagGroupSnapshot,
+  getActiveTagGroupSnapshot,
   isDisabledTagValue,
   normalizeTagSelections,
+  parseTagGroupSnapshotStore,
   restoreTagGroupSnapshot,
+  savePinnedTagGroupSnapshot,
   toggleTagSelectionValue,
-  type TagGroupFilterSnapshot,
 } from './tag-group-filter';
 
 const props = withDefaults(
@@ -23,12 +24,14 @@ const props = withDefaults(
     loading?: boolean;
     storageKey?: string;
     fixedFilters?: Record<string, unknown>;
+    autoRestore?: boolean;
     defaultExpanded?: boolean;
   }>(),
   {
     loading: false,
     storageKey: '',
     fixedFilters: () => ({}),
+    autoRestore: true,
     defaultExpanded: false,
   },
 );
@@ -36,13 +39,20 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'update:modelValue', value: TagSelectionRequest[]): void;
   (event: 'change', value: TagSelectionRequest[]): void;
-  (event: 'snapshot-restored', payload: { ignoredCount: number; schemaMismatch: boolean }): void;
+  (event: 'snapshot-restored', payload: {
+    tagSelections: TagSelectionRequest[];
+    ignoredCount: number;
+    schemaMismatch: boolean;
+    fixedFilters: Record<string, unknown>;
+  }): void;
   (event: 'snapshot-saved'): void;
 }>();
 
 const keyword = ref('');
 const showDisabledValues = ref(false);
 const expanded = ref(props.defaultExpanded);
+const snapshotStoreRevision = ref(0);
+const lastAutoRestoreKey = ref('');
 
 const groups = computed(() => props.tagGroups?.groups ?? []);
 const normalizedSelections = computed(() => normalizeTagSelections(props.modelValue, groups.value));
@@ -59,7 +69,12 @@ const selectedValueKeys = computed(() => {
   return result;
 });
 
-const hasSnapshot = computed(() => Boolean(props.storageKey && window.localStorage.getItem(props.storageKey)));
+const snapshotStore = computed(() => {
+  snapshotStoreRevision.value;
+  return parseTagGroupSnapshotStore(props.storageKey ? window.localStorage.getItem(props.storageKey) : '');
+});
+const snapshotOptions = computed(() => snapshotStore.value.snapshots);
+const hasSnapshot = computed(() => snapshotOptions.value.length > 0);
 
 const visibleGroups = computed(() => {
   const query = keyword.value.trim().toLowerCase();
@@ -109,28 +124,62 @@ function saveSnapshot() {
   if (!props.storageKey || !props.tagGroups) {
     return;
   }
-  const snapshot = createTagGroupSnapshot(props.tagGroups, normalizedSelections.value, props.fixedFilters);
-  window.localStorage.setItem(props.storageKey, JSON.stringify(snapshot));
+  const store = savePinnedTagGroupSnapshot(
+    window.localStorage.getItem(props.storageKey),
+    props.tagGroups,
+    normalizedSelections.value,
+    props.fixedFilters,
+  );
+  window.localStorage.setItem(props.storageKey, JSON.stringify(store));
+  snapshotStoreRevision.value += 1;
+  lastAutoRestoreKey.value = buildAutoRestoreKey();
   emit('snapshot-saved');
 }
 
-function restoreSnapshot() {
+function restoreSnapshot(snapshotId?: string) {
   if (!props.storageKey || !props.tagGroups) {
     return;
   }
-  const rawValue = window.localStorage.getItem(props.storageKey);
-  if (!rawValue) {
+  const snapshot = snapshotId
+    ? snapshotStore.value.snapshots.find((item) => item.id === snapshotId)
+    : getActiveTagGroupSnapshot(snapshotStore.value);
+  if (!snapshot) {
     return;
   }
-  const snapshot = JSON.parse(rawValue) as TagGroupFilterSnapshot;
   const restored = restoreTagGroupSnapshot(snapshot, props.tagGroups);
   emit('update:modelValue', restored.tagSelections);
-  emit('change', restored.tagSelections);
   emit('snapshot-restored', {
+    tagSelections: restored.tagSelections,
     ignoredCount: restored.ignoredCount,
     schemaMismatch: restored.schemaMismatch,
+    fixedFilters: restored.fixedFilters,
   });
 }
+
+function buildAutoRestoreKey() {
+  return `${props.storageKey}:${props.tagGroups?.schemaHash ?? ''}`;
+}
+
+function tryAutoRestoreSnapshot() {
+  if (!props.autoRestore || !props.storageKey || !props.tagGroups || normalizedSelections.value.length > 0) {
+    return;
+  }
+  const restoreKey = buildAutoRestoreKey();
+  if (lastAutoRestoreKey.value === restoreKey) {
+    return;
+  }
+  lastAutoRestoreKey.value = restoreKey;
+  restoreSnapshot();
+}
+
+watch(
+  () => [props.storageKey, props.tagGroups?.schemaHash] as const,
+  () => {
+    snapshotStoreRevision.value += 1;
+    tryAutoRestoreSnapshot();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -163,10 +212,23 @@ function restoreSnapshot() {
           />
           <el-checkbox v-model="showDisabledValues">显示停用标签</el-checkbox>
           <div class="tag-group-filter-actions">
-            <el-button plain :icon="Star" :disabled="!tagGroups" @click="saveSnapshot">保存快照</el-button>
-            <el-button plain :icon="StarFilled" :disabled="!hasSnapshot || !tagGroups" @click="restoreSnapshot">
-              恢复快照
-            </el-button>
+            <el-button plain :icon="Star" :disabled="!tagGroups" @click="saveSnapshot">保存固定快照</el-button>
+            <el-dropdown :disabled="!hasSnapshot || !tagGroups" @command="(id) => restoreSnapshot(String(id))">
+              <el-button plain :icon="StarFilled" :disabled="!hasSnapshot || !tagGroups" @click="restoreSnapshot()">
+                恢复快照
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="snapshot in snapshotOptions"
+                    :key="snapshot.id"
+                    :command="snapshot.id"
+                  >
+                    {{ snapshot.savedAt ? snapshot.savedAt.slice(0, 19).replace('T', ' ') : '固定快照' }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
             <el-button plain :disabled="normalizedSelections.length === 0" @click="clearSelections">
               清空标签
             </el-button>

@@ -10,10 +10,21 @@ import type {
 
 export interface TagGroupFilterSnapshot {
   schemaVersion: 1;
+  id?: string;
+  name?: string;
   schemaHash: string;
   tagSelections: TagSelectionRequest[];
   fixedFilters?: Record<string, unknown>;
   savedAt?: string;
+  expiresAt?: string;
+  pinned?: boolean;
+}
+
+export interface TagGroupFilterSnapshotStore {
+  schemaVersion: 1;
+  snapshots: TagGroupFilterSnapshot[];
+  activeSnapshotId?: string;
+  updatedAt?: string;
 }
 
 export interface RestoredTagGroupSnapshot {
@@ -24,6 +35,17 @@ export interface RestoredTagGroupSnapshot {
 }
 
 export const TAG_GROUP_SNAPSHOT_SCHEMA_VERSION = 1;
+export const TAG_GROUP_SNAPSHOT_MAX_PINNED = 3;
+export const TAG_GROUP_SNAPSHOT_TTL_DAYS = 30;
+
+export interface SaveTagGroupSnapshotOptions {
+  now?: Date;
+  ttlDays?: number;
+  maxPinned?: number;
+  name?: string;
+}
+
+let snapshotIdSequence = 0;
 
 export function normalizeTagSelections(
   selections: TagSelectionRequest[],
@@ -128,14 +150,141 @@ export function createTagGroupSnapshot(
   response: TagGroupsResponse,
   tagSelections: TagSelectionRequest[],
   fixedFilters: Record<string, unknown> = {},
+  options: SaveTagGroupSnapshotOptions = {},
 ): TagGroupFilterSnapshot {
+  const now = options.now ?? new Date();
+  const ttlDays = options.ttlDays ?? TAG_GROUP_SNAPSHOT_TTL_DAYS;
+  const savedAt = now.toISOString();
   return {
     schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,
+    id: createSnapshotId(now),
+    name: options.name,
     schemaHash: response.schemaHash,
     tagSelections: normalizeTagSelections(tagSelections, response.groups),
     fixedFilters,
-    savedAt: new Date().toISOString(),
+    savedAt,
+    expiresAt: new Date(now.getTime() + ttlDays * 24 * 60 * 60 * 1000).toISOString(),
+    pinned: true,
   };
+}
+
+export function parseTagGroupSnapshotStore(
+  rawValue: string | null | undefined,
+  now = new Date(),
+): TagGroupFilterSnapshotStore {
+  if (!rawValue) {
+    return emptySnapshotStore();
+  }
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+    const snapshots = isSnapshotStore(parsed)
+      ? parsed.snapshots
+      : isSnapshot(parsed)
+        ? [parsed]
+        : [];
+    return normalizeSnapshotStore({
+      schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,
+      snapshots,
+      activeSnapshotId: isSnapshotStore(parsed) ? parsed.activeSnapshotId : snapshots[0]?.id,
+      updatedAt: isSnapshotStore(parsed) ? parsed.updatedAt : snapshots[0]?.savedAt,
+    }, now);
+  } catch {
+    return emptySnapshotStore();
+  }
+}
+
+export function savePinnedTagGroupSnapshot(
+  rawValue: string | null | undefined,
+  response: TagGroupsResponse,
+  tagSelections: TagSelectionRequest[],
+  fixedFilters: Record<string, unknown> = {},
+  options: SaveTagGroupSnapshotOptions = {},
+): TagGroupFilterSnapshotStore {
+  const now = options.now ?? new Date();
+  const maxPinned = Math.max(1, options.maxPinned ?? TAG_GROUP_SNAPSHOT_MAX_PINNED);
+  const snapshot = createTagGroupSnapshot(response, tagSelections, fixedFilters, {
+    ...options,
+    now,
+  });
+  const current = parseTagGroupSnapshotStore(rawValue, now);
+  const snapshots = [
+    snapshot,
+    ...current.snapshots.filter((item) => item.id !== snapshot.id),
+  ].slice(0, maxPinned);
+  return {
+    schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,
+    snapshots,
+    activeSnapshotId: snapshot.id,
+    updatedAt: now.toISOString(),
+  };
+}
+
+export function getActiveTagGroupSnapshot(store: TagGroupFilterSnapshotStore): TagGroupFilterSnapshot | null {
+  return store.snapshots.find((snapshot) => snapshot.id === store.activeSnapshotId) ?? store.snapshots[0] ?? null;
+}
+
+function emptySnapshotStore(): TagGroupFilterSnapshotStore {
+  return {
+    schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,
+    snapshots: [],
+  };
+}
+
+function normalizeSnapshotStore(
+  store: TagGroupFilterSnapshotStore,
+  now: Date,
+): TagGroupFilterSnapshotStore {
+  const snapshots = store.snapshots
+    .filter(isSnapshot)
+    .map((snapshot, index) => ({
+      ...snapshot,
+      id: snapshot.id || createSnapshotId(new Date(snapshot.savedAt ?? now), index),
+      pinned: snapshot.pinned ?? true,
+    }))
+    .filter((snapshot) => !isExpiredSnapshot(snapshot, now))
+    .sort((left, right) => getSnapshotTime(right) - getSnapshotTime(left));
+  const activeSnapshotId = snapshots.some((snapshot) => snapshot.id === store.activeSnapshotId)
+    ? store.activeSnapshotId
+    : snapshots[0]?.id;
+  return {
+    schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,
+    snapshots,
+    activeSnapshotId,
+    updatedAt: store.updatedAt,
+  };
+}
+
+function isSnapshotStore(value: unknown): value is TagGroupFilterSnapshotStore {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && Array.isArray((value as TagGroupFilterSnapshotStore).snapshots),
+  );
+}
+
+function isSnapshot(value: unknown): value is TagGroupFilterSnapshot {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && (value as TagGroupFilterSnapshot).schemaVersion === TAG_GROUP_SNAPSHOT_SCHEMA_VERSION
+    && Array.isArray((value as TagGroupFilterSnapshot).tagSelections),
+  );
+}
+
+function isExpiredSnapshot(snapshot: TagGroupFilterSnapshot, now: Date) {
+  return Boolean(snapshot.expiresAt && Date.parse(snapshot.expiresAt) <= now.getTime());
+}
+
+function getSnapshotTime(snapshot: TagGroupFilterSnapshot) {
+  const time = Date.parse(snapshot.savedAt ?? '');
+  return Number.isFinite(time) ? time : 0;
+}
+
+function createSnapshotId(now: Date, offset = 0) {
+  const timestamp = now.getTime() + offset;
+  const sequence = snapshotIdSequence;
+  snapshotIdSequence = (snapshotIdSequence + 1) % 1_000_000;
+  return `snapshot-${timestamp.toString(36)}-${sequence.toString(36)}`;
 }
 
 export function isDisabledTagValue(value: TagGroupValueResponse) {

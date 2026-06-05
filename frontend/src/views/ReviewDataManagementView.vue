@@ -146,9 +146,16 @@ const legacyImportVisible = ref(false);
 const tagGroups = ref<TagGroupsResponse | null>(null);
 const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
 const tagGroupStorageKey = 'tag-groups:review-data:default';
+const shouldAutoRestoreTagSnapshot = computed(() => route.query.tagSelections == null);
 const tagGroupActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
   buildTagGroupActiveFilterTags(tagSelections.value, tagGroups.value?.groups ?? []),
 );
+
+interface TagSnapshotRestoredPayload {
+  tagSelections: typeof tagSelections.value;
+  ignoredCount: number;
+  schemaMismatch: boolean;
+}
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 const {
@@ -226,7 +233,11 @@ async function handleClearFilter(key: string) {
   });
 }
 
-function handleTagSnapshotRestored(payload: { ignoredCount: number; schemaMismatch: boolean }) {
+async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
+  await patchQuery({
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
+  });
   if (payload.ignoredCount > 0 || payload.schemaMismatch) {
     ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
     return;
@@ -350,6 +361,7 @@ const {
             :tag-groups="tagGroups"
             :loading="isTableLoading"
             :storage-key="tagGroupStorageKey"
+            :auto-restore="shouldAutoRestoreTagSnapshot"
             @change="handleTagSelectionsChange"
             @snapshot-restored="handleTagSnapshotRestored"
             @snapshot-saved="handleTagSnapshotSaved"

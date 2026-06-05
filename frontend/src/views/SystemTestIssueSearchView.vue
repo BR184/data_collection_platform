@@ -110,6 +110,14 @@ const filterValues = computed<Record<string, unknown>>(() => {
 
 const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
 const tagGroupStorageKey = computed(() => `tag-groups:issue:${String(route.query.sourceInstance ?? 'default') || 'default'}`);
+const shouldAutoRestoreTagSnapshot = computed(() => route.query.tagSelections == null);
+
+interface TagSnapshotRestoredPayload {
+  tagSelections: typeof tagSelections.value;
+  ignoredCount: number;
+  schemaMismatch: boolean;
+  fixedFilters: Record<string, unknown>;
+}
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
   {
@@ -492,12 +500,47 @@ async function handleTagSelectionsChange(nextSelections: typeof tagSelections.va
   });
 }
 
-function handleTagSnapshotRestored(payload: { ignoredCount: number; schemaMismatch: boolean }) {
+async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
+  await patchQuery({
+    ...buildFixedFilterSnapshotQuery(payload.fixedFilters),
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
+  });
   if (payload.ignoredCount > 0 || payload.schemaMismatch) {
     ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
     return;
   }
   ElMessage.success('已恢复快捷快照');
+}
+
+function buildFixedFilterSnapshotQuery(filters: Record<string, unknown>) {
+  const updatedAtRange = Array.isArray(filters.updatedAtRange) ? filters.updatedAtRange : [];
+  const createdAtRange = Array.isArray(filters.createdAtRange) ? filters.createdAtRange : [];
+  return {
+    searchType: stringFilterValue(filters.searchType),
+    keyword: stringFilterValue(filters.keyword),
+    testingPhase: stringFilterValue(filters.testingPhase),
+    moduleName: stringFilterValue(filters.moduleName),
+    issueIid: stringFilterValue(filters.issueIid),
+    title: stringFilterValue(filters.title),
+    projectName: stringFilterValue(filters.projectName),
+    authorName: stringFilterValue(filters.authorName),
+    assigneeName: stringFilterValue(filters.assigneeName),
+    issueState: stringFilterValue(filters.issueState),
+    severityLevel: stringFilterValue(filters.severityLevel),
+    bugStatus: stringFilterValue(filters.bugStatus),
+    category: stringFilterValue(filters.category),
+    milestoneTitle: stringFilterValue(filters.milestoneTitle),
+    updatedAtStart: stringFilterValue(updatedAtRange[0]),
+    updatedAtEnd: stringFilterValue(updatedAtRange[1]),
+    createdAtStart: stringFilterValue(createdAtRange[0]),
+    createdAtEnd: stringFilterValue(createdAtRange[1]),
+  };
+}
+
+function stringFilterValue(value: unknown) {
+  const text = String(value ?? '');
+  return text || null;
 }
 
 function handleTagSnapshotSaved() {
@@ -549,6 +592,7 @@ async function handleRefresh() {
           :loading="isTableLoading"
           :storage-key="tagGroupStorageKey"
           :fixed-filters="filterValues"
+          :auto-restore="shouldAutoRestoreTagSnapshot"
           @change="handleTagSelectionsChange"
           @snapshot-restored="handleTagSnapshotRestored"
           @snapshot-saved="handleTagSnapshotSaved"

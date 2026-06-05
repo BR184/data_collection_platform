@@ -3,7 +3,9 @@ import type { TagGroupsResponse, TagSelectionRequest } from '../types/api';
 import {
   buildTagGroupActiveFilterTags,
   normalizeTagSelections,
+  parseTagGroupSnapshotStore,
   restoreTagGroupSnapshot,
+  savePinnedTagGroupSnapshot,
 } from './tag-group-filter';
 
 const groupsResponse: TagGroupsResponse = {
@@ -79,5 +81,46 @@ describe('tag group filter helpers', () => {
     expect(restored.tagSelections).toEqual([{ groupKey: 'module', valueKeys: ['sketch'] }]);
     expect(restored.ignoredCount).toBe(2);
     expect(restored.schemaMismatch).toBe(true);
+  });
+
+  it('stores pinned snapshots as a collection while keeping the newest three', () => {
+    const now = new Date('2026-06-05T00:00:00.000Z');
+    let rawValue = '';
+
+    for (const valueKey of ['sketch', 'surface', 'major', 'minor']) {
+      const groupKey = valueKey === 'major' || valueKey === 'minor' ? 'severity' : 'module';
+      rawValue = JSON.stringify(savePinnedTagGroupSnapshot(
+        rawValue,
+        groupsResponse,
+        [{ groupKey, valueKeys: [valueKey] }],
+        {},
+        { now },
+      ));
+    }
+
+    const store = parseTagGroupSnapshotStore(rawValue, now);
+    expect(store.snapshots).toHaveLength(3);
+    expect(store.snapshots.map((snapshot) => snapshot.tagSelections[0]?.valueKeys[0])).toEqual([
+      'minor',
+      'major',
+      'surface',
+    ]);
+    expect(store.activeSnapshotId).toBe(store.snapshots[0]?.id);
+  });
+
+  it('auto-migrates old single snapshot storage and drops expired snapshots', () => {
+    const store = parseTagGroupSnapshotStore(
+      JSON.stringify({
+        schemaVersion: 1,
+        schemaHash: 'hash-a',
+        tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+        savedAt: '2026-05-01T00:00:00.000Z',
+        expiresAt: '2026-05-31T00:00:00.000Z',
+      }),
+      new Date('2026-06-05T00:00:00.000Z'),
+    );
+
+    expect(store.snapshots).toEqual([]);
+    expect(store.activeSnapshotId).toBeUndefined();
   });
 });

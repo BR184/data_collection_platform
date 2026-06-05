@@ -105,11 +105,21 @@ describe('TagGroupFilter', () => {
       'tag-groups:test',
       JSON.stringify({
         schemaVersion: 1,
-        schemaHash: 'old-hash',
-        tagSelections: [
-          { groupKey: 'module', valueKeys: ['sketch', 'missing'] },
-          { groupKey: 'ghost', valueKeys: ['lost'] },
+        snapshots: [
+          {
+            schemaVersion: 1,
+            id: 'snapshot-a',
+            schemaHash: 'old-hash',
+            tagSelections: [
+              { groupKey: 'module', valueKeys: ['sketch', 'missing'] },
+              { groupKey: 'ghost', valueKeys: ['lost'] },
+            ],
+            savedAt: '2026-06-05T00:00:00.000Z',
+            expiresAt: '2026-07-05T00:00:00.000Z',
+            pinned: true,
+          },
         ],
+        activeSnapshotId: 'snapshot-a',
       }),
     );
 
@@ -127,7 +137,57 @@ describe('TagGroupFilter', () => {
 
     await wrapper.findAll('.tag-group-filter-actions button')[1].trigger('click');
 
-    expect(wrapper.emitted('change')?.at(-1)).toEqual([[{ groupKey: 'module', valueKeys: ['sketch'] }]]);
-    expect(wrapper.emitted('snapshot-restored')?.at(-1)).toEqual([{ ignoredCount: 2, schemaMismatch: true }]);
+    expect(wrapper.emitted('change')).toBeUndefined();
+    expect(wrapper.emitted('snapshot-restored')?.at(-1)).toEqual([{
+      tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+      ignoredCount: 2,
+      schemaMismatch: true,
+      fixedFilters: {},
+    }]);
+  });
+
+  it('automatically restores a pinned snapshot after tag groups are available', async () => {
+    window.localStorage.setItem(
+      'tag-groups:test',
+      JSON.stringify({
+        schemaVersion: 1,
+        snapshots: [
+          {
+            schemaVersion: 1,
+            id: 'snapshot-a',
+            schemaHash: 'hash-a',
+            tagSelections: [{ groupKey: 'module', valueKeys: ['surface'] }],
+            savedAt: '2026-06-05T00:00:00.000Z',
+            expiresAt: '2026-07-05T00:00:00.000Z',
+            pinned: true,
+          },
+        ],
+        activeSnapshotId: 'snapshot-a',
+      }),
+    );
+
+    const wrapper = mount(TagGroupFilter, {
+      props: {
+        modelValue: [],
+        tagGroups: null,
+        storageKey: 'tag-groups:test',
+        defaultExpanded: true,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    expect(wrapper.emitted('change')).toBeUndefined();
+
+    await wrapper.setProps({ tagGroups });
+
+    expect(wrapper.emitted('change')).toBeUndefined();
+    expect(wrapper.emitted('snapshot-restored')?.at(-1)).toEqual([{
+      tagSelections: [{ groupKey: 'module', valueKeys: ['surface'] }],
+      ignoredCount: 0,
+      schemaMismatch: false,
+      fixedFilters: {},
+    }]);
   });
 });
