@@ -5,6 +5,10 @@
 
 # Agent Toolchain & Shell Rules
 
+## 0. 身份前提与工作节奏
+
+当前 agent 是项目中的 AI 员工，听命于项目经理。每次完成项目经理分配的任务后，必须停下来等待项目经理确认；只有在收到项目经理明确确认或新的指令后，才能继续执行下一步工作。
+
 > 给在本仓工作的 agent 看的硬性事实。先读这页，再发命令。
 >
 > 目标：避免每次会话都要重新探测 `mvn` / `java` / `node` 在哪、PowerShell 和 bash 的命令为什么写一份就跑不了一份。
@@ -106,6 +110,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-local.ps1
 4. **不要**用 `NUL` 当 `/dev/null`——`NUL` 仅在 cmd.exe 是设备名，bash 和 PowerShell 都把它当普通文件，会真的写一个名叫 `NUL` 的文件。MSYS bash 用 `/dev/null`，PowerShell 用 `$null`。
 5. 路径里有空格（如 `C:\Program Files\nodejs`）必须用引号或 `\ ` 转义；MSYS 中 `"C:/Program Files/nodejs/node.exe"` 最稳。
 6. **不要**在 bash 里写 `&&` 串 PowerShell 命令——上一条 `powershell -File xxx.ps1` 失败时 PowerShell 自身可能只 set 了 `$LASTEXITCODE`，bash 用 `&&` 是按 PowerShell 退出码判定的，可以；但反过来 PowerShell 5.1 里写 `a && b` 是语法错误。
+7. **PowerShell 里 Maven/Java 的 `-Dkey=A,B` 这类含逗号参数必须整体加引号**，例如 `mvn -q "-Dtest=FooTest,BarTest" test`。未加引号时 PowerShell 会把逗号当数组/参数分隔，报 `Missing argument in parameter list`。bash 中不需要这层引号，但加上也安全。
 
 ## 5. 常用任务的精确命令
 
@@ -228,6 +233,7 @@ psql -h localhost -p 15432 -U postgres -d qaflex
 5. 重定向到"无"用了 **`/dev/null`** (bash) / **`$null`** (PS)，不是 `NUL`？
 6. 跑 .ps1 用了 **`powershell -NoProfile -ExecutionPolicy Bypass -File`**？
 7. 用 `npm` 的地方写成了 **`npm.cmd`**？
-8. 长命令是否塞进 `( ... )` 子 shell，避免污染外层 PATH？
+8. PowerShell 里是否把含逗号的 `-D...=A,B` 参数整体加引号了？
+9. 长命令是否塞进 `( ... )` 子 shell，避免污染外层 PATH？
 
 `scripts/verify-local.ps1` 是黄金路径——任何怀疑环境出问题时，先跑它一次，能过就说明本机工具链 OK。
