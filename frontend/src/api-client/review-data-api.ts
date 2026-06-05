@@ -9,6 +9,7 @@ import type {
   ReviewDataRecordListResponse,
   ReviewDataRecordSaveRequest,
   StatisticFilterGroup,
+  TagSelectionRequest,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
 
@@ -22,6 +23,7 @@ export interface ReviewDataRecordQueryParams {
   problemStatus?: string;
   reviewExpert?: string;
   filterGroup?: StatisticFilterGroup | null;
+  tagSelections?: TagSelectionRequest[];
   page?: number;
   size?: number;
   sortBy?: string;
@@ -149,6 +151,7 @@ function buildReviewDataRecordQuery(params: ReviewDataRecordQueryParams, include
     ...(params.problemStatus ? { problemStatus: params.problemStatus } : {}),
     ...(params.reviewExpert ? { reviewExpert: params.reviewExpert } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });

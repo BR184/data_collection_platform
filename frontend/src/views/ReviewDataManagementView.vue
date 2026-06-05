@@ -6,6 +6,7 @@ import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
+import TagGroupFilter from '../components/TagGroupFilter.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
 import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
@@ -26,6 +27,7 @@ import { api } from '../api';
 import { downloadBlob } from '../utils/csv-download';
 import type {
   ReviewDataRecordRowResponse,
+  TagGroupsResponse,
 } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
@@ -35,6 +37,12 @@ import {
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
+import {
+  buildTagGroupActiveFilterTags,
+  parseTagSelectionsQuery,
+  stringifyTagSelectionsQuery,
+} from '../components/tag-group-filter';
+import type { RecordTableActiveFilterTag } from '../types/record-table';
 
 const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoader, isTableLoading } = useRouteTableState({
   defaults: {
@@ -47,7 +55,6 @@ const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoade
 });
 
 const {
-  rows,
   total,
   filterOptions,
   summaryCards,
@@ -136,6 +143,12 @@ const {
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
+const tagGroups = ref<TagGroupsResponse | null>(null);
+const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
+const tagGroupStorageKey = 'tag-groups:review-data:default';
+const tagGroupActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
+  buildTagGroupActiveFilterTags(tagSelections.value, tagGroups.value?.groups ?? []),
+);
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 const {
@@ -163,6 +176,7 @@ const {
   getPageSize: () => pageSize.value,
   getSortBy: () => sortBy.value,
   getSortOrder: () => sortOrder.value as 'asc' | 'desc' | '',
+  getTagSelections: () => tagSelections.value,
   patchQuery,
   initializeFromQuery,
   buildFilterPayload,
@@ -174,7 +188,7 @@ const {
 
 bindLoader(async () => {
   try {
-    await loadFilterOptions();
+    await Promise.all([loadFilterOptions(), loadTagGroups()]);
     syncFilterDraftFromRoute();
     await loadRows();
   } catch (error) {
@@ -182,11 +196,46 @@ bindLoader(async () => {
   }
 });
 
+async function loadTagGroups() {
+  tagGroups.value = await api.getTagGroups('review_data');
+}
+
 async function loadRows() {
   await loadReviewRows(buildReviewDataRecordQueryParams({
     page: page.value,
     size: pageSize.value,
   }));
+}
+
+async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {
+  await patchQuery({
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(nextSelections),
+  });
+}
+
+async function handleClearFilter(key: string) {
+  if (!key.startsWith('tagSelection:')) {
+    return;
+  }
+  const groupKey = key.slice('tagSelection:'.length);
+  const nextSelections = tagSelections.value.filter((selection) => selection.groupKey !== groupKey);
+  await patchQuery({
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(nextSelections),
+  });
+}
+
+function handleTagSnapshotRestored(payload: { ignoredCount: number; schemaMismatch: boolean }) {
+  if (payload.ignoredCount > 0 || payload.schemaMismatch) {
+    ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
+    return;
+  }
+  ElMessage.success('已恢复快捷快照');
+}
+
+function handleTagSnapshotSaved() {
+  ElMessage.success('已保存当前快捷快照');
 }
 
 async function refreshReviewRecords() {
@@ -282,18 +331,31 @@ const {
       :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
+      :active-filter-tags="tagGroupActiveFilterTags"
       query-button-text="查询"
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
       @search="handleKeywordSearch"
       @query="handleQuery"
+      @clear-filter="handleClearFilter"
       @sort-change="handleSortChange"
       @current-change="handlePageChange"
       @size-change="handleSizeChange"
       @expand-change="handleExpandChange"
     >
       <template #filter-builder>
-        <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
+        <div class="review-data-filter-stack">
+          <TagGroupFilter
+            :model-value="tagSelections"
+            :tag-groups="tagGroups"
+            :loading="isTableLoading"
+            :storage-key="tagGroupStorageKey"
+            @change="handleTagSelectionsChange"
+            @snapshot-restored="handleTagSnapshotRestored"
+            @snapshot-saved="handleTagSnapshotSaved"
+          />
+          <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
+        </div>
       </template>
 
       <template #primary-actions>
@@ -461,7 +523,10 @@ const {
   flex-wrap: wrap;
 }
 
+.review-data-filter-stack {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
 </style>
-
-
-

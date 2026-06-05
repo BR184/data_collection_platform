@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Download, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import TagGroupFilter from '../components/TagGroupFilter.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
@@ -13,6 +14,7 @@ import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchRowResponse,
+  TagGroupsResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
@@ -23,6 +25,11 @@ import type {
   RecordTableFilterField,
   RecordTableTagValue,
 } from '../types/record-table';
+import {
+  buildTagGroupActiveFilterTags,
+  parseTagSelectionsQuery,
+  stringifyTagSelectionsQuery,
+} from '../components/tag-group-filter';
 import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 
@@ -42,6 +49,7 @@ const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const tagGroups = ref<TagGroupsResponse | null>(null);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
@@ -99,6 +107,9 @@ const filterValues = computed<Record<string, unknown>>(() => {
     createdAtRange: createdAtStart && createdAtEnd ? [createdAtStart, createdAtEnd] : [],
   };
 });
+
+const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
+const tagGroupStorageKey = computed(() => `tag-groups:issue:${String(route.query.sourceInstance ?? 'default') || 'default'}`);
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
   {
@@ -225,6 +236,11 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   return tags;
 });
 
+const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
+  ...activeFilterTags.value,
+  ...buildTagGroupActiveFilterTags(tagSelections.value, tagGroups.value?.groups ?? []),
+]);
+
 useDataScope({
   provider: SYSTEM_TEST_PHASE_SCOPE_PROVIDER,
   options: computed(() => buildScopeOptions(filterOptions.value.testingPhases, '全部测试阶段')),
@@ -268,13 +284,17 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 
 bindLoader(async () => {
   try {
-    await Promise.all([loadFilterOptions(), loadTableData(), loadSyncStatus()]);
+    await Promise.all([loadFilterOptions(), loadTagGroups(), loadTableData(), loadSyncStatus()]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '议题查询数据加载失败');
     rows.value = [];
     total.value = 0;
   }
 });
+
+async function loadTagGroups() {
+  tagGroups.value = await api.getTagGroups('issue');
+}
 
 async function loadFilterOptions() {
   filterOptions.value = await api.getSystemTestIssueSearchFilterOptions(
@@ -292,7 +312,7 @@ async function handleRefreshLatestData() {
       await sleep(1000);
       status = (await loadSyncStatus()) ?? status;
     }
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await Promise.all([loadFilterOptions(), loadTagGroups(), loadTableData()]);
     await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
@@ -333,6 +353,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     createdAtEnd: String(route.query.createdAtEnd ?? ''),
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
+    tagSelections: tagSelections.value,
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'updatedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
@@ -422,6 +443,7 @@ async function handleReset() {
     milestoneTitle: null,
     createdAtStart: null,
     createdAtEnd: null,
+    tagSelections: null,
   });
 }
 
@@ -446,6 +468,12 @@ async function handleSortChange(payload: { prop: string; order: 'ascending' | 'd
 }
 
 async function handleClearFilter(key: string) {
+  if (key.startsWith('tagSelection:')) {
+    const groupKey = key.slice('tagSelection:'.length);
+    const nextSelections = tagSelections.value.filter((selection) => selection.groupKey !== groupKey);
+    await patchQuery({ page: 1, tagSelections: stringifyTagSelectionsQuery(nextSelections) });
+    return;
+  }
   if (key === 'updatedAtRange') {
     await patchQuery({ page: 1, updatedAtStart: null, updatedAtEnd: null });
     return;
@@ -457,9 +485,28 @@ async function handleClearFilter(key: string) {
   await patchQuery({ page: 1, [key]: null });
 }
 
+async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {
+  await patchQuery({
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(nextSelections),
+  });
+}
+
+function handleTagSnapshotRestored(payload: { ignoredCount: number; schemaMismatch: boolean }) {
+  if (payload.ignoredCount > 0 || payload.schemaMismatch) {
+    ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
+    return;
+  }
+  ElMessage.success('已恢复快捷快照');
+}
+
+function handleTagSnapshotSaved() {
+  ElMessage.success('已保存当前快捷快照');
+}
+
 async function handleRefresh() {
   try {
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await Promise.all([loadFilterOptions(), loadTagGroups(), loadTableData()]);
     ElMessage.success('已刷新议题查询结果');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '议题查询刷新失败');
@@ -481,7 +528,7 @@ async function handleRefresh() {
       :primary-filters="primaryFilters"
       :advanced-filters="advancedFilters"
       :filter-values="filterValues"
-      :active-filter-tags="activeFilterTags"
+      :active-filter-tags="allActiveFilterTags"
       :advanced-visible="advancedVisible"
       :show-search="false"
       empty-description="当前筛选条件下没有查到系统测试议题。"
@@ -495,6 +542,19 @@ async function handleRefresh() {
       @sort-change="handleSortChange"
       @refresh="handleRefresh"
     >
+      <template #filter-builder>
+        <TagGroupFilter
+          :model-value="tagSelections"
+          :tag-groups="tagGroups"
+          :loading="isTableLoading"
+          :storage-key="tagGroupStorageKey"
+          :fixed-filters="filterValues"
+          @change="handleTagSelectionsChange"
+          @snapshot-restored="handleTagSnapshotRestored"
+          @snapshot-saved="handleTagSnapshotSaved"
+        />
+      </template>
+
       <template #toolbar-actions>
         <SyncMetaBadge :value="lastSyncedText" />
         <el-button

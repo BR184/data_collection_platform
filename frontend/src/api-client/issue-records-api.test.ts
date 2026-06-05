@@ -44,4 +44,29 @@ describe('issueRecordsApi source instance query contract', () => {
 
     expect(request).toHaveBeenCalledWith('/api/question-metrics/issues/filter-options?sourceInstance=cc');
   });
+
+  it('serializes tagSelections for issue search list and export endpoints', () => {
+    issueRecordsApi.getSystemTestIssueSearchRecords({
+      tagSelections: [{ groupKey: 'module', valueKeys: ['sketch', 'surface'] }],
+      page: 1,
+      size: 20,
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'module', valueKeys: ['sketch', 'surface'] }]))}`,
+      ),
+    );
+
+    issueRecordsApi.exportSystemTestIssueSearchRecords({
+      tagSelections: [{ groupKey: 'severity', valueKeys: ['major'] }],
+    });
+
+    expect(requestText).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/api/question-metrics/issues/export?tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'severity', valueKeys: ['major'] }]))}`,
+      ),
+      expect.any(Object),
+    );
+  });
 });
