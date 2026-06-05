@@ -11,6 +11,7 @@ import com.data.collection.platform.controller.GitlabSyncController;
 import com.data.collection.platform.controller.QuestionMetricsController;
 import com.data.collection.platform.controller.ReviewDataController;
 import com.data.collection.platform.controller.StatisticBoardController;
+import com.data.collection.platform.controller.TagGroupController;
 import com.data.collection.platform.entity.AuthRole;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -41,6 +42,7 @@ class EndpointAuthorizationContractTest {
     assertAdminRequired(CustomerIssueController.class, "refreshRecords");
     assertAdminRequired(CustomerIssueController.class, "refreshIllegalRecords");
     assertAdminRequired(CollectFormController.class, "updateRecord");
+    assertAdminRequired(TagGroupController.class, "reloadTagMappings");
   }
 
   private void assertAdminRequired(Class<?> controllerType) {

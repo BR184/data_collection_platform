@@ -51,6 +51,7 @@ function filterOptions(): ReviewDataFilterOptionsResponse {
     reviewOwners: [],
     reviewTypes: [],
     reviewExperts: [],
+    reviewVersions: [],
     problemStatuses: [],
     reviewCategories: [],
     problemCategories: [],
