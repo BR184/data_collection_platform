@@ -6,6 +6,7 @@ import { issueRecordsApi } from './api-client/issue-records-api';
 import { mirrorApi } from './api-client/mirror-api';
 import { reviewDataApi } from './api-client/review-data-api';
 import { statisticBoardsApi } from './api-client/statistic-boards-api';
+import { tagGroupsApi } from './api-client/tag-groups-api';
 import { testingPhasesApi } from './api-client/testing-phases-api';
 
 export * from './types/api';
@@ -15,6 +16,7 @@ export const api = {
   ...integrationTestsApi,
   ...statisticBoardsApi,
   ...databaseBrowserApi,
+  ...tagGroupsApi,
   ...testingPhasesApi,
   ...collectFormsApi,
   ...codeReviewApi,

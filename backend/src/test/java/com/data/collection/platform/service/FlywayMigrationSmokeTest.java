@@ -83,6 +83,20 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).contains("where whitelist_mode = 'all'");
   }
 
+  @Test
+  void shouldDefineTagGroupSchemaMigration() throws IOException {
+    String migration = readMigration("V20260605_01__tag_groups.sql");
+
+    assertThat(migration).contains("create table if not exists tag_group");
+    assertThat(migration).contains("match_strategy_name varchar(64) not null default 'eq'");
+    assertThat(migration).contains("create table if not exists tag_value");
+    assertThat(migration).contains("value_type varchar(32) not null default 'standard'");
+    assertThat(migration).contains("create table if not exists tag_value_mapping");
+    assertThat(migration).contains("source_instance varchar(128)");
+    assertThat(migration).contains("match_type varchar(32) not null default 'exact'");
+    assertThat(migration).contains("idx_tag_value_mapping_value");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)
