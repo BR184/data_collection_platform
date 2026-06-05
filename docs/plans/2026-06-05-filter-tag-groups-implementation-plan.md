@@ -1,6 +1,8 @@
 # Filter Tag Groups Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+>
+> **Execution environment override (PM directive 2026-06-05):** 不要建立 git worktree 进行隔离实现。本方案的所有任务直接在 `D:\projects\data_collection_platform` 主工作树（当前 `main` 分支）上完成；不调用 `EnterWorktree`，也不在 `.claude/worktrees/` 下创建副本。如果 `executing-plans` 子技能默认要建 worktree，请跳过该步骤，直接进入任务实现。其余流程（任务分步、每步等待项目经理审批、验证项）保持不变。
 
 **Goal:** 在不推翻现有议题查询固定字段筛选能力的前提下，将 `frontend/src/components/StatisticFilterBuilder.vue` 这种“字段 + 关系 + 值”的高级条件构建器从业务用户主入口中弱化或替换掉，并新增“标签组筛选”作为业务化、可收口的筛选入口，用来解决模块分类不一致、GitLab 标签脏数据、历史死项目数据干扰等问题。
 
