@@ -38,11 +38,31 @@ describe('TagGroupFilter', () => {
     window.localStorage.clear();
   });
 
+  it('keeps tag groups collapsed by default and expands on demand', async () => {
+    const wrapper = mount(TagGroupFilter, {
+      props: {
+        modelValue: [],
+        tagGroups,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    const toggle = wrapper.get('[data-testid="tag-group-filter-toggle"]');
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+
+    await toggle.trigger('click');
+
+    expect(toggle.attributes('aria-expanded')).toBe('true');
+  });
+
   it('emits multiple selections and supports canceling a selected value', async () => {
     const wrapper = mount(TagGroupFilter, {
       props: {
         modelValue: [],
         tagGroups,
+        defaultExpanded: true,
       },
       global: {
         plugins: [ElementPlus],
@@ -68,6 +88,7 @@ describe('TagGroupFilter', () => {
       props: {
         modelValue: [{ groupKey: 'severity', valueKeys: ['major'] }],
         tagGroups,
+        defaultExpanded: true,
       },
       global: {
         plugins: [ElementPlus],
@@ -97,13 +118,14 @@ describe('TagGroupFilter', () => {
         modelValue: [],
         tagGroups,
         storageKey: 'tag-groups:test',
+        defaultExpanded: true,
       },
       global: {
         plugins: [ElementPlus],
       },
     });
 
-    await wrapper.findAll('button').find((button) => button.text().includes('恢复快照'))?.trigger('click');
+    await wrapper.findAll('.tag-group-filter-actions button')[1].trigger('click');
 
     expect(wrapper.emitted('change')?.at(-1)).toEqual([[{ groupKey: 'module', valueKeys: ['sketch'] }]]);
     expect(wrapper.emitted('snapshot-restored')?.at(-1)).toEqual([{ ignoredCount: 2, schemaMismatch: true }]);

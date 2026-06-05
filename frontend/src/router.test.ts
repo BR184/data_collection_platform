@@ -26,6 +26,7 @@ describe('router query normalization', () => {
         keyword: 'alpha',
         filterGroup:
           '{"logic":"OR","conditions":[{"fieldKey":"title","operator":"contains","value":"alpha","secondaryValue":""}]}',
+        tagSelections: '[{"groupKey":"module","valueKeys":["sketch"]}]',
         'filters.0.field': 'title',
         'filters.0.operator': 'contains',
         'filters.0.value': 'alpha',
@@ -83,6 +84,7 @@ describe('router query normalization', () => {
         searchType: 'issueIid',
         keyword: '22637',
         projectId: '1001',
+        tagSelections: '[{"groupKey":"severity","valueKeys":["level1"]}]',
       },
     });
 
