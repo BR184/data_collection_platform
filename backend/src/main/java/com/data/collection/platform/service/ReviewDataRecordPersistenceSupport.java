@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.entity.TagSelectionRequest;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ public class ReviewDataRecordPersistenceSupport {
       String reviewExpert,
       String keyword,
       StatisticFilterGroup filterGroup,
+      List<TagSelectionRequest> tagSelections,
       int page,
       int size,
       String sortField,
@@ -67,6 +69,7 @@ public class ReviewDataRecordPersistenceSupport {
         reviewExpert,
         keyword,
         filterGroup,
+        tagSelections,
         page,
         size,
         sortField,

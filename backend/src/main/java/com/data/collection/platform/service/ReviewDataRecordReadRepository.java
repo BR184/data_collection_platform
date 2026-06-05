@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
+import com.data.collection.platform.entity.TagSelectionRequest;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -81,9 +83,17 @@ public class ReviewDataRecordReadRepository {
       """;
 
   private final JdbcTemplate jdbcTemplate;
+  private final TagSelectionSqlPredicateService tagSelectionSqlPredicateService;
+
+  @Autowired
+  public ReviewDataRecordReadRepository(
+      JdbcTemplate jdbcTemplate, TagSelectionSqlPredicateService tagSelectionSqlPredicateService) {
+    this.jdbcTemplate = jdbcTemplate;
+    this.tagSelectionSqlPredicateService = tagSelectionSqlPredicateService;
+  }
 
   public ReviewDataRecordReadRepository(JdbcTemplate jdbcTemplate) {
-    this.jdbcTemplate = jdbcTemplate;
+    this(jdbcTemplate, null);
   }
 
   public List<ReviewDataRecordRowResponse> loadRecords(
@@ -120,12 +130,22 @@ public class ReviewDataRecordReadRepository {
       String reviewExpert,
       String keyword,
       StatisticFilterGroup filterGroup,
+      List<TagSelectionRequest> tagSelections,
       int page,
       int size,
       String sortField,
       String sortOrder) {
     SqlParts from = buildFilteredFromSql(
-        title, projectName, moduleName, reviewOwner, reviewType, problemStatus, reviewExpert, keyword, filterGroup);
+        title,
+        projectName,
+        moduleName,
+        reviewOwner,
+        reviewType,
+        problemStatus,
+        reviewExpert,
+        keyword,
+        filterGroup,
+        tagSelections);
     String orderBy = buildWindowOrderBy(sortField, sortOrder);
     int safePage = page <= 0 ? 1 : page;
     int safeSize = size <= 0 ? 20 : Math.min(size, 100);
@@ -413,7 +433,8 @@ public class ReviewDataRecordReadRepository {
       String problemStatus,
       String reviewExpert,
       String keyword,
-      StatisticFilterGroup filterGroup) {
+      StatisticFilterGroup filterGroup,
+      List<TagSelectionRequest> tagSelections) {
     StringBuilder sql =
         new StringBuilder(
             """
@@ -452,6 +473,7 @@ public class ReviewDataRecordReadRepository {
     appendReviewExpertFilter(sql, args, reviewExpert);
     appendKeywordSearch(sql, args, keyword);
     appendFilterGroup(sql, args, filterGroup);
+    appendTagSelections(sql, args, tagSelections);
     return new SqlParts(sql.toString(), args);
   }
 
@@ -560,6 +582,21 @@ public class ReviewDataRecordReadRepository {
 
   private void appendFilterGroup(StringBuilder sql, List<Object> args, StatisticFilterGroup filterGroup) {
     ReviewDataFilterGroupSqlSupport.toSql(filterGroup)
+        .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
+        .ifPresent(
+            filter -> {
+              sql.append(" and (").append(filter.predicate()).append(")");
+              args.addAll(filter.args());
+            });
+  }
+
+  private void appendTagSelections(
+      StringBuilder sql, List<Object> args, List<TagSelectionRequest> tagSelections) {
+    if (tagSelectionSqlPredicateService == null || tagSelections == null || tagSelections.isEmpty()) {
+      return;
+    }
+    tagSelectionSqlPredicateService
+        .toSql("review_data", null, tagSelections)
         .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
         .ifPresent(
             filter -> {

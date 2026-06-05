@@ -22,6 +22,12 @@ public class TagSelectionSqlPredicateService {
           "milestone", "milestone_title",
           "testing_phase", "phase_filter_value",
           "status", "issue_state");
+  private static final Map<String, String> REVIEW_DATA_EQ_COLUMNS =
+      Map.of(
+          "module", "r.module_name",
+          "module_name", "r.module_name",
+          "review_type", "r.review_type",
+          "review_owner", "r.review_owner");
 
   private final TagGroupService tagGroupService;
 
@@ -108,7 +114,7 @@ public class TagSelectionSqlPredicateService {
       case TagGroupMatchStrategyRegistry.LIKE ->
           likeCondition(likeColumn(domain, group.groupKey()), candidates);
       case TagGroupMatchStrategyRegistry.EQ ->
-          eqCondition(eqColumn(domain, group.groupKey()), candidates);
+          eqCondition(domain, group.groupKey(), candidates);
       default -> Optional.empty();
     };
   }
@@ -165,7 +171,14 @@ public class TagSelectionSqlPredicateService {
     return Optional.of(new SqlPredicate(String.join(" or ", predicates), args));
   }
 
-  private Optional<SqlPredicate> eqCondition(String column, List<String> candidates) {
+  private Optional<SqlPredicate> eqCondition(String domain, String groupKey, List<String> candidates) {
+    String normalizedGroupKey = normalizeKey(groupKey);
+    if ("review_data".equals(domain)
+        && ("problem_status".equals(normalizedGroupKey) || "problem_category".equals(normalizedGroupKey))) {
+      String column = "problem_status".equals(normalizedGroupKey) ? "problem_status" : "problem_category";
+      return reviewProblemItemCondition(column, candidates);
+    }
+    String column = eqColumn(domain, normalizedGroupKey);
     if (column == null) {
       return Optional.empty();
     }
@@ -174,6 +187,20 @@ public class TagSelectionSqlPredicateService {
     String expression = "lower(coalesce(" + column + ", ''))";
     for (String candidate : candidates) {
       predicates.add(expression + " = ?");
+      args.add(lower(candidate));
+    }
+    return Optional.of(new SqlPredicate(String.join(" or ", predicates), args));
+  }
+
+  private Optional<SqlPredicate> reviewProblemItemCondition(String column, List<String> candidates) {
+    List<String> predicates = new ArrayList<>();
+    List<Object> args = new ArrayList<>();
+    for (String candidate : candidates) {
+      predicates.add(
+          "exists (select 1 from review_problem_items tag_problem"
+              + " where tag_problem.review_record_id = r.id"
+              + " and tag_problem.deleted = false"
+              + " and lower(coalesce(tag_problem." + column + ", '')) = ?)");
       args.add(lower(candidate));
     }
     return Optional.of(new SqlPredicate(String.join(" or ", predicates), args));
@@ -207,8 +234,8 @@ public class TagSelectionSqlPredicateService {
     if ("issue".equals(domain)) {
       return ISSUE_EQ_COLUMNS.get(normalizeKey(groupKey));
     }
-    if ("review_data".equals(domain) && "module".equals(normalizeKey(groupKey))) {
-      return "r.module_name";
+    if ("review_data".equals(domain)) {
+      return REVIEW_DATA_EQ_COLUMNS.get(normalizeKey(groupKey));
     }
     return null;
   }

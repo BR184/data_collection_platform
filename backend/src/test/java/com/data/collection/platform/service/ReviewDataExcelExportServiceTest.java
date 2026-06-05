@@ -1,12 +1,14 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
+import com.data.collection.platform.entity.TagSelectionRequest;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -98,6 +100,50 @@ class ReviewDataExcelExportServiceTest {
       assertThat(sheet.getRow(1).getCell(24).getStringCellValue()).isEqualTo("独立评审");
       assertThat(sheet.getRow(1).getCell(27).getStringCellValue()).isEqualTo("缺少异常流程");
     }
+  }
+
+  @Test
+  void shouldKeepTagSelectionsWhenPagingExportRecords() {
+    ReviewDataRecordQueryRequest request =
+        new ReviewDataRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of(new TagSelectionRequest("module", List.of("sketch"))),
+            1,
+            20,
+            "updatedAt",
+            "desc");
+    ReviewDataRecordQueryRequest expectedPageRequest =
+        new ReviewDataRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of(new TagSelectionRequest("module", List.of("sketch"))),
+            1,
+            100,
+            "updatedAt",
+            "desc");
+    when(queryService.listRecords(expectedPageRequest))
+        .thenReturn(
+            new ReviewDataRecordListResponse(
+                List.of(), 0, 1, 100, "updatedAt", "desc", new ReviewDataSummaryResponse(0, 0, 0, 0)));
+
+    new ReviewDataExcelExportService(queryService, persistenceSupport).exportReviewRecordsWorkbook(request);
+
+    verify(queryService).listRecords(expectedPageRequest);
   }
 
   private ReviewDataRecordQueryRequest request() {

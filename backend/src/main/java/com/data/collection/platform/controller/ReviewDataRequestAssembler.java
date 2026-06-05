@@ -17,6 +17,7 @@ public class ReviewDataRequestAssembler {
         request.getProblemStatus(),
         request.getReviewExpert(),
         request.getFilterGroup(),
+        TagSelectionRequestParser.parse(request.getTagSelections()),
         request.getPage(),
         request.getSize(),
         request.getSortBy(),

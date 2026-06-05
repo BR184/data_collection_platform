@@ -118,6 +118,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   listRequest.updatedAtStart(),
                   listRequest.updatedAtEnd(),
                   listRequest.sourceInstance(),
+                  listRequest.tagSelections(),
                   page,
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),

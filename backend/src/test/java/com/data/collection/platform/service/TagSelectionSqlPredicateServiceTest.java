@@ -151,6 +151,42 @@ class TagSelectionSqlPredicateServiceTest {
     assertThat(result.get().args()).containsExactly("一级严重", "critical");
   }
 
+  @Test
+  void shouldConvertReviewDataProblemStatusToExistsPredicate() {
+    when(tagGroupService.getTagGroups("review_data"))
+        .thenReturn(
+            new TagGroupsResponse(
+                "review_data",
+                "hash",
+                List.of(
+                    group(
+                        "problem_status",
+                        "问题状态",
+                        TagGroupMatchStrategyRegistry.EQ,
+                        value("confirmed", "已确认")))));
+    when(tagGroupService.resolveMappings("review_data", "problem_status", "confirmed", null))
+        .thenReturn(List.of("待解决"));
+
+    Optional<SqlPredicate> result =
+        service.toSql(
+            "review_data",
+            null,
+            List.of(new TagSelectionRequest("problem_status", List.of("confirmed"))));
+
+    assertThat(result).isPresent();
+    assertThat(result.get().predicate())
+        .isEqualTo(
+            "(exists (select 1 from review_problem_items tag_problem"
+                + " where tag_problem.review_record_id = r.id"
+                + " and tag_problem.deleted = false"
+                + " and lower(coalesce(tag_problem.problem_status, '')) = ?)"
+                + " or exists (select 1 from review_problem_items tag_problem"
+                + " where tag_problem.review_record_id = r.id"
+                + " and tag_problem.deleted = false"
+                + " and lower(coalesce(tag_problem.problem_status, '')) = ?))");
+    assertThat(result.get().args()).containsExactly("已确认", "待解决");
+  }
+
   private static TagGroupResponse group(
       String groupKey,
       String label,

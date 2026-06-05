@@ -1,5 +1,8 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.TagSelectionRequest;
+import java.util.List;
+
 public record IssueFactRecordListRequest(
     Long projectId,
     String keyword,
@@ -19,10 +22,64 @@ public record IssueFactRecordListRequest(
     String updatedAtStart,
     String updatedAtEnd,
     String sourceInstance,
+    List<TagSelectionRequest> tagSelections,
     int page,
     int size,
     String sortField,
     String sortOrder) {
+  public IssueFactRecordListRequest {
+    tagSelections = tagSelections == null ? List.of() : List.copyOf(tagSelections);
+  }
+
+  public IssueFactRecordListRequest(
+      Long projectId,
+      String keyword,
+      String searchType,
+      String issueIid,
+      String title,
+      String projectName,
+      String moduleName,
+      String severityLevel,
+      String priorityLevel,
+      String issueState,
+      String bugStatus,
+      String category,
+      String milestoneTitle,
+      String createdAtStart,
+      String createdAtEnd,
+      String updatedAtStart,
+      String updatedAtEnd,
+      String sourceInstance,
+      int page,
+      int size,
+      String sortField,
+      String sortOrder) {
+    this(
+        projectId,
+        keyword,
+        searchType,
+        issueIid,
+        title,
+        projectName,
+        moduleName,
+        severityLevel,
+        priorityLevel,
+        issueState,
+        bugStatus,
+        category,
+        milestoneTitle,
+        createdAtStart,
+        createdAtEnd,
+        updatedAtStart,
+        updatedAtEnd,
+        sourceInstance,
+        List.of(),
+        page,
+        size,
+        sortField,
+        sortOrder);
+  }
+
   public IssueFactRecordListRequest(
       Long projectId,
       String keyword,
@@ -63,6 +120,7 @@ public record IssueFactRecordListRequest(
         updatedAtStart,
         updatedAtEnd,
         null,
+        List.of(),
         page,
         size,
         sortField,
@@ -110,6 +168,57 @@ public record IssueFactRecordListRequest(
         updatedAtStart,
         updatedAtEnd,
         sourceInstance,
+        List.of(),
+        page,
+        size,
+        sortField,
+        sortOrder);
+  }
+
+  public static IssueFactRecordListRequest withTagSelections(
+      Long projectId,
+      String keyword,
+      String searchType,
+      String issueIid,
+      String title,
+      String projectName,
+      String moduleName,
+      String severityLevel,
+      String priorityLevel,
+      String issueState,
+      String bugStatus,
+      String category,
+      String milestoneTitle,
+      String createdAtStart,
+      String createdAtEnd,
+      String updatedAtStart,
+      String updatedAtEnd,
+      String sourceInstance,
+      List<TagSelectionRequest> tagSelections,
+      int page,
+      int size,
+      String sortField,
+      String sortOrder) {
+    return new IssueFactRecordListRequest(
+        projectId,
+        keyword,
+        searchType,
+        issueIid,
+        title,
+        projectName,
+        moduleName,
+        severityLevel,
+        priorityLevel,
+        issueState,
+        bugStatus,
+        category,
+        milestoneTitle,
+        createdAtStart,
+        createdAtEnd,
+        updatedAtStart,
+        updatedAtEnd,
+        sourceInstance,
+        tagSelections == null ? List.of() : List.copyOf(tagSelections),
         page,
         size,
         sortField,

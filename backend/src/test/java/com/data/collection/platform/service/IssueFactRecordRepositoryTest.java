@@ -6,6 +6,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.entity.TagSelectionRequest;
+import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -16,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class IssueFactRecordRepositoryTest {
 
   @Mock private IssueFactQueryService issueFactQueryService;
+  @Mock private TagSelectionSqlPredicateService tagSelectionSqlPredicateService;
 
   @Test
   void keywordSearchShouldFallbackToRawIssueFieldsWhenSearchIndexesAreEmpty() {
@@ -88,6 +92,71 @@ class IssueFactRecordRepositoryTest {
     assertThat(sql).contains("cast(issue_iid as varchar) like ?");
     assertThat(sql).doesNotContain("search_text like ?");
     assertThat(sql).doesNotContain("lower(coalesce(title, '')) like ?");
+  }
+
+  @Test
+  void shouldAppendTagSelectionPredicateToSqlPageQueries() {
+    IssueFactRecordRepository repository =
+        new IssueFactRecordRepository(issueFactQueryService, tagSelectionSqlPredicateService);
+    when(issueFactQueryService.count(anyString(), anyList())).thenReturn(0L);
+    when(tagSelectionSqlPredicateService.toSql(
+            "issue", "cc", List.of(new TagSelectionRequest("module", List.of("sketch")))))
+        .thenReturn(
+            Optional.of(
+                new SqlPredicate(
+                    "lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?",
+                    List.of("%,草图,%"))));
+
+    repository.findPage(
+        new IssueFactRecordPageQuery(
+            IssueFactRecordPageQuery.Scope.ALL,
+            IssueFactRecordListRequest.withTagSelections(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "cc",
+                List.of(new TagSelectionRequest("module", List.of("sketch"))),
+                1,
+                20,
+                "updatedAt",
+                "desc"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            false,
+            false,
+            false,
+            false,
+            1,
+            20,
+            "updatedAt",
+            "desc"));
+
+    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<List<Object>> argsCaptor = ArgumentCaptor.forClass(List.class);
+    verify(issueFactQueryService).count(sqlCaptor.capture(), argsCaptor.capture());
+
+    assertThat(sqlCaptor.getValue())
+        .contains("lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?");
+    assertThat(argsCaptor.getValue()).contains("%,草图,%");
   }
 
   private IssueFactRecordListRequest request(String keyword, String searchType, String sourceInstance) {
