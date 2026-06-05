@@ -94,6 +94,61 @@ public class IssueFactRecordRepository {
     }
   }
 
+  public List<IssueFactRecord> findForFilterOptions(IssueFactRecordListRequest request) {
+    IssueFactRecordListRequest safeRequest =
+        request == null
+            ? IssueFactRecordListRequest.withTagSelections(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                1,
+                20,
+                "updatedAt",
+                "desc")
+            : request;
+    QueryParts parts =
+        buildPageQuery(
+            new IssueFactRecordPageQuery(
+                IssueFactRecordPageQuery.Scope.ALL,
+                safeRequest,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                false,
+                false,
+                false,
+                false,
+                1,
+                20,
+                "updatedAt",
+                "desc"));
+    try {
+      return issueFactQueryService.query(FACT_SELECT_SQL + parts.where(), parts.args(), this::mapIssueFact);
+    } catch (DataAccessException error) {
+      return List.of();
+    }
+  }
+
   public PageSlice<IssueFactRecord> findPage(IssueFactRecordPageQuery query) {
     QueryParts parts = buildPageQuery(query);
     try {

@@ -44,6 +44,11 @@ public class ReviewDataRecordPersistenceSupport {
     return recordReadRepository.loadProblemStatusesByRecordIds(records);
   }
 
+  public List<ReviewDataRecordRowResponse> loadRecordsForFilterOptions(
+      List<TagSelectionRequest> tagSelections, String sourceInstance) {
+    return recordReadRepository.loadRecordsForFilterOptions(tagSelections, sourceInstance);
+  }
+
   public ReviewDataRecordReadRepository.RecordPageResult loadRecordPage(
       String title,
       String projectName,

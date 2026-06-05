@@ -1,6 +1,8 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -148,7 +150,7 @@ class QuestionMetricsControllerTest {
 
   @Test
   void shouldReturnIssueSearchFilterOptions() throws Exception {
-    when(systemTestIssueSearchService.getFilterOptions(1001L, "cc"))
+    when(systemTestIssueSearchService.getFilterOptions(eq(1001L), argThat(List::isEmpty), eq("cc")))
         .thenReturn(
             new SystemTestIssueSearchFilterOptionsResponse(
                 List.of(new OptionItemResponse("Rocksdb", "Rocksdb")),

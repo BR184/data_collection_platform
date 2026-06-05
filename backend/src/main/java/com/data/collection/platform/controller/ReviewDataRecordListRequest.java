@@ -11,6 +11,7 @@ public class ReviewDataRecordListRequest {
   private String reviewExpert;
   private String filterGroup;
   private String tagSelections;
+  private String sourceInstance;
   private int page = 1;
   private int size = 20;
   private String sortBy;
@@ -94,6 +95,14 @@ public class ReviewDataRecordListRequest {
 
   public void setTagSelections(String tagSelections) {
     this.tagSelections = tagSelections;
+  }
+
+  public String getSourceInstance() {
+    return sourceInstance;
+  }
+
+  public void setSourceInstance(String sourceInstance) {
+    this.sourceInstance = sourceInstance;
   }
 
   public int getPage() {

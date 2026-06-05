@@ -18,6 +18,7 @@ import com.data.collection.platform.service.ReviewDataLegacyExcelImportRequest;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataLegacyExcelPreviewResponse;
 import com.data.collection.platform.service.ReviewDataExcelExportService;
+import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import jakarta.validation.Valid;
 import java.io.IOException;
@@ -69,8 +70,11 @@ public class ReviewDataController {
   }
 
   @GetMapping("/records/filter-options")
-  public ApiResponse<ReviewDataFilterOptionsResponse> getFilterOptions() {
-    return ApiResponse.success(reviewDataRecordService.getFilterOptions());
+  public ApiResponse<ReviewDataFilterOptionsResponse> getFilterOptions(
+      @ModelAttribute ReviewDataRecordListRequest request) {
+    ReviewDataRecordQueryRequest queryRequest = reviewDataRequestAssembler.toQueryRequest(request);
+    return ApiResponse.success(
+        reviewDataRecordService.getFilterOptions(queryRequest.tagSelections(), request.getSourceInstance()));
   }
 
   @GetMapping("/records/{recordId}")

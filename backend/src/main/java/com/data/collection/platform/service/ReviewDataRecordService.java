@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.ReviewDataRecordDetailResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import com.data.collection.platform.entity.ReviewDataSearchIndexBackfillResponse;
+import com.data.collection.platform.entity.TagSelectionRequest;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -32,8 +33,9 @@ public class ReviewDataRecordService {
     return queryService.listRecords(request);
   }
 
-  public ReviewDataFilterOptionsResponse getFilterOptions() {
-    return filterOptionService.getFilterOptions();
+  public ReviewDataFilterOptionsResponse getFilterOptions(
+      List<TagSelectionRequest> tagSelections, String sourceInstance) {
+    return filterOptionService.getFilterOptions(tagSelections, sourceInstance);
   }
 
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {

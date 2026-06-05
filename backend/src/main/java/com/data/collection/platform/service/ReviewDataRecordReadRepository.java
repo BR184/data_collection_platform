@@ -120,6 +120,14 @@ public class ReviewDataRecordReadRepository {
     return jdbcTemplate.query(sql.toString(), this::mapRecordRow, args.toArray());
   }
 
+  public List<ReviewDataRecordRowResponse> loadRecordsForFilterOptions(
+      List<TagSelectionRequest> tagSelections, String sourceInstance) {
+    StringBuilder sql = new StringBuilder(BASE_LIST_SQL);
+    List<Object> args = new ArrayList<>();
+    appendTagSelections(sql, args, tagSelections, sourceInstance);
+    return jdbcTemplate.query(sql.toString(), this::mapRecordRow, args.toArray());
+  }
+
   public RecordPageResult loadRecordPage(
       String title,
       String projectName,
@@ -473,7 +481,7 @@ public class ReviewDataRecordReadRepository {
     appendReviewExpertFilter(sql, args, reviewExpert);
     appendKeywordSearch(sql, args, keyword);
     appendFilterGroup(sql, args, filterGroup);
-    appendTagSelections(sql, args, tagSelections);
+    appendTagSelections(sql, args, tagSelections, null);
     return new SqlParts(sql.toString(), args);
   }
 
@@ -591,12 +599,15 @@ public class ReviewDataRecordReadRepository {
   }
 
   private void appendTagSelections(
-      StringBuilder sql, List<Object> args, List<TagSelectionRequest> tagSelections) {
+      StringBuilder sql,
+      List<Object> args,
+      List<TagSelectionRequest> tagSelections,
+      String sourceInstance) {
     if (tagSelectionSqlPredicateService == null || tagSelections == null || tagSelections.isEmpty()) {
       return;
     }
     tagSelectionSqlPredicateService
-        .toSql("review_data", null, tagSelections)
+        .toSql("review_data", sourceInstance, tagSelections)
         .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
         .ifPresent(
             filter -> {

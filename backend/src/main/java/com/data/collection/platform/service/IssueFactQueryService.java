@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -61,9 +62,18 @@ public class IssueFactQueryService extends AbstractFactQueryService {
     appendContains(sql, args, "project_name", filters.get("projectName"));
     appendContains(sql, args, "milestone_title", filters.get("milestoneTitle"));
     appendContains(sql, args, "testing_phase", filters.get("testingPhase"));
-    appendContains(sql, args, "module_names", filters.get("moduleName"));
+    appendModuleName(sql, args, filters.get("moduleName"));
     appendContains(sql, args, "function_name", filters.get("functionName"));
     appendEq(sql, args, "severity_level", filters.get("severityLevel"), value -> value);
     appendEq(sql, args, "priority_level", filters.get("priorityLevel"), value -> value);
+  }
+
+  private void appendModuleName(StringBuilder sql, List<Object> args, String rawValue) {
+    String value = trimToNull(rawValue);
+    if (value == null) {
+      return;
+    }
+    sql.append(" and lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?");
+    args.add("%," + value.toLowerCase(Locale.ROOT) + ",%");
   }
 }

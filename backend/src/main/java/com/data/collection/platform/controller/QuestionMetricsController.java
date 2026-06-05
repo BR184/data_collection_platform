@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
 import org.springframework.http.HttpHeaders;
@@ -68,9 +69,12 @@ public class QuestionMetricsController {
 
   @GetMapping("/issues/filter-options")
   public ApiResponse<SystemTestIssueSearchFilterOptionsResponse> getIssueFilterOptions(
-      @RequestParam(required = false) Long projectId,
-      @RequestParam(required = false) String sourceInstance) {
-    return ApiResponse.success(systemTestIssueSearchService.getFilterOptions(projectId, sourceInstance));
+      @ModelAttribute SystemTestIssueSearchListWebRequest request) {
+    IssueFactRecordListRequest listRequest =
+        questionMetricsRequestAssembler.toIssueSearchQueryRequest(request).listRequest();
+    return ApiResponse.success(
+        systemTestIssueSearchService.getFilterOptions(
+            listRequest.projectId(), listRequest.tagSelections(), listRequest.sourceInstance()));
   }
 
   @GetMapping("/issues/status")
