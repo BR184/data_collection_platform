@@ -15,7 +15,7 @@ describe('ReviewDataManagementView mount smoke', () => {
       if (url.includes('/filter-options')) {
         return jsonResponse({
           projectNames: [], moduleNames: [], reviewOwners: [], reviewTypes: [], reviewExperts: [],
-          problemStatuses: [], reviewCategories: [], problemCategories: [],
+          reviewVersions: [], problemStatuses: [], reviewCategories: [], problemCategories: [],
         });
       }
       if (url.includes('/api/review-data/records?')) {

@@ -31,6 +31,7 @@ export function createEmptyReviewDataFilterOptions(): ReviewDataFilterOptionsRes
     reviewOwners: [],
     reviewTypes: [],
     reviewExperts: [],
+    reviewVersions: [],
     problemStatuses: [],
     reviewCategories: [],
     problemCategories: [],

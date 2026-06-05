@@ -58,6 +58,7 @@ public class ReviewDataFilterOptionService {
         toOptions(records.stream().map(ReviewDataRecordRowResponse::reviewOwner).toList()),
         REVIEW_TYPE_OPTIONS,
         toOptions(persistenceSupport.loadExpertOptions()),
+        toOptions(records.stream().map(ReviewDataRecordRowResponse::reviewVersion).toList()),
         PROBLEM_STATUS_OPTIONS,
         REVIEW_CATEGORY_OPTIONS,
         PROBLEM_CATEGORY_OPTIONS);

@@ -8,6 +8,7 @@ public record ReviewDataFilterOptionsResponse(
     List<OptionItemResponse> reviewOwners,
     List<OptionItemResponse> reviewTypes,
     List<OptionItemResponse> reviewExperts,
+    List<OptionItemResponse> reviewVersions,
     List<OptionItemResponse> problemStatuses,
     List<OptionItemResponse> reviewCategories,
     List<OptionItemResponse> problemCategories) {}

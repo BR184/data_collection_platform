@@ -160,6 +160,7 @@ describe('review-data-management helpers', () => {
       reviewOwners: [{ label: 'Owner A', value: 'Owner A' }],
       reviewTypes: [{ label: 'Design', value: 'Design' }],
       reviewExperts: [{ label: 'Expert A', value: 'Expert A' }],
+      reviewVersions: [{ label: 'V1.0', value: 'V1.0' }],
       problemStatuses: [{ label: 'Open', value: 'Open' }],
       reviewCategories: [],
       problemCategories: [],

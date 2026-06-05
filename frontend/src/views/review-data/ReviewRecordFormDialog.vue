@@ -65,6 +65,7 @@ const moduleOptions = computed(() => props.filterOptions.moduleNames);
 const reviewOwnerOptions = computed(() => props.filterOptions.reviewOwners);
 const reviewTypeOptions = computed(() => props.filterOptions.reviewTypes);
 const expertOptions = computed(() => props.filterOptions.reviewExperts);
+const reviewVersionOptions = computed(() => props.filterOptions.reviewVersions);
 
 const rules: FormRules<ReviewRecordFormModel> = {
   projectName: [{ required: true, message: '请选择项目名称', trigger: 'change' }],
@@ -77,7 +78,7 @@ const rules: FormRules<ReviewRecordFormModel> = {
   reviewScalePages: [{ required: true, message: '请输入评审规模', trigger: 'change' }],
   reviewProduct: [{ required: true, message: '请输入评审的工作产品', trigger: 'blur' }],
   authorName: [{ required: true, message: '请选择作者', trigger: 'change' }],
-  reviewVersion: [{ required: true, message: '请输入评审版本', trigger: 'blur' }],
+  reviewVersion: [{ required: true, message: '请选择评审版本', trigger: 'change' }],
 };
 
 async function handleSubmit() {
@@ -166,7 +167,7 @@ function handleClose() {
           <SmartSelect v-model="form.authorName" :options="expertOptions" compact placeholder="请选择作者" />
         </el-form-item>
         <el-form-item label="评审版本" prop="reviewVersion">
-          <el-input v-model="form.reviewVersion" placeholder="请输入评审版本" />
+          <SmartSelect v-model="form.reviewVersion" :options="reviewVersionOptions" compact placeholder="请选择评审版本" />
         </el-form-item>
         <el-form-item label="不达标说明" prop="notReachStandardReason" class="review-form-wide">
           <el-input

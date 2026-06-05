@@ -170,6 +170,7 @@ class ReviewDataControllerTest {
                 List.of(new OptionItemResponse("Alice", "Alice")),
                 List.of(new OptionItemResponse("Document Review", "Document Review")),
                 List.of(new OptionItemResponse("Bob", "Bob")),
+                List.of(new OptionItemResponse("V1.0", "V1.0")),
                 List.of(new OptionItemResponse("Resolved", "Resolved")),
                 List.of(new OptionItemResponse("Meeting Review", "Meeting Review")),
                 List.of(new OptionItemResponse("Formatting", "Formatting"))));
@@ -178,7 +179,8 @@ class ReviewDataControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.projectNames[0].value").value("CrownCAD"))
-        .andExpect(jsonPath("$.data.reviewExperts[0].value").value("Bob"));
+        .andExpect(jsonPath("$.data.reviewExperts[0].value").value("Bob"))
+        .andExpect(jsonPath("$.data.reviewVersions[0].value").value("V1.0"));
   }
 
   @Test

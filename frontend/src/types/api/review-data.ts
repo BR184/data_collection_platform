@@ -54,6 +54,7 @@ export interface ReviewDataFilterOptionsResponse {
   reviewOwners: OptionItemResponse[];
   reviewTypes: OptionItemResponse[];
   reviewExperts: OptionItemResponse[];
+  reviewVersions: OptionItemResponse[];
   problemStatuses: OptionItemResponse[];
   reviewCategories: OptionItemResponse[];
   problemCategories: OptionItemResponse[];
