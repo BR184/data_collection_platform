@@ -369,4 +369,88 @@ describe('CustomerIssueRecordsView mount smoke', () => {
     wrapper.unmount();
     vi.unstubAllGlobals();
   });
+
+  it('does not auto-restore a snapshot after the user clears the last tag selection', async () => {
+    window.localStorage.setItem('tag-groups:customer-issue:delay:default', JSON.stringify({
+      schemaVersion: 1,
+      snapshots: [
+        {
+          schemaVersion: 1,
+          id: 'snapshot-a',
+          schemaHash: 'issue-hash',
+          tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+          fixedFilters: {},
+          savedAt: '2026-06-08T14:30:00.000Z',
+          expiresAt: '2026-07-08T14:30:00.000Z',
+          pinned: true,
+        },
+      ],
+      activeSnapshotId: 'snapshot-a',
+    }));
+    const tagSelections = encodeURIComponent(JSON.stringify([{ groupKey: 'module', valueKeys: ['sketch'] }]));
+    const fetchSpy = vi.fn((url: string) => {
+      if (url.includes('/api/customer-issues/records/filter-options')) {
+        return jsonResponse({
+          projectNames: [], moduleNames: [], reasonCategories: [], severityLevels: [],
+          priorityLevels: [], issueStates: [], bugStatuses: [], categories: [], milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/tag-groups')) {
+        return jsonResponse({
+          domain: 'issue',
+          schemaHash: 'issue-hash',
+          groups: [
+            {
+              groupKey: 'module',
+              label: '妯″潡',
+              selectionMode: 'multiple',
+              sortOrder: 10,
+              matchStrategyName: 'split_exact_comma',
+              values: [
+                { valueKey: 'sketch', label: '鑽夊浘', valueType: 'standard', sortOrder: 10, disabled: false },
+              ],
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/customer-issues/records?')) {
+        return jsonResponse({
+          records: [], total: 0, page: 1, size: 20, sortField: 'updatedAt', sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [
+        {
+          path: '/customer-issues/delay-issues',
+          component: CustomerIssueRecordsView,
+          meta: { pageKey: 'customer-issues-delay-issues' },
+        },
+      ],
+    });
+    await router.push(`/customer-issues/delay-issues?projectId=325&tagSelections=${tagSelections}`);
+    await router.isReady();
+
+    const wrapper = mount(CustomerIssueRecordsView, {
+      attachTo: document.body,
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', []);
+    await flushPromises();
+
+    expect(router.currentRoute.value.query.tagSelections).toBe('[]');
+    const recordCalls = fetchSpy.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/api/customer-issues/records?'));
+    expect(recordCalls.at(-1)).not.toContain('tagSelections=');
+
+    wrapper.unmount();
+    vi.unstubAllGlobals();
+  });
 });

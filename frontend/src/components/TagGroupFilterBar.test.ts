@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import ElementPlus from 'element-plus';
 import TagGroupFilterBar from './TagGroupFilterBar.vue';
 import type { TagGroupsResponse } from '../types/api';
@@ -142,6 +142,72 @@ describe('TagGroupFilterBar', () => {
     const rawStore = window.localStorage.getItem('tag-groups:test');
     expect(rawStore).toContain('高风险模块');
     expect(wrapper.emitted('snapshot-saved')?.at(-1)).toEqual([{ name: '高风险模块' }]);
+  });
+
+  it('keeps the save snapshot form open for typing', async () => {
+    const wrapper = mount(TagGroupFilterBar, {
+      attachTo: document.body,
+      props: {
+        modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+        tagGroups,
+        storageKey: 'tag-groups:test',
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    await wrapper.findAll('button').find((button) => button.text().includes('淇濆瓨蹇収'))?.trigger('click');
+    await flushPromises();
+
+    expect(document.body.querySelector('[data-testid="tag-group-snapshot-name-input"]')).not.toBeNull();
+
+    wrapper.unmount();
+  });
+
+  it('deletes a saved snapshot without restoring it', async () => {
+    window.localStorage.setItem(
+      'tag-groups:test',
+      JSON.stringify({
+        schemaVersion: 1,
+        snapshots: [
+          {
+            schemaVersion: 1,
+            id: 'snapshot-a',
+            name: '澶嶇洏绛涢€?',
+            schemaHash: 'hash-a',
+            tagSelections: [{ groupKey: 'module', valueKeys: ['surface'] }],
+            fixedFilters: {},
+            savedAt: '2026-06-08T14:30:00.000Z',
+            expiresAt: '2026-07-08T14:30:00.000Z',
+            pinned: true,
+          },
+        ],
+        activeSnapshotId: 'snapshot-a',
+      }),
+    );
+    const wrapper = mount(TagGroupFilterBar, {
+      props: {
+        modelValue: [],
+        tagGroups,
+        storageKey: 'tag-groups:test',
+        autoRestore: false,
+      },
+      global: {
+        plugins: [ElementPlus],
+        stubs: {
+          ElPopover: {
+            props: ['visible'],
+            template: '<div><slot name="reference" /><slot /></div>',
+          },
+        },
+      },
+    });
+
+    await wrapper.get('[data-testid="tag-group-snapshot-delete-snapshot-a"]').trigger('click');
+
+    expect(wrapper.emitted('snapshot-restored')).toBeUndefined();
+    expect(window.localStorage.getItem('tag-groups:test')).not.toContain('snapshot-a');
   });
 
   it('opens a formal restore selector instead of restoring from the trigger button', async () => {

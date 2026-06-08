@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TagGroupsResponse, TagSelectionRequest } from '../types/api';
 import {
   buildTagGroupActiveFilterTags,
+  deleteTagGroupSnapshot,
   hasRestorableTagGroupSnapshot,
   normalizeTagSelections,
   parseTagGroupSnapshotStore,
@@ -146,5 +147,37 @@ describe('tag group filter helpers', () => {
     expect(hasRestorableTagGroupSnapshot(rawValue, groupsResponse)).toBe(true);
     expect(hasRestorableTagGroupSnapshot('', groupsResponse)).toBe(false);
     expect(hasRestorableTagGroupSnapshot(rawValue, null)).toBe(false);
+  });
+
+  it('deletes a snapshot and promotes the next available snapshot', () => {
+    const rawValue = JSON.stringify({
+      schemaVersion: 1,
+      snapshots: [
+        {
+          schemaVersion: 1,
+          id: 'snapshot-a',
+          schemaHash: 'hash-a',
+          tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+          savedAt: '2026-06-05T00:00:00.000Z',
+          expiresAt: '2026-07-05T00:00:00.000Z',
+          pinned: true,
+        },
+        {
+          schemaVersion: 1,
+          id: 'snapshot-b',
+          schemaHash: 'hash-a',
+          tagSelections: [{ groupKey: 'module', valueKeys: ['surface'] }],
+          savedAt: '2026-06-04T00:00:00.000Z',
+          expiresAt: '2026-07-04T00:00:00.000Z',
+          pinned: true,
+        },
+      ],
+      activeSnapshotId: 'snapshot-a',
+    });
+
+    const store = deleteTagGroupSnapshot(rawValue, 'snapshot-a', new Date('2026-06-08T00:00:00.000Z'));
+
+    expect(store.snapshots.map((snapshot) => snapshot.id)).toEqual(['snapshot-b']);
+    expect(store.activeSnapshotId).toBe('snapshot-b');
   });
 });

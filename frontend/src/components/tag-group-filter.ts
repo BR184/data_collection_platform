@@ -219,6 +219,24 @@ export function savePinnedTagGroupSnapshot(
   };
 }
 
+export function deleteTagGroupSnapshot(
+  rawValue: string | null | undefined,
+  snapshotId: string,
+  now = new Date(),
+): TagGroupFilterSnapshotStore {
+  const current = parseTagGroupSnapshotStore(rawValue, now);
+  const snapshots = current.snapshots.filter((snapshot) => snapshot.id !== snapshotId);
+  const activeSnapshotId = snapshots.some((snapshot) => snapshot.id === current.activeSnapshotId)
+    ? current.activeSnapshotId
+    : snapshots[0]?.id;
+  return {
+    schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,
+    snapshots,
+    activeSnapshotId,
+    updatedAt: now.toISOString(),
+  };
+}
+
 export function getActiveTagGroupSnapshot(store: TagGroupFilterSnapshotStore): TagGroupFilterSnapshot | null {
   return store.snapshots.find((snapshot) => snapshot.id === store.activeSnapshotId) ?? store.snapshots[0] ?? null;
 }
@@ -330,5 +348,5 @@ export function parseTagSelectionsQuery(rawValue: unknown): TagSelectionRequest[
 }
 
 export function stringifyTagSelectionsQuery(selections: TagSelectionRequest[]) {
-  return selections.length > 0 ? JSON.stringify(selections) : null;
+  return JSON.stringify(selections);
 }

@@ -8,6 +8,7 @@ import type {
   TagSelectionRequest,
 } from '../types/api';
 import {
+  deleteTagGroupSnapshot,
   getActiveTagGroupSnapshot,
   type TagGroupFilterSnapshot,
   isDisabledTagValue,
@@ -200,6 +201,18 @@ function handleRestoreSnapshot(snapshotId: string) {
   restoreSnapshot(snapshotId, 'manual');
 }
 
+function handleDeleteSnapshot(snapshotId: string) {
+  if (!props.storageKey) {
+    return;
+  }
+  const store = deleteTagGroupSnapshot(window.localStorage.getItem(props.storageKey), snapshotId);
+  window.localStorage.setItem(props.storageKey, JSON.stringify(store));
+  snapshotStoreRevision.value += 1;
+  if (!store.snapshots.length) {
+    restorePopoverVisible.value = false;
+  }
+}
+
 function snapshotTitle(snapshot: TagGroupFilterSnapshot) {
   return snapshot.name || '未命名快照';
 }
@@ -300,7 +313,7 @@ watch(
       <el-tag v-if="selectedCount > 0" size="small" effect="plain">{{ selectedCount }} 个已选</el-tag>
       <el-popover
         v-model:visible="savePopoverVisible"
-        trigger="click"
+        trigger="manual"
         placement="bottom-end"
         width="260"
       >
@@ -349,16 +362,29 @@ watch(
         </template>
         <div class="tag-group-filter-bar-popover">
           <strong class="tag-group-filter-bar-popover-title">恢复快照</strong>
-          <button
+          <div
             v-for="snapshot in snapshotOptions"
             :key="snapshot.id"
             class="tag-group-filter-bar-snapshot-option"
-            type="button"
             @click="handleRestoreSnapshot(String(snapshot.id))"
           >
-            <span>{{ snapshotTitle(snapshot) }}</span>
-            <small>{{ snapshotSubtitle(snapshot) }}</small>
-          </button>
+            <button
+              class="tag-group-filter-bar-snapshot-restore"
+              type="button"
+              @click.stop="handleRestoreSnapshot(String(snapshot.id))"
+            >
+              <span>{{ snapshotTitle(snapshot) }}</span>
+              <small>{{ snapshotSubtitle(snapshot) }}</small>
+            </button>
+            <el-button
+              text
+              :icon="Delete"
+              aria-label="删除快照"
+              title="删除快照"
+              :data-testid="`tag-group-snapshot-delete-${snapshot.id}`"
+              @click.stop="handleDeleteSnapshot(String(snapshot.id))"
+            />
+          </div>
         </div>
       </el-popover>
       <el-button
