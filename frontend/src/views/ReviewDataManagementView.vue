@@ -6,7 +6,7 @@ import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, ArrowUp, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
-import TagGroupFilter from '../components/TagGroupFilter.vue';
+import TagGroupFilterBar from '../components/TagGroupFilterBar.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
 import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
@@ -402,14 +402,13 @@ const {
     >
       <template #filter-builder>
         <div class="review-data-filter-stack">
-          <TagGroupFilter
+          <TagGroupFilterBar
             :model-value="tagSelections"
             :tag-groups="tagGroups"
             :loading="isTableLoading"
             :storage-key="tagGroupStorageKey"
             :fixed-filters="reviewDataFixedFilters"
             :auto-restore="shouldAutoRestoreTagSnapshot"
-            :default-expanded="true"
             @change="handleTagSelectionsChange"
             @snapshot-restored="handleTagSnapshotRestored"
             @snapshot-saved="handleTagSnapshotSaved"

@@ -257,6 +257,200 @@ createdAt between 2026-05-01 and 2026-06-01
 
 注意：`frontend/src/components/statistic-board-filters.ts` 当前 `StatisticFilterDraftGroup` 只支持单层 `logic + conditions[]`，不能表达“同组 OR + 不同组 AND”的两层结构。业务页标签组不要直接扩展 `StatisticFilterBuilder` 的扁平条件模型，也不要新增 `inMappedValues` 后再要求统计板 builder 回显。推荐请求层新增 `tagSelections`，由后端按数据域转换为查询谓词；统计板继续只处理现有 `StatisticFilterGroup`。
 
+## 二期需求增量（PM directive 2026-06-08）
+
+一期落地评审数据管理页之后，PM 在 2026-06-08 给出了三条新需求标准。这些条目会改变后续 Task 6c / Task 7 / Task 8 的形态，必须在继续推进任务前先在方案里冻结。
+
+### N1. 标签组筛选作为通用功能，按业务表格类型和数据语义做适配
+
+通用化的目标不是"把同一个 `<TagGroupFilter>` 挂到每个页面后看着能用"，而是让每个业务表格根据其**表格定位、数据形态、用户使用场景**得到正确的标签组配置。"接得上"只是工程下限；"用着对、查得准、看着合理"才是验收标准。
+
+下面把"适配"具体拆成五个维度，二期接入任何业务表格都必须按这五维做尽调并落档结论，再写代码。
+
+#### N1.1 数据形态适配（决定标签值来源和匹配策略）
+
+不同业务表格背后的字段结构不同，标签组的"标签值从哪来 + 用什么 SQL 写法匹配"必须按表设计：
+
+- **议题事实表 `issue_fact`**：`module_names text` 是逗号分隔多值，`severity_level` / `issue_state` 是单值列。模块走 `split_exact_comma`，严重程度走 `eq`。
+- **评审记录 `review_records`**：`module_name` 是单值列。模块走 `eq`，不能照搬议题的 `split_exact_comma`，否则查不到。
+- **评审问题项 `review_problem_items`**：`problem_status / problem_category` 在 review_data 域里要走 `EXISTS (SELECT 1 FROM review_problem_items ...)` 子查询关联回 `r.id`，不能直接 join，否则会 fan-out 把记录数放大。当前 `TagSelectionSqlPredicateService.reviewProblemItemCondition` 已经覆盖该形态，新增评审子表标签必须沿用这个模式。
+- **客户问题 / 非法记录系列**：要先看每个表是否复用 `issue_fact` 还是有独立物化视图；如果是独立表，其 `module / category / status` 列名、是否多值、是否含归一化 search 索引列都需要单独评估。
+
+每个新接入的数据域都必须在方案里补一段"字段-策略对照表"，列出 `groupKey -> 物化在哪张表的哪一列 -> 列形态（单值 / 逗号分隔 / 数组 / 子表关联） -> 选用的 match strategy`，没有这张表就不能接入。
+
+#### N1.2 表格用户场景适配（决定标签组组成、默认展开、入口形态）
+
+不同业务表格的用户用法不一样，标签组面板的形态不能一刀切：
+
+- **数据治理型表格（评审数据管理、客户问题清单）**：用户长期按某个口径看数据，标签组是**主筛选入口**。默认展开、面板宽、组数 6-8 个、每组值不截断；进入页面就能看到全貌。
+- **数据查询型表格（议题查询）**：用户主路径是固定字段筛选 + 关键字搜索，标签组是**补充入口**。默认折叠、每组截断前 N、已选值排首位；不与固定字段抢主屏空间。
+- **诊断/审计型表格（系统测试非法、代码走查非法、客户问题非法）**：用户来此通常带着"看违规原因 / 按违规类型聚合"的目的，标签组聚焦于"违规原因 / 违规类型 / 责任人"等少量维度，**不要把所有议题维度都塞进来**。这类表格通常需要单独的"违规原因"组，与议题域的 `category` 不重复。
+- **多板对比型表格（问题指标多板、代码走查多板）**：本身已经有"板切换"的强分组逻辑，标签组应该作为"板内筛选"嵌入，不能让用户在板维度和标签组维度同时操作而互相混淆。这类表格的标签组要不要做、做哪些组，二期需先和业务确认，不写就不接。
+
+每个数据域接入前要给出"用户场景描述（一句话） + 标签组面板形态 + 标签组组列表 + 与现有筛选入口的关系"四件套，作为 PR 的产品决策附件。
+
+#### N1.3 标签组组成适配（决定哪些维度应当成组，避免"看似能选实则没用"）
+
+不能照搬议题域的 9 个组到所有表。组的取舍由两条原则决定：
+
+- **该组在该数据域下有可分辨的多个值**——只有 1-2 个值的组（如某域里"严重程度"99% 的记录都是"中"），不要做成标签组，会污染面板。
+- **该组在该数据域下与列表查询语义有交集**——例如评审数据没有"测试阶段"概念，硬塞一个 `testing_phase` 组就是无意义占位。
+
+接入新数据域时必须先用 SQL 跑一次 `SELECT col, COUNT(*) FROM <fact> GROUP BY col ORDER BY 2 DESC` 评估候选维度的值分布；分布过于偏斜或值太少的维度不入选。这份分布评估需要附在 PR 描述里。
+
+#### N1.4 已选条件展示适配（决定 `activeFilterTags` 文案与去重）
+
+`BaseRecordTable.activeFilterTags` 是用户感知"我现在筛了什么"的唯一窗口。不同表格对该窗口的要求不同：
+
+- 评审数据管理：标签组 chip + 固定字段 chip 平铺，按业务维度排序。
+- 议题查询：标签组 chip 容易和固定字段 chip 重复（例如 `severity` 既能在标签组里选也能在固定字段里选），需要明确"同一维度只展示一次 + 来源标记"。
+- 非法记录类：违规原因是一个组合维度，单纯 chip 不够直观，需要用 `el-tag effect="dark"` 或单独颜色突出。
+
+接入页时必须自检 `activeFilterTags` 在三种典型选择组合下（无选 / 标签组多选 / 标签组+固定字段同时选）的展示是否清晰。
+
+#### N1.5 后端查询语义适配（决定 `TagSelectionSqlPredicateService` 域分支）
+
+`TagSelectionSqlPredicateService` 当前只覆盖 `issue` / `review_data`。新数据域接入必须在该 service 里增加显式分支：
+
+- 域内 `eqColumn` / `likeColumn` 映射表必须列举该域所有 `groupKey -> 物理列`。
+- 子表关联类（评审问题项已是先例）必须显式给出 EXISTS 子查询的 `review_record_id` / `issue_id` 等关联列。
+- 不能用"未匹配则降级到 substring contains"的兜底，那样会让 `工具` 命中 `工具箱` 等已知错误重新进入。每个域应当写明"未识别 groupKey -> 直接跳过"的语义。
+
+#### 验收
+
+任何"通用化"PR 的 acceptance 不能仅是"代码能跑、SQL 能查到记录"。每个新接入的数据域 PR 必须包含：
+
+- N1.1-N1.5 五段适配论证（哪怕是一段话），缺一项不予审批。
+- 该域至少 1 个 vitest（前端）+ 1 个单测（后端）覆盖该域专属的标签组语义。
+- 该域列表 / 导出 / 筛选项三条链路均经过手测，截图或终端日志附 PR。
+- `工具` / `曲线` / 该域已知脏数据值不会误命中，单测显式断言。
+
+#### 推进顺序
+
+不一次性接入所有页面，按表格用户重要性和数据语义复杂度排：
+
+1. 客户问题清单 `customer_issue`（数据治理型，与议题域同 fact 表，相对简单，先做）。
+2. 系统测试非法 `system_test_illegal`（诊断型，需独立"违规原因"组）。
+3. 客户问题非法 `customer_issue_illegal`（同上但客户域）。
+4. 代码走查非法 `code_review_illegal`（独立 fact 表 + 独立维度，最复杂，最后做）。
+5. 多板对比型表格（问题指标多板、代码走查多板）需要先与业务确认是否做，再排期。
+
+每个域单独成 Task，不能合并。每个 Task 完成后 PM 审批通过才能接下一个。
+
+### N2. 持久化按用户维度落库，而非按浏览器/时间窗口
+
+- 一期的 localStorage 30 天 TTL + 每域最多 3 个固定快照 是**临时方案**。二期改为：用户保存的"自定义数据表格视图"按用户身份落到后端数据库，**长期保留**，不再受 30 天 TTL 限制。
+- 用户保存自定义视图后，下一次进入对应业务页**默认进入该视图**，而不是回退到原生表格；用户可手动切换"原生表格 / 我的视图 / 我的视图变体"。
+- 视图内容 = `tagSelections + fixedFilters + 排序 + 分页大小 + 列显隐（待评估）`，是"对当前业务表格筛选/呈现状态"的完整快照，而不仅仅是 `tagSelections`。
+- 视图模型需要支持：
+  - 多个视图共存（一个用户在一个数据域下可以有 N 个视图）。
+  - 命名（用户可重命名视图）。
+  - 设为默认（每个用户每个数据域只有一个默认视图）。
+  - 删除（不影响其它用户）。
+  - 视图变体（基于现有视图复制并修改，原视图保持不变）。
+- 数据模型建议：
+  - 新表 `user_table_view`：`id / user_id / domain / view_key / view_name / is_default / parent_view_id (用于变体) / created_at / updated_at`。
+  - 新表 `user_table_view_state`：`view_id / state_json / schema_hash / saved_at`。`state_json` 存 `{ tagSelections, fixedFilters, sortField, sortOrder, pageSize, ... }`。
+  - 通过 session-bound `userId` 隔离，遵守现有 `PlatformSessionAuthenticationFilter` 的鉴权语义。
+- 跨设备同步：因落库到后端，登录同一账号即可在不同浏览器看到自己的视图，不再依赖 localStorage。
+- 一期 localStorage 快照向后兼容：用户首次进入二期版本时若检测到 localStorage 旧快照，提示"是否迁移为我的视图"，迁移后清掉本地快照；不强制后台迁移。
+
+### N3. 标签前缀复刻老平台分类（2026-06-08 修订）
+
+**修订背景**
+
+原 N3 假设"`工具箱：X` 必须从模块拆出独立维度"，并基于此设计了 fact 表新增 `toolbox_names` 列、双写一周、历史数据回填等高风险方案。2026-06-08 校核老平台源码（[D:\projects\spidergitdata-dev](file:///D:/projects/spidergitdata-dev)）后确认两件事：
+
+1. 老平台的 `getCombinedLabelValue` 把 `模块：X` 和 `工具箱：X` **直接合并**到模块字段（`&` 拼接或择一），从未在业务展示侧拆开过。
+2. 业务方一直看到的是合并值，从未反馈过"需要分开"。
+
+因此 N3 的真正交付目标改为**完整复刻老平台标签分类**，而不是新增"工具箱独立维度"。优先保证数据准确性、与老平台口径一致；至于将来是否要把工具箱拆成独立组，是上线后基于业务反馈再决定的**配置变更**，不再是 schema 变更。
+
+**老平台标签分类的完整事实**
+
+老平台一共有 3 大类 10 种解析路径（来自 [LabelName.java](file:///D:/projects/spidergitdata-dev/src/main/java/com/huayun/entity/LabelName.java) + [ParseDocumentServiceImpl.parseLabelMapByList](file:///D:/projects/spidergitdata-dev/src/main/java/com/huayun/service/impl/ParseDocumentServiceImpl.java)）：
+
+| 类型 | 解析路径 | 例子 | 落到哪个业务字段 |
+|---|---|---|---|
+| 1. 中文冒号前缀 | `模块：X` | 模块：草图 | `模块` |
+| 1. 中文冒号前缀 | `工具箱：X` | 工具箱：草图 | `模块`（合并） |
+| 1. 中文冒号前缀 | `软件：X` | 软件：CrownCAD | `软件` |
+| 1. 中文冒号前缀 | `项目：X` | 项目：CC2025R1 | `项目` |
+| 1. 中文冒号前缀 | `状态：X` | 状态：已修复 | `状态` |
+| 1. 中文冒号前缀 | `测试阶段：X` | 测试阶段：系统测试 | `测试阶段` |
+| 1. 中文冒号前缀 | `严重程度：X` | 严重程度：致命 | `严重程度` |
+| 1. 中文冒号前缀 | `类别：X` | 类别：功能 | `类别` |
+| 2. 关键字识别 | label 包含 `系统测试 / 回归测试 / 集成测试` | 系统测试-某轮 | `测试阶段`（备路径） |
+| 2. 枚举命中 | label 命中 `UrgencyEnum` 值 | 紧急 | `紧急程度`（裸标签） |
+| 2. 枚举命中 | label 命中 `DelayEnum` 值 | 需求变更 | `延期原因`（裸标签） |
+| 3. 不识别 | 不带前缀也不命中关键字/枚举 | 任意自定义 label | 丢弃，进入"原始标签 / 未归类" |
+
+补充事实：
+- 老平台不支持英文冒号 `:`。新平台一期已增强为兼容英文冒号，作为"新平台容错"行为标注，不算复刻范畴。
+- `LabelName.TOOL_BOX` 的 default value `"未设定模块"` 与 `LabelName.MODULE` 同——枚举层就把工具箱作为模块的一部分。
+- DGM 项目和 CC 项目的 `ModuleFetcher` 都用同一套正则（`模块[：|-]X` + `工具箱[：|-]X`）抓模块，提取后用 `&` 拼接，**不区分来源**。
+
+**复刻目标**
+
+新平台标签组配置完全照搬这套分类。具体落地：
+
+1. **8 个前缀分组** = `module / software / project / status / phase / severity / category` 七组（"工具箱"合并到 `module`，与老平台行为一致）。
+2. **`module` 组的 `tag_value_mapping`** 同时收纳两类条目：`source_field='模块'` + `source_field='工具箱'`，二者在新平台 mapping 表里都用真实前缀字符串保留，但都指向同一个 `tag_value`（如"草图"）。这样：
+   - 默认查询行为与老平台一致（合并语义）。
+   - 但前缀信息留在 `tag_value_mapping` 里，将来若业务方要拆，改 mapping 即可，不需要改 fact 表、不需要双写。
+3. **2 条无前缀路径**（紧急程度、延期原因）作为单独 `urgency / delay_cause` 标签组，`tag_value_mapping` 用 `source_type='legacy_label_full'` + `raw_value=完整 label 字符串`，`source_field=null`。
+4. **测试阶段备路径**（系统测试 / 回归测试 / 集成测试）作为 `phase` 组的 `unmapped_reason='no_chinese_colon'` 类型条目，参与查询但展示在面板下方"历史/裸标签"分区。
+5. **不识别的标签**保持现状，进入"原始标签"诊断区域，不进入主筛选池。
+
+**`tag_value_mapping.source_field` 字段语义收口**
+
+为支撑上述配置且让将来"工具箱独立"这种调整变成纯配置变更，`source_field` 字段必须严格存原始前缀字符串：
+
+| `source_type` | `source_field` 取值 | 含义 |
+|---|---|---|
+| `legacy_label_prefix` | `模块` / `工具箱` / `软件` / `项目` / `状态` / `测试阶段` / `严重程度` / `类别` | 严格存中文前缀 |
+| `legacy_label_full` | `null` | 用于无前缀的紧急程度、延期原因 |
+| `legacy_label_keyword` | `null` | 测试阶段备路径（关键字识别） |
+| `normalized_field` | `module_name` / `severity_level` / 等 | 评审数据等结构化业务字段 |
+| `module_dictionary_alias` | `null` | 仅展示 / 诊断使用 |
+
+**N3 之前承诺但已撤销的条目**
+
+- ~~新增 `issue_fact.toolbox_names text` 列~~ → **撤销**。继续复用 `module_names`，工具箱合并到模块。
+- ~~`FactBuildService` 双写一周~~ → **撤销**。无需双写。
+- ~~历史数据回填 SQL job~~ → **撤销**。无历史数据需要迁移。
+- ~~每天对比 `module_names` vs `toolbox_names` 监控告警~~ → **撤销**。无双写不需要监控。
+
+**未来"工具箱拆独立组"的可逆路径**
+
+业务方未来若提出"工具箱要单独看"，落地步骤：
+
+1. 起一个新 Flyway migration，幂等地：
+   - `INSERT INTO tag_group(domain='issue', group_key='toolbox', match_strategy_name='split_exact_comma', ...)`
+   - `UPDATE tag_value_mapping SET tag_value_id=<新 toolbox 组的 value id> WHERE source_field='工具箱' AND <现有 module 组关联>`
+2. 后端 `TagSelectionSqlPredicateService` 对 `toolbox` 域分支用 `splitExactCommaCondition("module_names", ...)`（仍查 `module_names`，但谓词加 `like '%工具箱：%'` 限定），与 `module` 组分支不互相 fallback。
+3. 前端零改动（标签组本身按 `groupKey` 并列）。
+
+整个变更预估半天到一天，无 schema 风险，无双写期。
+
+**与原 N3 acceptance 的差异**
+
+原 N3 的 fact 表改造、双写监控、回填等 acceptance 全部移除。新 N3 的 acceptance 仅包含：
+
+- 新平台标签解析层与老平台 `parseLabelMapByList` 行为对齐（`mvn test` 覆盖 8 类前缀 + 关键字 + 枚举三套路径）。
+- `/api/tag-groups?domain=issue` 返回的标签组配置与老平台 `LabelName` 枚举内容完全对齐（前缀名、合并规则、默认值）。
+- 用真实生产数据回归对比："模块=草图" 标签组在新平台的查询结果与老平台一致。
+- `tag_value_mapping.source_field` 字段所有 issue 域条目都严格使用中文前缀字符串，无 `module_name` / `legacy_module` 等含糊命名。
+
+### 二期需求落档的影响
+
+- 原 Task 6c（议题查询页轻量优化 + 综合搜索弱化）可保留小范围内不变。
+- 原 Task 7 文案收口推迟到 N1 的"通用适配"完成之后再做，避免重复打磨文案。
+- 原 Task 8（跨页接入决策）作废，由 N1 直接覆盖：所有列出的页面都要接入。
+- 新增 Task 9（用户视图持久化）作为二期主体之一。
+- 新增 Task 10（**老平台标签分类复刻**，原"工具箱独立 + fact schema 改造"已撤销）作为二期主体之一，工作量从原估的 5-7 天降为 1-2 天。
+- 一期实现的 localStorage 快照、30 天 TTL、固定快照集合等机制保留，作为 N2 落库前的过渡兜底。
+
 ## 一期范围
 
 一期目标是小步落地，不引入完整飞书多维表格方案。

@@ -57,7 +57,8 @@ describe('ReviewDataManagementView mount smoke', () => {
     });
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
-    expect(wrapper.get('[data-testid="tag-group-filter-toggle"]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.find('.tag-group-filter-bar').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="tag-group-filter-toggle"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="review-advanced-filter-toggle"]').attributes('aria-expanded')).toBe('false');
     expect(wrapper.get('.review-data-advanced-filter-body').isVisible()).toBe(false);
     const trigger = wrapper.get('[data-testid="review-rule-explanation-trigger"]');
