@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class IssueFactNormalizationRulesTest {
@@ -92,6 +93,46 @@ class IssueFactNormalizationRulesTest {
   void shouldKeepDifferentModuleAndToolboxValuesAsSeparateModules() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：草图", "工具箱：曲线")))
         .containsExactly("草图", "曲线");
+  }
+
+  @Test
+  void shouldParseLegacyLabelMapByOldPlatformPrefixes() {
+    Map<String, List<String>> labels = IssueFactNormalizationRules.parseLegacyLabelMap(List.of(
+        "模块：草图",
+        "工具箱：曲线",
+        "软件：CrownCAD",
+        "项目：CC2026R1",
+        "状态：待合并",
+        "测试阶段：R1第一轮系统测试",
+        "严重程度：一级缺陷",
+        "类别：业务逻辑错误",
+        "P1",
+        "技术卡点",
+        "无效标签"));
+
+    assertThat(labels).containsExactly(
+        Map.entry("模块", List.of("草图", "曲线")),
+        Map.entry("软件", List.of("CrownCAD")),
+        Map.entry("项目", List.of("CC2026R1")),
+        Map.entry("状态", List.of("待合并")),
+        Map.entry("测试阶段", List.of("R1第一轮系统测试")),
+        Map.entry("严重程度", List.of("一级缺陷")),
+        Map.entry("类别", List.of("业务逻辑错误")),
+        Map.entry("紧急程度", List.of("P1")),
+        Map.entry("延期原因", List.of("技术卡点")));
+  }
+
+  @Test
+  void shouldParseLegacyPhaseKeywordsAndDropUnknownLabels() {
+    Map<String, List<String>> labels = IssueFactNormalizationRules.parseLegacyLabelMap(List.of(
+        "CC2026R1系统测试",
+        "CC2026R1回归测试",
+        "CC2026R1集成测试",
+        "模块:草图",
+        "未知标签"));
+
+    assertThat(labels).containsExactly(
+        Map.entry("测试阶段", List.of("CC2026R1系统测试", "CC2026R1回归测试", "CC2026R1集成测试")));
   }
 
   @Test

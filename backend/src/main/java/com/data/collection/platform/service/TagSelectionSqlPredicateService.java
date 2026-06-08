@@ -17,11 +17,15 @@ import org.springframework.stereotype.Service;
 public class TagSelectionSqlPredicateService {
   private static final Map<String, String> ISSUE_EQ_COLUMNS =
       Map.of(
+          "category", "category",
+          "delay_cause", "delay_cause",
+          "phase", "phase_filter_value",
           "severity", "severity_level",
           "severity_level", "severity_level",
           "milestone", "milestone_title",
           "testing_phase", "phase_filter_value",
-          "status", "issue_state");
+          "status", "issue_state",
+          "urgency", "urgency");
   private static final Map<String, String> REVIEW_DATA_EQ_COLUMNS =
       Map.of(
           "module", "r.module_name",
@@ -230,9 +234,14 @@ public class TagSelectionSqlPredicateService {
   }
 
   private static String likeColumn(String domain, String groupKey) {
-    if ("issue".equals(domain)
-        && ("module".equals(normalizeKey(groupKey)) || "module_keyword".equals(normalizeKey(groupKey)))) {
-      return "module_names";
+    if ("issue".equals(domain)) {
+      String normalizedGroupKey = normalizeKey(groupKey);
+      if ("module".equals(normalizedGroupKey) || "module_keyword".equals(normalizedGroupKey)) {
+        return "module_names";
+      }
+      if ("software".equals(normalizedGroupKey) || "project_label".equals(normalizedGroupKey)) {
+        return "label_names";
+      }
     }
     return null;
   }

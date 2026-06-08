@@ -39,6 +39,7 @@ import {
 } from './review-data-management';
 import {
   buildTagGroupActiveFilterTags,
+  hasRestorableTagGroupSnapshot,
   parseTagSelectionsQuery,
   stringifyTagSelectionsQuery,
 } from '../components/tag-group-filter';
@@ -217,6 +218,9 @@ bindLoader(async () => {
   try {
     await Promise.all([loadFilterOptions(), loadTagGroups()]);
     syncFilterDraftFromRoute();
+    if (shouldDeferRowsUntilTagSnapshotRestore()) {
+      return;
+    }
     await loadRows();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评审数据加载失败');
@@ -232,6 +236,11 @@ async function loadRows() {
     page: page.value,
     size: pageSize.value,
   }));
+}
+
+function shouldDeferRowsUntilTagSnapshotRestore() {
+  return shouldAutoRestoreTagSnapshot.value
+    && hasRestorableTagGroupSnapshot(window.localStorage.getItem(tagGroupStorageKey), tagGroups.value);
 }
 
 async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {

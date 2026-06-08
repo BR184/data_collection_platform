@@ -1,6 +1,8 @@
 package com.data.collection.platform.service;
 
 import java.util.LinkedHashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,6 +25,7 @@ final class IssueLabelRules {
   private static final List<String> UNREPRODUCED_LABELS = List.of("未复现");
   private static final List<String> SYSTEM_TEST_LABEL_TOKENS = List.of("系统测试", "回归测试");
   private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "联调测试", "冒烟测试", "集成测试");
+  private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<String> FUNCTION_LABEL_TOKENS = List.of(
       "新功能",
       "老功能",
@@ -45,6 +48,24 @@ final class IssueLabelRules {
       "平台"));
   private static final Pattern MODULE_LABEL_PATTERN =
       Pattern.compile("^(?:模块|module|工具箱)\\s*[:：-]\\s*(.+)$", Pattern.CASE_INSENSITIVE);
+  private static final List<String> LEGACY_PREFIXES = List.of(
+      "模块",
+      "工具箱",
+      "软件",
+      "项目",
+      "状态",
+      "测试阶段",
+      "严重程度",
+      "类别");
+  private static final List<String> LEGACY_URGENCY_LABELS = List.of("P1", "P2", "P3");
+  private static final List<String> LEGACY_DELAY_CAUSE_LABELS = List.of(
+      "技术卡点",
+      "方案卡点",
+      "资源卡点",
+      "数据异常",
+      "算法问题",
+      "机制问题",
+      "计算效率");
   private static final Set<String> NON_MODULE_TOKENS = new LinkedHashSet<>(List.of(
       "一级缺陷", "一级严重", "二级缺陷", "二级严重", "三级缺陷", "三级严重",
       "建议", "需求", "需求如此", "P1", "P2", "P3",
@@ -151,6 +172,59 @@ final class IssueLabelRules {
     return List.copyOf(modules);
   }
 
+  static Map<String, List<String>> parseLegacyLabelMap(List<String> labels) {
+    Map<String, List<String>> result = new LinkedHashMap<>();
+    for (String label : labels) {
+      String normalizedLabel = IssueRuleSupport.normalizeText(label);
+      if (normalizedLabel == null) {
+        continue;
+      }
+      String trimmed = label.trim();
+      LegacyPrefixedLabel prefixedLabel = parseLegacyPrefixedLabel(trimmed);
+      if (prefixedLabel != null) {
+        appendLegacyLabelValue(result, prefixedLabel.groupName(), prefixedLabel.value());
+        continue;
+      }
+      if (IssueRuleSupport.containsToken(trimmed, LEGACY_PHASE_KEYWORD_TOKENS)) {
+        appendLegacyLabelValue(result, "测试阶段", trimmed);
+        continue;
+      }
+      if (LEGACY_URGENCY_LABELS.contains(trimmed)) {
+        appendLegacyLabelValue(result, "紧急程度", trimmed);
+        continue;
+      }
+      if (LEGACY_DELAY_CAUSE_LABELS.contains(trimmed)) {
+        appendLegacyLabelValue(result, "延期原因", trimmed);
+      }
+    }
+    return result.entrySet().stream()
+        .collect(java.util.stream.Collectors.toMap(
+            Map.Entry::getKey,
+            entry -> List.copyOf(entry.getValue()),
+            (left, right) -> left,
+            LinkedHashMap::new));
+  }
+
+  private static LegacyPrefixedLabel parseLegacyPrefixedLabel(String label) {
+    int separatorIndex = label.indexOf('：');
+    if (separatorIndex <= 0) {
+      return null;
+    }
+    String prefix = label.substring(0, separatorIndex).trim();
+    String value = label.substring(separatorIndex + 1).trim();
+    if (!LEGACY_PREFIXES.contains(prefix) || IssueRuleSupport.normalizeText(value) == null) {
+      return null;
+    }
+    return new LegacyPrefixedLabel(prefix.equals("工具箱") ? "模块" : prefix, value);
+  }
+
+  private static void appendLegacyLabelValue(Map<String, List<String>> result, String groupName, String value) {
+    List<String> values = result.computeIfAbsent(groupName, ignored -> new ArrayList<>());
+    if (!values.contains(value)) {
+      values.add(value);
+    }
+  }
+
   private static String extractModuleName(String label) {
     String trimmed = label.trim();
     Matcher matcher = MODULE_LABEL_PATTERN.matcher(trimmed);
@@ -221,5 +295,8 @@ final class IssueLabelRules {
 
   private static boolean isTestingPhase(String label) {
     return IssueRuleSupport.containsAny(List.of(label), "", TESTING_PHASE_TOKENS);
+  }
+
+  private record LegacyPrefixedLabel(String groupName, String value) {
   }
 }

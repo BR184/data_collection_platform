@@ -223,6 +223,21 @@ export function getActiveTagGroupSnapshot(store: TagGroupFilterSnapshotStore): T
   return store.snapshots.find((snapshot) => snapshot.id === store.activeSnapshotId) ?? store.snapshots[0] ?? null;
 }
 
+export function hasRestorableTagGroupSnapshot(
+  rawValue: string | null | undefined,
+  response: TagGroupsResponse | null | undefined,
+): boolean {
+  if (!response) {
+    return false;
+  }
+  const snapshot = getActiveTagGroupSnapshot(parseTagGroupSnapshotStore(rawValue));
+  if (!snapshot) {
+    return false;
+  }
+  const restored = restoreTagGroupSnapshot(snapshot, response);
+  return restored.tagSelections.length > 0 || Object.keys(restored.fixedFilters).length > 0;
+}
+
 function emptySnapshotStore(): TagGroupFilterSnapshotStore {
   return {
     schemaVersion: TAG_GROUP_SNAPSHOT_SCHEMA_VERSION,

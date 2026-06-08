@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public final class IssueFactNormalizationRules {
   private IssueFactNormalizationRules() {
@@ -60,6 +61,10 @@ public final class IssueFactNormalizationRules {
         labels,
         IssueClassificationRules.REASON_CATEGORY_TOKENS,
         IssueClassificationRules.DELAY_REASON_TOKENS);
+  }
+
+  public static Map<String, List<String>> parseLegacyLabelMap(List<String> labels) {
+    return IssueLabelRules.parseLegacyLabelMap(labels);
   }
 
   public static String normalizeFunctionName(String title) {

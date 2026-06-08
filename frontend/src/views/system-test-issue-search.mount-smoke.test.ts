@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
@@ -12,6 +12,10 @@ function jsonResponse(data: unknown) {
 }
 
 describe('SystemTestIssueSearchView mount smoke', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it('mounts without route errors', async () => {
     vi.stubGlobal(
       'fetch',
@@ -175,6 +179,91 @@ describe('SystemTestIssueSearchView mount smoke', () => {
       String(url).includes('/api/question-metrics/issues?page=1&size=20&sourceInstance=dgm'),
     )).toBe(true);
 
+    vi.unstubAllGlobals();
+  });
+
+  it('defers the first issue row request when an auto-restorable tag snapshot exists', async () => {
+    window.localStorage.setItem('tag-groups:issue:default', JSON.stringify({
+      schemaVersion: 1,
+      snapshots: [
+        {
+          schemaVersion: 1,
+          id: 'snapshot-a',
+          schemaHash: 'issue-hash',
+          tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+          fixedFilters: {},
+          savedAt: '2026-06-08T14:30:00.000Z',
+          expiresAt: '2026-07-08T14:30:00.000Z',
+          pinned: true,
+        },
+      ],
+      activeSnapshotId: 'snapshot-a',
+    }));
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/question-metrics/issues/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          testingPhases: [],
+          authorNames: [],
+          assigneeNames: [],
+          issueStates: [],
+          severityLevels: [],
+          bugStatuses: [],
+          categories: [],
+          milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/tag-groups')) {
+        return jsonResponse({
+          domain: 'issue',
+          schemaHash: 'issue-hash',
+          groups: [
+            {
+              groupKey: 'module',
+              label: '模块',
+              selectionMode: 'multiple',
+              sortOrder: 10,
+              matchStrategyName: 'split_exact_comma',
+              values: [
+                { valueKey: 'sketch', label: '草图', valueType: 'standard', sortOrder: 10, disabled: false },
+              ],
+            },
+          ],
+        });
+      }
+      if (url.includes('/api/question-metrics/issues?')) {
+        return jsonResponse({
+          records: [],
+          total: 0,
+          page: 1,
+          size: 20,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/question-metrics/issue-search', component: SystemTestIssueSearchView }],
+    });
+    await router.push('/question-metrics/issue-search');
+    await router.isReady();
+    const wrapper = mount(SystemTestIssueSearchView, {
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    const rowCalls = fetchMock.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/api/question-metrics/issues?'));
+    expect(rowCalls.some((url) => url.endsWith('/api/question-metrics/issues?page=1&size=20'))).toBe(false);
+    expect(rowCalls.some((url) => url.includes('tagSelections='))).toBe(true);
+
+    wrapper.unmount();
     vi.unstubAllGlobals();
   });
 });

@@ -152,6 +152,75 @@ class TagSelectionSqlPredicateServiceTest {
   }
 
   @Test
+  void shouldSupportLegacyIssueLabelGroupsWithoutSubstringFallback() {
+    when(tagGroupService.getTagGroups("issue"))
+        .thenReturn(
+            new TagGroupsResponse(
+                "issue",
+                "hash",
+                List.of(
+                    group(
+                        "software",
+                        "软件",
+                        TagGroupMatchStrategyRegistry.LIKE,
+                        value("crowncad", "CrownCAD")),
+                    group(
+                        "project_label",
+                        "项目",
+                        TagGroupMatchStrategyRegistry.LIKE,
+                        value("cc2026r1", "CC2026R1")),
+                    group(
+                        "urgency",
+                        "紧急程度",
+                        TagGroupMatchStrategyRegistry.EQ,
+                        value("p1", "P1")),
+                    group(
+                        "delay_cause",
+                        "延期原因",
+                        TagGroupMatchStrategyRegistry.EQ,
+                        value("technical", "技术卡点")),
+                    group(
+                        "category",
+                        "类别",
+                        TagGroupMatchStrategyRegistry.EQ,
+                        value("logic", "业务逻辑错误")))));
+    when(tagGroupService.resolveMappings("issue", "software", "crowncad", null)).thenReturn(List.of("软件：CrownCAD"));
+    when(tagGroupService.resolveMappings("issue", "project_label", "cc2026r1", null)).thenReturn(List.of("项目：CC2026R1"));
+    when(tagGroupService.resolveMappings("issue", "urgency", "p1", null)).thenReturn(List.of());
+    when(tagGroupService.resolveMappings("issue", "delay_cause", "technical", null)).thenReturn(List.of());
+    when(tagGroupService.resolveMappings("issue", "category", "logic", null)).thenReturn(List.of());
+
+    Optional<SqlPredicate> result =
+        service.toSql(
+            "issue",
+            null,
+            List.of(
+                new TagSelectionRequest("software", List.of("crowncad")),
+                new TagSelectionRequest("project_label", List.of("cc2026r1")),
+                new TagSelectionRequest("urgency", List.of("p1")),
+                new TagSelectionRequest("delay_cause", List.of("technical")),
+                new TagSelectionRequest("category", List.of("logic"))));
+
+    assertThat(result).isPresent();
+    assertThat(result.get().predicate())
+        .isEqualTo(
+            "((lower(coalesce(label_names, '')) like ?) or (lower(coalesce(label_names, '')) like ?))"
+                + " and ((lower(coalesce(label_names, '')) like ?) or (lower(coalesce(label_names, '')) like ?))"
+                + " and (lower(coalesce(urgency, '')) = ?)"
+                + " and (lower(coalesce(delay_cause, '')) = ?)"
+                + " and (lower(coalesce(category, '')) = ?)");
+    assertThat(result.get().args())
+        .containsExactly(
+            "%crowncad%",
+            "%软件：crowncad%",
+            "%cc2026r1%",
+            "%项目：cc2026r1%",
+            "p1",
+            "技术卡点",
+            "业务逻辑错误");
+  }
+
+  @Test
   void shouldConvertReviewDataProblemStatusToExistsPredicate() {
     when(tagGroupService.getTagGroups("review_data"))
         .thenReturn(

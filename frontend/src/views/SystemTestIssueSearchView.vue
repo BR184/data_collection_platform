@@ -27,6 +27,7 @@ import type {
 } from '../types/record-table';
 import {
   buildTagGroupActiveFilterTags,
+  hasRestorableTagGroupSnapshot,
   parseTagSelectionsQuery,
   stringifyTagSelectionsQuery,
 } from '../components/tag-group-filter';
@@ -293,7 +294,11 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 
 bindLoader(async () => {
   try {
-    await Promise.all([loadFilterOptions(), loadTagGroups(), loadTableData(), loadSyncStatus()]);
+    await Promise.all([loadFilterOptions(), loadTagGroups(), loadSyncStatus()]);
+    if (shouldDeferRowsUntilTagSnapshotRestore()) {
+      return;
+    }
+    await loadTableData();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '议题查询数据加载失败');
     rows.value = [];
@@ -303,6 +308,11 @@ bindLoader(async () => {
 
 async function loadTagGroups() {
   tagGroups.value = await api.getTagGroups('issue');
+}
+
+function shouldDeferRowsUntilTagSnapshotRestore() {
+  return shouldAutoRestoreTagSnapshot.value
+    && hasRestorableTagGroupSnapshot(window.localStorage.getItem(tagGroupStorageKey.value), tagGroups.value);
 }
 
 async function loadFilterOptions() {

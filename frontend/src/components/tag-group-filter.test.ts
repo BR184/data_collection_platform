@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TagGroupsResponse, TagSelectionRequest } from '../types/api';
 import {
   buildTagGroupActiveFilterTags,
+  hasRestorableTagGroupSnapshot,
   normalizeTagSelections,
   parseTagGroupSnapshotStore,
   restoreTagGroupSnapshot,
@@ -122,5 +123,28 @@ describe('tag group filter helpers', () => {
 
     expect(store.snapshots).toEqual([]);
     expect(store.activeSnapshotId).toBeUndefined();
+  });
+
+  it('detects whether a snapshot can restore tag selections or fixed filters', () => {
+    const rawValue = JSON.stringify({
+      schemaVersion: 1,
+      snapshots: [
+        {
+          schemaVersion: 1,
+          id: 'snapshot-a',
+          schemaHash: 'hash-a',
+          tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+          fixedFilters: { keyword: 'crash' },
+          savedAt: '2026-06-05T00:00:00.000Z',
+          expiresAt: '2026-07-05T00:00:00.000Z',
+          pinned: true,
+        },
+      ],
+      activeSnapshotId: 'snapshot-a',
+    });
+
+    expect(hasRestorableTagGroupSnapshot(rawValue, groupsResponse)).toBe(true);
+    expect(hasRestorableTagGroupSnapshot('', groupsResponse)).toBe(false);
+    expect(hasRestorableTagGroupSnapshot(rawValue, null)).toBe(false);
   });
 });
