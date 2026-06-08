@@ -103,6 +103,7 @@ function buildSystemTestIllegalRecordQuery(params: SystemTestIllegalRecordQueryP
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -177,6 +178,7 @@ function buildCustomerIssueRecordQuery(params: {
   updatedAtStart?: string;
   updatedAtEnd?: string;
   filterGroup?: StatisticFilterGroup | null;
+  tagSelections?: TagSelectionRequest[];
   page?: number;
   size?: number;
   sortBy?: string;
@@ -203,6 +205,7 @@ function buildCustomerIssueRecordQuery(params: {
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -356,54 +359,8 @@ export const issueRecordsApi = {
       method: 'POST',
     });
   },
-  getCustomerIssueRecords(params: {
-    topic: CustomerIssueRecordTopic;
-    projectId?: string | number | null;
-    keyword?: string;
-    issueIid?: string;
-    title?: string;
-    projectName?: string;
-    moduleName?: string;
-    reasonCategory?: string;
-    severityLevel?: string;
-    priorityLevel?: string;
-    issueState?: string;
-    bugStatus?: string;
-    category?: string;
-    milestoneTitle?: string;
-    createdAtStart?: string;
-    createdAtEnd?: string;
-    updatedAtStart?: string;
-    updatedAtEnd?: string;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
-  }) {
-    const query = new URLSearchParams({
-      topic: params.topic,
-      page: String(params.page ?? 1),
-      size: String(params.size ?? 20),
-      ...(params.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
-      ...(params.keyword ? { keyword: params.keyword } : {}),
-      ...(params.issueIid ? { issueIid: params.issueIid } : {}),
-      ...(params.title ? { title: params.title } : {}),
-      ...(params.projectName ? { projectName: params.projectName } : {}),
-      ...(params.moduleName ? { moduleName: params.moduleName } : {}),
-      ...(params.reasonCategory ? { reasonCategory: params.reasonCategory } : {}),
-      ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
-      ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
-      ...(params.issueState ? { issueState: params.issueState } : {}),
-      ...(params.bugStatus ? { bugStatus: params.bugStatus } : {}),
-      ...(params.category ? { category: params.category } : {}),
-      ...(params.milestoneTitle ? { milestoneTitle: params.milestoneTitle } : {}),
-      ...(params.createdAtStart ? { createdAtStart: params.createdAtStart } : {}),
-      ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
-      ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
-      ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-      ...(params.sortBy ? { sortBy: params.sortBy } : {}),
-      ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
-    });
+  getCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
+    const query = buildCustomerIssueRecordQuery(params);
     return request<CustomerIssueRecordListResponse>(`/api/customer-issues/records?${query.toString()}`);
   },
   exportCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {

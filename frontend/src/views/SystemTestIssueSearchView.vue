@@ -14,10 +14,10 @@ import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchRowResponse,
-  TagGroupsResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { useTagGroupFilterAdapter } from '../composables/useTagGroupFilterAdapter';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import type {
   RecordTableActiveFilterTag,
@@ -26,9 +26,6 @@ import type {
   RecordTableTagValue,
 } from '../types/record-table';
 import {
-  buildTagGroupActiveFilterTags,
-  hasRestorableTagGroupSnapshot,
-  parseTagSelectionsQuery,
   stringifyTagSelectionsQuery,
 } from '../components/tag-group-filter';
 import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
@@ -50,7 +47,6 @@ const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
-const tagGroups = ref<TagGroupsResponse | null>(null);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
@@ -109,9 +105,20 @@ const filterValues = computed<Record<string, unknown>>(() => {
   };
 });
 
-const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
-const tagGroupStorageKey = computed(() => `tag-groups:issue:${String(route.query.sourceInstance ?? 'default') || 'default'}`);
-const shouldAutoRestoreTagSnapshot = computed(() => route.query.tagSelections == null);
+const {
+  tagGroups,
+  tagSelections,
+  tagGroupStorageKey,
+  shouldAutoRestoreTagSnapshot,
+  tagGroupActiveFilterTags,
+  loadTagGroups,
+  shouldDeferRowsUntilTagSnapshotRestore,
+} = useTagGroupFilterAdapter({
+  domain: 'issue',
+  storageKey: () => `tag-groups:issue:${String(route.query.sourceInstance ?? 'default') || 'default'}`,
+  tagSelectionsQuery: () => route.query.tagSelections,
+  loadTagGroups: (domain) => api.getTagGroups(domain),
+});
 
 interface TagSnapshotRestoredPayload {
   tagSelections: typeof tagSelections.value;
@@ -248,7 +255,7 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
 
 const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
   ...activeFilterTags.value,
-  ...buildTagGroupActiveFilterTags(tagSelections.value, tagGroups.value?.groups ?? []),
+  ...tagGroupActiveFilterTags.value,
 ]);
 
 useDataScope({
@@ -305,15 +312,6 @@ bindLoader(async () => {
     total.value = 0;
   }
 });
-
-async function loadTagGroups() {
-  tagGroups.value = await api.getTagGroups('issue');
-}
-
-function shouldDeferRowsUntilTagSnapshotRestore() {
-  return shouldAutoRestoreTagSnapshot.value
-    && hasRestorableTagGroupSnapshot(window.localStorage.getItem(tagGroupStorageKey.value), tagGroups.value);
-}
 
 async function loadFilterOptions() {
   filterOptions.value = await api.getSystemTestIssueSearchFilterOptions(

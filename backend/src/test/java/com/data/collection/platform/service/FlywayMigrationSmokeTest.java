@@ -106,6 +106,30 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).doesNotContain("default 'business_field'");
   }
 
+  @Test
+  void shouldSeedLegacyIssueTagGroupsWithoutCollapsingSourceMappings() throws IOException {
+    String migration = readMigration("V20260609_01__tag_groups_issue_legacy_seed.sql");
+
+    assertThat(migration).contains("('issue', 'module', '模块'");
+    assertThat(migration).contains("('issue', 'software', '软件'");
+    assertThat(migration).contains("('issue', 'project_label', '项目'");
+    assertThat(migration).contains("('issue', 'status', '状态'");
+    assertThat(migration).contains("('issue', 'phase', '测试阶段'");
+    assertThat(migration).contains("('issue', 'severity', '严重程度'");
+    assertThat(migration).contains("('issue', 'category', '类别'");
+    assertThat(migration).contains("('issue', 'urgency', '紧急程度'");
+    assertThat(migration).contains("('issue', 'delay_cause', '延期原因'");
+
+    assertThat(migration).contains("when '模块' then 'module'");
+    assertThat(migration).contains("when '工具箱' then 'module'");
+    assertThat(migration).contains("'legacy_label_prefix' as source_type");
+    assertThat(migration).contains("'legacy_label_keyword' as source_type");
+    assertThat(migration).contains("'legacy_label_full' as source_type");
+    assertThat(migration).contains("mapping_values as");
+    assertThat(migration).contains("from legacy_values");
+    assertThat(migration).doesNotContain("row_number() over (partition by group_key, lower(label)");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

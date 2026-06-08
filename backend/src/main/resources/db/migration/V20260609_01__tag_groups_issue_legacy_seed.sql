@@ -135,26 +135,17 @@ legacy_values as (
   select group_key, source_field, label, raw_value, 'legacy_label_full' as source_type
     from delay_cause_values
 ),
-deduped_values as (
-  select group_key,
-         source_field,
-         label,
-         raw_value,
-         source_type,
-         row_number() over (partition by group_key, lower(label) order by raw_value) as value_rank
-    from legacy_values
-),
 seed_values as (
   select group_key,
          group_key || '_' || md5(label) as value_key,
          label,
          'standard' as value_type,
          dense_rank() over (partition by group_key order by label) * 10 as sort_order,
-         source_field,
-         raw_value,
-         source_type
-    from deduped_values
-   where value_rank = 1
+         'Legacy issue label seed from issue_fact.label_names' as remark
+    from (
+      select distinct group_key, label
+        from legacy_values
+    ) deduped_values
 ),
 upserted_values as (
   insert into tag_value (
@@ -174,7 +165,7 @@ upserted_values as (
          seed_value.sort_order,
          true,
          false,
-         'Legacy issue label seed from issue_fact.label_names'
+         seed_value.remark
     from seed_values seed_value
     join all_groups groups
       on groups.domain = 'issue'
@@ -188,6 +179,17 @@ upserted_values as (
       remark = excluded.remark,
       updated_at = current_timestamp
   returning id, group_id, value_key
+),
+mapping_values as (
+  select distinct seed_values.group_key,
+         seed_values.value_key,
+         legacy_values.source_type,
+         legacy_values.source_field,
+         legacy_values.raw_value
+    from legacy_values
+    join seed_values
+      on seed_values.group_key = legacy_values.group_key
+     and lower(seed_values.label) = lower(legacy_values.label)
 )
 insert into tag_value_mapping (
   value_id,
@@ -200,27 +202,27 @@ insert into tag_value_mapping (
   remark
 )
 select tag_value_ref.id,
-       seed_values.source_type,
-       seed_values.source_field,
-       seed_values.raw_value,
+       mapping_values.source_type,
+       mapping_values.source_field,
+       mapping_values.raw_value,
        'exact',
        null,
        true,
        'Legacy issue label mapping from issue_fact.label_names'
-  from seed_values
+  from mapping_values
   join all_groups groups
     on groups.domain = 'issue'
-   and groups.group_key = seed_values.group_key
+   and groups.group_key = mapping_values.group_key
   join tag_value tag_value_ref
     on tag_value_ref.group_id = groups.id
-   and tag_value_ref.value_key = seed_values.value_key
+   and tag_value_ref.value_key = mapping_values.value_key
  where not exists (
    select 1
      from tag_value_mapping existing
     where existing.value_id = tag_value_ref.id
-      and existing.source_type = seed_values.source_type
-      and coalesce(existing.source_field, '') = coalesce(seed_values.source_field, '')
-      and existing.raw_value = seed_values.raw_value
+      and existing.source_type = mapping_values.source_type
+      and coalesce(existing.source_field, '') = coalesce(mapping_values.source_field, '')
+      and existing.raw_value = mapping_values.raw_value
       and existing.match_type = 'exact'
       and existing.source_instance is null
  );

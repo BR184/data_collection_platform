@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
+import com.data.collection.platform.entity.TagSelectionRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -144,6 +145,61 @@ class CustomerIssueRecordServiceTest {
                         && "design".equals(query.reasonCategory())
                         && query.listRequest().projectId().equals(325L)
                         && "delay".equals(query.listRequest().keyword())));
+  }
+
+  @Test
+  void shouldKeepTagSelectionsWhenExportingPagedRecords() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService);
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(record(101, "CC_PRODUCT", List.of("draft"), false, false, "", "Alice", "Bob")),
+                1,
+                1,
+                100));
+
+    service.exportRecordsCsv(
+        new CustomerIssueRecordQueryRequest(
+            "cc-product",
+            IssueFactRecordListRequest.withTagSelections(
+                325L,
+                "",
+                null,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                List.of(new TagSelectionRequest("module", List.of("sketch"))),
+                1,
+                20,
+                "updatedAt",
+                "desc"),
+            null,
+            null));
+
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.listRequest().tagSelections().size() == 1
+                        && "module".equals(query.listRequest().tagSelections().getFirst().groupKey())
+                        && query.listRequest().tagSelections().getFirst().valueKeys().contains("sketch")));
   }
 
   private IssueFactRecord record(

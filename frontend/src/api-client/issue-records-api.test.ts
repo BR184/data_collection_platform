@@ -69,4 +69,56 @@ describe('issueRecordsApi source instance query contract', () => {
       expect.any(Object),
     );
   });
+
+  it('serializes tagSelections for customer issue record list and export endpoints', () => {
+    issueRecordsApi.getCustomerIssueRecords({
+      topic: 'cc-product',
+      tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+      page: 1,
+      size: 20,
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/api/customer-issues/records?topic=cc-product&page=1&size=20&tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'module', valueKeys: ['sketch'] }]))}`,
+      ),
+    );
+
+    issueRecordsApi.exportCustomerIssueRecords({
+      topic: 'delay',
+      tagSelections: [{ groupKey: 'severity', valueKeys: ['level1'] }],
+    });
+
+    expect(requestText).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/api/customer-issues/records/export?topic=delay&tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'severity', valueKeys: ['level1'] }]))}`,
+      ),
+      expect.any(Object),
+    );
+  });
+
+  it('serializes tagSelections for system test illegal record list and export endpoints', () => {
+    issueRecordsApi.getSystemTestIllegalRecords({
+      tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+      page: 1,
+      size: 20,
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/api/question-metrics/illegal-records?page=1&size=20&tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'module', valueKeys: ['sketch'] }]))}`,
+      ),
+    );
+
+    issueRecordsApi.exportSystemTestIllegalRecords({
+      tagSelections: [{ groupKey: 'severity', valueKeys: ['level1'] }],
+    });
+
+    expect(requestText).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/api/question-metrics/illegal-records/export?tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'severity', valueKeys: ['level1'] }]))}`,
+      ),
+      expect.any(Object),
+    );
+  });
 });

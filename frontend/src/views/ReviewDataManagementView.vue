@@ -25,25 +25,19 @@ import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import { downloadBlob } from '../utils/csv-download';
-import type {
-  ReviewDataRecordRowResponse,
-  TagGroupsResponse,
-} from '../types/api';
+import type { ReviewDataRecordRowResponse } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { useTagGroupFilterAdapter } from '../composables/useTagGroupFilterAdapter';
 import {
   buildReviewDataMetricFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
 import {
-  buildTagGroupActiveFilterTags,
-  hasRestorableTagGroupSnapshot,
-  parseTagSelectionsQuery,
   stringifyTagSelectionsQuery,
 } from '../components/tag-group-filter';
-import type { RecordTableActiveFilterTag } from '../types/record-table';
 
 const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoader, isTableLoading } = useRouteTableState({
   defaults: {
@@ -148,11 +142,21 @@ const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
 const advancedConditionsExpanded = ref(false);
-const tagGroups = ref<TagGroupsResponse | null>(null);
-const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
-const tagGroupStorageKey = 'tag-groups:review-data:default';
-const shouldAutoRestoreTagSnapshot = computed(() => route.query.tagSelections == null);
 const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
+const {
+  tagGroups,
+  tagSelections,
+  tagGroupStorageKey,
+  shouldAutoRestoreTagSnapshot,
+  tagGroupActiveFilterTags,
+  loadTagGroups,
+  shouldDeferRowsUntilTagSnapshotRestore,
+} = useTagGroupFilterAdapter({
+  domain: 'review_data',
+  storageKey: 'tag-groups:review-data:default',
+  tagSelectionsQuery: () => route.query.tagSelections,
+  loadTagGroups: (domain) => api.getTagGroups(domain),
+});
 const reviewDataFixedFilters = computed<Record<string, unknown>>(() => ({
   keyword: keyword.value,
   sourceInstance: reviewDataSourceInstance.value,
@@ -165,9 +169,6 @@ const reviewDataFixedFilters = computed<Record<string, unknown>>(() => ({
   reviewExpert: String(route.query.reviewExpert ?? ''),
   filterGroup: String(route.query.filterGroup ?? ''),
 }));
-const tagGroupActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
-  buildTagGroupActiveFilterTags(tagSelections.value, tagGroups.value?.groups ?? []),
-);
 
 interface TagSnapshotRestoredPayload {
   tagSelections: typeof tagSelections.value;
@@ -227,20 +228,11 @@ bindLoader(async () => {
   }
 });
 
-async function loadTagGroups() {
-  tagGroups.value = await api.getTagGroups('review_data');
-}
-
 async function loadRows() {
   await loadReviewRows(buildReviewDataRecordQueryParams({
     page: page.value,
     size: pageSize.value,
   }));
-}
-
-function shouldDeferRowsUntilTagSnapshotRestore() {
-  return shouldAutoRestoreTagSnapshot.value
-    && hasRestorableTagGroupSnapshot(window.localStorage.getItem(tagGroupStorageKey), tagGroups.value);
 }
 
 async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {

@@ -9,16 +9,20 @@ import PageStateShell from '../../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../../components/StatisticFilterBuilder.vue';
+import TagGroupFilterBar from '../../components/TagGroupFilterBar.vue';
 import { authState } from '../../composables/auth-state';
 import { useConditionFilterGroupState } from '../../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../../composables/useRecordPageController';
 import { useDataScope } from '../../composables/useDataScope';
+import { useTagGroupFilterAdapter } from '../../composables/useTagGroupFilterAdapter';
 import { ISSUE_RECORD_QUERY_KEYS } from '../../composables/record-route-query-keys';
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
 import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspaceStatus';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
+import type { RecordTableActiveFilterTag } from '../../types/record-table';
+import { stringifyTagSelectionsQuery } from '../../components/tag-group-filter';
 import { downloadCsv, formatExportFileDate } from '../../utils/csv-download';
 
 const props = defineProps<IssueIllegalRecordsPageConfig>();
@@ -53,6 +57,7 @@ const realtimeRefreshLoading = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const filterOptions = ref({ ...props.initialFilterOptions });
+const tagGroupsEnabled = computed(() => Boolean(props.tagGroupDomain && props.loadTagGroups));
 const canRefreshLatestData = computed(
   () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
 );
@@ -100,6 +105,36 @@ const {
 } = useConditionFilterGroupState(conditionFilterFields);
 
 const {
+  tagGroups,
+  tagSelections,
+  tagGroupStorageKey,
+  shouldAutoRestoreTagSnapshot,
+  tagGroupActiveFilterTags,
+  loadTagGroups,
+  shouldDeferRowsUntilTagSnapshotRestore,
+} = useTagGroupFilterAdapter({
+  domain: props.tagGroupDomain ?? '',
+  storageKey: () => props.tagGroupStorageKey ?? `tag-groups:${props.workspaceKey}:default`,
+  tagSelectionsQuery: () => route.query.tagSelections,
+  loadTagGroups: (domain) =>
+    props.loadTagGroups?.(domain) ?? Promise.resolve({ domain, schemaHash: '', groups: [] }),
+  shouldAutoRestore: () => tagGroupsEnabled.value && route.query.tagSelections == null,
+});
+
+const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
+  ...conditionActiveFilterTags.value,
+  ...(tagGroupsEnabled.value ? tagGroupActiveFilterTags.value : []),
+]);
+
+interface TagSnapshotRestoredPayload {
+  tagSelections: typeof tagSelections.value;
+  ignoredCount: number;
+  schemaMismatch: boolean;
+  fixedFilters: Record<string, unknown>;
+  source: 'auto' | 'manual';
+}
+
+const {
   handleReset,
   handleQuery,
   handleKeywordSearch,
@@ -107,7 +142,7 @@ const {
   handleSizeChange,
   handleCurrentChange,
   handleSortChange,
-  handleClearFilter,
+  handleClearFilter: handleBaseClearFilter,
 } = useRecordPageController({
   getRouteQuery: () => route.query,
   patchQuery,
@@ -117,7 +152,7 @@ const {
   buildResetQueryPatch,
   defaultSortBy: props.defaultSortBy ?? 'updatedAt',
   defaultSortOrder: props.defaultSortOrder ?? 'desc',
-  resetClearKeys: props.resetClearKeys,
+  resetClearKeys: [...props.resetClearKeys, ...(props.tagGroupDomain ? ['tagSelections'] : [])],
   queryClearKeys: props.queryClearKeys,
   rangeKeys: {
     updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
@@ -193,6 +228,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
     filterGroup: buildFilterPayload(),
+    tagSelections: tagGroupsEnabled.value ? tagSelections.value : undefined,
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || props.defaultSortBy || 'updatedAt',
     sortOrder: (sortOrder.value || props.defaultSortOrder || 'desc') as 'asc' | 'desc',
@@ -227,7 +263,7 @@ async function handleRefreshLatestData() {
       await sleep(1000);
       status = (await loadRealtimeStatus()) ?? status;
     }
-    await Promise.all([loadFilterOptions(), loadTableData()]);
+    await Promise.all([loadFilterOptions(), loadTagGroupsIfEnabled(), loadTableData()]);
     await loadRealtimeStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
@@ -243,6 +279,12 @@ function sleep(ms: number) {
 bindLoader(async () => {
   try {
     initializeFromQuery(route.query);
+    await loadTagGroupsIfEnabled();
+    if (shouldDeferRowsUntilTagSnapshotRestore()) {
+      await loadRealtimeStatus();
+      pageInitialized.value = true;
+      return;
+    }
     await loadTableData();
     await loadRealtimeStatus();
     pageInitialized.value = true;
@@ -272,6 +314,110 @@ watch(
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as IssueIllegalRecordRow) ?? null;
   detailVisible.value = true;
+}
+
+async function loadTagGroupsIfEnabled() {
+  if (tagGroupsEnabled.value) {
+    await loadTagGroups();
+  }
+}
+
+function buildRangeValue(start: unknown, end: unknown) {
+  const normalizedStart = String(start ?? '');
+  const normalizedEnd = String(end ?? '');
+  return normalizedStart && normalizedEnd ? [normalizedStart, normalizedEnd] : [];
+}
+
+const fixedFiltersForSnapshot = computed<Record<string, unknown>>(() => ({
+  keyword: String(route.query.keyword ?? ''),
+  issueIid: String(route.query.issueIid ?? ''),
+  title: String(route.query.title ?? ''),
+  projectName: String(route.query.projectName ?? ''),
+  moduleName: String(route.query.moduleName ?? ''),
+  testingPhase: String(route.query.testingPhase ?? ''),
+  illegalReason: String(route.query.illegalReason ?? ''),
+  severityLevel: String(route.query.severityLevel ?? ''),
+  priorityLevel: String(route.query.priorityLevel ?? ''),
+  issueState: String(route.query.issueState ?? ''),
+  bugStatus: String(route.query.bugStatus ?? ''),
+  category: String(route.query.category ?? ''),
+  milestoneTitle: String(route.query.milestoneTitle ?? ''),
+  authorName: String(route.query.authorName ?? ''),
+  assigneeName: String(route.query.assigneeName ?? ''),
+  createdAtRange: buildRangeValue(route.query.createdAtStart, route.query.createdAtEnd),
+  updatedAtRange: buildRangeValue(route.query.updatedAtStart, route.query.updatedAtEnd),
+  filterGroup: String(route.query.filterGroup ?? ''),
+}));
+
+async function handleClearFilter(key: string) {
+  if (key.startsWith('tagSelection:')) {
+    const groupKey = key.slice('tagSelection:'.length);
+    const nextSelections = tagSelections.value.filter((selection) => selection.groupKey !== groupKey);
+    await patchQuery({ page: 1, tagSelections: stringifyTagSelectionsQuery(nextSelections) });
+    return;
+  }
+  await handleBaseClearFilter(key);
+}
+
+async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {
+  await patchQuery({
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(nextSelections),
+  });
+}
+
+async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
+  const queryPatch = {
+    ...buildFixedFilterSnapshotQuery(payload.fixedFilters),
+    page: 1,
+    tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
+  };
+  if (payload.source === 'auto') {
+    await patchQuery(queryPatch, 'replace');
+    return;
+  }
+  await patchQuery(queryPatch);
+  if (payload.ignoredCount > 0 || payload.schemaMismatch) {
+    ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
+    return;
+  }
+  ElMessage.success('已恢复快捷快照');
+}
+
+function buildFixedFilterSnapshotQuery(filters: Record<string, unknown>) {
+  const createdAtRange = Array.isArray(filters.createdAtRange) ? filters.createdAtRange : [];
+  const updatedAtRange = Array.isArray(filters.updatedAtRange) ? filters.updatedAtRange : [];
+  return {
+    keyword: stringFilterValue(filters.keyword),
+    issueIid: stringFilterValue(filters.issueIid),
+    title: stringFilterValue(filters.title),
+    projectName: stringFilterValue(filters.projectName),
+    moduleName: stringFilterValue(filters.moduleName),
+    testingPhase: stringFilterValue(filters.testingPhase),
+    illegalReason: stringFilterValue(filters.illegalReason),
+    severityLevel: stringFilterValue(filters.severityLevel),
+    priorityLevel: stringFilterValue(filters.priorityLevel),
+    issueState: stringFilterValue(filters.issueState),
+    bugStatus: stringFilterValue(filters.bugStatus),
+    category: stringFilterValue(filters.category),
+    milestoneTitle: stringFilterValue(filters.milestoneTitle),
+    authorName: stringFilterValue(filters.authorName),
+    assigneeName: stringFilterValue(filters.assigneeName),
+    createdAtStart: stringFilterValue(createdAtRange[0]),
+    createdAtEnd: stringFilterValue(createdAtRange[1]),
+    updatedAtStart: stringFilterValue(updatedAtRange[0]),
+    updatedAtEnd: stringFilterValue(updatedAtRange[1]),
+    filterGroup: stringFilterValue(filters.filterGroup),
+  };
+}
+
+function stringFilterValue(value: unknown) {
+  const text = String(value ?? '');
+  return text || null;
+}
+
+function handleTagSnapshotSaved(payload: { name: string }) {
+  ElMessage.success(`已保存快照：${payload.name}`);
 }
 </script>
 
@@ -303,7 +449,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
         :page="page"
         :page-size="pageSize"
         :total="total"
-        :active-filter-tags="conditionActiveFilterTags"
+        :active-filter-tags="allActiveFilterTags"
         :keyword="String(route.query.keyword ?? '')"
         search-placeholder="输入关键字快速搜索"
         :show-search="true"
@@ -318,11 +464,25 @@ function openDetailDrawer(row: Record<string, unknown>) {
         @sort-change="handleSortChange"
       >
         <template #filter-builder>
-          <StatisticFilterBuilder
-            :model-value="filterDraft"
-            :fields="conditionFilterFields"
-            add-button-text="添加条件"
-          />
+          <div class="issue-illegal-filter-stack">
+            <TagGroupFilterBar
+              v-if="tagGroupsEnabled"
+              :model-value="tagSelections"
+              :tag-groups="tagGroups"
+              :loading="isTableLoading"
+              :storage-key="tagGroupStorageKey"
+              :fixed-filters="fixedFiltersForSnapshot"
+              :auto-restore="shouldAutoRestoreTagSnapshot"
+              @change="handleTagSelectionsChange"
+              @snapshot-restored="handleTagSnapshotRestored"
+              @snapshot-saved="handleTagSnapshotSaved"
+            />
+            <StatisticFilterBuilder
+              :model-value="filterDraft"
+              :fields="conditionFilterFields"
+              add-button-text="添加条件"
+            />
+          </div>
         </template>
 
         <template #primary-actions>

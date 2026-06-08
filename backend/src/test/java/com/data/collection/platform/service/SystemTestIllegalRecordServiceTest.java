@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
+import com.data.collection.platform.entity.TagSelectionRequest;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -215,6 +216,66 @@ class SystemTestIllegalRecordServiceTest {
             SystemTestIllegalReasonSupport.TEMPLATE_NOT_FOLLOWED,
             SystemTestIllegalReasonSupport.NON_UNIQUE_REASON);
     assertThat(response.flowSteps()).extracting("key").contains("reason-normalize");
+  }
+
+  @Test
+  void shouldKeepTagSelectionsWhenExportingPagedRecords() {
+    SystemTestIllegalRecordService service = service();
+    when(issueFactRecordRepository.findPage(any()))
+        .thenReturn(
+            new PageSlice<>(
+                List.of(
+                    record(
+                        601,
+                        "tagged illegal",
+                        "draft",
+                        "CC2026R1 system test",
+                        true,
+                        SystemTestIllegalReasonSupport.MISSING_MODULE,
+                        false)),
+                1,
+                1,
+                100));
+
+    service.exportRecordsCsv(
+        new SystemTestIllegalRecordQueryRequest(
+            IssueFactRecordListRequest.withTagSelections(
+                1001L,
+                "",
+                null,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                List.of(new TagSelectionRequest("module", List.of("sketch"))),
+                1,
+                20,
+                "updatedAt",
+                "desc"),
+            null,
+            null,
+            null,
+            null,
+            null));
+
+    verify(issueFactRecordRepository)
+        .findPage(
+            argThat(
+                query ->
+                    query.listRequest().tagSelections().size() == 1
+                        && "module".equals(query.listRequest().tagSelections().getFirst().groupKey())
+                        && query.listRequest().tagSelections().getFirst().valueKeys().contains("sketch")));
   }
 
   private SystemTestIllegalRecordService service() {
