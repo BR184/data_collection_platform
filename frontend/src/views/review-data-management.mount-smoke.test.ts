@@ -18,6 +18,24 @@ describe('ReviewDataManagementView mount smoke', () => {
           reviewVersions: [], problemStatuses: [], reviewCategories: [], problemCategories: [],
         });
       }
+      if (url.includes('/api/tag-groups')) {
+        return jsonResponse({
+          domain: 'review_data',
+          schemaHash: 'review-data-hash',
+          groups: [
+            {
+              groupKey: 'module',
+              label: '评审模块',
+              selectionMode: 'multiple',
+              sortOrder: 10,
+              matchStrategyName: 'eq',
+              values: [
+                { valueKey: 'sketch', label: '草图', valueType: 'standard', sortOrder: 10, disabled: false },
+              ],
+            },
+          ],
+        });
+      }
       if (url.includes('/api/review-data/records?')) {
         return jsonResponse({
           records: [], total: 0, page: 1, size: 20, sortField: 'updatedAt', sortOrder: 'desc',
@@ -39,6 +57,9 @@ describe('ReviewDataManagementView mount smoke', () => {
     });
     await flushPromises();
     expect(wrapper.exists()).toBe(true);
+    expect(wrapper.get('[data-testid="tag-group-filter-toggle"]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('[data-testid="review-advanced-filter-toggle"]').attributes('aria-expanded')).toBe('false');
+    expect(wrapper.get('.review-data-advanced-filter-body').isVisible()).toBe(false);
     const trigger = wrapper.get('[data-testid="review-rule-explanation-trigger"]');
     await trigger.trigger('click');
     await flushPromises();

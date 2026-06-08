@@ -9,25 +9,35 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = "platform.auth.csrf-enabled=false")
 class SqlPushdownRealChainTest {
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private TestRestTemplate restTemplate;
   @Autowired private ObjectMapper objectMapper;
+  private HttpHeaders authHeaders;
 
   @BeforeEach
-  void setUp() {
+  void setUp() throws Exception {
     jdbcTemplate.update("delete from merge_request_fact");
     jdbcTemplate.update("delete from issue_fact");
+    authHeaders = loginHeaders();
   }
 
   @Test
@@ -235,7 +245,8 @@ class SqlPushdownRealChainTest {
   }
 
   private JsonNode getJson(String url) throws Exception {
-    ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+    ResponseEntity<String> response =
+        restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(authHeaders), String.class);
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     JsonNode body = objectMapper.readTree(response.getBody());
     assertThat(body.get("success").asBoolean()).isTrue();
@@ -243,11 +254,34 @@ class SqlPushdownRealChainTest {
   }
 
   private JsonNode getJson(URI url) throws Exception {
-    ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+    ResponseEntity<String> response =
+        restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(authHeaders), String.class);
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     JsonNode body = objectMapper.readTree(response.getBody());
     assertThat(body.get("success").asBoolean()).isTrue();
     return body;
+  }
+
+  private HttpHeaders loginHeaders() throws Exception {
+    HttpHeaders headers = new HttpHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+    ResponseEntity<String> response =
+        restTemplate.postForEntity(
+            "/api/auth/login",
+            new HttpEntity<>(
+                Map.of("username", "admin", "password", "admin-test-2026"),
+                headers),
+            String.class);
+    assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+    JsonNode body = objectMapper.readTree(response.getBody());
+    assertThat(body.get("success").asBoolean()).isTrue();
+    List<String> cookies = response.getHeaders().get(HttpHeaders.SET_COOKIE);
+    assertThat(cookies).isNotEmpty();
+    HttpHeaders result = new HttpHeaders();
+    result.put(
+        HttpHeaders.COOKIE,
+        cookies.stream().map(cookie -> cookie.split(";", 2)[0]).toList());
+    return result;
   }
 
   private java.util.List<String> rowLabels(JsonNode response) {

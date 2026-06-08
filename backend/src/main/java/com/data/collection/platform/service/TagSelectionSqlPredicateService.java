@@ -174,8 +174,15 @@ public class TagSelectionSqlPredicateService {
   private Optional<SqlPredicate> eqCondition(String domain, String groupKey, List<String> candidates) {
     String normalizedGroupKey = normalizeKey(groupKey);
     if ("review_data".equals(domain)
-        && ("problem_status".equals(normalizedGroupKey) || "problem_category".equals(normalizedGroupKey))) {
-      String column = "problem_status".equals(normalizedGroupKey) ? "problem_status" : "problem_category";
+        && ("problem_status".equals(normalizedGroupKey)
+            || "problem_category".equals(normalizedGroupKey)
+            || "review_category".equals(normalizedGroupKey))) {
+      String column =
+          switch (normalizedGroupKey) {
+            case "problem_status" -> "problem_status";
+            case "review_category" -> "review_category";
+            default -> "problem_category";
+          };
       return reviewProblemItemCondition(column, candidates);
     }
     String column = eqColumn(domain, normalizedGroupKey);

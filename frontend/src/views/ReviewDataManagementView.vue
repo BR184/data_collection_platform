@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
-import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import TagGroupFilter from '../components/TagGroupFilter.vue';
@@ -63,7 +63,10 @@ const {
   loadRows: loadReviewRows,
   refresh: refreshReviewDataRecords,
 } = useReviewDataRecords({
-  fetchFilterOptions: () => api.getReviewDataFilterOptions(),
+  fetchFilterOptions: () => api.getReviewDataFilterOptions({
+    tagSelections: tagSelections.value,
+    sourceInstance: reviewDataSourceInstance.value,
+  }),
   fetchRecords: (params) => api.getReviewDataRecords(params),
 });
 
@@ -143,10 +146,24 @@ const {
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
+const advancedConditionsExpanded = ref(false);
 const tagGroups = ref<TagGroupsResponse | null>(null);
 const tagSelections = computed(() => parseTagSelectionsQuery(route.query.tagSelections));
 const tagGroupStorageKey = 'tag-groups:review-data:default';
 const shouldAutoRestoreTagSnapshot = computed(() => route.query.tagSelections == null);
+const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
+const reviewDataFixedFilters = computed<Record<string, unknown>>(() => ({
+  keyword: keyword.value,
+  sourceInstance: reviewDataSourceInstance.value,
+  title: String(route.query.title ?? ''),
+  projectName: String(route.query.projectName ?? ''),
+  moduleName: String(route.query.moduleName ?? ''),
+  reviewOwner: String(route.query.reviewOwner ?? ''),
+  reviewType: String(route.query.reviewType ?? ''),
+  problemStatus: String(route.query.problemStatus ?? ''),
+  reviewExpert: String(route.query.reviewExpert ?? ''),
+  filterGroup: String(route.query.filterGroup ?? ''),
+}));
 const tagGroupActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() =>
   buildTagGroupActiveFilterTags(tagSelections.value, tagGroups.value?.groups ?? []),
 );
@@ -155,6 +172,8 @@ interface TagSnapshotRestoredPayload {
   tagSelections: typeof tagSelections.value;
   ignoredCount: number;
   schemaMismatch: boolean;
+  fixedFilters: Record<string, unknown>;
+  source: 'auto' | 'manual';
 }
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
@@ -184,6 +203,7 @@ const {
   getSortBy: () => sortBy.value,
   getSortOrder: () => sortOrder.value as 'asc' | 'desc' | '',
   getTagSelections: () => tagSelections.value,
+  getSourceInstance: () => reviewDataSourceInstance.value,
   patchQuery,
   initializeFromQuery,
   buildFilterPayload,
@@ -234,15 +254,41 @@ async function handleClearFilter(key: string) {
 }
 
 async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
-  await patchQuery({
+  const queryPatch = {
+    ...buildFixedFilterSnapshotQuery(payload.fixedFilters),
     page: 1,
     tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
-  });
+  };
+  if (payload.source === 'auto') {
+    await patchQuery(queryPatch, 'replace');
+    return;
+  }
+  await patchQuery(queryPatch);
   if (payload.ignoredCount > 0 || payload.schemaMismatch) {
     ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
     return;
   }
   ElMessage.success('已恢复快捷快照');
+}
+
+function buildFixedFilterSnapshotQuery(filters: Record<string, unknown>) {
+  return {
+    keyword: stringFilterValue(filters.keyword),
+    sourceInstance: stringFilterValue(filters.sourceInstance),
+    title: stringFilterValue(filters.title),
+    projectName: stringFilterValue(filters.projectName),
+    moduleName: stringFilterValue(filters.moduleName),
+    reviewOwner: stringFilterValue(filters.reviewOwner),
+    reviewType: stringFilterValue(filters.reviewType),
+    problemStatus: stringFilterValue(filters.problemStatus),
+    reviewExpert: stringFilterValue(filters.reviewExpert),
+    filterGroup: stringFilterValue(filters.filterGroup),
+  };
+}
+
+function stringFilterValue(value: unknown) {
+  const text = String(value ?? '');
+  return text || null;
 }
 
 function handleTagSnapshotSaved() {
@@ -361,12 +407,29 @@ const {
             :tag-groups="tagGroups"
             :loading="isTableLoading"
             :storage-key="tagGroupStorageKey"
+            :fixed-filters="reviewDataFixedFilters"
             :auto-restore="shouldAutoRestoreTagSnapshot"
+            :default-expanded="true"
             @change="handleTagSelectionsChange"
             @snapshot-restored="handleTagSnapshotRestored"
             @snapshot-saved="handleTagSnapshotSaved"
           />
-          <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
+          <section class="review-data-advanced-filter">
+            <el-button
+              plain
+              :icon="advancedConditionsExpanded ? ArrowUp : ArrowDown"
+              :aria-expanded="advancedConditionsExpanded"
+              data-testid="review-advanced-filter-toggle"
+              @click="advancedConditionsExpanded = !advancedConditionsExpanded"
+            >
+              高级条件
+            </el-button>
+            <el-collapse-transition>
+              <div v-show="advancedConditionsExpanded" class="review-data-advanced-filter-body">
+                <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
+              </div>
+            </el-collapse-transition>
+          </section>
         </div>
       </template>
 
@@ -538,6 +601,18 @@ const {
 .review-data-filter-stack {
   display: grid;
   gap: 10px;
+  min-width: 0;
+}
+
+.review-data-advanced-filter {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  min-width: 0;
+}
+
+.review-data-advanced-filter-body {
+  width: 100%;
   min-width: 0;
 }
 

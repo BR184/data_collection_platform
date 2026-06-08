@@ -6,6 +6,7 @@ import type { ReviewDataRecordQueryParams } from './useReviewDataRecords';
 
 type QueryValue = string | number | null | undefined;
 type QueryPatch = Record<string, QueryValue>;
+type QueryMode = 'push' | 'replace';
 
 export interface ReviewDataRouteControllerDependencies {
   getRouteQuery: () => LocationQuery;
@@ -15,7 +16,8 @@ export interface ReviewDataRouteControllerDependencies {
   getSortBy: () => string;
   getSortOrder: () => 'asc' | 'desc' | '';
   getTagSelections?: () => TagSelectionRequest[];
-  patchQuery: (patch: QueryPatch) => Promise<void>;
+  getSourceInstance?: () => string;
+  patchQuery: (patch: QueryPatch, mode?: QueryMode) => Promise<void>;
   initializeFromQuery: (query: LocationQuery) => void;
   buildFilterPayload: () => StatisticFilterGroup | null;
   resetDraft: () => void;
@@ -30,8 +32,16 @@ export function useReviewDataRouteController(deps: ReviewDataRouteControllerDepe
   function buildRecordQueryParams(overrides: { page?: number; size?: number } = {}): ReviewDataRecordQueryParams {
     return {
       keyword: deps.getKeyword().trim(),
+      title: routeString(deps.getRouteQuery().title),
+      projectName: routeString(deps.getRouteQuery().projectName),
+      moduleName: routeString(deps.getRouteQuery().moduleName),
+      reviewOwner: routeString(deps.getRouteQuery().reviewOwner),
+      reviewType: routeString(deps.getRouteQuery().reviewType),
+      problemStatus: routeString(deps.getRouteQuery().problemStatus),
+      reviewExpert: routeString(deps.getRouteQuery().reviewExpert),
       filterGroup: appliedFilterGroup.value,
       tagSelections: deps.getTagSelections?.() ?? [],
+      sourceInstance: deps.getSourceInstance?.() || undefined,
       page: overrides.page ?? deps.getPage(),
       size: overrides.size ?? deps.getPageSize(),
       sortBy: deps.getSortBy(),
@@ -115,4 +125,9 @@ export function useReviewDataRouteController(deps: ReviewDataRouteControllerDepe
     handlePageChange,
     handleSizeChange,
   };
+}
+
+function routeString(rawValue: LocationQuery[string]) {
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  return value == null ? '' : String(value);
 }

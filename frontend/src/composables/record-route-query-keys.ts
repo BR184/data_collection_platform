@@ -45,6 +45,7 @@ export const CODE_REVIEW_RECORD_QUERY_KEYS = [
 ];
 
 export const REVIEW_DATA_RECORD_QUERY_KEYS = [
+  'sourceInstance',
   'reviewCategory',
   'documentCategory',
   'documentType',

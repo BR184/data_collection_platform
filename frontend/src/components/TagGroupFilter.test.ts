@@ -57,6 +57,20 @@ describe('TagGroupFilter', () => {
     expect(toggle.attributes('aria-expanded')).toBe('true');
   });
 
+  it('forces the panel open when there are selected tag values', () => {
+    const wrapper = mount(TagGroupFilter, {
+      props: {
+        modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+        tagGroups,
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    expect(wrapper.get('[data-testid="tag-group-filter-toggle"]').attributes('aria-expanded')).toBe('true');
+  });
+
   it('emits multiple selections and supports canceling a selected value', async () => {
     const wrapper = mount(TagGroupFilter, {
       props: {
@@ -143,7 +157,9 @@ describe('TagGroupFilter', () => {
       ignoredCount: 2,
       schemaMismatch: true,
       fixedFilters: {},
+      source: 'manual',
     }]);
+    expect(wrapper.text()).toContain('快照口径已变化，已忽略 2 个失效条件。');
   });
 
   it('automatically restores a pinned snapshot after tag groups are available', async () => {
@@ -188,6 +204,7 @@ describe('TagGroupFilter', () => {
       ignoredCount: 0,
       schemaMismatch: false,
       fixedFilters: {},
+      source: 'auto',
     }]);
   });
 });

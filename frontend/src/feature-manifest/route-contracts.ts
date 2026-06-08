@@ -54,6 +54,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'pageSize',
       'sortBy',
       'sortOrder',
+      'sourceInstance',
       'keyword',
       'filterGroup',
       'filterLogic',

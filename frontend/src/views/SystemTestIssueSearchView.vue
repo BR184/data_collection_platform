@@ -117,6 +117,7 @@ interface TagSnapshotRestoredPayload {
   ignoredCount: number;
   schemaMismatch: boolean;
   fixedFilters: Record<string, unknown>;
+  source: 'auto' | 'manual';
 }
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
@@ -501,11 +502,16 @@ async function handleTagSelectionsChange(nextSelections: typeof tagSelections.va
 }
 
 async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
-  await patchQuery({
+  const queryPatch = {
     ...buildFixedFilterSnapshotQuery(payload.fixedFilters),
     page: 1,
     tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
-  });
+  };
+  if (payload.source === 'auto') {
+    await patchQuery(queryPatch, 'replace');
+    return;
+  }
+  await patchQuery(queryPatch);
   if (payload.ignoredCount > 0 || payload.schemaMismatch) {
     ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
     return;

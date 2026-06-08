@@ -15,6 +15,7 @@ function setup(routeQuery: LocationQuery = {}) {
     getPageSize: vi.fn(() => 50),
     getSortBy: vi.fn(() => 'updatedAt'),
     getSortOrder: vi.fn(() => 'desc' as 'asc' | 'desc' | ''),
+    getSourceInstance: vi.fn(() => 'cc'),
     patchQuery: vi.fn<(patch: Record<string, string | number | null | undefined>) => Promise<void>>(() =>
       Promise.resolve(),
     ),
@@ -41,11 +42,19 @@ describe('useReviewDataRouteController', () => {
     expect(deps.initializeFromQuery).toHaveBeenCalledWith({ filterGroup: 'legacy' });
     expect(controller.buildRecordQueryParams()).toEqual({
       keyword: 'keyword',
+      title: '',
+      projectName: '',
+      moduleName: '',
+      reviewOwner: '',
+      reviewType: '',
+      problemStatus: '',
+      reviewExpert: '',
       filterGroup: {
         logic: 'AND',
         conditions: [{ fieldKey: 'projectName', operator: 'eq', value: 'Project A' }],
       },
       tagSelections: [],
+      sourceInstance: 'cc',
       page: 2,
       size: 50,
       sortBy: 'updatedAt',

@@ -712,15 +712,20 @@ module_names split_exact_comma [...]
 - [ ] 支持单选、多选、搜索标签值。
 - [ ] 支持隐藏历史停用标签。
 - [ ] 已选条件统一显示在现有 `activeFilterTags` 区域。
-- [ ] 支持把当前 `tagSelections + fixedFilters` 保存到 localStorage，作为一到两个“快速口径”快照；一期不入库、不做公私视图。
+- [ ] 支持把当前 `tagSelections + fixedFilters` 保存到 localStorage 快照集合；一期不入库、不做公私视图。
+- [ ] localStorage 快照集合最多保留 3 个 pinned 快照，快照 TTL 为 30 天；一期不提供重命名。
 - [ ] localStorage 快照包含 `schemaVersion: 1` 和 `schemaHash`；`schemaHash` 由后端在 `/api/tag-groups?domain=…` 响应里返回（基于 `(groupKey, valueKey)` 列表稳定排序后取摘要），前端只透传不独立计算。
-- [ ] 加载快照时如果 `schemaHash` 不一致或包含 unknown `groupKey/valueKey`，提示“快照过期，已忽略 X 个失效条件”，并保留其余可解析条件。
+- [ ] 进入页面且 URL 无 `tagSelections` query 时，自动恢复 active snapshot，并用 router replace 模式回填 `tagSelections + fixedFilters`。
+- [ ] 自动恢复成功时不弹全局 toast；手动点击“恢复快照”成功时弹 toast。
+- [ ] 加载快照时如果 `schemaHash` 不一致或包含 unknown `groupKey/valueKey`，在标签组面板内显示 warning，提示“快照过期/口径已变化，已忽略 X 个失效条件”，并保留其余可解析条件。
+- [ ] 标签组面板默认折叠规则按页配置；当选中数 > 0 时强制展开，避免已选条件被折叠隐藏。
+- [ ] 恢复快照时同步回填 `fixedFilters`，使固定字段筛选与标签组口径一致恢复。
 - [ ] 未归类标签展示 `unmappedReason`，便于用户或管理员判断需要补哪类映射规则。
 
 **Verification:**
 
 - [ ] Vitest 覆盖选择、取消、单选互斥、多选组合。
-- [ ] Vitest 覆盖快照版本不一致、unknown key 被忽略、剩余条件可恢复。
+- [ ] Vitest 覆盖快照集合、30 天 TTL、自动恢复 source、手动恢复 source、schema mismatch/unknown key 面板 warning、剩余条件和 `fixedFilters` 可恢复。
 - [ ] 页面无文本溢出和筛选区重排异常。
 
 **Dependencies:** Task 4a
@@ -745,7 +750,11 @@ module_names split_exact_comma [...]
 - [ ] 新平台脏模块不会默认铺满筛选区。
 - [ ] 已选标签组条件和常用条件统一展示。
 - [ ] 查询、展开问题清单、导出使用同一份 `tagSelections`。
-- [ ] 常用快速口径可从 localStorage 恢复。
+- [ ] 页面默认展示标签组面板，`StatisticFilterBuilder` 收口到默认折叠的“高级条件”折叠区。
+- [ ] 常用快速口径可从 localStorage 自动恢复；自动恢复静默，手动恢复弹 toast，schema mismatch 使用面板内联 warning。
+- [ ] 恢复快照时同步回填评审数据固定字段 `fixedFilters`。
+- [ ] 列表、导出、筛选选项接口均透传同一份 `sourceInstance`，保持多源标签映射口径一致。
+- [ ] 后端通过 `V20260608_01__tag_groups_review_data_seed.sql` 幂等写入 6 个 `review_data` 标准标签组和必要 `tag_value` 行；不重建模块 alias。
 
 **Verification:**
 
@@ -772,6 +781,9 @@ module_names split_exact_comma [...]
 - [ ] 保留现有快速下拉筛选。
 - [ ] 标签组入口体验与 `RecordTableFilterFields.vue` 的快速下拉筛选一致。
 - [ ] 标签组筛选与现有固定字段筛选可同时使用。
+- [ ] 页面默认折叠标签组面板，除非页面配置展开或已有选中标签；选中数 > 0 时强制展开。
+- [ ] 无 `tagSelections` query 时自动恢复 active snapshot，使用 replace 模式回填 `tagSelections + fixedFilters`，自动恢复静默。
+- [ ] schema mismatch/unknown key 在标签组面板内联 warning，手动恢复快照时弹 toast。
 - [ ] `综合搜索`、`模块关键词` 的删除或弱化方案经过确认后实施。
 - [ ] 模块标签组默认展示值来自归一化业务字段，不展示 `未设定...` 和跨字段污染标签。
 - [ ] 旧 URL 参数如 `moduleName`、`keyword`、`testingPhase` 在兼容期内仍可解析；新 `tagSelections` URL 参数上线后设置明确清理窗口，例如 4-8 周。
@@ -870,17 +882,24 @@ After Tasks 5-8:
 | `contains` 或 `regex` 造成慢查询或误命中 | 高 | `regex` 只用于管理/离线；`contains` 必须显式允许并覆盖 `工具/工具箱` 等误命中测试 |
 | 原始 GitLab 标签污染主筛选 | 高 | 默认只展示归一化业务字段值，原始标签仅进诊断/补充入口 |
 
+## 已定决策
+
+- localStorage 快照一期保存为集合模式，最多 3 个 pinned 快照；快照 TTL 为 30 天；一期不允许用户重命名。
+- 自动恢复触发条件为进入页面且 URL 无 `tagSelections` query；自动恢复使用 replace 模式，不污染浏览器历史。
+- 自动恢复成功静默；手动点击“恢复快照”成功弹 toast；schema mismatch 或 unknown key 只在标签组面板内联 warning，不弹全局 toast。
+- 标签组面板默认折叠/展开由页面配置；评审数据管理页默认展开，议题查询页默认折叠；只要选中数 > 0 就强制展开。
+- 恢复快照必须同时回填 `fixedFilters`；评审数据页覆盖 `keyword/title/projectName/moduleName/reviewOwner/reviewType/problemStatus/reviewExpert/filterGroup/sourceInstance`，议题查询页覆盖现有固定字段筛选。
+- 普通议题明细一期继续使用新平台逗号边界匹配，避免 `工具` 误命中 `工具箱`；不复刻旧平台 `&` 分隔，也不回退到无边界 contains。
+- `module_names` 一期继续使用逗号边界匹配，不新增 `module_name_array text[] + GIN`。
+- `tag_value_mapping.source_instance` 冲突时始终来源映射优先，全局映射兜底。
+- snapshot 一期按页面和数据域隔离，不做跨页/跨项目共享；业务页到统计板的一键带条件跳转一期不做。
+
 ## Open Questions
 
 - `module_dictionary` 是否需要补一个只读/导入管理入口，承接老平台“标准模块”的最终维护？
 - 标准标签组是否需要支持跨数据域复用，例如议题查询和评审数据管理共用模块口径？
 - 一期只读配置页和 YAML/CSV 启动加载二选一还是都做？
 - `综合搜索` 和 `模块关键词` 是直接删除，还是先折叠为“快速搜索”兜底？
-- localStorage 快速口径一期保存几个快照，是否允许用户重命名？
-- 普通议题明细是否继续复刻旧平台 `module_name like`，还是改成更严格的拆分精确匹配并作为新平台增强？
-- `module_names` 是否新增 `module_name_array text[] + GIN`，还是一期继续使用逗号边界匹配？
-- `tag_value_mapping.source_instance` 的全局映射和来源映射冲突时，是否始终来源映射优先？
-- 是否需要在标签组业务页到统计板之间提供一键带条件跳转？一期不做跨页筛选条件传递。
 
 ## 推荐一期结论
 

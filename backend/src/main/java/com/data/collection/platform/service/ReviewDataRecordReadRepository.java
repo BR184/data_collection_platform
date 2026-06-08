@@ -139,6 +139,7 @@ public class ReviewDataRecordReadRepository {
       String keyword,
       StatisticFilterGroup filterGroup,
       List<TagSelectionRequest> tagSelections,
+      String sourceInstance,
       int page,
       int size,
       String sortField,
@@ -153,7 +154,8 @@ public class ReviewDataRecordReadRepository {
         reviewExpert,
         keyword,
         filterGroup,
-        tagSelections);
+        tagSelections,
+        sourceInstance);
     String orderBy = buildWindowOrderBy(sortField, sortOrder);
     int safePage = page <= 0 ? 1 : page;
     int safeSize = size <= 0 ? 20 : Math.min(size, 100);
@@ -442,7 +444,8 @@ public class ReviewDataRecordReadRepository {
       String reviewExpert,
       String keyword,
       StatisticFilterGroup filterGroup,
-      List<TagSelectionRequest> tagSelections) {
+      List<TagSelectionRequest> tagSelections,
+      String sourceInstance) {
     StringBuilder sql =
         new StringBuilder(
             """
@@ -481,7 +484,7 @@ public class ReviewDataRecordReadRepository {
     appendReviewExpertFilter(sql, args, reviewExpert);
     appendKeywordSearch(sql, args, keyword);
     appendFilterGroup(sql, args, filterGroup);
-    appendTagSelections(sql, args, tagSelections, null);
+    appendTagSelections(sql, args, tagSelections, sourceInstance);
     return new SqlParts(sql.toString(), args);
   }
 

@@ -104,7 +104,11 @@ class GitlabMirrorSyncServiceTest {
     when(configService.getConfig()).thenReturn(config);
     when(registryMapper.selectOne(any())).thenReturn(registry("issues", "id", "updated_at"));
     when(tableStateMapper.selectOne(any())).thenReturn(tableState("issues", LocalDateTime.of(2026, 5, 15, 10, 0)));
-    when(syncRunSubmissionService.submitTableRefresh(config, List.of("issues"), "manual refresh"))
+    when(syncRunSubmissionService.submitTableRefresh(
+            config,
+            List.of("issues"),
+            "manual refresh",
+            Map.of("sourcePageKey", "manual refresh", "triggerSurface", "ON_DEMAND_REFRESH")))
         .thenReturn(
             new SyncRunSubmissionResult(
                 99L,
@@ -117,7 +121,12 @@ class GitlabMirrorSyncServiceTest {
     GitlabMirrorSyncService.OnDemandRefreshResult result =
         syncService.refreshTablesOnDemandDetailed(List.of("Issues"), "manual refresh");
 
-    verify(syncRunSubmissionService).submitTableRefresh(config, List.of("issues"), "manual refresh");
+    verify(syncRunSubmissionService)
+        .submitTableRefresh(
+            config,
+            List.of("issues"),
+            "manual refresh",
+            Map.of("sourcePageKey", "manual refresh", "triggerSurface", "ON_DEMAND_REFRESH"));
     assertThat(result.jobId()).isEqualTo(99L);
     assertThat(result.plannedTasks()).isEqualTo(1);
     assertThat(result.status()).isEqualTo(SyncStatus.QUEUED);

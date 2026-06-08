@@ -59,6 +59,7 @@ public class ReviewDataRecordQueryService {
               request.keyword(),
               hasFilterGroup ? filterGroup : null,
               request.tagSelections(),
+              request.sourceInstance(),
               safePage,
               safeSize,
               safeSortField,

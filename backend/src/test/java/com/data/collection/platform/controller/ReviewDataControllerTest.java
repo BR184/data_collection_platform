@@ -109,6 +109,7 @@ class ReviewDataControllerTest {
                 .param("problemStatus", "Resolved")
                 .param("reviewExpert", "Bob")
                 .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[]}")
+                .param("sourceInstance", "cc")
                 .param("page", "2")
                 .param("size", "10")
                 .param("sortBy", "updatedAt")
@@ -131,6 +132,7 @@ class ReviewDataControllerTest {
     Assertions.assertEquals("Resolved", request.problemStatus());
     Assertions.assertEquals("Bob", request.reviewExpert());
     Assertions.assertEquals("{\"logic\":\"AND\",\"conditions\":[]}", request.filterGroupJson());
+    Assertions.assertEquals("cc", request.sourceInstance());
     Assertions.assertEquals(2, request.page());
     Assertions.assertEquals(10, request.size());
     Assertions.assertEquals("updatedAt", request.sortField());

@@ -13,8 +13,16 @@ import {
 
 export interface ReviewDataRecordQueryParams {
   keyword?: string;
+  title?: string;
+  projectName?: string;
+  moduleName?: string;
+  reviewOwner?: string;
+  reviewType?: string;
+  problemStatus?: string;
+  reviewExpert?: string;
   filterGroup?: StatisticFilterGroup | null;
   tagSelections?: TagSelectionRequest[];
+  sourceInstance?: string | null;
   page?: number;
   size?: number;
   sortBy?: string;

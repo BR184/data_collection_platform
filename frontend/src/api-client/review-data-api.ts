@@ -24,6 +24,7 @@ export interface ReviewDataRecordQueryParams {
   reviewExpert?: string;
   filterGroup?: StatisticFilterGroup | null;
   tagSelections?: TagSelectionRequest[];
+  sourceInstance?: string | null;
   page?: number;
   size?: number;
   sortBy?: string;
@@ -46,8 +47,11 @@ export const reviewDataApi = {
   exportReviewDataRecordProblemDetailsWorkbook(recordId: string | number) {
     return fetchWorkbook(`/api/review-data/records/${recordId}/problem-items/export`);
   },
-  getReviewDataFilterOptions() {
-    return request<ReviewDataFilterOptionsResponse>('/api/review-data/records/filter-options');
+  getReviewDataFilterOptions(params: Pick<ReviewDataRecordQueryParams, 'tagSelections' | 'sourceInstance'> = {}) {
+    const query = buildReviewDataRecordQuery(params, false);
+    return request<ReviewDataFilterOptionsResponse>(
+      `/api/review-data/records/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
+    );
   },
   getReviewDataRecordDetail(recordId: string | number) {
     return request<ReviewDataRecordDetailResponse>(`/api/review-data/records/${recordId}`);
@@ -152,6 +156,7 @@ function buildReviewDataRecordQuery(params: ReviewDataRecordQueryParams, include
     ...(params.reviewExpert ? { reviewExpert: params.reviewExpert } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
     ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
+    ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });

@@ -22,6 +22,7 @@ class ReviewDataRequestAssemblerTest {
     request.setReviewExpert("Bob");
     request.setFilterGroup("{\"logic\":\"AND\",\"conditions\":[]}");
     request.setTagSelections("[{\"groupKey\":\"module\",\"valueKeys\":[\"sketch\"]}]");
+    request.setSourceInstance("cc");
     request.setPage(2);
     request.setSize(10);
     request.setSortBy("updatedAt");
@@ -41,6 +42,7 @@ class ReviewDataRequestAssemblerTest {
     assertThat(queryRequest.tagSelections()).hasSize(1);
     assertThat(queryRequest.tagSelections().getFirst().groupKey()).isEqualTo("module");
     assertThat(queryRequest.tagSelections().getFirst().valueKeys()).containsExactly("sketch");
+    assertThat(queryRequest.sourceInstance()).isEqualTo("cc");
     assertThat(queryRequest.page()).isEqualTo(2);
     assertThat(queryRequest.size()).isEqualTo(10);
     assertThat(queryRequest.sortField()).isEqualTo("updatedAt");

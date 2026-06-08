@@ -44,13 +44,14 @@ const emit = defineEmits<{
     ignoredCount: number;
     schemaMismatch: boolean;
     fixedFilters: Record<string, unknown>;
+    source: 'auto' | 'manual';
   }): void;
   (event: 'snapshot-saved'): void;
 }>();
 
 const keyword = ref('');
 const showDisabledValues = ref(false);
-const expanded = ref(props.defaultExpanded);
+const restoreWarningText = ref('');
 const snapshotStoreRevision = ref(0);
 const lastAutoRestoreKey = ref('');
 
@@ -75,6 +76,7 @@ const snapshotStore = computed(() => {
 });
 const snapshotOptions = computed(() => snapshotStore.value.snapshots);
 const hasSnapshot = computed(() => snapshotOptions.value.length > 0);
+const expanded = ref(props.defaultExpanded || selectedCount.value > 0);
 
 const visibleGroups = computed(() => {
   const query = keyword.value.trim().toLowerCase();
@@ -112,10 +114,15 @@ function handleToggle(group: TagGroupResponse, value: TagGroupValueResponse) {
 }
 
 function toggleExpanded() {
+  if (selectedCount.value > 0) {
+    expanded.value = true;
+    return;
+  }
   expanded.value = !expanded.value;
 }
 
 function clearSelections() {
+  restoreWarningText.value = '';
   emit('update:modelValue', []);
   emit('change', []);
 }
@@ -133,10 +140,11 @@ function saveSnapshot() {
   window.localStorage.setItem(props.storageKey, JSON.stringify(store));
   snapshotStoreRevision.value += 1;
   lastAutoRestoreKey.value = buildAutoRestoreKey();
+  restoreWarningText.value = '';
   emit('snapshot-saved');
 }
 
-function restoreSnapshot(snapshotId?: string) {
+function restoreSnapshot(snapshotId?: string, source: 'auto' | 'manual' = 'manual') {
   if (!props.storageKey || !props.tagGroups) {
     return;
   }
@@ -147,13 +155,28 @@ function restoreSnapshot(snapshotId?: string) {
     return;
   }
   const restored = restoreTagGroupSnapshot(snapshot, props.tagGroups);
+  restoreWarningText.value = buildRestoreWarning(restored.ignoredCount, restored.schemaMismatch);
   emit('update:modelValue', restored.tagSelections);
   emit('snapshot-restored', {
     tagSelections: restored.tagSelections,
     ignoredCount: restored.ignoredCount,
     schemaMismatch: restored.schemaMismatch,
     fixedFilters: restored.fixedFilters,
+    source,
   });
+}
+
+function buildRestoreWarning(ignoredCount: number, schemaMismatch: boolean) {
+  if (!schemaMismatch && ignoredCount <= 0) {
+    return '';
+  }
+  if (schemaMismatch && ignoredCount > 0) {
+    return `快照口径已变化，已忽略 ${ignoredCount} 个失效条件。`;
+  }
+  if (schemaMismatch) {
+    return '快照口径已变化，请确认恢复后的条件仍符合预期。';
+  }
+  return `已忽略 ${ignoredCount} 个失效条件。`;
 }
 
 function buildAutoRestoreKey() {
@@ -169,8 +192,14 @@ function tryAutoRestoreSnapshot() {
     return;
   }
   lastAutoRestoreKey.value = restoreKey;
-  restoreSnapshot();
+  restoreSnapshot(undefined, 'auto');
 }
+
+watch(selectedCount, (count) => {
+  if (count > 0) {
+    expanded.value = true;
+  }
+});
 
 watch(
   () => [props.storageKey, props.tagGroups?.schemaHash] as const,
@@ -213,8 +242,13 @@ watch(
           <el-checkbox v-model="showDisabledValues">显示停用标签</el-checkbox>
           <div class="tag-group-filter-actions">
             <el-button plain :icon="Star" :disabled="!tagGroups" @click="saveSnapshot">保存固定快照</el-button>
-            <el-dropdown :disabled="!hasSnapshot || !tagGroups" @command="(id) => restoreSnapshot(String(id))">
-              <el-button plain :icon="StarFilled" :disabled="!hasSnapshot || !tagGroups" @click="restoreSnapshot()">
+            <el-dropdown :disabled="!hasSnapshot || !tagGroups" @command="(id) => restoreSnapshot(String(id), 'manual')">
+              <el-button
+                plain
+                :icon="StarFilled"
+                :disabled="!hasSnapshot || !tagGroups"
+                @click="restoreSnapshot(undefined, 'manual')"
+              >
                 恢复快照
               </el-button>
               <template #dropdown>
@@ -234,6 +268,10 @@ watch(
             </el-button>
           </div>
         </div>
+
+        <el-text v-if="restoreWarningText" class="tag-group-filter-warning" type="warning">
+          {{ restoreWarningText }}
+        </el-text>
 
         <div v-loading="loading" class="tag-group-filter-groups">
           <article v-for="group in visibleGroups" :key="group.groupKey" class="tag-group-filter-group">
@@ -356,7 +394,7 @@ watch(
   align-items: center;
   gap: 6px;
   min-height: 30px;
-  max-width: 240px;
+  max-width: 280px;
   padding: 5px 10px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 6px;
@@ -364,6 +402,10 @@ watch(
   color: rgba(15, 23, 42, 0.76);
   line-height: 1.2;
   cursor: pointer;
+}
+
+.tag-group-filter-warning {
+  justify-self: start;
 }
 
 .tag-group-filter-value:hover {
@@ -392,6 +434,13 @@ watch(
   overflow: hidden;
   color: rgba(15, 23, 42, 0.48);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-group-filter-value span {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
