@@ -60,6 +60,7 @@ describe('ReviewDataManagementView mount smoke', () => {
     expect(wrapper.find('.tag-group-filter-bar').exists()).toBe(true);
     expect(wrapper.find('[data-testid="tag-group-filter-toggle"]').exists()).toBe(false);
     expect(wrapper.get('[data-testid="review-advanced-filter-toggle"]').attributes('aria-expanded')).toBe('false');
+    expect(wrapper.get('[data-testid="review-advanced-filter-toggle"]').text()).toContain('指标与例外条件');
     expect(wrapper.get('.review-data-advanced-filter-body').isVisible()).toBe(false);
     const trigger = wrapper.get('[data-testid="review-rule-explanation-trigger"]');
     await trigger.trigger('click');

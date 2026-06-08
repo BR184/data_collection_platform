@@ -7,6 +7,7 @@ import type {
 import {
   buildProblemItemTableRows,
   buildReviewDataFilterFields,
+  buildReviewDataMetricFilterFields,
   buildReviewDataExportCsv,
   buildReviewDataSummaryCards,
   buildReviewDataTableRows,
@@ -191,5 +192,39 @@ describe('review-data-management helpers', () => {
     ]);
     expect(fields.find((field) => field.key === 'projectName')?.options).toBe(filterOptions.projectNames);
     expect(fields.find((field) => field.key === 'reviewDate')?.operators).toContain('between');
+  });
+
+  it('should build metric and exception filter fields for the review page', () => {
+    const filterOptions: ReviewDataFilterOptionsResponse = {
+      projectNames: [{ label: 'Project A', value: 'Project A' }],
+      moduleNames: [{ label: 'Module A', value: 'Module A' }],
+      reviewOwners: [{ label: 'Owner A', value: 'Owner A' }],
+      reviewTypes: [{ label: 'Design', value: 'Design' }],
+      reviewExperts: [{ label: 'Expert A', value: 'Expert A' }],
+      reviewVersions: [{ label: 'V1.0', value: 'V1.0' }],
+      problemStatuses: [{ label: 'Open', value: 'Open' }],
+      reviewCategories: [],
+      problemCategories: [],
+    };
+
+    const fields = buildReviewDataMetricFilterFields(filterOptions);
+
+    expect(fields.map((field) => field.key)).toEqual([
+      'title',
+      'reviewScalePages',
+      'problemCount',
+      'problemDensity',
+      'reviewEfficiency',
+      'reviewRate',
+      'independentReviewWorkload',
+      'independentReviewProblemCount',
+      'meetingReviewWorkload',
+      'meetingReviewProblemCount',
+      'notReachStandardReason',
+      'createdAt',
+      'reviewDate',
+    ]);
+    expect(fields.some((field) => field.key === 'moduleName')).toBe(false);
+    expect(fields.some((field) => field.key === 'problemStatus')).toBe(false);
   });
 });

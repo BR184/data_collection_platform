@@ -174,9 +174,9 @@ create table user_filter_snapshot (
 - 改造 `useTagGroupFilterAdapter`：登录用户优先从 API 加载当前工作区；未登录用户继续用 localStorage 作为兜底。
 - 用户修改 `tagSelections + fixedFilters + sortField + sortOrder + pageSize` 后，前端防抖自动保存当前工作区。
 - UI 主入口不叫"视图"，改为"当前工作区"。评审数据管理页先落字段型多选筛选条：每个标签组对应一个 `el-select multiple`，横向排列，支持搜索、清空、折叠标签。
-- "保存快照"弹小表单：输入快照名，确认后把当前工作区保存为 snapshot。
-- "恢复快照"下拉展示 `快照名 + 保存时间`，恢复后覆盖当前工作区；快照本身不被修改。
-- "回到原生表格"清空当前工作区并持久化为空状态；已保存快照不受影响。
+- "保存快照"弹小表单：用户必须输入快照名，确认后把当前工作区保存为 snapshot；不再允许匿名时间戳快照作为主路径。
+- "恢复快照"使用正式下拉/Popover 选择器，入口文案为"恢复快照"，下拉项展示 `快照名 + 保存时间 + 条件数`；恢复后覆盖当前工作区，快照本身不被修改。
+- "清空标签 / 回到原生表格"都必须二次确认。清空标签只清空 `tagSelections`；回到原生表格清空当前工作区并持久化为空状态；已保存快照不受影响。
 - 一期 localStorage 快照迁移：检测到本地存在旧快照时，提示"是否迁移为快照"，迁移成功后清掉本地；失败时不清本地。
 
 ### 4.4 acceptance
@@ -185,6 +185,7 @@ create table user_filter_snapshot (
 - 前端 vitest 覆盖：未登录走 localStorage 兜底；登录加载当前工作区；修改自动保存；保存快照；恢复快照；schemaMismatch 行为。
 - 手测：A 用户登录修改评审数据筛选后刷新页面仍保留；切到 B 用户看不到 A 的工作区；A 在另一浏览器登录后看到自己的当前工作区。
 - 手测：保存快照后继续修改当前工作区，快照不变；恢复快照后当前工作区被覆盖。
+- 手测：保存快照必须输入名称；恢复快照能明确看到快照名和保存时间；清空标签 / 回到原生表格都会二次确认，取消时不改变当前工作区。
 
 ---
 
@@ -378,7 +379,7 @@ create table user_filter_snapshot (
 **核心确认**：当前标签云 / 标签按钮式面板不作为评审数据管理页的最终形态。评审数据管理页先替换为字段型多选筛选条，样式参考议题查询页"高级筛选"的多个字段并列展示：
 
 ```text
-[模块 v] [评审类型 v] [评审负责人 v] [问题状态 v] [问题类别 v] [评审类别 v] [保存快照] [恢复快照] [清空]
+[模块 v] [评审类型 v] [评审负责人 v] [问题状态 v] [问题类别 v] [评审类别 v] [保存快照] [恢复快照] [清空标签]
 ```
 
 实现建议：
@@ -386,18 +387,42 @@ create table user_filter_snapshot (
 - 新增 `TagGroupFilterBar.vue`，不要把现有 `TagGroupFilter.vue` 强行改成两种形态混用。
 - 每个标签组渲染为一个 `el-select multiple filterable clearable collapse-tags collapse-tags-tooltip`。
 - 每个下拉对应一个 `groupKey`，选中值写回 `tagSelections[{ groupKey, valueKeys }]`。
-- 清空某个下拉只清空对应组；页面"清空标签"清空全部 `tagSelections`。
+- 清空某个下拉只清空对应组；页面"清空标签"清空全部 `tagSelections`，必须二次确认。
 - 已选条件区域继续复用 `buildTagGroupActiveFilterTags`，关闭 chip 时清空整组。
 - 搜索能力转移为每个多选下拉内置搜索，不再需要顶部全局"搜索标签值"输入框。
 - 先在 `ReviewDataManagementView.vue` 接入该筛选条，替换当前标签云式 `TagGroupFilter`；议题查询页暂不切换，等 N1 adapter 和固定字段双向同步完成后再处理。
 
 评审数据管理页这样做符合标签组定义：标签组的 `groupKey` 本质就是字段/维度，`valueKeys` 本质就是该字段下的多选值。老平台评审数据管理即便历史 UI 是单选，新平台也可以升级为多选，因为表格筛选的真实语义是 `字段 in [A, B, C]`。
 
-### 10.2A 旧标签云面板的保留范围
+### 10.2A 高级条件改为"指标与例外条件"
+
+**问题判断**：评审数据管理页的高级条件不应再作为通用筛选入口。标签组筛选条已经覆盖了用户日常使用的业务维度筛选，例如模块、评审类型、评审负责人、问题状态、问题类别、评审类别。继续把这些字段放在高级条件里，会形成两套入口表达同一件事，且 `StatisticFilterBuilder` 的全局 `AND/OR` 模型不适合表达"同组 OR、组间 AND"的标签组语义。
+
+**当前组合语义**：
+
+- 固定字段、关键词、`filterGroup`、`tagSelections` 会一起进入评审列表和导出请求。
+- 后端 SQL 路径中，`ReviewDataRecordReadRepository` 先拼固定字段和关键词，再 `appendFilterGroup`，最后 `appendTagSelections`；整体是 `AND` 关系。
+- `filterGroup` 内部由用户选择全局 `AND / OR`；`tagSelections` 内部是同组多值 `OR`、不同组 `AND`。
+- 当前筛选项接口只接收 `tagSelections + sourceInstance`，不接收 `filterGroup`，因此高级条件不会影响标签组选项收敛；这是一个体验差异点。
+
+**确认结论**：高级条件保留，但从"通用筛选入口"改为 **"指标与例外条件"**。它只承担标签组不适合表达的数值、时间、空值、反向和文本例外条件。
+
+**字段收口**：
+
+- 从评审数据管理页高级条件中移除已被标签组覆盖的枚举/业务维度：`moduleName`、`reviewType`、`reviewOwner`、`problemStatus`，以及后续进入标签组的 `problemCategory`、`reviewCategory`、`reviewExpert`。
+- 保留指标和例外字段：`title`、`reviewScalePages`、`problemCount`、`problemDensity`、`reviewEfficiency`、`reviewRate`、`independentReviewWorkload`、`independentReviewProblemCount`、`meetingReviewWorkload`、`meetingReviewProblemCount`、`notReachStandardReason`、`createdAt`、`reviewDate`。
+- UI 文案由"高级条件"改为"指标与例外条件"或"更多指标条件"；默认折叠，放在标签组筛选条下方。
+
+**实现注意**：
+
+- `filterGroup` 仍需进入列表和导出请求，保证复杂指标过滤可用。
+- 后端 fallback 路径目前主要用于搜索索引缺失或无法 SQL 下推的表达式；如果未来保留任何不能下推的高级条件，必须补测试确认 `tagSelections` 在 fallback 路径中不丢失。当前优先选择只保留可下推字段，降低该风险。
+
+### 10.2B 旧标签云面板的保留范围
 
 PM 对当前面板形态有 4 条具体不满意，逐条记录：
 
-#### 10.2.1 收起规则改为"任意可收起 + 默认收起"
+#### 10.2B.1 收起规则改为"任意可收起 + 默认收起"
 
 **当前代码**（[TagGroupFilter.vue:116-122](../../frontend/src/components/TagGroupFilter.vue#L116-L122) + L198-L202）：
 ```js
@@ -418,9 +443,9 @@ watch(selectedCount, (count) => {
 **改法**：
 - 删除 `selectedCount > 0 强制展开` 的拦截。
 - 默认 `expanded = false`（覆盖 `defaultExpanded` prop，或把 `defaultExpanded` 默认值改为 `false`，并让 `ReviewDataManagementView.vue` 不再传 `:default-expanded="true"`）。
-- 头部"小标识"的实现见 §10.2.2。
+- 头部"小标识"的实现见 §10.2B.2。
 
-#### 10.2.2 头部展示当前工作区 + 已选条件计数 + 当前结果数
+#### 10.2B.2 头部展示当前工作区 + 已选条件计数 + 当前结果数
 
 **PM 描述**：折叠状态下，旧标签组面板头部应当能让用户瞄一眼就知道"我现在处在哪个工作区、筛了几个标签、当前看到多少条数据"。形态类似一个简短的标识区：
 
@@ -434,7 +459,7 @@ watch(selectedCount, (count) => {
 - "1 个已选" 用现有 `selectedCount` 即可。
 - 当 N2 落地后，"当前工作区"标识与保存/恢复快照动作形成闭环（详见 §10.4）。
 
-#### 10.2.3 停用标签开关直接删除
+#### 10.2B.3 停用标签开关直接删除
 
 **当前代码**（[TagGroupFilter.vue:242](../../frontend/src/components/TagGroupFilter.vue#L242)）：
 ```html
@@ -443,7 +468,7 @@ watch(selectedCount, (count) => {
 
 **PM 意见**：本期不考虑停用标签，**直接删除**该 checkbox 和相关逻辑（`isDisabledTagValue` / `showDisabledValues` ref）。`tag_value.disabled` 字段可保留，但运行时统一过滤，不在 UI 暴露。
 
-#### 10.2.4 搜索标签功能保留，但改名
+#### 10.2B.4 搜索标签功能保留，但改名
 
 **当前代码**（[TagGroupFilter.vue:240](../../frontend/src/components/TagGroupFilter.vue#L240)）：
 ```html
@@ -490,16 +515,41 @@ watch(selectedCount, (count) => {
 
 1. 不做传统"固定视图"优先模式，改为**当前工作区自动持久化 + 手动快照**。
 2. 当前工作区不要求命名，用户修改筛选即自动保存；关闭页面再回来恢复上次状态。
-3. "保存快照"按钮弹小表单 dialog：输入快照名后保存当前工作区。
-4. "恢复快照"下拉展示 `快照名 + 保存时间`；恢复后覆盖当前工作区，但不修改快照本身。
-5. "回到原生表格"清空当前工作区并持久化为空状态；已保存快照不受影响。
+3. "保存快照"按钮弹小表单 dialog：用户必须输入快照名后才能保存当前工作区，不再允许匿名时间戳快照作为主路径。
+4. "恢复快照"不能用主按钮点击即恢复默认快照的形态，必须先打开一个正式的选择器；下拉 / Popover 项展示 `快照名 + 保存时间 + 条件数`，恢复后覆盖当前工作区，但不修改快照本身。
+5. "清空标签"只清空 `tagSelections`，必须二次确认；"回到原生表格"清空当前工作区并持久化为空状态，也必须二次确认；已保存快照不受影响。
 6. 历史筛选记录、撤销/重做是后续增强，不进入本轮 N2。
+
+**问题调研（基于当前一期代码）**：
+
+- `TagGroupFilterBar.vue` 当前 `saveSnapshot()` 直接调用 `savePinnedTagGroupSnapshot()`，没有命名步骤。结果是快照列表只能展示保存时间或兜底名，用户无法区分"上周复盘用"、"高风险模块"、"负责人视角"等真实场景。
+- `TagGroupFilter.vue` 旧面板按钮文案仍是"保存固定快照"，与 N2 的"当前工作区 + 手动快照"概念不一致，容易让用户误以为保存后会把当前表格固定成不可变视图。
+- 新旧组件的"恢复快照"按钮都有 `@click="restoreSnapshot(undefined, 'manual')"`，用户点击主按钮会直接恢复 active snapshot；旁边又有 dropdown 菜单。这种 split button 形态没有明确提示"即将恢复哪一个"，容易误导。
+- `clearSelections()` 当前直接清空 `tagSelections` 并触发查询，没有确认。多选条件一多时，清空标签属于高代价操作，尤其 N2 当前工作区自动保存后，误清空会立刻变成持久状态。
+
+**交互规则**：
+
+- 保存快照：
+  - 点击"保存快照"打开 dialog / popover form。
+  - 快照名必填，建议限制 2-30 个字符；默认聚焦输入框；名称为空时确认按钮 disabled。
+  - 保存内容包含当前工作区的 `tagSelections + fixedFilters + filterGroup + sortField + sortOrder + pageSize`。如果本期还没接入全部字段，UI 文案必须明确"保存当前标签筛选"而不是"保存当前视图"。
+  - 保存成功后 toast 显示 `已保存快照：{name}`，并刷新恢复选择器。
+- 恢复快照：
+  - 入口是一个正式选择器，按钮只负责打开选择器，不直接恢复。
+  - 列表项主标题显示快照名；副信息显示保存时间、条件数、schema 状态，例如 `2026-06-08 14:30 · 6 个条件`。
+  - 点击某个快照后再恢复；若会覆盖当前工作区且当前有未保存变化，提示"恢复后将覆盖当前工作区"。
+  - schema mismatch 或失效条件继续允许恢复，但必须在选择器项或恢复后提示中明确展示。
+- 清空：
+  - "清空标签"确认文案区分范围：只清空标签组筛选，不清空关键词、指标与例外条件、排序。
+  - "回到原生表格"确认文案区分范围：清空当前工作区内所有筛选和排序偏好，但不删除已保存快照。
+  - 用户取消确认时，不修改 `tagSelections`、工作区或 URL。
 
 **修订动作**：
 
 - §4 已按该口径改为 `user_filter_workspace + user_filter_snapshot`。
 - 一期 localStorage 快照迁移时，迁移目标改为"快照"，不是"我的视图"。
 - UI 文案统一使用"当前工作区 / 保存快照 / 恢复快照 / 回到原生表格"，不再使用"固定视图"作为主概念。
+- 评审数据管理页当前 `TagGroupFilterBar.vue` 只作为字段型筛选条的第一步展示，下一步必须按上述交互规则重做保存 / 恢复 / 清空动作。
 
 ### 10.5 默认值与轮次/里程碑切换器双向同步（关键交互）
 

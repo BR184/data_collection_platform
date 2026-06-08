@@ -33,7 +33,7 @@ import { useConditionFilterGroupState } from '../composables/useConditionFilterG
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import {
-  buildReviewDataFilterFields,
+  buildReviewDataMetricFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
@@ -176,7 +176,7 @@ interface TagSnapshotRestoredPayload {
   source: 'auto' | 'manual';
 }
 
-const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
+const reviewFilterFields = computed(() => buildReviewDataMetricFilterFields(filterOptions.value));
 const {
   filterDraft,
   initializeFromQuery,
@@ -291,8 +291,8 @@ function stringFilterValue(value: unknown) {
   return text || null;
 }
 
-function handleTagSnapshotSaved() {
-  ElMessage.success('已保存当前快捷快照');
+function handleTagSnapshotSaved(payload: { name: string }) {
+  ElMessage.success(`已保存快照：${payload.name}`);
 }
 
 async function refreshReviewRecords() {
@@ -421,7 +421,7 @@ const {
               data-testid="review-advanced-filter-toggle"
               @click="advancedConditionsExpanded = !advancedConditionsExpanded"
             >
-              高级条件
+              指标与例外条件
             </el-button>
             <el-collapse-transition>
               <div v-show="advancedConditionsExpanded" class="review-data-advanced-filter-body">

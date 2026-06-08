@@ -216,6 +216,27 @@ export function buildReviewDataFilterFields(filterOptions: ReviewDataFilterOptio
   ];
 }
 
+const reviewDataMetricFilterFieldKeys = new Set([
+  'title',
+  'reviewScalePages',
+  'problemCount',
+  'problemDensity',
+  'reviewEfficiency',
+  'reviewRate',
+  'independentReviewWorkload',
+  'independentReviewProblemCount',
+  'meetingReviewWorkload',
+  'meetingReviewProblemCount',
+  'notReachStandardReason',
+  'createdAt',
+  'reviewDate',
+]);
+
+export function buildReviewDataMetricFilterFields(filterOptions: ReviewDataFilterOptionsResponse): StatisticFilterField[] {
+  return buildReviewDataFilterFields(filterOptions)
+    .filter((field) => reviewDataMetricFilterFieldKeys.has(field.key));
+}
+
 export function buildReviewDataTableRows(rows: ReviewDataRecordRowResponse[]) {
   return rows.map((row) => ({
     __raw: row,
