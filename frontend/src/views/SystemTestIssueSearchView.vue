@@ -607,6 +607,7 @@ async function handleRefresh() {
           :storage-key="tagGroupStorageKey"
           :fixed-filters="filterValues"
           :auto-restore="shouldAutoRestoreTagSnapshot"
+          :current-total="total"
           @change="handleTagSelectionsChange"
           @snapshot-restored="handleTagSnapshotRestored"
           @snapshot-saved="handleTagSnapshotSaved"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Delete, Star, StarFilled } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Delete, Star, StarFilled } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import type {
   TagGroupResponse,
@@ -26,12 +26,16 @@ const props = withDefaults(
     storageKey?: string;
     fixedFilters?: Record<string, unknown>;
     autoRestore?: boolean;
+    currentTotal?: number;
+    currentViewName?: string;
   }>(),
   {
     loading: false,
     storageKey: '',
     fixedFilters: () => ({}),
     autoRestore: true,
+    currentTotal: 0,
+    currentViewName: '',
   },
 );
 
@@ -54,6 +58,7 @@ const lastAutoRestoreKey = ref('');
 const savePopoverVisible = ref(false);
 const restorePopoverVisible = ref(false);
 const snapshotName = ref('');
+const expanded = ref(false);
 
 const groups = computed(() => props.tagGroups?.groups ?? []);
 const normalizedSelections = computed(() => normalizeTagSelections(props.modelValue, groups.value));
@@ -87,6 +92,14 @@ const snapshotOptions = computed(() => snapshotStore.value.snapshots);
 const hasSnapshot = computed(() => snapshotOptions.value.length > 0);
 const trimmedSnapshotName = computed(() => snapshotName.value.trim());
 const canSaveSnapshot = computed(() => trimmedSnapshotName.value.length >= 2 && trimmedSnapshotName.value.length <= 30);
+const currentTotalText = computed(() => Number.isFinite(props.currentTotal) ? props.currentTotal : 0);
+const displayCurrentViewName = computed(() =>
+  props.currentViewName || formatSnapshotViewName(getActiveTagGroupSnapshot(snapshotStore.value)),
+);
+
+function toggleExpanded() {
+  expanded.value = !expanded.value;
+}
 
 function displayGroupLabel(group: TagGroupResponse) {
   if (props.tagGroups?.domain === 'review_data' && group.groupKey === 'module') {
@@ -229,6 +242,10 @@ function formatSnapshotTime(value?: string) {
   return value ? value.slice(0, 19).replace('T', ' ') : '保存时间未知';
 }
 
+function formatSnapshotViewName(snapshot: TagGroupFilterSnapshot | null) {
+  return snapshot?.savedAt ? `上次保存 ${formatSnapshotTime(snapshot.savedAt).slice(0, 16)}` : '';
+}
+
 function snapshotConditionCount(snapshot: TagGroupFilterSnapshot) {
   const tagValueCount = (snapshot.tagSelections ?? [])
     .reduce((sum, selection) => sum + selection.valueKeys.length, 0);
@@ -278,6 +295,35 @@ watch(
 
 <template>
   <section class="tag-group-filter-bar" aria-label="标签组筛选">
+    <button
+      class="tag-group-filter-bar-header"
+      type="button"
+      :aria-expanded="expanded"
+      data-testid="tag-group-filter-bar-header"
+      @click="toggleExpanded"
+    >
+      <span class="tag-group-filter-bar-title">标签组</span>
+      <span class="tag-group-filter-bar-summary" data-testid="tag-group-filter-bar-summary">
+        <template v-if="displayCurrentViewName">
+          当前视图：{{ displayCurrentViewName }}
+          <el-divider direction="vertical" />
+        </template>
+        当前 {{ currentTotalText }} 条
+        <el-divider direction="vertical" />
+        {{ selectedCount }} 个已选
+      </span>
+      <el-icon class="tag-group-filter-bar-toggle">
+        <ArrowUp v-if="expanded" />
+        <ArrowDown v-else />
+      </el-icon>
+    </button>
+
+    <el-collapse-transition>
+      <div
+        v-show="expanded"
+        class="tag-group-filter-bar-body"
+        data-testid="tag-group-filter-bar-body"
+      >
     <div class="tag-group-filter-bar-main" v-loading="loading">
       <el-select
         v-for="group in visibleGroups"
@@ -400,11 +446,59 @@ watch(
     <el-text v-if="restoreWarningText" class="tag-group-filter-bar-warning" type="warning">
       {{ restoreWarningText }}
     </el-text>
+      </div>
+    </el-collapse-transition>
   </section>
 </template>
 
 <style scoped>
 .tag-group-filter-bar {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tag-group-filter-bar-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  background: #fff;
+  color: rgba(15, 23, 42, 0.82);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tag-group-filter-bar-header:hover {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.tag-group-filter-bar-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tag-group-filter-bar-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(15, 23, 42, 0.58);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-group-filter-bar-toggle {
+  color: rgba(15, 23, 42, 0.54);
+}
+
+.tag-group-filter-bar-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -517,7 +611,7 @@ watch(
 }
 
 @media (max-width: 1180px) {
-  .tag-group-filter-bar {
+  .tag-group-filter-bar-body {
     grid-template-columns: 1fr;
   }
 

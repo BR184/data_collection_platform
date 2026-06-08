@@ -57,18 +57,27 @@ describe('TagGroupFilter', () => {
     expect(toggle.attributes('aria-expanded')).toBe('true');
   });
 
-  it('forces the panel open when there are selected tag values', () => {
+  it('shows selected count in the summary and still allows collapsing selected tags', async () => {
     const wrapper = mount(TagGroupFilter, {
       props: {
         modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
         tagGroups,
+        defaultExpanded: true,
+        currentTotal: 12,
+        currentViewName: 'Last saved 2026-06-07 14:30',
       },
       global: {
         plugins: [ElementPlus],
       },
     });
 
-    expect(wrapper.get('[data-testid="tag-group-filter-toggle"]').attributes('aria-expanded')).toBe('true');
+    expect(wrapper.get('[data-testid="tag-group-filter-summary"]').text()).toContain('Last saved 2026-06-07 14:30');
+    expect(wrapper.get('[data-testid="tag-group-filter-summary"]').text()).toContain('12');
+    expect(wrapper.get('[data-testid="tag-group-filter-summary"]').text()).toContain('1');
+
+    await wrapper.get('[data-testid="tag-group-filter-toggle"]').trigger('click');
+
+    expect(wrapper.get('[data-testid="tag-group-filter-toggle"]').attributes('aria-expanded')).toBe('false');
   });
 
   it('emits multiple selections and supports canceling a selected value', async () => {

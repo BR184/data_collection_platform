@@ -9,6 +9,7 @@ import type {
 } from '../types/api';
 import {
   getActiveTagGroupSnapshot,
+  type TagGroupFilterSnapshot,
   isDisabledTagValue,
   normalizeTagSelections,
   parseTagGroupSnapshotStore,
@@ -26,6 +27,8 @@ const props = withDefaults(
     fixedFilters?: Record<string, unknown>;
     autoRestore?: boolean;
     defaultExpanded?: boolean;
+    currentTotal?: number;
+    currentViewName?: string;
   }>(),
   {
     loading: false,
@@ -33,6 +36,8 @@ const props = withDefaults(
     fixedFilters: () => ({}),
     autoRestore: true,
     defaultExpanded: false,
+    currentTotal: 0,
+    currentViewName: '',
   },
 );
 
@@ -76,7 +81,11 @@ const snapshotStore = computed(() => {
 });
 const snapshotOptions = computed(() => snapshotStore.value.snapshots);
 const hasSnapshot = computed(() => snapshotOptions.value.length > 0);
-const expanded = ref(props.defaultExpanded || selectedCount.value > 0);
+const expanded = ref(props.defaultExpanded);
+const currentTotalText = computed(() => Number.isFinite(props.currentTotal) ? props.currentTotal : 0);
+const displayCurrentViewName = computed(() =>
+  props.currentViewName || formatSnapshotViewName(getActiveTagGroupSnapshot(snapshotStore.value)),
+);
 
 const visibleGroups = computed(() => {
   const query = keyword.value.trim().toLowerCase();
@@ -114,10 +123,6 @@ function handleToggle(group: TagGroupResponse, value: TagGroupValueResponse) {
 }
 
 function toggleExpanded() {
-  if (selectedCount.value > 0) {
-    expanded.value = true;
-    return;
-  }
   expanded.value = !expanded.value;
 }
 
@@ -179,6 +184,14 @@ function buildRestoreWarning(ignoredCount: number, schemaMismatch: boolean) {
   return `已忽略 ${ignoredCount} 个失效条件。`;
 }
 
+function formatSnapshotTime(value?: string) {
+  return value ? value.slice(0, 19).replace('T', ' ') : '保存时间未知';
+}
+
+function formatSnapshotViewName(snapshot: TagGroupFilterSnapshot | null) {
+  return snapshot?.savedAt ? `上次保存 ${formatSnapshotTime(snapshot.savedAt).slice(0, 16)}` : '';
+}
+
 function buildAutoRestoreKey() {
   return `${props.storageKey}:${props.tagGroups?.schemaHash ?? ''}`;
 }
@@ -195,12 +208,6 @@ function tryAutoRestoreSnapshot() {
   restoreSnapshot(undefined, 'auto');
 }
 
-watch(selectedCount, (count) => {
-  if (count > 0) {
-    expanded.value = true;
-  }
-});
-
 watch(
   () => [props.storageKey, props.tagGroups?.schemaHash] as const,
   () => {
@@ -213,21 +220,28 @@ watch(
 
 <template>
   <section class="tag-group-filter" aria-label="标签组筛选">
-    <div class="tag-group-filter-summary">
-      <div class="tag-group-filter-summary-text">
-        <span class="tag-group-filter-title">标签组</span>
-        <el-tag v-if="selectedCount > 0" size="small" effect="plain">{{ selectedCount }} 个已选</el-tag>
-      </div>
-      <el-button
-        plain
-        :icon="expanded ? ArrowUp : ArrowDown"
-        :aria-expanded="expanded"
-        data-testid="tag-group-filter-toggle"
-        @click="toggleExpanded"
-      >
-        {{ expanded ? '收起' : '展开' }}
-      </el-button>
-    </div>
+    <button
+      class="tag-group-filter-summary"
+      type="button"
+      :aria-expanded="expanded"
+      data-testid="tag-group-filter-toggle"
+      @click="toggleExpanded"
+    >
+      <span class="tag-group-filter-title">标签组</span>
+      <span class="tag-group-filter-summary-text" data-testid="tag-group-filter-summary">
+        <template v-if="displayCurrentViewName">
+          当前视图：{{ displayCurrentViewName }}
+          <el-divider direction="vertical" />
+        </template>
+        当前 {{ currentTotalText }} 条
+        <el-divider direction="vertical" />
+        {{ selectedCount }} 个已选
+      </span>
+      <el-icon class="tag-group-filter-toggle">
+        <ArrowUp v-if="expanded" />
+        <ArrowDown v-else />
+      </el-icon>
+    </button>
 
     <el-collapse-transition>
       <div v-show="expanded" class="tag-group-filter-body">
@@ -315,24 +329,44 @@ watch(
 }
 
 .tag-group-filter-summary {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
+  width: 100%;
   min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  background: #fff;
+  color: rgba(15, 23, 42, 0.82);
+  text-align: left;
+  cursor: pointer;
 }
 
-.tag-group-filter-summary-text {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+.tag-group-filter-summary:hover {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .tag-group-filter-title {
   font-size: 13px;
   font-weight: 700;
   color: rgba(15, 23, 42, 0.82);
+}
+
+.tag-group-filter-summary-text {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(15, 23, 42, 0.58);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-group-filter-toggle {
+  color: rgba(15, 23, 42, 0.54);
 }
 
 .tag-group-filter-body {

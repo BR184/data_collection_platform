@@ -473,6 +473,7 @@ function handleTagSnapshotSaved(payload: { name: string }) {
               :storage-key="tagGroupStorageKey"
               :fixed-filters="fixedFiltersForSnapshot"
               :auto-restore="shouldAutoRestoreTagSnapshot"
+              :current-total="total"
               @change="handleTagSelectionsChange"
               @snapshot-restored="handleTagSnapshotRestored"
               @snapshot-saved="handleTagSnapshotSaved"

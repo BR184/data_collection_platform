@@ -76,6 +76,38 @@ describe('TagGroupFilterBar', () => {
     }]]);
   });
 
+  it('collapses by default, shows a header summary, and remains collapsible after selecting tags', async () => {
+    const wrapper = mount(TagGroupFilterBar, {
+      props: {
+        modelValue: [],
+        tagGroups,
+        currentTotal: 42,
+        currentViewName: 'Last saved 2026-06-07 14:30',
+      },
+      global: {
+        plugins: [ElementPlus],
+      },
+    });
+
+    const header = wrapper.get('[data-testid="tag-group-filter-bar-header"]');
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-body"]').isVisible()).toBe(false);
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('Last saved 2026-06-07 14:30');
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('42');
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('0');
+
+    await header.trigger('click');
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-body"]').isVisible()).toBe(true);
+
+    wrapper.findAllComponents({ name: 'ElSelect' })[0].vm.$emit('update:modelValue', ['sketch', 'surface']);
+    await wrapper.setProps({
+      modelValue: [{ groupKey: 'module', valueKeys: ['sketch', 'surface'] }],
+    });
+
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('2');
+    await wrapper.get('[data-testid="tag-group-filter-bar-header"]').trigger('click');
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-header"]').attributes('aria-expanded')).toBe('false');
+  });
+
   it('clears all tag selections only after user confirmation', async () => {
     const wrapper = mount(TagGroupFilterBar, {
       props: {
