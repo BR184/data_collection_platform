@@ -14,7 +14,15 @@ class SemanticTagGroupServiceTest {
     assertThat(catalog.schemaHash()).hasSize(64);
     assertThat(catalog.groups())
         .extracting(SemanticTagGroupDefinition::groupKey)
-        .contains("severity_level", "urgency", "illegal_type");
+        .containsExactly(
+            "severity_level",
+            "urgency",
+            "system_test_exclusion_type",
+            "delay_cause",
+            "customer_issue_closure_status",
+            "illegal_type",
+            "defect_reason_standard",
+            "ratio_empty_value_policy");
   }
 
   @Test
@@ -46,5 +54,30 @@ class SemanticTagGroupServiceTest {
             "NON_UNIQUE_DEFECT_REASON",
             "INVALID_PLAN_RESOLVE_TIME",
             "LEVEL1_MISSING_OWNER_SIGN");
+  }
+
+  @Test
+  void shouldReturnBusinessRuleStaticGroupsForPhaseThreeTemplate() {
+    SemanticTagGroupCatalog catalog = service.listStaticGroups("issue");
+
+    assertThat(catalog.requireGroup("system_test_exclusion_type").values())
+        .extracting(SemanticTagValueDefinition::valueKey)
+        .containsExactly(
+            "FUNCTION_BLOCKED",
+            "REJECTED",
+            "SUGGESTION",
+            "CLOSED_REJECTION",
+            "CLOSED_REQUIREMENT_AS_IS");
+    assertThat(catalog.requireGroup("delay_cause").values())
+        .extracting(SemanticTagValueDefinition::valueKey)
+        .containsExactly(
+            "TECHNICAL_BLOCKER",
+            "SOLUTION_BLOCKER",
+            "RESOURCE_BLOCKER",
+            "DATA_ANOMALY",
+            "ALGORITHM_ISSUE",
+            "MECHANISM_ISSUE",
+            "COMPUTATION_EFFICIENCY");
+    assertThat(catalog.requireGroup("ratio_empty_value_policy").selectionMode()).isEqualTo("SINGLE");
   }
 }

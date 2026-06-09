@@ -38,6 +38,7 @@ GitLab 镜像表 -> fact 构建 -> 统计看板 / 记录页 / 导出
 6. 将复杂跨表关系、模板解析、去重规则、时间窗和异常口径集中到语义层。
 7. 用户只配置受控条件，不接触 SQL、join、group by 或 `ods_gitlab_*` 表。
 8. 高频规则跑在事实表或汇总表上，避免每次动态分群都扫明细镜像表。
+9. 支持保存常用筛选方案：用户在业务页面配置的常用条件可以保存、命名、复用，并在标签较多时通过平铺、搜索和分组降低筛选成本。
 
 ## 非目标
 
@@ -47,6 +48,47 @@ GitLab 镜像表 -> fact 构建 -> 统计看板 / 记录页 / 导出
 - 不把“静态标签组”降级为前端写死枚举；静态选项仍需由后端语义注册表返回，方便权限、审计、禁用和规则说明统一。
 - 不在第一阶段引入完整外部 BI 语义层产品。
 - 不承诺强实时；动态结果以平台最近一次镜像同步和事实构建时间为准。
+
+## 计划粒度与估算口径
+
+下文工作日估算按 1 名熟悉本仓的后端/前端全栈开发者计算，包含开发、自测、目标单测、文档更新和一次 PM/业务确认返工缓冲，不包含长时间业务口径等待、生产压测排队和外部系统不可用等待。
+
+可并行任务的前提是：接口契约、表结构和业务口径已冻结；并行分支不得改同一批核心模型和迁移文件。涉及 `semantic_tag_*`、`segment_*`、事实表、规则 DSL 的任务必须先读本文件和 `docs/platform-page-business-rules.md`。
+
+真实关键路径为：
+
+```text
+Phase 1 -> max(Phase 2, Phase 3) -> Phase 4 -> Phase 5 -> Phase 6 -> Phase 7
+```
+
+单人开发按顺序推进；若有 2 名开发者，Phase 2 事实表扩展与 Phase 3 持久化/API 可并行，预计可缩短 5-7 个工作日。Phase 4 必须等待动态标签组选项所需的关键事实表和 Phase 3 持久化能力完成。
+
+本周交付目标按 MVP 收敛：优先完成 Phase 1、Phase 3 的持久化/API、8 个已定义静态标签组落库、Phase 2 关键事实表字段契约和 Phase 5 受控模板骨架。完整动态刷新、三对象真实成员计算、前端集成和运营化门禁继续按后续 Phase 推进，不把未定义清楚的标签组提前塞进 Phase 3。
+
+## Hash 与版本字段术语
+
+为避免 hash 字段语义混淆，所有实现必须遵守以下命名：
+
+| 字段 | 所属对象 | 生成来源 | 用途 | 变化影响 |
+|---|---|---|---|---|
+| `rule_doc_hash` | `semantic_scope_definition`、`semantic_tag_group` | 对应业务规则文档段落内容 hash | 检查规则文档和语义定义是否漂移 | 变化时触发规则复核，不直接改历史快照 |
+| `rule_doc_version` | `semantic_tag_group` | PM 发布的规则版本号，例如 `2026-06-09-system-test-v1` | 展示和发布审计 | 变化时记录发布说明 |
+| `schema_hash` | `semantic_tag_group`、`semantic_tag_group_build_run` | 标签组定义和值 key、启用状态、映射 schema 的稳定 hash | 前端选项缓存、动态标签组刷新结果追踪 | 变化时相关动态分群进入兼容性检查 |
+| `tag_schema_hash` | `segment_definition` | 创建分群时引用的一组标签组 schema hash 聚合值 | 判断分群规则是否仍兼容当前语义标签组 | 不兼容时标记 `NEEDS_REVIEW` 或 `NEEDS_REVALIDATION` |
+| `scope_hash` | 动态标签组刷新和分群计算任务 | `scope_key` 或 `scopeChain + compositionMode + source_instance` 的稳定 hash | 计算锁、缓存 key、批次去重 | 变化时视为新的计算范围 |
+| `dsl_hash` | 临时页面筛选、导出和快照 | 规范化后的 DSL AST hash | 追溯临时筛选来源 | 只用于追溯，不替代 `segment_id` 或 `snapshot_id` |
+
+对外 API 使用 camelCase，例如 `schemaHash`、`tagSchemaHash`、`scopeHash`、`ruleDocHash`、`ruleDocVersion`、`dslHash`；数据库字段使用 snake_case。不得混用 `schemaHash` 指代 `rule_doc_hash`，也不得用 `scope_hash` 表达标签组 schema 版本。
+
+### scope_hash 规范
+
+`scope_hash` 必须由规范化输入稳定生成，避免计算锁和缓存 key 因实现差异失效：
+
+- 输入结构固定为 `{ "mode": "SINGLE" | "CHAIN", "scopeKey": string | null, "scopeChain": string[], "compositionMode": string | null, "sourceInstance": string }`。
+- `scopeChain` 顺序敏感，不排序；`["customer_issue_base_scope", "open_state_filter"]` 与 `["open_state_filter", "customer_issue_base_scope"]` 生成不同 hash。
+- 单一 `scope_key` 与 `scopeChain=[scope_key]` 不等价，前者使用 `mode=SINGLE`，后者使用 `mode=CHAIN`。
+- `source_instance` 缺省时统一写入字符串 `default`，不得使用空字符串或 null 参与 hash。
+- 所有字符串先做 Unicode NFC 规范化，再按字段名稳定排序序列化为紧凑 JSON，最后计算 SHA-256 hex。
 
 ## 核心概念
 
@@ -227,6 +269,23 @@ admin_override_allowed boolean not null default false
 
 静态快照是一次不可变留痕，可以来源于动态分群、静态分群或页面临时筛选结果。快照成员不会随源数据变化而变化。它和静态分群的区别是：静态分群可以被管理员维护成员；静态快照一旦生成只能作废或重新生成，不能原地修改。
 
+### 常用筛选方案
+
+常用筛选方案是业务页面上的轻量预设，用于保存用户经常复用的一组筛选条件。它不等同于动态分群：常用筛选方案默认不预计算成员，也不维护成员缓存；用户应用方案时，系统把保存的受控 DSL 重新应用到当前页面查询或提示用户保存为动态分群。
+
+常用筛选方案必须保存：
+
+- `preset_id`：稳定 ID。
+- `preset_name`：用户可读名称。
+- `owner_user_id`：创建人。
+- `visibility`：`PRIVATE` / `TEAM` / `PUBLIC`。
+- `entity_type`、`scenario_key`、`scope_key`。
+- `dsl_json`、`dsl_hash`、`tag_schema_hash`。
+- `source_data_watermark_at_save`：保存时页面数据水位，仅用于提示，不作为当前查询水位。
+- `created_at`、`updated_at`、`last_used_at`。
+
+当 `tag_schema_hash` 与当前标签组 schema 不兼容时，页面应用方案前必须提示用户复核；不能静默丢弃已保存条件，也不能继续使用过期 value_key。
+
 ### 规则 DSL
 
 规则 DSL 是受控 JSON，不是 SQL。示例：
@@ -274,12 +333,12 @@ admin_override_allowed boolean not null default false
   "scope": "system_test_issue_scope",
   "conditions": [
     {
-      "tagGroup": "severity",
+      "semanticTagGroup": "severity",
       "operator": "IN",
       "values": ["LEVEL1", "LEVEL2", "LEVEL3"]
     },
     {
-      "tagGroup": "delay_cause",
+      "semanticTagGroup": "delay_cause",
       "operator": "IN",
       "values": ["TECHNICAL_BLOCKER", "RESOURCE_BLOCKER"]
     }
@@ -310,7 +369,7 @@ admin_override_allowed boolean not null default false
 }
 ```
 
-规则 DSL 必须先转 AST，再由后端白名单模板生成参数化 SQL。禁止直接拼接用户输入 SQL。第一阶段只支持预编译模板，第二阶段再开放受控 DSL 到 SQL。
+规则 DSL 必须先转 AST，再由后端白名单模板生成参数化 SQL。禁止直接拼接用户输入 SQL。Phase 1 只支持预编译模板，Phase 5 再开放受控 DSL 到 SQL。
 
 执行器接口：
 
@@ -358,6 +417,12 @@ max_allowed_members integer not null default 50000
 分群对象 -> 业务场景 -> 适用口径 -> 选择/导入成员 -> 校验成员 -> 保存静态分群 -> 可选生成快照
 ```
 
+保存常用筛选方案时，推荐流程：
+
+```text
+业务页面筛选 -> 保存常用方案 -> 命名和选择可见范围 -> 保存 DSL 与 schemaHash -> 下次从常用方案快速应用
+```
+
 维护标签组时，推荐流程：
 
 ```text
@@ -365,6 +430,14 @@ max_allowed_members integer not null default 50000
 ```
 
 动态标签组页面展示“由系统生成”，管理员只能配置启用、排序、兜底值和说明；静态标签组页面展示“由平台规则维护”，管理员可调整展示和禁用状态，但改变业务含义必须先走规则文档和测试变更。
+
+业务页面的标签筛选控件必须适配标签数量：
+
+- 标签值数量不超过 12 个时优先平铺为 checkbox / segmented checkbox，不使用单个下拉框隐藏选项。
+- 标签值数量为 13-50 个时使用可搜索平铺面板，支持“全选当前组 / 清空当前组 / 已选置顶”。
+- 标签值数量超过 50 个时使用搜索、分组、虚拟滚动和已选摘要，仍要提供常用值快捷区，避免用户只能在长下拉框里逐项寻找。
+- 多个标签组同时出现时，页面必须提供“保存常用方案”和“应用常用方案”入口；保存内容为受控 DSL、`dsl_hash`、`tag_schema_hash` 和可见范围，不保存旧 `tagSelections`。
+- 常用方案应用后必须展示已应用方案名，并允许用户继续微调后另存为新方案或保存为动态分群。
 
 示例：客户问题响应延期
 
@@ -410,7 +483,7 @@ UI 中的条件分三类：
 
 ## 数据层设计
 
-第一阶段建议在现有 fact 层旁补充以下事实/汇总表：
+事实表扩展阶段必须在动态标签组刷新和动态分群真实计算前完成。建议在现有 fact 层旁补充以下事实/汇总表：
 
 - `issue_module_fact`：一个议题多个模块时拆成多行，用于模块维度统计。
 - `issue_reason_fact`：模板解析后的缺陷原因，一条原因一行。
@@ -429,7 +502,23 @@ first_response_at_bjt timestamp,
 resolved_at_bjt timestamp,
 response_elapsed_hours numeric(12, 2),
 resolution_elapsed_days numeric(12, 2),
+urgency varchar(8) not null,
+response_due_at_bjt timestamp,
+resolve_due_at_bjt timestamp,
+response_overdue boolean not null,
+resolve_overdue boolean not null,
 sla_timezone varchar(32) not null default 'Asia/Shanghai'
+```
+
+`module_metric_day_fact` 必须冻结最低字段契约，供模块动态标签组和模块对象分群复用：
+
+```sql
+metric_date date not null,
+source_instance varchar(64) not null,
+standard_module_name varchar(255) not null,
+metric_key varchar(128) not null,
+metric_value numeric(18, 4) not null,
+fact_build_run_id bigint not null
 ```
 
 横向对比必须覆盖 `CC2025R1` 评审数据映射到 `CC2025R1&R2` 的业务特例，不能只在页面层硬编码。
@@ -444,7 +533,7 @@ sla_timezone varchar(32) not null default 'Asia/Shanghai'
 - `semantic_tag_group`：标签组定义，包含 `domain`、`group_key`、`label`、`source_mode`、`rule_policy_key`、`selection_mode`、`match_strategy_name`、`enabled`、`sort_order`。
 - `semantic_tag_value`：标签组值，包含 `value_key`、`label`、`value_type`、`canonical_value`、`enabled`、`disabled_reason`、`sort_order`。
 - `semantic_tag_value_mapping`：标准值到事实字段、原始标签或外部字典的映射，禁止承载任意 SQL。
-- `semantic_tag_group_build_run`：动态或混合标签组生成记录，保存来源水位、schemaHash、值数量、失败原因。
+- `semantic_tag_group_build_run`：动态或混合标签组生成记录，保存来源水位、`schema_hash`、值数量、失败原因。
 
 旧 `tag_group`、`tag_value`、`tag_value_mapping` 只作为历史 Flyway 迁移记录存在，不作为第一阶段兼容实现。运行时代码和后续接口必须直接面向 `semantic_tag_*` 收敛，避免继续把标签组理解为旧平台标签文本映射。
 
@@ -479,6 +568,22 @@ sla_timezone varchar(32) not null default 'Asia/Shanghai'
   - `member_count`
   - `error_message`
 
+- `segment_filter_preset`
+  - `id`
+  - `preset_name`
+  - `owner_user_id`
+  - `visibility`：`PRIVATE` / `TEAM` / `PUBLIC`
+  - `entity_type`
+  - `scenario_key`
+  - `scope_key`
+  - `dsl_json`
+  - `dsl_hash`
+  - `tag_schema_hash`
+  - `source_data_watermark_at_save`
+  - `last_used_at`
+  - `created_at`
+  - `updated_at`
+
 - `segment_member_current`
   - `segment_id`
   - `entity_type`
@@ -499,25 +604,11 @@ sla_timezone varchar(32) not null default 'Asia/Shanghai'
 3. 查询当前成员时按 `active_run_id` 读取。
 4. 后台只保留最近 3 个成功批次，过期批次异步清理。
 
-如果单次成员变化量较小，可使用增量 delta：
-
-```sql
-create table segment_member_delta (
-    segment_id bigint not null,
-    entity_type varchar(64) not null,
-    entity_id varchar(255) not null,
-    delta_type varchar(16) not null,
-    computed_run_id bigint not null,
-    created_at timestamp not null default current_timestamp,
-    primary key (segment_id, entity_type, entity_id, computed_run_id)
-);
-```
-
 性能约束：
 
 - 单次刷新写入量超过 100,000 行时必须降级为后台长任务并提示用户。
 - 动态分群计算不能占用 GitLab sync worker pool。
-- `segment_member_current` 或 stage 表必须按 `segment_id`、`computed_run_id`、`entity_type` 建索引；大规模上线后评估按 `computed_at` 或 `segment_id` 分区。
+- `segment_member_current` 或 stage 表必须按 `segment_id`、`computed_run_id`、`entity_type` 建索引；当 `segment_member_current` 总行数超过 500 万，或单个 segment 成员超过 50 万时，启动按 `computed_at` 或 `segment_id` 分区评估。
 
 - `segment_member_audit`
   - `id`
@@ -688,6 +779,12 @@ public interface SegmentSchemaCompatibilityChecker {
 
 ## Phase 1 实施计划
 
+预计工作日：4-6 个工作日。
+
+阻塞依赖：旧错误标签组实现已删除；`semantic_tag_*`、`segment_*` 基础命名已确认；PostgreSQL/Flyway 校验链路可用。
+
+可并行任务：数据库迁移与服务骨架可并行评审，但最终 schema 和 service DTO 必须由同一人收敛；前端不应在 Phase 1 并行开发业务页面。
+
 Phase 1 目标是建立基础设施，不实现完整复杂 DSL。
 
 ### 数据库迁移
@@ -740,6 +837,370 @@ Phase 1 目标是建立基础设施，不实现完整复杂 DSL。
 - 单元测试覆盖 `SemanticScopeRegistry`、`SemanticTagGroupService`、`SegmentComputeService` 基础路径。
 - 覆盖率目标：新增服务行覆盖率不低于 80%。
 
+Phase 1 只是基础设施阶段，不是方案终点。后续阶段必须继续完成持久化、动态刷新、受控 DSL 计算、前端集成和运营化门禁。
+
+## Phase 2 实施计划
+
+预计工作日：7-10 个工作日。
+
+阻塞依赖：Phase 1 基础 schema 已通过 Flyway/schema 漂移检查；`docs/platform-page-business-rules.md` 中系统测试、客户问题、评审、MR 走查口径已冻结；已有 fact 构建任务可扩展。
+
+可并行任务：事实表 DDL 与 ETL 服务可以并行；系统测试/客户问题事实和评审/MR 事实可以拆两条线；字段契约和回填策略必须先集中评审。
+
+Phase 2 目标是扩展事实/汇总层，为动态标签组刷新、模块条件分群、缺陷原因分群、SLA 分群和横向对比提供稳定数据来源。没有这些表，后续动态标签组和动态分群只能退回扫明细镜像表，不能进入 Phase 4/5。
+
+### 事实表迁移
+
+新增事实/汇总表：
+
+- `issue_module_fact`
+- `issue_reason_fact`
+- `issue_rule_fact`
+- `customer_issue_sla_fact`
+- `module_metric_day_fact`
+- `review_metric_fact`
+- `mr_review_metric_fact`
+
+核心字段要求：
+
+- 所有表必须包含 `source_system`、`source_instance`、`source_data_watermark`、`fact_build_run_id`、`fact_refreshed_at`。
+- 议题类事实必须包含 `project_id`、`issue_id`、`issue_iid`、`entity_key`、`deleted`。
+- 模块事实必须保存标准模块名、原始模块名、模块字典版本和模块排序。
+- 缺陷原因事实必须保存模板版本、原始原因、标准原因、归并策略 key。
+- `customer_issue_sla_fact` 必须保存 UTC 与北京时间字段，统一使用 `Asia/Shanghai`；同时冻结 `urgency varchar(8) not null`、`response_overdue boolean not null`、`resolve_overdue boolean not null`、`response_due_at_bjt timestamp`、`resolve_due_at_bjt timestamp` 字段契约。
+- `module_metric_day_fact` 必须保存 `metric_key`、`metric_value`、`metric_date`、`standard_module_name`、`source_instance`、`fact_build_run_id`，Phase 5 模板只能引用这些已冻结字段。
+- MR 事实必须保存目标分支、合并状态、走查行数、缺陷数和来源摘要。
+
+核心索引：
+
+- `issue_module_fact(source_instance, project_id, standard_module_name, deleted)`
+- `issue_reason_fact(source_instance, standard_reason_key, deleted)`
+- `issue_rule_fact(source_instance, rule_key, rule_value, deleted)`
+- `customer_issue_sla_fact(source_instance, urgency, response_overdue, resolve_overdue)`
+- `module_metric_day_fact(metric_date, source_instance, standard_module_name)`
+- `review_metric_fact(source_instance, project_name, module_name, review_date)`
+- `mr_review_metric_fact(source_instance, target_branch, merge_request_state, merged_at_source)`
+
+### ETL 来源
+
+- `issue_module_fact` 来自 `issue_fact.module_names`、`module_dictionary` 和系统测试阶段定义。
+- `issue_reason_fact` 来自缺陷回复模板解析结果，复用现有缺陷原因分析规则。
+- `issue_rule_fact` 来自非法数据判定、系统测试排除规则、响应延期、解决延期等规则服务。
+- `customer_issue_sla_fact` 来自 `issue_fact`、评论解析、客户问题范围和 P1/P2/P3 响应规则。
+- `module_metric_day_fact` 来自议题、评审和 MR 事实的按日汇总。
+- `review_metric_fact` 来自 `review_records`、`review_problem_items`，包含 `CC2025R1 -> CC2025R1&R2` 映射。
+- `mr_review_metric_fact` 来自 `merge_request_fact` 和代码走查外部指标。
+
+### 回填策略
+
+- 新表先建空表和索引，再用独立 fact build 任务回填，不能在 schema migration 中直接跑大批量 DML。
+- 回填按 `source_instance + project_id + updated_at_source` 或业务日期分批，每批记录输入水位和输出行数。
+- 回填失败只标记对应 fact build 任务失败，不影响已有页面。
+- 回填完成前，动态标签组 API 必须返回 `isStale=true` 或 `sourceReady=false`，不能静默使用不完整数据。
+- 首次回填完成后对比现有页面统计：系统测试排除、模块拆分、缺陷原因、客户 SLA、评审/MR 横向对比。
+
+### Phase 2 验收
+
+- 7 张事实/汇总表完成 Flyway migration、`schema.sql` 同步和漂移检查。
+- 每张表至少有一个 ETL 单元测试和一个字段契约测试。
+- 初次回填任务可按 source_instance 分批运行并记录水位。
+- 模块动态标签组可从 `issue_module_fact` 查询候选项。
+- 客户 SLA 抽样 50 个议题，北京时间响应/解决计算准确率 100%（端到端复核见 Phase 7）。
+- 系统测试模块拆分统计总数与原逻辑误差小于 1%。
+
+## Phase 3 实施计划
+
+预计工作日：5-7 个工作日。
+
+阻塞依赖：Phase 1 服务骨架和 controller API 已完成；Phase 2 事实表不必全部完成，但静态标签组和分群定义持久化可以先落地。
+
+可并行任务：repository 实现、controller 契约测试、静态标签组初始化脚本可并行；最终 API 响应结构由后端统一收敛。
+
+Phase 3 目标是把 Phase 1 的内存骨架接入数据库和稳定 API，让分群定义、静态标签组、审计和快照具备真实持久化能力。Phase 3 仍不开放复杂 DSL 计算，只保存受控规则定义和空预览结果。
+
+### 持久化接入
+
+- 新增 `SemanticScopeRepository`，读写 `semantic_scope_definition`，并支持从代码内置定义同步到表。
+- 新增 `SemanticTagGroupRepository`，读写 `semantic_tag_group`、`semantic_tag_value`、`semantic_tag_value_mapping`。
+- 新增 `SegmentDefinitionRepository`，读写 `segment_definition`、`segment_compute_run`、`segment_member_current`、`segment_member_audit`。
+- 新增 `SegmentSnapshotRepository`，读写 `segment_snapshot`、`segment_snapshot_member`。
+- `SegmentComputeService` 从内存 map 切换为 repository，保留当前 controller API 响应结构。
+
+### API 完整化
+
+- `GET /api/semantic-tag-groups/static` 返回静态标签组、值、schemaHash、ruleDocVersion、ruleDocHash。
+- `GET /api/segments` 支持 `entityType`、`scenarioKey`、`enabled`、分页和排序。
+- `POST /api/segments` 创建动态或静态分群定义，但动态分群本阶段只保存规则，不计算真实成员。
+- `PATCH /api/segments/{id}/disabled` 禁用分群，写入审计。
+- `POST /api/segment-snapshots` 创建静态快照空壳，Phase 6 再填充来自业务页面或动态分群的成员来源。
+
+### 数据初始化
+
+- 初始化至少 10 个预定义语义口径，并逐项映射到本文件“背景”列出的业务口径：
+
+| scope_key | 对象 | 对应业务口径 | Phase 交付 |
+|---|---|---|---|
+| `system_test_issue_scope` | `issue` | 系统测试/回归测试议题范围 | Phase 3 注册，Phase 5 计算 |
+| `system_test_exclusion_policy` | `issue` | 功能屏蔽、已拒绝、建议、申请否决、需求如此等排除规则 | Phase 3 注册，Phase 5 计算 |
+| `customer_issue_base_scope` | `issue` | `CC_Product` 2026-01-01 后客户问题基础范围 | Phase 3 注册，Phase 5 计算 |
+| `customer_issue_open_scope` | `issue` | 客户问题 open 范围 | Phase 3 注册，Phase 5 计算 |
+| `merged_dev_mr_scope` | `merge_request` | `MERGED` 且目标分支为 `dev` 的 MR 范围 | Phase 3 注册，Phase 5 计算 |
+| `review_project_mapping_policy` | `review_record` | `CC2025R1 -> CC2025R1&R2` 评审映射特例 | Phase 3 注册，Phase 5 模板预留 |
+| `illegal_issue_policy` | `issue` | 非法数据判定规则 | Phase 3 注册，Phase 5 计算 |
+| `defect_reason_policy` | `issue` | 缺陷原因模板归并 | Phase 3 注册，Phase 5 计算 |
+| `customer_issue_sla_policy` | `issue` | P1/P2/P3 响应、预计解决、18 天上限和北京时间换算 | Phase 3 注册，Phase 5 计算 |
+| `module_split_count_policy` | `module` | 按模块拆分计数 | Phase 3 注册，Phase 5 计算 |
+| `ratio_display_policy` | `issue` | 分母为 0 时显示 `/` 或 `0` 的场景规则 | Phase 3 注册，Phase 5 计算 |
+
+- Phase 3 只初始化 8 个已经在“静态标签组”小节定义清楚业务含义的静态标签组。剩余静态标签组不得凭空补名，必须在 Phase 6 随业务页面集成补齐 value_key 列表、规则说明和 `rule_doc_hash` 后再落库：
+
+| group_key | 对应业务含义 | Phase 交付 |
+|---|---|---|
+| `severity_level` | 严重程度/一级二级三级缺陷 | Phase 3 |
+| `urgency` | 客户问题 P1/P2/P3 紧急程度 | Phase 3 |
+| `system_test_exclusion_type` | 系统测试排除类型 | Phase 3 |
+| `delay_cause` | 延期原因 | Phase 3 |
+| `customer_issue_closure_status` | 客户问题闭环状态 | Phase 3 |
+| `illegal_type` | 非法数据类型 | Phase 3 |
+| `defect_reason_standard` | 缺陷原因标准项 | Phase 3 |
+| `ratio_empty_value_policy` | 分母为空/为 0 的展示策略 | Phase 3 |
+
+候选但暂不初始化的静态标签组包括 `issue_state`、`testing_phase`、`module_source_type`、`response_sla_status`、`resolution_sla_status`、`mr_merge_state`、`review_problem_status`。这些组由 Phase 6 根据具体页面需要补齐，不得在 Phase 3 以空值或猜测值写入。
+
+- 初始化数据必须通过新增 Flyway data migration 或受控启动同步器完成，不能由前端写死。
+- 初始化脚本必须能幂等执行，不得覆盖管理员后续调整的展示名称、排序和启用状态。
+- 新增 `scripts/check_semantic_tag_rule_drift.py`，在初始化数据落地时对比规则文档段落 hash 与 `semantic_tag_group.rule_doc_hash`、`semantic_scope_definition.rule_doc_hash`，避免 Phase 3 之后规则文档变更长期无人发现。
+
+### Phase 3 验收
+
+- 重启后已创建的分群定义仍可查询、禁用和审计。
+- 静态标签组 API 返回内容来自数据库，并与 `docs/platform-page-business-rules.md` 的业务含义一致。
+- `schemaHash` 在标签组 key、值 key 或启用状态变化时稳定变化。
+- `scripts/check_semantic_tag_rule_drift.py` 能在本地发现规则文档 hash 与初始化数据不一致。
+- API 单元测试覆盖 controller、repository、service 的创建、查询、禁用、异常路径。
+- 旧 `TagGroup`、`TagSelection`、`tagSelections`、`tag-groups` 裸命名不出现在运行时代码中；`semantic-tag-groups` 作为新语义 API 允许存在。
+
+## Phase 4 实施计划
+
+预计工作日：6-8 个工作日。
+
+阻塞依赖：Phase 2 至少完成 `issue_module_fact` 和相关水位字段；Phase 3 已有动态标签组定义和值持久化能力；事实构建完成事件可发布。
+
+可并行任务：事件/队列、刷新服务、动态标签组选项查询可以并行；并发锁和 build run 状态必须统一设计。
+
+Phase 4 目标是让动态语义标签组具备刷新能力，并把事实构建完成事件、缓存失效和后台计算队列串起来。Phase 4 聚焦“标签组选项刷新”，不直接计算动态分群成员。
+
+### 动态标签组刷新
+
+- 实现 `SemanticTagGroupRefreshService`，按 `group_key + source_instance + scope_hash` 刷新动态标签组选项。
+- 动态标签组来源优先使用 fact 或汇总表。Phase 4 至少交付 5 个动态标签组：
+
+| group_key | 对象 | 来源表 | 刷新范围 |
+|---|---|---|---|
+| `module` | `issue`、`module` | `issue_module_fact`、`module_metric_day_fact` | 按 source_instance 和系统测试/客户问题 scope 刷新 |
+| `project_version` | `issue`、`merge_request` | `issue_fact`、`review_metric_fact`、`mr_review_metric_fact` | 按 source_instance 刷新项目/版本选项 |
+| `milestone` | `issue` | `issue_fact`、`issue_rule_fact` | 按项目和 source_instance 刷新 |
+| `owner_user` | `issue`、`review_record` | `issue_fact`、`review_metric_fact` | 按业务页面权限范围刷新 |
+| `testing_phase_dynamic` | `issue` | `issue_rule_fact`、`issue_module_fact` | 按系统测试 scope 刷新事实中实际出现的阶段 |
+
+- 刷新任务写入 `semantic_tag_group_build_run`，记录 `source_data_watermark`、`schema_hash`、`value_count`、耗时和失败原因。
+- 支持手动刷新、定时刷新和事实构建完成后的 stale 标记。
+- 同一标签组同一范围同一来源只允许一个计算任务并发运行。
+
+### 事件与队列
+
+- 新增 `FactBuildCompletionEvent`，事实构建成功后发布，不直接复用 `SyncRunCompletionEvent`。
+- 新增 `SemanticTagGroupRefreshEvent`，由事实构建完成、手动刷新或定时任务触发。
+- 标签组刷新使用独立线程池和队列表，不占用 GitLab sync worker pool。
+- 刷新失败不能回滚 fact 构建，只更新 build run 状态并暴露给页面。
+
+### 缓存与水位
+
+- API 返回 `cacheAge`、`dataWatermark`、`isStale`、`buildRunId`。
+- 来源水位未变化时只更新 `last_checked_at`，不重复计算。
+- 刷新成功只更新当前标签组选项，不改写历史静态快照。
+
+### Phase 4 验收
+
+- 手动刷新模块动态标签组后，API 能返回最新模块选项和 build run 信息。
+- 事实构建完成事件能把相关动态标签组标记为 stale。
+- 5 个动态标签组均能记录 `schema_hash`、`source_data_watermark` 和 `scope_hash`。
+- 标签组刷新总选项数小于 1,000 时耗时小于 60 秒。
+- 刷新失败可在 API 中看到失败原因，不影响事实构建成功状态。
+- 并发刷新同一标签组时只有一个任务实际执行。
+
+## Phase 5 实施计划
+
+预计工作日：10-14 个工作日。若只交付 `issue` 对象基础计算约 8-10 个工作日；本方案把 `module` 和 `merge_request` 真实成员计算并入 Phase 5，因此按 10-14 个工作日排期。
+
+阻塞依赖：Phase 2 事实表完成关键字段和回填；Phase 3 分群定义持久化完成；Phase 4 动态标签组选项刷新可用；DSL 白名单字段完成评审。
+
+可并行任务：DSL AST/parser、SQL 模板、成本估算、成员双缓冲写入可以并行；最终执行器和安全测试必须由同一条主线收敛。
+
+Phase 5 目标是开放受控 DSL 和动态分群真实成员计算，首批必须支持 `issue`、`module`、`merge_request` 三种对象。此阶段开始写入 `segment_compute_run`、`segment_member_stage`、`segment_member_current`，并使用双缓冲批次切换当前成员。
+
+### DSL 与模板执行
+
+- `SegmentRuleDsl` 先解析为 AST，再由白名单模板生成参数化 SQL。
+- 第一批支持条件：语义口径、静态标签组值、动态标签组值、时间范围、状态、模块、负责人、项目/版本、里程碑。
+- 禁止用户 DSL 表达 join、subquery、rawSql、orderByExpression。
+- 所有字段、指标、操作符、标签组和口径 key 必须来自注册表白名单。
+- 所有用户输入值只作为 SQL 参数绑定，不进入 SQL 片段。
+- AST 字段白名单按对象拆分维护：`issue` 只能使用 `issue_fact`、`issue_module_fact`、`issue_reason_fact`、`issue_rule_fact`、`customer_issue_sla_fact` 暴露字段；`module` 只能使用 `issue_module_fact`、`module_metric_day_fact` 暴露字段；`merge_request` 只能使用 `mr_review_metric_fact` 和 MR 基础事实字段。
+
+### SQL 模板登记
+
+Phase 5 新增模板必须先登记，再允许 DSL 引用。模板登记表至少覆盖：
+
+| templateName | entityType | 参数 | 参数化字段白名单 | 估算行数 |
+|---|---|---|---|---|
+| `system_test_issue_scope` | `issue` | `sourceInstance`、`projectIds`、`phaseKeys`、`includeRegression` | `issue_fact.project_id`、`issue_rule_fact.rule_key`、`issue_module_fact.standard_module_key` | 小于 200,000 |
+| `customer_issue_base_scope` | `issue` | `sourceInstance`、`sinceDate`、`projectId` | `issue_fact.project_id`、`issue_fact.created_at_source`、`customer_issue_sla_fact.urgency` | 小于 100,000 |
+| `customer_issue_open_scope` | `issue` | `sourceInstance`、`sinceDate`、`issueState` | `issue_fact.state`、`customer_issue_sla_fact.response_overdue`、`customer_issue_sla_fact.resolve_overdue` | 小于 50,000 |
+| `module_metric_scope` | `module` | `sourceInstance`、`projectIds`、`metricDateRange`、`moduleKeys` | `issue_module_fact.standard_module_key`、`module_metric_day_fact.metric_date`、`module_metric_day_fact.metric_key` | 小于 300,000 |
+| `defect_reason_scope` | `issue` | `sourceInstance`、`reasonKeys`、`templateVersion` | `issue_reason_fact.standard_reason_key`、`issue_reason_fact.template_version` | 小于 200,000 |
+| `merged_dev_mr_scope` | `merge_request` | `sourceInstance`、`targetBranch`、`mergeState`、`dateRange` | `mr_review_metric_fact.target_branch`、`mr_review_metric_fact.merge_request_state`、`mr_review_metric_fact.merged_at_source` | 小于 150,000 |
+
+模板名必须复用语义口径或业务场景 key，禁止临时起名。新增模板需要同步补 AST 白名单、字段契约测试和 `SegmentComputeServiceTest`。
+
+### 成本估算
+
+- `SegmentCostEstimator` 执行 `EXPLAIN` 或模板级估算，记录 `execution_plan_json`、`execution_cost_estimate_json`、`estimated_cost`。
+- 预估扫描行数超过 100 万时要求管理员确认。
+- 预估执行时间超过 30 秒时拒绝创建或要求转后台任务。
+- 单个动态分群默认成员上限 50,000；初始上线软上限 10,000，超过则建议固化为静态快照或拆分规则。
+
+### 成员计算
+
+- 计算开始前调用 `SegmentSchemaCompatibilityChecker`，校验 `segment_definition.tag_schema_hash` 与当前引用标签组的 `schema_hash` 是否兼容；若返回 `NEEDS_REVIEW` 或 `NEEDS_REVALIDATION`，跳过本次计算，并将 `segment_compute_run.status` 标记为 `FAILED`、`error_message` 标记为 `SCHEMA_INCOMPATIBLE`。
+- 动态计算先写入 `segment_member_stage`，带 `computed_run_id`。
+- 写入完成后在事务内切换 `segment_definition.active_run_id`。
+- 查询当前成员时按 `active_run_id` 读取。
+- 后台只保留最近 3 个成功批次，过期批次异步清理。
+
+### 审计字段扩展
+
+- 新增 Flyway migration `V2026XXXX__segment_member_audit_extend.sql`，扩展 `segment_member_audit`。
+- 新增字段：`tag_schema_hash varchar(64)`、`source_data_watermark timestamp`、`error_message text`。
+- 成员计算成功、计算失败、手工导入、静态快照固化都要写入足够审计信息，满足 Phase 7 审计回放。
+
+### Phase 5 验收
+
+- `issue` 对象端到端样例固定为：`system_test_issue_scope + severity_level IN (LEVEL1, LEVEL2) + module IN (草图, 工程图)`，并能计算出真实成员。
+- 能分别创建 `issue`、`module`、`merge_request` 三种对象的动态分群，并通过 `issue_module_fact`、`module_metric_day_fact`、`mr_review_metric_fact` 计算真实成员。
+- 成员数小于 10,000 时计算时间小于 30 秒。
+- 单次成员刷新写入量控制在 100,000 行/分钟以内。
+- 动态计算失败只标记对应 `segment_compute_run` 失败，不影响上一次成功成员。
+- 标签组 schema 不兼容时跳过计算，并记录 `SCHEMA_INCOMPATIBLE`。
+- 至少 20 种 DSL 条件组合有单元测试，覆盖非法字段、非法操作符、非法 raw SQL；三种对象类型各至少 5 个计算用例。
+
+## Phase 6 实施计划
+
+预计工作日：8-12 个工作日。
+
+阻塞依赖：Phase 3 API 稳定；Phase 4 动态标签组选项可用；Phase 5 动态分群计算已支持 `issue`、`module`、`merge_request` 三种对象；权限矩阵已确认。
+
+可并行任务：系统设置页面、业务页面入口、导出参数追溯可以并行；公共 API client 和类型定义必须先统一。
+
+Phase 6 目标是前端管理页和业务页面集成，让用户能管理分群、查看标签组选项、从业务页面保存分群或快照，并在导出中保留分群参数。
+
+### 系统设置页面
+
+- 新增 `segment-management` 页面：路径 `/system-settings/segments`，ADMIN 可创建、禁用、刷新，APPROVAL 只读。
+- 新增 `semantic-tag-group-management` 页面：路径 `/system-settings/semantic-tag-groups`，ADMIN 可维护展示属性，业务含义只读。
+- 新增 `segment-snapshot-list` 页面：路径 `/system-settings/segment-snapshots`，ADMIN 可作废，APPROVAL 可查看和导出。
+- 所有页面必须有 loading、失败提示、权限禁用态和刷新水位提示。
+
+### 业务页面集成
+
+- 系统测试缺陷汇总、客户问题记录、议题查询、评审数据管理等页面增加“从分群加载”入口。
+- 系统测试缺陷汇总和记录页增加“保存为分群 / 保存为快照”入口。
+- 系统测试缺陷汇总、客户问题记录和议题查询页增加“保存常用方案 / 应用常用方案”入口，保存用户常用筛选条件，不预计算成员。
+- 页面筛选条件保存为临时 DSL hash，生成快照时保留当时条件和成员。
+- 导出参数必须记录 `segment_id`、`snapshot_id`、`preset_id` 或临时 DSL hash。
+- 常用筛选方案可以继续保存为动态分群；此时必须经过 Phase 5 成本估算和 schema 兼容性检查。
+
+### 常用方案 API
+
+- 新增 Flyway migration `V2026XXXX__segment_filter_preset.sql`，创建 `segment_filter_preset` 表。
+- 新增索引：`segment_filter_preset(owner_user_id, scenario_key, updated_at)`、`segment_filter_preset(visibility, scenario_key, updated_at)`、`segment_filter_preset(dsl_hash)`。
+- 新增 `GET /api/segment-filter-presets`，按 `entityType`、`scenarioKey`、`visibility` 查询当前用户可用方案。
+- 新增 `POST /api/segment-filter-presets`，保存页面筛选条件为常用方案，写入 `dsl_json`、`dsl_hash`、`tag_schema_hash` 和保存时水位。
+- 新增 `PATCH /api/segment-filter-presets/{id}`，重命名、修改可见范围或用当前筛选覆盖方案。
+- 新增 `DELETE /api/segment-filter-presets/{id}`，删除个人方案；团队/公开方案删除必须校验权限。
+- 新增 `POST /api/segment-filter-presets/{id}/apply`，返回规范化 DSL 和 schema 兼容性结果，由前端应用到当前页面查询。
+
+### 前端约束
+
+- 前端只展示业务对象、业务场景、属性、规则状态和指标，不展示底层 SQL。
+- 前端不得自行写死静态标签组选项，必须读取后端语义标签组 API。
+- 前端路由 query 只能保存稳定 ID、schemaHash 和用户选择，不保存旧 `tagSelections`。
+- 标签筛选控件按选项数量选择展示形态：不超过 12 个值优先平铺；13-50 个值使用可搜索平铺面板；超过 50 个值使用搜索、分组、虚拟滚动和已选摘要。
+- 常用筛选方案保存的是受控 DSL、`dsl_hash`、`tag_schema_hash` 和可见范围；加载时若 schema 不兼容，必须提示用户复核。
+
+### 静态标签组补齐
+
+- Phase 6 根据实际接入页面补齐不少于 7 个静态标签组，使全量静态标签组总数达到至少 15 个。
+- 候选组包括 `issue_state`、`testing_phase`、`module_source_type`、`response_sla_status`、`resolution_sla_status`、`mr_merge_state`、`review_problem_status`。
+- 每个新增组必须先在本文件或 `docs/platform-page-business-rules.md` 中定义业务含义、`value_key` 列表、排序、禁用策略和 `rule_doc_hash`，再进入初始化 migration 或受控同步器。
+- `testing_phase` 保持 `STATIC`，只表达固定阶段分类；Phase 4 的 `testing_phase_dynamic` 保持 `DYNAMIC`，表达事实表中实际出现的版本细分阶段，二者不得共用 `group_key`。
+
+### Phase 6 验收
+
+- 分群列表页加载时间小于 2 秒。
+- 用户能从系统测试缺陷汇总保存一个动态分群，并在分群管理页看到它。
+- 用户能保存一个常用筛选方案，刷新页面后重新应用，并继续微调后另存为新方案。
+- 标签值较多时页面以平铺/可搜索面板展示选项，不把所有选项塞进单个长下拉框。
+- 用户能在模块统计和 MR 横向对比相关页面加载对应对象分群。
+- 用户能把一个动态分群固化为静态快照，并导出快照成员。
+- 全量静态标签组总数达到至少 15 个，且新增组均有 `value_key` 列表和规则文档 hash。
+- 导出文件和导出审计能追溯到 `segment_id`、`snapshot_id`、`preset_id` 或临时 DSL hash。
+- 前端类型检查、路由测试和关键页面 smoke 测试通过。
+
+## Phase 7 实施计划
+
+预计工作日：5-8 个工作日。
+
+阻塞依赖：Phase 2-6 功能基本完成；staging 有足够数据可做性能基线和抽样核对；业务方能参与验收。
+
+可并行任务：规则 drift CI 集成、权限审计、性能基线、发布说明可并行；发布门禁必须最后统一收敛。
+
+Phase 7 目标是把语义层和分群能力运营化，完成规则文档 drift CI 集成、权限审计、性能基线、质量回归和发布门禁。
+
+### 规则文档闭环
+
+- 将 Phase 3 已落地的 `scripts/check_semantic_tag_rule_drift.py` 纳入 CI 和 `verify-local.ps1`。
+- 静态标签组业务含义变化必须先更新 `docs/platform-page-business-rules.md`，再更新语义注册表和测试。
+- Phase 7 只补 CI 集成、性能基线和发布门禁，不再把 drift 脚本本身作为首次交付物。
+
+### 权限与审计
+
+- 创建、禁用、刷新、固化快照、导出分群成员都写入操作审计。
+- ADMIN 可管理，APPROVAL 可查看和导出，普通用户权限按现有页面规则收敛。
+- 审计记录包含操作者、操作类型、对象 ID、规则 hash、`tag_schema_hash`、数据水位和失败原因；字段由 Phase 5 的 `V2026XXXX__segment_member_audit_extend.sql` 提供。
+
+### 性能与质量
+
+- 建立动态标签组刷新、动态分群计算、分群列表页、快照导出的性能基线。
+- 对 50 个客户问题 SLA 议题做人工抽查，准确率必须 100%。
+- 系统测试排除规则与现有页面结果一致。
+- 模块拆分统计总数与原逻辑误差小于 1%。
+- GMT 到北京时间转换字段和测试无遗漏。
+
+### 发布门禁
+
+- `verify-local.ps1` 覆盖后端编译、关键单测、前端 typecheck、schema/Flyway 漂移、API contract drift、规则文档 drift。
+- staging 必须完成动态标签组刷新、动态分群计算、静态快照导出、权限禁用态和审计回放验收。
+- 生产发布前保留回滚方案：运行代码回滚不删除 `semantic_tag_*` 和 `segment_*` 表；成员计算任务可暂停；旧历史 Flyway 不修改。
+
+### Phase 7 验收
+
+- CI 能阻止规则文档和静态标签组定义漂移。
+- 所有分群关键操作都有审计记录。
+- 性能指标达到总体验收标准。
+- 权限矩阵在系统设置页和业务页面均生效。
+- 发布说明明确本阶段能力、限制、回滚步骤和后续待办。
+
 ## 迁移策略
 
 1. 旧业务筛选方案停止演进。
@@ -758,13 +1219,13 @@ Phase 1 目标是建立基础设施，不实现完整复杂 DSL。
 - 标签组方案同时覆盖动态标签组和静态标签组；静态标签组不能只写在前端枚举中。
 - 严重程度和紧急程度两套标签组明确分离，不能把一级/二级/三级缺陷与 P1/P2/P3 混用。
 - 延期原因、客户问题闭环状态、非法类型、缺陷原因标准项等静态标签组与平台规则一致。
-- 动态标签组能记录来源水位、schemaHash 和生成批次。
+- 动态标签组能记录来源水位、`schema_hash` 和生成批次，对外 API 返回 `schemaHash`。
 - 动态分群能预览、保存、刷新和查看当前成员。
 - 静态分群能人工选择、导入、从动态结果固化，并保留成员审计。
 - 静态快照能从动态分群、静态分群或页面筛选结果固化，并保留成员和生成时间。
 - 每个规则结果能追溯到语义口径、数据水位和计算批次。
-- 支持至少 10 个预定义语义口径、15 个静态标签组、5 个动态标签组。
-- 第一阶段至少支持 `issue`、`module`、`merge_request` 三种对象类型规划，实际落地不得少于 `issue`。
+- Phase 3 初始化至少 10 个预定义语义口径和 8 个已定义静态标签组；Phase 4 初始化 5 个动态标签组；Phase 6 补齐全量至少 15 个静态标签组。
+- 首个动态计算上线版本至少支持 `issue`、`module`、`merge_request` 三种对象类型的真实成员计算。
 - 支持至少 20 种规则 DSL 条件组合的单元测试。
 - 动态分群成员数小于 10,000 时计算时间小于 30 秒。
 - 标签组刷新总选项数小于 1,000 时耗时小于 60 秒。

@@ -14,6 +14,7 @@ import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } fr
 
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
 const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
+const SemanticTagGroupsView = () => import('./views/SemanticTagGroupsView.vue');
 const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const CollectFormView = () => import('./views/CollectFormView.vue');
@@ -147,6 +148,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('database-browser', DatabaseBrowserView),
+  },
+  {
+    ...buildShellRoute('semantic-tag-groups', SemanticTagGroupsView),
   },
   {
     path: '/:pathMatch(.*)*',

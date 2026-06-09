@@ -30,7 +30,8 @@ export type PageKey =
   | 'customer-issues-response-efficiency'
   | 'customer-issues-issue-by-function'
   | 'mirror-settings'
-  | 'database-browser';
+  | 'database-browser'
+  | 'semantic-tag-groups';
 
 export interface ShellPage {
   key: PageKey;

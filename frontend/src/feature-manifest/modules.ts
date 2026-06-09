@@ -221,6 +221,14 @@ export const modules: ShellModule[] = [
         requiresLogin: true,
         hiddenForApproval: true,
       },
+      {
+        key: 'semantic-tag-groups',
+        label: '语义标签组',
+        description: '查看平台规则维护的语义标签组和值模板。',
+        path: '/system-settings/semantic-tag-groups',
+        requiresLogin: true,
+        hiddenForApproval: true,
+      },
     ],
   },
 ];
