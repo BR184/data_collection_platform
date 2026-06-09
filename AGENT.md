@@ -13,6 +13,35 @@
 >
 > 目标：避免每次会话都要重新探测 `mvn` / `java` / `node` 在哪、PowerShell 和 bash 的命令为什么写一份就跑不了一份。
 
+## 0.1 常驻业务规则入口
+
+涉及任何页面设计、页面文案、统计口径、筛选条件、导出、下钻、规则说明、非法数据判定、事实字段生成或页面刷新状态时，必须先阅读：
+
+- `docs/platform-page-business-rules.md`
+
+这是数据采集平台所有页面必须遵守的业务规则总表。若它与旧文档、页面现状或代码实现冲突，默认以该文件为准；如果业务方确认口径变化，先更新该文件，再改代码和测试。
+
+## 0.2 UTF-8 读写硬规则
+
+本仓中文文档和源码均按 UTF-8 处理。读取、生成或修改中文文件时，必须显式固定 UTF-8，避免把控制台乱码误当业务事实。
+
+PowerShell 读中文文件前先执行：
+
+```powershell
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+Get-Content -LiteralPath 'path\to\file.md' -Encoding UTF8
+```
+
+PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本或 `apply_patch`；如确需 PowerShell 写入，使用：
+
+```powershell
+[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))
+```
+
+不要用未指定编码的 `Get-Content`、`Set-Content`、`Out-File` 处理中文业务文档；不要在看到乱码时继续基于乱码内容做业务判断。
+
 ## 1. 真实运行环境（已实测）
 
 | 项 | 事实 |
@@ -215,7 +244,7 @@ psql -h localhost -p 15432 -U postgres -d qaflex
 | node 版本和预期不一致 | 旧 `my-nocobase-app/tools/node20` 在 PATH 前面 | bash 里手工把 `/c/Program Files/nodejs` 前置：`export PATH="/c/Program Files/nodejs:$PATH"`；或走 `dev-env.ps1` |
 | `./scripts/foo.ps1: cannot execute binary file` | bash 不会解释 .ps1 | 改用 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/foo.ps1` |
 | `command not found` 或 PATH 看起来很乱（含空格分段） | export 用了 `D:\\...` 反斜杠 | 改 `/d/...` 或 `D:/...` |
-| 中文输出乱码 | Console 编码非 UTF-8 | 走 `dev-env.ps1`（它会设 UTF-8）；或 PowerShell 中 `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)` |
+| 中文输出乱码 | Console 编码非 UTF-8，或读文件未指定 `-Encoding UTF8` | 先按 §0.2 固定 UTF-8；PowerShell 读取中文文件必须使用 `Get-Content -Encoding UTF8` |
 | 文件多了一个名叫 `NUL` 的空文件 | bash/PS 把 `NUL` 当普通文件名 | bash 用 `> /dev/null`，PS 用 `> $null` |
 | Flyway 测试失败提示 `connection refused` | 本地 Postgres 没起，或端口不是 15432 | 启动本机 Postgres 17（`tools/postgresql-17.9/pgsql/bin`），库名 `qaflex` |
 | 后端启动报 `DATASOURCE_PASSWORD must not be null` | 没设密码环境变量 | bash: `export DATASOURCE_PASSWORD='...'`；PS: `$env:DATASOURCE_PASSWORD='...'` |
@@ -235,5 +264,7 @@ psql -h localhost -p 15432 -U postgres -d qaflex
 7. 用 `npm` 的地方写成了 **`npm.cmd`**？
 8. PowerShell 里是否把含逗号的 `-D...=A,B` 参数整体加引号了？
 9. 长命令是否塞进 `( ... )` 子 shell，避免污染外层 PATH？
+10. 涉及页面或业务规则？**有没有先读 `docs/platform-page-business-rules.md`**？
+11. 涉及中文文件？**有没有显式使用 UTF-8 读取和写入**？
 
 `scripts/verify-local.ps1` 是黄金路径——任何怀疑环境出问题时，先跑它一次，能过就说明本机工具链 OK。

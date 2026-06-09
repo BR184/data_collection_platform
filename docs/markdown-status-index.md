@@ -4,7 +4,7 @@
 <!-- DOC_STATUS_END -->
 
 # Markdown 状态索引
-更新日期：2026-06-01
+更新日期：2026-06-09
 
 ## 范围
 
@@ -29,6 +29,7 @@
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/frontend-record-page-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
+| `docs/platform-page-business-rules.md` | 常驻业务规则 | 数据采集平台所有页面、统计口径、筛选、导出、下钻和规则说明的统一业务规则总表；页面开发必须先读。 |
 | `docs/intranet-offline-packaging-standard.md` | 常驻发布标准 | 定义内网离线发布包的固定结构、拓扑、镜像标签与验收清单。 |
 | `docs/gitlab-direct-sync-system-hook-runbook.md` | 遗留 Runbook / 待降级 | System Hook 仍有历史运维价值，但实时主路径已倾向增量补偿；后续应降级或归档。 |
 | `docs/gitlab-sync-orchestrator-runbook.md` | 常驻 Runbook | 当前运维和排查说明，继续有效。 |
@@ -63,4 +64,4 @@
 | `docs/platform-smoke-test-matrix-20260520.md` | 历史报告 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
 | `docs/project-progress.md` | 进度快照 | 项目阶段性进展记录，保留作历史，不等同于当前任务列表。 |
 | `docs/runtime-artifacts.md` | 常驻 Runbook | 当前运维和排查说明，继续有效。 |
-| `数据采集平台议题统计规则.md` | 常驻业务规则 | 议题统计口径说明，继续作为业务规则参考；后续口径变化需要同步更新。 |
+| `数据采集平台议题统计规则.md` | 已归档 / 被取代 | 旧议题统计口径入口，已由 `docs/platform-page-business-rules.md` 统一整合；不再作为实现依据。 |
