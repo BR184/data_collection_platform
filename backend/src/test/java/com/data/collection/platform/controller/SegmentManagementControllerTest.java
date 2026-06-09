@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -8,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.service.SegmentComputeService;
 import com.data.collection.platform.service.SegmentCostEstimator;
+import com.data.collection.platform.service.SegmentFilterPresetService;
 import com.data.collection.platform.service.SegmentSchemaCompatibilityChecker;
 import com.data.collection.platform.service.SemanticScopeRegistry;
 import com.data.collection.platform.service.SemanticTagGroupService;
@@ -33,7 +35,9 @@ class SegmentManagementControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new SegmentManagementController(
-                    new SemanticTagGroupService(), segmentComputeService))
+                    new SemanticTagGroupService(),
+                    segmentComputeService,
+                    new SegmentFilterPresetService()))
             .build();
   }
 
@@ -113,5 +117,63 @@ class SegmentManagementControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.status").value("DISABLED"));
+  }
+
+  @Test
+  void shouldCreateUpdateApplyAndDeleteFilterPreset() throws Exception {
+    String createBody =
+        """
+        {
+          "presetName": "Open P1 issues",
+          "ownerUserId": "pm",
+          "visibility": "PRIVATE",
+          "entityType": "issue",
+          "scenarioKey": "customer_issue",
+          "scopeKey": "customer_issue_open_scope",
+          "dslJson": "{\\"conditions\\":[{\\"field\\":\\"urgency\\",\\"operator\\":\\"EQ\\",\\"value\\":\\"P1\\"}]}",
+          "tagSchemaHash": "schema-v1",
+          "sourceDataWatermarkAtSave": "2026-06-09T10:00:00"
+        }
+        """;
+
+    mockMvc
+        .perform(post("/api/segment-filter-presets").contentType(MediaType.APPLICATION_JSON).content(createBody))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.presetName").value("Open P1 issues"))
+        .andExpect(jsonPath("$.visibility").value("PRIVATE"))
+        .andExpect(jsonPath("$.dslHash").isString());
+
+    String updateBody =
+        """
+        {
+          "presetName": "Open P2 issues",
+          "visibility": "TEAM",
+          "dslJson": "{\\"conditions\\":[{\\"field\\":\\"urgency\\",\\"operator\\":\\"EQ\\",\\"value\\":\\"P2\\"}]}",
+          "tagSchemaHash": "schema-v2",
+          "sourceDataWatermarkAtSave": "2026-06-09T11:00:00"
+        }
+        """;
+
+    mockMvc
+        .perform(patch("/api/segment-filter-presets/1").contentType(MediaType.APPLICATION_JSON).content(updateBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.presetName").value("Open P2 issues"))
+        .andExpect(jsonPath("$.visibility").value("TEAM"))
+        .andExpect(jsonPath("$.tagSchemaHash").value("schema-v2"));
+
+    mockMvc
+        .perform(post("/api/segment-filter-presets/1/apply").param("currentTagSchemaHash", "schema-v1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.schemaCompatible").value(false))
+        .andExpect(jsonPath("$.compatibilityMessage").value("SCHEMA_REVIEW_REQUIRED"));
+
+    mockMvc.perform(delete("/api/segment-filter-presets/1")).andExpect(status().isNoContent());
+
+    mockMvc
+        .perform(get("/api/segment-filter-presets").param("ownerUserId", "pm"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
   }
 }
