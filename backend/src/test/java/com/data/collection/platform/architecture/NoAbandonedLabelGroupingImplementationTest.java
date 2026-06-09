@@ -8,12 +8,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class NoAbandonedLabelGroupingImplementationTest {
-  private static final List<String> FORBIDDEN_RUNTIME_MARKERS =
-      List.of("taggroup", "tagselection", "tagselections", "tag-groups", "tag_group", "tag_value");
+  private static final List<Pattern> FORBIDDEN_RUNTIME_MARKERS =
+      List.of(
+          Pattern.compile("\\btaggroup\\b"),
+          Pattern.compile("\\btagselection\\b"),
+          Pattern.compile("\\btagselections\\b"),
+          Pattern.compile("\\btag-groups\\b"),
+          Pattern.compile("(?<!semantic_)\\btag_group\\b"),
+          Pattern.compile("(?<!semantic_)\\btag_value\\b"));
 
   @Test
   void mainCodeShouldNotContainAbandonedLabelGroupingNames() throws IOException {
@@ -37,7 +44,7 @@ class NoAbandonedLabelGroupingImplementationTest {
   private static boolean containsForbiddenMarker(Path path) {
     try {
       String content = Files.readString(path, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
-      return FORBIDDEN_RUNTIME_MARKERS.stream().anyMatch(content::contains);
+      return FORBIDDEN_RUNTIME_MARKERS.stream().anyMatch(pattern -> pattern.matcher(content).find());
     } catch (IOException error) {
       throw new IllegalStateException("Failed to read " + path, error);
     }

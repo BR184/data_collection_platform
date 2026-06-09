@@ -94,6 +94,37 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).contains("destructive-migration-recovery:");
   }
 
+  @Test
+  void shouldDefineSemanticSegmentationCoreSchema() throws IOException {
+    String migration = readMigration("V20260609_03__semantic_segmentation_core_schema.sql");
+
+    assertThat(migration).contains("create table if not exists semantic_scope_definition");
+    assertThat(migration).contains("create table if not exists semantic_tag_group");
+    assertThat(migration).contains("create table if not exists semantic_tag_value");
+    assertThat(migration).contains("create table if not exists semantic_tag_value_mapping");
+    assertThat(migration).contains("create table if not exists semantic_tag_group_build_run");
+    assertThat(migration).contains("create table if not exists segment_definition");
+    assertThat(migration).contains("create table if not exists segment_compute_run");
+    assertThat(migration).contains("create table if not exists segment_member_current");
+    assertThat(migration).contains("create table if not exists segment_member_stage");
+    assertThat(migration).contains("create table if not exists segment_member_audit");
+    assertThat(migration).contains("create table if not exists segment_snapshot");
+    assertThat(migration).contains("create table if not exists segment_snapshot_member");
+
+    assertThat(migration).contains("cache_ttl_seconds integer not null default 3600");
+    assertThat(migration).contains("rule_doc_hash varchar(64)");
+    assertThat(migration).contains("active_run_id bigint");
+    assertThat(migration).contains("max_execution_time_ms integer not null default 30000");
+    assertThat(migration).contains("max_allowed_members integer not null default 50000");
+
+    assertThat(migration).contains("idx_semantic_tag_group_domain_key");
+    assertThat(migration).contains("idx_semantic_tag_value_group");
+    assertThat(migration).contains("idx_segment_definition_entity_scenario");
+    assertThat(migration).contains("idx_segment_member_current_run");
+    assertThat(migration).contains("idx_segment_member_stage_run");
+    assertThat(migration).contains("idx_segment_compute_run_segment_status");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

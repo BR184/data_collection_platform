@@ -78,6 +78,59 @@ GitLab 镜像表 -> fact 构建 -> 统计看板 / 记录页 / 导出
 - `defect_reason_policy`：新旧缺陷原因模板归并。
 - `ratio_display_policy`：分母为 0 时显示 `/` 或 `0` 的场景规则。
 
+语义口径不能无限平铺枚举。第一阶段必须引入“口径链”组合模型，将基础范围、状态过滤、里程碑过滤、排除策略拆成可组合节点，避免业务方提出“客户问题 + 已关闭 + 特定里程碑”时新增大量一次性 scope。
+
+口径链示例：
+
+```json
+{
+  "scopeChain": [
+    "customer_issue_base_scope",
+    "closed_state_filter",
+    "milestone_required_filter"
+  ],
+  "compositionMode": "AND"
+}
+```
+
+每个口径节点必须声明：
+
+- `scope_key`：稳定机器名。
+- `scope_type`：`BASE_SCOPE` / `FILTER` / `EXCLUSION_POLICY` / `METRIC_POLICY`。
+- `entity_type`：适用对象。
+- `description`：业务解释。
+- `rule_doc_reference`：对应规则文档位置。
+- `rule_doc_hash`：对应规则段落 hash。
+- `allowed_parent_types`：允许组合在哪些口径之后。
+- `sql_template_key`：后端预定义 SQL 模板名，不能保存任意 SQL。
+
+建议新增语义口径注册表：
+
+```java
+public interface SemanticScopeRegistry {
+  SemanticScope resolve(String scopeKey);
+  SemanticScopePlan compose(List<String> scopeChain, CompositionMode mode);
+  void validateCompatibility(String entityType, List<String> scopeChain);
+}
+```
+
+配套表：
+
+```sql
+create table semantic_scope_definition (
+    scope_key varchar(128) primary key,
+    scope_type varchar(64) not null,
+    entity_type varchar(64) not null,
+    description text not null,
+    sql_template_key varchar(128) not null,
+    rule_doc_reference varchar(255),
+    rule_doc_hash varchar(64),
+    enabled boolean not null default true,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp
+);
+```
+
 ### 语义标签组
 
 语义标签组是页面筛选、规则 DSL 和分群条件共用的业务选项目录。它不等同于 GitLab 标签，也不等同于旧方案里的任意字段映射。
@@ -108,6 +161,25 @@ GitLab 镜像表 -> fact 构建 -> 统计看板 / 记录页 / 导出
 
 动态标签组的当前值可以缓存，但缓存必须记录来源水位、生成批次和使用的语义口径；源数据变化后只更新当前值，不改写历史快照。
 
+动态标签组缓存必须有明确失效策略：
+
+- fact 构建完成后发布 `FactBuildCompletionEvent`，按 `source_instance` 标记相关标签组 stale。
+- 手动刷新只刷新管理员选择的标签组，不触发全域重算。
+- 定时刷新必须检查来源水位，水位未变化时只更新 `checked_at`，不重复计算。
+- 并发刷新通过计算锁控制，同一 `group_key + source_instance + scope_hash` 同时只能有一个计算任务。
+- API 必须返回 `cacheAge`、`dataWatermark`、`isStale`、`buildRunId`，页面可提示“选项基于最近一次事实构建”。
+
+`semantic_tag_group` 建议补充：
+
+```sql
+cache_ttl_seconds integer not null default 3600,
+cache_invalidation_trigger varchar(255) not null default 'FACT_BUILD_COMPLETE,MANUAL',
+last_computed_at timestamp,
+last_checked_at timestamp,
+last_data_watermark timestamp,
+computing_lock_key varchar(255)
+```
+
 ### 静态标签组
 
 静态标签组的值由平台规则确定，不能因为当前数据中没有出现或出现了异常标签就自动增删。静态标签组同样通过后端语义注册表返回，前端不能自行写死。
@@ -124,6 +196,22 @@ GitLab 镜像表 -> fact 构建 -> 统计看板 / 记录页 / 导出
 - 比例空值策略：系统测试缺陷汇总分母为 0 显示 `/`；评审、代码走查、缺陷原因类分母为 0 显示 `0`。
 
 静态标签组允许管理员调整显示名称、排序、启用状态和说明，但不允许直接改变业务含义。业务含义变化必须先更新 `docs/platform-page-business-rules.md`，再补规则层代码和测试。
+
+静态标签组变更必须执行规则文档同步流程：
+
+1. 业务方提出口径变更。
+2. PM 更新 `docs/platform-page-business-rules.md`，明确规则版本和影响页面。
+3. 代码变更同步更新语义注册表、规则事实构建、测试和文档 hash。
+4. CI 执行 `scripts/check_semantic_tag_rule_drift.py`，对比规则文档段落 hash 与 `semantic_tag_group.rule_doc_hash`。
+5. staging 验收通过后发布，记录 `rule_doc_version`。
+
+`semantic_tag_group` 建议补充：
+
+```sql
+rule_doc_version varchar(64),
+rule_doc_hash varchar(64),
+admin_override_allowed boolean not null default false
+```
 
 ### 动态分群
 
@@ -222,6 +310,38 @@ GitLab 镜像表 -> fact 构建 -> 统计看板 / 记录页 / 导出
 }
 ```
 
+规则 DSL 必须先转 AST，再由后端白名单模板生成参数化 SQL。禁止直接拼接用户输入 SQL。第一阶段只支持预编译模板，第二阶段再开放受控 DSL 到 SQL。
+
+执行器接口：
+
+```java
+public interface SemanticQueryExecutor {
+  List<SegmentMember> executeTemplate(String templateName, Map<String, Object> params);
+  List<SegmentMember> executeDsl(SegmentRuleDsl dsl, ExecutionContext context);
+  ExecutionPlan explain(SegmentRuleDsl dsl);
+  void validateComplexity(SegmentRuleDsl dsl);
+}
+```
+
+安全规范：
+
+- 字段、指标、操作符、标签组和口径 key 必须来自注册表白名单。
+- 所有值只作为 SQL 参数绑定，不进入 SQL 片段。
+- 禁止用户 DSL 表达 join、subquery、rawSql、orderByExpression。
+- 每个模板必须声明最大扫描行数、最大返回成员数和超时时间。
+- `EXPLAIN` 预估扫描行数超过 100 万时要求管理员确认；预估执行时间超过 30 秒时拒绝创建。
+- 单个动态分群默认成员上限为 50,000；第一阶段建议软上限 10,000，超过则要求保存为静态快照或拆分规则。
+
+`segment_definition` 建议补充：
+
+```sql
+execution_plan_json text,
+execution_cost_estimate_json text,
+estimated_cost numeric(18, 4),
+max_execution_time_ms integer not null default 30000,
+max_allowed_members integer not null default 50000
+```
+
 ## 用户界面
 
 用户看到的仍是业务熟悉的条件，而不是底层表结构。
@@ -300,6 +420,20 @@ UI 中的条件分三类：
 - `review_metric_fact`：评审缺陷密度、加权密度、模块、负责人等。
 - `mr_review_metric_fact`：MR 走查缺陷数、走查行数、目标分支、合并状态。
 
+`customer_issue_sla_fact` 必须显式保存时区换算字段，响应和解决效率统一按北京时间计算：
+
+```sql
+created_at_utc timestamp,
+created_at_bjt timestamp,
+first_response_at_bjt timestamp,
+resolved_at_bjt timestamp,
+response_elapsed_hours numeric(12, 2),
+resolution_elapsed_days numeric(12, 2),
+sla_timezone varchar(32) not null default 'Asia/Shanghai'
+```
+
+横向对比必须覆盖 `CC2025R1` 评审数据映射到 `CC2025R1&R2` 的业务特例，不能只在页面层硬编码。
+
 后续如果支持用户行为分群，可增加：
 
 - `user_day_commit_stats`：用户每日提交数、仓库数、活跃标记。
@@ -312,7 +446,7 @@ UI 中的条件分三类：
 - `semantic_tag_value_mapping`：标准值到事实字段、原始标签或外部字典的映射，禁止承载任意 SQL。
 - `semantic_tag_group_build_run`：动态或混合标签组生成记录，保存来源水位、schemaHash、值数量、失败原因。
 
-当前代码中的 `tag_group`、`tag_value`、`tag_value_mapping` 可以作为第一阶段兼容实现，但新方案文档和后续接口语义应向 `semantic_tag_*` 收敛，避免继续把标签组理解为旧平台标签文本映射。
+旧 `tag_group`、`tag_value`、`tag_value_mapping` 只作为历史 Flyway 迁移记录存在，不作为第一阶段兼容实现。运行时代码和后续接口必须直接面向 `semantic_tag_*` 收敛，避免继续把标签组理解为旧平台标签文本映射。
 
 ## 持久化模型
 
@@ -358,6 +492,33 @@ UI 中的条件分三类：
   - `computed_run_id`
   - `computed_at`
 
+动态分群成员刷新不能采用无控制的全量 `delete + insert`。第一阶段默认使用“双缓冲批次替换”：
+
+1. 将新成员写入 `segment_member_stage`，带 `computed_run_id`。
+2. 写入完成后在事务内切换 `segment_definition.active_run_id`。
+3. 查询当前成员时按 `active_run_id` 读取。
+4. 后台只保留最近 3 个成功批次，过期批次异步清理。
+
+如果单次成员变化量较小，可使用增量 delta：
+
+```sql
+create table segment_member_delta (
+    segment_id bigint not null,
+    entity_type varchar(64) not null,
+    entity_id varchar(255) not null,
+    delta_type varchar(16) not null,
+    computed_run_id bigint not null,
+    created_at timestamp not null default current_timestamp,
+    primary key (segment_id, entity_type, entity_id, computed_run_id)
+);
+```
+
+性能约束：
+
+- 单次刷新写入量超过 100,000 行时必须降级为后台长任务并提示用户。
+- 动态分群计算不能占用 GitLab sync worker pool。
+- `segment_member_current` 或 stage 表必须按 `segment_id`、`computed_run_id`、`entity_type` 建索引；大规模上线后评估按 `computed_at` 或 `segment_id` 分区。
+
 - `segment_member_audit`
   - `id`
   - `segment_id`
@@ -397,6 +558,39 @@ GitLab 镜像同步
 ```
 
 动态分群计算可以复用现有后台任务与运行状态思路，但应与 GitLab 镜像同步运行单元解耦。
+
+计算事件链路必须与现有 sync 引擎解耦：
+
+```java
+@EventListener
+public void onFactBuildComplete(FactBuildCompletionEvent event) {
+  semanticTagGroupRefreshService.scheduleRefresh(event.sourceInstance());
+}
+
+@EventListener
+public void onSemanticTagGroupRefreshed(SemanticTagGroupRefreshEvent event) {
+  segmentComputeService.scheduleDynamicSegments(event.affectedGroupKeys());
+}
+```
+
+要求：
+
+- 不直接复用 `SyncRunCompletionEvent` 触发分群计算。
+- 分群计算使用独立线程池和队列表，避免拖慢 2 秒级 sync 调度。
+- 标签组刷新失败不能回滚 fact 构建；分群计算失败只标记对应 `segment_compute_run` 失败。
+- 每个阶段都记录输入水位、输出批次、耗时和错误信息。
+
+建议新增：
+
+```java
+@Configuration
+public class SegmentComputeConfig {
+  @Bean
+  public ThreadPoolTaskExecutor segmentComputeExecutor() {
+    // 与 sync worker pool 隔离
+  }
+}
+```
 
 静态分群不进入定时重算链路，但进入成员校验链路：
 
@@ -454,14 +648,106 @@ GitLab 镜像同步
 - 特例：`CC2025R1` 评审数据映射到 `CC2025R1&R2`。
 - 标签组：横向对比模块可使用静态分群指定重点模块，也可使用动态模块标签组汇总全部模块；导出时整行全为 `0`、`0.0` 或 `/` 的无效行不展示。
 
+## 前端路由与权限
+
+分群和语义标签组管理页归入系统设置模块，避免与业务记录页混在一起。第一阶段建议：
+
+- `segment-management`：`/system-settings/segments`，ADMIN 可管理，APPROVAL 只读。
+- `semantic-tag-group-management`：`/system-settings/semantic-tag-groups`，ADMIN 可维护展示属性，业务含义只读。
+- `segment-snapshot-list`：`/system-settings/segment-snapshots`，ADMIN 可作废，APPROVAL 可查看和导出。
+
+已有页面集成：
+
+- 系统测试缺陷汇总：增加“保存为分群 / 保存为快照”入口。
+- 客户问题记录：增加“从分群加载”筛选器。
+- 记录页导出：导出参数必须记录 `segment_id`、`snapshot_id` 或临时 DSL hash。
+- 所有新增按钮必须有 loading、失败提示和权限禁用状态。
+
+## 向后兼容与 schema 变更
+
+本仓已经删除旧 `tag_group` 运行时代码和最终 schema；历史 Flyway 迁移只作为不可变历史保留。新方案不做旧标签组双写，也不再以旧接口作为兼容层。向后兼容只针对新 `semantic_tag_*` schema 内的版本变化。
+
+`tag_schema_hash` 变化时必须执行兼容性检查：
+
+```java
+public interface SegmentSchemaCompatibilityChecker {
+  CompatibilityResult check(
+      SegmentDefinition segment,
+      String oldSchemaHash,
+      String newSchemaHash);
+}
+```
+
+规则：
+
+- 新增标签组选项：兼容，动态分群可自动重算。
+- 禁用或删除选项：不兼容，相关分群标记为 `NEEDS_REVIEW`。
+- 标签组 key 改名：必须提供迁移脚本和管理员确认。
+- 语义口径规则变化：相关动态分群标记为 `NEEDS_REVALIDATION`，静态快照不变。
+- 静态分群成员不因 schema 变化自动删除，只显示“当前口径已变化”的风险提示。
+
+## Phase 1 实施计划
+
+Phase 1 目标是建立基础设施，不实现完整复杂 DSL。
+
+### 数据库迁移
+
+新增表：
+
+- `semantic_scope_definition`
+- `semantic_tag_group`
+- `semantic_tag_value`
+- `semantic_tag_value_mapping`
+- `semantic_tag_group_build_run`
+- `segment_definition`
+- `segment_compute_run`
+- `segment_member_current`
+- `segment_member_stage`
+- `segment_member_audit`
+- `segment_snapshot`
+- `segment_snapshot_member`
+
+核心索引：
+
+- `semantic_tag_group(domain, group_key)`
+- `semantic_tag_value(group_id, enabled, sort_order, value_key)`
+- `segment_definition(entity_type, scenario_key, enabled)`
+- `segment_member_current(segment_id, computed_run_id, entity_type, entity_id)`
+- `segment_member_stage(computed_run_id, segment_id, entity_type, entity_id)`
+- `segment_compute_run(segment_id, status, started_at)`
+
+### 服务骨架
+
+- `SemanticScopeRegistry`
+- `SemanticTagGroupService`
+- `SemanticQueryExecutor`
+- `SegmentCostEstimator`
+- `SegmentComputeService`
+- `SegmentSchemaCompatibilityChecker`
+
+### 初始能力
+
+- 注册至少 3 个语义口径：系统测试议题范围、客户问题基础范围、客户 open 范围。
+- 注册至少 3 个静态标签组：严重程度、紧急程度、非法类型。
+- 支持创建动态分群定义，但第一阶段可只保存规则和预览空成员。
+- 支持创建静态快照空壳和审计记录。
+
+### Phase 1 验收
+
+- Flyway 迁移可在 staging 数据库运行。
+- 后端能返回静态标签组选项和 schemaHash。
+- 能创建、查询、禁用一个分群定义。
+- 单元测试覆盖 `SemanticScopeRegistry`、`SemanticTagGroupService`、`SegmentComputeService` 基础路径。
+- 覆盖率目标：新增服务行覆盖率不低于 80%。
+
 ## 迁移策略
 
 1. 旧业务筛选方案停止演进。
 2. 新文档、新计划、新接口命名使用 `segment`、`cohort` 或 `object segmentation`，不再使用旧筛选概念命名。
-3. 当前 `tag_group` / `tag_value` / `tag_value_mapping` 可作为兼容层继续服务现有页面，但新增设计按 `semantic_tag_*` 语义收敛。
+3. 当前旧 `tag_group` / `tag_value` / `tag_value_mapping` 运行时代码和最终 schema 已删除；历史迁移文件只作为 Flyway 历史保留，不作为新功能兼容层。
 4. 静态标签组优先从 `docs/platform-page-business-rules.md` 中固化，动态标签组优先从 fact/汇总表生成，二者都通过同一 API 返回。
 5. 已经进入数据库历史的 Flyway 迁移文件不直接改名；后续通过新增迁移引入 `semantic_tag_*` 和 `segment_*` 表，并逐步废弃旧表。
-6. 运行代码中的旧组件和 API 不在文档清理阶段半拆；等实现迁移时统一改名、改接口、改测试。
+6. 运行代码不得重新引入旧 `TagGroup`、`TagSelection`、`tagSelections`、`tag-groups` 命名；新增功能统一使用 `semantic_tag_*` 和 `segment_*` 命名。
 7. 老方案文档和本地 demo 脚本从仓库删除，避免未来误用。
 
 ## 验收标准
@@ -477,3 +763,16 @@ GitLab 镜像同步
 - 静态分群能人工选择、导入、从动态结果固化，并保留成员审计。
 - 静态快照能从动态分群、静态分群或页面筛选结果固化，并保留成员和生成时间。
 - 每个规则结果能追溯到语义口径、数据水位和计算批次。
+- 支持至少 10 个预定义语义口径、15 个静态标签组、5 个动态标签组。
+- 第一阶段至少支持 `issue`、`module`、`merge_request` 三种对象类型规划，实际落地不得少于 `issue`。
+- 支持至少 20 种规则 DSL 条件组合的单元测试。
+- 动态分群成员数小于 10,000 时计算时间小于 30 秒。
+- 标签组刷新总选项数小于 1,000 时耗时小于 60 秒。
+- 单次成员刷新写入量控制在 100,000 行/分钟以内。
+- 分群列表页加载时间小于 2 秒。
+- 系统测试排除规则与现有页面结果一致。
+- 客户问题 SLA 计算人工抽查 50 个议题准确率 100%。
+- 模块拆分统计总数与原逻辑误差小于 1%。
+- GMT 到北京时间转换字段和测试无遗漏。
+- CI 增加规则文档 drift 检查。
+- 新增不少于 30 个 `SegmentComputeServiceTest` 用例。
