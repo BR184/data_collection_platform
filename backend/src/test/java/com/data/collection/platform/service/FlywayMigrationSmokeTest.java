@@ -125,6 +125,25 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).contains("idx_segment_compute_run_segment_status");
   }
 
+  @Test
+  void shouldDefineSegmentFilterPresetSchema() throws IOException {
+    String migration = readMigration("V20260609_04__segment_filter_preset.sql");
+
+    assertThat(migration).contains("create table if not exists segment_filter_preset");
+    assertThat(migration).contains("preset_name varchar(255) not null");
+    assertThat(migration).contains("owner_user_id varchar(128) not null");
+    assertThat(migration).contains("visibility varchar(32) not null default 'private'");
+    assertThat(migration).contains("dsl_json text not null");
+    assertThat(migration).contains("dsl_hash varchar(64) not null");
+    assertThat(migration).contains("tag_schema_hash varchar(64) not null");
+    assertThat(migration).contains("source_data_watermark_at_save timestamp");
+    assertThat(migration).contains("last_used_at timestamp");
+
+    assertThat(migration).contains("idx_segment_filter_preset_owner_scenario_updated");
+    assertThat(migration).contains("idx_segment_filter_preset_visibility_scenario_updated");
+    assertThat(migration).contains("idx_segment_filter_preset_dsl_hash");
+  }
+
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

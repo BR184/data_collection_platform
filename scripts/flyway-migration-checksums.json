@@ -29,5 +29,6 @@
   "V20260608_01__tag_groups_review_data_seed.sql": "16099807bc5b620602eac466a177f9bf0b54e4654d6b043ff473c5d8d70ad002",
   "V20260609_01__tag_groups_issue_legacy_seed.sql": "6f167e691be878ce4826f538c26e52a3725ffc6134bee268d0715600db94bbf8",
   "V20260609_02__remove_abandoned_label_grouping.sql": "34591472afb6b3cb3511887bfbe33dbf4736ca6fbe0e0fe9434984358e5c173b",
-  "V20260609_03__semantic_segmentation_core_schema.sql": "8cb0c0e4f0a7a953a132307f5c0438ac277e961802eae58a607f748bf787f9fe"
+  "V20260609_03__semantic_segmentation_core_schema.sql": "8cb0c0e4f0a7a953a132307f5c0438ac277e961802eae58a607f748bf787f9fe",
+  "V20260609_04__segment_filter_preset.sql": "305f675e220294bcc158790cb2c7489e69c84ad4cb4296c7942ade6cecd215aa"
 }

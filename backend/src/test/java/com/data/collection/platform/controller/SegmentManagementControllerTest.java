@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.data.collection.platform.service.SegmentComputeService;
 import com.data.collection.platform.service.SegmentCostEstimator;
 import com.data.collection.platform.service.SegmentFilterPresetService;
+import com.data.collection.platform.service.InMemorySegmentFilterPresetRepository;
 import com.data.collection.platform.service.SegmentSchemaCompatibilityChecker;
 import com.data.collection.platform.service.SemanticScopeRegistry;
 import com.data.collection.platform.service.SemanticTagGroupService;
@@ -37,7 +38,7 @@ class SegmentManagementControllerTest {
                 new SegmentManagementController(
                     new SemanticTagGroupService(),
                     segmentComputeService,
-                    new SegmentFilterPresetService()))
+                    new SegmentFilterPresetService(new InMemorySegmentFilterPresetRepository())))
             .build();
   }
 

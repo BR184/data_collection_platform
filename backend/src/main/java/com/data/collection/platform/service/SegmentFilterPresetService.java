@@ -6,23 +6,22 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SegmentFilterPresetService {
-  private final AtomicLong nextId = new AtomicLong(1);
-  private final Map<Long, SegmentFilterPreset> presets = new LinkedHashMap<>();
+  private final SegmentFilterPresetRepository repository;
+
+  public SegmentFilterPresetService(SegmentFilterPresetRepository repository) {
+    this.repository = repository;
+  }
 
   public synchronized SegmentFilterPreset create(CreateSegmentFilterPresetRequest request) {
     LocalDateTime now = LocalDateTime.now();
-    long id = nextId.getAndIncrement();
     SegmentFilterPreset preset =
         new SegmentFilterPreset(
-            id,
+            0,
             request.presetName().trim(),
             request.ownerUserId().trim(),
             normalizeVisibility(request.visibility()),
@@ -36,13 +35,12 @@ public class SegmentFilterPresetService {
             null,
             now,
             now);
-    presets.put(id, preset);
-    return preset;
+    return repository.save(preset);
   }
 
   public synchronized List<SegmentFilterPreset> list(
       String entityType, String scenarioKey, String ownerUserId) {
-    return presets.values().stream()
+    return repository.findAll().stream()
         .filter(preset -> entityType == null || entityType.isBlank() || preset.entityType().equals(entityType))
         .filter(preset -> scenarioKey == null || scenarioKey.isBlank() || preset.scenarioKey().equals(scenarioKey))
         .filter(preset -> canRead(preset, ownerUserId))
@@ -68,13 +66,13 @@ public class SegmentFilterPresetService {
             LocalDateTime.now(),
             preset.createdAt(),
             preset.updatedAt());
-    presets.put(id, touched);
+    SegmentFilterPreset saved = repository.save(touched);
     boolean compatible =
         currentTagSchemaHash == null
             || currentTagSchemaHash.isBlank()
             || currentTagSchemaHash.equals(preset.tagSchemaHash());
     return new SegmentFilterPresetApplyResult(
-        touched,
+        saved,
         compatible,
         compatible ? "SCHEMA_COMPATIBLE" : "SCHEMA_REVIEW_REQUIRED");
   }
@@ -98,21 +96,18 @@ public class SegmentFilterPresetService {
             current.lastUsedAt(),
             current.createdAt(),
             LocalDateTime.now());
-    presets.put(id, updated);
-    return updated;
+    return repository.save(updated);
   }
 
   public synchronized void delete(long id) {
     get(id);
-    presets.remove(id);
+    repository.delete(id);
   }
 
   private SegmentFilterPreset get(long id) {
-    SegmentFilterPreset preset = presets.get(id);
-    if (preset == null) {
-      throw new IllegalArgumentException("Unknown segment filter preset: " + id);
-    }
-    return preset;
+    return repository
+        .findById(id)
+        .orElseThrow(() -> new IllegalArgumentException("Unknown segment filter preset: " + id));
   }
 
   private boolean canRead(SegmentFilterPreset preset, String ownerUserId) {
