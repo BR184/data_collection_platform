@@ -84,6 +84,32 @@ class SegmentComputeServiceTest {
   }
 
   @Test
+  void shouldListCreatedSegmentDefinitionsInCreationOrder() {
+    SegmentDefinition first =
+        service.createStaticSnapshot(
+            new CreateSegmentSnapshotRequest(
+                "First segment",
+                "issue",
+                "system_test",
+                "system_test_issue_scope",
+                "first",
+                "admin"));
+    SegmentDefinition second =
+        service.createStaticSnapshot(
+            new CreateSegmentSnapshotRequest(
+                "Second segment",
+                "issue",
+                "system_test",
+                "system_test_issue_scope",
+                "second",
+                "admin"));
+
+    assertThat(service.listDefinitions())
+        .extracting(SegmentDefinition::id)
+        .containsExactly(first.id(), second.id());
+  }
+
+  @Test
   void shouldRejectDynamicSegmentWhenEstimatedMembersExceedSoftLimit() {
     SegmentCostEstimator strictEstimator = new SegmentCostEstimator(0, 30_000);
     SemanticQueryExecutor oneMemberExecutor =

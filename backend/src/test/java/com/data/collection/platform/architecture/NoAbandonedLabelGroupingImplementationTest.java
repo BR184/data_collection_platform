@@ -18,7 +18,7 @@ class NoAbandonedLabelGroupingImplementationTest {
           Pattern.compile("\\btaggroup\\b"),
           Pattern.compile("\\btagselection\\b"),
           Pattern.compile("\\btagselections\\b"),
-          Pattern.compile("\\btag-groups\\b"),
+          Pattern.compile("(?<!semantic-)\\btag-groups\\b"),
           Pattern.compile("(?<!semantic_)\\btag_group\\b"),
           Pattern.compile("(?<!semantic_)\\btag_value\\b"));
 

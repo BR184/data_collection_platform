@@ -91,6 +91,10 @@ public class SegmentComputeService {
     return definition;
   }
 
+  public List<SegmentDefinition> listDefinitions() {
+    return List.copyOf(definitions.values());
+  }
+
   public SegmentDefinition disable(long id, String operator) {
     SegmentDefinition current = get(id);
     SegmentDefinition disabled =
