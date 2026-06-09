@@ -6,7 +6,6 @@ import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, ArrowUp, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
-import TagGroupFilterBar from '../components/TagGroupFilterBar.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
 import ReviewProblemPanel from './review-data/ReviewProblemPanel.vue';
@@ -29,15 +28,11 @@ import type { ReviewDataRecordRowResponse } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
-import { useTagGroupFilterAdapter } from '../composables/useTagGroupFilterAdapter';
 import {
   buildReviewDataMetricFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
-import {
-  stringifyTagSelectionsQuery,
-} from '../components/tag-group-filter';
 
 const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoader, isTableLoading } = useRouteTableState({
   defaults: {
@@ -58,10 +53,7 @@ const {
   loadRows: loadReviewRows,
   refresh: refreshReviewDataRecords,
 } = useReviewDataRecords({
-  fetchFilterOptions: () => api.getReviewDataFilterOptions({
-    tagSelections: tagSelections.value,
-    sourceInstance: reviewDataSourceInstance.value,
-  }),
+  fetchFilterOptions: () => api.getReviewDataFilterOptions(),
   fetchRecords: (params) => api.getReviewDataRecords(params),
 });
 
@@ -143,40 +135,6 @@ const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
 const advancedConditionsExpanded = ref(false);
 const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
-const {
-  tagGroups,
-  tagSelections,
-  tagGroupStorageKey,
-  shouldAutoRestoreTagSnapshot,
-  tagGroupActiveFilterTags,
-  loadTagGroups,
-  shouldDeferRowsUntilTagSnapshotRestore,
-} = useTagGroupFilterAdapter({
-  domain: 'review_data',
-  storageKey: 'tag-groups:review-data:default',
-  tagSelectionsQuery: () => route.query.tagSelections,
-  loadTagGroups: (domain) => api.getTagGroups(domain),
-});
-const reviewDataFixedFilters = computed<Record<string, unknown>>(() => ({
-  keyword: keyword.value,
-  sourceInstance: reviewDataSourceInstance.value,
-  title: String(route.query.title ?? ''),
-  projectName: String(route.query.projectName ?? ''),
-  moduleName: String(route.query.moduleName ?? ''),
-  reviewOwner: String(route.query.reviewOwner ?? ''),
-  reviewType: String(route.query.reviewType ?? ''),
-  problemStatus: String(route.query.problemStatus ?? ''),
-  reviewExpert: String(route.query.reviewExpert ?? ''),
-  filterGroup: String(route.query.filterGroup ?? ''),
-}));
-
-interface TagSnapshotRestoredPayload {
-  tagSelections: typeof tagSelections.value;
-  ignoredCount: number;
-  schemaMismatch: boolean;
-  fixedFilters: Record<string, unknown>;
-  source: 'auto' | 'manual';
-}
 
 const reviewFilterFields = computed(() => buildReviewDataMetricFilterFields(filterOptions.value));
 const {
@@ -204,7 +162,6 @@ const {
   getPageSize: () => pageSize.value,
   getSortBy: () => sortBy.value,
   getSortOrder: () => sortOrder.value as 'asc' | 'desc' | '',
-  getTagSelections: () => tagSelections.value,
   getSourceInstance: () => reviewDataSourceInstance.value,
   patchQuery,
   initializeFromQuery,
@@ -217,11 +174,8 @@ const {
 
 bindLoader(async () => {
   try {
-    await Promise.all([loadFilterOptions(), loadTagGroups()]);
+    await loadFilterOptions();
     syncFilterDraftFromRoute();
-    if (shouldDeferRowsUntilTagSnapshotRestore()) {
-      return;
-    }
     await loadRows();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评审数据加载失败');
@@ -235,65 +189,8 @@ async function loadRows() {
   }));
 }
 
-async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {
-  await patchQuery({
-    page: 1,
-    tagSelections: stringifyTagSelectionsQuery(nextSelections),
-  });
-}
-
 async function handleClearFilter(key: string) {
-  if (!key.startsWith('tagSelection:')) {
-    return;
-  }
-  const groupKey = key.slice('tagSelection:'.length);
-  const nextSelections = tagSelections.value.filter((selection) => selection.groupKey !== groupKey);
-  await patchQuery({
-    page: 1,
-    tagSelections: stringifyTagSelectionsQuery(nextSelections),
-  });
-}
-
-async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
-  const queryPatch = {
-    ...buildFixedFilterSnapshotQuery(payload.fixedFilters),
-    page: 1,
-    tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
-  };
-  if (payload.source === 'auto') {
-    await patchQuery(queryPatch, 'replace');
-    return;
-  }
-  await patchQuery(queryPatch);
-  if (payload.ignoredCount > 0 || payload.schemaMismatch) {
-    ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
-    return;
-  }
-  ElMessage.success('已恢复快捷快照');
-}
-
-function buildFixedFilterSnapshotQuery(filters: Record<string, unknown>) {
-  return {
-    keyword: stringFilterValue(filters.keyword),
-    sourceInstance: stringFilterValue(filters.sourceInstance),
-    title: stringFilterValue(filters.title),
-    projectName: stringFilterValue(filters.projectName),
-    moduleName: stringFilterValue(filters.moduleName),
-    reviewOwner: stringFilterValue(filters.reviewOwner),
-    reviewType: stringFilterValue(filters.reviewType),
-    problemStatus: stringFilterValue(filters.problemStatus),
-    reviewExpert: stringFilterValue(filters.reviewExpert),
-    filterGroup: stringFilterValue(filters.filterGroup),
-  };
-}
-
-function stringFilterValue(value: unknown) {
-  const text = String(value ?? '');
-  return text || null;
-}
-
-function handleTagSnapshotSaved(payload: { name: string }) {
-  ElMessage.success(`已保存快照：${payload.name}`);
+  void key;
 }
 
 async function refreshReviewRecords() {
@@ -389,7 +286,6 @@ const {
       :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
-      :active-filter-tags="tagGroupActiveFilterTags"
       query-button-text="查询"
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
@@ -403,18 +299,6 @@ const {
     >
       <template #filter-builder>
         <div class="review-data-filter-stack">
-          <TagGroupFilterBar
-            :model-value="tagSelections"
-            :tag-groups="tagGroups"
-            :loading="isTableLoading"
-            :storage-key="tagGroupStorageKey"
-            :fixed-filters="reviewDataFixedFilters"
-            :auto-restore="shouldAutoRestoreTagSnapshot"
-            :current-total="total"
-            @change="handleTagSelectionsChange"
-            @snapshot-restored="handleTagSnapshotRestored"
-            @snapshot-saved="handleTagSnapshotSaved"
-          />
           <section class="review-data-advanced-filter">
             <el-button
               plain

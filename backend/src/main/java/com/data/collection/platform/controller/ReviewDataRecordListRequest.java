@@ -10,7 +10,6 @@ public class ReviewDataRecordListRequest {
   private String problemStatus;
   private String reviewExpert;
   private String filterGroup;
-  private String tagSelections;
   private String sourceInstance;
   private int page = 1;
   private int size = 20;
@@ -87,14 +86,6 @@ public class ReviewDataRecordListRequest {
 
   public void setFilterGroup(String filterGroup) {
     this.filterGroup = filterGroup;
-  }
-
-  public String getTagSelections() {
-    return tagSelections;
-  }
-
-  public void setTagSelections(String tagSelections) {
-    this.tagSelections = tagSelections;
   }
 
   public String getSourceInstance() {

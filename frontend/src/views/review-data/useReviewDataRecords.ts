@@ -4,7 +4,6 @@ import type {
   ReviewDataRecordListResponse,
   ReviewDataRecordRowResponse,
   StatisticFilterGroup,
-  TagSelectionRequest,
 } from '../../types/api';
 import {
   buildReviewDataSummaryCards,
@@ -21,7 +20,6 @@ export interface ReviewDataRecordQueryParams {
   problemStatus?: string;
   reviewExpert?: string;
   filterGroup?: StatisticFilterGroup | null;
-  tagSelections?: TagSelectionRequest[];
   sourceInstance?: string | null;
   page?: number;
   size?: number;

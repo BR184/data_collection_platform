@@ -2,7 +2,6 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
-import com.data.collection.platform.entity.TagSelectionRequest;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.util.List;
 import java.util.Map;
@@ -44,9 +43,8 @@ public class ReviewDataRecordPersistenceSupport {
     return recordReadRepository.loadProblemStatusesByRecordIds(records);
   }
 
-  public List<ReviewDataRecordRowResponse> loadRecordsForFilterOptions(
-      List<TagSelectionRequest> tagSelections, String sourceInstance) {
-    return recordReadRepository.loadRecordsForFilterOptions(tagSelections, sourceInstance);
+  public List<ReviewDataRecordRowResponse> loadRecordsForFilterOptions() {
+    return recordReadRepository.loadRecordsForFilterOptions();
   }
 
   public ReviewDataRecordReadRepository.RecordPageResult loadRecordPage(
@@ -59,8 +57,6 @@ public class ReviewDataRecordPersistenceSupport {
       String reviewExpert,
       String keyword,
       StatisticFilterGroup filterGroup,
-      List<TagSelectionRequest> tagSelections,
-      String sourceInstance,
       int page,
       int size,
       String sortField,
@@ -75,8 +71,6 @@ public class ReviewDataRecordPersistenceSupport {
         reviewExpert,
         keyword,
         filterGroup,
-        tagSelections,
-        sourceInstance,
         page,
         size,
         sortField,

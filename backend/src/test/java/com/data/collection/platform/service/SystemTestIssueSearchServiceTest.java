@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.TagSelectionRequest;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -205,40 +204,6 @@ class SystemTestIssueSearchServiceTest {
     verify(issueFactRecordRepository)
         .findForFilterOptions(argThat(request -> "cc".equals(request.sourceInstance())));
     verify(issueFactRecordRepository, never()).findByProjectId(null);
-  }
-
-  @Test
-  void shouldNarrowIssueSearchFilterOptionsBySelectedTags() {
-    SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
-    when(issueFactRecordRepository.findForFilterOptions(any()))
-        .thenReturn(
-            List.of(
-                recordWithModules(
-                    306,
-                    "selected issue",
-                    List.of("Sketch"),
-                    "A phase",
-                    "alice",
-                    "bob")));
-
-    List<String> assigneeOptions =
-        service
-            .getFilterOptions(
-                null, List.of(new TagSelectionRequest("module", List.of("sketch"))), "cc")
-            .assigneeNames()
-            .stream()
-            .map(option -> option.value())
-            .toList();
-
-    assertThat(assigneeOptions).containsExactly("bob");
-    verify(issueFactRecordRepository)
-        .findForFilterOptions(
-            argThat(
-                request ->
-                    "cc".equals(request.sourceInstance())
-                        && request.tagSelections().size() == 1));
   }
 
   private IssueFactRecord record(

@@ -81,8 +81,6 @@ declare module 'vue' {
     StatisticFilterBuilder: typeof import('./components/StatisticFilterBuilder.vue')['default']
     StatisticTableColumnGroup: typeof import('./components/base/StatisticTableColumnGroup.vue')['default']
     SyncMetaBadge: typeof import('./components/realtime/SyncMetaBadge.vue')['default']
-    TagGroupFilter: typeof import('./components/TagGroupFilter.vue')['default']
-    TagGroupFilterBar: typeof import('./components/TagGroupFilterBar.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

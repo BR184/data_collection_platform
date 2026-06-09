@@ -150,7 +150,7 @@ class QuestionMetricsControllerTest {
 
   @Test
   void shouldReturnIssueSearchFilterOptions() throws Exception {
-    when(systemTestIssueSearchService.getFilterOptions(eq(1001L), argThat(List::isEmpty), eq("cc")))
+    when(systemTestIssueSearchService.getFilterOptions(eq(1001L), eq("cc")))
         .thenReturn(
             new SystemTestIssueSearchFilterOptionsResponse(
                 List.of(new OptionItemResponse("Rocksdb", "Rocksdb")),

@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
-import com.data.collection.platform.entity.TagSelectionRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -119,7 +118,6 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   listRequest.updatedAtStart(),
                   listRequest.updatedAtEnd(),
                   listRequest.sourceInstance(),
-                  listRequest.tagSelections(),
                   page,
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),
@@ -187,16 +185,11 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId) {
-    return getFilterOptions(projectId, List.of(), null);
+    return getFilterOptions(projectId, null);
   }
 
   public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId, String sourceInstance) {
-    return getFilterOptions(projectId, List.of(), sourceInstance);
-  }
-
-  public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(
-      Long projectId, List<TagSelectionRequest> tagSelections, String sourceInstance) {
-    List<IssueFactRecord> scopedViews = loadIssueSearchOptionFacts(projectId, tagSelections, sourceInstance);
+    List<IssueFactRecord> scopedViews = loadIssueSearchOptionFacts(projectId, sourceInstance);
     return new SystemTestIssueSearchFilterOptionsResponse(
         toOptions(scopedViews, IssueFactRecord::projectName),
         toOptions(scopedViews.stream()
@@ -217,10 +210,9 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         toOptions(scopedViews, IssueFactRecord::milestoneTitle));
   }
 
-  private List<IssueFactRecord> loadIssueSearchOptionFacts(
-      Long projectId, List<TagSelectionRequest> tagSelections, String sourceInstance) {
+  private List<IssueFactRecord> loadIssueSearchOptionFacts(Long projectId, String sourceInstance) {
     return issueFactRecordRepository.findForFilterOptions(
-        IssueFactRecordListRequest.withTagSelections(
+        new IssueFactRecordListRequest(
             projectId,
             null,
             null,
@@ -239,7 +231,6 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             null,
             null,
             sourceInstance,
-            tagSelections == null ? List.of() : tagSelections,
             1,
             20,
             "updatedAt",

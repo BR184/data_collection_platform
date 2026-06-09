@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class IssueFactRecordListRequestAssembler {
   public IssueFactRecordListRequest toServiceRequest(IssueFactRecordListWebRequest request) {
-    return IssueFactRecordListRequest.withTagSelections(
+    return new IssueFactRecordListRequest(
         request.getProjectId(),
         request.getKeyword(),
         request.getSearchType(),
@@ -25,7 +25,6 @@ public class IssueFactRecordListRequestAssembler {
         request.getUpdatedAtStart(),
         request.getUpdatedAtEnd(),
         request.getSourceInstance(),
-        TagSelectionRequestParser.parse(request.getTagSelections()),
         request.getPage(),
         request.getSize(),
         request.getSortBy(),

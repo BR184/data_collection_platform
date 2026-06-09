@@ -110,7 +110,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       CustomerIssueRecordQueryRequest pageRequest =
           new CustomerIssueRecordQueryRequest(
               request.topic(),
-              IssueFactRecordListRequest.withTagSelections(
+              new IssueFactRecordListRequest(
                   listRequest.projectId(),
                   listRequest.keyword(),
                   listRequest.searchType(),
@@ -129,7 +129,6 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   listRequest.updatedAtStart(),
                   listRequest.updatedAtEnd(),
                   listRequest.sourceInstance(),
-                  listRequest.tagSelections(),
                   page,
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),

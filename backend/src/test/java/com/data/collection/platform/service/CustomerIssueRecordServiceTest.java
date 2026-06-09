@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
-import com.data.collection.platform.entity.TagSelectionRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -148,7 +147,7 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
-  void shouldKeepTagSelectionsWhenExportingPagedRecords() {
+  void shouldKeepRequestFiltersWhenExportingPagedRecords() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
@@ -166,7 +165,7 @@ class CustomerIssueRecordServiceTest {
     service.exportRecordsCsv(
         new CustomerIssueRecordQueryRequest(
             "cc-product",
-            IssueFactRecordListRequest.withTagSelections(
+            new IssueFactRecordListRequest(
                 325L,
                 "",
                 null,
@@ -185,7 +184,6 @@ class CustomerIssueRecordServiceTest {
                 "",
                 "",
                 "",
-                List.of(new TagSelectionRequest("module", List.of("sketch"))),
                 1,
                 20,
                 "updatedAt",
@@ -197,9 +195,9 @@ class CustomerIssueRecordServiceTest {
         .findPage(
             argThat(
                 query ->
-                    query.listRequest().tagSelections().size() == 1
-                        && "module".equals(query.listRequest().tagSelections().getFirst().groupKey())
-                        && query.listRequest().tagSelections().getFirst().valueKeys().contains("sketch")));
+                    query.listRequest().projectId().equals(325L)
+                        && query.listRequest().page() == 1
+                        && query.listRequest().size() == 100));
   }
 
   private IssueFactRecord record(

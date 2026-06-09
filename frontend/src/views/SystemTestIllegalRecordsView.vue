@@ -116,7 +116,6 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
     updatedAtStart: params.updatedAtStart,
     updatedAtEnd: params.updatedAtEnd,
     filterGroup: params.filterGroup,
-    tagSelections: params.tagSelections,
     page: params.page,
     size: params.size,
     sortBy: params.sortBy,
@@ -141,9 +140,6 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :load-records="loadRecords"
     :export-records="api.exportSystemTestIllegalRecords"
     export-filename-prefix="系统测试非法数据"
-    tag-group-domain="issue"
-    tag-group-storage-key="tag-groups:system-test-illegal-records:default"
-    :load-tag-groups="api.getTagGroups"
     :load-filter-options="api.getSystemTestIllegalRecordFilterOptions"
     :load-rule-explanation="api.getSystemTestIllegalRecordRuleExplanation"
     :load-realtime-status="api.getSystemTestIllegalRecordRealtimeStatus"

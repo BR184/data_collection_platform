@@ -28,7 +28,6 @@ class IssueFactRecordListRequestAssemblerTest {
     request.setCreatedAtEnd("2026-04-21");
     request.setUpdatedAtStart("2026-04-10");
     request.setUpdatedAtEnd("2026-04-22");
-    request.setTagSelections("[{\"groupKey\":\"module\",\"valueKeys\":[\"sketch\",\"curve\"]}]");
     request.setPage(2);
     request.setSize(10);
     request.setSortBy("updatedAt");
@@ -52,9 +51,6 @@ class IssueFactRecordListRequestAssemblerTest {
     assertThat(serviceRequest.createdAtEnd()).isEqualTo("2026-04-21");
     assertThat(serviceRequest.updatedAtStart()).isEqualTo("2026-04-10");
     assertThat(serviceRequest.updatedAtEnd()).isEqualTo("2026-04-22");
-    assertThat(serviceRequest.tagSelections()).hasSize(1);
-    assertThat(serviceRequest.tagSelections().getFirst().groupKey()).isEqualTo("module");
-    assertThat(serviceRequest.tagSelections().getFirst().valueKeys()).containsExactly("sketch", "curve");
     assertThat(serviceRequest.page()).isEqualTo(2);
     assertThat(serviceRequest.size()).isEqualTo(10);
     assertThat(serviceRequest.sortField()).isEqualTo("updatedAt");

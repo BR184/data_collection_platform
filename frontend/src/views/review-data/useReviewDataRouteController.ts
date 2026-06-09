@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import type { LocationQuery } from 'vue-router';
-import type { StatisticFilterGroup, TagSelectionRequest } from '../../types/api';
+import type { StatisticFilterGroup } from '../../types/api';
 import { mergeRouteQuery } from '../../components/statistic-board-route-query';
 import type { ReviewDataRecordQueryParams } from './useReviewDataRecords';
 
@@ -15,7 +15,6 @@ export interface ReviewDataRouteControllerDependencies {
   getPageSize: () => number;
   getSortBy: () => string;
   getSortOrder: () => 'asc' | 'desc' | '';
-  getTagSelections?: () => TagSelectionRequest[];
   getSourceInstance?: () => string;
   patchQuery: (patch: QueryPatch, mode?: QueryMode) => Promise<void>;
   initializeFromQuery: (query: LocationQuery) => void;
@@ -40,7 +39,6 @@ export function useReviewDataRouteController(deps: ReviewDataRouteControllerDepe
       problemStatus: routeString(deps.getRouteQuery().problemStatus),
       reviewExpert: routeString(deps.getRouteQuery().reviewExpert),
       filterGroup: appliedFilterGroup.value,
-      tagSelections: deps.getTagSelections?.() ?? [],
       sourceInstance: deps.getSourceInstance?.() || undefined,
       page: overrides.page ?? deps.getPage(),
       size: overrides.size ?? deps.getPageSize(),
@@ -67,7 +65,6 @@ export function useReviewDataRouteController(deps: ReviewDataRouteControllerDepe
       reviewType: '',
       problemStatus: '',
       reviewExpert: '',
-      tagSelections: null,
       sortBy: 'updatedAt',
       sortOrder: 'desc',
       page: 1,

@@ -37,12 +37,11 @@ public class ReviewDataRecordQueryService {
         ReviewDataRecordFilterGroupSupport.parse(jsonUtils, request.filterGroupJson());
     boolean hasFilterGroup =
         filterGroup != null && filterGroup.conditions() != null && !filterGroup.conditions().isEmpty();
-    boolean hasTagSelections = request.tagSelections() != null && !request.tagSelections().isEmpty();
     boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
     boolean titleSearchFilter =
         hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(filterGroup);
     boolean canUseSqlPath =
-        (hasTagSelections || !keywordSearch || !persistenceSupport.hasMissingSearchIndexes())
+        (!keywordSearch || !persistenceSupport.hasMissingSearchIndexes())
             && (!titleSearchFilter || !persistenceSupport.hasMissingTitleSearchIndexes())
             && (!hasFilterGroup || ReviewDataFilterGroupSqlSupport.canPushDown(filterGroup));
     // SQL 路径是目标形态：分页、排序、关键词和高级筛选都尽量交给数据库完成。
@@ -58,8 +57,6 @@ public class ReviewDataRecordQueryService {
               request.reviewExpert(),
               request.keyword(),
               hasFilterGroup ? filterGroup : null,
-              request.tagSelections(),
-              request.sourceInstance(),
               safePage,
               safeSize,
               safeSortField,

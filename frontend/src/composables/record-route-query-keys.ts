@@ -23,7 +23,6 @@ export const ISSUE_RECORD_QUERY_KEYS = [
   'updatedAtEnd',
   'filterGroup',
   'filterLogic',
-  'tagSelections',
 ];
 
 export const CODE_REVIEW_RECORD_QUERY_KEYS = [
@@ -61,5 +60,4 @@ export const REVIEW_DATA_RECORD_QUERY_KEYS = [
   'updatedAtEnd',
   'filterGroup',
   'filterLogic',
-  'tagSelections',
 ];

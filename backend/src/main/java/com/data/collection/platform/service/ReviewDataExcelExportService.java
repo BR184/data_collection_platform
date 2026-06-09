@@ -157,7 +157,6 @@ public class ReviewDataExcelExportService {
                   request.problemStatus(),
                   request.reviewExpert(),
                   request.filterGroupJson(),
-                  request.tagSelections(),
                   request.sourceInstance(),
                   page,
                   EXPORT_PAGE_SIZE,

@@ -84,50 +84,14 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
-  void shouldDefineTagGroupSchemaMigration() throws IOException {
-    String migration = readMigration("V20260605_01__tag_groups.sql");
-    String tagValueTable = migration.substring(
-        migration.indexOf("create table if not exists tag_value ("),
-        migration.indexOf("create table if not exists tag_value_mapping"));
-    String tagValueMappingTable = migration.substring(
-        migration.indexOf("create table if not exists tag_value_mapping"));
+  void shouldRemoveAbandonedLabelGroupingTables() throws IOException {
+    String migration = readMigration("V20260609_02__remove_abandoned_label_grouping.sql");
 
-    assertThat(migration).contains("create table if not exists tag_group");
-    assertThat(migration).contains("match_strategy_name varchar(64) not null default 'eq'");
-    assertThat(migration).contains("create table if not exists tag_value");
-    assertThat(migration).contains("value_type varchar(32) not null default 'standard'");
-    assertThat(migration).contains("create table if not exists tag_value_mapping");
-    assertThat(tagValueTable).doesNotContain("unmapped_reason");
-    assertThat(tagValueMappingTable).contains("source_type varchar(64) not null default 'normalized_field'");
-    assertThat(tagValueMappingTable).contains("source_instance varchar(128)");
-    assertThat(tagValueMappingTable).contains("match_type varchar(32) not null default 'exact'");
-    assertThat(tagValueMappingTable).contains("unmapped_reason varchar(255)");
-    assertThat(migration).contains("idx_tag_value_mapping_value");
-    assertThat(migration).doesNotContain("default 'business_field'");
-  }
-
-  @Test
-  void shouldSeedLegacyIssueTagGroupsWithoutCollapsingSourceMappings() throws IOException {
-    String migration = readMigration("V20260609_01__tag_groups_issue_legacy_seed.sql");
-
-    assertThat(migration).contains("('issue', 'module', '模块'");
-    assertThat(migration).contains("('issue', 'software', '软件'");
-    assertThat(migration).contains("('issue', 'project_label', '项目'");
-    assertThat(migration).contains("('issue', 'status', '状态'");
-    assertThat(migration).contains("('issue', 'phase', '测试阶段'");
-    assertThat(migration).contains("('issue', 'severity', '严重程度'");
-    assertThat(migration).contains("('issue', 'category', '类别'");
-    assertThat(migration).contains("('issue', 'urgency', '紧急程度'");
-    assertThat(migration).contains("('issue', 'delay_cause', '延期原因'");
-
-    assertThat(migration).contains("when '模块' then 'module'");
-    assertThat(migration).contains("when '工具箱' then 'module'");
-    assertThat(migration).contains("'legacy_label_prefix' as source_type");
-    assertThat(migration).contains("'legacy_label_keyword' as source_type");
-    assertThat(migration).contains("'legacy_label_full' as source_type");
-    assertThat(migration).contains("mapping_values as");
-    assertThat(migration).contains("from legacy_values");
-    assertThat(migration).doesNotContain("row_number() over (partition by group_key, lower(label)");
+    assertThat(migration).contains("drop table if exists tag_value_mapping cascade");
+    assertThat(migration).contains("drop table if exists tag_value cascade");
+    assertThat(migration).contains("drop table if exists tag_group cascade");
+    assertThat(migration).contains("destructive-migration-reviewed:");
+    assertThat(migration).contains("destructive-migration-recovery:");
   }
 
   private String readMigration(String fileName) throws IOException {

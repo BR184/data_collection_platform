@@ -72,9 +72,7 @@ public class ReviewDataController {
   @GetMapping("/records/filter-options")
   public ApiResponse<ReviewDataFilterOptionsResponse> getFilterOptions(
       @ModelAttribute ReviewDataRecordListRequest request) {
-    ReviewDataRecordQueryRequest queryRequest = reviewDataRequestAssembler.toQueryRequest(request);
-    return ApiResponse.success(
-        reviewDataRecordService.getFilterOptions(queryRequest.tagSelections(), request.getSourceInstance()));
+    return ApiResponse.success(reviewDataRecordService.getFilterOptions());
   }
 
   @GetMapping("/records/{recordId}")

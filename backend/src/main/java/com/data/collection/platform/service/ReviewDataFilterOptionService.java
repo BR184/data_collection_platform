@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.ReviewDataFilterOptionsResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
-import com.data.collection.platform.entity.TagSelectionRequest;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -49,10 +48,8 @@ public class ReviewDataFilterOptionService {
     this.persistenceSupport = persistenceSupport;
   }
 
-  public ReviewDataFilterOptionsResponse getFilterOptions(
-      List<TagSelectionRequest> tagSelections, String sourceInstance) {
-    List<ReviewDataRecordRowResponse> records =
-        persistenceSupport.loadRecordsForFilterOptions(tagSelections, sourceInstance);
+  public ReviewDataFilterOptionsResponse getFilterOptions() {
+    List<ReviewDataRecordRowResponse> records = persistenceSupport.loadRecordsForFilterOptions();
 
     return new ReviewDataFilterOptionsResponse(
         toOptions(records.stream().map(ReviewDataRecordRowResponse::projectName).toList()),

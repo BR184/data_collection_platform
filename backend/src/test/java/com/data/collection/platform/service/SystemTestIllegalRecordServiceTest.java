@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
-import com.data.collection.platform.entity.TagSelectionRequest;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -219,7 +218,7 @@ class SystemTestIllegalRecordServiceTest {
   }
 
   @Test
-  void shouldKeepTagSelectionsWhenExportingPagedRecords() {
+  void shouldKeepRequestFiltersWhenExportingPagedRecords() {
     SystemTestIllegalRecordService service = service();
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
@@ -239,7 +238,7 @@ class SystemTestIllegalRecordServiceTest {
 
     service.exportRecordsCsv(
         new SystemTestIllegalRecordQueryRequest(
-            IssueFactRecordListRequest.withTagSelections(
+            new IssueFactRecordListRequest(
                 1001L,
                 "",
                 null,
@@ -258,7 +257,6 @@ class SystemTestIllegalRecordServiceTest {
                 "",
                 "",
                 "",
-                List.of(new TagSelectionRequest("module", List.of("sketch"))),
                 1,
                 20,
                 "updatedAt",
@@ -273,9 +271,9 @@ class SystemTestIllegalRecordServiceTest {
         .findPage(
             argThat(
                 query ->
-                    query.listRequest().tagSelections().size() == 1
-                        && "module".equals(query.listRequest().tagSelections().getFirst().groupKey())
-                        && query.listRequest().tagSelections().getFirst().valueKeys().contains("sketch")));
+                    query.listRequest().projectId().equals(1001L)
+                        && query.listRequest().page() == 1
+                        && query.listRequest().size() == 100));
   }
 
   private SystemTestIllegalRecordService service() {

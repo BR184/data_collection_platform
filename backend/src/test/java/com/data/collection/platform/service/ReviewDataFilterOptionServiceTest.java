@@ -5,7 +5,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
-import com.data.collection.platform.entity.TagSelectionRequest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,11 +19,9 @@ class ReviewDataFilterOptionServiceTest {
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
 
   @Test
-  void shouldNarrowReviewDataFilterOptionsBySelectedTags() {
+  void shouldBuildReviewDataFilterOptionsFromCurrentRecords() {
     ReviewDataFilterOptionService service = new ReviewDataFilterOptionService(persistenceSupport);
-    List<TagSelectionRequest> tagSelections =
-        List.of(new TagSelectionRequest("module", List.of("sketch")));
-    when(persistenceSupport.loadRecordsForFilterOptions(tagSelections, "cc"))
+    when(persistenceSupport.loadRecordsForFilterOptions())
         .thenReturn(
             List.of(
                 record("CrownCAD", "Sketch", "Alice", "V1.0"),
@@ -32,12 +29,12 @@ class ReviewDataFilterOptionServiceTest {
     when(persistenceSupport.loadExpertOptions()).thenReturn(List.of());
 
     List<String> ownerOptions =
-        service.getFilterOptions(tagSelections, "cc").reviewOwners().stream()
+        service.getFilterOptions().reviewOwners().stream()
             .map(option -> option.value())
             .toList();
 
     assertThat(ownerOptions).containsExactly("Alice", "Bob");
-    verify(persistenceSupport).loadRecordsForFilterOptions(tagSelections, "cc");
+    verify(persistenceSupport).loadRecordsForFilterOptions();
   }
 
   private ReviewDataRecordRowResponse record(

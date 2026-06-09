@@ -4,8 +4,6 @@ import type {
   StatisticBoardRuleExplanationResponse,
   StatisticFilterField,
   StatisticFilterGroup,
-  TagGroupsResponse,
-  TagSelectionRequest,
 } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
 import type { DataScopeOption, DataScopeProvider } from '../../types/data-scope';
@@ -80,7 +78,6 @@ export interface IssueIllegalRecordQueryParams {
   updatedAtStart?: string;
   updatedAtEnd?: string;
   filterGroup?: StatisticFilterGroup | null;
-  tagSelections?: TagSelectionRequest[];
   page?: number;
   size?: number;
   sortBy?: string;
@@ -98,9 +95,6 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   loadRecords: (params: IssueIllegalRecordQueryParams) => Promise<IssueIllegalRecordListResponse<Row>>;
   exportRecords?: (params: IssueIllegalRecordQueryParams) => Promise<string>;
   exportFilenamePrefix?: string;
-  tagGroupDomain?: string;
-  tagGroupStorageKey?: string;
-  loadTagGroups?: (domain: string) => Promise<TagGroupsResponse>;
   loadFilterOptions: (projectId?: string | number | null) => Promise<IssueIllegalRecordFilterOptions>;
   loadRuleExplanation: (projectId?: string | number | null) => Promise<StatisticBoardRuleExplanationResponse>;
   loadRealtimeStatus?: () => Promise<RealtimeWorkspaceStatusResponse>;

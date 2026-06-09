@@ -8,7 +8,6 @@ import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordListResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.ReviewDataSummaryResponse;
-import com.data.collection.platform.entity.TagSelectionRequest;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -103,7 +102,7 @@ class ReviewDataExcelExportServiceTest {
   }
 
   @Test
-  void shouldKeepTagSelectionsWhenPagingExportRecords() {
+  void shouldKeepSourceInstanceWhenPagingExportRecords() {
     ReviewDataRecordQueryRequest request =
         new ReviewDataRecordQueryRequest(
             null,
@@ -115,7 +114,6 @@ class ReviewDataExcelExportServiceTest {
             null,
             null,
             null,
-            List.of(new TagSelectionRequest("module", List.of("sketch"))),
             "cc",
             1,
             20,
@@ -132,7 +130,6 @@ class ReviewDataExcelExportServiceTest {
             null,
             null,
             null,
-            List.of(new TagSelectionRequest("module", List.of("sketch"))),
             "cc",
             1,
             100,

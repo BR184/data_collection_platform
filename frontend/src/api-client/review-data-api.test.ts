@@ -9,44 +9,33 @@ vi.mock('./request', () => ({
 
 import { request, requestBlob } from './request';
 
-describe('reviewDataApi tag selection query contract', () => {
+describe('reviewDataApi source instance query contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('serializes tagSelections and sourceInstance for review record list, export, and option endpoints', () => {
+  it('serializes sourceInstance for review record list and export endpoints', () => {
     reviewDataApi.getReviewDataRecords({
-      tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
       sourceInstance: 'cc',
       page: 2,
       size: 50,
     });
 
     expect(request).toHaveBeenCalledWith(
-      expect.stringContaining(
-        `/api/review-data/records?page=2&size=50&tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'module', valueKeys: ['sketch'] }]))}&sourceInstance=cc`,
-      ),
+      expect.stringContaining('/api/review-data/records?page=2&size=50&sourceInstance=cc'),
     );
 
     reviewDataApi.exportReviewDataRecordsWorkbook({
-      tagSelections: [{ groupKey: 'problem_status', valueKeys: ['open', 'fixed'] }],
       sourceInstance: 'dgm',
     });
 
     expect(requestBlob).toHaveBeenCalledWith(
-      expect.stringContaining(
-        `/api/review-data/records/export?tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'problem_status', valueKeys: ['open', 'fixed'] }]))}&sourceInstance=dgm`,
-      ),
+      expect.stringContaining('/api/review-data/records/export?sourceInstance=dgm'),
       expect.any(Object),
     );
 
-    reviewDataApi.getReviewDataFilterOptions({
-      tagSelections: [{ groupKey: 'module', valueKeys: ['sketch'] }],
-      sourceInstance: 'cc',
-    });
+    reviewDataApi.getReviewDataFilterOptions();
 
-    expect(request).toHaveBeenLastCalledWith(
-      `/api/review-data/records/filter-options?tagSelections=${encodeURIComponent(JSON.stringify([{ groupKey: 'module', valueKeys: ['sketch'] }]))}&sourceInstance=cc`,
-    );
+    expect(request).toHaveBeenLastCalledWith('/api/review-data/records/filter-options');
   });
 });

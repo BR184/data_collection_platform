@@ -73,8 +73,7 @@ public class QuestionMetricsController {
     IssueFactRecordListRequest listRequest =
         questionMetricsRequestAssembler.toIssueSearchQueryRequest(request).listRequest();
     return ApiResponse.success(
-        systemTestIssueSearchService.getFilterOptions(
-            listRequest.projectId(), listRequest.tagSelections(), listRequest.sourceInstance()));
+        systemTestIssueSearchService.getFilterOptions(listRequest.projectId(), listRequest.sourceInstance()));
   }
 
   @GetMapping("/issues/status")

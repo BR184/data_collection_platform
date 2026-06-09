@@ -1,7 +1,6 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -165,7 +164,7 @@ class ReviewDataControllerTest {
 
   @Test
   void shouldReturnFilterOptions() throws Exception {
-    when(reviewDataRecordService.getFilterOptions(any(), eq(null)))
+    when(reviewDataRecordService.getFilterOptions())
         .thenReturn(
             new ReviewDataFilterOptionsResponse(
                 List.of(new OptionItemResponse("CrownCAD", "CrownCAD")),
@@ -178,23 +177,14 @@ class ReviewDataControllerTest {
                 List.of(new OptionItemResponse("Meeting Review", "Meeting Review")),
                 List.of(new OptionItemResponse("Formatting", "Formatting"))));
 
-    mockMvc.perform(
-            get("/api/review-data/records/filter-options")
-                .param("tagSelections", "[{\"groupKey\":\"module\",\"valueKeys\":[\"sketch\"]}]"))
+    mockMvc.perform(get("/api/review-data/records/filter-options"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.projectNames[0].value").value("CrownCAD"))
         .andExpect(jsonPath("$.data.reviewExperts[0].value").value("Bob"))
         .andExpect(jsonPath("$.data.reviewVersions[0].value").value("V1.0"));
 
-    verify(reviewDataRecordService)
-        .getFilterOptions(
-            argThat(
-                selections ->
-                    selections.size() == 1
-                        && "module".equals(selections.getFirst().groupKey())
-                        && selections.getFirst().valueKeys().contains("sketch")),
-            eq(null));
+    verify(reviewDataRecordService).getFilterOptions();
   }
 
   @Test

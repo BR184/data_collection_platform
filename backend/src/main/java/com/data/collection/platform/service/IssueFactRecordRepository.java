@@ -8,7 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.dao.DataAccessException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -63,18 +62,9 @@ public class IssueFactRecordRepository {
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
   private final IssueFactQueryService issueFactQueryService;
-  private final TagSelectionSqlPredicateService tagSelectionSqlPredicateService;
-
-  @Autowired
-  public IssueFactRecordRepository(
-      IssueFactQueryService issueFactQueryService,
-      TagSelectionSqlPredicateService tagSelectionSqlPredicateService) {
-    this.issueFactQueryService = issueFactQueryService;
-    this.tagSelectionSqlPredicateService = tagSelectionSqlPredicateService;
-  }
 
   public IssueFactRecordRepository(IssueFactQueryService issueFactQueryService) {
-    this(issueFactQueryService, null);
+    this.issueFactQueryService = issueFactQueryService;
   }
 
   public List<IssueFactRecord> findByProjectId(Long projectId) {
@@ -97,7 +87,7 @@ public class IssueFactRecordRepository {
   public List<IssueFactRecord> findForFilterOptions(IssueFactRecordListRequest request) {
     IssueFactRecordListRequest safeRequest =
         request == null
-            ? IssueFactRecordListRequest.withTagSelections(
+            ? new IssueFactRecordListRequest(
                 null,
                 null,
                 null,
@@ -116,7 +106,6 @@ public class IssueFactRecordRepository {
                 null,
                 null,
                 null,
-                List.of(),
                 1,
                 20,
                 "updatedAt",
@@ -190,7 +179,6 @@ public class IssueFactRecordRepository {
     appendAuthorAssigneeFilters(where, args, query.authorName(), query.assigneeName());
     appendIllegalFilters(where, args, query);
     appendFilterGroup(where, args, query.filterGroup());
-    appendTagSelections(where, args, query.listRequest());
     if (query.delayOnly()) {
       where.append(" and (delay_issue = true or is_response_delayed = true or is_resolve_delayed = true)");
     }
@@ -366,21 +354,6 @@ public class IssueFactRecordRepository {
       List<Object> args,
       com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
     IssueFactFilterGroupSqlSupport.toSql(filterGroup)
-        .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
-        .ifPresent(
-            filter -> {
-              where.append(" and (").append(filter.predicate()).append(")");
-              args.addAll(filter.args());
-            });
-  }
-
-  private void appendTagSelections(
-      StringBuilder where, List<Object> args, IssueFactRecordListRequest request) {
-    if (tagSelectionSqlPredicateService == null || request == null) {
-      return;
-    }
-    tagSelectionSqlPredicateService
-        .toSql("issue", request.sourceInstance(), request.tagSelections())
         .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
         .ifPresent(
             filter -> {

@@ -19,7 +19,6 @@ public class IssueFactRecordListWebRequest {
   private String updatedAtStart;
   private String updatedAtEnd;
   private String sourceInstance;
-  private String tagSelections;
   private int page = 1;
   private int size = 20;
   private String sortBy;
@@ -167,14 +166,6 @@ public class IssueFactRecordListWebRequest {
 
   public void setSourceInstance(String sourceInstance) {
     this.sourceInstance = sourceInstance;
-  }
-
-  public String getTagSelections() {
-    return tagSelections;
-  }
-
-  public void setTagSelections(String tagSelections) {
-    this.tagSelections = tagSelections;
   }
 
   public int getPage() {

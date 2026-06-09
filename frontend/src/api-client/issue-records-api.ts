@@ -11,7 +11,6 @@ import type {
   SystemTestIllegalRecordListResponse,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
-  TagSelectionRequest,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
 
@@ -37,7 +36,6 @@ type SystemTestIssueSearchQueryParams = {
   updatedAtStart?: string;
   updatedAtEnd?: string;
   filterGroup?: StatisticFilterGroup | null;
-  tagSelections?: TagSelectionRequest[];
   page?: number;
   size?: number;
   sortBy?: string;
@@ -73,7 +71,6 @@ function buildSystemTestIssueSearchQuery(params: SystemTestIssueSearchQueryParam
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
-    ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -103,7 +100,6 @@ function buildSystemTestIllegalRecordQuery(params: SystemTestIllegalRecordQueryP
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
-    ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -178,7 +174,6 @@ function buildCustomerIssueRecordQuery(params: {
   updatedAtStart?: string;
   updatedAtEnd?: string;
   filterGroup?: StatisticFilterGroup | null;
-  tagSelections?: TagSelectionRequest[];
   page?: number;
   size?: number;
   sortBy?: string;
@@ -205,7 +200,6 @@ function buildCustomerIssueRecordQuery(params: {
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
     ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
-    ...(params.tagSelections?.length ? { tagSelections: JSON.stringify(params.tagSelections) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });

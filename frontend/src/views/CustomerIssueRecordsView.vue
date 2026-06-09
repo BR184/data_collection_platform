@@ -9,7 +9,6 @@ import PageStateShell from '../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
-import TagGroupFilterBar from '../components/TagGroupFilterBar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
@@ -27,12 +26,10 @@ import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
-import { useTagGroupFilterAdapter } from '../composables/useTagGroupFilterAdapter';
 import type { RecordTableActiveFilterTag, RecordTableColumn } from '../types/record-table';
 import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
-import { stringifyTagSelectionsQuery } from '../components/tag-group-filter';
 
 const {
   route,
@@ -155,7 +152,6 @@ const {
     'createdAtEnd',
     'updatedAtStart',
     'updatedAtEnd',
-    'tagSelections',
   ],
   queryClearKeys: [
     'issueIid',
@@ -194,51 +190,9 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
 ]);
 
-const {
-  tagGroups,
-  tagSelections,
-  tagGroupStorageKey,
-  shouldAutoRestoreTagSnapshot,
-  tagGroupActiveFilterTags,
-  loadTagGroups,
-  shouldDeferRowsUntilTagSnapshotRestore,
-} = useTagGroupFilterAdapter({
-  domain: 'issue',
-  storageKey: () => `tag-groups:customer-issue:${topic.value}:default`,
-  tagSelectionsQuery: () => route.query.tagSelections,
-  loadTagGroups: (domain) => api.getTagGroups(domain),
-});
-
-const customerIssueFixedFilters = computed<Record<string, unknown>>(() => ({
-  keyword: String(route.query.keyword ?? ''),
-  issueIid: String(route.query.issueIid ?? ''),
-  title: String(route.query.title ?? ''),
-  projectName: String(route.query.projectName ?? ''),
-  moduleName: String(route.query.moduleName ?? ''),
-  reasonCategory: String(route.query.reasonCategory ?? ''),
-  severityLevel: String(route.query.severityLevel ?? ''),
-  priorityLevel: String(route.query.priorityLevel ?? ''),
-  issueState: String(route.query.issueState ?? ''),
-  bugStatus: String(route.query.bugStatus ?? ''),
-  category: String(route.query.category ?? ''),
-  milestoneTitle: String(route.query.milestoneTitle ?? ''),
-  createdAtRange: buildRangeValue(route.query.createdAtStart, route.query.createdAtEnd),
-  updatedAtRange: buildRangeValue(route.query.updatedAtStart, route.query.updatedAtEnd),
-  filterGroup: String(route.query.filterGroup ?? ''),
-}));
-
 const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
   ...conditionActiveFilterTags.value,
-  ...tagGroupActiveFilterTags.value,
 ]);
-
-interface TagSnapshotRestoredPayload {
-  tagSelections: typeof tagSelections.value;
-  ignoredCount: number;
-  schemaMismatch: boolean;
-  fixedFilters: Record<string, unknown>;
-  source: 'auto' | 'manual';
-}
 
 useDataScope({
   provider: CUSTOMER_MILESTONE_SCOPE_PROVIDER,
@@ -336,7 +290,6 @@ function buildCurrentQueryParams(includePagination: boolean) {
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
     filterGroup: buildFilterPayload(),
-    tagSelections: tagSelections.value,
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'updatedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
@@ -364,7 +317,7 @@ async function handleRefreshLatestData() {
       await sleep(1000);
       status = (await loadSyncStatus()) ?? status;
     }
-    await Promise.all([loadFilterOptions(), loadTagGroups(), loadTableData()]);
+    await Promise.all([loadFilterOptions(), loadTableData()]);
     await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
@@ -380,12 +333,6 @@ function sleep(ms: number) {
 bindLoader(async () => {
   try {
     initializeFromQuery(route.query);
-    await loadTagGroups();
-    if (shouldDeferRowsUntilTagSnapshotRestore()) {
-      await loadSyncStatus();
-      pageInitialized.value = true;
-      return;
-    }
     await loadTableData();
     await loadSyncStatus();
     pageInitialized.value = true;
@@ -417,78 +364,8 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
-function buildRangeValue(start: unknown, end: unknown) {
-  const normalizedStart = String(start ?? '');
-  const normalizedEnd = String(end ?? '');
-  return normalizedStart && normalizedEnd ? [normalizedStart, normalizedEnd] : [];
-}
-
 async function handleClearFilter(key: string) {
-  if (key.startsWith('tagSelection:')) {
-    const groupKey = key.slice('tagSelection:'.length);
-    const nextSelections = tagSelections.value.filter((selection) => selection.groupKey !== groupKey);
-    await patchQuery({ page: 1, tagSelections: stringifyTagSelectionsQuery(nextSelections) });
-    return;
-  }
   await handleBaseClearFilter(key);
-}
-
-async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {
-  await patchQuery({
-    page: 1,
-    tagSelections: stringifyTagSelectionsQuery(nextSelections),
-  });
-}
-
-async function handleTagSnapshotRestored(payload: TagSnapshotRestoredPayload) {
-  const queryPatch = {
-    ...buildFixedFilterSnapshotQuery(payload.fixedFilters),
-    page: 1,
-    tagSelections: stringifyTagSelectionsQuery(payload.tagSelections),
-  };
-  if (payload.source === 'auto') {
-    await patchQuery(queryPatch, 'replace');
-    return;
-  }
-  await patchQuery(queryPatch);
-  if (payload.ignoredCount > 0 || payload.schemaMismatch) {
-    ElMessage.warning(`快捷快照已恢复，已忽略 ${payload.ignoredCount} 个失效条件`);
-    return;
-  }
-  ElMessage.success('已恢复快捷快照');
-}
-
-function buildFixedFilterSnapshotQuery(filters: Record<string, unknown>) {
-  const createdAtRange = Array.isArray(filters.createdAtRange) ? filters.createdAtRange : [];
-  const updatedAtRange = Array.isArray(filters.updatedAtRange) ? filters.updatedAtRange : [];
-  return {
-    keyword: stringFilterValue(filters.keyword),
-    issueIid: stringFilterValue(filters.issueIid),
-    title: stringFilterValue(filters.title),
-    projectName: stringFilterValue(filters.projectName),
-    moduleName: stringFilterValue(filters.moduleName),
-    reasonCategory: stringFilterValue(filters.reasonCategory),
-    severityLevel: stringFilterValue(filters.severityLevel),
-    priorityLevel: stringFilterValue(filters.priorityLevel),
-    issueState: stringFilterValue(filters.issueState),
-    bugStatus: stringFilterValue(filters.bugStatus),
-    category: stringFilterValue(filters.category),
-    milestoneTitle: stringFilterValue(filters.milestoneTitle),
-    createdAtStart: stringFilterValue(createdAtRange[0]),
-    createdAtEnd: stringFilterValue(createdAtRange[1]),
-    updatedAtStart: stringFilterValue(updatedAtRange[0]),
-    updatedAtEnd: stringFilterValue(updatedAtRange[1]),
-    filterGroup: stringFilterValue(filters.filterGroup),
-  };
-}
-
-function stringFilterValue(value: unknown) {
-  const text = String(value ?? '');
-  return text || null;
-}
-
-function handleTagSnapshotSaved(payload: { name: string }) {
-  ElMessage.success(`已保存快照：${payload.name}`);
 }
 
 </script>
@@ -537,18 +414,6 @@ function handleTagSnapshotSaved(payload: { name: string }) {
       >
         <template #filter-builder>
           <div class="customer-record-filter-stack">
-            <TagGroupFilterBar
-              :model-value="tagSelections"
-              :tag-groups="tagGroups"
-              :loading="isTableLoading"
-              :storage-key="tagGroupStorageKey"
-              :fixed-filters="customerIssueFixedFilters"
-              :auto-restore="shouldAutoRestoreTagSnapshot"
-              :current-total="total"
-              @change="handleTagSelectionsChange"
-              @snapshot-restored="handleTagSnapshotRestored"
-              @snapshot-saved="handleTagSnapshotSaved"
-            />
             <StatisticFilterBuilder
               :model-value="filterDraft"
               :fields="conditionFilterFields"

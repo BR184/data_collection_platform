@@ -107,7 +107,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       IssueFactRecordListRequest listRequest = request.listRequest();
       SystemTestIllegalRecordQueryRequest pageRequest =
           new SystemTestIllegalRecordQueryRequest(
-              IssueFactRecordListRequest.withTagSelections(
+              new IssueFactRecordListRequest(
                   listRequest.projectId(),
                   listRequest.keyword(),
                   listRequest.searchType(),
@@ -126,7 +126,6 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   listRequest.updatedAtStart(),
                   listRequest.updatedAtEnd(),
                   listRequest.sourceInstance(),
-                  listRequest.tagSelections(),
                   page,
                   EXPORT_PAGE_SIZE,
                   listRequest.sortField(),
