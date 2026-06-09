@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 // 系统测试议题查询页承担 issue_fact 的明细检索入口，路由参数就是可分享的查询状态。
 // 组件内部只处理页面交互，阶段、模块和非法规则的口径由共享条件字段提供。
 import { ElMessage } from '../element-plus-services';
@@ -113,10 +113,15 @@ const {
   tagGroupActiveFilterTags,
   loadTagGroups,
   shouldDeferRowsUntilTagSnapshotRestore,
+  syncFixedFilterToTagGroup,
+  syncFixedFiltersToTagGroups,
+  syncTagGroupToFixedFilter,
 } = useTagGroupFilterAdapter({
   domain: 'issue',
   storageKey: () => `tag-groups:issue:${String(route.query.sourceInstance ?? 'default') || 'default'}`,
   tagSelectionsQuery: () => route.query.tagSelections,
+  fixedFilterValues: () => filterValues.value,
+  dimensionMappings: { phase: 'testingPhase' },
   loadTagGroups: (domain) => api.getTagGroups(domain),
 });
 
@@ -313,6 +318,32 @@ bindLoader(async () => {
   }
 });
 
+watch(
+  () => [route.query.testingPhase, route.query.tagSelections, tagGroups.value?.schemaHash] as const,
+  async () => {
+    const queryPatch: Record<string, string | null> = {};
+    const nextSelections = syncFixedFiltersToTagGroups();
+    const synchronizedSelections = nextSelections ?? tagSelections.value;
+    if (nextSelections) {
+      const nextTagSelections = stringifyTagSelectionsQuery(nextSelections);
+      if (String(route.query.tagSelections ?? '') !== nextTagSelections) {
+        queryPatch.tagSelections = nextTagSelections;
+      }
+    }
+    const fixedFilterPatch = syncTagGroupToFixedFilter(synchronizedSelections);
+    for (const [key, value] of Object.entries(fixedFilterPatch)) {
+      if (String(route.query[key] ?? '') !== String(value ?? '')) {
+        queryPatch[key] = value;
+      }
+    }
+    if (Object.keys(queryPatch).length === 0) {
+      return;
+    }
+    await patchQuery(queryPatch, 'replace');
+  },
+  { immediate: true },
+);
+
 async function loadFilterOptions() {
   filterOptions.value = await api.getSystemTestIssueSearchFilterOptions(
     route.query.projectId as string | undefined,
@@ -421,6 +452,7 @@ function buildStateTag(value: string): RecordTableTagValue {
 }
 
 async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
+  const mappedTagSelections = syncFixedFilterToTagGroup(payload.key, payload.value);
   if (payload.key === 'updatedAtRange') {
     const [start, end] = Array.isArray(payload.value) ? payload.value : [];
     await patchQuery({ page: 1, updatedAtStart: start || null, updatedAtEnd: end || null });
@@ -434,6 +466,7 @@ async function handleFilterChange(payload: { key: string; value: string | string
   await patchQuery({
     page: 1,
     [payload.key]: Array.isArray(payload.value) ? payload.value[0] ?? null : payload.value,
+    ...(mappedTagSelections ? { tagSelections: stringifyTagSelectionsQuery(mappedTagSelections) } : {}),
   });
 }
 
@@ -488,7 +521,11 @@ async function handleClearFilter(key: string) {
   if (key.startsWith('tagSelection:')) {
     const groupKey = key.slice('tagSelection:'.length);
     const nextSelections = tagSelections.value.filter((selection) => selection.groupKey !== groupKey);
-    await patchQuery({ page: 1, tagSelections: stringifyTagSelectionsQuery(nextSelections) });
+    await patchQuery({
+      page: 1,
+      ...syncTagGroupToFixedFilter(nextSelections),
+      tagSelections: stringifyTagSelectionsQuery(nextSelections),
+    });
     return;
   }
   if (key === 'updatedAtRange') {
@@ -499,12 +536,18 @@ async function handleClearFilter(key: string) {
     await patchQuery({ page: 1, createdAtStart: null, createdAtEnd: null });
     return;
   }
-  await patchQuery({ page: 1, [key]: null });
+  const mappedTagSelections = syncFixedFilterToTagGroup(key, null);
+  await patchQuery({
+    page: 1,
+    [key]: null,
+    ...(mappedTagSelections ? { tagSelections: stringifyTagSelectionsQuery(mappedTagSelections) } : {}),
+  });
 }
 
 async function handleTagSelectionsChange(nextSelections: typeof tagSelections.value) {
   await patchQuery({
     page: 1,
+    ...syncTagGroupToFixedFilter(nextSelections),
     tagSelections: stringifyTagSelectionsQuery(nextSelections),
   });
 }

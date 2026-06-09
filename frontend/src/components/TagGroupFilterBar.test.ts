@@ -45,6 +45,27 @@ const tagGroups: TagGroupsResponse = {
   ],
 };
 
+const inlinePopoverStub = {
+  props: ['visible'],
+  template: '<div><slot name="reference" /><slot /></div>',
+};
+
+function mountFilterBar(props: Record<string, unknown> = {}) {
+  return mount(TagGroupFilterBar, {
+    props: {
+      modelValue: [],
+      tagGroups,
+      ...props,
+    },
+    global: {
+      plugins: [ElementPlus],
+      stubs: {
+        ElPopover: inlinePopoverStub,
+      },
+    },
+  });
+}
+
 describe('TagGroupFilterBar', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -52,23 +73,16 @@ describe('TagGroupFilterBar', () => {
     vi.mocked(ElMessageBox.confirm).mockResolvedValue('confirm' as never);
   });
 
-  it('renders review module as a compact field and emits multiple tag selections', async () => {
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [],
-        tagGroups,
-      },
-      global: {
-        plugins: [ElementPlus],
-      },
+  it('renders review module in a grouped popover and emits multiple tag selections', async () => {
+    const wrapper = mountFilterBar();
+
+    expect(wrapper.get('[data-testid="tag-group-filter-bar-group-module"]').text()).toContain('模块');
+
+    await wrapper.get('[data-testid="tag-group-filter-bar-value-sketch"]').trigger('click');
+    await wrapper.setProps({
+      modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
     });
-
-    const selects = wrapper.findAllComponents({ name: 'ElSelect' });
-    expect(selects).toHaveLength(2);
-    expect(selects[0].props('placeholder')).toBe('模块');
-
-    selects[0].vm.$emit('update:modelValue', ['sketch', 'surface']);
-    await wrapper.vm.$nextTick();
+    await wrapper.get('[data-testid="tag-group-filter-bar-value-surface"]').trigger('click');
 
     expect(wrapper.emitted('change')?.at(-1)).toEqual([[{
       groupKey: 'module',
@@ -76,47 +90,45 @@ describe('TagGroupFilterBar', () => {
     }]]);
   });
 
-  it('collapses by default, shows a header summary, and remains collapsible after selecting tags', async () => {
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [],
-        tagGroups,
-        currentTotal: 42,
-        currentViewName: 'Last saved 2026-06-07 14:30',
-      },
-      global: {
-        plugins: [ElementPlus],
-      },
+  it('shows a lightweight summary and selected tag chips', async () => {
+    const wrapper = mountFilterBar({
+      currentTotal: 42,
+      currentViewName: 'Last saved 2026-06-07 14:30',
     });
 
     const header = wrapper.get('[data-testid="tag-group-filter-bar-header"]');
-    expect(wrapper.get('[data-testid="tag-group-filter-bar-body"]').isVisible()).toBe(false);
+    expect(header.attributes('aria-expanded')).toBe('false');
     expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('Last saved 2026-06-07 14:30');
     expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('42');
     expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('0');
 
-    await header.trigger('click');
-    expect(wrapper.get('[data-testid="tag-group-filter-bar-body"]').isVisible()).toBe(true);
-
-    wrapper.findAllComponents({ name: 'ElSelect' })[0].vm.$emit('update:modelValue', ['sketch', 'surface']);
     await wrapper.setProps({
       modelValue: [{ groupKey: 'module', valueKeys: ['sketch', 'surface'] }],
     });
 
     expect(wrapper.get('[data-testid="tag-group-filter-bar-summary"]').text()).toContain('2');
-    await wrapper.get('[data-testid="tag-group-filter-bar-header"]').trigger('click');
-    expect(wrapper.get('[data-testid="tag-group-filter-bar-header"]').attributes('aria-expanded')).toBe('false');
+    expect(wrapper.text()).toContain('模块: 草图, 曲面');
+  });
+
+  it('clears a single selected group from its chip', async () => {
+    const wrapper = mountFilterBar({
+      modelValue: [
+        { groupKey: 'module', valueKeys: ['sketch'] },
+        { groupKey: 'problem_status', valueKeys: ['new'] },
+      ],
+    });
+
+    await wrapper.findAll('.tag-group-filter-bar-chip .el-tag__close')[0].trigger('click');
+
+    expect(wrapper.emitted('change')?.at(-1)).toEqual([[{
+      groupKey: 'problem_status',
+      valueKeys: ['new'],
+    }]]);
   });
 
   it('clears all tag selections only after user confirmation', async () => {
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
-        tagGroups,
-      },
-      global: {
-        plugins: [ElementPlus],
-      },
+    const wrapper = mountFilterBar({
+      modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
     });
 
     await wrapper.findAll('button').find((button) => button.text().includes('清空标签'))?.trigger('click');
@@ -131,14 +143,8 @@ describe('TagGroupFilterBar', () => {
 
   it('keeps tag selections when clear confirmation is canceled', async () => {
     vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce(new Error('cancel'));
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
-        tagGroups,
-      },
-      global: {
-        plugins: [ElementPlus],
-      },
+    const wrapper = mountFilterBar({
+      modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
     });
 
     await wrapper.findAll('button').find((button) => button.text().includes('清空标签'))?.trigger('click');
@@ -147,21 +153,9 @@ describe('TagGroupFilterBar', () => {
   });
 
   it('requires a named snapshot before saving', async () => {
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
-        tagGroups,
-        storageKey: 'tag-groups:test',
-      },
-      global: {
-        plugins: [ElementPlus],
-        stubs: {
-          ElPopover: {
-            props: ['visible'],
-            template: '<div><slot name="reference" /><slot /></div>',
-          },
-        },
-      },
+    const wrapper = mountFilterBar({
+      modelValue: [{ groupKey: 'module', valueKeys: ['sketch'] }],
+      storageKey: 'tag-groups:test',
     });
 
     await wrapper.findAll('button').find((button) => button.text().includes('保存快照'))?.trigger('click');
@@ -189,7 +183,7 @@ describe('TagGroupFilterBar', () => {
       },
     });
 
-    await wrapper.findAll('button').find((button) => button.text().includes('淇濆瓨蹇収'))?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text().includes('保存快照'))?.trigger('click');
     await flushPromises();
 
     expect(document.body.querySelector('[data-testid="tag-group-snapshot-name-input"]')).not.toBeNull();
@@ -206,7 +200,7 @@ describe('TagGroupFilterBar', () => {
           {
             schemaVersion: 1,
             id: 'snapshot-a',
-            name: '澶嶇洏绛涢€?',
+            name: '模块筛选',
             schemaHash: 'hash-a',
             tagSelections: [{ groupKey: 'module', valueKeys: ['surface'] }],
             fixedFilters: {},
@@ -218,22 +212,9 @@ describe('TagGroupFilterBar', () => {
         activeSnapshotId: 'snapshot-a',
       }),
     );
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [],
-        tagGroups,
-        storageKey: 'tag-groups:test',
-        autoRestore: false,
-      },
-      global: {
-        plugins: [ElementPlus],
-        stubs: {
-          ElPopover: {
-            props: ['visible'],
-            template: '<div><slot name="reference" /><slot /></div>',
-          },
-        },
-      },
+    const wrapper = mountFilterBar({
+      storageKey: 'tag-groups:test',
+      autoRestore: false,
     });
 
     await wrapper.get('[data-testid="tag-group-snapshot-delete-snapshot-a"]').trigger('click');
@@ -263,22 +244,9 @@ describe('TagGroupFilterBar', () => {
         activeSnapshotId: 'snapshot-a',
       }),
     );
-    const wrapper = mount(TagGroupFilterBar, {
-      props: {
-        modelValue: [],
-        tagGroups,
-        storageKey: 'tag-groups:test',
-        autoRestore: false,
-      },
-      global: {
-        plugins: [ElementPlus],
-        stubs: {
-          ElPopover: {
-            props: ['visible'],
-            template: '<div><slot name="reference" /><slot /></div>',
-          },
-        },
-      },
+    const wrapper = mountFilterBar({
+      storageKey: 'tag-groups:test',
+      autoRestore: false,
     });
 
     await wrapper.get('[data-testid="tag-group-snapshot-restore-trigger"]').trigger('click');

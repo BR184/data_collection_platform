@@ -4,6 +4,24 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import ElementPlus from 'element-plus';
 import SystemTestIssueSearchView from './SystemTestIssueSearchView.vue';
 
+const issueTagGroups = {
+  domain: 'issue',
+  schemaHash: 'issue-hash',
+  groups: [
+    {
+      groupKey: 'phase',
+      label: 'Testing Phase',
+      selectionMode: 'multiple',
+      sortOrder: 10,
+      matchStrategyName: 'eq',
+      values: [
+        { valueKey: 'R1', label: 'R1 Phase', valueType: 'standard', sortOrder: 10, disabled: false },
+        { valueKey: 'R2', label: 'R2 Phase', valueType: 'standard', sortOrder: 20, disabled: false },
+      ],
+    },
+  ],
+};
+
 function jsonResponse(data: unknown) {
   return Promise.resolve({
     ok: true,
@@ -262,6 +280,94 @@ describe('SystemTestIssueSearchView mount smoke', () => {
       .filter((url) => url.includes('/api/question-metrics/issues?'));
     expect(rowCalls.some((url) => url.endsWith('/api/question-metrics/issues?page=1&size=20'))).toBe(false);
     expect(rowCalls.some((url) => url.includes('tagSelections='))).toBe(true);
+
+    wrapper.unmount();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps testing phase fixed filters and tag groups synchronized through the URL', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/question-metrics/issues/filter-options')) {
+        return jsonResponse({
+          projectNames: [],
+          moduleNames: [],
+          testingPhases: [
+            { label: 'R1 Phase', value: 'R1' },
+            { label: 'R2 Phase', value: 'R2' },
+          ],
+          authorNames: [],
+          assigneeNames: [],
+          issueStates: [],
+          severityLevels: [],
+          bugStatuses: [],
+          categories: [],
+          milestoneTitles: [],
+        });
+      }
+      if (url.includes('/api/tag-groups')) {
+        return jsonResponse(issueTagGroups);
+      }
+      if (url.includes('/api/question-metrics/issues?')) {
+        return jsonResponse({
+          records: [],
+          total: 0,
+          page: 1,
+          size: 20,
+          sortField: 'updatedAt',
+          sortOrder: 'desc',
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const router = createRouter({
+      history: createWebHashHistory(),
+      routes: [{ path: '/question-metrics/issue-search', component: SystemTestIssueSearchView }],
+    });
+    await router.push('/question-metrics/issue-search?testingPhase=R1');
+    await router.isReady();
+    const wrapper = mount(SystemTestIssueSearchView, {
+      global: { plugins: [router, ElementPlus] },
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-testid="tag-group-filter-toggle"]').trigger('click');
+    const selectedR1 = wrapper.findAll('.tag-group-filter-value')
+      .find((button) => button.text().includes('R1 Phase'));
+    expect(selectedR1?.classes()).toContain('is-selected');
+
+    wrapper.findComponent({ name: 'BaseRecordTable' }).vm.$emit('filter-change', {
+      key: 'testingPhase',
+      value: 'R2',
+    });
+    await flushPromises();
+    expect(JSON.parse(String(router.currentRoute.value.query.tagSelections))).toEqual([
+      { groupKey: 'phase', valueKeys: ['R2'] },
+    ]);
+
+    wrapper.findComponent({ name: 'TagGroupFilter' }).vm.$emit('change', [
+      { groupKey: 'phase', valueKeys: ['R1'] },
+    ]);
+    await flushPromises();
+    expect(router.currentRoute.value.query.testingPhase).toBe('R1');
+
+    await router.push('/question-metrics/issue-search?testingPhase=R2');
+    await flushPromises();
+    expect(JSON.parse(String(router.currentRoute.value.query.tagSelections))).toEqual([
+      { groupKey: 'phase', valueKeys: ['R2'] },
+    ]);
+
+    wrapper.findComponent({ name: 'BaseRecordTable' }).vm.$emit('clear-filter', 'testingPhase');
+    await flushPromises();
+    expect(router.currentRoute.value.query.testingPhase).toBeUndefined();
+    expect(JSON.parse(String(router.currentRoute.value.query.tagSelections))).toEqual([]);
+
+    await router.push(`/question-metrics/issue-search?tagSelections=${encodeURIComponent(JSON.stringify([
+      { groupKey: 'phase', valueKeys: ['R1'] },
+    ]))}`);
+    await flushPromises();
+    expect(router.currentRoute.value.query.testingPhase).toBe('R1');
 
     wrapper.unmount();
     vi.unstubAllGlobals();

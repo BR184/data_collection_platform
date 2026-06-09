@@ -18,6 +18,17 @@ const tagGroups: TagGroupsResponse = {
         { valueKey: 'surface', label: '曲面', valueType: 'standard', sortOrder: 20, disabled: false },
       ],
     },
+    {
+      groupKey: 'phase',
+      label: '测试阶段',
+      selectionMode: 'multiple',
+      sortOrder: 20,
+      matchStrategyName: 'eq',
+      values: [
+        { valueKey: 'R1', label: 'R1 系统测试', valueType: 'standard', sortOrder: 10, disabled: false },
+        { valueKey: 'R2', label: 'R2 回归测试', valueType: 'standard', sortOrder: 20, disabled: false },
+      ],
+    },
   ],
 };
 
@@ -82,5 +93,35 @@ describe('useTagGroupFilterAdapter', () => {
 
     shouldAutoRestore.value = false;
     expect(adapter.shouldDeferRowsUntilTagSnapshotRestore()).toBe(false);
+  });
+
+  it('maps fixed filter query values into tag selections and back into query patches', async () => {
+    const queryValue = ref<unknown>(undefined);
+    const fixedFilters = ref<Record<string, unknown>>({ testingPhase: 'R1' });
+    const adapter = useTagGroupFilterAdapter({
+      domain: 'issue',
+      storageKey: 'tag-groups:issue:default',
+      tagSelectionsQuery: () => queryValue.value,
+      fixedFilterValues: () => fixedFilters.value,
+      dimensionMappings: { phase: 'testingPhase' },
+      loadTagGroups: vi.fn<() => Promise<TagGroupsResponse>>().mockResolvedValue(tagGroups),
+    });
+
+    await adapter.loadTagGroups();
+
+    expect(adapter.tagSelections.value).toEqual([{ groupKey: 'phase', valueKeys: ['R1'] }]);
+
+    const fromFixed = adapter.syncFixedFilterToTagGroup('testingPhase', 'R2');
+    expect(fromFixed).toEqual([{ groupKey: 'phase', valueKeys: ['R2'] }]);
+
+    const clearFixed = adapter.syncFixedFilterToTagGroup('testingPhase', null);
+    expect(clearFixed).toEqual([]);
+
+    const fixedPatch = adapter.syncTagGroupToFixedFilter([
+      { groupKey: 'phase', valueKeys: ['R2'] },
+    ]);
+    expect(fixedPatch).toEqual({ testingPhase: 'R2' });
+
+    expect(adapter.syncTagGroupToFixedFilter([])).toEqual({ testingPhase: null });
   });
 });
