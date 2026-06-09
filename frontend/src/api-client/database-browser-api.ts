@@ -11,8 +11,13 @@ export interface DatabaseTableRefreshResponse {
 }
 
 export const databaseBrowserApi = {
-  getDatabaseTables() {
-    return request<DatabaseTableOption[]>('/api/database-browser/tables');
+  getDatabaseTables(options: { includeSourceTables?: boolean } = {}) {
+    const query = new URLSearchParams();
+    if (options.includeSourceTables) {
+      query.set('includeSourceTables', 'true');
+    }
+    const suffix = query.size > 0 ? `?${query.toString()}` : '';
+    return request<DatabaseTableOption[]>(`/api/database-browser/tables${suffix}`);
   },
   getDatabaseTableRows(params: {
     tableName: string;

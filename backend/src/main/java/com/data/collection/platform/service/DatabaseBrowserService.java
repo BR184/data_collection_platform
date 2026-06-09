@@ -54,6 +54,10 @@ public class DatabaseBrowserService {
   }
 
   public List<DatabaseTableOption> listTables() {
+    return listTables(false);
+  }
+
+  public List<DatabaseTableOption> listTables(boolean includeSourceTables) {
     Map<String, DatabaseTableOption> allTables = new LinkedHashMap<>();
     DatabaseBrowserTableCatalog.listDefinitions()
         .forEach(
@@ -73,15 +77,17 @@ public class DatabaseBrowserService {
                       registry.getLastSyncTime(),
                       TABLE_KIND_MIRROR,
                       hasMirrorBaseline(registry)));
-              allTables.put(
-                  sourceTableKey(registry),
-                  new DatabaseTableOption(
-                      sourceTableKey(registry),
-                      buildSourceLabel(registry),
-                      registry.getSyncStatus(),
-                      registry.getLastSyncTime(),
-                      TABLE_KIND_SOURCE,
-                      false));
+              if (includeSourceTables) {
+                allTables.put(
+                    sourceTableKey(registry),
+                    new DatabaseTableOption(
+                        sourceTableKey(registry),
+                        buildSourceLabel(registry),
+                        registry.getSyncStatus(),
+                        registry.getLastSyncTime(),
+                        TABLE_KIND_SOURCE,
+                        false));
+              }
             });
     return allTables.values().stream()
         .sorted((left, right) -> left.getTableName().compareToIgnoreCase(right.getTableName()))

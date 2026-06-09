@@ -306,4 +306,56 @@ describe('MirrorSettingsView mount smoke', () => {
     warnSpy.mockRestore();
     vi.unstubAllGlobals();
   });
+
+  it('enters the settings page before slow health and diagnostics finish', async () => {
+    const never = new Promise<Response>(() => {});
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes('/api/gitlab-sync/configs')) {
+        return jsonResponse([baseConfig()]);
+      }
+      if (url.includes('/api/gitlab-sync/source-health') || url.includes('/api/gitlab-sync/table-sync-diagnostics')) {
+        return never;
+      }
+      if (url.includes('/api/gitlab-sync/status')) {
+        return jsonResponse({
+          config: baseConfig(),
+          currentTask: null,
+          currentStatus: 'IDLE',
+          currentMessage: '',
+          currentStartedAt: null,
+          progress: null,
+          logs: [],
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          systemHookRegistration: null,
+          availableProcessors: 16,
+          resolvedSyncThreads: 2,
+        });
+      }
+      if (url.includes('/api/gitlab-sync/system-hook-registration-status')) {
+        return jsonResponse({
+          supported: false,
+          configured: false,
+          registered: false,
+          projectId: null,
+          systemHookUrl: 'http://localhost:18080/api/gitlab-sync/system-hook',
+          message: 'not checked',
+          hooks: [],
+        });
+      }
+      return jsonResponse({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wrapper = await mountWithRouter();
+
+    await flushPromises();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('GitLab default source');
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/gitlab-sync/source-health'), expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/gitlab-sync/table-sync-diagnostics'), expect.anything());
+
+    wrapper.unmount();
+    vi.unstubAllGlobals();
+  });
 });

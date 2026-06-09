@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class SemanticTagGroupServiceTest {
@@ -79,5 +80,51 @@ class SemanticTagGroupServiceTest {
             "MECHANISM_ISSUE",
             "COMPUTATION_EFFICIENCY");
     assertThat(catalog.requireGroup("ratio_empty_value_policy").selectionMode()).isEqualTo("SINGLE");
+  }
+
+  @Test
+  void shouldPreferEnabledDatabaseGroupsWhenConfigured() {
+    SemanticTagGroupService dbBackedService =
+        new SemanticTagGroupService(
+            entityType -> List.of(
+                new SemanticTagGroupDefinition(
+                    entityType,
+                    "customer_priority",
+                    "Customer priority",
+                    "STATIC",
+                    "customer_priority_policy",
+                    "SINGLE",
+                    "EXACT",
+                    true,
+                    10,
+                    List.of(new SemanticTagValueDefinition("VIP", "VIP customer", "STRING", "VIP", true, 10)))));
+
+    SemanticTagGroupCatalog catalog = dbBackedService.listStaticGroups("issue");
+
+    assertThat(catalog.groups()).hasSize(1);
+    assertThat(catalog.requireGroup("customer_priority").selectionMode()).isEqualTo("SINGLE");
+    assertThat(catalog.requireGroup("customer_priority").values())
+        .extracting(SemanticTagValueDefinition::valueKey)
+        .containsExactly("VIP");
+    assertThat(catalog.schemaHash()).hasSize(64);
+  }
+
+  @Test
+  void shouldFallbackToStaticIssueGroupsWhenDatabaseHasNoDefinitions() {
+    SemanticTagGroupService dbBackedService = new SemanticTagGroupService(entityType -> List.of());
+
+    SemanticTagGroupCatalog catalog = dbBackedService.listStaticGroups("issue");
+
+    assertThat(catalog.groups())
+        .extracting(SemanticTagGroupDefinition::groupKey)
+        .containsExactly(
+            "severity_level",
+            "urgency",
+            "system_test_exclusion_type",
+            "delay_cause",
+            "customer_issue_closure_status",
+            "illegal_type",
+            "defect_reason_standard",
+            "ratio_empty_value_policy");
   }
 }

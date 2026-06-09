@@ -30,8 +30,9 @@ public class DatabaseBrowserController {
   }
 
   @GetMapping("/tables")
-  public ApiResponse<List<DatabaseTableOption>> listTables() {
-    return ApiResponse.success(databaseBrowserService.listTables());
+  public ApiResponse<List<DatabaseTableOption>> listTables(
+      @RequestParam(defaultValue = "false") boolean includeSourceTables) {
+    return ApiResponse.success(databaseBrowserService.listTables(includeSourceTables));
   }
 
   @GetMapping("/rows")

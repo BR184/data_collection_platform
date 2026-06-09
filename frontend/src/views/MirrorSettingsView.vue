@@ -424,17 +424,21 @@ watch(
 async function initializePage() {
   try {
     await loadConfigs();
-    await Promise.all([
-      loadMirrorSection('数据源健康状态', loadSourceHealth),
-      loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
-      loadMirrorSection('同步状态', () => loadStatus(false, false)),
-    ]);
+    await loadMirrorSection('同步状态', () => loadStatus(false, false));
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载 GitLab 数据镜像设置失败');
   } finally {
     initialized.value = true;
   }
-  void loadSystemHookRegistration(false);
+  void loadDeferredMirrorSections();
+}
+
+async function loadDeferredMirrorSections() {
+  await Promise.all([
+    loadMirrorSection('数据源健康状态', loadSourceHealth),
+    loadMirrorSection('表级同步诊断', () => loadTableSyncDiagnostics(false)),
+    loadMirrorSection('System Hook 状态', () => loadSystemHookRegistration(false)),
+  ]);
 }
 
 async function loadMirrorSection(sectionName: string, loader: () => Promise<void>) {

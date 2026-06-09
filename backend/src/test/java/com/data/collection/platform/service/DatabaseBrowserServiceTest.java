@@ -86,7 +86,7 @@ class DatabaseBrowserServiceTest {
             sourceMetadataInspector,
             externalDbService);
 
-    var options = databaseBrowserService.listTables();
+    var options = databaseBrowserService.listTables(true);
 
     assertThat(options)
         .anySatisfy(option -> {
@@ -100,6 +100,30 @@ class DatabaseBrowserServiceTest {
           assertThat(option.getTableKind()).isEqualTo("SOURCE");
           assertThat(option.isRefreshable()).isFalse();
         });
+  }
+
+  @Test
+  void shouldExcludeSourcePreviewOptionsByDefault() {
+    GitlabMirrorTableRegistry registry = registry();
+    registry.setLastSyncTime(java.time.LocalDateTime.of(2026, 5, 18, 10, 0));
+    DatabaseBrowserMirrorTableDefinitionFactory factory = mock(DatabaseBrowserMirrorTableDefinitionFactory.class);
+    when(factory.buildMirrorLabel("issues")).thenReturn("镜像表 / issues");
+    when(registryMapper.selectList(any())).thenReturn(List.of(registry));
+    databaseBrowserService =
+        new DatabaseBrowserService(
+            mock(JdbcTemplate.class),
+            registryMapper,
+            factory,
+            syncService,
+            configService,
+            sourceMetadataInspector,
+            externalDbService);
+
+    var options = databaseBrowserService.listTables();
+
+    assertThat(options)
+        .anySatisfy(option -> assertThat(option.getTableName()).isEqualTo("ods_gitlab_issues"))
+        .noneSatisfy(option -> assertThat(option.getTableName()).startsWith("source:"));
   }
 
   @Test

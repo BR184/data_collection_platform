@@ -5,18 +5,32 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SemanticTagGroupService {
+  private final SemanticTagGroupRepository repository;
   private final List<SemanticTagGroupDefinition> staticIssueGroups;
   private final String staticIssueSchemaHash;
 
   public SemanticTagGroupService() {
-    this(staticIssueGroups());
+    this(SemanticTagGroupRepository.empty(), staticIssueGroups());
+  }
+
+  @Autowired
+  public SemanticTagGroupService(SemanticTagGroupRepository repository) {
+    this(repository, staticIssueGroups());
   }
 
   SemanticTagGroupService(List<SemanticTagGroupDefinition> staticIssueGroups) {
+    this(SemanticTagGroupRepository.empty(), staticIssueGroups);
+  }
+
+  SemanticTagGroupService(
+      SemanticTagGroupRepository repository,
+      List<SemanticTagGroupDefinition> staticIssueGroups) {
+    this.repository = repository;
     this.staticIssueGroups = List.copyOf(staticIssueGroups);
     this.staticIssueSchemaHash = sha256(this.staticIssueGroups.toString());
   }
@@ -26,6 +40,10 @@ public class SemanticTagGroupService {
   }
 
   public SemanticTagGroupCatalog listStaticGroups(String entityType) {
+    List<SemanticTagGroupDefinition> databaseGroups = repository.listEnabledGroups(entityType);
+    if (!databaseGroups.isEmpty()) {
+      return new SemanticTagGroupCatalog(entityType, sha256(databaseGroups.toString()), databaseGroups);
+    }
     if (!"issue".equals(entityType)) {
       return new SemanticTagGroupCatalog(entityType, sha256(entityType + ":empty"), List.of());
     }
