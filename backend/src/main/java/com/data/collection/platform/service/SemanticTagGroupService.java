@@ -163,15 +163,7 @@ public class SemanticTagGroupService {
                 value("NEW_REQUIREMENT", "新增需求", 20),
                 value("CODING_BUSINESS_LOGIC_ERROR", "编码逻辑：业务逻辑错误", 30),
                 value("BUILD_PACKAGE_DEPLOYMENT_ISSUE", "构建/打包/部署问题", 40),
-                value("MECHANISM_UNSUPPORTED", "机制不支持", 50))),
-        singleSelectionGroup(
-            "issue",
-            "ratio_empty_value_policy",
-            "比例空值展示策略",
-            "ratio_display_policy",
-            List.of(
-                value("DISPLAY_SLASH", "显示为 /", 10),
-                value("DISPLAY_ZERO", "显示为 0", 20))));
+                value("MECHANISM_UNSUPPORTED", "机制不支持", 50))));
   }
 
   private static SemanticTagGroupDefinition group(
@@ -187,25 +179,6 @@ public class SemanticTagGroupService {
         "STATIC",
         rulePolicyKey,
         "MULTIPLE",
-        "EXACT",
-        true,
-        values.getFirst().sortOrder(),
-        values);
-  }
-
-  private static SemanticTagGroupDefinition singleSelectionGroup(
-      String domain,
-      String groupKey,
-      String label,
-      String rulePolicyKey,
-      List<SemanticTagValueDefinition> values) {
-    return new SemanticTagGroupDefinition(
-        domain,
-        groupKey,
-        label,
-        "STATIC",
-        rulePolicyKey,
-        "SINGLE",
         "EXACT",
         true,
         values.getFirst().sortOrder(),
@@ -233,8 +206,7 @@ public class SemanticTagGroupService {
           "delay_cause", "延期原因",
           "customer_issue_closure_status", "客户问题闭环状态",
           "illegal_type", "非法数据类型",
-          "defect_reason_standard", "缺陷原因标准项",
-          "ratio_empty_value_policy", "比例空值展示策略");
+          "defect_reason_standard", "缺陷原因标准项");
 
   private static final Map<String, Map<String, String>> VALUE_LABELS =
       Map.of(
@@ -285,7 +257,5 @@ public class SemanticTagGroupService {
               "NEW_REQUIREMENT", "新增需求",
               "CODING_BUSINESS_LOGIC_ERROR", "编码逻辑：业务逻辑错误",
               "BUILD_PACKAGE_DEPLOYMENT_ISSUE", "构建/打包/部署问题",
-              "MECHANISM_UNSUPPORTED", "机制不支持"),
-          "ratio_empty_value_policy",
-          Map.of("DISPLAY_SLASH", "显示为 /", "DISPLAY_ZERO", "显示为 0"));
+              "MECHANISM_UNSUPPORTED", "机制不支持"));
 }

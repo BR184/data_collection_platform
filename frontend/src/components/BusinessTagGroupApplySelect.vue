@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Filter, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { api } from '../api';
@@ -11,12 +11,16 @@ const props = withDefaults(
     scenarioKey?: string;
     ownerUserId?: string;
     currentTagSchemaHash?: string;
+    supportedFieldKeys?: string[];
+    allEntities?: boolean;
   }>(),
   {
     entityType: 'issue',
     scenarioKey: undefined,
     ownerUserId: undefined,
     currentTagSchemaHash: undefined,
+    supportedFieldKeys: () => [],
+    allEntities: false,
   },
 );
 
@@ -30,6 +34,12 @@ const selectedId = ref<number | null>(null);
 const loading = ref(false);
 const applying = ref(false);
 const appliedName = ref('');
+const displayTagGroups = computed(() => {
+  if (!props.supportedFieldKeys.length) {
+    return tagGroups.value;
+  }
+  return tagGroups.value.filter((tagGroup) => isTagGroupSupported(tagGroup));
+});
 
 onMounted(() => {
   void loadTagGroups();
@@ -48,8 +58,8 @@ async function loadTagGroups() {
   loading.value = true;
   try {
     tagGroups.value = await api.listBusinessTagGroups({
-      entityType: props.entityType,
-      scenarioKey: props.scenarioKey,
+      entityType: props.allEntities ? undefined : props.entityType,
+      scenarioKey: props.allEntities ? undefined : props.scenarioKey,
       ownerUserId: props.ownerUserId,
     });
   } catch (error) {
@@ -85,14 +95,34 @@ function clearAppliedTagGroup() {
   emit('cleared');
 }
 
+function isTagGroupSupported(tagGroup: BusinessTagGroupResponse) {
+  const fieldKeys = parseFieldKeys(tagGroup.dslJson);
+  return fieldKeys.length > 0 && fieldKeys.every((fieldKey) => props.supportedFieldKeys.includes(fieldKey));
+}
+
+function parseFieldKeys(dslJson: string) {
+  try {
+    const parsed = JSON.parse(dslJson) as { conditions?: Array<{ fieldKey?: unknown; fieldFamily?: unknown }> };
+    return Array.from(new Set((parsed.conditions ?? [])
+      .map((condition) => normalizeFieldKey(String(condition.fieldKey || condition.fieldFamily || '').trim()))
+      .filter(Boolean)));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeFieldKey(fieldKey: string) {
+  return fieldKey === 'people' ? 'person' : fieldKey;
+}
+
 function fieldScopeText(scopeKey: string) {
   return {
-    all_fields: '全部可筛选字段',
-    people_fields: '人员字段',
-    project_fields: '项目字段',
-    module_fields: '模块字段',
-    milestone_fields: '里程碑/轮次字段',
-  }[scopeKey] ?? '适用范围待确认';
+    all_fields: '复合条件',
+    people_fields: '人员',
+    project_fields: '项目/版本',
+    module_fields: '模块',
+    milestone_fields: '里程碑/轮次',
+  }[scopeKey] ?? '系统自动判断';
 }
 </script>
 
@@ -107,7 +137,7 @@ function fieldScopeText(scopeKey: string) {
       placeholder="应用业务标签组"
     >
       <el-option
-        v-for="tagGroup in tagGroups"
+        v-for="tagGroup in displayTagGroups"
         :key="tagGroup.id"
         :label="tagGroup.tagGroupName"
         :value="tagGroup.id"
@@ -117,6 +147,9 @@ function fieldScopeText(scopeKey: string) {
           <small>{{ fieldScopeText(tagGroup.scopeKey) }}</small>
         </div>
       </el-option>
+      <template #empty>
+        <span class="business-tag-empty">暂无可应用标签组</span>
+      </template>
     </el-select>
     <el-button :icon="Filter" type="primary" :loading="applying" @click="applySelectedTagGroup">
       应用
@@ -151,6 +184,13 @@ function fieldScopeText(scopeKey: string) {
 .business-tag-option small {
   color: #64748b;
   font-size: 12px;
+}
+
+.business-tag-empty {
+  display: block;
+  padding: 8px 12px;
+  color: #64748b;
+  font-size: 13px;
 }
 
 @media (max-width: 640px) {

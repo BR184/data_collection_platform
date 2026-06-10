@@ -22,8 +22,7 @@ class SemanticTagGroupServiceTest {
             "delay_cause",
             "customer_issue_closure_status",
             "illegal_type",
-            "defect_reason_standard",
-            "ratio_empty_value_policy");
+            "defect_reason_standard");
   }
 
   @Test
@@ -81,7 +80,9 @@ class SemanticTagGroupServiceTest {
             "ALGORITHM_ISSUE",
             "MECHANISM_ISSUE",
             "COMPUTATION_EFFICIENCY");
-    assertThat(catalog.requireGroup("ratio_empty_value_policy").selectionMode()).isEqualTo("SINGLE");
+    assertThat(catalog.groups())
+        .extracting(SemanticTagGroupDefinition::groupKey)
+        .doesNotContain("ratio_empty_value_policy");
   }
 
   @Test
@@ -161,7 +162,6 @@ class SemanticTagGroupServiceTest {
             "delay_cause",
             "customer_issue_closure_status",
             "illegal_type",
-            "defect_reason_standard",
-            "ratio_empty_value_policy");
+            "defect_reason_standard");
   }
 }

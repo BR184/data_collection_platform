@@ -8,6 +8,8 @@ import type {
   BusinessTagGroupResponse,
   BusinessTagGroupSaveRequest,
   BusinessTagGroupUpdateRequest,
+  OptionItemResponse,
+  SemanticTagGroupResponse,
   SemanticTagGroupCatalogResponse,
 } from '../types/api';
 
@@ -19,6 +21,7 @@ interface ApplicationScopeOption {
   label: string;
   entityType: string;
   scenarioKey: string;
+  supportedFieldKeys: string[];
 }
 
 interface BusinessTagConditionDraft {
@@ -30,26 +33,53 @@ interface BusinessTagConditionDraft {
 }
 
 const applicationScopeOptions: ApplicationScopeOption[] = [
-  { key: 'all_issue_tables', label: '全部议题表格', entityType: 'issue', scenarioKey: 'all_tables' },
-  { key: 'system_test_tables', label: '系统测试表格', entityType: 'issue', scenarioKey: 'system_test' },
-  { key: 'customer_issue_tables', label: '客户问题表格', entityType: 'issue', scenarioKey: 'customer_issue' },
-  { key: 'review_record_tables', label: '评审数据表格', entityType: 'review_record', scenarioKey: 'review_data' },
-  { key: 'code_review_tables', label: '代码走查表格', entityType: 'merge_request', scenarioKey: 'code_review' },
-];
-
-const fieldScopeOptions = [
-  { label: '全部可筛选字段', value: 'all_fields' },
-  { label: '人员字段', value: 'people_fields' },
-  { label: '项目字段', value: 'project_fields' },
-  { label: '模块字段', value: 'module_fields' },
-  { label: '里程碑/轮次字段', value: 'milestone_fields' },
+  {
+    key: 'all_issue_tables',
+    label: '议题类表格',
+    entityType: 'issue',
+    scenarioKey: 'all_tables',
+    supportedFieldKeys: [
+      'severity_level',
+      'urgency',
+      'delay_cause',
+      'customer_issue_closure_status',
+      'defect_reason_standard',
+      'person',
+      'module',
+      'owner_user',
+      'project_version',
+      'milestone',
+      'testing_phase_dynamic',
+    ],
+  },
+  {
+    key: 'review_record_tables',
+    label: '评审数据管理',
+    entityType: 'review_record',
+    scenarioKey: 'review_data',
+    supportedFieldKeys: [
+      'module',
+      'owner_user',
+      'reviewer_user',
+      'project_version',
+      'review_type',
+      'review_problem_status',
+      'person',
+    ],
+  },
+  {
+    key: 'code_review_tables',
+    label: '代码走查表格',
+    entityType: 'merge_request',
+    scenarioKey: 'code_review',
+    supportedFieldKeys: ['person', 'module', 'owner_user', 'reviewer_user', 'project_version', 'mr_merge_state'],
+  },
 ];
 
 const tagGroups = ref<BusinessTagGroupResponse[]>([]);
 const semanticCatalog = ref<SemanticTagGroupCatalogResponse | null>(null);
 let conditionSeed = 0;
 const conditionDrafts = ref<BusinessTagConditionDraft[]>([createConditionDraft()]);
-const selectedApplicationScopeKey = ref('all_issue_tables');
 const loading = ref(false);
 const catalogLoading = ref(false);
 const saving = ref(false);
@@ -74,10 +104,13 @@ const groupCount = computed(() => tagGroups.value.length);
 const publicCount = computed(() => tagGroups.value.filter((item) => item.visibility === 'PUBLIC').length);
 const teamCount = computed(() => tagGroups.value.filter((item) => item.visibility === 'TEAM').length);
 const tagTypeOptions = computed(() =>
-  semanticCatalog.value?.groups.map((group) => ({
-    label: group.label,
+  businessSemanticGroups.value.map((group) => ({
+    label: businessSemanticLabel(group),
     value: group.groupKey,
   })) ?? [],
+);
+const businessSemanticGroups = computed(() =>
+  semanticCatalog.value?.groups.filter((group) => !hiddenBusinessFieldKeys.has(group.groupKey)) ?? [],
 );
 const generatedDslJson = computed(() => buildDslJson(false) ?? '');
 const currentOwnerUserId = computed(() =>
@@ -89,6 +122,7 @@ const semanticCatalogStatus = computed(() => {
   }
   return semanticCatalog.value ? '语义目录已加载，保存时自动记录目录版本' : '语义目录未加载';
 });
+const compatibilityPreview = computed(() => pageCompatibilityFor(conditionDrafts.value));
 
 onMounted(() => {
   void loadTagGroups();
@@ -111,7 +145,9 @@ async function loadTagGroups() {
 async function loadSemanticCatalog() {
   catalogLoading.value = true;
   try {
-    semanticCatalog.value = await api.getStaticSemanticTagGroups(form.entityType || 'issue');
+    const staticCatalog = await api.getStaticSemanticTagGroups('issue');
+    const dynamicGroups = await loadDynamicBusinessSemanticGroups();
+    semanticCatalog.value = mergeSemanticCatalog(staticCatalog, dynamicGroups);
     form.tagSchemaHash = semanticCatalog.value.schemaHash;
   } catch (error) {
     ElMessage.warning(error instanceof Error ? error.message : '加载语义标签类型目录失败');
@@ -120,23 +156,120 @@ async function loadSemanticCatalog() {
   }
 }
 
-async function handleEntityTypeChange() {
-  conditionDrafts.value = [createConditionDraft()];
-  await loadSemanticCatalog();
+async function loadDynamicBusinessSemanticGroups() {
+  const [systemTestOptions, reviewOptions, codeReviewOptions] = await Promise.allSettled([
+    api.getSystemTestIssueSearchFilterOptions(),
+    api.getReviewDataFilterOptions(),
+    api.getCodeReviewIllegalRecordFilterOptions(),
+  ]);
+  const systemTest = systemTestOptions.status === 'fulfilled' ? systemTestOptions.value : null;
+  const review = reviewOptions.status === 'fulfilled' ? reviewOptions.value : null;
+  const codeReview = codeReviewOptions.status === 'fulfilled' ? codeReviewOptions.value : null;
+
+  return [
+    dynamicGroup('person', '人员', [
+      ...(systemTest?.assigneeNames ?? []),
+      ...(review?.reviewOwners ?? []),
+      ...(review?.reviewExperts ?? []),
+    ], 80),
+    dynamicGroup('module', '模块', [
+      ...(systemTest?.moduleNames ?? []),
+      ...(review?.moduleNames ?? []),
+      ...(codeReview?.moduleNames ?? []),
+    ], 90),
+    dynamicGroup('owner_user', '负责人', [
+      ...(systemTest?.assigneeNames ?? []),
+      ...(review?.reviewOwners ?? []),
+    ], 100),
+    dynamicGroup('reviewer_user', '评审专家', review?.reviewExperts ?? [], 110),
+    dynamicGroup('project_version', '项目/版本', [
+      ...(systemTest?.projectNames ?? []),
+      ...(review?.projectNames ?? []),
+      ...(codeReview?.projectNames ?? []),
+    ], 120),
+    dynamicGroup('milestone', '里程碑', systemTest?.milestoneTitles ?? [], 130),
+    dynamicGroup('testing_phase_dynamic', '测试阶段', systemTest?.testingPhases ?? [], 140),
+    dynamicGroup('review_type', '评审类型', review?.reviewTypes ?? [], 150),
+    dynamicGroup('review_problem_status', '问题状态', review?.problemStatuses ?? [], 160),
+  ].filter((group) => group.values.length > 0);
 }
 
-async function handleApplicationScopeChange(scopeKey: string) {
-  const option = applicationScopeOptions.find((item) => item.key === scopeKey) ?? applicationScopeOptions[0];
-  form.entityType = option.entityType;
-  form.scenarioKey = option.scenarioKey;
-  conditionDrafts.value = [createConditionDraft()];
-  await loadSemanticCatalog();
+function mergeSemanticCatalog(
+  catalog: SemanticTagGroupCatalogResponse,
+  dynamicGroups: SemanticTagGroupResponse[],
+): SemanticTagGroupCatalogResponse {
+  const merged = new Map<string, SemanticTagGroupResponse>();
+  for (const group of catalog.groups) {
+    merged.set(group.groupKey, group);
+  }
+  for (const group of dynamicGroups) {
+    const current = merged.get(group.groupKey);
+    merged.set(group.groupKey, current ? mergeSemanticGroupValues(current, group) : group);
+  }
+  return {
+    ...catalog,
+    schemaHash: `${catalog.schemaHash}:business-options`,
+    groups: Array.from(merged.values()).sort((left, right) => left.sortOrder - right.sortOrder),
+  };
+}
+
+function mergeSemanticGroupValues(
+  left: SemanticTagGroupResponse,
+  right: SemanticTagGroupResponse,
+): SemanticTagGroupResponse {
+  const values = new Map<string, SemanticTagGroupResponse['values'][number]>();
+  for (const value of [...left.values, ...right.values]) {
+    const key = value.canonicalValue || value.valueKey || value.label;
+    values.set(key, value);
+  }
+  return {
+    ...left,
+    label: businessSemanticLabel(left),
+    sourceMode: left.sourceMode === right.sourceMode ? left.sourceMode : 'HYBRID',
+    values: Array.from(values.values()).sort((a, b) => a.label.localeCompare(b.label, 'zh-Hans-CN')),
+  };
+}
+
+function dynamicGroup(
+  groupKey: string,
+  label: string,
+  options: OptionItemResponse[],
+  sortOrder: number,
+): SemanticTagGroupResponse {
+  const values = new Map<string, OptionItemResponse>();
+  for (const option of options) {
+    const value = option.value?.trim();
+    const optionLabel = option.label?.trim() || value;
+    if (value && optionLabel) {
+      values.set(value, { label: optionLabel, value });
+    }
+  }
+  return {
+    domain: 'business',
+    groupKey,
+    label,
+    sourceMode: 'DYNAMIC',
+    rulePolicyKey: 'data_filter_options',
+    selectionMode: 'MULTIPLE',
+    matchStrategyName: 'EXACT',
+    enabled: true,
+    sortOrder,
+    values: Array.from(values.values())
+      .sort((left, right) => left.label.localeCompare(right.label, 'zh-Hans-CN'))
+      .map((option, index) => ({
+        valueKey: option.value,
+        label: option.label,
+        valueType: 'STRING',
+        canonicalValue: option.value,
+        enabled: true,
+        sortOrder: (index + 1) * 10,
+      })),
+  };
 }
 
 function openCreateDrawer() {
   editingId.value = null;
   conditionDrafts.value = [createConditionDraft()];
-  selectedApplicationScopeKey.value = 'all_issue_tables';
   const applicationScope = applicationScopeOptions[0];
   Object.assign(form, {
     tagGroupName: '',
@@ -154,7 +287,6 @@ function openCreateDrawer() {
 
 function openEditDrawer(tagGroup: BusinessTagGroupResponse) {
   editingId.value = tagGroup.id;
-  selectedApplicationScopeKey.value = resolveApplicationScopeKey(tagGroup.entityType, tagGroup.scenarioKey);
   Object.assign(form, {
     tagGroupName: tagGroup.tagGroupName,
     ownerUserId: tagGroup.ownerUserId,
@@ -223,9 +355,10 @@ async function deleteTagGroup(tagGroup: BusinessTagGroupResponse) {
 function normalizeForm(): BusinessTagGroupSaveRequest | null {
   const tagGroupName = form.tagGroupName.trim();
   const ownerUserId = currentOwnerUserId.value;
-  const entityType = form.entityType.trim();
-  const scenarioKey = form.scenarioKey.trim();
-  const scopeKey = form.scopeKey.trim();
+  const compatibleScope = resolveCompatibleScope(conditionDrafts.value);
+  const entityType = compatibleScope.entityType;
+  const scenarioKey = compatibleScope.scenarioKey;
+  const scopeKey = resolveFieldScope(conditionDrafts.value);
   const dslJson = buildDslJson(true);
   const tagSchemaHash = form.tagSchemaHash.trim();
   if (!tagGroupName || !ownerUserId || !entityType || !scenarioKey || !scopeKey || !tagSchemaHash) {
@@ -274,7 +407,7 @@ function removeCondition(id: string) {
 
 function handleFieldKeyChange(condition: BusinessTagConditionDraft) {
   const group = findSemanticGroup(condition.fieldKey);
-  condition.fieldLabel = group?.label ?? condition.fieldKey;
+  condition.fieldLabel = group ? businessSemanticLabel(group) : condition.fieldKey;
   condition.values = [];
 }
 
@@ -326,7 +459,7 @@ function buildDslJson(showWarning: boolean) {
     }
     conditions.push({
       fieldKey,
-      fieldLabel: draft.fieldLabel.trim() || group.label,
+      fieldLabel: draft.fieldLabel.trim() || businessSemanticLabel(group),
       operator: draft.operator,
       values: draft.operator === 'EQ' ? values.slice(0, 1) : values,
     });
@@ -365,7 +498,7 @@ function parseDslToConditionDrafts(dslJson: string) {
         return {
           ...createConditionDraft(),
           fieldKey,
-          fieldLabel: condition.fieldLabel || group?.label || fieldKey,
+          fieldLabel: condition.fieldLabel || (group ? businessSemanticLabel(group) : fieldKey),
           operator: condition.operator === 'EQ' ? 'EQ' : 'IN',
           values,
         } satisfies BusinessTagConditionDraft;
@@ -389,19 +522,89 @@ function operatorText(operator: BusinessTagConditionOperator) {
   return operator === 'EQ' ? '等于' : '包含任一';
 }
 
-function resolveApplicationScopeKey(entityType: string, scenarioKey: string) {
-  return applicationScopeOptions.find((item) => item.entityType === entityType && item.scenarioKey === scenarioKey)?.key
-    ?? applicationScopeOptions[0].key;
-}
-
 function applicationScopeText(entityType: string, scenarioKey: string) {
   return applicationScopeOptions.find((item) => item.entityType === entityType && item.scenarioKey === scenarioKey)?.label
-    ?? '未识别适用页面';
+    ?? '系统自动判断';
 }
 
 function fieldScopeText(scopeKey: string) {
-  return fieldScopeOptions.find((item) => item.value === scopeKey)?.label ?? '未识别字段范围';
+  return {
+    all_fields: '复合条件',
+    people_fields: '人员',
+    project_fields: '项目/版本',
+    module_fields: '模块',
+    milestone_fields: '里程碑/轮次',
+  }[scopeKey] ?? '系统自动判断';
 }
+
+function businessSemanticLabel(group: Pick<SemanticTagGroupResponse, 'groupKey' | 'label'>) {
+  return {
+    person: '人员',
+    severity_level: '缺陷等级',
+    urgency: '紧急程度',
+    customer_issue_closure_status: '处理状态',
+    defect_reason_standard: '缺陷原因',
+  }[group.groupKey] ?? group.label;
+}
+
+function selectedFieldKeys(drafts: BusinessTagConditionDraft[]) {
+  return Array.from(new Set(drafts.map((draft) => draft.fieldKey.trim()).filter(Boolean)));
+}
+
+function pageCompatibilityFor(drafts: BusinessTagConditionDraft[]) {
+  const fieldKeys = selectedFieldKeys(drafts);
+  return applicationScopeOptions.map((page) => {
+    const missing = fieldKeys.filter((fieldKey) => !page.supportedFieldKeys.includes(fieldKey));
+    return {
+      ...page,
+      compatible: fieldKeys.length > 0 && missing.length === 0,
+      reason: fieldKeys.length === 0
+        ? '选择标签条件后自动判断'
+        : missing.length
+          ? `缺少：${missing.map(fieldKeyText).join('、')}`
+          : '可应用',
+    };
+  });
+}
+
+function resolveCompatibleScope(drafts: BusinessTagConditionDraft[]) {
+  return pageCompatibilityFor(drafts).find((page) => page.compatible) ?? applicationScopeOptions[0];
+}
+
+function resolveFieldScope(drafts: BusinessTagConditionDraft[]) {
+  const keys = selectedFieldKeys(drafts);
+  if (keys.length === 0 || keys.length > 1) {
+    return 'all_fields';
+  }
+  const key = keys[0];
+  if (['owner_user', 'reviewer_user'].includes(key)) {
+    return 'people_fields';
+  }
+  if (key === 'person') {
+    return 'people_fields';
+  }
+  if (key === 'module') {
+    return 'module_fields';
+  }
+  if (key === 'project_version') {
+    return 'project_fields';
+  }
+  if (['milestone', 'testing_phase_dynamic'].includes(key)) {
+    return 'milestone_fields';
+  }
+  return 'all_fields';
+}
+
+function fieldKeyText(fieldKey: string) {
+  const group = findSemanticGroup(fieldKey);
+  return group ? businessSemanticLabel(group) : fieldKey;
+}
+
+const hiddenBusinessFieldKeys = new Set([
+  'system_test_exclusion_type',
+  'illegal_type',
+  'ratio_empty_value_policy',
+]);
 </script>
 
 <template>
@@ -453,12 +656,12 @@ function fieldScopeText(scopeKey: string) {
             <el-tag size="small" effect="plain">{{ visibilityText(row.visibility) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="适用页面" min-width="150" show-overflow-tooltip>
+        <el-table-column label="可应用页面" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ applicationScopeText(row.entityType, row.scenarioKey) }}
           </template>
         </el-table-column>
-        <el-table-column label="字段范围" min-width="140" show-overflow-tooltip>
+        <el-table-column label="条件类型" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
             {{ fieldScopeText(row.scopeKey) }}
           </template>
@@ -489,31 +692,6 @@ function fieldScopeText(scopeKey: string) {
             <el-radio-button value="TEAM">团队</el-radio-button>
             <el-radio-button value="PUBLIC">公开</el-radio-button>
           </el-radio-group>
-        </el-form-item>
-        <el-form-item label="适用页面">
-          <el-select
-            v-model="selectedApplicationScopeKey"
-            style="width: 100%"
-            placeholder="选择适用页面"
-            @change="handleApplicationScopeChange"
-          >
-            <el-option
-              v-for="option in applicationScopeOptions"
-              :key="option.key"
-              :label="option.label"
-              :value="option.key"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="字段范围">
-          <el-select v-model="form.scopeKey" style="width: 100%" placeholder="选择字段范围">
-            <el-option
-              v-for="option in fieldScopeOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
         </el-form-item>
         <el-alert
           type="info"
@@ -583,6 +761,21 @@ function fieldScopeText(scopeKey: string) {
             </div>
 
             <el-button :icon="Plus" plain @click="addCondition">添加条件</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="可应用页面">
+          <div class="business-tag-compatibility-list">
+            <div
+              v-for="page in compatibilityPreview"
+              :key="page.key"
+              class="business-tag-compatibility-item"
+            >
+              <span>{{ page.label }}</span>
+              <el-tag size="small" :type="page.compatible ? 'success' : 'info'" effect="plain">
+                {{ page.reason }}
+              </el-tag>
+            </div>
           </div>
         </el-form-item>
 
@@ -668,6 +861,23 @@ function fieldScopeText(scopeKey: string) {
 
 .business-tag-form {
   padding-right: 8px;
+}
+
+.business-tag-compatibility-list {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.business-tag-compatibility-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #f8fafc;
 }
 
 @media (max-width: 760px) {

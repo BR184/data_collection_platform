@@ -82,8 +82,10 @@ describe('BusinessTagGroupsView mount smoke', () => {
     expect(wrapper.text()).toContain('新建业务标签组');
     expect(wrapper.text()).toContain('领导');
     expect(wrapper.text()).toContain('团队');
-    expect(wrapper.text()).toContain('全部议题表格');
-    expect(wrapper.text()).toContain('人员字段');
+    expect(wrapper.text()).toContain('议题类表格');
+    expect(wrapper.text()).toContain('人员');
+    expect(wrapper.text()).not.toContain('选择适用页面');
+    expect(wrapper.text()).not.toContain('选择字段范围');
     expect(wrapper.text()).not.toContain('schemaHash');
     expect(wrapper.text()).not.toContain('保存 DSL');
     expect(fetchSpy).toHaveBeenCalledWith(

@@ -56,8 +56,7 @@ class SegmentManagementControllerTest {
         .andExpect(jsonPath("$.groups[2].groupKey").value("system_test_exclusion_type"))
         .andExpect(jsonPath("$.groups[3].groupKey").value("delay_cause"))
         .andExpect(jsonPath("$.groups[3].values[0].valueKey").value("TECHNICAL_BLOCKER"))
-        .andExpect(jsonPath("$.groups[7].groupKey").value("ratio_empty_value_policy"))
-        .andExpect(jsonPath("$.groups[7].selectionMode").value("SINGLE"));
+        .andExpect(jsonPath("$.groups.length()").value(7));
   }
 
   @Test

@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, ArrowUp, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import BusinessTagGroupApplySelect from '../components/BusinessTagGroupApplySelect.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
@@ -24,12 +25,12 @@ import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import { downloadBlob } from '../utils/csv-download';
-import type { ReviewDataRecordRowResponse } from '../types/api';
+import type { BusinessTagGroupApplyResponse, ReviewDataRecordRowResponse, StatisticFilterGroup } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import {
-  buildReviewDataMetricFilterFields,
+  buildReviewDataFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
@@ -136,7 +137,16 @@ const legacyImportVisible = ref(false);
 const advancedConditionsExpanded = ref(false);
 const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
 
-const reviewFilterFields = computed(() => buildReviewDataMetricFilterFields(filterOptions.value));
+const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
+const reviewBusinessTagSupportedFields = [
+  'person',
+  'module',
+  'owner_user',
+  'reviewer_user',
+  'project_version',
+  'review_type',
+  'review_problem_status',
+];
 const {
   filterDraft,
   initializeFromQuery,
@@ -191,6 +201,112 @@ async function loadRows() {
 
 async function handleClearFilter(key: string) {
   void key;
+}
+
+async function handleBusinessTagGroupApplied(result: BusinessTagGroupApplyResponse) {
+  const filterGroup = parseBusinessTagGroupDslForReview(result.tagGroup.dslJson);
+  if (!filterGroup) {
+    ElMessage.warning('该标签组包含评审数据管理不支持的条件');
+    return;
+  }
+  initializeFromQuery({ filterGroup: JSON.stringify(filterGroup) });
+  await patchQuery({
+    page: '1',
+    filterGroup: JSON.stringify(filterGroup),
+  });
+  await loadRows();
+  ElMessage.success(`已应用业务标签组：${result.tagGroup.tagGroupName}`);
+}
+
+async function handleBusinessTagGroupCleared() {
+  resetDraft();
+  await patchQuery({
+    page: '1',
+    filterGroup: null,
+  });
+  await loadRows();
+}
+
+function parseBusinessTagGroupDslForReview(dslJson: string): StatisticFilterGroup | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(dslJson);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+  const candidate = parsed as {
+    logic?: unknown;
+    conditions?: Array<{
+      fieldKey?: unknown;
+      operator?: unknown;
+      value?: unknown;
+      values?: unknown;
+    }>;
+  };
+  if (!Array.isArray(candidate.conditions) || (candidate.logic !== 'AND' && candidate.logic !== 'OR')) {
+    return null;
+  }
+  const conditions: StatisticFilterGroup['conditions'] = [];
+  for (const condition of candidate.conditions) {
+    const businessFieldKey = String(condition.fieldKey ?? condition.fieldFamily ?? '');
+    const peopleField = businessFieldKey === 'person' || businessFieldKey === 'people';
+    const fieldKey = mapBusinessTagFieldToReviewField(businessFieldKey);
+    const values = Array.isArray(condition.values)
+      ? condition.values
+      : condition.value != null
+        ? [condition.value]
+        : [];
+    if (!fieldKey || values.some((value) => typeof value !== 'string')) {
+      return null;
+    }
+    if ((values.length > 1 || peopleField) && candidate.conditions.length > 1) {
+      return null;
+    }
+    if (peopleField) {
+      for (const value of values) {
+        conditions.push(
+          {
+            fieldKey: 'reviewOwner',
+            operator: 'eq',
+            value: String(value),
+          },
+          {
+            fieldKey: 'reviewExpert',
+            operator: 'eq',
+            value: String(value),
+          },
+        );
+      }
+      continue;
+    }
+    for (const value of values) {
+      conditions.push({
+        fieldKey,
+        operator: 'eq',
+        value: String(value),
+      });
+    }
+  }
+  return {
+    logic: conditions.length > 1 && candidate.conditions.length === 1 ? 'OR' : candidate.logic,
+    conditions,
+  };
+}
+
+function mapBusinessTagFieldToReviewField(fieldKey: string) {
+  return {
+    person: 'reviewOwner',
+    people: 'reviewOwner',
+    module: 'moduleName',
+    owner_user: 'reviewOwner',
+    reviewer_user: 'reviewExpert',
+    project_version: 'projectName',
+    review_type: 'reviewType',
+    review_problem_status: 'problemStatus',
+  }[fieldKey] ?? '';
 }
 
 async function refreshReviewRecords() {
@@ -307,7 +423,7 @@ const {
               data-testid="review-advanced-filter-toggle"
               @click="advancedConditionsExpanded = !advancedConditionsExpanded"
             >
-              指标与例外条件
+              高级筛选
             </el-button>
             <el-collapse-transition>
               <div v-show="advancedConditionsExpanded" class="review-data-advanced-filter-body">
@@ -321,6 +437,12 @@ const {
       <template #primary-actions>
         <div class="review-data-toolbar-actions">
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
+          <BusinessTagGroupApplySelect
+            all-entities
+            :supported-field-keys="reviewBusinessTagSupportedFields"
+            @applied="handleBusinessTagGroupApplied"
+            @cleared="handleBusinessTagGroupCleared"
+          />
           <el-button
             plain
             :icon="InfoFilled"
