@@ -17,6 +17,8 @@ try {
   python scripts/check_flyway_migration_immutability.py
   python scripts/check_flyway_destructive_migrations.py
   python scripts/check_flyway_destructive_migrations_test.py
+  python scripts/check_label_group_dimension_matrix_test.py
+  python scripts/check_label_group_dimension_matrix.py
   python scripts/check_backend_test_hygiene.py
   python scripts/check_api_contract_drift.py
   python scripts/check_frontend_api_boundary.py
