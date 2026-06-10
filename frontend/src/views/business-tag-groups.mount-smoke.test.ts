@@ -12,6 +12,7 @@ function jsonResponse(data: unknown) {
 
 describe('BusinessTagGroupsView mount smoke', () => {
   it('loads saved business tag groups in system settings', async () => {
+    const schemaHash = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
     const fetchSpy = vi.fn((url: string) => {
       if (url.includes('/api/business-tag-groups')) {
         return jsonResponse([
@@ -37,7 +38,7 @@ describe('BusinessTagGroupsView mount smoke', () => {
       if (url.includes('/api/semantic-tag-groups/static')) {
         return jsonResponse({
           entityType: 'issue',
-          schemaHash: 'schema-v1',
+          schemaHash,
           groups: [
             {
               domain: 'issue',
@@ -92,6 +93,8 @@ describe('BusinessTagGroupsView mount smoke', () => {
       '/api/semantic-tag-groups/static?entityType=issue',
       expect.any(Object),
     );
+    expect((wrapper.vm as unknown as { semanticCatalog?: { schemaHash: string } }).semanticCatalog?.schemaHash)
+      .toBe(schemaHash);
     expect(wrapper.text()).not.toContain('新建语义标签组');
 
     wrapper.unmount();

@@ -19,6 +19,8 @@ type BusinessTagConditionOperator = 'IN' | 'EQ';
 interface ApplicationScopeOption {
   key: string;
   label: string;
+  moduleKey: string;
+  moduleLabel: string;
   entityType: string;
   scenarioKey: string;
   supportedFieldKeys: string[];
@@ -32,29 +34,35 @@ interface BusinessTagConditionDraft {
   values: string[];
 }
 
+const issueTableSupportedFieldKeys = [
+  'severity_level',
+  'urgency',
+  'delay_cause',
+  'customer_issue_closure_status',
+  'defect_reason_standard',
+  'person',
+  'module',
+  'owner_user',
+  'project_version',
+  'milestone',
+  'testing_phase_dynamic',
+];
+
 const applicationScopeOptions: ApplicationScopeOption[] = [
   {
-    key: 'all_issue_tables',
-    label: '议题类表格',
+    key: 'quality_board_rd',
+    label: '研发质量看板',
+    moduleKey: 'quality-board',
+    moduleLabel: '质量看板',
     entityType: 'issue',
-    scenarioKey: 'all_tables',
-    supportedFieldKeys: [
-      'severity_level',
-      'urgency',
-      'delay_cause',
-      'customer_issue_closure_status',
-      'defect_reason_standard',
-      'person',
-      'module',
-      'owner_user',
-      'project_version',
-      'milestone',
-      'testing_phase_dynamic',
-    ],
+    scenarioKey: 'quality_board',
+    supportedFieldKeys: issueTableSupportedFieldKeys,
   },
   {
-    key: 'review_record_tables',
+    key: 'review_data_management',
     label: '评审数据管理',
+    moduleKey: 'review-data',
+    moduleLabel: '评审数据',
     entityType: 'review_record',
     scenarioKey: 'review_data',
     supportedFieldKeys: [
@@ -68,12 +76,57 @@ const applicationScopeOptions: ApplicationScopeOption[] = [
     ],
   },
   {
-    key: 'code_review_tables',
-    label: '代码走查表格',
+    key: 'code_review_illegal_records',
+    label: '代码走查非法数据',
+    moduleKey: 'code-review',
+    moduleLabel: '代码走查',
     entityType: 'merge_request',
     scenarioKey: 'code_review',
     supportedFieldKeys: ['person', 'module', 'owner_user', 'reviewer_user', 'project_version', 'mr_merge_state'],
   },
+  {
+    key: 'code_review_multi_board',
+    label: '代码走查多元看板',
+    moduleKey: 'code-review',
+    moduleLabel: '代码走查',
+    entityType: 'merge_request',
+    scenarioKey: 'code_review_board',
+    supportedFieldKeys: ['person', 'module', 'owner_user', 'reviewer_user', 'project_version', 'mr_merge_state'],
+  },
+  ...[
+    ['question_metrics_home', '系统测试缺陷汇总'],
+    ['question_metrics_multi_board', '议题多元看板'],
+    ['question_metrics_delay_analysis', '申请延期缺陷分析'],
+    ['question_metrics_illegal_records', '系统测试非法数据'],
+    ['question_metrics_defect_cause', '缺陷原因分析'],
+    ['question_metrics_phase_statistics', '议题阶段统计'],
+    ['question_metrics_issue_search', '议题查询'],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    moduleKey: 'question-metrics',
+    moduleLabel: '系统测试',
+    entityType: 'issue',
+    scenarioKey: key,
+    supportedFieldKeys: issueTableSupportedFieldKeys,
+  })),
+  ...[
+    ['customer_issues_home', '缺陷汇总'],
+    ['customer_issues_illegal_records', '缺陷非法数据'],
+    ['customer_issues_defect_cause', '缺陷原因分析'],
+    ['customer_issues_cc_product_issues', 'CC_PRODUCT议题'],
+    ['customer_issues_delay_issues', '延期问题'],
+    ['customer_issues_response_efficiency', '缺陷响应效率'],
+    ['customer_issues_issue_by_function', '按功能展示缺陷数量'],
+  ].map(([key, label]) => ({
+    key,
+    label,
+    moduleKey: 'customer-issues',
+    moduleLabel: '客户问题',
+    entityType: 'issue',
+    scenarioKey: key,
+    supportedFieldKeys: issueTableSupportedFieldKeys,
+  })),
 ];
 
 const tagGroups = ref<BusinessTagGroupResponse[]>([]);
@@ -123,6 +176,7 @@ const semanticCatalogStatus = computed(() => {
   return semanticCatalog.value ? '语义目录已加载，保存时自动记录目录版本' : '语义目录未加载';
 });
 const compatibilityPreview = computed(() => pageCompatibilityFor(conditionDrafts.value));
+const compatibilityPreviewByModule = computed(() => groupCompatibilityByModule(compatibilityPreview.value));
 
 onMounted(() => {
   void loadTagGroups();
@@ -208,7 +262,7 @@ function mergeSemanticCatalog(
   }
   return {
     ...catalog,
-    schemaHash: `${catalog.schemaHash}:business-options`,
+    schemaHash: catalog.schemaHash,
     groups: Array.from(merged.values()).sort((left, right) => left.sortOrder - right.sortOrder),
   };
 }
@@ -523,6 +577,9 @@ function operatorText(operator: BusinessTagConditionOperator) {
 }
 
 function applicationScopeText(entityType: string, scenarioKey: string) {
+  if (entityType === 'issue' && scenarioKey === 'all_tables') {
+    return '议题类表格';
+  }
   return applicationScopeOptions.find((item) => item.entityType === entityType && item.scenarioKey === scenarioKey)?.label
     ?? '系统自动判断';
 }
@@ -565,6 +622,30 @@ function pageCompatibilityFor(drafts: BusinessTagConditionDraft[]) {
           : '可应用',
     };
   });
+}
+
+function groupCompatibilityByModule(pages: ReturnType<typeof pageCompatibilityFor>) {
+  const modules = new Map<string, {
+    key: string;
+    label: string;
+    totalCount: number;
+    compatibleCount: number;
+    pages: ReturnType<typeof pageCompatibilityFor>;
+  }>();
+  for (const page of pages) {
+    const current = modules.get(page.moduleKey) ?? {
+      key: page.moduleKey,
+      label: page.moduleLabel,
+      totalCount: 0,
+      compatibleCount: 0,
+      pages: [],
+    };
+    current.totalCount += 1;
+    current.compatibleCount += page.compatible ? 1 : 0;
+    current.pages.push(page);
+    modules.set(page.moduleKey, current);
+  }
+  return Array.from(modules.values());
 }
 
 function resolveCompatibleScope(drafts: BusinessTagConditionDraft[]) {
@@ -766,16 +847,32 @@ const hiddenBusinessFieldKeys = new Set([
 
         <el-form-item label="可应用页面">
           <div class="business-tag-compatibility-list">
-            <div
-              v-for="page in compatibilityPreview"
-              :key="page.key"
-              class="business-tag-compatibility-item"
-            >
-              <span>{{ page.label }}</span>
-              <el-tag size="small" :type="page.compatible ? 'success' : 'info'" effect="plain">
-                {{ page.reason }}
-              </el-tag>
-            </div>
+            <el-collapse>
+              <el-collapse-item
+                v-for="module in compatibilityPreviewByModule"
+                :key="module.key"
+                :name="module.key"
+              >
+                <template #title>
+                  <div class="business-tag-compatibility-module-title">
+                    <span>{{ module.label }}</span>
+                    <el-tag size="small" :type="module.compatibleCount > 0 ? 'success' : 'info'" effect="plain">
+                      {{ module.compatibleCount }}/{{ module.totalCount }} 可用
+                    </el-tag>
+                  </div>
+                </template>
+                <div
+                  v-for="page in module.pages"
+                  :key="page.key"
+                  class="business-tag-compatibility-item"
+                >
+                  <span>{{ page.label }}</span>
+                  <el-tag size="small" :type="page.compatible ? 'success' : 'info'" effect="plain">
+                    {{ page.reason }}
+                  </el-tag>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
           </div>
         </el-form-item>
 
@@ -867,6 +964,20 @@ const hiddenBusinessFieldKeys = new Set([
   display: grid;
   gap: 8px;
   width: 100%;
+}
+
+.business-tag-compatibility-list :deep(.el-collapse) {
+  width: 100%;
+  border-top: 0;
+}
+
+.business-tag-compatibility-module-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding-right: 8px;
 }
 
 .business-tag-compatibility-item {

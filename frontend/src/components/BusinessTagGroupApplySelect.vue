@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Filter, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import type { BusinessTagGroupApplyResponse, BusinessTagGroupResponse } from '../types/api';
 
 const props = withDefaults(
@@ -34,6 +35,12 @@ const selectedId = ref<number | null>(null);
 const loading = ref(false);
 const applying = ref(false);
 const appliedName = ref('');
+const effectiveOwnerUserId = computed(() => {
+  if (props.ownerUserId) {
+    return props.ownerUserId;
+  }
+  return authState.currentUser.authenticated ? authState.currentUser.username : undefined;
+});
 const displayTagGroups = computed(() => {
   if (!props.supportedFieldKeys.length) {
     return tagGroups.value;
@@ -46,7 +53,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.entityType, props.scenarioKey, props.ownerUserId],
+  () => [props.entityType, props.scenarioKey, props.ownerUserId, effectiveOwnerUserId.value],
   () => {
     selectedId.value = null;
     appliedName.value = '';
@@ -59,8 +66,7 @@ async function loadTagGroups() {
   try {
     tagGroups.value = await api.listBusinessTagGroups({
       entityType: props.allEntities ? undefined : props.entityType,
-      scenarioKey: props.allEntities ? undefined : props.scenarioKey,
-      ownerUserId: props.ownerUserId,
+      ownerUserId: effectiveOwnerUserId.value,
     });
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '加载业务标签组失败');
