@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Download, InfoFilled, RefreshRight, Search } from '@element-plus/icons-vue';
-import BusinessTagGroupApplySelect from './BusinessTagGroupApplySelect.vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
-import type { BusinessTagGroupApplyResponse, RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
+import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
 import type { StatisticFilterDraftGroup } from './statistic-board-filters';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
 import { toUserMessage } from '../utils/user-message';
@@ -37,7 +36,6 @@ const emit = defineEmits<{
   (event: 'openRuleExplanation'): void;
   (event: 'exportBoard'): void;
   (event: 'settingsCommand', command: string): void;
-  (event: 'businessTagGroupApplied', result: BusinessTagGroupApplyResponse): void;
 }>();
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
@@ -126,7 +124,6 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
     <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
       <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
       <SyncMetaBadge :value="lastSyncedText" />
-      <BusinessTagGroupApplySelect @applied="emit('businessTagGroupApplied', $event)" />
       <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
         <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
         <span>{{ mirrorStatusText }}</span>

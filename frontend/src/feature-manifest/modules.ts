@@ -221,22 +221,6 @@ export const modules: ShellModule[] = [
         requiresLogin: true,
         hiddenForApproval: true,
       },
-      {
-        key: 'business-tag-groups',
-        label: '业务标签组',
-        description: '创建和维护可跨页面应用的业务筛选标签组。',
-        path: '/system-settings/business-tag-groups',
-        requiresLogin: true,
-        hiddenForApproval: true,
-      },
-      {
-        key: 'semantic-tag-groups',
-        label: '语义标签组',
-        description: '查看平台规则维护的语义标签组和值模板。',
-        path: '/system-settings/semantic-tag-groups',
-        requiresLogin: true,
-        hiddenForApproval: true,
-      },
     ],
   },
 ];

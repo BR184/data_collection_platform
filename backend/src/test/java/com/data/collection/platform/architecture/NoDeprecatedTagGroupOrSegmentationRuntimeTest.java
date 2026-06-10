@@ -12,18 +12,36 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
-class NoAbandonedLabelGroupingImplementationTest {
+class NoDeprecatedTagGroupOrSegmentationRuntimeTest {
   private static final List<Pattern> FORBIDDEN_RUNTIME_MARKERS =
       List.of(
           Pattern.compile("\\btaggroup\\b"),
           Pattern.compile("\\btagselection\\b"),
           Pattern.compile("\\btagselections\\b"),
-          Pattern.compile("(?<!semantic-)\\btag-groups\\b"),
-          Pattern.compile("(?<!semantic_)\\btag_group\\b"),
-          Pattern.compile("(?<!semantic_)\\btag_value\\b"));
+          Pattern.compile("\\bbusinesstaggroup\\b"),
+          Pattern.compile("\\bsemantictaggroup\\b"),
+          Pattern.compile("\\bsegmentfilterpreset\\b"),
+          Pattern.compile("\\bsegmentdefinition\\b"),
+          Pattern.compile("\\bsegmentcomputeservice\\b"),
+          Pattern.compile("\\bsegmentcostestimator\\b"),
+          Pattern.compile("\\bsegmentschemacompatibilitychecker\\b"),
+          Pattern.compile("\\bsegmentmanagementcontroller\\b"),
+          Pattern.compile("\\btag-groups\\b"),
+          Pattern.compile("\\bbusiness-tag-groups\\b"),
+          Pattern.compile("\\bsemantic-tag-groups\\b"),
+          Pattern.compile("\\btag_group\\b"),
+          Pattern.compile("\\btag_value\\b"),
+          Pattern.compile("\\bbusiness_tag_group\\b"),
+          Pattern.compile("\\bsemantic_tag_group\\b"),
+          Pattern.compile("\\bsemantic_tag_value\\b"),
+          Pattern.compile("\\bsegment_filter_preset\\b"),
+          Pattern.compile("\\bsegment_definition\\b"),
+          Pattern.compile("\\bsegment_compute_run\\b"),
+          Pattern.compile("\\bsegment_member\\b"),
+          Pattern.compile("\\bsegment_snapshot\\b"));
 
   @Test
-  void mainCodeShouldNotContainAbandonedLabelGroupingNames() throws IOException {
+  void mainCodeShouldNotContainDeprecatedTagGroupOrSegmentationRuntimeNames() throws IOException {
     Path mainRoot = Path.of("src", "main");
     try (Stream<Path> files = Files.walk(mainRoot)) {
       List<String> offenders =
@@ -33,7 +51,7 @@ class NoAbandonedLabelGroupingImplementationTest {
                   || path.toString().endsWith(".ts") || path.toString().endsWith(".sql"))
               .filter(path -> !path.toString().contains("db\\migration")
                   && !path.toString().contains("db/migration"))
-              .filter(NoAbandonedLabelGroupingImplementationTest::containsForbiddenMarker)
+              .filter(NoDeprecatedTagGroupOrSegmentationRuntimeTest::containsForbiddenMarker)
               .map(path -> mainRoot.relativize(path).toString())
               .toList();
 

@@ -95,53 +95,16 @@ class FlywayMigrationSmokeTest {
   }
 
   @Test
-  void shouldDefineSemanticSegmentationCoreSchema() throws IOException {
-    String migration = readMigration("V20260609_03__semantic_segmentation_core_schema.sql");
+  void shouldRemoveDeprecatedTagGroupSegmentationRuntimeTables() throws IOException {
+    String migration =
+        readMigration("V20260609_08__remove_deprecated_tag_group_segmentation_runtime.sql");
 
-    assertThat(migration).contains("create table if not exists semantic_scope_definition");
-    assertThat(migration).contains("create table if not exists semantic_tag_group");
-    assertThat(migration).contains("create table if not exists semantic_tag_value");
-    assertThat(migration).contains("create table if not exists semantic_tag_value_mapping");
-    assertThat(migration).contains("create table if not exists semantic_tag_group_build_run");
-    assertThat(migration).contains("create table if not exists segment_definition");
-    assertThat(migration).contains("create table if not exists segment_compute_run");
-    assertThat(migration).contains("create table if not exists segment_member_current");
-    assertThat(migration).contains("create table if not exists segment_member_stage");
-    assertThat(migration).contains("create table if not exists segment_member_audit");
-    assertThat(migration).contains("create table if not exists segment_snapshot");
-    assertThat(migration).contains("create table if not exists segment_snapshot_member");
-
-    assertThat(migration).contains("cache_ttl_seconds integer not null default 3600");
-    assertThat(migration).contains("rule_doc_hash varchar(64)");
-    assertThat(migration).contains("active_run_id bigint");
-    assertThat(migration).contains("max_execution_time_ms integer not null default 30000");
-    assertThat(migration).contains("max_allowed_members integer not null default 50000");
-
-    assertThat(migration).contains("idx_semantic_tag_group_domain_key");
-    assertThat(migration).contains("idx_semantic_tag_value_group");
-    assertThat(migration).contains("idx_segment_definition_entity_scenario");
-    assertThat(migration).contains("idx_segment_member_current_run");
-    assertThat(migration).contains("idx_segment_member_stage_run");
-    assertThat(migration).contains("idx_segment_compute_run_segment_status");
-  }
-
-  @Test
-  void shouldDefineSegmentFilterPresetSchema() throws IOException {
-    String migration = readMigration("V20260609_04__segment_filter_preset.sql");
-
-    assertThat(migration).contains("create table if not exists segment_filter_preset");
-    assertThat(migration).contains("preset_name varchar(255) not null");
-    assertThat(migration).contains("owner_user_id varchar(128) not null");
-    assertThat(migration).contains("visibility varchar(32) not null default 'private'");
-    assertThat(migration).contains("dsl_json text not null");
-    assertThat(migration).contains("dsl_hash varchar(64) not null");
-    assertThat(migration).contains("tag_schema_hash varchar(64) not null");
-    assertThat(migration).contains("source_data_watermark_at_save timestamp");
-    assertThat(migration).contains("last_used_at timestamp");
-
-    assertThat(migration).contains("idx_segment_filter_preset_owner_scenario_updated");
-    assertThat(migration).contains("idx_segment_filter_preset_visibility_scenario_updated");
-    assertThat(migration).contains("idx_segment_filter_preset_dsl_hash");
+    assertThat(migration).contains("drop table if exists segment_filter_preset cascade");
+    assertThat(migration).contains("drop table if exists segment_definition cascade");
+    assertThat(migration).contains("drop table if exists semantic_tag_group cascade");
+    assertThat(migration).contains("drop table if exists semantic_scope_definition cascade");
+    assertThat(migration).contains("destructive-migration-reviewed:");
+    assertThat(migration).contains("destructive-migration-recovery:");
   }
 
   private String readMigration(String fileName) throws IOException {
