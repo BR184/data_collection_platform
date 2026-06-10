@@ -104,7 +104,7 @@ class IssueFactSourceInstancePipelineTest {
         now,
         1);
     insertLabel(1L, "模块：草图");
-    insertLabel(2L, "工具箱:草图");
+    insertLabel(2L, "工具箱：草图");
     insertLabel(3L, "9007");
     insertLabel(4L, "分支：发布");
     insertLabel(5L, "前端");
@@ -123,7 +123,7 @@ class IssueFactSourceInstancePipelineTest {
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
         "select module_names from issue_fact where source_instance = 'cc' and issue_id = 9002",
-        String.class)).isEqualTo("草图, 工程图");
+        String.class)).isEqualTo("草图");
   }
 
   private void createMinimalCcOdsTables() {

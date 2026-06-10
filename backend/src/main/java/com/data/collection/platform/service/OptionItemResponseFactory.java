@@ -28,4 +28,33 @@ public final class OptionItemResponseFactory {
         .sorted(Comparator.comparing(OptionItemResponse::label, String::compareToIgnoreCase))
         .toList();
   }
+
+  public static List<OptionItemResponse> fromLegacyBusinessValues(Collection<String> values) {
+    Set<String> normalized = new LinkedHashSet<>();
+    for (String value : values) {
+      String text = TextQuerySupport.trimToNull(value);
+      if (text == null) {
+        continue;
+      }
+      for (String part : text.split("\\s*&\\s*")) {
+        String candidate = TextQuerySupport.trimToNull(part);
+        if (candidate != null && !isLegacyPlaceholder(candidate)) {
+          normalized.add(candidate);
+        }
+      }
+    }
+    return normalized.stream()
+        .map(value -> new OptionItemResponse(value, value))
+        .sorted(Comparator.comparing(OptionItemResponse::label, String::compareToIgnoreCase))
+        .toList();
+  }
+
+  private static boolean isLegacyPlaceholder(String value) {
+    return value.startsWith("未设定")
+        || value.startsWith("未标注")
+        || value.startsWith("未识别")
+        || value.startsWith("未标记")
+        || "无需标注".equals(value)
+        || "GitLab接口报错".equals(value);
+  }
 }

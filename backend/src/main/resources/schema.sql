@@ -705,18 +705,12 @@ create table if not exists segment_compute_run (
     created_at timestamp not null default current_timestamp
 );
 
-do $$
-begin
-    if not exists (
-        select 1
-          from pg_constraint
-         where conname = 'fk_segment_definition_active_run'
-    ) then
-        alter table segment_definition
-            add constraint fk_segment_definition_active_run
-            foreign key (active_run_id) references segment_compute_run(id) on delete set null;
-    end if;
-end $$;
+alter table segment_definition
+    drop constraint if exists fk_segment_definition_active_run;
+
+alter table segment_definition
+    add constraint fk_segment_definition_active_run
+    foreign key (active_run_id) references segment_compute_run(id) on delete set null;
 
 create table if not exists segment_member_current (
     segment_id bigint not null references segment_definition(id) on delete cascade,

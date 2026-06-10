@@ -244,10 +244,10 @@ public class CodeReviewIllegalRecordService {
         REQUEST_TYPE_OPTIONS,
         toOptions(rows, CodeReviewIllegalRecordView::repositoryName),
         toOptions(rows.stream().flatMap(row -> row.illegalTypes().stream()).toList()),
-        toOptions(rows, CodeReviewIllegalRecordView::targetBranch),
-        toOptions(rows, CodeReviewIllegalRecordView::mergedBy),
-        toOptions(rows, CodeReviewIllegalRecordView::moduleName),
-        toOptions(rows, CodeReviewIllegalRecordView::projectName));
+        toLegacyOptions(rows, CodeReviewIllegalRecordView::targetBranch),
+        toLegacyOptions(rows, CodeReviewIllegalRecordView::mergedBy),
+        toLegacyOptions(rows, CodeReviewIllegalRecordView::moduleName),
+        toLegacyOptions(rows, CodeReviewIllegalRecordView::projectName));
   }
 
   public RealtimeWorkspaceStatusResponse getRealtimeStatus() {
@@ -553,6 +553,12 @@ public class CodeReviewIllegalRecordService {
       List<CodeReviewIllegalRecordView> rows,
       Function<CodeReviewIllegalRecordView, String> extractor) {
     return OptionItemResponseFactory.from(rows, extractor, TextQuerySupport::trimToNull);
+  }
+
+  private List<OptionItemResponse> toLegacyOptions(
+      List<CodeReviewIllegalRecordView> rows,
+      Function<CodeReviewIllegalRecordView, String> extractor) {
+    return OptionItemResponseFactory.fromLegacyBusinessValues(rows.stream().map(extractor).toList());
   }
 
   private List<OptionItemResponse> toOptions(List<String> values) {

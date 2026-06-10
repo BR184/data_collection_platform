@@ -115,6 +115,10 @@ public class ModuleDictionaryService {
       return normalizeModule(DOMAIN_MERGE_REQUEST, projectId, rawModule);
     }
 
+    public List<String> normalizeMergeRequestModules(Long projectId, List<String> rawModules) {
+      return normalizeModules(DOMAIN_MERGE_REQUEST, projectId, rawModules);
+    }
+
     private List<String> normalizeModules(String domain, Long projectId, List<String> rawModules) {
       if (rawModules == null || rawModules.isEmpty()) {
         return List.of();
@@ -144,7 +148,7 @@ public class ModuleDictionaryService {
           return rule.standardName();
         }
       }
-      return stripGenericSuffix(cleaned);
+      return cleaned;
     }
 
     private boolean domainMatches(String ruleDomain, String targetDomain) {

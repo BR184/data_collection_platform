@@ -26,28 +26,8 @@ final class IssueLabelRules {
   private static final List<String> SYSTEM_TEST_LABEL_TOKENS = List.of("系统测试", "回归测试");
   private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "联调测试", "冒烟测试", "集成测试");
   private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
-  private static final List<String> FUNCTION_LABEL_TOKENS = List.of(
-      "新功能",
-      "老功能",
-      "增强功能",
-      "NEW_FUNCTION",
-      "OLD_FUNCTION",
-      "ENHANCE_FUNCTION");
-  private static final Map<String, String> BARE_MODULE_LABELS = bareModuleLabels(List.of(
-      "工具",
-      "草图",
-      "BOM",
-      "渲染",
-      "看板",
-      "报表",
-      "用户管理",
-      "装配",
-      "工程图",
-      "同步",
-      "权限",
-      "平台"));
-  private static final Pattern MODULE_LABEL_PATTERN =
-      Pattern.compile("^(?:模块|module|工具箱)\\s*[:：-]\\s*(.+)$", Pattern.CASE_INSENSITIVE);
+  private static final Pattern MERGE_REQUEST_MODULE_LABEL_PATTERN =
+      Pattern.compile("^(?:模块|工具箱)\\s*[：-]\\s*(.+)$");
   private static final List<String> LEGACY_PREFIXES = List.of(
       "模块",
       "工具箱",
@@ -66,17 +46,6 @@ final class IssueLabelRules {
       "算法问题",
       "机制问题",
       "计算效率");
-  private static final Set<String> NON_MODULE_TOKENS = new LinkedHashSet<>(List.of(
-      "一级缺陷", "一级严重", "二级缺陷", "二级严重", "三级缺陷", "三级严重",
-      "建议", "需求", "需求如此", "P1", "P2", "P3",
-      "功能屏蔽", "已拒绝", "申请否决", "数据异常", "需求如此",
-      "已修复", "已修复/完成", "待合并", "未复现", "申请延期", "响应已延期",
-      "系统测试", "联调测试", "冒烟测试",
-      "技术卡点", "方案卡点", "资源卡点", "算法问题", "机制问题", "计算效率",
-      "新增理解偏差数量", "需求理解有误数量", "新增需求数量", "新增需求问题数量",
-      "业务逻辑错误", "编码逻辑错误", "编译/打包/部署问题", "编译打包问题",
-      "机制不支持", "算法/机制不支持"));
-
   private IssueLabelRules() {
   }
 
@@ -144,27 +113,22 @@ final class IssueLabelRules {
     return IssueRuleSupport.firstMatchingLabel(labels, SYSTEM_TEST_LABEL_TOKENS);
   }
 
-  static List<String> normalizeModuleNames(
-      List<String> labels,
-      Map<String, List<String>> reasonCategoryTokens,
-      Map<String, List<String>> delayReasonTokens) {
+  static List<String> normalizeModuleNames(List<String> labels) {
+    Set<String> modules = new LinkedHashSet<>();
+    List<String> legacyModules = parseLegacyLabelMap(labels).getOrDefault("模块", List.of());
+    for (String label : legacyModules) {
+      String moduleName = normalizeModuleValue(label);
+      if (moduleName != null) {
+        modules.add(moduleName);
+      }
+    }
+    return List.copyOf(modules);
+  }
+
+  static List<String> normalizeMergeRequestModuleNames(List<String> labels) {
     Set<String> modules = new LinkedHashSet<>();
     for (String label : labels) {
-      if (IssueRuleSupport.normalizeText(label) == null) {
-        continue;
-      }
-      if (NON_MODULE_TOKENS.contains(label.trim())) {
-        continue;
-      }
-      if (isKnownReasonCategory(label, reasonCategoryTokens)
-          || isKnownSeverityAlias(label)
-          || isKnownPriorityAlias(label)
-          || isKnownDelayReason(label, delayReasonTokens)
-          || isKnownFunctionLabel(label)
-          || isTestingPhase(label)) {
-        continue;
-      }
-      String moduleName = extractModuleName(label);
+      String moduleName = extractMergeRequestModuleName(label);
       if (moduleName != null) {
         modules.add(moduleName);
       }
@@ -225,76 +189,22 @@ final class IssueLabelRules {
     }
   }
 
-  private static String extractModuleName(String label) {
+  private static String extractMergeRequestModuleName(String label) {
     String trimmed = label.trim();
-    Matcher matcher = MODULE_LABEL_PATTERN.matcher(trimmed);
+    Matcher matcher = MERGE_REQUEST_MODULE_LABEL_PATTERN.matcher(trimmed);
     if (matcher.matches()) {
       return normalizeModuleValue(matcher.group(1));
     }
-    if (trimmed.endsWith("模块") && trimmed.length() > "模块".length()) {
-      return normalizeModuleValue(trimmed);
-    }
-    return normalizeBareModuleName(trimmed);
+    return null;
   }
 
   private static String normalizeModuleValue(String value) {
-    String cleaned = value.trim().replaceFirst("^[\\s:：-]+", "").trim();
+    String cleaned = value.trim();
+    if (cleaned.startsWith(":") || cleaned.startsWith("：") || cleaned.startsWith("-")) {
+      return null;
+    }
     String normalized = IssueRuleSupport.normalizeText(cleaned);
     return normalized == null ? null : cleaned;
-  }
-
-  private static String normalizeBareModuleName(String value) {
-    return BARE_MODULE_LABELS.get(moduleLabelKey(value));
-  }
-
-  private static Map<String, String> bareModuleLabels(List<String> labels) {
-    Map<String, String> result = new java.util.LinkedHashMap<>();
-    for (String label : labels) {
-      result.put(moduleLabelKey(label), label);
-    }
-    return Map.copyOf(result);
-  }
-
-  private static String moduleLabelKey(String value) {
-    String normalized = IssueRuleSupport.normalizeText(value);
-    if (normalized == null) {
-      return "";
-    }
-    return normalized.toLowerCase(java.util.Locale.ROOT).replaceAll("[\\s_\\-./\\\\:：,，;；|｜]+", "");
-  }
-
-  private static boolean isKnownSeverityAlias(String label) {
-    return IssueRuleSupport.containsAny(List.of(label), "", IssueRuleSupport.flatten(SEVERITY_TOKENS));
-  }
-
-  private static boolean isKnownPriorityAlias(String label) {
-    return IssueRuleSupport.containsAny(List.of(label), "", IssueRuleSupport.flatten(PRIORITY_TOKENS));
-  }
-
-  private static boolean isKnownReasonCategory(String label, Map<String, List<String>> reasonCategoryTokens) {
-    return IssueRuleSupport.containsAny(List.of(label), "", IssueRuleSupport.flatten(reasonCategoryTokens));
-  }
-
-  private static boolean isKnownDelayReason(String label, Map<String, List<String>> delayReasonTokens) {
-    return IssueRuleSupport.containsAny(List.of(label), "", IssueRuleSupport.flatten(delayReasonTokens));
-  }
-
-  private static boolean isKnownFunctionLabel(String label) {
-    String normalized = IssueRuleSupport.normalizeText(label);
-    if (normalized == null) {
-      return false;
-    }
-    for (String token : FUNCTION_LABEL_TOKENS) {
-      String normalizedToken = IssueRuleSupport.normalizeText(token);
-      if (normalized.equals(normalizedToken)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean isTestingPhase(String label) {
-    return IssueRuleSupport.containsAny(List.of(label), "", TESTING_PHASE_TOKENS);
   }
 
   private record LegacyPrefixedLabel(String groupName, String value) {

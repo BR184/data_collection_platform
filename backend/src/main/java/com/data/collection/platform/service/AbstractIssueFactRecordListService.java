@@ -123,6 +123,15 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
     return OptionItemResponseFactory.from(rows, extractor, TextQuerySupport::trimToNull);
   }
 
+  protected List<OptionItemResponse> toLegacyOptions(
+      List<IssueFactRecord> rows, Function<IssueFactRecord, String> extractor) {
+    return OptionItemResponseFactory.fromLegacyBusinessValues(rows.stream().map(extractor).toList());
+  }
+
+  protected List<OptionItemResponse> toLegacyOptions(List<String> values) {
+    return OptionItemResponseFactory.fromLegacyBusinessValues(values);
+  }
+
   protected List<OptionItemResponse> toOptions(List<String> values) {
     return OptionItemResponseFactory.from(values, TextQuerySupport::trimToNull);
   }

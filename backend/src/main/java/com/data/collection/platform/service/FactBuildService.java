@@ -459,10 +459,11 @@ public class FactBuildService {
     fact.setOwnerName(defaultText(rs.getString("owner_name")));
     fact.setReviewerNames(defaultText(rs.getString("reviewer_names")));
     fact.setAssigneeNames(defaultText(rs.getString("assignee_names")));
-    fact.setModuleName(
-        moduleDictionary.normalizeMergeRequestModule(
+    List<String> mergeRequestModules =
+        moduleDictionary.normalizeMergeRequestModules(
             rs.getLong("project_id"),
-            defaultText(rs.getString("module_name"))));
+            IssueFactNormalizationRules.normalizeMergeRequestModuleNames(labels));
+    fact.setModuleName(String.join(" & ", mergeRequestModules));
     fact.setLabelNames(String.join(", ", labels));
     fact.setCreatedAtSource(toLocalDateTime(rs.getTimestamp("created_at")));
     fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at")));

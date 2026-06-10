@@ -42,20 +42,20 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void shouldExcludePhaseAndFunctionLabelsFromModules() {
-    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("草图模块", "R1集成测试", "新功能")))
-        .containsExactly("草图模块");
+  void shouldExcludeBarePhaseFunctionAndNavigationLabelsFromModules() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
+        "草图模块",
+        "质量看板模块",
+        "R1集成测试",
+        "新功能")))
+        .isEmpty();
   }
 
   @Test
-  void shouldNormalizeModuleAndToolboxLabelsBeforeDictionaryMapping() {
+  void shouldNormalizeIssueModuleAndToolboxLabelsByLegacyChineseColonOnly() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
         "模块：草图",
-        "模块:草图",
-        "module：草图",
-        "module:草图",
         "工具箱：草图",
-        "工具箱:草图",
         "前端",
         "9007",
         "分支：发布",
@@ -70,7 +70,7 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void shouldRecognizeBareKnownModuleLabelsOnly() {
+  void shouldNotRecognizeBareModuleLikeLabels() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
         "草图",
         "工程图",
@@ -80,13 +80,25 @@ class IssueFactNormalizationRulesTest {
         "CC2023R3客户",
         "系统测试",
         "一级缺陷")))
-        .containsExactly("草图", "工程图");
+        .isEmpty();
   }
 
   @Test
-  void shouldCollapseRepeatedModuleSeparators() {
-    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：：草图", "工具箱::工程图")))
-        .containsExactly("草图", "工程图");
+  void shouldDropIssueModuleLabelsNotRecognizedByOldPlatform() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
+        "模块:草图",
+        "工具箱:草图",
+        "module：草图",
+        "module:草图",
+        "模块：：草图",
+        "工具箱::工程图",
+        "图纸解析模块",
+        "模块:代码走查",
+        "渲染同步模块",
+        "联动搜索",
+        "镜像同步模块",
+        "装配体验模块")))
+        .isEmpty();
   }
 
   @Test
@@ -133,6 +145,19 @@ class IssueFactNormalizationRulesTest {
 
     assertThat(labels).containsExactly(
         Map.entry("测试阶段", List.of("CC2026R1系统测试", "CC2026R1回归测试", "CC2026R1集成测试")));
+  }
+
+  @Test
+  void shouldNormalizeMergeRequestModulesByLegacyFetcherRulesOnly() {
+    assertThat(IssueFactNormalizationRules.normalizeMergeRequestModuleNames(List.of(
+        "模块：草图",
+        "模块-工程图",
+        "工具箱：Curve Edit",
+        "工具箱-曲线",
+        "模块:代码走查",
+        "图纸解析模块",
+        "渲染同步模块")))
+        .containsExactly("草图", "工程图", "Curve Edit", "曲线");
   }
 
   @Test

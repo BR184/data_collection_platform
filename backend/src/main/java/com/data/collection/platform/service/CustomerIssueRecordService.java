@@ -209,15 +209,15 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(String topic, Long projectId) {
     List<IssueFactRecord> rows = loadTopicScopedViews(normalizeTopic(topic), projectId);
     return new CustomerIssueRecordFilterOptionsResponse(
-        toOptions(rows, IssueFactRecord::projectName),
-        toOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
+        toLegacyOptions(rows, IssueFactRecord::projectName),
+        toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
         toOptions(rows, IssueFactRecord::reasonCategory),
         toOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::priorityLevel),
         toOptions(rows, IssueFactRecord::issueState),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
-        toOptions(rows, IssueFactRecord::milestoneTitle));
+        toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(String topic, Long projectId) {

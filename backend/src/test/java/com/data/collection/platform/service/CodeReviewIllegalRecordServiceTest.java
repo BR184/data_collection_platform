@@ -182,6 +182,43 @@ class CodeReviewIllegalRecordServiceTest {
   }
 
   @Test
+  void shouldBuildFilterOptionsByLegacyDropdownRules() {
+    when(sourceLoader.loadSources(anyMap()))
+        .thenReturn(
+            List.of(
+                source(
+                    101L,
+                    12,
+                    "repo-a",
+                    "GitLab接口报错",
+                    "Owner A",
+                    "草图 & 工程图",
+                    LocalDateTime.of(2026, 4, 8, 10, 0),
+                    "Refactor MR",
+                    "未标注项目名",
+                    "dev"),
+                source(
+                    102L,
+                    13,
+                    "repo-b",
+                    "李四",
+                    "Owner B",
+                    "未设定模块",
+                    LocalDateTime.of(2026, 4, 9, 10, 0),
+                    "Refactor MR",
+                    "CrownCAD",
+                    "release")));
+
+    CodeReviewIllegalRecordFilterOptionsResponse response =
+        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, "cc"));
+
+    assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("工程图", "草图");
+    assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("李四");
+    assertThat(response.projectNames()).extracting(item -> item.value()).containsExactly("CrownCAD");
+    assertThat(response.targetBranches()).extracting(item -> item.value()).containsExactly("dev", "release");
+  }
+
+  @Test
   void shouldPassFilterGroupToSqlPageAfterRefactor() {
     when(sourceLoader.loadDefaultIllegalPage(any()))
         .thenReturn(
@@ -335,17 +372,41 @@ class CodeReviewIllegalRecordServiceTest {
       String moduleName,
       LocalDateTime mergedAt,
       String title) {
+    return source(
+        mergeRequestId,
+        mergeRequestIid,
+        repositoryName,
+        mergedBy,
+        owner,
+        moduleName,
+        mergedAt,
+        title,
+        "Project X",
+        "master");
+  }
+
+  private CodeReviewIllegalRecordSource source(
+      Long mergeRequestId,
+      Integer mergeRequestIid,
+      String repositoryName,
+      String mergedBy,
+      String owner,
+      String moduleName,
+      LocalDateTime mergedAt,
+      String title,
+      String projectName,
+      String targetBranch) {
     return new CodeReviewIllegalRecordSource(
         mergeRequestId,
         mergeRequestIid,
         2001L,
         title,
-        "Project X",
+        projectName,
         repositoryName,
         mergedAt,
         mergedBy,
         owner,
-        "master",
+        targetBranch,
         moduleName,
         List.of(),
         "DONE",

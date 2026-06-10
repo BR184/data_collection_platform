@@ -57,10 +57,11 @@ public final class IssueFactNormalizationRules {
   }
 
   public static List<String> normalizeModuleNames(List<String> labels) {
-    return IssueLabelRules.normalizeModuleNames(
-        labels,
-        IssueClassificationRules.REASON_CATEGORY_TOKENS,
-        IssueClassificationRules.DELAY_REASON_TOKENS);
+    return IssueLabelRules.normalizeModuleNames(labels);
+  }
+
+  public static List<String> normalizeMergeRequestModuleNames(List<String> labels) {
+    return IssueLabelRules.normalizeMergeRequestModuleNames(labels);
   }
 
   public static Map<String, List<String>> parseLegacyLabelMap(List<String> labels) {

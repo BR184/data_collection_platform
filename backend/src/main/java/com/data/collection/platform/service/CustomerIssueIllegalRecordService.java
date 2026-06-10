@@ -190,15 +190,15 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     List<IssueFactRecord> rows =
         loadScopedViews(projectId).stream().filter(IssueFactRecord::illegal).toList();
     return new CustomerIssueIllegalRecordFilterOptionsResponse(
-        toOptions(rows, IssueFactRecord::projectName),
-        toOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
+        toLegacyOptions(rows, IssueFactRecord::projectName),
+        toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
         toOptions(rows, IssueFactRecord::illegalReason),
         toOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::priorityLevel),
         toOptions(rows, IssueFactRecord::issueState),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
-        toOptions(rows, IssueFactRecord::milestoneTitle));
+        toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {

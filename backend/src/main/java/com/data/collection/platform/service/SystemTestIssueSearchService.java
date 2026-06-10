@@ -191,8 +191,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId, String sourceInstance) {
     List<IssueFactRecord> scopedViews = loadIssueSearchOptionFacts(projectId, sourceInstance);
     return new SystemTestIssueSearchFilterOptionsResponse(
-        toOptions(scopedViews, IssueFactRecord::projectName),
-        toOptions(scopedViews.stream()
+        toLegacyOptions(scopedViews, IssueFactRecord::projectName),
+        toLegacyOptions(scopedViews.stream()
             .flatMap(view -> view.moduleNames().stream())
             .filter(SystemTestIssueSearchService::isCleanModuleOption)
             .toList()),
@@ -201,13 +201,13 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 .map(IssueFactRecord::phaseFilterValue)
                 .filter(StringUtils::hasText)
                 .toList()),
-        toOptions(scopedViews, IssueFactRecord::authorName),
-        toOptions(scopedViews, IssueFactRecord::assigneeName),
+        toLegacyOptions(scopedViews, IssueFactRecord::authorName),
+        toLegacyOptions(scopedViews, IssueFactRecord::assigneeName),
         toOptions(scopedViews, IssueFactRecord::issueState),
         toOptions(scopedViews, IssueFactRecord::severityLevel),
         toOptions(scopedViews, IssueFactRecord::bugStatus),
         toOptions(scopedViews, IssueFactRecord::category),
-        toOptions(scopedViews, IssueFactRecord::milestoneTitle));
+        toLegacyOptions(scopedViews, IssueFactRecord::milestoneTitle));
   }
 
   private List<IssueFactRecord> loadIssueSearchOptionFacts(Long projectId, String sourceInstance) {

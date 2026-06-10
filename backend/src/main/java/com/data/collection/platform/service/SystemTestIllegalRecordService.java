@@ -195,8 +195,8 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     List<IssueFactRecord> rows = loadScopedIllegalViews(projectId);
     return new SystemTestIllegalRecordFilterOptionsResponse(
-        toOptions(rows, IssueFactRecord::projectName),
-        toOptions(rows.stream().flatMap(view -> displayModuleNames(view).stream()).toList()),
+        toLegacyOptions(rows, IssueFactRecord::projectName),
+        toLegacyOptions(rows.stream().flatMap(view -> displayModuleNames(view).stream()).toList()),
         toOptions(
             rows.stream()
                 .map(IssueFactRecord::phaseFilterValue)
@@ -207,13 +207,13 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 .map(view -> SystemTestIllegalReasonSupport.normalize(view.illegalReason()))
                 .filter(StringUtils::hasText)
                 .toList()),
-        toOptions(rows, IssueFactRecord::authorName),
-        toOptions(rows, IssueFactRecord::assigneeName),
+        toLegacyOptions(rows, IssueFactRecord::authorName),
+        toLegacyOptions(rows, IssueFactRecord::assigneeName),
         toOptions(rows, IssueFactRecord::issueState),
         toOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
-        toOptions(rows, IssueFactRecord::milestoneTitle));
+        toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {

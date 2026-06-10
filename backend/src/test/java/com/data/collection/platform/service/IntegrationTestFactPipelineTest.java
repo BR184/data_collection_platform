@@ -237,7 +237,7 @@ class IntegrationTestFactPipelineTest {
         """,
         createdAt.plusMinutes(30),
         updatedAt);
-    insertLabel(1L, "草图模块");
+    insertLabel(1L, "模块：草图");
     insertLabel(2L, "R1集成测试");
     insertLabel(3L, "新功能");
     linkLabel(1L, 1001L);
@@ -285,7 +285,7 @@ class IntegrationTestFactPipelineTest {
         """,
         createdAt.plusMinutes(30),
         updatedAt);
-    insertLabel(11L, "订单模块");
+    insertLabel(11L, "模块：订单");
     insertLabel(12L, "R2集成测试");
     insertLabel(13L, "新功能");
     linkLabel(11L, 1002L);
