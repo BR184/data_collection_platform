@@ -41,6 +41,7 @@ export interface CustomerIssueIllegalRecordFilterOptionsResponse {
   issueStates: OptionItemResponse[];
   bugStatuses: OptionItemResponse[];
   categories: OptionItemResponse[];
+  assigneeNames: OptionItemResponse[];
   milestoneTitles: OptionItemResponse[];
 }
 

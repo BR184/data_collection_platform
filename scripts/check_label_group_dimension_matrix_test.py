@@ -88,6 +88,27 @@ class CheckLabelGroupDimensionMatrixTest(unittest.TestCase):
 
             self.assertEqual(script.run_check(matrix_path, root / "missing-catalog"), [])
 
+    def test_should_extract_dimension_keys_from_catalog_put_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            catalog_root = Path(tmp)
+            catalog_file = catalog_root / "LabelDimensionCatalogService.java"
+            catalog_file.write_text(
+                """
+                class LabelDimensionCatalogService {
+                  void create() {
+                    put(dimensions, "module", "模块", "desc", LabelValueKind.STRING_LITERAL);
+                    put(dimensions, "closure_status", "客户问题闭环状态", "desc", LabelValueKind.ENUM_KEY);
+                  }
+                }
+                """,
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                script.extract_code_dimension_keys(catalog_root),
+                {"module", "closure_status"},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

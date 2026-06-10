@@ -252,6 +252,7 @@ def extract_code_dimension_keys(catalog_root: Path = CATALOG_ROOT) -> set[str] |
         keys.update(re.findall(r'\bdimensionKey\s*\(\s*"([a-z][a-z0-9_]*)"', text))
         keys.update(re.findall(r'\bkey\s*\(\s*"([a-z][a-z0-9_]*)"', text))
         keys.update(re.findall(r'\bnew\s+LabelDimension[^(]*\(\s*"([a-z][a-z0-9_]*)"', text))
+        keys.update(re.findall(r'\bput\s*\(\s*dimensions\s*,\s*"([a-z][a-z0-9_]*)"', text))
     return keys
 
 

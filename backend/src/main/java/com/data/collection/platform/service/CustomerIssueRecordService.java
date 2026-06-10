@@ -217,6 +217,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         toOptions(rows, IssueFactRecord::issueState),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
+        toLegacyOptions(rows, IssueFactRecord::assigneeName),
         toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
   }
 

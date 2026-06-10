@@ -68,6 +68,7 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   issueStates: [],
   bugStatuses: [],
   categories: [],
+  assigneeNames: [],
   milestoneTitles: [],
 });
 

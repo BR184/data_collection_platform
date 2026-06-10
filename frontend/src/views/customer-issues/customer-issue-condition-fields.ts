@@ -47,6 +47,7 @@ function commonIssueConditionFields(options: {
   issueStates: Option[];
   bugStatuses: Option[];
   categories: Option[];
+  assigneeNames?: Option[];
   milestoneTitles: Option[];
 }) {
   return [
@@ -60,6 +61,7 @@ function commonIssueConditionFields(options: {
     selectConditionField('issueState', '状态', options.issueStates),
     selectConditionField('bugStatus', '缺陷状态', options.bugStatuses),
     selectConditionField('category', '分类', options.categories),
+    selectConditionField('assigneeName', '处理人', options.assigneeNames ?? []),
     selectConditionField('milestoneTitle', '里程碑', options.milestoneTitles),
     datetimeConditionField('createdAt', '创建时间'),
     datetimeConditionField('updatedAt', '更新时间'),

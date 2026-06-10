@@ -211,6 +211,7 @@ class CustomerIssueControllerTest {
                 List.of(new OptionItemResponse("opened", "opened")),
                 List.of(new OptionItemResponse("Open", "Open")),
                 List.of(new OptionItemResponse("Bug", "Bug")),
+                List.of(new OptionItemResponse("Bob", "Bob")),
                 List.of(new OptionItemResponse("R1", "R1"))));
     when(customerIssueRecordService.getRuleExplanation("delay", 325L))
         .thenReturn(
@@ -228,7 +229,8 @@ class CustomerIssueControllerTest {
     mockMvc.perform(get("/api/customer-issues/records/filter-options").param("topic", "delay").param("projectId", "325"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.projectNames[0].value").value("CC_PRODUCT"))
-        .andExpect(jsonPath("$.data.reasonCategories[0].value").value("Design"));
+        .andExpect(jsonPath("$.data.reasonCategories[0].value").value("Design"))
+        .andExpect(jsonPath("$.data.assigneeNames[0].value").value("Bob"));
 
     mockMvc.perform(get("/api/customer-issues/records/rule-explanation").param("topic", "delay").param("projectId", "325"))
         .andExpect(status().isOk())
