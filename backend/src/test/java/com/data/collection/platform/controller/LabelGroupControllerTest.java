@@ -1,18 +1,27 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
+import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValueResponse;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
+import com.data.collection.platform.service.labelgroup.LabelGroupService;
 import com.data.collection.platform.service.labelgroup.LabelValueQueryService;
 import com.data.collection.platform.service.labelgroup.LabelValueKind;
+import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +35,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class LabelGroupControllerTest {
 
   @Mock private LabelValueQueryService labelValueQueryService;
+  @Mock private LabelGroupService labelGroupService;
+  @Mock private LabelGroupExpansionService labelGroupExpansionService;
 
   private MockMvc mockMvc;
 
@@ -33,7 +44,11 @@ class LabelGroupControllerTest {
   void setUp() {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
-                new LabelGroupController(new LabelDimensionCatalogService(), labelValueQueryService))
+                new LabelGroupController(
+                    new LabelDimensionCatalogService(),
+                    labelValueQueryService,
+                    labelGroupService,
+                    labelGroupExpansionService))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
   }
@@ -90,5 +105,87 @@ class LabelGroupControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.message").value("标签维度不存在：missing"));
+  }
+
+  @Test
+  void shouldListGroups() throws Exception {
+    when(labelGroupService.list(eq("module"), eq("核心"), eq(true)))
+        .thenReturn(List.of(groupResponse()));
+
+    mockMvc.perform(
+            get("/api/label-groups")
+                .param("dimensionKey", "module")
+                .param("keyword", "核心")
+                .param("enabled", "true"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data[0].name").value("核心模块"))
+        .andExpect(jsonPath("$.data[0].dimensionName").value("模块"))
+        .andExpect(jsonPath("$.data[0].memberCount").value(2));
+  }
+
+  @Test
+  void shouldCreateGroup() throws Exception {
+    when(labelGroupService.create(org.mockito.ArgumentMatchers.any())).thenReturn(groupResponse());
+
+    mockMvc.perform(
+            post("/api/label-groups")
+                .contentType("application/json")
+                .content(
+                    """
+                    {
+                      "name": "核心模块",
+                      "dimensionKey": "module",
+                      "members": [
+                        {"value": "草图", "label": "草图"}
+                      ]
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.name").value("核心模块"));
+  }
+
+  @Test
+  void shouldExpandGroup() throws Exception {
+    when(labelGroupExpansionService.expand(eq(1L), eq("closure_status"), eq("customer-issues-cc-product-issues"), isNull()))
+        .thenReturn(
+            new LabelGroupExpansionResponse(
+                1L, "closure_status", "客户问题闭环状态", List.of("需求如此", "设计如此"), List.of()));
+
+    mockMvc.perform(
+            post("/api/label-groups/1/expand")
+                .param("dimensionKey", "closure_status")
+                .param("pageKey", "customer-issues-cc-product-issues"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.values[0]").value("需求如此"))
+        .andExpect(jsonPath("$.data.values[1]").value("设计如此"));
+  }
+
+  @Test
+  void shouldDeleteGroup() throws Exception {
+    doNothing().when(labelGroupService).delete(1L);
+
+    mockMvc.perform(delete("/api/label-groups/1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+  }
+
+  private LabelGroupResponse groupResponse() {
+    return new LabelGroupResponse(
+        1L,
+        "核心模块",
+        "module",
+        "模块",
+        "STATIC",
+        "常用模块",
+        true,
+        2,
+        List.of(),
+        "system",
+        OffsetDateTime.parse("2026-06-10T10:00:00+08:00"),
+        "system",
+        OffsetDateTime.parse("2026-06-10T10:00:00+08:00"));
   }
 }
