@@ -12,7 +12,9 @@ import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import {
+  type BusinessTagGroupApplyResponse,
   type StatisticBoardResponse,
+  type StatisticFilterGroup,
 } from '../types/api';
 import type { StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
@@ -193,6 +195,72 @@ function handleBoardLoaded(response: StatisticBoardResponse) {
 
 function buildFilterPayload() {
   return sanitizeFilterDraftGroup(filterDraft);
+}
+
+async function handleBusinessTagGroupApplied(result: BusinessTagGroupApplyResponse) {
+  const nextFilterGroup = parseBusinessTagGroupDsl(result.tagGroup.dslJson);
+  if (!nextFilterGroup) {
+    ElMessage.warning('当前标签组条件还需要字段映射，暂不能直接应用到此表格');
+    return;
+  }
+  const nextDraft = normalizeFilterDraftGroup(nextFilterGroup, activeFilterFields.value);
+  if (nextDraft.conditions.length !== nextFilterGroup.conditions.length) {
+    ElMessage.warning('当前标签组包含此页面不支持的字段，暂不能直接应用');
+    return;
+  }
+  replaceFilterDraftGroup(filterDraft, nextDraft);
+  await applyFilterDraftToRoute(filterDraft);
+  ElMessage.success(`已应用业务标签组：${result.tagGroup.tagGroupName}`);
+}
+
+function parseBusinessTagGroupDsl(dslJson: string): StatisticFilterGroup | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(dslJson);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+  const candidate = parsed as {
+    logic?: unknown;
+    conditions?: Array<{
+      fieldKey?: unknown;
+      operator?: unknown;
+      value?: unknown;
+      values?: unknown;
+    }>;
+  };
+  if ((candidate.logic !== 'AND' && candidate.logic !== 'OR') || !Array.isArray(candidate.conditions)) {
+    return null;
+  }
+  const conditions: StatisticFilterGroup['conditions'] = [];
+  for (const condition of candidate.conditions) {
+    if (!condition || typeof condition.fieldKey !== 'string' || typeof condition.operator !== 'string') {
+      return null;
+    }
+    const values = Array.isArray(condition.values)
+      ? condition.values
+      : condition.value != null
+        ? [condition.value]
+        : [];
+    if (values.length !== 1 || typeof values[0] !== 'string') {
+      return null;
+    }
+    if (condition.operator !== 'EQ' && condition.operator !== 'IN' && condition.operator !== 'eq') {
+      return null;
+    }
+    conditions.push({
+      fieldKey: condition.fieldKey,
+      operator: 'eq',
+      value: values[0],
+    });
+  }
+  return {
+    logic: candidate.logic,
+    conditions,
+  };
 }
 
 const {
@@ -378,6 +446,7 @@ async function autoRefreshPageData() {
           @open-rule-explanation="openRuleExplanation"
           @export-board="exportBoard"
           @settings-command="handleSettingsCommand"
+          @business-tag-group-applied="handleBusinessTagGroupApplied"
         />
       </div>
 

@@ -150,6 +150,9 @@ class SegmentManagementControllerTest {
         {
           "presetName": "Open P2 issues",
           "visibility": "TEAM",
+          "entityType": "merge_request",
+          "scenarioKey": "code_review",
+          "scopeKey": "merged_dev_mr_scope",
           "dslJson": "{\\"conditions\\":[{\\"field\\":\\"urgency\\",\\"operator\\":\\"EQ\\",\\"value\\":\\"P2\\"}]}",
           "tagSchemaHash": "schema-v2",
           "sourceDataWatermarkAtSave": "2026-06-09T11:00:00"
@@ -162,6 +165,9 @@ class SegmentManagementControllerTest {
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.presetName").value("Open P2 issues"))
         .andExpect(jsonPath("$.visibility").value("TEAM"))
+        .andExpect(jsonPath("$.entityType").value("merge_request"))
+        .andExpect(jsonPath("$.scenarioKey").value("code_review"))
+        .andExpect(jsonPath("$.scopeKey").value("merged_dev_mr_scope"))
         .andExpect(jsonPath("$.tagSchemaHash").value("schema-v2"));
 
     mockMvc
@@ -176,5 +182,73 @@ class SegmentManagementControllerTest {
         .perform(get("/api/segment-filter-presets").param("ownerUserId", "pm"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(0));
+  }
+
+  @Test
+  void shouldCreateListApplyAndDeleteBusinessTagGroup() throws Exception {
+    String createBody =
+        """
+        {
+          "tagGroupName": "领导",
+          "ownerUserId": "admin",
+          "visibility": "TEAM",
+          "entityType": "issue",
+          "scenarioKey": "all_tables",
+          "scopeKey": "people_fields",
+          "dslJson": "{\\"logic\\":\\"OR\\",\\"conditions\\":[{\\"fieldFamily\\":\\"people\\",\\"operator\\":\\"IN\\",\\"values\\":[\\"张三\\",\\"李四\\",\\"王五\\"]}]}",
+          "tagSchemaHash": "schema-v1",
+          "sourceDataWatermarkAtSave": "2026-06-09T10:00:00"
+        }
+        """;
+
+    mockMvc
+        .perform(post("/api/business-tag-groups").contentType(MediaType.APPLICATION_JSON).content(createBody))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value(1))
+        .andExpect(jsonPath("$.tagGroupName").value("领导"))
+        .andExpect(jsonPath("$.visibility").value("TEAM"))
+        .andExpect(jsonPath("$.scopeKey").value("people_fields"))
+        .andExpect(jsonPath("$.dslHash").isString());
+
+    mockMvc
+        .perform(get("/api/business-tag-groups").param("ownerUserId", "admin"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].tagGroupName").value("领导"))
+        .andExpect(jsonPath("$[0].entityType").value("issue"))
+        .andExpect(jsonPath("$[0].scenarioKey").value("all_tables"));
+
+    mockMvc
+        .perform(post("/api/business-tag-groups/1/apply").param("currentTagSchemaHash", "schema-v1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.tagGroup.tagGroupName").value("领导"))
+        .andExpect(jsonPath("$.tagGroup.dslJson").isString())
+        .andExpect(jsonPath("$.schemaCompatible").value(true))
+        .andExpect(jsonPath("$.compatibilityMessage").value("SCHEMA_COMPATIBLE"));
+
+    String updateBody =
+        """
+        {
+          "tagGroupName": "核心领导",
+          "visibility": "PUBLIC",
+          "entityType": "merge_request",
+          "scenarioKey": "review_tables",
+          "scopeKey": "reviewer_fields",
+          "dslJson": "{\\"logic\\":\\"OR\\",\\"conditions\\":[{\\"fieldFamily\\":\\"people\\",\\"operator\\":\\"IN\\",\\"values\\":[\\"张三\\",\\"李四\\"]}]}",
+          "tagSchemaHash": "schema-v2",
+          "sourceDataWatermarkAtSave": "2026-06-09T11:00:00"
+        }
+        """;
+
+    mockMvc
+        .perform(patch("/api/business-tag-groups/1").contentType(MediaType.APPLICATION_JSON).content(updateBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.tagGroupName").value("核心领导"))
+        .andExpect(jsonPath("$.visibility").value("PUBLIC"))
+        .andExpect(jsonPath("$.entityType").value("merge_request"))
+        .andExpect(jsonPath("$.scenarioKey").value("review_tables"))
+        .andExpect(jsonPath("$.scopeKey").value("reviewer_fields"))
+        .andExpect(jsonPath("$.tagSchemaHash").value("schema-v2"));
+
+    mockMvc.perform(delete("/api/business-tag-groups/1")).andExpect(status().isNoContent());
   }
 }

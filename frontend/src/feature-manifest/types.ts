@@ -31,6 +31,7 @@ export type PageKey =
   | 'customer-issues-issue-by-function'
   | 'mirror-settings'
   | 'database-browser'
+  | 'business-tag-groups'
   | 'semantic-tag-groups';
 
 export interface ShellPage {

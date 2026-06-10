@@ -8,7 +8,6 @@ const catalog = ref<SemanticTagGroupCatalogResponse | null>(null);
 const loading = ref(false);
 const errorMessage = ref('');
 
-const schemaShortHash = computed(() => catalog.value?.schemaHash.slice(0, 12) ?? '-');
 const groupCount = computed(() => catalog.value?.groups.length ?? 0);
 const valueCount = computed(() =>
   catalog.value?.groups.reduce((total, group) => total + group.values.length, 0) ?? 0,
@@ -29,6 +28,39 @@ async function loadCatalog() {
     loading.value = false;
   }
 }
+
+function entityTypeText(entityType?: string) {
+  return {
+    issue: '议题',
+    merge_request: '合并请求',
+    review_record: '评审记录',
+    module: '模块',
+  }[entityType ?? ''] ?? (entityType || '议题');
+}
+
+function sourceModeText(sourceMode: string) {
+  return {
+    STATIC: '静态规则',
+    DYNAMIC: '动态归类',
+    HYBRID: '规则 + 动态',
+  }[sourceMode] ?? sourceMode;
+}
+
+function selectionModeText(selectionMode: string) {
+  return {
+    SINGLE: '单选',
+    MULTIPLE: '多选',
+  }[selectionMode] ?? selectionMode;
+}
+
+function matchStrategyText(matchStrategyName: string) {
+  return {
+    EXACT: '精确匹配',
+    PREFIX: '前缀匹配',
+    CONTAINS: '包含匹配',
+    REGEX: '规则匹配',
+  }[matchStrategyName] ?? matchStrategyName;
+}
 </script>
 
 <template>
@@ -38,10 +70,12 @@ async function loadCatalog() {
         <div>
           <h2 class="content-title">语义标签组</h2>
           <p class="semantic-tag-subtitle">
-            当前展示 Phase 3 静态 issue 标签组模板，供页面筛选和分群规则复用。
+            当前展示平台按规则维护的标签类型和值目录，供业务标签组和表格筛选复用。
           </p>
         </div>
-        <el-button :icon="Refresh" :loading="loading" @click="loadCatalog">刷新</el-button>
+        <el-space>
+          <el-button :icon="Refresh" :loading="loading" @click="loadCatalog">刷新</el-button>
+        </el-space>
       </div>
 
       <el-alert
@@ -56,7 +90,7 @@ async function loadCatalog() {
       <div class="semantic-tag-metrics">
         <div class="semantic-tag-metric">
           <span>对象</span>
-          <strong>{{ catalog?.entityType ?? 'issue' }}</strong>
+          <strong>{{ entityTypeText(catalog?.entityType) }}</strong>
         </div>
         <div class="semantic-tag-metric">
           <span>标签组</span>
@@ -67,8 +101,8 @@ async function loadCatalog() {
           <strong>{{ valueCount }}</strong>
         </div>
         <div class="semantic-tag-metric">
-          <span>schemaHash</span>
-          <strong>{{ schemaShortHash }}</strong>
+          <span>目录状态</span>
+          <strong>{{ catalog ? '可用' : '待加载' }}</strong>
         </div>
       </div>
     </el-card>
@@ -84,16 +118,16 @@ async function loadCatalog() {
         <div class="semantic-tag-group-head">
           <div>
             <h3>{{ group.label }}</h3>
-            <p>{{ group.groupKey }}</p>
+            <p>{{ group.values.length }} 个可选值</p>
           </div>
           <el-tag size="small" :type="group.selectionMode === 'SINGLE' ? 'warning' : 'info'">
-            {{ group.selectionMode }}
+            {{ selectionModeText(group.selectionMode) }}
           </el-tag>
         </div>
         <div class="semantic-tag-group-meta">
-          <span>{{ group.rulePolicyKey }}</span>
-          <span>{{ group.sourceMode }}</span>
-          <span>{{ group.matchStrategyName }}</span>
+          <span>来源：{{ sourceModeText(group.sourceMode) }}</span>
+          <span>匹配：{{ matchStrategyText(group.matchStrategyName) }}</span>
+          <span>规则已绑定</span>
         </div>
         <div class="semantic-tag-values">
           <el-tag
@@ -102,7 +136,7 @@ async function loadCatalog() {
             class="semantic-tag-value"
             effect="plain"
           >
-            {{ value.valueKey }}
+            {{ value.label }}
           </el-tag>
         </div>
       </el-card>
@@ -189,7 +223,6 @@ async function loadCatalog() {
 .semantic-tag-group-head p {
   margin: 4px 0 0;
   color: #64748b;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   font-size: 12px;
 }
 
@@ -227,5 +260,6 @@ async function loadCatalog() {
   .semantic-tag-metrics {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
+
 }
 </style>

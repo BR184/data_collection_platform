@@ -80,11 +80,28 @@ public class SegmentManagementController {
     return segmentFilterPresetService.list(entityType, scenarioKey, ownerUserId);
   }
 
+  @GetMapping("/api/business-tag-groups")
+  public List<BusinessTagGroupResponse> listBusinessTagGroups(
+      @RequestParam(required = false) String entityType,
+      @RequestParam(required = false) String scenarioKey,
+      @RequestParam(required = false) String ownerUserId) {
+    return segmentFilterPresetService.list(entityType, scenarioKey, ownerUserId).stream()
+        .map(BusinessTagGroupResponse::from)
+        .toList();
+  }
+
   @PostMapping("/api/segment-filter-presets")
   @ResponseStatus(HttpStatus.CREATED)
   public SegmentFilterPreset createFilterPreset(
       @Valid @RequestBody CreateSegmentFilterPresetWebRequest request) {
     return segmentFilterPresetService.create(request.toService());
+  }
+
+  @PostMapping("/api/business-tag-groups")
+  @ResponseStatus(HttpStatus.CREATED)
+  public BusinessTagGroupResponse createBusinessTagGroup(
+      @Valid @RequestBody CreateBusinessTagGroupWebRequest request) {
+    return BusinessTagGroupResponse.from(segmentFilterPresetService.create(request.toService()));
   }
 
   @PostMapping("/api/segment-filter-presets/{id}/apply")
@@ -93,15 +110,34 @@ public class SegmentManagementController {
     return segmentFilterPresetService.apply(id, currentTagSchemaHash);
   }
 
+  @PostMapping("/api/business-tag-groups/{id}/apply")
+  public BusinessTagGroupApplyResponse applyBusinessTagGroup(
+      @PathVariable long id, @RequestParam(required = false) String currentTagSchemaHash) {
+    return BusinessTagGroupApplyResponse.from(
+        segmentFilterPresetService.apply(id, currentTagSchemaHash));
+  }
+
   @PatchMapping("/api/segment-filter-presets/{id}")
   public SegmentFilterPreset updateFilterPreset(
       @PathVariable long id, @Valid @RequestBody UpdateSegmentFilterPresetWebRequest request) {
     return segmentFilterPresetService.update(id, request.toService());
   }
 
+  @PatchMapping("/api/business-tag-groups/{id}")
+  public BusinessTagGroupResponse updateBusinessTagGroup(
+      @PathVariable long id, @Valid @RequestBody UpdateBusinessTagGroupWebRequest request) {
+    return BusinessTagGroupResponse.from(segmentFilterPresetService.update(id, request.toService()));
+  }
+
   @DeleteMapping("/api/segment-filter-presets/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void deleteFilterPreset(@PathVariable long id) {
+    segmentFilterPresetService.delete(id);
+  }
+
+  @DeleteMapping("/api/business-tag-groups/{id}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteBusinessTagGroup(@PathVariable long id) {
     segmentFilterPresetService.delete(id);
   }
 
@@ -157,9 +193,36 @@ public class SegmentManagementController {
     }
   }
 
+  public record CreateBusinessTagGroupWebRequest(
+      @NotBlank String tagGroupName,
+      @NotBlank String ownerUserId,
+      @NotBlank String visibility,
+      @NotBlank String entityType,
+      @NotBlank String scenarioKey,
+      @NotBlank String scopeKey,
+      @NotBlank String dslJson,
+      @NotBlank String tagSchemaHash,
+      String sourceDataWatermarkAtSave) {
+    CreateSegmentFilterPresetRequest toService() {
+      return new CreateSegmentFilterPresetRequest(
+          tagGroupName,
+          ownerUserId,
+          visibility,
+          entityType,
+          scenarioKey,
+          scopeKey,
+          dslJson,
+          tagSchemaHash,
+          sourceDataWatermarkAtSave);
+    }
+  }
+
   public record UpdateSegmentFilterPresetWebRequest(
       String presetName,
       String visibility,
+      String entityType,
+      String scenarioKey,
+      String scopeKey,
       String dslJson,
       String tagSchemaHash,
       String sourceDataWatermarkAtSave) {
@@ -167,9 +230,80 @@ public class SegmentManagementController {
       return new UpdateSegmentFilterPresetRequest(
           presetName,
           visibility,
+          entityType,
+          scenarioKey,
+          scopeKey,
           dslJson,
           tagSchemaHash,
           sourceDataWatermarkAtSave);
+    }
+  }
+
+  public record UpdateBusinessTagGroupWebRequest(
+      String tagGroupName,
+      String visibility,
+      String entityType,
+      String scenarioKey,
+      String scopeKey,
+      String dslJson,
+      String tagSchemaHash,
+      String sourceDataWatermarkAtSave) {
+    UpdateSegmentFilterPresetRequest toService() {
+      return new UpdateSegmentFilterPresetRequest(
+          tagGroupName,
+          visibility,
+          entityType,
+          scenarioKey,
+          scopeKey,
+          dslJson,
+          tagSchemaHash,
+          sourceDataWatermarkAtSave);
+    }
+  }
+
+  public record BusinessTagGroupResponse(
+      long id,
+      String tagGroupName,
+      String ownerUserId,
+      String visibility,
+      String entityType,
+      String scenarioKey,
+      String scopeKey,
+      String dslJson,
+      String dslHash,
+      String tagSchemaHash,
+      String sourceDataWatermarkAtSave,
+      java.time.LocalDateTime lastUsedAt,
+      java.time.LocalDateTime createdAt,
+      java.time.LocalDateTime updatedAt) {
+    static BusinessTagGroupResponse from(SegmentFilterPreset preset) {
+      return new BusinessTagGroupResponse(
+          preset.id(),
+          preset.presetName(),
+          preset.ownerUserId(),
+          preset.visibility(),
+          preset.entityType(),
+          preset.scenarioKey(),
+          preset.scopeKey(),
+          preset.dslJson(),
+          preset.dslHash(),
+          preset.tagSchemaHash(),
+          preset.sourceDataWatermarkAtSave(),
+          preset.lastUsedAt(),
+          preset.createdAt(),
+          preset.updatedAt());
+    }
+  }
+
+  public record BusinessTagGroupApplyResponse(
+      BusinessTagGroupResponse tagGroup,
+      boolean schemaCompatible,
+      String compatibilityMessage) {
+    static BusinessTagGroupApplyResponse from(SegmentFilterPresetApplyResult result) {
+      return new BusinessTagGroupApplyResponse(
+          BusinessTagGroupResponse.from(result.preset()),
+          result.schemaCompatible(),
+          result.compatibilityMessage());
     }
   }
 

@@ -12,6 +12,7 @@ declare module 'vue' {
     BaseRecordTableCell: typeof import('./components/base/BaseRecordTableCell.vue')['default']
     BaseSearchInput: typeof import('./components/base/BaseSearchInput.vue')['default']
     BaseStatisticTable: typeof import('./components/base/BaseStatisticTable.vue')['default']
+    BusinessTagGroupApplySelect: typeof import('./components/BusinessTagGroupApplySelect.vue')['default']
     CodeReviewRuleConfigEditor: typeof import('./components/rule-config/CodeReviewRuleConfigEditor.vue')['default']
     CodeReviewRuleConfigPreview: typeof import('./components/rule-config/CodeReviewRuleConfigPreview.vue')['default']
     DatabaseBrowserView: typeof import('./components/DatabaseBrowserView.vue')['default']

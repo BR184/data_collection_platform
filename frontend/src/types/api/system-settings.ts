@@ -53,3 +53,49 @@ export interface SemanticTagGroupCatalogResponse {
   schemaHash: string;
   groups: SemanticTagGroupResponse[];
 }
+
+export interface BusinessTagGroupResponse {
+  id: number;
+  tagGroupName: string;
+  ownerUserId: string;
+  visibility: 'PRIVATE' | 'TEAM' | 'PUBLIC';
+  entityType: string;
+  scenarioKey: string;
+  scopeKey: string;
+  dslJson: string;
+  dslHash: string;
+  tagSchemaHash: string;
+  sourceDataWatermarkAtSave?: string | null;
+  lastUsedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface BusinessTagGroupSaveRequest {
+  tagGroupName: string;
+  ownerUserId: string;
+  visibility: 'PRIVATE' | 'TEAM' | 'PUBLIC';
+  entityType: string;
+  scenarioKey: string;
+  scopeKey: string;
+  dslJson: string;
+  tagSchemaHash: string;
+  sourceDataWatermarkAtSave?: string | null;
+}
+
+export interface BusinessTagGroupUpdateRequest {
+  tagGroupName?: string;
+  visibility?: 'PRIVATE' | 'TEAM' | 'PUBLIC';
+  entityType?: string;
+  scenarioKey?: string;
+  scopeKey?: string;
+  dslJson?: string;
+  tagSchemaHash?: string;
+  sourceDataWatermarkAtSave?: string | null;
+}
+
+export interface BusinessTagGroupApplyResponse {
+  tagGroup: BusinessTagGroupResponse;
+  schemaCompatible: boolean;
+  compatibilityMessage: string;
+}

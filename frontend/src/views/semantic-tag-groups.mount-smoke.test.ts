@@ -21,7 +21,7 @@ describe('SemanticTagGroupsView mount smoke', () => {
             {
               domain: 'issue',
               groupKey: 'severity_level',
-              label: 'Severity level',
+              label: '严重程度',
               sourceMode: 'STATIC',
               rulePolicyKey: 'issue_severity_policy',
               selectionMode: 'MULTIPLE',
@@ -31,7 +31,7 @@ describe('SemanticTagGroupsView mount smoke', () => {
               values: [
                 {
                   valueKey: 'LEVEL1',
-                  label: 'Level 1 defect',
+                  label: '一级缺陷',
                   valueType: 'STRING',
                   canonicalValue: 'LEVEL1',
                   enabled: true,
@@ -42,7 +42,7 @@ describe('SemanticTagGroupsView mount smoke', () => {
             {
               domain: 'issue',
               groupKey: 'delay_cause',
-              label: 'Delay cause',
+              label: '延期原因',
               sourceMode: 'STATIC',
               rulePolicyKey: 'system_test_delay_cause_policy',
               selectionMode: 'MULTIPLE',
@@ -52,7 +52,7 @@ describe('SemanticTagGroupsView mount smoke', () => {
               values: [
                 {
                   valueKey: 'TECHNICAL_BLOCKER',
-                  label: 'Technical blocker',
+                  label: '技术卡点',
                   valueType: 'STRING',
                   canonicalValue: 'TECHNICAL_BLOCKER',
                   enabled: true,
@@ -79,10 +79,13 @@ describe('SemanticTagGroupsView mount smoke', () => {
       expect.any(Object),
     );
     expect(wrapper.text()).toContain('语义标签组');
-    expect(wrapper.text()).toContain('severity_level');
-    expect(wrapper.text()).toContain('delay_cause');
-    expect(wrapper.text()).toContain('TECHNICAL_BLOCKER');
-    expect(wrapper.text()).toContain('0123456789ab');
+    expect(wrapper.text()).toContain('严重程度');
+    expect(wrapper.text()).toContain('一级缺陷');
+    expect(wrapper.text()).toContain('延期原因');
+    expect(wrapper.text()).toContain('技术卡点');
+    expect(wrapper.text()).not.toContain('severity_level');
+    expect(wrapper.text()).not.toContain('delay_cause');
+    expect(wrapper.text()).not.toContain('0123456789ab');
 
     wrapper.unmount();
     vi.unstubAllGlobals();

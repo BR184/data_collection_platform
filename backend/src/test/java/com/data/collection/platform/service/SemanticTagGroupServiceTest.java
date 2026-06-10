@@ -33,11 +33,13 @@ class SemanticTagGroupServiceTest {
     SemanticTagGroupDefinition severity = catalog.requireGroup("severity_level");
     SemanticTagGroupDefinition urgency = catalog.requireGroup("urgency");
 
+    assertThat(severity.label()).isEqualTo("严重程度");
+    assertThat(urgency.label()).isEqualTo("紧急程度");
     assertThat(severity.values())
-        .extracting(SemanticTagValueDefinition::valueKey)
-        .containsExactly("LEVEL1", "LEVEL2", "LEVEL3", "SUGGESTION");
+        .extracting(SemanticTagValueDefinition::label)
+        .containsExactly("一级缺陷", "二级缺陷", "三级缺陷", "建议类");
     assertThat(urgency.values())
-        .extracting(SemanticTagValueDefinition::valueKey)
+        .extracting(SemanticTagValueDefinition::label)
         .containsExactly("P1", "P2", "P3");
   }
 
@@ -107,6 +109,41 @@ class SemanticTagGroupServiceTest {
         .extracting(SemanticTagValueDefinition::valueKey)
         .containsExactly("VIP");
     assertThat(catalog.schemaHash()).hasSize(64);
+  }
+
+  @Test
+  void shouldLocalizeKnownDatabaseGroupsBeforeReturningToPages() {
+    SemanticTagGroupService dbBackedService =
+        new SemanticTagGroupService(
+            entityType -> List.of(
+                new SemanticTagGroupDefinition(
+                    entityType,
+                    "customer_issue_closure_status",
+                    "Customer issue closure status",
+                    "STATIC",
+                    "customer_issue_closure_policy",
+                    "MULTIPLE",
+                    "EXACT",
+                    true,
+                    10,
+                    List.of(
+                        new SemanticTagValueDefinition(
+                            "FIXED_DONE", "Fixed done", "STRING", "FIXED_DONE", true, 10),
+                        new SemanticTagValueDefinition(
+                            "NOT_REPRODUCED",
+                            "Not reproduced",
+                            "STRING",
+                            "NOT_REPRODUCED",
+                            true,
+                            20)))));
+
+    SemanticTagGroupDefinition group =
+        dbBackedService.listStaticGroups("issue").requireGroup("customer_issue_closure_status");
+
+    assertThat(group.label()).isEqualTo("客户问题闭环状态");
+    assertThat(group.values())
+        .extracting(SemanticTagValueDefinition::label)
+        .containsExactly("已修复/完成", "未复现");
   }
 
   @Test

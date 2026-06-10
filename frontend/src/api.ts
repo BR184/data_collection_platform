@@ -1,4 +1,5 @@
 import { codeReviewApi } from './api-client/code-review-api';
+import { businessTagGroupsApi } from './api-client/business-tag-groups-api';
 import { collectFormsApi } from './api-client/collect-forms-api';
 import { databaseBrowserApi } from './api-client/database-browser-api';
 import { integrationTestsApi } from './api-client/integration-tests-api';
@@ -19,6 +20,7 @@ export const api = {
   ...testingPhasesApi,
   ...collectFormsApi,
   ...codeReviewApi,
+  ...businessTagGroupsApi,
   ...reviewDataApi,
   ...issueRecordsApi,
   ...semanticTagGroupsApi,

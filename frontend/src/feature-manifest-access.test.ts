@@ -12,6 +12,7 @@ describe('feature manifest access rules', () => {
     expect(canAccessPageKey('review-data-home', guest)).toBe(false);
     expect(canAccessPageKey('quality-board-other-board', guest)).toBe(false);
     expect(canAccessPageKey('database-browser', guest)).toBe(false);
+    expect(canAccessPageKey('business-tag-groups', guest)).toBe(false);
     expect(canAccessPageKey('semantic-tag-groups', guest)).toBe(false);
   });
 
@@ -20,6 +21,7 @@ describe('feature manifest access rules', () => {
     expect(canAccessPageKey('quality-board-other-board', admin)).toBe(true);
     expect(canAccessPageKey('code-review-multi-board', admin)).toBe(true);
     expect(canAccessPageKey('database-browser', admin)).toBe(true);
+    expect(canAccessPageKey('business-tag-groups', admin)).toBe(true);
     expect(canAccessPageKey('semantic-tag-groups', admin)).toBe(true);
   });
 
