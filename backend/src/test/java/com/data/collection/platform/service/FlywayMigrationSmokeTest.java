@@ -83,30 +83,6 @@ class FlywayMigrationSmokeTest {
     assertThat(migration).contains("where whitelist_mode = 'all'");
   }
 
-  @Test
-  void shouldRemoveAbandonedLabelGroupingTables() throws IOException {
-    String migration = readMigration("V20260609_02__remove_abandoned_label_grouping.sql");
-
-    assertThat(migration).contains("drop table if exists tag_value_mapping cascade");
-    assertThat(migration).contains("drop table if exists tag_value cascade");
-    assertThat(migration).contains("drop table if exists tag_group cascade");
-    assertThat(migration).contains("destructive-migration-reviewed:");
-    assertThat(migration).contains("destructive-migration-recovery:");
-  }
-
-  @Test
-  void shouldRemoveDeprecatedTagGroupSegmentationRuntimeTables() throws IOException {
-    String migration =
-        readMigration("V20260609_08__remove_deprecated_tag_group_segmentation_runtime.sql");
-
-    assertThat(migration).contains("drop table if exists segment_filter_preset cascade");
-    assertThat(migration).contains("drop table if exists segment_definition cascade");
-    assertThat(migration).contains("drop table if exists semantic_tag_group cascade");
-    assertThat(migration).contains("drop table if exists semantic_scope_definition cascade");
-    assertThat(migration).contains("destructive-migration-reviewed:");
-    assertThat(migration).contains("destructive-migration-recovery:");
-  }
-
   private String readMigration(String fileName) throws IOException {
     return Files.readString(
             Path.of("src", "main", "resources", "db", "migration", fileName), StandardCharsets.UTF_8)

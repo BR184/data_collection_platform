@@ -47,10 +47,9 @@ public class LabelGroupController {
   @GetMapping
   public ApiResponse<List<LabelGroupResponse>> listGroups(
       @RequestParam(required = false) String valueType,
-      @RequestParam(required = false) String dimensionKey,
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) Boolean enabled) {
-    return ApiResponse.success(labelGroupService.list(resolveValueType(valueType, dimensionKey), keyword, enabled));
+    return ApiResponse.success(labelGroupService.list(valueType, keyword, enabled));
   }
 
   @PostMapping
@@ -82,13 +81,12 @@ public class LabelGroupController {
   public ApiResponse<LabelGroupExpansionResponse> expandGroup(
       @PathVariable Long groupId,
       @RequestParam(required = false) String valueType,
-      @RequestParam(required = false) String dimensionKey,
       @RequestParam(required = false) String fieldKey,
       @RequestParam(required = false) String pageKey,
       @RequestParam(required = false) String sourceInstanceId) {
     return ApiResponse.success(
         labelGroupExpansionService.expand(
-            groupId, resolveValueType(valueType, dimensionKey), fieldKey, pageKey, sourceInstanceId));
+            groupId, valueType, fieldKey, pageKey, sourceInstanceId));
   }
 
   @GetMapping("/dimensions")
@@ -115,18 +113,5 @@ public class LabelGroupController {
   public ApiResponse<List<LabelGroupCompatiblePageResponse>> listCompatiblePages(
       @PathVariable String dimensionKey) {
     return ApiResponse.success(labelDimensionCatalogService.listCompatiblePages(dimensionKey));
-  }
-
-  private String resolveValueType(String valueType, String dimensionKey) {
-    if (valueType != null && !valueType.isBlank()) {
-      return valueType;
-    }
-    if (dimensionKey == null || dimensionKey.isBlank()) {
-      return null;
-    }
-    return switch (labelDimensionCatalogService.getDimension(dimensionKey).valueKind()) {
-      case STRING_LITERAL, BRANCH_NAME, GITLAB_USER_ID -> "STRING";
-      case ENUM_KEY -> "STRING";
-    };
   }
 }

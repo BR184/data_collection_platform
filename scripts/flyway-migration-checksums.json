@@ -25,15 +25,5 @@
   "V20260522_01__full_compensation_schedule_config.sql": "c5e67aa8814bf9a5a7d2c4e0ec8e479e8ec33faed826c901c50868155c83276c",
   "V20260602_01__compensation_schedule_window_config.sql": "864fdbc68f53137e7f1dcdd12dec8118831b1cabfef7d284d8e6cacaf17e68dd",
   "V20260604_01__review_data_legacy_metrics.sql": "b17772dbd1103317894f66e813578ea3db45722fc299a63dcf0a932a322601f3",
-  "V20260605_01__tag_groups.sql": "a1fc406b9cee4d4525101ba79b58cdc241aad7ef5953af1ae45225e9d5b5828d",
-  "V20260608_01__tag_groups_review_data_seed.sql": "16099807bc5b620602eac466a177f9bf0b54e4654d6b043ff473c5d8d70ad002",
-  "V20260609_01__tag_groups_issue_legacy_seed.sql": "6f167e691be878ce4826f538c26e52a3725ffc6134bee268d0715600db94bbf8",
-  "V20260609_02__remove_abandoned_label_grouping.sql": "34591472afb6b3cb3511887bfbe33dbf4736ca6fbe0e0fe9434984358e5c173b",
-  "V20260609_03__semantic_segmentation_core_schema.sql": "8cb0c0e4f0a7a953a132307f5c0438ac277e961802eae58a607f748bf787f9fe",
-  "V20260609_04__segment_filter_preset.sql": "305f675e220294bcc158790cb2c7489e69c84ad4cb4296c7942ade6cecd215aa",
-  "V20260609_05__semantic_tag_group_issue_seed.sql": "21378378fd3d2c124438b77dc9c0c05397967b6d41d6dc3d31abe2f24e00bcf4",
-  "V20260609_06__semantic_tag_group_chinese_labels.sql": "c0e3cd6e541abcd30d9008e73076f51d682c1384c1a7677939afb56ce2e08f0a",
-  "V20260609_07__disable_ratio_empty_value_policy_semantic_tag.sql": "c8521ebf8f8a485d0bd887ef77016b9e385750f77789cc3efaa7c1a42e1aa808",
-  "V20260609_08__remove_deprecated_tag_group_segmentation_runtime.sql": "7e983a54f8ac9b4a3c4c3b72291c9dccbc404c10523da04e2069d8051820bd81",
-  "V20260610_01__label_group_core_schema.sql": "5730a7fac9ecd75ec78f78425eef58eae33b0695af56ad263ab19e3c69eee374"
+  "V20260610_01__label_group_core_schema.sql": "9a9b2a59d087874995e6a45f71da79293d3dff265b201e074836389048daf47f"
 }

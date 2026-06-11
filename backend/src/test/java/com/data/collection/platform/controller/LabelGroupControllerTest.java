@@ -126,6 +126,15 @@ class LabelGroupControllerTest {
   }
 
   @Test
+  void shouldNotResolveDimensionKeyWhenListingGroups() throws Exception {
+    when(labelGroupService.list(isNull(), isNull(), isNull())).thenReturn(List.of(groupResponse()));
+
+    mockMvc.perform(get("/api/label-groups").param("dimensionKey", "module"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true));
+  }
+
+  @Test
   void shouldCreateGroup() throws Exception {
     when(labelGroupService.create(org.mockito.ArgumentMatchers.any())).thenReturn(groupResponse());
 
@@ -168,6 +177,17 @@ class LabelGroupControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.values[0]").value("需求如此"))
         .andExpect(jsonPath("$.data.values[1]").value("设计如此"));
+  }
+
+  @Test
+  void shouldNotResolveDimensionKeyWhenExpandingGroup() throws Exception {
+    when(labelGroupExpansionService.expand(eq(1L), isNull(), eq("moduleName"), isNull(), isNull()))
+        .thenReturn(new LabelGroupExpansionResponse(1L, "核心模块", "STRING", List.of("草图"), List.of()));
+
+    mockMvc.perform(post("/api/label-groups/1/expand").param("dimensionKey", "module").param("fieldKey", "moduleName"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.values[0]").value("草图"));
   }
 
   @Test
