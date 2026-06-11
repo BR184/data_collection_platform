@@ -30,6 +30,9 @@ export interface StatisticFilterField {
   placeholder?: string | null;
   defaultValue?: string | null;
   width?: number | null;
+  labelDimensionKey?: string | null;
+  labelGroupEnabled?: boolean | null;
+  labelGroupValueType?: string | null;
   operators: StatisticFilterOperator[];
   options: StatisticFilterOption[];
 }
@@ -37,8 +40,12 @@ export interface StatisticFilterField {
 export interface StatisticFilterCondition {
   fieldKey: string;
   operator: StatisticFilterOperator;
-  value: string;
+  value?: string | null;
   secondaryValue?: string | null;
+  valueType?: 'LITERAL' | 'LABEL_GROUP' | string | null;
+  labelGroupId?: number | null;
+  labelGroupName?: string | null;
+  values?: string[];
 }
 
 export interface StatisticFilterGroup {

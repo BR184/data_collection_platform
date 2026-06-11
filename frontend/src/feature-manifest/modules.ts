@@ -206,6 +206,14 @@ export const modules: ShellModule[] = [
     description: '维护 GitLab 数据镜像、数据库查看与系统配置。',
     pages: [
       {
+        key: 'label-group-settings',
+        label: '标签组管理',
+        description: '维护同维度标签值集合，供业务页面作为整体筛选条件使用。',
+        path: '/system-settings/label-group-settings',
+        requiresLogin: true,
+        hiddenForApproval: true,
+      },
+      {
         key: 'mirror-settings',
         label: '数据镜像设置',
         description: '管理 GitLab 数据镜像的连接、同步和日志。',

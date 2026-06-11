@@ -13,6 +13,7 @@ import { authState, loadCurrentUser } from './composables/auth-state';
 import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } from './router-state';
 
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
+const LabelGroupSettingsView = () => import('./views/LabelGroupSettingsView.vue');
 const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
 const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
@@ -141,6 +142,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('customer-issues-issue-by-function', StatisticBoardPage),
+  },
+  {
+    ...buildShellRoute('label-group-settings', LabelGroupSettingsView),
   },
   {
     ...buildShellRoute('mirror-settings', MirrorSettingsView),

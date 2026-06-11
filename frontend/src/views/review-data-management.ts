@@ -93,6 +93,9 @@ export function buildReviewDataFilterFields(filterOptions: ReviewDataFilterOptio
       type: 'select',
       operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
       options: filterOptions.projectNames,
+      labelDimensionKey: 'project',
+      labelGroupEnabled: true,
+      labelGroupValueType: 'STRING',
     },
     {
       key: 'moduleName',
@@ -100,6 +103,9 @@ export function buildReviewDataFilterFields(filterOptions: ReviewDataFilterOptio
       type: 'select',
       operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
       options: filterOptions.moduleNames,
+      labelDimensionKey: 'module',
+      labelGroupEnabled: true,
+      labelGroupValueType: 'STRING',
     },
     {
       key: 'reviewOwner',
@@ -107,6 +113,9 @@ export function buildReviewDataFilterFields(filterOptions: ReviewDataFilterOptio
       type: 'select',
       operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
       options: filterOptions.reviewOwners,
+      labelDimensionKey: 'review_owner',
+      labelGroupEnabled: true,
+      labelGroupValueType: 'STRING',
     },
     {
       key: 'reviewType',
@@ -121,6 +130,9 @@ export function buildReviewDataFilterFields(filterOptions: ReviewDataFilterOptio
       type: 'select',
       operators: ['eq', 'ne', 'isEmpty', 'isNotEmpty'],
       options: filterOptions.reviewExperts,
+      labelDimensionKey: 'review_expert',
+      labelGroupEnabled: true,
+      labelGroupValueType: 'STRING',
     },
     {
       key: 'problemStatus',

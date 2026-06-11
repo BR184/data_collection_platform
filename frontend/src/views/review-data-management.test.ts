@@ -191,6 +191,23 @@ describe('review-data-management helpers', () => {
       'reviewDate',
     ]);
     expect(fields.find((field) => field.key === 'projectName')?.options).toBe(filterOptions.projectNames);
+    expect(fields.find((field) => field.key === 'projectName')).toMatchObject({
+      labelDimensionKey: 'project',
+      labelGroupEnabled: true,
+    });
+    expect(fields.find((field) => field.key === 'moduleName')).toMatchObject({
+      labelDimensionKey: 'module',
+      labelGroupEnabled: true,
+    });
+    expect(fields.find((field) => field.key === 'reviewOwner')).toMatchObject({
+      labelDimensionKey: 'review_owner',
+      labelGroupEnabled: true,
+    });
+    expect(fields.find((field) => field.key === 'reviewExpert')).toMatchObject({
+      labelDimensionKey: 'review_expert',
+      labelGroupEnabled: true,
+    });
+    expect(fields.find((field) => field.key === 'reviewType')?.labelGroupEnabled).toBeUndefined();
     expect(fields.find((field) => field.key === 'reviewDate')?.operators).toContain('between');
   });
 

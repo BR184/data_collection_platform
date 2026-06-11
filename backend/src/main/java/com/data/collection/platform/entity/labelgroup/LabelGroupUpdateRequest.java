@@ -4,7 +4,8 @@ import java.util.List;
 
 public record LabelGroupUpdateRequest(
     String name,
-    String dimensionKey,
+    String groupType,
     String description,
     Boolean enabled,
-    List<LabelGroupMemberRequest> members) {}
+    List<LabelGroupMemberRequest> members,
+    List<Long> childGroupIds) {}

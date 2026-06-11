@@ -38,4 +38,38 @@ describe('reviewDataApi source instance query contract', () => {
 
     expect(request).toHaveBeenLastCalledWith('/api/review-data/records/filter-options');
   });
+
+  it('serializes label group conditions through filterGroup for list and export endpoints', () => {
+    const filterGroup = {
+      logic: 'AND' as const,
+      conditions: [
+        {
+          fieldKey: 'moduleName',
+          operator: 'eq' as const,
+          value: null,
+          valueType: 'LABEL_GROUP',
+          labelGroupId: 1,
+          labelGroupName: '核心模块',
+        },
+      ],
+    };
+
+    reviewDataApi.getReviewDataRecords({
+      filterGroup,
+      page: 1,
+      size: 20,
+    });
+
+    expect(decodeURIComponent(String(vi.mocked(request).mock.calls[0][0]))).toContain(
+      'filterGroup={"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心模块"}]}',
+    );
+
+    reviewDataApi.exportReviewDataRecordsWorkbook({
+      filterGroup,
+    });
+
+    expect(decodeURIComponent(String(vi.mocked(requestBlob).mock.calls[0][0]))).toContain(
+      '/api/review-data/records/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心模块"}]}',
+    );
+  });
 });

@@ -24,19 +24,19 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public LabelGroupRecord createGroup(
-      String name, String dimensionKey, String groupType, String description, String username) {
+      String name, String valueType, String groupType, String description, String username) {
     GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("name", name)
-            .addValue("dimensionKey", dimensionKey)
+            .addValue("valueType", valueType)
             .addValue("groupType", groupType)
             .addValue("description", description)
             .addValue("username", username);
     jdbcTemplate.update(
         """
-        insert into label_groups (name, dimension_key, group_type, description, created_by, updated_by)
-        values (:name, :dimensionKey, :groupType, :description, :username, :username)
+        insert into label_groups (name, value_type, group_type, description, created_by, updated_by)
+        values (:name, :valueType, :groupType, :description, :username, :username)
         """,
         params,
         keyHolder,
@@ -46,8 +46,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
   }
 
   @Override
-  public void replaceMembers(
-      Long groupId, String dimensionKey, List<LabelGroupMemberRecord> members) {
+  public void replaceMembers(Long groupId, List<LabelGroupMemberRecord> members) {
     jdbcTemplate.update(
         "delete from label_group_members where group_id = :groupId",
         new MapSqlParameterSource("groupId", groupId));
@@ -55,15 +54,33 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
       jdbcTemplate.update(
           """
           insert into label_group_members
-            (group_id, dimension_key, member_value, display_name, sort_order)
-          values (:groupId, :dimensionKey, :memberValue, :displayName, :sortOrder)
+            (group_id, member_value, display_name, sort_order)
+          values (:groupId, :memberValue, :displayName, :sortOrder)
           """,
           new MapSqlParameterSource()
               .addValue("groupId", groupId)
-              .addValue("dimensionKey", dimensionKey)
               .addValue("memberValue", member.memberValue())
               .addValue("displayName", member.displayName())
               .addValue("sortOrder", member.sortOrder()));
+    }
+  }
+
+  @Override
+  public void replaceReferences(Long groupId, List<Long> childGroupIds) {
+    jdbcTemplate.update(
+        "delete from label_group_references where parent_group_id = :groupId",
+        new MapSqlParameterSource("groupId", groupId));
+    int sortOrder = 0;
+    for (Long childGroupId : childGroupIds) {
+      jdbcTemplate.update(
+          """
+          insert into label_group_references (parent_group_id, child_group_id, sort_order)
+          values (:groupId, :childGroupId, :sortOrder)
+          """,
+          new MapSqlParameterSource()
+              .addValue("groupId", groupId)
+              .addValue("childGroupId", childGroupId)
+              .addValue("sortOrder", sortOrder++));
     }
   }
 
@@ -75,7 +92,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     List<LabelGroupRecord> groups =
         loadGroups(
             """
-            select id, name, dimension_key, group_type, description, enabled,
+            select id, name, value_type, group_type, description, enabled,
                    created_by, created_at, updated_by, updated_at
             from label_groups
             where id = :groupId
@@ -85,19 +102,19 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
   }
 
   @Override
-  public List<LabelGroupRecord> list(String dimensionKey, String keyword, Boolean enabled) {
+  public List<LabelGroupRecord> list(String valueType, String keyword, Boolean enabled) {
     StringBuilder sql =
         new StringBuilder(
             """
-            select id, name, dimension_key, group_type, description, enabled,
+            select id, name, value_type, group_type, description, enabled,
                    created_by, created_at, updated_by, updated_at
             from label_groups
             where 1 = 1
             """);
     MapSqlParameterSource params = new MapSqlParameterSource();
-    if (dimensionKey != null && !dimensionKey.isBlank()) {
-      sql.append(" and dimension_key = :dimensionKey");
-      params.addValue("dimensionKey", dimensionKey);
+    if (valueType != null && !valueType.isBlank()) {
+      sql.append(" and value_type = :valueType");
+      params.addValue("valueType", valueType);
     }
     if (keyword != null && !keyword.isBlank()) {
       sql.append(" and lower(name) like lower(:keyword)");
@@ -107,25 +124,23 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
       sql.append(" and enabled = :enabled");
       params.addValue("enabled", enabled);
     }
-    sql.append(" order by dimension_key asc, updated_at desc, id desc");
+    sql.append(" order by updated_at desc, id desc");
     return loadGroups(sql.toString(), params);
   }
 
   @Override
-  public boolean existsByDimensionAndName(String dimensionKey, String name, Long excludeId) {
+  public boolean existsByName(String name, Long excludeId) {
     String sql =
         """
         select count(1)
         from label_groups
-        where dimension_key = :dimensionKey
-          and name = :name
+        where name = :name
           and (:excludeId is null or id <> :excludeId)
         """;
     Integer count =
         jdbcTemplate.queryForObject(
             sql,
             new MapSqlParameterSource()
-                .addValue("dimensionKey", dimensionKey)
                 .addValue("name", name)
                 .addValue("excludeId", excludeId),
             Integer.class);
@@ -134,11 +149,19 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public void updateGroup(
-      Long groupId, String name, String description, boolean enabled, String username) {
+      Long groupId,
+      String name,
+      String valueType,
+      String groupType,
+      String description,
+      boolean enabled,
+      String username) {
     jdbcTemplate.update(
         """
         update label_groups
         set name = :name,
+            value_type = :valueType,
+            group_type = :groupType,
             description = :description,
             enabled = :enabled,
             updated_by = :username,
@@ -148,6 +171,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         new MapSqlParameterSource()
             .addValue("groupId", groupId)
             .addValue("name", name)
+            .addValue("valueType", valueType)
+            .addValue("groupType", groupType)
             .addValue("description", description)
             .addValue("enabled", enabled)
             .addValue("username", username));
@@ -163,7 +188,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
   private List<LabelGroupRecord> loadGroups(String sql, MapSqlParameterSource params) {
     Map<Long, LabelGroupRecord> groups = new LinkedHashMap<>();
     jdbcTemplate.query(sql, params, rs -> {
-      LabelGroupRecord group = mapGroup(rs, List.of());
+      LabelGroupRecord group = mapGroup(rs, List.of(), List.of());
       groups.put(group.id(), group);
     });
     if (groups.isEmpty()) {
@@ -172,23 +197,41 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     List<LabelGroupMemberRecord> members =
         jdbcTemplate.query(
             """
-            select id, group_id, dimension_key, member_value, display_name, sort_order
+            select id, group_id, member_value, display_name, sort_order
             from label_group_members
             where group_id in (:groupIds)
             order by group_id asc, sort_order asc, id asc
             """,
             new MapSqlParameterSource("groupIds", groups.keySet()),
             this::mapMember);
+    List<LabelGroupChildRecord> children =
+        jdbcTemplate.query(
+            """
+            select r.id, r.parent_group_id, r.child_group_id, r.sort_order,
+                   g.name as child_name, g.group_type as child_group_type,
+                   g.value_type as child_value_type, g.enabled as child_enabled
+              from label_group_references r
+              join label_groups g on g.id = r.child_group_id
+             where r.parent_group_id in (:groupIds)
+             order by r.parent_group_id asc, r.sort_order asc, r.id asc
+            """,
+            new MapSqlParameterSource("groupIds", groups.keySet()),
+            this::mapChild);
     Map<Long, List<LabelGroupMemberRecord>> byGroup =
         members.stream().collect(java.util.stream.Collectors.groupingBy(
             LabelGroupMemberRecord::groupId,
+            LinkedHashMap::new,
+            java.util.stream.Collectors.toList()));
+    Map<Long, List<LabelGroupChildRecord>> childrenByGroup =
+        children.stream().collect(java.util.stream.Collectors.groupingBy(
+            LabelGroupChildRecord::parentGroupId,
             LinkedHashMap::new,
             java.util.stream.Collectors.toList()));
     return groups.values().stream()
         .map(group -> new LabelGroupRecord(
             group.id(),
             group.name(),
-            group.dimensionKey(),
+            group.valueType(),
             group.groupType(),
             group.description(),
             group.enabled(),
@@ -196,16 +239,18 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
             group.createdAt(),
             group.updatedBy(),
             group.updatedAt(),
-            byGroup.getOrDefault(group.id(), List.of())))
+            byGroup.getOrDefault(group.id(), List.of()),
+            childrenByGroup.getOrDefault(group.id(), List.of())))
         .toList();
   }
 
-  private LabelGroupRecord mapGroup(ResultSet rs, List<LabelGroupMemberRecord> members)
+  private LabelGroupRecord mapGroup(
+      ResultSet rs, List<LabelGroupMemberRecord> members, List<LabelGroupChildRecord> children)
       throws SQLException {
     return new LabelGroupRecord(
         rs.getLong("id"),
         rs.getString("name"),
-        rs.getString("dimension_key"),
+        rs.getString("value_type"),
         rs.getString("group_type"),
         rs.getString("description"),
         rs.getBoolean("enabled"),
@@ -213,16 +258,28 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         toOffsetDateTime(rs.getTimestamp("created_at")),
         rs.getString("updated_by"),
         toOffsetDateTime(rs.getTimestamp("updated_at")),
-        members);
+        members,
+        children);
   }
 
   private LabelGroupMemberRecord mapMember(ResultSet rs, int rowNum) throws SQLException {
     return new LabelGroupMemberRecord(
         rs.getLong("id"),
         rs.getLong("group_id"),
-        rs.getString("dimension_key"),
         rs.getString("member_value"),
         rs.getString("display_name"),
+        rs.getInt("sort_order"));
+  }
+
+  private LabelGroupChildRecord mapChild(ResultSet rs, int rowNum) throws SQLException {
+    return new LabelGroupChildRecord(
+        rs.getLong("id"),
+        rs.getLong("parent_group_id"),
+        rs.getLong("child_group_id"),
+        rs.getString("child_name"),
+        rs.getString("child_group_type"),
+        rs.getString("child_value_type"),
+        rs.getBoolean("child_enabled"),
         rs.getInt("sort_order"));
   }
 

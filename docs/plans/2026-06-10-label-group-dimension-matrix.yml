@@ -1,5 +1,5 @@
 schemaVersion: 1
-description: 平台标签组维度与页面兼容矩阵。本文档是机器可读的权威源，Markdown 仅作人工说明。
+description: 平台标签组可应用字段与页面兼容矩阵。设计入口见 docs/plans/2026-06-10-label-group-value-set-design.md；dimensions/dimensionKey 为历史字段目录命名，不表示标签组成员维度；标签组 valueType 由首个有效成员或动态规则输出推断，用户不手动声明。
 
 dimensions:
   - key: module
@@ -13,13 +13,13 @@ dimensions:
     valueKind: STRING_LITERAL
     source: 事实层项目名称字段
     mvpSupported: true
-    notes: 来自现有项目筛选字段，不允许用户手动创建
+    notes: 字段候选来自现有项目筛选字段；静态字符串标签组仍允许用户手动输入成员值
   - key: review_owner
     name: 评审负责人
     valueKind: STRING_LITERAL
     source: 评审数据 reviewOwner 文本字段
     mvpSupported: true
-    notes: 第一版按文本保存，接受重名风险；不得与议题处理人合并
+    notes: 字段值类型为字符串；标签组成员只保存字符串值本身，不按评审负责人身份保存
   - key: review_expert
     name: 评审专家
     valueKind: STRING_LITERAL
@@ -31,13 +31,13 @@ dimensions:
     valueKind: STRING_LITERAL
     source: 议题事实层 assigneeName 文本字段
     mvpSupported: true
-    notes: 系统测试议题查询使用；不得与评审负责人或客户问题处理人合并
+    notes: 字段值类型为字符串；标签组成员只保存字符串值本身，不按议题处理人身份保存
   - key: customer_assignee
     name: 客户问题处理人
     valueKind: STRING_LITERAL
     source: 客户问题事实层 assigneeName 文本字段
     mvpSupported: true
-    notes: 客户问题列表使用；第一版不接入客户问题负责人
+    notes: 字段值类型为字符串；标签组成员只保存字符串值本身；第一版不接入客户问题负责人字段
   - key: target_branch
     name: 目标分支
     valueKind: BRANCH_NAME

@@ -11,6 +11,9 @@ export interface StatisticFilterConditionDraft {
   operator: StatisticFilterOperator | '';
   value: string | number | null;
   secondaryValue: string | number | null;
+  valueType?: 'LITERAL' | 'LABEL_GROUP';
+  labelGroupId?: number | null;
+  labelGroupName?: string | null;
 }
 
 export interface StatisticFilterDraftGroup {
@@ -47,6 +50,9 @@ export function createFilterConditionDraft(field?: StatisticFilterField): Statis
     operator: field?.operators?.[0] ?? '',
     value: '',
     secondaryValue: '',
+    valueType: 'LITERAL',
+    labelGroupId: null,
+    labelGroupName: null,
   };
 }
 
@@ -66,8 +72,13 @@ export function normalizeFilterDraftGroup(
         id: createFilterConditionDraft(fieldMap.get(condition.fieldKey)).id,
         fieldKey: condition.fieldKey,
         operator: condition.operator,
-        value: condition.value ?? '',
+        value: condition.valueType === 'LABEL_GROUP' && condition.labelGroupId
+          ? labelGroupSelectValue(condition.labelGroupId)
+          : condition.value ?? '',
         secondaryValue: condition.secondaryValue ?? '',
+        valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
+        labelGroupId: condition.labelGroupId ?? null,
+        labelGroupName: condition.labelGroupName ?? null,
       })),
   };
 }
@@ -77,6 +88,22 @@ export function sanitizeFilterDraftGroup(draft: StatisticFilterDraftGroup): Stat
 
   for (const condition of draft.conditions) {
     if (!condition.fieldKey || !condition.operator) {
+      continue;
+    }
+
+    if (condition.valueType === 'LABEL_GROUP') {
+      if (!condition.labelGroupId || !['eq', 'ne'].includes(condition.operator)) {
+        continue;
+      }
+      conditions.push({
+        fieldKey: condition.fieldKey,
+        operator: condition.operator,
+        value: null,
+        secondaryValue: null,
+        valueType: 'LABEL_GROUP',
+        labelGroupId: condition.labelGroupId,
+        labelGroupName: condition.labelGroupName ?? '',
+      });
       continue;
     }
 
@@ -105,6 +132,15 @@ export function sanitizeFilterDraftGroup(draft: StatisticFilterDraftGroup): Stat
     logic: draft.logic,
     conditions,
   };
+}
+
+export function labelGroupSelectValue(groupId: number) {
+  return `__label_group__:${groupId}`;
+}
+
+export function parseLabelGroupSelectValue(value: string) {
+  const match = /^__label_group__:(\d+)$/.exec(value);
+  return match ? Number(match[1]) : null;
 }
 
 export function operatorLabel(operator: StatisticFilterOperator | '') {

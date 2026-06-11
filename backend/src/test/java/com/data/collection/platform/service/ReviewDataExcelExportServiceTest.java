@@ -103,6 +103,8 @@ class ReviewDataExcelExportServiceTest {
 
   @Test
   void shouldKeepSourceInstanceWhenPagingExportRecords() {
+    String filterGroupJson =
+        "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心模块\"}]}";
     ReviewDataRecordQueryRequest request =
         new ReviewDataRecordQueryRequest(
             null,
@@ -113,7 +115,7 @@ class ReviewDataExcelExportServiceTest {
             null,
             null,
             null,
-            null,
+            filterGroupJson,
             "cc",
             1,
             20,
@@ -129,7 +131,7 @@ class ReviewDataExcelExportServiceTest {
             null,
             null,
             null,
-            null,
+            filterGroupJson,
             "cc",
             1,
             100,

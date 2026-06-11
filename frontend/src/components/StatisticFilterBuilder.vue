@@ -3,13 +3,17 @@ import { computed, ref, watch } from 'vue';
 import { ArrowUp, Delete, MoreFilled } from '@element-plus/icons-vue';
 import SmartSelect from './base/SmartSelect.vue';
 import { ElMessageBox } from '../element-plus-services';
+import { labelGroupsApi } from '../api-client/label-groups-api';
 // 高级筛选构建器把字段、操作符和值拆成可组合条件，供记录页和统计板复用。
 // 组件只维护前端草稿结构，最终查询表达式由调用方序列化后交给接口。
 import type { StatisticFilterField, StatisticFilterOperator } from '../types/api';
+import type { LabelGroup } from '../types/api';
 import type { RecordTableFilterOption } from '../types/record-table';
 import {
   createFilterConditionDraft,
+  labelGroupSelectValue,
   operatorLabel,
+  parseLabelGroupSelectValue,
   usesSecondaryValue,
   type StatisticFilterConditionDraft,
   type StatisticFilterDraftGroup,
@@ -31,6 +35,7 @@ const props = withDefaults(
 const conditionsExpanded = ref(false);
 const batchDeleteMode = ref(false);
 const selectedConditionIds = ref<string[]>([]);
+const labelGroupsByValueType = ref<Record<string, LabelGroup[]>>({});
 
 const visibleConditions = computed(() => {
   if (conditionsExpanded.value || props.modelValue.conditions.length <= visibleConditionLimit) {
@@ -56,6 +61,14 @@ watch(
       batchDeleteMode.value = false;
     }
   },
+);
+
+watch(
+  () => props.modelValue.conditions.map((condition) => `${condition.fieldKey}:${condition.operator}`).join('|'),
+  () => {
+    void ensureLabelGroupsForVisibleFields();
+  },
+  { immediate: true },
 );
 
 function addFilterCondition() {
@@ -155,6 +168,8 @@ function handleConditionFieldChange(condition: StatisticFilterConditionDraft) {
   condition.operator = (field?.operators?.[0] ?? '') as StatisticFilterOperator | '';
   condition.value = '';
   condition.secondaryValue = '';
+  clearLabelGroupValue(condition);
+  void ensureLabelGroupsForField(field);
 }
 
 function operatorOptionsForCondition(condition: StatisticFilterConditionDraft) {
@@ -224,10 +239,75 @@ function handleFieldSelectChange(condition: StatisticFilterConditionDraft, value
 
 function handleOperatorSelectChange(condition: StatisticFilterConditionDraft, value: string | string[]) {
   condition.operator = String(Array.isArray(value) ? value[0] ?? '' : value ?? '') as StatisticFilterOperator | '';
+  condition.value = '';
+  condition.secondaryValue = '';
+  clearLabelGroupValue(condition);
+  void ensureLabelGroupsForField(fieldForCondition(condition.fieldKey));
 }
 
 function handleValueSelectChange(condition: StatisticFilterConditionDraft, value: string | string[]) {
-  condition.value = String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
+  const nextValue = String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
+  const groupId = parseLabelGroupSelectValue(nextValue);
+  if (groupId) {
+    const group = labelGroupsForCondition(condition).find((item) => item.id === groupId);
+    condition.value = labelGroupSelectValue(groupId);
+    condition.valueType = 'LABEL_GROUP';
+    condition.labelGroupId = groupId;
+    condition.labelGroupName = group?.name ?? '';
+    return;
+  }
+  condition.value = nextValue;
+  clearLabelGroupValue(condition);
+}
+
+function supportsLabelGroupValue(condition: StatisticFilterConditionDraft) {
+  const field = fieldForCondition(condition.fieldKey);
+  return Boolean(field?.labelGroupEnabled) && (condition.operator === 'eq' || condition.operator === 'ne');
+}
+
+function labelGroupValueType(field: StatisticFilterField | null) {
+  return field?.labelGroupValueType || 'STRING';
+}
+
+function labelGroupsForCondition(condition: StatisticFilterConditionDraft) {
+  return labelGroupsByValueType.value[labelGroupValueType(fieldForCondition(condition.fieldKey))] ?? [];
+}
+
+function valueOptionsForCondition(condition: StatisticFilterConditionDraft): RecordTableFilterOption[] {
+  const literalOptions = fieldOptions(condition);
+  if (!supportsLabelGroupValue(condition)) {
+    return literalOptions;
+  }
+  const groupOptions = labelGroupsForCondition(condition).map((group) => ({
+    label: `标签组 / ${group.name}`,
+    value: labelGroupSelectValue(group.id),
+  }));
+  return [...literalOptions, ...groupOptions];
+}
+
+async function ensureLabelGroupsForVisibleFields() {
+  await Promise.all(props.modelValue.conditions.map((condition) => ensureLabelGroupsForField(fieldForCondition(condition.fieldKey))));
+}
+
+async function ensureLabelGroupsForField(field: StatisticFilterField | null) {
+  if (!field?.labelGroupEnabled) {
+    return;
+  }
+  const valueType = labelGroupValueType(field);
+  if (labelGroupsByValueType.value[valueType]) {
+    return;
+  }
+  const groups = await labelGroupsApi.listLabelGroups({ valueType, enabled: true });
+  labelGroupsByValueType.value = {
+    ...labelGroupsByValueType.value,
+    [valueType]: groups,
+  };
+}
+
+function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
+  condition.valueType = 'LITERAL';
+  condition.labelGroupId = null;
+  condition.labelGroupName = null;
 }
 </script>
 
@@ -274,7 +354,7 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
             :model-value="String(condition.value ?? '')"
             class="stat-filter-value"
             placeholder="值"
-            :options="fieldOptions(condition)"
+            :options="valueOptionsForCondition(condition)"
             @change="handleValueSelectChange(condition, $event)"
           />
           <el-input-number

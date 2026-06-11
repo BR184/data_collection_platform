@@ -20,7 +20,8 @@ class ReviewDataRequestAssemblerTest {
     request.setReviewType("Document Review");
     request.setProblemStatus("Resolved");
     request.setReviewExpert("Bob");
-    request.setFilterGroup("{\"logic\":\"AND\",\"conditions\":[]}");
+    request.setFilterGroup(
+        "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心模块\"}]}");
     request.setSourceInstance("cc");
     request.setPage(2);
     request.setSize(10);
@@ -37,7 +38,9 @@ class ReviewDataRequestAssemblerTest {
     assertThat(queryRequest.reviewType()).isEqualTo("Document Review");
     assertThat(queryRequest.problemStatus()).isEqualTo("Resolved");
     assertThat(queryRequest.reviewExpert()).isEqualTo("Bob");
-    assertThat(queryRequest.filterGroupJson()).isEqualTo("{\"logic\":\"AND\",\"conditions\":[]}");
+    assertThat(queryRequest.filterGroupJson())
+        .isEqualTo(
+            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心模块\"}]}");
     assertThat(queryRequest.sourceInstance()).isEqualTo("cc");
     assertThat(queryRequest.page()).isEqualTo(2);
     assertThat(queryRequest.size()).isEqualTo(10);

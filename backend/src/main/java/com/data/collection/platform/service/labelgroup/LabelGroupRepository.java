@@ -5,18 +5,26 @@ import java.util.Optional;
 
 public interface LabelGroupRepository {
   LabelGroupRecord createGroup(
-      String name, String dimensionKey, String groupType, String description, String username);
+      String name, String valueType, String groupType, String description, String username);
 
-  void replaceMembers(Long groupId, String dimensionKey, List<LabelGroupMemberRecord> members);
+  void replaceMembers(Long groupId, List<LabelGroupMemberRecord> members);
+
+  void replaceReferences(Long groupId, List<Long> childGroupIds);
 
   Optional<LabelGroupRecord> findById(Long groupId);
 
-  List<LabelGroupRecord> list(String dimensionKey, String keyword, Boolean enabled);
+  List<LabelGroupRecord> list(String valueType, String keyword, Boolean enabled);
 
-  boolean existsByDimensionAndName(String dimensionKey, String name, Long excludeId);
+  boolean existsByName(String name, Long excludeId);
 
   void updateGroup(
-      Long groupId, String name, String description, boolean enabled, String username);
+      Long groupId,
+      String name,
+      String valueType,
+      String groupType,
+      String description,
+      boolean enabled,
+      String username);
 
   void deleteById(Long groupId);
 }

@@ -5,7 +5,7 @@ date: 2026-06-09
 type: requirement-gap
 related:
   - docs/platform-page-business-rules.md
-  - docs/plans/2026-06-09-deprecated-tag-group-segmentation-record.md
+  - docs/plans/2026-06-10-label-group-value-set-design.md
   - docs/plans/2026-05-27-platform-functional-ux-review.md
 ---
 
@@ -17,7 +17,7 @@ related:
 
 本审计不重写设计、不输出工作量估算，仅作 GAP 罗列。具体落地方案、Phase 切分、工作量评估由后续设计文档承接。
 
-> 2026-06-10 更新：`2026-06-09-deprecated-tag-group-segmentation-record.md` 是废弃记录。本文中提到的对象分群、语义标签组、`segment_*` 和 `semantic_tag_*` 方向仅保留为历史分析背景，后续不得按该方案继续实现，也不得复用已删除的标签组/分群运行时模型。
+> 2026-06-10 更新：`2026-06-10-label-group-value-set-design.md` 是标签组值集合能力的唯一设计入口。本文中提到的对象分群、语义标签组、`segment_*` 和 `semantic_tag_*` 方向仅保留为历史分析背景，后续不得按该方案继续实现，也不得复用已删除的标签组/分群运行时模型。
 
 ## 需求来源原文摘要
 
@@ -174,4 +174,4 @@ P0 表示需要在本周/下周内由业务方确认或后端先盘点现状，P
 4. **G5 / G7 / G12**：可作为单页改造任务进入下一周 sprint backlog，无需独立设计文档。
 5. **演示频次**：建议每个 Phase 验收后安排 30 分钟业务演示。
 
-本文档不替代 [标签组与对象分群废弃记录](2026-06-09-deprecated-tag-group-segmentation-record.md)。后续"用户体验、视觉、默认配置、历史数据"四类需求必须重新设计，不能复用已废弃的标签组/分群运行时模型。
+本文档不替代 [标签组值集合设计](2026-06-10-label-group-value-set-design.md)。后续"用户体验、视觉、默认配置、历史数据"四类需求必须按该文档重新设计，不能复用已废弃的标签组/分群运行时模型。

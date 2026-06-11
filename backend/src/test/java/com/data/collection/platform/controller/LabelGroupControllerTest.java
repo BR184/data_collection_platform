@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupMemberResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValueResponse;
@@ -109,18 +110,18 @@ class LabelGroupControllerTest {
 
   @Test
   void shouldListGroups() throws Exception {
-    when(labelGroupService.list(eq("module"), eq("核心"), eq(true)))
+    when(labelGroupService.list(eq("STRING"), eq("核心"), eq(true)))
         .thenReturn(List.of(groupResponse()));
 
     mockMvc.perform(
             get("/api/label-groups")
-                .param("dimensionKey", "module")
+                .param("valueType", "STRING")
                 .param("keyword", "核心")
                 .param("enabled", "true"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data[0].name").value("核心模块"))
-        .andExpect(jsonPath("$.data[0].dimensionName").value("模块"))
+        .andExpect(jsonPath("$.data[0].name").value("核心人员"))
+        .andExpect(jsonPath("$.data[0].valueType").value("STRING"))
         .andExpect(jsonPath("$.data[0].memberCount").value(2));
   }
 
@@ -134,28 +135,34 @@ class LabelGroupControllerTest {
                 .content(
                     """
                     {
-                      "name": "核心模块",
-                      "dimensionKey": "module",
+                      "name": "核心人员",
+                      "groupType": "STATIC",
                       "members": [
-                        {"value": "草图", "label": "草图"}
+                        {"value": "张三", "label": "张三"}
                       ]
                     }
                     """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.name").value("核心模块"));
+        .andExpect(jsonPath("$.data.name").value("核心人员"));
   }
 
   @Test
   void shouldExpandGroup() throws Exception {
-    when(labelGroupExpansionService.expand(eq(1L), eq("closure_status"), eq("customer-issues-cc-product-issues"), isNull()))
+    when(labelGroupExpansionService.expand(
+            eq(1L),
+            eq("STRING"),
+            eq("closure_status"),
+            eq("customer-issues-cc-product-issues"),
+            isNull()))
         .thenReturn(
             new LabelGroupExpansionResponse(
-                1L, "closure_status", "客户问题闭环状态", List.of("需求如此", "设计如此"), List.of()));
+                1L, "闭环状态", "STRING", List.of("需求如此", "设计如此"), List.of()));
 
     mockMvc.perform(
             post("/api/label-groups/1/expand")
-                .param("dimensionKey", "closure_status")
+                .param("valueType", "STRING")
+                .param("fieldKey", "closure_status")
                 .param("pageKey", "customer-issues-cc-product-issues"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
@@ -175,14 +182,15 @@ class LabelGroupControllerTest {
   private LabelGroupResponse groupResponse() {
     return new LabelGroupResponse(
         1L,
-        "核心模块",
-        "module",
-        "模块",
+        "核心人员",
+        "STRING",
         "STATIC",
-        "常用模块",
+        "常用人员",
         true,
         2,
+        List.of(new LabelGroupMemberResponse(1L, "张三", "张三", true, 0)),
         List.of(),
+        List.of(new LabelGroupMemberResponse(null, "张三", "张三", true, 0)),
         "system",
         OffsetDateTime.parse("2026-06-10T10:00:00+08:00"),
         "system",

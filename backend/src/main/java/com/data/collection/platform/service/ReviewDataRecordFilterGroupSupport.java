@@ -1,6 +1,7 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -59,6 +60,12 @@ final class ReviewDataRecordFilterGroupSupport {
         && filterGroup.conditions().stream().anyMatch(condition -> fieldKey.equals(condition.fieldKey()));
   }
 
+  static boolean hasLabelGroupConditions(StatisticFilterGroup filterGroup) {
+    return filterGroup != null
+        && filterGroup.conditions() != null
+        && filterGroup.conditions().stream().anyMatch(StatisticFilterCondition::usesLabelGroup);
+  }
+
   static boolean matches(
       ReviewDataRecordRowResponse row,
       StatisticFilterGroup filterGroup,
@@ -96,6 +103,24 @@ final class ReviewDataRecordFilterGroupSupport {
     }
     String value = TextQuerySupport.trimToNull(condition.value());
     String secondaryValue = TextQuerySupport.trimToNull(condition.secondaryValue());
+    String valueType = TextQuerySupport.trimToNull(condition.valueType());
+    if ("LABEL_GROUP".equalsIgnoreCase(valueType)) {
+      if (!"eq".equals(operator) && !"ne".equals(operator)) {
+        throw new BizException("标签组筛选只支持等于或不等于关系");
+      }
+      if (condition.labelGroupId() == null) {
+        throw new BizException("标签组筛选缺少标签组 ID");
+      }
+      return new StatisticFilterCondition(
+          fieldKey,
+          operator,
+          null,
+          null,
+          "LABEL_GROUP",
+          condition.labelGroupId(),
+          TextQuerySupport.trimToNull(condition.labelGroupName()),
+          condition.values() == null ? List.of() : condition.values());
+    }
     if (requiresPrimaryValue(operator) && value == null) {
       return null;
     }
@@ -110,6 +135,9 @@ final class ReviewDataRecordFilterGroupSupport {
       StatisticFilterCondition condition,
       Map<Long, List<String>> problemStatusesByRecordId) {
     List<String> values = valuesForField(row, condition.fieldKey(), problemStatusesByRecordId);
+    if (condition.usesLabelGroup()) {
+      return matchesLabelGroup(values, condition);
+    }
     return switch (condition.operator()) {
       case "isEmpty" -> values.stream().allMatch(value -> TextQuerySupport.trimToNull(value) == null);
       case "isNotEmpty" -> values.stream().anyMatch(value -> TextQuerySupport.trimToNull(value) != null);
@@ -123,6 +151,20 @@ final class ReviewDataRecordFilterGroupSupport {
       case "after" -> values.stream().anyMatch(value -> compareText(firstDatePart(value), firstDatePart(condition.value())) > 0);
       default -> values.stream().anyMatch(value -> equalsIgnoreCase(value, condition.value()));
     };
+  }
+
+  private static boolean matchesLabelGroup(List<String> actualValues, StatisticFilterCondition condition) {
+    List<String> expectedValues = condition.values() == null ? List.of() : condition.values();
+    if (expectedValues.isEmpty()) {
+      return false;
+    }
+    boolean intersects =
+        actualValues.stream()
+            .filter(value -> TextQuerySupport.trimToNull(value) != null)
+            .anyMatch(
+                actual ->
+                    expectedValues.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
+    return "ne".equals(condition.operator()) ? !intersects : intersects;
   }
 
   private static List<String> valuesForField(
@@ -172,7 +214,7 @@ final class ReviewDataRecordFilterGroupSupport {
     };
   }
 
-  private static List<String> splitMultiValue(String value) {
+  static List<String> splitMultiValue(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     if (normalized == null) {
       return List.of();

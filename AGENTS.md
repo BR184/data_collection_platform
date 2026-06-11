@@ -21,11 +21,11 @@
 
 这是数据采集平台所有页面必须遵守的业务规则总表。若它与旧文档、页面现状或代码实现冲突，默认以该文件为准；如果业务方确认口径变化，先更新该文件，再改代码和测试。
 
-涉及对象分群、语义标签组、动态/静态分群、静态快照、规则 DSL、语义口径或 `semantic_tag_*` / `segment_*` 命名时，还必须先阅读：
+涉及标签组、对象分群、语义标签组、动态/静态分群、静态快照、规则 DSL、语义口径或 `semantic_tag_*` / `segment_*` 命名时，还必须先阅读：
 
-- `docs/plans/2026-06-09-deprecated-tag-group-segmentation-record.md`
+- `docs/plans/2026-06-10-label-group-value-set-design.md`
 
-该文件现在是废弃记录，不再是实施方案。本仓已删除旧 `TagGroup`、`TagSelection`、`tagSelections`、`tag-groups` 运行时代码，也已删除本次误实现的 `business-tag-groups`、`semantic-tag-groups`、`semantic_tag_*`、`segment_*` 运行时代码和页面入口。后续没有项目经理新的明确需求前，不得重新引入这些命名、API、页面或数据库运行时模型。
+该文件是标签组值集合能力的唯一设计入口，并记录已废弃方向边界。本仓已删除旧 `TagGroup`、`TagSelection`、`tagSelections`、`tag-groups` 运行时代码，也已删除本次误实现的 `business-tag-groups`、`semantic-tag-groups`、`semantic_tag_*`、`segment_*` 运行时代码和页面入口。后续没有项目经理新的明确需求前，不得重新引入这些命名、API、页面或数据库运行时模型。
 
 ## 0.2 UTF-8 读写硬规则
 
@@ -271,7 +271,7 @@ psql -h localhost -p 15432 -U postgres -d qaflex
 8. PowerShell 里是否把含逗号的 `-D...=A,B` 参数整体加引号了？
 9. 长命令是否塞进 `( ... )` 子 shell，避免污染外层 PATH？
 10. 涉及页面或业务规则？**有没有先读 `docs/platform-page-business-rules.md`**？
-11. 涉及分群、语义标签组或规则 DSL？**有没有先读 `docs/plans/2026-06-09-deprecated-tag-group-segmentation-record.md` 的废弃记录，并确认没有重新引入已删除的标签组/分群运行时模型**？
+11. 涉及标签组、分群、语义标签组或规则 DSL？**有没有先读 `docs/plans/2026-06-10-label-group-value-set-design.md`，并确认没有重新引入已删除的标签组/分群运行时模型**？
 12. 涉及中文文件？**有没有显式使用 UTF-8 读取和写入**？
 
 `scripts/verify-local.ps1` 是黄金路径——任何怀疑环境出问题时，先跑它一次，能过就说明本机工具链 OK。

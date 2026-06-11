@@ -37,6 +37,9 @@ final class ReviewDataFilterGroupSqlSupport {
     if (condition == null) {
       return Optional.empty();
     }
+    if (condition.usesLabelGroup()) {
+      return Optional.empty();
+    }
     return switch (condition.fieldKey()) {
       case "title" -> titleCondition(condition);
       case "projectName" -> textCondition("r.project_name", condition, false);

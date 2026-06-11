@@ -29,6 +29,7 @@ export type PageKey =
   | 'customer-issues-delay-issues'
   | 'customer-issues-response-efficiency'
   | 'customer-issues-issue-by-function'
+  | 'label-group-settings'
   | 'mirror-settings'
   | 'database-browser';
 

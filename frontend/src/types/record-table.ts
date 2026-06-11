@@ -28,6 +28,8 @@ export interface RecordTableFilterField {
   clearable?: boolean;
   options?: RecordTableFilterOption[];
   selectMode?: RecordTableFilterSelectMode;
+  labelDimensionKey?: string;
+  labelGroupEnabled?: boolean;
   startPlaceholder?: string;
   endPlaceholder?: string;
 }

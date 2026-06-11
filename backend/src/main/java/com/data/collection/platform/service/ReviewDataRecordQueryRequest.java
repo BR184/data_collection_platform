@@ -46,4 +46,5 @@ public record ReviewDataRecordQueryRequest(
         sortField,
         sortOrder);
   }
+
 }

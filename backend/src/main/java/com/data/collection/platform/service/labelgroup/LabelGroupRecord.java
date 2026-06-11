@@ -6,7 +6,7 @@ import java.util.List;
 record LabelGroupRecord(
     Long id,
     String name,
-    String dimensionKey,
+    String valueType,
     String groupType,
     String description,
     boolean enabled,
@@ -14,4 +14,5 @@ record LabelGroupRecord(
     OffsetDateTime createdAt,
     String updatedBy,
     OffsetDateTime updatedAt,
-    List<LabelGroupMemberRecord> members) {}
+    List<LabelGroupMemberRecord> members,
+    List<LabelGroupChildRecord> childGroups) {}

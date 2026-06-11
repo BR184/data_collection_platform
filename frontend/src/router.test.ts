@@ -104,6 +104,22 @@ describe('router query normalization', () => {
       testingPhase: 'R1 Integration',
     });
   });
+
+  it('keeps label group settings query keys inside system settings', () => {
+    const to = router.resolve({
+      path: '/system-settings/label-group-settings',
+      query: {
+        valueType: 'STRING',
+        keyword: '核心',
+        temp_debug: 'drop',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      valueType: 'STRING',
+      keyword: '核心',
+    });
+  });
 });
 
 describe('router access guard', () => {

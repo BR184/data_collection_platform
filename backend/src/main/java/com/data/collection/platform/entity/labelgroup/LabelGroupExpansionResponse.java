@@ -4,7 +4,7 @@ import java.util.List;
 
 public record LabelGroupExpansionResponse(
     Long groupId,
-    String dimensionKey,
-    String dimensionName,
+    String groupName,
+    String valueType,
     List<String> values,
     List<LabelGroupMemberResponse> members) {}

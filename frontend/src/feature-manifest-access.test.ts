@@ -18,6 +18,7 @@ describe('feature manifest access rules', () => {
     expect(canAccessPageKey('review-data-home', admin)).toBe(true);
     expect(canAccessPageKey('quality-board-other-board', admin)).toBe(true);
     expect(canAccessPageKey('code-review-multi-board', admin)).toBe(true);
+    expect(canAccessPageKey('label-group-settings', admin)).toBe(true);
     expect(canAccessPageKey('database-browser', admin)).toBe(true);
   });
 
