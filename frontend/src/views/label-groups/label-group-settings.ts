@@ -1,10 +1,12 @@
 import type {
   LabelGroup,
+  LabelGroupDynamicRuleTemplate,
   LabelGroupMember,
   LabelGroupSaveRequest,
 } from '../../types/api';
 
 export type LabelGroupType = 'STATIC' | 'DYNAMIC' | 'COMPOSITE';
+export type DynamicRuleParamValue = string | number | boolean | null;
 
 export interface LabelGroupFormState {
   id: number | null;
@@ -15,7 +17,7 @@ export interface LabelGroupFormState {
   members: LabelGroupMember[];
   childGroupIds: number[];
   dynamicRuleTemplateKey: string;
-  dynamicRuleParamsJson: string;
+  dynamicRuleParams: Record<string, DynamicRuleParamValue>;
 }
 
 export function createEmptyLabelGroupForm(): LabelGroupFormState {
@@ -28,7 +30,7 @@ export function createEmptyLabelGroupForm(): LabelGroupFormState {
     members: [],
     childGroupIds: [],
     dynamicRuleTemplateKey: '',
-    dynamicRuleParamsJson: '{"days":30}',
+    dynamicRuleParams: {},
   };
 }
 
@@ -48,7 +50,7 @@ export function createLabelGroupForm(group: LabelGroup): LabelGroupFormState {
     })),
     childGroupIds: (group.childGroups ?? []).map((child) => child.id),
     dynamicRuleTemplateKey: group.dynamicRule?.ruleTemplateKey ?? '',
-    dynamicRuleParamsJson: group.dynamicRule?.ruleParamsJson ?? '{"days":30}',
+    dynamicRuleParams: parseDynamicRuleParams(group.dynamicRule?.ruleParamsJson),
   };
 }
 
@@ -58,7 +60,7 @@ export function buildLabelGroupSaveRequest(form: LabelGroupFormState): LabelGrou
     groupType: form.groupType,
     description: form.description.trim() || null,
     enabled: form.enabled,
-    members: form.groupType === 'COMPOSITE'
+    members: form.groupType === 'COMPOSITE' || form.groupType === 'DYNAMIC'
       ? []
       : form.members.map((member) => ({
         value: member.value,
@@ -68,7 +70,7 @@ export function buildLabelGroupSaveRequest(form: LabelGroupFormState): LabelGrou
     dynamicRule: form.groupType === 'DYNAMIC'
       ? {
         ruleTemplateKey: form.dynamicRuleTemplateKey.trim(),
-        ruleParamsJson: form.dynamicRuleParamsJson.trim(),
+        ruleParamsJson: JSON.stringify(form.dynamicRuleParams),
       }
       : null,
   };
@@ -84,9 +86,6 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
   if (form.groupType === 'DYNAMIC' && !form.dynamicRuleTemplateKey.trim()) {
     return '请输入动态规则模板';
   }
-  if (form.groupType === 'DYNAMIC' && !form.dynamicRuleParamsJson.trim()) {
-    return '请输入动态规则参数';
-  }
   if (form.groupType === 'STATIC' && !form.members.length && !form.childGroupIds.length) {
     return '请选择或输入标签组成员';
   }
@@ -94,6 +93,59 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
     return '标签组成员超过 200 个，请拆分后保存';
   }
   return '';
+}
+
+export function validateDynamicRuleParameters(
+    form: LabelGroupFormState,
+    templates: LabelGroupDynamicRuleTemplate[],
+) {
+  if (form.groupType !== 'DYNAMIC' || !form.dynamicRuleTemplateKey) {
+    return '';
+  }
+  const template = templates.find((item) => item.key === form.dynamicRuleTemplateKey);
+  if (!template) {
+    return '动态规则模板不存在';
+  }
+  for (const parameter of template.parameters) {
+    const value = form.dynamicRuleParams[parameter.key];
+    if (parameter.required && (value === null || value === undefined || value === '')) {
+      return `请填写${parameter.label}`;
+    }
+  }
+  return '';
+}
+
+export function defaultDynamicRuleParams(template: LabelGroupDynamicRuleTemplate | undefined) {
+  const params: Record<string, DynamicRuleParamValue> = {};
+  if (!template) {
+    return params;
+  }
+  for (const parameter of template.parameters) {
+    params[parameter.key] = parameter.defaultValue ?? null;
+  }
+  return params;
+}
+
+export function mergeDynamicRuleParams(
+    template: LabelGroupDynamicRuleTemplate | undefined,
+    current: Record<string, DynamicRuleParamValue>,
+) {
+  const defaults = defaultDynamicRuleParams(template);
+  return Object.fromEntries(
+      Object.keys(defaults).map((key) => [key, current[key] ?? defaults[key]]),
+  ) as Record<string, DynamicRuleParamValue>;
+}
+
+export function parseDynamicRuleParams(ruleParamsJson?: string | null) {
+  if (!ruleParamsJson) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(ruleParamsJson) as Record<string, DynamicRuleParamValue>;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 export function buildMemberPreview(group: LabelGroup, limit = 4) {

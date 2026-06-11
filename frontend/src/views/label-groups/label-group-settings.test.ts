@@ -4,8 +4,12 @@ import {
   buildMemberPreview,
   createEmptyLabelGroupForm,
   createLabelGroupForm,
+  defaultDynamicRuleParams,
   inferValueTypeFromMembers,
+  mergeDynamicRuleParams,
+  parseDynamicRuleParams,
   unavailableMemberCount,
+  validateDynamicRuleParameters,
   validateLabelGroupForm,
   valueTypeLabel,
 } from './label-group-settings';
@@ -21,7 +25,7 @@ describe('label group settings helpers', () => {
       members: [],
       childGroupIds: [],
       dynamicRuleTemplateKey: '',
-      dynamicRuleParamsJson: '{"days":30}',
+      dynamicRuleParams: {},
     });
 
     const form = createLabelGroupForm({
@@ -92,8 +96,9 @@ describe('label group settings helpers', () => {
       ...createEmptyLabelGroupForm(),
       name: '最近活跃处理人',
       groupType: 'DYNAMIC' as const,
+      members: [{ value: '不应手动提交', label: '不应手动提交' }],
       dynamicRuleTemplateKey: ' recent-active-assignee ',
-      dynamicRuleParamsJson: ' {"days":30} ',
+      dynamicRuleParams: { days: 30, scope: 'system-test' },
     };
 
     expect(validateLabelGroupForm(form)).toBe('');
@@ -104,9 +109,37 @@ describe('label group settings helpers', () => {
       childGroupIds: [],
       dynamicRule: {
         ruleTemplateKey: 'recent-active-assignee',
-        ruleParamsJson: '{"days":30}',
+        ruleParamsJson: '{"days":30,"scope":"system-test"}',
       },
     });
+  });
+
+  it('parses and validates dynamic rule parameters from natural language templates', () => {
+    const template = {
+      key: 'recent-active-assignee',
+      name: '最近 N 天活跃处理人',
+      description: '从最近 N 天议题中计算处理人',
+      outputValueType: 'STRING',
+      outputDescription: '输出：处理人字符串列表',
+      parameters: [
+        { key: 'days', label: '最近天数', controlType: 'number' as const, required: true, defaultValue: 30 },
+        { key: 'scope', label: '数据范围', controlType: 'select' as const, required: true, defaultValue: 'system-test' },
+      ],
+    };
+
+    expect(defaultDynamicRuleParams(template)).toEqual({ days: 30, scope: 'system-test' });
+    expect(mergeDynamicRuleParams(template, { days: 7 })).toEqual({ days: 7, scope: 'system-test' });
+    expect(parseDynamicRuleParams('{"days":14}')).toEqual({ days: 14 });
+
+    const form = {
+      ...createEmptyLabelGroupForm(),
+      name: '最近活跃处理人',
+      groupType: 'DYNAMIC' as const,
+      dynamicRuleTemplateKey: 'recent-active-assignee',
+      dynamicRuleParams: { days: null, scope: 'system-test' },
+    };
+
+    expect(validateDynamicRuleParameters(form, [template])).toBe('请填写最近天数');
   });
 
   it('summarizes expanded members and unavailable saved values', () => {

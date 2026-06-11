@@ -4,14 +4,16 @@ import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberPicker.vue';
-import type { LabelDimension, LabelGroup } from '../types/api';
+import type { LabelDimension, LabelGroup, LabelGroupDynamicRuleTemplate } from '../types/api';
 import {
   buildLabelGroupSaveRequest,
   buildMemberPreview,
   createEmptyLabelGroupForm,
   createLabelGroupForm,
+  mergeDynamicRuleParams,
   inferValueTypeFromMembers,
   unavailableMemberCount,
+  validateDynamicRuleParameters,
   validateLabelGroupForm,
   valueTypeLabel,
   type LabelGroupFormState,
@@ -28,6 +30,7 @@ const valueTypeFilter = ref('');
 const candidateDimensionKey = ref('');
 const dimensions = ref<LabelDimension[]>([]);
 const groups = ref<LabelGroup[]>([]);
+const dynamicRuleTemplates = ref<LabelGroupDynamicRuleTemplate[]>([]);
 const form = ref<LabelGroupFormState>(createEmptyLabelGroupForm());
 
 const valueTypeOptions = [
@@ -59,7 +62,14 @@ const inferredChildValueType = computed(() => {
     ? first
     : 'MIXED';
 });
-const currentValueType = computed(() => inferredMemberValueType.value || inferredChildValueType.value || '');
+const selectedDynamicRuleTemplate = computed(() =>
+  dynamicRuleTemplates.value.find((template) => template.key === form.value.dynamicRuleTemplateKey),
+);
+const currentValueType = computed(() =>
+  inferredMemberValueType.value
+  || inferredChildValueType.value
+  || (form.value.groupType === 'DYNAMIC' ? selectedDynamicRuleTemplate.value?.outputValueType ?? '' : ''),
+);
 const childGroupOptions = computed(() => {
   const currentId = form.value.id;
   const valueType = currentValueType.value;
@@ -71,7 +81,7 @@ const childGroupOptions = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadDimensions(), loadGroups()]);
+  await Promise.all([loadDimensions(), loadGroups(), loadDynamicRuleTemplates()]);
 });
 
 watch(
@@ -124,6 +134,14 @@ async function loadGroups() {
   }
 }
 
+async function loadDynamicRuleTemplates() {
+  try {
+    dynamicRuleTemplates.value = await api.listDynamicRuleTemplates();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '动态规则模板加载失败');
+  }
+}
+
 function openCreateDialog() {
   editMode.value = false;
   form.value = createEmptyLabelGroupForm();
@@ -138,10 +156,19 @@ function openEditDialog(group: LabelGroup) {
   dialogVisible.value = true;
 }
 
+function handleDynamicRuleTemplateChange() {
+  form.value.dynamicRuleParams = mergeDynamicRuleParams(selectedDynamicRuleTemplate.value, form.value.dynamicRuleParams);
+}
+
 async function submitForm() {
   const errorMessage = validateLabelGroupForm(form.value);
   if (errorMessage) {
     ElMessage.warning(errorMessage);
+    return;
+  }
+  const dynamicRuleErrorMessage = validateDynamicRuleParameters(form.value, dynamicRuleTemplates.value);
+  if (dynamicRuleErrorMessage) {
+    ElMessage.warning(dynamicRuleErrorMessage);
     return;
   }
   if (currentValueType.value === 'MIXED') {
@@ -296,23 +323,71 @@ async function deleteGroup(group: LabelGroup) {
           </el-tag>
         </el-form-item>
         <template v-if="form.groupType === 'DYNAMIC'">
-          <el-form-item label="动态规则模板" required>
-            <el-input
+          <el-form-item label="动态规则" required>
+            <el-select
               v-model="form.dynamicRuleTemplateKey"
-              maxlength="100"
-              placeholder="例如：recent-active-assignee"
-            />
+              filterable
+              placeholder="选择动态规则"
+              style="width: 100%"
+              @change="handleDynamicRuleTemplateChange"
+            >
+              <el-option
+                v-for="template in dynamicRuleTemplates"
+                :key="template.key"
+                :label="template.name"
+                :value="template.key"
+              />
+            </el-select>
           </el-form-item>
-          <el-form-item label="动态规则参数" required>
-            <el-input
-              v-model="form.dynamicRuleParamsJson"
-              type="textarea"
-              :rows="3"
-              placeholder='例如：{"days":30}'
-            />
+          <el-form-item v-if="selectedDynamicRuleTemplate" label="规则说明">
+            <div class="dynamic-rule-summary">
+              <span>{{ selectedDynamicRuleTemplate.description }}</span>
+              <el-tag size="small" effect="plain">{{ selectedDynamicRuleTemplate.outputDescription }}</el-tag>
+            </div>
+          </el-form-item>
+          <template v-if="selectedDynamicRuleTemplate">
+            <el-form-item
+              v-for="parameter in selectedDynamicRuleTemplate.parameters"
+              :key="parameter.key"
+              :label="parameter.label"
+              :required="parameter.required"
+            >
+              <el-input-number
+                v-if="parameter.controlType === 'number'"
+                :model-value="Number(form.dynamicRuleParams[parameter.key] ?? parameter.defaultValue ?? 1)"
+                :min="1"
+                :step="1"
+                controls-position="right"
+                style="width: 180px"
+                @update:model-value="(value) => { form.dynamicRuleParams[parameter.key] = value ?? null; }"
+              />
+              <el-select
+                v-else-if="parameter.controlType === 'select'"
+                v-model="form.dynamicRuleParams[parameter.key]"
+                filterable
+                style="width: 240px"
+              >
+                <el-option
+                  v-for="option in parameter.options ?? []"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+              <el-input
+                v-else
+                v-model="form.dynamicRuleParams[parameter.key]"
+                style="width: 320px"
+              />
+            </el-form-item>
+          </template>
+          <el-form-item label="输出成员">
+            <div class="dynamic-rule-summary">
+              <span>成员由动态规则计算生成，保存后按最近一次计算结果展开。</span>
+            </div>
           </el-form-item>
         </template>
-        <template v-if="form.groupType !== 'COMPOSITE'">
+        <template v-if="form.groupType === 'STATIC'">
           <el-form-item label="候选来源">
             <el-select
               v-model="candidateDimensionKey"
@@ -329,7 +404,7 @@ async function deleteGroup(group: LabelGroup) {
               />
             </el-select>
           </el-form-item>
-          <el-form-item :label="form.groupType === 'DYNAMIC' ? '当前物化成员' : '成员值'" :required="form.groupType === 'STATIC'">
+          <el-form-item label="成员值" required>
             <LabelGroupMemberPicker
               v-model="form.members"
               :dimension-key="candidateDimensionKey"
@@ -405,6 +480,15 @@ async function deleteGroup(group: LabelGroup) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dynamic-rule-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: rgba(0, 0, 0, 0.65);
+  line-height: 1.6;
 }
 
 .label-group-form {

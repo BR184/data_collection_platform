@@ -18,6 +18,7 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValueResponse;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleTemplateService;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.labelgroup.LabelGroupService;
 import com.data.collection.platform.service.labelgroup.LabelValueQueryService;
@@ -49,7 +50,8 @@ class LabelGroupControllerTest {
                     new LabelDimensionCatalogService(),
                     labelValueQueryService,
                     labelGroupService,
-                    labelGroupExpansionService))
+                    labelGroupExpansionService,
+                    new LabelGroupDynamicRuleTemplateService()))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
   }
@@ -95,6 +97,18 @@ class LabelGroupControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data[0].pageKey").value("review-data-home"))
         .andExpect(jsonPath("$.data[0].pageName").value("评审数据管理"));
+  }
+
+  @Test
+  void shouldReturnDynamicRuleTemplatesForNaturalLanguageForm() throws Exception {
+    mockMvc.perform(get("/api/label-groups/dynamic-rule-templates"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data[0].key").value("recent-active-assignee"))
+        .andExpect(jsonPath("$.data[0].name").value("最近 N 天活跃处理人"))
+        .andExpect(jsonPath("$.data[0].outputValueType").value("STRING"))
+        .andExpect(jsonPath("$.data[0].parameters[0].key").value("days"))
+        .andExpect(jsonPath("$.data[0].parameters[0].controlType").value("number"));
   }
 
   @Test

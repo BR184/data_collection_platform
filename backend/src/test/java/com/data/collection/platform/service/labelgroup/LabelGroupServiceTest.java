@@ -133,6 +133,24 @@ class LabelGroupServiceTest {
   }
 
   @Test
+  void shouldAllowDynamicGroupWithoutManuallySelectedMembersWhenTemplateDeclaresOutputType() {
+    LabelGroupResponse dynamic =
+        service.create(
+            new LabelGroupCreateRequest(
+                "最近活跃处理人",
+                "DYNAMIC",
+                null,
+                List.of(),
+                List.of(),
+                new LabelGroupDynamicRuleRequest(
+                    "recent-active-assignee", "{\"days\":30,\"scope\":\"system-test\"}")));
+
+    assertThat(dynamic.valueType()).isEqualTo("STRING");
+    assertThat(dynamic.members()).isEmpty();
+    assertThat(dynamic.dynamicRule().outputValueType()).isEqualTo("STRING");
+  }
+
+  @Test
   void shouldInferDynamicValueTypeFromMaterializedMembersWhenRuleOutputTypeIsMissing() {
     LabelGroupResponse dynamic =
         service.create(dynamicRequest("未声明输出类型", List.of(member("张三")), "custom-query-template"));
