@@ -1,8 +1,7 @@
 package com.data.collection.platform.controller;
 
-import static org.mockito.Mockito.when;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -85,7 +84,8 @@ class QuestionMetricsControllerTest {
                     "desc"),
                 "CC2026R1",
                 "alice",
-                "bob")))
+                "bob",
+                "{\"logic\":\"AND\",\"conditions\":[]}")))
         .thenReturn(
             new SystemTestIssueSearchListResponse(
                 List.of(
@@ -136,6 +136,7 @@ class QuestionMetricsControllerTest {
                 .param("createdAtEnd", "2026-04-21")
                 .param("updatedAtStart", "2026-04-10")
                 .param("updatedAtEnd", "2026-04-22")
+                .param("filterGroup", "{\"logic\":\"AND\",\"conditions\":[]}")
                 .param("page", "2")
                 .param("size", "10")
                 .param("sortBy", "updatedAt")
@@ -200,6 +201,7 @@ class QuestionMetricsControllerTest {
                     "updatedAt",
                     "desc"),
                 "CC2026R1",
+                null,
                 null,
                 null)))
         .thenReturn("issue_iid,title\n809,Sample issue\n");

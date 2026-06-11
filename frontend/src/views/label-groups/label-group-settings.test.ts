@@ -92,7 +92,6 @@ describe('label group settings helpers', () => {
       ...createEmptyLabelGroupForm(),
       name: '最近活跃处理人',
       groupType: 'DYNAMIC' as const,
-      members: [{ value: '张三', label: '张三' }],
       dynamicRuleTemplateKey: ' recent-active-assignee ',
       dynamicRuleParamsJson: ' {"days":30} ',
     };
@@ -101,7 +100,7 @@ describe('label group settings helpers', () => {
     expect(buildLabelGroupSaveRequest(form)).toMatchObject({
       name: '最近活跃处理人',
       groupType: 'DYNAMIC',
-      members: [{ value: '张三', label: '张三' }],
+      members: [],
       childGroupIds: [],
       dynamicRule: {
         ruleTemplateKey: 'recent-active-assignee',

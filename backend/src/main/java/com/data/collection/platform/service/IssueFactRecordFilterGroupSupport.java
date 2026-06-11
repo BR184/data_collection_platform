@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -66,9 +67,17 @@ final class IssueFactRecordFilterGroupSupport {
               .filter(Objects::nonNull)
               .toList();
       return new StatisticFilterGroup("OR".equalsIgnoreCase(parsed.logic()) ? "OR" : "AND", conditions);
+    } catch (BizException exception) {
+      throw exception;
     } catch (Exception ignored) {
       return empty();
     }
+  }
+
+  static boolean hasLabelGroupConditions(StatisticFilterGroup filterGroup) {
+    return filterGroup != null
+        && filterGroup.conditions() != null
+        && filterGroup.conditions().stream().anyMatch(StatisticFilterCondition::usesLabelGroup);
   }
 
   static boolean matches(IssueFactRecord row, StatisticFilterGroup filterGroup) {
@@ -102,6 +111,24 @@ final class IssueFactRecordFilterGroupSupport {
     }
     String value = TextQuerySupport.trimToNull(condition.value());
     String secondaryValue = TextQuerySupport.trimToNull(condition.secondaryValue());
+    String valueType = TextQuerySupport.trimToNull(condition.valueType());
+    if ("LABEL_GROUP".equalsIgnoreCase(valueType)) {
+      if (!"eq".equals(operator) && !"ne".equals(operator)) {
+        throw new BizException("标签组筛选只支持等于或不等于关系");
+      }
+      if (condition.labelGroupId() == null) {
+        throw new BizException("标签组筛选缺少标签组 ID");
+      }
+      return new StatisticFilterCondition(
+          fieldKey,
+          operator,
+          null,
+          null,
+          "LABEL_GROUP",
+          condition.labelGroupId(),
+          TextQuerySupport.trimToNull(condition.labelGroupName()),
+          condition.values() == null ? List.of() : condition.values());
+    }
     if (requiresPrimaryValue(operator) && value == null) {
       return null;
     }
@@ -113,6 +140,9 @@ final class IssueFactRecordFilterGroupSupport {
 
   private static boolean matchesCondition(IssueFactRecord row, StatisticFilterCondition condition) {
     List<String> values = valuesForField(row, condition.fieldKey());
+    if (condition.usesLabelGroup()) {
+      return matchesLabelGroup(values, condition);
+    }
     return switch (condition.operator()) {
       case "isEmpty" -> values.stream().allMatch(value -> TextQuerySupport.trimToNull(value) == null);
       case "isNotEmpty" -> values.stream().anyMatch(value -> TextQuerySupport.trimToNull(value) != null);
@@ -131,6 +161,18 @@ final class IssueFactRecordFilterGroupSupport {
               && compareText(value, condition.secondaryValue()) <= 0);
       default -> values.stream().anyMatch(value -> equalsIgnoreCase(value, condition.value()));
     };
+  }
+
+  private static boolean matchesLabelGroup(List<String> actualValues, StatisticFilterCondition condition) {
+    List<String> expectedValues = condition.values() == null ? List.of() : condition.values();
+    if (expectedValues.isEmpty()) {
+      return false;
+    }
+    boolean intersects =
+        actualValues.stream()
+            .filter(value -> TextQuerySupport.trimToNull(value) != null)
+            .anyMatch(actual -> expectedValues.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
+    return "ne".equals(condition.operator()) ? !intersects : intersects;
   }
 
   private static List<String> valuesForField(IssueFactRecord row, String fieldKey) {

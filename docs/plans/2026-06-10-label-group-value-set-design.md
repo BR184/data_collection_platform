@@ -245,6 +245,7 @@ create table label_group_dynamic_rules (
   group_id bigint not null references label_groups(id) on delete cascade,
   rule_template_key varchar(100) not null,
   rule_params_json text not null,
+  output_value_type varchar(32),
   last_status varchar(32),
   last_error varchar(500),
   last_computed_at timestamptz,
@@ -253,6 +254,8 @@ create table label_group_dynamic_rules (
   constraint uk_label_group_dynamic_rules_group unique (group_id)
 );
 ```
+
+`output_value_type` 是系统字段，只能由规则模板定义或首次有效输出推断后写入；创建/更新请求不得让用户手动填写。
 
 ### 2.3 API 方案
 

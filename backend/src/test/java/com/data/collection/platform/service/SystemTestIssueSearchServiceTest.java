@@ -7,7 +7,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
+import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -21,12 +24,11 @@ class SystemTestIssueSearchServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
+  @Mock private LabelGroupExpansionService labelGroupExpansionService;
 
   @Test
   void shouldUseSqlPageForPlainSearchRequests() {
-    SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    SystemTestIssueSearchService service = service();
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -61,6 +63,7 @@ class SystemTestIssueSearchServiceTest {
                     "desc"),
                 null,
                 null,
+                null,
                 null));
 
     assertThat(response.total()).isEqualTo(1);
@@ -74,9 +77,7 @@ class SystemTestIssueSearchServiceTest {
 
   @Test
   void shouldApplySystemTestSpecificFiltersThroughRequestObject() {
-    SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    SystemTestIssueSearchService service = service();
     when(issueLinkService.issueUrl("default", 1001L, 301))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     when(issueFactRecordRepository.findPage(any()))
@@ -113,7 +114,8 @@ class SystemTestIssueSearchServiceTest {
                     "desc"),
                 "phase1",
                 "alice",
-                "bob"));
+                "bob",
+                null));
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().issueIid()).isEqualTo(301);
@@ -132,9 +134,7 @@ class SystemTestIssueSearchServiceTest {
 
   @Test
   void shouldFilterDirtyHistoricalModuleValuesFromFilterOptions() {
-    SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    SystemTestIssueSearchService service = service();
     when(issueFactRecordRepository.findForFilterOptions(any()))
         .thenReturn(
             List.of(
@@ -161,9 +161,7 @@ class SystemTestIssueSearchServiceTest {
 
   @Test
   void shouldBuildIssueSearchFilterOptionsFromAllIssueFacts() {
-    SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    SystemTestIssueSearchService service = service();
     when(issueFactRecordRepository.findForFilterOptions(any()))
         .thenReturn(
             List.of(
@@ -183,9 +181,7 @@ class SystemTestIssueSearchServiceTest {
 
   @Test
   void shouldBuildIssueSearchFilterOptionsWithinSourceInstance() {
-    SystemTestIssueSearchService service =
-        new SystemTestIssueSearchService(
-            issueFactRecordRepository, systemTestScopeProfile, issueLinkService);
+    SystemTestIssueSearchService service = service();
     when(issueFactRecordRepository.findForFilterOptions(any()))
         .thenReturn(
             List.of(
@@ -204,6 +200,64 @@ class SystemTestIssueSearchServiceTest {
     verify(issueFactRecordRepository)
         .findForFilterOptions(argThat(request -> "cc".equals(request.sourceInstance())));
     verify(issueFactRecordRepository, never()).findByProjectId(null);
+  }
+
+  @Test
+  void shouldApplyLabelGroupFilterOnAssigneeNameThroughFilterGroup() {
+    SystemTestIssueSearchService service = service();
+    when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", null))
+        .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
+    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(1001L))
+        .thenReturn(
+            List.of(
+                record(306, "assigned to bob", "草图", "phase1 system test", "alice", "bob"),
+                record(307, "assigned to alice", "草图", "phase1 system test", "alice", "alice")));
+
+    String filterGroupJson =
+        "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"assigneeName\",\"operator\":\"eq\","
+            + "\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心人员\"}]}";
+
+    SystemTestIssueSearchListResponse response =
+        service.listRecords(
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null,
+                null,
+                filterGroupJson));
+
+    assertThat(response.records()).extracting(record -> record.issueIid()).containsExactly(306);
+    verify(issueFactRecordRepository, never()).findPage(any());
+  }
+
+  private SystemTestIssueSearchService service() {
+    return new SystemTestIssueSearchService(
+        issueFactRecordRepository,
+        systemTestScopeProfile,
+        issueLinkService,
+        new ObjectMapper(),
+        labelGroupExpansionService);
   }
 
   private IssueFactRecord record(

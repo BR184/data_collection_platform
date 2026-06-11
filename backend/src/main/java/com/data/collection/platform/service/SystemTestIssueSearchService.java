@@ -3,6 +3,11 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
+import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -17,7 +22,18 @@ import org.springframework.util.StringUtils;
 @Service
 public class SystemTestIssueSearchService extends AbstractIssueFactRecordListService {
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final String PAGE_KEY = "question-metrics-issue-search";
   private static final int EXPORT_PAGE_SIZE = 100;
+  private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
+  private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
+      Map.of(
+          "projectName", "STRING",
+          "moduleName", "STRING",
+          "testingPhase", "STRING",
+          "severityLevel", "STRING",
+          "priorityLevel", "STRING",
+          "milestoneTitle", "STRING",
+          "assigneeName", "STRING");
   private static final Pattern NUMERIC_ONLY_MODULE = Pattern.compile("^\\d+$");
   private static final Pattern CROSS_FIELD_PREFIX_MODULE =
       Pattern.compile("^(?:项目|分支|客户|状态|阶段|测试阶段|严重程度|类别|延期原因|版本|里程碑|project|branch|customer|status|phase)\\s*[:：].*",
@@ -29,13 +45,19 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       createSortComparators();
 
   private final SystemTestScopeProfile systemTestScopeProfile;
+  private final ObjectMapper objectMapper;
+  private final LabelGroupExpansionService labelGroupExpansionService;
 
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
-      GitlabResourceLinkService issueLinkService) {
+      GitlabResourceLinkService issueLinkService,
+      ObjectMapper objectMapper,
+      LabelGroupExpansionService labelGroupExpansionService) {
     super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
+    this.objectMapper = objectMapper;
+    this.labelGroupExpansionService = labelGroupExpansionService;
   }
 
   public SystemTestIssueSearchListResponse listRecords(SystemTestIssueSearchQueryRequest request) {
@@ -45,8 +67,19 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     String safeSortField =
         normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
+    StatisticFilterGroup filterGroup =
+        IssueFactRecordFilterGroupSupport.parse(
+            objectMapper,
+            request.filterGroupJson(),
+            IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
+    StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
+    boolean hasFilterGroup =
+        expandedFilterGroup != null
+            && expandedFilterGroup.conditions() != null
+            && !expandedFilterGroup.conditions().isEmpty();
+    boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
 
-    if (canUseSqlPage(listRequest, null, safeSortField)) {
+    if (!hasLabelGroupFilters && !hasFilterGroup && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
@@ -82,6 +115,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             .filter(view -> matchesTestingPhase(view, request.testingPhase()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
+            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
 
@@ -124,7 +158,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   listRequest.sortOrder()),
               request.testingPhase(),
               request.authorName(),
-              request.assigneeName());
+              request.assigneeName(),
+              request.filterGroupJson());
       SystemTestIssueSearchListResponse response = listRecords(pageRequest);
       CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
@@ -241,6 +276,55 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     return loadFacts(projectId).stream()
         .filter(view -> systemTestScopeProfile.matches(view.scopeContext()))
         .toList();
+  }
+
+  private StatisticFilterGroup expandLabelGroupConditions(
+      StatisticFilterGroup filterGroup, String sourceInstance) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return filterGroup;
+    }
+    return new StatisticFilterGroup(
+        filterGroup.logic(),
+        filterGroup.conditions().stream()
+            .map(condition -> expandLabelGroupCondition(condition, sourceInstance))
+            .toList());
+  }
+
+  private StatisticFilterCondition expandLabelGroupCondition(
+      StatisticFilterCondition condition, String sourceInstance) {
+    if (condition == null || !condition.usesLabelGroup()) {
+      return condition;
+    }
+    String fieldKey = requireSupportedLabelGroupField(condition.fieldKey());
+    if (!"eq".equals(condition.operator()) && !"ne".equals(condition.operator())) {
+      throw new com.data.collection.platform.common.exception.BizException("标签组筛选只支持等于或不等于关系");
+    }
+    if (condition.labelGroupId() == null) {
+      throw new com.data.collection.platform.common.exception.BizException("标签组筛选缺少标签组 ID");
+    }
+    LabelGroupExpansionResponse expansion =
+        labelGroupExpansionService.expand(
+            condition.labelGroupId(), LABEL_GROUP_FIELD_VALUE_TYPES.get(fieldKey), fieldKey, PAGE_KEY, sourceInstance);
+    if (expansion.values().size() > MAX_LABEL_GROUP_FILTER_VALUES) {
+      throw new com.data.collection.platform.common.exception.BizException("筛选条件展开后超过 200 个值，请减少普通筛选值或拆分标签组");
+    }
+    return new StatisticFilterCondition(
+        fieldKey,
+        condition.operator(),
+        null,
+        null,
+        "LABEL_GROUP",
+        condition.labelGroupId(),
+        condition.labelGroupName(),
+        expansion.values());
+  }
+
+  private String requireSupportedLabelGroupField(String fieldKey) {
+    String normalized = TextQuerySupport.trimToNull(fieldKey);
+    if (normalized == null || !LABEL_GROUP_FIELD_VALUE_TYPES.containsKey(normalized)) {
+      throw new com.data.collection.platform.common.exception.BizException("当前页面不支持该标签组筛选字段");
+    }
+    return normalized;
   }
 
   private static boolean isCleanModuleOption(String value) {

@@ -87,7 +87,7 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
   if (form.groupType === 'DYNAMIC' && !form.dynamicRuleParamsJson.trim()) {
     return '请输入动态规则参数';
   }
-  if (form.groupType !== 'COMPOSITE' && !form.members.length && !form.childGroupIds.length) {
+  if (form.groupType === 'STATIC' && !form.members.length && !form.childGroupIds.length) {
     return '请选择或输入标签组成员';
   }
   if (form.members.length > 200) {

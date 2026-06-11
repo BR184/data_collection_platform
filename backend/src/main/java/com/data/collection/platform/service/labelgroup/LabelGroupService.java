@@ -213,7 +213,7 @@ public class LabelGroupService {
     if (TYPE_DYNAMIC.equals(groupType) && !childGroups.isEmpty()) {
       throw new BizException("动态标签组不能直接保存子标签组引用");
     }
-    if (TYPE_DYNAMIC.equals(groupType) && members.isEmpty()) {
+    if (TYPE_DYNAMIC.equals(groupType) && members.isEmpty() && valueType == null) {
       throw new BizException("动态标签组需要保存最近一次规则计算出的成员值");
     }
     if (TYPE_COMPOSITE.equals(groupType) && members.size() > 0) {
@@ -286,8 +286,15 @@ public class LabelGroupService {
       throw new BizException("动态规则模板不能超过 100 个字符");
     }
     String paramsJson = requireText(request.ruleParamsJson(), "动态规则参数不能为空");
-    String outputValueType = normalizeValueType(request.outputValueType());
+    String outputValueType = inferDynamicRuleOutputValueType(templateKey);
     return new LabelGroupDynamicRuleRecord(null, groupId, templateKey, paramsJson, outputValueType, null, null, null);
+  }
+
+  private String inferDynamicRuleOutputValueType(String templateKey) {
+    return switch (templateKey) {
+      case "recent-active-assignee", "current-version-delayed-assignee" -> TYPE_STRING;
+      default -> null;
+    };
   }
 
   private String mergeValueType(String current, String next, String value) {

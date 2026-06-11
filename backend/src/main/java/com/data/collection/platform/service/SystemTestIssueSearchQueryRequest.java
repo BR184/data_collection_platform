@@ -4,4 +4,5 @@ public record SystemTestIssueSearchQueryRequest(
     IssueFactRecordListRequest listRequest,
     String testingPhase,
     String authorName,
-    String assigneeName) {}
+    String assigneeName,
+    String filterGroupJson) {}

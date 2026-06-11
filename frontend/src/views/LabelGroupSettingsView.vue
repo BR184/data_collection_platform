@@ -329,7 +329,7 @@ async function deleteGroup(group: LabelGroup) {
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="成员值" required>
+          <el-form-item :label="form.groupType === 'DYNAMIC' ? '当前物化成员' : '成员值'" :required="form.groupType === 'STATIC'">
             <LabelGroupMemberPicker
               v-model="form.members"
               :dimension-key="candidateDimensionKey"

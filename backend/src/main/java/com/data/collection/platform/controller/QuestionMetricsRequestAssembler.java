@@ -18,7 +18,8 @@ public class QuestionMetricsRequestAssembler {
         listRequestAssembler.toServiceRequest(request),
         request.getTestingPhase(),
         request.getAuthorName(),
-        request.getAssigneeName());
+        request.getAssigneeName(),
+        request.getFilterGroup());
   }
 
   public SystemTestIllegalRecordQueryRequest toIllegalRecordQueryRequest(

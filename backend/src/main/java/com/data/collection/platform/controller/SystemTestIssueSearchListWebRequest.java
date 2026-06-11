@@ -4,6 +4,7 @@ public class SystemTestIssueSearchListWebRequest extends IssueFactRecordListWebR
   private String testingPhase;
   private String authorName;
   private String assigneeName;
+  private String filterGroup;
 
   public String getTestingPhase() {
     return testingPhase;
@@ -27,5 +28,13 @@ public class SystemTestIssueSearchListWebRequest extends IssueFactRecordListWebR
 
   public void setAssigneeName(String assigneeName) {
     this.assigneeName = assigneeName;
+  }
+
+  public String getFilterGroup() {
+    return filterGroup;
+  }
+
+  public void setFilterGroup(String filterGroup) {
+    this.filterGroup = filterGroup;
   }
 }

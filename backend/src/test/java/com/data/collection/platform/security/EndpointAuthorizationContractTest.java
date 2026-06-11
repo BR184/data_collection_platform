@@ -9,7 +9,6 @@ import com.data.collection.platform.controller.DatabaseBrowserController;
 import com.data.collection.platform.controller.FactBuildController;
 import com.data.collection.platform.controller.GitlabSyncController;
 import com.data.collection.platform.controller.QuestionMetricsController;
-import com.data.collection.platform.controller.ReviewDataController;
 import com.data.collection.platform.controller.StatisticBoardController;
 import com.data.collection.platform.entity.AuthRole;
 import java.lang.reflect.Method;

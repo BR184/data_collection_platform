@@ -82,7 +82,7 @@ export interface LabelGroupSaveRequest {
   enabled?: boolean;
   members?: LabelGroupMember[];
   childGroupIds?: number[];
-  dynamicRule?: LabelGroupDynamicRule | null;
+  dynamicRule?: Pick<LabelGroupDynamicRule, 'ruleTemplateKey' | 'ruleParamsJson'> | null;
 }
 
 export interface LabelGroupExpansion {

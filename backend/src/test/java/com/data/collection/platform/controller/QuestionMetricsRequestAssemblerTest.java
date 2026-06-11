@@ -32,6 +32,7 @@ class QuestionMetricsRequestAssemblerTest {
     request.setCreatedAtEnd("2026-04-21");
     request.setUpdatedAtStart("2026-04-10");
     request.setUpdatedAtEnd("2026-04-22");
+    request.setFilterGroup("{\"logic\":\"AND\",\"conditions\":[]}");
     request.setPage(2);
     request.setSize(10);
     request.setSortBy("updatedAt");
@@ -42,6 +43,7 @@ class QuestionMetricsRequestAssemblerTest {
     assertThat(queryRequest.testingPhase()).isEqualTo("CC2026R1");
     assertThat(queryRequest.authorName()).isEqualTo("alice");
     assertThat(queryRequest.assigneeName()).isEqualTo("bob");
+    assertThat(queryRequest.filterGroupJson()).isEqualTo("{\"logic\":\"AND\",\"conditions\":[]}");
     assertThat(queryRequest.listRequest().projectId()).isEqualTo(1001L);
     assertThat(queryRequest.listRequest().moduleName()).isEqualTo("草图");
   }

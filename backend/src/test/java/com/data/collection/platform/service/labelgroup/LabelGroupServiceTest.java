@@ -95,7 +95,7 @@ class LabelGroupServiceTest {
   @Test
   void shouldRejectStaticGroupReferencingDynamicChild() {
     LabelGroupResponse dynamic =
-        service.create(dynamicRequest("动态人员", List.of(member("张三")), "recent-active-assignee", "STRING"));
+        service.create(dynamicRequest("动态人员", List.of(member("张三")), "recent-active-assignee"));
 
     assertThatThrownBy(
             () -> service.create(request("静态父组", "STATIC", List.of(member("李四")), List.of(dynamic.id()))))
@@ -108,7 +108,7 @@ class LabelGroupServiceTest {
     LabelGroupResponse staticChild =
         service.create(request("静态人员", "STATIC", List.of(member("张三"), member("李四")), List.of()));
     LabelGroupResponse dynamicChild =
-        service.create(dynamicRequest("动态人员", List.of(member("李四"), member("王五")), "recent-active-assignee", "STRING"));
+        service.create(dynamicRequest("动态人员", List.of(member("李四"), member("王五")), "recent-active-assignee"));
 
     LabelGroupResponse composite =
         service.create(request("重点关注人员", "COMPOSITE", List.of(), List.of(staticChild.id(), dynamicChild.id())));
@@ -123,19 +123,19 @@ class LabelGroupServiceTest {
   @Test
   void shouldPersistDynamicRuleAndInferValueTypeFromRuleOutput() {
     LabelGroupResponse dynamic =
-        service.create(dynamicRequest("最近活跃处理人", List.of(member("张三"), member("李四")), "recent-active-assignee", "STRING"));
+        service.create(dynamicRequest("最近活跃处理人", List.of(), "recent-active-assignee"));
 
     assertThat(dynamic.valueType()).isEqualTo("STRING");
     assertThat(dynamic.dynamicRule()).isNotNull();
     assertThat(dynamic.dynamicRule().ruleTemplateKey()).isEqualTo("recent-active-assignee");
     assertThat(dynamic.dynamicRule().ruleParamsJson()).isEqualTo("{\"days\":30}");
-    assertThat(dynamic.expandedPreview()).extracting(member -> member.value()).containsExactly("张三", "李四");
+    assertThat(dynamic.expandedPreview()).isEmpty();
   }
 
   @Test
   void shouldInferDynamicValueTypeFromMaterializedMembersWhenRuleOutputTypeIsMissing() {
     LabelGroupResponse dynamic =
-        service.create(dynamicRequest("未声明输出类型", List.of(member("张三")), "recent-active-assignee", null));
+        service.create(dynamicRequest("未声明输出类型", List.of(member("张三")), "custom-query-template"));
 
     assertThat(dynamic.valueType()).isEqualTo("STRING");
   }
@@ -217,14 +217,14 @@ class LabelGroupServiceTest {
   }
 
   private LabelGroupCreateRequest dynamicRequest(
-      String name, List<LabelGroupMemberRequest> members, String templateKey, String outputValueType) {
+      String name, List<LabelGroupMemberRequest> members, String templateKey) {
     return new LabelGroupCreateRequest(
         name,
         "DYNAMIC",
         null,
         members,
         List.of(),
-        new LabelGroupDynamicRuleRequest(templateKey, "{\"days\":30}", outputValueType));
+        new LabelGroupDynamicRuleRequest(templateKey, "{\"days\":30}"));
   }
 
   private LabelGroupMemberRequest member(String value) {
