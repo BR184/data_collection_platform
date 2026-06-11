@@ -26,14 +26,18 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
-      Map.of(
-          "projectName", "STRING",
-          "moduleName", "STRING",
-          "testingPhase", "STRING",
-          "severityLevel", "STRING",
-          "priorityLevel", "STRING",
-          "milestoneTitle", "STRING",
-          "assigneeName", "STRING");
+      Map.ofEntries(
+          Map.entry("projectName", "STRING"),
+          Map.entry("moduleName", "STRING"),
+          Map.entry("testingPhase", "STRING"),
+          Map.entry("severityLevel", "STRING"),
+          Map.entry("issueState", "STRING"),
+          Map.entry("bugStatus", "STRING"),
+          Map.entry("category", "STRING"),
+          Map.entry("priorityLevel", "STRING"),
+          Map.entry("milestoneTitle", "STRING"),
+          Map.entry("authorName", "STRING"),
+          Map.entry("assigneeName", "STRING"));
   private static final Pattern NUMERIC_ONLY_MODULE = Pattern.compile("^\\d+$");
   private static final Pattern CROSS_FIELD_PREFIX_MODULE =
       Pattern.compile("^(?:项目|分支|客户|状态|阶段|测试阶段|严重程度|类别|延期原因|版本|里程碑|project|branch|customer|status|phase)\\s*[:：].*",

@@ -45,6 +45,8 @@ const customerIssueRecordQueryKeys = [
   'createdAtEnd',
   'updatedAtStart',
   'updatedAtEnd',
+  'filterGroup',
+  'filterLogic',
 ];
 
 const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
@@ -166,7 +168,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'createdAtEnd',
       'updatedAtStart',
       'updatedAtEnd',
+      'filterGroup',
+      'filterLogic',
     ],
+    allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
   'question-metrics-illegal-records': {
@@ -197,6 +202,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'filterGroup',
       'filterLogic',
     ],
+    allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
   'customer-issues-home': {
@@ -228,7 +234,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'createdAtEnd',
       'updatedAtStart',
       'updatedAtEnd',
+      'filterGroup',
+      'filterLogic',
     ],
+    allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
   'customer-issues-defect-cause': {
@@ -239,10 +248,12 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   },
   'customer-issues-cc-product-issues': {
     allowedQueryKeys: customerIssueRecordQueryKeys,
+    allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
   'customer-issues-delay-issues': {
     allowedQueryKeys: customerIssueRecordQueryKeys,
+    allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
   'customer-issues-response-efficiency': {

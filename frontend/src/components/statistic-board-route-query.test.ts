@@ -48,6 +48,38 @@ describe('statistic board route query', () => {
     });
   });
 
+  it('preserves label group metadata in serialized filterGroup query', () => {
+    const result = buildFilterGroupFromRouteQuery({
+      filterGroup:
+        '{"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","value":null,"secondaryValue":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+    });
+
+    expect(result.conditions[0]).toMatchObject({
+      fieldKey: 'assigneeName',
+      operator: 'eq',
+      value: '__label_group__:1',
+      valueType: 'LABEL_GROUP',
+      labelGroupId: 1,
+      labelGroupName: '核心人员',
+    });
+  });
+
+  it('preserves label group metadata in serialized filterGroup query', () => {
+    const result = buildFilterGroupFromRouteQuery({
+      filterGroup:
+        '{"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","value":null,"secondaryValue":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+    });
+
+    expect(result.conditions[0]).toMatchObject({
+      fieldKey: 'assigneeName',
+      operator: 'eq',
+      value: '__label_group__:1',
+      valueType: 'LABEL_GROUP',
+      labelGroupId: 1,
+      labelGroupName: '核心人员',
+    });
+  });
+
   it('clears stale filter keys when rebuilding filter query patch', () => {
     const patch = buildFilterQueryPatch(
       {
@@ -72,6 +104,31 @@ describe('statistic board route query', () => {
     expect(patch.filterLogic).toBeNull();
     expect(patch['filters.0.field']).toBeNull();
     expect(String(patch.filterGroup)).toContain('"fieldKey":"moduleName"');
+  });
+
+  it('serializes label group conditions without flattening them to literal values', () => {
+    const patch = buildFilterQueryPatch(
+      {},
+      {
+        logic: 'AND',
+        conditions: [
+          {
+            id: '1',
+            fieldKey: 'assigneeName',
+            operator: 'eq',
+            value: '__label_group__:1',
+            secondaryValue: '',
+            valueType: 'LABEL_GROUP',
+            labelGroupId: 1,
+            labelGroupName: '核心人员',
+          },
+        ],
+      },
+    );
+
+    expect(String(patch.filterGroup)).toContain('"valueType":"LABEL_GROUP"');
+    expect(String(patch.filterGroup)).toContain('"labelGroupId":1');
+    expect(String(patch.filterGroup)).toContain('"labelGroupName":"核心人员"');
   });
 
   it('only serializes completed filter conditions into route query patch', () => {
@@ -100,6 +157,31 @@ describe('statistic board route query', () => {
 
     expect(String(patch.filterGroup)).toContain('"fieldKey":"moduleName"');
     expect(String(patch.filterGroup)).not.toContain('"fieldKey":"reviewOwner"');
+  });
+
+  it('serializes label group conditions into route query patch', () => {
+    const patch = buildFilterQueryPatch(
+      {},
+      {
+        logic: 'AND',
+        conditions: [
+          {
+            id: '1',
+            fieldKey: 'assigneeName',
+            operator: 'eq',
+            value: '__label_group__:1',
+            secondaryValue: '',
+            valueType: 'LABEL_GROUP',
+            labelGroupId: 1,
+            labelGroupName: '核心人员',
+          },
+        ],
+      },
+    );
+
+    expect(String(patch.filterGroup)).toContain('"valueType":"LABEL_GROUP"');
+    expect(String(patch.filterGroup)).toContain('"labelGroupId":1');
+    expect(String(patch.filterGroup)).toContain('"labelGroupName":"核心人员"');
   });
 
   it('builds reset patch for both serialized and legacy filters', () => {

@@ -6,17 +6,20 @@ import { ElMessage } from '../element-plus-services';
 import { Download, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
+import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import type {
+  StatisticFilterField,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchRowResponse,
 } from '../types/api';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { ISSUE_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
+import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
@@ -25,6 +28,7 @@ import type {
 } from '../types/record-table';
 import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
+import { buildSystemTestIssueSearchConditionFields } from './system-test/system-test-condition-fields';
 
 const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTableLoading } =
   useRouteTableState({
@@ -55,6 +59,18 @@ const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   categories: [],
   milestoneTitles: [],
 });
+const conditionFilterFields = computed<StatisticFilterField[]>(() =>
+  buildSystemTestIssueSearchConditionFields(filterOptions.value),
+);
+const {
+  filterDraft,
+  activeFilterTags: conditionActiveFilterTags,
+  initializeFromQuery,
+  buildFilterPayload,
+  resetDraft,
+  buildApplyQueryPatch,
+  buildResetQueryPatch,
+} = useConditionFilterGroupState(conditionFilterFields);
 
 const {
   syncStatus,
@@ -222,7 +238,7 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
       value: `${values.createdAtRange[0]} ~ ${values.createdAtRange[1]}`,
     });
   }
-  return tags;
+  return [...conditionActiveFilterTags.value, ...tags];
 });
 
 useDataScope({
@@ -269,6 +285,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 bindLoader(async () => {
   try {
     await Promise.all([loadFilterOptions(), loadSyncStatus()]);
+    initializeFromQuery(route.query);
     await loadTableData();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '议题查询数据加载失败');
@@ -334,6 +351,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     createdAtEnd: String(route.query.createdAtEnd ?? ''),
     updatedAtStart: String(route.query.updatedAtStart ?? ''),
     updatedAtEnd: String(route.query.updatedAtEnd ?? ''),
+    filterGroup: buildFilterPayload(),
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'updatedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
@@ -401,10 +419,12 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleReset() {
+  resetDraft();
   await patchQuery({
     page: 1,
     sortBy: 'updatedAt',
     sortOrder: 'desc',
+    ...buildResetQueryPatch(route.query),
     keyword: null,
     searchType: null,
     testingPhase: null,
@@ -427,7 +447,7 @@ async function handleReset() {
 }
 
 async function handleQuery() {
-  await patchQuery({ page: 1 });
+  await patchQuery({ page: 1, ...buildApplyQueryPatch(route.query) });
 }
 
 async function handleSizeChange(nextSize: number) {
@@ -447,6 +467,11 @@ async function handleSortChange(payload: { prop: string; order: 'ascending' | 'd
 }
 
 async function handleClearFilter(key: string) {
+  if (key === 'filterGroup') {
+    resetDraft();
+    await patchQuery({ page: 1, ...buildResetQueryPatch(route.query) });
+    return;
+  }
   if (key === 'updatedAtRange') {
     await patchQuery({ page: 1, updatedAtStart: null, updatedAtEnd: null });
     return;
@@ -499,6 +524,14 @@ async function handleRefresh() {
       @sort-change="handleSortChange"
       @refresh="handleRefresh"
     >
+      <template #filter-builder>
+        <StatisticFilterBuilder
+          :model-value="filterDraft"
+          :fields="conditionFilterFields"
+          add-button-text="添加条件"
+        />
+      </template>
+
       <template #toolbar-actions>
         <SyncMetaBadge :value="lastSyncedText" />
         <el-button

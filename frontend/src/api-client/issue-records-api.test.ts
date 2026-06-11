@@ -45,4 +45,32 @@ describe('issueRecordsApi source instance query contract', () => {
     expect(request).toHaveBeenCalledWith('/api/question-metrics/issues/filter-options?sourceInstance=cc');
   });
 
+  it('serializes label group conditions through filterGroup for issue search list and export endpoints', () => {
+    const filterGroup = {
+      logic: 'AND' as const,
+      conditions: [
+        {
+          fieldKey: 'assigneeName',
+          operator: 'eq' as const,
+          value: null,
+          valueType: 'LABEL_GROUP',
+          labelGroupId: 1,
+          labelGroupName: '核心人员',
+        },
+      ],
+    };
+
+    issueRecordsApi.getSystemTestIssueSearchRecords({ filterGroup });
+
+    expect(decodeURIComponent(String(vi.mocked(request).mock.calls[0][0]))).toContain(
+      'filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+    );
+
+    issueRecordsApi.exportSystemTestIssueSearchRecords({ filterGroup });
+
+    expect(decodeURIComponent(String(vi.mocked(requestText).mock.calls[0][0]))).toContain(
+      '/api/question-metrics/issues/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+    );
+  });
+
 });

@@ -147,6 +147,9 @@ function parseRouteFilterGroup(value: string): StatisticFilterGroup | null {
         operator: String(condition?.operator ?? '') as StatisticFilterOperator,
         value: condition?.value == null ? '' : String(condition.value),
         secondaryValue: condition?.secondaryValue == null ? '' : String(condition.secondaryValue),
+        valueType: condition?.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
+        labelGroupId: condition?.labelGroupId ?? null,
+        labelGroupName: condition?.labelGroupName ?? null,
       })),
     };
   } catch {
@@ -164,6 +167,13 @@ function stringifyRouteFilterGroup(
       operator: condition.operator,
       value: normalizeRouteScalar(condition.value),
       secondaryValue: normalizeRouteScalar(condition.secondaryValue),
+      ...(condition.valueType === 'LABEL_GROUP'
+        ? {
+            valueType: 'LABEL_GROUP',
+            labelGroupId: condition.labelGroupId ?? null,
+            labelGroupName: condition.labelGroupName ?? '',
+          }
+        : {}),
     })),
   });
 }
@@ -171,14 +181,21 @@ function stringifyRouteFilterGroup(
 function toDraftFilterGroup(source: StatisticFilterGroup): StatisticFilterDraftGroup {
   const draftGroup = createEmptyFilterGroup();
   draftGroup.logic = source.logic === 'OR' ? 'OR' : 'AND';
-  draftGroup.conditions.push(
-    ...source.conditions.map((condition) => ({
+  const conditions: StatisticFilterConditionDraft[] =
+    source.conditions.map((condition) => ({
       id: nextConditionId(),
       fieldKey: condition.fieldKey ?? '',
       operator: (condition.operator ?? '') as StatisticFilterOperator | '',
-      value: condition.value ?? '',
+      value: condition.valueType === 'LABEL_GROUP' && condition.labelGroupId
+        ? `__label_group__:${condition.labelGroupId}`
+        : condition.value ?? '',
       secondaryValue: condition.secondaryValue ?? '',
-    })),
+      valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
+      labelGroupId: condition.labelGroupId ?? null,
+      labelGroupName: condition.labelGroupName ?? null,
+    }));
+  draftGroup.conditions.push(
+    ...conditions,
   );
   return draftGroup;
 }

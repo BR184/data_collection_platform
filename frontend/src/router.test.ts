@@ -83,6 +83,24 @@ describe('router query normalization', () => {
         searchType: 'issueIid',
         keyword: '22637',
         projectId: '1001',
+        filterGroup:
+          '{"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+      },
+    });
+
+    expect(normalizeQuery(to)).toBeNull();
+  });
+
+  it('preserves record page filterGroup on customer issue record routes', () => {
+    const to = router.resolve({
+      path: '/customer-issues/cc-product-issues',
+      query: {
+        keyword: 'alpha',
+        filterGroup:
+          '{"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","value":"草图","secondaryValue":""}]}',
+        'filters.0.field': 'moduleName',
+        'filters.0.operator': 'eq',
+        'filters.0.value': '草图',
       },
     });
 
