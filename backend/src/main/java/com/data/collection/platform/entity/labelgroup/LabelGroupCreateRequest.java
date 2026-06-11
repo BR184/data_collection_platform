@@ -7,4 +7,5 @@ public record LabelGroupCreateRequest(
     String groupType,
     String description,
     List<LabelGroupMemberRequest> members,
-    List<Long> childGroupIds) {}
+    List<Long> childGroupIds,
+    LabelGroupDynamicRuleRequest dynamicRule) {}

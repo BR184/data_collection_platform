@@ -13,6 +13,7 @@ public record LabelGroupResponse(
     int memberCount,
     List<LabelGroupMemberResponse> members,
     List<LabelGroupChildResponse> childGroups,
+    LabelGroupDynamicRuleResponse dynamicRule,
     List<LabelGroupMemberResponse> expandedPreview,
     String createdBy,
     OffsetDateTime createdAt,

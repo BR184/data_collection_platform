@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCreateRequest;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupUpdateRequest;
@@ -36,7 +37,8 @@ class LabelGroupServiceTest {
                 "STATIC",
                 "常用人员字符串集合",
                 List.of(member("张三"), member("李四")),
-                List.of()));
+                List.of(),
+                null));
 
     assertThat(response.id()).isEqualTo(1L);
     assertThat(response.valueType()).isEqualTo("STRING");
@@ -93,7 +95,7 @@ class LabelGroupServiceTest {
   @Test
   void shouldRejectStaticGroupReferencingDynamicChild() {
     LabelGroupResponse dynamic =
-        service.create(request("动态人员", "DYNAMIC", List.of(member("张三")), List.of()));
+        service.create(dynamicRequest("动态人员", List.of(member("张三")), "recent-active-assignee", "STRING"));
 
     assertThatThrownBy(
             () -> service.create(request("静态父组", "STATIC", List.of(member("李四")), List.of(dynamic.id()))))
@@ -106,7 +108,7 @@ class LabelGroupServiceTest {
     LabelGroupResponse staticChild =
         service.create(request("静态人员", "STATIC", List.of(member("张三"), member("李四")), List.of()));
     LabelGroupResponse dynamicChild =
-        service.create(request("动态人员", "DYNAMIC", List.of(member("李四"), member("王五")), List.of()));
+        service.create(dynamicRequest("动态人员", List.of(member("李四"), member("王五")), "recent-active-assignee", "STRING"));
 
     LabelGroupResponse composite =
         service.create(request("重点关注人员", "COMPOSITE", List.of(), List.of(staticChild.id(), dynamicChild.id())));
@@ -116,6 +118,34 @@ class LabelGroupServiceTest {
     assertThat(composite.expandedPreview())
         .extracting(member -> member.value())
         .containsExactly("张三", "李四", "王五");
+  }
+
+  @Test
+  void shouldPersistDynamicRuleAndInferValueTypeFromRuleOutput() {
+    LabelGroupResponse dynamic =
+        service.create(dynamicRequest("最近活跃处理人", List.of(member("张三"), member("李四")), "recent-active-assignee", "STRING"));
+
+    assertThat(dynamic.valueType()).isEqualTo("STRING");
+    assertThat(dynamic.dynamicRule()).isNotNull();
+    assertThat(dynamic.dynamicRule().ruleTemplateKey()).isEqualTo("recent-active-assignee");
+    assertThat(dynamic.dynamicRule().ruleParamsJson()).isEqualTo("{\"days\":30}");
+    assertThat(dynamic.expandedPreview()).extracting(member -> member.value()).containsExactly("张三", "李四");
+  }
+
+  @Test
+  void shouldInferDynamicValueTypeFromMaterializedMembersWhenRuleOutputTypeIsMissing() {
+    LabelGroupResponse dynamic =
+        service.create(dynamicRequest("未声明输出类型", List.of(member("张三")), "recent-active-assignee", null));
+
+    assertThat(dynamic.valueType()).isEqualTo("STRING");
+  }
+
+  @Test
+  void shouldRejectDynamicGroupWithoutRule() {
+    assertThatThrownBy(
+            () -> service.create(request("动态人员", "DYNAMIC", List.of(member("张三")), List.of())))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("动态标签组必须配置动态规则");
   }
 
   @Test
@@ -143,7 +173,8 @@ class LabelGroupServiceTest {
                         null,
                         true,
                         List.of(member("张三")),
-                        List.of(groupB.id()))))
+                        List.of(groupB.id()),
+                        null)))
         .isInstanceOf(BizException.class)
         .hasMessageContaining("标签组引用存在循环");
   }
@@ -182,7 +213,18 @@ class LabelGroupServiceTest {
 
   private LabelGroupCreateRequest request(
       String name, String groupType, List<LabelGroupMemberRequest> members, List<Long> childGroupIds) {
-    return new LabelGroupCreateRequest(name, groupType, null, members, childGroupIds);
+    return new LabelGroupCreateRequest(name, groupType, null, members, childGroupIds, null);
+  }
+
+  private LabelGroupCreateRequest dynamicRequest(
+      String name, List<LabelGroupMemberRequest> members, String templateKey, String outputValueType) {
+    return new LabelGroupCreateRequest(
+        name,
+        "DYNAMIC",
+        null,
+        members,
+        List.of(),
+        new LabelGroupDynamicRuleRequest(templateKey, "{\"days\":30}", outputValueType));
   }
 
   private LabelGroupMemberRequest member(String value) {
@@ -193,6 +235,7 @@ class LabelGroupServiceTest {
     private final Map<Long, LabelGroupRecord> groups = new LinkedHashMap<>();
     private long nextId = 1L;
     private long nextMemberId = 1L;
+    private long nextDynamicRuleId = 1L;
 
     @Override
     public LabelGroupRecord createGroup(
@@ -211,7 +254,8 @@ class LabelGroupServiceTest {
               username,
               OffsetDateTime.now(),
               List.of(),
-              List.of());
+              List.of(),
+              null);
       groups.put(id, group);
       return group;
     }
@@ -241,6 +285,24 @@ class LabelGroupServiceTest {
               .map(childGroupId -> toChildRecord(groupId, groups.get(childGroupId)))
               .toList();
       groups.put(groupId, withReferences(group, references));
+    }
+
+    @Override
+    public void replaceDynamicRule(Long groupId, LabelGroupDynamicRuleRecord rule) {
+      LabelGroupRecord group = groups.get(groupId);
+      LabelGroupDynamicRuleRecord saved =
+          rule == null
+              ? null
+              : new LabelGroupDynamicRuleRecord(
+                  nextDynamicRuleId++,
+                  groupId,
+                  rule.ruleTemplateKey(),
+                  rule.ruleParamsJson(),
+                  rule.outputValueType(),
+                  rule.lastStatus(),
+                  rule.lastError(),
+                  rule.lastComputedAt());
+      groups.put(groupId, withDynamicRule(group, saved));
     }
 
     @Override
@@ -287,7 +349,8 @@ class LabelGroupServiceTest {
               username,
               OffsetDateTime.now(),
               group.members(),
-              group.childGroups()));
+              group.childGroups(),
+              group.dynamicRule()));
     }
 
     @Override
@@ -321,7 +384,8 @@ class LabelGroupServiceTest {
           group.updatedBy(),
           group.updatedAt(),
           members,
-          group.childGroups());
+          group.childGroups(),
+          group.dynamicRule());
     }
 
     private LabelGroupRecord withReferences(
@@ -338,7 +402,26 @@ class LabelGroupServiceTest {
           group.updatedBy(),
           group.updatedAt(),
           group.members(),
-          childGroups);
+          childGroups,
+          group.dynamicRule());
+    }
+
+    private LabelGroupRecord withDynamicRule(
+        LabelGroupRecord group, LabelGroupDynamicRuleRecord dynamicRule) {
+      return new LabelGroupRecord(
+          group.id(),
+          group.name(),
+          group.valueType(),
+          group.groupType(),
+          group.description(),
+          group.enabled(),
+          group.createdBy(),
+          group.createdAt(),
+          group.updatedBy(),
+          group.updatedAt(),
+          group.members(),
+          group.childGroups(),
+          dynamicRule);
     }
   }
 }

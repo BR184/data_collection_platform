@@ -89,6 +89,7 @@ public class ReviewDataExcelExportService {
       }
       setColumnWidths(sheet, 28, 18, 16, 18, 14, 14, 24, 10, 18, 14, 14, 14, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12);
       sheet.createFreezePane(0, 1);
+      writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -97,14 +98,15 @@ public class ReviewDataExcelExportService {
   }
 
   public byte[] exportProblemDetailsWorkbook(ReviewDataRecordQueryRequest request) {
-    return exportProblemDetailsWorkbook(loadAllRecords(request));
+    return exportProblemDetailsWorkbook(loadAllRecords(request), request);
   }
 
   public byte[] exportProblemDetailsWorkbook(Long recordId) {
-    return exportProblemDetailsWorkbook(List.of(queryService.getRecordDetail(recordId).record()));
+    return exportProblemDetailsWorkbook(List.of(queryService.getRecordDetail(recordId).record()), null);
   }
 
-  private byte[] exportProblemDetailsWorkbook(List<ReviewDataRecordRowResponse> records) {
+  private byte[] exportProblemDetailsWorkbook(
+      List<ReviewDataRecordRowResponse> records, ReviewDataRecordQueryRequest request) {
     Map<Long, List<ReviewDataProblemItemResponse>> problemItemsByRecordId =
         persistenceSupport.listProblemItemsByRecordIds(
             records.stream().map(ReviewDataRecordRowResponse::id).filter(id -> id != null).toList());
@@ -133,6 +135,7 @@ public class ReviewDataExcelExportService {
           28, 18, 16, 18, 14, 14, 24, 10, 18, 14, 14, 14, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12,
           14, 14, 16, 16, 16, 36, 36, 14, 14, 24, 20);
       sheet.createFreezePane(0, 1);
+      writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -220,6 +223,24 @@ public class ReviewDataExcelExportService {
     writeText(row, offset + 8, item.ownerName(), style);
     writeText(row, offset + 9, item.rejectionReason(), style);
     writeText(row, offset + 10, formatDateTime(item.updatedAt()), style);
+  }
+
+  private void writeFilterSnapshotSheet(
+      Workbook workbook, ExportStyles styles, ReviewDataRecordQueryRequest request) {
+    if (request == null) {
+      return;
+    }
+    List<String> snapshots = queryService.describeExpandedLabelGroupFilters(request);
+    if (snapshots == null || snapshots.isEmpty()) {
+      return;
+    }
+    var sheet = workbook.createSheet("筛选说明");
+    writeText(sheet.createRow(0), 0, "导出时标签组展开快照", styles.header);
+    int rowIndex = 1;
+    for (String snapshot : snapshots) {
+      writeText(sheet.createRow(rowIndex++), 0, snapshot, styles.body);
+    }
+    sheet.setColumnWidth(0, 80 * 256);
   }
 
   private void writeText(Row row, int column, String value, CellStyle style) {

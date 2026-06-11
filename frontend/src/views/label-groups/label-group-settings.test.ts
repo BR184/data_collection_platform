@@ -20,6 +20,8 @@ describe('label group settings helpers', () => {
       enabled: true,
       members: [],
       childGroupIds: [],
+      dynamicRuleTemplateKey: '',
+      dynamicRuleParamsJson: '{"days":30}',
     });
 
     const form = createLabelGroupForm({
@@ -62,6 +64,7 @@ describe('label group settings helpers', () => {
       enabled: true,
       members: [{ value: '张三', label: '张三' }],
       childGroupIds: [],
+      dynamicRule: null,
     });
   });
 
@@ -80,6 +83,30 @@ describe('label group settings helpers', () => {
       groupType: 'COMPOSITE',
       members: [],
       childGroupIds: [1, 2],
+      dynamicRule: null,
+    });
+  });
+
+  it('builds dynamic save payload without asking for value type', () => {
+    const form = {
+      ...createEmptyLabelGroupForm(),
+      name: '最近活跃处理人',
+      groupType: 'DYNAMIC' as const,
+      members: [{ value: '张三', label: '张三' }],
+      dynamicRuleTemplateKey: ' recent-active-assignee ',
+      dynamicRuleParamsJson: ' {"days":30} ',
+    };
+
+    expect(validateLabelGroupForm(form)).toBe('');
+    expect(buildLabelGroupSaveRequest(form)).toMatchObject({
+      name: '最近活跃处理人',
+      groupType: 'DYNAMIC',
+      members: [{ value: '张三', label: '张三' }],
+      childGroupIds: [],
+      dynamicRule: {
+        ruleTemplateKey: 'recent-active-assignee',
+        ruleParamsJson: '{"days":30}',
+      },
     });
   });
 

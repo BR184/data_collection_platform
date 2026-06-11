@@ -37,3 +37,17 @@ create table if not exists label_group_references (
 
 create index if not exists idx_label_group_references_parent on label_group_references(parent_group_id);
 create index if not exists idx_label_group_references_child on label_group_references(child_group_id);
+
+create table if not exists label_group_dynamic_rules (
+    id bigserial primary key,
+    group_id bigint not null references label_groups(id) on delete cascade,
+    rule_template_key varchar(100) not null,
+    rule_params_json text not null,
+    output_value_type varchar(32),
+    last_status varchar(32),
+    last_error varchar(500),
+    last_computed_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    constraint uk_label_group_dynamic_rules_group unique (group_id)
+);

@@ -25,5 +25,5 @@
   "V20260522_01__full_compensation_schedule_config.sql": "c5e67aa8814bf9a5a7d2c4e0ec8e479e8ec33faed826c901c50868155c83276c",
   "V20260602_01__compensation_schedule_window_config.sql": "864fdbc68f53137e7f1dcdd12dec8118831b1cabfef7d284d8e6cacaf17e68dd",
   "V20260604_01__review_data_legacy_metrics.sql": "b17772dbd1103317894f66e813578ea3db45722fc299a63dcf0a932a322601f3",
-  "V20260610_01__label_group_core_schema.sql": "9a9b2a59d087874995e6a45f71da79293d3dff265b201e074836389048daf47f"
+  "V20260610_01__label_group_core_schema.sql": "8ee48fc41529caaf3ab485c441a8adbf78a41d1c39512d421633ffb2900f5cc3"
 }

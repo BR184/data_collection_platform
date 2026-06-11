@@ -1,8 +1,10 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -153,6 +155,24 @@ class ReviewDataRecordFilterGroupSupportTest {
 
     assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(titleContains)).isTrue();
     assertThat(ReviewDataFilterGroupSqlSupport.canPushDown(titleNotContains)).isTrue();
+  }
+
+  @Test
+  void shouldRejectContainsOperatorForLabelGroupCondition() {
+    assertThatThrownBy(
+            () ->
+                ReviewDataRecordFilterGroupSupport.parse(
+                    jsonUtils,
+                    """
+                    {
+                      "logic": "AND",
+                      "conditions": [
+                        {"fieldKey": "title", "operator": "contains", "valueType": "LABEL_GROUP", "labelGroupId": 1}
+                      ]
+                    }
+                    """))
+        .isInstanceOf(BizException.class)
+        .hasMessageContaining("标签组筛选只支持等于或不等于关系");
   }
 
   @Test

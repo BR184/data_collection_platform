@@ -8,4 +8,5 @@ public record LabelGroupUpdateRequest(
     String description,
     Boolean enabled,
     List<LabelGroupMemberRequest> members,
-    List<Long> childGroupIds) {}
+    List<Long> childGroupIds,
+    LabelGroupDynamicRuleRequest dynamicRule) {}

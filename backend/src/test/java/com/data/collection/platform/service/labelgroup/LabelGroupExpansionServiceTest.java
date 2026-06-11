@@ -83,7 +83,8 @@ class LabelGroupExpansionServiceTest {
         "system",
         OffsetDateTime.now(),
         List.of(members),
-        List.of());
+        List.of(),
+        null);
   }
 
   private LabelGroupMemberRecord member(String value) {

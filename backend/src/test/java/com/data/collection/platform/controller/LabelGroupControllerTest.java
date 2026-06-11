@@ -210,6 +210,7 @@ class LabelGroupControllerTest {
         2,
         List.of(new LabelGroupMemberResponse(1L, "张三", "张三", true, 0)),
         List.of(),
+        null,
         List.of(new LabelGroupMemberResponse(null, "张三", "张三", true, 0)),
         "system",
         OffsetDateTime.parse("2026-06-10T10:00:00+08:00"),

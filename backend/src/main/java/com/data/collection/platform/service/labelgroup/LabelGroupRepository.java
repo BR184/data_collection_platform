@@ -11,6 +11,8 @@ public interface LabelGroupRepository {
 
   void replaceReferences(Long groupId, List<Long> childGroupIds);
 
+  void replaceDynamicRule(Long groupId, LabelGroupDynamicRuleRecord rule);
+
   Optional<LabelGroupRecord> findById(Long groupId);
 
   List<LabelGroupRecord> list(String valueType, String keyword, Boolean enabled);

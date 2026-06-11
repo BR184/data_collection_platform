@@ -85,6 +85,27 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
   }
 
   @Override
+  public void replaceDynamicRule(Long groupId, LabelGroupDynamicRuleRecord rule) {
+    jdbcTemplate.update(
+        "delete from label_group_dynamic_rules where group_id = :groupId",
+        new MapSqlParameterSource("groupId", groupId));
+    if (rule == null) {
+      return;
+    }
+    jdbcTemplate.update(
+        """
+        insert into label_group_dynamic_rules
+          (group_id, rule_template_key, rule_params_json, output_value_type)
+        values (:groupId, :ruleTemplateKey, :ruleParamsJson, :outputValueType)
+        """,
+        new MapSqlParameterSource()
+            .addValue("groupId", groupId)
+            .addValue("ruleTemplateKey", rule.ruleTemplateKey())
+            .addValue("ruleParamsJson", rule.ruleParamsJson())
+            .addValue("outputValueType", rule.outputValueType()));
+  }
+
+  @Override
   public Optional<LabelGroupRecord> findById(Long groupId) {
     if (groupId == null) {
       return Optional.empty();
@@ -188,7 +209,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
   private List<LabelGroupRecord> loadGroups(String sql, MapSqlParameterSource params) {
     Map<Long, LabelGroupRecord> groups = new LinkedHashMap<>();
     jdbcTemplate.query(sql, params, rs -> {
-      LabelGroupRecord group = mapGroup(rs, List.of(), List.of());
+      LabelGroupRecord group = mapGroup(rs, List.of(), List.of(), null);
       groups.put(group.id(), group);
     });
     if (groups.isEmpty()) {
@@ -217,6 +238,16 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
             """,
             new MapSqlParameterSource("groupIds", groups.keySet()),
             this::mapChild);
+    List<LabelGroupDynamicRuleRecord> dynamicRules =
+        jdbcTemplate.query(
+            """
+            select id, group_id, rule_template_key, rule_params_json, output_value_type,
+                   last_status, last_error, last_computed_at
+            from label_group_dynamic_rules
+            where group_id in (:groupIds)
+            """,
+            new MapSqlParameterSource("groupIds", groups.keySet()),
+            this::mapDynamicRule);
     Map<Long, List<LabelGroupMemberRecord>> byGroup =
         members.stream().collect(java.util.stream.Collectors.groupingBy(
             LabelGroupMemberRecord::groupId,
@@ -227,6 +258,12 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
             LabelGroupChildRecord::parentGroupId,
             LinkedHashMap::new,
             java.util.stream.Collectors.toList()));
+    Map<Long, LabelGroupDynamicRuleRecord> dynamicRuleByGroup =
+        dynamicRules.stream().collect(java.util.stream.Collectors.toMap(
+            LabelGroupDynamicRuleRecord::groupId,
+            rule -> rule,
+            (left, right) -> left,
+            LinkedHashMap::new));
     return groups.values().stream()
         .map(group -> new LabelGroupRecord(
             group.id(),
@@ -240,12 +277,16 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
             group.updatedBy(),
             group.updatedAt(),
             byGroup.getOrDefault(group.id(), List.of()),
-            childrenByGroup.getOrDefault(group.id(), List.of())))
+            childrenByGroup.getOrDefault(group.id(), List.of()),
+            dynamicRuleByGroup.get(group.id())))
         .toList();
   }
 
   private LabelGroupRecord mapGroup(
-      ResultSet rs, List<LabelGroupMemberRecord> members, List<LabelGroupChildRecord> children)
+      ResultSet rs,
+      List<LabelGroupMemberRecord> members,
+      List<LabelGroupChildRecord> children,
+      LabelGroupDynamicRuleRecord dynamicRule)
       throws SQLException {
     return new LabelGroupRecord(
         rs.getLong("id"),
@@ -259,7 +300,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         rs.getString("updated_by"),
         toOffsetDateTime(rs.getTimestamp("updated_at")),
         members,
-        children);
+        children,
+        dynamicRule);
   }
 
   private LabelGroupMemberRecord mapMember(ResultSet rs, int rowNum) throws SQLException {
@@ -281,6 +323,18 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         rs.getString("child_value_type"),
         rs.getBoolean("child_enabled"),
         rs.getInt("sort_order"));
+  }
+
+  private LabelGroupDynamicRuleRecord mapDynamicRule(ResultSet rs, int rowNum) throws SQLException {
+    return new LabelGroupDynamicRuleRecord(
+        rs.getLong("id"),
+        rs.getLong("group_id"),
+        rs.getString("rule_template_key"),
+        rs.getString("rule_params_json"),
+        rs.getString("output_value_type"),
+        rs.getString("last_status"),
+        rs.getString("last_error"),
+        toOffsetDateTime(rs.getTimestamp("last_computed_at")));
   }
 
   private OffsetDateTime toOffsetDateTime(Timestamp timestamp) {

@@ -14,6 +14,8 @@ export interface LabelGroupFormState {
   enabled: boolean;
   members: LabelGroupMember[];
   childGroupIds: number[];
+  dynamicRuleTemplateKey: string;
+  dynamicRuleParamsJson: string;
 }
 
 export function createEmptyLabelGroupForm(): LabelGroupFormState {
@@ -25,6 +27,8 @@ export function createEmptyLabelGroupForm(): LabelGroupFormState {
     enabled: true,
     members: [],
     childGroupIds: [],
+    dynamicRuleTemplateKey: '',
+    dynamicRuleParamsJson: '{"days":30}',
   };
 }
 
@@ -43,6 +47,8 @@ export function createLabelGroupForm(group: LabelGroup): LabelGroupFormState {
       sortOrder: member.sortOrder,
     })),
     childGroupIds: (group.childGroups ?? []).map((child) => child.id),
+    dynamicRuleTemplateKey: group.dynamicRule?.ruleTemplateKey ?? '',
+    dynamicRuleParamsJson: group.dynamicRule?.ruleParamsJson ?? '{"days":30}',
   };
 }
 
@@ -59,6 +65,12 @@ export function buildLabelGroupSaveRequest(form: LabelGroupFormState): LabelGrou
         label: member.label || member.value,
       })),
     childGroupIds: form.childGroupIds,
+    dynamicRule: form.groupType === 'DYNAMIC'
+      ? {
+        ruleTemplateKey: form.dynamicRuleTemplateKey.trim(),
+        ruleParamsJson: form.dynamicRuleParamsJson.trim(),
+      }
+      : null,
   };
 }
 
@@ -68,6 +80,12 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
   }
   if (form.groupType === 'COMPOSITE' && !form.childGroupIds.length) {
     return '请选择要组合的子标签组';
+  }
+  if (form.groupType === 'DYNAMIC' && !form.dynamicRuleTemplateKey.trim()) {
+    return '请输入动态规则模板';
+  }
+  if (form.groupType === 'DYNAMIC' && !form.dynamicRuleParamsJson.trim()) {
+    return '请输入动态规则参数';
   }
   if (form.groupType !== 'COMPOSITE' && !form.members.length && !form.childGroupIds.length) {
     return '请选择或输入标签组成员';

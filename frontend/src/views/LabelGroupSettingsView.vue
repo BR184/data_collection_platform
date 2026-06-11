@@ -39,6 +39,7 @@ const valueTypeOptions = [
 
 const groupTypeOptions: Array<{ label: string; value: LabelGroupType }> = [
   { label: '静态组', value: 'STATIC' },
+  { label: '动态组', value: 'DYNAMIC' },
   { label: '组合组', value: 'COMPOSITE' },
 ];
 
@@ -78,6 +79,9 @@ watch(
   (groupType) => {
     if (groupType === 'COMPOSITE') {
       form.value.members = [];
+    }
+    if (groupType === 'DYNAMIC') {
+      form.value.childGroupIds = [];
     }
     if (groupType === 'STATIC') {
       form.value.childGroupIds = form.value.childGroupIds.filter((id) => {
@@ -291,6 +295,23 @@ async function deleteGroup(group: LabelGroup) {
             {{ valueTypeLabel(currentValueType) }}
           </el-tag>
         </el-form-item>
+        <template v-if="form.groupType === 'DYNAMIC'">
+          <el-form-item label="动态规则模板" required>
+            <el-input
+              v-model="form.dynamicRuleTemplateKey"
+              maxlength="100"
+              placeholder="例如：recent-active-assignee"
+            />
+          </el-form-item>
+          <el-form-item label="动态规则参数" required>
+            <el-input
+              v-model="form.dynamicRuleParamsJson"
+              type="textarea"
+              :rows="3"
+              placeholder='例如：{"days":30}'
+            />
+          </el-form-item>
+        </template>
         <template v-if="form.groupType !== 'COMPOSITE'">
           <el-form-item label="候选来源">
             <el-select
@@ -316,7 +337,7 @@ async function deleteGroup(group: LabelGroup) {
             />
           </el-form-item>
         </template>
-        <el-form-item label="子标签组" :required="form.groupType === 'COMPOSITE'">
+        <el-form-item v-if="form.groupType !== 'DYNAMIC'" label="子标签组" :required="form.groupType === 'COMPOSITE'">
           <el-select
             v-model="form.childGroupIds"
             multiple

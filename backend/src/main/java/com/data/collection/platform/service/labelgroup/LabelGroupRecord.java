@@ -15,4 +15,5 @@ record LabelGroupRecord(
     String updatedBy,
     OffsetDateTime updatedAt,
     List<LabelGroupMemberRecord> members,
-    List<LabelGroupChildRecord> childGroups) {}
+    List<LabelGroupChildRecord> childGroups,
+    LabelGroupDynamicRuleRecord dynamicRule) {}

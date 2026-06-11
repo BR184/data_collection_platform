@@ -49,8 +49,6 @@ class NoDeprecatedTagGroupOrSegmentationRuntimeTest {
               .filter(Files::isRegularFile)
               .filter(path -> path.toString().endsWith(".java") || path.toString().endsWith(".vue")
                   || path.toString().endsWith(".ts") || path.toString().endsWith(".sql"))
-              .filter(path -> !path.toString().contains("db\\migration")
-                  && !path.toString().contains("db/migration"))
               .filter(NoDeprecatedTagGroupOrSegmentationRuntimeTest::containsForbiddenMarker)
               .map(path -> mainRoot.relativize(path).toString())
               .toList();

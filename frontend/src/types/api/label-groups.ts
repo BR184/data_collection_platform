@@ -48,6 +48,15 @@ export interface LabelGroupChild {
   enabled: boolean;
 }
 
+export interface LabelGroupDynamicRule {
+  ruleTemplateKey: string;
+  ruleParamsJson: string;
+  outputValueType?: string | null;
+  lastStatus?: string | null;
+  lastError?: string | null;
+  lastComputedAt?: string | null;
+}
+
 export interface LabelGroup {
   id: number;
   name: string;
@@ -58,6 +67,7 @@ export interface LabelGroup {
   memberCount: number;
   members: LabelGroupMember[];
   childGroups?: LabelGroupChild[];
+  dynamicRule?: LabelGroupDynamicRule | null;
   expandedPreview?: LabelGroupMember[];
   createdBy?: string | null;
   createdAt?: string | null;
@@ -72,6 +82,7 @@ export interface LabelGroupSaveRequest {
   enabled?: boolean;
   members?: LabelGroupMember[];
   childGroupIds?: number[];
+  dynamicRule?: LabelGroupDynamicRule | null;
 }
 
 export interface LabelGroupExpansion {

@@ -159,6 +159,25 @@ public class ReviewDataRecordQueryService {
     return persistenceSupport.listProblemItems(recordId);
   }
 
+  public List<String> describeExpandedLabelGroupFilters(ReviewDataRecordQueryRequest request) {
+    StatisticFilterGroup filterGroup =
+        ReviewDataRecordFilterGroupSupport.parse(jsonUtils, request.filterGroupJson());
+    StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, request.sourceInstance());
+    if (expandedFilterGroup == null || expandedFilterGroup.conditions() == null) {
+      return List.of();
+    }
+    return expandedFilterGroup.conditions().stream()
+        .filter(com.data.collection.platform.entity.statistics.StatisticFilterCondition::usesLabelGroup)
+        .map(condition -> "%s %s %s（标签组：%s）".formatted(
+            condition.fieldKey(),
+            condition.operator(),
+            TextQuerySupport.trimToNull(condition.labelGroupName()) == null
+                ? condition.labelGroupId()
+                : condition.labelGroupName(),
+            String.join("、", condition.values())))
+        .toList();
+  }
+
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
     persistenceSupport.assertRecordExists(recordId);
     return persistenceSupport.getProblemItemOrThrow(recordId, itemId);

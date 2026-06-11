@@ -3,6 +3,8 @@ package com.data.collection.platform.service.labelgroup;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupChildResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCreateRequest;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRequest;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
@@ -45,13 +47,15 @@ public class LabelGroupService {
     String groupType = normalizeGroupType(request.groupType());
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
-    String valueType = inferGroupValueType(members, childGroups);
-    validateGroupShape(null, groupType, valueType, members, childGroups);
+    LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(null, request.dynamicRule());
+    String valueType = inferGroupValueType(members, childGroups, dynamicRule);
+    validateGroupShape(null, groupType, valueType, members, childGroups, dynamicRule);
 
     LabelGroupRecord group =
         repository.createGroup(name, valueType, groupType, trimToNull(request.description()), DEFAULT_USER);
     repository.replaceMembers(group.id(), members);
     repository.replaceReferences(group.id(), childGroups.stream().map(LabelGroupRecord::id).toList());
+    repository.replaceDynamicRule(group.id(), dynamicRule);
     return get(group.id());
   }
 
@@ -63,8 +67,9 @@ public class LabelGroupService {
     String groupType = normalizeGroupType(request.groupType() == null ? existing.groupType() : request.groupType());
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
-    String valueType = inferGroupValueType(members, childGroups);
-    validateGroupShape(groupId, groupType, valueType, members, childGroups);
+    LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(groupId, request.dynamicRule());
+    String valueType = inferGroupValueType(members, childGroups, dynamicRule);
+    validateGroupShape(groupId, groupType, valueType, members, childGroups, dynamicRule);
     boolean enabled = request.enabled() == null ? existing.enabled() : request.enabled();
 
     repository.updateGroup(
@@ -77,6 +82,7 @@ public class LabelGroupService {
         DEFAULT_USER);
     repository.replaceMembers(groupId, members);
     repository.replaceReferences(groupId, childGroups.stream().map(LabelGroupRecord::id).toList());
+    repository.replaceDynamicRule(groupId, dynamicRule);
     return get(groupId);
   }
 
@@ -190,15 +196,25 @@ public class LabelGroupService {
       String groupType,
       String valueType,
       List<LabelGroupMemberRecord> members,
-      List<LabelGroupRecord> childGroups) {
-    if (members.isEmpty() && childGroups.isEmpty()) {
+      List<LabelGroupRecord> childGroups,
+      LabelGroupDynamicRuleRecord dynamicRule) {
+    if (members.isEmpty() && childGroups.isEmpty() && dynamicRule == null) {
       throw new BizException("标签组成员不能为空");
     }
     if (valueType == null) {
       throw new BizException("标签组值类型不能为空");
     }
+    if (TYPE_DYNAMIC.equals(groupType) && dynamicRule == null) {
+      throw new BizException("动态标签组必须配置动态规则");
+    }
+    if (!TYPE_DYNAMIC.equals(groupType) && dynamicRule != null) {
+      throw new BizException("只有动态标签组可以配置动态规则");
+    }
     if (TYPE_DYNAMIC.equals(groupType) && !childGroups.isEmpty()) {
       throw new BizException("动态标签组不能直接保存子标签组引用");
+    }
+    if (TYPE_DYNAMIC.equals(groupType) && members.isEmpty()) {
+      throw new BizException("动态标签组需要保存最近一次规则计算出的成员值");
     }
     if (TYPE_COMPOSITE.equals(groupType) && members.size() > 0) {
       throw new BizException("组合标签组只能选择子标签组");
@@ -244,8 +260,14 @@ public class LabelGroupService {
     return false;
   }
 
-  private String inferGroupValueType(List<LabelGroupMemberRecord> members, List<LabelGroupRecord> childGroups) {
+  private String inferGroupValueType(
+      List<LabelGroupMemberRecord> members,
+      List<LabelGroupRecord> childGroups,
+      LabelGroupDynamicRuleRecord dynamicRule) {
     String valueType = null;
+    if (dynamicRule != null && dynamicRule.outputValueType() != null) {
+      valueType = mergeValueType(valueType, dynamicRule.outputValueType(), dynamicRule.ruleTemplateKey());
+    }
     for (LabelGroupMemberRecord member : members) {
       valueType = mergeValueType(valueType, inferValueType(member.memberValue()), member.memberValue());
     }
@@ -253,6 +275,19 @@ public class LabelGroupService {
       valueType = mergeValueType(valueType, childGroup.valueType(), childGroup.name());
     }
     return valueType;
+  }
+
+  private LabelGroupDynamicRuleRecord normalizeDynamicRule(Long groupId, LabelGroupDynamicRuleRequest request) {
+    if (request == null) {
+      return null;
+    }
+    String templateKey = requireText(request.ruleTemplateKey(), "动态规则模板不能为空");
+    if (templateKey.length() > 100) {
+      throw new BizException("动态规则模板不能超过 100 个字符");
+    }
+    String paramsJson = requireText(request.ruleParamsJson(), "动态规则参数不能为空");
+    String outputValueType = normalizeValueType(request.outputValueType());
+    return new LabelGroupDynamicRuleRecord(null, groupId, templateKey, paramsJson, outputValueType, null, null, null);
   }
 
   private String mergeValueType(String current, String next, String value) {
@@ -326,6 +361,16 @@ public class LabelGroupService {
                 child.childValueType(),
                 child.childEnabled()))
             .toList();
+    LabelGroupDynamicRuleResponse dynamicRule =
+        group.dynamicRule() == null
+            ? null
+            : new LabelGroupDynamicRuleResponse(
+                group.dynamicRule().ruleTemplateKey(),
+                group.dynamicRule().ruleParamsJson(),
+                group.dynamicRule().outputValueType(),
+                group.dynamicRule().lastStatus(),
+                group.dynamicRule().lastError(),
+                group.dynamicRule().lastComputedAt());
     List<LabelGroupMemberResponse> expandedPreview =
         expanded == null
             ? List.of()
@@ -342,6 +387,7 @@ public class LabelGroupService {
         expanded == null ? members.size() : expanded.values().size(),
         members,
         childGroups,
+        dynamicRule,
         expandedPreview,
         group.createdBy(),
         group.createdAt(),

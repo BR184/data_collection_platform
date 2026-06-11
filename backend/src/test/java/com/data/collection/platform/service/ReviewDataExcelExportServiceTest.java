@@ -37,6 +37,7 @@ class ReviewDataExcelExportServiceTest {
             "updatedAt",
             "desc",
             new ReviewDataSummaryResponse(1, 5, 24, 5)));
+    when(queryService.describeExpandedLabelGroupFilters(request)).thenReturn(List.of());
 
     byte[] workbook = new ReviewDataExcelExportService(queryService, persistenceSupport)
         .exportReviewRecordsWorkbook(request);
@@ -83,6 +84,7 @@ class ReviewDataExcelExportServiceTest {
             "updatedAt",
             "desc",
             new ReviewDataSummaryResponse(1, 5, 24, 5)));
+    when(queryService.describeExpandedLabelGroupFilters(request)).thenReturn(List.of());
     when(persistenceSupport.listProblemItemsByRecordIds(List.of(1L)))
         .thenReturn(Map.of(1L, List.of(item)));
 
@@ -145,6 +147,60 @@ class ReviewDataExcelExportServiceTest {
     new ReviewDataExcelExportService(queryService, persistenceSupport).exportReviewRecordsWorkbook(request);
 
     verify(queryService).listRecords(expectedPageRequest);
+  }
+
+  @Test
+  void shouldWriteLabelGroupExpansionSnapshotSheet() throws Exception {
+    ReviewDataRecordQueryRequest request =
+        new ReviewDataRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"moduleName\",\"operator\":\"eq\",\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心模块\"}]}",
+            "cc",
+            1,
+            20,
+            "updatedAt",
+            "desc");
+    when(queryService.listRecords(new ReviewDataRecordQueryRequest(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            request.filterGroupJson(),
+            "cc",
+            1,
+            100,
+            "updatedAt",
+            "desc")))
+        .thenReturn(new ReviewDataRecordListResponse(
+            List.of(record()),
+            1,
+            1,
+            100,
+            "updatedAt",
+            "desc",
+            new ReviewDataSummaryResponse(1, 5, 24, 5)));
+    when(queryService.describeExpandedLabelGroupFilters(request))
+        .thenReturn(List.of("moduleName eq 核心模块（标签组：草图、工程图）"));
+
+    byte[] workbook =
+        new ReviewDataExcelExportService(queryService, persistenceSupport).exportReviewRecordsWorkbook(request);
+
+    try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
+      var sheet = xlsx.getSheet("筛选说明");
+      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("导出时标签组展开快照");
+      assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).contains("核心模块（标签组：草图、工程图）");
+    }
   }
 
   private ReviewDataRecordQueryRequest request() {
