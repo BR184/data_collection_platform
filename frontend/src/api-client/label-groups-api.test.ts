@@ -33,6 +33,12 @@ describe('labelGroupsApi', () => {
     expect(valuesUrl).toContain('size=50');
   });
 
+  it('loads natural language dynamic rule templates', () => {
+    labelGroupsApi.listDynamicRuleTemplates();
+
+    expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-templates');
+  });
+
   it('creates updates and deletes groups with Chinese errors passed through by request', async () => {
     labelGroupsApi.createLabelGroup({
       name: '核心人员',

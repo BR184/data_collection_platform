@@ -41,12 +41,12 @@ const selectedValues = computed({
 });
 
 const candidateOptions = computed(() => {
+  const selected = new Set(props.modelValue.map((member) => member.value));
   const merged = new Map<string, LabelGroupMember>();
   for (const item of candidates.value) {
-    merged.set(item.value, item);
-  }
-  for (const item of props.modelValue) {
-    merged.set(item.value, item);
+    if (!selected.has(item.value)) {
+      merged.set(item.value, item);
+    }
   }
   return Array.from(merged.values());
 });

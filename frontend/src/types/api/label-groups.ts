@@ -57,6 +57,24 @@ export interface LabelGroupDynamicRule {
   lastComputedAt?: string | null;
 }
 
+export interface LabelGroupDynamicRuleTemplateParameter {
+  key: string;
+  label: string;
+  controlType: 'number' | 'select' | 'text' | 'dateRange';
+  required: boolean;
+  defaultValue?: string | number | boolean | null;
+  options?: Array<{ label: string; value: string }>;
+}
+
+export interface LabelGroupDynamicRuleTemplate {
+  key: string;
+  name: string;
+  description: string;
+  outputValueType: string;
+  outputDescription: string;
+  parameters: LabelGroupDynamicRuleTemplateParameter[];
+}
+
 export interface LabelGroup {
   id: number;
   name: string;

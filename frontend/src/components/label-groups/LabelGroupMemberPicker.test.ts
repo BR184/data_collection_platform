@@ -56,6 +56,22 @@ describe('LabelGroupMemberPicker', () => {
     expect(wrapper.text()).toContain('当前数据中暂无命中');
   });
 
+  it('does not show selected members in the dropdown candidates for another source', async () => {
+    const wrapper = mount(LabelGroupMemberPicker, {
+      props: {
+        modelValue: [{ value: '张三', label: '张三' }],
+        dimensionKey: 'module',
+        fetchValues: async () => page([{ value: '草图', label: '草图' }, { value: '张三', label: '张三' }]),
+      },
+      global: { plugins: [ElementPlus] },
+    });
+    await flushPromises();
+
+    const vm = wrapper.vm as unknown as { candidateOptions: Array<{ value: string; label: string }> };
+    expect(vm.candidateOptions).toEqual([{ value: '草图', label: '草图', currentAvailable: true }]);
+    expect(wrapper.text()).toContain('张三');
+  });
+
   it('emits selected members from existing candidates only', async () => {
     const wrapper = mount(LabelGroupMemberPicker, {
       props: {

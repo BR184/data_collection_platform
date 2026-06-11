@@ -2,6 +2,7 @@ import type {
   LabelDimension,
   LabelGroup,
   LabelGroupCompatiblePage,
+  LabelGroupDynamicRuleTemplate,
   LabelGroupExpansion,
   LabelGroupSaveRequest,
   LabelValuePage,
@@ -42,6 +43,9 @@ export const labelGroupsApi = {
     return request<LabelGroupCompatiblePage[]>(
       `/api/label-groups/dimensions/${encodeURIComponent(dimensionKey)}/compatible-pages`,
     );
+  },
+  listDynamicRuleTemplates() {
+    return request<LabelGroupDynamicRuleTemplate[]>('/api/label-groups/dynamic-rule-templates');
   },
   listLabelGroups(params: LabelGroupListParams = {}) {
     const query = new URLSearchParams({
