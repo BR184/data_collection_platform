@@ -151,19 +151,22 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public boolean existsByName(String name, Long excludeId) {
-    String sql =
-        """
-        select count(1)
-        from label_groups
-        where name = :name
-          and (:excludeId is null or id <> :excludeId)
-        """;
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            select count(1)
+            from label_groups
+            where name = :name
+            """);
+    MapSqlParameterSource params = new MapSqlParameterSource().addValue("name", name);
+    if (excludeId != null) {
+      sql.append(" and id <> :excludeId");
+      params.addValue("excludeId", excludeId);
+    }
     Integer count =
         jdbcTemplate.queryForObject(
-            sql,
-            new MapSqlParameterSource()
-                .addValue("name", name)
-                .addValue("excludeId", excludeId),
+            sql.toString(),
+            params,
             Integer.class);
     return count != null && count > 0;
   }
