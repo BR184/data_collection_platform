@@ -2,6 +2,8 @@ package com.data.collection.platform.service.labelgroup;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCreateRequest;
@@ -148,6 +150,24 @@ class LabelGroupServiceTest {
     assertThat(dynamic.valueType()).isEqualTo("STRING");
     assertThat(dynamic.members()).isEmpty();
     assertThat(dynamic.dynamicRule().outputValueType()).isEqualTo("STRING");
+  }
+
+  @Test
+  void shouldMarkDynamicRuleComputedWhenMaterializingMembers() {
+    LabelGroupDynamicRuleEvaluationService evaluationService =
+        mock(LabelGroupDynamicRuleEvaluationService.class);
+    when(evaluationService.outputValueType("recent-active-assignee")).thenReturn("STRING");
+    when(evaluationService.materializeMembers("recent-active-assignee", "{\"days\":30}"))
+        .thenReturn(List.of(new LabelGroupMemberRecord(null, null, "张三", "张三", 0)));
+    LabelGroupService dynamicService = new LabelGroupService(repository, evaluationService);
+
+    LabelGroupResponse dynamic =
+        dynamicService.create(dynamicRequest("最近活跃处理人", List.of(), "recent-active-assignee"));
+
+    assertThat(dynamic.members()).extracting(member -> member.value()).containsExactly("张三");
+    assertThat(dynamic.dynamicRule().lastStatus()).isEqualTo("SUCCESS");
+    assertThat(dynamic.dynamicRule().lastError()).isNull();
+    assertThat(dynamic.dynamicRule().lastComputedAt()).isNotNull();
   }
 
   @Test

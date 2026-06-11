@@ -251,6 +251,102 @@ class SystemTestIssueSearchServiceTest {
     verify(issueFactRecordRepository, never()).findPage(any());
   }
 
+  @Test
+  void shouldWriteExpandedLabelGroupSnapshotWhenExportingCsv() {
+    SystemTestIssueSearchService service = service();
+    when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", null))
+        .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
+    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(1001L))
+        .thenReturn(List.of(record(308, "assigned to bob", "草图", "phase1 system test", "alice", "bob")));
+
+    String filterGroupJson =
+        "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"assigneeName\",\"operator\":\"eq\","
+            + "\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心人员\"}]}";
+
+    String csv =
+        service.exportRecordsCsv(
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null,
+                null,
+                filterGroupJson));
+
+    assertThat(csv)
+        .startsWith("标签组筛选快照,")
+        .contains("assigneeName eq 核心人员（标签组：bob）");
+  }
+
+  @Test
+  void shouldKeepSourceInstanceScopeWhenApplyingLabelGroupFilterInJavaPath() {
+    SystemTestIssueSearchService service = service();
+    when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", "cc"))
+        .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
+    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(1001L))
+        .thenReturn(
+            List.of(
+                recordWithSource("cc", 309, "cc source", List.of("草图"), "phase1 system test", "alice", "bob"),
+                recordWithSource("default", 310, "default source", List.of("草图"), "phase1 system test", "alice", "bob")));
+
+    String filterGroupJson =
+        "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"assigneeName\",\"operator\":\"eq\","
+            + "\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心人员\"}]}";
+
+    SystemTestIssueSearchListResponse response =
+        service.listRecords(
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "cc",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                null,
+                null,
+                filterGroupJson));
+
+    assertThat(response.records()).extracting(record -> record.issueIid()).containsExactly(309);
+  }
+
   private SystemTestIssueSearchService service() {
     return new SystemTestIssueSearchService(
         issueFactRecordRepository,
@@ -280,6 +376,54 @@ class SystemTestIssueSearchServiceTest {
     LocalDateTime now = LocalDateTime.of(2026, 4, 24, 10, 0);
     return new IssueFactRecord(
         1001L,
+        "Rocksdb",
+        9200L + issueIid,
+        issueIid,
+        title,
+        "opened",
+        testingPhase,
+        testingPhase,
+        "LEVEL2",
+        "",
+        "processing",
+        "bug",
+        "",
+        false,
+        "",
+        false,
+        false,
+        false,
+        false,
+        false,
+        "CC2026R1",
+        authorName,
+        assigneeName,
+        moduleNames,
+        List.of(testingPhase, "system test"),
+        false,
+        "",
+        "",
+        false,
+        false,
+        false,
+        "",
+        now.minusDays(3),
+        now.minusDays(1),
+        null);
+  }
+
+  private IssueFactRecord recordWithSource(
+      String sourceInstance,
+      int issueIid,
+      String title,
+      List<String> moduleNames,
+      String testingPhase,
+      String authorName,
+      String assigneeName) {
+    LocalDateTime now = LocalDateTime.of(2026, 4, 24, 10, 0);
+    return new IssueFactRecord(
+        1001L,
+        sourceInstance,
         "Rocksdb",
         9200L + issueIid,
         issueIid,

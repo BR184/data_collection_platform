@@ -53,6 +53,7 @@ public class LabelGroupService {
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
     LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(null, request.dynamicRule());
     members = materializeDynamicMembers(groupType, members, dynamicRule);
+    dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
     validateGroupShape(null, groupType, valueType, members, childGroups, dynamicRule);
 
@@ -74,6 +75,7 @@ public class LabelGroupService {
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
     LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(groupId, request.dynamicRule());
     members = materializeDynamicMembers(groupType, members, dynamicRule);
+    dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
     validateGroupShape(groupId, groupType, valueType, members, childGroups, dynamicRule);
     boolean enabled = request.enabled() == null ? existing.enabled() : request.enabled();
@@ -315,6 +317,23 @@ public class LabelGroupService {
     }
     return dynamicRuleEvaluationService.materializeMembers(
         dynamicRule.ruleTemplateKey(), dynamicRule.ruleParamsJson());
+  }
+
+  private LabelGroupDynamicRuleRecord markDynamicRuleComputed(
+      String groupType,
+      LabelGroupDynamicRuleRecord dynamicRule) {
+    if (!TYPE_DYNAMIC.equals(groupType) || dynamicRule == null || dynamicRuleEvaluationService == null) {
+      return dynamicRule;
+    }
+    return new LabelGroupDynamicRuleRecord(
+        dynamicRule.id(),
+        dynamicRule.groupId(),
+        dynamicRule.ruleTemplateKey(),
+        dynamicRule.ruleParamsJson(),
+        dynamicRule.outputValueType(),
+        "SUCCESS",
+        null,
+        OffsetDateTime.now());
   }
 
   private String mergeValueType(String current, String next, String value) {

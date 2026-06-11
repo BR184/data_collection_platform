@@ -89,7 +89,7 @@ public class LabelValueQueryService {
     return switch (pageKey) {
       case REVIEW_PAGE -> reviewOptions(dimensionKey);
       case ISSUE_PAGE -> issueOptions(dimensionKey, sourceInstanceId);
-      case CUSTOMER_PAGE -> customerOptions(dimensionKey);
+      case CUSTOMER_PAGE -> customerOptions(dimensionKey, sourceInstanceId);
       default -> throw new BizException("标签组候选值暂不支持页面：" + pageKey);
     };
   }
@@ -123,9 +123,10 @@ public class LabelValueQueryService {
     };
   }
 
-  private List<OptionItemResponse> customerOptions(String dimensionKey) {
+  private List<OptionItemResponse> customerOptions(String dimensionKey, String sourceInstanceId) {
     CustomerIssueRecordFilterOptionsResponse options =
-        customerIssueRecordService.getFilterOptions("cc-product", null);
+        customerIssueRecordService.getFilterOptions(
+            "cc-product", null, TextQuerySupport.trimToNull(sourceInstanceId));
     return switch (dimensionKey) {
       case "module" -> options.moduleNames();
       case "customer_assignee" -> options.assigneeNames();

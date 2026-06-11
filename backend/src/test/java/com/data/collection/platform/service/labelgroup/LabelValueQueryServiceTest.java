@@ -124,7 +124,7 @@ class LabelValueQueryServiceTest {
                 List.of(),
                 List.of(),
                 List.of()));
-    when(customerIssueRecordService.getFilterOptions("cc-product", null))
+    when(customerIssueRecordService.getFilterOptions("cc-product", null, null))
         .thenReturn(customerOptions(
             List.of(option("BOM")),
             List.of(),
@@ -139,7 +139,7 @@ class LabelValueQueryServiceTest {
   @Test
   void shouldReturnCustomerAssigneeValuesFromCustomerIssueOptions() {
     LabelValueQueryService service = service();
-    when(customerIssueRecordService.getFilterOptions("cc-product", null))
+    when(customerIssueRecordService.getFilterOptions("cc-product", null, null))
         .thenReturn(customerOptions(
             List.of(),
             List.of(),
@@ -150,6 +150,22 @@ class LabelValueQueryServiceTest {
         service.listValues("customer_assignee", "customer-issues-cc-product-issues", null, null, 1, 20);
 
     assertThat(response.items()).extracting(LabelValueResponse::value).containsExactly("赵六");
+  }
+
+  @Test
+  void shouldForwardSourceInstanceForCustomerIssuePage() {
+    LabelValueQueryService service = service();
+    when(customerIssueRecordService.getFilterOptions("cc-product", null, "cc"))
+        .thenReturn(customerOptions(
+            List.of(),
+            List.of(),
+            List.of(option("钱七")),
+            List.of()));
+
+    LabelValuePageResponse response =
+        service.listValues("customer_assignee", "customer-issues-cc-product-issues", "cc", null, 1, 20);
+
+    assertThat(response.items()).extracting(LabelValueResponse::value).containsExactly("钱七");
   }
 
   private LabelValueQueryService service() {

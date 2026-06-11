@@ -44,6 +44,7 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
       return rows;
     }
     return rows.stream()
+        .filter(view -> matchesSourceInstance(view, request.sourceInstance()))
         .filter(keywordMatcher)
         .filter(view -> matchesIssueIid(view, request.issueIid()))
         .filter(view -> matchesText(view.title(), request.title()))
@@ -58,6 +59,15 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
         .filter(view -> matchesDateRange(view.createdAt(), request.createdAtStart(), request.createdAtEnd()))
         .filter(view -> matchesDateRange(view.updatedAt(), request.updatedAtStart(), request.updatedAtEnd()))
         .toList();
+  }
+
+  protected boolean matchesSourceInstance(IssueFactRecord view, String sourceInstance) {
+    String normalized = TextQuerySupport.trimToNull(sourceInstance);
+    if (normalized == null) {
+      return true;
+    }
+    return GitlabSourceInstanceSupport.normalizeSourceInstance(view.sourceInstance())
+        .equals(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
   }
 
   protected int normalizePage(int page) {

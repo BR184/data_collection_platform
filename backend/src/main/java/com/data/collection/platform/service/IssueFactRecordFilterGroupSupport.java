@@ -25,6 +25,7 @@ final class IssueFactRecordFilterGroupSupport {
           Map.entry("issueState", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("bugStatus", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("category", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
+          Map.entry("assigneeName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
           Map.entry("milestoneTitle", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
           Map.entry("createdAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")),
           Map.entry("updatedAt", List.of("year", "month", "day", "before", "after", "between", "isEmpty", "isNotEmpty")));

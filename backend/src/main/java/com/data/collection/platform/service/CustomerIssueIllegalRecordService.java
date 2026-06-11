@@ -199,6 +199,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     }
 
     List<String> lines = new ArrayList<>();
+    List<String> labelGroupSnapshots = describeExpandedLabelGroupFilters(request);
+    if (!labelGroupSnapshots.isEmpty()) {
+      lines.add(String.join(
+          ",",
+          List.of("标签组筛选快照", CsvExportSupport.cell(String.join("；", labelGroupSnapshots)))));
+    }
     lines.add(
         String.join(
             ",",
@@ -244,6 +250,29 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   CsvExportSupport.cell(row.issueLink()))));
     }
     return String.join("\n", lines) + "\n";
+  }
+
+  private List<String> describeExpandedLabelGroupFilters(CustomerIssueIllegalRecordQueryRequest request) {
+    StatisticFilterGroup filterGroup =
+        IssueFactRecordFilterGroupSupport.parse(
+            objectMapper,
+            request.filterGroupJson(),
+            IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
+    StatisticFilterGroup expandedFilterGroup =
+        expandLabelGroupConditions(filterGroup, request.listRequest().sourceInstance());
+    if (expandedFilterGroup == null || expandedFilterGroup.conditions() == null) {
+      return List.of();
+    }
+    return expandedFilterGroup.conditions().stream()
+        .filter(StatisticFilterCondition::usesLabelGroup)
+        .map(condition -> "%s %s %s（标签组：%s）".formatted(
+            condition.fieldKey(),
+            condition.operator(),
+            TextQuerySupport.trimToNull(condition.labelGroupName()) == null
+                ? condition.labelGroupId()
+                : condition.labelGroupName(),
+            String.join("、", condition.values())))
+        .toList();
   }
 
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {

@@ -207,6 +207,59 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
+  void shouldApplyAssigneeLabelGroupFiltersThroughExistingFilterGroup() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(
+            List.of(
+                record(104, "assigned to Bob", List.of("草图"), false, false, "", "Alice", "Bob"),
+                record(105, "assigned to Carl", List.of("草图"), false, false, "", "Alice", "Carl")));
+    when(labelGroupExpansionService.expand(
+            10L, "STRING", "assigneeName", "customer-issues-cc-product-issues", "default"))
+        .thenReturn(new LabelGroupExpansionResponse(10L, "核心处理人", "STRING", List.of("Bob"), List.of()));
+
+    CustomerIssueRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "default",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":10,"labelGroupName":"核心处理人"}]}
+                """));
+
+    assertThat(response.records()).extracting(CustomerIssueRecordRowResponse::issueIid).containsExactly(104);
+  }
+
+  @Test
   void shouldKeepRequestFiltersWhenExportingPagedRecords() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
@@ -261,6 +314,81 @@ class CustomerIssueRecordServiceTest {
                         && query.listRequest().size() == 100));
   }
 
+  @Test
+  void shouldWriteExpandedLabelGroupSnapshotWhenExportingCsv() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(List.of(record(103, "CC_PRODUCT", List.of("草图"), false, false, "", "Alice", "Bob")));
+    when(labelGroupExpansionService.expand(8L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
+        .thenReturn(new LabelGroupExpansionResponse(8L, "核心模块", "STRING", List.of("草图"), List.of()));
+
+    String csv =
+        service.exportRecordsCsv(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "default",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
+                """));
+
+    assertThat(csv)
+        .startsWith("标签组筛选快照,")
+        .contains("moduleName eq 核心模块（标签组：草图）");
+  }
+
+  @Test
+  void shouldScopeFilterOptionsBySourceInstance() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(null))
+        .thenReturn(
+            List.of(
+                recordWithSource("cc", 106, "cc source", List.of("草图"), "Alice", "Bob"),
+                recordWithSource("default", 107, "default source", List.of("工程图"), "Alice", "Carl")));
+
+    List<String> assigneeOptions =
+        service.getFilterOptions("cc-product", null, "cc").assigneeNames().stream()
+            .map(option -> option.value())
+            .toList();
+
+    assertThat(assigneeOptions).containsExactly("Bob");
+  }
+
   private IssueFactRecord record(
       int issueIid,
       String title,
@@ -304,6 +432,53 @@ class CustomerIssueRecordServiceTest {
         false,
         illegal,
         illegal ? "illegal reason" : "",
+        now.minusDays(3),
+        now.minusDays(1),
+        null);
+  }
+
+  private IssueFactRecord recordWithSource(
+      String sourceInstance,
+      int issueIid,
+      String title,
+      List<String> moduleNames,
+      String authorName,
+      String assigneeName) {
+    LocalDateTime now = LocalDateTime.of(2026, 4, 24, 10, 0);
+    return new IssueFactRecord(
+        325L,
+        sourceInstance,
+        "CC_PRODUCT",
+        9000L + issueIid,
+        issueIid,
+        title,
+        "opened",
+        "",
+        "",
+        "S2",
+        "P1",
+        "Open",
+        "Bug",
+        "",
+        false,
+        "",
+        false,
+        false,
+        false,
+        false,
+        false,
+        "R1",
+        authorName,
+        assigneeName,
+        moduleNames,
+        List.of("customer"),
+        false,
+        "",
+        "",
+        false,
+        false,
+        false,
+        "",
         now.minusDays(3),
         now.minusDays(1),
         null);

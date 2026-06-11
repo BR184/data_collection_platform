@@ -188,6 +188,57 @@ class CustomerIssueIllegalRecordServiceTest {
     verify(issueFactRecordRepository, never()).findPage(any());
   }
 
+  @Test
+  void shouldWriteExpandedLabelGroupSnapshotWhenExportingCsv() {
+    CustomerIssueIllegalRecordService service =
+        new CustomerIssueIllegalRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(List.of(record(203, "illegal a", "draft", true, "missing module")));
+    when(labelGroupExpansionService.expand(
+            9L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
+        .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
+
+    String csv =
+        service.exportRecordsCsv(
+            new CustomerIssueIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "default",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":9,"labelGroupName":"模块组"}]}
+                """));
+
+    assertThat(csv)
+        .startsWith("标签组筛选快照,")
+        .contains("moduleName eq 模块组（标签组：draft）");
+  }
+
   private IssueFactRecord record(
       int issueIid, String title, String moduleName, boolean illegal, String illegalReason) {
     LocalDateTime now = LocalDateTime.of(2026, 4, 24, 10, 0);
