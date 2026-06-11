@@ -1,6 +1,8 @@
 import type {
   LabelDimension,
   LabelGroup,
+  LabelGroupDynamicRulePreview,
+  LabelGroupDynamicRulePreviewRequest,
   LabelGroupCompatiblePage,
   LabelGroupDynamicRuleTemplate,
   LabelGroupExpansion,
@@ -46,6 +48,12 @@ export const labelGroupsApi = {
   },
   listDynamicRuleTemplates() {
     return request<LabelGroupDynamicRuleTemplate[]>('/api/label-groups/dynamic-rule-templates');
+  },
+  previewDynamicRule(payload: LabelGroupDynamicRulePreviewRequest) {
+    return request<LabelGroupDynamicRulePreview>('/api/label-groups/dynamic-rule-preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
   listLabelGroups(params: LabelGroupListParams = {}) {
     const query = new URLSearchParams({

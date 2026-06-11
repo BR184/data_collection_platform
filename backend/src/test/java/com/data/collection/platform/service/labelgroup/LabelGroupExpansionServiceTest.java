@@ -63,9 +63,19 @@ class LabelGroupExpansionServiceTest {
     assertThat(response.values()).containsExactly("需求如此", "设计如此");
   }
 
+  @Test
+  void shouldExpandCustomerBugStatusEquivalentValues() {
+    LabelGroupExpansionService service = service(group("STRING", true, member("需求如此")));
+
+    LabelGroupExpansionResponse response =
+        service.expand(1L, "STRING", "bugStatus", "customer-issues-cc-product-issues", null);
+
+    assertThat(response.values()).containsExactly("需求如此", "设计如此");
+  }
+
   private LabelGroupExpansionService service(LabelGroupRecord group) {
     LabelGroupRepository repository = mock(LabelGroupRepository.class);
-    LabelGroupService groupService = new LabelGroupService(repository);
+    LabelGroupService groupService = new LabelGroupService(repository, null);
     when(repository.findById(1L)).thenReturn(Optional.of(group));
     return new LabelGroupExpansionService(groupService);
   }

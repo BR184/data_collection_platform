@@ -39,6 +39,21 @@ describe('labelGroupsApi', () => {
     expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-templates');
   });
 
+  it('previews dynamic rule members through internal rule payload', () => {
+    labelGroupsApi.previewDynamicRule({
+      ruleTemplateKey: 'recent-active-assignee',
+      ruleParamsJson: '{"days":30,"scope":"system-test"}',
+    });
+
+    expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-preview', {
+      method: 'POST',
+      body: JSON.stringify({
+        ruleTemplateKey: 'recent-active-assignee',
+        ruleParamsJson: '{"days":30,"scope":"system-test"}',
+      }),
+    });
+  });
+
   it('creates updates and deletes groups with Chinese errors passed through by request', async () => {
     labelGroupsApi.createLabelGroup({
       name: '核心人员',

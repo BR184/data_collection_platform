@@ -20,6 +20,13 @@ export interface LabelGroupFormState {
   dynamicRuleParams: Record<string, DynamicRuleParamValue>;
 }
 
+export interface ChildGroupExpandedPreview {
+  members: LabelGroupMember[];
+  total: number;
+  hiddenCount: number;
+  overLimit: boolean;
+}
+
 export function createEmptyLabelGroupForm(): LabelGroupFormState {
   return {
     id: null,
@@ -156,6 +163,33 @@ export function buildMemberPreview(group: LabelGroup, limit = 4) {
   const visible = members.slice(0, limit).map((member) => member.label || member.value).join('、');
   const hiddenCount = members.length - limit;
   return hiddenCount > 0 ? `${visible} 等 ${members.length} 个` : visible;
+}
+
+export function buildChildGroupExpandedPreview(
+    groups: LabelGroup[],
+    childGroupIds: number[],
+    limit = 20,
+): ChildGroupExpandedPreview {
+  const deduped = new Map<string, LabelGroupMember>();
+  for (const childGroupId of childGroupIds) {
+    const group = groups.find((item) => item.id === childGroupId);
+    const members = group?.expandedPreview?.length ? group.expandedPreview : group?.members ?? [];
+    for (const member of members) {
+      if (!deduped.has(member.value)) {
+        deduped.set(member.value, {
+          value: member.value,
+          label: member.label || member.value,
+        });
+      }
+    }
+  }
+  const members = Array.from(deduped.values());
+  return {
+    members: members.slice(0, limit),
+    total: members.length,
+    hiddenCount: Math.max(0, members.length - limit),
+    overLimit: members.length > 200,
+  };
 }
 
 export function unavailableMemberCount(members: LabelGroupMember[]) {

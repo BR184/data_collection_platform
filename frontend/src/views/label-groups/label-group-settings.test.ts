@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildLabelGroupSaveRequest,
+  buildChildGroupExpandedPreview,
   buildMemberPreview,
   createEmptyLabelGroupForm,
   createLabelGroupForm,
@@ -165,6 +166,41 @@ describe('label group settings helpers', () => {
 
     expect(buildMemberPreview(group)).toBe('A、B、C、D 等 5 个');
     expect(unavailableMemberCount(group.members)).toBe(1);
+  });
+
+  it('builds child group expanded preview with deduped values', () => {
+    const preview = buildChildGroupExpandedPreview([
+      {
+        id: 1,
+        name: '动态处理人',
+        valueType: 'STRING',
+        groupType: 'DYNAMIC',
+        enabled: true,
+        memberCount: 2,
+        members: [],
+        expandedPreview: [
+          { value: '张三', label: '张三' },
+          { value: '李四', label: '李四' },
+        ],
+      },
+      {
+        id: 2,
+        name: '静态关注人',
+        valueType: 'STRING',
+        groupType: 'STATIC',
+        enabled: true,
+        memberCount: 2,
+        members: [
+          { value: '李四', label: '李四' },
+          { value: '王五', label: '王五' },
+        ],
+      },
+    ], [1, 2], 2);
+
+    expect(preview.total).toBe(3);
+    expect(preview.hiddenCount).toBe(1);
+    expect(preview.members.map((member) => member.value)).toEqual(['张三', '李四']);
+    expect(preview.overLimit).toBe(false);
   });
 
   it('infers value type from the first member and detects mixed values', () => {

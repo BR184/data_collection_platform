@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
+import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +25,7 @@ class CustomerIssueIllegalRecordServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
+  @Mock private LabelGroupExpansionService labelGroupExpansionService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -29,7 +34,8 @@ class CustomerIssueIllegalRecordServiceTest {
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            issueLinkService);
+            issueLinkService,
+            labelGroupExpansionService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
 
@@ -76,7 +82,8 @@ class CustomerIssueIllegalRecordServiceTest {
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            issueLinkService);
+            issueLinkService,
+            labelGroupExpansionService);
     when(issueLinkService.issueUrl("default", 325L, 201))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/201");
     when(issueFactRecordRepository.findPage(any()))
@@ -126,6 +133,59 @@ class CustomerIssueIllegalRecordServiceTest {
                         && query.illegalOnly()
                         && "missing module".equals(query.illegalReason())
                         && "illegal".equals(query.listRequest().keyword())));
+  }
+
+  @Test
+  void shouldExpandLabelGroupFiltersThroughExistingFilterGroup() {
+    CustomerIssueIllegalRecordService service =
+        new CustomerIssueIllegalRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(
+            List.of(
+                record(201, "illegal a", "draft", true, "missing module"),
+                record(202, "illegal b", "sketch", true, "missing response")));
+    when(labelGroupExpansionService.expand(
+            9L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
+        .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
+
+    CustomerIssueIllegalRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "default",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":9,"labelGroupName":"模块组"}]}
+                """));
+
+    assertThat(response.records()).extracting(CustomerIssueIllegalRecordRowResponse::issueIid).containsExactly(201);
+    verify(issueFactRecordRepository, never()).findPage(any());
   }
 
   private IssueFactRecord record(

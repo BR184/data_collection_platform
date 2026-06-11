@@ -35,9 +35,13 @@ public class LabelGroupService {
   private static final String DEFAULT_USER = "system";
 
   private final LabelGroupRepository repository;
+  private final LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
 
-  public LabelGroupService(LabelGroupRepository repository) {
+  public LabelGroupService(
+      LabelGroupRepository repository,
+      LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService) {
     this.repository = repository;
+    this.dynamicRuleEvaluationService = dynamicRuleEvaluationService;
   }
 
   @Transactional
@@ -48,6 +52,7 @@ public class LabelGroupService {
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
     LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(null, request.dynamicRule());
+    members = materializeDynamicMembers(groupType, members, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
     validateGroupShape(null, groupType, valueType, members, childGroups, dynamicRule);
 
@@ -68,6 +73,7 @@ public class LabelGroupService {
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
     LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(groupId, request.dynamicRule());
+    members = materializeDynamicMembers(groupType, members, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
     validateGroupShape(groupId, groupType, valueType, members, childGroups, dynamicRule);
     boolean enabled = request.enabled() == null ? existing.enabled() : request.enabled();
@@ -291,10 +297,24 @@ public class LabelGroupService {
   }
 
   private String inferDynamicRuleOutputValueType(String templateKey) {
+    if (dynamicRuleEvaluationService != null) {
+      return dynamicRuleEvaluationService.outputValueType(templateKey);
+    }
     return switch (templateKey) {
       case "recent-active-assignee", "current-version-delayed-assignee" -> TYPE_STRING;
       default -> null;
     };
+  }
+
+  private List<LabelGroupMemberRecord> materializeDynamicMembers(
+      String groupType,
+      List<LabelGroupMemberRecord> members,
+      LabelGroupDynamicRuleRecord dynamicRule) {
+    if (!TYPE_DYNAMIC.equals(groupType) || dynamicRule == null || dynamicRuleEvaluationService == null) {
+      return members;
+    }
+    return dynamicRuleEvaluationService.materializeMembers(
+        dynamicRule.ruleTemplateKey(), dynamicRule.ruleParamsJson());
   }
 
   private String mergeValueType(String current, String next, String value) {

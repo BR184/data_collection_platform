@@ -25,7 +25,7 @@ class LabelGroupServiceTest {
   @BeforeEach
   void setUp() {
     repository = new InMemoryLabelGroupRepository();
-    service = new LabelGroupService(repository);
+    service = new LabelGroupService(repository, null);
   }
 
   @Test

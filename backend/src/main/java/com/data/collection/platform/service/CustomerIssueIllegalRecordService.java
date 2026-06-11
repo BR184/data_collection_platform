@@ -3,10 +3,13 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,23 +22,35 @@ import org.springframework.util.StringUtils;
 @Service
 public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordListService {
   private static final String WORKSPACE_KEY = "customer-issue-illegal-records";
+  private static final String PAGE_KEY = "customer-issues-cc-product-issues";
   private static final String RULE_VERSION = "customer-issue-illegal-records@2026-04-22-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final int EXPORT_PAGE_SIZE = 100;
+  private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
+  private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
+      Map.ofEntries(
+          Map.entry("moduleName", "STRING"),
+          Map.entry("priorityLevel", "STRING"),
+          Map.entry("bugStatus", "STRING"),
+          Map.entry("assigneeName", "STRING"),
+          Map.entry("milestoneTitle", "STRING"));
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final ObjectMapper objectMapper;
+  private final LabelGroupExpansionService labelGroupExpansionService;
 
   public CustomerIssueIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       ObjectMapper objectMapper,
-      GitlabResourceLinkService issueLinkService) {
+      GitlabResourceLinkService issueLinkService,
+      LabelGroupExpansionService labelGroupExpansionService) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
+    this.labelGroupExpansionService = labelGroupExpansionService;
   }
 
   public CustomerIssueIllegalRecordListResponse listRecords(
@@ -51,14 +66,16 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             objectMapper,
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
+    StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
+    boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
 
-    if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
+    if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
                   IssueFactRecordPageQuery.Scope.CUSTOMER,
                   listRequest,
-                  filterGroup,
+                  expandedFilterGroup,
                   null,
                   request.illegalReason(),
                   null,
@@ -87,7 +104,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             .stream()
             .filter(IssueFactRecord::illegal)
             .filter(view -> matchesEquals(view.illegalReason(), request.illegalReason()))
-            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, filterGroup))
+            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
 
@@ -96,6 +113,49 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         pageSlice.records().stream().map(this::toResponse).toList();
     return new CustomerIssueIllegalRecordListResponse(
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
+  }
+
+  private StatisticFilterGroup expandLabelGroupConditions(
+      StatisticFilterGroup filterGroup, String sourceInstance) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return filterGroup;
+    }
+    return new StatisticFilterGroup(
+        filterGroup.logic(),
+        filterGroup.conditions().stream()
+            .map(condition -> expandLabelGroupCondition(condition, sourceInstance))
+            .toList());
+  }
+
+  private StatisticFilterCondition expandLabelGroupCondition(
+      StatisticFilterCondition condition, String sourceInstance) {
+    if (condition == null || !condition.usesLabelGroup()) {
+      return condition;
+    }
+    String fieldKey = requireSupportedLabelGroupField(condition.fieldKey());
+    LabelGroupExpansionResponse expansion =
+        labelGroupExpansionService.expand(
+            condition.labelGroupId(), LABEL_GROUP_FIELD_VALUE_TYPES.get(fieldKey), fieldKey, PAGE_KEY, sourceInstance);
+    if (expansion.values().size() > MAX_LABEL_GROUP_FILTER_VALUES) {
+      throw new com.data.collection.platform.common.exception.BizException("筛选条件展开后超过 200 个值，请减少普通筛选值或拆分标签组");
+    }
+    return new StatisticFilterCondition(
+        fieldKey,
+        condition.operator(),
+        null,
+        null,
+        "LABEL_GROUP",
+        condition.labelGroupId(),
+        condition.labelGroupName(),
+        expansion.values());
+  }
+
+  private String requireSupportedLabelGroupField(String fieldKey) {
+    String normalized = TextQuerySupport.trimToNull(fieldKey);
+    if (normalized == null || !LABEL_GROUP_FIELD_VALUE_TYPES.containsKey(normalized)) {
+      throw new com.data.collection.platform.common.exception.BizException("当前页面不支持该标签组筛选字段");
+    }
+    return normalized;
   }
 
   public String exportRecordsCsv(CustomerIssueIllegalRecordQueryRequest request) {

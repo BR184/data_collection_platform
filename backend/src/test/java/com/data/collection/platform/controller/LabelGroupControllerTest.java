@@ -12,12 +12,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRulePreviewResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValueResponse;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleEvaluationService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleTemplateService;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.labelgroup.LabelGroupService;
@@ -39,6 +41,7 @@ class LabelGroupControllerTest {
   @Mock private LabelValueQueryService labelValueQueryService;
   @Mock private LabelGroupService labelGroupService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
 
   private MockMvc mockMvc;
 
@@ -51,7 +54,8 @@ class LabelGroupControllerTest {
                     labelValueQueryService,
                     labelGroupService,
                     labelGroupExpansionService,
-                    new LabelGroupDynamicRuleTemplateService()))
+                    new LabelGroupDynamicRuleTemplateService(),
+                    dynamicRuleEvaluationService))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
   }
@@ -109,6 +113,32 @@ class LabelGroupControllerTest {
         .andExpect(jsonPath("$.data[0].outputValueType").value("STRING"))
         .andExpect(jsonPath("$.data[0].parameters[0].key").value("days"))
         .andExpect(jsonPath("$.data[0].parameters[0].controlType").value("number"));
+  }
+
+  @Test
+  void shouldPreviewDynamicRuleMembers() throws Exception {
+    when(dynamicRuleEvaluationService.preview(eq("recent-active-assignee"), eq("{\"days\":30}")))
+        .thenReturn(
+            new LabelGroupDynamicRulePreviewResponse(
+                "recent-active-assignee",
+                "STRING",
+                "SUCCESS",
+                "已计算出 1 个成员",
+                List.of(new LabelGroupMemberResponse(null, "张三", "张三", true, 0))));
+
+    mockMvc.perform(
+            post("/api/label-groups/dynamic-rule-preview")
+                .contentType("application/json")
+                .content(
+                    """
+                    {
+                      "ruleTemplateKey": "recent-active-assignee",
+                      "ruleParamsJson": "{\\"days\\":30}"
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.members[0].value").value("张三"));
   }
 
   @Test

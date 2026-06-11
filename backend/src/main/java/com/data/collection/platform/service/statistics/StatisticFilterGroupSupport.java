@@ -113,6 +113,26 @@ final class StatisticFilterGroupSupport {
       }
       String value = trimToNull(condition.value());
       String secondaryValue = trimToNull(condition.secondaryValue());
+      if (condition.usesLabelGroup()) {
+        if (!"eq".equals(operator) && !"ne".equals(operator)) {
+          throw new IllegalArgumentException(
+              "Unsupported label group operator for field " + field.key() + ": " + condition.operator());
+        }
+        if (condition.labelGroupId() == null) {
+          continue;
+        }
+        normalized.add(
+            new StatisticFilterCondition(
+                field.key(),
+                operator,
+                null,
+                null,
+                "LABEL_GROUP",
+                condition.labelGroupId(),
+                trimToNull(condition.labelGroupName()),
+                condition.values() == null ? java.util.List.of() : condition.values()));
+        continue;
+      }
       if (requiresPrimaryValue(operator) && value == null) {
         continue;
       }

@@ -4,8 +4,9 @@ import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberPicker.vue';
-import type { LabelDimension, LabelGroup, LabelGroupDynamicRuleTemplate } from '../types/api';
+import type { LabelDimension, LabelGroup, LabelGroupDynamicRulePreview, LabelGroupDynamicRuleTemplate } from '../types/api';
 import {
+  buildChildGroupExpandedPreview,
   buildLabelGroupSaveRequest,
   buildMemberPreview,
   createEmptyLabelGroupForm,
@@ -22,6 +23,7 @@ import {
 
 const loading = ref(false);
 const saving = ref(false);
+const previewingDynamicRule = ref(false);
 const deletingId = ref<number | null>(null);
 const dialogVisible = ref(false);
 const editMode = ref(false);
@@ -31,6 +33,7 @@ const candidateDimensionKey = ref('');
 const dimensions = ref<LabelDimension[]>([]);
 const groups = ref<LabelGroup[]>([]);
 const dynamicRuleTemplates = ref<LabelGroupDynamicRuleTemplate[]>([]);
+const dynamicRulePreview = ref<LabelGroupDynamicRulePreview | null>(null);
 const form = ref<LabelGroupFormState>(createEmptyLabelGroupForm());
 
 const valueTypeOptions = [
@@ -79,6 +82,9 @@ const childGroupOptions = computed(() => {
     .filter((group) => form.value.groupType === 'COMPOSITE' || group.groupType === 'STATIC')
     .filter((group) => !valueType || valueType === 'MIXED' || !group.valueType || group.valueType === valueType);
 });
+const childGroupExpandedPreview = computed(() =>
+  buildChildGroupExpandedPreview(groups.value, form.value.childGroupIds),
+);
 
 onMounted(async () => {
   await Promise.all([loadDimensions(), loadGroups(), loadDynamicRuleTemplates()]);
@@ -145,6 +151,7 @@ async function loadDynamicRuleTemplates() {
 function openCreateDialog() {
   editMode.value = false;
   form.value = createEmptyLabelGroupForm();
+  dynamicRulePreview.value = null;
   candidateDimensionKey.value = '';
   dialogVisible.value = true;
 }
@@ -152,12 +159,38 @@ function openCreateDialog() {
 function openEditDialog(group: LabelGroup) {
   editMode.value = true;
   form.value = createLabelGroupForm(group);
+  dynamicRulePreview.value = null;
   candidateDimensionKey.value = '';
   dialogVisible.value = true;
 }
 
 function handleDynamicRuleTemplateChange() {
   form.value.dynamicRuleParams = mergeDynamicRuleParams(selectedDynamicRuleTemplate.value, form.value.dynamicRuleParams);
+  dynamicRulePreview.value = null;
+}
+
+async function previewDynamicRule() {
+  const dynamicRuleErrorMessage = validateDynamicRuleParameters(form.value, dynamicRuleTemplates.value);
+  if (dynamicRuleErrorMessage) {
+    ElMessage.warning(dynamicRuleErrorMessage);
+    return false;
+  }
+  if (form.value.groupType !== 'DYNAMIC') {
+    return true;
+  }
+  previewingDynamicRule.value = true;
+  try {
+    dynamicRulePreview.value = await api.previewDynamicRule({
+      ruleTemplateKey: form.value.dynamicRuleTemplateKey.trim(),
+      ruleParamsJson: JSON.stringify(form.value.dynamicRuleParams),
+    });
+    return true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '动态规则预览失败');
+    return false;
+  } finally {
+    previewingDynamicRule.value = false;
+  }
 }
 
 async function submitForm() {
@@ -169,6 +202,9 @@ async function submitForm() {
   const dynamicRuleErrorMessage = validateDynamicRuleParameters(form.value, dynamicRuleTemplates.value);
   if (dynamicRuleErrorMessage) {
     ElMessage.warning(dynamicRuleErrorMessage);
+    return;
+  }
+  if (form.value.groupType === 'DYNAMIC' && !(await previewDynamicRule())) {
     return;
   }
   if (currentValueType.value === 'MIXED') {
@@ -384,6 +420,24 @@ async function deleteGroup(group: LabelGroup) {
           <el-form-item label="输出成员">
             <div class="dynamic-rule-summary">
               <span>成员由动态规则计算生成，保存后按最近一次计算结果展开。</span>
+              <el-button size="small" :loading="previewingDynamicRule" @click="previewDynamicRule">预览成员</el-button>
+            </div>
+            <div v-if="dynamicRulePreview" class="dynamic-rule-preview">
+              <div class="dynamic-rule-preview__header">
+                <el-tag size="small" :type="dynamicRulePreview.members.length ? 'success' : 'info'">
+                  {{ dynamicRulePreview.message }}
+                </el-tag>
+              </div>
+              <div v-if="dynamicRulePreview.members.length" class="label-member-selected-list">
+                <el-tag
+                  v-for="member in dynamicRulePreview.members"
+                  :key="member.value"
+                  type="primary"
+                  :disable-transitions="true"
+                >
+                  {{ member.label || member.value }}
+                </el-tag>
+              </div>
             </div>
           </el-form-item>
         </template>
@@ -427,6 +481,29 @@ async function deleteGroup(group: LabelGroup) {
               :value="group.id"
             />
           </el-select>
+          <div v-if="form.childGroupIds.length" class="child-group-preview">
+            <div class="child-group-preview__header">
+              <el-tag size="small" :type="childGroupExpandedPreview.overLimit ? 'danger' : 'success'">
+                展开后 {{ childGroupExpandedPreview.total }} 个成员
+              </el-tag>
+              <span v-if="childGroupExpandedPreview.overLimit">超过 200 个，请拆分后保存</span>
+              <span v-else>子组结果会并集去重。</span>
+            </div>
+            <div v-if="childGroupExpandedPreview.members.length" class="label-member-selected-list">
+              <el-tag
+                v-for="member in childGroupExpandedPreview.members"
+                :key="member.value"
+                type="primary"
+                effect="plain"
+                :disable-transitions="true"
+              >
+                {{ member.label || member.value }}
+              </el-tag>
+              <el-tag v-if="childGroupExpandedPreview.hiddenCount" type="info" effect="plain">
+                还有 {{ childGroupExpandedPreview.hiddenCount }} 个
+              </el-tag>
+            </div>
+          </div>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.description" type="textarea" :rows="2" maxlength="500" show-word-limit />
@@ -489,6 +566,40 @@ async function deleteGroup(group: LabelGroup) {
   flex-wrap: wrap;
   color: rgba(0, 0, 0, 0.65);
   line-height: 1.6;
+}
+
+.dynamic-rule-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.dynamic-rule-preview__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.child-group-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.child-group-preview__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.label-member-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .label-group-form {

@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
+import com.data.collection.platform.entity.CustomerIssueRecordRowResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +25,7 @@ class CustomerIssueRecordServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
+  @Mock private LabelGroupExpansionService labelGroupExpansionService;
 
   @Test
   void shouldUseSqlPageForPlainListRequests() {
@@ -29,7 +34,8 @@ class CustomerIssueRecordServiceTest {
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            issueLinkService);
+            issueLinkService,
+            labelGroupExpansionService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(
@@ -83,7 +89,8 @@ class CustomerIssueRecordServiceTest {
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            issueLinkService);
+            issueLinkService,
+            labelGroupExpansionService);
     when(issueLinkService.issueUrl("default", 325L, 101))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/101");
     when(issueFactRecordRepository.findPage(any()))
@@ -147,13 +154,67 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
+  void shouldExpandLabelGroupFiltersThroughExistingFilterGroup() {
+    CustomerIssueRecordService service =
+        new CustomerIssueRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(
+            List.of(
+                record(101, "module a issue", List.of("草图"), false, false, "", "Alice", "Bob"),
+                record(102, "module b issue", List.of("工程图"), false, false, "", "Alice", "Bob")));
+    when(labelGroupExpansionService.expand(8L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
+        .thenReturn(new LabelGroupExpansionResponse(8L, "核心模块", "STRING", List.of("草图"), List.of()));
+
+    CustomerIssueRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueRecordQueryRequest(
+                "cc-product",
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "default",
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
+                """));
+
+    assertThat(response.records()).extracting(CustomerIssueRecordRowResponse::issueIid).containsExactly(101);
+    verify(issueFactRecordRepository, never()).findPage(any());
+  }
+
+  @Test
   void shouldKeepRequestFiltersWhenExportingPagedRecords() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
             customerIssueScopeProfile,
             new ObjectMapper(),
-            issueLinkService);
+            issueLinkService,
+            labelGroupExpansionService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(
             new PageSlice<>(

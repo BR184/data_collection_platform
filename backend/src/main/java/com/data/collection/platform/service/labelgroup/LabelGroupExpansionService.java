@@ -26,7 +26,7 @@ public class LabelGroupExpansionService {
     }
 
     LinkedHashSet<String> values = new LinkedHashSet<>(expanded.values());
-    if ("closure_status".equals(fieldKey) && values.contains("需求如此")) {
+    if (isClosureStatusField(fieldKey, pageKey) && values.contains("需求如此")) {
       values.add("设计如此");
     }
     if (values.size() > LabelGroupService.MAX_MEMBER_COUNT) {
@@ -42,5 +42,10 @@ public class LabelGroupExpansionService {
 
   private String normalizeValueType(String value) {
     return value == null || value.isBlank() ? null : value.trim().toUpperCase(java.util.Locale.ROOT);
+  }
+
+  private boolean isClosureStatusField(String fieldKey, String pageKey) {
+    return "closure_status".equals(fieldKey)
+        || ("bugStatus".equals(fieldKey) && "customer-issues-cc-product-issues".equals(pageKey));
   }
 }

@@ -75,6 +75,19 @@ export interface LabelGroupDynamicRuleTemplate {
   parameters: LabelGroupDynamicRuleTemplateParameter[];
 }
 
+export interface LabelGroupDynamicRulePreviewRequest {
+  ruleTemplateKey: string;
+  ruleParamsJson: string;
+}
+
+export interface LabelGroupDynamicRulePreview {
+  ruleTemplateKey: string;
+  outputValueType: string;
+  status: string;
+  message: string;
+  members: LabelGroupMember[];
+}
+
 export interface LabelGroup {
   id: number;
   name: string;

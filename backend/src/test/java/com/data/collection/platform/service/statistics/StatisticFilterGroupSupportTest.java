@@ -48,6 +48,41 @@ class StatisticFilterGroupSupportTest {
   }
 
   @Test
+  void shouldPreserveLabelGroupConditionsFromJsonFilterGroup() {
+    StatisticFilterGroup parsed =
+        StatisticFilterGroupSupport.parseFilterGroup(
+            jsonUtils,
+            Map.of(
+                "filterGroup",
+                """
+                {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
+                """),
+            definition());
+
+    assertThat(parsed.conditions()).hasSize(1);
+    assertThat(parsed.conditions().get(0).usesLabelGroup()).isTrue();
+    assertThat(parsed.conditions().get(0).value()).isNull();
+    assertThat(parsed.conditions().get(0).labelGroupId()).isEqualTo(8L);
+    assertThat(parsed.conditions().get(0).labelGroupName()).isEqualTo("核心模块");
+  }
+
+  @Test
+  void shouldRejectUnsupportedLabelGroupOperator() {
+    assertThatThrownBy(
+            () ->
+                StatisticFilterGroupSupport.parseFilterGroup(
+                    jsonUtils,
+                    Map.of(
+                        "filterGroup",
+                        """
+                        {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"contains","valueType":"LABEL_GROUP","labelGroupId":8}]}
+                        """),
+                    definition()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported label group operator");
+  }
+
+  @Test
   void shouldRejectUnsupportedJsonField() {
     assertThatThrownBy(
             () ->
