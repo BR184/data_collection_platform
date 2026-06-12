@@ -11,6 +11,7 @@ import type {
   StatisticFilterGroup,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
+import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 export interface ReviewDataRecordQueryParams {
   keyword?: string;
@@ -152,7 +153,7 @@ function buildReviewDataRecordQuery(params: ReviewDataRecordQueryParams, include
     ...(params.reviewType ? { reviewType: params.reviewType } : {}),
     ...(params.problemStatus ? { problemStatus: params.problemStatus } : {}),
     ...(params.reviewExpert ? { reviewExpert: params.reviewExpert } : {}),
-    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
     ...(params.sourceInstance ? { sourceInstance: params.sourceInstance } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),

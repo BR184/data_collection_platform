@@ -63,13 +63,13 @@ describe('issueRecordsApi source instance query contract', () => {
     issueRecordsApi.getSystemTestIssueSearchRecords({ filterGroup });
 
     expect(decodeURIComponent(String(vi.mocked(request).mock.calls[0][0]))).toContain(
-      'filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+      'filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"intersects","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
     );
 
     issueRecordsApi.exportSystemTestIssueSearchRecords({ filterGroup });
 
     expect(decodeURIComponent(String(vi.mocked(requestText).mock.calls[0][0]))).toContain(
-      '/api/question-metrics/issues/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+      '/api/question-metrics/issues/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"intersects","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
     );
   });
 

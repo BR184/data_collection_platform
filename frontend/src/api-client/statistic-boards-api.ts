@@ -6,6 +6,7 @@ import type {
   StatisticFilterGroup,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
+import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 export interface StatisticBoardQueryParams {
   filters?: Record<string, string>;
@@ -15,7 +16,7 @@ export interface StatisticBoardQueryParams {
 function buildStatisticBoardQuery(params?: StatisticBoardQueryParams) {
   const searchParams = new URLSearchParams(params?.filters ?? {});
   if (params?.filterGroup && params.filterGroup.conditions.length) {
-    searchParams.set('filterGroup', JSON.stringify(params.filterGroup));
+    searchParams.set('filterGroup', stringifyStatisticFilterGroup(params.filterGroup));
   }
   const queryString = searchParams.toString();
   return queryString ? `?${queryString}` : '';
@@ -50,7 +51,7 @@ export const statisticBoardsApi = {
       ...(params.filters ?? {}),
     });
     if (params.filterGroup && params.filterGroup.conditions.length) {
-      query.set('filterGroup', JSON.stringify(params.filterGroup));
+      query.set('filterGroup', stringifyStatisticFilterGroup(params.filterGroup));
     }
     return request<StatisticDetailResponse>(`/api/statistic-boards/${boardKey}/details?${query.toString()}`);
   },

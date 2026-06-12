@@ -13,6 +13,7 @@ import type {
   SystemTestIssueSearchListResponse,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
+import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 type SystemTestIssueSearchQueryParams = {
   projectId?: string | number | null;
@@ -70,7 +71,7 @@ function buildSystemTestIssueSearchQuery(params: SystemTestIssueSearchQueryParam
     ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -99,7 +100,7 @@ function buildSystemTestIllegalRecordQuery(params: SystemTestIllegalRecordQueryP
     ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -148,7 +149,7 @@ function buildCustomerIssueIllegalRecordQuery(params: {
     ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -199,7 +200,7 @@ function buildCustomerIssueRecordQuery(params: {
     ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
     ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
     ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
   });
@@ -319,7 +320,7 @@ export const issueRecordsApi = {
       ...(params.createdAtEnd ? { createdAtEnd: params.createdAtEnd } : {}),
       ...(params.updatedAtStart ? { updatedAtStart: params.updatedAtStart } : {}),
       ...(params.updatedAtEnd ? { updatedAtEnd: params.updatedAtEnd } : {}),
-      ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+      ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
       ...(params.sortBy ? { sortBy: params.sortBy } : {}),
       ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     });

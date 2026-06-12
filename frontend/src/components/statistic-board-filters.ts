@@ -4,6 +4,17 @@ import type {
   StatisticFilterGroup,
   StatisticFilterOperator,
 } from '../types/api';
+import {
+  defaultLabelGroupOperator,
+  isLabelGroupOperator,
+  normalizeLabelGroupOperator,
+} from '../utils/statistic-filter-group';
+
+export {
+  defaultLabelGroupOperator,
+  isLabelGroupOperator,
+  normalizeLabelGroupOperator,
+};
 
 export interface StatisticFilterConditionDraft {
   id: string;
@@ -20,6 +31,8 @@ export interface StatisticFilterDraftGroup {
   logic: 'AND' | 'OR';
   conditions: StatisticFilterConditionDraft[];
 }
+
+type NormalizableFilterCondition = StatisticFilterCondition | StatisticFilterConditionDraft;
 
 let filterConditionSeed = 0;
 
@@ -64,36 +77,32 @@ export function normalizeFilterDraftGroup(
   if (!source || !Array.isArray(source.conditions) || source.conditions.length === 0) {
     return createEmptyFilterGroup();
   }
+  const sourceConditions = source.conditions as NormalizableFilterCondition[];
+  const conditions: StatisticFilterConditionDraft[] = sourceConditions
+    .filter((condition) => fieldMap.has(condition.fieldKey))
+    .map((condition): StatisticFilterConditionDraft => ({
+      id: createFilterConditionDraft(fieldMap.get(condition.fieldKey)).id,
+      fieldKey: condition.fieldKey,
+      operator: normalizeConditionOperator(condition.operator ?? '', condition.valueType),
+      value: condition.valueType === 'LABEL_GROUP' && condition.labelGroupId
+        ? labelGroupSelectValue(condition.labelGroupId)
+        : condition.value ?? '',
+      secondaryValue: condition.secondaryValue ?? '',
+      valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
+      labelGroupId: condition.labelGroupId ?? null,
+      labelGroupName: condition.labelGroupName ?? null,
+    }));
   return {
     logic: source.logic === 'OR' ? 'OR' : 'AND',
-    conditions: source.conditions
-      .filter((condition) => fieldMap.has(condition.fieldKey))
-      .map((condition) => ({
-        id: createFilterConditionDraft(fieldMap.get(condition.fieldKey)).id,
-        fieldKey: condition.fieldKey,
-        operator: normalizeConditionOperator(condition.operator, condition.valueType),
-        value: condition.valueType === 'LABEL_GROUP' && condition.labelGroupId
-          ? labelGroupSelectValue(condition.labelGroupId)
-          : condition.value ?? '',
-        secondaryValue: condition.secondaryValue ?? '',
-        valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
-        labelGroupId: condition.labelGroupId ?? null,
-        labelGroupName: condition.labelGroupName ?? null,
-      })),
+    conditions,
   };
 }
 
-function normalizeConditionOperator(operator: StatisticFilterOperator, valueType?: string | null): StatisticFilterOperator {
+function normalizeConditionOperator(operator: StatisticFilterOperator | '', valueType?: string | null): StatisticFilterOperator | '' {
   if (valueType !== 'LABEL_GROUP') {
     return operator;
   }
-  if (operator === 'eq') {
-    return 'intersects';
-  }
-  if (operator === 'ne') {
-    return 'notIntersects';
-  }
-  return operator;
+  return normalizeLabelGroupOperator(operator);
 }
 
 export function sanitizeFilterDraftGroup(draft: StatisticFilterDraftGroup): StatisticFilterGroup | null {
@@ -182,10 +191,6 @@ export function operatorLabel(operator: StatisticFilterOperator | '') {
       isNotEmpty: '不为空',
     } as Record<string, string>
   )[operator] ?? '条件';
-}
-
-export function isLabelGroupOperator(operator: StatisticFilterOperator | '') {
-  return ['intersects', 'notIntersects', 'containsAll', 'notContainsAll'].includes(operator);
 }
 
 export function usesSecondaryValue(operator: StatisticFilterOperator | '') {

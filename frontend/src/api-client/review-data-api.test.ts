@@ -61,7 +61,7 @@ describe('reviewDataApi source instance query contract', () => {
     });
 
     expect(decodeURIComponent(String(vi.mocked(request).mock.calls[0][0]))).toContain(
-      'filterGroup={"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心模块"}]}',
+      'filterGroup={"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"intersects","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心模块"}]}',
     );
 
     reviewDataApi.exportReviewDataRecordsWorkbook({
@@ -69,7 +69,7 @@ describe('reviewDataApi source instance query contract', () => {
     });
 
     expect(decodeURIComponent(String(vi.mocked(requestBlob).mock.calls[0][0]))).toContain(
-      '/api/review-data/records/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心模块"}]}',
+      '/api/review-data/records/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"intersects","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心模块"}]}',
     );
   });
 });

@@ -232,6 +232,8 @@ class ReviewDataExcelExportServiceTest {
         2,
         "样本不足",
         true,
+        "需求评审单.xlsx",
+        0.31,
         LocalDateTime.of(2026, 4, 12, 10, 0),
         LocalDateTime.of(2026, 4, 12, 10, 0),
         false,

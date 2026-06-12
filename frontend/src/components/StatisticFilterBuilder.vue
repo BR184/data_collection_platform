@@ -13,6 +13,7 @@ import {
   createFilterConditionDraft,
   isLabelGroupOperator,
   labelGroupSelectValue,
+  normalizeLabelGroupOperator,
   operatorLabel,
   parseLabelGroupSelectValue,
   usesSecondaryValue,
@@ -264,9 +265,7 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
     condition.valueType = 'LABEL_GROUP';
     condition.labelGroupId = groupId;
     condition.labelGroupName = group?.name ?? '';
-    if (!isLabelGroupOperator(condition.operator)) {
-      condition.operator = 'intersects';
-    }
+    condition.operator = normalizeLabelGroupOperator(condition.operator);
     return;
   }
   condition.value = nextValue;

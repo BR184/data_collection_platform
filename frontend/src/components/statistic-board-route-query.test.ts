@@ -56,7 +56,7 @@ describe('statistic board route query', () => {
 
     expect(result.conditions[0]).toMatchObject({
       fieldKey: 'assigneeName',
-      operator: 'eq',
+      operator: 'intersects',
       value: '__label_group__:1',
       valueType: 'LABEL_GROUP',
       labelGroupId: 1,
@@ -72,7 +72,7 @@ describe('statistic board route query', () => {
 
     expect(result.conditions[0]).toMatchObject({
       fieldKey: 'assigneeName',
-      operator: 'eq',
+      operator: 'intersects',
       value: '__label_group__:1',
       valueType: 'LABEL_GROUP',
       labelGroupId: 1,
@@ -129,6 +129,7 @@ describe('statistic board route query', () => {
     expect(String(patch.filterGroup)).toContain('"valueType":"LABEL_GROUP"');
     expect(String(patch.filterGroup)).toContain('"labelGroupId":1');
     expect(String(patch.filterGroup)).toContain('"labelGroupName":"核心人员"');
+    expect(String(patch.filterGroup)).toContain('"operator":"intersects"');
   });
 
   it('only serializes completed filter conditions into route query patch', () => {
@@ -182,6 +183,7 @@ describe('statistic board route query', () => {
     expect(String(patch.filterGroup)).toContain('"valueType":"LABEL_GROUP"');
     expect(String(patch.filterGroup)).toContain('"labelGroupId":1');
     expect(String(patch.filterGroup)).toContain('"labelGroupName":"核心人员"');
+    expect(String(patch.filterGroup)).toContain('"operator":"intersects"');
   });
 
   it('builds reset patch for both serialized and legacy filters', () => {

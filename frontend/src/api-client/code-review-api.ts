@@ -10,6 +10,7 @@ import type {
 } from '../types/api';
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from '../types/code-review-rule-config';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
+import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 interface CodeReviewIllegalRecordQueryParams {
   projectId?: string | number | null;
@@ -51,7 +52,7 @@ function buildIllegalRecordQuery(params: CodeReviewIllegalRecordQueryParams, inc
     ...(params.mergeRequestIid ? { mergeRequestIid: params.mergeRequestIid } : {}),
     ...(params.owner ? { owner: params.owner } : {}),
     ...(params.source ? { source: params.source } : {}),
-    ...(params.filterGroup ? { filterGroup: JSON.stringify(params.filterGroup) } : {}),
+    ...(params.filterGroup ? { filterGroup: stringifyStatisticFilterGroup(params.filterGroup) } : {}),
     ...(params.sortBy ? { sortBy: params.sortBy } : {}),
     ...(params.sortOrder ? { sortOrder: params.sortOrder } : {}),
     ...(params.ruleConfig ? { ruleConfig: JSON.stringify(params.ruleConfig) } : {}),

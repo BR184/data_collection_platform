@@ -7,6 +7,10 @@ import {
   type StatisticFilterConditionDraft,
   type StatisticFilterDraftGroup,
 } from './statistic-board-filters';
+import {
+  normalizeLabelGroupOperator,
+  stringifyStatisticFilterGroup,
+} from '../utils/statistic-filter-group';
 
 function nextConditionId() {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -144,7 +148,10 @@ function parseRouteFilterGroup(value: string): StatisticFilterGroup | null {
       logic: parsed.logic === 'OR' ? 'OR' : 'AND',
       conditions: parsed.conditions.map((condition) => ({
         fieldKey: String(condition?.fieldKey ?? ''),
-        operator: String(condition?.operator ?? '') as StatisticFilterOperator,
+        operator: normalizeRoutePersistedOperator(
+          String(condition?.operator ?? '') as StatisticFilterOperator | '',
+          condition?.valueType,
+        ),
         value: condition?.value == null ? '' : String(condition.value),
         secondaryValue: condition?.secondaryValue == null ? '' : String(condition.secondaryValue),
         valueType: condition?.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
@@ -160,11 +167,11 @@ function parseRouteFilterGroup(value: string): StatisticFilterGroup | null {
 function stringifyRouteFilterGroup(
   filterDraft: Pick<StatisticFilterDraftGroup, 'logic' | 'conditions'> | StatisticFilterGroup,
 ) {
-  return JSON.stringify({
+  return stringifyStatisticFilterGroup({
     logic: filterDraft.logic === 'OR' ? 'OR' : 'AND',
     conditions: filterDraft.conditions.map((condition) => ({
       fieldKey: condition.fieldKey,
-      operator: condition.operator,
+      operator: normalizeRoutePersistedOperator(condition.operator, condition.valueType),
       value: normalizeRouteScalar(condition.value),
       secondaryValue: normalizeRouteScalar(condition.secondaryValue),
       ...(condition.valueType === 'LABEL_GROUP'
@@ -185,7 +192,7 @@ function toDraftFilterGroup(source: StatisticFilterGroup): StatisticFilterDraftG
     source.conditions.map((condition) => ({
       id: nextConditionId(),
       fieldKey: condition.fieldKey ?? '',
-      operator: (condition.operator ?? '') as StatisticFilterOperator | '',
+      operator: normalizeRouteDraftOperator(condition.operator ?? '', condition.valueType),
       value: condition.valueType === 'LABEL_GROUP' && condition.labelGroupId
         ? `__label_group__:${condition.labelGroupId}`
         : condition.value ?? '',
@@ -198,6 +205,23 @@ function toDraftFilterGroup(source: StatisticFilterGroup): StatisticFilterDraftG
     ...conditions,
   );
   return draftGroup;
+}
+
+function normalizeRoutePersistedOperator(
+  operator: StatisticFilterOperator | '',
+  valueType?: string | null,
+): StatisticFilterOperator {
+  if (valueType === 'LABEL_GROUP') {
+    return normalizeLabelGroupOperator(operator);
+  }
+  return operator || 'eq';
+}
+
+function normalizeRouteDraftOperator(
+  operator: StatisticFilterOperator | '',
+  valueType?: string | null,
+): StatisticFilterOperator | '' {
+  return valueType === 'LABEL_GROUP' ? normalizeLabelGroupOperator(operator) : operator;
 }
 
 function normalizeRouteScalar(value: string | number | null | undefined) {
