@@ -1,4 +1,8 @@
 import type {
+  ReviewDataContentResponse,
+  ReviewDataContentSaveRequest,
+  ReviewDataDescriptionResponse,
+  ReviewDataDescriptionSaveRequest,
   ReviewDataFilterOptionsResponse,
   ReviewDataProblemItemResponse,
   ReviewDataRecordRowResponse,
@@ -28,7 +32,12 @@ export interface ReviewRecordFormModel {
   notReachStandardReason: string;
   sourceFileName: string;
   weightedDefectDensity: number | null;
+  descriptions: ReviewRecordDescriptionFormModel[];
+  contents: ReviewRecordContentFormModel[];
 }
+
+export type ReviewRecordDescriptionFormModel = ReviewDataDescriptionSaveRequest;
+export type ReviewRecordContentFormModel = ReviewDataContentSaveRequest;
 
 export interface ReviewProblemItemFormModel {
   reviewerName: string;
@@ -51,6 +60,11 @@ export function reviewDataColumns(): RecordTableColumn[] {
     { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'problemDensity', label: '评审缺陷密度(个/页)', sortable: true, width: 110, align: 'right' },
+    { key: 'reviewCategorySummary', label: '评审类别', width: 120 },
+    { key: 'docSpecificationCount', label: '文档规范', type: 'number', sortable: true, width: 100, align: 'right' },
+    { key: 'integrityCount', label: '完整性规范', type: 'number', sortable: true, width: 110, align: 'right' },
+    { key: 'functionalityCount', label: '功能性规范', type: 'number', sortable: true, width: 110, align: 'right' },
+    { key: 'feasibilityCount', label: '可行性规范', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewEfficiency', label: '评审效率(个/小时)', sortable: true, width: 130, align: 'right' },
     { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 120, align: 'right' },
     { key: 'moduleName', label: '模块', sortable: true, width: 80 },
@@ -261,6 +275,11 @@ export function buildReviewDataTableRows(rows: ReviewDataRecordRowResponse[]) {
     problemCount: row.problemCount ?? 0,
     reviewScalePages: row.reviewScalePages ?? 0,
     problemDensity: formatNullableNumber(row.problemDensity, 2),
+    reviewCategorySummary: row.reviewCategorySummary || '-',
+    docSpecificationCount: row.docSpecificationCount ?? 0,
+    integrityCount: row.integrityCount ?? 0,
+    functionalityCount: row.functionalityCount ?? 0,
+    feasibilityCount: row.feasibilityCount ?? 0,
     reviewEfficiency: formatNullableNumber(row.reviewEfficiency, 2),
     reviewRate: formatNullableNumber(row.reviewRate, 2),
     reviewType: row.reviewType || '-',
@@ -377,13 +396,27 @@ export function createEmptyReviewRecordForm(): ReviewRecordFormModel {
     notReachStandardReason: '',
     sourceFileName: '',
     weightedDefectDensity: null,
+    descriptions: [createPrimaryDescriptionForm()],
+    contents: [],
   };
 }
 
 export function createReviewRecordFormFromRow(
   row: ReviewDataRecordRowResponse,
   experts: string[],
+  descriptions: ReviewDataDescriptionResponse[] = [],
+  contents: ReviewDataContentResponse[] = [],
 ): ReviewRecordFormModel {
+  const descriptionForms = descriptions.length > 0
+    ? descriptions.map((description, index) => ({
+      reviewProduct: description.reviewProduct || '',
+      reviewVersion: description.reviewVersion || '',
+      authorName: description.authorName || '',
+      reviewScalePages: description.reviewScalePages ?? 0,
+      unit: description.unit || '页',
+      sortOrder: description.sortOrder ?? index,
+    }))
+    : [createPrimaryDescriptionForm(row)];
   return {
     projectName: row.projectName || '',
     title: row.title || '',
@@ -399,6 +432,39 @@ export function createReviewRecordFormFromRow(
     notReachStandardReason: row.notReachStandardReason || '',
     sourceFileName: row.sourceFileName || '',
     weightedDefectDensity: row.weightedDefectDensity ?? null,
+    descriptions: descriptionForms,
+    contents: contents.map((content, index) => ({
+      reviewerName: content.reviewerName || '',
+      assignmentContent: content.assignmentContent || '',
+      independentWorkloadHours: content.independentWorkloadHours ?? 0,
+      independentProblemCount: content.independentProblemCount ?? 0,
+      meetingWorkloadHours: content.meetingWorkloadHours ?? 0,
+      meetingProblemCount: content.meetingProblemCount ?? 0,
+      sortOrder: content.sortOrder ?? index,
+    })),
+  };
+}
+
+export function createPrimaryDescriptionForm(row?: ReviewDataRecordRowResponse): ReviewRecordDescriptionFormModel {
+  return {
+    reviewProduct: row?.reviewProduct || '',
+    reviewVersion: row?.reviewVersion || '',
+    authorName: row?.authorName || '',
+    reviewScalePages: row?.reviewScalePages ?? 0,
+    unit: '页',
+    sortOrder: 0,
+  };
+}
+
+export function createEmptyContentForm(sortOrder = 0): ReviewRecordContentFormModel {
+  return {
+    reviewerName: '',
+    assignmentContent: '',
+    independentWorkloadHours: 0,
+    independentProblemCount: 0,
+    meetingWorkloadHours: 0,
+    meetingProblemCount: 0,
+    sortOrder,
   };
 }
 

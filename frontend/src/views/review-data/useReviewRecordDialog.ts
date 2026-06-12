@@ -37,7 +37,12 @@ export function useReviewRecordDialog(deps: ReviewRecordDialogDependencies) {
       const detail = await deps.loadRecordDetail(recordId);
       editingRecordId.value = recordId;
       recordEditMode.value = true;
-      recordForm.value = createReviewRecordFormFromRow(detail.record, detail.reviewExperts);
+      recordForm.value = createReviewRecordFormFromRow(
+        detail.record,
+        detail.reviewExperts,
+        detail.descriptions,
+        detail.contents,
+      );
       recordDialogVisible.value = true;
     } catch (error) {
       deps.notifyError(error instanceof Error ? error.message : '评审详情加载失败');

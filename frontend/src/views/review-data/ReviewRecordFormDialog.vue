@@ -6,7 +6,11 @@ import { ElMessage } from '../../element-plus-services';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReviewDataFilterOptionsResponse, ReviewDataRecordSaveRequest } from '../../types/api';
 import SmartSelect from '../../components/base/SmartSelect.vue';
-import type { ReviewRecordFormModel } from '../review-data-management';
+import {
+  createEmptyContentForm,
+  createPrimaryDescriptionForm,
+  type ReviewRecordFormModel,
+} from '../review-data-management';
 import { focusFirstInvalidFormField } from '../../utils/formFocus';
 
 const props = defineProps<{
@@ -39,6 +43,8 @@ const form = reactive<ReviewRecordFormModel>({
   notReachStandardReason: '',
   sourceFileName: '',
   weightedDefectDensity: null,
+  descriptions: [createPrimaryDescriptionForm()],
+  contents: [],
 });
 
 watch(
@@ -59,6 +65,8 @@ watch(
       notReachStandardReason: value.notReachStandardReason,
       sourceFileName: value.sourceFileName,
       weightedDefectDensity: value.weightedDefectDensity,
+      descriptions: cloneDescriptions(value.descriptions),
+      contents: cloneContents(value.contents),
     });
   },
   { immediate: true, deep: true },
@@ -85,7 +93,83 @@ const rules: FormRules<ReviewRecordFormModel> = {
   reviewVersion: [{ required: true, message: '请选择评审版本', trigger: 'change' }],
 };
 
+function cloneDescriptions(descriptions: ReviewRecordFormModel['descriptions']) {
+  const rows = descriptions?.length ? descriptions : [createPrimaryDescriptionForm()];
+  return rows.map((description, index) => ({
+    reviewProduct: description.reviewProduct || '',
+    reviewVersion: description.reviewVersion || '',
+    authorName: description.authorName || '',
+    reviewScalePages: Number(description.reviewScalePages ?? 0),
+    unit: description.unit || '页',
+    sortOrder: description.sortOrder ?? index,
+  }));
+}
+
+function cloneContents(contents: ReviewRecordFormModel['contents']) {
+  return (contents ?? []).map((content, index) => ({
+    reviewerName: content.reviewerName || '',
+    assignmentContent: content.assignmentContent || '',
+    independentWorkloadHours: Number(content.independentWorkloadHours ?? 0),
+    independentProblemCount: Number(content.independentProblemCount ?? 0),
+    meetingWorkloadHours: Number(content.meetingWorkloadHours ?? 0),
+    meetingProblemCount: Number(content.meetingProblemCount ?? 0),
+    sortOrder: content.sortOrder ?? index,
+  }));
+}
+
+function syncPrimaryDescription() {
+  const primary = form.descriptions[0];
+  if (!primary) {
+    return;
+  }
+  form.reviewProduct = primary.reviewProduct;
+  form.reviewVersion = primary.reviewVersion;
+  form.authorName = primary.authorName;
+  form.reviewScalePages = Number(primary.reviewScalePages ?? 0);
+}
+
+function syncPrimaryFields() {
+  if (form.descriptions.length === 0) {
+    form.descriptions.push(createPrimaryDescriptionForm());
+  }
+  Object.assign(form.descriptions[0], {
+    reviewProduct: form.reviewProduct,
+    reviewVersion: form.reviewVersion,
+    authorName: form.authorName,
+    reviewScalePages: Number(form.reviewScalePages ?? 0),
+    unit: form.descriptions[0].unit || '页',
+    sortOrder: 0,
+  });
+}
+
+function addDescription() {
+  form.descriptions.push({
+    ...createPrimaryDescriptionForm(),
+    sortOrder: form.descriptions.length,
+  });
+}
+
+function removeDescription(index: number) {
+  if (form.descriptions.length <= 1) {
+    ElMessage.warning('至少保留一条工作产品描述');
+    return;
+  }
+  form.descriptions.splice(index, 1);
+  if (index === 0) {
+    syncPrimaryDescription();
+  }
+}
+
+function addContent() {
+  form.contents.push(createEmptyContentForm(form.contents.length));
+}
+
+function removeContent(index: number) {
+  form.contents.splice(index, 1);
+}
+
 async function handleSubmit() {
+  syncPrimaryFields();
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) {
     ElMessage.warning('请先补全评审信息');
@@ -107,6 +191,25 @@ async function handleSubmit() {
     notReachStandardReason: form.notReachStandardReason.trim(),
     sourceFileName: form.sourceFileName.trim(),
     weightedDefectDensity: form.weightedDefectDensity,
+    descriptions: form.descriptions.map((description, index) => ({
+      reviewProduct: description.reviewProduct.trim(),
+      reviewVersion: description.reviewVersion.trim(),
+      authorName: description.authorName.trim(),
+      reviewScalePages: Number(description.reviewScalePages ?? 0),
+      unit: (description.unit || '页').trim(),
+      sortOrder: index,
+    })),
+    contents: form.contents
+      .filter((content) => content.reviewerName.trim() || String(content.assignmentContent ?? '').trim())
+      .map((content, index) => ({
+        reviewerName: content.reviewerName.trim(),
+        assignmentContent: String(content.assignmentContent ?? '').trim(),
+        independentWorkloadHours: Number(content.independentWorkloadHours ?? 0),
+        independentProblemCount: Number(content.independentProblemCount ?? 0),
+        meetingWorkloadHours: Number(content.meetingWorkloadHours ?? 0),
+        meetingProblemCount: Number(content.meetingProblemCount ?? 0),
+        sortOrder: index,
+      })),
     createPendingProblemItems: !props.editMode,
   });
 }
@@ -120,7 +223,7 @@ function handleClose() {
   <el-dialog
     :model-value="visible"
     :title="editMode ? '编辑评审' : '新增评审'"
-    width="760px"
+    width="980px"
     destroy-on-close
     @close="handleClose"
   >
@@ -167,13 +270,13 @@ function handleClose() {
           <el-input-number v-model="form.reviewScalePages" :min="0" :step="1" class="review-form-number" />
         </el-form-item>
         <el-form-item label="评审工作产品" prop="reviewProduct">
-          <el-input v-model="form.reviewProduct" placeholder="请输入评审的工作产品" />
+          <el-input v-model="form.reviewProduct" placeholder="请输入评审的工作产品" @change="syncPrimaryFields" />
         </el-form-item>
         <el-form-item label="作者" prop="authorName">
-          <SmartSelect v-model="form.authorName" :options="expertOptions" compact placeholder="请选择作者" />
+          <SmartSelect v-model="form.authorName" :options="expertOptions" compact placeholder="请选择作者" @change="syncPrimaryFields" />
         </el-form-item>
         <el-form-item label="评审版本" prop="reviewVersion">
-          <SmartSelect v-model="form.reviewVersion" :options="reviewVersionOptions" compact placeholder="请选择评审版本" />
+          <SmartSelect v-model="form.reviewVersion" :options="reviewVersionOptions" compact placeholder="请选择评审版本" @change="syncPrimaryFields" />
         </el-form-item>
         <el-form-item label="不达标说明" prop="notReachStandardReason" class="review-form-wide">
           <el-input
@@ -196,6 +299,59 @@ function handleClose() {
           />
         </el-form-item>
       </div>
+
+      <section class="review-form-subsection">
+        <div class="review-form-subsection-head">
+          <span>工作产品描述</span>
+          <el-button text type="primary" @click="addDescription">新增描述</el-button>
+        </div>
+        <div class="legacy-description-grid legacy-description-head">
+          <span>评审工作产品</span>
+          <span>版本</span>
+          <span>作者</span>
+          <span>规模</span>
+          <span>单位</span>
+          <span>操作</span>
+        </div>
+        <div
+          v-for="(description, index) in form.descriptions"
+          :key="index"
+          class="legacy-description-grid"
+        >
+          <el-input v-model="description.reviewProduct" placeholder="工作产品" @change="index === 0 && syncPrimaryDescription()" />
+          <el-input v-model="description.reviewVersion" placeholder="版本" @change="index === 0 && syncPrimaryDescription()" />
+          <SmartSelect v-model="description.authorName" :options="expertOptions" compact placeholder="作者" @change="index === 0 && syncPrimaryDescription()" />
+          <el-input-number v-model="description.reviewScalePages" :min="0" :step="1" @change="index === 0 && syncPrimaryDescription()" />
+          <SmartSelect v-model="description.unit" :options="['页', '行'].map((value) => ({ label: value, value }))" compact placeholder="单位" />
+          <el-button text type="danger" @click="removeDescription(index)">删除</el-button>
+        </div>
+      </section>
+
+      <section class="review-form-subsection">
+        <div class="review-form-subsection-head">
+          <span>评审分工内容</span>
+          <el-button text type="primary" @click="addContent">新增分工</el-button>
+        </div>
+        <div class="legacy-content-grid legacy-description-head">
+          <span>评审人</span>
+          <span>内容</span>
+          <span>独立工作量</span>
+          <span>独立问题</span>
+          <span>会议工作量</span>
+          <span>会议问题</span>
+          <span>操作</span>
+        </div>
+        <div v-for="(content, index) in form.contents" :key="index" class="legacy-content-grid">
+          <SmartSelect v-model="content.reviewerName" :options="expertOptions" compact placeholder="评审人" />
+          <el-input v-model="content.assignmentContent" placeholder="评审内容" />
+          <el-input-number v-model="content.independentWorkloadHours" :min="0" :step="0.5" />
+          <el-input-number v-model="content.independentProblemCount" :min="0" :step="1" />
+          <el-input-number v-model="content.meetingWorkloadHours" :min="0" :step="0.5" />
+          <el-input-number v-model="content.meetingProblemCount" :min="0" :step="1" />
+          <el-button text type="danger" @click="removeContent(index)">删除</el-button>
+        </div>
+        <el-empty v-if="form.contents.length === 0" description="暂无评审分工内容" :image-size="48" />
+      </section>
     </el-form>
 
     <template #footer>
@@ -240,6 +396,43 @@ function handleClose() {
 
 .review-form-wide {
   grid-column: 1 / -1;
+}
+
+.review-form-subsection {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.review-form-subsection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.75);
+}
+
+.legacy-description-grid,
+.legacy-content-grid {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+}
+
+.legacy-description-grid {
+  grid-template-columns: minmax(150px, 1.4fr) minmax(110px, 1fr) minmax(120px, 1fr) 112px 90px 58px;
+}
+
+.legacy-content-grid {
+  grid-template-columns: minmax(110px, 1fr) minmax(160px, 1.4fr) 112px 100px 112px 100px 58px;
+}
+
+.legacy-description-head {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.54);
 }
 
 :deep(.el-input-number .el-input__wrapper) {

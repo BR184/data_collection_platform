@@ -43,6 +43,11 @@ public class ReviewDataRecordReadRepository {
         coalesce(expert.expert_names, '') as review_experts_summary,
         coalesce(problem.problem_count, 0) as problem_count,
         coalesce(problem.total_workload_hours, 0) as total_workload_hours,
+        coalesce(problem.review_category_summary, '') as review_category_summary,
+        coalesce(problem.doc_specification_count, 0) as doc_specification_count,
+        coalesce(problem.integrity_count, 0) as integrity_count,
+        coalesce(problem.functionality_count, 0) as functionality_count,
+        coalesce(problem.feasibility_count, 0) as feasibility_count,
         coalesce(problem.independent_review_workload, 0) as independent_review_workload,
         coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
         coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
@@ -63,6 +68,11 @@ public class ReviewDataRecordReadRepository {
           review_record_id,
           count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category <> '无问题')::integer as problem_count,
           coalesce(sum(workload_hours), 0) as total_workload_hours,
+          string_agg(distinct nullif(review_category, ''), '、') as review_category_summary,
+          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '文档规范')::integer as doc_specification_count,
+          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '完整性')::integer as integrity_count,
+          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '功能性')::integer as functionality_count,
+          count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '可行性')::integer as feasibility_count,
           coalesce(sum(workload_hours) filter (where review_category = '独立评审'), 0) as independent_review_workload,
           count(*) filter (
             where review_category = '独立评审'
@@ -175,6 +185,11 @@ public class ReviewDataRecordReadRepository {
             r.deleted,
             coalesce(problem.problem_count, 0) as problem_count,
             coalesce(problem.total_workload_hours, 0) as total_workload_hours,
+            coalesce(problem.review_category_summary, '') as review_category_summary,
+            coalesce(problem.doc_specification_count, 0) as doc_specification_count,
+            coalesce(problem.integrity_count, 0) as integrity_count,
+            coalesce(problem.functionality_count, 0) as functionality_count,
+            coalesce(problem.feasibility_count, 0) as feasibility_count,
             coalesce(problem.independent_review_workload, 0) as independent_review_workload,
             coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
             coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
@@ -235,6 +250,11 @@ public class ReviewDataRecordReadRepository {
           coalesce(expert.expert_names, '') as review_experts_summary,
           coalesce(page_records.problem_count, 0) as problem_count,
           coalesce(page_records.total_workload_hours, 0) as total_workload_hours,
+          coalesce(page_records.review_category_summary, '') as review_category_summary,
+          coalesce(page_records.doc_specification_count, 0) as doc_specification_count,
+          coalesce(page_records.integrity_count, 0) as integrity_count,
+          coalesce(page_records.functionality_count, 0) as functionality_count,
+          coalesce(page_records.feasibility_count, 0) as feasibility_count,
           coalesce(page_records.independent_review_workload, 0) as independent_review_workload,
           coalesce(page_records.independent_review_problem_count, 0) as independent_review_problem_count,
           coalesce(page_records.meeting_review_workload, 0) as meeting_review_workload,
@@ -387,6 +407,11 @@ public class ReviewDataRecordReadRepository {
         calculateProblemDensity(problemCount, reviewScalePages),
         reviewEfficiency,
         reviewRate,
+        TextQuerySupport.normalizeDisplay(rs.getString("review_category_summary")),
+        getIntegerOrDefault(rs, "doc_specification_count"),
+        getIntegerOrDefault(rs, "integrity_count"),
+        getIntegerOrDefault(rs, "functionality_count"),
+        getIntegerOrDefault(rs, "feasibility_count"),
         getDoubleOrDefault(rs, "independent_review_workload"),
         getIntegerOrDefault(rs, "independent_review_problem_count"),
         getDoubleOrDefault(rs, "meeting_review_workload"),
@@ -451,6 +476,11 @@ public class ReviewDataRecordReadRepository {
                      and problem_category <> '无问题'
                  )::integer as problem_count,
                  coalesce(sum(workload_hours), 0) as total_workload_hours,
+                 string_agg(distinct nullif(review_category, ''), '、') as review_category_summary,
+                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '文档规范')::integer as doc_specification_count,
+                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '完整性')::integer as integrity_count,
+                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '功能性')::integer as functionality_count,
+                 count(*) filter (where problem_status not in ('已拒绝', '未评审', '无问题') and problem_category = '可行性')::integer as feasibility_count,
                  coalesce(sum(workload_hours) filter (where review_category = '独立评审'), 0) as independent_review_workload,
                  count(*) filter (
                    where review_category = '独立评审'
@@ -496,6 +526,11 @@ public class ReviewDataRecordReadRepository {
           case "problemDensity" -> "fr.problem_density";
           case "reviewEfficiency" -> "fr.review_efficiency";
           case "reviewRate" -> "fr.review_rate";
+          case "reviewCategorySummary" -> "fr.review_category_summary";
+          case "docSpecificationCount" -> "fr.doc_specification_count";
+          case "integrityCount" -> "fr.integrity_count";
+          case "functionalityCount" -> "fr.functionality_count";
+          case "feasibilityCount" -> "fr.feasibility_count";
           case "independentReviewWorkload" -> "fr.independent_review_workload";
           case "independentReviewProblemCount" -> "fr.independent_review_problem_count";
           case "meetingReviewWorkload" -> "fr.meeting_review_workload";

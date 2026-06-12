@@ -24,6 +24,11 @@ export interface ReviewDataRecordRowResponse {
   problemDensity: number;
   reviewEfficiency?: number | null;
   reviewRate?: number | null;
+  reviewCategorySummary?: string | null;
+  docSpecificationCount?: number | null;
+  integrityCount?: number | null;
+  functionalityCount?: number | null;
+  feasibilityCount?: number | null;
   independentReviewWorkload?: number | null;
   independentReviewProblemCount?: number | null;
   meetingReviewWorkload?: number | null;
