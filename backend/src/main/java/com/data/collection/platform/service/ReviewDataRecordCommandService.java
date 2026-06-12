@@ -34,12 +34,15 @@ public class ReviewDataRecordCommandService {
             request.reviewProduct(),
             request.authorName(),
             request.reviewVersion(),
-            request.notReachStandardReason());
+            request.notReachStandardReason(),
+            request.sourceFileName(),
+            request.weightedDefectDensity());
     if (recordId == null) {
       throw new IllegalStateException("创建评审记录失败");
     }
 
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
+    persistLegacyParityDetails(recordId, request);
     if (Boolean.TRUE.equals(request.createPendingProblemItems())) {
       createPendingProblemItems(recordId, request.reviewExperts());
     }
@@ -62,8 +65,11 @@ public class ReviewDataRecordCommandService {
         request.reviewProduct(),
         request.authorName(),
         request.reviewVersion(),
-        request.notReachStandardReason());
+        request.notReachStandardReason(),
+        request.sourceFileName(),
+        request.weightedDefectDensity());
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
+    persistLegacyParityDetails(recordId, request);
     persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
   }
@@ -167,6 +173,22 @@ public class ReviewDataRecordCommandService {
           DEFAULT_PENDING_REVIEW_STATUS);
     }
     persistenceSupport.touchRecord(recordId);
+  }
+
+  private void persistLegacyParityDetails(Long recordId, ReviewDataRecordSaveRequest request) {
+    if (request.descriptions() == null || request.descriptions().isEmpty()) {
+      persistenceSupport.ensurePrimaryDescription(
+          recordId,
+          request.reviewProduct(),
+          request.reviewVersion(),
+          request.authorName(),
+          request.reviewScalePages());
+    } else {
+      persistenceSupport.replaceDescriptions(recordId, request.descriptions());
+    }
+    if (request.contents() != null) {
+      persistenceSupport.replaceContents(recordId, request.contents());
+    }
   }
 
   private ReviewDataProblemItemResponse findPendingProblemItem(Long recordId, String reviewerName) {

@@ -25,6 +25,7 @@ import com.data.collection.platform.common.exception.GlobalRestExceptionHandler;
 import com.data.collection.platform.config.ReviewDataProperties;
 import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataExcelExportService;
+import com.data.collection.platform.service.ReviewDataTemplateWorkbookService;
 import com.data.collection.platform.service.ReviewDataRecordQueryRequest;
 import com.data.collection.platform.service.ReviewDataRecordService;
 import java.time.LocalDate;
@@ -48,6 +49,7 @@ class ReviewDataControllerTest {
   @Mock private ReviewDataRecordService reviewDataRecordService;
   @Mock private ReviewDataLegacyExcelImportService legacyExcelImportService;
   @Mock private ReviewDataExcelExportService excelExportService;
+  @Mock private ReviewDataTemplateWorkbookService templateWorkbookService;
 
   private MockMvc mockMvc;
   private ReviewDataProperties reviewDataProperties;
@@ -62,6 +64,7 @@ class ReviewDataControllerTest {
                     new ReviewDataRequestAssembler(),
                     legacyExcelImportService,
                     excelExportService,
+                    templateWorkbookService,
                     reviewDataProperties))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
@@ -224,7 +227,9 @@ class ReviewDataControllerTest {
                         "Dora",
                         "",
                         "Resolved",
-                        LocalDateTime.of(2026, 4, 12, 11, 0)))));
+                        LocalDateTime.of(2026, 4, 12, 11, 0))),
+                List.of(),
+                List.of()));
 
     mockMvc.perform(get("/api/review-data/records/1"))
         .andExpect(status().isOk())
@@ -295,6 +300,8 @@ class ReviewDataControllerTest {
                     LocalDateTime.of(2026, 4, 17, 10, 0),
                     false),
                 List.of("Bob"),
+                List.of(),
+                List.of(),
                 List.of()));
 
     mockMvc.perform(

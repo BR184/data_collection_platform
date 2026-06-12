@@ -37,6 +37,8 @@ const form = reactive<ReviewRecordFormModel>({
   authorName: '',
   reviewVersion: '',
   notReachStandardReason: '',
+  sourceFileName: '',
+  weightedDefectDensity: null,
 });
 
 watch(
@@ -55,6 +57,8 @@ watch(
       authorName: value.authorName,
       reviewVersion: value.reviewVersion,
       notReachStandardReason: value.notReachStandardReason,
+      sourceFileName: value.sourceFileName,
+      weightedDefectDensity: value.weightedDefectDensity,
     });
   },
   { immediate: true, deep: true },
@@ -101,6 +105,8 @@ async function handleSubmit() {
     authorName: form.authorName.trim(),
     reviewVersion: form.reviewVersion.trim(),
     notReachStandardReason: form.notReachStandardReason.trim(),
+    sourceFileName: form.sourceFileName.trim(),
+    weightedDefectDensity: form.weightedDefectDensity,
     createPendingProblemItems: !props.editMode,
   });
 }
@@ -175,6 +181,18 @@ function handleClose() {
             type="textarea"
             :rows="2"
             placeholder="评审缺陷密度不达标时填写原因说明"
+          />
+        </el-form-item>
+        <el-form-item label="原文件名" prop="sourceFileName">
+          <el-input v-model="form.sourceFileName" placeholder="旧平台原始评审文件名" />
+        </el-form-item>
+        <el-form-item label="加权密度" prop="weightedDefectDensity">
+          <el-input-number
+            v-model="form.weightedDefectDensity"
+            :min="0"
+            :step="0.01"
+            :precision="2"
+            class="review-form-number"
           />
         </el-form-item>
       </div>

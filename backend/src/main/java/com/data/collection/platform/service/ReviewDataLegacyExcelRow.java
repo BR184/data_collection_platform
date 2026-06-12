@@ -18,6 +18,7 @@ public record ReviewDataLegacyExcelRow(
     Integer integrityCount,
     Integer functionalityCount,
     Integer feasibilityCount,
+    Double weightedDefectDensity,
     Double reviewDefectDensity,
     Double reviewEfficiency,
     Double reviewRate,

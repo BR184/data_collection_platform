@@ -1,6 +1,10 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
+import com.data.collection.platform.entity.ReviewDataContentResponse;
+import com.data.collection.platform.entity.ReviewDataContentSaveRequest;
+import com.data.collection.platform.entity.ReviewDataDescriptionResponse;
+import com.data.collection.platform.entity.ReviewDataDescriptionSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.util.List;
@@ -13,16 +17,19 @@ public class ReviewDataRecordPersistenceSupport {
   private final ReviewDataRecordWriteRepository recordWriteRepository;
   private final ReviewDataExpertRepository expertRepository;
   private final ReviewDataProblemItemRepository problemItemRepository;
+  private final ReviewDataLegacyParityRepository legacyParityRepository;
 
   public ReviewDataRecordPersistenceSupport(
       ReviewDataRecordReadRepository recordReadRepository,
       ReviewDataRecordWriteRepository recordWriteRepository,
       ReviewDataExpertRepository expertRepository,
-      ReviewDataProblemItemRepository problemItemRepository) {
+      ReviewDataProblemItemRepository problemItemRepository,
+      ReviewDataLegacyParityRepository legacyParityRepository) {
     this.recordReadRepository = recordReadRepository;
     this.recordWriteRepository = recordWriteRepository;
     this.expertRepository = expertRepository;
     this.problemItemRepository = problemItemRepository;
+    this.legacyParityRepository = legacyParityRepository;
   }
 
   public List<ReviewDataRecordRowResponse> loadRecords(
@@ -89,6 +96,14 @@ public class ReviewDataRecordPersistenceSupport {
     return problemItemRepository.listProblemItems(recordId);
   }
 
+  public List<ReviewDataDescriptionResponse> listDescriptions(Long recordId) {
+    return legacyParityRepository.listDescriptions(recordId);
+  }
+
+  public List<ReviewDataContentResponse> listContents(Long recordId) {
+    return legacyParityRepository.listContents(recordId);
+  }
+
   public Map<Long, List<ReviewDataProblemItemResponse>> listProblemItemsByRecordIds(List<Long> recordIds) {
     return problemItemRepository.listProblemItemsByRecordIds(recordIds);
   }
@@ -115,6 +130,24 @@ public class ReviewDataRecordPersistenceSupport {
 
   public void refreshSearchIndex(Long recordId) {
     recordWriteRepository.refreshSearchIndex(recordId);
+  }
+
+  public void ensurePrimaryDescription(
+      Long recordId,
+      String reviewProduct,
+      String reviewVersion,
+      String authorName,
+      Integer reviewScalePages) {
+    legacyParityRepository.ensurePrimaryDescription(
+        recordId, reviewProduct, reviewVersion, authorName, reviewScalePages);
+  }
+
+  public void replaceDescriptions(Long recordId, List<ReviewDataDescriptionSaveRequest> descriptions) {
+    legacyParityRepository.replaceDescriptions(recordId, descriptions);
+  }
+
+  public void replaceContents(Long recordId, List<ReviewDataContentSaveRequest> contents) {
+    legacyParityRepository.replaceContents(recordId, contents);
   }
 
   public void refreshMissingSearchIndexes(int limit) {
@@ -154,7 +187,9 @@ public class ReviewDataRecordPersistenceSupport {
       String reviewProduct,
       String authorName,
       String reviewVersion,
-      String notReachStandardReason) {
+      String notReachStandardReason,
+      String sourceFileName,
+      Double weightedDefectDensity) {
     return recordWriteRepository.insertRecord(
         projectName,
         title,
@@ -166,7 +201,9 @@ public class ReviewDataRecordPersistenceSupport {
         reviewProduct,
         authorName,
         reviewVersion,
-        notReachStandardReason);
+        notReachStandardReason,
+        sourceFileName,
+        weightedDefectDensity);
   }
 
   public void updateRecord(
@@ -181,7 +218,9 @@ public class ReviewDataRecordPersistenceSupport {
       String reviewProduct,
       String authorName,
       String reviewVersion,
-      String notReachStandardReason) {
+      String notReachStandardReason,
+      String sourceFileName,
+      Double weightedDefectDensity) {
     recordWriteRepository.updateRecord(
         recordId,
         projectName,
@@ -194,7 +233,9 @@ public class ReviewDataRecordPersistenceSupport {
         reviewProduct,
         authorName,
         reviewVersion,
-        notReachStandardReason);
+        notReachStandardReason,
+        sourceFileName,
+        weightedDefectDensity);
   }
 
   public void softDeleteRecord(Long recordId) {

@@ -35,7 +35,7 @@ public class ReviewDataFilterOptionService {
 
   private static final List<OptionItemResponse> PROBLEM_STATUS_OPTIONS =
       List.of(
-          new OptionItemResponse("新提出", "新提出"),
+          new OptionItemResponse("新提交", "新提交"),
           new OptionItemResponse("已修复", "已修复"),
           new OptionItemResponse("已关闭", "已关闭"),
           new OptionItemResponse("已拒绝", "已拒绝"),

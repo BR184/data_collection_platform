@@ -19,6 +19,7 @@ import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataLegacyExcelPreviewResponse;
 import com.data.collection.platform.service.ReviewDataExcelExportService;
 import com.data.collection.platform.service.ReviewDataRecordService;
+import com.data.collection.platform.service.ReviewDataTemplateWorkbookService;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
@@ -46,6 +47,7 @@ public class ReviewDataController {
   private final ReviewDataRequestAssembler reviewDataRequestAssembler;
   private final ReviewDataLegacyExcelImportService legacyExcelImportService;
   private final ReviewDataExcelExportService excelExportService;
+  private final ReviewDataTemplateWorkbookService templateWorkbookService;
   private final ReviewDataProperties reviewDataProperties;
 
   public ReviewDataController(
@@ -53,11 +55,13 @@ public class ReviewDataController {
       ReviewDataRequestAssembler reviewDataRequestAssembler,
       ReviewDataLegacyExcelImportService legacyExcelImportService,
       ReviewDataExcelExportService excelExportService,
+      ReviewDataTemplateWorkbookService templateWorkbookService,
       ReviewDataProperties reviewDataProperties) {
     this.reviewDataRecordService = reviewDataRecordService;
     this.reviewDataRequestAssembler = reviewDataRequestAssembler;
     this.legacyExcelImportService = legacyExcelImportService;
     this.excelExportService = excelExportService;
+    this.templateWorkbookService = templateWorkbookService;
     this.reviewDataProperties = reviewDataProperties;
   }
 
@@ -98,6 +102,11 @@ public class ReviewDataController {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(recordId),
         "review-data-problem-details-" + recordId + ".xlsx");
+  }
+
+  @GetMapping("/template")
+  public ResponseEntity<byte[]> downloadTemplate() {
+    return excelResponse(templateWorkbookService.buildTemplateWorkbook(), "review-data-template.xlsx");
   }
 
   @PostMapping("/records")
@@ -154,16 +163,24 @@ public class ReviewDataController {
 
   private void validateLegacyExcelUpload(MultipartFile file) {
     if (file == null || file.isEmpty()) {
-      throw new BizException("请选择旧平台列表导出的 .xlsx 文件");
+      throw new BizException("请选择旧平台列表导出的 .xls 或 .xlsx 文件");
     }
     long maxBytes = reviewDataProperties.getLegacyImportMaxBytes();
     if (file.getSize() > maxBytes) {
       throw new BizException("Excel 文件不能超过 " + formatFileSize(maxBytes) + "，请从旧平台按项目或时间分批导出后再导入");
     }
     String filename = file.getOriginalFilename();
-    if (filename == null || !filename.toLowerCase(java.util.Locale.ROOT).endsWith(".xlsx")) {
-      throw new BizException("当前仅支持旧平台列表导出的 .xlsx 文件；旧模板 .xls 暂未支持");
+    if (!isExcelFilename(filename)) {
+      throw new BizException("当前支持旧平台列表导出的 .xls 或 .xlsx 文件");
     }
+  }
+
+  private boolean isExcelFilename(String filename) {
+    if (filename == null) {
+      return false;
+    }
+    String lower = filename.toLowerCase(java.util.Locale.ROOT);
+    return lower.endsWith(".xls") || lower.endsWith(".xlsx");
   }
 
   private String formatFileSize(long bytes) {

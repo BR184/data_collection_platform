@@ -62,7 +62,7 @@ public class ReviewDataLegacyExcelParser {
       if (exception instanceof BizException bizException) {
         throw bizException;
       }
-      throw new BizException("Excel 文件解析失败，请确认文件为旧平台列表导出的 .xlsx 文件");
+      throw new BizException("Excel 文件解析失败，请确认文件为旧平台列表导出的 .xls 或 .xlsx 文件");
     }
   }
 
@@ -82,6 +82,7 @@ public class ReviewDataLegacyExcelParser {
     Integer integrity = integer(row, columns, "integrity");
     Integer functionality = integer(row, columns, "functionality");
     Integer feasibility = integer(row, columns, "feasibility");
+    Double weightedDensity = decimal(row, columns, "weightedDensity");
     Double density = decimal(row, columns, "reviewDefectDensity");
     Double efficiency = decimal(row, columns, "reviewEfficiency");
     Double rate = decimal(row, columns, "reviewRate");
@@ -150,6 +151,7 @@ public class ReviewDataLegacyExcelParser {
         integrity,
         functionality,
         feasibility,
+        weightedDensity,
         density,
         efficiency,
         rate,
@@ -471,8 +473,8 @@ public class ReviewDataLegacyExcelParser {
 
   private void validateFileName(String filename) {
     String lower = Objects.toString(filename, "").toLowerCase(Locale.ROOT);
-    if (!lower.endsWith(".xlsx")) {
-      throw new BizException("当前仅支持旧平台列表导出的 .xlsx 文件；旧模板 .xls 暂未支持");
+    if (!lower.endsWith(".xls") && !lower.endsWith(".xlsx")) {
+      throw new BizException("当前支持旧平台列表导出的 .xls 或 .xlsx 文件");
     }
   }
 

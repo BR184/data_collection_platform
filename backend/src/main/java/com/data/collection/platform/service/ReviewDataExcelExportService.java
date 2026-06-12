@@ -36,12 +36,14 @@ public class ReviewDataExcelExportService {
     "评审日期",
     "负责人",
     "评审专家",
+    "原文件名",
     "页数",
     "评审工作产品",
     "作者",
     "评审版本",
     "问题合计(个)",
     "评审缺陷密度(个/页)",
+    "加权重的评审缺陷密度",
     "评审效率(个/小时)",
     "评审速率(页/小时)",
     "独立评审工作量合计(小时)",
@@ -87,7 +89,7 @@ public class ReviewDataExcelExportService {
       for (ReviewDataRecordRowResponse record : records) {
         writeRecordRow(sheet.createRow(rowIndex++), record, styles.body);
       }
-      setColumnWidths(sheet, 28, 18, 16, 18, 14, 14, 24, 10, 18, 14, 14, 14, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12);
+      setColumnWidths(sheet, 28, 18, 16, 18, 14, 14, 24, 18, 10, 18, 14, 14, 14, 18, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12);
       sheet.createFreezePane(0, 1);
       writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
@@ -132,7 +134,7 @@ public class ReviewDataExcelExportService {
       }
       setColumnWidths(
           sheet,
-          28, 18, 16, 18, 14, 14, 24, 10, 18, 14, 14, 14, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12,
+          28, 18, 16, 18, 14, 14, 24, 18, 10, 18, 14, 14, 14, 18, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12,
           14, 14, 16, 16, 16, 36, 36, 14, 14, 24, 20);
       sheet.createFreezePane(0, 1);
       writeFilterSnapshotSheet(workbook, styles, request);
@@ -193,21 +195,23 @@ public class ReviewDataExcelExportService {
     writeText(row, 4, formatDate(record.reviewDate()), style);
     writeText(row, 5, record.reviewOwner(), style);
     writeText(row, 6, record.reviewExpertsSummary(), style);
-    writeNumber(row, 7, record.reviewScalePages(), style);
-    writeText(row, 8, record.reviewProduct(), style);
-    writeText(row, 9, record.authorName(), style);
-    writeText(row, 10, record.reviewVersion(), style);
-    writeNumber(row, 11, record.problemCount(), style);
-    writeNumber(row, 12, record.problemDensity(), style);
-    writeNumber(row, 13, record.reviewEfficiency(), style);
-    writeNumber(row, 14, record.reviewRate(), style);
-    writeNumber(row, 15, record.independentReviewWorkload(), style);
-    writeNumber(row, 16, record.independentReviewProblemCount(), style);
-    writeNumber(row, 17, record.meetingReviewWorkload(), style);
-    writeNumber(row, 18, record.meetingReviewProblemCount(), style);
-    writeText(row, 19, formatDateTime(record.updatedAt()), style);
-    writeText(row, 20, record.notReachStandardReason(), style);
-    writeText(row, 21, Boolean.TRUE.equals(record.reachStandard()) ? "是" : "否", style);
+    writeText(row, 7, record.sourceFileName(), style);
+    writeNumber(row, 8, record.reviewScalePages(), style);
+    writeText(row, 9, record.reviewProduct(), style);
+    writeText(row, 10, record.authorName(), style);
+    writeText(row, 11, record.reviewVersion(), style);
+    writeNumber(row, 12, record.problemCount(), style);
+    writeNumber(row, 13, record.problemDensity(), style);
+    writeNumber(row, 14, record.weightedDefectDensity(), style);
+    writeNumber(row, 15, record.reviewEfficiency(), style);
+    writeNumber(row, 16, record.reviewRate(), style);
+    writeNumber(row, 17, record.independentReviewWorkload(), style);
+    writeNumber(row, 18, record.independentReviewProblemCount(), style);
+    writeNumber(row, 19, record.meetingReviewWorkload(), style);
+    writeNumber(row, 20, record.meetingReviewProblemCount(), style);
+    writeText(row, 21, formatDateTime(record.updatedAt()), style);
+    writeText(row, 22, record.notReachStandardReason(), style);
+    writeText(row, 23, Boolean.TRUE.equals(record.reachStandard()) ? "是" : "否", style);
   }
 
   private void writeProblemCells(

@@ -151,7 +151,9 @@ public class ReviewDataRecordQueryService {
     return new ReviewDataRecordDetailResponse(
         record,
         persistenceSupport.listRecordExperts(recordId),
-        persistenceSupport.listProblemItems(recordId));
+        persistenceSupport.listProblemItems(recordId),
+        persistenceSupport.listDescriptions(recordId),
+        persistenceSupport.listContents(recordId));
   }
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {

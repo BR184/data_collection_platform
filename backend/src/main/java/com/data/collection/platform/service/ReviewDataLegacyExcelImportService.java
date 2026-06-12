@@ -190,6 +190,10 @@ public class ReviewDataLegacyExcelImportService {
             authorName,
             reviewVersion,
             firstNonBlank(row.notReachStandardReason()),
+            null,
+            row.weightedDefectDensity(),
+            List.of(),
+            List.of(),
             false);
     List<ReviewDataProblemItemSaveRequest> problemItems =
         buildProblemItems(row, reviewOwner, experts, problemStatus, issues);

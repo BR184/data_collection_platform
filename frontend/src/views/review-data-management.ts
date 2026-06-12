@@ -26,6 +26,8 @@ export interface ReviewRecordFormModel {
   authorName: string;
   reviewVersion: string;
   notReachStandardReason: string;
+  sourceFileName: string;
+  weightedDefectDensity: number | null;
 }
 
 export interface ReviewProblemItemFormModel {
@@ -53,6 +55,7 @@ export function reviewDataColumns(): RecordTableColumn[] {
     { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 120, align: 'right' },
     { key: 'moduleName', label: '模块', sortable: true, width: 80 },
     { key: 'reviewOwner', label: '负责人', sortable: true, width: 80 },
+    { key: 'sourceFileName', label: '原文件', width: 150 },
     { key: 'createdAt', label: '上传时间', sortable: true, width: 160 },
     { key: 'independentReviewWorkload', label: '独立评审工作量合计(小时)', sortable: true, width: 150, align: 'right' },
     { key: 'independentReviewProblemCount', label: '有效的独立评审问题数合计(个)', sortable: true, width: 200, align: 'right' },
@@ -270,6 +273,8 @@ export function buildReviewDataTableRows(rows: ReviewDataRecordRowResponse[]) {
     meetingReviewWorkload: formatNullableNumber(row.meetingReviewWorkload, 2),
     meetingReviewProblemCount: row.meetingReviewProblemCount ?? 0,
     notReachStandardReason: row.notReachStandardReason || '-',
+    sourceFileName: row.sourceFileName || '-',
+    weightedDefectDensity: formatNullableNumber(row.weightedDefectDensity, 2),
     reachStandard: [reachStandardTag(row.reachStandard)],
     reviewDate: formatDate(row.reviewDate),
     updatedAt: formatDateTime(row.updatedAt),
@@ -370,6 +375,8 @@ export function createEmptyReviewRecordForm(): ReviewRecordFormModel {
     authorName: '',
     reviewVersion: '',
     notReachStandardReason: '',
+    sourceFileName: '',
+    weightedDefectDensity: null,
   };
 }
 
@@ -390,6 +397,8 @@ export function createReviewRecordFormFromRow(
     authorName: row.authorName || '',
     reviewVersion: row.reviewVersion || '',
     notReachStandardReason: row.notReachStandardReason || '',
+    sourceFileName: row.sourceFileName || '',
+    weightedDefectDensity: row.weightedDefectDensity ?? null,
   };
 }
 

@@ -20,6 +20,10 @@ public record ReviewDataRecordSaveRequest(
     @NotBlank String authorName,
     @NotBlank String reviewVersion,
     String notReachStandardReason,
+    String sourceFileName,
+    Double weightedDefectDensity,
+    List<ReviewDataDescriptionSaveRequest> descriptions,
+    List<ReviewDataContentSaveRequest> contents,
     Boolean createPendingProblemItems) {
 
   public ReviewDataRecordSaveRequest(
@@ -47,6 +51,44 @@ public record ReviewDataRecordSaveRequest(
         authorName,
         reviewVersion,
         null,
+        null,
+        null,
+        List.of(),
+        List.of(),
         false);
+  }
+
+  public ReviewDataRecordSaveRequest(
+      String projectName,
+      String title,
+      String moduleName,
+      String reviewType,
+      LocalDate reviewDate,
+      String reviewOwner,
+      List<String> reviewExperts,
+      Integer reviewScalePages,
+      String reviewProduct,
+      String authorName,
+      String reviewVersion,
+      String notReachStandardReason,
+      Boolean createPendingProblemItems) {
+    this(
+        projectName,
+        title,
+        moduleName,
+        reviewType,
+        reviewDate,
+        reviewOwner,
+        reviewExperts,
+        reviewScalePages,
+        reviewProduct,
+        authorName,
+        reviewVersion,
+        notReachStandardReason,
+        null,
+        null,
+        List.of(),
+        List.of(),
+        createPendingProblemItems);
   }
 }

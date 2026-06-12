@@ -30,6 +30,8 @@ export interface ReviewDataRecordRowResponse {
   meetingReviewProblemCount?: number | null;
   notReachStandardReason?: string | null;
   reachStandard?: boolean | null;
+  sourceFileName?: string | null;
+  weightedDefectDensity?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   deleted: boolean;
@@ -76,10 +78,37 @@ export interface ReviewDataProblemItemResponse {
   updatedAt?: string | null;
 }
 
+export interface ReviewDataDescriptionResponse {
+  id: number;
+  reviewRecordId: number;
+  reviewProduct: string;
+  reviewVersion: string;
+  authorName: string;
+  reviewScalePages: number;
+  unit: string;
+  sortOrder: number;
+  updatedAt?: string | null;
+}
+
+export interface ReviewDataContentResponse {
+  id: number;
+  reviewRecordId: number;
+  reviewerName: string;
+  assignmentContent: string;
+  independentWorkloadHours: number;
+  independentProblemCount: number;
+  meetingWorkloadHours: number;
+  meetingProblemCount: number;
+  sortOrder: number;
+  updatedAt?: string | null;
+}
+
 export interface ReviewDataRecordDetailResponse {
   record: ReviewDataRecordRowResponse;
   reviewExperts: string[];
   problemItems: ReviewDataProblemItemResponse[];
+  descriptions: ReviewDataDescriptionResponse[];
+  contents: ReviewDataContentResponse[];
 }
 
 export interface ReviewDataRecordSaveRequest {
@@ -95,7 +124,30 @@ export interface ReviewDataRecordSaveRequest {
   authorName: string;
   reviewVersion: string;
   notReachStandardReason?: string | null;
+  sourceFileName?: string | null;
+  weightedDefectDensity?: number | null;
+  descriptions?: ReviewDataDescriptionSaveRequest[];
+  contents?: ReviewDataContentSaveRequest[];
   createPendingProblemItems?: boolean | null;
+}
+
+export interface ReviewDataDescriptionSaveRequest {
+  reviewProduct: string;
+  reviewVersion: string;
+  authorName: string;
+  reviewScalePages: number;
+  unit?: string | null;
+  sortOrder?: number | null;
+}
+
+export interface ReviewDataContentSaveRequest {
+  reviewerName: string;
+  assignmentContent?: string | null;
+  independentWorkloadHours?: number | null;
+  independentProblemCount?: number | null;
+  meetingWorkloadHours?: number | null;
+  meetingProblemCount?: number | null;
+  sortOrder?: number | null;
 }
 
 export interface ReviewDataProblemItemSaveRequest {

@@ -139,11 +139,11 @@ async function handleConfirm() {
         drag
         :auto-upload="false"
         :limit="1"
-        accept=".xlsx"
+        accept=".xls,.xlsx"
         :on-change="handleFileChange"
       >
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">拖入 .xlsx 文件，或点击选择</div>
+        <div class="el-upload__text">拖入 .xls / .xlsx 文件，或点击选择</div>
       </el-upload>
 
       <el-form class="legacy-import-form" label-width="118px">

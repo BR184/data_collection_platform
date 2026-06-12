@@ -32,6 +32,8 @@ public class ReviewDataRecordReadRepository {
         r.author_name,
         r.review_version,
         r.not_reach_standard_reason,
+        r.source_file_name,
+        r.weighted_defect_density,
         r.gitlab_project_id,
         r.gitlab_resource_iid,
         r.gitlab_resource_type,
@@ -163,6 +165,8 @@ public class ReviewDataRecordReadRepository {
             r.author_name,
             r.review_version,
             r.not_reach_standard_reason,
+            r.source_file_name,
+            r.weighted_defect_density,
             r.gitlab_project_id,
             r.gitlab_resource_iid,
             r.gitlab_resource_type,
@@ -220,6 +224,8 @@ public class ReviewDataRecordReadRepository {
           page_records.author_name,
           page_records.review_version,
           page_records.not_reach_standard_reason,
+          page_records.source_file_name,
+          page_records.weighted_defect_density,
           page_records.gitlab_project_id,
           page_records.gitlab_resource_iid,
           page_records.gitlab_resource_type,
@@ -387,6 +393,8 @@ public class ReviewDataRecordReadRepository {
         getIntegerOrDefault(rs, "meeting_review_problem_count"),
         TextQuerySupport.normalizeDisplay(rs.getString("not_reach_standard_reason")),
         isReachStandard(problemCount, reviewScalePages),
+        TextQuerySupport.normalizeDisplay(rs.getString("source_file_name")),
+        getDoubleOrNull(rs, "weighted_defect_density"),
         rs.getTimestamp("created_at") == null ? null : rs.getTimestamp("created_at").toLocalDateTime(),
         rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime(),
         rs.getBoolean("deleted"),
@@ -410,6 +418,11 @@ public class ReviewDataRecordReadRepository {
   private Double getDoubleOrDefault(ResultSet rs, String columnName) throws SQLException {
     Object value = rs.getObject(columnName);
     return value == null ? 0D : rs.getDouble(columnName);
+  }
+
+  private Double getDoubleOrNull(ResultSet rs, String columnName) throws SQLException {
+    Object value = rs.getObject(columnName);
+    return value == null ? null : rs.getDouble(columnName);
   }
 
   private Integer getIntegerOrDefault(ResultSet rs, String columnName) throws SQLException {

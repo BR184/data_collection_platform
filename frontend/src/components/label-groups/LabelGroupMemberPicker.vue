@@ -152,9 +152,15 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
 .label-member-picker {
   display: grid;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .label-member-picker-select {
+  width: 100%;
+}
+
+.label-member-picker :deep(.el-select) {
   width: 100%;
 }
 

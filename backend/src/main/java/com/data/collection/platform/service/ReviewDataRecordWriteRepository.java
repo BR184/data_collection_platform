@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import java.sql.Date;
 import java.sql.PreparedStatement;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +45,9 @@ public class ReviewDataRecordWriteRepository {
       String reviewProduct,
       String authorName,
       String reviewVersion,
-      String notReachStandardReason) {
+      String notReachStandardReason,
+      String sourceFileName,
+      Double weightedDefectDensity) {
     KeyHolder keyHolder = new GeneratedKeyHolder();
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
@@ -67,6 +70,8 @@ public class ReviewDataRecordWriteRepository {
                     author_name,
                     review_version,
                     not_reach_standard_reason,
+                    source_file_name,
+                    weighted_defect_density,
                     search_text,
                     search_compact,
                     search_spell,
@@ -77,7 +82,7 @@ public class ReviewDataRecordWriteRepository {
                     title_search_initials,
                     created_at,
                     updated_at
-                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                  ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
                   """,
                   new String[] {"id"});
           statement.setString(1, normalizeText(projectName));
@@ -91,14 +96,20 @@ public class ReviewDataRecordWriteRepository {
           statement.setString(9, normalizeText(authorName));
           statement.setString(10, normalizeText(reviewVersion));
           statement.setString(11, normalizeNullableText(notReachStandardReason));
-          statement.setString(12, searchIndex.normalized());
-          statement.setString(13, searchIndex.compact());
-          statement.setString(14, searchIndex.spell());
-          statement.setString(15, searchIndex.initials());
-          statement.setString(16, titleSearchIndex.normalized());
-          statement.setString(17, titleSearchIndex.compact());
-          statement.setString(18, titleSearchIndex.spell());
-          statement.setString(19, titleSearchIndex.initials());
+          statement.setString(12, normalizeNullableText(sourceFileName));
+          statement.setBigDecimal(
+              13,
+              weightedDefectDensity == null
+                  ? null
+                  : BigDecimal.valueOf(ReviewDataNumberSupport.safeDouble(weightedDefectDensity)));
+          statement.setString(14, searchIndex.normalized());
+          statement.setString(15, searchIndex.compact());
+          statement.setString(16, searchIndex.spell());
+          statement.setString(17, searchIndex.initials());
+          statement.setString(18, titleSearchIndex.normalized());
+          statement.setString(19, titleSearchIndex.compact());
+          statement.setString(20, titleSearchIndex.spell());
+          statement.setString(21, titleSearchIndex.initials());
           return statement;
         },
         keyHolder);
@@ -117,7 +128,9 @@ public class ReviewDataRecordWriteRepository {
       String reviewProduct,
       String authorName,
       String reviewVersion,
-      String notReachStandardReason) {
+      String notReachStandardReason,
+      String sourceFileName,
+      Double weightedDefectDensity) {
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
             title, projectName, moduleName, reviewOwner, reviewType, List.of());
@@ -137,6 +150,8 @@ public class ReviewDataRecordWriteRepository {
           author_name = ?,
           review_version = ?,
           not_reach_standard_reason = ?,
+          source_file_name = ?,
+          weighted_defect_density = ?,
           search_text = ?,
           search_compact = ?,
           search_spell = ?,
@@ -159,6 +174,10 @@ public class ReviewDataRecordWriteRepository {
         normalizeText(authorName),
         normalizeText(reviewVersion),
         normalizeNullableText(notReachStandardReason),
+        normalizeNullableText(sourceFileName),
+        weightedDefectDensity == null
+            ? null
+            : BigDecimal.valueOf(ReviewDataNumberSupport.safeDouble(weightedDefectDensity)),
         searchIndex.normalized(),
         searchIndex.compact(),
         searchIndex.spell(),
