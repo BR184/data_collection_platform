@@ -95,14 +95,19 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     jdbcTemplate.update(
         """
         insert into label_group_dynamic_rules
-          (group_id, rule_template_key, rule_params_json, output_value_type)
-        values (:groupId, :ruleTemplateKey, :ruleParamsJson, :outputValueType)
+          (group_id, rule_template_key, rule_params_json, output_value_type,
+           last_status, last_error, last_computed_at)
+        values (:groupId, :ruleTemplateKey, :ruleParamsJson, :outputValueType,
+                :lastStatus, :lastError, :lastComputedAt)
         """,
         new MapSqlParameterSource()
             .addValue("groupId", groupId)
             .addValue("ruleTemplateKey", rule.ruleTemplateKey())
             .addValue("ruleParamsJson", rule.ruleParamsJson())
-            .addValue("outputValueType", rule.outputValueType()));
+            .addValue("outputValueType", rule.outputValueType())
+            .addValue("lastStatus", rule.lastStatus())
+            .addValue("lastError", rule.lastError())
+            .addValue("lastComputedAt", toTimestamp(rule.lastComputedAt())));
   }
 
   @Override
@@ -342,5 +347,9 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   private OffsetDateTime toOffsetDateTime(Timestamp timestamp) {
     return timestamp == null ? null : timestamp.toInstant().atZone(ZoneId.systemDefault()).toOffsetDateTime();
+  }
+
+  private Timestamp toTimestamp(OffsetDateTime value) {
+    return value == null ? null : Timestamp.from(value.toInstant());
   }
 }
