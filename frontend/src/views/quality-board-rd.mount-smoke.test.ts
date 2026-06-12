@@ -160,24 +160,6 @@ describe('QualityBoardRdView mount smoke', () => {
           ownerRows: [],
         });
       }
-      if (url.includes('/api/integration-tests/project-options')) {
-        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT' }]);
-      }
-      if (url.includes('/api/integration-tests/phase-options')) {
-        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R1集成测试', recordCount: 3 }]);
-      }
-      if (url.includes('/api/integration-tests/summary')) {
-        return jsonResponse({
-          projectId: 325,
-          testingPhase: 'R1集成测试',
-          moduleCount: 2,
-          totalIssueCount: 3,
-          factRefreshedAt: '2026-04-27T10:00:00',
-          rows: [
-            { moduleName: '支付中心', issueCount: 1, executeCase: 10, passCase: 8, notPassCase: 2, notPassCaseNow: 2, problemCase: 1, exceptionCount: 0, passRate: 80, illegalCount: 0 },
-          ],
-        });
-      }
       if (url.includes('/api/statistic-boards/system-test-defect-summary')) {
         return jsonResponse(
           createBoard([
@@ -211,7 +193,7 @@ describe('QualityBoardRdView mount smoke', () => {
 
     expect(wrapper.text()).toContain('研发质量一屏概览');
     expect(wrapper.text()).toContain('评审密度对比');
-    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(3);
 
     wrapper.unmount();
     vi.unstubAllGlobals();
@@ -276,22 +258,6 @@ describe('QualityBoardRdView mount smoke', () => {
           ownerRows: [],
         });
       }
-      if (url.includes('/api/integration-tests/project-options')) {
-        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT' }]);
-      }
-      if (url.includes('/api/integration-tests/phase-options')) {
-        return jsonResponse([{ projectId: 325, projectName: 'CC_PRODUCT', testingPhase: 'R1集成测试', recordCount: 3 }]);
-      }
-      if (url.includes('/api/integration-tests/summary')) {
-        return jsonResponse({
-          projectId: 325,
-          testingPhase: 'R1集成测试',
-          moduleCount: 2,
-          totalIssueCount: 3,
-          factRefreshedAt: '2026-04-27T10:00:00',
-          rows: [],
-        });
-      }
       return jsonResponse({});
     });
     vi.stubGlobal('fetch', fetchSpy);
@@ -313,7 +279,7 @@ describe('QualityBoardRdView mount smoke', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('研发质量一屏概览');
-    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(4);
+    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(3);
     expect(warnSpy).toHaveBeenCalledWith('系统测试摘要 加载失败', expect.any(Error));
 
     wrapper.unmount();

@@ -1,4 +1,3 @@
-export * from '../integration-test';
 export * from './common';
 export * from './sync';
 export * from './statistics';

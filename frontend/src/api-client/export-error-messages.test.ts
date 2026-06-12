@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { codeReviewApi } from './code-review-api';
-import { integrationTestsApi } from './integration-tests-api';
 import { statisticBoardsApi } from './statistic-boards-api';
 
 describe('export API error messages', () => {
@@ -22,11 +21,6 @@ describe('export API error messages', () => {
     await expect(codeReviewApi.exportCodeReviewIllegalRecords({})).rejects.toThrow('Excel 导出失败，状态码：503');
   });
 
-  it('uses Chinese fallback copy for integration test export failures', async () => {
-    stubEmptyExportFailure(504);
-
-    await expect(integrationTestsApi.exportIntegrationTestDetails({})).rejects.toThrow('导出失败，状态码：504');
-  });
 });
 
 function stubEmptyExportFailure(status: number) {

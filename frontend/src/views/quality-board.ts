@@ -1,6 +1,5 @@
 import type {
   CodeReviewMultiBoardOverviewResponse,
-  IntegrationTestSummaryResponse,
   ReviewDataSummaryResponse,
   StatisticBoardResponse,
   StatisticRowData,
@@ -56,16 +55,6 @@ export function computeReviewDensity(summary: ReviewDataSummaryResponse | null) 
   return summary.totalProblemItems / totalPages;
 }
 
-export function computeIntegrationPassRate(summary: IntegrationTestSummaryResponse | null) {
-  const rows = summary?.rows ?? [];
-  const totalExecute = rows.reduce((sum, row) => sum + (row.executeCase ?? 0), 0);
-  const totalPass = rows.reduce((sum, row) => sum + (row.passCase ?? 0), 0);
-  if (totalExecute <= 0) {
-    return null;
-  }
-  return (totalPass / totalExecute) * 100;
-}
-
 export function computeSystemTestOpenRate(board: StatisticBoardResponse | null) {
   const summary = totalRow(board);
   const total = cellNumber(summary, 'module_total');
@@ -81,7 +70,6 @@ export function buildQualityBoardCards(input: {
   designDensity: number | null;
   codeReviewCcDensity: number | null;
   codeReviewDgmDensity: number | null;
-  integrationPassRate: number | null;
   systemTestOpenRate: number | null;
 }): QualityBoardCard[] {
   return [
@@ -108,12 +96,6 @@ export function buildQualityBoardCards(input: {
       label: '代码走查缺陷密度(DGM)',
       value: formatFixed(input.codeReviewDgmDensity),
       tone: resolveBandTone(input.codeReviewDgmDensity, 2, 10),
-    },
-    {
-      key: 'integration-pass',
-      label: '集成测试平均通过率',
-      value: formatFixed(input.integrationPassRate, 2, '%'),
-      tone: resolveMinTone(input.integrationPassRate, 90),
     },
     {
       key: 'system-open-rate',
@@ -157,24 +139,6 @@ export function buildCodeReviewDensityChartOption(input: {
         color: '#36cfc9',
       },
     ],
-  });
-}
-
-export function buildIntegrationPassChartOption(summary: IntegrationTestSummaryResponse | null) {
-  const items: NamedValue[] = (summary?.rows ?? [])
-    .map((row) => ({
-      name: row.moduleName,
-      value: Number(row.passRate ?? 0),
-    }))
-    .filter((item) => item.value > 0)
-    .sort((left, right) => right.value - left.value)
-    .slice(0, 8);
-  return buildHorizontalBarOption({
-    title: '集成测试模块通过率',
-    subtitle: '优先看通过率更高的模块，也能快速发现明显落后的模块',
-    items,
-    color: '#52c41a',
-    valueFormatter: (value) => `${value.toFixed(2)}%`,
   });
 }
 

@@ -11,18 +11,15 @@ import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import type {
   CodeReviewMultiBoardOverviewResponse,
-  IntegrationTestSummaryResponse,
   ReviewDataSummaryResponse,
   ReviewDataFilterOptionsResponse,
   StatisticBoardResponse,
 } from '../types/api';
 import {
   buildCodeReviewDensityChartOption,
-  buildIntegrationPassChartOption,
   buildQualityBoardCards,
   buildReviewDensityChartOption,
   buildSystemTestRepairChartOption,
-  computeIntegrationPassRate,
   computeReviewDensity,
   computeSystemTestOpenRate,
 } from './quality-board';
@@ -36,12 +33,10 @@ const demandReviewSummary = ref<ReviewDataSummaryResponse | null>(null);
 const designReviewSummary = ref<ReviewDataSummaryResponse | null>(null);
 const codeReviewCcOverview = ref<CodeReviewMultiBoardOverviewResponse | null>(null);
 const codeReviewDgmOverview = ref<CodeReviewMultiBoardOverviewResponse | null>(null);
-const integrationSummary = ref<IntegrationTestSummaryResponse | null>(null);
 const systemTestSummaryBoard = ref<StatisticBoardResponse | null>(null);
 
 const demandDensity = computed(() => computeReviewDensity(demandReviewSummary.value));
 const designDensity = computed(() => computeReviewDensity(designReviewSummary.value));
-const integrationPassRate = computed(() => computeIntegrationPassRate(integrationSummary.value));
 const systemTestOpenRate = computed(() => computeSystemTestOpenRate(systemTestSummaryBoard.value));
 const cards = computed(() =>
   buildQualityBoardCards({
@@ -49,7 +44,6 @@ const cards = computed(() =>
     designDensity: designDensity.value,
     codeReviewCcDensity: codeReviewCcOverview.value?.defectDensityPerKloc ?? null,
     codeReviewDgmDensity: codeReviewDgmOverview.value?.defectDensityPerKloc ?? null,
-    integrationPassRate: integrationPassRate.value,
     systemTestOpenRate: systemTestOpenRate.value,
   }),
 );
@@ -65,7 +59,6 @@ const codeReviewDensityChartOption = computed(() =>
     dgmDensity: codeReviewDgmOverview.value?.defectDensityPerKloc ?? null,
   }),
 );
-const integrationPassChartOption = computed(() => buildIntegrationPassChartOption(integrationSummary.value));
 const systemTestRepairChartOption = computed(() => buildSystemTestRepairChartOption(systemTestSummaryBoard.value));
 
 const pageReady = computed(() => initialized.value);
@@ -81,10 +74,6 @@ function clearReviewSummaries() {
 function clearCodeReviewSummaries() {
   codeReviewCcOverview.value = null;
   codeReviewDgmOverview.value = null;
-}
-
-function clearIntegrationSummary() {
-  integrationSummary.value = null;
 }
 
 function clearSystemTestSummary() {
@@ -135,26 +124,6 @@ async function loadCodeReviewSummaries() {
   codeReviewDgmOverview.value = dgm;
 }
 
-async function loadIntegrationSummary() {
-  clearIntegrationSummary();
-  const projects = await api.getIntegrationTestProjectOptions();
-  const firstProject = projects[0];
-  if (!firstProject) {
-    integrationSummary.value = null;
-    return;
-  }
-  const phases = await api.getIntegrationTestPhaseOptions(firstProject.projectId);
-  const firstPhase = phases[0];
-  if (!firstPhase) {
-    integrationSummary.value = null;
-    return;
-  }
-  integrationSummary.value = await api.getIntegrationTestSummary({
-    projectId: firstProject.projectId,
-    testingPhase: firstPhase.testingPhase,
-  });
-}
-
 async function loadSystemTestSummary() {
   clearSystemTestSummary();
   systemTestSummaryBoard.value = await api.getStatisticBoard('system-test-defect-summary');
@@ -164,7 +133,6 @@ async function loadPage() {
   if (!isAuthenticated.value) {
     clearReviewSummaries();
     clearCodeReviewSummaries();
-    clearIntegrationSummary();
     clearSystemTestSummary();
     initialized.value = true;
     loading.value = false;
@@ -175,7 +143,6 @@ async function loadPage() {
     const results = await Promise.all([
       loadSection('评审摘要', loadReviewSummaries),
       loadSection('代码走查摘要', loadCodeReviewSummaries),
-      loadSection('集成测试摘要', loadIntegrationSummary),
       loadSection('系统测试摘要', loadSystemTestSummary),
     ]);
     return results.every(Boolean);
@@ -229,7 +196,7 @@ watch(
         <div>
           <div class="quality-board-rd__eyebrow">质量看板 / 研发质量</div>
           <h2>研发质量一屏概览</h2>
-          <p>把评审、代码走查、集成测试和系统测试里最有判断力的信号拉到同一页，不再要求用户自己在多张表之间来回拼。</p>
+          <p>把评审、代码走查和系统测试里最有判断力的信号拉到同一页，不再要求用户自己在多张表之间来回拼。</p>
         </div>
         <el-button :icon="Refresh" :loading="loading" @click="handleRefresh">刷新</el-button>
       </section>
@@ -243,7 +210,7 @@ watch(
 
       <section v-if="!isAuthenticated" class="quality-board-rd__guest-empty">
         <h3>登录后查看研发质量看板数据</h3>
-        <p>游客模式仅保留导航入口，不请求受权限保护的评审、代码走查、集成测试和系统测试摘要。</p>
+        <p>游客模式仅保留导航入口，不请求受权限保护的评审、代码走查和系统测试摘要。</p>
       </section>
 
       <section v-else class="quality-board-rd__grid">
@@ -267,17 +234,6 @@ watch(
             <el-link v-if="isAdmin" underline="never" type="primary" @click="goTo('/code-review/multi-board')">代码走查看板</el-link>
           </div>
           <EChartPanel :option="codeReviewDensityChartOption" :loading="loading" :height="320" />
-        </article>
-
-        <article class="quality-board-rd__panel">
-          <div class="quality-board-rd__panel-head">
-            <div>
-              <h3>集成测试模块通过率</h3>
-              <p>只展示最需要关注的模块，不把长尾模块都堆进一张图。</p>
-            </div>
-            <el-link underline="never" type="primary" @click="goTo('/integration-test/home')">集成测试分析</el-link>
-          </div>
-          <EChartPanel :option="integrationPassChartOption" :loading="loading" :height="320" />
         </article>
 
         <article class="quality-board-rd__panel">

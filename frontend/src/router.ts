@@ -26,7 +26,6 @@ const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIlleg
 const CustomerIssueRecordsView = () => import('./views/CustomerIssueRecordsView.vue');
 const SystemTestIllegalRecordsView = () => import('./views/SystemTestIllegalRecordsView.vue');
 const CodeReviewMultiBoardView = () => import('./views/CodeReviewMultiBoardView.vue');
-const IntegrationTestAnalysisView = () => import('./views/IntegrationTestAnalysisView.vue');
 const QualityBoardRdView = () => import('./views/QualityBoardRdView.vue');
 const QualityBoardOtherView = () => import('./views/QualityBoardOtherView.vue');
 const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.vue');
@@ -97,9 +96,6 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('code-review-multi-board', CodeReviewMultiBoardView),
-  },
-  {
-    ...buildShellRoute('integration-test-home', IntegrationTestAnalysisView),
   },
   {
     ...buildShellRoute('question-metrics-home', StatisticBoardPage),

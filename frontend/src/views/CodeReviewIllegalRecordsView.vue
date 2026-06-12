@@ -378,8 +378,8 @@ async function handleOpenRuleExplanation() {
         />
       </template>
 
-      <template #toolbar-actions>
-        <div class="record-page-summary">
+      <template #primary-actions>
+        <div class="code-review-illegal-toolbar-actions">
           <SyncMetaBadge :value="lastSyncedText" />
           <el-button
             v-if="canRefreshLatestData"
@@ -407,8 +407,8 @@ async function handleOpenRuleExplanation() {
           <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
             导出
           </el-button>
-          <span class="record-page-summary-divider" />
-          <span class="record-page-summary-label">当前排序</span>
+          <span class="code-review-illegal-toolbar-divider" />
+          <span class="code-review-illegal-toolbar-label">当前排序</span>
           <el-tag effect="plain" type="info" class="record-page-sort-tag">
             {{ sortBy || 'mergedAt' }} / {{ sortOrder || 'desc' }}
           </el-tag>
@@ -631,22 +631,29 @@ async function handleOpenRuleExplanation() {
   gap: 12px;
 }
 
-.record-page-summary {
+.code-review-illegal-toolbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.record-page-summary-label {
+.code-review-illegal-toolbar-label {
   font-size: 12px;
   color: rgba(0, 0, 0, 0.45);
 }
 
-.record-page-summary-divider {
+.code-review-illegal-toolbar-divider {
   width: 1px;
   height: 14px;
   background: rgba(15, 23, 42, 0.1);
+}
+
+@media (max-width: 1180px) {
+  .code-review-illegal-toolbar-actions {
+    justify-content: flex-start;
+  }
 }
 
 .record-page-sort-tag,

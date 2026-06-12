@@ -35,4 +35,9 @@ describe('feature manifest access rules', () => {
     expect(visibleKeys).not.toContain('system-settings');
     expect(visibleKeys).toContain('quality-board');
   });
+
+  it('does not expose the removed integration test module', () => {
+    const visibleKeys = getVisibleModules(admin).map((module) => module.key);
+    expect(visibleKeys).not.toContain('integration-test');
+  });
 });

@@ -2,7 +2,6 @@ export type ModuleKey =
   | 'quality-board'
   | 'review-data'
   | 'code-review'
-  | 'integration-test'
   | 'question-metrics'
   | 'customer-issues'
   | 'system-settings';
@@ -14,7 +13,6 @@ export type PageKey =
   | 'code-review-home'
   | 'code-review-illegal-records'
   | 'code-review-multi-board'
-  | 'integration-test-home'
   | 'question-metrics-home'
   | 'question-metrics-multi-board'
   | 'question-metrics-delay-analysis'

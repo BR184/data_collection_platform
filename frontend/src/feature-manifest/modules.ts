@@ -3,7 +3,6 @@ import {
   DataAnalysis,
   Document,
   Histogram,
-  Monitor,
   Operation,
   Setting,
 } from '@element-plus/icons-vue';
@@ -21,7 +20,7 @@ export const modules: ShellModule[] = [
       {
         key: 'quality-board-rd-quality-board',
         label: '研发质量看板',
-        description: '聚合评审、代码走查、集成测试与系统测试关键信号的研发质量概览。',
+        description: '聚合评审、代码走查与系统测试关键信号的研发质量概览。',
         path: '/quality-board/rd-quality-board',
       },
       {
@@ -71,21 +70,6 @@ export const modules: ShellModule[] = [
         path: '/code-review/multi-board',
         requiresLogin: true,
         hiddenForApproval: true,
-      },
-    ],
-  },
-  {
-    key: 'integration-test',
-    label: '集成测试',
-    icon: Monitor,
-    title: '集成测试',
-    description: '承载集成测试数据分析相关页面。',
-    pages: [
-      {
-        key: 'integration-test-home',
-        label: '集成测试数据分析',
-        description: '按项目和测试阶段汇总集成测试执行结果，支持模块明细、明细导出和 Excel 对比导出。',
-        path: '/integration-test/home',
       },
     ],
   },

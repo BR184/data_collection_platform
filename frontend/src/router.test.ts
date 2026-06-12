@@ -107,22 +107,6 @@ describe('router query normalization', () => {
     expect(normalizeQuery(to)).toBeNull();
   });
 
-  it('drops legacy projectId but preserves source instance on integration-test routes', () => {
-    const to = router.resolve({
-      path: '/integration-test/home',
-      query: {
-        projectId: '325',
-        sourceInstance: 'cc',
-        testingPhase: 'R1 Integration',
-      },
-    });
-
-    expect(normalizeQuery(to)).toEqual({
-      sourceInstance: 'cc',
-      testingPhase: 'R1 Integration',
-    });
-  });
-
   it('keeps label group settings query keys inside system settings', () => {
     const to = router.resolve({
       path: '/system-settings/label-group-settings',
