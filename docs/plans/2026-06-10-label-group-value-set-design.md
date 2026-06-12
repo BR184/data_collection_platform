@@ -439,12 +439,23 @@ POST /api/label-groups/{groupId}/expand
 
 标签组只出现在“值”控件里，不能新增独立“标签组筛选”区域，不能新增独立 `labelGroupFilters` 请求参数。
 
+当“值”选择为标签组时，关系下拉必须切换为集合关系，不能继续复用普通单值关系。普通值筛选仍使用字段原有的 `等于`、`不等于`、`包含`、`为空` 等关系；标签组值筛选使用：
+
+```text
+包含任意一个：字段值集合与标签组展开值集合有交集
+不包含任意一个：字段值集合与标签组展开值集合无交集
+包含全部：字段值集合覆盖标签组展开值集合
+不包含全部：字段值集合未覆盖标签组展开值集合
+```
+
+标量字段可以视为只有一个元素的集合。例如 `reviewOwner 包含任意一个 核心人员` 等价于 `reviewOwner IN [张三, 李四]`；多值字段例如 `reviewExpert 包含任意一个 核心人员` 则按字段值集合和标签组集合求交集。
+
 提交结构沿用现有 `filterGroup.conditions`：
 
 ```json
 {
   "fieldKey": "reviewOwner",
-  "operator": "eq",
+  "operator": "intersects",
   "valueType": "LABEL_GROUP",
   "labelGroupId": 1,
   "labelGroupName": "核心人员"
@@ -456,18 +467,22 @@ POST /api/label-groups/{groupId}/expand
 标量字段：
 
 ```text
-eq LABEL_GROUP -> field IN expandedValues
-ne LABEL_GROUP -> field NOT IN expandedValues
+intersects LABEL_GROUP -> field IN expandedValues
+notIntersects LABEL_GROUP -> field NOT IN expandedValues
+containsAll LABEL_GROUP -> field 覆盖 expandedValues。标量字段只有一个值，所以只有展开值为空或只包含该字段值时才成立。
+notContainsAll LABEL_GROUP -> field 未覆盖 expandedValues
 ```
 
 多值字段：
 
 ```text
-eq LABEL_GROUP -> fieldValues 与 expandedValues 相交
-ne LABEL_GROUP -> fieldValues 与 expandedValues 不相交
+intersects LABEL_GROUP -> fieldValues 与 expandedValues 相交
+notIntersects LABEL_GROUP -> fieldValues 与 expandedValues 不相交
+containsAll LABEL_GROUP -> fieldValues 覆盖 expandedValues
+notContainsAll LABEL_GROUP -> fieldValues 未覆盖 expandedValues
 ```
 
-`contains`、`startsWith`、`endsWith` 是否支持标签组值，需要按字段和性能单独确认；第一版不默认开放。
+普通文本的 `contains`、`startsWith`、`endsWith` 不作为标签组值关系展示；标签组值只开放上面的集合关系。
 
 同字段普通值和标签组成员折叠为一个集合时，去重后上限仍为 200。
 
@@ -534,8 +549,8 @@ COMPOSITE 展开 = 所有子组展开值 UNION 去重
 1. 创建字符串标签组“核心人员”，用户没有手动选择 `valueType`。
 2. 选择或输入第一个成员 `张三` 后，系统自动定型为 `STRING`，并隐藏数字、日期等不匹配候选。
 3. 清空全部成员后，标签组草稿可以回到未定型状态。
-4. 在评审数据管理中选择 `reviewOwner eq 核心人员（标签组）`，结果等价于 `reviewOwner IN [张三, 李四]`。
-5. 在系统测试议题查询中选择 `assigneeName eq 核心人员（标签组）`，结果等价于 `assigneeName IN [张三, 李四]`。
+4. 在评审数据管理中选择 `reviewOwner 包含任意一个 核心人员（标签组）`，结果等价于 `reviewOwner IN [张三, 李四]`。
+5. 在系统测试议题查询中选择 `assigneeName 包含任意一个 核心人员（标签组）`，结果等价于 `assigneeName IN [张三, 李四]`。
 6. 同一个字符串标签组可应用到 `moduleName` 字段，系统不会因为成员曾经来自人员候选而拦截。
 7. 创建字符串标签组时，可以手动输入数据库当前不存在的字符串。
 8. 动态标签组由规则模板输出或首次计算结果推断 `valueType`，用户不手动填写。
@@ -543,8 +558,8 @@ COMPOSITE 展开 = 所有子组展开值 UNION 去重
 10. 组合标签组可以引用多个同 `valueType` 的静态/动态/组合标签组，展开结果为所有子组结果并集去重。
 11. 组合标签组引用链出现循环时保存失败，并提示循环链路。
 12. 子组更新后，组合标签组按当前子组结果重新展开。
-13. 多值字段 `reviewExpert` 使用字符串标签组时按集合相交匹配。
-14. `contains LABEL_GROUP` 第一版不开放时，前端不展示，后端拒绝。
+13. 多值字段 `reviewExpert` 使用字符串标签组的“包含任意一个”时按集合相交匹配，“包含全部”时按集合覆盖匹配。
+14. 标签组值模式下前端只展示集合关系，后端拒绝普通 `contains LABEL_GROUP`、`eq LABEL_GROUP` 等旧式关系。
 15. 导出文件展示标签组名和导出时展开成员快照。
 16. URL 恢复后仍通过 `filterGroup.conditions` 表达标签组条件。
 17. 全仓不再出现新实现的 `labelGroupFilters` 独立请求参数。

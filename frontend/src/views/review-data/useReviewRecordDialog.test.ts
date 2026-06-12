@@ -33,6 +33,8 @@ function detail(overrides: Partial<ReviewDataRecordRowResponse> = {}): ReviewDat
     record: record(overrides),
     reviewExperts: ['Ada', 'Grace'],
     problemItems: [],
+    descriptions: [],
+    contents: [],
   };
 }
 

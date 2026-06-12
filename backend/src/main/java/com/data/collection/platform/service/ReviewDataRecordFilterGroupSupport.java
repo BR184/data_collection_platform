@@ -96,30 +96,34 @@ final class ReviewDataRecordFilterGroupSupport {
     }
     String fieldKey = TextQuerySupport.trimToNull(condition.fieldKey());
     String operator = TextQuerySupport.trimToNull(condition.operator());
-    if (fieldKey == null
-        || operator == null
-        || !FILTER_OPERATORS.getOrDefault(fieldKey, List.of()).contains(operator)) {
+    if (fieldKey == null || operator == null) {
       return null;
     }
     String value = TextQuerySupport.trimToNull(condition.value());
     String secondaryValue = TextQuerySupport.trimToNull(condition.secondaryValue());
     String valueType = TextQuerySupport.trimToNull(condition.valueType());
     if ("LABEL_GROUP".equalsIgnoreCase(valueType)) {
-      if (!"eq".equals(operator) && !"ne".equals(operator)) {
-        throw new BizException("标签组筛选只支持等于或不等于关系");
+      if (!FILTER_OPERATORS.containsKey(fieldKey)) {
+        return null;
+      }
+      if (!LabelGroupFilterOperatorSupport.isSetOperator(operator)) {
+        throw new BizException("标签组筛选只支持集合关系");
       }
       if (condition.labelGroupId() == null) {
         throw new BizException("标签组筛选缺少标签组 ID");
       }
       return new StatisticFilterCondition(
           fieldKey,
-          operator,
+          LabelGroupFilterOperatorSupport.normalize(operator),
           null,
           null,
           "LABEL_GROUP",
           condition.labelGroupId(),
           TextQuerySupport.trimToNull(condition.labelGroupName()),
-          condition.values() == null ? List.of() : condition.values());
+        condition.values() == null ? List.of() : condition.values());
+    }
+    if (!FILTER_OPERATORS.getOrDefault(fieldKey, List.of()).contains(operator)) {
+      return null;
     }
     if (requiresPrimaryValue(operator) && value == null) {
       return null;
@@ -155,16 +159,7 @@ final class ReviewDataRecordFilterGroupSupport {
 
   private static boolean matchesLabelGroup(List<String> actualValues, StatisticFilterCondition condition) {
     List<String> expectedValues = condition.values() == null ? List.of() : condition.values();
-    if (expectedValues.isEmpty()) {
-      return false;
-    }
-    boolean intersects =
-        actualValues.stream()
-            .filter(value -> TextQuerySupport.trimToNull(value) != null)
-            .anyMatch(
-                actual ->
-                    expectedValues.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
-    return "ne".equals(condition.operator()) ? !intersects : intersects;
+    return LabelGroupFilterOperatorSupport.matches(actualValues, expectedValues, condition.operator());
   }
 
   private static List<String> valuesForField(

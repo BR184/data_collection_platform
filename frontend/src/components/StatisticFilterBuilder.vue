@@ -11,6 +11,7 @@ import type { LabelGroup } from '../types/api';
 import type { RecordTableFilterOption } from '../types/record-table';
 import {
   createFilterConditionDraft,
+  isLabelGroupOperator,
   labelGroupSelectValue,
   operatorLabel,
   parseLabelGroupSelectValue,
@@ -49,6 +50,12 @@ const selectedConditionCount = computed(() => selectedConditionIds.value.length)
 const allConditionsSelected = computed(
   () => props.modelValue.conditions.length > 0 && selectedConditionIds.value.length === props.modelValue.conditions.length,
 );
+const labelGroupOperators: StatisticFilterOperator[] = [
+  'intersects',
+  'notIntersects',
+  'containsAll',
+  'notContainsAll',
+];
 
 watch(
   () => props.modelValue.conditions.length,
@@ -173,6 +180,9 @@ function handleConditionFieldChange(condition: StatisticFilterConditionDraft) {
 }
 
 function operatorOptionsForCondition(condition: StatisticFilterConditionDraft) {
+  if (condition.valueType === 'LABEL_GROUP') {
+    return labelGroupOperators;
+  }
   return fieldForCondition(condition.fieldKey)?.operators ?? [];
 }
 
@@ -254,15 +264,22 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
     condition.valueType = 'LABEL_GROUP';
     condition.labelGroupId = groupId;
     condition.labelGroupName = group?.name ?? '';
+    if (!isLabelGroupOperator(condition.operator)) {
+      condition.operator = 'intersects';
+    }
     return;
   }
   condition.value = nextValue;
   clearLabelGroupValue(condition);
+  if (isLabelGroupOperator(condition.operator)) {
+    const field = fieldForCondition(condition.fieldKey);
+    condition.operator = (field?.operators?.[0] ?? '') as StatisticFilterOperator | '';
+  }
 }
 
 function supportsLabelGroupValue(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
-  return Boolean(field?.labelGroupEnabled) && (condition.operator === 'eq' || condition.operator === 'ne');
+  return Boolean(field?.labelGroupEnabled);
 }
 
 function labelGroupValueType(field: StatisticFilterField | null) {

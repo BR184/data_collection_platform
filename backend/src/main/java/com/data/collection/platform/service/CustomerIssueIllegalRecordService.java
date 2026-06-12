@@ -133,6 +133,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
       return condition;
     }
     String fieldKey = requireSupportedLabelGroupField(condition.fieldKey());
+    if (!LabelGroupFilterOperatorSupport.isSetOperator(condition.operator())) {
+      throw new com.data.collection.platform.common.exception.BizException("标签组筛选只支持集合关系");
+    }
+    if (condition.labelGroupId() == null) {
+      throw new com.data.collection.platform.common.exception.BizException("标签组筛选缺少标签组 ID");
+    }
     LabelGroupExpansionResponse expansion =
         labelGroupExpansionService.expand(
             condition.labelGroupId(), LABEL_GROUP_FIELD_VALUE_TYPES.get(fieldKey), fieldKey, PAGE_KEY, sourceInstance);
@@ -141,7 +147,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     }
     return new StatisticFilterCondition(
         fieldKey,
-        condition.operator(),
+        LabelGroupFilterOperatorSupport.normalize(condition.operator()),
         null,
         null,
         "LABEL_GROUP",

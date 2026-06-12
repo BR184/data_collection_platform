@@ -205,8 +205,8 @@ public class ReviewDataRecordQueryService {
     }
     String fieldKey = requireSupportedField(condition.fieldKey());
     String expectedValueType = LABEL_GROUP_FIELD_VALUE_TYPES.get(fieldKey);
-    if (!"eq".equals(condition.operator()) && !"ne".equals(condition.operator())) {
-      throw new BizException("标签组筛选只支持等于或不等于关系");
+    if (!LabelGroupFilterOperatorSupport.isSetOperator(condition.operator())) {
+      throw new BizException("标签组筛选只支持集合关系");
     }
     if (condition.labelGroupId() == null) {
       throw new BizException("标签组筛选缺少标签组 ID");
@@ -219,7 +219,7 @@ public class ReviewDataRecordQueryService {
     }
     return new com.data.collection.platform.entity.statistics.StatisticFilterCondition(
         fieldKey,
-        condition.operator(),
+        LabelGroupFilterOperatorSupport.normalize(condition.operator()),
         null,
         null,
         "LABEL_GROUP",

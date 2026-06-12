@@ -33,6 +33,8 @@ function detail(recordId = 3): ReviewDataRecordDetailResponse {
     record: record(recordId),
     reviewExperts: ['Ada', 'Grace'],
     problemItems: [],
+    descriptions: [],
+    contents: [],
   };
 }
 

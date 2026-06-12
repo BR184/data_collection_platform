@@ -107,14 +107,14 @@ final class StatisticFilterGroupSupport {
             "Unsupported statistic filter field: " + condition.fieldKey());
       }
       String operator = trimToNull(condition.operator());
-      if (operator == null || !field.operators().contains(operator)) {
+      if (operator == null) {
         throw new IllegalArgumentException(
             "Unsupported operator for field " + field.key() + ": " + condition.operator());
       }
       String value = trimToNull(condition.value());
       String secondaryValue = trimToNull(condition.secondaryValue());
       if (condition.usesLabelGroup()) {
-        if (!"eq".equals(operator) && !"ne".equals(operator)) {
+        if (!isLabelGroupSetOperator(operator)) {
           throw new IllegalArgumentException(
               "Unsupported label group operator for field " + field.key() + ": " + condition.operator());
         }
@@ -124,7 +124,7 @@ final class StatisticFilterGroupSupport {
         normalized.add(
             new StatisticFilterCondition(
                 field.key(),
-                operator,
+                normalizeLabelGroupOperator(operator),
                 null,
                 null,
                 "LABEL_GROUP",
@@ -132,6 +132,10 @@ final class StatisticFilterGroupSupport {
                 trimToNull(condition.labelGroupName()),
                 condition.values() == null ? java.util.List.of() : condition.values()));
         continue;
+      }
+      if (!field.operators().contains(operator)) {
+        throw new IllegalArgumentException(
+            "Unsupported operator for field " + field.key() + ": " + condition.operator());
       }
       if (requiresPrimaryValue(operator) && value == null) {
         continue;
@@ -150,6 +154,25 @@ final class StatisticFilterGroupSupport {
 
   private static boolean requiresPrimaryValue(String operator) {
     return !"isEmpty".equals(operator) && !"isNotEmpty".equals(operator);
+  }
+
+  private static boolean isLabelGroupSetOperator(String operator) {
+    return "eq".equals(operator)
+        || "ne".equals(operator)
+        || "intersects".equals(operator)
+        || "notIntersects".equals(operator)
+        || "containsAll".equals(operator)
+        || "notContainsAll".equals(operator);
+  }
+
+  private static String normalizeLabelGroupOperator(String operator) {
+    if ("eq".equals(operator)) {
+      return "intersects";
+    }
+    if ("ne".equals(operator)) {
+      return "notIntersects";
+    }
+    return operator;
   }
 
   private static Map<String, StatisticFilterField> toFieldMap(

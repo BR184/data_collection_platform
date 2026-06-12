@@ -71,7 +71,7 @@ export function normalizeFilterDraftGroup(
       .map((condition) => ({
         id: createFilterConditionDraft(fieldMap.get(condition.fieldKey)).id,
         fieldKey: condition.fieldKey,
-        operator: condition.operator,
+        operator: normalizeConditionOperator(condition.operator, condition.valueType),
         value: condition.valueType === 'LABEL_GROUP' && condition.labelGroupId
           ? labelGroupSelectValue(condition.labelGroupId)
           : condition.value ?? '',
@@ -83,6 +83,19 @@ export function normalizeFilterDraftGroup(
   };
 }
 
+function normalizeConditionOperator(operator: StatisticFilterOperator, valueType?: string | null): StatisticFilterOperator {
+  if (valueType !== 'LABEL_GROUP') {
+    return operator;
+  }
+  if (operator === 'eq') {
+    return 'intersects';
+  }
+  if (operator === 'ne') {
+    return 'notIntersects';
+  }
+  return operator;
+}
+
 export function sanitizeFilterDraftGroup(draft: StatisticFilterDraftGroup): StatisticFilterGroup | null {
   const conditions: StatisticFilterCondition[] = [];
 
@@ -92,7 +105,7 @@ export function sanitizeFilterDraftGroup(draft: StatisticFilterDraftGroup): Stat
     }
 
     if (condition.valueType === 'LABEL_GROUP') {
-      if (!condition.labelGroupId || !['eq', 'ne'].includes(condition.operator)) {
+      if (!condition.labelGroupId || !isLabelGroupOperator(condition.operator)) {
         continue;
       }
       conditions.push({
@@ -150,6 +163,10 @@ export function operatorLabel(operator: StatisticFilterOperator | '') {
       ne: '不等于',
       contains: '包含',
       notContains: '不包含',
+      intersects: '包含任意一个',
+      notIntersects: '不包含任意一个',
+      containsAll: '包含全部',
+      notContainsAll: '不包含全部',
       gt: '大于',
       gte: '大于等于',
       lt: '小于',
@@ -165,6 +182,10 @@ export function operatorLabel(operator: StatisticFilterOperator | '') {
       isNotEmpty: '不为空',
     } as Record<string, string>
   )[operator] ?? '条件';
+}
+
+export function isLabelGroupOperator(operator: StatisticFilterOperator | '') {
+  return ['intersects', 'notIntersects', 'containsAll', 'notContainsAll'].includes(operator);
 }
 
 export function usesSecondaryValue(operator: StatisticFilterOperator | '') {

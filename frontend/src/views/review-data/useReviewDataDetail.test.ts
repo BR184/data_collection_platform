@@ -28,6 +28,8 @@ function detail(recordId: number): ReviewDataRecordDetailResponse {
     record: record(recordId),
     reviewExperts: ['Ada'],
     problemItems: [],
+    descriptions: [],
+    contents: [],
   };
 }
 

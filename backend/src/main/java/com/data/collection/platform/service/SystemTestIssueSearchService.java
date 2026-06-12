@@ -329,8 +329,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       return condition;
     }
     String fieldKey = requireSupportedLabelGroupField(condition.fieldKey());
-    if (!"eq".equals(condition.operator()) && !"ne".equals(condition.operator())) {
-      throw new com.data.collection.platform.common.exception.BizException("标签组筛选只支持等于或不等于关系");
+    if (!LabelGroupFilterOperatorSupport.isSetOperator(condition.operator())) {
+      throw new com.data.collection.platform.common.exception.BizException("标签组筛选只支持集合关系");
     }
     if (condition.labelGroupId() == null) {
       throw new com.data.collection.platform.common.exception.BizException("标签组筛选缺少标签组 ID");
@@ -343,7 +343,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     }
     return new StatisticFilterCondition(
         fieldKey,
-        condition.operator(),
+        LabelGroupFilterOperatorSupport.normalize(condition.operator()),
         null,
         null,
         "LABEL_GROUP",
