@@ -202,8 +202,8 @@ class SqlPushdownRealChainTest {
         "张三提交登录模块",
         "张三",
         "",
-        "master",
-        "login",
+        "dev",
+        "未标注模块名",
         null,
         12,
         80);
@@ -237,7 +237,7 @@ class SqlPushdownRealChainTest {
 
     assertThat(response.at("/data/total").asLong()).isEqualTo(1);
     assertThat(response.at("/data/records/0/mergeRequestIid").asInt()).isEqualTo(501);
-    assertThat(response.at("/data/records/0/illegalTypes").toString()).contains("缺少模块标签");
+    assertThat(response.at("/data/records/0/illegalTypes").toString()).contains("未标注模块名");
   }
 
   private JsonNode getJson(String path, String query) throws Exception {
@@ -458,6 +458,7 @@ class SqlPushdownRealChainTest {
       Integer addedLines) {
     MergeRequestFact fact = new MergeRequestFact();
     fact.setTitle(title);
+    fact.setAuthorName(ownerName);
     fact.setOwnerName(ownerName);
     fact.setProjectName(projectName);
     fact.setRepositoryName(repositoryName);
@@ -478,7 +479,7 @@ class SqlPushdownRealChainTest {
           search_text, search_compact, search_spell, search_initials,
           owner_search_text, owner_search_compact, owner_search_spell, owner_search_initials
         ) values (
-          'GITLAB', 'default', ?, ?, ?, ?, ?, ?, 'merged', ?, 'feature/sql-pushdown', 'author',
+          'GITLAB', 'default', ?, ?, ?, ?, ?, ?, 'merged', ?, 'feature/sql-pushdown', ?,
           ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', 30, ?, ?, 'SCANNED', 0, ?, false,
           ?, ?, ?, ?, ?, ?, ?, ?
         )
@@ -490,6 +491,7 @@ class SqlPushdownRealChainTest {
         mergeRequestIid,
         title,
         targetBranch,
+        ownerName,
         ownerName,
         ownerName,
         moduleName,

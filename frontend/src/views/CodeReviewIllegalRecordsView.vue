@@ -489,6 +489,7 @@ async function handleOpenRuleExplanation() {
             <el-descriptions-item label="合并目标分支">{{ selectedRow.targetBranch || '-' }}</el-descriptions-item>
             <el-descriptions-item label="合并时间">{{ formatCodeReviewDateTime(selectedRow.mergedAt) }}</el-descriptions-item>
             <el-descriptions-item label="项目 ID">{{ selectedRow.projectId ?? '-' }}</el-descriptions-item>
+            <el-descriptions-item label="功能名称">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="走查状态">{{ selectedRow.reviewStatus || '-' }}</el-descriptions-item>
             <el-descriptions-item label="扫描状态">{{ selectedRow.scanStatus || '-' }}</el-descriptions-item>
             <el-descriptions-item label="编码规范扫描结果">{{ selectedRow.annotationRateResult || '-' }}</el-descriptions-item>
@@ -532,12 +533,20 @@ async function handleOpenRuleExplanation() {
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.addedLines, ' 行') }}</strong>
             </article>
             <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">删除代码行数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.deletedLines, ' 行') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">走查工作量</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewDurationMinutes, ' 分钟') }}</strong>
             </article>
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">走查速率</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedLocPerHour, ' LOC/H') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">走查速率</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedKlocPerHour, ' KLOC/H') }}</strong>
             </article>
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">缺陷密度</span>
@@ -550,6 +559,38 @@ async function handleOpenRuleExplanation() {
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">静态扫描问题数</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.scanBugCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">规范类缺陷数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.codeSpecificationCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">逻辑类缺陷数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.codeLogicSpecificationCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">性能类缺陷数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.performanceSpecificationCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">设计类缺陷数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.designSpecificationCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">其他类缺陷数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.otherSpecificationCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">提交次数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.commitCount) }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">提交频率</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.commitRate, ' 行/次') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">Clang-tidy 新增行数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.clangAddedLineCount) }}</strong>
             </article>
           </div>
         </section>

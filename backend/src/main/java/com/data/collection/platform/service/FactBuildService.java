@@ -505,8 +505,80 @@ public class FactBuildService {
     fact.setAnnotationRateResult(defaultText(rs.getString("annotation_rate_result")));
     fact.setBugCountResult(defaultText(rs.getString("bug_count_result")));
     fact.setAddedLines((Integer) rs.getObject("added_lines"));
+    fact.setDeletedLines((Integer) rs.getObject("deleted_lines"));
+    fact.setCodeSpecificationCount((Integer) rs.getObject("code_specification_count"));
+    fact.setCodeLogicSpecificationCount((Integer) rs.getObject("code_logic_specification_count"));
+    fact.setPerformanceSpecificationCount((Integer) rs.getObject("performance_specification_count"));
+    fact.setDesignSpecificationCount((Integer) rs.getObject("design_specification_count"));
+    fact.setOtherSpecificationCount((Integer) rs.getObject("other_specification_count"));
+    fact.setReviewSpeedLocPerHour(
+        defaultInteger((Integer) rs.getObject("review_speed_loc_per_hour"), reviewSpeedLocPerHour(fact)));
+    fact.setReviewSpeedKlocPerHour(
+        defaultBigDecimal((BigDecimal) rs.getObject("review_speed_kloc_per_hour"), reviewSpeedKlocPerHour(fact)));
+    fact.setReviewDefectDensityPerKloc(
+        defaultBigDecimal(
+            (BigDecimal) rs.getObject("review_defect_density_per_kloc"),
+            reviewDefectDensityPerKloc(fact)));
+    fact.setReviewEfficiencyPerHour(
+        defaultBigDecimal(
+            (BigDecimal) rs.getObject("review_efficiency_per_hour"),
+            reviewEfficiencyPerHour(fact)));
+    fact.setCommitCount((Integer) rs.getObject("commit_count"));
+    fact.setCommitRate(defaultInteger((Integer) rs.getObject("commit_rate"), commitRate(fact)));
+    fact.setFunctionName(defaultText(rs.getString("function_name")));
+    fact.setClangAddedLineCount((Integer) rs.getObject("clang_added_line_count"));
     fact.setDeleted(false);
     return fact;
+  }
+
+  private Integer reviewSpeedLocPerHour(MergeRequestFact fact) {
+    if (fact.getAddedLines() == null
+        || fact.getReviewDurationMinutes() == null
+        || fact.getReviewDurationMinutes() <= 0) {
+      return null;
+    }
+    return (int) Math.round(fact.getAddedLines() * 60.0 / fact.getReviewDurationMinutes());
+  }
+
+  private BigDecimal reviewSpeedKlocPerHour(MergeRequestFact fact) {
+    Integer locPerHour = fact.getReviewSpeedLocPerHour();
+    return locPerHour == null ? null : BigDecimal.valueOf(locPerHour / 1000.0).setScale(2, java.math.RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal reviewDefectDensityPerKloc(MergeRequestFact fact) {
+    if (fact.getDefectCount() == null || fact.getAddedLines() == null || fact.getAddedLines() <= 0) {
+      return null;
+    }
+    return BigDecimal.valueOf(fact.getDefectCount() * 1000.0 / fact.getAddedLines())
+        .setScale(2, java.math.RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal reviewEfficiencyPerHour(MergeRequestFact fact) {
+    if (fact.getDefectCount() == null
+        || fact.getReviewDurationMinutes() == null
+        || fact.getReviewDurationMinutes() <= 0) {
+      return null;
+    }
+    return BigDecimal.valueOf(fact.getDefectCount() * 60.0 / fact.getReviewDurationMinutes())
+        .setScale(2, java.math.RoundingMode.HALF_UP);
+  }
+
+  private Integer commitRate(MergeRequestFact fact) {
+    if (fact.getAddedLines() == null
+        || fact.getCommitCount() == null
+        || fact.getAddedLines() <= 0
+        || fact.getCommitCount() <= 0) {
+      return null;
+    }
+    return fact.getAddedLines() / fact.getCommitCount();
+  }
+
+  private Integer defaultInteger(Integer value, Integer fallback) {
+    return value == null ? fallback : value;
+  }
+
+  private BigDecimal defaultBigDecimal(BigDecimal value, BigDecimal fallback) {
+    return value == null ? fallback : value;
   }
 
   private void batchUpsertIssueFacts(List<IssueFact> facts) {

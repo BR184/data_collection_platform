@@ -28,9 +28,20 @@ export interface CodeReviewIllegalRecordRowResponse {
   commentRate?: number | null;
   defectCount?: number | null;
   addedLines?: number | null;
+  deletedLines?: number | null;
+  codeSpecificationCount?: number | null;
+  codeLogicSpecificationCount?: number | null;
+  performanceSpecificationCount?: number | null;
+  designSpecificationCount?: number | null;
+  otherSpecificationCount?: number | null;
   reviewSpeedLocPerHour?: number | null;
+  reviewSpeedKlocPerHour?: number | null;
   defectDensityPerKloc?: number | null;
   reviewEfficiencyPerHour?: number | null;
+  commitCount?: number | null;
+  commitRate?: number | null;
+  functionName: string;
+  clangAddedLineCount?: number | null;
 }
 
 export interface CodeReviewIllegalRecordListResponse {

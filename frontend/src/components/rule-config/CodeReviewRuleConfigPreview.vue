@@ -75,7 +75,7 @@ const deltaText = computed(() => {
 
             <div class="rule-preview-sample-content">{{ sample.mergeRequestContent || '-' }}</div>
 
-            <div class="rule-preview-sample-owner">标注责任人：{{ sample.owner || '-' }}</div>
+            <div class="rule-preview-sample-owner">被走查人：{{ sample.author || '-' }}</div>
 
             <div class="rule-preview-sample-reasons">
               <div class="rule-preview-sample-reason-label">判定原因</div>

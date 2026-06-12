@@ -30,7 +30,18 @@ public record CodeReviewIllegalRecordRowResponse(
     Double commentRate,
     Integer defectCount,
     Integer addedLines,
+    Integer deletedLines,
+    Integer codeSpecificationCount,
+    Integer codeLogicSpecificationCount,
+    Integer performanceSpecificationCount,
+    Integer designSpecificationCount,
+    Integer otherSpecificationCount,
     Integer reviewSpeedLocPerHour,
+    Double reviewSpeedKlocPerHour,
     Double defectDensityPerKloc,
-    Double reviewEfficiencyPerHour) {
+    Double reviewEfficiencyPerHour,
+    Integer commitCount,
+    Integer commitRate,
+    String functionName,
+    Integer clangAddedLineCount) {
 }

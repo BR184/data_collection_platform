@@ -76,7 +76,7 @@ class CodeReviewControllerTest {
                 "master",
                 "Alice",
                 "支付模块",
-                "缺少模块标签",
+                "未标注模块名",
                 "101",
                 "王老师",
                 "dgm",
@@ -99,7 +99,7 @@ class CodeReviewControllerTest {
             .param("targetBranch", "master")
             .param("mergedBy", "Alice")
             .param("moduleName", "支付模块")
-            .param("illegalType", "缺少模块标签")
+            .param("illegalType", "未标注模块名")
             .param("mergeRequestIid", "101")
             .param("owner", "王老师")
             .param("source", "dgm")
@@ -129,7 +129,7 @@ class CodeReviewControllerTest {
                 "master",
                 "Alice",
                 "支付模块",
-                "缺少模块标签",
+                "未标注模块名",
                 "101",
                 "王老师",
                 "cc",
@@ -152,7 +152,7 @@ class CodeReviewControllerTest {
             .param("targetBranch", "master")
             .param("mergedBy", "Alice")
             .param("moduleName", "支付模块")
-            .param("illegalType", "缺少模块标签")
+            .param("illegalType", "未标注模块名")
             .param("mergeRequestIid", "101")
             .param("owner", "王老师")
             .param("source", "cc")
@@ -205,7 +205,7 @@ class CodeReviewControllerTest {
                 "illegalTypes",
                 "非法类型",
                 "根据缺失字段判定非法类型。",
-                "非法类型 = 缺少模块标签/责任人/指标",
+                "非法类型 = 未标注项目名/未标注模块名/无代码走查/未进行代码扫描/静态扫描问题未关闭",
                 "只读说明")),
             null));
 

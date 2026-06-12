@@ -54,6 +54,7 @@ final class FactSearchIndexSupport {
         TextQuerySupport.buildSearchIndex(
             join(
                 fact.getTitle(),
+                fact.getAuthorName(),
                 fact.getOwnerName(),
                 fact.getProjectName(),
                 fact.getRepositoryName(),
@@ -61,7 +62,7 @@ final class FactSearchIndexSupport {
                 fact.getTargetBranch(),
                 fact.getMergeUserName()));
     return new MergeRequestSearchIndexes(
-        keywordIndex, TextQuerySupport.buildSearchIndex(fact.getOwnerName()));
+        keywordIndex, TextQuerySupport.buildSearchIndex(fact.getAuthorName()));
   }
 
   static List<String> keywordCandidates(String keyword) {

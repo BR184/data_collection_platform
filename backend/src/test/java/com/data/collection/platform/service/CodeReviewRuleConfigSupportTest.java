@@ -65,16 +65,16 @@ class CodeReviewRuleConfigSupportTest {
             null);
 
     assertThat(CodeReviewRuleConfigSupport.explainRow(row, config))
-        .containsExactly("\u7f3a\u5c11\u6a21\u5757\u540d", "\u7f3a\u5c11\u8d23\u4efb\u4eba");
+        .containsExactly("\u7f3a\u5c11\u6a21\u5757\u540d", "缺少被走查人");
   }
 
   @Test
   void shouldUseOriginalIllegalReasonsWhenCustomRuleIsNotEnabled() {
     CodeReviewIllegalRecordView row =
-        row("", "", "master", List.of("\u7f3a\u5c11\u6a21\u5757\u540d", "\u7f3a\u5c11\u8d23\u4efb\u4eba"));
+        row("", "", "master", List.of("\u7f3a\u5c11\u6a21\u5757\u540d", "缺少被走查人"));
 
     assertThat(CodeReviewRuleConfigSupport.explainRow(row, null))
-        .containsExactly("\u7f3a\u5c11\u6a21\u5757\u540d", "\u7f3a\u5c11\u8d23\u4efb\u4eba");
+        .containsExactly("\u7f3a\u5c11\u6a21\u5757\u540d", "缺少被走查人");
   }
 
   private CodeReviewRuleConfig config(String fieldKey, String operator, String value) {
@@ -104,16 +104,35 @@ class CodeReviewRuleConfigSupportTest {
         "Project A",
         "repo-a",
         LocalDateTime.of(2026, 4, 21, 10, 0),
-        "Alice",
+            owner,
+        "Bob",
         moduleName,
         targetBranch,
         illegalTypes,
+        "Reviewer",
+        "Assignee",
         "DONE",
         20,
         "SCANNED",
         0,
+        "",
+        "",
         0.8,
         0,
+        120,
+        10,
+        0,
+        0,
+        0,
+        0,
+        0,
+        360,
+        0.36,
+        0.0,
+        0.0,
+        2,
+        60,
+        "DemoFunction",
         120);
   }
 }

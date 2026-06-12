@@ -47,7 +47,21 @@ public class CodeReviewIllegalRecordSourceLoader {
         bug_count_result,
         comment_rate,
         defect_count,
-        added_lines
+        added_lines,
+        deleted_lines,
+        code_specification_count,
+        code_logic_specification_count,
+        performance_specification_count,
+        design_specification_count,
+        other_specification_count,
+        review_speed_loc_per_hour,
+        review_speed_kloc_per_hour,
+        review_defect_density_per_kloc,
+        review_efficiency_per_hour,
+        commit_count,
+        commit_rate,
+        function_name,
+        clang_added_line_count
       from merge_request_fact
       """ + LEGACY_ILLEGAL_BASE_WHERE;
   private static final String ALL_EXPORT_FACT_SQL = """
@@ -75,7 +89,21 @@ public class CodeReviewIllegalRecordSourceLoader {
         bug_count_result,
         comment_rate,
         defect_count,
-        added_lines
+        added_lines,
+        deleted_lines,
+        code_specification_count,
+        code_logic_specification_count,
+        performance_specification_count,
+        design_specification_count,
+        other_specification_count,
+        review_speed_loc_per_hour,
+        review_speed_kloc_per_hour,
+        review_defect_density_per_kloc,
+        review_efficiency_per_hour,
+        commit_count,
+        commit_rate,
+        function_name,
+        clang_added_line_count
       from merge_request_fact
       where deleted = false
         and merge_request_state = 'merged'
@@ -382,7 +410,21 @@ public class CodeReviewIllegalRecordSourceLoader {
         rs.getString("bug_count_result"),
         toDouble(rs.getObject("comment_rate")),
         (Integer) rs.getObject("defect_count"),
-        (Integer) rs.getObject("added_lines"));
+        (Integer) rs.getObject("added_lines"),
+        (Integer) rs.getObject("deleted_lines"),
+        (Integer) rs.getObject("code_specification_count"),
+        (Integer) rs.getObject("code_logic_specification_count"),
+        (Integer) rs.getObject("performance_specification_count"),
+        (Integer) rs.getObject("design_specification_count"),
+        (Integer) rs.getObject("other_specification_count"),
+        (Integer) rs.getObject("review_speed_loc_per_hour"),
+        toDouble(rs.getObject("review_speed_kloc_per_hour")),
+        toDouble(rs.getObject("review_defect_density_per_kloc")),
+        toDouble(rs.getObject("review_efficiency_per_hour")),
+        (Integer) rs.getObject("commit_count"),
+        (Integer) rs.getObject("commit_rate"),
+        rs.getString("function_name"),
+        (Integer) rs.getObject("clang_added_line_count"));
   }
 
   private Double toDouble(Object value) {

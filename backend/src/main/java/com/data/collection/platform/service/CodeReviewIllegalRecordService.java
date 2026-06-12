@@ -400,32 +400,28 @@ public class CodeReviewIllegalRecordService {
     writeText(row, 10, record.mergedBy(), style);
     writeNumber(row, 11, record.reviewDurationMinutes(), style);
     writeNumber(row, 12, record.addedLines(), style);
-    writeNumber(row, 13, 0, style);
-    writeNumber(row, 14, 0, style);
-    writeNumber(row, 15, 0, style);
-    writeNumber(row, 16, 0, style);
-    writeNumber(row, 17, 0, style);
-    writeNumber(row, 18, 0, style);
+    writeNumber(row, 13, record.deletedLines(), style);
+    writeNumber(row, 14, record.codeSpecificationCount(), style);
+    writeNumber(row, 15, record.codeLogicSpecificationCount(), style);
+    writeNumber(row, 16, record.performanceSpecificationCount(), style);
+    writeNumber(row, 17, record.designSpecificationCount(), style);
+    writeNumber(row, 18, record.otherSpecificationCount(), style);
     writeNumber(row, 19, record.defectCount(), style);
     writeNumber(row, 20, record.reviewSpeedLocPerHour(), style);
-    writeNumber(row, 21, klocPerHour(record.reviewSpeedLocPerHour()), style);
+    writeNumber(row, 21, record.reviewSpeedKlocPerHour(), style);
     writeNumber(row, 22, record.defectDensityPerKloc(), style);
     writeNumber(row, 23, record.reviewEfficiencyPerHour(), style);
     writeText(row, 24, record.targetBranch(), style);
     writeText(row, 25, record.scanStatus(), style);
-    writeText(row, 26, "", style);
-    writeText(row, 27, "", style);
-    writeText(row, 28, "", style);
+    writeNumber(row, 26, record.commitCount(), style);
+    writeNumber(row, 27, record.commitRate(), style);
+    writeText(row, 28, record.functionName(), style);
     writeNumber(row, 29, record.commentRate(), style);
     writeText(row, 30, record.annotationRateResult(), style);
     writeNumber(row, 31, record.scanBugCount(), style);
     writeText(row, 32, record.bugCountResult(), style);
     writeText(row, 33, record.repositoryName(), style);
-    writeNumber(row, 34, record.addedLines(), style);
-  }
-
-  private Double klocPerHour(Integer locPerHour) {
-    return locPerHour == null ? null : round2(locPerHour / 1000.0);
+    writeNumber(row, 34, record.clangAddedLineCount(), style);
   }
 
   private void writeText(Row row, int column, String value, CellStyle style) {
@@ -635,7 +631,7 @@ public class CodeReviewIllegalRecordService {
         row.mergeRequestIid(),
         row.projectName(),
         row.moduleName(),
-        row.owner(),
+        row.author(),
         row.targetBranch(),
         row.mergeRequestContent(),
         CodeReviewRuleConfigSupport.explainRow(row, ruleConfig));
@@ -688,34 +684,20 @@ public class CodeReviewIllegalRecordService {
         source.commentRate(),
         source.defectCount(),
         source.addedLines(),
-        reviewSpeedLocPerHour(source.addedLines(), source.reviewDurationMinutes()),
-        defectDensityPerKloc(source.defectCount(), source.addedLines()),
-        reviewEfficiencyPerHour(source.defectCount(), source.reviewDurationMinutes()));
-  }
-
-  private Integer reviewSpeedLocPerHour(Integer addedLines, Integer durationMinutes) {
-    if (addedLines == null || durationMinutes == null || durationMinutes <= 0) {
-      return 0;
-    }
-    return (int) Math.round(addedLines * 60.0 / durationMinutes);
-  }
-
-  private Double defectDensityPerKloc(Integer defectCount, Integer addedLines) {
-    if (defectCount == null || addedLines == null || addedLines <= 0) {
-      return 0.0;
-    }
-    return round2(defectCount * 1000.0 / addedLines);
-  }
-
-  private Double reviewEfficiencyPerHour(Integer defectCount, Integer durationMinutes) {
-    if (defectCount == null || durationMinutes == null || durationMinutes <= 0) {
-      return 0.0;
-    }
-    return round2(defectCount * 60.0 / durationMinutes);
-  }
-
-  private Double round2(double value) {
-    return Math.round(value * 100.0) / 100.0;
+        source.deletedLines(),
+        source.codeSpecificationCount(),
+        source.codeLogicSpecificationCount(),
+        source.performanceSpecificationCount(),
+        source.designSpecificationCount(),
+        source.otherSpecificationCount(),
+        source.reviewSpeedLocPerHour(),
+        source.reviewSpeedKlocPerHour(),
+        source.reviewDefectDensityPerKloc(),
+        source.reviewEfficiencyPerHour(),
+        source.commitCount(),
+        source.commitRate(),
+        TextQuerySupport.normalizeDisplay(source.functionName()),
+        source.clangAddedLineCount());
   }
 
   private List<StatisticRuleFlowStep> buildRuleFlowSteps(
@@ -852,9 +834,20 @@ public class CodeReviewIllegalRecordService {
         row.commentRate(),
         row.defectCount(),
         row.addedLines(),
+        row.deletedLines(),
+        row.codeSpecificationCount(),
+        row.codeLogicSpecificationCount(),
+        row.performanceSpecificationCount(),
+        row.designSpecificationCount(),
+        row.otherSpecificationCount(),
         row.reviewSpeedLocPerHour(),
+        row.reviewSpeedKlocPerHour(),
         row.defectDensityPerKloc(),
-        row.reviewEfficiencyPerHour());
+        row.reviewEfficiencyPerHour(),
+        row.commitCount(),
+        row.commitRate(),
+        row.functionName(),
+        row.clangAddedLineCount());
   }
 
   private List<OptionItemResponse> toOptions(

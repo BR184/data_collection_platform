@@ -123,6 +123,48 @@ public class MergeRequestFact {
   @TableField("added_lines")
   private Integer addedLines;
 
+  @TableField("deleted_lines")
+  private Integer deletedLines;
+
+  @TableField("code_specification_count")
+  private Integer codeSpecificationCount;
+
+  @TableField("code_logic_specification_count")
+  private Integer codeLogicSpecificationCount;
+
+  @TableField("performance_specification_count")
+  private Integer performanceSpecificationCount;
+
+  @TableField("design_specification_count")
+  private Integer designSpecificationCount;
+
+  @TableField("other_specification_count")
+  private Integer otherSpecificationCount;
+
+  @TableField("review_speed_loc_per_hour")
+  private Integer reviewSpeedLocPerHour;
+
+  @TableField("review_speed_kloc_per_hour")
+  private BigDecimal reviewSpeedKlocPerHour;
+
+  @TableField("review_defect_density_per_kloc")
+  private BigDecimal reviewDefectDensityPerKloc;
+
+  @TableField("review_efficiency_per_hour")
+  private BigDecimal reviewEfficiencyPerHour;
+
+  @TableField("commit_count")
+  private Integer commitCount;
+
+  @TableField("commit_rate")
+  private Integer commitRate;
+
+  @TableField("function_name")
+  private String functionName;
+
+  @TableField("clang_added_line_count")
+  private Integer clangAddedLineCount;
+
   private Boolean deleted;
 
   @TableField("fact_refreshed_at")

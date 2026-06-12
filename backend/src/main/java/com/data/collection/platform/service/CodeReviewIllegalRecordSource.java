@@ -27,5 +27,19 @@ record CodeReviewIllegalRecordSource(
     String bugCountResult,
     Double commentRate,
     Integer defectCount,
-    Integer addedLines) {
+    Integer addedLines,
+    Integer deletedLines,
+    Integer codeSpecificationCount,
+    Integer codeLogicSpecificationCount,
+    Integer performanceSpecificationCount,
+    Integer designSpecificationCount,
+    Integer otherSpecificationCount,
+    Integer reviewSpeedLocPerHour,
+    Double reviewSpeedKlocPerHour,
+    Double reviewDefectDensityPerKloc,
+    Double reviewEfficiencyPerHour,
+    Integer commitCount,
+    Integer commitRate,
+    String functionName,
+    Integer clangAddedLineCount) {
 }

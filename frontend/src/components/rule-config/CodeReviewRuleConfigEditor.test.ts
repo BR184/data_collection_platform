@@ -12,7 +12,7 @@ const fields: CodeReviewRuleFieldDefinition[] = [
   },
   {
     key: 'owner',
-    label: '缺少责任人',
+    label: '缺少被走查人',
     type: 'text',
     operators: ['isEmpty'],
   },
