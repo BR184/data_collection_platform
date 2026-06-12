@@ -29,10 +29,10 @@ final class CodeReviewIllegalRecordQuerySupport {
     putIfPresent(filters, "mergedAtStart", mergedAtStart);
     putIfPresent(filters, "mergedAtEnd", mergedAtEnd);
     putIfPresent(filters, "projectName", projectName);
-    putIfPresent(filters, "targetBranch", targetBranch);
+    putIfPresent(filters, "targetBranch", legacyTargetBranch(targetBranch, source));
     putIfPresent(filters, "moduleName", moduleName);
     putIfPresent(filters, "mergeRequestIid", mergeRequestIid);
-    putIfPresent(filters, "owner", owner);
+    putIfPresent(filters, "author", owner);
     putIfPresent(filters, "sourceInstance", source);
     return filters;
   }
@@ -42,6 +42,7 @@ final class CodeReviewIllegalRecordQuerySupport {
     return switch (normalized == null ? "mergedAt" : normalized) {
       case "mergeRequestIid",
            "mergeRequestContent",
+           "author",
            "owner",
            "projectName",
            "mergedAt",
@@ -64,6 +65,7 @@ final class CodeReviewIllegalRecordQuerySupport {
     Comparator<CodeReviewIllegalRecordView> comparator = switch (sortField) {
       case "mergeRequestIid" -> SortSupport.nullableComparable(CodeReviewIllegalRecordView::mergeRequestIid);
       case "mergeRequestContent" -> SortSupport.nullableString(CodeReviewIllegalRecordView::mergeRequestContent);
+      case "author" -> SortSupport.nullableString(CodeReviewIllegalRecordView::author);
       case "owner" -> SortSupport.nullableString(CodeReviewIllegalRecordView::owner);
       case "projectName" -> SortSupport.nullableString(CodeReviewIllegalRecordView::projectName);
       case "mergedBy" -> SortSupport.nullableString(CodeReviewIllegalRecordView::mergedBy);
@@ -96,7 +98,7 @@ final class CodeReviewIllegalRecordQuerySupport {
 
   static boolean matchesKeyword(CodeReviewIllegalRecordView row, String keyword) {
     return TextQuerySupport.containsAbstractSearch(row.mergeRequestContent(), keyword)
-        || TextQuerySupport.containsAbstractSearch(row.owner(), keyword)
+        || TextQuerySupport.containsAbstractSearch(row.author(), keyword)
         || TextQuerySupport.containsAbstractSearch(row.projectName(), keyword)
         || TextQuerySupport.containsAbstractSearch(row.repositoryName(), keyword)
         || TextQuerySupport.containsAbstractSearch(row.moduleName(), keyword)
@@ -109,5 +111,17 @@ final class CodeReviewIllegalRecordQuerySupport {
     if (normalized != null) {
       filters.put(key, normalized);
     }
+  }
+
+  private static String legacyTargetBranch(String targetBranch, String source) {
+    String normalized = TextQuerySupport.trimToNull(targetBranch);
+    if (normalized != null) {
+      return normalized;
+    }
+    String sourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    if ("cc".equals(sourceInstance) || "dgm".equals(sourceInstance) || "default".equals(sourceInstance)) {
+      return "dev";
+    }
+    return null;
   }
 }

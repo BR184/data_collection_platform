@@ -4,6 +4,7 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
+import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
 import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
@@ -13,7 +14,6 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import com.data.collection.platform.service.MergeRequestFactRealtimeRefreshService;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -56,15 +56,17 @@ public class CodeReviewController {
   }
 
   @GetMapping("/illegal-records/export")
-  public ResponseEntity<String> exportIllegalRecords(
+  public ResponseEntity<byte[]> exportIllegalRecords(
       @ModelAttribute CodeReviewIllegalRecordListWebRequest request) {
-    String csv =
-        codeReviewIllegalRecordService.exportRecordsCsv(
+    byte[] workbook =
+        codeReviewIllegalRecordService.exportRecordsWorkbook(
             codeReviewRequestAssembler.toIllegalRecordQueryRequest(request));
     return ResponseEntity.ok()
-        .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"code-review-illegal-records.csv\"")
-        .body(csv);
+        .contentType(
+            MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"CodeWalkThrough.xlsx\"")
+        .body(workbook);
   }
 
   @GetMapping("/illegal-records/filter-options")
@@ -98,6 +100,16 @@ public class CodeReviewController {
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success("已开始刷新最新数据", codeReviewIllegalRecordService.requestRealtimeRefresh());
+  }
+
+  @PostMapping("/illegal-records/refresh-one")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<CodeReviewIllegalRecordRowResponse> refreshOneIllegalRecord(
+      @RequestBody CodeReviewSingleRecordRefreshWebRequest request) {
+    return ApiResponse.success(
+        "已刷新本条合并请求事实数据",
+        codeReviewIllegalRecordService.refreshSingleRecord(
+            request.getSource(), request.getProjectId(), request.getMergeRequestIid()));
   }
 
   @GetMapping("/multi-board/source-options")

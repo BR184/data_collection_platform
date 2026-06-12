@@ -19,7 +19,7 @@ describe('export API error messages', () => {
   it('uses Chinese fallback copy for code review export failures', async () => {
     stubEmptyExportFailure(503);
 
-    await expect(codeReviewApi.exportCodeReviewIllegalRecords({})).rejects.toThrow('导出失败，状态码：503');
+    await expect(codeReviewApi.exportCodeReviewIllegalRecords({})).rejects.toThrow('Excel 导出失败，状态码：503');
   });
 
   it('uses Chinese fallback copy for integration test export failures', async () => {

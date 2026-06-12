@@ -33,22 +33,35 @@ describe('code review illegal records view helpers', () => {
         projectName: '项目 A',
         repositoryName: 'repo-a',
         mergedAt: '2026-04-24T10:20:30',
+        author: 'Bob',
         mergedBy: 'Alice',
         moduleName: '支付模块',
         targetBranch: 'master',
-        illegalTypes: ['缺少模块标签'],
+        illegalTypes: ['未标注模块名'],
+        reviewerNames: '王老师',
+        assigneeNames: '李老师',
+        reviewStatus: 'COMPLETED',
+        reviewDurationMinutes: 30,
+        scanStatus: '',
+        scanBugCount: 0,
+        annotationRateResult: '',
+        bugCountResult: '',
         commentRate: 12.345,
         defectCount: 2,
         addedLines: 100,
+        reviewSpeedLocPerHour: 200,
+        defectDensityPerKloc: 20,
+        reviewEfficiencyPerHour: 4,
       },
     ]);
 
     expect(rows[0]).toMatchObject({
       mergeRequestIid: { label: '101', href: 'http://gitlab/mr/101' },
       mergeRequestContent: 'demo',
+      author: 'Bob',
       mergedAt: '2026-04-24 10:20:30',
       commentRate: '12.35%',
-      illegalTypes: [{ label: '缺少模块标签', type: 'warning' }],
+      illegalTypes: [{ label: '未标注模块名', type: 'warning' }],
     });
   });
 

@@ -190,6 +190,10 @@ class GitlabFactSourceSqlProvider {
                m.comment_rate_source,
                m.defect_count,
                m.defect_count_source,
+               nullif(btrim(m.scan_status), '') as scan_status,
+               m.scan_bug_count,
+               nullif(btrim(m.annotation_rate_result), '') as annotation_rate_result,
+               nullif(btrim(m.bug_count_result), '') as bug_count_result,
                m.source_summary as metric_source_summary,
                m.raw_payload as metric_raw_payload
           from code_review_external_metrics m
@@ -230,6 +234,10 @@ class GitlabFactSourceSqlProvider {
         imported_metrics.comment_rate_source,
         imported_metrics.defect_count,
         imported_metrics.defect_count_source,
+        imported_metrics.scan_status,
+        imported_metrics.scan_bug_count,
+        imported_metrics.annotation_rate_result,
+        imported_metrics.bug_count_result,
         imported_metrics.metric_source_summary,
         imported_metrics.metric_raw_payload
       from ods_gitlab_merge_requests mr

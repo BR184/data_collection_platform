@@ -16,6 +16,12 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CodeReviewIllegalRecordSourceLoader {
+  private static final String LEGACY_ILLEGAL_BASE_WHERE = """
+       where deleted = false
+        and merge_request_state = 'merged'
+        and merged_at_source > timestamp '2024-04-01 00:00:00'
+        and coalesce(module_name, '') <> '无需标注'
+      """;
   private static final String FACT_SQL = """
       select
         merge_request_id,
@@ -25,8 +31,11 @@ public class CodeReviewIllegalRecordSourceLoader {
         project_name,
         repository_name,
         merged_at_source as merged_at,
+        author_name as author,
         merge_user_name as merged_by,
         owner_name as owner,
+        reviewer_names,
+        assignee_names,
         target_branch,
         module_name,
         coalesce(label_names, '') as label_names,
@@ -34,11 +43,44 @@ public class CodeReviewIllegalRecordSourceLoader {
         review_duration_minutes,
         scan_status,
         scan_bug_count,
+        annotation_rate_result,
+        bug_count_result,
+        comment_rate,
+        defect_count,
+        added_lines
+      from merge_request_fact
+      """ + LEGACY_ILLEGAL_BASE_WHERE;
+  private static final String ALL_EXPORT_FACT_SQL = """
+      select
+        merge_request_id,
+        merge_request_iid,
+        project_id,
+        title as merge_request_content,
+        project_name,
+        repository_name,
+        merged_at_source as merged_at,
+        author_name as author,
+        merge_user_name as merged_by,
+        owner_name as owner,
+        reviewer_names,
+        assignee_names,
+        target_branch,
+        module_name,
+        coalesce(label_names, '') as label_names,
+        review_status,
+        review_duration_minutes,
+        scan_status,
+        scan_bug_count,
+        annotation_rate_result,
+        bug_count_result,
         comment_rate,
         defect_count,
         added_lines
       from merge_request_fact
       where deleted = false
+        and merge_request_state = 'merged'
+        and merged_at_source > timestamp '2024-04-01 00:00:00'
+        and coalesce(module_name, '') <> '无需标注'
       """;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
@@ -77,6 +119,18 @@ public class CodeReviewIllegalRecordSourceLoader {
       log.warn("Failed to load paged merge request illegal facts", e);
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
     }
+  }
+
+  public List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
+      CodeReviewIllegalRecordQueryRequest request,
+      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
+    QueryParts parts = buildAllExportQuery(request, filterGroup);
+    return mergeRequestFactQueryService.query(
+        ALL_EXPORT_FACT_SQL
+            + parts.tailWhere(ALL_EXPORT_FACT_SQL)
+            + " order by merge_request_iid desc nulls last, merged_at_source desc nulls last",
+        parts.args(),
+        this::mapFactSource);
   }
 
   private List<CodeReviewIllegalRecordSource> ensureFactsReady(Map<String, String> filters) {
@@ -121,7 +175,34 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private QueryParts buildPageQuery(CodeReviewIllegalRecordSourcePageQuery query) {
     CodeReviewIllegalRecordQueryRequest request = query.request();
-    StringBuilder where = new StringBuilder(" where deleted = false");
+    StringBuilder where = new StringBuilder(LEGACY_ILLEGAL_BASE_WHERE);
+    List<Object> args = new ArrayList<>();
+    appendEq(where, args, "project_id", request.projectId());
+    appendIndexedSearch(
+        where,
+        args,
+        List.of("search_text", "search_compact", "search_spell", "search_initials"),
+        request.keyword());
+    appendContains(where, args, "project_name", request.projectName());
+    appendContains(where, args, "repository_name", request.repositoryName());
+    appendLegacyTargetBranch(where, args, request.targetBranch(), request.source());
+    appendContains(where, args, "module_name", request.moduleName());
+    appendContains(where, args, "author_name", request.owner());
+    appendSourceInstance(where, args, request.source());
+    appendEq(where, args, "merge_request_iid", parseLong(request.mergeRequestIid()));
+    appendDateFrom(where, args, "merged_at_source", request.mergedAtStart());
+    appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
+    appendEqIgnoreCase(where, args, "merge_user_name", request.mergedBy());
+    appendIllegalPredicate(where, request.illegalType());
+    appendFilterGroup(where, args, query.filterGroup());
+    return new QueryParts(where.toString(), args);
+  }
+
+  private QueryParts buildAllExportQuery(
+      CodeReviewIllegalRecordQueryRequest request,
+      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
+    String baseWhere = ALL_EXPORT_FACT_SQL.substring(ALL_EXPORT_FACT_SQL.indexOf("where "));
+    StringBuilder where = new StringBuilder(baseWhere);
     List<Object> args = new ArrayList<>();
     appendEq(where, args, "project_id", request.projectId());
     appendIndexedSearch(
@@ -133,14 +214,13 @@ public class CodeReviewIllegalRecordSourceLoader {
     appendContains(where, args, "repository_name", request.repositoryName());
     appendContains(where, args, "target_branch", request.targetBranch());
     appendContains(where, args, "module_name", request.moduleName());
-    appendContains(where, args, "owner_name", request.owner());
+    appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());
     appendEq(where, args, "merge_request_iid", parseLong(request.mergeRequestIid()));
     appendDateFrom(where, args, "merged_at_source", request.mergedAtStart());
     appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
     appendEqIgnoreCase(where, args, "merge_user_name", request.mergedBy());
-    appendIllegalPredicate(where, request.illegalType());
-    appendFilterGroup(where, args, query.filterGroup());
+    appendFilterGroup(where, args, filterGroup);
     return new QueryParts(where.toString(), args);
   }
 
@@ -223,6 +303,20 @@ public class CodeReviewIllegalRecordSourceLoader {
     args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
   }
 
+  private void appendLegacyTargetBranch(
+      StringBuilder where, List<Object> args, String targetBranch, String source) {
+    String normalized = TextQuerySupport.trimToNull(targetBranch);
+    if (normalized == null && isLegacyDefaultDevSource(source)) {
+      normalized = "dev";
+    }
+    appendContains(where, args, "target_branch", normalized);
+  }
+
+  private boolean isLegacyDefaultDevSource(String source) {
+    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    return "cc".equals(normalized) || "dgm".equals(normalized) || "default".equals(normalized);
+  }
+
   private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {
     LocalDate value = parseDate(rawValue);
     if (value == null) {
@@ -272,8 +366,11 @@ public class CodeReviewIllegalRecordSourceLoader {
         rs.getString("project_name"),
         rs.getString("repository_name"),
         rs.getTimestamp("merged_at") == null ? null : rs.getTimestamp("merged_at").toLocalDateTime(),
+        rs.getString("author"),
         rs.getString("merged_by"),
         rs.getString("owner"),
+        rs.getString("reviewer_names"),
+        rs.getString("assignee_names"),
         rs.getString("target_branch"),
         rs.getString("module_name"),
         splitLabels(rs.getString("label_names")),
@@ -281,6 +378,8 @@ public class CodeReviewIllegalRecordSourceLoader {
         (Integer) rs.getObject("review_duration_minutes"),
         rs.getString("scan_status"),
         (Integer) rs.getObject("scan_bug_count"),
+        rs.getString("annotation_rate_result"),
+        rs.getString("bug_count_result"),
         toDouble(rs.getObject("comment_rate")),
         (Integer) rs.getObject("defect_count"),
         (Integer) rs.getObject("added_lines"));
@@ -314,6 +413,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     Map<String, String> columns = new LinkedHashMap<>();
     columns.put("mergeRequestIid", "merge_request_iid");
     columns.put("mergeRequestContent", "lower(coalesce(title, ''))");
+    columns.put("author", "lower(coalesce(author_name, ''))");
     columns.put("owner", "lower(coalesce(owner_name, ''))");
     columns.put("projectName", "lower(coalesce(project_name, ''))");
     columns.put("mergedAt", "merged_at_source");
@@ -328,7 +428,12 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private record QueryParts(String where, List<Object> args) {
     String tailWhere() {
-      return where.substring(" where deleted = false".length());
+      return where.substring(LEGACY_ILLEGAL_BASE_WHERE.length());
+    }
+
+    String tailWhere(String selectSql) {
+      String baseWhere = selectSql.substring(selectSql.indexOf("where "));
+      return where.substring(baseWhere.length());
     }
   }
 }

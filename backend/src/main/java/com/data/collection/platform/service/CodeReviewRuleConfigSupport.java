@@ -116,7 +116,7 @@ final class CodeReviewRuleConfigSupport {
   private static boolean matchesCondition(CodeReviewIllegalRecordView row, CodeReviewRuleConfigCondition condition) {
     return switch (condition.fieldKey()) {
       case "moduleName" -> !StringUtils.hasText(row.moduleName());
-      case "owner" -> !StringUtils.hasText(row.owner());
+      case "owner" -> !StringUtils.hasText(row.author());
       case "reviewRecordMissing" -> !StringUtils.hasText(row.reviewStatus()) || row.reviewDurationMinutes() == null;
       case "scanNotDone" -> isNotScanned(row.scanStatus());
       case "scanIssueOpen" -> row.scanBugCount() != null && row.scanBugCount() > 0;
@@ -173,7 +173,7 @@ final class CodeReviewRuleConfigSupport {
   private static String describeMatchedCondition(CodeReviewRuleConfigCondition condition) {
     return switch (condition.fieldKey()) {
       case "moduleName" -> "\u7f3a\u5c11\u6a21\u5757\u540d";
-      case "owner" -> "\u7f3a\u5c11\u8d23\u4efb\u4eba";
+      case "owner" -> "缺少被走查人";
       case "reviewRecordMissing" -> "\u7f3a\u5c11\u4ee3\u7801\u8d70\u67e5\u8bb0\u5f55";
       case "scanNotDone" -> "\u672a\u5b8c\u6210\u4ee3\u7801\u626b\u63cf";
       case "scanIssueOpen" -> "\u626b\u63cf\u95ee\u9898\u672a\u5173\u95ed";

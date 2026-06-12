@@ -116,8 +116,8 @@ class CodeReviewControllerTest {
   }
 
   @Test
-  void shouldExportIllegalRecordsCsvWithCurrentFilters() throws Exception {
-    when(codeReviewIllegalRecordService.exportRecordsCsv(
+  void shouldExportIllegalRecordsWorkbookWithCurrentFilters() throws Exception {
+    when(codeReviewIllegalRecordService.exportRecordsWorkbook(
             new CodeReviewIllegalRecordQueryRequest(
                 325L,
                 "repo-a",
@@ -139,7 +139,7 @@ class CodeReviewControllerTest {
                 "mergedAt",
                 "desc",
                 null)))
-        .thenReturn("项目,模块,非法类型\nProject X,支付模块,缺少模块标签\n");
+        .thenReturn(new byte[] {1, 2, 3});
 
     mockMvc.perform(get("/api/code-review/illegal-records/export")
             .param("projectId", "325")
@@ -160,9 +160,9 @@ class CodeReviewControllerTest {
             .param("sortBy", "mergedAt")
             .param("sortOrder", "desc"))
         .andExpect(status().isOk())
-        .andExpect(header().string("Content-Type", "text/csv;charset=UTF-8"))
-        .andExpect(header().string("Content-Disposition", "attachment; filename=\"code-review-illegal-records.csv\""))
-        .andExpect(content().string("项目,模块,非法类型\nProject X,支付模块,缺少模块标签\n"));
+        .andExpect(header().string("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(header().string("Content-Disposition", "attachment; filename=\"CodeWalkThrough.xlsx\""))
+        .andExpect(content().bytes(new byte[] {1, 2, 3}));
   }
 
   @Test

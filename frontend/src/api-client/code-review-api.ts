@@ -9,7 +9,7 @@ import type {
   StatisticFilterGroup,
 } from '../types/api';
 import type { CodeReviewRuleConfig, CodeReviewRulePreviewResponse } from '../types/code-review-rule-config';
-import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 interface CodeReviewIllegalRecordQueryParams {
@@ -66,8 +66,8 @@ export const codeReviewApi = {
   },
   async exportCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams) {
     const query = buildIllegalRecordQuery(params, false);
-    return requestText(`/api/code-review/illegal-records/export?${query.toString()}`, {
-      errorPrefix: '导出失败',
+    return requestBlob(`/api/code-review/illegal-records/export?${query.toString()}`, {
+      errorPrefix: 'Excel 导出失败',
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
   },
@@ -93,6 +93,19 @@ export const codeReviewApi = {
   },
   getCodeReviewIllegalRecordRealtimeStatus() {
     return request<RealtimeWorkspaceStatusResponse>('/api/code-review/illegal-records/status');
+  },
+  refreshCodeReviewIllegalRecord(payload: {
+    source?: string;
+    projectId: number;
+    mergeRequestIid: number;
+  }) {
+    return request<CodeReviewIllegalRecordListResponse['records'][number]>(
+      '/api/code-review/illegal-records/refresh-one',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
   },
   refreshCodeReviewIllegalRecords() {
     return request<RealtimeWorkspaceStatusResponse>('/api/code-review/illegal-records/refresh', {

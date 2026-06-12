@@ -12,13 +12,25 @@ export interface CodeReviewIllegalRecordRowResponse {
   projectName: string;
   repositoryName: string;
   mergedAt?: string | null;
+  author: string;
   mergedBy: string;
   moduleName: string;
   targetBranch: string;
   illegalTypes: string[];
+  reviewerNames: string;
+  assigneeNames: string;
+  reviewStatus: string;
+  reviewDurationMinutes?: number | null;
+  scanStatus: string;
+  scanBugCount?: number | null;
+  annotationRateResult: string;
+  bugCountResult: string;
   commentRate?: number | null;
   defectCount?: number | null;
   addedLines?: number | null;
+  reviewSpeedLocPerHour?: number | null;
+  defectDensityPerKloc?: number | null;
+  reviewEfficiencyPerHour?: number | null;
 }
 
 export interface CodeReviewIllegalRecordListResponse {

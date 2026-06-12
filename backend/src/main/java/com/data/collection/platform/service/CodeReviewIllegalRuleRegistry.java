@@ -9,14 +9,15 @@ import org.springframework.util.StringUtils;
 
 final class CodeReviewIllegalRuleRegistry {
 
-  static final String MISSING_MODULE_LABEL = "\u7f3a\u5c11\u6a21\u5757\u6807\u7b7e";
-  static final String MISSING_OWNER_LABEL = "\u7f3a\u5c11\u6807\u6ce8\u8d23\u4efb\u4eba";
-  static final String MISSING_REVIEW_LABEL = "\u65e0\u4ee3\u7801\u8d70\u67e5";
-  static final String NOT_SCANNED_LABEL = "\u672a\u4ee3\u7801\u626b\u63cf";
-  static final String OPEN_SCAN_ISSUE_LABEL = "\u9759\u6001\u626b\u63cf\u95ee\u9898\u672a\u5173\u95ed";
-  static final String MISSING_COMMENT_RATE_LABEL = "\u7f3a\u5c11\u4ee3\u7801\u6ce8\u91ca\u6bd4\u4f8b";
-  static final String MISSING_DEFECT_COUNT_LABEL = "\u7f3a\u5c11\u7f3a\u9677\u6570\u91cf";
-  static final String MISSING_ADDED_LINES_LABEL = "\u7f3a\u5c11\u65b0\u589e\u4ee3\u7801\u884c\u6570";
+  static final String MISSING_PROJECT_LABEL = "未标注项目名";
+  static final String MISSING_MODULE_LABEL = "未标注模块名";
+  static final String MISSING_REVIEW_LABEL = "无代码走查";
+  static final String NOT_SCANNED_LABEL = "未进行代码扫描";
+  static final String OPEN_SCAN_ISSUE_LABEL = "静态扫描问题未关闭";
+  static final String COMMENT_RATE_NOT_PASS_LABEL = "代码注释量未达标";
+  static final String SCAN_FAILED_LABEL = "静态扫描失败";
+  static final String CLANG_RESULT_FALSE_LABEL = "注释率分析工具Clang分析错误";
+  static final String GITLAB_ERROR_LABEL = "GitLab 接口报错";
 
   private static final Set<String> NOT_SCANNED_STATUSES =
       Set.of(
@@ -29,13 +30,13 @@ final class CodeReviewIllegalRuleRegistry {
   private static final List<CodeReviewIllegalRule> ORDERED_RULES =
       List.of(
           new CodeReviewIllegalRule(
+              "missing-project",
+              MISSING_PROJECT_LABEL,
+              source -> "未标注项目名".equals(source.projectName())),
+          new CodeReviewIllegalRule(
               "missing-module",
               MISSING_MODULE_LABEL,
-              source -> source.labelTitles().isEmpty()),
-          new CodeReviewIllegalRule(
-              "missing-owner",
-              MISSING_OWNER_LABEL,
-              source -> !StringUtils.hasText(source.owner())),
+              source -> "未标注模块名".equals(source.moduleName())),
           new CodeReviewIllegalRule(
               "missing-review",
               MISSING_REVIEW_LABEL,
@@ -52,32 +53,37 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "open-scan-issue",
               OPEN_SCAN_ISSUE_LABEL,
-              source -> source.scanBugCount() != null && source.scanBugCount() > 0),
+              source ->
+                  OPEN_SCAN_ISSUE_LABEL.equals(source.bugCountResult())
+                      || source.scanBugCount() != null && source.scanBugCount() > 0),
           new CodeReviewIllegalRule(
-              "missing-comment-rate",
-              MISSING_COMMENT_RATE_LABEL,
-              source -> source.commentRate() == null),
+              "comment-rate-not-pass",
+              COMMENT_RATE_NOT_PASS_LABEL,
+              source -> COMMENT_RATE_NOT_PASS_LABEL.equals(source.annotationRateResult())),
           new CodeReviewIllegalRule(
-              "missing-defect-count",
-              MISSING_DEFECT_COUNT_LABEL,
-              source -> source.defectCount() == null),
+              "scan-failed",
+              SCAN_FAILED_LABEL,
+              source -> SCAN_FAILED_LABEL.equals(source.bugCountResult())),
           new CodeReviewIllegalRule(
-              "missing-added-lines",
-              MISSING_ADDED_LINES_LABEL,
-              source -> source.addedLines() == null));
+              "clang-result-false",
+              CLANG_RESULT_FALSE_LABEL,
+              source -> CLANG_RESULT_FALSE_LABEL.equals(source.annotationRateResult())),
+          new CodeReviewIllegalRule(
+              "gitlab-error",
+              GITLAB_ERROR_LABEL,
+              source ->
+                  GITLAB_ERROR_LABEL.equals(source.scanStatus())
+                      || GITLAB_ERROR_LABEL.equals(source.targetBranch())
+                      || GITLAB_ERROR_LABEL.equals(source.reviewerNames())
+                      || GITLAB_ERROR_LABEL.equals(source.assigneeNames())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =
       List.of(
           new CodeReviewIllegalRuleGroup(
-              "missing-module-check",
-              "\u68c0\u67e5\u6a21\u5757\u6807\u7b7e",
-              "\u5982\u679c\u6a21\u5757\u4e3a\u7a7a\uff0c\u5c31\u4f1a\u88ab\u5224\u5b9a\u4e3a\u201c\u7f3a\u5c11\u6a21\u5757\u6807\u7b7e\u201d\u3002",
-              List.of("missing-module")),
-          new CodeReviewIllegalRuleGroup(
-              "missing-owner-check",
-              "\u68c0\u67e5\u6807\u6ce8\u8d23\u4efb\u4eba",
-              "\u5982\u679c\u8d23\u4efb\u4eba\u4e3a\u7a7a\uff0c\u5c31\u4f1a\u88ab\u5224\u5b9a\u4e3a\u201c\u7f3a\u5c11\u6807\u6ce8\u8d23\u4efb\u4eba\u201d\u3002",
-              List.of("missing-owner")),
+              "missing-project-module-check",
+              "检查项目名和模块名",
+              "如果项目名或模块名为老平台非法占位值，就会被判定为对应的未标注非法类型。",
+              List.of("missing-project", "missing-module")),
           new CodeReviewIllegalRuleGroup(
               "review-check",
               "\u68c0\u67e5\u4ee3\u7801\u8d70\u67e5\u8bb0\u5f55",
@@ -86,13 +92,13 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRuleGroup(
               "scan-check",
               "\u68c0\u67e5\u4ee3\u7801\u626b\u63cf\u7ed3\u679c",
-              "\u5982\u679c\u660e\u786e\u6807\u8bb0\u4e3a\u672a\u4ee3\u7801\u626b\u63cf\uff0c\u6216\u8005\u9759\u6001\u626b\u63cf\u95ee\u9898\u6570\u5927\u4e8e 0\uff0c\u5c31\u4f1a\u88ab\u5224\u5b9a\u4e3a\u5bf9\u5e94\u7684\u975e\u6cd5\u7c7b\u578b\u3002",
-              List.of("not-scanned", "open-scan-issue")),
+              "如果明确标记为未代码扫描、静态扫描问题未关闭、静态扫描失败或 GitLab 接口报错，就会被判定为对应非法类型。",
+              List.of("not-scanned", "open-scan-issue", "scan-failed", "gitlab-error")),
           new CodeReviewIllegalRuleGroup(
-              "missing-metric-check",
-              "\u68c0\u67e5\u5916\u90e8\u6307\u6807",
-              "\u5982\u679c\u4ee3\u7801\u6ce8\u91ca\u6bd4\u4f8b\u3001\u7f3a\u9677\u6570\u91cf\u6216\u65b0\u589e\u4ee3\u7801\u884c\u6570\u7f3a\u5931\uff0c\u5c31\u4f1a\u88ab\u5224\u5b9a\u4e3a\u5bf9\u5e94\u7684\u975e\u6cd5\u7c7b\u578b\u3002",
-              List.of("missing-comment-rate", "missing-defect-count", "missing-added-lines")));
+              "comment-rate-check",
+              "检查代码注释率结果",
+              "如果注释率未达标或 Clang 分析错误，就会被判定为对应非法类型。",
+              List.of("comment-rate-not-pass", "clang-result-false")));
 
   private CodeReviewIllegalRuleRegistry() {
   }

@@ -114,6 +114,12 @@ public class MergeRequestFact {
   @TableField("scan_bug_count")
   private Integer scanBugCount;
 
+  @TableField("annotation_rate_result")
+  private String annotationRateResult;
+
+  @TableField("bug_count_result")
+  private String bugCountResult;
+
   @TableField("added_lines")
   private Integer addedLines;
 

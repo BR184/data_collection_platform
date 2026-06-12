@@ -1,5 +1,6 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.IssueFact;
@@ -201,6 +202,30 @@ public class FactBuildService {
 
   public FactBuildResponse rebuildMergeRequestFactsForQueuedTask(GitlabSyncConfig config, boolean full) {
     return rebuildMergeRequestFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
+  }
+
+  public FactBuildResponse rebuildMergeRequestFactByIid(String sourceInstance, Long projectId, Long mergeRequestIid) {
+    if (projectId == null || mergeRequestIid == null) {
+      throw new BizException("刷新单条合并请求需要项目 ID 和合并请求编号");
+    }
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    sourceSchemaGuard.verifyMergeRequestFactSource(normalizedSource);
+    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+    List<MergeRequestFact> facts =
+        factSourceQueryExecutor.query(
+            "merge-request-fact-single-query",
+            normalizedSource,
+            factSourceSqlProvider.mergeRequestSourceSql() + " and mr.target_project_id = ? and mr.iid = ?",
+            "",
+            null,
+            List.of(projectId, mergeRequestIid),
+            (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, normalizedSource, moduleDictionary));
+    batchUpsertMergeRequestFacts(facts);
+    return new FactBuildResponse(
+        factScope("merge-request", normalizedSource),
+        false,
+        facts.size(),
+        facts.isEmpty() ? "未找到对应合并请求事实源数据" : "合并请求事实已按单条刷新");
   }
 
   private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full, String sourceInstance) {
@@ -475,8 +500,10 @@ public class FactBuildService {
     fact.setCommentRateSource(defaultText(rs.getString("comment_rate_source")));
     fact.setDefectCount((Integer) rs.getObject("defect_count"));
     fact.setDefectCountSource(defaultText(rs.getString("defect_count_source")));
-    fact.setScanStatus(null);
-    fact.setScanBugCount(null);
+    fact.setScanStatus(defaultText(rs.getString("scan_status")));
+    fact.setScanBugCount((Integer) rs.getObject("scan_bug_count"));
+    fact.setAnnotationRateResult(defaultText(rs.getString("annotation_rate_result")));
+    fact.setBugCountResult(defaultText(rs.getString("bug_count_result")));
     fact.setAddedLines((Integer) rs.getObject("added_lines"));
     fact.setDeleted(false);
     return fact;

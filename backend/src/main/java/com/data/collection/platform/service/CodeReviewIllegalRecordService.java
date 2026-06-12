@@ -17,12 +17,24 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.data.collection.platform.common.exception.BizException;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -34,6 +46,43 @@ public class CodeReviewIllegalRecordService {
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+  private static final String[] LEGACY_EXPORT_HEADERS = {
+    "走查时间",
+    "项目名",
+    "模块名",
+    "合并请求状态",
+    "合并请求编号",
+    "合并请求内容",
+    "被走查人",
+    "走查人",
+    "被指派人",
+    "合并时间",
+    "合并人",
+    "走查工作量（分钟）",
+    "新增走查代码行数（LOC）",
+    "删除走查代码行数（LOC）",
+    "规范类缺陷数（个）",
+    "逻辑类缺陷数（个）",
+    "性能类缺陷个数",
+    "设计类缺陷个数",
+    "其他类缺陷数（个）",
+    "缺陷数（个）",
+    "代码走查速率（LOC/H）",
+    "代码走查速率（KLOC/H）",
+    "代码走查缺陷密度（个/KLOC）",
+    "代码走查效率（个/H）",
+    "合并目标分支",
+    "是否进行sonQube扫描",
+    "提交次数",
+    "提交频率(行每次)",
+    "功能名称",
+    "代码注释量%",
+    "编码规范扫描结果",
+    "bug数量",
+    "静态扫描结果",
+    "所属项目名称",
+    "Clang-tidy 解析的新增代码行数结果"
+  };
 
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of(
@@ -182,7 +231,9 @@ public class CodeReviewIllegalRecordService {
         "项目",
         "仓库",
         "模块",
-        "责任人",
+        "被走查人",
+        "走查人",
+        "被指派人",
         "目标分支",
         "合并人",
         "合并时间",
@@ -190,6 +241,14 @@ public class CodeReviewIllegalRecordService {
         "评论率",
         "缺陷数",
         "新增行数",
+        "走查工作量（分钟）",
+        "代码走查速率（LOC/H）",
+        "代码走查缺陷密度（个/KLOC）",
+        "代码走查效率（个/H）",
+        "扫描状态",
+        "静态扫描问题数",
+        "编码规范扫描结果",
+        "静态扫描结果",
         "标题",
         "链接")));
     for (CodeReviewIllegalRecordRowResponse row : rows) {
@@ -199,7 +258,9 @@ public class CodeReviewIllegalRecordService {
           csv(row.projectName()),
           csv(row.repositoryName()),
           csv(row.moduleName()),
-          csv(row.owner()),
+          csv(row.author()),
+          csv(row.reviewerNames()),
+          csv(row.assigneeNames()),
           csv(row.targetBranch()),
           csv(row.mergedBy()),
           csv(row.mergedAt() == null ? "" : CSV_DATE_TIME.format(row.mergedAt())),
@@ -207,10 +268,188 @@ public class CodeReviewIllegalRecordService {
           csv(row.commentRate()),
           csv(row.defectCount()),
           csv(row.addedLines()),
+          csv(row.reviewDurationMinutes()),
+          csv(row.reviewSpeedLocPerHour()),
+          csv(row.defectDensityPerKloc()),
+          csv(row.reviewEfficiencyPerHour()),
+          csv(row.scanStatus()),
+          csv(row.scanBugCount()),
+          csv(row.annotationRateResult()),
+          csv(row.bugCountResult()),
           csv(row.mergeRequestContent()),
           csv(row.mergeRequestLink()))));
     }
     return String.join("\n", lines) + "\n";
+  }
+
+  public byte[] exportRecordsWorkbook(CodeReviewIllegalRecordQueryRequest request) {
+    List<CodeReviewIllegalRecordRowResponse> illegalRows = loadAllRows(request);
+    try (Workbook workbook = new XSSFWorkbook();
+        ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+      ExportStyles styles = new ExportStyles(workbook);
+      writeLegacySheet(workbook, styles, "非法代码走查数据", illegalRows);
+      if (shouldExportAllCodeReviewSheet(request)) {
+        writeLegacySheet(workbook, styles, "全量代码走查数据", loadAllRowsWithoutIllegalType(request));
+      }
+      workbook.write(output);
+      return output.toByteArray();
+    } catch (IOException e) {
+      throw new BizException("代码走查非法数据 Excel 导出失败");
+    }
+  }
+
+  private List<CodeReviewIllegalRecordRowResponse> loadAllRows(CodeReviewIllegalRecordQueryRequest request) {
+    List<CodeReviewIllegalRecordRowResponse> rows = new ArrayList<>();
+    int page = 1;
+    while (true) {
+      CodeReviewIllegalRecordListResponse response = listRecords(pageRequest(request, page, request.illegalType()));
+      CsvExportSupport.ensureWithinRowLimit(response.total());
+      rows.addAll(response.records());
+      if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
+        break;
+      }
+      page += 1;
+    }
+    return rows;
+  }
+
+  private List<CodeReviewIllegalRecordRowResponse> loadAllRowsWithoutIllegalType(
+      CodeReviewIllegalRecordQueryRequest request) {
+    CodeReviewIllegalRecordQueryRequest allQuery = pageRequest(request, 1, null);
+    StatisticFilterGroup filterGroup =
+        CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, allQuery.filterGroupJson());
+    List<CodeReviewIllegalRecordRowResponse> rows =
+        sourceLoader.loadLegacyAllExportSources(allQuery, filterGroup).stream()
+            .map(this::toView)
+            .map(this::toResponse)
+            .toList();
+    CsvExportSupport.ensureWithinRowLimit(rows.size());
+    return rows;
+  }
+
+  private CodeReviewIllegalRecordQueryRequest pageRequest(
+      CodeReviewIllegalRecordQueryRequest request, int page, String illegalType) {
+    return new CodeReviewIllegalRecordQueryRequest(
+        request.projectId(),
+        request.repositoryName(),
+        request.mergedAtStart(),
+        request.mergedAtEnd(),
+        request.keyword(),
+        request.projectName(),
+        request.requestType(),
+        request.targetBranch(),
+        request.mergedBy(),
+        request.moduleName(),
+        illegalType,
+        request.mergeRequestIid(),
+        request.owner(),
+        request.source(),
+        request.filterGroupJson(),
+        page,
+        EXPORT_PAGE_SIZE,
+        request.sortField(),
+        request.sortOrder(),
+        request.ruleConfigJson());
+  }
+
+  private boolean shouldExportAllCodeReviewSheet(CodeReviewIllegalRecordQueryRequest request) {
+    String source = GitlabSourceInstanceSupport.normalizeSourceInstance(request.source());
+    String projectName = TextQuerySupport.trimToNull(request.projectName());
+    if ("dgm".equals(source)) {
+      return true;
+    }
+    return projectName != null && !"CrownCAD".equalsIgnoreCase(projectName);
+  }
+
+  private void writeLegacySheet(
+      Workbook workbook,
+      ExportStyles styles,
+      String sheetName,
+      List<CodeReviewIllegalRecordRowResponse> rows) {
+    var sheet = workbook.createSheet(sheetName);
+    writeHeader(sheet.createRow(0), styles.header, LEGACY_EXPORT_HEADERS);
+    int rowIndex = 1;
+    for (CodeReviewIllegalRecordRowResponse row : rows) {
+      writeLegacyExportRow(sheet.createRow(rowIndex++), row, styles.body);
+    }
+    setColumnWidths(
+        sheet,
+        18, 18, 16, 14, 14, 36, 16, 22, 22, 20, 16, 18, 20, 20, 18, 18, 18, 18,
+        18, 14, 20, 20, 24, 20, 18, 20, 12, 18, 20, 14, 22, 12, 22, 18, 28);
+    sheet.createFreezePane(0, 1);
+  }
+
+  private void writeHeader(Row row, CellStyle style, String[] headers) {
+    for (int index = 0; index < headers.length; index++) {
+      writeText(row, index, headers[index], style);
+    }
+  }
+
+  private void writeLegacyExportRow(
+      Row row, CodeReviewIllegalRecordRowResponse record, CellStyle style) {
+    writeText(row, 0, formatDateTime(record.mergedAt()), style);
+    writeText(row, 1, record.projectName(), style);
+    writeText(row, 2, record.moduleName(), style);
+    writeText(row, 3, "MERGED", style);
+    writeNumber(row, 4, record.mergeRequestIid(), style);
+    writeText(row, 5, record.mergeRequestContent(), style);
+    writeText(row, 6, record.author(), style);
+    writeText(row, 7, record.reviewerNames(), style);
+    writeText(row, 8, record.assigneeNames(), style);
+    writeText(row, 9, formatDateTime(record.mergedAt()), style);
+    writeText(row, 10, record.mergedBy(), style);
+    writeNumber(row, 11, record.reviewDurationMinutes(), style);
+    writeNumber(row, 12, record.addedLines(), style);
+    writeNumber(row, 13, 0, style);
+    writeNumber(row, 14, 0, style);
+    writeNumber(row, 15, 0, style);
+    writeNumber(row, 16, 0, style);
+    writeNumber(row, 17, 0, style);
+    writeNumber(row, 18, 0, style);
+    writeNumber(row, 19, record.defectCount(), style);
+    writeNumber(row, 20, record.reviewSpeedLocPerHour(), style);
+    writeNumber(row, 21, klocPerHour(record.reviewSpeedLocPerHour()), style);
+    writeNumber(row, 22, record.defectDensityPerKloc(), style);
+    writeNumber(row, 23, record.reviewEfficiencyPerHour(), style);
+    writeText(row, 24, record.targetBranch(), style);
+    writeText(row, 25, record.scanStatus(), style);
+    writeText(row, 26, "", style);
+    writeText(row, 27, "", style);
+    writeText(row, 28, "", style);
+    writeNumber(row, 29, record.commentRate(), style);
+    writeText(row, 30, record.annotationRateResult(), style);
+    writeNumber(row, 31, record.scanBugCount(), style);
+    writeText(row, 32, record.bugCountResult(), style);
+    writeText(row, 33, record.repositoryName(), style);
+    writeNumber(row, 34, record.addedLines(), style);
+  }
+
+  private Double klocPerHour(Integer locPerHour) {
+    return locPerHour == null ? null : round2(locPerHour / 1000.0);
+  }
+
+  private void writeText(Row row, int column, String value, CellStyle style) {
+    var cell = row.createCell(column);
+    cell.setCellValue(value == null ? "" : value);
+    cell.setCellStyle(style);
+  }
+
+  private void writeNumber(Row row, int column, Number value, CellStyle style) {
+    var cell = row.createCell(column);
+    if (value != null) {
+      cell.setCellValue(value.doubleValue());
+    }
+    cell.setCellStyle(style);
+  }
+
+  private void setColumnWidths(org.apache.poi.ss.usermodel.Sheet sheet, int... widths) {
+    for (int index = 0; index < widths.length; index++) {
+      sheet.setColumnWidth(index, widths[index] * 256);
+    }
+  }
+
+  private String formatDateTime(java.time.LocalDateTime value) {
+    return value == null ? "" : CSV_DATE_TIME.format(value);
   }
 
   private String csv(Object value) {
@@ -256,6 +495,30 @@ public class CodeReviewIllegalRecordService {
 
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     return realtimeWorkspaceService.requestRefreshWithResult(WORKSPACE_KEY, this::refreshMirrorForRealtimeView);
+  }
+
+  public CodeReviewIllegalRecordRowResponse refreshSingleRecord(
+      String source, Long projectId, Long mergeRequestIid) {
+    factBuildService.rebuildMergeRequestFactByIid(source, projectId, mergeRequestIid);
+    List<CodeReviewIllegalRecordView> rows =
+        loadScopedViews(
+            projectId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            String.valueOf(mergeRequestIid),
+            null,
+            source);
+    return rows.stream()
+        .map(this::toResponse)
+        .findFirst()
+        .orElse(null);
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation() {
@@ -409,17 +672,50 @@ public class CodeReviewIllegalRecordService {
         TextQuerySupport.normalizeDisplay(source.projectName()),
         TextQuerySupport.normalizeDisplay(source.repositoryName()),
         source.mergedAt(),
+        TextQuerySupport.normalizeDisplay(source.author()),
         TextQuerySupport.normalizeDisplay(source.mergedBy()),
         TextQuerySupport.normalizeDisplay(source.moduleName()),
         TextQuerySupport.normalizeDisplay(source.targetBranch()),
         illegalTypes,
+        TextQuerySupport.normalizeDisplay(source.reviewerNames()),
+        TextQuerySupport.normalizeDisplay(source.assigneeNames()),
         TextQuerySupport.normalizeDisplay(source.reviewStatus()),
         source.reviewDurationMinutes(),
         TextQuerySupport.normalizeDisplay(source.scanStatus()),
         source.scanBugCount(),
+        TextQuerySupport.normalizeDisplay(source.annotationRateResult()),
+        TextQuerySupport.normalizeDisplay(source.bugCountResult()),
         source.commentRate(),
         source.defectCount(),
-        source.addedLines());
+        source.addedLines(),
+        reviewSpeedLocPerHour(source.addedLines(), source.reviewDurationMinutes()),
+        defectDensityPerKloc(source.defectCount(), source.addedLines()),
+        reviewEfficiencyPerHour(source.defectCount(), source.reviewDurationMinutes()));
+  }
+
+  private Integer reviewSpeedLocPerHour(Integer addedLines, Integer durationMinutes) {
+    if (addedLines == null || durationMinutes == null || durationMinutes <= 0) {
+      return 0;
+    }
+    return (int) Math.round(addedLines * 60.0 / durationMinutes);
+  }
+
+  private Double defectDensityPerKloc(Integer defectCount, Integer addedLines) {
+    if (defectCount == null || addedLines == null || addedLines <= 0) {
+      return 0.0;
+    }
+    return round2(defectCount * 1000.0 / addedLines);
+  }
+
+  private Double reviewEfficiencyPerHour(Integer defectCount, Integer durationMinutes) {
+    if (defectCount == null || durationMinutes == null || durationMinutes <= 0) {
+      return 0.0;
+    }
+    return round2(defectCount * 60.0 / durationMinutes);
+  }
+
+  private Double round2(double value) {
+    return Math.round(value * 100.0) / 100.0;
   }
 
   private List<StatisticRuleFlowStep> buildRuleFlowSteps(
@@ -464,8 +760,8 @@ public class CodeReviewIllegalRecordService {
         new StatisticRuleMetricDefinition(
             "illegalTypes",
             "非法类型",
-            "系统会根据规则检查结果，标记这条记录需要补充哪些信息。",
-            "非法类型 = 缺少模块标签 / 缺少标注责任人 / 无代码走查 / 未代码扫描 / 静态扫描问题未关闭 / 缺少外部指标",
+            "系统按老平台代码走查非法数据口径标记这条合并请求命中的非法类型。",
+            "非法类型 = 未标注项目名 / 未标注模块名 / 无代码走查 / 未进行代码扫描 / 静态扫描问题未关闭 / 代码注释量未达标 / 静态扫描失败 / 注释率分析工具Clang分析错误 / GitLab 接口报错",
             "一条记录可以同时命中多种非法类型。"),
         new StatisticRuleMetricDefinition(
             "reviewStatus",
@@ -478,31 +774,31 @@ public class CodeReviewIllegalRecordService {
             "模块名称",
             "表示这条合并请求所属的功能模块。",
             "模块名称来自合并请求关联的模块标识。",
-            "如果缺少模块信息，这条记录会被判定为需要关注。"),
+            "如果模块名为“未标注模块名”，这条记录会被判定为“未标注模块名”。"),
         new StatisticRuleMetricDefinition(
             "scanStatus",
             "代码扫描结果",
             "表示这条合并请求是否已经完成静态扫描，以及静态扫描问题是否已经清理。",
-            "未代码扫描 = 明确标记为未扫描；静态扫描问题未关闭 = 扫描问题数大于 0",
+            "未进行代码扫描 = 明确标记为未扫描；静态扫描问题未关闭 = 扫描问题数大于 0 或结果字段为对应老平台值",
             "只有事实层中已经带出扫描状态时，才会命中这类非法规则。"),
         new StatisticRuleMetricDefinition(
             "commentRate",
             "代码注释比例",
             "表示本次改动中代码注释的覆盖情况。",
             "代码注释比例 = 外部工具结果 或 MR 机器人解析结果",
-            "如果缺少该指标，这条记录会被判定为需要关注。"),
+            "如果编码规范扫描结果为“代码注释量未达标”或“注释率分析工具Clang分析错误”，会命中对应非法类型。"),
         new StatisticRuleMetricDefinition(
             "defectCount",
             "缺陷数量",
             "表示本次改动关联的缺陷数量。",
             "缺陷数量 = MR 评论 / 机器人结果 / Sonar 汇总结果",
-            "如果缺少该指标，这条记录会被判定为需要关注。"),
+            "该指标用于展示和计算效率，不再单独作为默认非法类型。"),
         new StatisticRuleMetricDefinition(
             "addedLines",
             "新增代码行数",
             "表示本次合并请求新增的代码规模。",
             "新增代码行数 = 本次改动新增代码行数",
-            "如果缺少该指标，这条记录也会被判定为需要关注。"));
+            "该指标用于展示和计算速率，不再单独作为默认非法类型。"));
   }
 
   private StatisticRuleFlowStepSample toIllegalRecordSample(CodeReviewIllegalRecordView row) {
@@ -540,13 +836,25 @@ public class CodeReviewIllegalRecordService {
         row.projectName(),
         row.repositoryName(),
         row.mergedAt(),
+        row.author(),
         row.mergedBy(),
         row.moduleName(),
         row.targetBranch(),
         illegalTypes,
+        row.reviewerNames(),
+        row.assigneeNames(),
+        row.reviewStatus(),
+        row.reviewDurationMinutes(),
+        row.scanStatus(),
+        row.scanBugCount(),
+        row.annotationRateResult(),
+        row.bugCountResult(),
         row.commentRate(),
         row.defectCount(),
-        row.addedLines());
+        row.addedLines(),
+        row.reviewSpeedLocPerHour(),
+        row.defectDensityPerKloc(),
+        row.reviewEfficiencyPerHour());
   }
 
   private List<OptionItemResponse> toOptions(
@@ -563,5 +871,30 @@ public class CodeReviewIllegalRecordService {
 
   private List<OptionItemResponse> toOptions(List<String> values) {
     return OptionItemResponseFactory.from(values, TextQuerySupport::trimToNull);
+  }
+
+  private static class ExportStyles {
+    private final CellStyle header;
+    private final CellStyle body;
+
+    private ExportStyles(Workbook workbook) {
+      header = workbook.createCellStyle();
+      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      header.setAlignment(HorizontalAlignment.CENTER);
+      header.setVerticalAlignment(VerticalAlignment.CENTER);
+      header.setBorderBottom(BorderStyle.THIN);
+      header.setBorderLeft(BorderStyle.THIN);
+      header.setBorderRight(BorderStyle.THIN);
+      header.setBorderTop(BorderStyle.THIN);
+
+      body = workbook.createCellStyle();
+      body.setVerticalAlignment(VerticalAlignment.CENTER);
+      body.setBorderBottom(BorderStyle.THIN);
+      body.setBorderLeft(BorderStyle.THIN);
+      body.setBorderRight(BorderStyle.THIN);
+      body.setBorderTop(BorderStyle.THIN);
+      body.setWrapText(true);
+    }
   }
 }

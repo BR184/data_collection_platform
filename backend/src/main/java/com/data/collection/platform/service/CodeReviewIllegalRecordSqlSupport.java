@@ -35,20 +35,21 @@ final class CodeReviewIllegalRecordSqlSupport {
     if (normalized == null) {
       return String.join(
           " or ",
+          missingProjectPredicate(),
           missingModulePredicate(),
-          missingOwnerPredicate(),
           missingReviewPredicate(),
           notScannedPredicate(),
           openScanIssuePredicate(),
-          "comment_rate is null",
-          "defect_count is null",
-          "added_lines is null");
+          commentRateNotPassPredicate(),
+          scanFailedPredicate(),
+          clangResultFalsePredicate(),
+          gitlabErrorPredicate());
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)) {
+      return missingProjectPredicate();
     }
     if (CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL.equals(normalized)) {
       return missingModulePredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.MISSING_OWNER_LABEL.equals(normalized)) {
-      return missingOwnerPredicate();
     }
     if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)) {
       return missingReviewPredicate();
@@ -59,14 +60,17 @@ final class CodeReviewIllegalRecordSqlSupport {
     if (CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL.equals(normalized)) {
       return openScanIssuePredicate();
     }
-    if (CodeReviewIllegalRuleRegistry.MISSING_COMMENT_RATE_LABEL.equals(normalized)) {
-      return "comment_rate is null";
+    if (CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL.equals(normalized)) {
+      return commentRateNotPassPredicate();
     }
-    if (CodeReviewIllegalRuleRegistry.MISSING_DEFECT_COUNT_LABEL.equals(normalized)) {
-      return "defect_count is null";
+    if (CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL.equals(normalized)) {
+      return scanFailedPredicate();
     }
-    if (CodeReviewIllegalRuleRegistry.MISSING_ADDED_LINES_LABEL.equals(normalized)) {
-      return "added_lines is null";
+    if (CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL.equals(normalized)) {
+      return clangResultFalsePredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL.equals(normalized)) {
+      return gitlabErrorPredicate();
     }
     return "1 = 0";
   }
@@ -106,7 +110,7 @@ final class CodeReviewIllegalRecordSqlSupport {
               String.join(
                   " and ",
                   "nullif(btrim(coalesce(title, '')), '') is null",
-                  "nullif(btrim(coalesce(owner_name, '')), '') is null",
+                  "nullif(btrim(coalesce(author_name, '')), '') is null",
                   "nullif(btrim(coalesce(project_name, '')), '') is null",
                   "nullif(btrim(coalesce(repository_name, '')), '') is null",
                   "nullif(btrim(coalesce(module_name, '')), '') is null",
@@ -118,7 +122,7 @@ final class CodeReviewIllegalRecordSqlSupport {
               String.join(
                   " or ",
                   "nullif(btrim(coalesce(title, '')), '') is not null",
-                  "nullif(btrim(coalesce(owner_name, '')), '') is not null",
+                  "nullif(btrim(coalesce(author_name, '')), '') is not null",
                   "nullif(btrim(coalesce(project_name, '')), '') is not null",
                   "nullif(btrim(coalesce(repository_name, '')), '') is not null",
                   "nullif(btrim(coalesce(module_name, '')), '') is not null",
@@ -131,7 +135,7 @@ final class CodeReviewIllegalRecordSqlSupport {
 
   private static Optional<SqlPredicate> keywordEqualsCondition(StatisticFilterCondition condition) {
     List<String> columns =
-        List.of("title", "owner_name", "project_name", "repository_name", "module_name", "target_branch", "merge_user_name");
+        List.of("title", "author_name", "project_name", "repository_name", "module_name", "target_branch", "merge_user_name");
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (String column : columns) {
@@ -147,11 +151,18 @@ final class CodeReviewIllegalRecordSqlSupport {
 
   private static Optional<SqlPredicate> ownerCondition(StatisticFilterCondition condition) {
     if ("contains".equals(condition.operator()) || "notContains".equals(condition.operator())) {
-      return indexedSearchCondition(
-          List.of("owner_search_text", "owner_search_compact", "owner_search_spell", "owner_search_initials"),
-          condition);
+      return textContainsCondition("author_name", condition);
     }
-    return textCondition("owner_name", condition);
+    return textCondition("author_name", condition);
+  }
+
+  private static Optional<SqlPredicate> textContainsCondition(
+      String column, StatisticFilterCondition condition) {
+    String predicate = "lower(coalesce(" + column + ", '')) like ?";
+    if ("notContains".equals(condition.operator())) {
+      predicate = "not (" + predicate + ")";
+    }
+    return Optional.of(new SqlPredicate(predicate, List.of("%" + lower(condition.value()) + "%")));
   }
 
   private static Optional<SqlPredicate> illegalTypeCondition(StatisticFilterCondition condition) {
@@ -250,12 +261,12 @@ final class CodeReviewIllegalRecordSqlSupport {
     };
   }
 
-  private static String missingModulePredicate() {
-    return "(label_names is null or btrim(label_names) = '')";
+  private static String missingProjectPredicate() {
+    return "project_name = '未标注项目名'";
   }
 
-  private static String missingOwnerPredicate() {
-    return "(owner_name is null or btrim(owner_name) = '')";
+  private static String missingModulePredicate() {
+    return "module_name = '未标注模块名'";
   }
 
   private static String missingReviewPredicate() {
@@ -276,7 +287,28 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String openScanIssuePredicate() {
-    return "(scan_bug_count is not null and scan_bug_count > 0)";
+    return "(bug_count_result = '静态扫描问题未关闭' or (scan_bug_count is not null and scan_bug_count > 0))";
+  }
+
+  private static String commentRateNotPassPredicate() {
+    return "annotation_rate_result = '代码注释量未达标'";
+  }
+
+  private static String scanFailedPredicate() {
+    return "bug_count_result = '静态扫描失败'";
+  }
+
+  private static String clangResultFalsePredicate() {
+    return "annotation_rate_result = '注释率分析工具Clang分析错误'";
+  }
+
+  private static String gitlabErrorPredicate() {
+    return String.join(
+        " or ",
+        "scan_status = 'GitLab 接口报错'",
+        "target_branch = 'GitLab 接口报错'",
+        "reviewer_names = 'GitLab 接口报错'",
+        "assignee_names = 'GitLab 接口报错'");
   }
 
   private static SqlPredicate truePredicate() {

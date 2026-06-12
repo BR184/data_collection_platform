@@ -128,7 +128,7 @@ final class CodeReviewIllegalRecordFilterGroupSupport {
       case "illegalType" -> row.illegalTypes();
       case "keyword" -> List.of(
           Objects.toString(row.mergeRequestContent(), ""),
-          Objects.toString(row.owner(), ""),
+          Objects.toString(row.author(), ""),
           Objects.toString(row.projectName(), ""),
           Objects.toString(row.repositoryName(), ""),
           Objects.toString(row.moduleName(), ""),
@@ -136,7 +136,7 @@ final class CodeReviewIllegalRecordFilterGroupSupport {
           Objects.toString(row.mergedBy(), ""));
       case "requestType" -> List.of(Objects.toString(row.requestType(), ""));
       case "mergeRequestIid" -> List.of(Objects.toString(row.mergeRequestIid(), ""));
-      case "owner" -> List.of(Objects.toString(row.owner(), ""));
+      case "owner" -> List.of(Objects.toString(row.author(), ""));
       case "targetBranch" -> List.of(Objects.toString(row.targetBranch(), ""));
       case "mergedBy" -> List.of(Objects.toString(row.mergedBy(), ""));
       case "moduleName" -> List.of(Objects.toString(row.moduleName(), ""));

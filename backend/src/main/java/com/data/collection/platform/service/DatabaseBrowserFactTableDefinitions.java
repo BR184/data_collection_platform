@@ -50,7 +50,7 @@ final class DatabaseBrowserFactTableDefinitions {
         "merge_request_fact",
         definition(
             "合并请求事实表",
-            List.of("source_system", "source_instance", "merge_request_iid", "title", "module_name", "owner_name"),
+            List.of("source_system", "source_instance", "merge_request_iid", "title", "module_name", "author_name"),
             "updated_at",
             column("id", "ID"),
             column("source_system", "来源系统"),
@@ -79,6 +79,8 @@ final class DatabaseBrowserFactTableDefinitions {
             column("defect_count_source", "缺陷数来源"),
             column("scan_status", "扫描状态"),
             column("scan_bug_count", "扫描问题数"),
+            column("annotation_rate_result", "编码规范扫描结果"),
+            column("bug_count_result", "静态扫描结果"),
             column("added_lines", "新增代码行数"),
             column("source_summary", "来源说明"),
             column("raw_payload", "原始载荷"),

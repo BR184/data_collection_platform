@@ -47,7 +47,7 @@ import {
   formatCodeReviewPercent,
   mapCodeReviewIllegalTableRows,
 } from './code-review-illegal-records-view-helpers';
-import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 
@@ -78,6 +78,7 @@ const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const rowRefreshKey = ref('');
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 
@@ -184,6 +185,11 @@ function openRuleConfig() {
   });
 }
 
+function rowRefreshIdentity(row: Record<string, unknown>) {
+  const raw = row.__raw as CodeReviewIllegalRecordRowResponse | undefined;
+  return raw ? `${raw.projectId}-${raw.mergeRequestIid}` : '';
+}
+
 async function loadFilterOptions() {
   filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
     route.query.projectId as string | undefined,
@@ -239,8 +245,8 @@ function buildCurrentQueryParams(includePagination: boolean) {
 async function handleExport() {
   exportLoading.value = true;
   try {
-    const csv = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
-    downloadCsv(csv, `代码走查非法数据_${formatExportFileDate(new Date())}.csv`);
+    const workbook = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
+    downloadBlob(workbook, `代码走查非法数据_${formatExportFileDate(new Date())}.xlsx`);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {
@@ -263,6 +269,28 @@ async function handleRefreshLatestData() {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
     realtimeRefreshLoading.value = false;
+  }
+}
+
+async function handleRefreshRow(row: Record<string, unknown>) {
+  const raw = row.__raw as CodeReviewIllegalRecordRowResponse | undefined;
+  if (!raw) {
+    return;
+  }
+  rowRefreshKey.value = `${raw.projectId}-${raw.mergeRequestIid}`;
+  try {
+    await api.refreshCodeReviewIllegalRecord({
+      source: sourceScope.value.value || undefined,
+      projectId: raw.projectId,
+      mergeRequestIid: raw.mergeRequestIid,
+    });
+    ElMessage.success('已刷新本条数据');
+    await loadTableData();
+    await loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新本条数据失败');
+  } finally {
+    rowRefreshKey.value = '';
   }
 }
 
@@ -389,6 +417,15 @@ async function handleOpenRuleExplanation() {
 
       <template #row-actions="{ row }">
         <el-button class="record-detail-trigger" link @click="openDetailDrawer(row)">查看详情</el-button>
+        <el-button
+          v-if="canRefreshLatestData"
+          class="record-detail-trigger"
+          link
+          :loading="rowRefreshKey === rowRefreshIdentity(row)"
+          @click="handleRefreshRow(row)"
+        >
+          刷新本条
+        </el-button>
       </template>
     </BaseRecordTable>
 
@@ -444,12 +481,18 @@ async function handleOpenRuleExplanation() {
             <el-descriptions-item label="请求类型">{{ selectedRow.requestType || '-' }}</el-descriptions-item>
             <el-descriptions-item label="所属项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="代码库">{{ selectedRow.repositoryName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="标注责任人">{{ selectedRow.owner || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="被走查人">{{ selectedRow.author || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="走查人">{{ selectedRow.reviewerNames || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="被指派人">{{ selectedRow.assigneeNames || '-' }}</el-descriptions-item>
             <el-descriptions-item label="合并人">{{ selectedRow.mergedBy || '-' }}</el-descriptions-item>
             <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="合并目标分支">{{ selectedRow.targetBranch || '-' }}</el-descriptions-item>
             <el-descriptions-item label="合并时间">{{ formatCodeReviewDateTime(selectedRow.mergedAt) }}</el-descriptions-item>
             <el-descriptions-item label="项目 ID">{{ selectedRow.projectId ?? '-' }}</el-descriptions-item>
+            <el-descriptions-item label="走查状态">{{ selectedRow.reviewStatus || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="扫描状态">{{ selectedRow.scanStatus || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="编码规范扫描结果">{{ selectedRow.annotationRateResult || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="静态扫描结果">{{ selectedRow.bugCountResult || '-' }}</el-descriptions-item>
           </el-descriptions>
         </section>
 
@@ -487,6 +530,26 @@ async function handleOpenRuleExplanation() {
             <article class="record-detail-metric-card">
               <span class="record-detail-metric-label">新增代码行数</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.addedLines, ' 行') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">走查工作量</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewDurationMinutes, ' 分钟') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">走查速率</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedLocPerHour, ' LOC/H') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">缺陷密度</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.defectDensityPerKloc, ' 个/KLOC') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">走查效率</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewEfficiencyPerHour, ' 个/H') }}</strong>
+            </article>
+            <article class="record-detail-metric-card">
+              <span class="record-detail-metric-label">静态扫描问题数</span>
+              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.scanBugCount) }}</strong>
             </article>
           </div>
         </section>

@@ -54,7 +54,7 @@ public class MergeRequestFactQueryService extends AbstractFactQueryService {
     appendContains(sql, args, "repository_name", filters.get("repositoryName"));
     appendContains(sql, args, "target_branch", filters.get("targetBranch"));
     appendContains(sql, args, "module_name", filters.get("moduleName"));
-    appendContains(sql, args, "owner_name", filters.get("owner"));
+    appendContains(sql, args, "author_name", filters.get("author"));
     appendEq(
         sql,
         args,
