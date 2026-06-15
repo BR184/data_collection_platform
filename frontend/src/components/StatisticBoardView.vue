@@ -221,7 +221,10 @@ const {
 
 function handleBoardLoaded(response: StatisticBoardResponse) {
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
-  const nextDraft = normalizeFilterDraftGroup(routeFilterGroup, response.definition.filters);
+  const nextDraft = normalizeFilterDraftGroup(
+    response.appliedFilterGroup ?? routeFilterGroup,
+    response.definition.filters,
+  );
   replaceFilterDraftGroup(filterDraft, nextDraft);
   applyStoredViewPrefs(response.definition);
   syncDraftFromVisible();

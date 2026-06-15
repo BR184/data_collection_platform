@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -48,6 +49,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "system-test-delay-analysis";
   private static final String RULE_VERSION = "system-test-delay-analysis@2026-04-22-v1";
+  private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> LEGACY_DELAY_CAUSES =
@@ -153,8 +155,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
-    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (String delayCause : LEGACY_DELAY_CAUSES) {
@@ -184,14 +188,21 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             rows.size(),
             columnCount,
             drilldownCount);
-    return new StatisticBoardResponse(definition, withoutReservedFilters(filters), filterGroup, rows, meta);
+    return new StatisticBoardResponse(
+        definition,
+        appliedFilters(filters, effectiveFilterGroup),
+        effectiveFilterGroup,
+        rows,
+        meta);
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    StatisticFilterGroup effectiveFilterGroup =
+        applyDefaultTestingPhase(filterGroup, loadPhaseOptions());
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -222,8 +233,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     long causeCount =
         LEGACY_DELAY_CAUSES.stream()
             .filter(cause -> snapshot.finalSources().stream().anyMatch(issue -> cause.equals(issue.delayCause())))
@@ -303,11 +316,51 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "phase-filter",
                 "应用测试阶段筛选",
-                "根据页面上的测试阶段筛选进一步收敛范围；未选择时保留全部系统测试阶段。",
+                "根据页面上的测试阶段筛选进一步收敛范围；未选择时按老平台默认使用阶段列表第一项。",
                 delayed.size(),
                 filtered,
                 this::toRuleFlowSample
             )));
+  }
+
+  private StatisticFilterGroup applyDefaultTestingPhase(
+      StatisticFilterGroup filterGroup,
+      List<StatisticFilterOption> phaseOptions) {
+    if (StringUtils.hasText(SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup))) {
+      return filterGroup;
+    }
+    String defaultPhase = defaultTestingPhase(phaseOptions);
+    if (!StringUtils.hasText(defaultPhase)) {
+      return filterGroup == null ? emptyFilterGroup() : filterGroup;
+    }
+    List<StatisticFilterCondition> conditions = new ArrayList<>();
+    if (filterGroup != null && filterGroup.conditions() != null) {
+      conditions.addAll(filterGroup.conditions());
+    }
+    conditions.add(new StatisticFilterCondition(TESTING_PHASE_FIELD, "eq", defaultPhase, null));
+    return new StatisticFilterGroup("AND", conditions);
+  }
+
+  private String defaultTestingPhase(List<StatisticFilterOption> phaseOptions) {
+    if (phaseOptions == null || phaseOptions.isEmpty()) {
+      return "";
+    }
+    return phaseOptions.stream()
+        .map(StatisticFilterOption::value)
+        .filter(StringUtils::hasText)
+        .findFirst()
+        .orElse("");
+  }
+
+  private Map<String, String> appliedFilters(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup) {
+    Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
+    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    if (StringUtils.hasText(selectedTestingPhase)) {
+      applied.put(TESTING_PHASE_FIELD, selectedTestingPhase);
+    }
+    return applied;
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
