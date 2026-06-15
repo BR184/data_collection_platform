@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -29,7 +30,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -150,8 +153,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                         "P2",
                         List.of(
                             leaf("p2_count", "P2级别缺陷", true, "count"),
-                            leaf("p2_fix_rate", "P2缺陷修复率(%)", false, "ratio"),
-                            leaf("p2_close_rate", "P2缺陷关闭率(%)", false, "ratio"))),
+                            leaf("p2_fix_rate", "P2缺陷修复率(%)", false, "ratio"))),
                     new StatisticColumnGroup(
                         "p3",
                         "P3",
@@ -210,7 +212,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    List<IssueSource> sources = loadBoardScopedSources(filters);
+    List<IssueSource> sources = loadBoardScopedSources(filters, filterGroup);
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : sources) {
       for (String moduleName : issue.moduleNames()) {
@@ -247,7 +249,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     List<IssueSource> scoped =
-        loadBoardScopedSources(request.filters()).stream()
+        loadBoardScopedSources(request.filters(), filterGroup).stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -278,7 +280,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -291,17 +294,18 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         null);
   }
 
-  private List<IssueSource> loadBoardScopedSources(Map<String, String> filters) {
-    return buildRuleFlowSnapshot(loadSources(filters)).finalSources();
+  private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    return buildRuleFlowSnapshot(loadSources(filters), filterGroup).finalSources();
   }
 
-  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
+  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
+    List<IssueSource> filtered = valid.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
-        valid,
+        filtered,
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
@@ -331,11 +335,105 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                 "module-expand",
                 "按模块展开",
                 "同一条议题可能属于多个模块，模块行会分别计入；总计行仍按议题本身统计。",
-                valid.size(),
-                valid.stream().mapToLong(issue -> issue.moduleNames().size()).sum(),
-                valid,
+                filtered.size(),
+                filtered.stream().mapToLong(issue -> issue.moduleNames().size()).sum(),
+                filtered,
                 this::toRuleFlowSample
             )));
+  }
+
+  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return true;
+    }
+    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
+    for (StatisticFilterCondition condition : filterGroup.conditions()) {
+      boolean matched = matchesFilterCondition(issue, condition);
+      if (isOr && matched) {
+        return true;
+      }
+      if (!isOr && !matched) {
+        return false;
+      }
+    }
+    return !isOr;
+  }
+
+  private boolean matchesFilterCondition(IssueSource issue, StatisticFilterCondition condition) {
+    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
+      return true;
+    }
+    List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
+    if (condition.usesLabelGroup()) {
+      return matchesSetOperator(actualValues, condition.values(), condition.operator());
+    }
+    return switch (Objects.toString(condition.operator(), "")) {
+      case "isEmpty" -> actualValues.stream().allMatch(value -> trimToNull(value) == null);
+      case "isNotEmpty" -> actualValues.stream().anyMatch(value -> trimToNull(value) != null);
+      case "ne" -> actualValues.stream().noneMatch(value -> equalsIgnoreCase(value, condition.value()));
+      case "contains" -> actualValues.stream().anyMatch(value -> containsIgnoreCase(value, condition.value()));
+      case "notContains" -> actualValues.stream().noneMatch(value -> containsIgnoreCase(value, condition.value()));
+      default -> actualValues.stream().anyMatch(value -> equalsIgnoreCase(value, condition.value()));
+    };
+  }
+
+  private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
+    return switch (fieldKey) {
+      case "projectName" -> List.of(Objects.toString(issue.projectName(), ""));
+      case "milestoneTitle" -> List.of(Objects.toString(issue.milestoneTitle(), ""));
+      case "moduleName" -> issue.moduleNames();
+      case "severityLevel" -> List.of(Objects.toString(issue.severityLevel(), ""));
+      case "priorityLevel" -> List.of(Objects.toString(issue.priorityLevel(), ""));
+      default -> List.of();
+    };
+  }
+
+  private boolean matchesSetOperator(List<String> actualValues, List<String> expectedValues, String operator) {
+    List<String> safeActual = actualValues == null ? List.of() : actualValues;
+    List<String> safeExpected = expectedValues == null ? List.of() : expectedValues;
+    if (safeExpected.stream().noneMatch(value -> trimToNull(value) != null)) {
+      return false;
+    }
+    boolean intersects =
+        safeActual.stream()
+            .filter(value -> trimToNull(value) != null)
+            .anyMatch(
+                actual -> safeExpected.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
+    boolean containsAll =
+        safeExpected.stream()
+            .filter(value -> trimToNull(value) != null)
+            .allMatch(
+                expected -> safeActual.stream().anyMatch(actual -> equalsIgnoreCase(actual, expected)));
+    return switch (normalizeSetOperator(operator)) {
+      case "notIntersects" -> !intersects;
+      case "containsAll" -> containsAll;
+      case "notContainsAll" -> !containsAll;
+      default -> intersects;
+    };
+  }
+
+  private String normalizeSetOperator(String operator) {
+    if ("ne".equals(operator)) {
+      return "notIntersects";
+    }
+    if ("eq".equals(operator)) {
+      return "intersects";
+    }
+    return operator;
+  }
+
+  private boolean equalsIgnoreCase(String left, String right) {
+    String safeLeft = trimToNull(left);
+    String safeRight = trimToNull(right);
+    return safeLeft != null && safeRight != null && safeLeft.equalsIgnoreCase(safeRight);
+  }
+
+  private boolean containsIgnoreCase(String left, String right) {
+    String safeLeft = trimToNull(left);
+    String safeRight = trimToNull(right);
+    return safeLeft != null
+        && safeRight != null
+        && safeLeft.toLowerCase(Locale.ROOT).contains(safeRight.toLowerCase(Locale.ROOT));
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
@@ -525,7 +623,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       long p1Closed = issues.stream().filter(issue -> issue.isPriority("P1") && issue.isClosed()).count();
       long p2 = issues.stream().filter(issue -> issue.isPriority("P2")).count();
       long p2Fixed = issues.stream().filter(issue -> issue.isPriority("P2") && issue.isPriorityFixedByLegacySummary()).count();
-      long p2Closed = issues.stream().filter(issue -> issue.isPriority("P2") && issue.isPriorityClosedByLegacySummary()).count();
       long p3 = issues.stream().filter(issue -> issue.isPriority("P3")).count();
       long p3Fixed = issues.stream().filter(issue -> issue.isPriority("P3") && issue.isPriorityFixedByLegacySummary()).count();
       long newTotal = issues.stream().filter(IssueSource::isNewIssueByLegacySummary).count();
@@ -556,7 +653,6 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
               cell("p1_close_rate", p1Closed, rate(p1Closed, p1), false, rowKey),
               cell("p2_count", p2, count(p2), true, rowKey),
               cell("p2_fix_rate", p2Fixed, rate(p2Fixed, p2), false, rowKey),
-              cell("p2_close_rate", p2Closed, rate(p2Closed, p2), false, rowKey),
               cell("p3_count", p3, count(p3), true, rowKey),
               cell("p3_fix_rate", p3Fixed, rate(p3Fixed, p3), false, rowKey),
               cell("module_total", total, count(total), true, rowKey),
