@@ -12,6 +12,7 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.statistics.RealtimeStatisticBoardSupport;
 import com.data.collection.platform.service.statistics.StatisticBoardRegistry;
+import com.data.collection.platform.service.statistics.SystemTestHorizontalComparisonExportService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import java.util.Map;
@@ -30,14 +31,18 @@ import org.springframework.web.bind.annotation.RestController;
 // 统计板控制器通过 boardKey 路由到注册表中的具体看板服务。
 // 看板定义、明细下钻、实时刷新和规则说明都由服务能力声明，控制器只做统一 HTTP 外壳。
 public class StatisticBoardController {
+  private static final String SYSTEM_TEST_DEFECT_SUMMARY_BOARD_KEY = "system-test-defect-summary";
   private final StatisticBoardRegistry registry;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
+  private final SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService;
 
   public StatisticBoardController(
       StatisticBoardRegistry registry,
-      RealtimeWorkspaceService realtimeWorkspaceService) {
+      RealtimeWorkspaceService realtimeWorkspaceService,
+      SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService) {
     this.registry = registry;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
+    this.systemTestHorizontalComparisonExportService = systemTestHorizontalComparisonExportService;
   }
 
   @GetMapping("/{boardKey}")
@@ -91,6 +96,21 @@ public class StatisticBoardController {
     return ResponseEntity.ok()
         .contentType(new MediaType("text", "csv"))
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + boardKey + ".csv\"")
+        .body(csv);
+  }
+
+  @GetMapping("/{boardKey}/horizontal-comparison/export")
+  public ResponseEntity<String> exportHorizontalComparison(
+      @PathVariable @NotBlank String boardKey,
+      @RequestParam Map<String, String> filters) {
+    registry.getRequired(boardKey);
+    if (!SYSTEM_TEST_DEFECT_SUMMARY_BOARD_KEY.equals(boardKey)) {
+      throw new IllegalArgumentException("当前统计表不支持横向对比导出: " + boardKey);
+    }
+    String csv = systemTestHorizontalComparisonExportService.exportCsv(filters);
+    return ResponseEntity.ok()
+        .contentType(new MediaType("text", "csv"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-horizontal-comparison.csv\"")
         .body(csv);
   }
 

@@ -66,6 +66,15 @@ export const statisticBoardsApi = {
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
   },
+  async exportSystemTestHorizontalComparison(params?: StatisticBoardQueryParams) {
+    return requestText(
+      `/api/statistic-boards/system-test-defect-summary/horizontal-comparison/export${buildStatisticBoardQuery(params)}`,
+      {
+        errorPrefix: '横向对比导出失败',
+        timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+      },
+    );
+  },
   getStatisticBoardRealtimeStatus(boardKey: string) {
     return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/status`);
   },

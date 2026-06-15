@@ -64,6 +64,7 @@ const router = useRouter();
 const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
 const lastAutoRefreshAt = ref(0);
 const issueExportLoading = ref(false);
+const horizontalComparisonExportLoading = ref(false);
 const {
   autoRefreshOnEnter,
   toggleAutoRefreshOnEnter,
@@ -123,6 +124,13 @@ const extraToolbarActions = computed<StatisticBoardToolbarAction[]>(() => {
       label: '下载议题数据',
       icon: Download,
       loading: issueExportLoading.value,
+      plain: true,
+    },
+    {
+      key: 'export-system-test-horizontal-comparison',
+      label: '横向对比导出',
+      icon: Download,
+      loading: horizontalComparisonExportLoading.value,
       plain: true,
     },
   ];
@@ -324,9 +332,16 @@ async function applyFiltersToRoute() {
 }
 
 async function handleExtraAction(actionKey: string) {
-  if (actionKey !== 'export-system-test-issues') {
+  if (actionKey === 'export-system-test-issues') {
+    await exportSystemTestIssues();
     return;
   }
+  if (actionKey === 'export-system-test-horizontal-comparison') {
+    await exportSystemTestHorizontalComparison();
+  }
+}
+
+async function exportSystemTestIssues() {
   issueExportLoading.value = true;
   try {
     const csv = await api.exportSystemTestIssueSearchRecords({
@@ -338,6 +353,21 @@ async function handleExtraAction(actionKey: string) {
     ElMessage.error((error as Error).message);
   } finally {
     issueExportLoading.value = false;
+  }
+}
+
+async function exportSystemTestHorizontalComparison() {
+  horizontalComparisonExportLoading.value = true;
+  try {
+    const csv = await api.exportSystemTestHorizontalComparison({
+      filterGroup: buildFilterPayload(),
+    });
+    downloadCsv(csv, `系统测试横向对比_${formatExportFileDate(new Date())}.csv`);
+    ElMessage.success('横向对比导出成功');
+  } catch (error) {
+    ElMessage.error((error as Error).message);
+  } finally {
+    horizontalComparisonExportLoading.value = false;
   }
 }
 

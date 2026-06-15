@@ -86,6 +86,14 @@ const workspaceStatusTagType = computed(() => {
 
 const mirrorStatusText = computed(() => formatStageStatus('镜像', props.realtimeStatus?.mirrorStatus));
 const factStatusText = computed(() => formatStageStatus('事实', props.realtimeStatus?.factStatus));
+const taskStartedText = computed(() => formatDateTime(props.realtimeStatus?.lastRefreshStartedAt));
+const taskDurationText = computed(() =>
+  formatDuration(
+    props.realtimeStatus?.lastRefreshStartedAt,
+    props.realtimeStatus?.lastRefreshFinishedAt,
+    props.realtimeStatus?.refreshing,
+  ),
+);
 
 function formatStageStatus(label: string, status?: string | null) {
   if (!status) {
@@ -116,6 +124,42 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
   }
   return '状态待确认';
 }
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatDuration(startedAt?: string | null, finishedAt?: string | null, refreshing?: boolean | null) {
+  if (!startedAt) {
+    return '';
+  }
+  if (refreshing && !finishedAt) {
+    return '进行中';
+  }
+  if (!finishedAt) {
+    return '';
+  }
+  const start = new Date(startedAt).getTime();
+  const finish = new Date(finishedAt).getTime();
+  if (Number.isNaN(start) || Number.isNaN(finish) || finish < start) {
+    return '';
+  }
+  const totalSeconds = Math.round((finish - start) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) {
+    return `${seconds} 秒`;
+  }
+  return `${minutes} 分 ${seconds} 秒`;
+}
 </script>
 
 <template>
@@ -131,6 +175,8 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
         <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
         <span>{{ mirrorStatusText }}</span>
         <span>{{ factStatusText }}</span>
+        <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
+        <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
       </div>
       <el-button type="primary" :icon="Search" @click="emit('applyFilters')">查询</el-button>
       <el-button @click="emit('resetFilters')">重置</el-button>
