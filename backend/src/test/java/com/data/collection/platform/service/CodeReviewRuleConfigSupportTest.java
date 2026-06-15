@@ -95,6 +95,7 @@ class CodeReviewRuleConfigSupportTest {
       String moduleName, String owner, String targetBranch, List<String> illegalTypes) {
     return new CodeReviewIllegalRecordView(
         "merge_request",
+        "cc",
         1001L,
         101,
         1L,
@@ -113,6 +114,7 @@ class CodeReviewRuleConfigSupportTest {
         "Assignee",
         "DONE",
         20,
+        "",
         LocalDateTime.of(2026, 4, 21, 9, 30),
         "SCANNED",
         0,

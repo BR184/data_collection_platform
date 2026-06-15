@@ -12,6 +12,7 @@ class CodeReviewIllegalRuleRegistryTest {
   void shouldEvaluateIllegalTypesInStableOrder() {
     CodeReviewIllegalRecordSource source =
         new CodeReviewIllegalRecordSource(
+            "cc",
             1L,
             101,
             2001L,
@@ -27,6 +28,7 @@ class CodeReviewIllegalRuleRegistryTest {
             "master",
             "未标注模块名",
             List.of(),
+            null,
             null,
             null,
             LocalDateTime.of(2026, 4, 10, 8, 30),
@@ -65,6 +67,7 @@ class CodeReviewIllegalRuleRegistryTest {
     CodeReviewIllegalRecordView view =
         new CodeReviewIllegalRecordView(
             "merge_request",
+            "cc",
             1L,
             101,
             2001L,
@@ -85,6 +88,7 @@ class CodeReviewIllegalRuleRegistryTest {
             "Assignee",
             "DONE",
             10,
+            "",
             LocalDateTime.of(2026, 4, 10, 8, 30),
             "NOT_SCANNED",
             2,

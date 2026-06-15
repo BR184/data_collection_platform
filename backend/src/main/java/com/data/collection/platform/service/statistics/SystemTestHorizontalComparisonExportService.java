@@ -155,20 +155,28 @@ public class SystemTestHorizontalComparisonExportService {
 
   private List<String> loadModules(ExportScope scope) {
     Set<String> modules = new LinkedHashSet<>();
-    modules.addAll(
-        jdbcTemplate.queryForList(
+    List<Object> reviewArgs = new ArrayList<>();
+    StringBuilder reviewSql =
+        new StringBuilder(
             """
             select distinct module_name
               from review_records
              where deleted = false
                and nullif(btrim(module_name), '') is not null
-               and (? is null or lower(project_name) like ?)
-            """,
-            String.class,
-            scope.reviewProjectName(),
-            like(scope.reviewProjectName())));
+            """);
+    if (StringUtils.hasText(scope.reviewProjectName())) {
+      reviewSql.append("\n   and lower(project_name) like ?");
+      reviewArgs.add(like(scope.reviewProjectName()));
+    }
     modules.addAll(
         jdbcTemplate.queryForList(
+            reviewSql.toString(),
+            String.class,
+            reviewArgs.toArray()));
+
+    List<Object> codeReviewArgs = new ArrayList<>();
+    StringBuilder codeReviewSql =
+        new StringBuilder(
             """
             select distinct module_name
               from merge_request_fact
@@ -176,11 +184,16 @@ public class SystemTestHorizontalComparisonExportService {
                and nullif(btrim(module_name), '') is not null
                and lower(coalesce(target_branch, '')) = 'dev'
                and upper(coalesce(merge_request_state, '')) = 'MERGED'
-               and (? is null or lower(project_name) like ?)
-            """,
+            """);
+    if (StringUtils.hasText(scope.projectName())) {
+      codeReviewSql.append("\n   and lower(project_name) like ?");
+      codeReviewArgs.add(like(scope.projectName()));
+    }
+    modules.addAll(
+        jdbcTemplate.queryForList(
+            codeReviewSql.toString(),
             String.class,
-            scope.projectName(),
-            like(scope.projectName())));
+            codeReviewArgs.toArray()));
     for (IssueExportSource issue : loadIssueSources(scope.withoutModuleFilter())) {
       modules.addAll(issue.moduleNames());
     }
@@ -199,47 +212,55 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   private List<ReviewMetric> loadReviewMetrics(String reviewProjectName, String reviewType) {
+    List<Object> args = new ArrayList<>();
+    args.add(reviewType);
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            select
+              r.module_name,
+              coalesce(sum(r.review_scale_pages), 0)::integer as review_pages,
+              coalesce(sum(problem.problem_count), 0)::integer as defect_count,
+              coalesce(sum(problem.doc_specification_count), 0)::integer as doc_specification_count,
+              coalesce(sum(problem.integrity_count), 0)::integer as integrity_count,
+              coalesce(sum(problem.functionality_count), 0)::integer as functionality_count,
+              coalesce(sum(problem.feasibility_count), 0)::integer as feasibility_count
+            from review_records r
+            left join lateral (
+              select
+                count(*) filter (
+                  where problem_status not in ('已拒绝', '未评审', '无问题')
+                    and problem_category <> '无问题'
+                )::integer as problem_count,
+                count(*) filter (
+                  where problem_status not in ('已拒绝', '未评审', '无问题')
+                    and problem_category = '文档规范'
+                )::integer as doc_specification_count,
+                count(*) filter (
+                  where problem_status not in ('已拒绝', '未评审', '无问题')
+                    and problem_category = '完整性'
+                )::integer as integrity_count,
+                count(*) filter (
+                  where problem_status not in ('已拒绝', '未评审', '无问题')
+                    and problem_category = '功能性'
+                )::integer as functionality_count,
+                count(*) filter (
+                  where problem_status not in ('已拒绝', '未评审', '无问题')
+                    and problem_category = '可行性'
+                )::integer as feasibility_count
+              from review_problem_items
+              where review_record_id = r.id and deleted = false
+            ) problem on true
+            where r.deleted = false
+              and r.review_type = ?
+            """);
+    if (StringUtils.hasText(reviewProjectName)) {
+      sql.append("\n      and lower(r.project_name) like ?");
+      args.add(like(reviewProjectName));
+    }
+    sql.append("\n    group by r.module_name");
     return jdbcTemplate.query(
-        """
-        select
-          r.module_name,
-          coalesce(sum(r.review_scale_pages), 0)::integer as review_pages,
-          coalesce(sum(problem.problem_count), 0)::integer as defect_count,
-          coalesce(sum(problem.doc_specification_count), 0)::integer as doc_specification_count,
-          coalesce(sum(problem.integrity_count), 0)::integer as integrity_count,
-          coalesce(sum(problem.functionality_count), 0)::integer as functionality_count,
-          coalesce(sum(problem.feasibility_count), 0)::integer as feasibility_count
-        from review_records r
-        left join lateral (
-          select
-            count(*) filter (
-              where problem_status not in ('已拒绝', '未评审', '无问题')
-                and problem_category <> '无问题'
-            )::integer as problem_count,
-            count(*) filter (
-              where problem_status not in ('已拒绝', '未评审', '无问题')
-                and problem_category = '文档规范'
-            )::integer as doc_specification_count,
-            count(*) filter (
-              where problem_status not in ('已拒绝', '未评审', '无问题')
-                and problem_category = '完整性'
-            )::integer as integrity_count,
-            count(*) filter (
-              where problem_status not in ('已拒绝', '未评审', '无问题')
-                and problem_category = '功能性'
-            )::integer as functionality_count,
-            count(*) filter (
-              where problem_status not in ('已拒绝', '未评审', '无问题')
-                and problem_category = '可行性'
-            )::integer as feasibility_count
-          from review_problem_items
-          where review_record_id = r.id and deleted = false
-        ) problem on true
-        where r.deleted = false
-          and r.review_type = ?
-          and (? is null or lower(r.project_name) like ?)
-        group by r.module_name
-        """,
+        sql.toString(),
         (rs, rowNum) ->
             new ReviewMetric(
                 text(rs.getString("module_name")),
@@ -249,9 +270,7 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getInt("integrity_count"),
                 rs.getInt("functionality_count"),
                 rs.getInt("feasibility_count")),
-        reviewType,
-        reviewProjectName,
-        like(reviewProjectName));
+        args.toArray());
   }
 
   private List<CodeReviewMetric> loadCodeReviewMetrics(String projectName, boolean crownCad) {
@@ -259,25 +278,32 @@ public class SystemTestHorizontalComparisonExportService {
         crownCad
             ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
             : "lower(coalesce(source_instance, '')) = 'dgm'";
+    List<Object> args = new ArrayList<>();
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            select
+              module_name,
+              coalesce(sum(added_lines), 0)::integer as added_lines,
+              coalesce(sum(code_specification_count), 0)::integer as code_specification_count,
+              coalesce(sum(code_logic_specification_count), 0)::integer as code_logic_specification_count,
+              coalesce(sum(design_specification_count), 0)::integer as design_specification_count,
+              coalesce(sum(performance_specification_count), 0)::integer as performance_specification_count,
+              coalesce(sum(other_specification_count), 0)::integer as other_specification_count
+            from merge_request_fact
+            where deleted = false
+              and %s
+              and lower(coalesce(target_branch, '')) = 'dev'
+              and upper(coalesce(merge_request_state, '')) = 'MERGED'
+            """
+                .formatted(sourcePredicate));
+    if (StringUtils.hasText(projectName)) {
+      sql.append("\n      and lower(project_name) like ?");
+      args.add(like(projectName));
+    }
+    sql.append("\n    group by module_name");
     return jdbcTemplate.query(
-        """
-        select
-          module_name,
-          coalesce(sum(added_lines), 0)::integer as added_lines,
-          coalesce(sum(code_specification_count), 0)::integer as code_specification_count,
-          coalesce(sum(code_logic_specification_count), 0)::integer as code_logic_specification_count,
-          coalesce(sum(design_specification_count), 0)::integer as design_specification_count,
-          coalesce(sum(performance_specification_count), 0)::integer as performance_specification_count,
-          coalesce(sum(other_specification_count), 0)::integer as other_specification_count
-        from merge_request_fact
-        where deleted = false
-          and %s
-          and lower(coalesce(target_branch, '')) = 'dev'
-          and upper(coalesce(merge_request_state, '')) = 'MERGED'
-          and (? is null or lower(project_name) like ?)
-        group by module_name
-        """
-            .formatted(sourcePredicate),
+        sql.toString(),
         (rs, rowNum) ->
             new CodeReviewMetric(
                 text(rs.getString("module_name")),
@@ -287,8 +313,7 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getInt("design_specification_count"),
                 rs.getInt("performance_specification_count"),
                 rs.getInt("other_specification_count")),
-        projectName,
-        like(projectName));
+        args.toArray());
   }
 
   private List<IssueExportSource> loadIssueSources(ExportScope scope) {
@@ -466,7 +491,11 @@ public class SystemTestHorizontalComparisonExportService {
     return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
   }
 
-  private static String density(long defectCount, long lineCount) {
+  private static String floorDecimal(double value) {
+    return BigDecimal.valueOf(value).setScale(2, RoundingMode.DOWN).stripTrailingZeros().toPlainString();
+  }
+
+  private static String codeReviewDensity(long defectCount, long lineCount) {
     if (lineCount <= 0) {
       return "0";
     }
@@ -551,7 +580,7 @@ public class SystemTestHorizontalComparisonExportService {
       if (reviewPages <= 0) {
         return "0";
       }
-      return decimal(defectCount * 1D / reviewPages);
+      return floorDecimal(defectCount * 1D / reviewPages);
     }
   }
 
@@ -572,7 +601,7 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     String density() {
-      return density(defectSum(), addedLines);
+      return codeReviewDensity(defectSum(), addedLines);
     }
   }
 

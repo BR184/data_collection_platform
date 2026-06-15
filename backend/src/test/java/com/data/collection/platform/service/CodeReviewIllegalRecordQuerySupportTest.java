@@ -13,6 +13,7 @@ class CodeReviewIllegalRecordQuerySupportTest {
     CodeReviewIllegalRecordView row =
         new CodeReviewIllegalRecordView(
             "merge_request",
+            "cc",
             1L,
             101,
             2001L,
@@ -31,6 +32,7 @@ class CodeReviewIllegalRecordQuerySupportTest {
             "",
             "",
             0,
+            "",
             LocalDateTime.of(2026, 4, 20, 9, 30),
             "",
             0,

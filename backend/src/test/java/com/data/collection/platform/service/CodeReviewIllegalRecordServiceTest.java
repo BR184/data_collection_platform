@@ -397,6 +397,7 @@ class CodeReviewIllegalRecordServiceTest {
       String projectName,
       String targetBranch) {
     return new CodeReviewIllegalRecordSource(
+        "cc",
         mergeRequestId,
         mergeRequestIid,
         2001L,
@@ -414,6 +415,7 @@ class CodeReviewIllegalRecordServiceTest {
         List.of(),
         "DONE",
         15,
+        "",
         mergedAt.minusMinutes(30),
         "SCANNED",
         0,
