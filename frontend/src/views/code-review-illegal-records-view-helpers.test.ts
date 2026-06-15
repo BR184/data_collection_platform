@@ -24,6 +24,7 @@ describe('code review illegal records view helpers', () => {
     const rows = mapCodeReviewIllegalTableRows([
       {
         requestType: 'merge_request',
+        sourceInstance: 'cc',
         mergeRequestId: 1,
         mergeRequestIid: 101,
         projectId: 2001,
@@ -42,6 +43,7 @@ describe('code review illegal records view helpers', () => {
         assigneeNames: '李老师',
         reviewStatus: 'COMPLETED',
         reviewDurationMinutes: 30,
+        reviewExceptionReason: '',
         scanStatus: '',
         scanBugCount: 0,
         annotationRateResult: '',

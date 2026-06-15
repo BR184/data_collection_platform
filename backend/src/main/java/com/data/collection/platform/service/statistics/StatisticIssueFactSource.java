@@ -68,8 +68,24 @@ public record StatisticIssueFactSource(IssueFactRecord record) {
     return record.priorityLevel();
   }
 
+  public String bugStatus() {
+    return record.bugStatus();
+  }
+
+  public String category() {
+    return record.category();
+  }
+
   public String reasonCategory() {
     return record.reasonCategory();
+  }
+
+  public String delayCause() {
+    return record.delayCause();
+  }
+
+  public String assigneeName() {
+    return record.assigneeName();
   }
 
   public boolean excluded() {

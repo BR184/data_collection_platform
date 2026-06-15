@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 // 统一统计板组件负责把查询条件、摘要卡片、图表和明细下钻串成同一套交互。
 // 各业务看板只传入 boardKey 和配置，避免每个页面重复实现刷新、排序和规则说明。
-import { ArrowDown, ArrowUp, Sort } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Download, Sort } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { useRoute, useRouter } from 'vue-router';
 import BaseStatisticTable from './base/BaseStatisticTable.vue';
@@ -14,7 +14,7 @@ import { authState } from '../composables/auth-state';
 import {
   type StatisticBoardResponse,
 } from '../types/api';
-import type { StatisticBoardUiHooks } from './statistic-board-ui';
+import type { StatisticBoardToolbarAction, StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
 import { useStatisticBoardViewPrefs } from '../composables/useStatisticBoardViewPrefs';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
@@ -31,6 +31,7 @@ import { useStatisticBoardRefreshController } from '../composables/useStatisticB
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
+import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -62,6 +63,7 @@ const route = useRoute();
 const router = useRouter();
 const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
 const lastAutoRefreshAt = ref(0);
+const issueExportLoading = ref(false);
 const {
   autoRefreshOnEnter,
   toggleAutoRefreshOnEnter,
@@ -109,6 +111,21 @@ const {
   onBoardLoaded: handleBoardLoaded,
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
+});
+
+const extraToolbarActions = computed<StatisticBoardToolbarAction[]>(() => {
+  if (props.boardKey !== 'system-test-defect-summary') {
+    return [];
+  }
+  return [
+    {
+      key: 'export-system-test-issues',
+      label: '下载议题数据',
+      icon: Download,
+      loading: issueExportLoading.value,
+      plain: true,
+    },
+  ];
 });
 
 const {
@@ -306,6 +323,24 @@ async function applyFiltersToRoute() {
   await applyFilterDraftToRoute(filterDraft);
 }
 
+async function handleExtraAction(actionKey: string) {
+  if (actionKey !== 'export-system-test-issues') {
+    return;
+  }
+  issueExportLoading.value = true;
+  try {
+    const csv = await api.exportSystemTestIssueSearchRecords({
+      filterGroup: buildFilterPayload(),
+    });
+    downloadCsv(csv, `系统测试议题数据_${formatExportFileDate(new Date())}.csv`);
+    ElMessage.success('议题数据导出成功');
+  } catch (error) {
+    ElMessage.error((error as Error).message);
+  } finally {
+    issueExportLoading.value = false;
+  }
+}
+
 watch(
   [sortedRows, tablePageSize],
   () => {
@@ -371,12 +406,14 @@ async function autoRefreshPageData() {
           :realtime-status="syncStatus"
           :can-refresh-realtime="canRefreshRealtime"
           :auto-refresh-on-enter="autoRefreshOnEnter"
+          :extra-actions="extraToolbarActions"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"
           @reset-filters="resetFilters"
           @refresh-board="refreshBoard"
           @open-rule-explanation="openRuleExplanation"
           @export-board="exportBoard"
+          @extra-action="handleExtraAction"
           @settings-command="handleSettingsCommand"
         />
       </div>

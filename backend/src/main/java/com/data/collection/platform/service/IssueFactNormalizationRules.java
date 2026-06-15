@@ -32,6 +32,10 @@ public final class IssueFactNormalizationRules {
     return IssueLabelRules.isFixed(labels, closed);
   }
 
+  public static String normalizeBugStatus(List<String> labels, boolean closed) {
+    return IssueLabelRules.normalizeBugStatus(labels, closed);
+  }
+
   public static String normalizeReasonCategory(List<String> labels, String notesText) {
     return IssueClassificationRules.normalizeReasonCategory(labels, notesText);
   }

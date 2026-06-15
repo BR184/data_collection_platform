@@ -117,7 +117,10 @@ final class CodeReviewRuleConfigSupport {
     return switch (condition.fieldKey()) {
       case "moduleName" -> !StringUtils.hasText(row.moduleName());
       case "owner" -> !StringUtils.hasText(row.author());
-      case "reviewRecordMissing" -> !StringUtils.hasText(row.reviewStatus()) || row.reviewDurationMinutes() == null;
+      case "reviewRecordMissing" -> !isNoNeedReview(row.reviewerNames())
+          && (StringUtils.hasText(row.reviewExceptionReason())
+              || !StringUtils.hasText(row.reviewStatus())
+              || row.reviewDurationMinutes() == null);
       case "scanNotDone" -> isNotScanned(row.scanStatus());
       case "scanIssueOpen" -> row.scanBugCount() != null && row.scanBugCount() > 0;
       case "targetBranch" -> matchesNotIn(row.targetBranch(), condition.value());
@@ -138,6 +141,10 @@ final class CodeReviewRuleConfigSupport {
         && List.of("NOT_SCANNED", "UNSCANNED", "\u672a\u626b\u63cf", "\u672a\u4ee3\u7801\u626b\u63cf", "\u672a\u8fdb\u884c\u4ee3\u7801\u626b\u63cf")
             .stream()
             .anyMatch(status -> TextQuerySupport.equalsNormalized(status, normalizedStatus));
+  }
+
+  private static boolean isNoNeedReview(String reviewerNames) {
+    return "无需走查".equals(reviewerNames) || "无需走查扫描".equals(reviewerNames);
   }
 
   private static boolean matchesNotIn(String value, String allowedValuesText) {

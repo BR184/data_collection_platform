@@ -224,13 +224,74 @@ class GitlabFactSourceSqlProvider {
          group by f.project_id, f.request_iid
       ),
       walkthrough_notes as (
-        select n.noteable_id as merge_request_id,
-               max(coalesce(n.updated_at, n.created_at)) as code_walkthrough_date
-          from ods_gitlab_notes n
-         where coalesce(n.mirror_deleted, false) = false
+        select mr_notes.merge_request_id,
+               max(coalesce(n.updated_at, n.created_at)) as code_walkthrough_date,
+               max(
+                 nullif(
+                   btrim(
+                     substring(
+                       coalesce(n.note, '')
+                       from '###[[:space:]]*走查人[[:space:]]*[:：][[:space:]]*([^\\r\\n]+)'
+                     )
+                   ),
+                   ''
+                 )
+               ) as parsed_reviewer_name,
+               case
+                 when count(*) filter (where btrim(coalesce(n.note, '')) like '## 代码走查数据%') = 0 then
+                   case
+                     when count(*) filter (
+                       where coalesce(n.note, '') like '%代码走查数据%'
+                         and btrim(coalesce(n.note, '')) not like '## 代码走查数据%'
+                     ) > 0 then '代码走查标题异常'
+                     else '没有合法评论'
+                   end
+                 when bool_or(
+                   btrim(coalesce(n.note, '')) like '## 代码走查数据%'
+                     and (
+                       coalesce(n.note, '') !~ '###[[:space:]]*走查人[[:space:]]*[:：].+'
+                       or coalesce(n.note, '') !~ '###[[:space:]]*走查时间\\(分钟\\)[[:space:]]*[:：].+'
+                     )
+                 ) then '代码走查记录行数异常'
+                 when bool_or(
+                   btrim(coalesce(n.note, '')) like '## 代码走查数据%'
+                     and (
+                       coalesce(n.note, '') !~ '###[[:space:]]*走查时间\\(分钟\\)[[:space:]]*[:：][[:space:]]*[0-9]+(\\.[0-9]+)?.*'
+                       or (
+                         coalesce(n.note, '') ~ '###.*规范.*[:：]'
+                         and coalesce(n.note, '') !~ '###.*规范.*[:：][[:space:]]*[0-9]+.*'
+                       )
+                       or (
+                         coalesce(n.note, '') ~ '###.*逻辑.*[:：]'
+                         and coalesce(n.note, '') !~ '###.*逻辑.*[:：][[:space:]]*[0-9]+.*'
+                       )
+                       or (
+                         coalesce(n.note, '') ~ '###.*性能.*[:：]'
+                         and coalesce(n.note, '') !~ '###.*性能.*[:：][[:space:]]*[0-9]+.*'
+                       )
+                       or (
+                         coalesce(n.note, '') ~ '###.*设计.*[:：]'
+                         and coalesce(n.note, '') !~ '###.*设计.*[:：][[:space:]]*[0-9]+.*'
+                       )
+                       or (
+                         coalesce(n.note, '') ~ '###.*其他.*[:：]'
+                         and coalesce(n.note, '') !~ '###.*其他.*[:：][[:space:]]*[0-9]+.*'
+                       )
+                     )
+                 ) then '代码走查时间或缺陷数异常'
+                 else null
+               end as review_exception_reason
+          from (
+            select distinct id as merge_request_id
+              from ods_gitlab_merge_requests
+             where coalesce(mirror_deleted, false) = false
+          ) mr_notes
+          left join ods_gitlab_notes n
+            on n.noteable_id = mr_notes.merge_request_id
+           and coalesce(n.mirror_deleted, false) = false
            and n.noteable_type = 'MergeRequest'
-           and coalesce(n.note, '') like '%## 代码走查数据%'
-         group by n.noteable_id
+           and coalesce(n.note, '') like '%代码走查数据%'
+         group by mr_notes.merge_request_id
       )
       select
         mr.id as merge_request_id,
@@ -245,8 +306,29 @@ class GitlabFactSourceSqlProvider {
         coalesce(mr.updated_at, mr.created_at) as ods_updated_at,
         coalesce(author.name, '') as author_name,
         coalesce(merge_user.name, '') as merge_user_name,
-        coalesce(nullif(trim(reviewers.reviewer_names), ''), nullif(trim(assignees.assignee_names), ''), '') as owner_name,
-        coalesce(reviewers.reviewer_names, '') as reviewer_names,
+        coalesce(
+          case
+            when '无需走查扫描' = any(coalesce(labels.label_titles, array[]::text[])) then '无需走查'
+            when mr.target_project_id in (9, 79) and coalesce(mr.target_branch, '') = 'dev' then walkthrough_notes.review_exception_reason
+            else '无需走查扫描'
+          end,
+          nullif(trim(walkthrough_notes.parsed_reviewer_name), ''),
+          nullif(trim(forms.reviewer_name), ''),
+          nullif(trim(reviewers.reviewer_names), ''),
+          nullif(trim(assignees.assignee_names), ''),
+          ''
+        ) as owner_name,
+        coalesce(
+          case
+            when '无需走查扫描' = any(coalesce(labels.label_titles, array[]::text[])) then '无需走查'
+            when mr.target_project_id in (9, 79) and coalesce(mr.target_branch, '') = 'dev' then walkthrough_notes.review_exception_reason
+            else '无需走查扫描'
+          end,
+          nullif(trim(walkthrough_notes.parsed_reviewer_name), ''),
+          nullif(trim(forms.reviewer_name), ''),
+          reviewers.reviewer_names,
+          ''
+        ) as reviewer_names,
         coalesce(assignees.assignee_names, '') as assignee_names,
         coalesce(mr.target_branch, '') as target_branch,
         coalesce(mr.source_branch, '') as source_branch,
@@ -254,6 +336,11 @@ class GitlabFactSourceSqlProvider {
         labels.label_titles as label_titles,
         metrics.added_lines as added_lines,
         forms.review_duration_minutes,
+        case
+          when '无需走查扫描' = any(coalesce(labels.label_titles, array[]::text[])) then null
+          when mr.target_project_id in (9, 79) and coalesce(mr.target_branch, '') = 'dev' then walkthrough_notes.review_exception_reason
+          else null
+        end as review_exception_reason,
         coalesce(walkthrough_notes.code_walkthrough_date, forms.form_updated_at, mr.updated_at) as code_walkthrough_date,
         imported_metrics.comment_rate,
         imported_metrics.comment_rate_source,

@@ -11,7 +11,8 @@ final class CodeReviewIllegalRuleRegistry {
 
   static final String MISSING_PROJECT_LABEL = "未标注项目名";
   static final String MISSING_MODULE_LABEL = "未标注模块名";
-  static final String MISSING_REVIEW_LABEL = "无代码走查";
+  static final String MISSING_REVIEW_LABEL = "代码走查异常";
+  static final String LEGACY_MISSING_REVIEW_FILTER_LABEL = "无代码走查";
   static final String NOT_SCANNED_LABEL = "未进行代码扫描";
   static final String LEGACY_MISSING_PROJECT_FILTER_LABEL = "未标注项目名称";
   static final String LEGACY_MISSING_MODULE_FILTER_LABEL = "未标注模块名称";
@@ -44,8 +45,10 @@ final class CodeReviewIllegalRuleRegistry {
               "missing-review",
               MISSING_REVIEW_LABEL,
               source ->
-                  !StringUtils.hasText(source.reviewStatus())
-                      || source.reviewDurationMinutes() == null),
+                  !isNoNeedReview(source.reviewerNames())
+                      && (StringUtils.hasText(source.reviewExceptionReason())
+                          || !StringUtils.hasText(source.reviewStatus())
+                          || source.reviewDurationMinutes() == null)),
           new CodeReviewIllegalRule(
               "not-scanned",
               NOT_SCANNED_LABEL,
@@ -77,8 +80,7 @@ final class CodeReviewIllegalRuleRegistry {
               source ->
                   GITLAB_ERROR_LABEL.equals(source.scanStatus())
                       || GITLAB_ERROR_LABEL.equals(source.targetBranch())
-                      || GITLAB_ERROR_LABEL.equals(source.reviewerNames())
-                      || GITLAB_ERROR_LABEL.equals(source.assigneeNames())));
+                      || GITLAB_ERROR_LABEL.equals(source.reviewerNames())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =
       List.of(
@@ -90,7 +92,7 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRuleGroup(
               "review-check",
               "\u68c0\u67e5\u4ee3\u7801\u8d70\u67e5\u8bb0\u5f55",
-              "\u5982\u679c\u8fd8\u6ca1\u6709\u5f62\u6210\u6709\u6548\u7684\u4ee3\u7801\u8d70\u67e5\u8bb0\u5f55\uff0c\u5c31\u4f1a\u88ab\u5224\u5b9a\u4e3a\u201c\u65e0\u4ee3\u7801\u8d70\u67e5\u201d\u3002",
+              "如果还没有形成有效的代码走查记录，就会被判定为“代码走查异常”。",
               List.of("missing-review")),
           new CodeReviewIllegalRuleGroup(
               "scan-check",
@@ -104,6 +106,10 @@ final class CodeReviewIllegalRuleRegistry {
               List.of("comment-rate-not-pass", "clang-result-false")));
 
   private CodeReviewIllegalRuleRegistry() {
+  }
+
+  private static boolean isNoNeedReview(String reviewerNames) {
+    return "无需走查".equals(reviewerNames) || "无需走查扫描".equals(reviewerNames);
   }
 
   static List<String> evaluateIllegalTypes(CodeReviewIllegalRecordSource source) {
@@ -161,9 +167,26 @@ final class CodeReviewIllegalRuleRegistry {
       normalizedExpected = MISSING_PROJECT_LABEL;
     } else if (LEGACY_MISSING_MODULE_FILTER_LABEL.equals(normalizedExpected)) {
       normalizedExpected = MISSING_MODULE_LABEL;
+    } else if (LEGACY_MISSING_REVIEW_FILTER_LABEL.equals(normalizedExpected)) {
+      normalizedExpected = MISSING_REVIEW_LABEL;
     } else if (LEGACY_NOT_SCANNED_FILTER_LABEL.equals(normalizedExpected)) {
       normalizedExpected = NOT_SCANNED_LABEL;
     }
     return illegalTypes.contains(normalizedExpected);
+  }
+
+  static boolean matchesDefaultIllegalType(List<String> illegalTypes, String source) {
+    if (illegalTypes == null || illegalTypes.isEmpty()) {
+      return false;
+    }
+    if (includesClangInDefaultIllegal(source)) {
+      return true;
+    }
+    return illegalTypes.stream().anyMatch(label -> !CLANG_RESULT_FALSE_LABEL.equals(label));
+  }
+
+  static boolean includesClangInDefaultIllegal(String source) {
+    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    return !("cc".equals(normalized) || GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(normalized));
   }
 }

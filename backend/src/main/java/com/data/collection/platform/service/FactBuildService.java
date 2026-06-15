@@ -422,7 +422,7 @@ public class FactBuildService {
     fact.setSeverityAlias(IssueFactNormalizationRules.normalizeSeverityAlias(labels));
     fact.setPriorityLevel(priorityLevel);
     fact.setUrgency(priorityLevel);
-    fact.setBugStatus(closed ? "已关闭" : "未关闭");
+    fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels, closed));
     fact.setCategory(
         IssueFactNormalizationRules.isRegression(labels, title) ? "回退"
             : IssueFactNormalizationRules.isCrash(labels, title) ? "挂机"
@@ -494,8 +494,12 @@ public class FactBuildService {
     fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at")));
     fact.setOdsUpdatedAt(toLocalDateTime(rs.getTimestamp("ods_updated_at")));
     fact.setMergedAtSource(toLocalDateTime(rs.getTimestamp("merged_at")));
-    fact.setReviewStatus(rs.getObject("review_duration_minutes") == null ? "PENDING" : "COMPLETED");
+    String reviewExceptionReason = defaultText(rs.getString("review_exception_reason"));
+    boolean noNeedReview = "无需走查".equals(defaultText(rs.getString("reviewer_names")))
+        || "无需走查扫描".equals(defaultText(rs.getString("reviewer_names")));
+    fact.setReviewStatus(rs.getObject("review_duration_minutes") == null && !noNeedReview ? "PENDING" : "COMPLETED");
     fact.setReviewDurationMinutes((Integer) rs.getObject("review_duration_minutes"));
+    fact.setReviewExceptionReason(reviewExceptionReason);
     fact.setCodeWalkthroughDate(toLocalDateTime(rs.getTimestamp("code_walkthrough_date")));
     fact.setCommentRate((BigDecimal) rs.getObject("comment_rate"));
     fact.setCommentRateSource(defaultText(rs.getString("comment_rate_source")));

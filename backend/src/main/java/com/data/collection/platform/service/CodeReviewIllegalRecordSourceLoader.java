@@ -24,6 +24,7 @@ public class CodeReviewIllegalRecordSourceLoader {
       """;
   private static final String FACT_SQL = """
       select
+        source_instance,
         merge_request_id,
         merge_request_iid,
         project_id,
@@ -41,6 +42,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         coalesce(label_names, '') as label_names,
         review_status,
         review_duration_minutes,
+        review_exception_reason,
         code_walkthrough_date,
         scan_status,
         scan_bug_count,
@@ -67,6 +69,7 @@ public class CodeReviewIllegalRecordSourceLoader {
       """ + LEGACY_ILLEGAL_BASE_WHERE;
   private static final String ALL_EXPORT_FACT_SQL = """
       select
+        source_instance,
         merge_request_id,
         merge_request_iid,
         project_id,
@@ -84,6 +87,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         coalesce(label_names, '') as label_names,
         review_status,
         review_duration_minutes,
+        review_exception_reason,
         code_walkthrough_date,
         scan_status,
         scan_bug_count,
@@ -223,7 +227,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     appendDateFrom(where, args, "merged_at_source", request.mergedAtStart());
     appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
     appendEqIgnoreCase(where, args, "merge_user_name", request.mergedBy());
-    appendIllegalPredicate(where, request.illegalType());
+    appendIllegalPredicate(where, request.illegalType(), request.source());
     appendFilterGroup(where, args, query.filterGroup());
     return new QueryParts(where.toString(), args);
   }
@@ -254,8 +258,8 @@ public class CodeReviewIllegalRecordSourceLoader {
     return new QueryParts(where.toString(), args);
   }
 
-  private void appendIllegalPredicate(StringBuilder where, String illegalType) {
-    String predicate = CodeReviewIllegalRecordSqlSupport.illegalPredicate(illegalType);
+  private void appendIllegalPredicate(StringBuilder where, String illegalType, String source) {
+    String predicate = CodeReviewIllegalRecordSqlSupport.illegalPredicate(illegalType, source);
     where.append(" and (").append(predicate).append(")");
   }
 
@@ -389,6 +393,7 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private CodeReviewIllegalRecordSource mapFactSource(ResultSet rs, int rowNum) throws SQLException {
     return new CodeReviewIllegalRecordSource(
+        rs.getString("source_instance"),
         rs.getLong("merge_request_id"),
         rs.getInt("merge_request_iid"),
         rs.getLong("project_id"),
@@ -406,6 +411,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         splitLabels(rs.getString("label_names")),
         rs.getString("review_status"),
         (Integer) rs.getObject("review_duration_minutes"),
+        rs.getString("review_exception_reason"),
         rs.getTimestamp("code_walkthrough_date") == null ? null : rs.getTimestamp("code_walkthrough_date").toLocalDateTime(),
         rs.getString("scan_status"),
         (Integer) rs.getObject("scan_bug_count"),

@@ -5,6 +5,7 @@ import java.util.List;
 
 public record CodeReviewIllegalRecordRowResponse(
     String requestType,
+    String sourceInstance,
     Long mergeRequestId,
     Integer mergeRequestIid,
     Long projectId,
@@ -23,6 +24,7 @@ public record CodeReviewIllegalRecordRowResponse(
     String assigneeNames,
     String reviewStatus,
     Integer reviewDurationMinutes,
+    String reviewExceptionReason,
     LocalDateTime codeWalkthroughDate,
     String scanStatus,
     Integer scanBugCount,

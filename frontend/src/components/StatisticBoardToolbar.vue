@@ -5,7 +5,7 @@ import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
 import type { StatisticFilterDraftGroup } from './statistic-board-filters';
-import type { StatisticBoardUiHooks } from './statistic-board-ui';
+import type { StatisticBoardToolbarAction, StatisticBoardUiHooks } from './statistic-board-ui';
 import { toUserMessage } from '../utils/user-message';
 
 const props = withDefaults(
@@ -18,6 +18,7 @@ const props = withDefaults(
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
     canRefreshRealtime?: boolean;
     autoRefreshOnEnter?: boolean;
+    extraActions?: StatisticBoardToolbarAction[];
     uiHooks?: StatisticBoardUiHooks;
   }>(),
   {
@@ -25,6 +26,7 @@ const props = withDefaults(
     realtimeStatus: null,
     canRefreshRealtime: true,
     autoRefreshOnEnter: true,
+    extraActions: () => [],
     uiHooks: () => ({}),
   },
 );
@@ -35,6 +37,7 @@ const emit = defineEmits<{
   (event: 'refreshBoard'): void;
   (event: 'openRuleExplanation'): void;
   (event: 'exportBoard'): void;
+  (event: 'extraAction', actionKey: string): void;
   (event: 'settingsCommand', command: string): void;
 }>();
 
@@ -132,6 +135,17 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
       <el-button type="primary" :icon="Search" @click="emit('applyFilters')">查询</el-button>
       <el-button @click="emit('resetFilters')">重置</el-button>
       <el-button v-if="canRefreshRealtime" :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
+      <el-button
+        v-for="action in extraActions"
+        :key="action.key"
+        :plain="action.plain ?? true"
+        :icon="action.icon"
+        :loading="action.loading"
+        :disabled="action.disabled"
+        @click="emit('extraAction', action.key)"
+      >
+        {{ action.label }}
+      </el-button>
       <el-button
         plain
         :icon="InfoFilled"

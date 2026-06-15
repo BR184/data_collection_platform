@@ -264,7 +264,7 @@ public class IssueFactRecordRepository {
     appendEqIgnoreCase(where, args, "severity_level", request.severityLevel());
     appendEqIgnoreCase(where, args, "priority_level", request.priorityLevel());
     appendEqIgnoreCase(where, args, "issue_state", request.issueState());
-    appendEqIgnoreCase(where, args, "bug_status", request.bugStatus());
+    appendContainsIgnoreCase(where, args, "bug_status", request.bugStatus());
     appendEqIgnoreCase(where, args, "category", request.category());
     appendEqIgnoreCase(where, args, "milestone_title", request.milestoneTitle());
     appendDateFrom(where, args, "created_at_source", request.createdAtStart());

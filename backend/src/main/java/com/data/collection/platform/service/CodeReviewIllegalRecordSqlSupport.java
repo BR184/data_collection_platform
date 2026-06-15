@@ -31,10 +31,13 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   static String illegalPredicate(String illegalType) {
+    return illegalPredicate(illegalType, null);
+  }
+
+  static String illegalPredicate(String illegalType, String source) {
     String normalized = TextQuerySupport.trimToNull(illegalType);
     if (normalized == null) {
-      return String.join(
-          " or ",
+      List<String> predicates = new ArrayList<>(List.of(
           missingProjectPredicate(),
           missingModulePredicate(),
           missingReviewPredicate(),
@@ -42,8 +45,17 @@ final class CodeReviewIllegalRecordSqlSupport {
           openScanIssuePredicate(),
           commentRateNotPassPredicate(),
           scanFailedPredicate(),
-          clangResultFalsePredicate(),
-          gitlabErrorPredicate());
+          gitlabErrorPredicate()));
+      String normalizedSource = TextQuerySupport.trimToNull(source);
+      if (normalizedSource == null) {
+        predicates.add(
+            "("
+                + clangResultFalsePredicate()
+                + " and lower(coalesce(source_instance, 'default')) not in ('cc', 'default'))");
+      } else if (CodeReviewIllegalRuleRegistry.includesClangInDefaultIllegal(normalizedSource)) {
+        predicates.add(clangResultFalsePredicate());
+      }
+      return String.join(" or ", predicates);
     }
     if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)
         || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_PROJECT_FILTER_LABEL.equals(normalized)) {
@@ -53,7 +65,8 @@ final class CodeReviewIllegalRecordSqlSupport {
         || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_MODULE_FILTER_LABEL.equals(normalized)) {
       return missingModulePredicate();
     }
-    if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)) {
+    if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_REVIEW_FILTER_LABEL.equals(normalized)) {
       return missingReviewPredicate();
     }
     if (CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL.equals(normalized)
@@ -279,7 +292,9 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String missingReviewPredicate() {
-    return "(review_status is null or btrim(review_status) = '' or review_duration_minutes is null)";
+    return "(nullif(btrim(coalesce(review_exception_reason, '')), '') is not null "
+        + "or (coalesce(reviewer_names, '') not in ('无需走查', '无需走查扫描') "
+        + "and (review_status is null or btrim(review_status) = '' or review_duration_minutes is null)))";
   }
 
   private static String notScannedPredicate() {
@@ -316,8 +331,7 @@ final class CodeReviewIllegalRecordSqlSupport {
         " or ",
         "scan_status = 'GitLab 接口报错'",
         "target_branch = 'GitLab 接口报错'",
-        "reviewer_names = 'GitLab 接口报错'",
-        "assignee_names = 'GitLab 接口报错'");
+        "reviewer_names = 'GitLab 接口报错'");
   }
 
   private static SqlPredicate truePredicate() {

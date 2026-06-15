@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 record CodeReviewIllegalRecordSource(
+    String sourceInstance,
     Long mergeRequestId,
     Integer mergeRequestIid,
     Long projectId,
@@ -21,6 +22,7 @@ record CodeReviewIllegalRecordSource(
     List<String> labelTitles,
     String reviewStatus,
     Integer reviewDurationMinutes,
+    String reviewExceptionReason,
     LocalDateTime codeWalkthroughDate,
     String scanStatus,
     Integer scanBugCount,

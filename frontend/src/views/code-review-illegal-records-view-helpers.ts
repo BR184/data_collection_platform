@@ -161,6 +161,10 @@ export function formatCodeReviewDateTime(value?: string | null) {
   return value ? value.replace('T', ' ').slice(0, 19) : '-';
 }
 
+export function formatCodeReviewDate(value?: string | null) {
+  return value ? value.replace('T', ' ').slice(0, 10) : '-';
+}
+
 export function formatCodeReviewMetric(value?: number | null, suffix = '') {
   if (value == null) {
     return '-';

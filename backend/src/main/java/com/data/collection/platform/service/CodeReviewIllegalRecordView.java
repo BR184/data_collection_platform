@@ -5,6 +5,7 @@ import java.util.List;
 
 record CodeReviewIllegalRecordView(
     String requestType,
+    String sourceInstance,
     Long mergeRequestId,
     Integer mergeRequestIid,
     Long projectId,
@@ -23,6 +24,7 @@ record CodeReviewIllegalRecordView(
     String assigneeNames,
     String reviewStatus,
     Integer reviewDurationMinutes,
+    String reviewExceptionReason,
     LocalDateTime codeWalkthroughDate,
     String scanStatus,
     Integer scanBugCount,

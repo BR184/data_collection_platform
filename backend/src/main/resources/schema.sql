@@ -488,6 +488,7 @@ create table if not exists merge_request_fact (
     merged_at_source timestamp,
     review_status varchar(128),
     review_duration_minutes integer,
+    review_exception_reason varchar(128),
     code_walkthrough_date timestamp,
     comment_rate numeric(8, 2),
     comment_rate_source varchar(64),

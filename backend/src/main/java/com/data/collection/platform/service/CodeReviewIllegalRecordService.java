@@ -46,6 +46,7 @@ public class CodeReviewIllegalRecordService {
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+  private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final String[] LEGACY_EXPORT_HEADERS = {
     "走查时间",
     "项目名",
@@ -102,7 +103,7 @@ public class CodeReviewIllegalRecordService {
       List.of(
           new OptionItemResponse("未标注项目名称", CodeReviewIllegalRuleRegistry.LEGACY_MISSING_PROJECT_FILTER_LABEL),
           new OptionItemResponse("未标注模块名称", CodeReviewIllegalRuleRegistry.LEGACY_MISSING_MODULE_FILTER_LABEL),
-          new OptionItemResponse(CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL, CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL),
+          new OptionItemResponse("无代码走查", CodeReviewIllegalRuleRegistry.LEGACY_MISSING_REVIEW_FILTER_LABEL),
           new OptionItemResponse("未代码扫描", CodeReviewIllegalRuleRegistry.LEGACY_NOT_SCANNED_FILTER_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL, CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL, CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL),
@@ -178,7 +179,9 @@ public class CodeReviewIllegalRecordService {
     List<CodeReviewIllegalRecordView> judgedRows =
         CodeReviewRuleConfigSupport.hasReadyConfig(ruleConfig)
             ? CodeReviewRuleConfigSupport.apply(scopedRows, ruleConfig)
-            : scopedRows.stream().filter(row -> !row.illegalTypes().isEmpty()).toList();
+            : scopedRows.stream()
+                .filter(row -> CodeReviewIllegalRuleRegistry.matchesDefaultIllegalType(row.illegalTypes(), row.sourceInstance()))
+                .toList();
     List<CodeReviewIllegalRecordView> filtered =
         judgedRows.stream()
             .filter(row -> CodeReviewIllegalRecordFilterGroupSupport.matches(row, filterGroup))
@@ -364,11 +367,7 @@ public class CodeReviewIllegalRecordService {
   }
 
   private boolean shouldExportAllCodeReviewSheet(CodeReviewIllegalRecordQueryRequest request) {
-    String source = GitlabSourceInstanceSupport.normalizeSourceInstance(request.source());
     String projectName = TextQuerySupport.trimToNull(request.projectName());
-    if ("dgm".equals(source)) {
-      return true;
-    }
     return projectName != null && !"CrownCAD".equalsIgnoreCase(projectName);
   }
 
@@ -398,7 +397,7 @@ public class CodeReviewIllegalRecordService {
 
   private void writeLegacyExportRow(
       Row row, CodeReviewIllegalRecordRowResponse record, CellStyle style) {
-    writeText(row, 0, formatDateTime(record.codeWalkthroughDate()), style);
+    writeText(row, 0, formatDate(record.codeWalkthroughDate()), style);
     writeText(row, 1, record.projectName(), style);
     writeText(row, 2, record.moduleName(), style);
     writeText(row, 3, "MERGED", style);
@@ -457,6 +456,10 @@ public class CodeReviewIllegalRecordService {
 
   private String formatDateTime(java.time.LocalDateTime value) {
     return value == null ? "" : CSV_DATE_TIME.format(value);
+  }
+
+  private String formatDate(java.time.LocalDateTime value) {
+    return value == null ? "" : CSV_DATE.format(value);
   }
 
   private String csv(Object value) {
@@ -529,10 +532,15 @@ public class CodeReviewIllegalRecordService {
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation() {
-    List<CodeReviewIllegalRecordSource> sources = sourceLoader.loadSources(Map.of());
+    List<CodeReviewIllegalRecordSource> sources =
+        sourceLoader.loadSources(
+            CodeReviewIllegalRecordQuerySupport.buildFactFilters(
+                null, null, null, null, null, null, null, null, null, null));
     List<CodeReviewIllegalRecordView> views = sources.stream().map(this::toView).toList();
     List<CodeReviewIllegalRecordView> illegalViews =
-        views.stream().filter(row -> !row.illegalTypes().isEmpty()).toList();
+        views.stream()
+            .filter(row -> CodeReviewIllegalRuleRegistry.matchesDefaultIllegalType(row.illegalTypes(), row.sourceInstance()))
+            .toList();
     long total = views.size();
     long illegalTotal = illegalViews.size();
 
@@ -567,7 +575,7 @@ public class CodeReviewIllegalRecordService {
             request == null ? null : request.source());
     List<CodeReviewIllegalRecordView> defaultRows =
         scopedRows.stream()
-            .filter(row -> !row.illegalTypes().isEmpty())
+            .filter(row -> CodeReviewIllegalRuleRegistry.matchesDefaultIllegalType(row.illegalTypes(), row.sourceInstance()))
             .filter(row -> CodeReviewIllegalRecordQuerySupport.matchesIllegalType(row.illegalTypes(), request == null ? null : request.illegalType()))
             .toList();
     List<CodeReviewIllegalRecordView> filteredRows =
@@ -667,9 +675,10 @@ public class CodeReviewIllegalRecordService {
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {
     List<String> illegalTypes = CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source);
     String mergeRequestLink =
-        issueLinkService.mergeRequestUrl(source.projectId(), source.mergeRequestIid());
+        issueLinkService.mergeRequestUrl(source.sourceInstance(), source.projectId(), source.mergeRequestIid());
     return new CodeReviewIllegalRecordView(
         "merge_request",
+        source.sourceInstance(),
         source.mergeRequestId(),
         source.mergeRequestIid(),
         source.projectId(),
@@ -688,6 +697,7 @@ public class CodeReviewIllegalRecordService {
         TextQuerySupport.normalizeDisplay(source.assigneeNames()),
         TextQuerySupport.normalizeDisplay(source.reviewStatus()),
         source.reviewDurationMinutes(),
+        TextQuerySupport.normalizeDisplay(source.reviewExceptionReason()),
         source.codeWalkthroughDate(),
         TextQuerySupport.normalizeDisplay(source.scanStatus()),
         source.scanBugCount(),
@@ -755,14 +765,14 @@ public class CodeReviewIllegalRecordService {
             "illegalTypes",
             "非法类型",
             "系统按老平台代码走查非法数据口径标记这条合并请求命中的非法类型。",
-            "非法类型 = 未标注项目名 / 未标注模块名 / 无代码走查 / 未进行代码扫描 / 静态扫描问题未关闭 / 代码注释量未达标 / 静态扫描失败 / 注释率分析工具Clang分析错误 / GitLab 接口报错",
+            "非法类型 = 未标注项目名 / 未标注模块名 / 代码走查异常 / 未进行代码扫描 / 静态扫描问题未关闭 / 代码注释量未达标 / 静态扫描失败 / 注释率分析工具Clang分析错误 / GitLab 接口报错",
             "一条记录可以同时命中多种非法类型。"),
         new StatisticRuleMetricDefinition(
             "reviewStatus",
             "代码走查记录",
             "表示这条合并请求是否已经形成可识别的代码走查记录。",
             "代码走查记录 = 评审表单时长或走查状态已形成有效值",
-            "如果当前还没有形成有效走查记录，这条记录会被判定为“无代码走查”。"),
+            "如果当前还没有形成有效走查记录，这条记录会被判定为“代码走查异常”。"),
         new StatisticRuleMetricDefinition(
             "codeWalkthroughDate",
             "走查时间",
@@ -827,6 +837,7 @@ public class CodeReviewIllegalRecordService {
                 .toList();
     return new CodeReviewIllegalRecordRowResponse(
         row.requestType(),
+        row.sourceInstance(),
         row.mergeRequestId(),
         row.mergeRequestIid(),
         row.projectId(),
@@ -845,6 +856,7 @@ public class CodeReviewIllegalRecordService {
         row.assigneeNames(),
         row.reviewStatus(),
         row.reviewDurationMinutes(),
+        row.reviewExceptionReason(),
         row.codeWalkthroughDate(),
         row.scanStatus(),
         row.scanBugCount(),

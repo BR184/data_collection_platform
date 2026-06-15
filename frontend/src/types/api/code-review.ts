@@ -3,6 +3,7 @@ import type { OptionItemResponse } from './common';
 
 export interface CodeReviewIllegalRecordRowResponse {
   requestType: string;
+  sourceInstance: string;
   mergeRequestId: number;
   mergeRequestIid: number;
   projectId: number;
@@ -21,6 +22,7 @@ export interface CodeReviewIllegalRecordRowResponse {
   assigneeNames: string;
   reviewStatus: string;
   reviewDurationMinutes?: number | null;
+  reviewExceptionReason?: string | null;
   codeWalkthroughDate?: string | null;
   scanStatus: string;
   scanBugCount?: number | null;
