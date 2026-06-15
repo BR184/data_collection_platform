@@ -48,10 +48,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "system-test-delay-analysis";
   private static final String RULE_VERSION = "system-test-delay-analysis@2026-04-22-v1";
-  private static final String TOTAL_ROW_KEY = "__total__";
-  private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+  private static final List<String> LEGACY_DELAY_CAUSES =
+      List.of("技术卡点", "方案卡点", "资源卡点", "数据异常", "算法问题", "机制问题", "计算效率");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
@@ -65,11 +65,14 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       """;
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, title, project_id, project_name,
-             coalesce(author_name,'') as author_name, updated_at_source as updated_at,
+             coalesce(author_name,'') as author_name, coalesce(assignee_name,'') as assignee_name,
+             created_at_source as created_at, updated_at_source as updated_at,
              closed_at_source as closed_at, coalesce(issue_state,'opened') as issue_state,
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
              coalesce(severity_level,'') as severity_level,
+             coalesce(bug_status,'') as bug_status,
+             coalesce(category,'') as category,
              coalesce(delay_cause,'') as delay_cause,
              coalesce(is_excluded,false) as is_excluded,
              coalesce(module_names,'') as module_names,
@@ -80,15 +83,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       List.of(
           new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("title", "标题", null, 260, true),
-          new StatisticDetailColumn("testingPhase", "测试阶段", 180, 180, true),
-          new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
+          new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
+          new StatisticDetailColumn("title", "议题标题", null, 260, true),
+          new StatisticDetailColumn("state", "议题状态", 120, 120, true),
           new StatisticDetailColumn("severityLevel", "严重程度", 120, 120, true),
-          new StatisticDetailColumn("moduleNames", "模块", null, 180, true),
-          new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-          new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
-          new StatisticDetailColumn("state", "状态", 120, 120, true),
-          new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
+          new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
+          new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
+          new StatisticDetailColumn("updatedAt", "议题更新时间", 180, 180, true),
+          new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
+          new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
+          new StatisticDetailColumn("assigneeName", "议题处理人", 160, 160, true));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
@@ -135,11 +139,11 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
                 "delay-summary",
                 "延期原因统计",
                 List.of(
-                    leaf("level1", "一级缺陷", true, "count"),
-                    leaf("level2", "二级缺陷", true, "count"),
-                    leaf("level3", "三级缺陷", true, "count"),
-                    leaf("suggestion", "建议类缺陷", true, "count"),
-                    leaf("total", "总计", true, "count")))),
+                    leaf("level1", "一级缺陷(个)", true, "count"),
+                    leaf("level2", "二级缺陷(个)", true, "count"),
+                    leaf("level3", "三级缺陷(个)", true, "count"),
+                    leaf("suggestion", "建议类缺陷(个)", true, "count"),
+                    leaf("total", "总计(个)", true, "count")))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的申请延期缺陷分析结果。");
@@ -153,18 +157,19 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    for (String delayCause : LEGACY_DELAY_CAUSES) {
+      buckets.put(delayCause, new AggregateBucket(delayCause));
+    }
     for (IssueSource issue : snapshot.finalSources()) {
-      buckets.computeIfAbsent(issue.delayCause(), AggregateBucket::new).accept(issue);
+      if (LEGACY_DELAY_CAUSES.contains(issue.delayCause())) {
+        buckets.get(issue.delayCause()).accept(issue);
+      }
     }
 
     List<StatisticRowData> rows =
         buckets.values().stream()
-            .sorted(Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER))
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-    if (!snapshot.finalSources().isEmpty()) {
-      rows.add(new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.finalSources()).toRowData());
-    }
 
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount =
@@ -195,7 +200,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "申请延期缺陷明细",
-        "展示当前延期原因与指标命中的 issue_fact 明细。",
+        "展示当前延期原因与指标命中的 issue_fact 明细，字段按老平台通用议题详情口径展示。",
         DETAIL_COLUMNS,
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),
@@ -220,14 +225,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     long causeCount =
-        snapshot.finalSources().stream().map(IssueSource::delayCause).distinct().count();
+        LEGACY_DELAY_CAUSES.stream()
+            .filter(cause -> snapshot.finalSources().stream().anyMatch(issue -> cause.equals(issue.delayCause())))
+            .count();
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
         "申请延期缺陷分析规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再保留已识别出延期原因的议题。",
-        "同一条议题只会归入一个延期原因；共计行按延期议题本身统计。",
+        "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按老平台 DelayEnum 固定延期原因统计。",
+        "同一条议题只会归入一个老平台固定延期原因；没有命中数据的延期原因仍显示为 0。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
@@ -236,7 +243,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "group-by-delay-cause",
                 "按延期原因聚合",
-                "将延期议题按 issue_fact.delay_cause 聚合，再统计各严重程度下的延期缺陷数量。",
+                "将延期议题按老平台固定延期原因聚合，再统计一级、二级、三级和建议类缺陷数量。",
                 snapshot.finalSources().size(),
                 causeCount,
                 snapshot.finalSources(),
@@ -246,8 +253,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             new StatisticRuleMetricDefinition("level1", "一级缺陷", "按 issue_fact.severity_level = LEVEL1 统计。", "一级缺陷数 = 当前延期原因下 LEVEL1 议题数", null),
             new StatisticRuleMetricDefinition("level2", "二级缺陷", "按 issue_fact.severity_level = LEVEL2 统计。", "二级缺陷数 = 当前延期原因下 LEVEL2 议题数", null),
             new StatisticRuleMetricDefinition("level3", "三级缺陷", "按 issue_fact.severity_level = LEVEL3 统计。", "三级缺陷数 = 当前延期原因下 LEVEL3 议题数", null),
-            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "按 issue_fact.severity_level = SUGGESTION 统计。", "建议类缺陷数 = 当前延期原因下 SUGGESTION 议题数", null),
-            new StatisticRuleMetricDefinition("total", "总计", "统计当前延期原因下保留下来的全部延期议题。", "总计 = 当前延期原因下全部延期议题数", null)),
+            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "按老平台 category like 建议 口径统计，兼容 severity_level = SUGGESTION。", "建议类缺陷数 = 当前延期原因下 category 含建议或 SUGGESTION 的议题数", null),
+            new StatisticRuleMetricDefinition("total", "总计", "统计当前延期原因下一级、二级、三级和建议类缺陷。", "总计 = 一级缺陷 + 二级缺陷 + 三级缺陷 + 建议类缺陷", null)),
         null);
   }
 
@@ -262,7 +269,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     List<IssueSource> delayed =
         scoped.stream()
             .filter(issue -> !issue.excluded())
-            .filter(IssueSource::hasDelayCause)
+            .filter(IssueSource::hasLegacyDelayCause)
             .toList();
     List<IssueSource> filtered =
         delayed.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
@@ -288,7 +295,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "delay-cause-filter",
                 "保留延期议题",
-                "只保留 issue_fact.delay_cause 非空且未被排除的延期议题。",
+                "只保留 issue_fact.delay_cause 命中老平台固定延期原因且未被排除的延期议题。",
                 scoped.size(),
                 delayed,
                 this::toRuleFlowSample
@@ -306,21 +313,20 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
     return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 延期原因: " + issue.delayCause() + " | 严重程度: " + issue.severityLevel());
+                    issue.title() + " | 延期原因: " + issue.delayCause() + " | 严重程度: " + issue.displaySeverityLevel());
   }
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
-        || TOTAL_ROW_KEY.equals(rowKey)
         || rowKey.equals(issue.delayCause());
   }
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
     return switch (columnKey) {
-      case "level1" -> issue -> "LEVEL1".equalsIgnoreCase(issue.severityLevel());
-      case "level2" -> issue -> "LEVEL2".equalsIgnoreCase(issue.severityLevel());
-      case "level3" -> issue -> "LEVEL3".equalsIgnoreCase(issue.severityLevel());
-      case "suggestion" -> issue -> "SUGGESTION".equalsIgnoreCase(issue.severityLevel());
-      case "total" -> issue -> true;
+      case "level1" -> IssueSource::isLevel1;
+      case "level2" -> IssueSource::isLevel2;
+      case "level3" -> IssueSource::isLevel3;
+      case "suggestion" -> IssueSource::isSuggestion;
+      case "total" -> IssueSource::isCountableByLegacyTotal;
       default -> issue -> true;
     };
   }
@@ -332,11 +338,14 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
           case "title" -> SortSupport.nullableString(IssueSource::title);
           case "testingPhase" -> SortSupport.nullableString(IssueSource::primaryPhaseLabel);
           case "delayCause" -> SortSupport.nullableString(IssueSource::delayCause);
-          case "severityLevel" -> SortSupport.nullableString(IssueSource::severityLevel);
+          case "severityLevel" -> SortSupport.nullableString(IssueSource::displaySeverityLevel);
+          case "bugStatus" -> SortSupport.nullableString(IssueSource::bugStatus);
           case "moduleNames" -> SortSupport.nullableString(issue -> String.join("、", issue.moduleNames()));
           case "projectName" -> SortSupport.nullableString(IssueSource::projectName);
           case "authorName" -> SortSupport.nullableString(IssueSource::authorName);
+          case "assigneeName" -> SortSupport.nullableString(IssueSource::assigneeName);
           case "state" -> SortSupport.nullableComparable(issue -> issue.isClosed() ? 1 : 0);
+          case "createdAt" -> SortSupport.nullableComparable(IssueSource::createdAt);
           default -> SortSupport.nullableComparable(IssueSource::updatedAt);
         };
     comparator = comparator.thenComparing(IssueSource::iid);
@@ -346,15 +355,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
     issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
-    record.put("title", issue.title());
-    record.put("testingPhase", displayPhaseLabel(issue.primaryPhaseLabel(), null));
-    record.put("delayCause", issue.delayCause());
-    record.put("severityLevel", issue.severityLevel());
     record.put("moduleNames", String.join("、", issue.moduleNames()));
-    record.put("projectName", issue.projectName());
-    record.put("authorName", issue.authorName());
+    record.put("title", issue.title());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
+    record.put("severityLevel", issue.displaySeverityLevel());
+    record.put("bugStatus", issue.bugStatus());
+    record.put("delayCause", issue.delayCause());
     record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
+    record.put("createdAt", issue.createdAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.createdAt()));
+    record.put("authorName", issue.authorName());
+    record.put("assigneeName", issue.assigneeName());
     return record;
   }
 
@@ -408,12 +418,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         rs.getLong("project_id"),
         StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
         StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
+        StatisticSourceValueSupport.text(rs.getString("assignee_name"), ""),
+        StatisticSourceValueSupport.time(rs.getTimestamp("created_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
         StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
         StatisticSourceValueSupport.text(rs.getString("severity_level"), ""),
+        StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
+        StatisticSourceValueSupport.text(rs.getString("category"), ""),
         StatisticSourceValueSupport.text(rs.getString("delay_cause"), ""),
         rs.getBoolean("is_excluded"),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
@@ -496,21 +510,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       this(rowLabel, rowKey, new ArrayList<>());
     }
 
-    AggregateBucket acceptAll(List<IssueSource> sourceIssues) {
-      issues.addAll(sourceIssues);
-      return this;
-    }
-
     void accept(IssueSource issue) {
       issues.add(issue);
     }
 
     StatisticRowData toRowData() {
-      long level1 = issues.stream().filter(issue -> "LEVEL1".equalsIgnoreCase(issue.severityLevel())).count();
-      long level2 = issues.stream().filter(issue -> "LEVEL2".equalsIgnoreCase(issue.severityLevel())).count();
-      long level3 = issues.stream().filter(issue -> "LEVEL3".equalsIgnoreCase(issue.severityLevel())).count();
-      long suggestion = issues.stream().filter(issue -> "SUGGESTION".equalsIgnoreCase(issue.severityLevel())).count();
-      long total = issues.size();
+      long level1 = issues.stream().filter(IssueSource::isLevel1).count();
+      long level2 = issues.stream().filter(IssueSource::isLevel2).count();
+      long level3 = issues.stream().filter(IssueSource::isLevel3).count();
+      long suggestion = issues.stream().filter(IssueSource::isSuggestion).count();
+      long total = level1 + level2 + level3 + suggestion;
       return new StatisticRowData(
           rowKey,
           rowLabel,
@@ -540,12 +549,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       Long projectId,
       String projectName,
       String authorName,
+      String assigneeName,
+      LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt,
       String issueState,
       String testingPhase,
       String systemTestLabel,
       String severityLevel,
+      String bugStatus,
+      String category,
       String delayCause,
       boolean excluded,
       List<String> moduleNames,
@@ -554,12 +567,42 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       return StringUtils.hasText(primaryPhaseLabel());
     }
 
-    boolean hasDelayCause() {
-      return StringUtils.hasText(delayCause);
+    boolean hasLegacyDelayCause() {
+      return LEGACY_DELAY_CAUSES.contains(delayCause);
     }
 
     boolean isClosed() {
       return closedAt != null || "closed".equalsIgnoreCase(issueState);
+    }
+
+    boolean isLevel1() {
+      return "LEVEL1".equalsIgnoreCase(severityLevel);
+    }
+
+    boolean isLevel2() {
+      return "LEVEL2".equalsIgnoreCase(severityLevel);
+    }
+
+    boolean isLevel3() {
+      return "LEVEL3".equalsIgnoreCase(severityLevel);
+    }
+
+    boolean isSuggestion() {
+      return "SUGGESTION".equalsIgnoreCase(severityLevel) || contains(category, "建议");
+    }
+
+    boolean isCountableByLegacyTotal() {
+      return isLevel1() || isLevel2() || isLevel3() || isSuggestion();
+    }
+
+    String displaySeverityLevel() {
+      return switch (severityLevel == null ? "" : severityLevel) {
+        case "LEVEL1" -> "一级缺陷";
+        case "LEVEL2" -> "二级缺陷";
+        case "LEVEL3" -> "三级缺陷";
+        case "SUGGESTION" -> "建议类";
+        default -> severityLevel == null ? "" : severityLevel;
+      };
     }
 
     String primaryPhaseLabel() {
@@ -588,6 +631,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     private boolean hasScope(String value) {
       return StringUtils.hasText(value)
           && (value.contains("系统测试") || value.contains("回归测试"));
+    }
+
+    private boolean contains(String value, String token) {
+      return StringUtils.hasText(value) && value.contains(token);
     }
   }
 
