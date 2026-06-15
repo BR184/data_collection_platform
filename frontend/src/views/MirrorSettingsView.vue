@@ -264,9 +264,6 @@ const currentFactLaggingDomains = computed(() => {
   if (health.issueFactLagging) {
     domains.push('系统测试/客户问题事实');
   }
-  if (health.integrationTestFactLagging) {
-    domains.push('集成测试事实');
-  }
   return domains;
 });
 const currentSourceHealthTone = computed(() => {
@@ -1106,10 +1103,6 @@ onBeforeRouteLeave(async () => {
             <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.issueFactLagging }">
               <span>系统测试/客户问题事实</span>
               <strong>{{ currentSourceHealth.issueFactCount }}</strong>
-            </div>
-            <div class="source-health-fact-item" :class="{ 'is-warning': currentSourceHealth.integrationTestFactLagging }">
-              <span>集成测试事实</span>
-              <strong>{{ currentSourceHealth.integrationTestFactCount }}</strong>
             </div>
           </div>
 

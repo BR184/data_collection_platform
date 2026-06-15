@@ -64,8 +64,6 @@ public class GitlabSourceHealthService {
           null,
           false,
           false,
-          false,
-          0,
           0,
           0,
           List.of());
@@ -77,9 +75,8 @@ public class GitlabSourceHealthService {
     boolean mergeRequestFactLagging =
         isFactLayerLagging(latestSync, latestMergeRequestFactUpdatedAt, existingMirrorTables);
     boolean issueFactLagging = false;
-    boolean integrationTestFactLagging = false;
     boolean factLayerLagging =
-        activeSync.factRefreshActive() || mergeRequestFactLagging || issueFactLagging || integrationTestFactLagging;
+        activeSync.factRefreshActive() || mergeRequestFactLagging || issueFactLagging;
     List<String> missingRequiredMirrorTables = missingRequiredMirrorTables(sourceInstance);
     String healthStatus = resolveHealthStatus(
         latestSync,
@@ -105,15 +102,13 @@ public class GitlabSourceHealthService {
         existingMirrorTables,
         factLayerLagging,
         factLayerLagging
-            ? factLayerMessage(activeSync.factRefreshActive(), mergeRequestFactLagging, issueFactLagging, integrationTestFactLagging)
+            ? factLayerMessage(activeSync.factRefreshActive(), mergeRequestFactLagging, issueFactLagging)
             : "",
         latestMergeRequestFactUpdatedAt,
         mergeRequestFactLagging,
         issueFactLagging,
-        integrationTestFactLagging,
         countFacts("merge_request_fact", sourceInstance),
         countFacts("issue_fact", sourceInstance),
-        countFacts("integration_test_fact", sourceInstance),
         missingRequiredMirrorTables);
   }
 
@@ -338,8 +333,7 @@ public class GitlabSourceHealthService {
   private String factLayerMessage(
       boolean factRefreshActive,
       boolean mergeRequestFactLagging,
-      boolean issueFactLagging,
-      boolean integrationTestFactLagging) {
+      boolean issueFactLagging) {
     if (factRefreshActive) {
       return "事实刷新正在排队或执行";
     }
@@ -349,9 +343,6 @@ public class GitlabSourceHealthService {
     }
     if (issueFactLagging) {
       laggingDomains.add("议题事实表");
-    }
-    if (integrationTestFactLagging) {
-      laggingDomains.add("集成测试事实表");
     }
     return "镜像数据新于" + String.join("、", laggingDomains);
   }

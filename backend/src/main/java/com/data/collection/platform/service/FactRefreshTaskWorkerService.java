@@ -19,19 +19,16 @@ public class FactRefreshTaskWorkerService {
   private final FactBuildTaskService taskService;
   private final GitlabConfigService configService;
   private final FactBuildService factBuildService;
-  private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final GitlabMirrorProperties properties;
 
   public FactRefreshTaskWorkerService(
       FactBuildTaskService taskService,
       GitlabConfigService configService,
       FactBuildService factBuildService,
-      IntegrationTestFactBuildService integrationTestFactBuildService,
       GitlabMirrorProperties properties) {
     this.taskService = taskService;
     this.configService = configService;
     this.factBuildService = factBuildService;
-    this.integrationTestFactBuildService = integrationTestFactBuildService;
     this.properties = properties;
   }
 
@@ -55,7 +52,6 @@ public class FactRefreshTaskWorkerService {
       FactBuildResponse response = switch (normalizeFactType(task.factType())) {
         case "ISSUE" -> factBuildService.rebuildIssueFactsForQueuedTask(config, task.full());
         case "MERGE_REQUEST" -> factBuildService.rebuildMergeRequestFactsForQueuedTask(config, task.full());
-        case "INTEGRATION_TEST" -> integrationTestFactBuildService.rebuildFactsForConfig(config, task.full());
         default -> throw new IllegalArgumentException("Unsupported fact refresh type: " + task.factType());
       };
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);

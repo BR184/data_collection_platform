@@ -96,6 +96,9 @@ public class MergeRequestFact {
   @TableField("review_duration_minutes")
   private Integer reviewDurationMinutes;
 
+  @TableField("code_walkthrough_date")
+  private LocalDateTime codeWalkthroughDate;
+
   @TableField("comment_rate")
   private BigDecimal commentRate;
 

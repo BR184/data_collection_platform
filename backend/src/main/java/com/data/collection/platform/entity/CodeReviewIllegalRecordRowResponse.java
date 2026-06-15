@@ -23,6 +23,7 @@ public record CodeReviewIllegalRecordRowResponse(
     String assigneeNames,
     String reviewStatus,
     Integer reviewDurationMinutes,
+    LocalDateTime codeWalkthroughDate,
     String scanStatus,
     Integer scanBugCount,
     String annotationRateResult,

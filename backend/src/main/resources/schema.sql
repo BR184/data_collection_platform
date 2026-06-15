@@ -451,57 +451,6 @@ create table if not exists issue_fact (
     unique (source_system, source_instance, project_id, issue_id)
 );
 
-create table if not exists integration_test_fact (
-    id bigserial primary key,
-    source_system varchar(64) not null default 'GITLAB',
-    source_instance varchar(128) not null default 'default',
-    ingest_channel varchar(64) not null default 'MIRROR',
-    source_summary varchar(255),
-    raw_payload text,
-    project_id bigint not null,
-    project_name varchar(255),
-    issue_id bigint not null,
-    issue_iid bigint not null,
-    issuable_reference varchar(128),
-    title varchar(512) not null default '',
-    issue_state varchar(64),
-    author_name varchar(128),
-    assignee_name varchar(128),
-    created_at_source timestamp,
-    updated_at_source timestamp,
-    ods_updated_at timestamp,
-    note_id bigint,
-    note_created_at_source timestamp,
-    note_updated_at_source timestamp,
-    module_name varchar(255),
-    function_name varchar(255),
-    executor varchar(128),
-    testing_phase varchar(128),
-    execute_case integer,
-    pass_case integer,
-    not_pass_case integer,
-    not_pass_case_now integer,
-    problem_case integer,
-    exception_count integer,
-    pass_rate numeric(8, 2),
-    legal boolean not null default false,
-    parse_status varchar(32) not null default 'PARTIAL',
-    validation_reason varchar(255),
-    label_names text,
-    function_labels text,
-    deleted boolean not null default false,
-    fact_refreshed_at timestamp not null default current_timestamp,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp,
-    unique (source_system, source_instance, project_id, issue_id)
-);
-
-create index if not exists idx_integration_test_fact_phase
-    on integration_test_fact(project_id, testing_phase);
-
-create index if not exists idx_integration_test_fact_module
-    on integration_test_fact(project_id, testing_phase, module_name);
-
 create table if not exists merge_request_fact (
     id bigserial primary key,
     source_system varchar(64) not null default 'GITLAB',
@@ -539,6 +488,7 @@ create table if not exists merge_request_fact (
     merged_at_source timestamp,
     review_status varchar(128),
     review_duration_minutes integer,
+    code_walkthrough_date timestamp,
     comment_rate numeric(8, 2),
     comment_rate_source varchar(64),
     defect_count integer,
@@ -758,8 +708,6 @@ alter table merge_request_fact add column if not exists owner_search_text text;
 alter table merge_request_fact add column if not exists owner_search_compact text;
 alter table merge_request_fact add column if not exists owner_search_spell text;
 alter table merge_request_fact add column if not exists owner_search_initials text;
-alter table integration_test_fact add column if not exists parse_status varchar(32) not null default 'PARTIAL';
-alter table integration_test_fact add column if not exists validation_reason varchar(255);
 alter table review_records add column if not exists search_text text;
 alter table review_records add column if not exists search_compact text;
 alter table review_records add column if not exists search_spell text;

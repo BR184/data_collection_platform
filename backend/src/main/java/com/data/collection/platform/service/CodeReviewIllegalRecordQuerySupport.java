@@ -92,8 +92,7 @@ final class CodeReviewIllegalRecordQuerySupport {
   }
 
   static boolean matchesIllegalType(List<String> illegalTypes, String expected) {
-    String normalizedExpected = TextQuerySupport.trimToNull(expected);
-    return normalizedExpected == null || illegalTypes.contains(normalizedExpected);
+    return CodeReviewIllegalRuleRegistry.matchesIllegalType(illegalTypes, expected);
   }
 
   static boolean matchesKeyword(CodeReviewIllegalRecordView row, String keyword) {

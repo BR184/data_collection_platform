@@ -13,6 +13,9 @@ final class CodeReviewIllegalRuleRegistry {
   static final String MISSING_MODULE_LABEL = "未标注模块名";
   static final String MISSING_REVIEW_LABEL = "无代码走查";
   static final String NOT_SCANNED_LABEL = "未进行代码扫描";
+  static final String LEGACY_MISSING_PROJECT_FILTER_LABEL = "未标注项目名称";
+  static final String LEGACY_MISSING_MODULE_FILTER_LABEL = "未标注模块名称";
+  static final String LEGACY_NOT_SCANNED_FILTER_LABEL = "未代码扫描";
   static final String OPEN_SCAN_ISSUE_LABEL = "静态扫描问题未关闭";
   static final String COMMENT_RATE_NOT_PASS_LABEL = "代码注释量未达标";
   static final String SCAN_FAILED_LABEL = "静态扫描失败";
@@ -147,5 +150,20 @@ final class CodeReviewIllegalRuleRegistry {
 
   static List<String> notScannedStatuses() {
     return List.copyOf(NOT_SCANNED_STATUSES);
+  }
+
+  static boolean matchesIllegalType(List<String> illegalTypes, String expected) {
+    String normalizedExpected = TextQuerySupport.trimToNull(expected);
+    if (normalizedExpected == null) {
+      return true;
+    }
+    if (LEGACY_MISSING_PROJECT_FILTER_LABEL.equals(normalizedExpected)) {
+      normalizedExpected = MISSING_PROJECT_LABEL;
+    } else if (LEGACY_MISSING_MODULE_FILTER_LABEL.equals(normalizedExpected)) {
+      normalizedExpected = MISSING_MODULE_LABEL;
+    } else if (LEGACY_NOT_SCANNED_FILTER_LABEL.equals(normalizedExpected)) {
+      normalizedExpected = NOT_SCANNED_LABEL;
+    }
+    return illegalTypes.contains(normalizedExpected);
   }
 }

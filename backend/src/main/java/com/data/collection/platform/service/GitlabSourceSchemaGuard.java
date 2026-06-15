@@ -53,6 +53,7 @@ public class GitlabSourceSchemaGuard {
           requirement("ods_gitlab_users", "id", "name", "mirror_deleted"),
           requirement("ods_gitlab_merge_request_reviewers", "merge_request_id", "user_id", "mirror_deleted"),
           requirement("ods_gitlab_merge_request_assignees", "merge_request_id", "user_id", "mirror_deleted"),
+          requirement("ods_gitlab_notes", "id", "noteable_id", "noteable_type", "note", "created_at", "updated_at", "mirror_deleted"),
           requirement(
               "ods_gitlab_label_links",
               "id",
@@ -64,8 +65,6 @@ public class GitlabSourceSchemaGuard {
               "created_at",
               "mirror_deleted"),
           requirement("ods_gitlab_labels", "id", "title", "mirror_deleted"));
-
-  private static final List<SourceTableRequirement> INTEGRATION_TEST_SOURCE = ISSUE_FACT_SOURCE;
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -87,14 +86,6 @@ public class GitlabSourceSchemaGuard {
 
   public void verifyMergeRequestFactSource(String sourceInstance) {
     verify("合并请求事实表", rewriteRequirements(MERGE_REQUEST_FACT_SOURCE, sourceInstance));
-  }
-
-  public void verifyIntegrationTestSource() {
-    verifyIntegrationTestSource(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
-  }
-
-  public void verifyIntegrationTestSource(String sourceInstance) {
-    verify("集成测试事实表", rewriteRequirements(INTEGRATION_TEST_SOURCE, sourceInstance));
   }
 
   private void verify(String scopeName, List<SourceTableRequirement> requirements) {

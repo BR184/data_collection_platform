@@ -31,6 +31,7 @@ class CodeReviewIllegalRecordQuerySupportTest {
             "",
             "",
             0,
+            LocalDateTime.of(2026, 4, 20, 9, 30),
             "",
             0,
             "",

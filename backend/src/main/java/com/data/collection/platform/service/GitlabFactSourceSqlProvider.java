@@ -216,11 +216,21 @@ class GitlabFactSourceSqlProvider {
         select f.project_id,
                f.request_iid,
                max(nullif(btrim(f.reviewer), '')) as reviewer_name,
-               max(f.review_duration_minutes) as review_duration_minutes
+               max(f.review_duration_minutes) as review_duration_minutes,
+               max(f.updated_at) as form_updated_at
           from collect_form_records f
          where f.deleted = false
            and f.resource_type = 'merge_request'
          group by f.project_id, f.request_iid
+      ),
+      walkthrough_notes as (
+        select n.noteable_id as merge_request_id,
+               max(coalesce(n.updated_at, n.created_at)) as code_walkthrough_date
+          from ods_gitlab_notes n
+         where coalesce(n.mirror_deleted, false) = false
+           and n.noteable_type = 'MergeRequest'
+           and coalesce(n.note, '') like '%## 代码走查数据%'
+         group by n.noteable_id
       )
       select
         mr.id as merge_request_id,
@@ -244,6 +254,7 @@ class GitlabFactSourceSqlProvider {
         labels.label_titles as label_titles,
         metrics.added_lines as added_lines,
         forms.review_duration_minutes,
+        coalesce(walkthrough_notes.code_walkthrough_date, forms.form_updated_at, mr.updated_at) as code_walkthrough_date,
         imported_metrics.comment_rate,
         imported_metrics.comment_rate_source,
         imported_metrics.defect_count,
@@ -296,6 +307,8 @@ class GitlabFactSourceSqlProvider {
       left join form_records forms
         on forms.project_id = mr.target_project_id
        and forms.request_iid = mr.iid
+      left join walkthrough_notes
+        on walkthrough_notes.merge_request_id = mr.id
       where coalesce(mr.mirror_deleted, false) = false
       """;
 

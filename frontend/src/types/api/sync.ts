@@ -78,10 +78,8 @@ export interface GitlabSourceHealthResponse {
   latestFactUpdatedAt?: string | null;
   mergeRequestFactLagging: boolean;
   issueFactLagging: boolean;
-  integrationTestFactLagging: boolean;
   mergeRequestFactCount: number;
   issueFactCount: number;
-  integrationTestFactCount: number;
   missingRequiredMirrorTables: string[];
 }
 

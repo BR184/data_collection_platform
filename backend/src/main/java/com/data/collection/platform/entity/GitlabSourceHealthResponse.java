@@ -23,10 +23,8 @@ public record GitlabSourceHealthResponse(
     LocalDateTime latestFactUpdatedAt,
     boolean mergeRequestFactLagging,
     boolean issueFactLagging,
-    boolean integrationTestFactLagging,
     long mergeRequestFactCount,
     long issueFactCount,
-    long integrationTestFactCount,
     List<String> missingRequiredMirrorTables) {
 
   public GitlabSourceHealthResponse(
@@ -47,10 +45,8 @@ public record GitlabSourceHealthResponse(
       LocalDateTime latestFactUpdatedAt,
       boolean mergeRequestFactLagging,
       boolean issueFactLagging,
-      boolean integrationTestFactLagging,
       long mergeRequestFactCount,
       long issueFactCount,
-      long integrationTestFactCount,
       List<String> missingRequiredMirrorTables) {
     this(
         configId,
@@ -72,10 +68,8 @@ public record GitlabSourceHealthResponse(
         latestFactUpdatedAt,
         mergeRequestFactLagging,
         issueFactLagging,
-        integrationTestFactLagging,
         mergeRequestFactCount,
         issueFactCount,
-        integrationTestFactCount,
         missingRequiredMirrorTables);
   }
 }

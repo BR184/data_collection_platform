@@ -414,6 +414,7 @@ class CodeReviewIllegalRecordServiceTest {
         List.of(),
         "DONE",
         15,
+        mergedAt.minusMinutes(30),
         "SCANNED",
         0,
         "",

@@ -45,16 +45,19 @@ final class CodeReviewIllegalRecordSqlSupport {
           clangResultFalsePredicate(),
           gitlabErrorPredicate());
     }
-    if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)) {
+    if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_PROJECT_FILTER_LABEL.equals(normalized)) {
       return missingProjectPredicate();
     }
-    if (CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL.equals(normalized)) {
+    if (CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_MODULE_FILTER_LABEL.equals(normalized)) {
       return missingModulePredicate();
     }
     if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)) {
       return missingReviewPredicate();
     }
-    if (CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL.equals(normalized)) {
+    if (CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_NOT_SCANNED_FILTER_LABEL.equals(normalized)) {
       return notScannedPredicate();
     }
     if (CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL.equals(normalized)) {

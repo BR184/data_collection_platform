@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class FactBuildOperationGuard {
-  private static final List<String> FACT_DOMAINS = List.of("all", "issue", "merge-request", "integration-test");
+  private static final List<String> FACT_DOMAINS = List.of("all", "issue", "merge-request");
 
   private final Map<String, Long> runningScopes = new HashMap<>();
   private final LongSupplier currentTimeMillis;

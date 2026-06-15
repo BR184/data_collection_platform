@@ -21,6 +21,7 @@ record CodeReviewIllegalRecordSource(
     List<String> labelTitles,
     String reviewStatus,
     Integer reviewDurationMinutes,
+    LocalDateTime codeWalkthroughDate,
     String scanStatus,
     Integer scanBugCount,
     String annotationRateResult,

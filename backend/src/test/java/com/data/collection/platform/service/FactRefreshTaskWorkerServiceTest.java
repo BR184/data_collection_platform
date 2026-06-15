@@ -18,7 +18,6 @@ class FactRefreshTaskWorkerServiceTest {
   private FactBuildTaskService taskService;
   private GitlabConfigService configService;
   private FactBuildService factBuildService;
-  private IntegrationTestFactBuildService integrationTestFactBuildService;
   private GitlabMirrorProperties properties;
   private FactRefreshTaskWorkerService workerService;
 
@@ -27,14 +26,12 @@ class FactRefreshTaskWorkerServiceTest {
     taskService = mock(FactBuildTaskService.class);
     configService = mock(GitlabConfigService.class);
     factBuildService = mock(FactBuildService.class);
-    integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
     properties = new GitlabMirrorProperties();
     properties.setHeartbeatTimeoutSeconds(9);
     workerService = new FactRefreshTaskWorkerService(
         taskService,
         configService,
         factBuildService,
-        integrationTestFactBuildService,
         properties);
   }
 

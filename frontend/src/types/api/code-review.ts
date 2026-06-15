@@ -21,6 +21,7 @@ export interface CodeReviewIllegalRecordRowResponse {
   assigneeNames: string;
   reviewStatus: string;
   reviewDurationMinutes?: number | null;
+  codeWalkthroughDate?: string | null;
   scanStatus: string;
   scanBugCount?: number | null;
   annotationRateResult: string;

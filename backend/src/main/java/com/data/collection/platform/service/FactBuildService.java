@@ -496,6 +496,7 @@ public class FactBuildService {
     fact.setMergedAtSource(toLocalDateTime(rs.getTimestamp("merged_at")));
     fact.setReviewStatus(rs.getObject("review_duration_minutes") == null ? "PENDING" : "COMPLETED");
     fact.setReviewDurationMinutes((Integer) rs.getObject("review_duration_minutes"));
+    fact.setCodeWalkthroughDate(toLocalDateTime(rs.getTimestamp("code_walkthrough_date")));
     fact.setCommentRate((BigDecimal) rs.getObject("comment_rate"));
     fact.setCommentRateSource(defaultText(rs.getString("comment_rate_source")));
     fact.setDefectCount((Integer) rs.getObject("defect_count"));

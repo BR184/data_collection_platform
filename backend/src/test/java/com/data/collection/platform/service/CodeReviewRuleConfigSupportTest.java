@@ -113,6 +113,7 @@ class CodeReviewRuleConfigSupportTest {
         "Assignee",
         "DONE",
         20,
+        LocalDateTime.of(2026, 4, 21, 9, 30),
         "SCANNED",
         0,
         "",

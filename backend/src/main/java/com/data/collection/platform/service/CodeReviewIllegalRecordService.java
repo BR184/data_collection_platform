@@ -98,6 +98,17 @@ public class CodeReviewIllegalRecordService {
 
   private static final List<OptionItemResponse> REQUEST_TYPE_OPTIONS =
       List.of(new OptionItemResponse("合并请求", "merge_request"));
+  private static final List<OptionItemResponse> LEGACY_ILLEGAL_TYPE_OPTIONS =
+      List.of(
+          new OptionItemResponse("未标注项目名称", CodeReviewIllegalRuleRegistry.LEGACY_MISSING_PROJECT_FILTER_LABEL),
+          new OptionItemResponse("未标注模块名称", CodeReviewIllegalRuleRegistry.LEGACY_MISSING_MODULE_FILTER_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL, CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL),
+          new OptionItemResponse("未代码扫描", CodeReviewIllegalRuleRegistry.LEGACY_NOT_SCANNED_FILTER_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL, CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL, CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL, CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL, CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL, CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
@@ -387,7 +398,7 @@ public class CodeReviewIllegalRecordService {
 
   private void writeLegacyExportRow(
       Row row, CodeReviewIllegalRecordRowResponse record, CellStyle style) {
-    writeText(row, 0, formatDateTime(record.mergedAt()), style);
+    writeText(row, 0, formatDateTime(record.codeWalkthroughDate()), style);
     writeText(row, 1, record.projectName(), style);
     writeText(row, 2, record.moduleName(), style);
     writeText(row, 3, "MERGED", style);
@@ -478,7 +489,7 @@ public class CodeReviewIllegalRecordService {
     return new CodeReviewIllegalRecordFilterOptionsResponse(
         REQUEST_TYPE_OPTIONS,
         toOptions(rows, CodeReviewIllegalRecordView::repositoryName),
-        toOptions(rows.stream().flatMap(row -> row.illegalTypes().stream()).toList()),
+        LEGACY_ILLEGAL_TYPE_OPTIONS,
         toLegacyOptions(rows, CodeReviewIllegalRecordView::targetBranch),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::mergedBy),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::moduleName),
@@ -677,6 +688,7 @@ public class CodeReviewIllegalRecordService {
         TextQuerySupport.normalizeDisplay(source.assigneeNames()),
         TextQuerySupport.normalizeDisplay(source.reviewStatus()),
         source.reviewDurationMinutes(),
+        source.codeWalkthroughDate(),
         TextQuerySupport.normalizeDisplay(source.scanStatus()),
         source.scanBugCount(),
         TextQuerySupport.normalizeDisplay(source.annotationRateResult()),
@@ -752,6 +764,12 @@ public class CodeReviewIllegalRecordService {
             "代码走查记录 = 评审表单时长或走查状态已形成有效值",
             "如果当前还没有形成有效走查记录，这条记录会被判定为“无代码走查”。"),
         new StatisticRuleMetricDefinition(
+            "codeWalkthroughDate",
+            "走查时间",
+            "表示老平台展开行和导出中的代码走查时间。",
+            "走查时间优先取 MR 评论中“## 代码走查数据”的走查评论更新时间，取不到时回退到新平台走查表单更新时间，再回退到 MR 更新时间。",
+            "该时间与合并时间是两个字段，导出第一列不能用合并时间替代。"),
+        new StatisticRuleMetricDefinition(
             "moduleName",
             "模块名称",
             "表示这条合并请求所属的功能模块。",
@@ -761,7 +779,7 @@ public class CodeReviewIllegalRecordService {
             "scanStatus",
             "代码扫描结果",
             "表示这条合并请求是否已经完成静态扫描，以及静态扫描问题是否已经清理。",
-            "未进行代码扫描 = 明确标记为未扫描；静态扫描问题未关闭 = 扫描问题数大于 0 或结果字段为对应老平台值",
+            "未进行代码扫描 = 事实字段明确标记为未扫描；筛选入参同时兼容老平台下拉值“未代码扫描”。静态扫描问题未关闭 = 扫描问题数大于 0 或结果字段为对应老平台值",
             "只有事实层中已经带出扫描状态时，才会命中这类非法规则。"),
         new StatisticRuleMetricDefinition(
             "commentRate",
@@ -827,6 +845,7 @@ public class CodeReviewIllegalRecordService {
         row.assigneeNames(),
         row.reviewStatus(),
         row.reviewDurationMinutes(),
+        row.codeWalkthroughDate(),
         row.scanStatus(),
         row.scanBugCount(),
         row.annotationRateResult(),

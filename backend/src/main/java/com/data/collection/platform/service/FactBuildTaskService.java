@@ -81,8 +81,7 @@ public class FactBuildTaskService {
     }
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     return enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, syncRunId)
-        + enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId)
-        + enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full, syncRunId);
+        + enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId);
   }
 
   public int recoverTimedOutQueuedTasks() {
@@ -428,7 +427,7 @@ public class FactBuildTaskService {
   private String normalizeBaseScope(String normalized) {
     return switch (normalized) {
       case "merge_request" -> "merge-request";
-      case "issue", "merge-request", "integration-test", "all" -> normalized;
+      case "issue", "merge-request", "all" -> normalized;
       default -> "all";
     };
   }
@@ -437,7 +436,6 @@ public class FactBuildTaskService {
     String baseScope = switch (factType.toUpperCase(Locale.ROOT)) {
       case "ISSUE" -> "issue";
       case "MERGE_REQUEST" -> "merge-request";
-      case "INTEGRATION_TEST" -> "integration-test";
       default -> "all";
     };
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);

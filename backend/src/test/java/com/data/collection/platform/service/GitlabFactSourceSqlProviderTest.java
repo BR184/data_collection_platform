@@ -28,6 +28,10 @@ class GitlabFactSourceSqlProviderTest {
         .contains("from ods_gitlab_merge_requests mr")
         .contains("from code_review_external_metrics m")
         .contains("from collect_form_records f")
+        .contains("from ods_gitlab_notes n")
+        .contains("n.noteable_type = 'MergeRequest'")
+        .contains("## 代码走查数据")
+        .contains("code_walkthrough_date")
         .contains("ll.target_type = 'MergeRequest'");
   }
 }
