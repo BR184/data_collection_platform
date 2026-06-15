@@ -64,6 +64,7 @@ const router = useRouter();
 const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
 const lastAutoRefreshAt = ref(0);
 const issueExportLoading = ref(false);
+const customerIssueExportLoading = ref(false);
 const horizontalComparisonExportLoading = ref(false);
 const {
   autoRefreshOnEnter,
@@ -115,6 +116,17 @@ const {
 });
 
 const extraToolbarActions = computed<StatisticBoardToolbarAction[]>(() => {
+  if (props.boardKey === 'customer-issue-defect-summary') {
+    return [
+      {
+        key: 'export-customer-issues',
+        label: '下载议题数据',
+        icon: Download,
+        loading: customerIssueExportLoading.value,
+        plain: true,
+      },
+    ];
+  }
   if (props.boardKey !== 'system-test-defect-summary') {
     return [];
   }
@@ -332,12 +344,32 @@ async function applyFiltersToRoute() {
 }
 
 async function handleExtraAction(actionKey: string) {
+  if (actionKey === 'export-customer-issues') {
+    await exportCustomerIssues();
+    return;
+  }
   if (actionKey === 'export-system-test-issues') {
     await exportSystemTestIssues();
     return;
   }
   if (actionKey === 'export-system-test-horizontal-comparison') {
     await exportSystemTestHorizontalComparison();
+  }
+}
+
+async function exportCustomerIssues() {
+  customerIssueExportLoading.value = true;
+  try {
+    const csv = await api.exportCustomerIssueRecords({
+      topic: 'cc-product',
+      filterGroup: buildFilterPayload(),
+    });
+    downloadCsv(csv, `客户问题全量议题数据_${formatExportFileDate(new Date())}.csv`);
+    ElMessage.success('议题数据导出成功');
+  } catch (error) {
+    ElMessage.error((error as Error).message);
+  } finally {
+    customerIssueExportLoading.value = false;
   }
 }
 
