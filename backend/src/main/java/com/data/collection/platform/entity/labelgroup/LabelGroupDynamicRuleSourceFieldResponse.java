@@ -1,5 +1,6 @@
 package com.data.collection.platform.entity.labelgroup;
 
+import com.data.collection.platform.entity.OptionItemResponse;
 import java.util.List;
 
 public record LabelGroupDynamicRuleSourceFieldResponse(
@@ -10,4 +11,6 @@ public record LabelGroupDynamicRuleSourceFieldResponse(
     boolean filterSupported,
     boolean groupSupported,
     boolean aggregateSupported,
-    List<String> operators) {}
+    List<String> operators,
+    String candidateMode,
+    List<OptionItemResponse> candidateValues) {}

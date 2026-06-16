@@ -14,6 +14,7 @@ const props = withDefaults(
     compact?: boolean;
     disabled?: boolean;
     loading?: boolean;
+    allowCreate?: boolean;
   }>(),
   {
     placeholder: '',
@@ -23,6 +24,7 @@ const props = withDefaults(
     compact: false,
     disabled: false,
     loading: false,
+    allowCreate: false,
   },
 );
 
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: string | string[]): void;
   (event: 'change', value: string | string[]): void;
   (event: 'visible-change', value: boolean): void;
+  (event: 'search', value: string): void;
 }>();
 
 const query = ref('');
@@ -72,6 +75,7 @@ const selectClass = computed(() => {
 
 function handleFilter(keyword: string) {
   query.value = keyword;
+  emit('search', keyword);
 }
 
 function handleVisibleChange(visible: boolean) {
@@ -108,6 +112,8 @@ function isOptionSelected(value: string) {
     collapse-tags-tooltip
     :disabled="disabled"
     :loading="loading"
+    :allow-create="allowCreate"
+    :default-first-option="allowCreate"
     :fit-input-width="compact && multiple"
     :popper-class="popperClass"
     @change="handleChange"

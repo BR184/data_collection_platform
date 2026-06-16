@@ -45,6 +45,8 @@ export interface RuleSourceFieldOption {
   filterSupported: boolean;
   groupSupported: boolean;
   aggregateSupported: boolean;
+  candidateMode: 'NONE' | 'STATIC' | 'DISTINCT';
+  candidateValues: Array<{ label: string; value: string }>;
 }
 
 export interface RuleConditionFormState {

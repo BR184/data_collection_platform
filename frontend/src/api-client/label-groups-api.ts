@@ -53,6 +53,16 @@ export const labelGroupsApi = {
   listDynamicRuleRelations() {
     return request<LabelGroupDynamicRuleRelation[]>('/api/label-groups/dynamic-rule-relations');
   },
+  listDynamicRuleFieldCandidates(sourceKey: string, fieldKey: string, params: LabelValueQueryParams = {}) {
+    const query = new URLSearchParams({
+      page: String(params.page ?? 1),
+      size: String(params.size ?? 50),
+      ...(params.keyword ? { keyword: params.keyword } : {}),
+    });
+    return request<LabelValuePage>(
+      `/api/label-groups/dynamic-rule-sources/${encodeURIComponent(sourceKey)}/fields/${encodeURIComponent(fieldKey)}/candidates?${query.toString()}`,
+    );
+  },
   previewDynamicRule(payload: LabelGroupDynamicRulePreviewRequest) {
     return request<LabelGroupDynamicRulePreview>('/api/label-groups/dynamic-rule-preview', {
       method: 'POST',

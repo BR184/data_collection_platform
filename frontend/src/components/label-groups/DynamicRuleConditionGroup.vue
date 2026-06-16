@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, reactive } from 'vue';
 import { Delete, Plus } from '@element-plus/icons-vue';
+import { labelGroupsApi } from '../../api-client/label-groups-api';
 import SmartSelect from '../base/SmartSelect.vue';
 import type { LabelGroupDynamicRuleSource } from '../../types/api';
 import type {
@@ -33,6 +34,9 @@ const props = withDefaults(defineProps<{
 
 defineOptions({ name: 'DynamicRuleConditionGroup' });
 
+const candidateOptionsByKey = reactive<Record<string, RecordTableFilterOption[]>>({});
+const candidateLoadingByKey = reactive<Record<string, boolean>>({});
+
 const sourceOptions = computed<RecordTableFilterOption[]>(() =>
   props.sources.map((source) => ({ label: source.name, value: source.key })),
 );
@@ -53,6 +57,8 @@ function sourceFieldOptions(sourceKey: string): RuleSourceFieldOption[] {
     filterSupported: field.filterSupported,
     groupSupported: field.groupSupported,
     aggregateSupported: field.aggregateSupported,
+    candidateMode: field.candidateMode ?? 'NONE',
+    candidateValues: field.candidateValues ?? [],
   })).filter((field) => field.filterSupported);
 }
 
@@ -110,6 +116,7 @@ function handleFieldChange(condition: RuleConditionFormState, value: string | st
   condition.value = '';
   condition.secondValue = '';
   condition.valuesText = '';
+  void ensureCandidateOptions(condition);
 }
 
 function handleAggregateChange(condition: RuleConditionFormState, value: string | string[]) {
@@ -124,6 +131,7 @@ function handleOperatorChange(condition: RuleConditionFormState, value: string |
   condition.value = '';
   condition.secondValue = '';
   condition.valuesText = '';
+  void ensureCandidateOptions(condition);
 }
 
 function needsValue(condition: RuleConditionFormState) {
@@ -136,6 +144,79 @@ function usesSecondValue(condition: RuleConditionFormState) {
 
 function usesMultiValue(condition: RuleConditionFormState) {
   return condition.operator === 'in';
+}
+
+function usesCandidateSelect(condition: RuleConditionFormState) {
+  if (props.aggregateMode || !needsValue(condition) || usesDatePicker(condition) || usesNumberInput(condition)) {
+    return false;
+  }
+  const field = currentField(condition);
+  return Boolean(field && field.candidateMode !== 'NONE' && ['eq', 'ne', 'in', 'contains', 'notContains'].includes(condition.operator));
+}
+
+function candidateSelectValue(condition: RuleConditionFormState) {
+  return usesMultiValue(condition) ? splitValuesText(condition.valuesText) : condition.value;
+}
+
+function handleCandidateValueChange(condition: RuleConditionFormState, value: string | string[]) {
+  if (usesMultiValue(condition)) {
+    condition.valuesText = (Array.isArray(value) ? value : [value]).filter(Boolean).join('\n');
+    return;
+  }
+  condition.value = String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
+}
+
+function candidateOptions(condition: RuleConditionFormState) {
+  const key = candidateCacheKey(condition);
+  const cached = key ? candidateOptionsByKey[key] ?? [] : [];
+  if (cached.length || !key) {
+    return cached;
+  }
+  const field = currentField(condition);
+  return field?.candidateValues ?? [];
+}
+
+function candidateLoading(condition: RuleConditionFormState) {
+  const key = candidateCacheKey(condition);
+  return key ? Boolean(candidateLoadingByKey[key]) : false;
+}
+
+async function handleCandidateSearch(condition: RuleConditionFormState, keyword: string) {
+  await loadCandidateOptions(condition, keyword);
+}
+
+async function ensureCandidateOptions(condition: RuleConditionFormState) {
+  if (!usesCandidateSelect(condition)) {
+    return;
+  }
+  const key = candidateCacheKey(condition);
+  if (!key || candidateOptionsByKey[key]?.length) {
+    return;
+  }
+  await loadCandidateOptions(condition, '');
+}
+
+async function loadCandidateOptions(condition: RuleConditionFormState, keyword: string) {
+  const key = candidateCacheKey(condition);
+  const field = currentField(condition);
+  if (!key || !field || field.candidateMode === 'NONE') {
+    return;
+  }
+  if (field.candidateMode === 'STATIC') {
+    candidateOptionsByKey[key] = field.candidateValues.filter((option) => matchesCandidate(option, keyword));
+    return;
+  }
+  candidateLoadingByKey[key] = true;
+  try {
+    const response = await labelGroupsApi.listDynamicRuleFieldCandidates(condition.sourceKey, condition.fieldKey, {
+      keyword,
+      page: 1,
+      size: 50,
+    });
+    candidateOptionsByKey[key] = response.items.map((item) => ({ label: item.label, value: item.value }));
+  } finally {
+    candidateLoadingByKey[key] = false;
+  }
 }
 
 function usesDatePicker(condition: RuleConditionFormState) {
@@ -180,6 +261,21 @@ function numberOperatorOptions() {
     label: operatorLabel(operator),
     value: operator,
   }));
+}
+
+function candidateCacheKey(condition: RuleConditionFormState) {
+  return condition.sourceKey && condition.fieldKey ? `${condition.sourceKey}:${condition.fieldKey}` : '';
+}
+
+function splitValuesText(valuesText: string) {
+  return valuesText.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
+  const normalized = keyword.trim().toLowerCase();
+  return !normalized
+    || option.label.toLowerCase().includes(normalized)
+    || option.value.toLowerCase().includes(normalized);
 }
 </script>
 
@@ -239,8 +335,23 @@ function numberOperatorOptions() {
           @change="handleOperatorChange(condition, $event)"
         />
         <template v-if="needsValue(condition)">
+          <SmartSelect
+            v-if="usesCandidateSelect(condition)"
+            :model-value="candidateSelectValue(condition)"
+            class="condition-value"
+            placeholder="选择值"
+            :options="candidateOptions(condition)"
+            :multiple="usesMultiValue(condition)"
+            :collapse-tags="usesMultiValue(condition)"
+            :compact="usesMultiValue(condition)"
+            :allow-create="condition.operator === 'contains' || condition.operator === 'notContains'"
+            :loading="candidateLoading(condition)"
+            @visible-change="($event) => $event && ensureCandidateOptions(condition)"
+            @search="handleCandidateSearch(condition, $event)"
+            @change="handleCandidateValueChange(condition, $event)"
+          />
           <el-input
-            v-if="usesMultiValue(condition)"
+            v-else-if="usesMultiValue(condition)"
             v-model="condition.valuesText"
             class="condition-value"
             placeholder="多个值，用逗号或换行分隔"

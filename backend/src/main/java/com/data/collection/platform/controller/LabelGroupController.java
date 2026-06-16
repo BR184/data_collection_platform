@@ -15,6 +15,7 @@ import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCandidateService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleEvaluationService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCatalogService;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
@@ -39,6 +40,7 @@ public class LabelGroupController {
   private final LabelGroupService labelGroupService;
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final LabelGroupDynamicRuleCatalogService dynamicRuleCatalogService;
+  private final LabelGroupDynamicRuleCandidateService dynamicRuleCandidateService;
   private final LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
 
   public LabelGroupController(
@@ -47,12 +49,14 @@ public class LabelGroupController {
       LabelGroupService labelGroupService,
       LabelGroupExpansionService labelGroupExpansionService,
       LabelGroupDynamicRuleCatalogService dynamicRuleCatalogService,
+      LabelGroupDynamicRuleCandidateService dynamicRuleCandidateService,
       LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService) {
     this.labelDimensionCatalogService = labelDimensionCatalogService;
     this.labelValueQueryService = labelValueQueryService;
     this.labelGroupService = labelGroupService;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.dynamicRuleCatalogService = dynamicRuleCatalogService;
+    this.dynamicRuleCandidateService = dynamicRuleCandidateService;
     this.dynamicRuleEvaluationService = dynamicRuleEvaluationService;
   }
 
@@ -135,6 +139,17 @@ public class LabelGroupController {
   @GetMapping("/dynamic-rule-relations")
   public ApiResponse<List<LabelGroupDynamicRuleRelationResponse>> listDynamicRuleRelations() {
     return ApiResponse.success(dynamicRuleCatalogService.listRelations());
+  }
+
+  @GetMapping("/dynamic-rule-sources/{sourceKey}/fields/{fieldKey}/candidates")
+  public ApiResponse<LabelValuePageResponse> listDynamicRuleFieldCandidates(
+      @PathVariable String sourceKey,
+      @PathVariable String fieldKey,
+      @RequestParam(required = false) String keyword,
+      @RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "50") int size) {
+    return ApiResponse.success(
+        dynamicRuleCandidateService.listCandidates(sourceKey, fieldKey, keyword, page, size));
   }
 
   @PostMapping("/dynamic-rule-preview")

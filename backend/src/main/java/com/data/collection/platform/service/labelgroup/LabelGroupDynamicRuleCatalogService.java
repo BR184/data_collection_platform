@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.labelgroup;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRelationResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourceFieldResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourceResponse;
@@ -20,6 +21,9 @@ public class LabelGroupDynamicRuleCatalogService {
   static final String VALUE_NUMBER = "NUMBER";
   static final String VALUE_DATE = "DATE";
   static final String VALUE_BOOLEAN = "BOOLEAN";
+  static final String CANDIDATE_NONE = "NONE";
+  static final String CANDIDATE_STATIC = "STATIC";
+  static final String CANDIDATE_DISTINCT = "DISTINCT";
 
   private static final List<String> TEXT_OPERATORS =
       List.of("eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in");
@@ -54,7 +58,9 @@ public class LabelGroupDynamicRuleCatalogService {
                     field.filterSupported(),
                     field.groupSupported(),
                     field.aggregateSupported(),
-                    operatorsFor(field.valueType())))
+                    operatorsFor(field.valueType()),
+                    field.candidateMode(),
+                    field.staticCandidates()))
                 .toList()))
         .toList();
   }
@@ -72,7 +78,7 @@ public class LabelGroupDynamicRuleCatalogService {
         .toList();
   }
 
-  DynamicRuleSourceDefinition requireSource(String sourceKey) {
+  public DynamicRuleSourceDefinition requireSource(String sourceKey) {
     String key = requireKey(sourceKey, "数据源不能为空");
     DynamicRuleSourceDefinition source = sourceByKey.get(key);
     if (source == null) {
@@ -81,7 +87,7 @@ public class LabelGroupDynamicRuleCatalogService {
     return source;
   }
 
-  DynamicRuleFieldDefinition requireField(String sourceKey, String fieldKey) {
+  public DynamicRuleFieldDefinition requireField(String sourceKey, String fieldKey) {
     DynamicRuleSourceDefinition source = requireSource(sourceKey);
     String key = requireKey(fieldKey, "字段不能为空");
     DynamicRuleFieldDefinition field = source.fields().get(key);
@@ -144,15 +150,15 @@ public class LabelGroupDynamicRuleCatalogService {
         "review_records",
         List.of(
             field("id", "记录ID", "id", VALUE_NUMBER, false, true, true, true),
-            field("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
+            candidateField("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
             field("title", "标题", "title", VALUE_STRING, true, true, true, false),
-            field("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
-            field("reviewType", "评审类型", "review_type", VALUE_STRING, true, true, true, false),
+            candidateField("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
+            candidateField("reviewType", "评审类型", "review_type", VALUE_STRING, true, true, true, false),
             field("reviewDate", "评审日期", "review_date", VALUE_DATE, true, true, true, false),
-            field("reviewOwner", "评审负责人", "review_owner", VALUE_STRING, true, true, true, false),
+            candidateField("reviewOwner", "评审负责人", "review_owner", VALUE_STRING, true, true, true, false),
             field("reviewScalePages", "评审规模", "review_scale_pages", VALUE_NUMBER, true, true, true, true),
-            field("authorName", "作者", "author_name", VALUE_STRING, true, true, true, false),
-            field("reviewVersion", "评审版本", "review_version", VALUE_STRING, true, true, true, false),
+            candidateField("authorName", "作者", "author_name", VALUE_STRING, true, true, true, false),
+            candidateField("reviewVersion", "评审版本", "review_version", VALUE_STRING, true, true, true, false),
             field("updatedAt", "更新时间", "updated_at", VALUE_DATE, false, true, false, false))));
     put(sources, source(
         "review_problem_items",
@@ -162,12 +168,12 @@ public class LabelGroupDynamicRuleCatalogService {
         List.of(
             field("id", "问题项ID", "id", VALUE_NUMBER, false, true, true, true),
             field("reviewRecordId", "评审记录ID", "review_record_id", VALUE_NUMBER, false, true, true, true),
-            field("reviewerName", "评审人", "reviewer_name", VALUE_STRING, true, true, true, false),
+            candidateField("reviewerName", "评审人", "reviewer_name", VALUE_STRING, true, true, true, false),
             field("workloadHours", "工作量", "workload_hours", VALUE_NUMBER, true, true, true, true),
-            field("reviewCategory", "评审类别", "review_category", VALUE_STRING, true, true, true, false),
-            field("problemCategory", "问题类别", "problem_category", VALUE_STRING, true, true, true, false),
-            field("ownerName", "责任人", "owner_name", VALUE_STRING, true, true, true, false),
-            field("problemStatus", "问题状态", "problem_status", VALUE_STRING, true, true, true, false),
+            candidateField("reviewCategory", "评审类别", "review_category", VALUE_STRING, true, true, true, false),
+            candidateField("problemCategory", "问题类别", "problem_category", VALUE_STRING, true, true, true, false),
+            candidateField("ownerName", "责任人", "owner_name", VALUE_STRING, true, true, true, false),
+            candidateField("problemStatus", "问题状态", "problem_status", VALUE_STRING, true, true, true, false),
             field("updatedAt", "更新时间", "updated_at", VALUE_DATE, false, true, false, false))));
     put(sources, source(
         "issue_fact",
@@ -176,21 +182,25 @@ public class LabelGroupDynamicRuleCatalogService {
         "issue_fact",
         List.of(
             field("projectId", "项目ID", "project_id", VALUE_NUMBER, true, true, true, true),
-            field("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
+            candidateField("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
             field("issueIid", "议题IID", "issue_iid", VALUE_NUMBER, true, true, true, true),
             field("title", "标题", "title", VALUE_STRING, true, true, true, false),
-            field("issueState", "状态", "issue_state", VALUE_STRING, true, true, true, false),
-            field("milestoneTitle", "里程碑", "milestone_title", VALUE_STRING, true, true, true, false),
-            field("authorName", "作者", "author_name", VALUE_STRING, true, true, true, false),
-            field("assigneeName", "处理人", "assignee_name", VALUE_STRING, true, true, true, false),
+            candidateField("issueState", "状态", "issue_state", VALUE_STRING, true, true, true, false),
+            candidateField("milestoneTitle", "里程碑", "milestone_title", VALUE_STRING, true, true, true, false),
+            candidateField("authorName", "作者", "author_name", VALUE_STRING, true, true, true, false),
+            candidateField("assigneeName", "处理人", "assignee_name", VALUE_STRING, true, true, true, false),
             field("createdAt", "创建时间", "created_at_source", VALUE_DATE, true, true, true, false),
             field("updatedAt", "更新时间", "updated_at_source", VALUE_DATE, true, true, true, false),
-            field("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
-            field("severityLevel", "严重程度", "severity_level", VALUE_STRING, true, true, true, false),
-            field("priorityLevel", "优先级", "priority_level", VALUE_STRING, true, true, true, false),
-            field("testingPhase", "测试阶段", "testing_phase", VALUE_STRING, true, true, true, false),
-            field("isIllegal", "是否非法", "is_illegal", VALUE_BOOLEAN, true, true, true, false),
-            field("delayIssue", "是否延期", "delay_issue", VALUE_BOOLEAN, true, true, true, false))));
+            candidateField("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
+            staticField("severityLevel", "严重程度", "severity_level", VALUE_STRING, true, true, true, false,
+                "一级缺陷", "二级缺陷", "三级缺陷"),
+            staticField("priorityLevel", "优先级", "priority_level", VALUE_STRING, true, true, true, false,
+                "P1", "P2", "P3"),
+            candidateField("testingPhase", "测试阶段", "testing_phase", VALUE_STRING, true, true, true, false),
+            staticField("isIllegal", "是否非法", "is_illegal", VALUE_BOOLEAN, true, true, true, false,
+                "true", "false"),
+            staticField("delayIssue", "是否延期", "delay_issue", VALUE_BOOLEAN, true, true, true, false,
+                "true", "false"))));
     put(sources, source(
         "merge_request_fact",
         "代码走查 MR",
@@ -198,18 +208,18 @@ public class LabelGroupDynamicRuleCatalogService {
         "merge_request_fact",
         List.of(
             field("projectId", "项目ID", "project_id", VALUE_NUMBER, true, true, true, true),
-            field("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
-            field("repositoryName", "仓库", "repository_name", VALUE_STRING, true, true, true, false),
+            candidateField("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
+            candidateField("repositoryName", "仓库", "repository_name", VALUE_STRING, true, true, true, false),
             field("mergeRequestIid", "MR IID", "merge_request_iid", VALUE_NUMBER, true, true, true, true),
             field("title", "标题", "title", VALUE_STRING, true, true, true, false),
-            field("state", "MR 状态", "merge_request_state", VALUE_STRING, true, true, true, false),
-            field("targetBranch", "目标分支", "target_branch", VALUE_STRING, true, true, true, false),
-            field("authorName", "作者", "author_name", VALUE_STRING, true, true, true, false),
-            field("mergeUserName", "合并人", "merge_user_name", VALUE_STRING, true, true, true, false),
-            field("ownerName", "负责人", "owner_name", VALUE_STRING, true, true, true, false),
-            field("reviewerNames", "审查人", "reviewer_names", VALUE_STRING, true, true, true, false),
-            field("assigneeNames", "指派人", "assignee_names", VALUE_STRING, true, true, true, false),
-            field("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
+            candidateField("state", "MR 状态", "merge_request_state", VALUE_STRING, true, true, true, false),
+            candidateField("targetBranch", "目标分支", "target_branch", VALUE_STRING, true, true, true, false),
+            candidateField("authorName", "作者", "author_name", VALUE_STRING, true, true, true, false),
+            candidateField("mergeUserName", "合并人", "merge_user_name", VALUE_STRING, true, true, true, false),
+            candidateField("ownerName", "负责人", "owner_name", VALUE_STRING, true, true, true, false),
+            candidateField("reviewerNames", "审查人", "reviewer_names", VALUE_STRING, true, true, true, false),
+            candidateField("assigneeNames", "指派人", "assignee_names", VALUE_STRING, true, true, true, false),
+            candidateField("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
             field("createdAt", "创建时间", "created_at_source", VALUE_DATE, true, true, true, false),
             field("updatedAt", "更新时间", "updated_at_source", VALUE_DATE, true, true, true, false),
             field("mergedAt", "合并时间", "merged_at_source", VALUE_DATE, true, true, true, false),
@@ -251,7 +261,61 @@ public class LabelGroupDynamicRuleCatalogService {
       boolean groupSupported,
       boolean aggregateSupported) {
     return new DynamicRuleFieldDefinition(
-        key, name, columnName, valueType, outputSupported, filterSupported, groupSupported, aggregateSupported);
+        key,
+        name,
+        columnName,
+        valueType,
+        outputSupported,
+        filterSupported,
+        groupSupported,
+        aggregateSupported,
+        CANDIDATE_NONE,
+        List.of());
+  }
+
+  private DynamicRuleFieldDefinition candidateField(
+      String key,
+      String name,
+      String columnName,
+      String valueType,
+      boolean outputSupported,
+      boolean filterSupported,
+      boolean groupSupported,
+      boolean aggregateSupported) {
+    return new DynamicRuleFieldDefinition(
+        key,
+        name,
+        columnName,
+        valueType,
+        outputSupported,
+        filterSupported,
+        groupSupported,
+        aggregateSupported,
+        CANDIDATE_DISTINCT,
+        List.of());
+  }
+
+  private DynamicRuleFieldDefinition staticField(
+      String key,
+      String name,
+      String columnName,
+      String valueType,
+      boolean outputSupported,
+      boolean filterSupported,
+      boolean groupSupported,
+      boolean aggregateSupported,
+      String... values) {
+    return new DynamicRuleFieldDefinition(
+        key,
+        name,
+        columnName,
+        valueType,
+        outputSupported,
+        filterSupported,
+        groupSupported,
+        aggregateSupported,
+        CANDIDATE_STATIC,
+        java.util.Arrays.stream(values).map(value -> new OptionItemResponse(value, value)).toList());
   }
 
   private DynamicRuleRelationDefinition relation(
@@ -291,14 +355,14 @@ public class LabelGroupDynamicRuleCatalogService {
     return leftSourceKey + "." + leftFieldKey + " = " + rightSourceKey + "." + rightFieldKey;
   }
 
-  record DynamicRuleSourceDefinition(
+  public record DynamicRuleSourceDefinition(
       String key,
       String name,
       String description,
       String tableName,
       Map<String, DynamicRuleFieldDefinition> fields) {}
 
-  record DynamicRuleFieldDefinition(
+  public record DynamicRuleFieldDefinition(
       String key,
       String name,
       String columnName,
@@ -306,7 +370,9 @@ public class LabelGroupDynamicRuleCatalogService {
       boolean outputSupported,
       boolean filterSupported,
       boolean groupSupported,
-      boolean aggregateSupported) {}
+      boolean aggregateSupported,
+      String candidateMode,
+      List<OptionItemResponse> staticCandidates) {}
 
   record DynamicRuleRelationDefinition(
       String name,

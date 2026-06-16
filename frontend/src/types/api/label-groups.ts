@@ -125,6 +125,8 @@ export interface LabelGroupDynamicRuleSourceField {
   groupSupported: boolean;
   aggregateSupported: boolean;
   operators: string[];
+  candidateMode: 'NONE' | 'STATIC' | 'DISTINCT';
+  candidateValues: Array<{ label: string; value: string }>;
 }
 
 export interface LabelGroupDynamicRuleSource {
