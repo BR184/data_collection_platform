@@ -5,7 +5,7 @@ import type {
   StatisticDetailResponse,
   StatisticFilterGroup,
 } from '../types/api';
-import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob, requestText } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 export interface StatisticBoardQueryParams {
@@ -62,6 +62,12 @@ export const statisticBoardsApi = {
   },
   async exportStatisticBoard(boardKey: string, params?: StatisticBoardQueryParams) {
     return requestText(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`, {
+      errorPrefix: '导出失败',
+      timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+    });
+  },
+  async exportStatisticBoardFile(boardKey: string, params?: StatisticBoardQueryParams) {
+    return requestBlob(`/api/statistic-boards/${boardKey}/export${buildStatisticBoardQuery(params)}`, {
       errorPrefix: '导出失败',
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });

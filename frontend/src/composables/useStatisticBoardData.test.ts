@@ -39,9 +39,9 @@ function setup() {
         conditions: [{ fieldKey: 'moduleName', operator: 'eq' as const, value: 'module-a' }],
       })),
       loadBoardData: vi.fn(async () => board),
-      exportBoardCsv: vi.fn(async () => '项目,阻塞数\nmodule-a,1'),
+      exportBoardFile: vi.fn(async () => new Blob(['项目,阻塞数\nmodule-a,1'], { type: 'text/csv' })),
       onBoardLoaded: vi.fn<(response: StatisticBoardResponse) => void>(),
-      downloadCsv: vi.fn<(csv: string, filename: string) => void>(),
+      downloadFile: vi.fn<(blob: Blob, filename: string) => void>(),
       notifySuccess: vi.fn<(message: string) => void>(),
       notifyError: vi.fn<(message: string) => void>(),
     },
@@ -85,19 +85,19 @@ describe('useStatisticBoardData', () => {
     expect(deps.notifyError).toHaveBeenCalledWith('再次失败');
   });
 
-  it('exports the current board as a csv file', async () => {
+  it('exports the current board as a file', async () => {
     const { deps } = setup();
     const state = useStatisticBoardData(deps);
 
     await state.exportBoard();
 
-    expect(deps.exportBoardCsv).toHaveBeenCalledWith('code-review', {
+    expect(deps.exportBoardFile).toHaveBeenCalledWith('code-review', {
       filterGroup: {
         logic: 'AND',
         conditions: [{ fieldKey: 'moduleName', operator: 'eq', value: 'module-a' }],
       },
     });
-    expect(deps.downloadCsv).toHaveBeenCalledWith('项目,阻塞数\nmodule-a,1', 'code-review.csv');
+    expect(deps.downloadFile).toHaveBeenCalledWith(expect.any(Blob), 'code-review.csv');
     expect(deps.notifySuccess).toHaveBeenCalledWith('导出成功');
   });
 });

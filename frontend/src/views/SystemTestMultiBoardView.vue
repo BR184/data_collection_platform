@@ -266,8 +266,8 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
         <article class="system-test-multi-board__panel">
           <div class="system-test-multi-board__panel-head">
             <div>
-              <h3>缺陷原因占比</h3>
-              <p>优先看原因结构，不先看长表格。</p>
+              <h3>缺陷原因分析</h3>
+              <p>按缺陷原因拆分一级、二级、三级和建议数量。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.causePath }).href">
               原因分析页

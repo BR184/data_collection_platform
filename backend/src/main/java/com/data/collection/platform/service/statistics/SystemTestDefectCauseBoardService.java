@@ -25,19 +25,34 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -45,7 +60,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
+    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport {
   private static final String BOARD_KEY = "system-test-defect-cause";
   private static final String RULE_VERSION = "system-test-defect-cause@2026-04-22-v1";
   private static final String TOTAL_ROW_KEY = "__total__";
@@ -56,6 +71,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试)");
+  private static final String NOTE_SEPARATOR = "\\R---\\R";
   private static final String PHASE_OPTION_SQL = """
       select coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
@@ -69,7 +85,11 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
              closed_at_source as closed_at, coalesce(issue_state,'opened') as issue_state,
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
+             coalesce(severity_level,'') as severity_level,
+             coalesce(category,'') as category,
+             coalesce(is_excluded,false) as is_excluded,
              coalesce(reason_category,'') as reason_category,
+             coalesce(raw_payload,'') as reason_text,
              coalesce(module_names,'') as module_names,
              coalesce(label_names,'') as label_names
         from issue_fact
@@ -88,12 +108,30 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
           new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
   private static final List<CauseMetricDefinition> CAUSE_METRICS =
       List.of(
-          new CauseMetricDefinition("requirement_understanding", "需求理解偏差", "需求问题", "需求理解偏差"),
-          new CauseMetricDefinition("new_requirement", "新增需求", "需求问题", "新增需求"),
-          new CauseMetricDefinition("implementation_logic", "编码逻辑错误", "实现问题", "编码逻辑错误"),
-          new CauseMetricDefinition("environment_deployment", "环境部署问题", "环境与部署", "环境部署问题"),
-          new CauseMetricDefinition("algorithm_mechanism", "算法机制不支持", "环境与部署", "算法机制不支持"),
-          new CauseMetricDefinition("other_reason", "其他原因", "环境与部署", null));
+          new CauseMetricDefinition("demand_misunderstand", "新增理解偏差", "需求问题", List.of("新增理解偏差", "新增理解偏差数量", "需求理解有误", "需求理解有误数量")),
+          new CauseMetricDefinition("missing_requirement", "需求遗漏", "需求问题", List.of("需求遗漏", "需求遗漏数量")),
+          new CauseMetricDefinition("add_demand_2", "新增需求", "需求问题", List.of("新增需求", "新增需求数量", "新增需求问题", "新增需求问题数量")),
+          new CauseMetricDefinition("demand_change_not_sync", "需求变更未同步", "需求问题", List.of("需求变更未同步", "需求变更未同步数量")),
+          new CauseMetricDefinition("design_forget", "功能设计遗漏", "设计问题", List.of("功能设计遗漏", "功能设计遗漏数量")),
+          new CauseMetricDefinition("design_scheme", "设计方案不合理", "设计问题", List.of("设计方案不合理", "设计方案不合理数量")),
+          new CauseMetricDefinition("incomplete", "场景考虑不全", "设计问题", List.of("场景考虑不全", "场景考虑不全数量")),
+          new CauseMetricDefinition("prompt_message", "术语、提示信息不合适", "设计问题", List.of("术语、提示信息不合适", "提示信息不合理")),
+          new CauseMetricDefinition("standard_error", "编码规范错误", "编码规范", List.of("编码规范错误", "编码规范错误数量")),
+          new CauseMetricDefinition("function_forget", "功能编码遗漏", "编码规范", List.of("功能编码遗漏", "功能编码遗漏数量")),
+          new CauseMetricDefinition("logic_calculation_algorithm_error", "编码逻辑：计算与算法错误", "编码规范", List.of("编码逻辑：计算与算法错误")),
+          new CauseMetricDefinition("logic_flow_control_error", "编码逻辑：流程控制错误", "编码规范", List.of("编码逻辑：流程控制错误")),
+          new CauseMetricDefinition("logic_data_state_process_error", "编码逻辑：数据与状态处理错误", "编码规范", List.of("编码逻辑：数据与状态处理错误")),
+          new CauseMetricDefinition("logic_business_logic_error", "编码逻辑：业务逻辑错误", "编码规范", List.of("编码逻辑：业务逻辑错误", "编码逻辑错误")),
+          new CauseMetricDefinition("logic_integration_interface_error", "编码逻辑：集成与接口错误", "编码规范", List.of("编码逻辑：集成与接口错误", "调用接口错误")),
+          new CauseMetricDefinition("environment_config_issue", "环境配置问题", "打包问题", List.of("环境配置问题")),
+          new CauseMetricDefinition("compilation_package_deployment_issue", "编译/打包/部署问题", "打包问题", List.of("编译/打包/部署问题", "编译打包问题")),
+          new CauseMetricDefinition("other_thirdParty", "第三方库问题", "依赖问题", List.of("第三方库问题")),
+          new CauseMetricDefinition("algorithm_not_support", "算法不支持", "依赖问题", List.of("算法不支持")),
+          new CauseMetricDefinition("mechanism_not_support", "机制不支持", "依赖问题", List.of("机制不支持", "算法/机制不支持")),
+          new CauseMetricDefinition("precondition_data_exception", "前置数据异常", "依赖问题", List.of("前置数据异常", "前置数据异常（如缺少模板文件、前置输入文件本身错误等）")),
+          new CauseMetricDefinition("other_unIdentifyTask", "未识别的前后置任务", "依赖问题", List.of("未识别的前后置任务")),
+          new CauseMetricDefinition("precision_constraint_exception", "精度导致约束求解异常", "精度问题", List.of("精度导致约束求解异常")),
+          new CauseMetricDefinition("precision_algorithm_exception", "精度导致算法执行异常", "精度问题", List.of("精度导致算法执行异常")));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
@@ -140,16 +178,27 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
                 "requirement-problem",
                 "需求问题",
                 List.of(
-                    group("requirement-basic", "需求归类", List.of("requirement_understanding", "new_requirement")))),
+                    group("requirement-basic", "需求归类", List.of("demand_misunderstand", "missing_requirement", "add_demand_2", "demand_change_not_sync")))),
             StatisticColumnGroup.withChildren(
-                "implementation-problem",
-                "实现问题",
-                List.of(group("implementation-basic", "实现归类", List.of("implementation_logic")))),
+                "design-problem",
+                "设计问题",
+                List.of(group("design-basic", "设计归类", List.of("design_forget", "design_scheme", "incomplete", "prompt_message")))),
             StatisticColumnGroup.withChildren(
-                "environment-problem",
-                "环境与部署",
-                List.of(group("environment-basic", "环境归类", List.of("environment_deployment", "algorithm_mechanism", "other_reason")))),
-            new StatisticColumnGroup("summary", "汇总", List.of(leaf("total", "总计", true, "count")))),
+                "code-problem",
+                "编码规范",
+                List.of(group("code-basic", "编码归类", List.of("standard_error", "function_forget", "logic_calculation_algorithm_error", "logic_flow_control_error", "logic_data_state_process_error", "logic_business_logic_error", "logic_integration_interface_error")))),
+            StatisticColumnGroup.withChildren(
+                "package-problem",
+                "打包问题",
+                List.of(group("package-basic", "打包归类", List.of("environment_config_issue", "compilation_package_deployment_issue")))),
+            StatisticColumnGroup.withChildren(
+                "dependency-problem",
+                "依赖问题",
+                List.of(group("dependency-basic", "依赖归类", List.of("other_thirdParty", "algorithm_not_support", "mechanism_not_support", "precondition_data_exception", "other_unIdentifyTask")))),
+            StatisticColumnGroup.withChildren(
+                "precision-problem",
+                "精度问题",
+                List.of(group("precision-basic", "精度归类", List.of("precision_constraint_exception", "precision_algorithm_exception"))))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的缺陷原因分析结果。");
@@ -178,7 +227,12 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
-    for (IssueSource issue : snapshot.finalSources()) {
+    for (IssueSource issue : snapshot.scopedSources()) {
+      for (String moduleName : issue.moduleNames()) {
+        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
+      }
+    }
+    for (IssueSource issue : snapshot.reasonSources()) {
       for (String moduleName : issue.moduleNames()) {
         buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
       }
@@ -189,8 +243,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             .sorted(Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER))
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-    if (!snapshot.finalSources().isEmpty()) {
-      rows.add(new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.finalSources()).toRowData());
+    if (!buckets.isEmpty()) {
+      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.reasonSources());
+      rows.add(totalBucket.toRowData());
+      rows.add(AggregateBucket.ratioRow(totalBucket));
     }
 
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
@@ -213,7 +269,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -247,7 +303,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     long moduleCount =
-        snapshot.finalSources().stream()
+        snapshot.scopedSources().stream()
             .flatMap(issue -> issue.moduleNames().stream())
             .distinct()
             .count();
@@ -256,43 +312,144 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         true,
         "缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再保留已识别出缺陷原因的议题。",
-        "同一条议题如果关联多个模块，会分别计入对应模块；共计行仍按议题本身去重统计。",
+        "当前统计基于 issue_fact.raw_payload 中保留的 GitLab 评论文本，按老平台缺陷原因模板字段匹配原因个数。",
+        "模块行来自当前系统测试范围内的模块全集；不要求议题携带已修复/完成标签；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
             snapshot.flowSteps().get(2),
             snapshot.flowSteps().get(3),
+            snapshot.flowSteps().get(4),
             StatisticRuleFlowSupport.step(
                 "group-by-module",
                 "按模块聚合",
-                "将保留下来的系统测试议题按 module_names 展开到各模块行，再按缺陷原因归类聚合。",
-                snapshot.finalSources().size(),
+                "先用当前系统测试范围内的模块全集生成行，再将命中缺陷原因的议题按 module_names 展开并归类聚合。",
+                snapshot.reasonSources().size(),
                 moduleCount,
-                snapshot.finalSources(),
+                snapshot.reasonSources(),
                 this::toRuleFlowSample
             )),
-        List.of(
-            new StatisticRuleMetricDefinition("requirement_understanding", "需求理解偏差", "按 issue_fact.reason_category = 需求理解偏差 统计。", "需求理解偏差数 = 当前模块内 reason_category 为需求理解偏差的议题数", null),
-            new StatisticRuleMetricDefinition("new_requirement", "新增需求", "按 issue_fact.reason_category = 新增需求 统计。", "新增需求数 = 当前模块内 reason_category 为新增需求的议题数", null),
-            new StatisticRuleMetricDefinition("implementation_logic", "编码逻辑错误", "按 issue_fact.reason_category = 编码逻辑错误 统计。", "编码逻辑错误数 = 当前模块内 reason_category 为编码逻辑错误的议题数", null),
-            new StatisticRuleMetricDefinition("environment_deployment", "环境部署问题", "按 issue_fact.reason_category = 环境部署问题 统计。", "环境部署问题数 = 当前模块内 reason_category 为环境部署问题的议题数", null),
-            new StatisticRuleMetricDefinition("algorithm_mechanism", "算法机制不支持", "按 issue_fact.reason_category = 算法机制不支持 统计。", "算法机制不支持数 = 当前模块内 reason_category 为算法机制不支持的议题数", null),
-            new StatisticRuleMetricDefinition("other_reason", "其他原因", "统计当前稳定映射之外、但已识别出 reason_category 的其他原因。", "其他原因数 = 当前模块内 reason_category 非空且未命中标准映射的议题数", null),
-            new StatisticRuleMetricDefinition("total", "总计", "统计当前模块命中缺陷原因分析范围的全部议题。", "总计 = 当前模块内 reason_category 非空的议题数", null)),
+        CAUSE_METRICS.stream()
+            .map(metric -> new StatisticRuleMetricDefinition(
+                metric.key(),
+                metric.label(),
+                "按老平台缺陷原因模板字段匹配：" + String.join(" / ", metric.tokens()),
+                metric.label() + "数量 = 当前模块内命中该字段映射的缺陷原因个数",
+                null))
+            .toList(),
         null);
+  }
+
+  @Override
+  public byte[] exportBoardWorkbook(Map<String, String> filters) {
+    StatisticBoardResponse response = loadBoard(filters);
+    try (Workbook workbook = new XSSFWorkbook();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+      var sheet = workbook.createSheet("缺陷原因统计表");
+      ExportStyles styles = new ExportStyles(workbook);
+      writeWorkbookHeader(sheet, styles);
+      writeWorkbookRows(sheet, response.rows(), styles);
+      sheet.createFreezePane(1, 2);
+      sheet.setColumnWidth(0, 22 * 256);
+      for (int index = 1; index <= CAUSE_METRICS.size(); index++) {
+        sheet.setColumnWidth(index, 18 * 256);
+      }
+      workbook.write(outputStream);
+      return outputStream.toByteArray();
+    } catch (IOException e) {
+      throw new IllegalStateException("缺陷原因统计表导出失败", e);
+    }
+  }
+
+  @Override
+  public String exportFilename() {
+    return "缺陷原因统计表.xlsx";
+  }
+
+  private void writeWorkbookHeader(org.apache.poi.ss.usermodel.Sheet sheet, ExportStyles styles) {
+    Row groupRow = sheet.createRow(0);
+    Row leafRow = sheet.createRow(1);
+    createCell(groupRow, 0, "模块", styles.header);
+    createCell(leafRow, 0, "模块", styles.header);
+    sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 0));
+
+    int columnIndex = 1;
+    String currentGroup = "";
+    int groupStart = 1;
+    for (int index = 0; index < CAUSE_METRICS.size(); index++) {
+      CauseMetricDefinition metric = CAUSE_METRICS.get(index);
+      if (!metric.groupLabel().equals(currentGroup)) {
+        if (StringUtils.hasText(currentGroup)) {
+          mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
+        }
+        currentGroup = metric.groupLabel();
+        groupStart = columnIndex;
+      }
+      createCell(leafRow, columnIndex, metric.label(), styles.header);
+      columnIndex++;
+    }
+    if (StringUtils.hasText(currentGroup)) {
+      mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
+    }
+  }
+
+  private void mergeHeaderGroup(
+      org.apache.poi.ss.usermodel.Sheet sheet,
+      Row groupRow,
+      int start,
+      int end,
+      String label,
+      CellStyle style) {
+    createCell(groupRow, start, label, style);
+    for (int column = start + 1; column <= end; column++) {
+      createCell(groupRow, column, "", style);
+    }
+    if (end > start) {
+      sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
+    }
+  }
+
+  private void writeWorkbookRows(
+      org.apache.poi.ss.usermodel.Sheet sheet,
+      List<StatisticRowData> rows,
+      ExportStyles styles) {
+    int rowIndex = 2;
+    for (StatisticRowData rowData : rows) {
+      Row row = sheet.createRow(rowIndex++);
+      CellStyle style = "__total__".equals(rowData.rowKey()) || "__ratio__".equals(rowData.rowKey())
+          ? styles.summary
+          : styles.body;
+      createCell(row, 0, rowData.rowLabel(), style);
+      Map<String, StatisticCellData> cells = new LinkedHashMap<>();
+      for (StatisticCellData cell : rowData.cells()) {
+        cells.put(cell.columnKey(), cell);
+      }
+      int columnIndex = 1;
+      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+        StatisticCellData cell = cells.get(metric.key());
+        createCell(row, columnIndex++, cell == null ? "" : cell.displayValue(), style);
+      }
+    }
+  }
+
+  private void createCell(Row row, int column, String value, CellStyle style) {
+    var cell = row.createCell(column);
+    cell.setCellValue(value == null ? "" : value);
+    cell.setCellStyle(style);
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(
       List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
+    List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
+      List<IssueSource> phaseFiltered =
+        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
     List<IssueSource> withReason =
-        scoped.stream().filter(IssueSource::hasReasonCategory).toList();
-    List<IssueSource> filtered =
-        withReason.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
+        phaseFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
-        filtered,
+        phaseFiltered,
+        withReason,
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
@@ -311,19 +468,27 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
-                "reason-category-filter",
-                "保留已识别原因",
-                "只保留 issue_fact.reason_category 非空的议题，避免把未归因数据混入原因分析。",
+                "exclude-invalid-issues",
+                "排除无效数据",
+                "按系统测试公共规则剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题；不额外要求已修复/完成标签。",
                 scoped.size(),
-                withReason,
+                valid,
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
                 "phase-filter",
                 "应用测试阶段筛选",
                 "根据页面上的测试阶段筛选进一步收敛范围；未选择时保留全部系统测试阶段。",
-                withReason.size(),
-                filtered,
+                valid.size(),
+                phaseFiltered,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
+                "reason-category-filter",
+                "保留已识别原因",
+                "只保留评论文本中命中老平台缺陷原因字段的议题，原因个数按字段命中数计算。",
+                phaseFiltered.size(),
+                withReason,
                 this::toRuleFlowSample
             )));
   }
@@ -331,7 +496,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
     return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 原因: " + issue.reasonCategory() + " | 模块: " + String.join("、", issue.moduleNames()));
+                    issue.title() + " | 原因: " + String.join("、", issue.causeLabels()) + " | 模块: " + String.join("、", issue.moduleNames()));
   }
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
@@ -340,16 +505,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   }
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
-    return switch (columnKey) {
-      case "requirement_understanding" -> issue -> "需求理解偏差".equals(issue.reasonCategory());
-      case "new_requirement" -> issue -> "新增需求".equals(issue.reasonCategory());
-      case "implementation_logic" -> issue -> "编码逻辑错误".equals(issue.reasonCategory());
-      case "environment_deployment" -> issue -> "环境部署问题".equals(issue.reasonCategory());
-      case "algorithm_mechanism" -> issue -> "算法机制不支持".equals(issue.reasonCategory());
-      case "other_reason" -> IssueSource::isOtherReason;
-      case "total" -> issue -> true;
-      default -> issue -> true;
-    };
+    if (!StringUtils.hasText(columnKey)) {
+      return issue -> true;
+    }
+    return issue -> issue.matchesMetric(columnKey);
   }
 
   private Comparator<IssueSource> buildDetailComparator(String sortField, String sortOrder) {
@@ -374,7 +533,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
     record.put("title", issue.title());
     record.put("testingPhase", displayPhaseLabel(issue.primaryPhaseLabel(), null));
-    record.put("reasonCategory", issue.reasonCategory());
+    record.put("reasonCategory", String.join("、", issue.causeLabels()));
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("projectName", issue.projectName());
     record.put("authorName", issue.authorName());
@@ -438,7 +597,11 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
+        StatisticSourceValueSupport.text(rs.getString("severity_level"), ""),
+        StatisticSourceValueSupport.text(rs.getString("category"), ""),
+        rs.getBoolean("is_excluded"),
         StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
+        StatisticSourceValueSupport.text(rs.getString("reason_text"), ""),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")));
   }
@@ -536,31 +699,56 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     }
 
     StatisticRowData toRowData() {
+      List<StatisticCellData> cells = new ArrayList<>();
+      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+        cells.add(cell(metric.key(), countByMetric(metric.key()), true));
+      }
       return new StatisticRowData(
           rowKey,
           rowLabel,
-          List.of(
-              cell("requirement_understanding", countByReason("需求理解偏差"), true),
-              cell("new_requirement", countByReason("新增需求"), true),
-              cell("implementation_logic", countByReason("编码逻辑错误"), true),
-              cell("environment_deployment", countByReason("环境部署问题"), true),
-              cell("algorithm_mechanism", countByReason("算法机制不支持"), true),
-              cell("other_reason", issues.stream().filter(IssueSource::isOtherReason).count(), true),
-              cell("total", issues.size(), true)));
+          cells);
     }
 
-    private long countByReason(String reasonCategory) {
-      return issues.stream().filter(issue -> reasonCategory.equals(issue.reasonCategory())).count();
+    private long countByMetric(String metricKey) {
+      return issues.stream().filter(issue -> issue.matchesMetric(metricKey)).count();
+    }
+
+    private long metricTotal() {
+      return CAUSE_METRICS.stream().mapToLong(metric -> countByMetric(metric.key())).sum();
+    }
+
+    static StatisticRowData ratioRow(AggregateBucket totalBucket) {
+      long denominator = totalBucket.metricTotal();
+      List<StatisticCellData> cells = new ArrayList<>();
+      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+        long numerator = totalBucket.countByMetric(metric.key());
+        String display = denominator == 0 ? "0" : String.format(java.util.Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
+        cells.add(new StatisticCellData(metric.key(), numerator, display, false, null, Map.of("rowKey", "__ratio__")));
+      }
+      return new StatisticRowData("__ratio__", "比例", cells);
     }
 
     private StatisticCellData cell(String key, long numericValue, boolean drilldown) {
+      Map<String, String> detailParams = new LinkedHashMap<>();
+      detailParams.put("rowKey", rowKey);
+      detailParams.put("level1", count(countByMetricAndSeverity(key, "LEVEL1")));
+      detailParams.put("level2", count(countByMetricAndSeverity(key, "LEVEL2")));
+      detailParams.put("level3", count(countByMetricAndSeverity(key, "LEVEL3")));
+      detailParams.put("suggestion", count(issues.stream().filter(issue -> issue.matchesMetric(key) && issue.isSuggestion()).count()));
       return new StatisticCellData(
           key,
           numericValue,
           count(numericValue),
-          drilldown,
-          drilldown ? "issue-list" : null,
-          Map.of("rowKey", rowKey));
+          drilldown && numericValue > 0,
+          drilldown && numericValue > 0 ? "issue-list" : null,
+          detailParams);
+    }
+
+    private long countByMetricAndSeverity(String metricKey, String severity) {
+      return issues.stream()
+          .filter(issue -> issue.matchesMetric(metricKey))
+          .filter(issue -> issue.isSeverity(severity))
+          .count();
     }
   }
 
@@ -576,28 +764,62 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       String issueState,
       String testingPhase,
       String systemTestLabel,
+      String severityLevel,
+      String category,
+      boolean excluded,
       String reasonCategory,
+      String reasonText,
       List<String> moduleNames,
       List<String> labels) implements SystemTestPhaseFilterSource {
     boolean inSystemTestScope() {
       return StringUtils.hasText(primaryPhaseLabel());
     }
 
-    boolean hasReasonCategory() {
-      return StringUtils.hasText(reasonCategory);
+    boolean hasDefectCause() {
+      return !matchedMetricKeys().isEmpty();
     }
 
     boolean isClosed() {
       return closedAt != null || "closed".equalsIgnoreCase(issueState);
     }
 
-    boolean isOtherReason() {
-      if (!hasReasonCategory()) {
-        return false;
+    boolean matchesMetric(String metricKey) {
+      if (!StringUtils.hasText(metricKey) || "__ratio__".equals(metricKey)) {
+        return true;
       }
+      if ("total".equals(metricKey)) {
+        return hasDefectCause();
+      }
+      return matchedMetricKeys().contains(metricKey);
+    }
+
+    boolean isSeverity(String severity) {
+      return severity.equalsIgnoreCase(severityLevel);
+    }
+
+    boolean isSuggestion() {
+      return isSeverity("SUGGESTION") || contains(category, "建议");
+    }
+
+    List<String> causeLabels() {
       return CAUSE_METRICS.stream()
-          .filter(metric -> metric.reasonCategory() != null)
-          .noneMatch(metric -> metric.reasonCategory().equals(reasonCategory));
+          .filter(metric -> matchedMetricKeys().contains(metric.key()))
+          .map(CauseMetricDefinition::label)
+          .toList();
+    }
+
+    private Set<String> matchedMetricKeys() {
+      Set<String> matched = new LinkedHashSet<>();
+      String text = latestReasonText(reasonText);
+      if (!StringUtils.hasText(text)) {
+        text = reasonCategory;
+      }
+      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+        if (containsAny(text, metric.tokens())) {
+          matched.add(metric.key());
+        }
+      }
+      return matched;
     }
 
     String primaryPhaseLabel() {
@@ -643,7 +865,74 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     }
   }
 
-  private record RuleFlowSnapshot(List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
+  private record RuleFlowSnapshot(
+      List<IssueSource> scopedSources,
+      List<IssueSource> reasonSources,
+      List<StatisticRuleFlowStep> flowSteps) {}
 
-  private record CauseMetricDefinition(String key, String label, String groupLabel, String reasonCategory) {}
+  private record CauseMetricDefinition(String key, String label, String groupLabel, List<String> tokens) {}
+
+  private static boolean containsAny(String text, Collection<String> tokens) {
+    if (!StringUtils.hasText(text) || tokens == null || tokens.isEmpty()) {
+      return false;
+    }
+    for (String token : tokens) {
+      if (StringUtils.hasText(token) && text.contains(token)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean contains(String text, String keyword) {
+    return StringUtils.hasText(text) && StringUtils.hasText(keyword) && text.contains(keyword);
+  }
+
+  private static String latestReasonText(String text) {
+    if (!StringUtils.hasText(text)) {
+      return "";
+    }
+    String[] notes = text.split(NOTE_SEPARATOR);
+    for (int index = notes.length - 1; index >= 0; index--) {
+      String candidate = notes[index];
+      if (CAUSE_METRICS.stream().anyMatch(metric -> containsAny(candidate, metric.tokens()))) {
+        return candidate;
+      }
+    }
+    return text;
+  }
+
+  private static final class ExportStyles {
+    private final CellStyle header;
+    private final CellStyle body;
+    private final CellStyle summary;
+
+    private ExportStyles(Workbook workbook) {
+      header = workbook.createCellStyle();
+      header.setAlignment(HorizontalAlignment.CENTER);
+      header.setVerticalAlignment(VerticalAlignment.CENTER);
+      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      setBorders(header);
+
+      body = workbook.createCellStyle();
+      body.setAlignment(HorizontalAlignment.CENTER);
+      body.setVerticalAlignment(VerticalAlignment.CENTER);
+      setBorders(body);
+
+      summary = workbook.createCellStyle();
+      summary.setAlignment(HorizontalAlignment.CENTER);
+      summary.setVerticalAlignment(VerticalAlignment.CENTER);
+      summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
+      summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      setBorders(summary);
+    }
+
+    private void setBorders(CellStyle style) {
+      style.setBorderTop(BorderStyle.THIN);
+      style.setBorderBottom(BorderStyle.THIN);
+      style.setBorderLeft(BorderStyle.THIN);
+      style.setBorderRight(BorderStyle.THIN);
+    }
+  }
 }

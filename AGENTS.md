@@ -18,6 +18,8 @@
 
 后续做功能对齐时，默认假设老平台规则是正确业务规则；不能因为新平台架构更现代、实现更方便，擅自设计一套“更合理”的数据口径。同一数据源、同一筛选条件下，新平台展示的数据集合、总数、字段含义、字段值和导出结果应尽量与老平台一致。允许做提升用户效率和体验的小改进，但这些改进不得改变数据本身、统计口径或用户看到的业务结果。当前阶段目标是先把老平台 1:1 重构到新平台，再讨论进一步产品化优化。
 
+接口返回 200 只代表服务端处理成功，不自动等于用户侧可用。涉及弹窗、提交、导出、批量操作、刷新、下载、跳转、复制或任何受时间/空间限制的交互时，必须确认用户实际能完成完整操作窗口，不能只看接口状态码就判定功能可用。
+
 涉及标签组、对象分群、语义标签组、动态/静态分群、静态快照、规则 DSL、语义口径或 `semantic_tag_*` / `segment_*` 命名时，还必须先阅读：
 
 - `docs/plans/2026-06-10-label-group-value-set-design.md`
@@ -85,11 +87,23 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 | Python | **3.14.2**，`C:\Users\admin\AppData\Local\Microsoft\WindowsApps\python.exe`，`python` / `python3` 都可用。 |
 | Postgres CLI | `D:\projects\data_collection_platform\tools\postgresql-17.9\pgsql\bin`（`psql.exe` 等）。 |
 | 本地 DB | `jdbc:postgresql://localhost:15432/qaflex`，需要环境变量 `DATASOURCE_PASSWORD`。 |
+| 本地 DB 密码 | `DATASOURCE_PASSWORD=change_this_password`。 |
 | 后端端口 | `18080` |
 | 前端端口 | `18181`（vite proxy → `http://localhost:18080`） |
 | 行尾 | LF，强制（见 `.gitattributes` 和 `.editorconfig`）。**不要**写 CRLF。 |
 
 `tools/` 在 `.gitignore` 中，是本机解压目录，不入仓。换机器时需要重新放入相同结构。
+
+## 1.1 本地认证与启动事实
+
+本地开发环境默认走本地认证，不依赖外部 SSO。
+
+- 认证提供方：`local`
+- 管理员账号：`admin / admin123`
+- 审批账号：`approval / approval`
+- 后端本地启动时，常需要显式设置 `PLATFORM_SECURE_CONFIG_REQUIRED=false`
+- 涉及登录、提交、搜索、刷新后再提交等有状态接口时，通常需要同时携带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头
+- 做 API 冒烟或真实链路时，先确认登录态和 CSRF，再判断业务是否通了
 
 ## 2. 默认 PATH 的坑
 

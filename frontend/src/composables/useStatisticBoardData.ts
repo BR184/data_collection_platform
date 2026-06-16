@@ -9,15 +9,14 @@ export interface StatisticBoardDataDependencies {
   boardKey: () => string;
   getFilterGroup: () => StatisticFilterGroup | null;
   loadBoardData: (boardKey: string, request: StatisticBoardDataRequest) => Promise<StatisticBoardResponse>;
-  exportBoardCsv: (boardKey: string, request: StatisticBoardDataRequest) => Promise<string>;
+  exportBoardFile: (boardKey: string, request: StatisticBoardDataRequest) => Promise<Blob>;
   onBoardLoaded: (response: StatisticBoardResponse) => void;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
-  downloadCsv?: (csv: string, filename: string) => void;
+  downloadFile?: (blob: Blob, filename: string) => void;
 }
 
-export function downloadStatisticBoardCsv(csv: string, filename: string) {
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+export function downloadStatisticBoardFile(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -58,9 +57,9 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
 
   async function exportBoard() {
     try {
-      const csv = await deps.exportBoardCsv(deps.boardKey(), buildRequest());
-      const downloadCsv = deps.downloadCsv ?? downloadStatisticBoardCsv;
-      downloadCsv(csv, `${deps.boardKey()}.csv`);
+      const blob = await deps.exportBoardFile(deps.boardKey(), buildRequest());
+      const downloadFile = deps.downloadFile ?? downloadStatisticBoardFile;
+      downloadFile(blob, exportFilename(deps.boardKey()));
       deps.notifySuccess('导出成功');
     } catch (error) {
       deps.notifyError((error as Error).message);
@@ -74,4 +73,11 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
     loadBoard,
     exportBoard,
   };
+}
+
+function exportFilename(boardKey: string) {
+  if (boardKey === 'system-test-defect-cause') {
+    return '缺陷原因统计表.xlsx';
+  }
+  return `${boardKey}.csv`;
 }

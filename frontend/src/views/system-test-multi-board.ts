@@ -8,6 +8,33 @@ import {
 
 const TOTAL_ROW_KEY = '__total__';
 
+const CAUSE_METRICS = [
+  { key: 'demand_misunderstand', label: '新增理解偏差' },
+  { key: 'missing_requirement', label: '需求遗漏' },
+  { key: 'add_demand_2', label: '新增需求' },
+  { key: 'demand_change_not_sync', label: '需求变更未同步' },
+  { key: 'design_forget', label: '功能设计遗漏' },
+  { key: 'design_scheme', label: '设计方案不合理' },
+  { key: 'incomplete', label: '场景考虑不全' },
+  { key: 'prompt_message', label: '术语、提示信息不合适' },
+  { key: 'standard_error', label: '编码规范错误' },
+  { key: 'function_forget', label: '功能编码遗漏' },
+  { key: 'logic_calculation_algorithm_error', label: '编码逻辑：计算与算法错误' },
+  { key: 'logic_flow_control_error', label: '编码逻辑：流程控制错误' },
+  { key: 'logic_data_state_process_error', label: '编码逻辑：数据与状态处理错误' },
+  { key: 'logic_business_logic_error', label: '编码逻辑：业务逻辑错误' },
+  { key: 'logic_integration_interface_error', label: '编码逻辑：集成与接口错误' },
+  { key: 'environment_config_issue', label: '环境配置问题' },
+  { key: 'compilation_package_deployment_issue', label: '编译/打包/部署问题' },
+  { key: 'other_thirdParty', label: '第三方库问题' },
+  { key: 'algorithm_not_support', label: '算法不支持' },
+  { key: 'mechanism_not_support', label: '机制不支持' },
+  { key: 'precondition_data_exception', label: '前置数据异常' },
+  { key: 'other_unIdentifyTask', label: '未识别的前后置任务' },
+  { key: 'precision_constraint_exception', label: '精度导致约束求解异常' },
+  { key: 'precision_algorithm_exception', label: '精度导致算法执行异常' },
+] as const;
+
 export interface SystemTestBoardSummaryCard {
   key: string;
   label: string;
@@ -34,6 +61,12 @@ function cellPercentNumber(row: StatisticRowData | null | undefined, key: string
     }
   }
   return Number.isFinite(cell?.numericValue) ? Number(cell?.numericValue) : 0;
+}
+
+function detailParamNumber(row: StatisticRowData | null | undefined, key: string, paramKey: string) {
+  const raw = cellMap(row).get(key)?.detailParams?.[paramKey];
+  const parsed = Number(raw ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function totalRow(board: StatisticBoardResponse | null) {
@@ -143,20 +176,38 @@ export function buildCauseChartOption(causeBoard: StatisticBoardResponse | null)
     return null;
   }
 
-  const items: NamedValue[] = [
-    { name: '需求理解偏差', value: cellNumber(summary, 'requirement_understanding') },
-    { name: '新增需求', value: cellNumber(summary, 'new_requirement') },
-    { name: '编码逻辑错误', value: cellNumber(summary, 'implementation_logic') },
-    { name: '环境部署问题', value: cellNumber(summary, 'environment_deployment') },
-    { name: '算法机制不支持', value: cellNumber(summary, 'algorithm_mechanism') },
-    { name: '其他原因', value: cellNumber(summary, 'other_reason') },
-  ].filter((item) => item.value > 0);
+  const rows = CAUSE_METRICS
+    .map((metric) => {
+      const level1 = detailParamNumber(summary, metric.key, 'level1');
+      const level2 = detailParamNumber(summary, metric.key, 'level2');
+      const level3 = detailParamNumber(summary, metric.key, 'level3');
+      const suggestion = detailParamNumber(summary, metric.key, 'suggestion');
+      return {
+        ...metric,
+        level1,
+        level2,
+        level3,
+        suggestion,
+        total: level1 + level2 + level3 + suggestion,
+      };
+    })
+    .filter((item) => item.total > 0)
+    .sort((left, right) => {
+      const byTotal = right.total - left.total;
+      return byTotal === 0 ? right.level1 - left.level1 : byTotal;
+    });
 
-  return buildDonutOption({
-    title: '缺陷原因占比',
-    subtitle: '按原因大类观察当前问题主要来源',
-    items,
-    centerLabel: '原因总量',
+  return buildColumnBarOption({
+    title: '缺陷原因分析',
+    subtitle: '按缺陷原因拆分一级、二级、三级和建议类数量',
+    categories: rows.map((row) => row.label),
+    series: [
+      { name: '一级缺陷(个)', data: rows.map((row) => row.level1), stack: 'cause', color: '#1677ff' },
+      { name: '二级缺陷(个)', data: rows.map((row) => row.level2), stack: 'cause', color: '#36cfc9' },
+      { name: '三级缺陷(个)', data: rows.map((row) => row.level3), stack: 'cause', color: '#ff9f29' },
+      { name: '建议(个)', data: rows.map((row) => row.suggestion), stack: 'cause', color: '#8c8c8c' },
+    ],
+    rotateLabels: 45,
   });
 }
 

@@ -12,6 +12,7 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.statistics.RealtimeStatisticBoardSupport;
 import com.data.collection.platform.service.statistics.StatisticBoardRegistry;
+import com.data.collection.platform.service.statistics.StatisticBoardWorkbookExportSupport;
 import com.data.collection.platform.service.statistics.SystemTestHorizontalComparisonExportService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
@@ -89,10 +90,18 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/export")
-  public ResponseEntity<String> exportBoard(
+  public ResponseEntity<?> exportBoard(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
-    String csv = registry.getRequired(boardKey).exportBoardCsv(filters);
+    var service = registry.getRequired(boardKey);
+    if (service instanceof StatisticBoardWorkbookExportSupport workbookExportSupport) {
+      byte[] workbook = workbookExportSupport.exportBoardWorkbook(filters);
+      return ResponseEntity.ok()
+          .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+          .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + workbookExportSupport.exportFilename() + "\"")
+          .body(workbook);
+    }
+    String csv = service.exportBoardCsv(filters);
     return ResponseEntity.ok()
         .contentType(new MediaType("text", "csv"))
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + boardKey + ".csv\"")

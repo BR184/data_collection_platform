@@ -31,7 +31,7 @@ import { useStatisticBoardRefreshController } from '../composables/useStatisticB
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
-import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob, downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -109,10 +109,11 @@ const {
   boardKey: () => props.boardKey,
   getFilterGroup: buildFilterPayload,
   loadBoardData: (boardKey, request) => api.getStatisticBoard(boardKey, request),
-  exportBoardCsv: (boardKey, request) => api.exportStatisticBoard(boardKey, request),
+  exportBoardFile: (boardKey, request) => api.exportStatisticBoardFile(boardKey, request),
   onBoardLoaded: handleBoardLoaded,
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
+  downloadFile: downloadBlob,
 });
 
 const extraToolbarActions = computed<StatisticBoardToolbarAction[]>(() => {
