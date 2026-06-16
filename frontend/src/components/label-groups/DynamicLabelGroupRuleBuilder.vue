@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Delete, Plus } from '@element-plus/icons-vue';
 import DynamicRuleConditionGroup from './DynamicRuleConditionGroup.vue';
+import SmartSelect from '../base/SmartSelect.vue';
 import type {
   LabelGroupDynamicRuleRelation,
   LabelGroupDynamicRuleSource,
@@ -34,6 +35,13 @@ const outputSource = computed(() => sourceMap.value.get(props.modelValue.outputS
 const outputFieldOptions = computed(() => outputSource.value?.fields.filter((field) => field.outputSupported) ?? []);
 const aggregateOptions = computed(() =>
   props.modelValue.aggregations.map((item) => ({ label: item.label || item.key, value: item.key })),
+);
+const sourceOptions = computed(() => props.sources.map((source) => ({ label: source.name, value: source.key })));
+const outputFieldSelectOptions = computed(() =>
+  outputFieldOptions.value.map((field) => ({
+    label: `${field.name} / ${valueTypeLabel(field.valueType)}`,
+    value: field.key,
+  })),
 );
 const advancedPanel = ref<string[]>([]);
 const advancedEnabled = computed(() =>
@@ -108,8 +116,17 @@ function sourceFieldOptions(sourceKey: string, predicate?: (field: RuleSourceFie
       filterSupported: field.filterSupported,
       groupSupported: field.groupSupported,
       aggregateSupported: field.aggregateSupported,
+      candidateMode: field.candidateMode ?? 'NONE',
+      candidateValues: field.candidateValues ?? [],
     }))
     .filter((field) => (predicate ? predicate(field) : true));
+}
+
+function sourceFieldSelectOptions(sourceKey: string, predicate?: (field: RuleSourceFieldOption) => boolean) {
+  return sourceFieldOptions(sourceKey, predicate).map((field) => ({
+    label: `${field.fieldName} / ${valueTypeLabel(field.valueType)}`,
+    value: field.fieldKey,
+  }));
 }
 
 function relationOptionsFor(sourceKey: string) {
@@ -120,6 +137,30 @@ function relationOptionsFor(sourceKey: string) {
     const pair = [relation.leftSourceKey, relation.rightSourceKey];
     return pair.includes(props.modelValue.outputSourceKey) && pair.includes(sourceKey);
   });
+}
+
+function relatedSourceOptions() {
+  return props.sources
+    .filter((item) => item.key !== props.modelValue.outputSourceKey)
+    .map((source) => ({ label: source.name, value: source.key }));
+}
+
+function registeredRelationOptions(sourceKey: string) {
+  return relationOptionsFor(sourceKey).map((item) => ({
+    label: relationLabel(item),
+    value: relationValue(item),
+  }));
+}
+
+function aggregationFunctionOptions() {
+  return [
+    { label: '数量', value: 'count' },
+    { label: '去重数量', value: 'countDistinct' },
+    { label: '求和', value: 'sum' },
+    { label: '平均', value: 'avg' },
+    { label: '最小', value: 'min' },
+    { label: '最大', value: 'max' },
+  ];
 }
 
 function relationLabel(relation: LabelGroupDynamicRuleRelation) {
@@ -282,20 +323,11 @@ function toRelationForm(relation: LabelGroupDynamicRuleRelation): RuleRelationFo
     <el-alert class="dynamic-rule-summary" type="info" :closable="false" :title="summary" />
 
     <el-form-item label="成员来源" required>
-      <el-select v-model="modelValue.outputSourceKey" filterable placeholder="选择业务数据" class="dynamic-rule-control">
-        <el-option v-for="source in sources" :key="source.key" :label="source.name" :value="source.key" />
-      </el-select>
+      <SmartSelect v-model="modelValue.outputSourceKey" placeholder="选择业务数据" class="dynamic-rule-control" :options="sourceOptions" />
     </el-form-item>
 
     <el-form-item label="成员字段" required>
-      <el-select v-model="modelValue.outputFieldKey" filterable placeholder="选择标签组成员值" class="dynamic-rule-control">
-        <el-option
-          v-for="field in outputFieldOptions"
-          :key="field.key"
-          :label="`${field.name} / ${valueTypeLabel(field.valueType)}`"
-          :value="field.key"
-        />
-      </el-select>
+      <SmartSelect v-model="modelValue.outputFieldKey" placeholder="选择标签组成员值" class="dynamic-rule-control" :options="outputFieldSelectOptions" />
     </el-form-item>
 
     <el-form-item label="成员条件">
@@ -327,20 +359,13 @@ function toRelationForm(relation: LabelGroupDynamicRuleRelation): RuleRelationFo
               只有需要跨业务数据判断时才添加，例如“成员在最近 3 天有议题”。
             </div>
             <div v-for="(relation, index) in modelValue.relations" :key="`relation-${index}`" class="advanced-row">
-              <el-select
+              <SmartSelect
                 :model-value="relatedSourceOf(relation)"
-                filterable
                 placeholder="关联数据"
+                :options="relatedSourceOptions()"
                 @change="changeRelationSource(relation, String($event))"
-              >
-                <el-option
-                  v-for="source in sources.filter((item) => item.key !== modelValue.outputSourceKey)"
-                  :key="source.key"
-                  :label="source.name"
-                  :value="source.key"
-                />
-              </el-select>
-              <el-select
+              />
+              <SmartSelect
                 :model-value="relationValue({
                   name: '',
                   leftSourceKey: relation.leftSourceKey,
@@ -350,34 +375,13 @@ function toRelationForm(relation: LabelGroupDynamicRuleRelation): RuleRelationFo
                   matchOperator: relation.matchOperator,
                   normalizer: relation.normalizer,
                 })"
-                filterable
                 placeholder="匹配方式"
+                :options="registeredRelationOptions(relatedSourceOf(relation))"
                 @change="selectRegisteredRelation(relation, $event)"
-              >
-                <el-option
-                  v-for="item in relationOptionsFor(relatedSourceOf(relation))"
-                  :key="relationValue(item)"
-                  :label="relationLabel(item)"
-                  :value="relationValue(item)"
-                />
-              </el-select>
+              />
               <template v-if="!relationOptionsFor(relatedSourceOf(relation)).length">
-                <el-select v-model="relation.leftFieldKey" filterable placeholder="成员字段">
-                  <el-option
-                    v-for="field in sourceFieldOptions(modelValue.outputSourceKey)"
-                    :key="field.fieldKey"
-                    :label="`${field.fieldName} / ${valueTypeLabel(field.valueType)}`"
-                    :value="field.fieldKey"
-                  />
-                </el-select>
-                <el-select v-model="relation.rightFieldKey" filterable placeholder="关联字段">
-                  <el-option
-                    v-for="field in sourceFieldOptions(relatedSourceOf(relation))"
-                    :key="field.fieldKey"
-                    :label="`${field.fieldName} / ${valueTypeLabel(field.valueType)}`"
-                    :value="field.fieldKey"
-                  />
-                </el-select>
+                <SmartSelect v-model="relation.leftFieldKey" placeholder="成员字段" :options="sourceFieldSelectOptions(modelValue.outputSourceKey)" />
+                <SmartSelect v-model="relation.rightFieldKey" placeholder="关联字段" :options="sourceFieldSelectOptions(relatedSourceOf(relation))" />
               </template>
               <el-button :icon="Delete" text type="danger" @click="removeRelation(index)" />
             </div>
@@ -405,25 +409,9 @@ function toRelationForm(relation: LabelGroupDynamicRuleRelation): RuleRelationFo
         <el-form-item v-if="modelValue.aggregations.length" label="统计门槛">
           <div class="advanced-list">
             <div v-for="(aggregation, index) in modelValue.aggregations" :key="aggregation.key" class="advanced-row">
-              <el-select v-model="aggregation.sourceKey" filterable placeholder="统计数据">
-                <el-option v-for="source in sources" :key="source.key" :label="source.name" :value="source.key" />
-              </el-select>
-              <el-select v-model="aggregation.fieldKey" filterable placeholder="统计字段">
-                <el-option
-                  v-for="field in sourceFieldOptions(aggregation.sourceKey, (item) => item.aggregateSupported)"
-                  :key="field.fieldKey"
-                  :label="`${field.fieldName} / ${valueTypeLabel(field.valueType)}`"
-                  :value="field.fieldKey"
-                />
-              </el-select>
-              <el-select v-model="aggregation.function" placeholder="统计方式">
-                <el-option label="数量" value="count" />
-                <el-option label="去重数量" value="countDistinct" />
-                <el-option label="求和" value="sum" />
-                <el-option label="平均" value="avg" />
-                <el-option label="最小" value="min" />
-                <el-option label="最大" value="max" />
-              </el-select>
+              <SmartSelect v-model="aggregation.sourceKey" placeholder="统计数据" :options="sourceOptions" />
+              <SmartSelect v-model="aggregation.fieldKey" placeholder="统计字段" :options="sourceFieldSelectOptions(aggregation.sourceKey, (item) => item.aggregateSupported)" />
+              <SmartSelect v-model="aggregation.function" placeholder="统计方式" :options="aggregationFunctionOptions()" />
               <el-button :icon="Delete" text type="danger" @click="removeAggregation(index)" />
             </div>
             <DynamicRuleConditionGroup

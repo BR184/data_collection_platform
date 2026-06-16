@@ -93,6 +93,13 @@ function addChildGroup() {
   props.group.groups.push(createEmptyConditionGroup(effectiveSourceKey()));
 }
 
+function rowClass() {
+  return {
+    'has-source-selector': !props.aggregateMode && props.showSourceSelector,
+    'is-aggregate-row': props.aggregateMode,
+  };
+}
+
 function removeCondition(index: number) {
   props.group.conditions.splice(index, 1);
 }
@@ -300,7 +307,12 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
     </div>
 
     <div v-if="group.conditions.length || (allowChildGroups && group.groups.length)" class="dynamic-condition-group__body">
-      <div v-for="(condition, index) in group.conditions" :key="condition.id" class="dynamic-condition-row">
+      <div
+        v-for="(condition, index) in group.conditions"
+        :key="condition.id"
+        class="dynamic-condition-row"
+        :class="rowClass()"
+      >
         <template v-if="aggregateMode">
           <SmartSelect
             :model-value="condition.aggregateKey"
@@ -362,7 +374,7 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
             class="condition-value"
             type="datetime"
             value-format="YYYY-MM-DDTHH:mm:ssZ"
-            placeholder="时间"
+            :placeholder="usesSecondValue(condition) ? '开始时间' : '时间'"
           />
           <el-input-number
             v-else-if="usesNumberInput(condition)"
@@ -444,14 +456,22 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
 
 .dynamic-condition-row {
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(160px, 1.1fr) minmax(96px, 0.7fr) minmax(180px, 1fr) auto auto;
-  gap: 6px;
+  grid-template-columns: minmax(170px, 1.15fr) minmax(96px, 0.62fr) minmax(190px, 1.15fr) minmax(190px, 1.15fr) 30px;
+  gap: 8px;
   align-items: center;
   width: 100%;
   padding: 8px;
   border: 1px solid rgba(29, 78, 216, 0.12);
   border-radius: 8px;
   background: #fff;
+}
+
+.dynamic-condition-row.has-source-selector {
+  grid-template-columns: minmax(130px, 0.8fr) minmax(170px, 1.05fr) minmax(96px, 0.6fr) minmax(190px, 1.1fr) minmax(190px, 1.1fr) 30px;
+}
+
+.dynamic-condition-row.is-aggregate-row {
+  grid-template-columns: minmax(170px, 1.2fr) minmax(96px, 0.65fr) minmax(190px, 1.1fr) minmax(190px, 1.1fr) 30px;
 }
 
 .dynamic-condition-group.is-compact {
@@ -469,7 +489,7 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
 }
 
 .condition-aggregate {
-  grid-column: span 2;
+  grid-column: 1;
 }
 
 .condition-source,
@@ -489,6 +509,7 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
 .condition-remove {
   width: 30px;
   min-width: 30px;
+  justify-self: end;
 }
 
 .dynamic-condition-child {

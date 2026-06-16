@@ -105,8 +105,8 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         allow-create
         default-first-option
         reserve-keyword
-        collapse-tags
-        collapse-tags-tooltip
+        :collapse-tags="false"
+        :collapse-tags-tooltip="false"
         :loading="loading"
         :disabled="disabled"
         :remote-method="loadCandidates"
@@ -134,18 +134,6 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
           {{ unavailableMembers.length }} 个成员当前数据中暂无命中
         </span>
       </div>
-      <div v-if="modelValue.length" class="label-member-selected-list">
-        <el-tag
-          v-for="member in modelValue"
-          :key="member.value"
-          :type="member.currentAvailable === false ? 'warning' : 'primary'"
-          closable
-          :disable-transitions="true"
-          @close="selectedValues = selectedValues.filter((value) => value !== member.value)"
-        >
-          {{ member.label || member.value }}
-        </el-tag>
-      </div>
   </div>
 </template>
 
@@ -163,6 +151,28 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
 
 .label-member-picker :deep(.el-select) {
   width: 100%;
+}
+
+.label-member-picker :deep(.el-select__wrapper) {
+  align-items: flex-start;
+  min-height: 32px;
+  height: auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.label-member-picker :deep(.el-select__selection) {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.label-member-picker :deep(.el-select__selected-item) {
+  margin: 0;
+}
+
+.label-member-picker :deep(.el-tag) {
+  max-width: 100%;
 }
 
 .label-member-option {
@@ -185,9 +195,4 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
   color: #ad6800;
 }
 
-.label-member-selected-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 </style>

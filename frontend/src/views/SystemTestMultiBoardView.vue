@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
+import SmartSelect from '../components/base/SmartSelect.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
@@ -184,16 +185,14 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           >
             刷新最新数据
           </el-button>
-          <el-select
+          <SmartSelect
             :model-value="selectedProjectName"
             placeholder="全部项目"
             clearable
-            filterable
-            style="width: 220px"
+            class="system-test-multi-board__project-select"
+            :options="projectOptions"
             @change="handleProjectChange"
-          >
-            <el-option v-for="item in projectOptions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
+          />
           <el-button :icon="Refresh" :loading="loading" @click="handleRefresh">刷新</el-button>
         </div>
       </section>
@@ -339,6 +338,12 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
   display: flex;
   gap: 12px;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.system-test-multi-board__project-select {
+  width: 220px;
 }
 
 .system-test-multi-board__summary {

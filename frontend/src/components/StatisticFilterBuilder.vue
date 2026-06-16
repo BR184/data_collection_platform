@@ -276,6 +276,13 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
   }
 }
 
+function conditionRowClass(condition: StatisticFilterConditionDraft) {
+  return {
+    'has-secondary-value': usesSecondaryValue(condition.operator),
+    'is-selecting': batchDeleteMode.value,
+  };
+}
+
 function supportsLabelGroupValue(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
   return Boolean(field?.labelGroupEnabled);
@@ -341,7 +348,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
         v-for="condition in visibleConditions"
         :key="condition.id"
         class="stat-filter-row"
-        :class="{ 'is-selecting': batchDeleteMode }"
+        :class="conditionRowClass(condition)"
       >
         <el-checkbox
           v-if="batchDeleteMode"
@@ -386,7 +393,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             class="stat-filter-value"
             :type="datePickerType(condition)"
             :value-format="dateValueFormat(condition)"
-            placeholder="时间"
+            :placeholder="usesSecondaryValue(condition.operator) ? '开始时间' : '时间'"
           />
           <el-input v-else v-model="condition.value" class="stat-filter-value" placeholder="值" clearable />
         </template>
@@ -513,7 +520,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-row {
   display: grid;
-  grid-template-columns: 112px 82px 124px 28px;
+  grid-template-columns: 132px 92px 164px 28px;
   align-items: center;
   gap: 4px;
   width: max-content;
@@ -526,8 +533,16 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   background: rgba(248, 250, 252, 0.94);
 }
 
+.stat-filter-row.has-secondary-value {
+  grid-template-columns: 132px 92px 176px 176px 28px;
+}
+
 .stat-filter-row.is-selecting {
-  grid-template-columns: 24px 112px 82px 124px 28px;
+  grid-template-columns: 24px 132px 92px 164px 28px;
+}
+
+.stat-filter-row.is-selecting.has-secondary-value {
+  grid-template-columns: 24px 132px 92px 176px 176px 28px;
 }
 
 .stat-filter-check {
@@ -542,11 +557,11 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-value.secondary {
-  grid-column: 3;
+  grid-column: auto;
 }
 
 .stat-filter-row.is-selecting .stat-filter-value.secondary {
-  grid-column: 4;
+  grid-column: auto;
 }
 
 .stat-filter-remove {
@@ -592,21 +607,31 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   }
 
   .stat-filter-row {
-    grid-template-columns: minmax(116px, 1fr) minmax(84px, 0.7fr) minmax(128px, 1fr) 28px;
-    width: min(100%, 394px);
+    grid-template-columns: minmax(132px, 1fr) minmax(92px, 0.7fr) minmax(164px, 1.1fr) 28px;
+    width: min(100%, 436px);
+  }
+
+  .stat-filter-row.has-secondary-value {
+    grid-template-columns: minmax(132px, 1fr) minmax(92px, 0.7fr) minmax(176px, 1.1fr) minmax(176px, 1.1fr) 28px;
+    width: min(100%, 616px);
   }
 
   .stat-filter-row.is-selecting {
-    grid-template-columns: 24px minmax(116px, 1fr) minmax(84px, 0.7fr) minmax(128px, 1fr) 28px;
-    width: min(100%, 422px);
+    grid-template-columns: 24px minmax(132px, 1fr) minmax(92px, 0.7fr) minmax(164px, 1.1fr) 28px;
+    width: min(100%, 464px);
+  }
+
+  .stat-filter-row.is-selecting.has-secondary-value {
+    grid-template-columns: 24px minmax(132px, 1fr) minmax(92px, 0.7fr) minmax(176px, 1.1fr) minmax(176px, 1.1fr) 28px;
+    width: min(100%, 644px);
   }
 
   .stat-filter-value.secondary {
-    grid-column: 3;
+    grid-column: auto;
   }
 
   .stat-filter-row.is-selecting .stat-filter-value.secondary {
-    grid-column: 4;
+    grid-column: auto;
   }
 }
 

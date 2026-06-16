@@ -552,11 +552,10 @@ function handleStandaloneKeywordClear() {
 }
 
 .record-table-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
   min-height: 40px;
   padding: 2px 2px 0;
 }
@@ -572,9 +571,10 @@ function handleStandaloneKeywordClear() {
 .record-table-toolbar-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
-  margin-left: auto;
+  max-width: 100%;
 }
 
 .record-table-frame {
@@ -636,6 +636,14 @@ function handleStandaloneKeywordClear() {
   .record-filter-slot-actions {
     justify-content: flex-start;
     min-width: 0;
+  }
+
+  .record-table-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .record-table-toolbar-actions {
+    justify-content: flex-start;
   }
 }
 </style>

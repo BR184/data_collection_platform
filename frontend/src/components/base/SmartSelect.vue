@@ -46,7 +46,7 @@ const filteredOptions = computed(() => {
 });
 
 const popperClass = computed(() => {
-  const classNames = ['smart-select-dropdown'];
+  const classNames = ['platform-select-dropdown', 'smart-select-dropdown'];
   if (props.compact) {
     classNames.push('smart-select-dropdown--compact');
   }
@@ -108,13 +108,13 @@ function isOptionSelected(value: string) {
     :placeholder="placeholder"
     :clearable="clearable"
     :multiple="multiple"
-    :collapse-tags="collapseTags"
-    collapse-tags-tooltip
+    :collapse-tags="false"
+    :collapse-tags-tooltip="false"
     :disabled="disabled"
     :loading="loading"
     :allow-create="allowCreate"
     :default-first-option="allowCreate"
-    :fit-input-width="compact && multiple"
+    :fit-input-width="false"
     :popper-class="popperClass"
     @change="handleChange"
     @visible-change="handleVisibleChange"
@@ -134,12 +134,15 @@ function isOptionSelected(value: string) {
 </template>
 
 <style>
+.platform-select-dropdown .smart-select-option,
 .smart-select-dropdown .smart-select-option {
   display: flex;
   align-items: center;
   width: 100%;
 }
 
+.platform-select-dropdown .el-select-dropdown__list,
+.smart-select-dropdown .el-select-dropdown__list,
 .smart-select-dropdown--compact .el-select-dropdown__list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -147,6 +150,8 @@ function isOptionSelected(value: string) {
   padding: 8px;
 }
 
+.platform-select-dropdown .el-select-dropdown__item,
+.smart-select-dropdown .el-select-dropdown__item,
 .smart-select-dropdown--compact .el-select-dropdown__item {
   display: flex;
   align-items: center;
@@ -157,7 +162,7 @@ function isOptionSelected(value: string) {
   margin: 0;
   padding: 8px 10px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
   color: rgba(15, 23, 42, 0.78);
   transition:
@@ -167,6 +172,10 @@ function isOptionSelected(value: string) {
     box-shadow 0.18s ease;
 }
 
+.platform-select-dropdown .el-select-dropdown__item.hover,
+.platform-select-dropdown .el-select-dropdown__item:hover,
+.smart-select-dropdown .el-select-dropdown__item.hover,
+.smart-select-dropdown .el-select-dropdown__item:hover,
 .smart-select-dropdown--compact .el-select-dropdown__item.hover,
 .smart-select-dropdown--compact .el-select-dropdown__item:hover {
   border-color: rgba(64, 158, 255, 0.36);
@@ -174,6 +183,8 @@ function isOptionSelected(value: string) {
   color: #1d4ed8;
 }
 
+.platform-select-dropdown .el-select-dropdown__item.selected,
+.smart-select-dropdown .el-select-dropdown__item.selected,
 .smart-select-dropdown--compact .el-select-dropdown__item.selected {
   border-color: rgba(64, 158, 255, 0.48);
   background: rgba(64, 158, 255, 0.12);
@@ -213,15 +224,41 @@ function isOptionSelected(value: string) {
   font-weight: 400;
 }
 
+.platform-select-dropdown .smart-select-option,
+.smart-select-dropdown .smart-select-option,
 .smart-select-dropdown--compact .smart-select-option {
   justify-content: center;
   text-align: center;
 }
 
+.platform-select-dropdown .smart-select-option-label,
+.smart-select-dropdown .smart-select-option-label,
 .smart-select-dropdown--compact .smart-select-option-label {
   font-size: 13px;
   line-height: 1.35;
   white-space: normal;
+}
+
+.smart-select.smart-select--multiple .el-select__wrapper {
+  align-items: flex-start;
+  min-height: 32px;
+  height: auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.smart-select.smart-select--multiple .el-select__selection {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.smart-select.smart-select--multiple .el-select__selected-item {
+  margin: 0;
+}
+
+.smart-select.smart-select--multiple .el-tag {
+  max-width: 100%;
 }
 
 .smart-select-dropdown--compact-multiple .el-select-dropdown__list {

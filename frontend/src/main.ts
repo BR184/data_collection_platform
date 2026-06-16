@@ -10,4 +10,10 @@ import './styles.css';
 const app = createApp(App);
 
 app.directive('loading', ElLoading.directive);
+app.config.globalProperties.$ELEMENT = {
+  select: {
+    popperClass: 'platform-select-dropdown',
+    fitInputWidth: false,
+  },
+};
 app.use(router).mount('#app');

@@ -245,7 +245,8 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
-  width: min(100%, 760px);
+  width: auto;
+  max-width: 100%;
 }
 
 .stat-board-refresh-status {
