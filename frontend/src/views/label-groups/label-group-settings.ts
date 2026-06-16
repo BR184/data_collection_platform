@@ -60,6 +60,7 @@ export interface RuleConditionFormState {
 
 export interface RuleConditionGroupFormState {
   id: string;
+  sourceKey?: string;
   logic: 'AND' | 'OR';
   conditions: RuleConditionFormState[];
   groups: RuleConditionGroupFormState[];
@@ -129,9 +130,10 @@ export function createEmptyDynamicRuleForm(): DynamicRuleFormState {
   };
 }
 
-export function createEmptyConditionGroup(): RuleConditionGroupFormState {
+export function createEmptyConditionGroup(sourceKey = ''): RuleConditionGroupFormState {
   return {
     id: createRuleDraftId('group'),
+    sourceKey,
     logic: 'AND',
     conditions: [],
     groups: [],
@@ -415,6 +417,7 @@ function toConditionGroupFormState(
   }
   return {
     id: createRuleDraftId('group'),
+    sourceKey: inferGroupSourceKey(effective),
     logic: effective.logic === 'OR' ? 'OR' : 'AND',
     conditions: (effective.conditions ?? []).map(toConditionFormState),
     groups: (effective.groups ?? []).map((child) => toConditionGroupFormState(child)),
@@ -473,6 +476,15 @@ function isReadyCondition(condition: RuleConditionFormState) {
 
 function countConditions(group: RuleConditionGroupFormState): number {
   return group.conditions.length + group.groups.reduce((total, child) => total + countConditions(child), 0);
+}
+
+function inferGroupSourceKey(group: LabelGroupRuleConditionGroup) {
+  const sourceKeys = new Set(
+    (group.conditions ?? [])
+      .map((condition) => condition.sourceKey ?? '')
+      .filter(Boolean),
+  );
+  return sourceKeys.size === 1 ? Array.from(sourceKeys)[0] : '';
 }
 
 function toRelationPayload(relation: RuleRelationFormState): LabelGroupRuleRelation {

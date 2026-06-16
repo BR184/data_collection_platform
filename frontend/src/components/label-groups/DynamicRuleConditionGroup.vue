@@ -17,11 +17,21 @@ const props = withDefaults(defineProps<{
   aggregateOptions?: RecordTableFilterOption[];
   aggregateMode?: boolean;
   level?: number;
+  preferredSourceKey?: string;
+  showSourceSelector?: boolean;
+  allowChildGroups?: boolean;
+  compact?: boolean;
 }>(), {
   aggregateOptions: () => [],
   aggregateMode: false,
   level: 0,
+  preferredSourceKey: '',
+  showSourceSelector: true,
+  allowChildGroups: true,
+  compact: false,
 });
+
+defineOptions({ name: 'DynamicRuleConditionGroup' });
 
 const sourceOptions = computed<RecordTableFilterOption[]>(() =>
   props.sources.map((source) => ({ label: source.name, value: source.key })),
@@ -46,6 +56,10 @@ function sourceFieldOptions(sourceKey: string): RuleSourceFieldOption[] {
   })).filter((field) => field.filterSupported);
 }
 
+function effectiveSourceKey() {
+  return props.group.sourceKey || props.preferredSourceKey || props.sources[0]?.key || '';
+}
+
 function fieldOptions(condition: RuleConditionFormState): RecordTableFilterOption[] {
   return sourceFieldOptions(condition.sourceKey).map((field) => ({
     label: `${field.fieldName} / ${valueTypeLabel(field.valueType)}`,
@@ -66,11 +80,11 @@ function operatorOptions(condition: RuleConditionFormState): RecordTableFilterOp
 }
 
 function addCondition() {
-  props.group.conditions.push(createEmptyCondition(props.sources[0]?.key ?? ''));
+  props.group.conditions.push(createEmptyCondition(effectiveSourceKey()));
 }
 
 function addChildGroup() {
-  props.group.groups.push(createEmptyConditionGroup());
+  props.group.groups.push(createEmptyConditionGroup(effectiveSourceKey()));
 }
 
 function removeCondition(index: number) {
@@ -170,18 +184,26 @@ function numberOperatorOptions() {
 </script>
 
 <template>
-  <div class="dynamic-condition-group" :class="{ 'is-child': level > 0 }">
+  <div class="dynamic-condition-group" :class="{ 'is-child': level > 0, 'is-compact': compact }">
     <div class="dynamic-condition-group__head">
       <el-segmented
         :model-value="group.logic"
         :options="[{ label: '满足全部', value: 'AND' }, { label: '满足任意', value: 'OR' }]"
         @update:model-value="group.logic = $event === 'OR' ? 'OR' : 'AND'"
       />
+      <SmartSelect
+        v-if="!aggregateMode && showSourceSelector"
+        :model-value="group.sourceKey || preferredSourceKey"
+        class="condition-group-source"
+        placeholder="这组条件作用于"
+        :options="sourceOptions"
+        @change="group.sourceKey = String(Array.isArray($event) ? $event[0] ?? '' : $event ?? '')"
+      />
       <el-button :icon="Plus" size="small" plain @click="addCondition">添加条件</el-button>
-      <el-button v-if="!aggregateMode" :icon="Plus" size="small" plain @click="addChildGroup">添加条件组</el-button>
+      <el-button v-if="!aggregateMode && allowChildGroups" :icon="Plus" size="small" plain @click="addChildGroup">添加条件组</el-button>
     </div>
 
-    <div v-if="group.conditions.length || group.groups.length" class="dynamic-condition-group__body">
+    <div v-if="group.conditions.length || (allowChildGroups && group.groups.length)" class="dynamic-condition-group__body">
       <div v-for="(condition, index) in group.conditions" :key="condition.id" class="dynamic-condition-row">
         <template v-if="aggregateMode">
           <SmartSelect
@@ -194,6 +216,7 @@ function numberOperatorOptions() {
         </template>
         <template v-else>
           <SmartSelect
+            v-if="showSourceSelector"
             :model-value="condition.sourceKey"
             class="condition-source"
             placeholder="数据源"
@@ -262,13 +285,17 @@ function numberOperatorOptions() {
         </el-tooltip>
       </div>
 
-      <div v-for="(child, index) in group.groups" :key="child.id" class="dynamic-condition-child">
+      <div v-for="(child, index) in allowChildGroups ? group.groups : []" :key="child.id" class="dynamic-condition-child">
         <DynamicRuleConditionGroup
           :group="child"
           :sources="sources"
           :aggregate-options="aggregateOptions"
           :aggregate-mode="aggregateMode"
           :level="level + 1"
+          :preferred-source-key="effectiveSourceKey()"
+          :show-source-selector="showSourceSelector"
+          :allow-child-groups="allowChildGroups"
+          :compact="compact"
         />
         <el-button text type="danger" size="small" @click="removeGroup(index)">删除条件组</el-button>
       </div>
@@ -316,6 +343,20 @@ function numberOperatorOptions() {
   background: #fff;
 }
 
+.dynamic-condition-group.is-compact {
+  gap: 6px;
+}
+
+.dynamic-condition-group.is-compact .dynamic-condition-group__head {
+  gap: 6px;
+}
+
+.dynamic-condition-group.is-compact .dynamic-condition-row {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .condition-aggregate {
   grid-column: span 2;
 }
@@ -324,9 +365,14 @@ function numberOperatorOptions() {
 .condition-field,
 .condition-operator,
 .condition-value,
-.condition-aggregate {
+.condition-aggregate,
+.condition-group-source {
   width: 100%;
   min-width: 0;
+}
+
+.condition-group-source {
+  max-width: 220px;
 }
 
 .condition-remove {
