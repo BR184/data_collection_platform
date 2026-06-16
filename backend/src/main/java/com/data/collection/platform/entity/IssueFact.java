@@ -144,6 +144,9 @@ public class IssueFact {
   @TableField("illegal_reason")
   private String illegalReason;
 
+  @TableField("illegal_reasons")
+  private String illegalReasons;
+
   @TableField("has_response")
   private Boolean hasResponse;
 

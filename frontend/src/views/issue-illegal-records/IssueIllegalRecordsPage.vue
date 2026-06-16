@@ -50,6 +50,7 @@ const detailVisible = ref(false);
 const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const singleRecordRefreshingKey = ref<string | null>(null);
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const filterOptions = ref({ ...props.initialFilterOptions });
@@ -236,6 +237,40 @@ async function handleRefreshLatestData() {
   }
 }
 
+function rowRefreshKey(row: IssueIllegalRecordRow) {
+  return `${row.projectId ?? ''}:${row.issueIid}`;
+}
+
+async function handleRefreshSingleRecord(row: IssueIllegalRecordRow) {
+  if (!props.requestSingleRecordRefresh) {
+    return;
+  }
+  const key = rowRefreshKey(row);
+  singleRecordRefreshingKey.value = key;
+  try {
+    await props.requestSingleRecordRefresh(row);
+    ElMessage.success('已刷新本条数据');
+    await Promise.all([loadFilterOptions(), loadTableData()]);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新本条数据失败');
+  } finally {
+    singleRecordRefreshingKey.value = null;
+  }
+}
+
+function canRefreshSingleRecord(row: IssueIllegalRecordRow) {
+  return (
+    authState.currentUser.role === 'ADMIN'
+    && Boolean(props.requestSingleRecordRefresh)
+    && row.projectId != null
+    && row.issueIid != null
+  );
+}
+
+function rawRow(row: Record<string, unknown>) {
+  return row.__raw as IssueIllegalRecordRow;
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -366,6 +401,15 @@ async function handleClearFilter(key: string) {
         </template>
 
         <template #row-actions="{ row }">
+          <el-button
+            v-if="canRefreshSingleRecord(rawRow(row))"
+            link
+            :icon="RefreshRight"
+            :loading="singleRecordRefreshingKey === rowRefreshKey(rawRow(row))"
+            @click="handleRefreshSingleRecord(rawRow(row))"
+          >
+            刷新本条
+          </el-button>
           <el-button class="issue-illegal-detail-trigger customer-illegal-detail-trigger" link @click="openDetailDrawer(row)">
             查看详情
           </el-button>
@@ -401,6 +445,9 @@ async function handleClearFilter(key: string) {
               </el-descriptions-item>
               <el-descriptions-item label="里程碑">{{ selectedRow.milestoneTitle || '-' }}</el-descriptions-item>
               <el-descriptions-item label="模块">{{ selectedRow.moduleNames || '-' }}</el-descriptions-item>
+              <el-descriptions-item v-if="selectedRow.functionName" label="功能名">
+                {{ selectedRow.functionName }}
+              </el-descriptions-item>
               <el-descriptions-item label="创建人">{{ selectedRow.authorName || '-' }}</el-descriptions-item>
               <el-descriptions-item label="处理人">{{ selectedRow.assigneeName || '-' }}</el-descriptions-item>
               <el-descriptions-item label="严重程度">{{ selectedRow.severityLevel || '-' }}</el-descriptions-item>

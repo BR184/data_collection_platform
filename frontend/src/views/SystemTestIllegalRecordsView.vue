@@ -31,12 +31,21 @@ const initialFilterOptions: SystemTestIllegalRecordFilterOptionsResponse = {
   milestoneTitles: [],
 };
 
+const systemTestIllegalScopeProvider = {
+  ...SYSTEM_TEST_PHASE_SCOPE_PROVIDER,
+  placeholder: '选择测试阶段',
+  emptyLabel: undefined,
+  defaultStrategy: 'first-available' as const,
+  clearable: false,
+};
+
 const columns: RecordTableColumn[] = [
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'illegalReason', label: '非法类型', type: 'tag', sortable: true, minWidth: 150 },
   { key: 'projectName', label: '项目名称', sortable: true, minWidth: 140 },
   { key: 'moduleNames', label: '模块', type: 'tags', sortable: true, minWidth: 180 },
+  { key: 'functionName', label: '功能名', sortable: true, minWidth: 180 },
   { key: 'testingPhase', label: '测试阶段', sortable: true, minWidth: 180 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
   { key: 'bugStatus', label: '缺陷状态', sortable: true, minWidth: 140 },
@@ -85,6 +94,7 @@ function mapRow(row: SystemTestIllegalRecordRowResponse): Record<string, unknown
     illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
     projectName: row.projectName || '-',
     moduleNames: splitDisplayList(row.moduleNames || '-').map((label) => ({ label, type: 'info' as const })),
+    functionName: row.functionName || '-',
     testingPhase: row.testingPhase || '-',
     severityLevel: row.severityLevel ? [buildSeverityTag(row.severityLevel)] : [],
     bugStatus: row.bugStatus || '-',
@@ -148,8 +158,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :build-condition-fields="buildConditionFields"
     :columns="columns"
     :map-row="mapRow"
-    :scope-provider="SYSTEM_TEST_PHASE_SCOPE_PROVIDER"
-    :build-scope-options="(options) => buildScopeOptions(options.testingPhases ?? [], '全部测试阶段')"
+    :scope-provider="systemTestIllegalScopeProvider"
+    :build-scope-options="(options) => buildScopeOptions(options.testingPhases ?? [])"
     :reset-clear-keys="[
       'keyword',
       'issueIid',
@@ -191,5 +201,10 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     ]"
     default-sort-by="updatedAt"
     default-sort-order="desc"
+    :request-single-record-refresh="(row) => api.refreshSystemTestIllegalRecord({
+      source: 'default',
+      projectId: row.projectId,
+      issueIid: row.issueIid,
+    })"
   />
 </template>

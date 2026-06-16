@@ -26,6 +26,7 @@ export interface IssueIllegalRecordRow {
   authorName: string;
   assigneeName: string;
   moduleNames: string;
+  functionName?: string;
   createdAt?: string | null;
   updatedAt?: string | null;
   closedAt?: string | null;
@@ -99,6 +100,7 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   loadRuleExplanation: (projectId?: string | number | null) => Promise<StatisticBoardRuleExplanationResponse>;
   loadRealtimeStatus?: () => Promise<RealtimeWorkspaceStatusResponse>;
   requestRealtimeRefresh?: () => Promise<RealtimeWorkspaceStatusResponse>;
+  requestSingleRecordRefresh?: (row: Row) => Promise<Row | null>;
   initialFilterOptions: IssueIllegalRecordFilterOptions;
   buildConditionFields: (options: IssueIllegalRecordFilterOptions) => StatisticFilterField[];
   columns: RecordTableColumn[];

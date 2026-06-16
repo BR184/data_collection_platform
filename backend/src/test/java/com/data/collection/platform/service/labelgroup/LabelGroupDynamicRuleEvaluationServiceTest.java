@@ -97,6 +97,7 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
         "",
         assigneeName,
         List.of(),
+        "",
         systemTest ? List.of("系统测试") : List.of(),
         delayed,
         "",
@@ -105,6 +106,7 @@ class LabelGroupDynamicRuleEvaluationServiceTest {
         false,
         false,
         "",
+        List.of(),
         LocalDateTime.now().minusDays(10),
         updatedAt,
         null);

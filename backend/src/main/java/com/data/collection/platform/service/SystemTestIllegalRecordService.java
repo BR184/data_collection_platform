@@ -21,25 +21,29 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   private static final String WORKSPACE_KEY = "system-test-illegal-records";
   private static final String RULE_VERSION = "system-test-illegal-records@2026-04-27-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
   private final SystemTestScopeProfile systemTestScopeProfile;
   private final ObjectMapper objectMapper;
+  private final FactBuildService factBuildService;
 
   public SystemTestIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
       ObjectMapper objectMapper,
-      GitlabResourceLinkService issueLinkService) {
+      GitlabResourceLinkService issueLinkService,
+      FactBuildService factBuildService) {
     super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
     this.objectMapper = objectMapper;
+    this.factBuildService = factBuildService;
   }
 
   public SystemTestIllegalRecordListResponse listRecords(SystemTestIllegalRecordQueryRequest request) {
-    IssueFactRecordListRequest listRequest = request.listRequest();
+    IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
     String safeSortField =
@@ -104,7 +108,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     List<SystemTestIllegalRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
-      IssueFactRecordListRequest listRequest = request.listRequest();
+      IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
       SystemTestIllegalRecordQueryRequest pageRequest =
           new SystemTestIllegalRecordQueryRequest(
               new IssueFactRecordListRequest(
@@ -153,6 +157,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 "非法类型",
                 "项目",
                 "模块",
+                "功能名",
                 "测试阶段",
                 "严重程度",
                 "缺陷状态",
@@ -175,6 +180,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   CsvExportSupport.cell(row.illegalReason()),
                   CsvExportSupport.cell(row.projectName()),
                   CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.functionName()),
                   CsvExportSupport.cell(row.testingPhase()),
                   CsvExportSupport.cell(row.severityLevel()),
                   CsvExportSupport.cell(row.bugStatus()),
@@ -193,7 +199,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
-    List<IssueFactRecord> rows = loadScopedIllegalViews(projectId);
+    List<IssueFactRecord> rows = loadScopedIllegalViews(defaultProjectId(projectId));
     return new SystemTestIllegalRecordFilterOptionsResponse(
         toLegacyOptions(rows, IssueFactRecord::projectName),
         toLegacyOptions(rows.stream().flatMap(view -> displayModuleNames(view).stream()).toList()),
@@ -204,7 +210,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 .toList()),
         toOptions(
             rows.stream()
-                .map(view -> SystemTestIllegalReasonSupport.normalize(view.illegalReason()))
+                .flatMap(view -> displayIllegalReasons(view).stream())
                 .filter(StringUtils::hasText)
                 .toList()),
         toLegacyOptions(rows, IssueFactRecord::authorName),
@@ -216,14 +222,25 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
   }
 
+  public SystemTestIllegalRecordRowResponse refreshSingleRecord(
+      String sourceInstance, Long projectId, Long issueIid) {
+    Long safeProjectId = defaultProjectId(projectId);
+    factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
+    return loadScopedIllegalViews(safeProjectId).stream()
+        .filter(row -> row.issueIid() != null && row.issueIid().longValue() == issueIid)
+        .findFirst()
+        .map(this::toResponse)
+        .orElse(null);
+  }
+
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {
-    List<IssueFactRecord> loaded = loadFacts(projectId);
+    List<IssueFactRecord> loaded = loadFacts(defaultProjectId(projectId));
     List<IssueFactRecord> scoped = scopeSystemTests(loaded);
     List<IssueFactRecord> valid = scoped.stream().filter(view -> !view.excluded()).toList();
     List<IssueFactRecord> illegal = valid.stream().filter(IssueFactRecord::illegal).toList();
     List<IssueFactRecord> supported =
         illegal.stream()
-            .filter(view -> SystemTestIllegalReasonSupport.normalize(view.illegalReason()) != null)
+            .filter(view -> displayIllegalReasons(view).stream().anyMatch(SystemTestIllegalReasonSupport.SUPPORTED_REASONS::contains))
             .toList();
     return new StatisticBoardRuleExplanationResponse(
         WORKSPACE_KEY,
@@ -231,7 +248,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         "系统测试非法数据规则说明",
         RULE_VERSION,
         "当前页面基于 issue_fact 事实层，先用 SystemTestScopeProfile 限定系统测试/回归测试范围，再剔除排除标签数据。",
-        "非法原因来自 issue_fact.illegal_reason，页面层只做交接文档口径的原因归一化，不重新解析标签或评论。",
+        "非法类型来自 issue_fact.illegal_reasons，按老平台 illegal_list 多值口径展示和筛选。",
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
             step("scope-filter", "限定系统测试范围", "复用系统测试 scope profile，保留系统测试和回归测试议题。", scoped, loaded.size()),
@@ -270,7 +287,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return scopeSystemTests(loadFacts(projectId)).stream()
         .filter(view -> !view.excluded())
         .filter(IssueFactRecord::illegal)
-        .filter(view -> SystemTestIllegalReasonSupport.normalize(view.illegalReason()) != null)
+        .filter(view -> displayIllegalReasons(view).stream().anyMatch(SystemTestIllegalReasonSupport.SUPPORTED_REASONS::contains))
         .toList();
   }
 
@@ -315,7 +332,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         view.title(),
         view.issueState(),
         view.primaryPhaseLabel(),
-        SystemTestIllegalReasonSupport.normalize(view.illegalReason()),
+        String.join("、", displayIllegalReasons(view)),
         view.severityLevel(),
         view.bugStatus(),
         view.category(),
@@ -323,6 +340,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         view.authorName(),
         view.assigneeName(),
         String.join("、", displayModuleNames(view)),
+        view.functionName(),
         view.createdAt(),
         view.updatedAt(),
         view.closedAt(),
@@ -338,8 +356,9 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         || TextQuerySupport.containsAbstractSearch(view.title(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.projectName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(String.join(" ", displayModuleNames(view)), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(view.functionName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.primaryPhaseLabel(), normalizedKeyword)
-        || TextQuerySupport.containsAbstractSearch(SystemTestIllegalReasonSupport.normalize(view.illegalReason()), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(String.join(" ", displayIllegalReasons(view)), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.authorName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.assigneeName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.bugStatus(), normalizedKeyword)
@@ -360,11 +379,52 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private boolean matchesIllegalReason(IssueFactRecord view, String illegalReason) {
-    return SystemTestIllegalReasonSupport.matches(view.illegalReason(), illegalReason);
+    String normalizedExpected = SystemTestIllegalReasonSupport.normalize(illegalReason);
+    return normalizedExpected == null || displayIllegalReasons(view).contains(normalizedExpected);
   }
 
   private List<String> displayModuleNames(IssueFactRecord view) {
     return view.moduleNames().isEmpty() ? List.of(SystemTestIllegalReasonSupport.MISSING_MODULE) : view.moduleNames();
+  }
+
+  private List<String> displayIllegalReasons(IssueFactRecord view) {
+    List<String> reasons =
+        view.illegalReasons().isEmpty() ? List.of(view.illegalReason()) : view.illegalReasons();
+    return reasons.stream()
+        .map(SystemTestIllegalReasonSupport::normalize)
+        .filter(StringUtils::hasText)
+        .distinct()
+        .toList();
+  }
+
+  private Long defaultProjectId(Long projectId) {
+    return projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId;
+  }
+
+  private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {
+    return new IssueFactRecordListRequest(
+        defaultProjectId(request.projectId()),
+        request.keyword(),
+        request.searchType(),
+        request.issueIid(),
+        request.title(),
+        request.projectName(),
+        request.moduleName(),
+        request.severityLevel(),
+        request.priorityLevel(),
+        request.issueState(),
+        request.bugStatus(),
+        request.category(),
+        request.milestoneTitle(),
+        request.createdAtStart(),
+        request.createdAtEnd(),
+        request.updatedAtStart(),
+        request.updatedAtEnd(),
+        request.sourceInstance(),
+        request.page(),
+        request.size(),
+        request.sortField(),
+        request.sortOrder());
   }
 
   @Override
@@ -376,8 +436,8 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 new StatisticRuleFlowStepSample(
                     "#" + row.issueIid() + " " + row.projectName(),
                     row.title()
-                        + (StringUtils.hasText(SystemTestIllegalReasonSupport.normalize(row.illegalReason()))
-                            ? " | 非法类型: " + SystemTestIllegalReasonSupport.normalize(row.illegalReason())
+                        + (!displayIllegalReasons(row).isEmpty()
+                            ? " | 非法类型: " + String.join("、", displayIllegalReasons(row))
                             : "")))
         .toList();
   }
@@ -389,10 +449,11 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     comparators.put("projectName", SortSupport.nullableString(IssueFactRecord::projectName));
     comparators.put(
         "moduleNames", SortSupport.nullableString(view -> String.join("、", view.moduleNames())));
+    comparators.put("functionName", SortSupport.nullableString(IssueFactRecord::functionName));
     comparators.put("testingPhase", SortSupport.nullableString(IssueFactRecord::primaryPhaseLabel));
     comparators.put(
         "illegalReason",
-        SortSupport.nullableString(view -> SystemTestIllegalReasonSupport.normalize(view.illegalReason())));
+        SortSupport.nullableString(view -> String.join("、", displayIllegalReasons(view))));
     comparators.put("severityLevel", SortSupport.nullableString(IssueFactRecord::severityLevel));
     comparators.put("bugStatus", SortSupport.nullableString(IssueFactRecord::bugStatus));
     comparators.put("issueState", SortSupport.nullableString(IssueFactRecord::issueState));

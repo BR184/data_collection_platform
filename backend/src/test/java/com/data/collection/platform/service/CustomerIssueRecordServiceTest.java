@@ -424,6 +424,7 @@ class CustomerIssueRecordServiceTest {
         authorName,
         assigneeName,
         moduleNames,
+        "",
         List.of("customer"),
         delayIssue,
         delayIssue ? "delay requested" : "",
@@ -432,6 +433,7 @@ class CustomerIssueRecordServiceTest {
         false,
         illegal,
         illegal ? "illegal reason" : "",
+        illegal ? List.of("illegal reason") : List.of(),
         now.minusDays(3),
         now.minusDays(1),
         null);
@@ -471,6 +473,7 @@ class CustomerIssueRecordServiceTest {
         authorName,
         assigneeName,
         moduleNames,
+        "",
         List.of("customer"),
         false,
         "",
@@ -479,6 +482,7 @@ class CustomerIssueRecordServiceTest {
         false,
         false,
         "",
+        List.of(),
         now.minusDays(3),
         now.minusDays(1),
         null);

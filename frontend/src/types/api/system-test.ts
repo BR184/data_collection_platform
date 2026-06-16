@@ -17,6 +17,7 @@ export interface SystemTestIssueSearchRowResponse {
   authorName: string;
   assigneeName: string;
   moduleNames: string;
+  functionName: string;
   createdAt?: string | null;
   updatedAt?: string | null;
   closedAt?: string | null;

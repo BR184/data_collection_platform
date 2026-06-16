@@ -30,6 +30,7 @@ public record IssueFactRecord(
     String authorName,
     String assigneeName,
     List<String> moduleNames,
+    String functionName,
     List<String> labels,
     boolean delayIssue,
     String delayReason,
@@ -38,6 +39,7 @@ public record IssueFactRecord(
     boolean resolveDelayed,
     boolean illegal,
     String illegalReason,
+    List<String> illegalReasons,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
     LocalDateTime closedAt) {
@@ -47,6 +49,7 @@ public record IssueFactRecord(
   public IssueFactRecord {
     moduleNames = moduleNames == null ? List.of() : List.copyOf(moduleNames);
     labels = labels == null ? List.of() : List.copyOf(labels);
+    illegalReasons = illegalReasons == null ? List.of() : List.copyOf(illegalReasons);
   }
 
   public IssueFactRecord(
@@ -74,6 +77,7 @@ public record IssueFactRecord(
       String authorName,
       String assigneeName,
       List<String> moduleNames,
+      String functionName,
       List<String> labels,
       boolean delayIssue,
       String delayReason,
@@ -82,6 +86,7 @@ public record IssueFactRecord(
       boolean resolveDelayed,
       boolean illegal,
       String illegalReason,
+      List<String> illegalReasons,
       LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt) {
@@ -111,6 +116,7 @@ public record IssueFactRecord(
         authorName,
         assigneeName,
         moduleNames,
+        functionName,
         labels,
         delayIssue,
         delayReason,
@@ -119,6 +125,7 @@ public record IssueFactRecord(
         resolveDelayed,
         illegal,
         illegalReason,
+        illegalReasons,
         createdAt,
         updatedAt,
         closedAt);

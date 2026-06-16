@@ -399,6 +399,7 @@ class SystemTestIssueSearchServiceTest {
         authorName,
         assigneeName,
         moduleNames,
+        "",
         List.of(testingPhase, "system test"),
         false,
         "",
@@ -407,6 +408,7 @@ class SystemTestIssueSearchServiceTest {
         false,
         false,
         "",
+        List.of(),
         now.minusDays(3),
         now.minusDays(1),
         null);
@@ -447,6 +449,7 @@ class SystemTestIssueSearchServiceTest {
         authorName,
         assigneeName,
         moduleNames,
+        "",
         List.of(testingPhase, "system test"),
         false,
         "",
@@ -455,6 +458,7 @@ class SystemTestIssueSearchServiceTest {
         false,
         false,
         "",
+        List.of(),
         now.minusDays(3),
         now.minusDays(1),
         null);

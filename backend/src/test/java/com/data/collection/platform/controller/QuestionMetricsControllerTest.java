@@ -106,6 +106,7 @@ class QuestionMetricsControllerTest {
                         "alice",
                         "bob",
                         "草图",
+                        "草图功能",
                         LocalDateTime.of(2026, 4, 11, 10, 0),
                         LocalDateTime.of(2026, 4, 20, 16, 30),
                         null,

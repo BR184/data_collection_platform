@@ -267,6 +267,7 @@ class CustomerIssueIllegalRecordServiceTest {
         "Alice",
         "Bob",
         List.of(moduleName),
+        "",
         List.of("customer"),
         false,
         "",
@@ -275,6 +276,7 @@ class CustomerIssueIllegalRecordServiceTest {
         false,
         illegal,
         illegalReason,
+        illegal ? List.of(illegalReason) : List.of(),
         now.minusDays(3),
         now.minusDays(1),
         null);

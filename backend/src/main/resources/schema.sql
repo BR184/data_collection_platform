@@ -434,10 +434,11 @@ create table if not exists issue_fact (
     delay_cause varchar(255),
     is_regression boolean not null default false,
     is_crash boolean not null default false,
-    is_level1_other boolean not null default false,
-    is_illegal boolean not null default false,
-    illegal_reason varchar(255),
-    has_response boolean not null default false,
+     is_level1_other boolean not null default false,
+     is_illegal boolean not null default false,
+     illegal_reason varchar(255),
+     illegal_reasons text,
+     has_response boolean not null default false,
     response_overdue boolean not null default false,
     is_response_delayed boolean not null default false,
     resolve_sla_days integer not null default 18,
@@ -664,6 +665,7 @@ alter table issue_fact add column if not exists is_crash boolean not null defaul
 alter table issue_fact add column if not exists is_level1_other boolean not null default false;
 alter table issue_fact add column if not exists is_illegal boolean not null default false;
 alter table issue_fact add column if not exists illegal_reason varchar(255);
+alter table issue_fact add column if not exists illegal_reasons text;
 alter table issue_fact add column if not exists has_response boolean not null default false;
 alter table issue_fact add column if not exists response_overdue boolean not null default false;
 alter table issue_fact add column if not exists is_response_delayed boolean not null default false;

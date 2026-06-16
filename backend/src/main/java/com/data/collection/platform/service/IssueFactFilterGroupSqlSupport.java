@@ -40,6 +40,7 @@ final class IssueFactFilterGroupSqlSupport {
       case "title" -> titleCondition(condition);
       case "projectName" -> textCondition("project_name", condition);
       case "moduleName" -> moduleCondition(condition);
+      case "functionName" -> textCondition("function_name", condition);
       case "testingPhase" -> phaseCondition(condition);
       case "reasonCategory" -> textCondition("reason_category", condition);
       case "illegalReason" -> illegalReasonCondition(condition);
@@ -157,12 +158,18 @@ final class IssueFactFilterGroupSqlSupport {
       if (rawReasons.isEmpty()) {
         return textCondition("illegal_reason", condition);
       }
-      String placeholders = String.join(", ", rawReasons.stream().map(value -> "?").toList());
-      String predicate = "illegal_reason in (" + placeholders + ")";
+      List<String> predicates = new ArrayList<>();
+      List<Object> args = new ArrayList<>();
+      for (String rawReason : rawReasons) {
+        predicates.add(
+            "lower(',' || replace(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''), ', ', ',') || ',') like ?");
+        args.add("%," + lower(rawReason) + ",%");
+      }
+      String predicate = String.join(" or ", predicates);
       if ("ne".equals(operator)) {
         predicate = "not (" + predicate + ")";
       }
-      return Optional.of(new SqlPredicate(predicate, new ArrayList<>(rawReasons)));
+      return Optional.of(new SqlPredicate(predicate, args));
     }
     return textCondition("illegal_reason", condition);
   }

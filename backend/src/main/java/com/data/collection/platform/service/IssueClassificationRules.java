@@ -79,31 +79,38 @@ final class IssueClassificationRules {
   }
 
   static boolean isIllegal(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
-    return illegalReason(labels, closed, modules, notesText, fixed) != null;
+    return !illegalReasons(labels, closed, modules, notesText, fixed).isEmpty();
   }
 
   static String illegalReason(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
+    List<String> reasons = illegalReasons(labels, closed, modules, notesText, fixed);
+    return reasons.isEmpty() ? null : reasons.get(0);
+  }
+
+  static List<String> illegalReasons(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
+    List<String> reasons = new java.util.ArrayList<>();
     if (IssueLabelRules.normalizeSeverityLevel(labels) == null) {
-      return "缺失严重程度";
+      reasons.add("未设定严重程度");
     }
     if (modules == null || modules.isEmpty()) {
-      return "缺失模块";
+      reasons.add("未设定模块");
     }
     if (fixed) {
       if (!hasTemplateReply(notesText)) {
-        return "未按照模板回复";
-      }
-      int reasonCount = latestReasonCategoryCount(notesText);
-      if (reasonCount != 1) {
-        return "缺陷原因不唯一";
+        reasons.add("未按照模板回复");
+      } else {
+        int reasonCount = latestReasonCategoryCount(notesText);
+        if (reasonCount != 1) {
+          reasons.add("缺陷原因不唯一");
+        }
       }
     }
     if (!closed
         && !IssueRuleSupport.containsAnyLabel(labels, FLOW_OK_LABELS)
         && !IssueRuleSupport.containsAnyLabel(labels, APPLY_DELAY_LABELS)) {
-      return "流程越位";
+      reasons.add("流程越位");
     }
-    return null;
+    return List.copyOf(reasons);
   }
 
   static boolean hasTemplateReply(String notesText) {

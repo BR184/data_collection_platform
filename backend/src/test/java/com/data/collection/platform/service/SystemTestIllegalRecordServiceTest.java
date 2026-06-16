@@ -24,6 +24,7 @@ class SystemTestIllegalRecordServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
+  @Mock private FactBuildService factBuildService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -284,7 +285,8 @@ class SystemTestIllegalRecordServiceTest {
         issueFactRecordRepository,
         systemTestScopeProfile,
         new ObjectMapper(),
-        issueLinkService);
+        issueLinkService,
+        factBuildService);
   }
 
   private IssueFactRecord record(
@@ -322,6 +324,7 @@ class SystemTestIllegalRecordServiceTest {
         "alice",
         "bob",
         modules,
+        "",
         List.of(testingPhase, "system test"),
         false,
         "",
@@ -330,6 +333,7 @@ class SystemTestIllegalRecordServiceTest {
         false,
         illegal,
         illegalReason,
+        illegal ? List.of(illegalReason) : List.of(),
         now.minusDays(3),
         now.minusDays(issueIid % 3),
         null);

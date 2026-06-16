@@ -39,6 +39,7 @@ public class IssueFactRecordRepository {
              coalesce(author_name, '') as author_name,
              coalesce(assignee_name, '') as assignee_name,
              coalesce(module_names, '') as module_names,
+             coalesce(function_name, '') as function_name,
              coalesce(label_names, '') as label_names,
              coalesce(delay_issue, false) as delay_issue,
              coalesce(delay_reason, '') as delay_reason,
@@ -47,6 +48,7 @@ public class IssueFactRecordRepository {
              coalesce(is_resolve_delayed, false) as is_resolve_delayed,
              coalesce(is_illegal, false) as is_illegal,
              coalesce(illegal_reason, '') as illegal_reason,
+             coalesce(illegal_reasons, '') as illegal_reasons,
              created_at_source,
              updated_at_source,
              closed_at_source
@@ -369,10 +371,10 @@ public class IssueFactRecordRepository {
     }
     where.append(" and is_illegal = true");
     if (query.supportedSystemIllegalReasonsOnly()) {
-      appendIn(where, args, "illegal_reason", SystemTestIllegalReasonSupport.supportedRawReasons());
+      appendIllegalReasonsContainsAny(where, args, SystemTestIllegalReasonSupport.SUPPORTED_REASONS);
       List<String> rawReasons = SystemTestIllegalReasonSupport.rawReasonsFor(query.illegalReason());
       if (!rawReasons.isEmpty()) {
-        appendIn(where, args, "illegal_reason", rawReasons);
+        appendIllegalReasonsContainsAny(where, args, rawReasons);
       }
       return;
     }
@@ -525,6 +527,23 @@ public class IssueFactRecordRepository {
     where.append(")");
   }
 
+  private void appendIllegalReasonsContainsAny(StringBuilder where, List<Object> args, List<String> values) {
+    if (values == null || values.isEmpty()) {
+      where.append(" and 1 = 0");
+      return;
+    }
+    where.append(" and (");
+    for (int index = 0; index < values.size(); index++) {
+      if (index > 0) {
+        where.append(" or ");
+      }
+      where.append(
+          "lower(',' || replace(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''), ', ', ',') || ',') like ?");
+      args.add("%," + values.get(index).toLowerCase(java.util.Locale.ROOT) + ",%");
+    }
+    where.append(")");
+  }
+
   private String sortColumn(String sortField) {
     return SORT_COLUMNS.getOrDefault(sortField, "updated_at_source");
   }
@@ -564,6 +583,7 @@ public class IssueFactRecordRepository {
         IssueFactValueSupport.text(rs.getString("author_name")),
         IssueFactValueSupport.text(rs.getString("assignee_name")),
         IssueFactValueSupport.split(rs.getString("module_names")),
+        IssueFactValueSupport.text(rs.getString("function_name")),
         IssueFactValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("delay_issue"),
         IssueFactValueSupport.text(rs.getString("delay_reason")),
@@ -572,6 +592,7 @@ public class IssueFactRecordRepository {
         rs.getBoolean("is_resolve_delayed"),
         rs.getBoolean("is_illegal"),
         IssueFactValueSupport.text(rs.getString("illegal_reason")),
+        IssueFactValueSupport.split(rs.getString("illegal_reasons")),
         IssueFactValueSupport.time(rs.getTimestamp("created_at_source")),
         IssueFactValueSupport.time(rs.getTimestamp("updated_at_source")),
         IssueFactValueSupport.time(rs.getTimestamp("closed_at_source")));
@@ -583,9 +604,10 @@ public class IssueFactRecordRepository {
     columns.put("title", "lower(coalesce(title, ''))");
     columns.put("projectName", "lower(coalesce(project_name, ''))");
     columns.put("moduleNames", "lower(coalesce(module_names, ''))");
+    columns.put("functionName", "lower(coalesce(function_name, ''))");
     columns.put("testingPhase", "lower(coalesce(phase_filter_value, ''))");
     columns.put("reasonCategory", "lower(coalesce(reason_category, ''))");
-    columns.put("illegalReason", "lower(coalesce(illegal_reason, ''))");
+    columns.put("illegalReason", "lower(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''))");
     columns.put("severityLevel", "lower(coalesce(severity_level, ''))");
     columns.put("priorityLevel", "lower(coalesce(priority_level, ''))");
     columns.put("bugStatus", "lower(coalesce(bug_status, ''))");

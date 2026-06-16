@@ -115,6 +115,24 @@ public class FactBuildService {
     return rebuildIssueFactsInternal(full, GitlabSourceInstanceSupport.sourceInstanceOf(config));
   }
 
+  public FactBuildResponse rebuildIssueFactByIid(String sourceInstance, Long projectId, Long issueIid) {
+    if (projectId == null || issueIid == null) {
+      throw new BizException("刷新单条议题需要项目 ID 和议题编号");
+    }
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
+    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
+    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+    List<IssueFact> facts =
+        loadSingleIssueFacts(normalizedSource, projectId, issueIid, calendar, moduleDictionary);
+    batchUpsertIssueFacts(facts);
+    return new FactBuildResponse(
+        factScope("issue", normalizedSource),
+        false,
+        facts.size(),
+        facts.isEmpty() ? "未找到对应议题事实源数据" : "议题事实已按单条刷新");
+  }
+
   private FactBuildResponse rebuildIssueFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
@@ -155,10 +173,49 @@ public class FactBuildService {
     }
   }
 
+  private List<IssueFact> loadSingleIssueFacts(
+      String sourceInstance,
+      Long projectId,
+      Long issueIid,
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
+      ModuleDictionary moduleDictionary) {
+    try {
+      return queryIssueFacts(
+          sourceInstance,
+          factSourceSqlProvider.issueSourceSql() + " and i.project_id = ? and i.iid = ?",
+          null,
+          List.of(projectId, issueIid),
+          calendar,
+          moduleDictionary);
+    } catch (DataAccessException error) {
+      if (!isMilestoneQueryFallbackAllowed(error)) {
+        throw error;
+      }
+      log.warn("Single issue fact build fallback activated because milestone join is unavailable", error);
+      return queryIssueFacts(
+          sourceInstance,
+          factSourceSqlProvider.issueSourceSqlFallback() + " and i.project_id = ? and i.iid = ?",
+          null,
+          List.of(projectId, issueIid),
+          calendar,
+          moduleDictionary);
+    }
+  }
+
   private List<IssueFact> queryIssueFacts(
       String sourceInstance,
       String baseSql,
       LocalDateTime changedSince,
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
+      ModuleDictionary moduleDictionary) {
+    return queryIssueFacts(sourceInstance, baseSql, changedSince, List.of(), calendar, moduleDictionary);
+  }
+
+  private List<IssueFact> queryIssueFacts(
+      String sourceInstance,
+      String baseSql,
+      LocalDateTime changedSince,
+      List<Object> extraArgs,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) {
     return factSourceQueryExecutor.query(
@@ -167,6 +224,7 @@ public class FactBuildService {
         baseSql,
         "and coalesce(i.updated_at, i.created_at) > ?",
         changedSince,
+        extraArgs,
         (rs, rowNum) -> mapIssueFact(rs, sourceInstance, calendar, moduleDictionary));
   }
 
@@ -442,6 +500,7 @@ public class FactBuildService {
     fact.setLevel1Other(IssueFactNormalizationRules.isLevel1Other(labels, title));
     fact.setIllegal(IssueFactNormalizationRules.isIllegal(labels, closed, moduleNames, notesText, Boolean.TRUE.equals(fact.getFixed())));
     fact.setIllegalReason(IssueFactNormalizationRules.illegalReason(labels, closed, moduleNames, notesText, Boolean.TRUE.equals(fact.getFixed())));
+    fact.setIllegalReasons(String.join(", ", IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, Boolean.TRUE.equals(fact.getFixed()))));
     fact.setHasResponse(IssueFactNormalizationRules.hasResponse(notesText));
     boolean responseDelayed = IssueFactNormalizationRules.isResponseDelayed(labels, notesText);
     fact.setResponseOverdue(responseDelayed);

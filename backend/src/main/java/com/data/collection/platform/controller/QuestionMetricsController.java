@@ -5,6 +5,7 @@ import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIllegalRecordListResponse;
+import com.data.collection.platform.entity.SystemTestIllegalRecordRowResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
@@ -16,6 +17,7 @@ import com.data.collection.platform.service.SystemTestIssueSearchService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -130,5 +132,15 @@ public class QuestionMetricsController {
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success(
         "已开始刷新最新数据", realtimeRefreshService.requestRefresh(ILLEGAL_RECORDS_WORKSPACE_KEY));
+  }
+
+  @PostMapping("/illegal-records/refresh-one")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<SystemTestIllegalRecordRowResponse> refreshOneIllegalRecord(
+      @RequestBody SystemTestIllegalRecordSingleRefreshWebRequest request) {
+    return ApiResponse.success(
+        "已刷新本条议题事实数据",
+        systemTestIllegalRecordService.refreshSingleRecord(
+            request.getSource(), request.getProjectId(), request.getIssueIid()));
   }
 }

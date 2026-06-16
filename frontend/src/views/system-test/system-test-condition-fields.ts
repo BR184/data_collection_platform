@@ -53,6 +53,7 @@ export function buildSystemTestIllegalConditionFields(
     textConditionField('issueIid', '议题编号', 180),
     textConditionField('title', '标题', 240),
     selectConditionField('moduleName', '模块', options.moduleNames),
+    textConditionField('functionName', '功能名', 180),
     selectConditionField('projectName', '项目', options.projectNames),
     selectConditionField('testingPhase', '测试阶段', options.testingPhases),
     selectConditionField('illegalReason', '非法类型', options.illegalReasons),

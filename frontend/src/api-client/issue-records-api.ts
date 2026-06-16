@@ -276,6 +276,19 @@ export const issueRecordsApi = {
       method: 'POST',
     });
   },
+  refreshSystemTestIllegalRecord(payload: {
+    source?: string | null;
+    projectId?: string | number | null;
+    issueIid?: string | number | null;
+  }) {
+    return request<SystemTestIllegalRecordListResponse['records'][number] | null>(
+      '/api/question-metrics/illegal-records/refresh-one',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
   getCustomerIssueIllegalRecords(params: {
     projectId?: string | number | null;
     keyword?: string;

@@ -101,6 +101,10 @@ public final class IssueFactNormalizationRules {
     return IssueClassificationRules.illegalReason(labels, closed, modules, notesText, fixed);
   }
 
+  public static List<String> illegalReasons(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
+    return IssueClassificationRules.illegalReasons(labels, closed, modules, notesText, fixed);
+  }
+
   public static boolean hasTemplateReply(String notesText) {
     return IssueClassificationRules.hasTemplateReply(notesText);
   }
