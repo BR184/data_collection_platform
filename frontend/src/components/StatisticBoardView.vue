@@ -31,7 +31,8 @@ import { useStatisticBoardRefreshController } from '../composables/useStatisticB
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
-import SavedTableViewsEntry from './SavedTableViewsEntry.vue';
+import PageSettingsDialog from './PageSettingsDialog.vue';
+import { usePageSavedViews } from '../composables/usePageSavedViews';
 import { downloadBlob, downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import {
   type SortDirection,
@@ -68,11 +69,12 @@ const lastAutoRefreshAt = ref(0);
 const issueExportLoading = ref(false);
 const customerIssueExportLoading = ref(false);
 const horizontalComparisonExportLoading = ref(false);
-const savedViewsVisible = ref(false);
+const pageSettingsVisible = ref(false);
+const pageScopeKey = computed(() => `stat-board:${props.boardKey}`);
 const {
   autoRefreshOnEnter,
-  toggleAutoRefreshOnEnter,
-} = usePageAutoRefreshPreference();
+  setAutoRefreshOnEnter,
+} = usePageAutoRefreshPreference(() => pageScopeKey.value);
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -318,14 +320,29 @@ const {
   draftVisibleColumnKeys,
   openSettings,
   openSavedViews: () => {
-    savedViewsVisible.value = true;
+    pageSettingsVisible.value = true;
+    loadSavedViews();
   },
   closeSettings,
   clearCurrentSort,
   syncDraftFromVisible,
   saveVisibleColumnPrefs,
   restoreDefaultViewPrefs,
-  toggleAutoRefreshOnEnter,
+});
+
+const {
+  savedViews,
+  loadSavedViews,
+  saveCurrentView,
+  applySavedView,
+  deleteSavedView,
+} = usePageSavedViews({
+  scopeKey: () => pageScopeKey.value,
+  captureViewPrefs: captureStatisticBoardViewPrefs,
+  applyViewPrefs: applyStatisticBoardViewPrefs,
+  afterApply: () => {
+    pageSettingsVisible.value = false;
+  },
 });
 
 const {
@@ -505,6 +522,7 @@ async function autoRefreshPageData() {
           @export-board="exportBoard"
           @extra-action="handleExtraAction"
           @settings-command="handleSettingsCommand"
+          @toggle-auto-refresh="setAutoRefreshOnEnter"
         />
       </div>
 
@@ -598,12 +616,15 @@ async function autoRefreshPageData() {
       @update:model-value="handleDetailVisibleChange"
     />
 
-    <SavedTableViewsEntry
-      v-model="savedViewsVisible"
-      :scope-key="`stat-board:${props.boardKey}`"
-      :show-trigger="false"
-      :capture-view-prefs="captureStatisticBoardViewPrefs"
-      :apply-view-prefs="applyStatisticBoardViewPrefs"
+    <PageSettingsDialog
+      v-model="pageSettingsVisible"
+      title="页面设置"
+      :auto-refresh-enabled="autoRefreshOnEnter"
+      :saved-views="savedViews"
+      @toggle-auto-refresh="setAutoRefreshOnEnter"
+      @save-view="saveCurrentView"
+      @apply-view="applySavedView"
+      @delete-view="deleteSavedView"
     />
 
   </div>

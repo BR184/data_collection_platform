@@ -6,7 +6,7 @@ import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
+import PageSettingsButton from '../components/PageSettingsButton.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
@@ -22,6 +22,7 @@ import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceS
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { CODE_REVIEW_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableActiveFilterTag } from '../types/record-table';
 import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';
@@ -53,6 +54,8 @@ import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 
+const PAGE_SCOPE_KEY = 'record-page:code-review-illegal-records';
+const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
 const router = useRouter();
 const {
   route,
@@ -71,6 +74,7 @@ const {
     sortOrder: 'desc',
   },
   watchedQueryKeys: CODE_REVIEW_RECORD_QUERY_KEYS,
+  autoRefreshOnEnter: readAutoRefreshOnEnter,
 });
 
 const rows = ref<CodeReviewIllegalRecordRowResponse[]>([]);
@@ -393,10 +397,6 @@ async function handleConditionFilterReset() {
         />
       </template>
 
-      <template #saved-views>
-        <SavedTableViewsEntry scope-key="record-page:code-review-illegal-records" />
-      </template>
-
       <template #primary-actions>
         <div class="code-review-illegal-toolbar-actions">
           <SyncMetaBadge :value="lastSyncedText" />
@@ -426,6 +426,7 @@ async function handleConditionFilterReset() {
           <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
             导出
           </el-button>
+          <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
           <span class="code-review-illegal-toolbar-divider" />
           <span class="code-review-illegal-toolbar-label">当前排序</span>
           <el-tag effect="plain" type="info" class="record-page-sort-tag">

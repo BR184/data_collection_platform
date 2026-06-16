@@ -5,7 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
+import PageSettingsButton from '../components/PageSettingsButton.vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
@@ -27,11 +27,17 @@ import { useRouteTableState } from '../composables/useRouteTableState';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
+import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import type { RecordTableActiveFilterTag, RecordTableColumn } from '../types/record-table';
 import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { useRoute } from 'vue-router';
 
+const currentRoute = useRoute();
+const resolveTopic = () => currentRoute.meta.pageKey === 'customer-issues-delay-issues' ? 'delay' : 'cc-product';
+const pageScopeKey = computed(() => `record-page:customer-issue-records:${resolveTopic()}`);
+const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(() => pageScopeKey.value);
 const {
   route,
   page,
@@ -49,6 +55,7 @@ const {
     sortOrder: 'desc',
   },
   watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
+  autoRefreshOnEnter: readAutoRefreshOnEnter,
 });
 
 const rows = ref<CustomerIssueRecordRowResponse[]>([]);
@@ -74,7 +81,7 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
 });
 
 const topic = computed<CustomerIssueRecordTopic>(() =>
-  route.meta.pageKey === 'customer-issues-delay-issues' ? 'delay' : 'cc-product',
+  resolveTopic(),
 );
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
@@ -437,10 +444,6 @@ async function handleConditionFilterReset() {
           </div>
         </template>
 
-        <template #saved-views>
-          <SavedTableViewsEntry :scope-key="`record-page:customer-issue-records:${topic}`" />
-        </template>
-
         <template #primary-actions>
           <div class="customer-record-toolbar-actions">
             <SyncMetaBadge :value="lastSyncedText" />
@@ -466,6 +469,7 @@ async function handleConditionFilterReset() {
             <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
               导出
             </el-button>
+            <PageSettingsButton :scope-key="pageScopeKey" />
           </div>
         </template>
 

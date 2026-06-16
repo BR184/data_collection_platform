@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Download, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
+import PageSettingsButton from '../components/PageSettingsButton.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
@@ -29,8 +29,11 @@ import type {
 } from '../types/record-table';
 import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
+import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { buildSystemTestIssueSearchConditionFields } from './system-test/system-test-condition-fields';
 
+const PAGE_SCOPE_KEY = 'record-page:system-test-issue-search';
+const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
 const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTableLoading } =
   useRouteTableState({
     defaults: {
@@ -40,6 +43,7 @@ const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTabl
       sortOrder: 'desc',
     },
     watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
+    autoRefreshOnEnter: readAutoRefreshOnEnter,
   });
 
 const advancedVisible = ref(false);
@@ -546,10 +550,6 @@ async function handleRefresh() {
         />
       </template>
 
-      <template #saved-views>
-        <SavedTableViewsEntry scope-key="record-page:system-test-issue-search" />
-      </template>
-
       <template #toolbar-actions>
         <SyncMetaBadge :value="lastSyncedText" />
         <el-button
@@ -564,6 +564,7 @@ async function handleRefresh() {
         <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
           导出
         </el-button>
+        <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
       </template>
 
       <template #expand="{ row }">

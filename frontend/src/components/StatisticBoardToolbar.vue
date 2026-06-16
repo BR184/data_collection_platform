@@ -39,6 +39,7 @@ const emit = defineEmits<{
   (event: 'exportBoard'): void;
   (event: 'extraAction', actionKey: string): void;
   (event: 'settingsCommand', command: string): void;
+  (event: 'toggleAutoRefresh', enabled: boolean): void;
 }>();
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
@@ -213,8 +214,16 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
               <el-dropdown-item command="open-settings">列显示设置</el-dropdown-item>
               <el-dropdown-item command="open-saved-views">固定/管理视图</el-dropdown-item>
               <el-dropdown-item command="clear-sort">恢复默认排序</el-dropdown-item>
-              <el-dropdown-item command="toggle-auto-refresh">
-                {{ autoRefreshOnEnter ? '关闭进入页面自动刷新' : '开启进入页面自动刷新' }}
+              <el-dropdown-item divided command="noop" class="view-settings-switch-item">
+                <span>进入页面自动刷新</span>
+                <el-switch
+                  :model-value="autoRefreshOnEnter"
+                  inline-prompt
+                  active-text="开"
+                  inactive-text="关"
+                  @click.stop
+                  @change="emit('toggleAutoRefresh', Boolean($event))"
+                />
               </el-dropdown-item>
               <el-dropdown-item command="restore-default-view">恢复默认视图</el-dropdown-item>
             </el-dropdown-menu>
@@ -277,6 +286,14 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
 
 .stat-board-toolbar-actions {
   justify-content: flex-end;
+}
+
+.view-settings-switch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 220px;
 }
 
 .stat-board-refresh-status {

@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 type QueryValue = string | number | undefined | null;
@@ -25,6 +25,7 @@ export interface RouteTableStateOptions {
   watchedQueryKeys?: string[];
   debounceMs?: number;
   minLoadingMs?: number;
+  autoRefreshOnEnter?: () => boolean;
 }
 
 const DEFAULT_WATCHED_QUERY_KEYS = ['page', 'pageSize', 'sortBy', 'sortOrder', 'keyword'];
@@ -35,6 +36,8 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
   const isTableLoading = ref(false);
   let debounceTimer: number | null = null;
   let loaderRunId = 0;
+  let boundLoader: (() => Promise<void>) | null = null;
+  let lastFocusedAt = 0;
 
   const page = computed(() => parsePositiveInteger(route.query.page, options.defaults?.page ?? 1));
   const pageSize = computed(() => parsePositiveInteger(route.query.pageSize, options.defaults?.pageSize ?? 20));
@@ -80,6 +83,7 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
   }
 
   function bindLoader(loader: () => Promise<void>) {
+    boundLoader = loader;
     watch(
       () => watchedQuerySignature(route.query, options.watchedQueryKeys),
       async () => {
@@ -106,7 +110,40 @@ export function useRouteTableState(options: RouteTableStateOptions = {}) {
   onBeforeUnmount(() => {
     cancelDebouncedQuery();
     loaderRunId += 1;
+    window.removeEventListener('focus', handleWindowFocus);
   });
+
+  onMounted(() => {
+    if (options.autoRefreshOnEnter) {
+      window.addEventListener('focus', handleWindowFocus);
+    }
+  });
+
+  async function handleWindowFocus() {
+    if (!options.autoRefreshOnEnter?.() || !boundLoader || isTableLoading.value) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastFocusedAt < 1200) {
+      return;
+    }
+    lastFocusedAt = now;
+    const runId = ++loaderRunId;
+    const startedAt = Date.now();
+    isTableLoading.value = true;
+    try {
+      await boundLoader();
+    } finally {
+      const minLoadingMs = options.minLoadingMs ?? 220;
+      const remainingMs = minLoadingMs - (Date.now() - startedAt);
+      if (remainingMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingMs));
+      }
+      if (runId === loaderRunId) {
+        isTableLoading.value = false;
+      }
+    }
+  }
 
   return {
     route,

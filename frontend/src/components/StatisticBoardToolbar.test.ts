@@ -75,6 +75,11 @@ function mountToolbar() {
           props: ['command'],
           template: '<button type="button" class="dropdown-item" @click="$parent?.$emit(\'command\', command)"><slot /></button>',
         },
+        ElSwitch: {
+          props: ['modelValue'],
+          emits: ['change'],
+          template: '<button type="button" data-testid="auto-refresh-switch" @click="$emit(\'change\', !modelValue)">{{ modelValue ? "开" : "关" }}</button>',
+        },
       },
     },
   });
@@ -90,7 +95,8 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('已是最新');
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('镜像已完成');
     expect(wrapper.get('[data-testid="realtime-refresh-status"]').text()).toContain('事实已完成');
-    expect(wrapper.text()).toContain('关闭进入页面自动刷新');
+    expect(wrapper.text()).toContain('进入页面自动刷新');
+    expect(wrapper.get('[data-testid="auto-refresh-switch"]').text()).toBe('开');
     expect(wrapper.classes()).toContain('toolbar-hook');
     expect(wrapper.find('.stat-board-toolbar-main').classes()).toContain('main-hook');
     expect(wrapper.find('.stat-board-toolbar-actions').classes()).toContain('actions-hook');
@@ -113,11 +119,13 @@ describe('StatisticBoardToolbar', () => {
     expect(wrapper.emitted('exportBoard')).toHaveLength(1);
   });
 
-  it('shows the enable copy when page auto refresh is disabled', async () => {
+  it('shows and emits the auto refresh switch state', async () => {
     const wrapper = mountToolbar();
     await wrapper.setProps({ autoRefreshOnEnter: false });
 
-    expect(wrapper.text()).toContain('开启进入页面自动刷新');
+    expect(wrapper.get('[data-testid="auto-refresh-switch"]').text()).toBe('关');
+    await wrapper.get('[data-testid="auto-refresh-switch"]').trigger('click');
+    expect(wrapper.emitted('toggleAutoRefresh')).toEqual([[true]]);
   });
 
   it('shows two-stage refresh progress without absolute failure copy', async () => {

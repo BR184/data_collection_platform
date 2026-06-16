@@ -5,7 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../../element-plus-services';
 import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
-import SavedTableViewsEntry from '../../components/SavedTableViewsEntry.vue';
+import PageSettingsButton from '../../components/PageSettingsButton.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../../components/realtime/SyncMetaBadge.vue';
@@ -18,11 +18,14 @@ import { ISSUE_RECORD_QUERY_KEYS } from '../../composables/record-route-query-ke
 import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
 import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspaceStatus';
+import { usePageAutoRefreshPreference } from '../../composables/usePageAutoRefreshPreference';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
 import { downloadCsv, formatExportFileDate } from '../../utils/csv-download';
 
 const props = defineProps<IssueIllegalRecordsPageConfig>();
+const pageScopeKey = computed(() => `record-page:${props.workspaceKey}`);
+const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(() => pageScopeKey.value);
 
 const {
   route,
@@ -41,6 +44,7 @@ const {
     sortOrder: props.defaultSortOrder ?? 'desc',
   },
   watchedQueryKeys: ISSUE_RECORD_QUERY_KEYS,
+  autoRefreshOnEnter: readAutoRefreshOnEnter,
 });
 
 const rows = ref<IssueIllegalRecordRow[]>([]);
@@ -380,10 +384,6 @@ async function handleConditionFilterReset() {
           </div>
         </template>
 
-        <template #saved-views>
-          <SavedTableViewsEntry :scope-key="`record-page:${props.workspaceKey}`" />
-        </template>
-
         <template #primary-actions>
           <div class="issue-illegal-toolbar-actions customer-illegal-toolbar-actions">
             <SyncMetaBadge v-if="props.loadRealtimeStatus" :value="lastSyncedText" />
@@ -415,6 +415,7 @@ async function handleConditionFilterReset() {
             >
               导出
             </el-button>
+            <PageSettingsButton :scope-key="pageScopeKey" />
           </div>
         </template>
 

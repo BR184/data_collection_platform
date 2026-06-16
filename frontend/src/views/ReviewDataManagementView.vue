@@ -5,7 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
-import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
+import PageSettingsButton from '../components/PageSettingsButton.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
@@ -29,12 +29,15 @@ import type { ReviewDataRecordRowResponse } from '../types/api';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
+import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import {
   buildReviewDataFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
 } from './review-data-management';
 
+const PAGE_SCOPE_KEY = 'record-page:review-data-management';
+const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
 const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoader, isTableLoading } = useRouteTableState({
   defaults: {
     page: 1,
@@ -43,6 +46,7 @@ const { route, page, pageSize, sortBy, sortOrder, keyword, patchQuery, bindLoade
     sortOrder: 'desc',
   },
   watchedQueryKeys: REVIEW_DATA_RECORD_QUERY_KEYS,
+  autoRefreshOnEnter: readAutoRefreshOnEnter,
 });
 
 const {
@@ -326,10 +330,6 @@ const {
         />
       </template>
 
-      <template #saved-views>
-        <SavedTableViewsEntry scope-key="record-page:review-data-management" />
-      </template>
-
       <template #primary-actions>
         <div class="review-data-toolbar-actions">
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
@@ -364,6 +364,7 @@ const {
           <el-button plain :icon="Download" @click="handleDownloadTemplate">
             模板
           </el-button>
+          <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
           <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
         </div>
       </template>
