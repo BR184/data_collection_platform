@@ -70,6 +70,8 @@ const {
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
+  buildConditionApplyQueryPatch,
+  buildConditionResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
 
 const {
@@ -450,6 +452,14 @@ async function handleQuery() {
   await patchQuery({ page: 1, ...buildApplyQueryPatch(route.query) });
 }
 
+async function handleConditionFilterApply() {
+  await patchQuery(buildConditionApplyQueryPatch(route.query));
+}
+
+async function handleConditionFilterReset() {
+  await patchQuery(buildConditionResetQueryPatch(route.query));
+}
+
 async function handleSizeChange(nextSize: number) {
   await patchQuery({ pageSize: nextSize, page: 1 });
 }
@@ -529,6 +539,9 @@ async function handleRefresh() {
           :model-value="filterDraft"
           :fields="conditionFilterFields"
           add-button-text="添加条件"
+          show-apply-actions
+          @apply="handleConditionFilterApply"
+          @reset="handleConditionFilterReset"
         />
       </template>
 

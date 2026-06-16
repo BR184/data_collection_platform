@@ -119,6 +119,8 @@ const hasPrimaryFilters = computed(() => props.primaryFilters.length > 0);
 const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
 const hasActiveFilterTags = computed(() => props.activeFilterTags.length > 0);
 const hasStandaloneSearch = computed(() => props.showSearch && !props.primaryFilters.some((item) => item.key === 'keyword'));
+const hasRecordFieldFilters = computed(() => hasPrimaryFilters.value || hasAdvancedFilters.value);
+const shouldShowPrimaryQueryActions = computed(() => hasRecordFieldFilters.value || !hasFilterBuilder.value);
 
 function handleSearch() {
   const normalizedKeyword = keywordDraft.value.trim();
@@ -284,14 +286,14 @@ function handleStandaloneKeywordClear() {
             @clear="handleStandaloneKeywordClear"
           />
 
-          <div class="record-filter-primary-actions">
+          <div v-if="shouldShowPrimaryQueryActions" class="record-filter-primary-actions">
             <el-button v-if="hasAdvancedFilters" @click="toggleAdvancedVisible">
               {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
             </el-button>
-            <el-button @click="handleReset">重置</el-button>
             <el-button type="primary" @click="handleQueryClick">
               {{ queryButtonText }}
             </el-button>
+            <el-button @click="handleReset">重置</el-button>
           </div>
         </div>
 
@@ -448,13 +450,13 @@ function handleStandaloneKeywordClear() {
 .record-filter-primary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 8px;
 }
 
 .record-condition-panel {
   min-width: 0;
-  padding: 8px;
+  padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: 8px;
   background: rgba(248, 250, 252, 0.72);
@@ -480,6 +482,7 @@ function handleStandaloneKeywordClear() {
   gap: 8px;
   flex-wrap: wrap;
   flex: 0 0 auto;
+  order: 2;
 }
 
 .record-filter-slot-actions {

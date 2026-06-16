@@ -45,6 +45,21 @@ export function useConditionFilterGroupState(fields: ComputedRef<StatisticFilter
     return buildResetFilterQueryPatch(query);
   }
 
+  function buildConditionApplyQueryPatch(query: LocationQuery) {
+    return {
+      page: 1,
+      ...buildApplyQueryPatch(query),
+    };
+  }
+
+  function buildConditionResetQueryPatch(query: LocationQuery) {
+    resetDraft();
+    return {
+      page: 1,
+      ...buildResetQueryPatch(query),
+    };
+  }
+
   return {
     filterDraft,
     activeFilterTags,
@@ -53,5 +68,7 @@ export function useConditionFilterGroupState(fields: ComputedRef<StatisticFilter
     resetDraft,
     buildApplyQueryPatch,
     buildResetQueryPatch,
+    buildConditionApplyQueryPatch,
+    buildConditionResetQueryPatch,
   };
 }

@@ -116,6 +116,8 @@ const {
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
+  buildConditionApplyQueryPatch,
+  buildConditionResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
 
 const {
@@ -369,6 +371,14 @@ async function handleClearFilter(key: string) {
   await handleBaseClearFilter(key);
 }
 
+async function handleConditionFilterApply() {
+  await patchQuery(buildConditionApplyQueryPatch(route.query));
+}
+
+async function handleConditionFilterReset() {
+  await patchQuery(buildConditionResetQueryPatch(route.query));
+}
+
 </script>
 
 <template>
@@ -419,6 +429,9 @@ async function handleClearFilter(key: string) {
               :model-value="filterDraft"
               :fields="conditionFilterFields"
               add-button-text="添加条件"
+              show-apply-actions
+              @apply="handleConditionFilterApply"
+              @reset="handleConditionFilterReset"
             />
           </div>
         </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Download, InfoFilled, RefreshRight, Search } from '@element-plus/icons-vue';
+import { Download, InfoFilled, RefreshRight } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
@@ -164,63 +164,74 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
 
 <template>
   <div class="stat-board-toolbar" :class="props.uiHooks.toolbarClass">
-    <div class="stat-board-toolbar-main" :class="props.uiHooks.toolbarMainClass">
-      <StatisticFilterBuilder :model-value="filterDraft" :fields="activeFilterFields" />
+    <div class="stat-board-toolbar-status-row">
+      <div class="stat-board-toolbar-status">
+        <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
+        <SyncMetaBadge :value="lastSyncedText" />
+        <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
+          <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
+          <span>{{ mirrorStatusText }}</span>
+          <span>{{ factStatusText }}</span>
+          <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
+          <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
+        </div>
+      </div>
+
+      <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
+        <el-button v-if="canRefreshRealtime" :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
+        <el-button
+          v-for="action in extraActions"
+          :key="action.key"
+          :plain="action.plain ?? true"
+          :icon="action.icon"
+          :loading="action.loading"
+          :disabled="action.disabled"
+          @click="emit('extraAction', action.key)"
+        >
+          {{ action.label }}
+        </el-button>
+        <el-button
+          plain
+          :icon="InfoFilled"
+          :loading="ruleExplanationLoading"
+          @click="emit('openRuleExplanation')"
+        >
+          规则说明
+        </el-button>
+        <el-button plain :icon="Download" @click="emit('exportBoard')">导出</el-button>
+        <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
+          <el-button class="view-settings-trigger">
+            <span class="hamburger-icon" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+            <span>设置</span>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="open-settings">列显示设置</el-dropdown-item>
+              <el-dropdown-item command="clear-sort">恢复默认排序</el-dropdown-item>
+              <el-dropdown-item command="toggle-auto-refresh">
+                {{ autoRefreshOnEnter ? '关闭进入页面自动刷新' : '开启进入页面自动刷新' }}
+              </el-dropdown-item>
+              <el-dropdown-item command="restore-default-view">恢复默认视图</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
-    <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
-      <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
-      <SyncMetaBadge :value="lastSyncedText" />
-      <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
-        <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
-        <span>{{ mirrorStatusText }}</span>
-        <span>{{ factStatusText }}</span>
-        <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
-        <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
+    <div class="stat-board-toolbar-filter-row">
+      <div class="stat-board-toolbar-main" :class="props.uiHooks.toolbarMainClass">
+        <StatisticFilterBuilder
+          :model-value="filterDraft"
+          :fields="activeFilterFields"
+          show-apply-actions
+          @apply="emit('applyFilters')"
+          @reset="emit('resetFilters')"
+        />
       </div>
-      <el-button type="primary" :icon="Search" @click="emit('applyFilters')">查询</el-button>
-      <el-button @click="emit('resetFilters')">重置</el-button>
-      <el-button v-if="canRefreshRealtime" :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
-      <el-button
-        v-for="action in extraActions"
-        :key="action.key"
-        :plain="action.plain ?? true"
-        :icon="action.icon"
-        :loading="action.loading"
-        :disabled="action.disabled"
-        @click="emit('extraAction', action.key)"
-      >
-        {{ action.label }}
-      </el-button>
-      <el-button
-        plain
-        :icon="InfoFilled"
-        :loading="ruleExplanationLoading"
-        @click="emit('openRuleExplanation')"
-      >
-        规则说明
-      </el-button>
-      <el-button plain :icon="Download" @click="emit('exportBoard')">导出</el-button>
-      <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
-        <el-button class="view-settings-trigger">
-          <span class="hamburger-icon" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </span>
-          <span>设置</span>
-        </el-button>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item command="open-settings">列显示设置</el-dropdown-item>
-            <el-dropdown-item command="clear-sort">恢复默认排序</el-dropdown-item>
-            <el-dropdown-item command="toggle-auto-refresh">
-              {{ autoRefreshOnEnter ? '关闭进入页面自动刷新' : '开启进入页面自动刷新' }}
-            </el-dropdown-item>
-            <el-dropdown-item command="restore-default-view">恢复默认视图</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
     </div>
   </div>
 </template>
@@ -228,10 +239,20 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
 <style scoped>
 .stat-board-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
+  min-width: 0;
+}
+
+.stat-board-toolbar-status-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stat-board-toolbar-filter-row {
   min-width: 0;
 }
 
@@ -239,28 +260,37 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
   min-width: 0;
 }
 
+.stat-board-toolbar-status,
 .stat-board-toolbar-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
-  width: auto;
   max-width: 100%;
+  min-width: 0;
+}
+
+.stat-board-toolbar-status {
+  justify-content: flex-start;
+}
+
+.stat-board-toolbar-actions {
+  justify-content: flex-end;
 }
 
 .stat-board-refresh-status {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-height: 32px;
   color: rgba(15, 23, 42, 0.68);
   font-size: 12px;
-  white-space: nowrap;
+  min-width: 0;
 }
 
 @media (max-width: 1180px) {
-  .stat-board-toolbar {
+  .stat-board-toolbar-status-row {
     grid-template-columns: 1fr;
   }
 

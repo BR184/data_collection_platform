@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
-import { ArrowDown, ArrowUp, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
+import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
@@ -133,7 +133,6 @@ const {
 const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
-const advancedConditionsExpanded = ref(false);
 const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
@@ -191,6 +190,15 @@ async function loadRows() {
 
 async function handleClearFilter(key: string) {
   void key;
+}
+
+async function handleConditionFilterApply() {
+  await handleQuery(keyword.value);
+}
+
+async function handleConditionFilterReset() {
+  resetDraft();
+  await handleQuery(keyword.value);
 }
 
 async function refreshReviewRecords() {
@@ -308,24 +316,13 @@ const {
       @expand-change="handleExpandChange"
     >
       <template #filter-builder>
-        <div class="review-data-filter-stack">
-          <section class="review-data-advanced-filter">
-            <el-button
-              plain
-              :icon="advancedConditionsExpanded ? ArrowUp : ArrowDown"
-              :aria-expanded="advancedConditionsExpanded"
-              data-testid="review-advanced-filter-toggle"
-              @click="advancedConditionsExpanded = !advancedConditionsExpanded"
-            >
-              高级筛选
-            </el-button>
-            <el-collapse-transition>
-              <div v-show="advancedConditionsExpanded" class="review-data-advanced-filter-body">
-                <StatisticFilterBuilder :model-value="filterDraft" :fields="reviewFilterFields" />
-              </div>
-            </el-collapse-transition>
-          </section>
-        </div>
+        <StatisticFilterBuilder
+          :model-value="filterDraft"
+          :fields="reviewFilterFields"
+          show-apply-actions
+          @apply="handleConditionFilterApply"
+          @reset="handleConditionFilterReset"
+        />
       </template>
 
       <template #primary-actions>
@@ -494,24 +491,6 @@ const {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.review-data-filter-stack {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-}
-
-.review-data-advanced-filter {
-  display: grid;
-  gap: 8px;
-  justify-items: start;
-  min-width: 0;
-}
-
-.review-data-advanced-filter-body {
-  width: 100%;
-  min-width: 0;
 }
 
 </style>
