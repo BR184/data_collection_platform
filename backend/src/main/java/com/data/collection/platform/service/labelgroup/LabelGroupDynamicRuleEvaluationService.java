@@ -4,6 +4,7 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRulePreviewResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleAggregationRequest;
+import com.data.collection.platform.entity.labelgroup.LabelGroupRuleConditionGroupRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleConditionRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleConfigRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleFieldRefRequest;
@@ -134,7 +135,7 @@ public class LabelGroupDynamicRuleEvaluationService {
     for (String sourceKey : sources.keySet()) {
       where.add(aliases.get(sourceKey) + ".deleted = false");
     }
-    appendConditions(where, params, aliases, ruleConfig.filters(), false, Map.of(), "f");
+    appendConditionGroup(where, params, aliases, effectiveConditionGroup(ruleConfig.filterGroup(), ruleConfig.filters()), false, Map.of(), "f");
 
     Map<String, String> aggregateExpressions = buildAggregateExpressions(ruleConfig.aggregations(), aliases);
     boolean grouped = !aggregateExpressions.isEmpty() || !safeList(ruleConfig.groupBy()).isEmpty();
@@ -152,7 +153,7 @@ public class LabelGroupDynamicRuleEvaluationService {
     }
 
     List<String> having = new ArrayList<>();
-    appendConditions(having, params, aliases, ruleConfig.having(), true, aggregateExpressions, "h");
+    appendConditionGroup(having, params, aliases, effectiveConditionGroup(ruleConfig.havingGroup(), ruleConfig.having()), true, aggregateExpressions, "h");
 
     StringBuilder sql = new StringBuilder();
     sql.append("select ");
@@ -183,11 +184,7 @@ public class LabelGroupDynamicRuleEvaluationService {
       DynamicRuleSourceDefinition outputSource) {
     LinkedHashMap<String, DynamicRuleSourceDefinition> sources = new LinkedHashMap<>();
     sources.put(outputSource.key(), outputSource);
-    for (LabelGroupRuleConditionRequest condition : safeList(ruleConfig.filters())) {
-      if (TextQuerySupport.trimToNull(condition.sourceKey()) != null) {
-        sources.put(condition.sourceKey(), catalogService.requireSource(condition.sourceKey()));
-      }
-    }
+    collectConditionGroupSources(sources, effectiveConditionGroup(ruleConfig.filterGroup(), ruleConfig.filters()), false);
     for (LabelGroupRuleRelationRequest relation : safeList(ruleConfig.relations())) {
       sources.put(relation.leftSourceKey(), catalogService.requireSource(relation.leftSourceKey()));
       sources.put(relation.rightSourceKey(), catalogService.requireSource(relation.rightSourceKey()));
@@ -198,12 +195,32 @@ public class LabelGroupDynamicRuleEvaluationService {
     for (LabelGroupRuleAggregationRequest aggregation : safeList(ruleConfig.aggregations())) {
       sources.put(aggregation.sourceKey(), catalogService.requireSource(aggregation.sourceKey()));
     }
+    collectConditionGroupSources(sources, effectiveConditionGroup(ruleConfig.havingGroup(), ruleConfig.having()), true);
     for (LabelGroupRuleSortRequest sort : safeList(ruleConfig.sort())) {
       if (TextQuerySupport.trimToNull(sort.sourceKey()) != null) {
         sources.put(sort.sourceKey(), catalogService.requireSource(sort.sourceKey()));
       }
     }
     return sources;
+  }
+
+  private void collectConditionGroupSources(
+      LinkedHashMap<String, DynamicRuleSourceDefinition> sources,
+      LabelGroupRuleConditionGroupRequest group,
+      boolean aggregateCondition) {
+    if (group == null) {
+      return;
+    }
+    if (!aggregateCondition) {
+      for (LabelGroupRuleConditionRequest condition : safeList(group.conditions())) {
+        if (TextQuerySupport.trimToNull(condition.sourceKey()) != null) {
+          sources.put(condition.sourceKey(), catalogService.requireSource(condition.sourceKey()));
+        }
+      }
+    }
+    for (LabelGroupRuleConditionGroupRequest child : safeList(group.groups())) {
+      collectConditionGroupSources(sources, child, aggregateCondition);
+    }
   }
 
   private Map<String, String> buildAliases(LinkedHashMap<String, DynamicRuleSourceDefinition> sources) {
@@ -381,6 +398,44 @@ public class LabelGroupDynamicRuleEvaluationService {
       }
       target.add(conditionSql(expression, valueType, condition, params, prefix + index++));
     }
+  }
+
+  private void appendConditionGroup(
+      List<String> target,
+      MapSqlParameterSource params,
+      Map<String, String> aliases,
+      LabelGroupRuleConditionGroupRequest group,
+      boolean aggregateCondition,
+      Map<String, String> aggregateExpressions,
+      String prefix) {
+    if (group == null) {
+      return;
+    }
+    List<String> clauses = new ArrayList<>();
+    int index = 0;
+    for (LabelGroupRuleConditionRequest condition : safeList(group.conditions())) {
+      appendConditions(clauses, params, aliases, List.of(condition), aggregateCondition, aggregateExpressions, prefix + "c" + index++ + "_");
+    }
+    for (LabelGroupRuleConditionGroupRequest child : safeList(group.groups())) {
+      appendConditionGroup(clauses, params, aliases, child, aggregateCondition, aggregateExpressions, prefix + "g" + index++ + "_");
+    }
+    if (clauses.isEmpty()) {
+      return;
+    }
+    String logic = "OR".equalsIgnoreCase(group.logic()) ? " or " : " and ";
+    target.add("(" + String.join(logic, clauses) + ")");
+  }
+
+  private LabelGroupRuleConditionGroupRequest effectiveConditionGroup(
+      LabelGroupRuleConditionGroupRequest group,
+      List<LabelGroupRuleConditionRequest> legacyConditions) {
+    if (group != null) {
+      return group;
+    }
+    if (safeList(legacyConditions).isEmpty()) {
+      return null;
+    }
+    return new LabelGroupRuleConditionGroupRequest("AND", legacyConditions, List.of());
   }
 
   private String conditionSql(

@@ -63,6 +63,12 @@ export interface LabelGroupRuleCondition {
   values?: string[];
 }
 
+export interface LabelGroupRuleConditionGroup {
+  logic: 'AND' | 'OR';
+  conditions?: LabelGroupRuleCondition[];
+  groups?: LabelGroupRuleConditionGroup[];
+}
+
 export interface LabelGroupRuleRelation {
   leftSourceKey: string;
   leftFieldKey: string;
@@ -91,10 +97,12 @@ export interface LabelGroupRuleConfig {
   outputSourceKey: string;
   outputFieldKey: string;
   distinct?: boolean;
+  filterGroup?: LabelGroupRuleConditionGroup | null;
   filters?: LabelGroupRuleCondition[];
   relations?: LabelGroupRuleRelation[];
   groupBy?: LabelGroupRuleFieldRef[];
   aggregations?: LabelGroupRuleAggregation[];
+  havingGroup?: LabelGroupRuleConditionGroup | null;
   having?: LabelGroupRuleCondition[];
   sort?: LabelGroupRuleSort[];
   limit?: number | null;

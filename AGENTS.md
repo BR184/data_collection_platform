@@ -104,6 +104,7 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 - 后端本地启动时，常需要显式设置 `PLATFORM_SECURE_CONFIG_REQUIRED=false`
 - 涉及登录、提交、搜索、刷新后再提交等有状态接口时，通常需要同时携带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头
 - 做 API 冒烟或真实链路时，先确认登录态和 CSRF，再判断业务是否通了
+- 代码改动后，若后端已在运行，必须重启最新后端实例再做页面联调或接口验证；不要拿旧进程继续判断新代码是否生效
 
 ## 2. 默认 PATH 的坑
 

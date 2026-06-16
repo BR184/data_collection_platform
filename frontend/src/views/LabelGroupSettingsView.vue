@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
+import DynamicRuleConditionGroup from '../components/label-groups/DynamicRuleConditionGroup.vue';
 import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberPicker.vue';
 import type {
   LabelDimension,
@@ -15,6 +16,7 @@ import {
   buildChildGroupExpandedPreview,
   buildLabelGroupSaveRequest,
   buildMemberPreview,
+  buildDynamicRuleSummary,
   buildRuleConfig,
   createEmptyLabelGroupForm,
   createLabelGroupForm,
@@ -64,6 +66,17 @@ const currentDynamicField = computed(
   () => currentDynamicSource.value?.fields.find((field) => field.key === form.value.dynamicRule.outputFieldKey),
 );
 const dynamicFieldOptions = computed(() => currentDynamicSource.value?.fields ?? []);
+const dynamicRuleSummary = computed(() => buildDynamicRuleSummary(
+  form.value.dynamicRule,
+  currentDynamicSource.value?.name ?? '',
+  currentDynamicField.value?.name ?? '',
+));
+const aggregationOptions = computed(() =>
+  form.value.dynamicRule.aggregations.map((item) => ({
+    label: item.label || item.key,
+    value: item.key,
+  })),
+);
 const selectedChildGroups = computed(() =>
   form.value.childGroupIds
     .map((id) => groups.value.find((group) => group.id === id))
@@ -149,6 +162,20 @@ function sourceFieldOptions(sourceKey: string): RuleSourceFieldOption[] {
   }));
 }
 
+function relationDisplay(relation: {
+  leftSourceKey: string;
+  leftFieldKey: string;
+  rightSourceKey: string;
+  rightFieldKey: string;
+  normalizer?: string | null;
+}) {
+  const leftSource = dynamicRuleSourceMap.value.get(relation.leftSourceKey);
+  const rightSource = dynamicRuleSourceMap.value.get(relation.rightSourceKey);
+  const leftField = leftSource?.fields.find((field) => field.key === relation.leftFieldKey);
+  const rightField = rightSource?.fields.find((field) => field.key === relation.rightFieldKey);
+  return `${leftSource?.name ?? relation.leftSourceKey}.${leftField?.name ?? relation.leftFieldKey} = ${rightSource?.name ?? relation.rightSourceKey}.${rightField?.name ?? relation.rightFieldKey}`;
+}
+
 async function loadDimensions() {
   try {
     dimensions.value = await api.listLabelDimensions();
@@ -201,18 +228,6 @@ function openEditDialog(group: LabelGroup) {
   dynamicRulePreview.value = null;
   candidateDimensionKey.value = '';
   dialogVisible.value = true;
-}
-
-function addDynamicRuleFilter() {
-  form.value.dynamicRule.filters.push({
-    sourceKey: '',
-    fieldKey: '',
-    aggregateKey: '',
-    operator: 'eq',
-    value: '',
-    secondValue: '',
-    valuesText: '',
-  });
 }
 
 function addDynamicRuleRelation() {
@@ -430,7 +445,14 @@ async function deleteGroup(group: LabelGroup) {
         </el-form-item>
 
         <template v-if="form.groupType === 'DYNAMIC'">
-          <el-form-item label="输出数据源" required>
+          <el-alert
+            class="dynamic-rule-summary-alert"
+            type="info"
+            :closable="false"
+            show-icon
+            :title="dynamicRuleSummary"
+          />
+          <el-form-item label="结果来源" required>
             <el-select v-model="form.dynamicRule.outputSourceKey" filterable placeholder="选择数据源" style="width: 100%">
               <el-option v-for="source in dynamicRuleSources" :key="source.key" :label="source.name" :value="source.key" />
             </el-select>
@@ -445,39 +467,11 @@ async function deleteGroup(group: LabelGroup) {
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="过滤条件">
-            <div class="dynamic-rule-block">
-              <el-button size="small" @click="addDynamicRuleFilter">添加条件</el-button>
-              <div v-for="(condition, index) in form.dynamicRule.filters" :key="`filter-${index}`" class="dynamic-rule-row">
-                <el-select v-model="condition.sourceKey" filterable placeholder="数据源" style="width: 160px">
-                  <el-option v-for="source in dynamicRuleSources" :key="source.key" :label="source.name" :value="source.key" />
-                </el-select>
-                <el-select v-model="condition.fieldKey" filterable placeholder="字段" style="width: 200px">
-                  <el-option
-                    v-for="field in sourceFieldOptions(condition.sourceKey)"
-                    :key="field.fieldKey"
-                    :label="`${field.fieldName} / ${field.valueType}`"
-                    :value="field.fieldKey"
-                  />
-                </el-select>
-                <el-select v-model="condition.operator" placeholder="关系" style="width: 150px">
-                  <el-option label="等于" value="eq" />
-                  <el-option label="不等于" value="ne" />
-                  <el-option label="包含" value="contains" />
-                  <el-option label="不包含" value="notContains" />
-                  <el-option label="开始于" value="startsWith" />
-                  <el-option label="结束于" value="endsWith" />
-                  <el-option label="区间" value="between" />
-                  <el-option label="最近天数" value="lastDays" />
-                  <el-option label="为空" value="isEmpty" />
-                  <el-option label="不为空" value="isNotEmpty" />
-                  <el-option label="包含任意" value="in" />
-                </el-select>
-                <el-input v-model="condition.value" placeholder="值" style="width: 180px" />
-                <el-input v-model="condition.secondValue" placeholder="第二值" style="width: 180px" />
-                <el-input v-model="condition.valuesText" type="textarea" :rows="1" placeholder="多值，逗号或换行分隔" style="width: 240px" />
-              </div>
-            </div>
+          <el-form-item label="过滤条件组">
+            <DynamicRuleConditionGroup
+              :group="form.dynamicRule.filterGroup"
+              :sources="dynamicRuleSources"
+            />
           </el-form-item>
           <el-form-item label="逻辑关联">
             <div class="dynamic-rule-block">
@@ -486,20 +480,35 @@ async function deleteGroup(group: LabelGroup) {
                 <el-select v-model="relation.leftSourceKey" filterable placeholder="左数据源" style="width: 160px">
                   <el-option v-for="source in dynamicRuleSources" :key="source.key" :label="source.name" :value="source.key" />
                 </el-select>
-                <el-input v-model="relation.leftFieldKey" placeholder="左字段" style="width: 180px" />
+                <el-select v-model="relation.leftFieldKey" filterable placeholder="左字段" style="width: 180px">
+                  <el-option
+                    v-for="field in sourceFieldOptions(relation.leftSourceKey)"
+                    :key="field.fieldKey"
+                    :label="`${field.fieldName} / ${field.valueType}`"
+                    :value="field.fieldKey"
+                  />
+                </el-select>
                 <el-select v-model="relation.matchOperator" placeholder="关系" style="width: 110px">
                   <el-option label="等于" value="eq" />
                 </el-select>
                 <el-select v-model="relation.rightSourceKey" filterable placeholder="右数据源" style="width: 160px">
                   <el-option v-for="source in dynamicRuleSources" :key="source.key" :label="source.name" :value="source.key" />
                 </el-select>
-                <el-input v-model="relation.rightFieldKey" placeholder="右字段" style="width: 180px" />
+                <el-select v-model="relation.rightFieldKey" filterable placeholder="右字段" style="width: 180px">
+                  <el-option
+                    v-for="field in sourceFieldOptions(relation.rightSourceKey)"
+                    :key="field.fieldKey"
+                    :label="`${field.fieldName} / ${field.valueType}`"
+                    :value="field.fieldKey"
+                  />
+                </el-select>
                 <el-select v-model="relation.normalizer" placeholder="规范化" style="width: 130px">
                   <el-option label="不处理" value="NONE" />
                   <el-option label="去空格" value="TRIM" />
                   <el-option label="小写" value="LOWER" />
                   <el-option label="去空格并小写" value="TRIM_LOWER" />
                 </el-select>
+                <el-tag effect="plain" size="small">{{ relationDisplay(relation) }}</el-tag>
               </div>
             </div>
           </el-form-item>
@@ -567,7 +576,15 @@ async function deleteGroup(group: LabelGroup) {
               </div>
             </div>
           </el-form-item>
-          <el-form-item label="输出限制">
+          <el-form-item v-if="form.dynamicRule.aggregations.length" label="聚合结果过滤">
+            <DynamicRuleConditionGroup
+              :group="form.dynamicRule.havingGroup"
+              :sources="dynamicRuleSources"
+              :aggregate-options="aggregationOptions"
+              aggregate-mode
+            />
+          </el-form-item>
+          <el-form-item label="结果成员上限">
             <el-input-number v-model="form.dynamicRule.limit" :min="1" :max="200" controls-position="right" />
           </el-form-item>
           <el-form-item label="输出成员">

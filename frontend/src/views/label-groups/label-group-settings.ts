@@ -2,6 +2,7 @@ import type {
   LabelGroup,
   LabelGroupMember,
   LabelGroupRuleCondition,
+  LabelGroupRuleConditionGroup,
   LabelGroupRuleConfig,
   LabelGroupRuleRelation,
   LabelGroupSaveRequest,
@@ -24,11 +25,11 @@ export interface DynamicRuleFormState {
   outputSourceKey: string;
   outputFieldKey: string;
   distinct: boolean;
-  filters: RuleConditionFormState[];
+  filterGroup: RuleConditionGroupFormState;
   relations: RuleRelationFormState[];
   groupBy: RuleFieldRefFormState[];
   aggregations: RuleAggregationFormState[];
-  having: RuleConditionFormState[];
+  havingGroup: RuleConditionGroupFormState;
   sort: RuleSortFormState[];
   limit: number | null;
 }
@@ -47,6 +48,7 @@ export interface RuleSourceFieldOption {
 }
 
 export interface RuleConditionFormState {
+  id: string;
   sourceKey: string;
   fieldKey: string;
   aggregateKey: string;
@@ -54,6 +56,13 @@ export interface RuleConditionFormState {
   value: string;
   secondValue: string;
   valuesText: string;
+}
+
+export interface RuleConditionGroupFormState {
+  id: string;
+  logic: 'AND' | 'OR';
+  conditions: RuleConditionFormState[];
+  groups: RuleConditionGroupFormState[];
 }
 
 export interface RuleRelationFormState {
@@ -110,13 +119,35 @@ export function createEmptyDynamicRuleForm(): DynamicRuleFormState {
     outputSourceKey: '',
     outputFieldKey: '',
     distinct: true,
-    filters: [],
+    filterGroup: createEmptyConditionGroup(),
     relations: [],
     groupBy: [],
     aggregations: [],
-    having: [],
+    havingGroup: createEmptyConditionGroup(),
     sort: [],
-    limit: 50,
+    limit: 200,
+  };
+}
+
+export function createEmptyConditionGroup(): RuleConditionGroupFormState {
+  return {
+    id: createRuleDraftId('group'),
+    logic: 'AND',
+    conditions: [],
+    groups: [],
+  };
+}
+
+export function createEmptyCondition(sourceKey = ''): RuleConditionFormState {
+  return {
+    id: createRuleDraftId('condition'),
+    sourceKey,
+    fieldKey: '',
+    aggregateKey: '',
+    operator: 'eq',
+    value: '',
+    secondValue: '',
+    valuesText: '',
   };
 }
 
@@ -144,7 +175,7 @@ export function createDynamicRuleForm(ruleConfig?: LabelGroupRuleConfig | null):
     outputSourceKey: ruleConfig?.outputSourceKey ?? '',
     outputFieldKey: ruleConfig?.outputFieldKey ?? '',
     distinct: ruleConfig?.distinct ?? true,
-    filters: (ruleConfig?.filters ?? []).map(toConditionFormState),
+    filterGroup: toConditionGroupFormState(ruleConfig?.filterGroup, ruleConfig?.filters),
     relations: (ruleConfig?.relations ?? []).map(toRelationFormState),
     groupBy: (ruleConfig?.groupBy ?? []).map((item) => ({ sourceKey: item.sourceKey, fieldKey: item.fieldKey })),
     aggregations: (ruleConfig?.aggregations ?? []).map((item) => ({
@@ -154,14 +185,14 @@ export function createDynamicRuleForm(ruleConfig?: LabelGroupRuleConfig | null):
       function: item.function,
       label: item.label ?? '',
     })),
-    having: (ruleConfig?.having ?? []).map(toConditionFormState),
+    havingGroup: toConditionGroupFormState(ruleConfig?.havingGroup, ruleConfig?.having),
     sort: (ruleConfig?.sort ?? []).map((item) => ({
       sourceKey: item.sourceKey ?? '',
       fieldKey: item.fieldKey ?? '',
       aggregateKey: item.aggregateKey ?? '',
       direction: item.direction,
     })),
-    limit: ruleConfig?.limit ?? 50,
+    limit: ruleConfig?.limit ?? 200,
   };
 }
 
@@ -191,7 +222,8 @@ export function buildRuleConfig(form: DynamicRuleFormState): LabelGroupRuleConfi
     outputSourceKey: form.outputSourceKey.trim(),
     outputFieldKey: form.outputFieldKey.trim(),
     distinct: form.distinct,
-    filters: form.filters.map(toConditionPayload),
+    filterGroup: toConditionGroupPayload(form.filterGroup),
+    filters: [],
     relations: form.relations.map(toRelationPayload),
     groupBy: form.groupBy
       .filter((item) => item.sourceKey.trim() && item.fieldKey.trim())
@@ -205,7 +237,8 @@ export function buildRuleConfig(form: DynamicRuleFormState): LabelGroupRuleConfi
         function: item.function.trim(),
         label: item.label.trim() || null,
       })),
-    having: form.having.map(toConditionPayload),
+    havingGroup: toConditionGroupPayload(form.havingGroup),
+    having: [],
     sort: form.sort
       .filter((item) => item.sourceKey.trim() || item.aggregateKey.trim())
       .map((item) => ({
@@ -242,12 +275,35 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
 
 export function validateDynamicRuleForm(form: DynamicRuleFormState) {
   if (!form.outputSourceKey.trim()) {
-    return '请选择输出数据源';
+    return '请选择结果来源';
   }
   if (!form.outputFieldKey.trim()) {
     return '请选择输出字段';
   }
   return '';
+}
+
+export function buildDynamicRuleSummary(
+    form: DynamicRuleFormState,
+    sourceName: string,
+    fieldName: string,
+) {
+  const parts = [
+    sourceName && fieldName ? `从${sourceName}中取${fieldName}` : '请选择结果来源和输出字段',
+  ];
+  const conditionCount = countConditions(form.filterGroup);
+  if (conditionCount) {
+    parts.push(`包含 ${conditionCount} 条过滤条件`);
+  }
+  if (form.relations.length) {
+    parts.push(`使用 ${form.relations.length} 条逻辑关联`);
+  }
+  if (form.aggregations.length) {
+    parts.push(`包含 ${form.aggregations.length} 个聚合项`);
+  }
+  parts.push(form.distinct ? '结果去重' : '结果不去重');
+  parts.push(`最多保留 ${form.limit ?? 200} 个成员`);
+  return parts.join('，');
 }
 
 export function buildMemberPreview(group: LabelGroup, limit = 4) {
@@ -334,6 +390,7 @@ export function valueTypeLabel(valueType?: string | null) {
 
 function toConditionFormState(condition: LabelGroupRuleCondition): RuleConditionFormState {
   return {
+    id: createRuleDraftId('condition'),
     sourceKey: condition.sourceKey ?? '',
     fieldKey: condition.fieldKey ?? '',
     aggregateKey: condition.aggregateKey ?? '',
@@ -341,6 +398,26 @@ function toConditionFormState(condition: LabelGroupRuleCondition): RuleCondition
     value: condition.value ?? '',
     secondValue: condition.secondValue ?? '',
     valuesText: (condition.values ?? []).join('\n'),
+  };
+}
+
+function toConditionGroupFormState(
+    group?: LabelGroupRuleConditionGroup | null,
+    legacyConditions?: LabelGroupRuleCondition[],
+): RuleConditionGroupFormState {
+  const effective = group ?? (
+    legacyConditions?.length
+      ? { logic: 'AND' as const, conditions: legacyConditions, groups: [] }
+      : null
+  );
+  if (!effective) {
+    return createEmptyConditionGroup();
+  }
+  return {
+    id: createRuleDraftId('group'),
+    logic: effective.logic === 'OR' ? 'OR' : 'AND',
+    conditions: (effective.conditions ?? []).map(toConditionFormState),
+    groups: (effective.groups ?? []).map((child) => toConditionGroupFormState(child)),
   };
 }
 
@@ -370,6 +447,34 @@ function toConditionPayload(condition: RuleConditionFormState): LabelGroupRuleCo
   };
 }
 
+function toConditionGroupPayload(group: RuleConditionGroupFormState): LabelGroupRuleConditionGroup | null {
+  const conditions = group.conditions
+    .filter((condition) => isReadyCondition(condition))
+    .map(toConditionPayload);
+  const groups = group.groups
+    .map(toConditionGroupPayload)
+    .filter((item): item is LabelGroupRuleConditionGroup => Boolean(item));
+  if (!conditions.length && !groups.length) {
+    return null;
+  }
+  return {
+    logic: group.logic === 'OR' ? 'OR' : 'AND',
+    conditions,
+    groups,
+  };
+}
+
+function isReadyCondition(condition: RuleConditionFormState) {
+  return Boolean(
+    (condition.aggregateKey.trim() || (condition.sourceKey.trim() && condition.fieldKey.trim()))
+    && condition.operator.trim(),
+  );
+}
+
+function countConditions(group: RuleConditionGroupFormState): number {
+  return group.conditions.length + group.groups.reduce((total, child) => total + countConditions(child), 0);
+}
+
 function toRelationPayload(relation: RuleRelationFormState): LabelGroupRuleRelation {
   return {
     leftSourceKey: relation.leftSourceKey.trim(),
@@ -379,4 +484,8 @@ function toRelationPayload(relation: RuleRelationFormState): LabelGroupRuleRelat
     matchOperator: relation.matchOperator.trim() || 'eq',
     normalizer: relation.normalizer.trim() || 'NONE',
   };
+}
+
+function createRuleDraftId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }

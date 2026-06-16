@@ -27,13 +27,13 @@ describe('label group settings helpers', () => {
         outputSourceKey: '',
         outputFieldKey: '',
         distinct: true,
-        filters: [],
+        filterGroup: expect.objectContaining({ logic: 'AND', conditions: [], groups: [] }),
         relations: [],
         groupBy: [],
         aggregations: [],
-        having: [],
+        havingGroup: expect.objectContaining({ logic: 'AND', conditions: [], groups: [] }),
         sort: [],
-        limit: 50,
+        limit: 200,
       },
     });
 
@@ -110,7 +110,10 @@ describe('label group settings helpers', () => {
         ...createEmptyLabelGroupForm().dynamicRule,
         outputSourceKey: 'issue_fact',
         outputFieldKey: 'assigneeName',
-        filters: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', aggregateKey: '', operator: 'lastDays', value: '30', secondValue: '', valuesText: '' }],
+        filterGroup: {
+          ...createEmptyLabelGroupForm().dynamicRule.filterGroup,
+          conditions: [{ id: 'condition-1', sourceKey: 'issue_fact', fieldKey: 'updatedAt', aggregateKey: '', operator: 'lastDays', value: '30', secondValue: '', valuesText: '' }],
+        },
       },
     };
 
@@ -125,13 +128,19 @@ describe('label group settings helpers', () => {
           outputSourceKey: 'issue_fact',
           outputFieldKey: 'assigneeName',
           distinct: true,
-          filters: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', aggregateKey: null, operator: 'lastDays', value: '30', secondValue: null, values: [] }],
+          filterGroup: {
+            logic: 'AND',
+            conditions: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', aggregateKey: null, operator: 'lastDays', value: '30', secondValue: null, values: [] }],
+            groups: [],
+          },
+          filters: [],
           relations: [],
           groupBy: [],
           aggregations: [],
+          havingGroup: null,
           having: [],
           sort: [],
-          limit: 50,
+          limit: 200,
         },
       },
     });
@@ -139,7 +148,7 @@ describe('label group settings helpers', () => {
 
   it('validates and builds dynamic rule builder config', () => {
     const empty = createEmptyLabelGroupForm();
-    expect(validateDynamicRuleForm(empty.dynamicRule)).toBe('请选择输出数据源');
+    expect(validateDynamicRuleForm(empty.dynamicRule)).toBe('请选择结果来源');
 
     empty.dynamicRule.outputSourceKey = 'review_records';
     expect(validateDynamicRuleForm(empty.dynamicRule)).toBe('请选择输出字段');

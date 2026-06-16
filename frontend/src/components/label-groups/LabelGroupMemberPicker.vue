@@ -110,6 +110,7 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         :loading="loading"
         :disabled="disabled"
         :remote-method="loadCandidates"
+        popper-class="label-member-picker-dropdown smart-select-dropdown smart-select-dropdown--compact smart-select-dropdown--compact-multiple"
         placeholder="搜索候选值或直接输入自定义值"
         no-data-text="暂无可选标签值"
         no-match-text="未找到匹配的标签值"

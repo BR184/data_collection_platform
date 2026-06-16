@@ -17,6 +17,7 @@ declare module 'vue' {
     DatabaseBrowserView: typeof import('./components/DatabaseBrowserView.vue')['default']
     DataScopeBar: typeof import('./components/data-scope/DataScopeBar.vue')['default']
     DataScopeCompareDialog: typeof import('./components/data-scope/DataScopeCompareDialog.vue')['default']
+    DynamicRuleConditionGroup: typeof import('./components/label-groups/DynamicRuleConditionGroup.vue')['default']
     EChartPanel: typeof import('./components/charts/EChartPanel.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElButton: typeof import('element-plus/es')['ElButton']
