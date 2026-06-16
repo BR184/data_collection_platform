@@ -58,13 +58,6 @@ function formatDateTime(value?: string | null) {
   return value ? value.replace('T', ' ').slice(0, 19) : '-';
 }
 
-function splitDisplayList(value: string) {
-  return value
-    .split('、')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function buildSeverityTag(value: string): RecordTableTagValue {
   const normalized = value.toUpperCase();
   if (normalized === 'LEVEL1') {
@@ -93,7 +86,7 @@ function mapRow(row: SystemTestIllegalRecordRowResponse): Record<string, unknown
     title: row.title || '-',
     illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
     projectName: row.projectName || '-',
-    moduleNames: splitDisplayList(row.moduleNames || '-').map((label) => ({ label, type: 'info' as const })),
+    moduleNames: row.moduleNames ? [{ label: row.moduleNames, type: 'info' as const }] : [],
     functionName: row.functionName || '-',
     testingPhase: row.testingPhase || '-',
     severityLevel: row.severityLevel ? [buildSeverityTag(row.severityLevel)] : [],
@@ -202,7 +195,7 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     default-sort-by="updatedAt"
     default-sort-order="desc"
     :request-single-record-refresh="(row) => api.refreshSystemTestIllegalRecord({
-      source: 'default',
+      source: row.sourceInstance,
       projectId: row.projectId,
       issueIid: row.issueIid,
     })"

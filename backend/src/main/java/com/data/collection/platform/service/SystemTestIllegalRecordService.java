@@ -208,11 +208,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 .map(IssueFactRecord::phaseFilterValue)
                 .filter(StringUtils::hasText)
                 .toList()),
-        toOptions(
-            rows.stream()
-                .flatMap(view -> displayIllegalReasons(view).stream())
-                .filter(StringUtils::hasText)
-                .toList()),
+        toOptions(SystemTestIllegalReasonSupport.SUPPORTED_REASONS),
         toLegacyOptions(rows, IssueFactRecord::authorName),
         toLegacyOptions(rows, IssueFactRecord::assigneeName),
         toOptions(rows, IssueFactRecord::issueState),
@@ -226,8 +222,10 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       String sourceInstance, Long projectId, Long issueIid) {
     Long safeProjectId = defaultProjectId(projectId);
     factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return loadScopedIllegalViews(safeProjectId).stream()
         .filter(row -> row.issueIid() != null && row.issueIid().longValue() == issueIid)
+        .filter(row -> GitlabSourceInstanceSupport.normalizeSourceInstance(row.sourceInstance()).equals(normalizedSource))
         .findFirst()
         .map(this::toResponse)
         .orElse(null);
@@ -327,19 +325,20 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         view.issueId(),
         view.issueIid(),
         buildIssueLink(view.sourceInstance(), view.projectId(), view.issueIid()),
+        view.sourceInstance(),
         view.projectId(),
         view.projectName(),
         view.title(),
         view.issueState(),
         view.primaryPhaseLabel(),
-        String.join("、", displayIllegalReasons(view)),
+        String.join(",", displayIllegalReasons(view)),
         view.severityLevel(),
         view.bugStatus(),
         view.category(),
         view.milestoneTitle(),
         view.authorName(),
         view.assigneeName(),
-        String.join("、", displayModuleNames(view)),
+        String.join("&", displayModuleNames(view)),
         view.functionName(),
         view.createdAt(),
         view.updatedAt(),
@@ -387,7 +386,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return view.moduleNames().isEmpty() ? List.of(SystemTestIllegalReasonSupport.MISSING_MODULE) : view.moduleNames();
   }
 
-  private List<String> displayIllegalReasons(IssueFactRecord view) {
+  private static List<String> displayIllegalReasons(IssueFactRecord view) {
     List<String> reasons =
         view.illegalReasons().isEmpty() ? List.of(view.illegalReason()) : view.illegalReasons();
     return reasons.stream()
@@ -437,7 +436,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                     "#" + row.issueIid() + " " + row.projectName(),
                     row.title()
                         + (!displayIllegalReasons(row).isEmpty()
-                            ? " | 非法类型: " + String.join("、", displayIllegalReasons(row))
+                            ? " | 非法类型: " + String.join(",", displayIllegalReasons(row))
                             : "")))
         .toList();
   }
@@ -448,12 +447,12 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     comparators.put("title", SortSupport.nullableString(IssueFactRecord::title));
     comparators.put("projectName", SortSupport.nullableString(IssueFactRecord::projectName));
     comparators.put(
-        "moduleNames", SortSupport.nullableString(view -> String.join("、", view.moduleNames())));
+        "moduleNames", SortSupport.nullableString(view -> String.join("&", view.moduleNames())));
     comparators.put("functionName", SortSupport.nullableString(IssueFactRecord::functionName));
     comparators.put("testingPhase", SortSupport.nullableString(IssueFactRecord::primaryPhaseLabel));
     comparators.put(
         "illegalReason",
-        SortSupport.nullableString(view -> String.join("、", displayIllegalReasons(view))));
+        SortSupport.nullableString(view -> String.join(",", displayIllegalReasons(view))));
     comparators.put("severityLevel", SortSupport.nullableString(IssueFactRecord::severityLevel));
     comparators.put("bugStatus", SortSupport.nullableString(IssueFactRecord::bugStatus));
     comparators.put("issueState", SortSupport.nullableString(IssueFactRecord::issueState));

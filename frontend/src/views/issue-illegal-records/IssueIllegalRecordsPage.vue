@@ -238,7 +238,7 @@ async function handleRefreshLatestData() {
 }
 
 function rowRefreshKey(row: IssueIllegalRecordRow) {
-  return `${row.projectId ?? ''}:${row.issueIid}`;
+  return `${row.sourceInstance ?? ''}:${row.projectId ?? ''}:${row.issueIid}`;
 }
 
 async function handleRefreshSingleRecord(row: IssueIllegalRecordRow) {

@@ -50,6 +50,7 @@ export interface SystemTestIllegalRecordRowResponse {
   issueId: number;
   issueIid: number;
   issueLink?: string | null;
+  sourceInstance?: string | null;
   projectId: number;
   projectName: string;
   title: string;
@@ -63,6 +64,7 @@ export interface SystemTestIllegalRecordRowResponse {
   authorName: string;
   assigneeName: string;
   moduleNames: string;
+  functionName: string;
   createdAt?: string | null;
   updatedAt?: string | null;
   closedAt?: string | null;
