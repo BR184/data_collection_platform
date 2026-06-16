@@ -8,6 +8,7 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRespo
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupRuleConfigRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupUpdateRequest;
 import com.data.collection.platform.service.TextQuerySupport;
 import java.math.BigDecimal;
@@ -274,7 +275,7 @@ public class LabelGroupService {
       LabelGroupDynamicRuleRecord dynamicRule) {
     String valueType = null;
     if (dynamicRule != null && dynamicRule.outputValueType() != null) {
-      valueType = mergeValueType(valueType, dynamicRule.outputValueType(), dynamicRule.ruleTemplateKey());
+      valueType = mergeValueType(valueType, dynamicRule.outputValueType(), "动态规则输出字段");
     }
     for (LabelGroupMemberRecord member : members) {
       valueType = mergeValueType(valueType, inferValueType(member.memberValue()), member.memberValue());
@@ -289,23 +290,13 @@ public class LabelGroupService {
     if (request == null) {
       return null;
     }
-    String templateKey = requireText(request.ruleTemplateKey(), "动态规则模板不能为空");
-    if (templateKey.length() > 100) {
-      throw new BizException("动态规则模板不能超过 100 个字符");
+    LabelGroupRuleConfigRequest ruleConfig = request.ruleConfig();
+    if (ruleConfig == null) {
+      throw new BizException("动态规则配置不能为空");
     }
-    String paramsJson = requireText(request.ruleParamsJson(), "动态规则参数不能为空");
-    String outputValueType = inferDynamicRuleOutputValueType(templateKey);
-    return new LabelGroupDynamicRuleRecord(null, groupId, templateKey, paramsJson, outputValueType, null, null, null);
-  }
-
-  private String inferDynamicRuleOutputValueType(String templateKey) {
-    if (dynamicRuleEvaluationService != null) {
-      return dynamicRuleEvaluationService.outputValueType(templateKey);
-    }
-    return switch (templateKey) {
-      case "recent-active-assignee", "current-version-delayed-assignee" -> TYPE_STRING;
-      default -> null;
-    };
+    String outputValueType = dynamicRuleEvaluationService.outputValueType(ruleConfig);
+    String ruleConfigJson = dynamicRuleEvaluationService.serializeRuleConfig(ruleConfig);
+    return new LabelGroupDynamicRuleRecord(null, groupId, ruleConfigJson, outputValueType, null, null, null);
   }
 
   private List<LabelGroupMemberRecord> materializeDynamicMembers(
@@ -316,7 +307,7 @@ public class LabelGroupService {
       return members;
     }
     return dynamicRuleEvaluationService.materializeMembers(
-        dynamicRule.ruleTemplateKey(), dynamicRule.ruleParamsJson());
+        dynamicRuleEvaluationService.parseRuleConfig(dynamicRule.ruleConfigJson()));
   }
 
   private LabelGroupDynamicRuleRecord markDynamicRuleComputed(
@@ -328,8 +319,7 @@ public class LabelGroupService {
     return new LabelGroupDynamicRuleRecord(
         dynamicRule.id(),
         dynamicRule.groupId(),
-        dynamicRule.ruleTemplateKey(),
-        dynamicRule.ruleParamsJson(),
+        dynamicRule.ruleConfigJson(),
         dynamicRule.outputValueType(),
         "SUCCESS",
         null,
@@ -411,8 +401,7 @@ public class LabelGroupService {
         group.dynamicRule() == null
             ? null
             : new LabelGroupDynamicRuleResponse(
-                group.dynamicRule().ruleTemplateKey(),
-                group.dynamicRule().ruleParamsJson(),
+                dynamicRuleEvaluationService.parseRuleConfig(group.dynamicRule().ruleConfigJson()),
                 group.dynamicRule().outputValueType(),
                 group.dynamicRule().lastStatus(),
                 group.dynamicRule().lastError(),

@@ -48,40 +48,99 @@ export interface LabelGroupChild {
   enabled: boolean;
 }
 
+export interface LabelGroupRuleFieldRef {
+  sourceKey: string;
+  fieldKey: string;
+}
+
+export interface LabelGroupRuleCondition {
+  sourceKey?: string | null;
+  fieldKey?: string | null;
+  aggregateKey?: string | null;
+  operator: string;
+  value?: string | null;
+  secondValue?: string | null;
+  values?: string[];
+}
+
+export interface LabelGroupRuleRelation {
+  leftSourceKey: string;
+  leftFieldKey: string;
+  rightSourceKey: string;
+  rightFieldKey: string;
+  matchOperator: string;
+  normalizer?: string | null;
+}
+
+export interface LabelGroupRuleAggregation {
+  key: string;
+  sourceKey: string;
+  fieldKey: string;
+  function: string;
+  label?: string | null;
+}
+
+export interface LabelGroupRuleSort {
+  sourceKey?: string | null;
+  fieldKey?: string | null;
+  aggregateKey?: string | null;
+  direction: 'asc' | 'desc';
+}
+
+export interface LabelGroupRuleConfig {
+  outputSourceKey: string;
+  outputFieldKey: string;
+  distinct?: boolean;
+  filters?: LabelGroupRuleCondition[];
+  relations?: LabelGroupRuleRelation[];
+  groupBy?: LabelGroupRuleFieldRef[];
+  aggregations?: LabelGroupRuleAggregation[];
+  having?: LabelGroupRuleCondition[];
+  sort?: LabelGroupRuleSort[];
+  limit?: number | null;
+}
+
 export interface LabelGroupDynamicRule {
-  ruleTemplateKey: string;
-  ruleParamsJson: string;
+  ruleConfig: LabelGroupRuleConfig;
   outputValueType?: string | null;
   lastStatus?: string | null;
   lastError?: string | null;
   lastComputedAt?: string | null;
 }
 
-export interface LabelGroupDynamicRuleTemplateParameter {
+export interface LabelGroupDynamicRuleSourceField {
   key: string;
-  label: string;
-  controlType: 'number' | 'select' | 'text' | 'dateRange';
-  required: boolean;
-  defaultValue?: string | number | boolean | null;
-  options?: Array<{ label: string; value: string }>;
+  name: string;
+  valueType: string;
+  outputSupported: boolean;
+  filterSupported: boolean;
+  groupSupported: boolean;
+  aggregateSupported: boolean;
+  operators: string[];
 }
 
-export interface LabelGroupDynamicRuleTemplate {
+export interface LabelGroupDynamicRuleSource {
   key: string;
   name: string;
   description: string;
-  outputValueType: string;
-  outputDescription: string;
-  parameters: LabelGroupDynamicRuleTemplateParameter[];
+  fields: LabelGroupDynamicRuleSourceField[];
+}
+
+export interface LabelGroupDynamicRuleRelation {
+  name: string;
+  leftSourceKey: string;
+  leftFieldKey: string;
+  rightSourceKey: string;
+  rightFieldKey: string;
+  matchOperator: string;
+  normalizer?: string | null;
 }
 
 export interface LabelGroupDynamicRulePreviewRequest {
-  ruleTemplateKey: string;
-  ruleParamsJson: string;
+  ruleConfig: LabelGroupRuleConfig;
 }
 
 export interface LabelGroupDynamicRulePreview {
-  ruleTemplateKey: string;
   outputValueType: string;
   status: string;
   message: string;
@@ -113,7 +172,7 @@ export interface LabelGroupSaveRequest {
   enabled?: boolean;
   members?: LabelGroupMember[];
   childGroupIds?: number[];
-  dynamicRule?: Pick<LabelGroupDynamicRule, 'ruleTemplateKey' | 'ruleParamsJson'> | null;
+  dynamicRule?: Pick<LabelGroupDynamicRule, 'ruleConfig'> | null;
 }
 
 export interface LabelGroupExpansion {

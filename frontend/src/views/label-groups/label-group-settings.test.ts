@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildRuleConfig,
   buildLabelGroupSaveRequest,
   buildChildGroupExpandedPreview,
   buildMemberPreview,
   createEmptyLabelGroupForm,
   createLabelGroupForm,
-  defaultDynamicRuleParams,
   inferValueTypeFromMembers,
-  mergeDynamicRuleParams,
-  parseDynamicRuleParams,
   unavailableMemberCount,
-  validateDynamicRuleParameters,
+  validateDynamicRuleForm,
   validateLabelGroupForm,
   valueTypeLabel,
 } from './label-group-settings';
@@ -25,8 +23,18 @@ describe('label group settings helpers', () => {
       enabled: true,
       members: [],
       childGroupIds: [],
-      dynamicRuleTemplateKey: '',
-      dynamicRuleParams: {},
+      dynamicRule: {
+        outputSourceKey: '',
+        outputFieldKey: '',
+        distinct: true,
+        filters: [],
+        relations: [],
+        groupBy: [],
+        aggregations: [],
+        having: [],
+        sort: [],
+        limit: 50,
+      },
     });
 
     const form = createLabelGroupForm({
@@ -98,8 +106,12 @@ describe('label group settings helpers', () => {
       name: '最近活跃处理人',
       groupType: 'DYNAMIC' as const,
       members: [{ value: '不应手动提交', label: '不应手动提交' }],
-      dynamicRuleTemplateKey: ' recent-active-assignee ',
-      dynamicRuleParams: { days: 30, scope: 'system-test' },
+      dynamicRule: {
+        ...createEmptyLabelGroupForm().dynamicRule,
+        outputSourceKey: 'issue_fact',
+        outputFieldKey: 'assigneeName',
+        filters: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', aggregateKey: '', operator: 'lastDays', value: '30', secondValue: '', valuesText: '' }],
+      },
     };
 
     expect(validateLabelGroupForm(form)).toBe('');
@@ -109,38 +121,52 @@ describe('label group settings helpers', () => {
       members: [],
       childGroupIds: [],
       dynamicRule: {
-        ruleTemplateKey: 'recent-active-assignee',
-        ruleParamsJson: '{"days":30,"scope":"system-test"}',
+        ruleConfig: {
+          outputSourceKey: 'issue_fact',
+          outputFieldKey: 'assigneeName',
+          distinct: true,
+          filters: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', aggregateKey: null, operator: 'lastDays', value: '30', secondValue: null, values: [] }],
+          relations: [],
+          groupBy: [],
+          aggregations: [],
+          having: [],
+          sort: [],
+          limit: 50,
+        },
       },
     });
   });
 
-  it('parses and validates dynamic rule parameters from natural language templates', () => {
-    const template = {
-      key: 'recent-active-assignee',
-      name: '最近 N 天活跃处理人',
-      description: '从最近 N 天议题中计算处理人',
-      outputValueType: 'STRING',
-      outputDescription: '输出：处理人字符串列表',
-      parameters: [
-        { key: 'days', label: '最近天数', controlType: 'number' as const, required: true, defaultValue: 30 },
-        { key: 'scope', label: '数据范围', controlType: 'select' as const, required: true, defaultValue: 'system-test' },
-      ],
-    };
+  it('validates and builds dynamic rule builder config', () => {
+    const empty = createEmptyLabelGroupForm();
+    expect(validateDynamicRuleForm(empty.dynamicRule)).toBe('请选择输出数据源');
 
-    expect(defaultDynamicRuleParams(template)).toEqual({ days: 30, scope: 'system-test' });
-    expect(mergeDynamicRuleParams(template, { days: 7 })).toEqual({ days: 7, scope: 'system-test' });
-    expect(parseDynamicRuleParams('{"days":14}')).toEqual({ days: 14 });
+    empty.dynamicRule.outputSourceKey = 'review_records';
+    expect(validateDynamicRuleForm(empty.dynamicRule)).toBe('请选择输出字段');
 
-    const form = {
-      ...createEmptyLabelGroupForm(),
-      name: '最近活跃处理人',
-      groupType: 'DYNAMIC' as const,
-      dynamicRuleTemplateKey: 'recent-active-assignee',
-      dynamicRuleParams: { days: null, scope: 'system-test' },
-    };
+    empty.dynamicRule.outputFieldKey = 'reviewOwner';
+    empty.dynamicRule.relations.push({
+      leftSourceKey: 'review_records',
+      leftFieldKey: 'reviewOwner',
+      rightSourceKey: 'merge_request_fact',
+      rightFieldKey: 'ownerName',
+      matchOperator: 'eq',
+      normalizer: 'TRIM_LOWER',
+    });
+    empty.dynamicRule.aggregations.push({
+      key: 'commit_count',
+      sourceKey: 'merge_request_fact',
+      fieldKey: 'mergeRequestIid',
+      function: 'count',
+      label: '提交数',
+    });
 
-    expect(validateDynamicRuleParameters(form, [template])).toBe('请填写最近天数');
+    expect(buildRuleConfig(empty.dynamicRule)).toMatchObject({
+      outputSourceKey: 'review_records',
+      outputFieldKey: 'reviewOwner',
+      aggregations: [{ key: 'commit_count', sourceKey: 'merge_request_fact', fieldKey: 'mergeRequestIid', function: 'count', label: '提交数' }],
+      relations: [{ leftSourceKey: 'review_records', leftFieldKey: 'reviewOwner', rightSourceKey: 'merge_request_fact', rightFieldKey: 'ownerName' }],
+    });
   });
 
   it('summarizes expanded members and unavailable saved values', () => {

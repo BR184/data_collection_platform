@@ -5,8 +5,7 @@ import java.time.OffsetDateTime;
 record LabelGroupDynamicRuleRecord(
     Long id,
     Long groupId,
-    String ruleTemplateKey,
-    String ruleParamsJson,
+    String ruleConfigJson,
     String outputValueType,
     String lastStatus,
     String lastError,

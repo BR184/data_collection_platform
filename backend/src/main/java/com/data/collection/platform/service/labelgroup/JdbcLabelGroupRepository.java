@@ -95,15 +95,14 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     jdbcTemplate.update(
         """
         insert into label_group_dynamic_rules
-          (group_id, rule_template_key, rule_params_json, output_value_type,
+          (group_id, rule_config_json, output_value_type,
            last_status, last_error, last_computed_at)
-        values (:groupId, :ruleTemplateKey, :ruleParamsJson, :outputValueType,
+        values (:groupId, :ruleConfigJson, :outputValueType,
                 :lastStatus, :lastError, :lastComputedAt)
         """,
         new MapSqlParameterSource()
             .addValue("groupId", groupId)
-            .addValue("ruleTemplateKey", rule.ruleTemplateKey())
-            .addValue("ruleParamsJson", rule.ruleParamsJson())
+            .addValue("ruleConfigJson", rule.ruleConfigJson())
             .addValue("outputValueType", rule.outputValueType())
             .addValue("lastStatus", rule.lastStatus())
             .addValue("lastError", rule.lastError())
@@ -249,7 +248,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     List<LabelGroupDynamicRuleRecord> dynamicRules =
         jdbcTemplate.query(
             """
-            select id, group_id, rule_template_key, rule_params_json, output_value_type,
+            select id, group_id, rule_config_json, output_value_type,
                    last_status, last_error, last_computed_at
             from label_group_dynamic_rules
             where group_id in (:groupIds)
@@ -337,8 +336,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
     return new LabelGroupDynamicRuleRecord(
         rs.getLong("id"),
         rs.getLong("group_id"),
-        rs.getString("rule_template_key"),
-        rs.getString("rule_params_json"),
+        rs.getString("rule_config_json"),
         rs.getString("output_value_type"),
         rs.getString("last_status"),
         rs.getString("last_error"),

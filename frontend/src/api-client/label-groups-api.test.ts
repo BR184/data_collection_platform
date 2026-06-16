@@ -33,23 +33,35 @@ describe('labelGroupsApi', () => {
     expect(valuesUrl).toContain('size=50');
   });
 
-  it('loads natural language dynamic rule templates', () => {
-    labelGroupsApi.listDynamicRuleTemplates();
+  it('loads dynamic rule builder sources and relations', () => {
+    labelGroupsApi.listDynamicRuleSources();
 
-    expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-templates');
+    expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-sources');
+
+    labelGroupsApi.listDynamicRuleRelations();
+
+    expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-relations');
   });
 
-  it('previews dynamic rule members through internal rule payload', () => {
+  it('previews dynamic rule members through builder payload', () => {
     labelGroupsApi.previewDynamicRule({
-      ruleTemplateKey: 'recent-active-assignee',
-      ruleParamsJson: '{"days":30,"scope":"system-test"}',
+      ruleConfig: {
+        outputSourceKey: 'issue_fact',
+        outputFieldKey: 'assigneeName',
+        distinct: true,
+        filters: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', operator: 'lastDays', value: '30' }],
+      },
     });
 
     expect(request).toHaveBeenCalledWith('/api/label-groups/dynamic-rule-preview', {
       method: 'POST',
       body: JSON.stringify({
-        ruleTemplateKey: 'recent-active-assignee',
-        ruleParamsJson: '{"days":30,"scope":"system-test"}',
+        ruleConfig: {
+          outputSourceKey: 'issue_fact',
+          outputFieldKey: 'assigneeName',
+          distinct: true,
+          filters: [{ sourceKey: 'issue_fact', fieldKey: 'updatedAt', operator: 'lastDays', value: '30' }],
+        },
       }),
     });
   });

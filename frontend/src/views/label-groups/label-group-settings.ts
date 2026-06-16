@@ -1,12 +1,13 @@
 import type {
   LabelGroup,
-  LabelGroupDynamicRuleTemplate,
   LabelGroupMember,
+  LabelGroupRuleCondition,
+  LabelGroupRuleConfig,
+  LabelGroupRuleRelation,
   LabelGroupSaveRequest,
 } from '../../types/api';
 
 export type LabelGroupType = 'STATIC' | 'DYNAMIC' | 'COMPOSITE';
-export type DynamicRuleParamValue = string | number | boolean | null;
 
 export interface LabelGroupFormState {
   id: number | null;
@@ -16,8 +17,72 @@ export interface LabelGroupFormState {
   enabled: boolean;
   members: LabelGroupMember[];
   childGroupIds: number[];
-  dynamicRuleTemplateKey: string;
-  dynamicRuleParams: Record<string, DynamicRuleParamValue>;
+  dynamicRule: DynamicRuleFormState;
+}
+
+export interface DynamicRuleFormState {
+  outputSourceKey: string;
+  outputFieldKey: string;
+  distinct: boolean;
+  filters: RuleConditionFormState[];
+  relations: RuleRelationFormState[];
+  groupBy: RuleFieldRefFormState[];
+  aggregations: RuleAggregationFormState[];
+  having: RuleConditionFormState[];
+  sort: RuleSortFormState[];
+  limit: number | null;
+}
+
+export interface RuleSourceFieldOption {
+  sourceKey: string;
+  sourceName: string;
+  fieldKey: string;
+  fieldName: string;
+  valueType: string;
+  operators: string[];
+  outputSupported: boolean;
+  filterSupported: boolean;
+  groupSupported: boolean;
+  aggregateSupported: boolean;
+}
+
+export interface RuleConditionFormState {
+  sourceKey: string;
+  fieldKey: string;
+  aggregateKey: string;
+  operator: string;
+  value: string;
+  secondValue: string;
+  valuesText: string;
+}
+
+export interface RuleRelationFormState {
+  leftSourceKey: string;
+  leftFieldKey: string;
+  rightSourceKey: string;
+  rightFieldKey: string;
+  matchOperator: string;
+  normalizer: string;
+}
+
+export interface RuleFieldRefFormState {
+  sourceKey: string;
+  fieldKey: string;
+}
+
+export interface RuleAggregationFormState {
+  key: string;
+  sourceKey: string;
+  fieldKey: string;
+  function: string;
+  label: string;
+}
+
+export interface RuleSortFormState {
+  sourceKey: string;
+  fieldKey: string;
+  aggregateKey: string;
+  direction: 'asc' | 'desc';
 }
 
 export interface ChildGroupExpandedPreview {
@@ -36,8 +101,22 @@ export function createEmptyLabelGroupForm(): LabelGroupFormState {
     enabled: true,
     members: [],
     childGroupIds: [],
-    dynamicRuleTemplateKey: '',
-    dynamicRuleParams: {},
+    dynamicRule: createEmptyDynamicRuleForm(),
+  };
+}
+
+export function createEmptyDynamicRuleForm(): DynamicRuleFormState {
+  return {
+    outputSourceKey: '',
+    outputFieldKey: '',
+    distinct: true,
+    filters: [],
+    relations: [],
+    groupBy: [],
+    aggregations: [],
+    having: [],
+    sort: [],
+    limit: 50,
   };
 }
 
@@ -56,8 +135,33 @@ export function createLabelGroupForm(group: LabelGroup): LabelGroupFormState {
       sortOrder: member.sortOrder,
     })),
     childGroupIds: (group.childGroups ?? []).map((child) => child.id),
-    dynamicRuleTemplateKey: group.dynamicRule?.ruleTemplateKey ?? '',
-    dynamicRuleParams: parseDynamicRuleParams(group.dynamicRule?.ruleParamsJson),
+    dynamicRule: createDynamicRuleForm(group.dynamicRule?.ruleConfig),
+  };
+}
+
+export function createDynamicRuleForm(ruleConfig?: LabelGroupRuleConfig | null): DynamicRuleFormState {
+  return {
+    outputSourceKey: ruleConfig?.outputSourceKey ?? '',
+    outputFieldKey: ruleConfig?.outputFieldKey ?? '',
+    distinct: ruleConfig?.distinct ?? true,
+    filters: (ruleConfig?.filters ?? []).map(toConditionFormState),
+    relations: (ruleConfig?.relations ?? []).map(toRelationFormState),
+    groupBy: (ruleConfig?.groupBy ?? []).map((item) => ({ sourceKey: item.sourceKey, fieldKey: item.fieldKey })),
+    aggregations: (ruleConfig?.aggregations ?? []).map((item) => ({
+      key: item.key,
+      sourceKey: item.sourceKey,
+      fieldKey: item.fieldKey,
+      function: item.function,
+      label: item.label ?? '',
+    })),
+    having: (ruleConfig?.having ?? []).map(toConditionFormState),
+    sort: (ruleConfig?.sort ?? []).map((item) => ({
+      sourceKey: item.sourceKey ?? '',
+      fieldKey: item.fieldKey ?? '',
+      aggregateKey: item.aggregateKey ?? '',
+      direction: item.direction,
+    })),
+    limit: ruleConfig?.limit ?? 50,
   };
 }
 
@@ -76,10 +180,41 @@ export function buildLabelGroupSaveRequest(form: LabelGroupFormState): LabelGrou
     childGroupIds: form.childGroupIds,
     dynamicRule: form.groupType === 'DYNAMIC'
       ? {
-        ruleTemplateKey: form.dynamicRuleTemplateKey.trim(),
-        ruleParamsJson: JSON.stringify(form.dynamicRuleParams),
+        ruleConfig: buildRuleConfig(form.dynamicRule),
       }
       : null,
+  };
+}
+
+export function buildRuleConfig(form: DynamicRuleFormState): LabelGroupRuleConfig {
+  return {
+    outputSourceKey: form.outputSourceKey.trim(),
+    outputFieldKey: form.outputFieldKey.trim(),
+    distinct: form.distinct,
+    filters: form.filters.map(toConditionPayload),
+    relations: form.relations.map(toRelationPayload),
+    groupBy: form.groupBy
+      .filter((item) => item.sourceKey.trim() && item.fieldKey.trim())
+      .map((item) => ({ sourceKey: item.sourceKey.trim(), fieldKey: item.fieldKey.trim() })),
+    aggregations: form.aggregations
+      .filter((item) => item.key.trim() && item.sourceKey.trim() && item.fieldKey.trim())
+      .map((item) => ({
+        key: item.key.trim(),
+        sourceKey: item.sourceKey.trim(),
+        fieldKey: item.fieldKey.trim(),
+        function: item.function.trim(),
+        label: item.label.trim() || null,
+      })),
+    having: form.having.map(toConditionPayload),
+    sort: form.sort
+      .filter((item) => item.sourceKey.trim() || item.aggregateKey.trim())
+      .map((item) => ({
+        sourceKey: item.sourceKey.trim() || null,
+        fieldKey: item.fieldKey.trim() || null,
+        aggregateKey: item.aggregateKey.trim() || null,
+        direction: item.direction,
+      })),
+    limit: form.limit == null ? null : Math.max(1, Math.min(200, form.limit)),
   };
 }
 
@@ -90,8 +225,11 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
   if (form.groupType === 'COMPOSITE' && !form.childGroupIds.length) {
     return '请选择要组合的子标签组';
   }
-  if (form.groupType === 'DYNAMIC' && !form.dynamicRuleTemplateKey.trim()) {
-    return '请输入动态规则模板';
+  if (form.groupType === 'DYNAMIC') {
+    const ruleError = validateDynamicRuleForm(form.dynamicRule);
+    if (ruleError) {
+      return ruleError;
+    }
   }
   if (form.groupType === 'STATIC' && !form.members.length && !form.childGroupIds.length) {
     return '请选择或输入标签组成员';
@@ -102,57 +240,14 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
   return '';
 }
 
-export function validateDynamicRuleParameters(
-    form: LabelGroupFormState,
-    templates: LabelGroupDynamicRuleTemplate[],
-) {
-  if (form.groupType !== 'DYNAMIC' || !form.dynamicRuleTemplateKey) {
-    return '';
+export function validateDynamicRuleForm(form: DynamicRuleFormState) {
+  if (!form.outputSourceKey.trim()) {
+    return '请选择输出数据源';
   }
-  const template = templates.find((item) => item.key === form.dynamicRuleTemplateKey);
-  if (!template) {
-    return '动态规则模板不存在';
-  }
-  for (const parameter of template.parameters) {
-    const value = form.dynamicRuleParams[parameter.key];
-    if (parameter.required && (value === null || value === undefined || value === '')) {
-      return `请填写${parameter.label}`;
-    }
+  if (!form.outputFieldKey.trim()) {
+    return '请选择输出字段';
   }
   return '';
-}
-
-export function defaultDynamicRuleParams(template: LabelGroupDynamicRuleTemplate | undefined) {
-  const params: Record<string, DynamicRuleParamValue> = {};
-  if (!template) {
-    return params;
-  }
-  for (const parameter of template.parameters) {
-    params[parameter.key] = parameter.defaultValue ?? null;
-  }
-  return params;
-}
-
-export function mergeDynamicRuleParams(
-    template: LabelGroupDynamicRuleTemplate | undefined,
-    current: Record<string, DynamicRuleParamValue>,
-) {
-  const defaults = defaultDynamicRuleParams(template);
-  return Object.fromEntries(
-      Object.keys(defaults).map((key) => [key, current[key] ?? defaults[key]]),
-  ) as Record<string, DynamicRuleParamValue>;
-}
-
-export function parseDynamicRuleParams(ruleParamsJson?: string | null) {
-  if (!ruleParamsJson) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(ruleParamsJson) as Record<string, DynamicRuleParamValue>;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
 }
 
 export function buildMemberPreview(group: LabelGroup, limit = 4) {
@@ -235,4 +330,53 @@ export function valueTypeLabel(valueType?: string | null) {
     ARRAY: '数组',
     MIXED: '类型不一致',
   } as Record<string, string>)[valueType || ''] ?? '未定型';
+}
+
+function toConditionFormState(condition: LabelGroupRuleCondition): RuleConditionFormState {
+  return {
+    sourceKey: condition.sourceKey ?? '',
+    fieldKey: condition.fieldKey ?? '',
+    aggregateKey: condition.aggregateKey ?? '',
+    operator: condition.operator ?? 'eq',
+    value: condition.value ?? '',
+    secondValue: condition.secondValue ?? '',
+    valuesText: (condition.values ?? []).join('\n'),
+  };
+}
+
+function toRelationFormState(relation: LabelGroupRuleRelation): RuleRelationFormState {
+  return {
+    leftSourceKey: relation.leftSourceKey,
+    leftFieldKey: relation.leftFieldKey,
+    rightSourceKey: relation.rightSourceKey,
+    rightFieldKey: relation.rightFieldKey,
+    matchOperator: relation.matchOperator,
+    normalizer: relation.normalizer ?? 'NONE',
+  };
+}
+
+function toConditionPayload(condition: RuleConditionFormState): LabelGroupRuleCondition {
+  return {
+    sourceKey: condition.sourceKey.trim() || null,
+    fieldKey: condition.fieldKey.trim() || null,
+    aggregateKey: condition.aggregateKey.trim() || null,
+    operator: condition.operator,
+    value: condition.value.trim() || null,
+    secondValue: condition.secondValue.trim() || null,
+    values: condition.valuesText
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean),
+  };
+}
+
+function toRelationPayload(relation: RuleRelationFormState): LabelGroupRuleRelation {
+  return {
+    leftSourceKey: relation.leftSourceKey.trim(),
+    leftFieldKey: relation.leftFieldKey.trim(),
+    rightSourceKey: relation.rightSourceKey.trim(),
+    rightFieldKey: relation.rightFieldKey.trim(),
+    matchOperator: relation.matchOperator.trim() || 'eq',
+    normalizer: relation.normalizer.trim() || 'NONE',
+  };
 }

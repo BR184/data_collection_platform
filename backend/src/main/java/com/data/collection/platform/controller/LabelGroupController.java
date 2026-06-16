@@ -4,7 +4,8 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.labelgroup.LabelDimensionResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRulePreviewRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRulePreviewResponse;
-import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleTemplateResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRelationResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourceResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCompatiblePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCreateRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
@@ -15,7 +16,7 @@ import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleEvaluationService;
-import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleTemplateService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCatalogService;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.labelgroup.LabelGroupService;
 import com.data.collection.platform.service.labelgroup.LabelValueQueryService;
@@ -37,7 +38,7 @@ public class LabelGroupController {
   private final LabelValueQueryService labelValueQueryService;
   private final LabelGroupService labelGroupService;
   private final LabelGroupExpansionService labelGroupExpansionService;
-  private final LabelGroupDynamicRuleTemplateService dynamicRuleTemplateService;
+  private final LabelGroupDynamicRuleCatalogService dynamicRuleCatalogService;
   private final LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
 
   public LabelGroupController(
@@ -45,13 +46,13 @@ public class LabelGroupController {
       LabelValueQueryService labelValueQueryService,
       LabelGroupService labelGroupService,
       LabelGroupExpansionService labelGroupExpansionService,
-      LabelGroupDynamicRuleTemplateService dynamicRuleTemplateService,
+      LabelGroupDynamicRuleCatalogService dynamicRuleCatalogService,
       LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService) {
     this.labelDimensionCatalogService = labelDimensionCatalogService;
     this.labelValueQueryService = labelValueQueryService;
     this.labelGroupService = labelGroupService;
     this.labelGroupExpansionService = labelGroupExpansionService;
-    this.dynamicRuleTemplateService = dynamicRuleTemplateService;
+    this.dynamicRuleCatalogService = dynamicRuleCatalogService;
     this.dynamicRuleEvaluationService = dynamicRuleEvaluationService;
   }
 
@@ -126,16 +127,20 @@ public class LabelGroupController {
     return ApiResponse.success(labelDimensionCatalogService.listCompatiblePages(dimensionKey));
   }
 
-  @GetMapping("/dynamic-rule-templates")
-  public ApiResponse<List<LabelGroupDynamicRuleTemplateResponse>> listDynamicRuleTemplates() {
-    return ApiResponse.success(dynamicRuleTemplateService.listTemplates());
+  @GetMapping("/dynamic-rule-sources")
+  public ApiResponse<List<LabelGroupDynamicRuleSourceResponse>> listDynamicRuleSources() {
+    return ApiResponse.success(dynamicRuleCatalogService.listSources());
+  }
+
+  @GetMapping("/dynamic-rule-relations")
+  public ApiResponse<List<LabelGroupDynamicRuleRelationResponse>> listDynamicRuleRelations() {
+    return ApiResponse.success(dynamicRuleCatalogService.listRelations());
   }
 
   @PostMapping("/dynamic-rule-preview")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<LabelGroupDynamicRulePreviewResponse> previewDynamicRule(
       @RequestBody LabelGroupDynamicRulePreviewRequest request) {
-    return ApiResponse.success(
-        dynamicRuleEvaluationService.preview(request.ruleTemplateKey(), request.ruleParamsJson()));
+    return ApiResponse.success(dynamicRuleEvaluationService.preview(request.ruleConfig()));
   }
 }
