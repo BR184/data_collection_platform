@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../../element-plus-services';
 import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
+import SavedTableViewsEntry from '../../components/SavedTableViewsEntry.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
 import RuleExplanationDrawer from '../../components/RuleExplanationDrawer.vue';
 import SyncMetaBadge from '../../components/realtime/SyncMetaBadge.vue';
@@ -377,6 +378,10 @@ async function handleConditionFilterReset() {
               @reset="handleConditionFilterReset"
             />
           </div>
+        </template>
+
+        <template #saved-views>
+          <SavedTableViewsEntry :scope-key="`record-page:${props.workspaceKey}`" />
         </template>
 
         <template #primary-actions>

@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Download, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
@@ -543,6 +544,10 @@ async function handleRefresh() {
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
         />
+      </template>
+
+      <template #saved-views>
+        <SavedTableViewsEntry scope-key="record-page:system-test-issue-search" />
       </template>
 
       <template #toolbar-actions>

@@ -5,6 +5,7 @@ interface StatisticBoardSettingsActionsDependencies {
   board: Ref<StatisticBoardResponse | null>;
   draftVisibleColumnKeys: Ref<string[]>;
   openSettings: () => void;
+  openSavedViews: () => void;
   closeSettings: () => void;
   clearCurrentSort: () => void;
   syncDraftFromVisible: () => void;
@@ -40,6 +41,10 @@ export function useStatisticBoardSettingsActions(deps: StatisticBoardSettingsAct
     }
     if (command === 'toggle-auto-refresh') {
       deps.toggleAutoRefreshOnEnter?.();
+      return;
+    }
+    if (command === 'open-saved-views') {
+      deps.openSavedViews();
       return;
     }
     if (command === 'restore-default-view') {

@@ -31,6 +31,7 @@ import { useStatisticBoardRefreshController } from '../composables/useStatisticB
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
+import SavedTableViewsEntry from './SavedTableViewsEntry.vue';
 import { downloadBlob, downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import {
   type SortDirection,
@@ -48,6 +49,7 @@ import {
 } from './statistic-board-route-query';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
+import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
 
 const props = withDefaults(
   defineProps<{
@@ -66,6 +68,7 @@ const lastAutoRefreshAt = ref(0);
 const issueExportLoading = ref(false);
 const customerIssueExportLoading = ref(false);
 const horizontalComparisonExportLoading = ref(false);
+const savedViewsVisible = ref(false);
 const {
   autoRefreshOnEnter,
   toggleAutoRefreshOnEnter,
@@ -314,6 +317,9 @@ const {
   board,
   draftVisibleColumnKeys,
   openSettings,
+  openSavedViews: () => {
+    savedViewsVisible.value = true;
+  },
   closeSettings,
   clearCurrentSort,
   syncDraftFromVisible,
@@ -341,6 +347,24 @@ function sortIconForDirection(direction: SortDirection) {
     return ArrowDown;
   }
   return Sort;
+}
+
+function captureStatisticBoardViewPrefs() {
+  return {
+    ...boardViewPrefs.value,
+  };
+}
+
+async function applyStatisticBoardViewPrefs(viewPrefs: unknown) {
+  if (!viewPrefs || typeof viewPrefs !== 'object') {
+    return;
+  }
+  boardViewPrefs.value = {
+    ...boardViewPrefs.value,
+    ...(viewPrefs as Partial<StatisticBoardViewPrefs>),
+  };
+  persistViewPrefs();
+  syncDraftFromVisible();
 }
 
 async function applyFiltersToRoute() {
@@ -572,6 +596,14 @@ async function autoRefreshPageData() {
       :on-current-change="handleDetailCurrentChange"
       :on-size-change="handleDetailSizeChange"
       @update:model-value="handleDetailVisibleChange"
+    />
+
+    <SavedTableViewsEntry
+      v-model="savedViewsVisible"
+      :scope-key="`stat-board:${props.boardKey}`"
+      :show-trigger="false"
+      :capture-view-prefs="captureStatisticBoardViewPrefs"
+      :apply-view-prefs="applyStatisticBoardViewPrefs"
     />
 
   </div>

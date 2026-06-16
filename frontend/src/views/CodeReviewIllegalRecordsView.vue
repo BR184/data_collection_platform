@@ -6,6 +6,7 @@ import { ElMessage } from '../element-plus-services';
 import { Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
@@ -390,6 +391,10 @@ async function handleConditionFilterReset() {
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
         />
+      </template>
+
+      <template #saved-views>
+        <SavedTableViewsEntry scope-key="record-page:code-review-illegal-records" />
       </template>
 
       <template #primary-actions>

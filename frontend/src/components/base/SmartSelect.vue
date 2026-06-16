@@ -97,6 +97,10 @@ function matchesOption(option: RecordTableFilterOption, normalizedQuery: string)
 function isOptionSelected(value: string) {
   return Array.isArray(props.modelValue) ? props.modelValue.includes(value) : props.modelValue === value;
 }
+
+function isLabelGroupOption(value: string) {
+  return value.startsWith('__label_group__:');
+}
 </script>
 
 <template>
@@ -124,7 +128,10 @@ function isOptionSelected(value: string) {
       :key="option.value"
       :label="option.label"
       :value="option.value"
-      :class="{ 'smart-select-option-item--selected': isOptionSelected(option.value) }"
+      :class="{
+        'smart-select-option-item--selected': isOptionSelected(option.value),
+        'smart-select-option-item--label-group': isLabelGroupOption(option.value),
+      }"
     >
       <div class="smart-select-option">
         <span class="smart-select-option-label">{{ option.label }}</span>
@@ -201,6 +208,52 @@ function isOptionSelected(value: string) {
   color: #fff !important;
   font-weight: 400 !important;
   box-shadow: 0 6px 14px rgba(37, 99, 235, 0.18);
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--label-group {
+  border-color: rgba(5, 150, 105, 0.28);
+  background: rgba(236, 253, 245, 0.96);
+  color: #047857;
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group:hover,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--label-group.hover,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--label-group:hover {
+  border-color: rgba(5, 150, 105, 0.46);
+  background: rgba(209, 250, 229, 0.98);
+  color: #065f46;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.12);
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group .smart-select-option-label,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--label-group .smart-select-option-label {
+  color: inherit;
+  font-weight: 600;
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.smart-select-option-item--selected,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.selected,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.is-selected,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group[aria-selected='true'] {
+  border-color: #059669 !important;
+  background: #059669 !important;
+  color: #fff !important;
+  box-shadow: 0 6px 14px rgba(5, 150, 105, 0.2);
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.smart-select-option-item--selected.hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.smart-select-option-item--selected:hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.selected.hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.selected:hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.is-selected.hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group.is-selected:hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group[aria-selected='true'].hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group[aria-selected='true']:hover {
+  border-color: #047857 !important;
+  background: #047857 !important;
+  color: #fff !important;
 }
 
 .smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--selected.hover,

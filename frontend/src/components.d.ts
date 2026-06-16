@@ -76,6 +76,8 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     RuleExplanationDrawer: typeof import('./components/RuleExplanationDrawer.vue')['default']
+    SavedTableViewsEntry: typeof import('./components/SavedTableViewsEntry.vue')['default']
+    SavedTableViewsManager: typeof import('./components/SavedTableViewsManager.vue')['default']
     SmartSelect: typeof import('./components/base/SmartSelect.vue')['default']
     StatisticBoardDetailDialog: typeof import('./components/StatisticBoardDetailDialog.vue')['default']
     StatisticBoardRuleExplanationDrawer: typeof import('./components/StatisticBoardRuleExplanationDrawer.vue')['default']

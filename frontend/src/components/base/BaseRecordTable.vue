@@ -115,6 +115,7 @@ const hasPrimaryActions = computed(() => Boolean(slots['primary-actions']));
 const hasToolbarPrefix = computed(() => Boolean(slots['toolbar-prefix']));
 const hasContextPrefix = computed(() => Boolean(slots['context-prefix']));
 const hasToolbarActions = computed(() => Boolean(slots['toolbar-actions']));
+const hasSavedViews = computed(() => Boolean(slots['saved-views']));
 const hasPrimaryFilters = computed(() => props.primaryFilters.length > 0);
 const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
 const hasActiveFilterTags = computed(() => props.activeFilterTags.length > 0);
@@ -335,12 +336,13 @@ function handleStandaloneKeywordClear() {
       </el-tag>
     </section>
 
-    <div v-if="hasToolbarPrefix || hasToolbarActions || showRefresh" class="record-table-toolbar">
+    <div v-if="hasToolbarPrefix || hasToolbarActions || hasSavedViews || showRefresh" class="record-table-toolbar">
       <div class="record-table-toolbar-main">
         <slot name="toolbar-prefix" />
       </div>
 
       <div class="record-table-toolbar-actions">
+        <slot name="saved-views" />
         <slot name="toolbar-actions" />
         <el-button v-if="showRefresh" :icon="Refresh" @click="emit('refresh')">刷新</el-button>
       </div>

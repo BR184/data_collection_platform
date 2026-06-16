@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
+import SavedTableViewsEntry from '../components/SavedTableViewsEntry.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import ReviewDataLegacyExcelImportDialog from './review-data/ReviewDataLegacyExcelImportDialog.vue';
 import ReviewDataDetailDrawer from './review-data/ReviewDataDetailDrawer.vue';
@@ -323,6 +324,10 @@ const {
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
         />
+      </template>
+
+      <template #saved-views>
+        <SavedTableViewsEntry scope-key="record-page:review-data-management" />
       </template>
 
       <template #primary-actions>

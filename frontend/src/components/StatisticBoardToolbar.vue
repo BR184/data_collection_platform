@@ -211,6 +211,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="open-settings">列显示设置</el-dropdown-item>
+              <el-dropdown-item command="open-saved-views">固定/管理视图</el-dropdown-item>
               <el-dropdown-item command="clear-sort">恢复默认排序</el-dropdown-item>
               <el-dropdown-item command="toggle-auto-refresh">
                 {{ autoRefreshOnEnter ? '关闭进入页面自动刷新' : '开启进入页面自动刷新' }}
