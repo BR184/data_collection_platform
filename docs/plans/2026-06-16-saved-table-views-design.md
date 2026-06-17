@@ -22,4 +22,4 @@
 
 ## 调查记录
 
-评审数据管理的“模板”按钮不是凭空新增能力。老平台 `D:\projects\spidergitdata-dev\webapp\src\views\PageReviewBoard\ReviewBoard.vue` 中存在 `downloadTempFile()`，调用 `exportTempFile()` 后下载 `模板文件.xls`。新平台当前对应接口为 `GET /api/review-data/template`，由 `ReviewDataTemplateWorkbookService` 生成评审数据导入模板。因此该按钮可以保留，但位置应作为评审数据动作按钮之一，而不是混入固定视图设置入口。
+评审数据管理的“模板”按钮已确认不是当前重构需求的一部分，且老平台页面虽然存在模板下载实现，但当前新平台不再保留该入口和对应接口。

@@ -233,16 +233,6 @@ async function handleExportRecordProblemDetails(row: Record<string, unknown>) {
   }
 }
 
-async function handleDownloadTemplate() {
-  try {
-    const blob = await api.downloadReviewDataTemplateWorkbook();
-    downloadBlob(blob, '评审数据导入模板.xlsx');
-    ElMessage.success('已下载评审数据导入模板');
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '评审数据模板下载失败');
-  }
-}
-
 function handleExportCommand(command: string) {
   if (command === 'records') {
     void handleExportReviewRecords();
@@ -360,9 +350,6 @@ const {
           </el-dropdown>
           <el-button plain :icon="Upload" @click="legacyImportVisible = true">
             导入
-          </el-button>
-          <el-button plain :icon="Download" @click="handleDownloadTemplate">
-            模板
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
           <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>

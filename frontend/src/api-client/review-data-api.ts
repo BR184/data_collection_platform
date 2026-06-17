@@ -46,9 +46,6 @@ export const reviewDataApi = {
   exportReviewDataRecordProblemDetailsWorkbook(recordId: string | number) {
     return fetchWorkbook(`/api/review-data/records/${recordId}/problem-items/export`);
   },
-  downloadReviewDataTemplateWorkbook() {
-    return fetchWorkbook('/api/review-data/template');
-  },
   getReviewDataFilterOptions() {
     return request<ReviewDataFilterOptionsResponse>('/api/review-data/records/filter-options');
   },

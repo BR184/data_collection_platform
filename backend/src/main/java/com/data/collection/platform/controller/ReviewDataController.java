@@ -19,7 +19,6 @@ import com.data.collection.platform.service.ReviewDataLegacyExcelImportService;
 import com.data.collection.platform.service.ReviewDataLegacyExcelPreviewResponse;
 import com.data.collection.platform.service.ReviewDataExcelExportService;
 import com.data.collection.platform.service.ReviewDataRecordService;
-import com.data.collection.platform.service.ReviewDataTemplateWorkbookService;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +46,6 @@ public class ReviewDataController {
   private final ReviewDataRequestAssembler reviewDataRequestAssembler;
   private final ReviewDataLegacyExcelImportService legacyExcelImportService;
   private final ReviewDataExcelExportService excelExportService;
-  private final ReviewDataTemplateWorkbookService templateWorkbookService;
   private final ReviewDataProperties reviewDataProperties;
 
   public ReviewDataController(
@@ -55,13 +53,11 @@ public class ReviewDataController {
       ReviewDataRequestAssembler reviewDataRequestAssembler,
       ReviewDataLegacyExcelImportService legacyExcelImportService,
       ReviewDataExcelExportService excelExportService,
-      ReviewDataTemplateWorkbookService templateWorkbookService,
       ReviewDataProperties reviewDataProperties) {
     this.reviewDataRecordService = reviewDataRecordService;
     this.reviewDataRequestAssembler = reviewDataRequestAssembler;
     this.legacyExcelImportService = legacyExcelImportService;
     this.excelExportService = excelExportService;
-    this.templateWorkbookService = templateWorkbookService;
     this.reviewDataProperties = reviewDataProperties;
   }
 
@@ -102,11 +98,6 @@ public class ReviewDataController {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(recordId),
         "review-data-problem-details-" + recordId + ".xlsx");
-  }
-
-  @GetMapping("/template")
-  public ResponseEntity<byte[]> downloadTemplate() {
-    return excelResponse(templateWorkbookService.buildTemplateWorkbook(), "review-data-template.xlsx");
   }
 
   @PostMapping("/records")
