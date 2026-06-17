@@ -79,5 +79,8 @@ function exportFilename(boardKey: string) {
   if (boardKey === 'system-test-defect-cause') {
     return '缺陷原因统计表.xlsx';
   }
+  if (boardKey === 'customer-issue-defect-cause') {
+    return '客户问题缺陷原因统计表.xlsx';
+  }
   return `${boardKey}.csv`;
 }

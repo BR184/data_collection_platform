@@ -32,7 +32,6 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -71,7 +70,6 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试)");
-  private static final String NOTE_SEPARATOR = "\\R---\\R";
   private static final String PHASE_OPTION_SQL = """
       select coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
@@ -106,32 +104,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
           new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
           new StatisticDetailColumn("state", "状态", 120, 120, true),
           new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
-  private static final List<CauseMetricDefinition> CAUSE_METRICS =
-      List.of(
-          new CauseMetricDefinition("demand_misunderstand", "新增理解偏差", "需求问题", List.of("新增理解偏差", "新增理解偏差数量", "需求理解有误", "需求理解有误数量")),
-          new CauseMetricDefinition("missing_requirement", "需求遗漏", "需求问题", List.of("需求遗漏", "需求遗漏数量")),
-          new CauseMetricDefinition("add_demand_2", "新增需求", "需求问题", List.of("新增需求", "新增需求数量", "新增需求问题", "新增需求问题数量")),
-          new CauseMetricDefinition("demand_change_not_sync", "需求变更未同步", "需求问题", List.of("需求变更未同步", "需求变更未同步数量")),
-          new CauseMetricDefinition("design_forget", "功能设计遗漏", "设计问题", List.of("功能设计遗漏", "功能设计遗漏数量")),
-          new CauseMetricDefinition("design_scheme", "设计方案不合理", "设计问题", List.of("设计方案不合理", "设计方案不合理数量")),
-          new CauseMetricDefinition("incomplete", "场景考虑不全", "设计问题", List.of("场景考虑不全", "场景考虑不全数量")),
-          new CauseMetricDefinition("prompt_message", "术语、提示信息不合适", "设计问题", List.of("术语、提示信息不合适", "提示信息不合理")),
-          new CauseMetricDefinition("standard_error", "编码规范错误", "编码规范", List.of("编码规范错误", "编码规范错误数量")),
-          new CauseMetricDefinition("function_forget", "功能编码遗漏", "编码规范", List.of("功能编码遗漏", "功能编码遗漏数量")),
-          new CauseMetricDefinition("logic_calculation_algorithm_error", "编码逻辑：计算与算法错误", "编码规范", List.of("编码逻辑：计算与算法错误")),
-          new CauseMetricDefinition("logic_flow_control_error", "编码逻辑：流程控制错误", "编码规范", List.of("编码逻辑：流程控制错误")),
-          new CauseMetricDefinition("logic_data_state_process_error", "编码逻辑：数据与状态处理错误", "编码规范", List.of("编码逻辑：数据与状态处理错误")),
-          new CauseMetricDefinition("logic_business_logic_error", "编码逻辑：业务逻辑错误", "编码规范", List.of("编码逻辑：业务逻辑错误", "编码逻辑错误")),
-          new CauseMetricDefinition("logic_integration_interface_error", "编码逻辑：集成与接口错误", "编码规范", List.of("编码逻辑：集成与接口错误", "调用接口错误")),
-          new CauseMetricDefinition("environment_config_issue", "环境配置问题", "打包问题", List.of("环境配置问题")),
-          new CauseMetricDefinition("compilation_package_deployment_issue", "编译/打包/部署问题", "打包问题", List.of("编译/打包/部署问题", "编译打包问题")),
-          new CauseMetricDefinition("other_thirdParty", "第三方库问题", "依赖问题", List.of("第三方库问题")),
-          new CauseMetricDefinition("algorithm_not_support", "算法不支持", "依赖问题", List.of("算法不支持")),
-          new CauseMetricDefinition("mechanism_not_support", "机制不支持", "依赖问题", List.of("机制不支持", "算法/机制不支持")),
-          new CauseMetricDefinition("precondition_data_exception", "前置数据异常", "依赖问题", List.of("前置数据异常", "前置数据异常（如缺少模板文件、前置输入文件本身错误等）")),
-          new CauseMetricDefinition("other_unIdentifyTask", "未识别的前后置任务", "依赖问题", List.of("未识别的前后置任务")),
-          new CauseMetricDefinition("precision_constraint_exception", "精度导致约束求解异常", "精度问题", List.of("精度导致约束求解异常")),
-          new CauseMetricDefinition("precision_algorithm_exception", "精度导致算法执行异常", "精度问题", List.of("精度导致算法执行异常")));
+  private static final List<DefectCauseMetricCatalog.Metric> CAUSE_METRICS =
+      DefectCauseMetricCatalog.METRICS;
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
@@ -211,7 +185,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   }
 
   private StatisticColumnLeaf leafByMetricKey(String metricKey) {
-    CauseMetricDefinition metric = metric(metricKey);
+    DefectCauseMetricCatalog.Metric metric = metric(metricKey);
     return leaf(metric.key(), metric.label(), true, "count");
   }
 
@@ -377,7 +351,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     String currentGroup = "";
     int groupStart = 1;
     for (int index = 0; index < CAUSE_METRICS.size(); index++) {
-      CauseMetricDefinition metric = CAUSE_METRICS.get(index);
+      DefectCauseMetricCatalog.Metric metric = CAUSE_METRICS.get(index);
       if (!metric.groupLabel().equals(currentGroup)) {
         if (StringUtils.hasText(currentGroup)) {
           mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
@@ -425,7 +399,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         cells.put(cell.columnKey(), cell);
       }
       int columnIndex = 1;
-      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         StatisticCellData cell = cells.get(metric.key());
         createCell(row, columnIndex++, cell == null ? "" : cell.displayValue(), style);
       }
@@ -669,11 +643,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return normalized;
   }
 
-  private CauseMetricDefinition metric(String key) {
-    return CAUSE_METRICS.stream()
-        .filter(metric -> metric.key().equals(key))
-        .findFirst()
-        .orElseThrow(() -> new IllegalArgumentException("Unknown metric key: " + key));
+  private DefectCauseMetricCatalog.Metric metric(String key) {
+    return DefectCauseMetricCatalog.get(key);
   }
 
   private static String count(long value) {
@@ -700,7 +671,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
     StatisticRowData toRowData() {
       List<StatisticCellData> cells = new ArrayList<>();
-      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         cells.add(cell(metric.key(), countByMetric(metric.key()), true));
       }
       return new StatisticRowData(
@@ -720,7 +691,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     static StatisticRowData ratioRow(AggregateBucket totalBucket) {
       long denominator = totalBucket.metricTotal();
       List<StatisticCellData> cells = new ArrayList<>();
-      for (CauseMetricDefinition metric : CAUSE_METRICS) {
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         long numerator = totalBucket.countByMetric(metric.key());
         String display = denominator == 0 ? "0" : String.format(java.util.Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
         cells.add(new StatisticCellData(metric.key(), numerator, display, false, null, Map.of("rowKey", "__ratio__")));
@@ -804,18 +775,18 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     List<String> causeLabels() {
       return CAUSE_METRICS.stream()
           .filter(metric -> matchedMetricKeys().contains(metric.key()))
-          .map(CauseMetricDefinition::label)
+          .map(DefectCauseMetricCatalog.Metric::label)
           .toList();
     }
 
     private Set<String> matchedMetricKeys() {
       Set<String> matched = new LinkedHashSet<>();
-      String text = latestReasonText(reasonText);
+      String text = DefectCauseMetricCatalog.latestReasonText(reasonText);
       if (!StringUtils.hasText(text)) {
         text = reasonCategory;
       }
-      for (CauseMetricDefinition metric : CAUSE_METRICS) {
-        if (containsAny(text, metric.tokens())) {
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+        if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
           matched.add(metric.key());
         }
       }
@@ -870,36 +841,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       List<IssueSource> reasonSources,
       List<StatisticRuleFlowStep> flowSteps) {}
 
-  private record CauseMetricDefinition(String key, String label, String groupLabel, List<String> tokens) {}
-
-  private static boolean containsAny(String text, Collection<String> tokens) {
-    if (!StringUtils.hasText(text) || tokens == null || tokens.isEmpty()) {
-      return false;
-    }
-    for (String token : tokens) {
-      if (StringUtils.hasText(token) && text.contains(token)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
   private static boolean contains(String text, String keyword) {
     return StringUtils.hasText(text) && StringUtils.hasText(keyword) && text.contains(keyword);
-  }
-
-  private static String latestReasonText(String text) {
-    if (!StringUtils.hasText(text)) {
-      return "";
-    }
-    String[] notes = text.split(NOTE_SEPARATOR);
-    for (int index = notes.length - 1; index >= 0; index--) {
-      String candidate = notes[index];
-      if (CAUSE_METRICS.stream().anyMatch(metric -> containsAny(candidate, metric.tokens()))) {
-        return candidate;
-      }
-    }
-    return text;
   }
 
   private static final class ExportStyles {

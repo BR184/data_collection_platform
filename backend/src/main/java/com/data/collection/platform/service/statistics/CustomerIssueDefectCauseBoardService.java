@@ -12,7 +12,9 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
@@ -26,6 +28,8 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -33,10 +37,22 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -44,15 +60,32 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
+    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-04-22-v1";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-06-17-v2";
+  private static final String MILESTONE_FIELD = "milestoneTitle";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
+  private static final List<DefectCauseMetricCatalog.Metric> CAUSE_METRICS =
+      DefectCauseMetricCatalog.METRICS;
+  private static final String MILESTONE_OPTION_SQL = """
+      select issue_id as id, issue_iid as iid, title, project_id, project_name,
+             coalesce(author_name,'') as author_name, created_at_source as created_at,
+             updated_at_source as updated_at, closed_at_source as closed_at,
+             coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
+             coalesce(testing_phase,'') as testing_phase,
+             coalesce(system_test_label,'') as system_test_label,
+             coalesce(reason_category,'') as reason_category,
+             coalesce(raw_payload,'') as reason_text,
+             coalesce(module_names,'') as module_names,
+             coalesce(label_names,'') as label_names
+        from issue_fact
+       where deleted = false
+      """;
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, title, project_id, project_name,
              coalesce(author_name,'') as author_name, created_at_source as created_at,
@@ -61,6 +94,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
              coalesce(reason_category,'') as reason_category,
+             coalesce(raw_payload,'') as reason_text,
              coalesce(module_names,'') as module_names,
              coalesce(label_names,'') as label_names
         from issue_fact
@@ -76,14 +110,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
           new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
           new StatisticDetailColumn("state", "状态", 120, 120, true),
           new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
-  private static final List<CauseMetricDefinition> CAUSE_METRICS =
-      List.of(
-          new CauseMetricDefinition("requirement_understanding", "需求理解偏差", "需求问题", "需求理解偏差"),
-          new CauseMetricDefinition("new_requirement", "新增需求", "需求问题", "新增需求"),
-          new CauseMetricDefinition("implementation_logic", "编码逻辑错误", "实现问题", "编码逻辑错误"),
-          new CauseMetricDefinition("environment_deployment", "环境部署问题", "环境与部署", "环境部署问题"),
-          new CauseMetricDefinition("algorithm_mechanism", "算法机制不支持", "环境与部署", "算法机制不支持"),
-          new CauseMetricDefinition("other_reason", "其他原因", "环境与部署", null));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
@@ -116,28 +142,44 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
+    return buildDefinition(loadMilestoneOptions());
+  }
+
+  private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> milestoneOptions) {
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷原因分析",
-        "基于 issue_fact 的模块维度客户问题缺陷原因分析。",
+        "基于 issue_fact 的模块维度客户问题缺陷原因分析，按老平台原因模板字段统计。",
         "",
         "",
         "模块",
-        List.of(),
+        List.of(StatisticFilterFieldFactory.select(MILESTONE_FIELD, "里程碑", 220, milestoneOptions)),
         List.of(
             StatisticColumnGroup.withChildren(
                 "requirement-problem",
                 "需求问题",
-                List.of(group("requirement-basic", "需求归类", List.of("requirement_understanding", "new_requirement")))),
+                List.of(
+                    group("requirement-basic", "需求归类", List.of("demand_misunderstand", "missing_requirement", "add_demand_2", "demand_change_not_sync")))),
             StatisticColumnGroup.withChildren(
-                "implementation-problem",
-                "实现问题",
-                List.of(group("implementation-basic", "实现归类", List.of("implementation_logic")))),
+                "design-problem",
+                "设计问题",
+                List.of(group("design-basic", "设计归类", List.of("design_forget", "design_scheme", "incomplete", "prompt_message")))),
             StatisticColumnGroup.withChildren(
-                "environment-problem",
-                "环境与部署",
-                List.of(group("environment-basic", "环境归类", List.of("environment_deployment", "algorithm_mechanism", "other_reason")))),
-            new StatisticColumnGroup("summary", "汇总", List.of(leaf("total", "总计", true, "count")))),
+                "code-problem",
+                "编码规范",
+                List.of(group("code-basic", "编码归类", List.of("standard_error", "function_forget", "logic_calculation_algorithm_error", "logic_flow_control_error", "logic_data_state_process_error", "logic_business_logic_error", "logic_integration_interface_error")))),
+            StatisticColumnGroup.withChildren(
+                "package-problem",
+                "打包问题",
+                List.of(group("package-basic", "打包归类", List.of("environment_config_issue", "compilation_package_deployment_issue")))),
+            StatisticColumnGroup.withChildren(
+                "dependency-problem",
+                "依赖问题",
+                List.of(group("dependency-basic", "依赖归类", List.of("other_thirdParty", "algorithm_not_support", "mechanism_not_support", "precondition_data_exception", "other_unIdentifyTask")))),
+            StatisticColumnGroup.withChildren(
+                "precision-problem",
+                "精度问题",
+                List.of(group("precision-basic", "精度归类", List.of("precision_constraint_exception", "precision_algorithm_exception"))))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的客户问题缺陷原因分析结果。");
@@ -149,7 +191,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private StatisticColumnLeaf leafByMetricKey(String metricKey) {
-    CauseMetricDefinition metric = metric(metricKey);
+    DefectCauseMetricCatalog.Metric metric = metric(metricKey);
     return leaf(metric.key(), metric.label(), true, "count");
   }
 
@@ -160,11 +202,18 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
-    StatisticBoardDefinition definition = buildDefinition();
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, milestoneOptions);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
-    for (IssueSource issue : snapshot.finalSources()) {
+    for (IssueSource issue : snapshot.scopedSources()) {
+      for (String moduleName : issue.moduleNames()) {
+        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
+      }
+    }
+    for (IssueSource issue : snapshot.reasonSources()) {
       for (String moduleName : issue.moduleNames()) {
         buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
       }
@@ -175,8 +224,10 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .sorted(Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER))
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-    if (!snapshot.finalSources().isEmpty()) {
-      rows.add(new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.finalSources()).toRowData());
+    if (!buckets.isEmpty()) {
+      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.reasonSources());
+      rows.add(totalBucket.toRowData());
+      rows.add(AggregateBucket.ratioRow(totalBucket));
     }
 
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
@@ -192,13 +243,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             rows.size(),
             columnCount,
             drilldownCount);
-    return new StatisticBoardResponse(definition, withoutReservedFilters(filters), filterGroup, rows, meta);
+    return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, loadMilestoneOptions());
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters())).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -229,46 +281,154 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, milestoneOptions);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     long moduleCount =
-        snapshot.finalSources().stream().flatMap(issue -> issue.moduleNames().stream()).distinct().count();
+        snapshot.scopedSources().stream().flatMap(issue -> issue.moduleNames().stream()).distinct().count();
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
         "客户问题缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先排除系统测试或回归测试范围，再保留已经识别出缺陷原因的议题。",
-        "同一条议题如果关联多个模块，会分别计入对应模块；共计行仍按议题本身去重统计。",
+        "当前统计基于 issue_fact.raw_payload 中保留的 GitLab 评论文本，按老平台缺陷原因模板字段匹配原因个数。",
+        "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
             snapshot.flowSteps().get(2),
+            snapshot.flowSteps().get(3),
             StatisticRuleFlowSupport.step(
                 "group-by-module",
                 "按模块聚合",
-                "将保留下来的客户问题议题按 module_names 展开到各模块行，再按缺陷原因归类聚合。",
-                snapshot.finalSources().size(),
+                "先用当前客户问题范围内的模块全集生成行，再将命中缺陷原因的议题按 module_names 展开并归类聚合。",
+                snapshot.reasonSources().size(),
                 moduleCount,
-                snapshot.finalSources(),
+                snapshot.reasonSources(),
                 this::toRuleFlowSample
             )),
-        List.of(
-            new StatisticRuleMetricDefinition("requirement_understanding", "需求理解偏差", "按 issue_fact.reason_category = 需求理解偏差 统计。", "需求理解偏差数 = 当前模块内 reason_category 为需求理解偏差的议题数", null),
-            new StatisticRuleMetricDefinition("new_requirement", "新增需求", "按 issue_fact.reason_category = 新增需求 统计。", "新增需求数 = 当前模块内 reason_category 为新增需求的议题数", null),
-            new StatisticRuleMetricDefinition("implementation_logic", "编码逻辑错误", "按 issue_fact.reason_category = 编码逻辑错误 统计。", "编码逻辑错误数 = 当前模块内 reason_category 为编码逻辑错误的议题数", null),
-            new StatisticRuleMetricDefinition("environment_deployment", "环境部署问题", "按 issue_fact.reason_category = 环境部署问题 统计。", "环境部署问题数 = 当前模块内 reason_category 为环境部署问题的议题数", null),
-            new StatisticRuleMetricDefinition("algorithm_mechanism", "算法机制不支持", "按 issue_fact.reason_category = 算法机制不支持 统计。", "算法机制不支持数 = 当前模块内 reason_category 为算法机制不支持的议题数", null),
-            new StatisticRuleMetricDefinition("other_reason", "其他原因", "统计当前稳定映射之外、但已识别出 reason_category 的其他原因。", "其他原因数 = 当前模块内 reason_category 非空且未命中标准映射的议题数", null),
-            new StatisticRuleMetricDefinition("total", "总计", "统计当前模块命中缺陷原因分析范围的全部议题。", "总计 = 当前模块内 reason_category 非空的议题数", null)),
+        CAUSE_METRICS.stream()
+            .map(metric -> new StatisticRuleMetricDefinition(
+                metric.key(),
+                metric.label(),
+                "按老平台缺陷原因模板字段匹配：" + String.join(" / ", metric.tokens()),
+                metric.label() + "数量 = 当前模块内命中该字段映射的缺陷原因个数",
+                null))
+            .toList(),
         null);
   }
 
-  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
+  @Override
+  public byte[] exportBoardWorkbook(Map<String, String> filters) {
+    StatisticBoardResponse response = loadBoard(filters);
+    try (Workbook workbook = new XSSFWorkbook();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+      var sheet = workbook.createSheet("客户问题缺陷原因统计表");
+      ExportStyles styles = new ExportStyles(workbook);
+      writeWorkbookHeader(sheet, styles);
+      writeWorkbookRows(sheet, response.rows(), styles);
+      sheet.createFreezePane(1, 2);
+      sheet.setColumnWidth(0, 22 * 256);
+      for (int index = 1; index <= CAUSE_METRICS.size(); index++) {
+        sheet.setColumnWidth(index, 18 * 256);
+      }
+      workbook.write(outputStream);
+      return outputStream.toByteArray();
+    } catch (IOException e) {
+      throw new IllegalStateException("客户问题缺陷原因统计表导出失败", e);
+    }
+  }
+
+  @Override
+  public String exportFilename() {
+    return "客户问题缺陷原因统计表.xlsx";
+  }
+
+  private void writeWorkbookHeader(org.apache.poi.ss.usermodel.Sheet sheet, ExportStyles styles) {
+    Row groupRow = sheet.createRow(0);
+    Row leafRow = sheet.createRow(1);
+    createCell(groupRow, 0, "模块", styles.header);
+    createCell(leafRow, 0, "模块", styles.header);
+    sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 0));
+
+    int columnIndex = 1;
+    String currentGroup = "";
+    int groupStart = 1;
+    for (int index = 0; index < CAUSE_METRICS.size(); index++) {
+      DefectCauseMetricCatalog.Metric metric = CAUSE_METRICS.get(index);
+      if (!metric.groupLabel().equals(currentGroup)) {
+        if (StringUtils.hasText(currentGroup)) {
+          mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
+        }
+        currentGroup = metric.groupLabel();
+        groupStart = columnIndex;
+      }
+      createCell(leafRow, columnIndex, metric.label(), styles.header);
+      columnIndex++;
+    }
+    if (StringUtils.hasText(currentGroup)) {
+      mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
+    }
+  }
+
+  private void mergeHeaderGroup(
+      org.apache.poi.ss.usermodel.Sheet sheet,
+      Row groupRow,
+      int start,
+      int end,
+      String label,
+      CellStyle style) {
+    createCell(groupRow, start, label, style);
+    for (int column = start + 1; column <= end; column++) {
+      createCell(groupRow, column, "", style);
+    }
+    if (end > start) {
+      sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
+    }
+  }
+
+  private void writeWorkbookRows(
+      org.apache.poi.ss.usermodel.Sheet sheet,
+      List<StatisticRowData> rows,
+      ExportStyles styles) {
+    int rowIndex = 2;
+    for (StatisticRowData rowData : rows) {
+      Row row = sheet.createRow(rowIndex++);
+      CellStyle style = TOTAL_ROW_KEY.equals(rowData.rowKey()) || "__ratio__".equals(rowData.rowKey())
+          ? styles.summary
+          : styles.body;
+      createCell(row, 0, rowData.rowLabel(), style);
+      Map<String, StatisticCellData> cells = new LinkedHashMap<>();
+      for (StatisticCellData cell : rowData.cells()) {
+        cells.put(cell.columnKey(), cell);
+      }
+      int columnIndex = 1;
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+        StatisticCellData cell = cells.get(metric.key());
+        createCell(row, columnIndex++, cell == null ? "" : cell.displayValue(), style);
+      }
+    }
+  }
+
+  private void createCell(Row row, int column, String value, CellStyle style) {
+    var cell = row.createCell(column);
+    cell.setCellValue(value == null ? "" : value);
+    cell.setCellStyle(style);
+  }
+
+  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
-        initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
-    List<IssueSource> withReason = scoped.stream().filter(IssueSource::hasReasonCategory).toList();
+        initial.stream()
+            .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
+            .filter(issue -> StringUtils.hasText(issue.milestoneTitle()))
+            .toList();
+    List<IssueSource> milestoneFiltered =
+        scoped.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
+    List<IssueSource> withReason = milestoneFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
+        milestoneFiltered,
         withReason,
         List.of(
             StatisticRuleFlowSupport.step(
@@ -282,16 +442,24 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "按客户问题 scope profile 收口 issue_fact：排除系统测试/回归测试口径，并优先识别 CC_Product 与创建时间边界。",
+                "按客户问题 scope profile 收口 issue_fact：排除系统测试/回归测试口径，限定 CC_Product、自 2026-01-01 以来创建且携带里程碑。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "milestone-filter",
+                "应用里程碑筛选",
+                "根据页面上的里程碑筛选进一步收敛范围；未选择时按老平台默认使用里程碑列表第一项。",
+                scoped.size(),
+                milestoneFiltered,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "reason-category-filter",
                 "保留已识别原因",
-                "只保留 issue_fact.reason_category 非空的议题，避免把未归因数据混入原因分析。",
-                scoped.size(),
+                "只保留评论文本中命中老平台缺陷原因字段的议题，原因个数按字段命中数计算。",
+                milestoneFiltered.size(),
                 withReason,
                 this::toRuleFlowSample
             )));
@@ -300,23 +468,17 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
     return new StatisticRuleFlowStepSample(
                     "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title() + " | 原因: " + issue.reasonCategory() + " | 模块: " + String.join("、", issue.moduleNames()));
+                    issue.title() + " | 原因: " + String.join("、", issue.causeLabels()) + " | 模块: " + String.join("、", issue.moduleNames()));
   }
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey) || TOTAL_ROW_KEY.equals(rowKey) || issue.moduleNames().contains(rowKey);
   }
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
-    return switch (columnKey) {
-      case "requirement_understanding" -> issue -> "需求理解偏差".equals(issue.reasonCategory());
-      case "new_requirement" -> issue -> "新增需求".equals(issue.reasonCategory());
-      case "implementation_logic" -> issue -> "编码逻辑错误".equals(issue.reasonCategory());
-      case "environment_deployment" -> issue -> "环境部署问题".equals(issue.reasonCategory());
-      case "algorithm_mechanism" -> issue -> "算法机制不支持".equals(issue.reasonCategory());
-      case "other_reason" -> IssueSource::isOtherReason;
-      case "total" -> issue -> true;
-      default -> issue -> true;
-    };
+    if (!StringUtils.hasText(columnKey) || "__ratio__".equals(columnKey)) {
+      return issue -> true;
+    }
+    return issue -> issue.matchesMetric(columnKey);
   }
 
   private Comparator<IssueSource> buildDetailComparator(String sortField, String sortOrder) {
@@ -324,7 +486,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         switch (StringUtils.hasText(sortField) ? sortField.trim() : "updatedAt") {
           case "iid" -> SortSupport.nullableComparable(IssueSource::iid);
           case "title" -> SortSupport.nullableString(IssueSource::title);
-          case "reasonCategory" -> SortSupport.nullableString(IssueSource::reasonCategory);
+          case "reasonCategory" -> SortSupport.nullableString(issue -> String.join("、", issue.causeLabels()));
           case "moduleNames" -> SortSupport.nullableString(issue -> String.join("、", issue.moduleNames()));
           case "projectName" -> SortSupport.nullableString(IssueSource::projectName);
           case "authorName" -> SortSupport.nullableString(IssueSource::authorName);
@@ -339,7 +501,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     Map<String, Object> record = new LinkedHashMap<>();
     issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
     record.put("title", issue.title());
-    record.put("reasonCategory", issue.reasonCategory());
+    record.put("reasonCategory", String.join("、", issue.causeLabels()));
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("projectName", issue.projectName());
     record.put("authorName", issue.authorName());
@@ -350,6 +512,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.remove(MILESTONE_FIELD);
     Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
@@ -405,15 +568,123 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
         StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
+        StatisticSourceValueSupport.text(rs.getString("reason_text"), ""),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")));
   }
 
-  private CauseMetricDefinition metric(String key) {
-    return CAUSE_METRICS.stream()
-        .filter(metric -> metric.key().equals(key))
+  private List<StatisticFilterOption> loadMilestoneOptions() {
+    try {
+      return issueFactQueryService.query(MILESTONE_OPTION_SQL, Map.of(), this::mapIssueFact).stream()
+          .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
+          .map(IssueSource::milestoneTitle)
+          .filter(StringUtils::hasText)
+          .distinct()
+          .sorted(String.CASE_INSENSITIVE_ORDER)
+          .map(value -> new StatisticFilterOption(value, value))
+          .toList();
+    } catch (DataAccessException e) {
+      log.debug("Failed to load milestone options for {}", BOARD_KEY, e);
+      return List.of();
+    }
+  }
+
+  private StatisticFilterGroup applyDefaultMilestone(
+      StatisticFilterGroup filterGroup,
+      List<StatisticFilterOption> milestoneOptions) {
+    if (hasMilestoneCondition(filterGroup)) {
+      return filterGroup;
+    }
+    String defaultMilestone = defaultMilestone(milestoneOptions);
+    if (!StringUtils.hasText(defaultMilestone)) {
+      return filterGroup == null ? emptyFilterGroup() : filterGroup;
+    }
+    List<StatisticFilterCondition> conditions = new ArrayList<>();
+    if (filterGroup != null && filterGroup.conditions() != null) {
+      conditions.addAll(filterGroup.conditions());
+    }
+    conditions.add(new StatisticFilterCondition(MILESTONE_FIELD, "eq", defaultMilestone, null));
+    return new StatisticFilterGroup("AND", conditions);
+  }
+
+  private String defaultMilestone(List<StatisticFilterOption> milestoneOptions) {
+    if (milestoneOptions == null || milestoneOptions.isEmpty()) {
+      return "";
+    }
+    return milestoneOptions.stream()
+        .map(StatisticFilterOption::value)
+        .filter(StringUtils::hasText)
         .findFirst()
-        .orElseThrow(() -> new IllegalArgumentException("Unknown metric key: " + key));
+        .orElse("");
+  }
+
+  private String selectedMilestone(StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null) {
+      return "";
+    }
+    return filterGroup.conditions().stream()
+        .filter(condition -> MILESTONE_FIELD.equals(condition.fieldKey()))
+        .filter(condition -> "eq".equals(condition.operator()))
+        .map(StatisticFilterCondition::value)
+        .filter(StringUtils::hasText)
+        .findFirst()
+        .orElse("");
+  }
+
+  private boolean hasMilestoneCondition(StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null) {
+      return false;
+    }
+    return filterGroup.conditions().stream()
+        .anyMatch(condition -> MILESTONE_FIELD.equals(condition.fieldKey()) && StringUtils.hasText(condition.value()));
+  }
+
+  private boolean matchesMilestone(IssueSource issue, StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return true;
+    }
+    List<StatisticFilterCondition> milestoneConditions =
+        filterGroup.conditions().stream()
+            .filter(condition -> MILESTONE_FIELD.equals(condition.fieldKey()))
+            .filter(condition -> StringUtils.hasText(condition.value()))
+            .toList();
+    if (milestoneConditions.isEmpty()) {
+      return true;
+    }
+    boolean useOr = "OR".equalsIgnoreCase(filterGroup.logic());
+    for (StatisticFilterCondition condition : milestoneConditions) {
+      boolean matched = matchesMilestoneCondition(issue, condition);
+      if (useOr && matched) {
+        return true;
+      }
+      if (!useOr && !matched) {
+        return false;
+      }
+    }
+    return !useOr;
+  }
+
+  private boolean matchesMilestoneCondition(IssueSource issue, StatisticFilterCondition condition) {
+    return switch (condition.operator()) {
+      case "ne" -> !condition.value().equals(issue.milestoneTitle());
+      case "eq" -> condition.value().equals(issue.milestoneTitle());
+      default -> true;
+    };
+  }
+
+  private Map<String, String> appliedFilters(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup) {
+    Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
+    String milestone = selectedMilestone(effectiveFilterGroup);
+    if (StringUtils.hasText(milestone)) {
+      applied.put(MILESTONE_FIELD, milestone);
+    }
+    return applied;
+  }
+
+  private DefectCauseMetricCatalog.Metric metric(String key) {
+    return DefectCauseMetricCatalog.get(key);
   }
 
   private static String count(long value) {
@@ -439,21 +710,30 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     }
 
     StatisticRowData toRowData() {
-      return new StatisticRowData(
-          rowKey,
-          rowLabel,
-          List.of(
-              cell("requirement_understanding", countByReason("需求理解偏差"), true),
-              cell("new_requirement", countByReason("新增需求"), true),
-              cell("implementation_logic", countByReason("编码逻辑错误"), true),
-              cell("environment_deployment", countByReason("环境部署问题"), true),
-              cell("algorithm_mechanism", countByReason("算法机制不支持"), true),
-              cell("other_reason", issues.stream().filter(IssueSource::isOtherReason).count(), true),
-              cell("total", issues.size(), true)));
+      List<StatisticCellData> cells = new ArrayList<>();
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+        cells.add(cell(metric.key(), countByMetric(metric.key()), true));
+      }
+      return new StatisticRowData(rowKey, rowLabel, cells);
     }
 
-    private long countByReason(String reasonCategory) {
-      return issues.stream().filter(issue -> reasonCategory.equals(issue.reasonCategory())).count();
+    private long countByMetric(String metricKey) {
+      return issues.stream().filter(issue -> issue.matchesMetric(metricKey)).count();
+    }
+
+    private long metricTotal() {
+      return CAUSE_METRICS.stream().mapToLong(metric -> countByMetric(metric.key())).sum();
+    }
+
+    static StatisticRowData ratioRow(AggregateBucket totalBucket) {
+      long denominator = totalBucket.metricTotal();
+      List<StatisticCellData> cells = new ArrayList<>();
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+        long numerator = totalBucket.countByMetric(metric.key());
+        String display = denominator == 0 ? "0" : String.format(java.util.Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
+        cells.add(new StatisticCellData(metric.key(), numerator, display, false, null, Map.of("rowKey", "__ratio__")));
+      }
+      return new StatisticRowData("__ratio__", "比例", cells);
     }
 
     private StatisticCellData cell(String key, long numericValue, boolean drilldown) {
@@ -461,8 +741,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
           key,
           numericValue,
           count(numericValue),
-          drilldown,
-          drilldown ? "issue-list" : null,
+          drilldown && numericValue > 0,
+          drilldown && numericValue > 0 ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }
@@ -482,6 +762,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       String testingPhase,
       String systemTestLabel,
       String reasonCategory,
+      String reasonText,
       List<String> moduleNames,
       List<String> labels) {
     IssueScopeContext scopeContext() {
@@ -489,29 +770,79 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
           projectId, projectName, milestoneTitle, testingPhase, systemTestLabel, createdAt, labels);
     }
 
-    boolean hasReasonCategory() {
-      return StringUtils.hasText(reasonCategory);
+    boolean hasDefectCause() {
+      return !matchedMetricKeys().isEmpty();
     }
 
     boolean isClosed() {
       return closedAt != null || "closed".equalsIgnoreCase(issueState);
     }
 
-    boolean isOtherReason() {
-      if (!hasReasonCategory()) {
-        return false;
+    boolean matchesMetric(String metricKey) {
+      if (!StringUtils.hasText(metricKey) || "__ratio__".equals(metricKey)) {
+        return true;
       }
-      return CAUSE_METRICS.stream()
-          .filter(metric -> metric.reasonCategory() != null)
-          .noneMatch(metric -> metric.reasonCategory().equals(reasonCategory));
+      return matchedMetricKeys().contains(metricKey);
     }
 
-    private boolean hasScope(String value) {
-      return StringUtils.hasText(value) && (value.contains("系统测试") || value.contains("回归测试"));
+    List<String> causeLabels() {
+      return CAUSE_METRICS.stream()
+          .filter(metric -> matchedMetricKeys().contains(metric.key()))
+          .map(DefectCauseMetricCatalog.Metric::label)
+          .toList();
+    }
+
+    private Set<String> matchedMetricKeys() {
+      Set<String> matched = new LinkedHashSet<>();
+      String text = DefectCauseMetricCatalog.latestReasonText(reasonText);
+      if (!StringUtils.hasText(text)) {
+        text = reasonCategory;
+      }
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+        if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
+          matched.add(metric.key());
+        }
+      }
+      return matched;
     }
   }
 
-  private record RuleFlowSnapshot(List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
+  private record RuleFlowSnapshot(
+      List<IssueSource> scopedSources,
+      List<IssueSource> reasonSources,
+      List<StatisticRuleFlowStep> flowSteps) {}
 
-  private record CauseMetricDefinition(String key, String label, String groupLabel, String reasonCategory) {}
+  private static final class ExportStyles {
+    private final CellStyle header;
+    private final CellStyle body;
+    private final CellStyle summary;
+
+    private ExportStyles(Workbook workbook) {
+      header = workbook.createCellStyle();
+      header.setAlignment(HorizontalAlignment.CENTER);
+      header.setVerticalAlignment(VerticalAlignment.CENTER);
+      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      setBorders(header);
+
+      body = workbook.createCellStyle();
+      body.setAlignment(HorizontalAlignment.CENTER);
+      body.setVerticalAlignment(VerticalAlignment.CENTER);
+      setBorders(body);
+
+      summary = workbook.createCellStyle();
+      summary.setAlignment(HorizontalAlignment.CENTER);
+      summary.setVerticalAlignment(VerticalAlignment.CENTER);
+      summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
+      summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      setBorders(summary);
+    }
+
+    private void setBorders(CellStyle style) {
+      style.setBorderTop(BorderStyle.THIN);
+      style.setBorderBottom(BorderStyle.THIN);
+      style.setBorderLeft(BorderStyle.THIN);
+      style.setBorderRight(BorderStyle.THIN);
+    }
+  }
 }
