@@ -77,6 +77,7 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   issueStates: [],
   bugStatuses: [],
   categories: [],
+  authorNames: [],
   assigneeNames: [],
   milestoneTitles: [],
 });
@@ -155,6 +156,8 @@ const {
     'moduleName',
     'functionName',
     'reasonCategory',
+    'authorName',
+    'assigneeName',
     'severityLevel',
     'priorityLevel',
     'issueState',
@@ -173,6 +176,8 @@ const {
     'moduleName',
     'functionName',
     'reasonCategory',
+    'authorName',
+    'assigneeName',
     'severityLevel',
     'priorityLevel',
     'issueState',
@@ -192,16 +197,17 @@ const {
 
 const columns = computed<RecordTableColumn[]>(() => [
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
-  { key: 'title', label: '标题', sortable: true, minWidth: 260 },
-  { key: 'moduleNames', label: '模块', sortable: true, minWidth: 150 },
-  { key: 'functionName', label: '功能名', sortable: true, minWidth: 150 },
-  { key: 'reasonCategory', label: '缺陷原因', type: 'tag', sortable: true, minWidth: 140 },
-  { key: 'delayFlags', label: '延期标记', type: 'tags', minWidth: 180 },
+  { key: 'moduleNames', label: '模块名', sortable: true, minWidth: 140 },
+  { key: 'title', label: '议题标题', sortable: true, minWidth: 260 },
+  { key: 'authorName', label: '议题提交人', sortable: true, minWidth: 120 },
+  { key: 'assigneeName', label: '议题处理人', sortable: true, minWidth: 120 },
+  { key: 'issueState', label: '议题状态', type: 'tag', sortable: true, width: 110 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
-  { key: 'priorityLevel', label: '优先级', type: 'tag', sortable: true, width: 100 },
-  { key: 'issueState', label: '状态', type: 'tag', sortable: true, width: 100 },
+  { key: 'priorityLevel', label: '缺陷优先级', type: 'tag', sortable: true, width: 120 },
+  { key: 'bugStatus', label: '测试状态', type: 'tag', sortable: true, minWidth: 120 },
+  { key: 'category', label: '议题类别', type: 'tag', sortable: true, minWidth: 120 },
   { key: 'milestoneTitle', label: '里程碑', sortable: true, minWidth: 160 },
-  { key: 'authorName', label: '创建人', sortable: true, minWidth: 120 },
+  { key: 'createdAt', label: '提交时间', sortable: true, minWidth: 170 },
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
 ]);
 
@@ -219,16 +225,19 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
     __raw: row,
     issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
-    title: row.title,
     moduleNames: row.moduleNames || '-',
+    title: row.title,
+    authorName: row.authorName || '-',
+    assigneeName: row.assigneeName || '-',
+    issueState: [{ label: normalizeIssueState(row.issueState), type: row.closedAt ? 'info' as const : 'success' as const }],
     functionName: row.functionName || '-',
     reasonCategory: [{ label: row.reasonCategory || '未归因', type: row.reasonCategory ? 'primary' as const : 'info' as const }],
-    delayFlags: buildDelayFlags(row),
     severityLevel: [{ label: row.severityLevel || '-', type: 'danger' as const }],
     priorityLevel: [{ label: row.priorityLevel || '-', type: 'primary' as const }],
-    issueState: [{ label: normalizeIssueState(row.issueState), type: row.closedAt ? 'info' as const : 'success' as const }],
+    bugStatus: [{ label: row.bugStatus || '-', type: row.bugStatus ? 'primary' as const : 'info' as const }],
+    category: [{ label: row.category || '-', type: row.category ? 'primary' as const : 'info' as const }],
     milestoneTitle: row.milestoneTitle || '-',
-    authorName: row.authorName || '-',
+    createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   })),
 );
@@ -296,6 +305,8 @@ function buildCurrentQueryParams(includePagination: boolean) {
     moduleName: String(route.query.moduleName ?? ''),
     functionName: String(route.query.functionName ?? ''),
     reasonCategory: String(route.query.reasonCategory ?? ''),
+    authorName: String(route.query.authorName ?? ''),
+    assigneeName: String(route.query.assigneeName ?? ''),
     severityLevel: String(route.query.severityLevel ?? ''),
     priorityLevel: String(route.query.priorityLevel ?? ''),
     issueState: String(route.query.issueState ?? ''),
@@ -502,18 +513,21 @@ async function handleConditionFilterReset() {
           <div class="customer-record-detail-section-title">基础信息</div>
           <el-descriptions :column="2" border size="small">
             <el-descriptions-item label="议题编号">#{{ selectedRow.issueIid }}</el-descriptions-item>
-            <el-descriptions-item label="状态">{{ normalizeIssueState(selectedRow.issueState) }}</el-descriptions-item>
+            <el-descriptions-item label="议题状态">{{ normalizeIssueState(selectedRow.issueState) }}</el-descriptions-item>
             <el-descriptions-item label="项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="里程碑">{{ selectedRow.milestoneTitle || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="模块">{{ selectedRow.moduleNames || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="模块名">{{ selectedRow.moduleNames || '-' }}</el-descriptions-item>
             <el-descriptions-item label="功能名">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="缺陷原因">{{ selectedRow.reasonCategory || '未归因' }}</el-descriptions-item>
             <el-descriptions-item label="严重程度">{{ selectedRow.severityLevel || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="优先级">{{ selectedRow.priorityLevel || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="创建人">{{ selectedRow.authorName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="指派人">{{ selectedRow.assigneeName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ formatDateTime(selectedRow.createdAt) }}</el-descriptions-item>
+            <el-descriptions-item label="缺陷优先级">{{ selectedRow.priorityLevel || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="测试状态">{{ selectedRow.bugStatus || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="议题类别">{{ selectedRow.category || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="议题提交人">{{ selectedRow.authorName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="议题处理人">{{ selectedRow.assigneeName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="提交时间">{{ formatDateTime(selectedRow.createdAt) }}</el-descriptions-item>
             <el-descriptions-item label="更新时间">{{ formatDateTime(selectedRow.updatedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="关闭时间">{{ formatDateTime(selectedRow.closedAt) }}</el-descriptions-item>
           </el-descriptions>
         </section>
 

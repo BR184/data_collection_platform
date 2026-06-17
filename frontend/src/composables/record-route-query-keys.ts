@@ -6,6 +6,7 @@ export const ISSUE_RECORD_QUERY_KEYS = [
   'title',
   'projectName',
   'moduleName',
+  'functionName',
   'testingPhase',
   'illegalReason',
   'reasonCategory',

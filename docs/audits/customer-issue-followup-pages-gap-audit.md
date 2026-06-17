@@ -303,6 +303,28 @@
 
 **复核状态：已确认。** 新平台客户问题记录页通过 `CustomerIssueRecordService` 统一进入 `IssueFactRecordPageQuery.Scope.CUSTOMER` 或 `CustomerIssueScopeProfile#matches` 内存路径；`CustomerIssueScopeProfile` 固定 `CUSTOMER_ISSUE_START_DATE = 2026-01-01`，并要求 `createdAt` 不早于该日期，同时限定 CC_PRODUCT/325 客户问题范围。SQL 分页路径和内存路径没有绕过该 profile。
 
+### 12. CC_PRODUCT 议题明细最终字段与筛选复核（已对齐）
+
+**复核状态：已对齐。** 2026-06-17 再次对照老平台 `CCProductIssueTable.vue`、规则总表第 5.1 和新平台实现后，确认老平台主表核心字段为：
+
+- 议题编号、模块名、议题标题、议题提交人、议题处理人、议题状态、严重程度、缺陷优先级、测试状态、议题类别、里程碑、提交时间、更新时间。
+
+本轮已将新平台 `CustomerIssueRecordsView` 主表收敛到上述字段集合和展示文案；“功能名”保留在详情抽屉和条件筛选中，符合老平台展开详情包含功能名的行为；“缺陷原因”“延期标记”等新平台增强信息不再占用主表核心字段位置，避免影响老平台字段核对。
+
+同步补齐的链路：
+
+- `authorName` / `assigneeName` 已进入 `CustomerIssueRecordListWebRequest`、`CustomerIssueRecordQueryRequest`、SQL 分页查询、内存查询、导出分页查询和筛选项返回。
+- 筛选项响应增加 `authorNames`，前端条件筛选增加“议题提交人”“议题处理人”，路由白名单和记录页 query key 同步允许 `functionName`、`authorName`、`assigneeName`。
+- 标签组候选目录补充“客户问题提交人”，与已有“客户问题处理人”保持一致。
+- 导出继续使用同一事实层查询链路，并保留功能名等详情字段，未绕过页面口径。
+
+验证记录：
+
+- 后端编译：`mvn -q -DskipTests compile` 通过。
+- 前端类型检查：`npm.cmd run typecheck` 通过。
+- API 真实链路：使用 `admin / admin123` 登录并携带 `X-XSRF-TOKEN` 后，`/api/customer-issues/records/filter-options?topic=cc-product&projectId=325`、`/api/customer-issues/records?topic=cc-product&projectId=325&page=1&size=5`、`/api/customer-issues/records/export?topic=cc-product&projectId=325` 均返回 200。
+- 页面冒烟：`/#/customer-issues/cc-product-issues` 可打开，无“服务处理异常”，主表表头包含上述老平台核心字段，规则说明、导出、设置和条件筛选入口可见。
+
 ## 本轮已对齐：客户问题缺陷原因分析
 
 ### 老平台基线

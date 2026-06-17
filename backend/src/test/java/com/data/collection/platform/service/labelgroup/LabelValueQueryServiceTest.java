@@ -214,6 +214,7 @@ class LabelValueQueryServiceTest {
         List.of(),
         List.of(),
         List.of(),
+        List.of(),
         assigneeNames,
         milestoneTitles);
   }

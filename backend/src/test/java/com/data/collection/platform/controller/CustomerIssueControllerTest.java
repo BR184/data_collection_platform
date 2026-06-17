@@ -63,10 +63,12 @@ class CustomerIssueControllerTest {
                 new IssueFactRecordListRequest(
                     325L,
                     "delay",
+                    null,
                     "201",
                     "sample",
                     "CC_PRODUCT",
                     "Sketch",
+                    null,
                     "S2",
                     "P1",
                     "opened",
@@ -77,11 +79,14 @@ class CustomerIssueControllerTest {
                     "2026-04-21",
                     "2026-04-10",
                     "2026-04-22",
+                    "default",
                     2,
                     10,
                     "updatedAt",
                     "desc"),
                 "Design",
+                "Alice",
+                "Bob",
                 null)))
         .thenReturn(
             new CustomerIssueRecordListResponse(
@@ -103,6 +108,7 @@ class CustomerIssueControllerTest {
                         "Alice",
                         "Bob",
                         "Sketch",
+                        "Constraint",
                         true,
                         "Need extension",
                         "Customer delay",
@@ -130,6 +136,8 @@ class CustomerIssueControllerTest {
                 .param("projectName", "CC_PRODUCT")
                 .param("moduleName", "Sketch")
                 .param("reasonCategory", "Design")
+                .param("authorName", "Alice")
+                .param("assigneeName", "Bob")
                 .param("severityLevel", "S2")
                 .param("priorityLevel", "P1")
                 .param("issueState", "opened")
@@ -163,7 +171,10 @@ class CustomerIssueControllerTest {
                     null,
                     null,
                     null,
+                    null,
                     "Sketch",
+                    null,
+                    null,
                     null,
                     null,
                     null,
@@ -179,6 +190,8 @@ class CustomerIssueControllerTest {
                     "updatedAt",
                     "desc"),
                 "Design",
+                null,
+                null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
         .thenReturn("issue_iid,title\n201,Delay sample\n");
 
@@ -212,6 +225,7 @@ class CustomerIssueControllerTest {
                 List.of(new OptionItemResponse("opened", "opened")),
                 List.of(new OptionItemResponse("Open", "Open")),
                 List.of(new OptionItemResponse("Bug", "Bug")),
+                List.of(new OptionItemResponse("Alice", "Alice")),
                 List.of(new OptionItemResponse("Bob", "Bob")),
                 List.of(new OptionItemResponse("R1", "R1"))));
     when(customerIssueRecordService.getRuleExplanation("delay", 325L))
@@ -231,6 +245,7 @@ class CustomerIssueControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.projectNames[0].value").value("CC_PRODUCT"))
         .andExpect(jsonPath("$.data.reasonCategories[0].value").value("Design"))
+        .andExpect(jsonPath("$.data.authorNames[0].value").value("Alice"))
         .andExpect(jsonPath("$.data.assigneeNames[0].value").value("Bob"));
 
     mockMvc.perform(get("/api/customer-issues/records/rule-explanation").param("topic", "delay").param("projectId", "325"))

@@ -20,12 +20,15 @@ import { CUSTOMER_REQUIRED_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '.
 const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
   projectNames: [],
   moduleNames: [],
+  functionNames: [],
   illegalReasons: [],
   severityLevels: [],
   priorityLevels: [],
   issueStates: [],
   bugStatuses: [],
   categories: [],
+  authorNames: [],
+  assigneeNames: [],
   milestoneTitles: [],
 };
 

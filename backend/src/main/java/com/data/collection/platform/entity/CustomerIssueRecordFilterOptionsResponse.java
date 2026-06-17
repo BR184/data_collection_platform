@@ -12,5 +12,6 @@ public record CustomerIssueRecordFilterOptionsResponse(
     List<OptionItemResponse> issueStates,
     List<OptionItemResponse> bugStatuses,
     List<OptionItemResponse> categories,
+    List<OptionItemResponse> authorNames,
     List<OptionItemResponse> assigneeNames,
     List<OptionItemResponse> milestoneTitles) {}

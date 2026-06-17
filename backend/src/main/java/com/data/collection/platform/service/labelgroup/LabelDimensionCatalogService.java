@@ -44,6 +44,7 @@ public class LabelDimensionCatalogService {
     put(dimensions, "review_owner", "评审负责人", "评审数据中的评审负责人", LabelValueKind.STRING_LITERAL);
     put(dimensions, "review_expert", "评审专家", "评审数据中的评审专家，多值字段", LabelValueKind.STRING_LITERAL);
     put(dimensions, "issue_assignee", "议题处理人", "系统测试议题事实层处理人", LabelValueKind.STRING_LITERAL);
+    put(dimensions, "customer_author", "客户问题提交人", "客户问题事实层提交人", LabelValueKind.STRING_LITERAL);
     put(dimensions, "customer_assignee", "客户问题处理人", "客户问题事实层处理人", LabelValueKind.STRING_LITERAL);
     put(dimensions, "target_branch", "目标分支", "合并请求目标分支", LabelValueKind.BRANCH_NAME, false);
     put(dimensions, "milestone", "里程碑", "议题事实层里程碑", LabelValueKind.STRING_LITERAL);
@@ -92,6 +93,7 @@ public class LabelDimensionCatalogService {
     add(pages, "milestone", "question-metrics-issue-search", "系统测试议题查询", "milestoneTitle", "里程碑", true);
     add(pages, "issue_assignee", "question-metrics-issue-search", "系统测试议题查询", "assigneeName", "议题处理人", true);
     add(pages, "module", "customer-issues-cc-product-issues", "客户问题列表", "moduleName", "模块", true);
+    add(pages, "customer_author", "customer-issues-cc-product-issues", "客户问题列表", "authorName", "客户问题提交人", true);
     add(pages, "customer_assignee", "customer-issues-cc-product-issues", "客户问题列表", "assigneeName", "客户问题处理人", true);
     add(pages, "priority_level", "customer-issues-cc-product-issues", "客户问题列表", "priorityLevel", "紧急程度", true);
     add(pages, "milestone", "customer-issues-cc-product-issues", "客户问题列表", "milestoneTitle", "里程碑", true);

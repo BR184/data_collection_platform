@@ -17,6 +17,8 @@ describe('customer issue condition fields', () => {
       issueStates: [option],
       bugStatuses: [option],
       categories: [option],
+      authorNames: [option],
+      assigneeNames: [option],
       milestoneTitles: [option],
       reasonCategories: [option],
     });
@@ -39,6 +41,7 @@ describe('customer issue condition fields', () => {
       issueStates: [option],
       bugStatuses: [option],
       categories: [option],
+      authorNames: [option],
       assigneeNames: [option],
       milestoneTitles: [option],
       illegalReasons: [option],

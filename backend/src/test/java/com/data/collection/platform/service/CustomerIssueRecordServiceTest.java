@@ -70,6 +70,8 @@ class CustomerIssueRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 null,
+                null,
+                null,
                 null));
 
     assertThat(response.total()).isEqualTo(1);
@@ -136,6 +138,8 @@ class CustomerIssueRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 "design",
+                null,
+                null,
                 null));
 
     assertThat(response.records()).hasSize(1);
@@ -198,6 +202,8 @@ class CustomerIssueRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 null,
+                null,
+                null,
                 """
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
                 """));
@@ -252,6 +258,8 @@ class CustomerIssueRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 null,
+                null,
+                null,
                 """
                 {"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":10,"labelGroupName":"核心处理人"}]}
                 """));
@@ -302,6 +310,8 @@ class CustomerIssueRecordServiceTest {
                 20,
                 "updatedAt",
                 "desc"),
+            null,
+            null,
             null,
             null));
 
@@ -355,6 +365,8 @@ class CustomerIssueRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
+                null,
+                null,
                 null,
                 """
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}

@@ -129,6 +129,7 @@ public class LabelValueQueryService {
             "cc-product", null, TextQuerySupport.trimToNull(sourceInstanceId));
     return switch (dimensionKey) {
       case "module" -> options.moduleNames();
+      case "customer_author" -> options.authorNames();
       case "customer_assignee" -> options.assigneeNames();
       case "priority_level" -> options.priorityLevels();
       case "milestone" -> options.milestoneTitles();

@@ -167,6 +167,8 @@ function buildCustomerIssueRecordQuery(params: {
   moduleName?: string;
   functionName?: string;
   reasonCategory?: string;
+  authorName?: string;
+  assigneeName?: string;
   severityLevel?: string;
   priorityLevel?: string;
   issueState?: string;
@@ -194,6 +196,8 @@ function buildCustomerIssueRecordQuery(params: {
     ...(params.moduleName ? { moduleName: params.moduleName } : {}),
     ...(params.functionName ? { functionName: params.functionName } : {}),
     ...(params.reasonCategory ? { reasonCategory: params.reasonCategory } : {}),
+    ...(params.authorName ? { authorName: params.authorName } : {}),
+    ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
     ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
     ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
     ...(params.issueState ? { issueState: params.issueState } : {}),

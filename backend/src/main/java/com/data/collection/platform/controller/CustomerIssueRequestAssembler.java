@@ -17,6 +17,8 @@ public class CustomerIssueRequestAssembler {
         request.getTopic(),
         listRequestAssembler.toServiceRequest(request),
         request.getReasonCategory(),
+        request.getAuthorName(),
+        request.getAssigneeName(),
         request.getFilterGroup());
   }
 

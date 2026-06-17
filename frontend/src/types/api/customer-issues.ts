@@ -47,6 +47,7 @@ export interface CustomerIssueIllegalRecordFilterOptionsResponse {
   issueStates: OptionItemResponse[];
   bugStatuses: OptionItemResponse[];
   categories: OptionItemResponse[];
+  authorNames: OptionItemResponse[];
   assigneeNames: OptionItemResponse[];
   milestoneTitles: OptionItemResponse[];
 }
@@ -103,5 +104,7 @@ export interface CustomerIssueRecordFilterOptionsResponse {
   issueStates: OptionItemResponse[];
   bugStatuses: OptionItemResponse[];
   categories: OptionItemResponse[];
+  authorNames: OptionItemResponse[];
+  assigneeNames: OptionItemResponse[];
   milestoneTitles: OptionItemResponse[];
 }

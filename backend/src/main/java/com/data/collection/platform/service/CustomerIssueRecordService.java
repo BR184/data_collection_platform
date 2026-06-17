@@ -32,6 +32,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
           Map.entry("functionName", "STRING"),
           Map.entry("priorityLevel", "STRING"),
           Map.entry("bugStatus", "STRING"),
+          Map.entry("authorName", "STRING"),
           Map.entry("assigneeName", "STRING"),
           Map.entry("milestoneTitle", "STRING"));
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
@@ -79,8 +80,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   request.reasonCategory(),
                   null,
                   null,
-                  null,
-                  null,
+                  request.authorName(),
+                  request.assigneeName(),
                   TOPIC_DELAY.equals(safeTopic),
                   false,
                   false,
@@ -108,6 +109,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
             .filter(view -> matchesEquals(view.reasonCategory(), request.reasonCategory()))
+            .filter(view -> matchesEquals(view.authorName(), request.authorName()))
+            .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
@@ -204,6 +207,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   listRequest.sortField(),
                   listRequest.sortOrder()),
               request.reasonCategory(),
+              request.authorName(),
+              request.assigneeName(),
               request.filterGroupJson());
       CustomerIssueRecordListResponse response = listRecords(pageRequest);
       CsvExportSupport.ensureWithinRowLimit(response.total());
@@ -327,6 +332,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         toOptions(rows, IssueFactRecord::issueState),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
+        toLegacyOptions(rows, IssueFactRecord::authorName),
         toLegacyOptions(rows, IssueFactRecord::assigneeName),
         toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
   }
