@@ -39,7 +39,10 @@ function setup() {
         conditions: [{ fieldKey: 'moduleName', operator: 'eq' as const, value: 'module-a' }],
       })),
       loadBoardData: vi.fn(async () => board),
-      exportBoardFile: vi.fn(async () => new Blob(['项目,阻塞数\nmodule-a,1'], { type: 'text/csv' })),
+      exportBoardFile: vi.fn(async () => ({
+        blob: new Blob(['项目,阻塞数\nmodule-a,1'], { type: 'text/csv' }),
+        filename: '当前里程碑-客户问题缺陷原因统计表.xlsx',
+      })),
       onBoardLoaded: vi.fn<(response: StatisticBoardResponse) => void>(),
       downloadFile: vi.fn<(blob: Blob, filename: string) => void>(),
       notifySuccess: vi.fn<(message: string) => void>(),
@@ -97,7 +100,7 @@ describe('useStatisticBoardData', () => {
         conditions: [{ fieldKey: 'moduleName', operator: 'eq', value: 'module-a' }],
       },
     });
-    expect(deps.downloadFile).toHaveBeenCalledWith(expect.any(Blob), 'code-review.csv');
+    expect(deps.downloadFile).toHaveBeenCalledWith(expect.any(Blob), '当前里程碑-客户问题缺陷原因统计表.xlsx');
     expect(deps.notifySuccess).toHaveBeenCalledWith('导出成功');
   });
 });

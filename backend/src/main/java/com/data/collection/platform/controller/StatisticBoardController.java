@@ -16,7 +16,9 @@ import com.data.collection.platform.service.statistics.StatisticBoardWorkbookExp
 import com.data.collection.platform.service.statistics.SystemTestHorizontalComparisonExportService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.springframework.web.util.UriUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -96,9 +98,10 @@ public class StatisticBoardController {
     var service = registry.getRequired(boardKey);
     if (service instanceof StatisticBoardWorkbookExportSupport workbookExportSupport) {
       byte[] workbook = workbookExportSupport.exportBoardWorkbook(filters);
+      String filename = workbookExportSupport.exportFilename(filters);
       return ResponseEntity.ok()
           .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-          .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + workbookExportSupport.exportFilename() + "\"")
+          .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(filename))
           .body(workbook);
     }
     String csv = service.exportBoardCsv(filters);
@@ -106,6 +109,12 @@ public class StatisticBoardController {
         .contentType(new MediaType("text", "csv"))
         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + boardKey + ".csv\"")
         .body(csv);
+  }
+
+  private String contentDisposition(String filename) {
+    String fallback = filename.replace("\"", "");
+    String encoded = UriUtils.encode(filename, StandardCharsets.UTF_8);
+    return "attachment; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded;
   }
 
   @GetMapping("/{boardKey}/horizontal-comparison/export")

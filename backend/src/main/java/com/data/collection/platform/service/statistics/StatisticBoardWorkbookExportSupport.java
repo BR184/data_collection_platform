@@ -6,4 +6,8 @@ public interface StatisticBoardWorkbookExportSupport {
   byte[] exportBoardWorkbook(Map<String, String> filters);
 
   String exportFilename();
+
+  default String exportFilename(Map<String, String> filters) {
+    return exportFilename();
+  }
 }

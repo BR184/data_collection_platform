@@ -77,6 +77,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
              coalesce(author_name,'') as author_name, created_at_source as created_at,
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
+             coalesce(bug_status,'') as bug_status,
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
              coalesce(reason_category,'') as reason_category,
@@ -91,6 +92,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
              coalesce(author_name,'') as author_name, created_at_source as created_at,
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
+             coalesce(bug_status,'') as bug_status,
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
              coalesce(reason_category,'') as reason_category,
@@ -294,12 +296,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         RULE_VERSION,
         "当前统计基于 issue_fact.raw_payload 中保留的 GitLab 评论文本，按老平台缺陷原因模板字段匹配原因个数。",
         "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题；同一议题关联多个模块或多个缺陷原因时会分别计数。",
-        List.of(
-            snapshot.flowSteps().get(0),
-            snapshot.flowSteps().get(1),
-            snapshot.flowSteps().get(2),
-            snapshot.flowSteps().get(3),
-            StatisticRuleFlowSupport.step(
+        java.util.stream.Stream.concat(
+                snapshot.flowSteps().stream(),
+                java.util.stream.Stream.of(StatisticRuleFlowSupport.step(
                 "group-by-module",
                 "按模块聚合",
                 "先用当前客户问题范围内的模块全集生成行，再将命中缺陷原因的议题按 module_names 展开并归类聚合。",
@@ -307,7 +306,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
                 moduleCount,
                 snapshot.reasonSources(),
                 this::toRuleFlowSample
-            )),
+            )))
+            .toList(),
         CAUSE_METRICS.stream()
             .map(metric -> new StatisticRuleMetricDefinition(
                 metric.key(),
@@ -343,6 +343,15 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   @Override
   public String exportFilename() {
     return "客户问题缺陷原因统计表.xlsx";
+  }
+
+  @Override
+  public String exportFilename(Map<String, String> filters) {
+    String milestone = resolvedMilestoneForExport(filters);
+    if (StringUtils.hasText(milestone)) {
+      return milestone + "-客户问题缺陷原因统计表.xlsx";
+    }
+    return exportFilename();
   }
 
   private void writeWorkbookHeader(org.apache.poi.ss.usermodel.Sheet sheet, ExportStyles styles) {
@@ -424,8 +433,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
             .filter(issue -> StringUtils.hasText(issue.milestoneTitle()))
             .toList();
+    List<IssueSource> valid = scoped.stream().filter(issue -> !issue.customerDefaultExcluded()).toList();
     List<IssueSource> milestoneFiltered =
-        scoped.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
+        valid.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
     List<IssueSource> withReason = milestoneFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
         milestoneFiltered,
@@ -448,10 +458,18 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "exclude-filter",
+                "剔除排除数据",
+                "复刻老平台客户问题默认排除口径：剔除申请否决且关闭、需求如此且关闭的数据。",
+                scoped.size(),
+                valid,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "milestone-filter",
                 "应用里程碑筛选",
                 "根据页面上的里程碑筛选进一步收敛范围；未选择时按老平台默认使用里程碑列表第一项。",
-                scoped.size(),
+                valid.size(),
                 milestoneFiltered,
                 this::toRuleFlowSample
             ),
@@ -565,6 +583,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
         StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
+        StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
         StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
@@ -577,6 +596,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     try {
       return issueFactQueryService.query(MILESTONE_OPTION_SQL, Map.of(), this::mapIssueFact).stream()
           .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
+          .filter(issue -> !issue.customerDefaultExcluded())
           .map(IssueSource::milestoneTitle)
           .filter(StringUtils::hasText)
           .distinct()
@@ -629,6 +649,13 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         .filter(StringUtils::hasText)
         .findFirst()
         .orElse("");
+  }
+
+  private String resolvedMilestoneForExport(Map<String, String> filters) {
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, milestoneOptions);
+    return selectedMilestone(effectiveFilterGroup);
   }
 
   private boolean hasMilestoneCondition(StatisticFilterGroup filterGroup) {
@@ -759,6 +786,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       LocalDateTime updatedAt,
       LocalDateTime closedAt,
       String issueState,
+      String bugStatus,
       String testingPhase,
       String systemTestLabel,
       String reasonCategory,
@@ -776,6 +804,13 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
     boolean isClosed() {
       return closedAt != null || "closed".equalsIgnoreCase(issueState);
+    }
+
+    boolean customerDefaultExcluded() {
+      if (!isClosed()) {
+        return false;
+      }
+      return contains(bugStatus, "申请否决") || contains(bugStatus, "需求如此");
     }
 
     boolean matchesMetric(String metricKey) {
@@ -804,6 +839,10 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         }
       }
       return matched;
+    }
+
+    private boolean contains(String source, String token) {
+      return StringUtils.hasText(source) && source.contains(token);
     }
   }
 

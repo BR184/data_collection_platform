@@ -95,6 +95,19 @@ export async function requestBlob(url: string, init?: RequestOptions): Promise<B
   return response.blob();
 }
 
+export interface BlobResponse {
+  blob: Blob;
+  filename?: string;
+}
+
+export async function requestBlobResponse(url: string, init?: RequestOptions): Promise<BlobResponse> {
+  const response = await requestRaw(url, init);
+  return {
+    blob: await response.blob(),
+    filename: parseContentDispositionFilename(response.headers?.get('Content-Disposition')),
+  };
+}
+
 async function requestRaw(url: string, init?: RequestOptions): Promise<Response> {
   const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, errorPrefix, signal, ...fetchInit } = init ?? {};
   const timeoutController = timeoutMs > 0 ? new AbortController() : null;
@@ -140,6 +153,26 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
     throw new Error(await parseErrorMessage(response, errorPrefix));
   }
   return response;
+}
+
+function parseContentDispositionFilename(contentDisposition: string | null): string | undefined {
+  if (!contentDisposition) {
+    return undefined;
+  }
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1]);
+    } catch {
+      return encodedMatch[1];
+    }
+  }
+  const quotedMatch = contentDisposition.match(/filename="([^"]+)"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+  const plainMatch = contentDisposition.match(/filename=([^;]+)/i);
+  return plainMatch?.[1]?.trim();
 }
 
 async function parseErrorMessage(response: Response, errorPrefix = '请求失败'): Promise<string> {

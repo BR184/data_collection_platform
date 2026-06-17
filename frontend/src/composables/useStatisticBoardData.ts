@@ -1,5 +1,6 @@
 import { ref, shallowRef } from 'vue';
 import type { StatisticBoardResponse, StatisticFilterGroup } from '../types/api';
+import type { BlobResponse } from '../api-client/request';
 
 interface StatisticBoardDataRequest {
   filterGroup: StatisticFilterGroup | null;
@@ -9,7 +10,7 @@ export interface StatisticBoardDataDependencies {
   boardKey: () => string;
   getFilterGroup: () => StatisticFilterGroup | null;
   loadBoardData: (boardKey: string, request: StatisticBoardDataRequest) => Promise<StatisticBoardResponse>;
-  exportBoardFile: (boardKey: string, request: StatisticBoardDataRequest) => Promise<Blob>;
+  exportBoardFile: (boardKey: string, request: StatisticBoardDataRequest) => Promise<BlobResponse>;
   onBoardLoaded: (response: StatisticBoardResponse) => void;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
@@ -57,9 +58,9 @@ export function useStatisticBoardData(deps: StatisticBoardDataDependencies) {
 
   async function exportBoard() {
     try {
-      const blob = await deps.exportBoardFile(deps.boardKey(), buildRequest());
+      const file = await deps.exportBoardFile(deps.boardKey(), buildRequest());
       const downloadFile = deps.downloadFile ?? downloadStatisticBoardFile;
-      downloadFile(blob, exportFilename(deps.boardKey()));
+      downloadFile(file.blob, file.filename || exportFilename(deps.boardKey()));
       deps.notifySuccess('导出成功');
     } catch (error) {
       deps.notifyError((error as Error).message);
