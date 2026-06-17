@@ -154,7 +154,7 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
 }
 
 .label-member-picker :deep(.el-select__wrapper) {
-  align-items: flex-start;
+  align-items: center;
   min-height: 32px;
   height: auto;
   padding-top: 4px;
@@ -165,21 +165,43 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .label-member-picker :deep(.el-select__selected-item) {
+  max-width: 100%;
   margin: 0;
 }
 
 .label-member-picker :deep(.el-tag) {
   max-width: 100%;
+  height: auto;
+  min-height: 22px;
+}
+
+.label-member-picker :deep(.el-tag__content) {
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.label-member-picker :deep(.el-select__placeholder) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  line-height: 22px;
 }
 
 .label-member-option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
+  width: auto;
+  max-width: 100%;
 }
 
 .label-member-picker-foot {

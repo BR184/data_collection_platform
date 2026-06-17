@@ -354,7 +354,6 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
             placeholder="选择值"
             :options="candidateOptions(condition)"
             :multiple="usesMultiValue(condition)"
-            :collapse-tags="usesMultiValue(condition)"
             :compact="usesMultiValue(condition)"
             :allow-create="condition.operator === 'contains' || condition.operator === 'notContains'"
             :loading="candidateLoading(condition)"

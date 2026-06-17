@@ -173,7 +173,6 @@ function ruleSentence(condition: CodeReviewRuleCondition) {
             :options="selectOptions(condition.fieldKey)"
             compact
             multiple
-            collapse-tags
             placeholder="选择允许范围"
             @change="updateConditionValue(condition.id, $event as string | string[])"
           />

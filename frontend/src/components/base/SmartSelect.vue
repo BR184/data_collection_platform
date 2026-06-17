@@ -145,29 +145,39 @@ function isLabelGroupOption(value: string) {
 .smart-select-dropdown .smart-select-option {
   display: flex;
   align-items: center;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
 }
 
 .platform-select-dropdown .el-select-dropdown__list,
 .smart-select-dropdown .el-select-dropdown__list,
 .smart-select-dropdown--compact .el-select-dropdown__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
   padding: 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .platform-select-dropdown .el-select-dropdown__item,
 .smart-select-dropdown .el-select-dropdown__item,
 .smart-select-dropdown--compact .el-select-dropdown__item {
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 48px;
+  min-height: 34px;
   height: auto;
-  line-height: 1.4;
+  line-height: 1.35;
   margin: 0;
-  padding: 8px 10px;
+  padding: 7px 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 8px;
   background: #fff;
@@ -287,13 +297,17 @@ function isLabelGroupOption(value: string) {
 .platform-select-dropdown .smart-select-option-label,
 .smart-select-dropdown .smart-select-option-label,
 .smart-select-dropdown--compact .smart-select-option-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
   line-height: 1.35;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .smart-select.smart-select--multiple .el-select__wrapper {
-  align-items: flex-start;
+  align-items: center;
   min-height: 32px;
   height: auto;
   padding-top: 4px;
@@ -304,43 +318,36 @@ function isLabelGroupOption(value: string) {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .smart-select.smart-select--multiple .el-select__selected-item {
+  max-width: 100%;
   margin: 0;
 }
 
 .smart-select.smart-select--multiple .el-tag {
   max-width: 100%;
+  height: auto;
+  min-height: 22px;
 }
 
-.smart-select-dropdown--compact-multiple .el-select-dropdown__list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 8px;
-  width: 100%;
+.smart-select.smart-select--multiple .el-tag__content {
   max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
+.smart-select-dropdown .el-select-dropdown__wrap,
 .smart-select-dropdown--compact-multiple .el-select-dropdown__wrap {
   overflow-x: hidden;
 }
 
 .smart-select-dropdown--compact-multiple .el-select-dropdown__item {
-  flex: 0 1 auto;
-  width: fit-content;
   min-width: 64px;
-  max-width: 100%;
-  min-height: 34px;
-  height: auto;
-  line-height: 1.35;
-  padding: 7px 12px;
-  border-radius: 9px;
-  justify-content: center;
 }
 
 .smart-select-dropdown--compact-multiple .smart-select-option {
@@ -350,7 +357,7 @@ function isLabelGroupOption(value: string) {
 
 .smart-select-dropdown--compact-multiple .smart-select-option-label {
   display: block;
-  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

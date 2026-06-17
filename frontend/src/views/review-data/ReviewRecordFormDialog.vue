@@ -262,7 +262,6 @@ function handleClose() {
             :options="expertOptions"
             compact
             multiple
-            collapse-tags
             placeholder="请选择评审专家"
           />
         </el-form-item>
