@@ -26,6 +26,7 @@ class CustomerIssueIllegalRecordServiceTest {
   @Mock private CustomerIssueScopeProfile customerIssueScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private FactBuildService factBuildService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -35,7 +36,8 @@ class CustomerIssueIllegalRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService,
+            factBuildService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
 
@@ -83,7 +85,8 @@ class CustomerIssueIllegalRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService,
+            factBuildService);
     when(issueLinkService.issueUrl("default", 325L, 201))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/201");
     when(issueFactRecordRepository.findPage(any()))
@@ -143,7 +146,8 @@ class CustomerIssueIllegalRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService,
+            factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -196,7 +200,8 @@ class CustomerIssueIllegalRecordServiceTest {
             customerIssueScopeProfile,
             new ObjectMapper(),
             issueLinkService,
-            labelGroupExpansionService);
+            labelGroupExpansionService,
+            factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(203, "illegal a", "draft", true, "missing module")));

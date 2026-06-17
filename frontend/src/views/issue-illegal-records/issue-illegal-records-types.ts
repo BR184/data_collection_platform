@@ -116,5 +116,10 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   buildScopeOptions?: (options: IssueIllegalRecordFilterOptions) => DataScopeOption[];
   createdAtDetailLabel?: string;
   updatedAtDetailLabel?: string;
+  issueStateDetailLabel?: string;
+  moduleDetailLabel?: string;
+  authorDetailLabel?: string;
+  assigneeDetailLabel?: string;
+  severityDetailLabel?: string;
   bugStatusDetailLabel?: string;
 }

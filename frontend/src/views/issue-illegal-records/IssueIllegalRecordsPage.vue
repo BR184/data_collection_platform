@@ -457,19 +457,29 @@ async function handleConditionFilterReset() {
             <div class="issue-illegal-detail-section-title customer-illegal-detail-section-title">基础信息</div>
             <el-descriptions :column="2" border size="small">
               <el-descriptions-item label="议题编号">#{{ selectedRow.issueIid }}</el-descriptions-item>
-              <el-descriptions-item label="状态">{{ normalizeIssueState(selectedRow.issueState) }}</el-descriptions-item>
+              <el-descriptions-item :label="issueStateDetailLabel || '状态'">
+                {{ normalizeIssueState(selectedRow.issueState) }}
+              </el-descriptions-item>
               <el-descriptions-item label="项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
               <el-descriptions-item v-if="selectedRow.testingPhase" label="测试阶段">
                 {{ selectedRow.testingPhase }}
               </el-descriptions-item>
               <el-descriptions-item label="里程碑">{{ selectedRow.milestoneTitle || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="模块">{{ selectedRow.moduleNames || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="moduleDetailLabel || '模块'">
+                {{ selectedRow.moduleNames || '-' }}
+              </el-descriptions-item>
               <el-descriptions-item v-if="selectedRow.functionName" label="功能名">
                 {{ selectedRow.functionName }}
               </el-descriptions-item>
-              <el-descriptions-item label="创建人">{{ selectedRow.authorName || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="处理人">{{ selectedRow.assigneeName || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="严重程度">{{ selectedRow.severityLevel || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="authorDetailLabel || '创建人'">
+                {{ selectedRow.authorName || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="assigneeDetailLabel || '处理人'">
+                {{ selectedRow.assigneeName || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item :label="severityDetailLabel || '严重程度'">
+                {{ selectedRow.severityLevel || '-' }}
+              </el-descriptions-item>
               <el-descriptions-item v-if="selectedRow.priorityLevel" label="优先级">
                 {{ selectedRow.priorityLevel }}
               </el-descriptions-item>

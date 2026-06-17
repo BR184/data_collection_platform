@@ -39,6 +39,18 @@ export const CUSTOMER_MILESTONE_SCOPE_PROVIDER: DataScopeProvider = {
   summaryPrefix: '当前里程碑',
 };
 
+export const CUSTOMER_REQUIRED_MILESTONE_SCOPE_PROVIDER: DataScopeProvider = {
+  id: 'customer-required-milestone',
+  label: '里程碑',
+  queryKey: 'milestoneTitle',
+  mode: 'single-select',
+  placeholder: '选择里程碑',
+  defaultStrategy: 'first-available',
+  clearable: false,
+  compact: true,
+  summaryPrefix: '当前里程碑',
+};
+
 export const CODE_REVIEW_SOURCE_SCOPE_PROVIDER: DataScopeProvider = {
   id: 'code-review-source',
   label: '数据源',

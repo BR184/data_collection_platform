@@ -40,17 +40,20 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final ObjectMapper objectMapper;
   private final LabelGroupExpansionService labelGroupExpansionService;
+  private final FactBuildService factBuildService;
 
   public CustomerIssueIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       ObjectMapper objectMapper,
       GitlabResourceLinkService issueLinkService,
-      LabelGroupExpansionService labelGroupExpansionService) {
+      LabelGroupExpansionService labelGroupExpansionService,
+      FactBuildService factBuildService) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
+    this.factBuildService = factBuildService;
   }
 
   public CustomerIssueIllegalRecordListResponse listRecords(
@@ -314,6 +317,20 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
         toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
+  }
+
+  public CustomerIssueIllegalRecordRowResponse refreshSingleRecord(
+      String sourceInstance, Long projectId, Long issueIid) {
+    factBuildService.rebuildIssueFactByIid(sourceInstance, projectId, issueIid);
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return loadScopedViews(projectId).stream()
+        .filter(IssueFactRecord::illegal)
+        .filter(this::hasSupportedCustomerIllegalReason)
+        .filter(row -> row.issueIid() != null && row.issueIid().longValue() == issueIid)
+        .filter(row -> GitlabSourceInstanceSupport.normalizeSourceInstance(row.sourceInstance()).equals(normalizedSource))
+        .findFirst()
+        .map(this::toResponse)
+        .orElse(null);
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {

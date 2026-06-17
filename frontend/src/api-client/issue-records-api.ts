@@ -367,6 +367,19 @@ export const issueRecordsApi = {
       method: 'POST',
     });
   },
+  refreshCustomerIssueIllegalRecord(payload: {
+    source?: string | null;
+    projectId?: string | number | null;
+    issueIid?: string | number | null;
+  }) {
+    return request<CustomerIssueIllegalRecordListResponse['records'][number] | null>(
+      '/api/customer-issues/illegal-records/refresh-one',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+    );
+  },
   getCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
     const query = buildCustomerIssueRecordQuery(params);
     return request<CustomerIssueRecordListResponse>(`/api/customer-issues/records?${query.toString()}`);

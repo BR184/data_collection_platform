@@ -4,6 +4,7 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
+import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueRecordListResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
@@ -15,6 +16,7 @@ import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -137,6 +139,16 @@ public class CustomerIssueController {
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success(
         "已开始刷新最新数据", realtimeRefreshService.requestRefresh(ILLEGAL_RECORDS_WORKSPACE_KEY));
+  }
+
+  @PostMapping("/illegal-records/refresh-one")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<CustomerIssueIllegalRecordRowResponse> refreshOneIllegalRecord(
+      @RequestBody CustomerIssueIllegalRecordSingleRefreshWebRequest request) {
+    return ApiResponse.success(
+        "已刷新本条客户问题事实数据",
+        customerIssueIllegalRecordService.refreshSingleRecord(
+            request.getSource(), request.getProjectId(), request.getIssueIid()));
   }
 
   private String recordWorkspaceKey(String topic) {

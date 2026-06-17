@@ -15,7 +15,7 @@ import type {
   IssueIllegalRecordFilterOptions,
   IssueIllegalRecordQueryParams,
 } from './issue-illegal-records/issue-illegal-records-types';
-import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
+import { CUSTOMER_REQUIRED_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 
 const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -108,14 +108,24 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
     :load-realtime-status="api.getCustomerIssueIllegalRecordRealtimeStatus"
     :request-realtime-refresh="api.refreshCustomerIssueIllegalRecordRealtime"
+    :request-single-record-refresh="(row) => api.refreshCustomerIssueIllegalRecord({
+      source: row.sourceInstance,
+      projectId: row.projectId,
+      issueIid: row.issueIid,
+    })"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :columns="columns"
     :map-row="mapRow"
-    :scope-provider="CUSTOMER_MILESTONE_SCOPE_PROVIDER"
-    :build-scope-options="(options) => buildScopeOptions(options.milestoneTitles ?? [], '全部里程碑')"
+    :scope-provider="CUSTOMER_REQUIRED_MILESTONE_SCOPE_PROVIDER"
+    :build-scope-options="(options) => buildScopeOptions(options.milestoneTitles ?? [])"
     created-at-detail-label="议题提交时间"
     updated-at-detail-label="议题更新时间"
+    issue-state-detail-label="议题状态"
+    module-detail-label="模块名"
+    author-detail-label="议题提交人"
+    assignee-detail-label="议题处理人"
+    severity-detail-label="议题严重程度"
     bug-status-detail-label="测试状态"
     :reset-clear-keys="[
       'keyword',
