@@ -131,7 +131,7 @@ const routes: RouteRecordRaw[] = [
     ...buildShellRoute('customer-issues-cc-product-issues', CustomerIssueRecordsView),
   },
   {
-    ...buildShellRoute('customer-issues-delay-issues', CustomerIssueRecordsView),
+    ...buildShellRoute('customer-issues-delay-issues', StatisticBoardPage),
   },
   {
     ...buildShellRoute('customer-issues-response-efficiency', StatisticBoardPage),

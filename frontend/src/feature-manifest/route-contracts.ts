@@ -242,9 +242,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     persistedQueryKeys: ['projectId'],
   },
   'customer-issues-delay-issues': {
-    allowedQueryKeys: customerIssueRecordQueryKeys,
+    allowedQueryKeys: statisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
+    boardKey: 'customer-issue-delay-issues',
   },
   'customer-issues-response-efficiency': {
     allowedQueryKeys: statisticBoardQueryKeys,
