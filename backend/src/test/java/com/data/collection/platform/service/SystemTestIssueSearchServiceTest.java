@@ -22,7 +22,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SystemTestIssueSearchServiceTest {
 
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
-  @Mock private SystemTestScopeProfile systemTestScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
 
@@ -207,7 +206,6 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service = service();
     when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", null))
         .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(
             List.of(
@@ -256,7 +254,6 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service = service();
     when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", null))
         .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(List.of(record(308, "assigned to bob", "草图", "phase1 system test", "alice", "bob")));
 
@@ -303,7 +300,6 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service = service();
     when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", "cc"))
         .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(
             List.of(
@@ -350,7 +346,6 @@ class SystemTestIssueSearchServiceTest {
   private SystemTestIssueSearchService service() {
     return new SystemTestIssueSearchService(
         issueFactRecordRepository,
-        systemTestScopeProfile,
         issueLinkService,
         new ObjectMapper(),
         labelGroupExpansionService);

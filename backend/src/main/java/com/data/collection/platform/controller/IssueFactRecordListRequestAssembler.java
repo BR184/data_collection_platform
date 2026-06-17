@@ -14,6 +14,7 @@ public class IssueFactRecordListRequestAssembler {
         request.getTitle(),
         request.getProjectName(),
         request.getModuleName(),
+        request.getFunctionName(),
         request.getSeverityLevel(),
         request.getPriorityLevel(),
         request.getIssueState(),

@@ -29,6 +29,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       Map.ofEntries(
           Map.entry("projectName", "STRING"),
           Map.entry("moduleName", "STRING"),
+          Map.entry("functionName", "STRING"),
           Map.entry("testingPhase", "STRING"),
           Map.entry("severityLevel", "STRING"),
           Map.entry("issueState", "STRING"),
@@ -48,18 +49,15 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private static final Map<String, Comparator<IssueFactRecord>> SORT_COMPARATORS =
       createSortComparators();
 
-  private final SystemTestScopeProfile systemTestScopeProfile;
   private final ObjectMapper objectMapper;
   private final LabelGroupExpansionService labelGroupExpansionService;
 
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
-      SystemTestScopeProfile systemTestScopeProfile,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       LabelGroupExpansionService labelGroupExpansionService) {
     super(issueFactRecordRepository, issueLinkService);
-    this.systemTestScopeProfile = systemTestScopeProfile;
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
   }
@@ -77,19 +75,15 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
-    boolean hasFilterGroup =
-        expandedFilterGroup != null
-            && expandedFilterGroup.conditions() != null
-            && !expandedFilterGroup.conditions().isEmpty();
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
 
-    if (!hasLabelGroupFilters && !hasFilterGroup && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
+    if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
                   IssueFactRecordPageQuery.Scope.ALL,
                   listRequest,
-                  null,
+                  expandedFilterGroup,
                   null,
                   null,
                   request.testingPhase(),
@@ -101,6 +95,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   false,
                   false,
                   false,
+                  true,
                   safePage,
                   safeSize,
                   safeSortField,
@@ -113,14 +108,15 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
 
     List<IssueFactRecord> filtered =
         applyBaseFilters(
-                loadScopedViews(listRequest.projectId()),
+                loadFacts(listRequest.projectId()),
                 listRequest,
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
             .filter(view -> matchesTestingPhase(view, request.testingPhase()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
-            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
+            .filter(view -> matchesFunctionName(view, listRequest.functionName()))
+            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup, true))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
 
@@ -146,6 +142,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   listRequest.title(),
                   listRequest.projectName(),
                   listRequest.moduleName(),
+                  listRequest.functionName(),
                   listRequest.severityLevel(),
                   listRequest.priorityLevel(),
                   listRequest.issueState(),
@@ -196,6 +193,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 "状态",
                 "创建人",
                 "处理人",
+                "功能名称",
                 "缺陷分类",
                 "里程碑",
                 "创建时间",
@@ -219,6 +217,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   CsvExportSupport.cell(row.issueState()),
                   CsvExportSupport.cell(row.authorName()),
                   CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.functionName()),
                   CsvExportSupport.cell(row.category()),
                   CsvExportSupport.cell(row.milestoneTitle()),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
@@ -265,9 +264,10 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             .flatMap(view -> view.moduleNames().stream())
             .filter(SystemTestIssueSearchService::isCleanModuleOption)
             .toList()),
+        toLegacyOptions(scopedViews, IssueFactRecord::functionName),
         toOptions(
             scopedViews.stream()
-                .map(IssueFactRecord::phaseFilterValue)
+                .map(IssueFactRecord::primaryPhaseLabel)
                 .filter(StringUtils::hasText)
                 .toList()),
         toLegacyOptions(scopedViews, IssueFactRecord::authorName),
@@ -299,17 +299,12 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             null,
             null,
             null,
+            null,
             sourceInstance,
             1,
             20,
             "updatedAt",
             "desc"));
-  }
-
-  private List<IssueFactRecord> loadScopedViews(Long projectId) {
-    return loadFacts(projectId).stream()
-        .filter(view -> systemTestScopeProfile.matches(view.scopeContext()))
-        .toList();
   }
 
   private StatisticFilterGroup expandLabelGroupConditions(
@@ -396,7 +391,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         view.milestoneTitle(),
         view.authorName(),
         view.assigneeName(),
-        String.join("、", view.moduleNames()),
+        String.join(" & ", view.moduleNames()),
+        view.functionName(),
         view.createdAt(),
         view.updatedAt(),
         view.closedAt(),
@@ -412,6 +408,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         || TextQuerySupport.containsAbstractSearch(view.title(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.projectName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(String.join(" ", view.moduleNames()), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(view.functionName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.primaryPhaseLabel(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.authorName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.assigneeName(), normalizedKeyword)
@@ -422,7 +419,12 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
 
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
     String normalized = TextQuerySupport.trimToNull(testingPhase);
-    return normalized == null || TextQuerySupport.equalsNormalized(view.phaseFilterValue(), normalized);
+    return normalized == null || TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), normalized);
+  }
+
+  private boolean matchesFunctionName(IssueFactRecord view, String functionName) {
+    String normalized = TextQuerySupport.trimToNull(functionName);
+    return normalized == null || TextQuerySupport.containsAbstractSearch(view.functionName(), normalized);
   }
 
   private static Map<String, Comparator<IssueFactRecord>> createSortComparators() {
@@ -431,7 +433,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     comparators.put("title", SortSupport.nullableString(IssueFactRecord::title));
     comparators.put("projectName", SortSupport.nullableString(IssueFactRecord::projectName));
     comparators.put(
-        "moduleNames", SortSupport.nullableString(view -> String.join("、", view.moduleNames())));
+        "moduleNames", SortSupport.nullableString(view -> String.join(" & ", view.moduleNames())));
+    comparators.put("functionName", SortSupport.nullableString(IssueFactRecord::functionName));
     comparators.put("testingPhase", SortSupport.nullableString(IssueFactRecord::primaryPhaseLabel));
     comparators.put("severityLevel", SortSupport.nullableString(IssueFactRecord::severityLevel));
     comparators.put("bugStatus", SortSupport.nullableString(IssueFactRecord::bugStatus));

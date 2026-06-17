@@ -20,6 +20,7 @@ public record SystemTestIssueSearchRowResponse(
     String authorName,
     String assigneeName,
     String moduleNames,
+    String functionName,
     LocalDateTime createdAt,
     LocalDateTime updatedAt,
     LocalDateTime closedAt,

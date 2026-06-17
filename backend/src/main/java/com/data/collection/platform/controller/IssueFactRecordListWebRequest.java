@@ -8,6 +8,7 @@ public class IssueFactRecordListWebRequest {
   private String title;
   private String projectName;
   private String moduleName;
+  private String functionName;
   private String severityLevel;
   private String priorityLevel;
   private String issueState;
@@ -78,6 +79,14 @@ public class IssueFactRecordListWebRequest {
 
   public void setModuleName(String moduleName) {
     this.moduleName = moduleName;
+  }
+
+  public String getFunctionName() {
+    return functionName;
+  }
+
+  public void setFunctionName(String functionName) {
+    this.functionName = functionName;
   }
 
   public String getSeverityLevel() {

@@ -34,6 +34,7 @@ const realtimeRefreshLoading = ref(false);
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
+  functionNames: [],
   testingPhases: [],
   authorNames: [],
   assigneeNames: [],

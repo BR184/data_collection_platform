@@ -13,13 +13,17 @@ final class IssueFactFilterGroupSqlSupport {
   private IssueFactFilterGroupSqlSupport() {}
 
   static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup) {
+    return toSql(filterGroup, false);
+  }
+
+  static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup, boolean useFullTestingPhase) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return Optional.of(new SqlPredicate("", List.of()));
     }
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      Optional<SqlPredicate> conditionSql = conditionToSql(condition);
+      Optional<SqlPredicate> conditionSql = conditionToSql(condition, useFullTestingPhase);
       if (conditionSql.isEmpty()) {
         return Optional.empty();
       }
@@ -30,7 +34,8 @@ final class IssueFactFilterGroupSqlSupport {
     return Optional.of(new SqlPredicate(String.join(joiner, predicates), args));
   }
 
-  private static Optional<SqlPredicate> conditionToSql(StatisticFilterCondition condition) {
+  private static Optional<SqlPredicate> conditionToSql(
+      StatisticFilterCondition condition, boolean useFullTestingPhase) {
     if (condition == null) {
       return Optional.empty();
     }
@@ -41,7 +46,7 @@ final class IssueFactFilterGroupSqlSupport {
       case "projectName" -> textCondition("project_name", condition);
       case "moduleName" -> moduleCondition(condition);
       case "functionName" -> textCondition("function_name", condition);
-      case "testingPhase" -> phaseCondition(condition);
+      case "testingPhase" -> phaseCondition(condition, useFullTestingPhase);
       case "reasonCategory" -> textCondition("reason_category", condition);
       case "illegalReason" -> illegalReasonCondition(condition);
       case "severityLevel" -> textCondition("severity_level", condition);
@@ -107,13 +112,17 @@ final class IssueFactFilterGroupSqlSupport {
     };
   }
 
-  private static Optional<SqlPredicate> phaseCondition(StatisticFilterCondition condition) {
+  private static Optional<SqlPredicate> phaseCondition(
+      StatisticFilterCondition condition, boolean useFullTestingPhase) {
     if ("contains".equals(condition.operator()) || "notContains".equals(condition.operator())) {
+      if (useFullTestingPhase) {
+        return containsTextCondition("testing_phase", condition);
+      }
       return indexedSearchCondition(
           List.of("phase_search_text", "phase_search_compact", "phase_search_spell", "phase_search_initials"),
           condition);
     }
-    return textCondition("phase_filter_value", condition);
+    return textCondition(useFullTestingPhase ? "testing_phase" : "phase_filter_value", condition);
   }
 
   private static Optional<SqlPredicate> milestoneCondition(StatisticFilterCondition condition) {
@@ -209,6 +218,15 @@ final class IssueFactFilterGroupSqlSupport {
           new SqlPredicate("nullif(btrim(coalesce(" + column + ", '')), '') is not null", List.of()));
       default -> Optional.empty();
     };
+  }
+
+  private static Optional<SqlPredicate> containsTextCondition(
+      String column, StatisticFilterCondition condition) {
+    String predicate = "lower(coalesce(" + column + ", '')) like ?";
+    if ("notContains".equals(condition.operator())) {
+      predicate = "not (" + predicate + ")";
+    }
+    return Optional.of(new SqlPredicate(predicate, List.of("%" + lower(condition.value()) + "%")));
   }
 
   private static Optional<SqlPredicate> issueIidCondition(StatisticFilterCondition condition) {

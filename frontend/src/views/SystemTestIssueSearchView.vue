@@ -25,7 +25,6 @@ import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
   RecordTableFilterField,
-  RecordTableTagValue,
 } from '../types/record-table';
 import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
@@ -55,6 +54,7 @@ const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMI
 const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
+  functionNames: [],
   testingPhases: [],
   authorNames: [],
   assigneeNames: [],
@@ -108,6 +108,7 @@ const filterValues = computed<Record<string, unknown>>(() => {
     keyword: String(route.query.keyword ?? ''),
     testingPhase: String(route.query.testingPhase ?? ''),
     moduleName: String(route.query.moduleName ?? ''),
+    functionName: String(route.query.functionName ?? ''),
     updatedAtRange: updatedAtStart && updatedAtEnd ? [updatedAtStart, updatedAtEnd] : [],
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),
@@ -147,11 +148,18 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     options: [{ label: '全部模块关键词', value: '' }, ...filterOptions.value.moduleNames],
   },
   {
+    key: 'functionName',
+    label: '功能名',
+    type: 'select',
+    width: 180,
+    options: [{ label: '全部功能', value: '' }, ...filterOptions.value.functionNames],
+  },
+  {
     key: 'keyword',
     label: '综合关键词',
     type: 'input',
     width: 260,
-    placeholder: '搜索议题编号、标题、模块、里程碑、轮次、作者',
+    placeholder: '搜索议题编号、标题、模块、功能、里程碑、轮次、作者',
   },
 ]);
 
@@ -227,6 +235,7 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
     });
   }
   if (values.moduleName) tags.push({ key: 'moduleName', label: '模块关键词', value: String(values.moduleName) });
+  if (values.functionName) tags.push({ key: 'functionName', label: '功能名', value: String(values.functionName) });
   if (values.keyword) tags.push({ key: 'keyword', label: '综合关键词', value: String(values.keyword) });
   if (values.issueIid) tags.push({ key: 'issueIid', label: '议题编号', value: String(values.issueIid) });
   if (values.title) tags.push({ key: 'title', label: '标题', value: String(values.title) });
@@ -261,10 +270,11 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'projectName', label: '项目名称', sortable: true, minWidth: 140 },
   { key: 'moduleNames', label: '模块', type: 'tags', minWidth: 180 },
+  { key: 'functionName', label: '功能名', sortable: true, minWidth: 140 },
   { key: 'testingPhase', label: '测试阶段', sortable: true, minWidth: 180 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
   { key: 'bugStatus', label: '缺陷状态', sortable: true, minWidth: 140 },
-  { key: 'issueState', label: '状态', type: 'tag', sortable: true, width: 110 },
+  { key: 'issueState', label: '议题状态', sortable: true, width: 110 },
   { key: 'assigneeName', label: '处理人', sortable: true, minWidth: 120 },
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
 ]);
@@ -280,10 +290,11 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
     title: row.title || '-',
     projectName: row.projectName || '-',
     moduleNames: splitDisplayList(row.moduleNames).map((label) => ({ label, type: 'info' as const })),
+    functionName: row.functionName || '-',
     testingPhase: row.testingPhase || '-',
     severityLevel: row.severityLevel ? [buildSeverityTag(row.severityLevel)] : [],
     bugStatus: row.bugStatus || '-',
-    issueState: row.issueState ? [buildStateTag(row.issueState)] : [],
+    issueState: row.issueState || '-',
     assigneeName: row.assigneeName || '-',
     updatedAt: formatDateTime(row.updatedAt),
   })),
@@ -346,6 +357,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     title: String(route.query.title ?? ''),
     projectName: String(route.query.projectName ?? ''),
     moduleName: String(route.query.moduleName ?? ''),
+    functionName: String(route.query.functionName ?? ''),
     testingPhase: String(route.query.testingPhase ?? ''),
     authorName: String(route.query.authorName ?? ''),
     assigneeName: String(route.query.assigneeName ?? ''),
@@ -383,12 +395,12 @@ function formatDateTime(value?: string | null) {
 
 function splitDisplayList(value: string) {
   return value
-    .split('、')
+    .split(/[、&]/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function buildSeverityTag(value: string): RecordTableTagValue {
+function buildSeverityTag(value: string) {
   const normalized = value.toUpperCase();
   if (normalized === 'LEVEL1') {
     return { label: value, type: 'danger' };
@@ -400,12 +412,6 @@ function buildSeverityTag(value: string): RecordTableTagValue {
     return { label: value, type: 'primary' };
   }
   return { label: value, type: 'info' };
-}
-
-function buildStateTag(value: string): RecordTableTagValue {
-  return value.toLowerCase() === 'closed'
-    ? { label: '已关闭', type: 'success' }
-    : { label: '未关闭', type: 'warning' };
 }
 
 async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
@@ -436,6 +442,7 @@ async function handleReset() {
     searchType: null,
     testingPhase: null,
     moduleName: null,
+    functionName: null,
     updatedAtStart: null,
     updatedAtEnd: null,
     issueIid: null,
@@ -576,7 +583,7 @@ async function handleRefresh() {
             <el-descriptions-item label="项目">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).projectName || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="状态">
+            <el-descriptions-item label="议题状态">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).issueState || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="严重程度">
@@ -585,14 +592,17 @@ async function handleRefresh() {
             <el-descriptions-item label="测试阶段">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).testingPhase || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="缺陷状态">
+            <el-descriptions-item label="测试状态">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).bugStatus || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="创建人">
+            <el-descriptions-item label="议题提交人">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).authorName || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="处理人">
+            <el-descriptions-item label="议题处理人">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).assigneeName || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="功能名">
+              {{ (row.__raw as SystemTestIssueSearchRowResponse).functionName || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="缺陷分类">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).category || '-' }}
@@ -600,7 +610,7 @@ async function handleRefresh() {
             <el-descriptions-item label="里程碑">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).milestoneTitle || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="创建时间">
+            <el-descriptions-item label="议题提交时间">
               {{ formatDateTime((row.__raw as SystemTestIssueSearchRowResponse).createdAt) }}
             </el-descriptions-item>
             <el-descriptions-item label="更新时间">
@@ -609,7 +619,7 @@ async function handleRefresh() {
             <el-descriptions-item label="关闭时间">
               {{ formatDateTime((row.__raw as SystemTestIssueSearchRowResponse).closedAt) }}
             </el-descriptions-item>
-            <el-descriptions-item label="模块">
+            <el-descriptions-item label="模块名">
               {{ (row.__raw as SystemTestIssueSearchRowResponse).moduleNames || '-' }}
             </el-descriptions-item>
           </el-descriptions>

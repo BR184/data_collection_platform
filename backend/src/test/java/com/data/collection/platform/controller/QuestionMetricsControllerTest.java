@@ -107,6 +107,7 @@ class QuestionMetricsControllerTest {
                         "alice",
                         "bob",
                         "草图",
+                        "拉伸",
                         LocalDateTime.of(2026, 4, 11, 10, 0),
                         LocalDateTime.of(2026, 4, 20, 16, 30),
                         null,
@@ -157,6 +158,7 @@ class QuestionMetricsControllerTest {
             new SystemTestIssueSearchFilterOptionsResponse(
                 List.of(new OptionItemResponse("Rocksdb", "Rocksdb")),
                 List.of(new OptionItemResponse("草图", "草图")),
+                List.of(new OptionItemResponse("拉伸", "拉伸")),
                 List.of(new OptionItemResponse("CC2026R1", "CC2026R1")),
                 List.of(new OptionItemResponse("alice", "alice")),
                 List.of(new OptionItemResponse("bob", "bob")),

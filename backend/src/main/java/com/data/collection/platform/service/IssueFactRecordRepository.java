@@ -130,6 +130,7 @@ public class IssueFactRecordRepository {
                 false,
                 false,
                 false,
+                false,
                 1,
                 20,
                 "updatedAt",
@@ -178,10 +179,14 @@ public class IssueFactRecordRepository {
     appendSourceInstance(where, args, query.listRequest());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
-    appendEqIgnoreCase(where, args, "phase_filter_value", query.testingPhase());
+    appendEqIgnoreCase(
+        where,
+        args,
+        query.useFullTestingPhaseFilter() ? "testing_phase" : "phase_filter_value",
+        query.testingPhase());
     appendAuthorAssigneeFilters(where, args, query.authorName(), query.assigneeName());
     appendIllegalFilters(where, args, query);
-    appendFilterGroup(where, args, query.filterGroup());
+    appendFilterGroup(where, args, query.filterGroup(), query.useFullTestingPhaseFilter());
     if (query.delayOnly()) {
       where.append(" and (delay_issue = true or is_response_delayed = true or is_resolve_delayed = true)");
     }
@@ -264,11 +269,12 @@ public class IssueFactRecordRepository {
         request.title());
     appendEqIgnoreCase(where, args, "project_name", request.projectName());
     appendModuleFilter(where, args, request.moduleName(), useDisplayModuleFilter);
+    appendContainsIgnoreCase(where, args, "function_name", request.functionName());
     appendEqIgnoreCase(where, args, "severity_level", request.severityLevel());
     appendEqIgnoreCase(where, args, "priority_level", request.priorityLevel());
     appendEqIgnoreCase(where, args, "issue_state", request.issueState());
-    appendContainsIgnoreCase(where, args, "bug_status", request.bugStatus());
-    appendEqIgnoreCase(where, args, "category", request.category());
+    appendLegacyBugStatusFilter(where, args, request.bugStatus());
+    appendLegacyCategoryFilter(where, args, request.category());
     appendEqIgnoreCase(where, args, "milestone_title", request.milestoneTitle());
     appendDateFrom(where, args, "created_at_source", request.createdAtStart());
     appendDateTo(where, args, "created_at_source", request.createdAtEnd());
@@ -355,8 +361,9 @@ public class IssueFactRecordRepository {
   private void appendFilterGroup(
       StringBuilder where,
       List<Object> args,
-      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
-    IssueFactFilterGroupSqlSupport.toSql(filterGroup)
+      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup,
+      boolean useFullTestingPhaseFilter) {
+    IssueFactFilterGroupSqlSupport.toSql(filterGroup, useFullTestingPhaseFilter)
         .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
         .ifPresent(
             filter -> {
@@ -501,8 +508,42 @@ public class IssueFactRecordRepository {
       where.append(" and (module_names is null or btrim(module_names) = '')");
       return;
     }
+    if ("曲线".equals(normalized) || "曲面".equals(normalized)) {
+      where.append(" and lower(coalesce(module_names, '')) not like ?");
+      args.add("%曲线曲面%");
+    }
     where.append(" and lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?");
     args.add("%," + normalized.toLowerCase(java.util.Locale.ROOT) + ",%");
+  }
+
+  private void appendLegacyBugStatusFilter(StringBuilder where, List<Object> args, String bugStatus) {
+    String normalized = TextQuerySupport.trimToNull(bugStatus);
+    if (normalized == null) {
+      return;
+    }
+    if ("已修复".equals(normalized)) {
+      where.append(
+          " and (lower(coalesce(bug_status, '')) like ? or lower(coalesce(bug_status, '')) like ? or lower(coalesce(bug_status, '')) like ?)");
+      args.add("%待合并%");
+      args.add("%已修复%");
+      args.add("%未更新%");
+      return;
+    }
+    appendContainsIgnoreCase(where, args, "bug_status", normalized);
+  }
+
+  private void appendLegacyCategoryFilter(StringBuilder where, List<Object> args, String category) {
+    String normalized = TextQuerySupport.trimToNull(category);
+    if (normalized == null) {
+      return;
+    }
+    if ("建议和需求".equals(normalized)) {
+      where.append(" and (lower(coalesce(category, '')) like ? or lower(coalesce(category, '')) like ?)");
+      args.add("%建议%");
+      args.add("%需求%");
+      return;
+    }
+    appendEqIgnoreCase(where, args, "category", normalized);
   }
 
   private void appendDateFrom(
@@ -623,7 +664,7 @@ public class IssueFactRecordRepository {
     columns.put("projectName", "lower(coalesce(project_name, ''))");
     columns.put("moduleNames", "lower(coalesce(module_names, ''))");
     columns.put("functionName", "lower(coalesce(function_name, ''))");
-    columns.put("testingPhase", "lower(coalesce(phase_filter_value, ''))");
+    columns.put("testingPhase", "lower(coalesce(testing_phase, ''))");
     columns.put("reasonCategory", "lower(coalesce(reason_category, ''))");
     columns.put("illegalReason", "lower(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''))");
     columns.put("severityLevel", "lower(coalesce(severity_level, ''))");

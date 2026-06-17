@@ -86,6 +86,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   false,
                   false,
                   false,
+                  false,
                   safePage,
                   safeSize,
                   safeSortField,

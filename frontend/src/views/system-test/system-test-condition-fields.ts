@@ -77,6 +77,7 @@ export function buildSystemTestIssueSearchConditionFields(
     textConditionField('issueIid', '议题编号', 180),
     textConditionField('title', '标题', 240),
     selectConditionField('moduleName', '模块', options.moduleNames, 180, true),
+    selectConditionField('functionName', '功能名', options.functionNames, 180, true),
     selectConditionField('projectName', '项目', options.projectNames, 180, true),
     selectConditionField('testingPhase', '测试阶段', options.testingPhases, 180, true),
     selectConditionField('severityLevel', '严重程度', options.severityLevels, 180, true),

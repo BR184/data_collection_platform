@@ -64,6 +64,7 @@ describe('SystemTestMultiBoardView mount smoke', () => {
         return jsonResponse({
           projectNames: [{ label: 'CC2026R3', value: 'CC2026R3' }],
           moduleNames: [],
+          functionNames: [],
           testingPhases: [],
           authorNames: [],
           assigneeNames: [],

@@ -83,12 +83,17 @@ final class IssueFactRecordFilterGroupSupport {
   }
 
   static boolean matches(IssueFactRecord row, StatisticFilterGroup filterGroup) {
+    return matches(row, filterGroup, false);
+  }
+
+  static boolean matches(
+      IssueFactRecord row, StatisticFilterGroup filterGroup, boolean useFullTestingPhase) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return true;
     }
     boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
     for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      boolean matched = matchesCondition(row, condition);
+      boolean matched = matchesCondition(row, condition, useFullTestingPhase);
       if (isOr && matched) {
         return true;
       }
@@ -144,8 +149,9 @@ final class IssueFactRecordFilterGroupSupport {
     return new StatisticFilterCondition(fieldKey, operator, value, secondaryValue);
   }
 
-  private static boolean matchesCondition(IssueFactRecord row, StatisticFilterCondition condition) {
-    List<String> values = valuesForField(row, condition.fieldKey());
+  private static boolean matchesCondition(
+      IssueFactRecord row, StatisticFilterCondition condition, boolean useFullTestingPhase) {
+    List<String> values = valuesForField(row, condition.fieldKey(), useFullTestingPhase);
     if (condition.usesLabelGroup()) {
       return matchesLabelGroup(values, condition);
     }
@@ -174,7 +180,8 @@ final class IssueFactRecordFilterGroupSupport {
     return LabelGroupFilterOperatorSupport.matches(actualValues, expectedValues, condition.operator());
   }
 
-  private static List<String> valuesForField(IssueFactRecord row, String fieldKey) {
+  private static List<String> valuesForField(
+      IssueFactRecord row, String fieldKey, boolean useFullTestingPhase) {
     return switch (fieldKey) {
       case "keyword" ->
           List.of(
@@ -183,7 +190,7 @@ final class IssueFactRecordFilterGroupSupport {
               Objects.toString(row.projectName(), ""),
               String.join(" ", row.moduleNames()),
               Objects.toString(row.functionName(), ""),
-              Objects.toString(row.phaseFilterValue(), ""),
+              Objects.toString(useFullTestingPhase ? row.primaryPhaseLabel() : row.phaseFilterValue(), ""),
               Objects.toString(row.reasonCategory(), ""),
               String.join(" ", illegalReasonValues(row)),
               Objects.toString(row.authorName(), ""),
@@ -194,7 +201,8 @@ final class IssueFactRecordFilterGroupSupport {
       case "projectName" -> List.of(Objects.toString(row.projectName(), ""));
       case "moduleName" -> row.moduleNames();
       case "functionName" -> List.of(Objects.toString(row.functionName(), ""));
-      case "testingPhase" -> List.of(Objects.toString(row.phaseFilterValue(), ""));
+      case "testingPhase" ->
+          List.of(Objects.toString(useFullTestingPhase ? row.primaryPhaseLabel() : row.phaseFilterValue(), ""));
       case "reasonCategory" -> List.of(Objects.toString(row.reasonCategory(), ""));
       case "illegalReason" -> illegalReasonValues(row);
       case "severityLevel" -> List.of(Objects.toString(row.severityLevel(), ""));

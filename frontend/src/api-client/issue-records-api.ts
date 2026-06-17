@@ -24,6 +24,7 @@ type SystemTestIssueSearchQueryParams = {
   title?: string;
   projectName?: string;
   moduleName?: string;
+  functionName?: string;
   testingPhase?: string;
   authorName?: string;
   assigneeName?: string;
@@ -59,6 +60,7 @@ function buildSystemTestIssueSearchQuery(params: SystemTestIssueSearchQueryParam
     ...(params.title ? { title: params.title } : {}),
     ...(params.projectName ? { projectName: params.projectName } : {}),
     ...(params.moduleName ? { moduleName: params.moduleName } : {}),
+    ...(params.functionName ? { functionName: params.functionName } : {}),
     ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
     ...(params.authorName ? { authorName: params.authorName } : {}),
     ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),

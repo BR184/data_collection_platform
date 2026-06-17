@@ -17,6 +17,7 @@ public record IssueFactRecordPageQuery(
     boolean supportedSystemIllegalReasonsOnly,
     boolean supportedCustomerIllegalReasonsOnly,
     boolean useDisplayModuleFilter,
+    boolean useFullTestingPhaseFilter,
     int page,
     int size,
     String sortField,

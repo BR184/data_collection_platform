@@ -36,6 +36,7 @@ export interface SystemTestIssueSearchListResponse {
 export interface SystemTestIssueSearchFilterOptionsResponse {
   projectNames: OptionItemResponse[];
   moduleNames: OptionItemResponse[];
+  functionNames: OptionItemResponse[];
   testingPhases: OptionItemResponse[];
   authorNames: OptionItemResponse[];
   assigneeNames: OptionItemResponse[];

@@ -52,6 +52,7 @@ class LabelValueQueryServiceTest {
             new SystemTestIssueSearchFilterOptionsResponse(
                 List.of(option("CC2026R1")),
                 List.of(option("草图")),
+                List.of(option("拉伸")),
                 List.of(option("第一轮系统测试")),
                 List.of(),
                 List.of(option("王五")),
@@ -116,6 +117,7 @@ class LabelValueQueryServiceTest {
             new SystemTestIssueSearchFilterOptionsResponse(
                 List.of(option("CC2026R1")),
                 List.of(option("工程图")),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
