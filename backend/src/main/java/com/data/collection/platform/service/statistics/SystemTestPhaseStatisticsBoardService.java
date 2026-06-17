@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.TestingPhaseDefinitionResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -12,6 +13,7 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -25,6 +27,7 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.TestingPhaseDefinitionService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -47,28 +50,24 @@ import org.springframework.util.StringUtils;
 public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "system-test-phase-statistics";
-  private static final String RULE_VERSION = "system-test-phase-statistics@2026-04-22-v1";
-  private static final String TOTAL_ROW_KEY = "__total__";
-  private static final String TOTAL_ROW_LABEL = "总计";
+  private static final String RULE_VERSION = "system-test-phase-statistics@2026-06-17-v2";
+  private static final String TESTING_PHASE_FIELD = "testingPhase";
+  private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试)");
-  private static final String PHASE_OPTION_SQL = """
-      select coalesce(testing_phase,'') as testing_phase,
-             coalesce(system_test_label,'') as system_test_label,
-             coalesce(label_names,'') as label_names
-        from issue_fact
-       where deleted = false
-      """;
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, title, project_id, project_name,
-             coalesce(author_name,'') as author_name, created_at_source as created_at,
+             coalesce(author_name,'') as author_name, coalesce(assignee_name,'') as assignee_name,
+             created_at_source as created_at,
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(issue_state,'opened') as issue_state, coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label, coalesce(severity_level,'') as severity_level,
-             coalesce(priority_level,'') as priority_level, coalesce(is_excluded,false) as is_excluded,
+             coalesce(priority_level,'') as priority_level, coalesce(bug_status,'') as bug_status,
+             coalesce(category,'') as category, coalesce(delay_cause,'') as delay_cause,
+             coalesce(is_excluded,false) as is_excluded,
              coalesce(exclusion_reason,'') as exclusion_reason, coalesce(is_fixed,false) as is_fixed,
              coalesce(delay_issue,false) as delay_issue, coalesce(is_regression,false) as is_regression,
              coalesce(is_crash,false) as is_crash, coalesce(is_level1_other,false) as is_level1_other,
@@ -81,13 +80,15 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       List.of(
           new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("title", "标题", null, 260, true),
-          new StatisticDetailColumn("testingPhase", "测试阶段", 180, 180, true),
+          new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
+          new StatisticDetailColumn("title", "议题标题", null, 260, true),
+          new StatisticDetailColumn("state", "议题状态", 120, 120, true),
           new StatisticDetailColumn("severityLevel", "严重程度", 120, 120, true),
-          new StatisticDetailColumn("moduleNames", "模块", null, 180, true),
-          new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-          new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
-          new StatisticDetailColumn("state", "状态", 120, 120, true),
+          new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
+          new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
+          new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
+          new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
+          new StatisticDetailColumn("assigneeName", "议题处理人", 140, 140, true),
           new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
@@ -95,6 +96,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final TestingPhaseDefinitionService testingPhaseDefinitionService;
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -102,13 +104,15 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      TestingPhaseDefinitionService testingPhaseDefinitionService) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
+    this.testingPhaseDefinitionService = testingPhaseDefinitionService;
   }
 
   @Override
@@ -118,7 +122,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
-    return buildDefinition(loadPhaseOptions());
+    return buildDefinition(loadPhaseOptions(LEGACY_CROWN_CAD_PROJECT_ID));
   }
 
   private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> phaseOptions) {
@@ -139,7 +143,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
                     leaf("level2", "二级缺陷(个)", true, "count"),
                     leaf("level3", "三级缺陷(个)", true, "count"),
                     leaf("suggestion", "建议类缺陷(个)", true, "count"),
-                    leaf("total", "总计(个)", true, "count")))),
+                    leaf("total", "总计(个)", false, "count")))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的议题阶段统计结果。");
@@ -149,18 +153,30 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
-    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup);
-    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    long projectId = effectiveProjectId(filters);
+    List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
+    List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    RuleFlowSnapshot snapshot =
+        buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, phaseDefinitions);
+    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    for (PhaseDefinition phaseDefinition : phaseDefinitionsForSelectedPhase(phaseDefinitions, selectedTestingPhase)) {
+      buckets.putIfAbsent(
+          phaseDefinition.testingPhase(),
+          new AggregateBucket(
+              phaseDefinition.testingPhase(),
+              phaseDefinition.testingPhase()));
+    }
     for (IssueSource issue : snapshot.finalSources()) {
       String phaseKey = issue.primaryPhaseLabel();
-      if (!StringUtils.hasText(phaseKey)) {
+      AggregateBucket bucket = buckets.get(phaseKey);
+      if (bucket == null) {
         continue;
       }
-      String rowLabel = displayPhaseLabel(phaseKey, selectedTestingPhase);
-      buckets.computeIfAbsent(phaseKey, key -> new AggregateBucket(key, rowLabel)).accept(issue);
+      bucket.accept(issue);
     }
 
     List<StatisticRowData> rows =
@@ -169,9 +185,6 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
                 .thenComparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER))
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-    if (!snapshot.finalSources().isEmpty()) {
-      rows.add(new AggregateBucket(TOTAL_ROW_KEY, TOTAL_ROW_LABEL).acceptAll(snapshot.finalSources()).toRowData());
-    }
 
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount =
@@ -186,14 +199,18 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             rows.size(),
             columnCount,
             drilldownCount);
-    return new StatisticBoardResponse(definition, withoutReservedFilters(filters), filterGroup, rows, meta);
+    return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    long projectId = effectiveProjectId(request.filters());
+    List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
+    List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup, phaseDefinitions).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -224,8 +241,12 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    long projectId = effectiveProjectId(filters);
+    List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
+    List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, phaseDefinitions);
     long phaseCount =
         snapshot.finalSources().stream()
             .map(IssueSource::primaryPhaseLabel)
@@ -237,16 +258,17 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         true,
         "议题阶段统计规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按测试轮次聚合。",
-        "每条议题只归入一个主轮次，优先使用 issue_fact.testing_phase，其次回退到 system_test_label 和匹配到的阶段标签。",
+        "当前统计基于 issue_fact 的归一化事实字段，按系统测试阶段定义中的轮次聚合。",
+        "默认项目为老平台 CrownCAD 项目 9；未选择测试阶段时按阶段定义选项第一项作为默认阶段。总计只统计一级、二级、三级缺陷。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
             snapshot.flowSteps().get(2),
+            snapshot.flowSteps().get(3),
             StatisticRuleFlowSupport.step(
                 "group-by-turn",
                 "按轮次聚合",
-                "按主轮次聚合为“第一轮系统测试 / 第二轮系统测试 / 回归测试”等行，并统计各严重程度数量。",
+                "按系统测试阶段定义中的轮次行聚合，并统计各严重程度数量。",
                 snapshot.finalSources().size(),
                 phaseCount,
                 snapshot.finalSources(),
@@ -256,8 +278,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             new StatisticRuleMetricDefinition("level1", "一级缺陷", "按 issue_fact.severity_level = LEVEL1 统计。", "一级缺陷数 = 当前轮次内 LEVEL1 议题数", null),
             new StatisticRuleMetricDefinition("level2", "二级缺陷", "按 issue_fact.severity_level = LEVEL2 统计。", "二级缺陷数 = 当前轮次内 LEVEL2 议题数", null),
             new StatisticRuleMetricDefinition("level3", "三级缺陷", "按 issue_fact.severity_level = LEVEL3 统计。", "三级缺陷数 = 当前轮次内 LEVEL3 议题数", null),
-            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "按 issue_fact.severity_level = SUGGESTION 统计。", "建议类缺陷数 = 当前轮次内 SUGGESTION 议题数", null),
-            new StatisticRuleMetricDefinition("total", "总计", "总计为当前轮次保留下来的全部系统测试议题数量。", "总计 = 一级 + 二级 + 三级 + 建议类 + 其他未归类严重程度议题", null)),
+            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "保留老平台表头；系统测试公共排除规则和 4.7 统计范围会剔除建议类数据。", "建议类缺陷数 = 0（保留老平台可见列）", null),
+            new StatisticRuleMetricDefinition("total", "总计", "总计遵从规则汇总 4.7，只统计一级、二级、三级缺陷。", "总计 = 一级缺陷 + 二级缺陷 + 三级缺陷", null)),
         null);
   }
 
@@ -266,17 +288,25 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(
-      List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
+      List<IssueSource> loaded,
+      StatisticFilterGroup filterGroup,
+      List<PhaseDefinition> phaseDefinitions) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream()
             .filter(IssueSource::inSystemTestScope)
             .filter(issue -> StringUtils.hasText(issue.primaryPhaseLabel()))
             .toList();
+    List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> filtered =
-        scoped.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
+        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
+    List<IssueSource> configured =
+        filtered.stream()
+            .filter(issue -> isConfiguredPhase(issue.primaryPhaseLabel(), phaseDefinitions))
+            .filter(IssueSource::isCountableByRule)
+            .toList();
     return new RuleFlowSnapshot(
-        filtered,
+        configured,
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
@@ -295,11 +325,19 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "legacy-filter",
+                "应用系统测试公共排除规则",
+                "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
+                scoped.size(),
+                valid,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "phase-filter",
                 "应用测试阶段筛选",
-                "根据页面上的“测试阶段”筛选条件进一步保留匹配轮次；未填写时保留全部轮次。",
-                scoped.size(),
-                filtered,
+                "根据页面上的“测试阶段”筛选条件进一步保留匹配轮次；未填写时按阶段定义第一项作为默认测试阶段。",
+                valid.size(),
+                configured,
                 this::toRuleFlowSample
             )));
   }
@@ -309,6 +347,47 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
                     "#" + issue.iid() + " " + issue.projectName(),
                     issue.title() + " | 轮次: " + displayPhaseLabel(issue.primaryPhaseLabel(), issue.phaseFilterValue()));
   }
+
+  private StatisticFilterGroup applyDefaultTestingPhase(
+      StatisticFilterGroup filterGroup,
+      List<StatisticFilterOption> phaseOptions) {
+    if (StringUtils.hasText(SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup))) {
+      return filterGroup;
+    }
+    String defaultPhase = defaultTestingPhase(phaseOptions);
+    if (!StringUtils.hasText(defaultPhase)) {
+      return filterGroup == null ? emptyFilterGroup() : filterGroup;
+    }
+    List<StatisticFilterCondition> conditions = new ArrayList<>();
+    if (filterGroup != null && filterGroup.conditions() != null) {
+      conditions.addAll(filterGroup.conditions());
+    }
+    conditions.add(new StatisticFilterCondition(TESTING_PHASE_FIELD, "eq", defaultPhase, null));
+    return new StatisticFilterGroup("AND", conditions);
+  }
+
+  private String defaultTestingPhase(List<StatisticFilterOption> phaseOptions) {
+    if (phaseOptions == null || phaseOptions.isEmpty()) {
+      return "";
+    }
+    return phaseOptions.stream()
+        .map(StatisticFilterOption::value)
+        .filter(StringUtils::hasText)
+        .findFirst()
+        .orElse("");
+  }
+
+  private Map<String, String> appliedFilters(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup) {
+    Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
+    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    if (StringUtils.hasText(selectedTestingPhase)) {
+      applied.put(TESTING_PHASE_FIELD, selectedTestingPhase);
+    }
+    return applied;
+  }
+
   private String displayPhaseLabel(String phaseKey, String selectedTestingPhase) {
     String normalized = trimToNull(phaseKey);
     if (normalized == null) {
@@ -329,7 +408,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   private int turnOrder(String rowLabel) {
     String normalized = trimToNull(rowLabel);
-    if (normalized == null || TOTAL_ROW_LABEL.equals(normalized)) {
+    if (normalized == null) {
       return Integer.MAX_VALUE;
     }
     if (normalized.contains("第一轮")) return 1;
@@ -348,7 +427,6 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
-        || TOTAL_ROW_KEY.equals(rowKey)
         || rowKey.equals(issue.primaryPhaseLabel());
   }
 
@@ -358,7 +436,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       case "level2" -> IssueSource::isLevel2;
       case "level3" -> IssueSource::isLevel3;
       case "suggestion" -> IssueSource::isSuggestion;
-      case "total" -> issue -> true;
+      case "total" -> IssueSource::isCountableByRule;
       default -> issue -> true;
     };
   }
@@ -370,10 +448,13 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
           case "title" -> SortSupport.nullableString(IssueSource::title);
           case "testingPhase" -> SortSupport.nullableString(IssueSource::primaryPhaseLabel);
           case "severityLevel" -> SortSupport.nullableString(IssueSource::severityDisplay);
+          case "bugStatus" -> SortSupport.nullableString(IssueSource::bugStatus);
+          case "delayCause" -> SortSupport.nullableString(IssueSource::delayCause);
           case "moduleNames" -> SortSupport.nullableString(issue -> String.join("、", issue.moduleNames()));
-          case "projectName" -> SortSupport.nullableString(IssueSource::projectName);
           case "authorName" -> SortSupport.nullableString(IssueSource::authorName);
+          case "assigneeName" -> SortSupport.nullableString(IssueSource::assigneeName);
           case "state" -> SortSupport.nullableComparable(issue -> issue.isClosed() ? 1 : 0);
+          case "createdAt" -> SortSupport.nullableComparable(IssueSource::createdAt);
           default -> SortSupport.nullableComparable(IssueSource::updatedAt);
         };
     comparator = comparator.thenComparing(IssueSource::iid);
@@ -383,20 +464,23 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
     issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
-    record.put("title", issue.title());
-    record.put("testingPhase", displayPhaseLabel(issue.primaryPhaseLabel(), null));
-    record.put("severityLevel", issue.severityDisplay());
     record.put("moduleNames", String.join("、", issue.moduleNames()));
-    record.put("projectName", issue.projectName());
-    record.put("authorName", issue.authorName());
+    record.put("title", issue.title());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
+    record.put("severityLevel", issue.severityDisplay());
+    record.put("bugStatus", issue.bugStatus());
+    record.put("delayCause", issue.delayCause());
+    record.put("createdAt", issue.createdAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.createdAt()));
+    record.put("authorName", issue.authorName());
+    record.put("assigneeName", issue.assigneeName());
     record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
     return record;
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = withoutReservedFilters(filters);
-    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    queryFilters.remove(TESTING_PHASE_FIELD);
+    Long projectId = effectiveProjectId(queryFilters);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
       return facts.isEmpty() ? List.of() : facts;
@@ -443,12 +527,18 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         rs.getLong("project_id"),
         StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
         StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
+        StatisticSourceValueSupport.text(rs.getString("assignee_name"), ""),
+        StatisticSourceValueSupport.time(rs.getTimestamp("created_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
         StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
         StatisticSourceValueSupport.text(rs.getString("severity_level"), ""),
+        StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
+        StatisticSourceValueSupport.text(rs.getString("category"), ""),
+        StatisticSourceValueSupport.text(rs.getString("delay_cause"), ""),
+        rs.getBoolean("is_excluded"),
         rs.getBoolean("is_regression"),
         rs.getBoolean("is_crash"),
         rs.getBoolean("is_level1_other"),
@@ -460,28 +550,52 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     return StatisticMetricCalculator.count(value);
   }
 
-  private List<StatisticFilterOption> loadPhaseOptions() {
-    try {
-      return issueFactQueryService.query(
-              PHASE_OPTION_SQL,
-              Map.of(),
-              (rs, rowNum) ->
-                  new PhaseOptionSource(
-                      StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
-                      StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
-                      StatisticSourceValueSupport.split(rs.getString("label_names"))))
-          .stream()
-          .flatMap(source -> source.candidates().stream())
-          .map(this::phaseFilterValue)
-          .filter(StringUtils::hasText)
-          .distinct()
-          .sorted(String.CASE_INSENSITIVE_ORDER)
-          .map(value -> new StatisticFilterOption(value, value))
-          .toList();
-    } catch (DataAccessException e) {
-      log.debug("Failed to load phase options for {}", BOARD_KEY, e);
+  private List<StatisticFilterOption> loadPhaseOptions(long projectId) {
+    return phaseOptionsFromDefinitions(loadPhaseDefinitions(projectId));
+  }
+
+  private List<StatisticFilterOption> phaseOptionsFromDefinitions(List<PhaseDefinition> definitions) {
+    Map<String, StatisticFilterOption> options = new LinkedHashMap<>();
+    for (PhaseDefinition definition : definitions) {
+      String value = definition.phaseFilterValue();
+      if (StringUtils.hasText(value)) {
+        options.putIfAbsent(value, new StatisticFilterOption(value, value));
+      }
+    }
+    return new ArrayList<>(options.values());
+  }
+
+  private List<PhaseDefinition> loadPhaseDefinitions(long projectId) {
+    return testingPhaseDefinitionService.list(projectId, null, true).stream()
+        .map(TestingPhaseDefinitionResponse::testingPhase)
+        .filter(StringUtils::hasText)
+        .map(testingPhase -> new PhaseDefinition(testingPhase, phaseFilterValue(testingPhase)))
+        .toList();
+  }
+
+  private List<PhaseDefinition> phaseDefinitionsForSelectedPhase(
+      List<PhaseDefinition> definitions,
+      String selectedTestingPhase) {
+    String selected = trimToNull(selectedTestingPhase);
+    if (selected == null) {
       return List.of();
     }
+    return definitions.stream()
+        .filter(definition -> selected.equalsIgnoreCase(definition.phaseFilterValue()))
+        .toList();
+  }
+
+  private boolean isConfiguredPhase(String phaseLabel, List<PhaseDefinition> definitions) {
+    if (!StringUtils.hasText(phaseLabel) || definitions == null || definitions.isEmpty()) {
+      return false;
+    }
+    return definitions.stream().anyMatch(definition -> definition.testingPhase().equalsIgnoreCase(phaseLabel));
+  }
+
+  private long effectiveProjectId(Map<String, String> filters) {
+    Long projectId =
+        filters == null ? null : StatisticSourceValueSupport.parseLong(filters.get("projectId"));
+    return projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId;
   }
 
   private String phaseFilterValue(String phaseLabel) {
@@ -504,11 +618,6 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       this(rowKey, rowLabel, new ArrayList<>());
     }
 
-    AggregateBucket acceptAll(List<IssueSource> sourceIssues) {
-      issues.addAll(sourceIssues);
-      return this;
-    }
-
     void accept(IssueSource issue) {
       issues.add(issue);
     }
@@ -518,7 +627,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       long level2 = issues.stream().filter(IssueSource::isLevel2).count();
       long level3 = issues.stream().filter(IssueSource::isLevel3).count();
       long suggestion = issues.stream().filter(IssueSource::isSuggestion).count();
-      long total = issues.size();
+      long total = level1 + level2 + level3;
       return new StatisticRowData(
           rowKey,
           rowLabel,
@@ -527,7 +636,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
               cell("level2", level2, true),
               cell("level3", level3, true),
               cell("suggestion", suggestion, true),
-              cell("total", total, true)));
+              cell("total", total, false)));
     }
 
     private StatisticCellData cell(String key, long numericValue, boolean drilldown) {
@@ -548,12 +657,18 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       Long projectId,
       String projectName,
       String authorName,
+      String assigneeName,
+      LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt,
       String issueState,
       String testingPhase,
       String systemTestLabel,
       String severityLevel,
+      String bugStatus,
+      String category,
+      String delayCause,
+      boolean excluded,
       boolean regression,
       boolean crash,
       boolean level1Other,
@@ -584,7 +699,11 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     }
 
     boolean isSuggestion() {
-      return isSeverity("SUGGESTION");
+      return isSeverity("SUGGESTION") || contains(category, "建议");
+    }
+
+    boolean isCountableByRule() {
+      return isLevel1() || isLevel2() || isLevel3();
     }
 
     String primaryPhaseLabel() {
@@ -629,24 +748,13 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       return StringUtils.hasText(value)
           && (value.contains("系统测试") || value.contains("回归测试"));
     }
-  }
 
-  private record PhaseOptionSource(
-      String testingPhase,
-      String systemTestLabel,
-      List<String> labels) {
-    List<String> candidates() {
-      List<String> values = new ArrayList<>();
-      if (StringUtils.hasText(testingPhase)) {
-        values.add(testingPhase);
-      }
-      if (StringUtils.hasText(systemTestLabel)) {
-        values.add(systemTestLabel);
-      }
-      values.addAll(labels);
-      return values;
+    private boolean contains(String text, String token) {
+      return StringUtils.hasText(text) && text.contains(token);
     }
   }
+
+  private record PhaseDefinition(String testingPhase, String phaseFilterValue) {}
 
   private record RuleFlowSnapshot(
       List<IssueSource> finalSources,
