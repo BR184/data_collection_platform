@@ -740,6 +740,8 @@ onBeforeRouteLeave(async () => {
               v-model="selectedConfigId"
               :placeholder="sourceSelectPlaceholder"
               :disabled="isCreatingNewConfig"
+              fit-input-width
+              popper-class="platform-select-dropdown"
               style="width: 100%"
               @change="handleConfigSelection"
             >
@@ -875,6 +877,8 @@ onBeforeRouteLeave(async () => {
           <el-select
             v-model="form.compensationMissedWindowPolicy"
             :disabled="form.compensationScheduleMode !== 'WINDOWED_INTERVAL'"
+            fit-input-width
+            popper-class="platform-select-dropdown"
           >
             <el-option label="跳过，等待下个窗口" value="SKIP" />
             <el-option label="下个窗口补跑" value="RUN_NEXT_WINDOW" />

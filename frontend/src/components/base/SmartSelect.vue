@@ -118,7 +118,7 @@ function isLabelGroupOption(value: string) {
     :loading="loading"
     :allow-create="allowCreate"
     :default-first-option="allowCreate"
-    :fit-input-width="false"
+    :fit-input-width="true"
     :popper-class="popperClass"
     @change="handleChange"
     @visible-change="handleVisibleChange"

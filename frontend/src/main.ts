@@ -13,7 +13,7 @@ app.directive('loading', ElLoading.directive);
 app.config.globalProperties.$ELEMENT = {
   select: {
     popperClass: 'platform-select-dropdown',
-    fitInputWidth: false,
+    fitInputWidth: true,
   },
 };
 app.use(router).mount('#app');

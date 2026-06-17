@@ -217,10 +217,26 @@ onBeforeUnmount(() => {
           <div class="panel-title">最近同步日志</div>
         </div>
         <div class="sync-log-actions">
-          <el-select v-model="typeFilter" class="sync-log-filter" size="small" placeholder="全部类型" clearable>
+          <el-select
+            v-model="typeFilter"
+            class="sync-log-filter"
+            size="small"
+            placeholder="全部类型"
+            clearable
+            fit-input-width
+            popper-class="platform-select-dropdown"
+          >
             <el-option v-for="option in typeOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
-          <el-select v-model="statusFilter" class="sync-log-filter" size="small" placeholder="全部结果" clearable>
+          <el-select
+            v-model="statusFilter"
+            class="sync-log-filter"
+            size="small"
+            placeholder="全部结果"
+            clearable
+            fit-input-width
+            popper-class="platform-select-dropdown"
+          >
             <el-option v-for="option in statusOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
           <el-button link :icon="Refresh" :loading="refreshing" @click="$emit('refresh')">刷新</el-button>

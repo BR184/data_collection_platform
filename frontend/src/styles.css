@@ -50,6 +50,12 @@ button {
   overflow-x: hidden;
 }
 
+.platform-select-dropdown.el-popper,
+.platform-select-dropdown .el-select-dropdown {
+  max-width: var(--el-popper-width, 100%);
+  box-sizing: border-box;
+}
+
 .el-select-dropdown__item,
 .platform-select-dropdown .el-select-dropdown__item {
   flex: 0 1 auto;

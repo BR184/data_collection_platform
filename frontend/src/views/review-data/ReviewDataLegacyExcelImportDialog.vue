@@ -151,12 +151,29 @@ async function handleConfirm() {
           <el-date-picker v-model="form.defaultReviewDate" value-format="YYYY-MM-DD" type="date" />
         </el-form-item>
         <el-form-item label="默认负责人">
-          <el-select v-model="form.defaultReviewOwner" clearable filterable allow-create placeholder="缺失时使用">
+          <el-select
+            v-model="form.defaultReviewOwner"
+            clearable
+            filterable
+            allow-create
+            fit-input-width
+            placeholder="缺失时使用"
+            popper-class="platform-select-dropdown"
+          >
             <el-option v-for="item in ownerOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="默认专家">
-          <el-select v-model="form.defaultReviewExperts" multiple clearable filterable allow-create placeholder="缺失时使用">
+          <el-select
+            v-model="form.defaultReviewExperts"
+            multiple
+            clearable
+            filterable
+            allow-create
+            fit-input-width
+            placeholder="缺失时使用"
+            popper-class="platform-select-dropdown"
+          >
             <el-option v-for="item in expertOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
@@ -167,7 +184,12 @@ async function handleConfirm() {
           <el-input v-model="form.defaultReviewVersion" placeholder="缺失时使用所属项目" />
         </el-form-item>
         <el-form-item label="问题状态">
-          <el-select v-model="form.defaultProblemStatus" filterable>
+          <el-select
+            v-model="form.defaultProblemStatus"
+            filterable
+            fit-input-width
+            popper-class="platform-select-dropdown"
+          >
             <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>

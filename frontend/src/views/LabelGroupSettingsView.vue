@@ -275,7 +275,9 @@ async function deleteGroup(group: LabelGroup) {
           <el-select
             v-model="valueTypeFilter"
             clearable
+            fit-input-width
             placeholder="全部值类型"
+            popper-class="platform-select-dropdown"
             style="width: 150px"
             @change="loadGroups"
             @clear="loadGroups"
@@ -406,8 +408,10 @@ async function deleteGroup(group: LabelGroup) {
             <el-select
               v-model="candidateDimensionKey"
               clearable
+              fit-input-width
               filterable
               placeholder="可选，仅用于搜索候选值"
+              popper-class="platform-select-dropdown"
               style="width: 100%"
             >
               <el-option
@@ -431,8 +435,10 @@ async function deleteGroup(group: LabelGroup) {
           <el-select
             v-model="form.childGroupIds"
             multiple
+            fit-input-width
             filterable
             placeholder="选择同值类型标签组"
+            popper-class="platform-select-dropdown"
             style="width: 100%"
           >
             <el-option

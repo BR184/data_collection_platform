@@ -109,6 +109,7 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         :collapse-tags-tooltip="false"
         :loading="loading"
         :disabled="disabled"
+        fit-input-width
         :remote-method="loadCandidates"
         popper-class="label-member-picker-dropdown smart-select-dropdown smart-select-dropdown--compact smart-select-dropdown--compact-multiple"
         placeholder="搜索候选值或直接输入自定义值"
