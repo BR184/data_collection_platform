@@ -5,6 +5,7 @@ import java.util.List;
 public record CustomerIssueRecordFilterOptionsResponse(
     List<OptionItemResponse> projectNames,
     List<OptionItemResponse> moduleNames,
+    List<OptionItemResponse> functionNames,
     List<OptionItemResponse> reasonCategories,
     List<OptionItemResponse> severityLevels,
     List<OptionItemResponse> priorityLevels,

@@ -313,6 +313,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     return new CustomerIssueIllegalRecordFilterOptionsResponse(
         toLegacyOptions(rows, IssueFactRecord::projectName),
         toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
+        toLegacyOptions(rows, IssueFactRecord::functionName),
         toOptions(illegalReasons),
         toOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::priorityLevel),

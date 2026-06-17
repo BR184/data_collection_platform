@@ -40,6 +40,7 @@ export interface CustomerIssueIllegalRecordListResponse {
 export interface CustomerIssueIllegalRecordFilterOptionsResponse {
   projectNames: OptionItemResponse[];
   moduleNames: OptionItemResponse[];
+  functionNames: OptionItemResponse[];
   illegalReasons: OptionItemResponse[];
   severityLevels: OptionItemResponse[];
   priorityLevels: OptionItemResponse[];
@@ -69,6 +70,7 @@ export interface CustomerIssueRecordRowResponse {
   authorName: string;
   assigneeName: string;
   moduleNames: string;
+  functionName: string;
   delayIssue: boolean;
   delayReason: string;
   delayCause: string;
@@ -94,6 +96,7 @@ export interface CustomerIssueRecordListResponse {
 export interface CustomerIssueRecordFilterOptionsResponse {
   projectNames: OptionItemResponse[];
   moduleNames: OptionItemResponse[];
+  functionNames: OptionItemResponse[];
   reasonCategories: OptionItemResponse[];
   severityLevels: OptionItemResponse[];
   priorityLevels: OptionItemResponse[];

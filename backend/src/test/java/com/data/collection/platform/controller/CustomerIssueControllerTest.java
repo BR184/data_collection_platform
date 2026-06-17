@@ -205,6 +205,7 @@ class CustomerIssueControllerTest {
             new CustomerIssueRecordFilterOptionsResponse(
                 List.of(new OptionItemResponse("CC_PRODUCT", "CC_PRODUCT")),
                 List.of(new OptionItemResponse("Sketch", "Sketch")),
+                List.of(new OptionItemResponse("Constraint", "Constraint")),
                 List.of(new OptionItemResponse("Design", "Design")),
                 List.of(new OptionItemResponse("S2", "S2")),
                 List.of(new OptionItemResponse("P1", "P1")),
@@ -378,6 +379,7 @@ class CustomerIssueControllerTest {
             new CustomerIssueIllegalRecordFilterOptionsResponse(
                 List.of(new OptionItemResponse("CC_PRODUCT", "CC_PRODUCT")),
                 List.of(new OptionItemResponse("Sketch", "Sketch")),
+                List.of(new OptionItemResponse("Constraint", "Constraint")),
                 List.of(new OptionItemResponse("Module mismatch", "Module mismatch")),
                 List.of(new OptionItemResponse("S1", "S1")),
                 List.of(new OptionItemResponse("P0", "P0")),

@@ -20,6 +20,7 @@ public record CustomerIssueRecordRowResponse(
     String authorName,
     String assigneeName,
     String moduleNames,
+    String functionName,
     boolean delayIssue,
     String delayReason,
     String delayCause,

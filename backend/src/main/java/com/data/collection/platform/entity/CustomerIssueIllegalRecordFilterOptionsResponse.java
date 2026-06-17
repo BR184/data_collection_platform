@@ -5,6 +5,7 @@ import java.util.List;
 public record CustomerIssueIllegalRecordFilterOptionsResponse(
     List<OptionItemResponse> projectNames,
     List<OptionItemResponse> moduleNames,
+    List<OptionItemResponse> functionNames,
     List<OptionItemResponse> illegalReasons,
     List<OptionItemResponse> severityLevels,
     List<OptionItemResponse> priorityLevels,

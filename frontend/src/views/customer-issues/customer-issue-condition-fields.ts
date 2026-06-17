@@ -49,6 +49,7 @@ function datetimeConditionField(key: string, label: string, width = 220): Statis
 function commonIssueConditionFields(options: {
   projectNames: Option[];
   moduleNames: Option[];
+  functionNames?: Option[];
   severityLevels: Option[];
   priorityLevels: Option[];
   issueStates: Option[];
@@ -62,6 +63,7 @@ function commonIssueConditionFields(options: {
     textConditionField('issueIid', '议题编号', 180),
     textConditionField('title', '标题', 240),
     selectConditionField('moduleName', '模块', options.moduleNames, 180, true),
+    selectConditionField('functionName', '功能名', options.functionNames ?? [], 180, true),
     selectConditionField('projectName', '项目', options.projectNames),
     selectConditionField('severityLevel', '严重程度', options.severityLevels),
     selectConditionField('priorityLevel', '优先级', options.priorityLevels, 180, true),

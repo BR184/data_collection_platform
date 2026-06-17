@@ -70,6 +70,7 @@ const realtimeRefreshLoading = ref(false);
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
   moduleNames: [],
+  functionNames: [],
   reasonCategories: [],
   severityLevels: [],
   priorityLevels: [],
@@ -152,6 +153,7 @@ const {
     'title',
     'projectName',
     'moduleName',
+    'functionName',
     'reasonCategory',
     'severityLevel',
     'priorityLevel',
@@ -169,6 +171,7 @@ const {
     'title',
     'projectName',
     'moduleName',
+    'functionName',
     'reasonCategory',
     'severityLevel',
     'priorityLevel',
@@ -191,6 +194,7 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
   { key: 'title', label: '标题', sortable: true, minWidth: 260 },
   { key: 'moduleNames', label: '模块', sortable: true, minWidth: 150 },
+  { key: 'functionName', label: '功能名', sortable: true, minWidth: 150 },
   { key: 'reasonCategory', label: '缺陷原因', type: 'tag', sortable: true, minWidth: 140 },
   { key: 'delayFlags', label: '延期标记', type: 'tags', minWidth: 180 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
@@ -217,6 +221,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
     issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
     title: row.title,
     moduleNames: row.moduleNames || '-',
+    functionName: row.functionName || '-',
     reasonCategory: [{ label: row.reasonCategory || '未归因', type: row.reasonCategory ? 'primary' as const : 'info' as const }],
     delayFlags: buildDelayFlags(row),
     severityLevel: [{ label: row.severityLevel || '-', type: 'danger' as const }],
@@ -289,6 +294,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     title: String(route.query.title ?? ''),
     projectName: String(route.query.projectName ?? ''),
     moduleName: String(route.query.moduleName ?? ''),
+    functionName: String(route.query.functionName ?? ''),
     reasonCategory: String(route.query.reasonCategory ?? ''),
     severityLevel: String(route.query.severityLevel ?? ''),
     priorityLevel: String(route.query.priorityLevel ?? ''),
@@ -500,6 +506,7 @@ async function handleConditionFilterReset() {
             <el-descriptions-item label="项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="里程碑">{{ selectedRow.milestoneTitle || '-' }}</el-descriptions-item>
             <el-descriptions-item label="模块">{{ selectedRow.moduleNames || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="功能名">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="缺陷原因">{{ selectedRow.reasonCategory || '未归因' }}</el-descriptions-item>
             <el-descriptions-item label="严重程度">{{ selectedRow.severityLevel || '-' }}</el-descriptions-item>
             <el-descriptions-item label="优先级">{{ selectedRow.priorityLevel || '-' }}</el-descriptions-item>

@@ -209,6 +209,7 @@ class LabelValueQueryServiceTest {
         moduleNames,
         List.of(),
         List.of(),
+        List.of(),
         priorityLevels,
         List.of(),
         List.of(),

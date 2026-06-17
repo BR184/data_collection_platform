@@ -11,6 +11,7 @@ describe('customer issue condition fields', () => {
     const fields = buildCustomerIssueRecordConditionFields({
       projectNames: [option],
       moduleNames: [option],
+      functionNames: [option],
       severityLevels: [option],
       priorityLevels: [option],
       issueStates: [option],
@@ -32,6 +33,7 @@ describe('customer issue condition fields', () => {
     const fields = buildCustomerIssueIllegalConditionFields({
       projectNames: [option],
       moduleNames: [option],
+      functionNames: [option],
       severityLevels: [option],
       priorityLevels: [option],
       issueStates: [option],

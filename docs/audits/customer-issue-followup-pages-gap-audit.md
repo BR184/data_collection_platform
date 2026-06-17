@@ -271,7 +271,7 @@
 
 如果这些字段只在详情抽屉中展示，也需要确认详情入口可见且字段值与老平台一致；否则应补齐。
 
-### 10. CC_PRODUCT 议题明细页面缺少老平台功能字段“功能名”
+### 10. CC_PRODUCT 议题明细页面缺少老平台功能字段“功能名”（已对齐）
 
 **影响范围：中。影响记录页字段一致性。**
 
@@ -291,9 +291,9 @@
 - 创建人
 - 更新时间
 
-当前未展示 `functionName`。如果事实层已有 `function_name`，该字段应在 CC_PRODUCT 议题明细中按老平台展示，尤其用于和“按功能展示缺陷数量”互相核对。
+**对齐状态：已补齐。** 新平台 `CustomerIssueRecordRowResponse`、`CustomerIssueRecordService`、导出 CSV、筛选候选、前端类型和 `CustomerIssueRecordsView` 已补 `functionName` 链路。主表在“模块”后展示“功能名”，详情抽屉在基础信息中展示“功能名”，导出同步输出“功能名”列。
 
-### 11. CC_PRODUCT 议题明细默认提交日期范围需复核
+### 11. CC_PRODUCT 议题明细默认提交日期范围需复核（已复核）
 
 **影响范围：中。影响默认列表集合。**
 
@@ -301,7 +301,7 @@
 
 规则总表第 5.1 也要求客户问题默认统计 `CC_Product` 项目自 2026-01-01 之后创建的议题。
 
-新平台客户问题记录页通过 `CustomerIssueScopeProfile` 收口，是否所有列表路径和 SQL 分页路径都强制应用 `created/submission >= 2026-01-01` 需要复核。若只在统计板使用该 profile，而记录页某些 SQL 分页路径绕过范围，会导致默认总数大于老平台。
+**复核状态：已确认。** 新平台客户问题记录页通过 `CustomerIssueRecordService` 统一进入 `IssueFactRecordPageQuery.Scope.CUSTOMER` 或 `CustomerIssueScopeProfile#matches` 内存路径；`CustomerIssueScopeProfile` 固定 `CUSTOMER_ISSUE_START_DATE = 2026-01-01`，并要求 `createdAt` 不早于该日期，同时限定 CC_PRODUCT/325 客户问题范围。SQL 分页路径和内存路径没有绕过该 profile。
 
 ## 本轮已对齐：客户问题缺陷原因分析
 

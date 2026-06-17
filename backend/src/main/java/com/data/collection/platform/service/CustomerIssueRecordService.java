@@ -29,6 +29,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
       Map.ofEntries(
           Map.entry("moduleName", "STRING"),
+          Map.entry("functionName", "STRING"),
           Map.entry("priorityLevel", "STRING"),
           Map.entry("bugStatus", "STRING"),
           Map.entry("assigneeName", "STRING"),
@@ -186,7 +187,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   listRequest.title(),
                   listRequest.projectName(),
                   listRequest.moduleName(),
-                  null,
+                  listRequest.functionName(),
                   listRequest.severityLevel(),
                   listRequest.priorityLevel(),
                   listRequest.issueState(),
@@ -227,6 +228,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                 "问题编号",
                 "项目",
                 "模块",
+                "功能名",
                 "缺陷原因",
                 "严重程度",
                 "优先级",
@@ -256,6 +258,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   CsvExportSupport.cell(row.issueIid()),
                   CsvExportSupport.cell(row.projectName()),
                   CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.functionName()),
                   CsvExportSupport.cell(row.reasonCategory()),
                   CsvExportSupport.cell(row.severityLevel()),
                   CsvExportSupport.cell(row.priorityLevel()),
@@ -317,6 +320,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return new CustomerIssueRecordFilterOptionsResponse(
         toLegacyOptions(rows, IssueFactRecord::projectName),
         toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
+        toLegacyOptions(rows, IssueFactRecord::functionName),
         toOptions(rows, IssueFactRecord::reasonCategory),
         toOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::priorityLevel),
@@ -394,6 +398,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         view.authorName(),
         view.assigneeName(),
         String.join("、", view.moduleNames()),
+        view.functionName(),
         view.delayIssue(),
         view.delayReason(),
         view.delayCause(),
@@ -416,6 +421,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         || TextQuerySupport.containsAbstractSearch(view.title(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.projectName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(String.join(" ", view.moduleNames()), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(view.functionName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.reasonCategory(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.authorName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.assigneeName(), normalizedKeyword)
@@ -451,6 +457,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     comparators.put("projectName", SortSupport.nullableString(IssueFactRecord::projectName));
     comparators.put(
         "moduleNames", SortSupport.nullableString(view -> String.join("、", view.moduleNames())));
+    comparators.put("functionName", SortSupport.nullableString(IssueFactRecord::functionName));
     comparators.put("reasonCategory", SortSupport.nullableString(IssueFactRecord::reasonCategory));
     comparators.put("severityLevel", SortSupport.nullableString(IssueFactRecord::severityLevel));
     comparators.put("priorityLevel", SortSupport.nullableString(IssueFactRecord::priorityLevel));
