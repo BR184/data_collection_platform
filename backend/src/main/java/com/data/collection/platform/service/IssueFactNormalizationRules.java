@@ -105,6 +105,18 @@ public final class IssueFactNormalizationRules {
     return IssueClassificationRules.illegalReasons(labels, closed, modules, notesText, fixed);
   }
 
+  public static boolean isCustomerIssueIllegal(List<String> labels, List<String> modules, String notesText, boolean fixed) {
+    return IssueClassificationRules.isCustomerIssueIllegal(labels, modules, notesText, fixed);
+  }
+
+  public static String customerIssueIllegalReason(List<String> labels, List<String> modules, String notesText, boolean fixed) {
+    return IssueClassificationRules.customerIssueIllegalReason(labels, modules, notesText, fixed);
+  }
+
+  public static List<String> customerIssueIllegalReasons(List<String> labels, List<String> modules, String notesText, boolean fixed) {
+    return IssueClassificationRules.customerIssueIllegalReasons(labels, modules, notesText, fixed);
+  }
+
   public static boolean hasTemplateReply(String notesText) {
     return IssueClassificationRules.hasTemplateReply(notesText);
   }

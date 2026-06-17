@@ -4,10 +4,12 @@ export interface CustomerIssueIllegalRecordRowResponse {
   issueId: number;
   issueIid: number;
   issueLink?: string | null;
+  sourceInstance?: string | null;
   projectId: number;
   projectName: string;
   title: string;
   issueState: string;
+  testingPhase: string;
   illegalReason: string;
   severityLevel: string;
   priorityLevel: string;
@@ -17,6 +19,9 @@ export interface CustomerIssueIllegalRecordRowResponse {
   authorName: string;
   assigneeName: string;
   moduleNames: string;
+  functionName: string;
+  delayReason: string;
+  delayCause: string;
   createdAt?: string | null;
   updatedAt?: string | null;
   closedAt?: string | null;

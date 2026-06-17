@@ -31,16 +31,12 @@ const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
 
 const columns: RecordTableColumn[] = [
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
-  { key: 'title', label: '标题', sortable: true, minWidth: 260 },
-  { key: 'illegalReason', label: '非法原因', type: 'tag', sortable: true, minWidth: 150 },
-  { key: 'projectName', label: '所属项目', sortable: true, minWidth: 150 },
-  { key: 'moduleNames', label: '模块', sortable: true, minWidth: 160 },
+  { key: 'moduleNames', label: '模块名', sortable: true, minWidth: 160 },
+  { key: 'title', label: '议题标题', sortable: true, minWidth: 260 },
+  { key: 'issueState', label: '议题状态', type: 'tag', sortable: true, width: 100 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
-  { key: 'priorityLevel', label: '优先级', type: 'tag', sortable: true, width: 100 },
-  { key: 'issueState', label: '状态', type: 'tag', sortable: true, width: 100 },
-  { key: 'milestoneTitle', label: '里程碑', sortable: true, minWidth: 160 },
-  { key: 'authorName', label: '创建人', sortable: true, minWidth: 120 },
-  { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
+  { key: 'assigneeName', label: '议题处理人', sortable: true, minWidth: 120 },
+  { key: 'illegalReason', label: '非法类型', type: 'tag', sortable: true, minWidth: 150 },
 ];
 
 function normalizeIssueState(value: string) {
@@ -55,16 +51,12 @@ function mapRow(row: CustomerIssueIllegalRecordRowResponse): Record<string, unkn
   return {
     __raw: row,
     issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
-    title: row.title,
-    illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
-    projectName: row.projectName || '-',
     moduleNames: row.moduleNames || '-',
+    title: row.title,
     severityLevel: [{ label: row.severityLevel || '-', type: 'danger' as const }],
-    priorityLevel: [{ label: row.priorityLevel || '-', type: 'primary' as const }],
+    assigneeName: row.assigneeName || '-',
     issueState: [{ label: normalizeIssueState(row.issueState), type: row.closedAt ? 'info' as const : 'success' as const }],
-    milestoneTitle: row.milestoneTitle || '-',
-    authorName: row.authorName || '-',
-    updatedAt: formatDateTime(row.updatedAt),
+    illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
   };
 }
 
@@ -122,6 +114,9 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :map-row="mapRow"
     :scope-provider="CUSTOMER_MILESTONE_SCOPE_PROVIDER"
     :build-scope-options="(options) => buildScopeOptions(options.milestoneTitles ?? [], '全部里程碑')"
+    created-at-detail-label="议题提交时间"
+    updated-at-detail-label="议题更新时间"
+    bug-status-detail-label="测试状态"
     :reset-clear-keys="[
       'keyword',
       'issueIid',

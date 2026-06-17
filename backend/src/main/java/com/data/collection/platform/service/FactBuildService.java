@@ -498,9 +498,17 @@ public class FactBuildService {
     fact.setRegression(IssueFactNormalizationRules.isRegression(labels, title));
     fact.setCrash(IssueFactNormalizationRules.isCrash(labels, title));
     fact.setLevel1Other(IssueFactNormalizationRules.isLevel1Other(labels, title));
-    fact.setIllegal(IssueFactNormalizationRules.isIllegal(labels, closed, moduleNames, notesText, Boolean.TRUE.equals(fact.getFixed())));
-    fact.setIllegalReason(IssueFactNormalizationRules.illegalReason(labels, closed, moduleNames, notesText, Boolean.TRUE.equals(fact.getFixed())));
-    fact.setIllegalReasons(String.join(", ", IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, Boolean.TRUE.equals(fact.getFixed()))));
+    boolean fixed = Boolean.TRUE.equals(fact.getFixed());
+    boolean customerIssue = isCustomerIssueIssueFact(labels, rs.getLong("project_id"), rs.getString("project_name"), createdAt);
+    fact.setIllegal(customerIssue
+        ? IssueFactNormalizationRules.isCustomerIssueIllegal(labels, moduleNames, notesText, fixed)
+        : IssueFactNormalizationRules.isIllegal(labels, closed, moduleNames, notesText, fixed));
+    fact.setIllegalReason(customerIssue
+        ? IssueFactNormalizationRules.customerIssueIllegalReason(labels, moduleNames, notesText, fixed)
+        : IssueFactNormalizationRules.illegalReason(labels, closed, moduleNames, notesText, fixed));
+    fact.setIllegalReasons(String.join(", ", customerIssue
+        ? IssueFactNormalizationRules.customerIssueIllegalReasons(labels, moduleNames, notesText, fixed)
+        : IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, fixed)));
     fact.setHasResponse(IssueFactNormalizationRules.hasResponse(notesText));
     boolean responseDelayed = IssueFactNormalizationRules.isResponseDelayed(labels, notesText);
     fact.setResponseOverdue(responseDelayed);
@@ -518,6 +526,27 @@ public class FactBuildService {
         phaseCalendar == null ? null : phaseCalendar.phaseStartAt()));
     fact.setDeleted(false);
     return fact;
+  }
+
+  private boolean isCustomerIssueIssueFact(List<String> labels, Long projectId, String projectName, LocalDateTime createdAt) {
+    if (labels.stream().anyMatch(label -> IssueRuleSupport.containsToken(label, List.of("系统测试", "回归测试")))) {
+      return false;
+    }
+    boolean inCustomerDateRange = createdAt == null || !createdAt.toLocalDate().isBefore(java.time.LocalDate.of(2026, 1, 1));
+    if (projectId != null && projectId == 325L) {
+      return inCustomerDateRange;
+    }
+    String normalizedProject = projectName == null ? "" : projectName.toLowerCase(Locale.ROOT);
+    if (normalizedProject.contains("cc_product") || normalizedProject.contains("cc-product") || normalizedProject.contains("ccproduct")) {
+      return inCustomerDateRange;
+    }
+    for (String label : labels) {
+      String normalized = label == null ? "" : label.toLowerCase(Locale.ROOT);
+      if (normalized.contains("cc_product") || normalized.contains("cc-product") || normalized.contains("ccproduct")) {
+        return inCustomerDateRange;
+      }
+    }
+    return false;
   }
 
   private MergeRequestFact mapMergeRequestFact(

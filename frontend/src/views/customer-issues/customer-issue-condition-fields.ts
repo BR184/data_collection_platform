@@ -87,6 +87,6 @@ export function buildCustomerIssueIllegalConditionFields(
   options: CustomerIssueIllegalRecordFilterOptionsResponse,
 ): StatisticFilterField[] {
   const fields = commonIssueConditionFields(options);
-  fields.splice(5, 0, selectConditionField('illegalReason', '非法原因', options.illegalReasons));
+  fields.splice(5, 0, selectConditionField('illegalReason', '非法类型', options.illegalReasons));
   return fields;
 }

@@ -69,7 +69,9 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
 
-    if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
+    if (!hasLabelGroupFilters
+        && !StringUtils.hasText(request.illegalReason())
+        && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
@@ -85,6 +87,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   true,
                   false,
                   false,
+                  true,
                   false,
                   safePage,
                   safeSize,
@@ -103,7 +106,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
             .filter(IssueFactRecord::illegal)
-            .filter(view -> matchesEquals(view.illegalReason(), request.illegalReason()))
+            .filter(this::hasSupportedCustomerIllegalReason)
+            .filter(view -> matchesIllegalReason(view, request.illegalReason()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
@@ -216,9 +220,11 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             ",",
             List.of(
                 "问题编号",
-                "非法原因",
+                "非法类型",
                 "项目",
                 "模块",
+                "功能名",
+                "测试阶段",
                 "严重程度",
                 "优先级",
                 "缺陷状态",
@@ -227,6 +233,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                 "处理人",
                 "缺陷分类",
                 "里程碑",
+                "延期原因",
                 "创建时间",
                 "更新时间",
                 "关闭时间",
@@ -241,6 +248,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   CsvExportSupport.cell(row.illegalReason()),
                   CsvExportSupport.cell(row.projectName()),
                   CsvExportSupport.cell(row.moduleNames()),
+                  CsvExportSupport.cell(row.functionName()),
+                  CsvExportSupport.cell(row.testingPhase()),
                   CsvExportSupport.cell(row.severityLevel()),
                   CsvExportSupport.cell(row.priorityLevel()),
                   CsvExportSupport.cell(row.bugStatus()),
@@ -249,6 +258,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   CsvExportSupport.cell(row.assigneeName()),
                   CsvExportSupport.cell(row.category()),
                   CsvExportSupport.cell(row.milestoneTitle()),
+                  CsvExportSupport.cell(row.delayCause()),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
@@ -283,11 +293,21 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     List<IssueFactRecord> rows =
-        loadScopedViews(projectId).stream().filter(IssueFactRecord::illegal).toList();
+        loadScopedViews(projectId).stream()
+            .filter(IssueFactRecord::illegal)
+            .filter(this::hasSupportedCustomerIllegalReason)
+            .toList();
+    List<String> illegalReasons = new ArrayList<>(CustomerIssueIllegalReasonSupport.SUPPORTED_REASONS);
+    rows.stream()
+        .flatMap(view -> displayIllegalReasons(view).stream())
+        .map(CustomerIssueIllegalReasonSupport::normalize)
+        .filter(StringUtils::hasText)
+        .filter(reason -> !illegalReasons.contains(reason))
+        .forEach(illegalReasons::add);
     return new CustomerIssueIllegalRecordFilterOptionsResponse(
         toLegacyOptions(rows, IssueFactRecord::projectName),
         toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
-        toOptions(rows, IssueFactRecord::illegalReason),
+        toOptions(illegalReasons),
         toOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::priorityLevel),
         toOptions(rows, IssueFactRecord::issueState),
@@ -300,14 +320,14 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     List<IssueFactRecord> loaded = loadFacts(projectId);
     List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
     List<IssueFactRecord> illegal =
-        scoped.stream().filter(IssueFactRecord::illegal).toList();
+        scoped.stream().filter(IssueFactRecord::illegal).filter(this::hasSupportedCustomerIllegalReason).toList();
     return new StatisticBoardRuleExplanationResponse(
         WORKSPACE_KEY,
         true,
         "客户问题缺陷非法数据规则说明",
         RULE_VERSION,
         "当前页面基于 issue_fact 事实层，先用 CustomerIssueScopeProfile 限定客户问题范围，再展示已被事实构建链路判定为非法的缺陷。",
-        "非法原因来自 issue_fact.illegal_reason；当前规则只消费事实层结果，不在页面层重新推导。",
+        "非法类型来自 issue_fact.illegal_reasons / illegal_reason，按老平台 illegal_list 多值口径展示和筛选。客户问题非法数据复用系统测试非法规则，并追加缺陷调研模板完整性、计划解决时间和一级缺陷负责人签字规则。",
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
             step("scope-filter", "限定客户问题范围", "复用客户问题 scope profile，避免和系统测试口径混在一起。", scoped, loaded.size()),
@@ -320,10 +340,28 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                 "非法数据总数 = count(issue_fact where customer scope and is_illegal = true)",
                 null),
             new StatisticRuleMetricDefinition(
-                "illegal-reason",
-                "非法原因",
-                "直接展示事实层沉淀的 illegal_reason，例如缺失模块、流程越位等。",
-                "非法原因分布 = group by issue_fact.illegal_reason",
+                "base-illegal",
+                "基础非法类型",
+                "复用系统测试非法数据规则：未设定严重程度、未设定模块、已修复但未按模板回复、缺陷原因不唯一。",
+                "基础非法类型 = issue_fact.illegal_reasons 中命中系统测试非法规则的类型",
+                null),
+            new StatisticRuleMetricDefinition(
+                "research-template",
+                "缺陷调研模板",
+                "客户问题必须按要求填写缺陷调研模板；除计划解决时间和一级缺陷负责人签字项外，其余问题需要有回复内容。",
+                "未按照要求填写缺陷调研模板 = issue_fact.illegal_reasons contains 未按照要求填写缺陷调研模板",
+                null),
+            new StatisticRuleMetricDefinition(
+                "plan-solution-time",
+                "计划解决时间",
+                "计划解决时间有且只能填写一个日期时间戳，日期分隔符按规则总表第 5.4 兼容。",
+                "计划解决时间非法 = 调研模板计划解决时间为空、无法解析或出现多个日期",
+                null),
+            new StatisticRuleMetricDefinition(
+                "owner-signature",
+                "一级缺陷负责人签字",
+                "一级缺陷必须有模块负责人签字确认；二级、三级缺陷不要求负责人签字。",
+                "负责人签字非法 = 一级缺陷缺少负责人签字确认",
                 null)),
         null);
   }
@@ -343,11 +381,13 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         view.issueId(),
         view.issueIid(),
         buildIssueLink(view.sourceInstance(), view.projectId(), view.issueIid()),
+        view.sourceInstance(),
         view.projectId(),
         view.projectName(),
         view.title(),
         view.issueState(),
-        view.illegalReason(),
+        view.primaryPhaseLabel(),
+        displayIllegalReason(view),
         view.severityLevel(),
         view.priorityLevel(),
         view.bugStatus(),
@@ -356,6 +396,9 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         view.authorName(),
         view.assigneeName(),
         String.join("、", view.moduleNames()),
+        view.functionName(),
+        view.delayReason(),
+        view.delayCause(),
         view.createdAt(),
         view.updatedAt(),
         view.closedAt(),
@@ -371,10 +414,25 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         || TextQuerySupport.containsAbstractSearch(view.title(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.projectName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(String.join(" ", view.moduleNames()), normalizedKeyword)
-        || TextQuerySupport.containsAbstractSearch(view.illegalReason(), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(displayIllegalReason(view), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(view.functionName(), normalizedKeyword)
+        || TextQuerySupport.containsAbstractSearch(view.delayCause(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.authorName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.assigneeName(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.milestoneTitle(), normalizedKeyword);
+  }
+
+  private boolean matchesIllegalReason(IssueFactRecord view, String illegalReason) {
+    String normalized = TextQuerySupport.trimToNull(illegalReason);
+    return normalized == null
+        || displayIllegalReasons(view).stream()
+            .anyMatch(reason -> CustomerIssueIllegalReasonSupport.matches(reason, normalized));
+  }
+
+  private boolean hasSupportedCustomerIllegalReason(IssueFactRecord view) {
+    return displayIllegalReasons(view).stream()
+        .map(CustomerIssueIllegalReasonSupport::normalize)
+        .anyMatch(StringUtils::hasText);
   }
 
   @Override
@@ -386,10 +444,19 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                 new StatisticRuleFlowStepSample(
                     "#" + row.issueIid() + " " + row.projectName(),
                     row.title()
-                        + (StringUtils.hasText(row.illegalReason())
-                            ? " | 非法原因: " + row.illegalReason()
+                        + (StringUtils.hasText(displayIllegalReason(row))
+                            ? " | 非法类型: " + displayIllegalReason(row)
                             : "")))
         .toList();
+  }
+
+  private static String displayIllegalReason(IssueFactRecord view) {
+    return String.join(",", displayIllegalReasons(view));
+  }
+
+  private static List<String> displayIllegalReasons(IssueFactRecord view) {
+    List<String> reasons = view.illegalReasons().isEmpty() ? List.of(view.illegalReason()) : view.illegalReasons();
+    return reasons.stream().filter(StringUtils::hasText).distinct().toList();
   }
 
   private static Map<String, Comparator<IssueFactRecord>> createSortComparators() {

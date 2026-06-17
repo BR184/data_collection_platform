@@ -15,6 +15,7 @@ public record IssueFactRecordPageQuery(
     boolean illegalOnly,
     boolean excludeExcluded,
     boolean supportedSystemIllegalReasonsOnly,
+    boolean supportedCustomerIllegalReasonsOnly,
     boolean useDisplayModuleFilter,
     int page,
     int size,

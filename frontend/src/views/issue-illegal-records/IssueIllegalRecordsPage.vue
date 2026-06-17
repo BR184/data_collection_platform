@@ -473,10 +473,10 @@ async function handleConditionFilterReset() {
               <el-descriptions-item v-if="selectedRow.priorityLevel" label="优先级">
                 {{ selectedRow.priorityLevel }}
               </el-descriptions-item>
-              <el-descriptions-item label="缺陷状态">{{ selectedRow.bugStatus || '-' }}</el-descriptions-item>
+              <el-descriptions-item :label="bugStatusDetailLabel || '测试状态'">{{ selectedRow.bugStatus || '-' }}</el-descriptions-item>
               <el-descriptions-item label="分类">{{ selectedRow.category || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="创建时间">{{ formatDateTime(selectedRow.createdAt) }}</el-descriptions-item>
-              <el-descriptions-item label="更新时间">{{ formatDateTime(selectedRow.updatedAt) }}</el-descriptions-item>
+              <el-descriptions-item :label="createdAtDetailLabel || '创建时间'">{{ formatDateTime(selectedRow.createdAt) }}</el-descriptions-item>
+              <el-descriptions-item :label="updatedAtDetailLabel || '更新时间'">{{ formatDateTime(selectedRow.updatedAt) }}</el-descriptions-item>
             </el-descriptions>
           </section>
 

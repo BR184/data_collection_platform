@@ -28,6 +28,8 @@ export interface IssueIllegalRecordRow {
   assigneeName: string;
   moduleNames: string;
   functionName?: string;
+  delayReason?: string;
+  delayCause?: string;
   createdAt?: string | null;
   updatedAt?: string | null;
   closedAt?: string | null;
@@ -112,4 +114,7 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   defaultSortOrder?: 'asc' | 'desc';
   scopeProvider?: DataScopeProvider;
   buildScopeOptions?: (options: IssueIllegalRecordFilterOptions) => DataScopeOption[];
+  createdAtDetailLabel?: string;
+  updatedAtDetailLabel?: string;
+  bugStatusDetailLabel?: string;
 }

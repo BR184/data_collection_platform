@@ -129,6 +129,7 @@ public class IssueFactRecordRepository {
                 false,
                 false,
                 false,
+                false,
                 1,
                 20,
                 "updatedAt",
@@ -378,7 +379,24 @@ public class IssueFactRecordRepository {
       }
       return;
     }
-    appendEqIgnoreCase(where, args, "illegal_reason", query.illegalReason());
+    if (query.supportedCustomerIllegalReasonsOnly()) {
+      appendIllegalReasonsContainsAny(where, args, CustomerIssueIllegalReasonSupport.SUPPORTED_REASONS);
+      List<String> rawReasons = CustomerIssueIllegalReasonSupport.rawReasonsFor(query.illegalReason());
+      if (TextQuerySupport.trimToNull(query.illegalReason()) != null && rawReasons.isEmpty()) {
+        where.append(" and 1 = 0");
+        return;
+      }
+      if (!rawReasons.isEmpty()) {
+        appendIllegalReasonsContainsAny(where, args, rawReasons);
+      }
+      return;
+    }
+    List<String> rawReason = CustomerIssueIllegalReasonSupport.rawReasonsFor(query.illegalReason());
+    if (!rawReason.isEmpty()) {
+      appendIllegalReasonsContainsAny(where, args, rawReason);
+    } else {
+      appendEqIgnoreCase(where, args, "illegal_reason", query.illegalReason());
+    }
   }
 
   private void appendEq(StringBuilder where, List<Object> args, String column, Long value) {
