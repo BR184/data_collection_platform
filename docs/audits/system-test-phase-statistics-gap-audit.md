@@ -350,3 +350,36 @@ phaseFilterValue(...)
 仍需后续在 `议题多元看板` 审计中处理的关联项：
 
 1. 老平台多元看板“缺陷阶段分析”图表导出和原始数据 Excel 能力。
+
+## 2026-06-17 最终复查记录
+
+本轮重新对照了老平台源文件和规则汇总文件：
+
+- 老平台页面：`webapp/src/views/PageStandard/DefectAndPhaseTable.vue`
+- 老平台接口：`DataAnalysisController.getDefectAndPhaseTable`
+- 老平台 DAO：`SpiderIssueDataDAOImpl.getNumByDefectAndPhase`
+- 老平台枚举和行实体：`DefectLevelEnum`、`DefectAndPhaseTableRow`
+- 公共过滤：`QueryUtil.setQueryFilter`
+- 规则汇总：`docs/platform-page-business-rules.md` 4.7
+
+复查结果：
+
+1. 阶段筛选、默认项目、默认阶段、行集合来源、公共排除规则、一级/二级/三级/建议类/总计列、总计不可下钻、下钻字段、规则说明均已按老平台和规则汇总对齐。
+2. 发现并修正一个展示差异：老平台主表“轮次”列展示 `testingPhaseService.getByName(phase)` 返回的完整阶段定义值；新平台曾裁剪为“第一轮系统测试/回归测试”等尾部文案。现已改回完整 `testing_phase` 行名，避免同源数据核对时字段值不一致。
+3. 发现并修正一个链路问题：空查询参数下 `loadSources()` 对不可变空 Map 执行 `remove` 会触发 500。现已改为可变副本后再移除页面级阶段筛选。
+
+验证结果：
+
+- 后端编译：`mvn -q -DskipTests compile` 通过。
+- 已重新拉起最新后端到 `18080`。
+- 冒烟链路：
+  - `GET /api/auth/current` 返回 200。
+  - `POST /api/auth/login` 使用本地 `admin/admin123` 返回 200。
+  - `GET /api/statistic-boards/system-test-phase-statistics` 返回 200。
+  - `GET /api/statistic-boards/system-test-phase-statistics/rule-explanation` 返回 200，版本为 `system-test-phase-statistics@2026-06-17-v2`。
+  - `GET /api/statistic-boards/system-test-phase-statistics/export` 返回 200，导出 CSV 表头包含“轮次、一级缺陷(个)、二级缺陷(个)、三级缺陷(个)、建议类缺陷(个)、总计(个)”。
+  - `GET /api/statistic-boards/system-test-phase-statistics/details?...` 空结果路径返回 200，明细列数 11。
+
+本地真实数据限制：
+
+- 当前本地库 `testing_phase_calendar` 无阶段定义数据，且 `issue_fact` 中没有项目 `9` 的事实数据。因此本轮真实链路验证到了空数据路径、规则说明、导出和明细空结果路径；无法在本地验证非空阶段行与非空下钻集合。

@@ -478,7 +478,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = withoutReservedFilters(filters);
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove(TESTING_PHASE_FIELD);
     Long projectId = effectiveProjectId(queryFilters);
     try {
