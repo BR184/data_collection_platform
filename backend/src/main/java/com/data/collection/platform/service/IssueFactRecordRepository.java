@@ -108,6 +108,7 @@ public class IssueFactRecordRepository {
                 null,
                 null,
                 null,
+                null,
                 1,
                 20,
                 "updatedAt",

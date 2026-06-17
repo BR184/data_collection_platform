@@ -506,3 +506,70 @@ lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like '%,模�
 1. 已执行后端编译命令 `mvn -q -DskipTests compile`，首次失败，失败原因集中在本轮新增 `functionName` / `useFullTestingPhaseFilter` 后的构造器和参数同步问题。
 2. 已根据编译错误完成静态修复：补充兼容构造器、修正 filter group SQL 参数传递、补齐前端类型 mock。
 3. 按 `AGENTS.md` “失败即停、禁止修复后自动重跑”规则，本轮未再次执行同一个后端编译命令；前端 typecheck 也未继续执行。
+
+## 2026-06-17 最后一轮复查记录
+
+### 复查依据
+
+本轮重新对照以下来源：
+
+- 规则汇总：`docs/platform-page-business-rules.md`
+- 老平台前端：`D:\projects\spidergitdata-dev\webapp\src\views\PageStandard\IssueSearch.vue`
+- 老平台列表/导出接口：`D:\projects\spidergitdata-dev\src\main\java\com\huayun\controller\IssueStaticDataController.java`
+- 老平台导出字段：`D:\projects\spidergitdata-dev\src\main\java\com\huayun\entity\bo\IssueExcelBo.java`
+- 新平台页面：`frontend/src/views/SystemTestIssueSearchView.vue`
+- 新平台接口与服务：`QuestionMetricsController`、`SystemTestIssueSearchService`、`IssueFactRecordRepository`
+
+### 已确认对齐
+
+1. 议题查询页按规则汇总特殊口径走 `Scope.ALL`，不套系统测试默认排除规则；条件筛选和标签组筛选路径也不再回落到系统测试 scope。
+2. 功能名已进入列表、筛选候选、条件筛选、响应、展开详情和导出。
+3. 测试阶段候选和筛选使用完整 `testing_phase` / `primaryPhaseLabel()`，不再使用截断后的 `phaseFilterValue()`。
+4. 模块显示使用 ` & ` 拼接，已向老平台展示格式靠齐。
+5. 主表议题状态显示原始事实值 `open/closed`，不再翻译成“已关闭/未关闭”。
+6. 老平台特殊筛选语义已在 SQL 查询层保留：
+   - `bugStatus=已修复` 同时匹配 `待合并`、`已修复`、`未更新`。
+   - `category=建议和需求` 同时匹配 `建议`、`需求`。
+   - `moduleName=曲线/曲面` 排除 `曲线曲面`。
+7. 展开详情已补齐老平台核心字段和文案：议题更新时间、议题提交时间、模块名、功能名、议题编号、议题标题、议题提交人、议题处理人、议题状态、测试状态、议题严重程度。
+
+### 仍未完全对齐的功能缺口
+
+1. **导出字段仍未 1:1 对齐老平台。**
+
+   老平台 `IssueExcelBo` 导出字段包含：议题指派人、优先级、延期原因、缺陷修复人、修复状态、一级缺陷原因、二级缺陷原因、具体原因、修改方案、由修改其他缺陷造成的、修改该缺陷可能影响的功能、是否对可能影响的功能进行了测试、有无遗留问题或潜在的影响、是否更新了关联关系表等。
+
+   新平台当前 `issue_fact` 已有 `priority_level`、`delay_cause`、`function_name`，但议题查询导出未全部输出；`fix_user`、原始缺陷原因文本 `cause` 和模板解析细项尚未沉淀到事实层，不能在导出层临时伪造。
+
+   结论：这是事实层/导出层缺口。要完全对齐，需要在采集/事实层补齐老平台 `SpiderIssueData.cause`、`fixUser` 等来源字段，并复用老平台 `CauseUtil` 等价解析规则后再输出。
+
+2. **顶部测试阶段仍是单选，不是老平台直接多选。**
+
+   老平台 `IssueSearch.vue` 的“测试阶段”是多选，传 `phaseNameList` 后端按 `testing_phase in (...)` 查询。新平台可通过条件筛选 OR 组合复现多阶段查询，但顶部显性入口仍为单选。若要求用户无需进入条件筛选即可复刻老平台操作，需要将议题查询页的测试阶段入口改为多选，并在后端请求层支持多个 `testingPhase`。
+
+3. **下拉候选来源与老平台仍不完全一致。**
+
+   老平台部分候选值来自 `spider_issue_data project_id=9`，提交人来自 GitLab 项目用户列表，功能名历史上来自代码走查数据源；新平台候选来自 `issue_fact` 当前范围。规则汇总要求议题查询为所有议题范围，因此新平台当前方向符合规则汇总，但如果业务要求完全复刻老平台候选列表，需要单独裁定“候选值按老平台项目 9 收口”还是“按规则汇总全量事实展开”。
+
+4. **导出空结果行为不同，暂不建议强行复刻。**
+
+   老平台空结果导出返回 `null`；新平台会返回带表头的 CSV。该差异不影响数据集合和字段值，但若产品要求 1:1，需要统一空结果下载行为。
+
+### 冒烟测试与真实链路测试记录
+
+本轮尝试按最新代码拉起后端并验证议题查询链路：
+
+1. 先请求 `http://localhost:18080/api/auth/current`，结果为“无法连接到远程服务器”，确认 `18080` 未可用。
+2. 检查前端 `18181`，返回 HTTP 200，前端 dev server 存活。
+3. 停止当前仓库下无监听端口的旧 Java 进程后，通过 `backend/run-backend.ps1` 拉起最新后端。
+4. 后端启动在 Maven 编译阶段失败，`18080` 未监听。
+
+失败证据：
+
+- 日志：`logs/backend-issue-search-smoke-20260617.out.log`
+- 典型错误：`FactBuildService.java` 中大量 `IssueFact` / `MergeRequestFact` 的 `setXxx/getXxx` 方法找不到，例如 `setModuleNames`、`setFunctionName`、`setTestingPhase`、`getFixed`、`setSourceSystem` 等。
+
+结论：
+
+- 本轮无法完成 API 冒烟和页面真实链路测试，阻断原因是后端最新代码编译失败，不是议题查询业务接口返回异常。
+- 按 `AGENTS.md` 测试策略“失败即停、禁止修复后自动重跑”，本轮未继续绕路重跑验证。

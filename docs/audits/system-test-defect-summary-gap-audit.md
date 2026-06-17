@@ -280,6 +280,7 @@
 9. 系统测试缺陷汇总页已补“横向对比导出”动作，新增 `/api/statistic-boards/system-test-defect-summary/horizontal-comparison/export`，导出范围包含评审数据、CrownCAD/DGM 代码走查数据、缺陷原因和系统测试缺陷汇总；代码走查按 `dev + MERGED` 过滤，`CC2025R1` 评审项目映射为 `CC2025R1&R2`。
 10. 页面刷新状态已补老平台同义字段“任务执行时间/执行时长”，直接使用实时工作区返回的 `lastRefreshStartedAt`、`lastRefreshFinishedAt` 计算展示。
 11. “建议类缺陷”列与公共过滤规则的关系已确认保持老平台现状：系统测试公共规则会排除建议类数据，列仍保留用于兼容老平台表头和历史导出结构；若后续业务确认建议类需要纳入统计，应先更新 `docs/platform-page-business-rules.md`。
+12. 系统测试横向对比导出已由 CSV 改为 Excel 工作簿，接口返回 `.xlsx` 文件，前端按文件下载处理，补齐老平台“系统测试横向对比excel下载”的格式差异。
 
 ### 仍未完成
 
@@ -287,4 +288,4 @@
 
 ### 已知格式差异
 
-1. 老平台横向对比导出为 Excel，新平台按现有导出约定提供 CSV；表头和字段含义按老平台新版横向对比宽表对齐。
+暂无。

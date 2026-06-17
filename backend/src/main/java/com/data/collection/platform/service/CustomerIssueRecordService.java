@@ -186,6 +186,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   listRequest.title(),
                   listRequest.projectName(),
                   listRequest.moduleName(),
+                  null,
                   listRequest.severityLevel(),
                   listRequest.priorityLevel(),
                   listRequest.issueState(),

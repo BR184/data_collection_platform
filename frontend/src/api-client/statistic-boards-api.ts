@@ -73,7 +73,7 @@ export const statisticBoardsApi = {
     });
   },
   async exportSystemTestHorizontalComparison(params?: StatisticBoardQueryParams) {
-    return requestText(
+    return requestBlobResponse(
       `/api/statistic-boards/system-test-defect-summary/horizontal-comparison/export${buildStatisticBoardQuery(params)}`,
       {
         errorPrefix: '横向对比导出失败',

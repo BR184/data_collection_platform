@@ -4,6 +4,8 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.fasterxml.jackson.core.type.TypeReference;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
@@ -16,6 +18,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.Set;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -121,6 +128,36 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   public String exportCsv(Map<String, String> filters) {
+    return toCsv(loadRows(filters));
+  }
+
+  public byte[] exportWorkbook(Map<String, String> filters) {
+    List<HorizontalRow> rows = loadRows(filters);
+    try (Workbook workbook = new XSSFWorkbook();
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+      Sheet sheet = workbook.createSheet("系统测试横向对比");
+      writeWorkbookRows(sheet, rows);
+      sheet.createFreezePane(1, 1);
+      sheet.setColumnWidth(0, 24 * 256);
+      for (int columnIndex = 1; columnIndex < HEADERS.size(); columnIndex++) {
+        sheet.setColumnWidth(columnIndex, 18 * 256);
+      }
+      workbook.write(outputStream);
+      return outputStream.toByteArray();
+    } catch (IOException error) {
+      throw new IllegalStateException("系统测试横向对比导出失败", error);
+    }
+  }
+
+  public String exportFilename(Map<String, String> filters) {
+    ExportScope scope = ExportScope.from(filters, parseFilterGroup(filters));
+    if (StringUtils.hasText(scope.projectName())) {
+      return scope.projectName() + "-系统测试数据横向对比数据.xlsx";
+    }
+    return "系统测试数据横向对比数据.xlsx";
+  }
+
+  private List<HorizontalRow> loadRows(Map<String, String> filters) {
     ExportScope scope = ExportScope.from(filters, parseFilterGroup(filters));
     Map<String, HorizontalRow> rows = new LinkedHashMap<>();
     addModuleRows(rows, loadModules(scope));
@@ -138,7 +175,27 @@ public class SystemTestHorizontalComparisonExportService {
             .filter(row -> !row.isEmpty())
             .sorted((a, b) -> a.moduleName().compareToIgnoreCase(b.moduleName()))
             .toList();
-    return toCsv(exportRows);
+    return exportRows;
+  }
+
+  private void writeWorkbookRows(Sheet sheet, List<HorizontalRow> rows) {
+    Row headerRow = sheet.createRow(0);
+    for (int columnIndex = 0; columnIndex < HEADERS.size(); columnIndex++) {
+      createCell(headerRow, columnIndex, HEADERS.get(columnIndex));
+    }
+    int rowIndex = 1;
+    for (HorizontalRow sourceRow : rows) {
+      Row row = sheet.createRow(rowIndex++);
+      List<String> values = sourceRow.values();
+      for (int columnIndex = 0; columnIndex < values.size(); columnIndex++) {
+        createCell(row, columnIndex, values.get(columnIndex));
+      }
+    }
+  }
+
+  private void createCell(Row row, int columnIndex, String value) {
+    Cell cell = row.createCell(columnIndex);
+    cell.setCellValue(value == null ? "" : value);
   }
 
   private StatisticFilterGroup parseFilterGroup(Map<String, String> filters) {

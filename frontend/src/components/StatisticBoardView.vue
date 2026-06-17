@@ -436,10 +436,10 @@ async function exportSystemTestIssues() {
 async function exportSystemTestHorizontalComparison() {
   horizontalComparisonExportLoading.value = true;
   try {
-    const csv = await api.exportSystemTestHorizontalComparison({
+    const file = await api.exportSystemTestHorizontalComparison({
       filterGroup: buildFilterPayload(),
     });
-    downloadCsv(csv, `系统测试横向对比_${formatExportFileDate(new Date())}.csv`);
+    downloadBlob(file.blob, file.filename || `系统测试横向对比_${formatExportFileDate(new Date())}.xlsx`);
     ElMessage.success('横向对比导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);

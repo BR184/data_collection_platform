@@ -182,10 +182,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
               new IssueFactRecordListRequest(
                   listRequest.projectId(),
                   listRequest.keyword(),
+                  null,
                   listRequest.issueIid(),
                   listRequest.title(),
                   listRequest.projectName(),
                   listRequest.moduleName(),
+                  null,
                   listRequest.severityLevel(),
                   listRequest.priorityLevel(),
                   listRequest.issueState(),

@@ -118,18 +118,20 @@ public class StatisticBoardController {
   }
 
   @GetMapping("/{boardKey}/horizontal-comparison/export")
-  public ResponseEntity<String> exportHorizontalComparison(
+  public ResponseEntity<byte[]> exportHorizontalComparison(
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
     registry.getRequired(boardKey);
     if (!SYSTEM_TEST_DEFECT_SUMMARY_BOARD_KEY.equals(boardKey)) {
       throw new IllegalArgumentException("当前统计表不支持横向对比导出: " + boardKey);
     }
-    String csv = systemTestHorizontalComparisonExportService.exportCsv(filters);
+    byte[] workbook = systemTestHorizontalComparisonExportService.exportWorkbook(filters);
     return ResponseEntity.ok()
-        .contentType(new MediaType("text", "csv"))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-horizontal-comparison.csv\"")
-        .body(csv);
+        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(
+            HttpHeaders.CONTENT_DISPOSITION,
+            contentDisposition(systemTestHorizontalComparisonExportService.exportFilename(filters)))
+        .body(workbook);
   }
 
   @GetMapping("/{boardKey}/status")
