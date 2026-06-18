@@ -37,6 +37,10 @@ describe('reviewDataApi source instance query contract', () => {
     reviewDataApi.getReviewDataFilterOptions();
 
     expect(request).toHaveBeenLastCalledWith('/api/review-data/records/filter-options');
+
+    reviewDataApi.downloadReviewDataTemplateWorkbook();
+
+    expect(requestBlob).toHaveBeenLastCalledWith('/api/review-data/template', expect.any(Object));
   });
 
   it('serializes label group conditions through filterGroup for list and export endpoints', () => {

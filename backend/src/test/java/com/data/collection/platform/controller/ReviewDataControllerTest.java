@@ -278,6 +278,22 @@ class ReviewDataControllerTest {
   }
 
   @Test
+  void shouldDownloadReviewTemplateWorkbook() throws Exception {
+    when(templateWorkbookService.buildTemplateWorkbook()).thenReturn(new byte[] {1, 2, 3});
+
+    mockMvc.perform(get("/api/review-data/template"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Content-Type", "application/vnd.ms-excel"))
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition",
+                    "attachment; filename=\"review-data-template.xls\""));
+
+    verify(templateWorkbookService).buildTemplateWorkbook();
+  }
+
+  @Test
   void shouldCreateRecord() throws Exception {
     when(reviewDataRecordService.createRecord(any(ReviewDataRecordSaveRequest.class)))
         .thenReturn(

@@ -46,6 +46,12 @@ export const reviewDataApi = {
   exportReviewDataRecordProblemDetailsWorkbook(recordId: string | number) {
     return fetchWorkbook(`/api/review-data/records/${recordId}/problem-items/export`);
   },
+  downloadReviewDataTemplateWorkbook() {
+    return requestBlob('/api/review-data/template', {
+      errorPrefix: '模板文件下载失败',
+      timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+    });
+  },
   getReviewDataFilterOptions() {
     return request<ReviewDataFilterOptionsResponse>('/api/review-data/records/filter-options');
   },

@@ -5,6 +5,7 @@ function setup() {
   return {
     exportReviewRecords: vi.fn<() => Promise<Blob>>(() => Promise.resolve(new Blob(['records']))),
     exportProblemDetails: vi.fn<() => Promise<Blob>>(() => Promise.resolve(new Blob(['problems']))),
+    downloadTemplate: vi.fn<() => Promise<Blob>>(() => Promise.resolve(new Blob(['template']))),
     downloadWorkbook: vi.fn<(blob: Blob, filename: string) => void>(),
     now: vi.fn<() => Date>(() => new Date('2026-04-27T08:09:10')),
     notifySuccess: vi.fn<(message: string) => void>(),
@@ -47,5 +48,17 @@ describe('useReviewDataExport', () => {
     expect(deps.downloadWorkbook).not.toHaveBeenCalled();
     expect(deps.notifyError).toHaveBeenCalledWith('network failed');
     expect(exporter.problemExportLoading.value).toBe(false);
+  });
+
+  it('downloads review template workbook with legacy filename', async () => {
+    const deps = setup();
+    const exporter = useReviewDataExport(deps);
+
+    await exporter.downloadTemplate();
+
+    expect(deps.downloadTemplate).toHaveBeenCalledOnce();
+    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '模板文件.xls');
+    expect(deps.notifySuccess).toHaveBeenCalledWith('已下载评审模板');
+    expect(exporter.templateDownloadLoading.value).toBe(false);
   });
 });

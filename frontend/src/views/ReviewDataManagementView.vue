@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
 import { ElMessage, ElMessageBox } from '../element-plus-services';
-import { ArrowDown, Download, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
+import { ArrowDown, Download, Document, InfoFilled, Plus, Refresh, Upload } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
@@ -130,11 +130,14 @@ const {
 const {
   recordExportLoading,
   problemExportLoading,
+  templateDownloadLoading,
   exportReviewRecords: handleExportReviewRecords,
   exportProblemDetails: handleExportProblemDetails,
+  downloadTemplate: handleDownloadTemplate,
 } = useReviewDataExport({
   exportReviewRecords: () => api.exportReviewDataRecordsWorkbook(buildReviewDataRecordQueryParams()),
   exportProblemDetails: () => api.exportReviewDataProblemDetailsWorkbook(buildReviewDataRecordQueryParams()),
+  downloadTemplate: () => api.downloadReviewDataTemplateWorkbook(),
   downloadWorkbook: downloadBlob,
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
@@ -337,6 +340,14 @@ const {
             规则说明
           </el-button>
           <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+          <el-button
+            plain
+            :icon="Document"
+            :loading="templateDownloadLoading"
+            @click="handleDownloadTemplate"
+          >
+            模板
+          </el-button>
           <el-dropdown @command="handleExportCommand">
             <el-button
               plain
