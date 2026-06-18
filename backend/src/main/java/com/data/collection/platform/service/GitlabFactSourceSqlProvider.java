@@ -33,11 +33,24 @@ class GitlabFactSourceSqlProvider {
       ),
       issue_notes as (
         select n.noteable_id as issue_id,
-               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text
+               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text,
+               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time
           from ods_gitlab_notes n
          where coalesce(n.mirror_deleted, false) = false
            and n.noteable_type = 'Issue'
          group by n.noteable_id
+      ),
+      fix_label_events as (
+        select ll.target_id as issue_id,
+               max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time
+          from ods_gitlab_label_links ll
+          join ods_gitlab_labels l
+            on l.id = ll.label_id
+           and coalesce(l.mirror_deleted, false) = false
+         where coalesce(ll.mirror_deleted, false) = false
+           and ll.target_type = 'Issue'
+           and l.title = '状态：已修复/完成'
+         group by ll.target_id
       )
       select
         i.id as issue_id,
@@ -54,7 +67,9 @@ class GitlabFactSourceSqlProvider {
         i.closed_at,
         i.state_id,
         labels.label_titles,
-        coalesce(notes.notes_text, '') as notes_text
+        coalesce(notes.notes_text, '') as notes_text,
+        notes.research_template_time,
+        fix_events.fixed_label_time
       from ods_gitlab_issues i
       left join ods_gitlab_projects p
         on p.id = i.project_id
@@ -71,6 +86,8 @@ class GitlabFactSourceSqlProvider {
         on assignees.issue_id = i.id
       left join issue_notes notes
         on notes.issue_id = i.id
+      left join fix_label_events fix_events
+        on fix_events.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
       """;
 
@@ -106,11 +123,24 @@ class GitlabFactSourceSqlProvider {
       ),
       issue_notes as (
         select n.noteable_id as issue_id,
-               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text
+               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text,
+               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time
           from ods_gitlab_notes n
          where coalesce(n.mirror_deleted, false) = false
            and n.noteable_type = 'Issue'
          group by n.noteable_id
+      ),
+      fix_label_events as (
+        select ll.target_id as issue_id,
+               max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time
+          from ods_gitlab_label_links ll
+          join ods_gitlab_labels l
+            on l.id = ll.label_id
+           and coalesce(l.mirror_deleted, false) = false
+         where coalesce(ll.mirror_deleted, false) = false
+           and ll.target_type = 'Issue'
+           and l.title = '状态：已修复/完成'
+         group by ll.target_id
       )
       select
         i.id as issue_id,
@@ -127,7 +157,9 @@ class GitlabFactSourceSqlProvider {
         i.closed_at,
         i.state_id,
         labels.label_titles,
-        coalesce(notes.notes_text, '') as notes_text
+        coalesce(notes.notes_text, '') as notes_text,
+        notes.research_template_time,
+        fix_events.fixed_label_time
       from ods_gitlab_issues i
       left join ods_gitlab_projects p
         on p.id = i.project_id
@@ -141,6 +173,8 @@ class GitlabFactSourceSqlProvider {
         on assignees.issue_id = i.id
       left join issue_notes notes
         on notes.issue_id = i.id
+      left join fix_label_events fix_events
+        on fix_events.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
       """;
 

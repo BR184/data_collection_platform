@@ -11,25 +11,32 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
@@ -42,10 +49,11 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "customer-issue-response-efficiency";
-  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-04-22-v1";
+  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-06-18-v2";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
-  private static final String EMPTY_MODULE_LABEL = "未标记模块";
+  private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
+  private static final String FIXED_STATUS = "已修复/完成";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
@@ -68,12 +76,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
              coalesce(assignee_name, '') as assignee_name,
              coalesce(module_names, '') as module_names,
              coalesce(label_names, '') as label_names,
-             coalesce(has_response, false) as has_response,
-             coalesce(response_overdue, false) as response_overdue,
-             coalesce(is_response_delayed, false) as is_response_delayed,
-             coalesce(is_resolve_delayed, false) as is_resolve_delayed,
-             coalesce(resolve_sla_days, 0) as resolve_sla_days,
-             resolve_deadline_at,
+             research_template_time,
+             fixed_label_time,
              created_at_source,
              updated_at_source,
              closed_at_source
@@ -84,14 +88,18 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       List.of(
           new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("title", "标题", null, 260, true),
-          new StatisticDetailColumn("moduleNames", "模块", null, 180, true),
-          new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-          new StatisticDetailColumn("responseStatus", "响应状态", 140, 140, true),
-          new StatisticDetailColumn("resolveStatus", "解决状态", 140, 140, true),
-          new StatisticDetailColumn("reasonCategory", "缺陷原因", 160, 160, true),
-          new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
-          new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
+          new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
+          new StatisticDetailColumn("title", "议题标题", null, 280, true),
+          new StatisticDetailColumn("state", "议题状态", 120, 120, true),
+          new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true),
+          new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
+          new StatisticDetailColumn("milestoneTitle", "产品版本", 180, 180, true),
+          new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
+          new StatisticDetailColumn("researchTemplateTime", "调研模板回复时间", 180, 180, true),
+          new StatisticDetailColumn("fixedLabelTime", "已修复标签时间", 180, 180, true),
+          new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
+          new StatisticDetailColumn("assigneeName", "议题处理人", 160, 160, true),
+          new StatisticDetailColumn("updatedAt", "议题更新时间", 180, 180, true));
 
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
@@ -118,48 +126,43 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷响应效率",
-        "基于 issue_fact 的客户问题响应、延期与解决 SLA 统计。",
+        "按老平台口径展示 CC_Product 客户问题模块维度响应周期和解决周期。",
         "",
         "",
         "模块",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
-            StatisticFilterFieldFactory.text("moduleName", "模块名称", 180),
+            StatisticFilterFieldFactory.text("milestoneTitle", "产品版本", 180),
+            StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
             StatisticFilterFieldFactory.select(
                 "severityLevel",
                 "严重程度",
                 180,
                 List.of(
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("一级缺陷", "LEVEL1"),
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("二级缺陷", "LEVEL2"),
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("三级缺陷", "LEVEL3"),
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("建议类", "SUGGESTION"))),
+                    new StatisticFilterOption("一级缺陷", "LEVEL1"),
+                    new StatisticFilterOption("二级缺陷", "LEVEL2"),
+                    new StatisticFilterOption("三级缺陷", "LEVEL3"),
+                    new StatisticFilterOption("建议类", "SUGGESTION"))),
             StatisticFilterFieldFactory.select(
                 "priorityLevel",
-                "优先级",
+                "紧急程度",
                 160,
                 List.of(
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("P1", "P1"),
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("P2", "P2"),
-                    new com.data.collection.platform.entity.statistics.StatisticFilterOption("P3", "P3")))),
+                    new StatisticFilterOption("P1", "P1"),
+                    new StatisticFilterOption("P2", "P2"),
+                    new StatisticFilterOption("P3", "P3"))),
+            StatisticFilterFieldFactory.text("issueState", "议题状态", 160),
+            StatisticFilterFieldFactory.text("bugStatus", "测试状态", 160),
+            StatisticFilterFieldFactory.text("authorName", "议题提交人", 160),
+            StatisticFilterFieldFactory.text("assigneeName", "议题处理人", 160)),
         List.of(
             new StatisticColumnGroup(
-                "response",
-                "响应情况",
+                "legacy-fields",
+                "缺陷响应效率",
                 List.of(
-                    leaf("total", "缺陷总数", true, "count"),
-                    leaf("responded", "已响应", true, "count"),
-                    leaf("unresponded", "未响应", true, "count"),
-                    leaf("response_overdue", "响应超期", true, "count"),
-                    leaf("response_delayed", "响应延期", true, "count"),
-                    leaf("response_rate", "响应率", false, "ratio"))),
-            new StatisticColumnGroup(
-                "resolve",
-                "解决 SLA",
-                List.of(
-                    leaf("resolve_delayed", "解决延期", true, "count"),
-                    leaf("resolve_on_time", "解决未延期", true, "count"),
-                    leaf("resolve_delay_rate", "解决延期率", false, "ratio")))),
+                    leaf("milestone_title", "产品版本", false, "text"),
+                    leaf("response_cycle_hours", "响应周期（小时）", true, "duration"),
+                    leaf("resolution_cycle_days", "解决周期（天）", true, "duration")))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的客户问题响应效率数据。");
@@ -169,9 +172,15 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    for (IssueSource issue : snapshot.rowSources()) {
+      for (String moduleName : issue.displayModuleNames()) {
+        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
+      }
+    }
+    buckets.computeIfAbsent(EMPTY_MODULE_LABEL, AggregateBucket::new);
     for (IssueSource issue : snapshot.finalSources()) {
       for (String moduleName : issue.displayModuleNames()) {
         buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
@@ -182,9 +191,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             .sorted(Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER))
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-    if (!snapshot.finalSources().isEmpty()) {
-      rows.add(new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.finalSources()).toRowData());
-    }
+    rows.add(new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.finalSources()).toRowData());
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount =
         definition.columnGroups().stream()
@@ -208,7 +215,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters())).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -217,7 +224,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "客户问题响应效率明细",
-        "展示当前模块与响应效率指标命中的 issue_fact 明细。",
+        "展示当前模块与响应/解决周期指标命中的 CC_Product 议题明细。",
         DETAIL_COLUMNS,
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),
@@ -229,71 +236,84 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), parseFilterGroup(filters, buildDefinition()));
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
         "客户问题缺陷响应效率规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact，先使用 CustomerIssueScopeProfile 限定客户问题范围，再按模块展开响应与 SLA 指标。",
-        "同一条议题如果关联多个模块，会分别计入模块行；总计行按议题本身统计。",
+        "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题议题，open 和 closed 都统计。",
+        "同一条议题如果关联多个模块，会分别计入模块行；响应周期只统计已回复调研模板的议题，解决周期只统计已标注“已修复/完成”的议题。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
-                "response_rate", "响应率", "已响应数量占当前范围缺陷总数的比例。", "响应率 = 已响应 / 缺陷总数", null),
+                "response_cycle_hours",
+                "响应周期（小时）",
+                "只统计 research_template_time 非空的议题。",
+                "响应周期 = avg(第一条调研模板回复时间 - 议题创建时间)，单位小时，四舍五入取整",
+                null),
             new StatisticRuleMetricDefinition(
-                "response_delayed", "响应延期", "统计 issue_fact.is_response_delayed = true 的议题。", "响应延期数 = count(is_response_delayed)", null),
-            new StatisticRuleMetricDefinition(
-                "resolve_delay_rate", "解决延期率", "解决延期数量占当前范围缺陷总数的比例。", "解决延期率 = 解决延期 / 缺陷总数", null)),
+                "resolution_cycle_days",
+                "解决周期（天）",
+                "只统计 bug_status 包含“已修复/完成”且 fixed_label_time 非空的议题。",
+                "解决周期 = avg(已修复标签时间 - 议题创建时间)，单位天，保留 1 位小数",
+                null)),
         null);
   }
 
-  private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
-    return new StatisticColumnLeaf(key, label, drilldown, metricType);
-  }
-
-  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
+  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
+    List<IssueSource> rowSources =
+        scoped.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
-        scoped,
+        rowSources,
+        rowSources,
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
                 "加载议题事实",
-                "从 issue_fact 读取已归一化的议题事实。",
+                "从 issue_fact 读取已归一化的客户问题事实和响应效率时间字段。",
                 initial.size(),
                 initial,
-                this::toRuleFlowSample
-            ),
+                this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "复用 CustomerIssueScopeProfile 收口客户问题范围。",
+                "复用 CustomerIssueScopeProfile 收口 CC_Product、自 2026-01-01 以来创建且携带里程碑的客户问题。",
                 initial.size(),
                 scoped,
-                this::toRuleFlowSample
-            ),
+                this::toRuleFlowSample),
+            StatisticRuleFlowSupport.step(
+                "condition-filter",
+                "应用页面筛选",
+                "应用当前页面条件筛选和顶部查询参数。",
+                scoped.size(),
+                rowSources,
+                this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
                 "module-expand",
                 "按模块展开",
-                "同一条议题可归属多个模块；未标记模块的议题会进入“未标记模块”行。",
-                scoped.size(),
-                scoped.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
-                scoped,
-                this::toRuleFlowSample
-            )));
+                "同一条议题可归属多个模块；未设定模块的议题归入“未设定模块”。",
+                rowSources.size(),
+                rowSources.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
+                rowSources,
+                this::toRuleFlowSample)));
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {
     return new StatisticRuleFlowStepSample(
-                    "#" + issue.iid() + " " + issue.projectName(),
-                    issue.title()
-                        + " | 响应: "
-                        + (issue.hasResponse() ? "已响应" : "未响应")
-                        + (issue.responseDelayed() ? " | 响应延期" : ""));
+        "#" + issue.iid() + " " + issue.projectName(),
+        issue.title()
+            + " | 产品版本: "
+            + issue.milestoneTitle()
+            + " | 响应周期: "
+            + issue.responseCycleDisplay()
+            + " | 解决周期: "
+            + issue.resolutionCycleDisplay());
   }
+
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     try {
@@ -324,12 +344,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         StatisticSourceValueSupport.text(rs.getString("assignee_name")),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
-        rs.getBoolean("has_response"),
-        rs.getBoolean("response_overdue"),
-        rs.getBoolean("is_response_delayed"),
-        rs.getBoolean("is_resolve_delayed"),
-        rs.getInt("resolve_sla_days"),
-        StatisticSourceValueSupport.time(rs.getTimestamp("resolve_deadline_at")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("research_template_time")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("fixed_label_time")),
         StatisticSourceValueSupport.time(rs.getTimestamp("created_at_source")),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at_source")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at_source")));
@@ -343,12 +359,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
     return switch (columnKey) {
-      case "responded" -> IssueSource::hasResponse;
-      case "unresponded" -> issue -> !issue.hasResponse();
-      case "response_overdue" -> IssueSource::responseOverdue;
-      case "response_delayed" -> IssueSource::responseDelayed;
-      case "resolve_delayed" -> IssueSource::resolveDelayed;
-      case "resolve_on_time" -> issue -> !issue.resolveDelayed();
+      case "response_cycle_hours" -> IssueSource::hasResponseCycle;
+      case "resolution_cycle_days" -> IssueSource::hasResolutionCycle;
       default -> issue -> true;
     };
   }
@@ -357,13 +369,17 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     Comparator<IssueSource> comparator =
         switch (StringUtils.hasText(sortField) ? sortField.trim() : "updatedAt") {
           case "iid" -> SortSupport.nullableComparable(IssueSource::iid);
-          case "title" -> SortSupport.nullableString(IssueSource::title);
           case "moduleNames" -> SortSupport.nullableString(issue -> String.join("、", issue.displayModuleNames()));
-          case "projectName" -> SortSupport.nullableString(IssueSource::projectName);
-          case "responseStatus" -> SortSupport.nullableString(IssueSource::responseStatus);
-          case "resolveStatus" -> SortSupport.nullableString(IssueSource::resolveStatus);
-          case "reasonCategory" -> SortSupport.nullableString(IssueSource::reasonCategory);
+          case "title" -> SortSupport.nullableString(IssueSource::title);
+          case "state" -> SortSupport.nullableString(IssueSource::issueState);
+          case "severityLevel" -> SortSupport.nullableString(IssueSource::displaySeverityLevel);
+          case "bugStatus" -> SortSupport.nullableString(IssueSource::bugStatus);
+          case "milestoneTitle" -> SortSupport.nullableString(IssueSource::milestoneTitle);
+          case "createdAt" -> SortSupport.nullableComparable(IssueSource::createdAt);
+          case "researchTemplateTime" -> SortSupport.nullableComparable(IssueSource::researchTemplateTime);
+          case "fixedLabelTime" -> SortSupport.nullableComparable(IssueSource::fixedLabelTime);
           case "authorName" -> SortSupport.nullableString(IssueSource::authorName);
+          case "assigneeName" -> SortSupport.nullableString(IssueSource::assigneeName);
           default -> SortSupport.nullableComparable(IssueSource::updatedAt);
         };
     comparator = comparator.thenComparing(IssueSource::iid);
@@ -373,23 +389,104 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
     issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
-    record.put("title", issue.title());
     record.put("moduleNames", String.join("、", issue.displayModuleNames()));
-    record.put("projectName", issue.projectName());
-    record.put("responseStatus", issue.responseStatus());
-    record.put("resolveStatus", issue.resolveStatus());
-    record.put("reasonCategory", StringUtils.hasText(issue.reasonCategory()) ? issue.reasonCategory() : "未归因");
+    record.put("title", issue.title());
+    record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
+    record.put("severityLevel", issue.displaySeverityLevel());
+    record.put("bugStatus", issue.bugStatus());
+    record.put("milestoneTitle", issue.milestoneTitle());
+    record.put("createdAt", format(issue.createdAt()));
+    record.put("researchTemplateTime", format(issue.researchTemplateTime()));
+    record.put("fixedLabelTime", format(issue.fixedLabelTime()));
     record.put("authorName", issue.authorName());
-    record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
+    record.put("assigneeName", issue.assigneeName());
+    record.put("updatedAt", format(issue.updatedAt()));
     return record;
   }
 
-  private static String count(long value) {
-    return StatisticMetricCalculator.count(value);
+  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return true;
+    }
+    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
+    for (StatisticFilterCondition condition : filterGroup.conditions()) {
+      boolean matched = matchesCondition(issue, condition);
+      if (isOr && matched) {
+        return true;
+      }
+      if (!isOr && !matched) {
+        return false;
+      }
+    }
+    return !isOr;
   }
 
-  private static String rate(long numerator, long denominator) {
-    return StatisticMetricCalculator.rate(numerator, denominator);
+  private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
+    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
+      return true;
+    }
+    if ("moduleName".equals(condition.fieldKey())) {
+      return matchesCandidates(issue.displayModuleNames(), condition);
+    }
+    String candidate =
+        switch (condition.fieldKey()) {
+          case "projectName" -> issue.projectName();
+          case "milestoneTitle" -> issue.milestoneTitle();
+          case "severityLevel" -> issue.severityLevel();
+          case "priorityLevel" -> issue.priorityLevel();
+          case "issueState" -> issue.issueState();
+          case "bugStatus" -> issue.bugStatus();
+          case "authorName" -> issue.authorName();
+          case "assigneeName" -> issue.assigneeName();
+          default -> "";
+        };
+    return matchesCandidate(candidate, condition);
+  }
+
+  private boolean matchesCandidates(List<String> candidates, StatisticFilterCondition condition) {
+    List<String> safeCandidates = candidates == null ? List.of() : candidates;
+    String value = trim(condition.value());
+    return switch (condition.operator()) {
+      case "eq" -> value == null || safeCandidates.stream().anyMatch(candidate -> normalizedEquals(candidate, value));
+      case "ne" -> value == null || safeCandidates.stream().noneMatch(candidate -> normalizedEquals(candidate, value));
+      case "contains" ->
+          value == null || safeCandidates.stream().anyMatch(candidate -> normalize(candidate).contains(normalize(value)));
+      case "isEmpty" -> safeCandidates.stream().noneMatch(StringUtils::hasText);
+      case "isNotEmpty" -> safeCandidates.stream().anyMatch(StringUtils::hasText);
+      default -> true;
+    };
+  }
+
+  private boolean matchesCandidate(String candidate, StatisticFilterCondition condition) {
+    String value = trim(condition.value());
+    return switch (condition.operator()) {
+      case "eq" -> value == null || normalizedEquals(candidate, value);
+      case "ne" -> value == null || !normalizedEquals(candidate, value);
+      case "contains" -> value == null || normalize(candidate).contains(normalize(value));
+      case "isEmpty" -> !StringUtils.hasText(candidate);
+      case "isNotEmpty" -> StringUtils.hasText(candidate);
+      default -> true;
+    };
+  }
+
+  private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
+    return new StatisticColumnLeaf(key, label, drilldown, metricType);
+  }
+
+  private static String format(LocalDateTime time) {
+    return time == null ? "" : DATE_TIME_FORMATTER.format(time);
+  }
+
+  private static String normalize(String value) {
+    return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private static boolean normalizedEquals(String left, String right) {
+    return normalize(left).equals(normalize(right));
+  }
+
+  private static String trim(String value) {
+    return StringUtils.hasText(value) ? value.trim() : null;
   }
 
   private record AggregateBucket(String rowLabel, String rowKey, List<IssueSource> issues) {
@@ -411,36 +508,69 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     }
 
     StatisticRowData toRowData() {
-      long total = issues.size();
-      long responded = issues.stream().filter(IssueSource::hasResponse).count();
-      long unresponded = total - responded;
-      long responseOverdue = issues.stream().filter(IssueSource::responseOverdue).count();
-      long responseDelayed = issues.stream().filter(IssueSource::responseDelayed).count();
-      long resolveDelayed = issues.stream().filter(IssueSource::resolveDelayed).count();
-      long resolveOnTime = total - resolveDelayed;
+      List<IssueSource> responseIssues = issues.stream().filter(IssueSource::hasResponseCycle).toList();
+      List<IssueSource> resolutionIssues = issues.stream().filter(IssueSource::hasResolutionCycle).toList();
+      long responseAverage = averageHours(responseIssues);
+      BigDecimal resolutionAverage = averageDays(resolutionIssues);
+      String milestoneTitle = commonMilestoneTitle();
       return new StatisticRowData(
           rowKey,
           rowLabel,
           List.of(
-              countCell("total", total),
-              countCell("responded", responded),
-              countCell("unresponded", unresponded),
-              countCell("response_overdue", responseOverdue),
-              countCell("response_delayed", responseDelayed),
-              rateCell("response_rate", responded, total),
-              countCell("resolve_delayed", resolveDelayed),
-              countCell("resolve_on_time", resolveOnTime),
-              rateCell("resolve_delay_rate", resolveDelayed, total)));
+              textCell("milestone_title", milestoneTitle),
+              cycleCell("response_cycle_hours", responseIssues.isEmpty() ? null : responseAverage, responseIssues.isEmpty() ? "" : String.valueOf(responseAverage)),
+              cycleCell(
+                  "resolution_cycle_days",
+                  resolutionIssues.isEmpty() ? null : resolutionAverage.multiply(BigDecimal.TEN).longValue(),
+                  resolutionIssues.isEmpty() ? "" : resolutionAverage.toPlainString())));
     }
 
-    private StatisticCellData countCell(String key, long numericValue) {
-      return new StatisticCellData(
-          key, numericValue, count(numericValue), true, "issue-list", Map.of("rowKey", rowKey));
+    private String commonMilestoneTitle() {
+      List<String> values =
+          issues.stream()
+              .map(IssueSource::milestoneTitle)
+              .filter(StringUtils::hasText)
+              .distinct()
+              .limit(2)
+              .toList();
+      if (values.isEmpty()) {
+        return "";
+      }
+      return values.size() == 1 ? values.get(0) : "多个版本";
     }
 
-    private StatisticCellData rateCell(String key, long numerator, long denominator) {
+    private long averageHours(List<IssueSource> records) {
+      if (records.isEmpty()) {
+        return 0;
+      }
+      double average =
+          records.stream().mapToLong(IssueSource::responseCycleHours).average().orElse(0D);
+      return Math.round(average);
+    }
+
+    private BigDecimal averageDays(List<IssueSource> records) {
+      if (records.isEmpty()) {
+        return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+      }
+      BigDecimal sum =
+          records.stream()
+              .map(IssueSource::resolutionCycleDays)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      return sum.divide(BigDecimal.valueOf(records.size()), 1, RoundingMode.HALF_UP);
+    }
+
+    private StatisticCellData textCell(String key, String value) {
+      return new StatisticCellData(key, 0, value, false, null, Map.of("rowKey", rowKey));
+    }
+
+    private StatisticCellData cycleCell(String key, Long numericValue, String displayValue) {
       return new StatisticCellData(
-          key, numerator, rate(numerator, denominator), false, null, Map.of("rowKey", rowKey));
+          key,
+          numericValue == null ? 0L : numericValue,
+          displayValue,
+          StringUtils.hasText(displayValue),
+          "issue-list",
+          Map.of("rowKey", rowKey));
     }
   }
 
@@ -463,12 +593,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       String assigneeName,
       List<String> moduleNames,
       List<String> labels,
-      boolean hasResponse,
-      boolean responseOverdue,
-      boolean responseDelayed,
-      boolean resolveDelayed,
-      int resolveSlaDays,
-      LocalDateTime resolveDeadlineAt,
+      LocalDateTime researchTemplateTime,
+      LocalDateTime fixedLabelTime,
       LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt) {
@@ -481,17 +607,49 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       return moduleNames.isEmpty() ? List.of(EMPTY_MODULE_LABEL) : moduleNames;
     }
 
-    String responseStatus() {
-      if (!hasResponse) {
-        return responseDelayed || responseOverdue ? "未响应/已延期" : "未响应";
-      }
-      return responseDelayed || responseOverdue ? "已响应/曾超期" : "已响应";
+    boolean isClosed() {
+      return closedAt != null || "closed".equalsIgnoreCase(issueState);
     }
 
-    String resolveStatus() {
-      return resolveDelayed ? "解决延期" : "解决未延期";
+    boolean hasResponseCycle() {
+      return createdAt != null && researchTemplateTime != null;
+    }
+
+    boolean hasResolutionCycle() {
+      return createdAt != null
+          && fixedLabelTime != null
+          && StringUtils.hasText(bugStatus)
+          && bugStatus.contains(FIXED_STATUS);
+    }
+
+    long responseCycleHours() {
+      return hasResponseCycle() ? Duration.between(createdAt, researchTemplateTime).toHours() : 0L;
+    }
+
+    BigDecimal resolutionCycleDays() {
+      if (!hasResolutionCycle()) {
+        return BigDecimal.ZERO;
+      }
+      long millis = Duration.between(createdAt, fixedLabelTime).toMillis();
+      return BigDecimal.valueOf(millis)
+          .divide(BigDecimal.valueOf(24L * 60L * 60L * 1000L), 6, RoundingMode.HALF_UP);
+    }
+
+    String responseCycleDisplay() {
+      return hasResponseCycle() ? String.valueOf(responseCycleHours()) + "小时" : "未响应";
+    }
+
+    String resolutionCycleDisplay() {
+      return hasResolutionCycle() ? resolutionCycleDays().setScale(1, RoundingMode.HALF_UP).toPlainString() + "天" : "未解决";
+    }
+
+    String displaySeverityLevel() {
+      return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }
   }
 
-  private record RuleFlowSnapshot(List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
+  private record RuleFlowSnapshot(
+      List<IssueSource> rowSources,
+      List<IssueSource> finalSources,
+      List<StatisticRuleFlowStep> flowSteps) {}
 }

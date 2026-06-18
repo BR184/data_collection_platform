@@ -18,6 +18,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
@@ -46,7 +47,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private static final String RULE_VERSION = "customer-issue-by-function@2026-04-22-v1";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
-  private static final String EMPTY_MODULE_LABEL = "未标记模块";
+  private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
   private static final String ROW_KEY_SEPARATOR = "||";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -289,7 +290,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "module-function-expand",
                 "按模块/功能展开",
-                "将客户问题议题展开到 module_names + function_name 组合；未标记模块的议题归入“未标记模块”。",
+                "将客户问题议题展开到 module_names + function_name 组合；未设定模块的议题归入“未设定模块”。",
                 withFunction.size(),
                 withFunction.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
                 withFunction,
@@ -372,7 +373,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
           case "moduleNames" -> SortSupport.nullableString(issue -> String.join("、", issue.displayModuleNames()));
           case "functionName" -> SortSupport.nullableString(IssueSource::functionName);
           case "projectName" -> SortSupport.nullableString(IssueSource::projectName);
-          case "severityLevel" -> SortSupport.nullableString(IssueSource::severityLevel);
+          case "severityLevel" -> SortSupport.nullableString(IssueSource::displaySeverityLevel);
           case "priorityLevel" -> SortSupport.nullableString(IssueSource::priorityLevel);
           case "state" -> SortSupport.nullableComparable(issue -> issue.isClosed() ? 1 : 0);
           case "reasonCategory" -> SortSupport.nullableString(IssueSource::reasonCategory);
@@ -389,7 +390,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     record.put("moduleNames", String.join("、", issue.displayModuleNames()));
     record.put("functionName", issue.functionName());
     record.put("projectName", issue.projectName());
-    record.put("severityLevel", issue.severityLevel());
+    record.put("severityLevel", issue.displaySeverityLevel());
     record.put("priorityLevel", issue.priorityLevel());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
     record.put("reasonCategory", StringUtils.hasText(issue.reasonCategory()) ? issue.reasonCategory() : "未归因");
@@ -505,6 +506,10 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
     boolean isSeverity(String severity) {
       return severity.equalsIgnoreCase(severityLevel);
+    }
+
+    String displaySeverityLevel() {
+      return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }
   }
 

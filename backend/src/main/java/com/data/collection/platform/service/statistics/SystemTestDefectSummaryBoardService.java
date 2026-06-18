@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -465,13 +466,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     boolean hasExtensionLabel() { return contains(bugStatus, "申请延期") || labels.contains("申请延期"); }
     boolean isRetestFailed() { return contains(bugStatus, "未修复"); }
     String displaySeverityLevel() {
-      return switch (severityLevel == null ? "" : severityLevel) {
-        case "LEVEL1" -> "一级缺陷";
-        case "LEVEL2" -> "二级缺陷";
-        case "LEVEL3" -> "三级缺陷";
-        case "SUGGESTION" -> "建议类";
-        default -> severityLevel == null ? "" : severityLevel;
-      };
+      return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }
     private boolean hasScope(String value) { return StringUtils.hasText(value) && (value.contains("系统测试") || value.contains("回归测试")); }
     private boolean containsAny(String value, List<String> tokens) { return tokens.stream().anyMatch(token -> contains(value, token)); }

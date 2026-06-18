@@ -28,7 +28,14 @@ public class GitlabSourceSchemaGuard {
               "mirror_deleted"),
           requirement("ods_gitlab_projects", "id", "name", "mirror_deleted"),
           requirement("ods_gitlab_users", "id", "name", "mirror_deleted"),
-          requirement("ods_gitlab_label_links", "label_id", "target_id", "target_type", "mirror_deleted"),
+          requirement(
+              "ods_gitlab_label_links",
+              "label_id",
+              "target_id",
+              "target_type",
+              "mirror_deleted",
+              "created_at",
+              "updated_at"),
           requirement("ods_gitlab_labels", "id", "title", "mirror_deleted"),
           requirement("ods_gitlab_notes", "id", "noteable_id", "noteable_type", "note", "created_at", "updated_at", "mirror_deleted"));
 

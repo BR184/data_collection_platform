@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -649,13 +650,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     }
 
     String displaySeverityLevel() {
-      return switch (severityLevel == null ? "" : severityLevel) {
-        case "LEVEL1" -> "一级缺陷";
-        case "LEVEL2" -> "二级缺陷";
-        case "LEVEL3" -> "三级缺陷";
-        case "SUGGESTION" -> "建议类";
-        default -> severityLevel == null ? "" : severityLevel;
-      };
+      return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }
 
     String primaryPhaseLabel() {

@@ -150,6 +150,9 @@ public class IssueFact {
   @TableField("has_response")
   private Boolean hasResponse;
 
+  @TableField("research_template_time")
+  private LocalDateTime researchTemplateTime;
+
   @TableField("response_overdue")
   private Boolean responseOverdue;
 
@@ -161,6 +164,9 @@ public class IssueFact {
 
   @TableField("resolve_deadline_at")
   private LocalDateTime resolveDeadlineAt;
+
+  @TableField("fixed_label_time")
+  private LocalDateTime fixedLabelTime;
 
   @TableField("is_resolve_delayed")
   private Boolean resolveDelayed;

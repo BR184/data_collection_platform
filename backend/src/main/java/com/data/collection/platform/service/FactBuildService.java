@@ -511,10 +511,17 @@ public class FactBuildService {
         : IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, fixed)));
     fact.setHasResponse(IssueFactNormalizationRules.hasResponse(notesText));
     boolean responseDelayed = IssueFactNormalizationRules.isResponseDelayed(labels, notesText);
+    fact.setResearchTemplateTime(toLocalDateTime(rs.getTimestamp("research_template_time")));
     fact.setResponseOverdue(responseDelayed);
     fact.setResponseDelayed(responseDelayed);
     fact.setResolveSlaDays(resolveSlaDays);
     fact.setResolveDeadlineAt(resolveDeadlineAt);
+    fact.setFixedLabelTime(
+        Boolean.TRUE.equals(fact.getFixed())
+            && StringUtils.hasText(fact.getBugStatus())
+            && fact.getBugStatus().contains("已修复/完成")
+            ? toLocalDateTime(rs.getTimestamp("fixed_label_time"))
+            : null);
     fact.setResolveDelayed(IssueFactNormalizationRules.isResolveDelayed(
         labels,
         Boolean.TRUE.equals(fact.getFixed()),
