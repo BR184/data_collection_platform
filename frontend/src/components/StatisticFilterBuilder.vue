@@ -544,7 +544,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 <style scoped>
 .stat-filter-builder {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   min-width: 0;
 }
@@ -553,7 +553,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
   min-width: 0;
 }
 
@@ -601,7 +601,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -616,9 +616,9 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-editor {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
-  padding: 8px;
+  padding: 7px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 8px;
   background: rgba(248, 250, 252, 0.72);
@@ -678,7 +678,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-builder.is-expanded .stat-filter-list {
-  max-height: 240px;
+  max-height: 220px;
   overflow-y: auto;
   padding-right: 4px;
 }

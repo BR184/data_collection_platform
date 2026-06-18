@@ -167,6 +167,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
   <div class="stat-board-toolbar" :class="props.uiHooks.toolbarClass">
     <div class="stat-board-toolbar-status-row">
       <div class="stat-board-toolbar-status">
+        <slot name="scope" />
         <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
         <SyncMetaBadge :value="lastSyncedText" />
         <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">

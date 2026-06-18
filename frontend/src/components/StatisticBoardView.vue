@@ -9,6 +9,7 @@ import BaseStatisticTable from './base/BaseStatisticTable.vue';
 import StatisticBoardDetailDialog from './StatisticBoardDetailDialog.vue';
 import StatisticBoardRuleExplanationDrawer from './StatisticBoardRuleExplanationDrawer.vue';
 import StatisticBoardToolbar from './StatisticBoardToolbar.vue';
+import DataScopeBar from './data-scope/DataScopeBar.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import {
@@ -79,7 +80,7 @@ const {
 } = usePageAutoRefreshPreference(() => pageScopeKey.value);
 const dataScopeConfig = useStatisticBoardDataScope(computed(() => props.boardKey));
 
-useDataScope({
+const dataScope = useDataScope({
   provider: computed(() => dataScopeConfig.value?.provider ?? null),
   options: computed(() => dataScopeConfig.value?.options.value ?? []),
   clearQueryKeysOnChange: [
@@ -95,9 +96,16 @@ useDataScope({
   extraPatchOnChange: () => ({
     tablePage: '1',
   }),
-  mountToShell: true,
+  mountToShell: false,
   loading: computed(() => dataScopeConfig.value?.loading.value ?? false),
 });
+const currentDataScopeProvider = computed(() => dataScope.provider.value);
+const currentDataScopeOptions = computed(() => dataScope.options.value);
+const currentDataScopeValue = computed(() => dataScope.value.value);
+const currentDataScopeSummary = computed(() =>
+  dataScope.summary.value ? `${dataScope.summary.value.label}：${dataScope.summary.value.value}` : '',
+);
+const currentDataScopeLoading = computed(() => dataScopeConfig.value?.loading.value ?? false);
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -581,7 +589,19 @@ async function autoRefreshPageData() {
           @extra-action="handleExtraAction"
           @settings-command="handleSettingsCommand"
           @toggle-auto-refresh="setAutoRefreshOnEnter"
-        />
+        >
+          <template v-if="currentDataScopeProvider" #scope>
+            <DataScopeBar
+              :provider="currentDataScopeProvider"
+              :options="currentDataScopeOptions"
+              :model-value="currentDataScopeValue"
+              :summary="currentDataScopeSummary"
+              :loading="currentDataScopeLoading"
+              class="stat-board-scope-bar"
+              @change="dataScope.setValue"
+            />
+          </template>
+        </StatisticBoardToolbar>
       </div>
 
       <el-alert

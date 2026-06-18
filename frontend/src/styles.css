@@ -619,6 +619,14 @@ button {
   background: #ffffff;
 }
 
+.stat-board-scope-bar {
+  margin-right: 4px;
+  padding: 4px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.78);
+}
+
 .stat-board-alert {
   margin-bottom: 0;
   padding: 12px 0 0;

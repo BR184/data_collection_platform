@@ -55,7 +55,7 @@ function dateRangeValue(value: unknown) {
   <BaseSearchInput
     v-if="filter.type === 'input'"
     :model-value="inputValue"
-    :class="['record-filter-input', inputClass]"
+    :class="['record-filter-control', 'record-filter-input', inputClass]"
     :style="widthStyle(defaultInputWidth)"
     :placeholder="filter.placeholder || filter.label"
     :clearable="filter.clearable ?? true"
@@ -68,7 +68,7 @@ function dateRangeValue(value: unknown) {
   <SmartSelect
     v-else-if="filter.type === 'select'"
     :model-value="selectValue(modelValue)"
-    class="record-filter-select"
+    class="record-filter-control record-filter-select"
     :style="widthStyle(defaultSelectWidth)"
     :placeholder="filter.placeholder || filter.label"
     :options="filter.options ?? []"
@@ -80,7 +80,7 @@ function dateRangeValue(value: unknown) {
   <el-date-picker
     v-else-if="filter.type === 'daterange'"
     :model-value="dateRangeValue(modelValue)"
-    class="record-filter-main-date"
+    class="record-filter-control record-filter-main-date"
     :style="widthStyle(defaultDateRangeWidth)"
     type="daterange"
     range-separator="至"
@@ -90,3 +90,30 @@ function dateRangeValue(value: unknown) {
     @change="emit('filter-change', filter.key, Array.isArray($event) ? $event : null)"
   />
 </template>
+
+<style scoped>
+.record-filter-control {
+  flex: 0 1 auto;
+  max-width: min(100%, 360px);
+}
+
+.record-filter-input,
+.record-filter-select {
+  min-width: 144px;
+}
+
+.record-filter-main-keyword {
+  min-width: 220px;
+}
+
+.record-filter-main-date {
+  min-width: 260px;
+}
+
+@media (max-width: 720px) {
+  .record-filter-control {
+    width: 100% !important;
+    max-width: 100%;
+  }
+}
+</style>
