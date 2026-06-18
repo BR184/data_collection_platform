@@ -39,6 +39,13 @@ function stringValue(value: unknown) {
   return String(value ?? '');
 }
 
+function selectValue(value: unknown) {
+  if (props.filter.multiple) {
+    return Array.isArray(value) ? value.map((item) => String(item)) : [];
+  }
+  return stringValue(value);
+}
+
 function dateRangeValue(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
@@ -60,13 +67,14 @@ function dateRangeValue(value: unknown) {
 
   <SmartSelect
     v-else-if="filter.type === 'select'"
-    :model-value="stringValue(modelValue)"
+    :model-value="selectValue(modelValue)"
     class="record-filter-select"
     :style="widthStyle(defaultSelectWidth)"
     :placeholder="filter.placeholder || filter.label"
     :options="filter.options ?? []"
+    :multiple="filter.multiple"
     :compact="filter.selectMode === 'compact'"
-    @change="emit('filter-change', filter.key, stringValue($event))"
+    @change="emit('filter-change', filter.key, filter.multiple ? (Array.isArray($event) ? $event : []) : stringValue($event))"
   />
 
   <el-date-picker

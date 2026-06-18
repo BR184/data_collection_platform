@@ -27,8 +27,6 @@ import type {
   RecordTableColumn,
   RecordTableFilterField,
 } from '../types/record-table';
-import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
-import { useDataScope } from '../composables/useDataScope';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { buildSystemTestIssueSearchConditionFields } from './system-test/system-test-condition-fields';
 
@@ -107,7 +105,7 @@ const filterValues = computed<Record<string, unknown>>(() => {
   return {
     searchType: String(route.query.searchType ?? 'all'),
     keyword: String(route.query.keyword ?? ''),
-    testingPhase: String(route.query.testingPhase ?? ''),
+    testingPhase: parseMultiQueryValue(route.query.testingPhase),
     moduleName: String(route.query.moduleName ?? ''),
     functionName: String(route.query.functionName ?? ''),
     updatedAtRange: updatedAtStart && updatedAtEnd ? [updatedAtStart, updatedAtEnd] : [],
@@ -140,6 +138,14 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     width: 280,
     startPlaceholder: '开始日期',
     endPlaceholder: '结束日期',
+  },
+  {
+    key: 'testingPhase',
+    label: '测试阶段',
+    type: 'select',
+    multiple: true,
+    width: 280,
+    options: filterOptions.value.testingPhases,
   },
   {
     key: 'moduleName',
@@ -241,6 +247,9 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (values.issueIid) tags.push({ key: 'issueIid', label: '议题编号', value: String(values.issueIid) });
   if (values.title) tags.push({ key: 'title', label: '标题', value: String(values.title) });
   if (values.projectName) tags.push({ key: 'projectName', label: '项目名称', value: String(values.projectName) });
+  if (Array.isArray(values.testingPhase) && values.testingPhase.length) {
+    tags.push({ key: 'testingPhase', label: '测试阶段', value: values.testingPhase.join('、') });
+  }
   if (values.authorName) tags.push({ key: 'authorName', label: '创建人', value: String(values.authorName) });
   if (values.assigneeName) tags.push({ key: 'assigneeName', label: '处理人', value: String(values.assigneeName) });
   if (values.issueState) tags.push({ key: 'issueState', label: '状态', value: String(values.issueState) });
@@ -253,17 +262,11 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (Array.isArray(values.createdAtRange) && values.createdAtRange.length === 2) {
     tags.push({
       key: 'createdAtRange',
-      label: '创建时间',
+      label: '议题提交时间',
       value: `${values.createdAtRange[0]} ~ ${values.createdAtRange[1]}`,
     });
   }
   return [...conditionActiveFilterTags.value, ...tags];
-});
-
-useDataScope({
-  provider: SYSTEM_TEST_PHASE_SCOPE_PROVIDER,
-  options: computed(() => buildScopeOptions(filterOptions.value.testingPhases, '全部测试阶段')),
-  mountToShell: true,
 });
 
 const columns = computed<RecordTableColumn[]>(() => [
@@ -361,7 +364,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     projectName: String(route.query.projectName ?? ''),
     moduleName: String(route.query.moduleName ?? ''),
     functionName: String(route.query.functionName ?? ''),
-    testingPhase: String(route.query.testingPhase ?? ''),
+    testingPhase: serializeMultiQueryValue(route.query.testingPhase),
     authorName: String(route.query.authorName ?? ''),
     assigneeName: String(route.query.assigneeName ?? ''),
     issueState: String(route.query.issueState ?? ''),
@@ -403,6 +406,15 @@ function splitDisplayList(value: string) {
     .filter(Boolean);
 }
 
+function parseMultiQueryValue(value: unknown) {
+  const rawValues = Array.isArray(value) ? value : String(value ?? '').split(',');
+  return rawValues.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function serializeMultiQueryValue(value: unknown) {
+  return parseMultiQueryValue(value).join(',');
+}
+
 async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
   if (payload.key === 'updatedAtRange') {
     const [start, end] = Array.isArray(payload.value) ? payload.value : [];
@@ -416,7 +428,7 @@ async function handleFilterChange(payload: { key: string; value: string | string
   }
   await patchQuery({
     page: 1,
-    [payload.key]: Array.isArray(payload.value) ? payload.value[0] ?? null : payload.value,
+    [payload.key]: Array.isArray(payload.value) ? serializeMultiQueryValue(payload.value) || null : payload.value,
   });
 }
 

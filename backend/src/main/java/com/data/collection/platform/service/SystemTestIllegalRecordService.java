@@ -65,6 +65,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   null,
                   request.illegalReason(),
                   request.testingPhase(),
+                  List.of(),
                   request.authorName(),
                   request.assigneeName(),
                   false,

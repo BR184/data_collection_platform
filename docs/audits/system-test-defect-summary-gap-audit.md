@@ -284,7 +284,13 @@
 
 ### 仍未完成
 
-暂无已确认的老平台功能可达性缺口仍未补齐。
+1. **缺少老平台同等的测试阶段级联切换入口。**
+
+   2026-06-18 复核老平台 `ModuleTable.vue` 和新平台 `SystemTestDefectSummaryBoardService` / `StatisticBoardView.vue` 后确认：老平台系统测试缺陷汇总页顶部有 `el-cascader`，通过 `phaseNameList` 选择当前项目/测试阶段，再点击“查询”后按当前阶段调用 `/dataAnalysis/getModuleTable`。这不是普通条件筛选，而是页面级数据范围切换入口。
+
+   新平台当前后端统计板定义里只有普通条件筛选字段 `projectName`、`testingPhase`，前端统计板没有接入 `SYSTEM_TEST_PHASE_SCOPE_PROVIDER` 或等价的页级上下文条。用户仍可通过条件筛选输入阶段，但这不等价于老平台首屏可见的项目/阶段级联选择，也不满足“页面可见的数据批次信息一致或能表达同等含义”的对齐目标。
+
+   结论：这是上一轮对齐漏项。审计文档基线已记录“测试阶段级联选择”，但最终收尾时误写为“暂无已确认缺口”。后续实现应按 `docs/plans/2026-04-27-data-scope-reuse.md` 的统计板上下文接入方向补齐，而不是把阶段切换继续混进普通高级筛选里。
 
 ### 已知格式差异
 

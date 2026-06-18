@@ -108,7 +108,6 @@ public class IssueFactRecordRepository {
                 null,
                 null,
                 null,
-                null,
                 1,
                 20,
                 "updatedAt",
@@ -123,6 +122,7 @@ public class IssueFactRecordRepository {
                 null,
                 null,
                 null,
+                List.of(),
                 null,
                 null,
                 false,
@@ -180,11 +180,11 @@ public class IssueFactRecordRepository {
     appendSourceInstance(where, args, query.listRequest());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
-    appendEqIgnoreCase(
-        where,
-        args,
-        query.useFullTestingPhaseFilter() ? "testing_phase" : "phase_filter_value",
-        query.testingPhase());
+    String testingPhaseColumn = query.useFullTestingPhaseFilter() ? "testing_phase" : "phase_filter_value";
+    appendInIgnoreCase(where, args, testingPhaseColumn, query.testingPhases());
+    if (query.testingPhases().isEmpty()) {
+      appendEqIgnoreCase(where, args, testingPhaseColumn, query.testingPhase());
+    }
     appendAuthorAssigneeFilters(where, args, query.authorName(), query.assigneeName());
     appendIllegalFilters(where, args, query);
     appendFilterGroup(where, args, query.filterGroup(), query.useFullTestingPhaseFilter());
@@ -422,6 +422,31 @@ public class IssueFactRecordRepository {
     }
     where.append(" and lower(coalesce(").append(column).append(", '')) = ?");
     args.add(normalized.toLowerCase(java.util.Locale.ROOT));
+  }
+
+  private void appendInIgnoreCase(StringBuilder where, List<Object> args, String column, List<String> values) {
+    if (values == null || values.isEmpty()) {
+      return;
+    }
+    List<String> normalizedValues =
+        values.stream()
+            .map(TextQuerySupport::trimToNull)
+            .filter(value -> value != null)
+            .map(value -> value.toLowerCase(java.util.Locale.ROOT))
+            .distinct()
+            .toList();
+    if (normalizedValues.isEmpty()) {
+      return;
+    }
+    where.append(" and lower(coalesce(").append(column).append(", '')) in (");
+    for (int index = 0; index < normalizedValues.size(); index++) {
+      if (index > 0) {
+        where.append(", ");
+      }
+      where.append("?");
+      args.add(normalizedValues.get(index));
+    }
+    where.append(")");
   }
 
   private void appendContainsIgnoreCase(

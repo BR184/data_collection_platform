@@ -11,9 +11,11 @@ export interface SystemTestIssueSearchRowResponse {
   issueState: string;
   testingPhase: string;
   severityLevel: string;
+  priorityLevel: string;
   bugStatus: string;
   category: string;
   milestoneTitle: string;
+  delayCause: string;
   authorName: string;
   assigneeName: string;
   moduleNames: string;

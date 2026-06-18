@@ -87,6 +87,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   null,
                   null,
                   request.testingPhase(),
+                  request.testingPhases(),
                   request.authorName(),
                   request.assigneeName(),
                   false,
@@ -112,7 +113,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 listRequest,
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
-            .filter(view -> matchesTestingPhase(view, request.testingPhase()))
+            .filter(view -> matchesTestingPhase(view, request.testingPhases()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
             .filter(view -> matchesFunctionName(view, listRequest.functionName()))
@@ -188,18 +189,21 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 "项目",
                 "模块",
                 "测试阶段",
-                "严重程度",
-                "缺陷状态",
-                "状态",
-                "创建人",
-                "处理人",
+                "议题严重程度",
+                "测试状态",
+                "议题状态",
+                "议题提交人",
+                "议题处理人",
+                "议题指派人",
+                "优先级",
                 "功能名称",
-                "缺陷分类",
+                "议题类别",
                 "里程碑",
-                "创建时间",
-                "更新时间",
-                "关闭时间",
-                "标题",
+                "延期原因",
+                "议题提交时间",
+                "议题更新时间",
+                "议题关闭时间",
+                "议题标题",
                 "链接")));
     for (SystemTestIssueSearchRowResponse row : rows) {
       lines.add(
@@ -217,9 +221,12 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   CsvExportSupport.cell(row.issueState()),
                   CsvExportSupport.cell(row.authorName()),
                   CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.assigneeName()),
+                  CsvExportSupport.cell(row.priorityLevel()),
                   CsvExportSupport.cell(row.functionName()),
                   CsvExportSupport.cell(row.category()),
                   CsvExportSupport.cell(row.milestoneTitle()),
+                  CsvExportSupport.cell(row.delayCause()),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
                   CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
@@ -386,9 +393,11 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         view.issueState(),
         view.primaryPhaseLabel(),
         IssueDisplayValueSupport.displaySeverityLevelOrBlank(view.severityLevel()),
+        view.priorityLevel(),
         view.bugStatus(),
         view.category(),
         view.milestoneTitle(),
+        view.delayCause(),
         view.authorName(),
         view.assigneeName(),
         String.join(" & ", view.moduleNames()),
@@ -420,6 +429,16 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
     String normalized = TextQuerySupport.trimToNull(testingPhase);
     return normalized == null || TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), normalized);
+  }
+
+  private boolean matchesTestingPhase(IssueFactRecord view, List<String> testingPhases) {
+    if (testingPhases == null || testingPhases.isEmpty()) {
+      return true;
+    }
+    return testingPhases.stream()
+        .map(TextQuerySupport::trimToNull)
+        .filter(value -> value != null)
+        .anyMatch(value -> TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), value));
   }
 
   private boolean matchesFunctionName(IssueFactRecord view, String functionName) {

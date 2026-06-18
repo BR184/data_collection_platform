@@ -80,6 +80,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   request.reasonCategory(),
                   null,
                   null,
+                  List.of(),
                   request.authorName(),
                   request.assigneeName(),
                   TOPIC_DELAY.equals(safeTopic),

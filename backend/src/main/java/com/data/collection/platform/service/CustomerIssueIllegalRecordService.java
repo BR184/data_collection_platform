@@ -84,6 +84,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   null,
                   request.illegalReason(),
                   null,
+                  List.of(),
                   null,
                   null,
                   false,
