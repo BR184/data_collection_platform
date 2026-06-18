@@ -31,6 +31,15 @@
 - 漏掉原因：上一轮对齐时把“完整 testing_phase 候选”和“条件筛选可表达多阶段”当成已满足，漏掉老平台页面自身提供的直接多选操作窗口。
 - 处理结果：`SystemTestIssueSearchView.vue` 已把“测试阶段”放入主筛选区并设为多选；路由用逗号分隔保存多个阶段；`SystemTestIssueSearchQueryRequest.testingPhases()` 解析为列表；`IssueFactRecordRepository` 对多阶段使用 `in` 查询，单阶段旧 URL 仍按同一字段兼容。
 
+### 3. 代码走查 / 代码走查非法数据：任务执行时间和执行时长未显式展示
+
+- 发现日期：2026-06-18
+- 状态：已补齐
+- 老平台证据：`D:\projects\spidergitdata-dev\webapp\src\views\PageHome\ContentComponents\QuestionnaireInfo\CodeThroughTable.vue` 顶部展示 `任务执行时间：{{scheduledTime}}` 和 `执行时长：{{usedTime}}`；数据来自 `ScheduledTimeRecordApi.js` 的 `/scheduledTimeRecord/findByParam`，CC 参数为 `name=mergeRequest&value=CrownCAD&projectId=9`，DGM 参数为 `name=mergeRequest&value=DGM&projectId=79`。
+- 新平台现状：`CodeReviewIllegalRecordsView.vue` 顶部展示 `SyncMetaBadge` 的最近同步状态，并提供刷新最新数据；没有 1:1 展示老平台的执行起止时间和耗时。
+- 漏掉原因：上一轮把新平台实时刷新状态视为已覆盖“批次信息”，但老平台这里是独立的定时任务起止时间和耗时，属于可见页面信息差异。
+- 处理结果：`CodeReviewIllegalRecordsView.vue` 已复用实时工作区状态中的 `lastRefreshStartedAt / lastRefreshFinishedAt` 展示“任务执行时间”和“执行时长”，不重新引入旧 `scheduledTimeRecord` 接口模型。
+
 ## 仍需继续复核的页面
 
 > 下面这些页面目前还不能算“已完全对齐”。它们要么仍有明确的老平台功能差异，要么还有事实层/导出/默认入口未收口项。

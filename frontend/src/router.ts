@@ -19,7 +19,6 @@ const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue')
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const CollectFormView = () => import('./views/CollectFormView.vue');
 const CodeReviewIllegalRecordsView = () => import('./views/CodeReviewIllegalRecordsView.vue');
-const CodeReviewIllegalRuleConfigView = () => import('./views/CodeReviewIllegalRuleConfigView.vue');
 const ReviewDataManagementView = () => import('./views/ReviewDataManagementView.vue');
 const SystemTestIssueSearchView = () => import('./views/SystemTestIssueSearchView.vue');
 const CustomerIssueIllegalRecordsView = () => import('./views/CustomerIssueIllegalRecordsView.vue');
@@ -88,11 +87,6 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('code-review-illegal-records', CodeReviewIllegalRecordsView),
-  },
-  {
-    path: '/code-review/illegal-records/rule-config',
-    component: CodeReviewIllegalRuleConfigView,
-    meta: buildSpecialRouteMeta('code-review-illegal-rule-config'),
   },
   {
     ...buildShellRoute('code-review-multi-board', CodeReviewMultiBoardView),

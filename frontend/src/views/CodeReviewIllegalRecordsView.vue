@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-// 代码走查非法记录页承接规则配置结果和记录检索结果，重点是让违规数据可筛选、可导出。
-// 页面状态尽量通过共享记录表和帮助函数表达，减少与规则配置页的隐式耦合。
+// 代码走查非法记录页承接固定老平台口径下的记录检索结果，重点是让违规数据可筛选、可导出。
 import { ElMessage } from '../element-plus-services';
-import { Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
-import { useRouter } from 'vue-router';
+import { Download, InfoFilled, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
@@ -25,17 +23,6 @@ import { useRouteTableState } from '../composables/useRouteTableState';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableActiveFilterTag } from '../types/record-table';
-import type { CodeReviewRuleConfig } from '../types/code-review-rule-config';
-import { buildCodeReviewRuleFields } from './code-review-rule-config-schema';
-import {
-  loadStoredCodeReviewRuleConfig,
-  saveStoredCodeReviewRuleConfig,
-} from './code-review-rule-config-storage';
-import {
-  createDefaultCodeReviewRuleConfig,
-  hasReadyCodeReviewRuleConfig,
-  normalizeCodeReviewRuleConfig,
-} from './code-review-rule-config-utils';
 import {
   CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
   CODE_REVIEW_QUERY_CLEAR_KEYS,
@@ -53,10 +40,10 @@ import {
 import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
+import { formatBeijingDateTime } from '../utils/beijing-time';
 
 const PAGE_SCOPE_KEY = 'record-page:code-review-illegal-records';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
-const router = useRouter();
 const {
   route,
   page,
@@ -81,7 +68,6 @@ const rows = ref<CodeReviewIllegalRecordRowResponse[]>([]);
 const total = ref(0);
 const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
-const appliedRuleConfig = ref<CodeReviewRuleConfig | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
 const rowRefreshKey = ref('');
@@ -91,7 +77,6 @@ const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMI
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
 );
-const ruleFields = computed(() => buildCodeReviewRuleFields(filterOptions.value));
 const conditionFilterFields = computed(() => createCodeReviewConditionFields(filterOptions.value));
 
 const {
@@ -137,11 +122,7 @@ const {
 });
 
 const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
-  const tags = [...conditionFilterGroupTags.value];
-  if (appliedRuleConfig.value?.enabled) {
-    tags.push({ key: 'personalRuleConfig', label: '判定规则', value: '我的规则' });
-  }
-  return tags;
+  return [...conditionFilterGroupTags.value];
 });
 
 const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
@@ -153,9 +134,7 @@ const sourceScope = useDataScope({
 });
 
 const tableEmptyDescription = computed(() =>
-  appliedRuleConfig.value?.enabled
-    ? '当前数据范围和我的规则下没有判定出非法记录。'
-    : '当前筛选条件下没有查询到非法记录。',
+  '当前筛选条件下没有查询到非法记录。',
 );
 
 const tableRows = computed<Record<string, unknown>[]>(() => mapCodeReviewIllegalTableRows(rows.value));
@@ -169,28 +148,9 @@ const ruleFinalRetainedRate = computed(() => ruleOverview.value.finalRetainedRat
 const qaFriendlyRuleSummary = computed(() => ruleOverview.value.summary);
 const ruleExclusionSteps = computed(() => ruleExplanationSteps.value.slice(1));
 
-function syncAppliedRuleConfig() {
-  const stored = loadStoredCodeReviewRuleConfig();
-  if (!stored) {
-    appliedRuleConfig.value = null;
-    return;
-  }
-  const normalized = normalizeCodeReviewRuleConfig(stored, ruleFields.value);
-  appliedRuleConfig.value = hasReadyCodeReviewRuleConfig(normalized, ruleFields.value)
-    ? normalized
-    : null;
-}
-
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as CodeReviewIllegalRecordRowResponse) ?? null;
   detailVisible.value = true;
-}
-
-function openRuleConfig() {
-  void router.push({
-    path: '/code-review/illegal-records/rule-config',
-    query: route.query,
-  });
 }
 
 function rowRefreshIdentity(row: Record<string, unknown>) {
@@ -203,7 +163,6 @@ async function loadFilterOptions() {
     route.query.projectId as string | undefined,
     sourceScope.value.value || undefined,
   );
-  syncAppliedRuleConfig();
 }
 
 async function loadSourceOptions() {
@@ -246,7 +205,6 @@ function buildCurrentQueryParams(includePagination: boolean) {
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'mergedAt',
     sortOrder: (sortOrder.value || 'desc') as 'asc' | 'desc',
-    ruleConfig: appliedRuleConfig.value?.enabled ? appliedRuleConfig.value : null,
   };
 }
 
@@ -321,22 +279,6 @@ bindLoader(async () => {
 });
 
 async function handleClearFilter(key: string) {
-  if (key === 'personalRuleConfig') {
-    const stored = loadStoredCodeReviewRuleConfig();
-    const cleared = normalizeCodeReviewRuleConfig(
-      stored ?? createDefaultCodeReviewRuleConfig(ruleFields.value[0]),
-      ruleFields.value,
-    );
-    cleared.enabled = false;
-    saveStoredCodeReviewRuleConfig(cleared);
-    appliedRuleConfig.value = null;
-    if (page.value === 1) {
-      await loadTableData();
-      return;
-    }
-    await patchQuery({ page: 1 });
-    return;
-  }
   if (key === 'mergedAtRange') {
     await patchQuery({ page: 1, mergedAtStart: null, mergedAtEnd: null });
     return;
@@ -362,6 +304,40 @@ async function handleConditionFilterApply() {
 
 async function handleConditionFilterReset() {
   await patchQuery(buildConditionResetQueryPatch(route.query));
+}
+
+const taskStartedText = computed(() =>
+  syncStatus.value?.lastRefreshStartedAt
+    ? formatBeijingDateTime(syncStatus.value.lastRefreshStartedAt, '')
+    : '',
+);
+const taskDurationText = computed(() =>
+  formatTaskDuration(
+    syncStatus.value?.lastRefreshStartedAt,
+    syncStatus.value?.lastRefreshFinishedAt,
+    syncStatus.value?.refreshing,
+  ),
+);
+
+function formatTaskDuration(startedAt?: string | null, finishedAt?: string | null, refreshing?: boolean | null) {
+  if (!startedAt) {
+    return '';
+  }
+  if (refreshing && !finishedAt) {
+    return '进行中';
+  }
+  if (!finishedAt) {
+    return '';
+  }
+  const start = new Date(startedAt).getTime();
+  const finish = new Date(finishedAt).getTime();
+  if (Number.isNaN(start) || Number.isNaN(finish) || finish < start) {
+    return '';
+  }
+  const totalSeconds = Math.round((finish - start) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes <= 0 ? `${seconds} 秒` : `${minutes} 分 ${seconds} 秒`;
 }
 
 </script>
@@ -400,6 +376,12 @@ async function handleConditionFilterReset() {
       <template #primary-actions>
         <div class="code-review-illegal-toolbar-actions">
           <SyncMetaBadge :value="lastSyncedText" />
+          <span v-if="taskStartedText" class="code-review-illegal-batch-meta">
+            任务执行时间：{{ taskStartedText }}
+          </span>
+          <span v-if="taskDurationText" class="code-review-illegal-batch-meta">
+            执行时长：{{ taskDurationText }}
+          </span>
           <el-button
             v-if="canRefreshLatestData"
             plain
@@ -409,9 +391,6 @@ async function handleConditionFilterReset() {
           >
             刷新最新数据
           </el-button>
-          <el-tag v-if="appliedRuleConfig?.enabled" effect="plain" type="success" class="record-page-config-tag">
-            已按我的规则判定
-          </el-tag>
           <el-button
             plain
             :icon="InfoFilled"
@@ -419,9 +398,6 @@ async function handleConditionFilterReset() {
             @click="handleOpenRuleExplanation"
           >
             规则说明
-          </el-button>
-          <el-button plain :icon="Setting" @click="openRuleConfig">
-            规则配置
           </el-button>
           <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
             导出
@@ -663,6 +639,19 @@ async function handleConditionFilterReset() {
 .code-review-illegal-toolbar-label {
   font-size: 12px;
   color: rgba(0, 0, 0, 0.45);
+}
+
+.code-review-illegal-batch-meta {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: rgba(15, 23, 42, 0.62);
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .code-review-illegal-toolbar-divider {
