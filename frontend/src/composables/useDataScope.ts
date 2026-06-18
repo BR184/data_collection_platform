@@ -6,7 +6,7 @@ import { clearShellDataScope, registerShellDataScope } from './shell-data-scope'
 type QueryValue = string | number | null | undefined;
 
 export interface UseDataScopeOptions {
-  provider?: DataScopeProvider | null;
+  provider?: MaybeRefOrGetter<DataScopeProvider | null | undefined>;
   options: MaybeRefOrGetter<DataScopeOption[]>;
   clearQueryKeysOnChange?: string[];
   extraPatchOnChange?: (nextValue: string) => Record<string, QueryValue>;
@@ -25,7 +25,7 @@ export function useDataScope(options: UseDataScopeOptions) {
   const shellToken = `scope-${Math.random().toString(36).slice(2, 10)}`;
   const scopeOptions = computed(() => toValue(options.options));
   const flatOptions = computed(() => flattenOptions(scopeOptions.value));
-  const provider = computed(() => options.provider ?? null);
+  const provider = computed(() => toValue(options.provider) ?? null);
 
   const value = computed(() => {
     const queryKey = provider.value?.queryKey;

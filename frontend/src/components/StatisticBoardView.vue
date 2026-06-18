@@ -31,6 +31,8 @@ import { useStatisticBoardRefreshController } from '../composables/useStatisticB
 import { useStatisticBoardSettingsActions } from '../composables/useStatisticBoardSettingsActions';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useStatisticBoardTableAdapters } from '../composables/useStatisticBoardTableAdapters';
+import { useDataScope } from '../composables/useDataScope';
+import { useStatisticBoardDataScope } from '../composables/statistic-board-data-scopes';
 import PageSettingsDialog from './PageSettingsDialog.vue';
 import { usePageSavedViews } from '../composables/usePageSavedViews';
 import { downloadBlob, downloadCsv, formatExportFileDate } from '../utils/csv-download';
@@ -75,6 +77,27 @@ const {
   autoRefreshOnEnter,
   setAutoRefreshOnEnter,
 } = usePageAutoRefreshPreference(() => pageScopeKey.value);
+const dataScopeConfig = useStatisticBoardDataScope(computed(() => props.boardKey));
+
+useDataScope({
+  provider: computed(() => dataScopeConfig.value?.provider ?? null),
+  options: computed(() => dataScopeConfig.value?.options.value ?? []),
+  clearQueryKeysOnChange: [
+    'tablePage',
+    'detailPage',
+    'detailPageSize',
+    'detailSortBy',
+    'detailSortOrder',
+    'detailVisible',
+    'detailRowKey',
+    'detailColumnKey',
+  ],
+  extraPatchOnChange: () => ({
+    tablePage: '1',
+  }),
+  mountToShell: true,
+  loading: computed(() => dataScopeConfig.value?.loading.value ?? false),
+});
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -228,7 +251,7 @@ const {
 function handleBoardLoaded(response: StatisticBoardResponse) {
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
   const nextDraft = normalizeFilterDraftGroup(
-    response.appliedFilterGroup ?? routeFilterGroup,
+    stripRouteScopeFilter(response.appliedFilterGroup ?? routeFilterGroup),
     response.definition.filters,
   );
   replaceFilterDraftGroup(filterDraft, nextDraft);
@@ -238,7 +261,42 @@ function handleBoardLoaded(response: StatisticBoardResponse) {
 }
 
 function buildFilterPayload() {
-  return sanitizeFilterDraftGroup(filterDraft);
+  return mergeRouteScopeFilter(sanitizeFilterDraftGroup(filterDraft));
+}
+
+function mergeRouteScopeFilter(filterGroup: ReturnType<typeof sanitizeFilterDraftGroup>) {
+  const provider = dataScopeConfig.value?.provider;
+  if (!provider) {
+    return filterGroup;
+  }
+  const scopeValue = String(route.query[provider.queryKey] ?? '').trim();
+  if (!scopeValue) {
+    return filterGroup;
+  }
+  const conditions = [
+    ...(filterGroup?.conditions ?? []).filter((condition) => condition.fieldKey !== provider.queryKey),
+    {
+      fieldKey: provider.queryKey,
+      operator: 'eq' as const,
+      value: scopeValue,
+      secondaryValue: '',
+    },
+  ];
+  return {
+    logic: filterGroup?.logic ?? 'AND' as const,
+    conditions,
+  };
+}
+
+function stripRouteScopeFilter(filterGroup: ReturnType<typeof sanitizeFilterDraftGroup>) {
+  const provider = dataScopeConfig.value?.provider;
+  if (!filterGroup || !provider) {
+    return filterGroup;
+  }
+  return {
+    ...filterGroup,
+    conditions: filterGroup.conditions.filter((condition) => condition.fieldKey !== provider.queryKey),
+  };
 }
 
 const {

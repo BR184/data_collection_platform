@@ -1,4 +1,4 @@
-export type DataScopeMode = 'single-select' | 'tree-single' | 'segmented';
+export type DataScopeMode = 'single-select' | 'tree-single' | 'cascader-single' | 'segmented';
 export type DataScopeDefaultStrategy = 'empty' | 'first-available';
 
 export interface DataScopeOption {

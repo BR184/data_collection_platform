@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import SmartSelect from '../base/SmartSelect.vue';
 // 数据范围条承载全局项目、阶段或数据源选择，让看板和记录页共享同一范围语义。
 // 组件只负责选择器展示，范围变更后的路由清理和重新加载由 shell 状态处理。
@@ -33,10 +34,36 @@ function toSelectOptions(options: DataScopeOption[]): RecordTableFilterOption[] 
   }));
 }
 
+const cascaderModelValue = computed(() => findOptionPath(props.options, props.modelValue) ?? props.modelValue);
+
 function handleSelectChange(value: string | string[]) {
   const nextValue = Array.isArray(value) ? String(value[0] ?? '') : String(value ?? '');
   emit('update:modelValue', nextValue);
   emit('change', nextValue);
+}
+
+function handleCascaderChange(value: string | string[]) {
+  const nextValue = Array.isArray(value)
+    ? String(value[value.length - 1] ?? '')
+    : String(value ?? '');
+  emit('update:modelValue', nextValue);
+  emit('change', nextValue);
+}
+
+function findOptionPath(options: DataScopeOption[], targetValue: string): string[] | null {
+  if (!targetValue) {
+    return null;
+  }
+  for (const option of options) {
+    if (option.value === targetValue) {
+      return [option.value];
+    }
+    const childPath = findOptionPath(option.children ?? [], targetValue);
+    if (childPath) {
+      return [option.value, ...childPath];
+    }
+  }
+  return null;
 }
 </script>
 
@@ -76,7 +103,7 @@ function handleSelectChange(value: string | string[]) {
       </el-radio-group>
 
       <el-cascader
-        v-else
+        v-else-if="provider.mode === 'tree-single'"
         :model-value="modelValue"
         :options="options"
         :props="{ checkStrictly: true, emitPath: false, value: 'value', label: 'label', children: 'children' }"
@@ -85,6 +112,18 @@ function handleSelectChange(value: string | string[]) {
         :disabled="disabled"
         class="data-scope-bar__cascader"
         @change="handleSelectChange"
+      />
+
+      <el-cascader
+        v-else
+        :model-value="cascaderModelValue"
+        :options="options"
+        :props="{ checkStrictly: true, emitPath: true, value: 'value', label: 'label', children: 'children' }"
+        :placeholder="provider.placeholder || provider.label"
+        :clearable="provider.clearable ?? true"
+        :disabled="disabled"
+        class="data-scope-bar__cascader"
+        @change="handleCascaderChange"
       />
     </div>
 

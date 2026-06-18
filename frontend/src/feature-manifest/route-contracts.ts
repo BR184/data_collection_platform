@@ -21,6 +21,7 @@ const statisticBoardQueryKeys = [
   'filterGroup',
   'filterLogic',
   'projectId',
+  'testingPhase',
 ];
 
 const customerIssueRecordQueryKeys = [

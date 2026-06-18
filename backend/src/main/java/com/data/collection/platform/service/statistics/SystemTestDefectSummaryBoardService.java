@@ -27,11 +27,14 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -48,6 +51,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static final List<String> LEGACY_FIXED_STATUS_TOKENS = List.of("已修复", "待合并", "未更新");
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
   private static final List<String> REALTIME_REFRESH_TABLES = List.of("issues", "projects", "users", "label_links", "labels", "notes");
+  private static final Pattern TURN_LABEL_PATTERN =
+      Pattern.compile("第[一二三四五六七八九十0-9]+轮(系统测试|回归测试)|回归测试");
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
 
@@ -67,11 +72,15 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
+    return buildDefinition(loadPhaseOptions());
+  }
+
+  private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> phaseOptions) {
     return new StatisticBoardDefinition(
         BOARD_KEY, "系统测试缺陷汇总", "基于 issue_fact 的模块维度系统测试汇总。", "", "", "模块名称",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
-            StatisticFilterFieldFactory.text("testingPhase", "测试阶段", 220),
+            StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions),
             StatisticFilterFieldFactory.text("moduleName", "模块名称", 180),
             StatisticFilterFieldFactory.select(
                 "severityLevel",
@@ -162,7 +171,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     List<IssueSource> sources = snapshot.finalSources();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (String moduleName : moduleRows(snapshot.scopedSources())) {
@@ -178,7 +187,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         .sorted(Comparator.comparing(StatisticRowData::rowLabel, String.CASE_INSENSITIVE_ORDER))
         .toList());
     rows.add(new AggregateBucket(TOTAL_ROW_LABEL).acceptAll(sources).toRowData(sources.size(), TOTAL_ROW_KEY));
-    StatisticBoardDefinition definition = buildDefinition();
+    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount = definition.columnGroups().stream().flatMap(group -> group.leafColumns().stream()).mapToInt(c -> c.drilldown() ? 1 : 0).sum();
     return new StatisticBoardResponse(definition, withoutReservedFilters(filters), filterGroup, rows,
@@ -187,12 +196,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
-    List<IssueSource> scoped = loadBoardScopedSources(request.filters()).stream()
+    List<IssueSource> scoped = loadBoardScopedSources(request.filters(), filterGroup).stream()
         .filter(issue -> matchesRow(issue, request.rowKey())).filter(matchesMetric(request.columnKey()))
         .sorted(buildDetailComparator(request.sortField(), request.sortOrder())).toList();
     PageSlice<IssueSource> pageSlice =
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
-    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的 issue_fact 明细。", buildDefinition().detailColumns(),
+    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的 issue_fact 明细。", buildDefinition(loadPhaseOptions()).detailColumns(),
         pageSlice.records().stream().map(this::toDetailRecord).toList(), pageSlice.total(), pageSlice.page(), pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
         "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
@@ -210,21 +219,23 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters));
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
+    RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY, true, "系统测试缺陷汇总规则说明", RULE_VERSION,
         "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按模块展开。",
         "同一条议题如果关联多个模块，会分别计入对应模块；总计行仍按议题本身统计。", s.flowSteps(), buildMetricDefinitions(), null);
   }
 
-  private List<IssueSource> loadBoardScopedSources(Map<String, String> filters) {
-    return buildRuleFlowSnapshot(loadSources(filters)).finalSources();
+  private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    return buildRuleFlowSnapshot(loadSources(filters), filterGroup).finalSources();
   }
 
-  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
+  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
-    List<IssueSource> valid = scoped.stream().filter(i -> !i.excluded()).toList();
+    List<IssueSource> validBeforeFilter = scoped.stream().filter(i -> !i.excluded()).toList();
+    List<IssueSource> valid = validBeforeFilter.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(scoped, valid, List.of(
         StatisticRuleFlowSupport.step(
             "source-load",
@@ -247,6 +258,14 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
             "排除无效数据",
             "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/数据异常/需求如此的议题。",
             scoped.size(),
+            validBeforeFilter,
+            this::toRuleFlowSample
+        ),
+        StatisticRuleFlowSupport.step(
+            "apply-filter-group",
+            "应用页面筛选",
+            "按页面上的测试阶段、项目、模块、严重程度和优先级等条件进一步收敛统计范围。",
+            validBeforeFilter.size(),
             valid,
             this::toRuleFlowSample
         ),
@@ -294,6 +313,145 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       log.warn("Failed to load issue facts", e);
       return List.of();
     }
+  }
+
+  private List<StatisticFilterOption> loadPhaseOptions() {
+    try {
+      return runtimeSupport
+          .loadFacts(Map.of(), StatisticIssueFactSource::inSystemTestScope)
+          .stream()
+          .flatMap(source -> phaseCandidates(source).stream())
+          .filter(this::isPhaseScopedValue)
+          .map(this::phaseFilterValue)
+          .filter(StringUtils::hasText)
+          .distinct()
+          .sorted(String.CASE_INSENSITIVE_ORDER)
+          .map(value -> new StatisticFilterOption(value, value))
+          .toList();
+    } catch (Exception e) {
+      log.debug("Failed to load phase options for {}", BOARD_KEY, e);
+      return List.of();
+    }
+  }
+
+  private List<String> phaseCandidates(StatisticIssueFactSource source) {
+    List<String> values = new ArrayList<>();
+    if (StringUtils.hasText(source.testingPhase())) {
+      values.add(source.testingPhase());
+    }
+    if (StringUtils.hasText(source.systemTestLabel())) {
+      values.add(source.systemTestLabel());
+    }
+    values.addAll(source.labels());
+    return values;
+  }
+
+  private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return true;
+    }
+    boolean isOr = "OR".equalsIgnoreCase(filterGroup.logic());
+    for (var condition : filterGroup.conditions()) {
+      boolean matched = matchesCondition(issue, condition);
+      if (isOr && matched) {
+        return true;
+      }
+      if (!isOr && !matched) {
+        return false;
+      }
+    }
+    return !isOr;
+  }
+
+  private boolean matchesCondition(
+      IssueSource issue,
+      com.data.collection.platform.entity.statistics.StatisticFilterCondition condition) {
+    if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
+      return true;
+    }
+    String operator = condition.operator();
+    String value = trimTextToNull(condition.value());
+    return switch (condition.fieldKey()) {
+      case "projectName" -> matchesText(issue.projectName(), operator, value);
+      case "testingPhase" -> matchesPhase(issue, operator, value);
+      case "moduleName" -> matchesAny(issue.moduleNames(), operator, value);
+      case "severityLevel" -> matchesText(issue.severityLevel(), operator, value);
+      case "priorityLevel" -> matchesText(issue.priorityLevel(), operator, value);
+      default -> true;
+    };
+  }
+
+  private boolean matchesText(String candidate, String operator, String value) {
+    String safeCandidate = trimTextToNull(candidate);
+    return switch (operator) {
+      case "eq" -> value == null || (safeCandidate != null && safeCandidate.equalsIgnoreCase(value));
+      case "ne" -> value == null || safeCandidate == null || !safeCandidate.equalsIgnoreCase(value);
+      case "contains" -> value == null || containsIgnoreCase(safeCandidate, value);
+      case "isEmpty" -> safeCandidate == null;
+      case "isNotEmpty" -> safeCandidate != null;
+      default -> true;
+    };
+  }
+
+  private boolean matchesPhase(IssueSource issue, String operator, String value) {
+    String phaseFilterValue = issue.phaseFilterValue();
+    String primaryPhaseLabel = issue.primaryPhaseLabel();
+    return switch (operator) {
+      case "eq" ->
+          value == null
+              || matchesText(phaseFilterValue, operator, value)
+              || matchesText(primaryPhaseLabel, operator, value);
+      case "ne" ->
+          value == null
+              || (matchesText(phaseFilterValue, operator, value)
+                  && matchesText(primaryPhaseLabel, operator, value));
+      default ->
+          matchesText(phaseFilterValue, operator, value)
+              || matchesText(primaryPhaseLabel, operator, value);
+    };
+  }
+
+  private boolean matchesAny(List<String> candidates, String operator, String value) {
+    List<String> safeCandidates = candidates == null ? List.of() : candidates;
+    return switch (operator) {
+      case "eq" -> value == null || safeCandidates.stream().anyMatch(candidate -> candidate.equalsIgnoreCase(value));
+      case "ne" -> value == null || safeCandidates.stream().noneMatch(candidate -> candidate.equalsIgnoreCase(value));
+      case "contains" -> value == null || safeCandidates.stream().anyMatch(candidate -> containsIgnoreCase(candidate, value));
+      case "isEmpty" -> safeCandidates.isEmpty();
+      case "isNotEmpty" -> !safeCandidates.isEmpty();
+      default -> true;
+    };
+  }
+
+  private boolean containsIgnoreCase(String candidate, String value) {
+    return candidate != null && candidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT));
+  }
+
+  private boolean isPhaseScopedValue(String value) {
+    return StringUtils.hasText(value)
+        && (value.contains("系统测试") || value.contains("回归测试"));
+  }
+
+  private String phaseFilterValue(String phaseLabel) {
+    String normalized = trimTextToNull(phaseLabel);
+    if (normalized == null) {
+      return "";
+    }
+    Matcher matcher = TURN_LABEL_PATTERN.matcher(normalized);
+    if (matcher.find()) {
+      String base = trimTextToNull(normalized.replace(matcher.group(), ""));
+      if (base != null) {
+        return base;
+      }
+    }
+    return normalized;
+  }
+
+  private String trimTextToNull(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    return value.trim();
   }
 
   private IssueSource toIssueSource(StatisticIssueFactSource source) {
@@ -461,6 +619,29 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     boolean isLegacyOpenForLevel23() { return !containsAny(bugStatus, LEGACY_FIXED_STATUS_TOKENS); }
     boolean hasExtensionLabel() { return contains(bugStatus, "申请延期") || labels.contains("申请延期"); }
     boolean isRetestFailed() { return contains(bugStatus, "未修复"); }
+    String primaryPhaseLabel() {
+      if (hasScope(testingPhase)) {
+        return testingPhase;
+      }
+      if (hasScope(systemTestLabel)) {
+        return systemTestLabel;
+      }
+      return labels.stream().filter(this::hasScope).findFirst().orElse("");
+    }
+    String phaseFilterValue() {
+      String primary = primaryPhaseLabel();
+      if (!StringUtils.hasText(primary)) {
+        return "";
+      }
+      Matcher matcher = TURN_LABEL_PATTERN.matcher(primary);
+      if (matcher.find()) {
+        String base = primary.replace(matcher.group(), "").trim();
+        if (StringUtils.hasText(base)) {
+          return base;
+        }
+      }
+      return primary.trim();
+    }
     String displaySeverityLevel() {
       return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }
