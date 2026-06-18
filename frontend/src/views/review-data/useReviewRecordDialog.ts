@@ -11,9 +11,10 @@ import {
 
 export interface ReviewRecordDialogDependencies {
   loadRecordDetail: (recordId: number) => Promise<ReviewDataRecordDetailResponse>;
-  createRecord: (payload: ReviewDataRecordSaveRequest) => Promise<unknown>;
+  createRecord: (payload: ReviewDataRecordSaveRequest) => Promise<ReviewDataRecordDetailResponse>;
   updateRecord: (recordId: number, payload: ReviewDataRecordSaveRequest) => Promise<unknown>;
   refreshRecords: () => Promise<void>;
+  afterCreateRecord?: (record: ReviewDataRecordDetailResponse) => Promise<void>;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
 }
@@ -56,8 +57,12 @@ export function useReviewRecordDialog(deps: ReviewRecordDialogDependencies) {
         await deps.updateRecord(editingRecordId.value, payload);
         deps.notifySuccess('评审记录已更新');
       } else {
-        await deps.createRecord(payload);
+        const createdRecord = await deps.createRecord(payload);
         deps.notifySuccess('评审记录已创建');
+        await deps.refreshRecords();
+        recordDialogVisible.value = false;
+        await deps.afterCreateRecord?.(createdRecord);
+        return;
       }
       recordDialogVisible.value = false;
       await deps.refreshRecords();

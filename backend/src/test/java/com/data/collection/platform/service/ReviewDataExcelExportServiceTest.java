@@ -44,14 +44,14 @@ class ReviewDataExcelExportServiceTest {
 
     try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
       var sheet = xlsx.getSheet("评审列表");
-      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("标题");
-      assertThat(sheet.getRow(0).getCell(13).getStringCellValue()).isEqualTo("评审效率(个/小时)");
-      assertThat(sheet.getRow(0).getCell(20).getStringCellValue()).isEqualTo("不达标说明");
+      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("评审的工作产品");
+      assertThat(sheet.getRow(0).getCell(11).getStringCellValue()).isEqualTo("评审效率");
+      assertThat(sheet.getRow(0).getCell(15).getStringCellValue()).isEqualTo("不达标原因");
       assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("需求评审单");
-      assertThat(sheet.getRow(1).getCell(12).getNumericCellValue()).isEqualTo(0.25);
-      assertThat(sheet.getRow(1).getCell(13).getNumericCellValue()).isEqualTo(2.5);
-      assertThat(sheet.getRow(1).getCell(20).getStringCellValue()).isEqualTo("样本不足");
-      assertThat(sheet.getRow(1).getCell(21).getStringCellValue()).isEqualTo("是");
+      assertThat(sheet.getRow(1).getCell(9).getNumericCellValue()).isEqualTo(0.25);
+      assertThat(sheet.getRow(1).getCell(11).getNumericCellValue()).isEqualTo(2.5);
+      assertThat(sheet.getRow(1).getCell(15).getStringCellValue()).isEqualTo("样本不足");
+      assertThat(sheet.getRow(1).getCell(18).getStringCellValue()).isEqualTo("CrownCAD");
     }
   }
 
@@ -93,13 +93,14 @@ class ReviewDataExcelExportServiceTest {
 
     try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
       var sheet = xlsx.getSheet("问题详情");
-      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("标题");
-      assertThat(sheet.getRow(0).getCell(22).getStringCellValue()).isEqualTo("评审人");
-      assertThat(sheet.getRow(0).getCell(29).getStringCellValue()).isEqualTo("问题状态");
-      assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("需求评审单");
-      assertThat(sheet.getRow(1).getCell(22).getStringCellValue()).isEqualTo("专家A");
-      assertThat(sheet.getRow(1).getCell(24).getStringCellValue()).isEqualTo("独立评审");
-      assertThat(sheet.getRow(1).getCell(27).getStringCellValue()).isEqualTo("缺少异常流程");
+      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("sourceType");
+      assertThat(sheet.getRow(0).getCell(7).getStringCellValue()).isEqualTo("问题类别数量统计-文档");
+      assertThat(sheet.getRow(0).getCell(15).getStringCellValue()).isEqualTo("sumCount");
+      assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("需求说明书评审");
+      assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("需求文档");
+      assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("[独立评审]");
+      assertThat(sheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(1);
+      assertThat(sheet.getRow(1).getCell(8).getNumericCellValue()).isEqualTo(1);
     }
   }
 

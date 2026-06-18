@@ -111,8 +111,8 @@ public class ReviewDataRecordReadRepository {
     List<Object> args = new ArrayList<>();
 
     appendContains(sql, args, "r.title", title);
-    appendContains(sql, args, "r.project_name", projectName);
-    appendContains(sql, args, "r.module_name", moduleName);
+    appendEqText(sql, args, "r.project_name", projectName);
+    appendEqText(sql, args, "r.module_name", moduleName);
     appendContains(sql, args, "r.review_owner", reviewOwner);
     appendEqText(sql, args, "r.review_type", reviewType);
     appendProblemStatusFilter(sql, args, problemStatus);
@@ -500,8 +500,8 @@ public class ReviewDataRecordReadRepository {
             """);
     List<Object> args = new ArrayList<>();
     appendContains(sql, args, "r.title", title);
-    appendContains(sql, args, "r.project_name", projectName);
-    appendContains(sql, args, "r.module_name", moduleName);
+    appendEqText(sql, args, "r.project_name", projectName);
+    appendEqText(sql, args, "r.module_name", moduleName);
     appendContains(sql, args, "r.review_owner", reviewOwner);
     appendEqText(sql, args, "r.review_type", reviewType);
     appendProblemStatusFilter(sql, args, problemStatus);

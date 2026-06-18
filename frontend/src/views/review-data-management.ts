@@ -55,27 +55,21 @@ export interface ReviewProblemItemFormModel {
 export function reviewDataColumns(): RecordTableColumn[] {
   return [
     { key: 'title', label: '标题', sortable: true, width: 300, fixed: 'left' },
-    { key: 'reachStandard', label: '是否达标', type: 'tag', sortable: true, width: 110, align: 'center', fixed: 'left' },
     { key: 'projectName', label: '项目', sortable: true, width: 120 },
     { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'problemDensity', label: '评审缺陷密度(个/页)', sortable: true, width: 110, align: 'right' },
-    { key: 'reviewCategorySummary', label: '评审类别', width: 120 },
-    { key: 'docSpecificationCount', label: '文档规范', type: 'number', sortable: true, width: 100, align: 'right' },
-    { key: 'integrityCount', label: '完整性规范', type: 'number', sortable: true, width: 110, align: 'right' },
-    { key: 'functionalityCount', label: '功能性规范', type: 'number', sortable: true, width: 110, align: 'right' },
-    { key: 'feasibilityCount', label: '可行性规范', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewEfficiency', label: '评审效率(个/小时)', sortable: true, width: 130, align: 'right' },
     { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 120, align: 'right' },
     { key: 'moduleName', label: '模块', sortable: true, width: 80 },
     { key: 'reviewOwner', label: '负责人', sortable: true, width: 80 },
-    { key: 'sourceFileName', label: '原文件', width: 150 },
     { key: 'createdAt', label: '上传时间', sortable: true, width: 160 },
     { key: 'independentReviewWorkload', label: '独立评审工作量合计(小时)', sortable: true, width: 150, align: 'right' },
     { key: 'independentReviewProblemCount', label: '有效的独立评审问题数合计(个)', sortable: true, width: 200, align: 'right' },
     { key: 'meetingReviewWorkload', label: '会议评审工作量(小时）', sortable: true, width: 120, align: 'right' },
     { key: 'meetingReviewProblemCount', label: '有效的会议评审问题数合计(个)', sortable: true, width: 150, align: 'right' },
     { key: 'notReachStandardReason', label: '不达标说明', width: 150 },
+    { key: 'reachStandard', label: '是否达标', type: 'tag', sortable: true, width: 110, align: 'center', fixed: 'right' },
   ];
 }
 

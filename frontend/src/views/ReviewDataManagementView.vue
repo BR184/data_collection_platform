@@ -100,6 +100,11 @@ const {
   createRecord: (payload) => api.createReviewDataRecord(payload),
   updateRecord: (recordId, payload) => api.updateReviewDataRecord(recordId, payload),
   refreshRecords: () => refreshReviewRecords(),
+  afterCreateRecord: async (detail) => {
+    const recordId = detail.record.id;
+    await toggleProblemPanel(recordId);
+    await handleCreateProblemItem(recordId);
+  },
   notifySuccess: (message) => ElMessage.success(message),
   notifyError: (message) => ElMessage.error(message),
 });

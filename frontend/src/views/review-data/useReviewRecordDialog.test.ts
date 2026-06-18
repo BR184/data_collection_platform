@@ -57,9 +57,10 @@ function savePayload(): ReviewDataRecordSaveRequest {
 function setup() {
   return {
     loadRecordDetail: vi.fn<(recordId: number) => Promise<ReviewDataRecordDetailResponse>>(),
-    createRecord: vi.fn<(payload: ReviewDataRecordSaveRequest) => Promise<unknown>>(),
+    createRecord: vi.fn<(payload: ReviewDataRecordSaveRequest) => Promise<ReviewDataRecordDetailResponse>>(),
     updateRecord: vi.fn<(recordId: number, payload: ReviewDataRecordSaveRequest) => Promise<unknown>>(),
     refreshRecords: vi.fn<() => Promise<void>>(),
+    afterCreateRecord: vi.fn<(record: ReviewDataRecordDetailResponse) => Promise<void>>(),
     notifySuccess: vi.fn<(message: string) => void>(),
     notifyError: vi.fn<(message: string) => void>(),
   };
@@ -96,7 +97,7 @@ describe('useReviewRecordDialog', () => {
 
   it('creates a record and refreshes the list after saving', async () => {
     const deps = setup();
-    deps.createRecord.mockResolvedValue({});
+    deps.createRecord.mockResolvedValue(detail({ id: 11 }));
     const dialog = useReviewRecordDialog(deps);
     const payload = savePayload();
 
@@ -106,6 +107,7 @@ describe('useReviewRecordDialog', () => {
     expect(deps.createRecord).toHaveBeenCalledWith(payload);
     expect(deps.updateRecord).not.toHaveBeenCalled();
     expect(deps.refreshRecords).toHaveBeenCalledTimes(1);
+    expect(deps.afterCreateRecord).toHaveBeenCalledWith(detail({ id: 11 }));
     expect(deps.notifySuccess).toHaveBeenCalledWith('评审记录已创建');
     expect(dialog.recordDialogVisible.value).toBe(false);
     expect(dialog.recordDialogSaving.value).toBe(false);

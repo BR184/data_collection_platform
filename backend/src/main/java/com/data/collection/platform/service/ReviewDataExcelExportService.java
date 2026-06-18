@@ -29,48 +29,43 @@ public class ReviewDataExcelExportService {
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final String[] RECORD_HEADERS = {
-    "标题",
-    "项目",
-    "模块",
-    "评审类型",
+    "评审的工作产品",
     "评审类别",
-    "评审日期",
-    "负责人",
-    "评审专家",
-    "原文件名",
-    "页数",
-    "评审工作产品",
-    "作者",
-    "评审版本",
-    "问题合计(个)",
+    "文档类别",
+    "文档类型",
+    "评审缺陷个数",
     "文档规范",
     "完整性规范",
     "功能性规范",
     "可行性规范",
-    "评审缺陷密度(个/页)",
+    "评审缺陷密度",
     "加权重的评审缺陷密度",
-    "评审效率(个/小时)",
-    "评审速率(页/小时)",
-    "独立评审工作量合计(小时)",
-    "有效独立评审问题数合计(个)",
-    "会议评审工作量合计(小时)",
-    "有效会议评审问题数合计(个)",
-    "更新时间",
-    "不达标说明",
-    "是否达标"
+    "评审效率",
+    "评审速率",
+    "评审规模",
+    "评审规模（单位）",
+    "不达标原因",
+    "有效的独立问题数",
+    "有效的会议评审数量",
+    "所属项目"
   };
   private static final String[] PROBLEM_HEADERS = {
-    "评审人",
-    "工作量(小时)",
-    "评审类别",
-    "文档位置",
-    "问题类别",
-    "问题描述",
-    "建议解决方案",
-    "问题状态",
-    "责任人",
-    "拒绝原因",
-    "问题更新时间"
+    "sourceType",
+    "reviewProduct",
+    "reviewType",
+    "docType",
+    "defectCountSum",
+    "value1",
+    "workload",
+    "问题类别数量统计-文档",
+    "问题类别数量统计-完整性",
+    "问题类别数量统计-功能性",
+    "问题类别数量统计-可行性",
+    "评审缺陷密度",
+    "weightedDefectDensity",
+    "defectEfficiency",
+    "评审速率",
+    "sumCount"
   };
 
   private final ReviewDataRecordQueryService queryService;
@@ -94,7 +89,7 @@ public class ReviewDataExcelExportService {
       for (ReviewDataRecordRowResponse record : records) {
         writeRecordRow(sheet.createRow(rowIndex++), record, styles.body);
       }
-      setColumnWidths(sheet, 28, 18, 16, 18, 18, 14, 14, 24, 18, 10, 18, 14, 14, 14, 12, 12, 12, 12, 18, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12);
+      setColumnWidths(sheet, 50, 20, 30, 18, 14, 12, 12, 12, 12, 18, 18, 18, 18, 12, 16, 22, 18, 22, 30);
       sheet.createFreezePane(0, 1);
       writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
@@ -121,26 +116,14 @@ public class ReviewDataExcelExportService {
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       ExportStyles styles = new ExportStyles(workbook);
       var sheet = workbook.createSheet("问题详情");
-      writeHeader(sheet.createRow(0), styles.header, concat(RECORD_HEADERS, PROBLEM_HEADERS));
+      writeHeader(sheet.createRow(0), styles.header, PROBLEM_HEADERS);
       int rowIndex = 1;
       for (ReviewDataRecordRowResponse record : records) {
         List<ReviewDataProblemItemResponse> items =
             problemItemsByRecordId.getOrDefault(record.id(), List.of());
-        if (items.isEmpty()) {
-          Row row = sheet.createRow(rowIndex++);
-          writeRecordCells(row, record, styles.body);
-          continue;
-        }
-        for (ReviewDataProblemItemResponse item : items) {
-          Row row = sheet.createRow(rowIndex++);
-          writeRecordCells(row, record, styles.body);
-          writeProblemCells(row, RECORD_HEADERS.length, item, styles.body);
-        }
+        writeProblemSummaryCells(sheet.createRow(rowIndex++), record, items, styles.body);
       }
-      setColumnWidths(
-          sheet,
-          28, 18, 16, 18, 18, 14, 14, 24, 18, 10, 18, 14, 14, 14, 12, 12, 12, 12, 18, 18, 18, 18, 24, 28, 24, 28, 20, 24, 12,
-          14, 14, 16, 16, 16, 36, 36, 14, 14, 24, 20);
+      setColumnWidths(sheet, 18, 30, 24, 18, 16, 12, 14, 22, 24, 24, 24, 18, 22, 18, 14, 14);
       sheet.createFreezePane(0, 1);
       writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
@@ -194,49 +177,77 @@ public class ReviewDataExcelExportService {
 
   private void writeRecordCells(Row row, ReviewDataRecordRowResponse record, CellStyle style) {
     writeText(row, 0, record.title(), style);
-    writeText(row, 1, record.projectName(), style);
-    writeText(row, 2, record.moduleName(), style);
+    writeText(row, 1, record.reviewCategorySummary(), style);
+    writeText(row, 2, "", style);
     writeText(row, 3, record.reviewType(), style);
-    writeText(row, 4, record.reviewCategorySummary(), style);
-    writeText(row, 5, formatDate(record.reviewDate()), style);
-    writeText(row, 6, record.reviewOwner(), style);
-    writeText(row, 7, record.reviewExpertsSummary(), style);
-    writeText(row, 8, record.sourceFileName(), style);
-    writeNumber(row, 9, record.reviewScalePages(), style);
-    writeText(row, 10, record.reviewProduct(), style);
-    writeText(row, 11, record.authorName(), style);
-    writeText(row, 12, record.reviewVersion(), style);
-    writeNumber(row, 13, record.problemCount(), style);
-    writeNumber(row, 14, record.docSpecificationCount(), style);
-    writeNumber(row, 15, record.integrityCount(), style);
-    writeNumber(row, 16, record.functionalityCount(), style);
-    writeNumber(row, 17, record.feasibilityCount(), style);
-    writeNumber(row, 18, record.problemDensity(), style);
-    writeNumber(row, 19, record.weightedDefectDensity(), style);
-    writeNumber(row, 20, record.reviewEfficiency(), style);
-    writeNumber(row, 21, record.reviewRate(), style);
-    writeNumber(row, 22, record.independentReviewWorkload(), style);
-    writeNumber(row, 23, record.independentReviewProblemCount(), style);
-    writeNumber(row, 24, record.meetingReviewWorkload(), style);
-    writeNumber(row, 25, record.meetingReviewProblemCount(), style);
-    writeText(row, 26, formatDateTime(record.updatedAt()), style);
-    writeText(row, 27, record.notReachStandardReason(), style);
-    writeText(row, 28, Boolean.TRUE.equals(record.reachStandard()) ? "是" : "否", style);
+    writeNumber(row, 4, record.problemCount(), style);
+    writeNumber(row, 5, record.docSpecificationCount(), style);
+    writeNumber(row, 6, record.integrityCount(), style);
+    writeNumber(row, 7, record.functionalityCount(), style);
+    writeNumber(row, 8, record.feasibilityCount(), style);
+    writeNumber(row, 9, record.problemDensity(), style);
+    writeNumber(row, 10, record.weightedDefectDensity(), style);
+    writeNumber(row, 11, record.reviewEfficiency(), style);
+    writeNumber(row, 12, record.reviewRate(), style);
+    writeNumber(row, 13, record.reviewScalePages(), style);
+    writeText(row, 14, "页", style);
+    writeText(row, 15, record.notReachStandardReason(), style);
+    writeNumber(row, 16, record.independentReviewProblemCount(), style);
+    writeNumber(row, 17, record.meetingReviewProblemCount(), style);
+    writeText(row, 18, record.projectName(), style);
   }
 
-  private void writeProblemCells(
-      Row row, int offset, ReviewDataProblemItemResponse item, CellStyle style) {
-    writeText(row, offset, item.reviewerName(), style);
-    writeNumber(row, offset + 1, item.workloadHours(), style);
-    writeText(row, offset + 2, item.reviewCategory(), style);
-    writeText(row, offset + 3, item.documentPosition(), style);
-    writeText(row, offset + 4, item.problemCategory(), style);
-    writeText(row, offset + 5, item.problemDescription(), style);
-    writeText(row, offset + 6, item.suggestedSolution(), style);
-    writeText(row, offset + 7, item.problemStatus(), style);
-    writeText(row, offset + 8, item.ownerName(), style);
-    writeText(row, offset + 9, item.rejectionReason(), style);
-    writeText(row, offset + 10, formatDateTime(item.updatedAt()), style);
+  private void writeProblemSummaryCells(
+      Row row, ReviewDataRecordRowResponse record, List<ReviewDataProblemItemResponse> items, CellStyle style) {
+    int defectCount = items.size();
+    int sumCount = record.reviewScalePages() == null ? 0 : record.reviewScalePages();
+    int value1 = defectCount == 0 ? 0 : sumCount / defectCount;
+    double workload = items.stream()
+        .map(ReviewDataProblemItemResponse::workloadHours)
+        .filter(java.util.Objects::nonNull)
+        .mapToDouble(Double::doubleValue)
+        .sum();
+    int docSpecification = countProblemCategory(items, "文档规范");
+    int integrity = countProblemCategory(items, "完整性");
+    int functionality = countProblemCategory(items, "功能性");
+    int feasibility = countProblemCategory(items, "可行性");
+    double weightedDefectDensity = value1 == 0
+        ? 0D
+        : (docSpecification + integrity * 1.5D + functionality * 2D + feasibility * 2D) / value1;
+    double defectEfficiency = sumCount == 0 || value1 == 0 ? 0D : (double) sumCount / value1;
+    double reviewRate = workload == 0D ? 0D : (double) value1 / workload;
+
+    writeText(row, 0, record.reviewType(), style);
+    writeText(row, 1, record.reviewProduct(), style);
+    writeText(row, 2, reviewCategoryListText(items), style);
+    writeText(row, 3, "", style);
+    writeNumber(row, 4, defectCount, style);
+    writeNumber(row, 5, value1, style);
+    writeNumber(row, 6, workload, style);
+    writeNumber(row, 7, docSpecification, style);
+    writeNumber(row, 8, integrity, style);
+    writeNumber(row, 9, functionality, style);
+    writeNumber(row, 10, feasibility, style);
+    writeNumber(row, 11, record.problemDensity(), style);
+    writeNumber(row, 12, weightedDefectDensity, style);
+    writeNumber(row, 13, defectEfficiency, style);
+    writeNumber(row, 14, reviewRate, style);
+    writeNumber(row, 15, sumCount, style);
+  }
+
+  private int countProblemCategory(List<ReviewDataProblemItemResponse> items, String category) {
+    return (int) items.stream()
+        .filter(item -> category.equals(item.problemCategory()))
+        .count();
+  }
+
+  private String reviewCategoryListText(List<ReviewDataProblemItemResponse> items) {
+    return items.stream()
+        .map(ReviewDataProblemItemResponse::reviewCategory)
+        .filter(value -> value != null && !value.isBlank())
+        .distinct()
+        .toList()
+        .toString();
   }
 
   private void writeFilterSnapshotSheet(
@@ -283,13 +294,6 @@ public class ReviewDataExcelExportService {
 
   private String formatDateTime(LocalDateTime value) {
     return value == null ? "" : DATE_TIME_FORMATTER.format(value);
-  }
-
-  private String[] concat(String[] first, String[] second) {
-    String[] result = new String[first.length + second.length];
-    System.arraycopy(first, 0, result, 0, first.length);
-    System.arraycopy(second, 0, result, first.length, second.length);
-    return result;
   }
 
   private static class ExportStyles {

@@ -16,12 +16,12 @@
 
 | 模块 | 页面 | 新平台页面键 | 老平台/规则依据 | 当前状态 | 下一步 |
 |---|---|---|---|---|---|
-| 质量看板 | 研发质量看板 | `quality-board-rd-quality-board` | 待补老平台证据 | 待二次复核 | 核对指标、跳转、默认范围和图表口径 |
-| 质量看板 | 其他看板 | `quality-board-other-board` | 待确认老平台是否存在等价入口 | 待二次复核 | 若老平台无入口，记录为新平台增强能力 |
-| 评审数据 | 评审数据管理 | `review-data-home` | 规则总表 §6；旧平台评审数据入口 | 待二次复核 | 复核列表、导入、问题项、导出、筛选和模板残留 |
+| 质量看板 | 研发质量看板 | `quality-board-rd-quality-board` | `docs/audits/quality-board-gap-audit.md` | 已标记差异，需求未明确暂跳过 | 看板模块未拿到新需求，本轮不实现 |
+| 质量看板 | 其他看板 | `quality-board-other-board` | `docs/audits/quality-board-gap-audit.md` | 已标记差异，需求未明确暂跳过 | 看板模块未拿到新需求，本轮不实现 |
+| 评审数据 | 评审数据管理 | `review-data-home` | `docs/audits/review-data-management-gap-audit.md` | 已按老平台完成差异对齐，待验证 | 跑冒烟和真实链路，回填验证结果 |
 | 代码走查 | 代码走查非法数据 | `code-review-illegal-records` | `docs/audits/code-review-illegal-records-gap-audit.md` | 已有审计，待抽样复查 | 核验字段值和导出是否仍一致 |
 | 代码走查 | 代码走查多元看板 | `code-review-multi-board` | 待确认老平台是否存在等价入口 | 待二次复核 | 若为增强，记录保留依据 |
-| 系统测试 | 系统测试缺陷汇总 | `question-metrics-home` | 规则总表 §4.3；`ModuleTable.vue` | 已补齐代码，待后端编译复验 | 下一轮单独复验后继续核验数据一致性 |
+| 系统测试 | 系统测试缺陷汇总 | `question-metrics-home` | 规则总表 §4.3；`ModuleTable.vue` | 已补齐代码，后端编译复验已通过 | 继续核验数据一致性、下钻、规则说明和导出 |
 | 系统测试 | 议题多元看板 | `question-metrics-multi-board` | 待补老平台证据 | 待二次复核 | 核对多元看板是否为老平台能力 |
 | 系统测试 | 申请延期缺陷分析 | `question-metrics-delay-analysis` | 规则总表 §4.4；页面 audit | 待二次复核 | 复核默认阶段、导出和规则说明 |
 | 系统测试 | 系统测试非法数据 | `question-metrics-illegal-records` | 规则总表 §4.5；页面 audit | 已有审计，待抽样复查 | 核验非法原因和字段值展示 |
@@ -47,3 +47,5 @@
 - 优先处理已确认漏项：系统测试 / 系统测试缺陷汇总缺少老平台项目/测试阶段级联切换入口。
 - 已实现：统计板页级数据范围接入、系统测试缺陷汇总项目/测试阶段级联入口、阶段选择合并进同一套 `filterGroup`，覆盖主表、下钻、规则说明和导出请求。
 - 验证：前端类型检查通过；后端编译首次失败于新增方法名与父类权限冲突，已修正，按仓库测试规则待下一轮单独复验。
+- 质量看板模块已完成二轮差异标记，见 `docs/audits/quality-board-gap-audit.md`。因当前未拿到新的看板模块需求，质量看板本轮跳过实现，不作为后续模块推进阻塞项。
+- 评审数据 / 评审数据管理完成二轮差异实现，见 `docs/audits/review-data-management-gap-audit.md`。已按老平台收紧直接筛选语义、收敛默认列、对齐导出列，并恢复新增后继续录入评审问题的操作闭环。
