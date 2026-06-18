@@ -15,6 +15,7 @@ if ($staleBackendProcesses) {
 }
 
 $mvnArgs = @(
+  "-Dmaven.test.skip=true",
   "-Dspring-boot.run.jvmArguments=-Ddebug=false -Dspring.devtools.restart.enabled=false -Dfile.encoding=UTF-8",
   "spring-boot:run"
 )

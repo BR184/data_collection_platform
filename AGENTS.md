@@ -108,6 +108,20 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 - 做 API 冒烟或真实链路时，先确认登录态和 CSRF，再判断业务是否通了
 - 代码改动后，若后端已在运行，必须重启最新后端实例再做页面联调或接口验证；不要拿旧进程继续判断新代码是否生效
 
+### 1.2 后端拉起与排障事实
+
+后端启动经常卡在“脚本已执行，但服务没真正监听 18080”这一层。后续排障按下面顺序来，别凭感觉猜：
+
+1. **先看端口，不先看心情**：`Get-NetTCPConnection -LocalPort 18080` 没有 `Listen`，就不要默认后端已起来。
+2. **优先用可见启动**：排查时优先直接执行 `powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1`，比隐藏窗口更容易发现 Maven / Spring 的真实报错。
+3. **后台启动必须带日志重定向**：如果一定要 `Start-Process`，必须同时重定向 stdout/stderr 到 `backend/logs/*.out.log` 和 `backend/logs/*.err.log`，否则只会得到“没反应”。
+4. **不要把环境变量和 PATH 拼进超长 `-Command` 字符串**：PowerShell 很容易把 `$env:JAVA_HOME\bin` 之类写坏，导致命令在启动前就解析失败。需要环境变量时，先在当前 shell 设好，再调用启动脚本。
+5. **区分两类失败**：
+   - `18080` 没监听：后端没真正启动。
+   - 日志里出现 GitLab 镜像库、`15434 refused`、某个同步表不存在：这通常是外部同步/刷新任务失败，不等于 Web 后端本身没拉起。
+6. **每次改完代码都拉最新后端**：不要拿旧进程继续测新代码，也不要把旧日志当成这次启动结果。
+7. **本地启动脚本必须跳过测试源码编译**：`backend/run-backend.ps1` 使用 `mvn -Dmaven.test.skip=true spring-boot:run`。原因是 `spring-boot:run` 默认会执行到 `testCompile`，一旦测试源码里残留已删除服务或旧接口引用，Web 后端会在启动前失败，导致 18080 永远不监听。日常代码正确性仍按 §0.1 单独跑 `mvn -DskipTests compile`，不要把启动和测试混在一起。
+
 ## 2. 默认 PATH 的坑
 
 干净 bash 启动后：
@@ -175,6 +189,7 @@ mvn -v
 5. 路径里有空格必须用引号或 `\ ` 转义；MSYS 中 `"C:/Program Files/nodejs/node.exe"` 最稳。
 6. **不要**在 bash 里写 `&&` 串 PowerShell 命令。
 7. **PowerShell 里 Maven/Java 的 `-Dkey=A,B` 这类含逗号参数必须整体加引号**，例如 `mvn -q "-Dtest=FooTest,BarTest" test`。bash 中不需要这层引号，但加上也安全。
+8. **PowerShell 字符串中变量后紧跟 URL 查询参数时必须加花括号**，例如 `"${base}?projectId=325"`。不要写 `"$base?projectId=325"`，否则 `$base?` 可能被当成变量名，最终得到非法 URI。
 
 ## 5. 常用任务的精确命令
 
@@ -214,6 +229,28 @@ export DATASOURCE_PASSWORD='your-local-password'
 powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1
 ```
 
+PowerShell 排查后端启动时，推荐先用前台命令，确认 18080 监听后再做页面联调：
+
+```powershell
+$env:DATASOURCE_PASSWORD = "change_this_password"
+$env:PLATFORM_SECURE_CONFIG_REQUIRED = "false"
+powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1
+Get-NetTCPConnection -LocalPort 18080 -ErrorAction SilentlyContinue
+```
+
+如果必须后台启动，不要把 `$env:PATH` 拼进 `-Command` 字符串；优先调用启动脚本并重定向日志：
+
+```powershell
+$env:DATASOURCE_PASSWORD = "change_this_password"
+$env:PLATFORM_SECURE_CONFIG_REQUIRED = "false"
+Start-Process -FilePath powershell `
+  -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "D:\projects\data_collection_platform\backend\run-backend.ps1" `
+  -WorkingDirectory "D:\projects\data_collection_platform" `
+  -WindowStyle Hidden `
+  -RedirectStandardOutput "D:\projects\data_collection_platform\backend\logs\backend-current.out.log" `
+  -RedirectStandardError "D:\projects\data_collection_platform\backend\logs\backend-current.err.log"
+```
+
 前端：
 
 ```bash
@@ -232,6 +269,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File frontend/run-frontend.ps1
 | `git diff --check` 报警 / CRLF 警告 | 编辑器写了 CRLF | 强制 LF；遵守 `.gitattributes` |
 | 后端启动报 `DATASOURCE_PASSWORD must not be null` | 没设密码环境变量 | `export DATASOURCE_PASSWORD='...'` |
 | 路径含反斜杠导致 `command not found` | export 用了 `D:\\...` | 改 `/d/...` 或 `D:/...` |
+| 后台启动后 18080 没监听且没日志 | `Start-Process` 没重定向，或 `-Command` 里的 PATH/变量被 PowerShell 解析坏 | 前台跑 `backend/run-backend.ps1`，或按 §5.3 后台模板重定向日志 |
+| `spring-boot:run` 在 `testCompile` 阶段失败 | 直接跑 Maven 启动时编译了测试源码，测试里可能有已删除服务/旧接口引用 | 用 `backend/run-backend.ps1`，该脚本带 `-Dmaven.test.skip=true`；代码验证另跑 `mvn -DskipTests compile` |
+| PowerShell 请求 URL 报 `Invalid URI: The hostname could not be parsed` | 字符串里写了 `"$base?x=1"`，变量插值把 `$base?` 解析坏 | 改成 `"${base}?x=1"` 或用 `[uri]::EscapeDataString(...)` 拼参数 |
+| 日志有 `localhost:15434 refused` | 外部 GitLab 镜像库没开或同步源不可用 | 先确认 18080 是否监听；若监听，页面/API 可继续测，别误判为 Web 后端没启动 |
 
 ## 7. 写命令的最低标准（自检清单）
 

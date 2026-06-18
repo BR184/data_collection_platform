@@ -169,6 +169,17 @@
 
 - 后端编译：`mvn -q -DskipTests compile` 通过。
 - 前端类型检查：`npm.cmd run typecheck` 通过。
+- 真实链路复核（2026-06-17）：
+  - 已用最新后端启动到 `18080`，启动脚本为 `backend/run-backend.ps1`。
+  - 使用本地管理员 `admin / admin123` 登录后访问 `GET /api/statistic-boards/customer-issue-delay-issues?projectId=325` 成功。
+  - 看板返回标题为“客户问题延期问题”，列键包含 `resp_delay_p1`、`resp_delay_p2`、`resp_delay_p3`、`resp_delay_sum`、`fix_delay_p1`、`fix_delay_p2`、`fix_delay_p3`、`fix_delay_sum`。
+  - 看板返回“总数”行和“未设定模块”行；当前本地库下延期明细为 0 条，明细探针使用 `rowKey=__total__&columnKey=resp_delay_sum` 返回 `total=0`。
+  - `GET /api/statistic-boards/customer-issue-delay-issues/rule-explanation?projectId=325` 返回 `supported=true`，规则步骤数为 5。
+  - `GET /api/statistic-boards/customer-issue-delay-issues/export?projectId=325` 返回 `text/csv`，可下载。
+- 页面冒烟（2026-06-17）：
+  - 打开 `http://localhost:18181/#/customer-issues/delay-issues?projectId=325` 并登录后，页面未出现“服务处理异常”。
+  - 页面可见“客户问题延期问题”“响应延期的缺陷数量”“解决延期的缺陷数量”“P1/P2/P3/总计”“总数”“未设定模块”。
+  - 点击“规则说明”后可见“客户问题延期问题规则说明”抽屉。
 
 ### 4. “缺陷响应效率”页面统计指标与老平台不一致
 

@@ -168,6 +168,12 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    for (IssueSource issue : snapshot.rowSources()) {
+      for (String moduleName : issue.displayModuleNames()) {
+        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
+      }
+    }
+    buckets.computeIfAbsent(EMPTY_MODULE_LABEL, AggregateBucket::new);
     for (IssueSource issue : snapshot.finalSources()) {
       for (String moduleName : issue.displayModuleNames()) {
         buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
@@ -262,9 +268,12 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         scoped.stream().filter(IssueSource::open).toList();
     List<IssueSource> delayed =
         openIssues.stream().filter(issue -> issue.responseDelayed() || issue.resolveDelayed()).toList();
+    List<IssueSource> rowSources =
+        scoped.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     List<IssueSource> filtered =
         delayed.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
+        rowSources,
         filtered,
         List.of(
             StatisticRuleFlowSupport.step(
@@ -429,21 +438,41 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
+    if ("moduleName".equals(condition.fieldKey())) {
+      return matchesCandidates(issue.displayModuleNames(), condition);
+    }
     String candidate =
         switch (condition.fieldKey()) {
           case "projectName" -> issue.projectName();
           case "milestoneTitle" -> issue.milestoneTitle();
-          case "moduleName" -> String.join("、", issue.displayModuleNames());
-          case "priorityLevel" -> issue.rawPriorityLevel();
+          case "priorityLevel" -> issue.priorityCandidate(condition.operator());
           case "issueState" -> issue.issueState();
           case "authorName" -> issue.authorName();
           case "assigneeName" -> issue.assigneeName();
           default -> "";
         };
+    return matchesCandidate(candidate, condition);
+  }
+
+  private boolean matchesCandidates(List<String> candidates, StatisticFilterCondition condition) {
+    List<String> safeCandidates = candidates == null ? List.of() : candidates;
     String value = trim(condition.value());
     return switch (condition.operator()) {
-      case "eq" -> value == null || normalize(candidate).equals(normalize(value));
-      case "ne" -> value == null || !normalize(candidate).equals(normalize(value));
+      case "eq" -> value == null || safeCandidates.stream().anyMatch(candidate -> normalizedEquals(candidate, value));
+      case "ne" -> value == null || safeCandidates.stream().noneMatch(candidate -> normalizedEquals(candidate, value));
+      case "contains" ->
+          value == null || safeCandidates.stream().anyMatch(candidate -> normalize(candidate).contains(normalize(value)));
+      case "isEmpty" -> safeCandidates.stream().noneMatch(StringUtils::hasText);
+      case "isNotEmpty" -> safeCandidates.stream().anyMatch(StringUtils::hasText);
+      default -> true;
+    };
+  }
+
+  private boolean matchesCandidate(String candidate, StatisticFilterCondition condition) {
+    String value = trim(condition.value());
+    return switch (condition.operator()) {
+      case "eq" -> value == null || normalizedEquals(candidate, value);
+      case "ne" -> value == null || !normalizedEquals(candidate, value);
       case "contains" -> value == null || normalize(candidate).contains(normalize(value));
       case "isEmpty" -> !StringUtils.hasText(candidate);
       case "isNotEmpty" -> StringUtils.hasText(candidate);
@@ -461,6 +490,10 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private static String normalize(String value) {
     return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private static boolean normalizedEquals(String left, String right) {
+    return normalize(left).equals(normalize(right));
   }
 
   private static String trim(String value) {
@@ -562,6 +595,13 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       return priorityLevel == null ? "" : priorityLevel;
     }
 
+    String priorityCandidate(String operator) {
+      if ("isEmpty".equals(operator) || "isNotEmpty".equals(operator)) {
+        return rawPriorityLevel();
+      }
+      return priorityBucket();
+    }
+
     String displayPriorityLevel() {
       return StringUtils.hasText(priorityLevel) ? priorityLevel : "未设定紧急程度";
     }
@@ -591,5 +631,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     }
   }
 
-  private record RuleFlowSnapshot(List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
+  private record RuleFlowSnapshot(
+      List<IssueSource> rowSources,
+      List<IssueSource> finalSources,
+      List<StatisticRuleFlowStep> flowSteps) {}
 }
