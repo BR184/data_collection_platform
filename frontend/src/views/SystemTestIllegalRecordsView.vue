@@ -4,6 +4,7 @@ import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecords
 // 本页只绑定系统测试范围、规则说明和接口适配，避免复制整套记录表逻辑。
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
+import { buildIssueSeverityTag } from '../utils/issue-severity-display';
 import type {
   StatisticFilterField,
   SystemTestIllegalRecordFilterOptionsResponse,
@@ -58,20 +59,6 @@ function formatDateTime(value?: string | null) {
   return value ? value.replace('T', ' ').slice(0, 19) : '-';
 }
 
-function buildSeverityTag(value: string): RecordTableTagValue {
-  const normalized = value.toUpperCase();
-  if (normalized === 'LEVEL1') {
-    return { label: value, type: 'danger' };
-  }
-  if (normalized === 'LEVEL2') {
-    return { label: value, type: 'warning' };
-  }
-  if (normalized === 'LEVEL3') {
-    return { label: value, type: 'primary' };
-  }
-  return { label: value || '-', type: 'info' };
-}
-
 function buildStateTag(value: string): RecordTableTagValue {
   return value.toLowerCase() === 'closed'
     ? { label: '已关闭', type: 'success' }
@@ -89,7 +76,7 @@ function mapRow(row: SystemTestIllegalRecordRowResponse): Record<string, unknown
     moduleNames: row.moduleNames ? [{ label: row.moduleNames, type: 'info' as const }] : [],
     functionName: row.functionName || '-',
     testingPhase: row.testingPhase || '-',
-    severityLevel: row.severityLevel ? [buildSeverityTag(row.severityLevel)] : [],
+    severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
     bugStatus: row.bugStatus || '-',
     issueState: row.issueState ? [buildStateTag(row.issueState)] : [],
     assigneeName: row.assigneeName || '-',

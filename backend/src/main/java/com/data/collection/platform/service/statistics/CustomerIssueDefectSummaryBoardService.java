@@ -20,6 +20,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
@@ -87,11 +88,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                 "severityLevel",
                 "严重程度",
                 180,
-                List.of(
-                    new StatisticFilterOption("一级缺陷", "LEVEL1"),
-                    new StatisticFilterOption("二级缺陷", "LEVEL2"),
-                    new StatisticFilterOption("三级缺陷", "LEVEL3"),
-                    new StatisticFilterOption("建议类", "SUGGESTION"))),
+                IssueDisplayValueSupport.severityFilterOptions(true)),
             StatisticFilterFieldFactory.select(
                 "priorityLevel",
                 "优先级",
@@ -804,19 +801,10 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     }
 
     String severityLabel() {
-      if (isLevel1()) {
-        return "一级缺陷";
-      }
-      if (isLevel2()) {
-        return "二级缺陷";
-      }
-      if (isLevel3()) {
-        return "三级缺陷";
-      }
       if (isSuggestion()) {
-        return "建议类";
+        return IssueDisplayValueSupport.displaySeverityLevel("SUGGESTION");
       }
-      return "";
+      return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
     }
 
     private boolean hasClosedResolvedStatus() {

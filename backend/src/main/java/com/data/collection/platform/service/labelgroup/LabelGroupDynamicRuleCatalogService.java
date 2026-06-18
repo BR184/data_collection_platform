@@ -6,6 +6,7 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRelat
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourceFieldResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourceResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupRuleRelationRequest;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.TextQuerySupport;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -192,8 +193,7 @@ public class LabelGroupDynamicRuleCatalogService {
             field("createdAt", "创建时间", "created_at_source", VALUE_DATE, true, true, true, false),
             field("updatedAt", "更新时间", "updated_at_source", VALUE_DATE, true, true, true, false),
             candidateField("moduleName", "模块", "module_name", VALUE_STRING, true, true, true, false),
-            staticField("severityLevel", "严重程度", "severity_level", VALUE_STRING, true, true, true, false,
-                "一级缺陷", "二级缺陷", "三级缺陷"),
+            staticSeverityField("severityLevel", "严重程度", "severity_level", true, true, true, false),
             staticField("priorityLevel", "优先级", "priority_level", VALUE_STRING, true, true, true, false,
                 "P1", "P2", "P3"),
             candidateField("testingPhase", "测试阶段", "testing_phase", VALUE_STRING, true, true, true, false),
@@ -316,6 +316,27 @@ public class LabelGroupDynamicRuleCatalogService {
         aggregateSupported,
         CANDIDATE_STATIC,
         java.util.Arrays.stream(values).map(value -> new OptionItemResponse(value, value)).toList());
+  }
+
+  private DynamicRuleFieldDefinition staticSeverityField(
+      String key,
+      String name,
+      String columnName,
+      boolean outputSupported,
+      boolean filterSupported,
+      boolean groupSupported,
+      boolean aggregateSupported) {
+    return new DynamicRuleFieldDefinition(
+        key,
+        name,
+        columnName,
+        VALUE_STRING,
+        outputSupported,
+        filterSupported,
+        groupSupported,
+        aggregateSupported,
+        CANDIDATE_STATIC,
+        IssueDisplayValueSupport.severityLevelOptions(true));
   }
 
   private DynamicRuleRelationDefinition relation(

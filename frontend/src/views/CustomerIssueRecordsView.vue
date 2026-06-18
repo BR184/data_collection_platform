@@ -13,6 +13,7 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
+import { buildIssueSeverityTag } from '../utils/issue-severity-display';
 import type {
   CustomerIssueRecordFilterOptionsResponse,
   CustomerIssueRecordRowResponse,
@@ -232,7 +233,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
     issueState: [{ label: normalizeIssueState(row.issueState), type: row.closedAt ? 'info' as const : 'success' as const }],
     functionName: row.functionName || '-',
     reasonCategory: [{ label: row.reasonCategory || '未归因', type: row.reasonCategory ? 'primary' as const : 'info' as const }],
-    severityLevel: [{ label: row.severityLevel || '-', type: 'danger' as const }],
+    severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
     priorityLevel: [{ label: row.priorityLevel || '-', type: 'primary' as const }],
     bugStatus: [{ label: row.bugStatus || '-', type: row.bugStatus ? 'primary' as const : 'info' as const }],
     category: [{ label: row.category || '-', type: row.category ? 'primary' as const : 'info' as const }],

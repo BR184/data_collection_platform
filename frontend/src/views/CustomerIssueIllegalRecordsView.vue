@@ -4,6 +4,7 @@ import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecords
 // 这种薄封装让系统测试与客户问题两类页面保持一致的筛选、分页和导出体验。
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
+import { buildIssueSeverityTag } from '../utils/issue-severity-display';
 import type {
   CustomerIssueIllegalRecordFilterOptionsResponse,
   CustomerIssueIllegalRecordRowResponse,
@@ -56,7 +57,7 @@ function mapRow(row: CustomerIssueIllegalRecordRowResponse): Record<string, unkn
     issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
     moduleNames: row.moduleNames || '-',
     title: row.title,
-    severityLevel: [{ label: row.severityLevel || '-', type: 'danger' as const }],
+    severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
     assigneeName: row.assigneeName || '-',
     issueState: [{ label: normalizeIssueState(row.issueState), type: row.closedAt ? 'info' as const : 'success' as const }],
     illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],

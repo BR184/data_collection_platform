@@ -22,6 +22,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSampl
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.FactBuildService;
 import com.data.collection.platform.service.GitlabMirrorSyncService;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
@@ -731,10 +732,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
     String severityDisplay() {
       if (isLevel1()) return level1Kind();
-      if (isLevel2()) return "二级缺陷";
-      if (isLevel3()) return "三级缺陷";
-      if (isSuggestion()) return "建议类";
-      return StringUtils.hasText(severityLevel) ? severityLevel : "-";
+      if (isSuggestion()) return IssueDisplayValueSupport.displaySeverityLevel("SUGGESTION");
+      return IssueDisplayValueSupport.displaySeverityLevelOrFallback(severityLevel, "-");
     }
 
     private String level1Kind() {

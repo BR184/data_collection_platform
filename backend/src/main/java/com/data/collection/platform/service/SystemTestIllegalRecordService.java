@@ -215,7 +215,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         toLegacyOptions(rows, IssueFactRecord::authorName),
         toLegacyOptions(rows, IssueFactRecord::assigneeName),
         toOptions(rows, IssueFactRecord::issueState),
-        toOptions(rows, IssueFactRecord::severityLevel),
+        toSeverityOptions(rows, IssueFactRecord::severityLevel),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
         toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
@@ -337,7 +337,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         view.issueState(),
         view.primaryPhaseLabel(),
         String.join(",", displayIllegalReasons(view)),
-        view.severityLevel(),
+        IssueDisplayValueSupport.displaySeverityLevelOrBlank(view.severityLevel()),
         view.bugStatus(),
         view.category(),
         view.milestoneTitle(),

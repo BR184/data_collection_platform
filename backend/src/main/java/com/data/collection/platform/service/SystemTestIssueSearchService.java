@@ -273,7 +273,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         toLegacyOptions(scopedViews, IssueFactRecord::authorName),
         toLegacyOptions(scopedViews, IssueFactRecord::assigneeName),
         toOptions(scopedViews, IssueFactRecord::issueState),
-        toOptions(scopedViews, IssueFactRecord::severityLevel),
+        toSeverityOptions(scopedViews, IssueFactRecord::severityLevel),
         toOptions(scopedViews, IssueFactRecord::bugStatus),
         toOptions(scopedViews, IssueFactRecord::category),
         toLegacyOptions(scopedViews, IssueFactRecord::milestoneTitle));
@@ -385,7 +385,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         view.title(),
         view.issueState(),
         view.primaryPhaseLabel(),
-        view.severityLevel(),
+        IssueDisplayValueSupport.displaySeverityLevelOrBlank(view.severityLevel()),
         view.bugStatus(),
         view.category(),
         view.milestoneTitle(),

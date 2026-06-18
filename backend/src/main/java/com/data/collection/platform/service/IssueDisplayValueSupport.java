@@ -1,5 +1,8 @@
 package com.data.collection.platform.service;
 
+import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
+import java.util.List;
 import org.springframework.util.StringUtils;
 
 public final class IssueDisplayValueSupport {
@@ -24,6 +27,25 @@ public final class IssueDisplayValueSupport {
 
   public static String displaySeverityLevelOrBlank(String rawValue) {
     return StringUtils.hasText(rawValue) ? displaySeverityLevel(rawValue) : "";
+  }
+
+  public static String displaySeverityLevelOrFallback(String rawValue, String fallback) {
+    return StringUtils.hasText(rawValue) ? displaySeverityLevel(rawValue) : fallback;
+  }
+
+  public static List<OptionItemResponse> severityLevelOptions(boolean includeSuggestion) {
+    List<String> values = includeSuggestion
+        ? List.of("LEVEL1", "LEVEL2", "LEVEL3", "SUGGESTION")
+        : List.of("LEVEL1", "LEVEL2", "LEVEL3");
+    return values.stream()
+        .map(value -> new OptionItemResponse(displaySeverityLevel(value), value))
+        .toList();
+  }
+
+  public static List<StatisticFilterOption> severityFilterOptions(boolean includeSuggestion) {
+    return severityLevelOptions(includeSuggestion).stream()
+        .map(option -> new StatisticFilterOption(option.label(), option.value()))
+        .toList();
   }
 
   public static String displayPriorityLevel(String rawValue) {

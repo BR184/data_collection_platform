@@ -19,12 +19,17 @@ public final class OptionItemResponseFactory {
   }
 
   public static List<OptionItemResponse> from(Collection<String> values, Function<String, String> normalizer) {
+    return fromValues(values, normalizer, Function.identity());
+  }
+
+  public static List<OptionItemResponse> fromValues(
+      Collection<String> values, Function<String, String> normalizer, Function<String, String> labeler) {
     Set<String> normalized = values.stream()
         .map(normalizer)
         .filter(Objects::nonNull)
         .collect(Collectors.toCollection(LinkedHashSet::new));
     return normalized.stream()
-        .map(value -> new OptionItemResponse(value, value))
+        .map(value -> new OptionItemResponse(labeler.apply(value), value))
         .sorted(Comparator.comparing(OptionItemResponse::label, String::compareToIgnoreCase))
         .toList();
   }

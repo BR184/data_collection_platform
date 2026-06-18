@@ -12,7 +12,6 @@ import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
-import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
@@ -132,11 +131,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
                 "severityLevel",
                 "严重程度",
                 180,
-                List.of(
-                    new StatisticFilterOption("一级缺陷", "LEVEL1"),
-                    new StatisticFilterOption("二级缺陷", "LEVEL2"),
-                    new StatisticFilterOption("三级缺陷", "LEVEL3"),
-                    new StatisticFilterOption("建议类", "SUGGESTION")))),
+                IssueDisplayValueSupport.severityFilterOptions(true))),
         List.of(
             new StatisticColumnGroup(
                 "quantity",

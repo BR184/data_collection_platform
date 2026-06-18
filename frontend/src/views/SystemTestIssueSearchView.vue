@@ -11,6 +11,7 @@ import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
+import { buildIssueSeverityTag, displayIssueSeverity } from '../utils/issue-severity-display';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import type {
   StatisticFilterField,
@@ -243,7 +244,9 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   if (values.authorName) tags.push({ key: 'authorName', label: '创建人', value: String(values.authorName) });
   if (values.assigneeName) tags.push({ key: 'assigneeName', label: '处理人', value: String(values.assigneeName) });
   if (values.issueState) tags.push({ key: 'issueState', label: '状态', value: String(values.issueState) });
-  if (values.severityLevel) tags.push({ key: 'severityLevel', label: '严重程度', value: String(values.severityLevel) });
+  if (values.severityLevel) {
+    tags.push({ key: 'severityLevel', label: '严重程度', value: displayIssueSeverity(String(values.severityLevel)) });
+  }
   if (values.bugStatus) tags.push({ key: 'bugStatus', label: '缺陷状态', value: String(values.bugStatus) });
   if (values.category) tags.push({ key: 'category', label: '缺陷分类', value: String(values.category) });
   if (values.milestoneTitle) tags.push({ key: 'milestoneTitle', label: '里程碑', value: String(values.milestoneTitle) });
@@ -292,7 +295,7 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
     moduleNames: splitDisplayList(row.moduleNames).map((label) => ({ label, type: 'info' as const })),
     functionName: row.functionName || '-',
     testingPhase: row.testingPhase || '-',
-    severityLevel: row.severityLevel ? [buildSeverityTag(row.severityLevel)] : [],
+    severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
     bugStatus: row.bugStatus || '-',
     issueState: row.issueState || '-',
     assigneeName: row.assigneeName || '-',
@@ -398,20 +401,6 @@ function splitDisplayList(value: string) {
     .split(/[、&]/)
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function buildSeverityTag(value: string) {
-  const normalized = value.toUpperCase();
-  if (normalized === 'LEVEL1') {
-    return { label: value, type: 'danger' };
-  }
-  if (normalized === 'LEVEL2') {
-    return { label: value, type: 'warning' };
-  }
-  if (normalized === 'LEVEL3') {
-    return { label: value, type: 'primary' };
-  }
-  return { label: value, type: 'info' };
 }
 
 async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {

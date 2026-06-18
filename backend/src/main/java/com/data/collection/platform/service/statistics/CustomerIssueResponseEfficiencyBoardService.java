@@ -138,11 +138,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
                 "severityLevel",
                 "严重程度",
                 180,
-                List.of(
-                    new StatisticFilterOption("一级缺陷", "LEVEL1"),
-                    new StatisticFilterOption("二级缺陷", "LEVEL2"),
-                    new StatisticFilterOption("三级缺陷", "LEVEL3"),
-                    new StatisticFilterOption("建议类", "SUGGESTION"))),
+                IssueDisplayValueSupport.severityFilterOptions(true)),
             StatisticFilterFieldFactory.select(
                 "priorityLevel",
                 "紧急程度",

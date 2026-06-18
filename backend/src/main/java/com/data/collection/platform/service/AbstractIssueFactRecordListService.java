@@ -133,6 +133,14 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
     return OptionItemResponseFactory.from(rows, extractor, TextQuerySupport::trimToNull);
   }
 
+  protected List<OptionItemResponse> toSeverityOptions(
+      List<IssueFactRecord> rows, Function<IssueFactRecord, String> extractor) {
+    return OptionItemResponseFactory.fromValues(
+        rows.stream().map(extractor).toList(),
+        TextQuerySupport::trimToNull,
+        IssueDisplayValueSupport::displaySeverityLevel);
+  }
+
   protected List<OptionItemResponse> toLegacyOptions(
       List<IssueFactRecord> rows, Function<IssueFactRecord, String> extractor) {
     return OptionItemResponseFactory.fromLegacyBusinessValues(rows.stream().map(extractor).toList());
