@@ -44,7 +44,6 @@ const { route, page, pageSize, sortBy, sortOrder, patchQuery, bindLoader, isTabl
     autoRefreshOnEnter: readAutoRefreshOnEnter,
   });
 
-const advancedVisible = ref(false);
 const rows = ref<SystemTestIssueSearchRowResponse[]>([]);
 const total = ref(0);
 const exportLoading = ref(false);
@@ -87,24 +86,12 @@ const {
   emptyText: '-',
 });
 
-const searchTypeOptions = [
-  { label: '综合搜索', value: 'all' },
-  { label: '议题编号', value: 'issueIid' },
-  { label: '标题', value: 'title' },
-  { label: '模块名', value: 'moduleName' },
-  { label: '里程碑', value: 'milestoneTitle' },
-  { label: '提交人', value: 'authorName' },
-  { label: '处理人', value: 'assigneeName' },
-];
-
 const filterValues = computed<Record<string, unknown>>(() => {
   const createdAtStart = String(route.query.createdAtStart ?? '');
   const createdAtEnd = String(route.query.createdAtEnd ?? '');
   const updatedAtStart = String(route.query.updatedAtStart ?? '');
   const updatedAtEnd = String(route.query.updatedAtEnd ?? '');
   return {
-    searchType: String(route.query.searchType ?? 'all'),
-    keyword: String(route.query.keyword ?? ''),
     testingPhase: parseMultiQueryValue(route.query.testingPhase),
     moduleName: String(route.query.moduleName ?? ''),
     functionName: String(route.query.functionName ?? ''),
@@ -124,53 +111,6 @@ const filterValues = computed<Record<string, unknown>>(() => {
 });
 
 const primaryFilters = computed<RecordTableFilterField[]>(() => [
-  {
-    key: 'searchType',
-    label: '搜索类型',
-    type: 'select',
-    width: 130,
-    options: searchTypeOptions,
-  },
-  {
-    key: 'updatedAtRange',
-    label: '更新时间',
-    type: 'daterange',
-    width: 280,
-    startPlaceholder: '开始日期',
-    endPlaceholder: '结束日期',
-  },
-  {
-    key: 'testingPhase',
-    label: '测试阶段',
-    type: 'select',
-    multiple: true,
-    width: 280,
-    options: filterOptions.value.testingPhases,
-  },
-  {
-    key: 'moduleName',
-    label: '模块关键词',
-    type: 'select',
-    width: 180,
-    options: [{ label: '全部模块关键词', value: '' }, ...filterOptions.value.moduleNames],
-  },
-  {
-    key: 'functionName',
-    label: '功能名',
-    type: 'select',
-    width: 180,
-    options: [{ label: '全部功能', value: '' }, ...filterOptions.value.functionNames],
-  },
-  {
-    key: 'keyword',
-    label: '综合关键词',
-    type: 'input',
-    width: 260,
-    placeholder: '搜索议题编号、标题、模块、功能、里程碑、轮次、作者',
-  },
-]);
-
-const advancedFilters = computed<RecordTableFilterField[]>(() => [
   { key: 'issueIid', label: '议题编号', type: 'input', placeholder: '输入议题编号' },
   { key: 'title', label: '标题', type: 'input', placeholder: '输入标题关键字' },
   {
@@ -229,6 +169,36 @@ const advancedFilters = computed<RecordTableFilterField[]>(() => [
     startPlaceholder: '开始日期',
     endPlaceholder: '结束日期',
   },
+  {
+    key: 'updatedAtRange',
+    label: '更新时间',
+    type: 'daterange',
+    width: 280,
+    startPlaceholder: '开始日期',
+    endPlaceholder: '结束日期',
+  },
+  {
+    key: 'testingPhase',
+    label: '测试阶段',
+    type: 'select',
+    multiple: true,
+    width: 280,
+    options: filterOptions.value.testingPhases,
+  },
+  {
+    key: 'moduleName',
+    label: '模块关键词',
+    type: 'select',
+    width: 180,
+    options: [{ label: '全部模块关键词', value: '' }, ...filterOptions.value.moduleNames],
+  },
+  {
+    key: 'functionName',
+    label: '功能名',
+    type: 'select',
+    width: 180,
+    options: [{ label: '全部功能', value: '' }, ...filterOptions.value.functionNames],
+  },
 ]);
 
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
@@ -243,7 +213,6 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   }
   if (values.moduleName) tags.push({ key: 'moduleName', label: '模块关键词', value: String(values.moduleName) });
   if (values.functionName) tags.push({ key: 'functionName', label: '功能名', value: String(values.functionName) });
-  if (values.keyword) tags.push({ key: 'keyword', label: '综合关键词', value: String(values.keyword) });
   if (values.issueIid) tags.push({ key: 'issueIid', label: '议题编号', value: String(values.issueIid) });
   if (values.title) tags.push({ key: 'title', label: '标题', value: String(values.title) });
   if (values.projectName) tags.push({ key: 'projectName', label: '项目名称', value: String(values.projectName) });
@@ -357,8 +326,6 @@ function buildCurrentQueryParams(includePagination: boolean) {
   return {
     projectId: route.query.projectId as string | undefined,
     sourceInstance: String(route.query.sourceInstance ?? ''),
-    searchType: String(route.query.searchType ?? ''),
-    keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),
     projectName: String(route.query.projectName ?? ''),
@@ -439,8 +406,6 @@ async function handleReset() {
     sortBy: 'updatedAt',
     sortOrder: 'desc',
     ...buildResetQueryPatch(route.query),
-    keyword: null,
-    searchType: null,
     testingPhase: null,
     moduleName: null,
     functionName: null,
@@ -529,19 +494,15 @@ async function handleRefresh() {
       :page-size="pageSize"
       :total="total"
       row-key="identityKey"
-      :keyword-auto-search="true"
       :primary-filters="primaryFilters"
-      :advanced-filters="advancedFilters"
       :filter-values="filterValues"
       :active-filter-tags="activeFilterTags"
-      :advanced-visible="advancedVisible"
       :show-search="false"
       empty-description="当前筛选条件下没有查到系统测试议题。"
       @filter-change="handleFilterChange"
       @reset="handleReset"
       @query="handleQuery"
       @clear-filter="handleClearFilter"
-      @update:advanced-visible="advancedVisible = $event"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
       @sort-change="handleSortChange"

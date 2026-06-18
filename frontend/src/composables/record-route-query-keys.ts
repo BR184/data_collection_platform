@@ -1,7 +1,6 @@
 export const ISSUE_RECORD_QUERY_KEYS = [
   'projectId',
   'sourceInstance',
-  'searchType',
   'issueIid',
   'title',
   'projectName',
