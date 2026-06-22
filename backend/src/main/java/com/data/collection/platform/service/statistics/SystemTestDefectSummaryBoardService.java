@@ -22,6 +22,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinit
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -55,14 +56,17 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       Pattern.compile("第[一二三四五六七八九十0-9]+轮(系统测试|回归测试)|回归测试");
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
       IssueFactBoardRuntimeSupport runtimeSupport,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseCatalogService phaseCatalogService) {
     super(jsonUtils);
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   @Override
@@ -317,33 +321,13 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private List<StatisticFilterOption> loadPhaseOptions() {
     try {
-      return runtimeSupport
-          .loadFacts(Map.of(), StatisticIssueFactSource::inSystemTestScope)
-          .stream()
-          .flatMap(source -> phaseCandidates(source).stream())
-          .filter(this::isPhaseScopedValue)
-          .map(this::phaseFilterValue)
-          .filter(StringUtils::hasText)
-          .distinct()
-          .sorted(String.CASE_INSENSITIVE_ORDER)
+      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
           .map(value -> new StatisticFilterOption(value, value))
           .toList();
     } catch (Exception e) {
       log.debug("Failed to load phase options for {}", BOARD_KEY, e);
       return List.of();
     }
-  }
-
-  private List<String> phaseCandidates(StatisticIssueFactSource source) {
-    List<String> values = new ArrayList<>();
-    if (StringUtils.hasText(source.testingPhase())) {
-      values.add(source.testingPhase());
-    }
-    if (StringUtils.hasText(source.systemTestLabel())) {
-      values.add(source.systemTestLabel());
-    }
-    values.addAll(source.labels());
-    return values;
   }
 
   private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {

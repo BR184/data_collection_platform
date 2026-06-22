@@ -18,9 +18,12 @@ import org.springframework.stereotype.Service;
 public class TestingPhaseDefinitionService {
 
   private final JdbcTemplate jdbcTemplate;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
-  public TestingPhaseDefinitionService(JdbcTemplate jdbcTemplate) {
+  public TestingPhaseDefinitionService(
+      JdbcTemplate jdbcTemplate, SystemTestPhaseCatalogService phaseCatalogService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   public List<TestingPhaseDefinitionResponse> list(Long projectId, String keyword, Boolean enabled) {
@@ -80,7 +83,15 @@ public class TestingPhaseDefinitionService {
       args.add(enabled);
     }
     sql.append(" order by c.project_id asc, c.phase_start_at desc, c.testing_phase asc");
-    return jdbcTemplate.query(sql.toString(), this::mapDefinition, args.toArray());
+    List<TestingPhaseDefinitionResponse> configured =
+        jdbcTemplate.query(sql.toString(), this::mapDefinition, args.toArray());
+    if (!configured.isEmpty()
+        || enabled == null
+        || !enabled
+        || TextQuerySupport.trimToNull(keyword) != null) {
+      return configured;
+    }
+    return fallbackDefinitions(projectId);
   }
 
   public List<TestingPhaseProjectOptionResponse> listProjectOptions() {
@@ -287,6 +298,29 @@ public class TestingPhaseDefinitionService {
         rs.getLong("issue_count"),
         toLocalDateTime(rs.getTimestamp("created_at")),
         toLocalDateTime(rs.getTimestamp("updated_at")));
+  }
+
+  private List<TestingPhaseDefinitionResponse> fallbackDefinitions(Long projectId) {
+    List<TestingPhaseDefinitionResponse> definitions = new ArrayList<>();
+    long id = -1L;
+    for (SystemTestPhaseCatalogService.PhaseGroup group : phaseCatalogService.listGroups(projectId)) {
+      for (String testingPhase : group.testingPhases()) {
+        definitions.add(
+            new TestingPhaseDefinitionResponse(
+                id--,
+                group.projectId() == null ? SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID : group.projectId(),
+                group.name(),
+                testingPhase,
+                null,
+                null,
+                true,
+                "按老平台测试阶段标签自动识别",
+                0L,
+                null,
+                null));
+      }
+    }
+    return definitions;
   }
 
   private Timestamp toTimestamp(LocalDateTime value) {

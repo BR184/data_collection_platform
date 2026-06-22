@@ -28,7 +28,7 @@ final class SystemTestIllegalReasonSupport {
     if (normalized == null) {
       return null;
     }
-    return ALIASES.get(normalized);
+    return ALIASES.getOrDefault(normalized, normalized);
   }
 
   static boolean matches(String actualReason, String expectedReason) {

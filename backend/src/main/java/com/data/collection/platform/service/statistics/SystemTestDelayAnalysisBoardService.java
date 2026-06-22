@@ -27,6 +27,7 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -102,6 +103,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
   public SystemTestDelayAnalysisBoardService(
       JsonUtils jsonUtils,
@@ -109,13 +111,15 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseCatalogService phaseCatalogService) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   @Override
@@ -490,21 +494,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
 
   private List<StatisticFilterOption> loadPhaseOptions() {
     try {
-      return issueFactQueryService.query(
-              PHASE_OPTION_SQL,
-              Map.of(),
-              (rs, rowNum) ->
-                  new PhaseOptionSource(
-                      StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
-                      StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
-                      StatisticSourceValueSupport.split(rs.getString("label_names"))))
-          .stream()
-          .flatMap(source -> source.candidates().stream())
-          .filter(this::isPhaseScopedValue)
-          .map(this::phaseFilterValue)
-          .filter(StringUtils::hasText)
-          .distinct()
-          .sorted(String.CASE_INSENSITIVE_ORDER)
+      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
           .map(value -> new StatisticFilterOption(value, value))
           .toList();
     } catch (DataAccessException e) {
@@ -674,6 +664,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         }
       }
       return normalized;
+    }
+
+    public String phaseLabel() {
+      return primaryPhaseLabel();
     }
 
     private boolean hasScope(String value) {

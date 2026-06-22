@@ -400,12 +400,15 @@ public class IssueFactRecordRepository {
       }
       return;
     }
-    List<String> rawReason = CustomerIssueIllegalReasonSupport.rawReasonsFor(query.illegalReason());
-    if (!rawReason.isEmpty()) {
-      appendIllegalReasonsContainsAny(where, args, rawReason);
-    } else {
-      appendEqIgnoreCase(where, args, "illegal_reason", query.illegalReason());
+    String normalizedReason = TextQuerySupport.trimToNull(query.illegalReason());
+    if (normalizedReason == null) {
+      return;
     }
+    List<String> rawReasons = new ArrayList<>(SystemTestIllegalReasonSupport.rawReasonsFor(normalizedReason));
+    if (rawReasons.isEmpty()) {
+      rawReasons.add(normalizedReason);
+    }
+    appendIllegalReasonsContainsAny(where, args, rawReasons);
   }
 
   private void appendEq(StringBuilder where, List<Object> args, String column, Long value) {

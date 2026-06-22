@@ -71,7 +71,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   false,
                   true,
                   true,
-                  true,
+                  false,
                   false,
                   true,
                   false,
@@ -212,7 +212,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 .map(IssueFactRecord::phaseFilterValue)
                 .filter(StringUtils::hasText)
                 .toList()),
-        toOptions(SystemTestIllegalReasonSupport.SUPPORTED_REASONS),
+        toOptions(rows.stream().flatMap(row -> displayIllegalReasons(row).stream()).toList()),
         toLegacyOptions(rows, IssueFactRecord::authorName),
         toLegacyOptions(rows, IssueFactRecord::assigneeName),
         toOptions(rows, IssueFactRecord::issueState),
@@ -240,10 +240,6 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     List<IssueFactRecord> scoped = scopeSystemTests(loaded);
     List<IssueFactRecord> valid = scoped.stream().filter(view -> !view.excluded()).toList();
     List<IssueFactRecord> illegal = valid.stream().filter(IssueFactRecord::illegal).toList();
-    List<IssueFactRecord> supported =
-        illegal.stream()
-            .filter(view -> displayIllegalReasons(view).stream().anyMatch(SystemTestIllegalReasonSupport.SUPPORTED_REASONS::contains))
-            .toList();
     return new StatisticBoardRuleExplanationResponse(
         WORKSPACE_KEY,
         true,
@@ -255,8 +251,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
             step("scope-filter", "限定系统测试范围", "复用系统测试 scope profile，保留系统测试和回归测试议题。", scoped, loaded.size()),
             step("exclude-filter", "剔除排除数据", "排除功能屏蔽、已拒绝、建议、申请否决关闭、需求如此关闭等数据。", valid, scoped.size()),
-            step("illegal-filter", "筛出非法数据", "保留 issue_fact.is_illegal = true 的系统测试议题。", illegal, valid.size()),
-            step("reason-normalize", "归一化非法类型", "仅保留交接文档定义的四类非法类型，并映射历史事实层别名。", supported, illegal.size())),
+            step("illegal-filter", "筛出非法数据", "保留 issue_fact.is_illegal = true 的系统测试议题；非法类型按老平台 illegal_list 多值口径展示。", illegal, valid.size())),
         List.of(
             new StatisticRuleMetricDefinition(
                 "missing-severity",
@@ -289,7 +284,6 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return scopeSystemTests(loadFacts(projectId)).stream()
         .filter(view -> !view.excluded())
         .filter(IssueFactRecord::illegal)
-        .filter(view -> displayIllegalReasons(view).stream().anyMatch(SystemTestIllegalReasonSupport.SUPPORTED_REASONS::contains))
         .toList();
   }
 
@@ -380,7 +374,9 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
 
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
     String normalized = TextQuerySupport.trimToNull(testingPhase);
-    return normalized == null || TextQuerySupport.equalsNormalized(view.phaseFilterValue(), normalized);
+    return normalized == null
+        || TextQuerySupport.equalsNormalized(view.phaseFilterValue(), normalized)
+        || TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), normalized);
   }
 
   private boolean matchesIllegalReason(IssueFactRecord view, String illegalReason) {

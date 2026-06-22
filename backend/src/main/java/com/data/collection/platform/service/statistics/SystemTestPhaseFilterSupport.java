@@ -48,15 +48,24 @@ final class SystemTestPhaseFilterSupport {
     if (!TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
       return true;
     }
-    String candidate = trimToEmpty(source.phaseFilterValue());
+    String parentCandidate = trimToEmpty(source.phaseFilterValue());
+    String phaseCandidate = trimToEmpty(source.phaseLabel());
     String value = trimToNull(condition.value());
     return switch (condition.operator()) {
-      case "eq" -> value == null || candidate.equalsIgnoreCase(value);
-      case "ne" -> value == null || !candidate.equalsIgnoreCase(value);
+      case "eq" ->
+          value == null
+              || parentCandidate.equalsIgnoreCase(value)
+              || phaseCandidate.equalsIgnoreCase(value);
+      case "ne" ->
+          value == null
+              || (!parentCandidate.equalsIgnoreCase(value)
+                  && !phaseCandidate.equalsIgnoreCase(value));
       case "contains" ->
-          value == null || candidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT));
-      case "isEmpty" -> !StringUtils.hasText(candidate);
-      case "isNotEmpty" -> StringUtils.hasText(candidate);
+          value == null
+              || parentCandidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT))
+              || phaseCandidate.toLowerCase(Locale.ROOT).contains(value.toLowerCase(Locale.ROOT));
+      case "isEmpty" -> !StringUtils.hasText(parentCandidate) && !StringUtils.hasText(phaseCandidate);
+      case "isNotEmpty" -> StringUtils.hasText(parentCandidate) || StringUtils.hasText(phaseCandidate);
       default -> true;
     };
   }

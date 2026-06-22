@@ -152,6 +152,10 @@ public class ReviewDataLegacyExcelImportService {
     List<ReviewDataLegacyExcelImportIssue> issues = new ArrayList<>(row.issues());
     String owner = firstNonBlank(row.reviewOwner(), request == null ? "" : request.defaultReviewOwner());
     LocalDate reviewDate = row.reviewDate() == null && request != null ? request.defaultReviewDate() : row.reviewDate();
+    boolean missingReviewDate = reviewDate == null;
+    if (missingReviewDate) {
+      reviewDate = LocalDate.now();
+    }
     String moduleName = firstNonBlank(row.moduleName(), FALLBACK_MODULE_NAME);
     String reviewOwner = firstNonBlank(owner, FALLBACK_REVIEW_OWNER);
     String authorName = firstNonBlank(request == null ? "" : request.defaultAuthorName(), owner, "历史导入");
@@ -166,8 +170,8 @@ public class ReviewDataLegacyExcelImportService {
     if (owner.isBlank()) {
       issues.add(issue(row.rowNumber(), "reviewOwner", ReviewDataLegacyExcelIssueLevel.WARNING, "负责人为空，已按“" + FALLBACK_REVIEW_OWNER + "”导入"));
     }
-    if (reviewDate == null) {
-      issues.add(issue(row.rowNumber(), "reviewDate", ReviewDataLegacyExcelIssueLevel.WARNING, "评审日期为空，将按空值导入"));
+    if (missingReviewDate) {
+      issues.add(issue(row.rowNumber(), "reviewDate", ReviewDataLegacyExcelIssueLevel.WARNING, "评审日期为空，将按当前日期导入"));
     }
     if (requestedExperts.isEmpty() && owner.isBlank()) {
       issues.add(issue(row.rowNumber(), "reviewExperts", ReviewDataLegacyExcelIssueLevel.WARNING, "评审专家为空，已按“" + FALLBACK_REVIEW_EXPERT + "”导入"));

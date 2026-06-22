@@ -27,6 +27,7 @@ public class ReviewDataLegacyExcelParser {
   private static final int MAX_ROWS = 5000;
   private static final List<String> REVIEW_TYPE_VALUES =
       List.of("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "其他");
+  private static final String FALLBACK_REVIEW_TYPE = "其他";
   private static final List<DateTimeFormatter> DATE_FORMATS =
       List.of(
           DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
@@ -96,7 +97,8 @@ public class ReviewDataLegacyExcelParser {
       issues.add(issue(rowNumber, "title", ReviewDataLegacyExcelIssueLevel.ERROR, "评审的工作产品不能为空"));
     }
     if (isBlank(projectName)) {
-      issues.add(issue(rowNumber, "projectName", ReviewDataLegacyExcelIssueLevel.ERROR, "所属项目不能为空"));
+      projectName = "未标注项目";
+      issues.add(issue(rowNumber, "projectName", ReviewDataLegacyExcelIssueLevel.WARNING, "所属项目为空，将按“未标注项目”导入"));
     }
     if (isBlank(moduleName) && !isBlank(title)) {
       moduleName = extractModuleName(title);
@@ -105,12 +107,15 @@ public class ReviewDataLegacyExcelParser {
       issues.add(issue(rowNumber, "moduleName", ReviewDataLegacyExcelIssueLevel.WARNING, "模块为空，将按“未归类模块”导入"));
     }
     if (isBlank(reviewType)) {
-      issues.add(issue(rowNumber, "reviewType", ReviewDataLegacyExcelIssueLevel.ERROR, "评审类型不能为空，请确认导出文件包含文档类型/sourceType列"));
+      reviewType = FALLBACK_REVIEW_TYPE;
+      issues.add(issue(rowNumber, "reviewType", ReviewDataLegacyExcelIssueLevel.WARNING, "评审类型为空，将按“其他”导入"));
     } else if (!REVIEW_TYPE_VALUES.contains(reviewType)) {
-      issues.add(issue(rowNumber, "reviewType", ReviewDataLegacyExcelIssueLevel.ERROR, "评审类型不在新平台选项中：" + reviewType));
+      issues.add(issue(rowNumber, "reviewType", ReviewDataLegacyExcelIssueLevel.WARNING, "评审类型“" + reviewType + "”不在新平台选项中，将按“其他”导入"));
+      reviewType = FALLBACK_REVIEW_TYPE;
     }
     if (reviewScalePages == null || reviewScalePages < 0) {
-      issues.add(issue(rowNumber, "reviewScalePages", ReviewDataLegacyExcelIssueLevel.ERROR, "评审规模必须是非负整数"));
+      reviewScalePages = 0;
+      issues.add(issue(rowNumber, "reviewScalePages", ReviewDataLegacyExcelIssueLevel.WARNING, "评审规模为空或小于 0，将按 0 导入"));
     }
     addNonNegativeIssue(issues, rowNumber, "problemCount", problemCount, "评审缺陷个数");
     addNonNegativeIssue(issues, rowNumber, "docSpecification", docSpecification, "文档规范");
@@ -127,7 +132,7 @@ public class ReviewDataLegacyExcelParser {
             + ReviewDataNumberSupport.safeInt(functionality)
             + ReviewDataNumberSupport.safeInt(feasibility);
     if (problemCount != null && problemCount >= 0 && categorySum != problemCount) {
-      issues.add(issue(rowNumber, "problemCount", ReviewDataLegacyExcelIssueLevel.ERROR, "问题总计与分类合计不一致"));
+      issues.add(issue(rowNumber, "problemCount", ReviewDataLegacyExcelIssueLevel.WARNING, "问题总计与分类合计不一致，将按分类明细导入"));
     }
     if (density != null && problemCount != null && reviewScalePages != null && reviewScalePages > 0) {
       double expectedDensity = problemCount.doubleValue() / reviewScalePages.doubleValue();
@@ -449,7 +454,7 @@ public class ReviewDataLegacyExcelParser {
       Integer value,
       String label) {
     if (value != null && value < 0) {
-      issues.add(issue(rowNumber, field, ReviewDataLegacyExcelIssueLevel.ERROR, label + "不能为负数"));
+      issues.add(issue(rowNumber, field, ReviewDataLegacyExcelIssueLevel.WARNING, label + "为负数，将按 0 导入"));
     }
   }
 
@@ -460,7 +465,7 @@ public class ReviewDataLegacyExcelParser {
       Double value,
       String label) {
     if (value != null && value < 0) {
-      issues.add(issue(rowNumber, field, ReviewDataLegacyExcelIssueLevel.ERROR, label + "不能为负数"));
+      issues.add(issue(rowNumber, field, ReviewDataLegacyExcelIssueLevel.WARNING, label + "为负数，将按 0 导入"));
     }
   }
 

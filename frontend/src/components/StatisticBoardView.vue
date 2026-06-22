@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 // 统一统计板组件负责把查询条件、摘要卡片、图表和明细下钻串成同一套交互。
 // 各业务看板只传入 boardKey 和配置，避免每个页面重复实现刷新、排序和规则说明。
 import { ArrowDown, ArrowUp, Download, Sort } from '@element-plus/icons-vue';
@@ -68,7 +68,6 @@ const props = withDefaults(
 const route = useRoute();
 const router = useRouter();
 const canRefreshRealtime = computed(() => authState.currentUser.role === 'ADMIN');
-const lastAutoRefreshAt = ref(0);
 const issueExportLoading = ref(false);
 const customerIssueExportLoading = ref(false);
 const horizontalComparisonExportLoading = ref(false);
@@ -541,28 +540,26 @@ watch(
 );
 
 onMounted(() => {
-  window.addEventListener('focus', handlePageFocus);
   void autoRefreshPageData();
 });
-
-onBeforeUnmount(() => {
-  window.removeEventListener('focus', handlePageFocus);
-});
-
-async function handlePageFocus() {
-  await autoRefreshPageData();
-}
 
 async function autoRefreshPageData() {
   if (!autoRefreshOnEnter.value || loading.value) {
     return;
   }
-  const now = Date.now();
-  if (now - lastAutoRefreshAt.value < 10_000) {
+  const markerKey = autoRefreshMarkerKey();
+  if (window.sessionStorage.getItem(markerKey) === 'true') {
     return;
   }
-  lastAutoRefreshAt.value = now;
+  window.sessionStorage.setItem(markerKey, 'true');
   await autoRefreshBoard();
+}
+
+function autoRefreshMarkerKey() {
+  const scopeParts = ['testingPhase', 'projectName', 'milestoneTitle', 'sourceInstance', 'filterGroup']
+    .map((key) => `${key}=${String(route.query[key] ?? '')}`)
+    .join('&');
+  return `platform:auto-refreshed:${props.boardKey}:${scopeParts}`;
 }
 </script>
 

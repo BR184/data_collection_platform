@@ -25,6 +25,7 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.sql.ResultSet;
@@ -112,6 +113,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
   public SystemTestDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -119,13 +121,15 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       RealtimeWorkspaceService realtimeWorkspaceService,
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseCatalogService phaseCatalogService) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   @Override
@@ -286,7 +290,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         true,
         "缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact.raw_payload 中保留的 GitLab 评论文本，按老平台缺陷原因模板字段匹配原因个数。",
+        "当前统计优先使用 issue_fact.reason_category 已解析事实字段，必要时再回退 GitLab 评论原文解析，按老平台缺陷原因模板字段匹配原因个数。",
         "模块行来自当前系统测试范围内的模块全集；不要求议题携带已修复/完成标签；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),
@@ -582,21 +586,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
   private List<StatisticFilterOption> loadPhaseOptions() {
     try {
-      return issueFactQueryService.query(
-              PHASE_OPTION_SQL,
-              Map.of(),
-              (rs, rowNum) ->
-                  new PhaseOptionSource(
-                      StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
-                      StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
-                      StatisticSourceValueSupport.split(rs.getString("label_names"))))
-          .stream()
-          .flatMap(source -> source.candidates().stream())
-          .filter(this::isPhaseScopedValue)
-          .map(this::phaseFilterValue)
-          .filter(StringUtils::hasText)
-          .distinct()
-          .sorted(String.CASE_INSENSITIVE_ORDER)
+      return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID).stream()
           .map(value -> new StatisticFilterOption(value, value))
           .toList();
     } catch (DataAccessException e) {
@@ -781,9 +771,9 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
     private Set<String> matchedMetricKeys() {
       Set<String> matched = new LinkedHashSet<>();
-      String text = DefectCauseMetricCatalog.latestReasonText(reasonText);
+      String text = reasonCategory;
       if (!StringUtils.hasText(text)) {
-        text = reasonCategory;
+        text = DefectCauseMetricCatalog.latestReasonText(reasonText);
       }
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
@@ -814,6 +804,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         }
       }
       return normalized;
+    }
+
+    public String phaseLabel() {
+      return primaryPhaseLabel();
     }
 
     private boolean hasScope(String value) {

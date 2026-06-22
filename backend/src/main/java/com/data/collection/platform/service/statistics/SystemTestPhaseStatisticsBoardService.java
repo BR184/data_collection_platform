@@ -1,7 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.entity.TestingPhaseDefinitionResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -28,7 +27,7 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
-import com.data.collection.platform.service.TestingPhaseDefinitionService;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -53,7 +52,6 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private static final String BOARD_KEY = "system-test-phase-statistics";
   private static final String RULE_VERSION = "system-test-phase-statistics@2026-06-17-v2";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
-  private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
@@ -97,7 +95,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private final FactBuildService factBuildService;
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
-  private final TestingPhaseDefinitionService testingPhaseDefinitionService;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -106,14 +104,14 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
-      TestingPhaseDefinitionService testingPhaseDefinitionService) {
+      SystemTestPhaseCatalogService phaseCatalogService) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.factBuildService = factBuildService;
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
-    this.testingPhaseDefinitionService = testingPhaseDefinitionService;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   @Override
@@ -123,7 +121,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
-    return buildDefinition(loadPhaseOptions(LEGACY_CROWN_CAD_PROJECT_ID));
+    return buildDefinition(loadPhaseOptions(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
   }
 
   private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> phaseOptions) {
@@ -567,8 +565,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   private List<PhaseDefinition> loadPhaseDefinitions(long projectId) {
-    return testingPhaseDefinitionService.list(projectId, null, true).stream()
-        .map(TestingPhaseDefinitionResponse::testingPhase)
+    return phaseCatalogService.listTestingPhases(projectId).stream()
         .filter(StringUtils::hasText)
         .map(testingPhase -> new PhaseDefinition(testingPhase, phaseFilterValue(testingPhase)))
         .toList();
@@ -596,7 +593,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private long effectiveProjectId(Map<String, String> filters) {
     Long projectId =
         filters == null ? null : StatisticSourceValueSupport.parseLong(filters.get("projectId"));
-    return projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId;
+    return projectId == null ? SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID : projectId;
   }
 
   private String phaseFilterValue(String phaseLabel) {
@@ -728,6 +725,10 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         }
       }
       return normalized;
+    }
+
+    public String phaseLabel() {
+      return primaryPhaseLabel();
     }
 
     String severityDisplay() {
