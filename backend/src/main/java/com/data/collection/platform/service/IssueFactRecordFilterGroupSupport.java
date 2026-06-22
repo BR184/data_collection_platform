@@ -155,6 +155,9 @@ final class IssueFactRecordFilterGroupSupport {
     if (condition.usesLabelGroup()) {
       return matchesLabelGroup(values, condition);
     }
+    if ("RESOLVED_LITERAL_SET".equalsIgnoreCase(condition.valueType())) {
+      return matchesResolvedSet(values, condition);
+    }
     return switch (condition.operator()) {
       case "isEmpty" -> values.stream().allMatch(value -> TextQuerySupport.trimToNull(value) == null);
       case "isNotEmpty" -> values.stream().anyMatch(value -> TextQuerySupport.trimToNull(value) != null);
@@ -178,6 +181,14 @@ final class IssueFactRecordFilterGroupSupport {
   private static boolean matchesLabelGroup(List<String> actualValues, StatisticFilterCondition condition) {
     List<String> expectedValues = condition.values() == null ? List.of() : condition.values();
     return LabelGroupFilterOperatorSupport.matches(actualValues, expectedValues, condition.operator());
+  }
+
+  private static boolean matchesResolvedSet(List<String> actualValues, StatisticFilterCondition condition) {
+    List<String> expectedValues = condition.values() == null ? List.of() : condition.values();
+    boolean matched =
+        actualValues.stream()
+            .anyMatch(actual -> expectedValues.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
+    return "ne".equals(condition.operator()) ? !matched : matched;
   }
 
   private static List<String> valuesForField(

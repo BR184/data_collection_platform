@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestIssueSearchService extends AbstractIssueFactRecordListService {
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final String PAGE_KEY = "question-metrics-issue-search";
+  private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
@@ -51,15 +52,21 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
 
   private final ObjectMapper objectMapper;
   private final LabelGroupExpansionService labelGroupExpansionService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
-      LabelGroupExpansionService labelGroupExpansionService) {
+      LabelGroupExpansionService labelGroupExpansionService,
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      SystemTestPhaseCatalogService phaseCatalogService) {
     super(issueFactRecordRepository, issueLinkService);
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
+    this.phaseScopeResolver = phaseScopeResolver;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   public SystemTestIssueSearchListResponse listRecords(SystemTestIssueSearchQueryRequest request) {
@@ -69,13 +76,16 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     String safeSortField =
         normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
-    StatisticFilterGroup filterGroup =
+    StatisticFilterGroup parsedFilterGroup =
         IssueFactRecordFilterGroupSupport.parse(
             objectMapper,
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
+    StatisticFilterGroup filterGroup =
+        SystemTestPhaseFilterGroupExpander.expand(parsedFilterGroup, phaseScopeResolver);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
+    List<String> resolvedTestingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(request.testingPhases());
 
     if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
@@ -86,8 +96,8 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   expandedFilterGroup,
                   null,
                   null,
-                  request.testingPhase(),
-                  request.testingPhases(),
+                  null,
+                  resolvedTestingPhases,
                   request.authorName(),
                   request.assigneeName(),
                   false,
@@ -272,11 +282,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             .filter(SystemTestIssueSearchService::isCleanModuleOption)
             .toList()),
         toLegacyOptions(scopedViews, IssueFactRecord::functionName),
-        toOptions(
-            scopedViews.stream()
-                .map(IssueFactRecord::primaryPhaseLabel)
-                .filter(StringUtils::hasText)
-                .toList()),
+        toOptionsPreservingOrder(phaseCatalogService.listParentNames(LEGACY_CROWN_CAD_PROJECT_ID)),
         toLegacyOptions(scopedViews, IssueFactRecord::authorName),
         toLegacyOptions(scopedViews, IssueFactRecord::assigneeName),
         toOptions(scopedViews, IssueFactRecord::issueState),
@@ -427,18 +433,11 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
-    String normalized = TextQuerySupport.trimToNull(testingPhase);
-    return normalized == null || TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), normalized);
+    return phaseScopeResolver.matchesLegacyCrownCadPhase(view.primaryPhaseLabel(), testingPhase);
   }
 
   private boolean matchesTestingPhase(IssueFactRecord view, List<String> testingPhases) {
-    if (testingPhases == null || testingPhases.isEmpty()) {
-      return true;
-    }
-    return testingPhases.stream()
-        .map(TextQuerySupport::trimToNull)
-        .filter(value -> value != null)
-        .anyMatch(value -> TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), value));
+    return phaseScopeResolver.matchesLegacyCrownCadPhases(view.primaryPhaseLabel(), testingPhases);
   }
 
   private boolean matchesFunctionName(IssueFactRecord view, String functionName) {

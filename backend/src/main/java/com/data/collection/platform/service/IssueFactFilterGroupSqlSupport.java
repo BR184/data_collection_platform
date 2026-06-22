@@ -114,6 +114,9 @@ final class IssueFactFilterGroupSqlSupport {
 
   private static Optional<SqlPredicate> phaseCondition(
       StatisticFilterCondition condition, boolean useFullTestingPhase) {
+    if ("RESOLVED_LITERAL_SET".equalsIgnoreCase(condition.valueType())) {
+      return resolvedLiteralSetCondition(useFullTestingPhase ? "testing_phase" : "phase_filter_value", condition);
+    }
     if ("contains".equals(condition.operator()) || "notContains".equals(condition.operator())) {
       if (useFullTestingPhase) {
         return containsTextCondition("testing_phase", condition);
@@ -123,6 +126,28 @@ final class IssueFactFilterGroupSqlSupport {
           condition);
     }
     return textCondition(useFullTestingPhase ? "testing_phase" : "phase_filter_value", condition);
+  }
+
+  private static Optional<SqlPredicate> resolvedLiteralSetCondition(
+      String column, StatisticFilterCondition condition) {
+    List<String> values =
+        condition.values() == null
+            ? List.of()
+            : condition.values().stream()
+                .map(TextQuerySupport::trimToNull)
+                .filter(value -> value != null)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
+    if (values.isEmpty()) {
+      return Optional.of("ne".equals(condition.operator()) ? truePredicate() : falsePredicate());
+    }
+    String placeholders = String.join(",", values.stream().map(ignored -> "?").toList());
+    String predicate = "lower(coalesce(" + column + ", '')) in (" + placeholders + ")";
+    if ("ne".equals(condition.operator())) {
+      predicate = "not (" + predicate + ")";
+    }
+    return Optional.of(new SqlPredicate(predicate, new ArrayList<>(values)));
   }
 
   private static Optional<SqlPredicate> milestoneCondition(StatisticFilterCondition condition) {

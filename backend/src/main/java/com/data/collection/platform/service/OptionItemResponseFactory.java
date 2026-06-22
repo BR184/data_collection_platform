@@ -34,6 +34,18 @@ public final class OptionItemResponseFactory {
         .toList();
   }
 
+  public static List<OptionItemResponse> fromValuesPreservingOrder(
+      Collection<String> values, Function<String, String> normalizer) {
+    Set<String> normalized =
+        values.stream()
+            .map(normalizer)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    return normalized.stream()
+        .map(value -> new OptionItemResponse(value, value))
+        .toList();
+  }
+
   public static List<OptionItemResponse> fromLegacyBusinessValues(Collection<String> values) {
     Set<String> normalized = new LinkedHashSet<>();
     for (String value : values) {

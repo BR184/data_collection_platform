@@ -154,6 +154,10 @@ abstract class AbstractIssueFactRecordListService extends AbstractFactQueryServi
     return OptionItemResponseFactory.from(values, TextQuerySupport::trimToNull);
   }
 
+  protected List<OptionItemResponse> toOptionsPreservingOrder(List<String> values) {
+    return OptionItemResponseFactory.fromValuesPreservingOrder(values, TextQuerySupport::trimToNull);
+  }
+
   protected String buildIssueLink(Long projectId, Integer issueIid) {
     return issueLinkService.issueUrl(projectId, issueIid);
   }

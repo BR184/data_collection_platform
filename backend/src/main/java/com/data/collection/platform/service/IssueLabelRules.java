@@ -39,7 +39,7 @@ final class IssueLabelRules {
       "设计如此",
       "已拒绝");
   private static final List<String> SYSTEM_TEST_LABEL_TOKENS = List.of("系统测试", "回归测试");
-  private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "联调测试", "冒烟测试", "集成测试");
+  private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final Pattern MERGE_REQUEST_MODULE_LABEL_PATTERN =
       Pattern.compile("^(?:模块|工具箱)\\s*[：-]\\s*(.+)$");

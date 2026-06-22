@@ -26,6 +26,8 @@ import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
+import com.data.collection.platform.service.SystemTestPhaseFilterGroupExpander;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.sql.ResultSet;
@@ -114,6 +116,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public SystemTestDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -122,7 +125,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseCatalogService phaseCatalogService) {
+      SystemTestPhaseCatalogService phaseCatalogService,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
@@ -130,6 +134,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -201,6 +206,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
+    filterGroup = SystemTestPhaseFilterGroupExpander.expand(filterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
 
@@ -246,6 +252,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    filterGroup = SystemTestPhaseFilterGroupExpander.expand(filterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
@@ -279,6 +286,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
+    filterGroup = SystemTestPhaseFilterGroupExpander.expand(filterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     long moduleCount =
         snapshot.scopedSources().stream()
@@ -422,7 +430,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
       List<IssueSource> phaseFiltered =
-        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
+        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup, phaseScopeResolver)).toList();
     List<IssueSource> withReason =
         phaseFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(

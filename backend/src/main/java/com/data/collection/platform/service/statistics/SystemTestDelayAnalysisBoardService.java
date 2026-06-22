@@ -28,6 +28,8 @@ import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
+import com.data.collection.platform.service.SystemTestPhaseFilterGroupExpander;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -104,6 +106,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public SystemTestDelayAnalysisBoardService(
       JsonUtils jsonUtils,
@@ -112,7 +115,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseCatalogService phaseCatalogService) {
+      SystemTestPhaseCatalogService phaseCatalogService,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
@@ -120,6 +124,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -162,6 +167,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     long startedAt = System.currentTimeMillis();
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
@@ -206,6 +212,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup =
         applyDefaultTestingPhase(filterGroup, loadPhaseOptions());
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
@@ -241,6 +248,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     long causeCount =
         LEGACY_DELAY_CAUSES.stream()
@@ -290,7 +298,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             .filter(IssueSource::hasLegacyDelayCause)
             .toList();
     List<IssueSource> filtered =
-        delayed.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
+        delayed.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup, phaseScopeResolver)).toList();
     return new RuleFlowSnapshot(
         filtered,
         List.of(

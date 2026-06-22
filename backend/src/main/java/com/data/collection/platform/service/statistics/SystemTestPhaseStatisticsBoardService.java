@@ -28,6 +28,8 @@ import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
+import com.data.collection.platform.service.SystemTestPhaseFilterGroupExpander;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -96,6 +98,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -104,7 +107,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseCatalogService phaseCatalogService) {
+      SystemTestPhaseCatalogService phaseCatalogService,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
@@ -112,6 +116,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -156,6 +161,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
     List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot =
         buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, phaseDefinitions);
     String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
@@ -208,6 +214,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
     List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup, phaseDefinitions).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
@@ -245,6 +252,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, phaseDefinitions);
     long phaseCount =
         snapshot.finalSources().stream()
@@ -298,7 +306,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             .toList();
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> filtered =
-        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup)).toList();
+        valid.stream().filter(issue -> SystemTestPhaseFilterSupport.matches(issue, filterGroup, phaseScopeResolver)).toList();
     List<IssueSource> configured =
         filtered.stream()
             .filter(issue -> isConfiguredPhase(issue.primaryPhaseLabel(), phaseDefinitions))
@@ -556,7 +564,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private List<StatisticFilterOption> phaseOptionsFromDefinitions(List<PhaseDefinition> definitions) {
     Map<String, StatisticFilterOption> options = new LinkedHashMap<>();
     for (PhaseDefinition definition : definitions) {
-      String value = definition.phaseFilterValue();
+      String value = definition.parentName();
       if (StringUtils.hasText(value)) {
         options.putIfAbsent(value, new StatisticFilterOption(value, value));
       }
@@ -565,9 +573,10 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   private List<PhaseDefinition> loadPhaseDefinitions(long projectId) {
-    return phaseCatalogService.listTestingPhases(projectId).stream()
-        .filter(StringUtils::hasText)
-        .map(testingPhase -> new PhaseDefinition(testingPhase, phaseFilterValue(testingPhase)))
+    return phaseCatalogService.listGroups(projectId).stream()
+        .flatMap(group -> group.testingPhases().stream()
+            .filter(StringUtils::hasText)
+            .map(testingPhase -> new PhaseDefinition(testingPhase, group.name())))
         .toList();
   }
 
@@ -579,7 +588,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       return List.of();
     }
     return definitions.stream()
-        .filter(definition -> selected.equalsIgnoreCase(definition.phaseFilterValue()))
+        .filter(definition -> selected.equalsIgnoreCase(definition.parentName()))
         .toList();
   }
 
@@ -754,7 +763,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     }
   }
 
-  private record PhaseDefinition(String testingPhase, String phaseFilterValue) {}
+  private record PhaseDefinition(String testingPhase, String parentName) {}
 
   private record RuleFlowSnapshot(
       List<IssueSource> finalSources,

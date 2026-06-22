@@ -29,17 +29,23 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   private final SystemTestScopeProfile systemTestScopeProfile;
   private final ObjectMapper objectMapper;
   private final FactBuildService factBuildService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
   public SystemTestIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
       SystemTestScopeProfile systemTestScopeProfile,
       ObjectMapper objectMapper,
       GitlabResourceLinkService issueLinkService,
-      FactBuildService factBuildService) {
+      FactBuildService factBuildService,
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      SystemTestPhaseCatalogService phaseCatalogService) {
     super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
     this.objectMapper = objectMapper;
     this.factBuildService = factBuildService;
+    this.phaseScopeResolver = phaseScopeResolver;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   public SystemTestIllegalRecordListResponse listRecords(SystemTestIllegalRecordQueryRequest request) {
@@ -49,11 +55,15 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     String safeSortField =
         normalizeSortField(listRequest.sortField(), DEFAULT_SORT_FIELD, SORT_COMPARATORS.keySet());
     String safeSortOrder = normalizeSortOrder(listRequest.sortOrder());
-    StatisticFilterGroup filterGroup =
+    StatisticFilterGroup parsedFilterGroup =
         IssueFactRecordFilterGroupSupport.parse(
             objectMapper,
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
+    StatisticFilterGroup filterGroup =
+        SystemTestPhaseFilterGroupExpander.expand(parsedFilterGroup, phaseScopeResolver);
+    List<String> resolvedTestingPhases =
+        phaseScopeResolver.resolveLegacyCrownCadPhases(request.testingPhase());
 
     if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
@@ -64,17 +74,17 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   filterGroup,
                   null,
                   request.illegalReason(),
-                  request.testingPhase(),
-                  List.of(),
+                  null,
+                  resolvedTestingPhases,
                   request.authorName(),
                   request.assigneeName(),
                   false,
                   true,
                   true,
-                  false,
-                  false,
                   true,
                   false,
+                  true,
+                  true,
                   safePage,
                   safeSize,
                   safeSortField,
@@ -96,7 +106,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             .filter(view -> matchesIllegalReason(view, request.illegalReason()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
-            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, filterGroup))
+            .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, filterGroup, true))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
 
@@ -207,11 +217,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return new SystemTestIllegalRecordFilterOptionsResponse(
         toLegacyOptions(rows, IssueFactRecord::projectName),
         toLegacyOptions(rows.stream().flatMap(view -> displayModuleNames(view).stream()).toList()),
-        toOptions(
-            rows.stream()
-                .map(IssueFactRecord::phaseFilterValue)
-                .filter(StringUtils::hasText)
-                .toList()),
+        toOptionsPreservingOrder(phaseScopeOptions()),
         toOptions(rows.stream().flatMap(row -> displayIllegalReasons(row).stream()).toList()),
         toLegacyOptions(rows, IssueFactRecord::authorName),
         toLegacyOptions(rows, IssueFactRecord::assigneeName),
@@ -373,10 +379,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
-    String normalized = TextQuerySupport.trimToNull(testingPhase);
-    return normalized == null
-        || TextQuerySupport.equalsNormalized(view.phaseFilterValue(), normalized)
-        || TextQuerySupport.equalsNormalized(view.primaryPhaseLabel(), normalized);
+    return phaseScopeResolver.matchesLegacyCrownCadPhase(view.primaryPhaseLabel(), testingPhase);
   }
 
   private boolean matchesIllegalReason(IssueFactRecord view, String illegalReason) {
@@ -400,6 +403,10 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
 
   private Long defaultProjectId(Long projectId) {
     return projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId;
+  }
+
+  private List<String> phaseScopeOptions() {
+    return phaseCatalogService.listParentNames(LEGACY_CROWN_CAD_PROJECT_ID);
   }
 
   private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {
