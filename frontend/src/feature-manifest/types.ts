@@ -20,6 +20,7 @@ export type PageKey =
   | 'question-metrics-defect-cause'
   | 'question-metrics-phase-statistics'
   | 'question-metrics-issue-search'
+  | 'question-metrics-testing-phase-definition'
   | 'customer-issues-home'
   | 'customer-issues-illegal-records'
   | 'customer-issues-defect-cause'

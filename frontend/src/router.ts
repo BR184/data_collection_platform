@@ -28,6 +28,7 @@ const CodeReviewMultiBoardView = () => import('./views/CodeReviewMultiBoardView.
 const QualityBoardRdView = () => import('./views/QualityBoardRdView.vue');
 const QualityBoardOtherView = () => import('./views/QualityBoardOtherView.vue');
 const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.vue');
+const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
 type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
@@ -111,6 +112,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('question-metrics-issue-search', SystemTestIssueSearchView),
+  },
+  {
+    ...buildShellRoute('question-metrics-testing-phase-definition', TestingPhaseDefinitionView),
   },
   {
     ...buildShellRoute('customer-issues-home', StatisticBoardPage),

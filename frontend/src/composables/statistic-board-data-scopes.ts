@@ -4,6 +4,8 @@ import { authState } from './auth-state';
 import type { DataScopeOption, DataScopeProvider } from '../types/data-scope';
 import type { TestingPhaseDefinitionResponse } from '../types/api';
 
+const LEGACY_CROWN_CAD_PROJECT_ID = 9;
+
 export interface StatisticBoardDataScopeConfig {
   provider: DataScopeProvider;
   options: Ref<DataScopeOption[]>;
@@ -75,7 +77,10 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
       }
       loading.value = true;
       try {
-        testingPhaseDefinitions.value = await api.getTestingPhases({ enabled: true });
+        testingPhaseDefinitions.value = await api.getTestingPhases({
+          projectId: LEGACY_CROWN_CAD_PROJECT_ID,
+          enabled: true,
+        });
         loaded.value = true;
       } finally {
         loading.value = false;

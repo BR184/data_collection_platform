@@ -127,6 +127,14 @@ export const modules: ShellModule[] = [
         description: '对齐老平台议题查询入口，当前先补齐查询类副模块骨架。',
         path: '/question-metrics/issue-search',
       },
+      {
+        key: 'question-metrics-testing-phase-definition',
+        label: '议题测试阶段定义',
+        description: '维护系统测试统计使用的里程碑与轮次定义。',
+        path: '/question-metrics/testing-phase-definition',
+        requiresLogin: true,
+        hiddenForApproval: true,
+      },
     ],
   },
   {

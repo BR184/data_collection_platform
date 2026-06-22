@@ -21,6 +21,18 @@ create temporary table legacy_testing_phase_import (
 
 \copy legacy_testing_phase_import from '/tmp/testing_phase.csv' with (format csv, header true, encoding 'UTF8');
 
+update testing_phase_calendar c
+   set enabled = false,
+       remark = coalesce(nullif(c.remark, ''), 'hidden by legacy testing_phase.csv import'),
+       updated_at = current_timestamp
+ where c.project_id = 9
+   and not exists (
+     select 1
+       from legacy_testing_phase_import i
+      where nullif(btrim(i.testing_phase), '') = c.testing_phase
+        and coalesce(nullif(btrim(i.visible_text), '')::integer, 0) = 1
+   );
+
 insert into testing_phase_calendar (
     project_id,
     legacy_source_id,
