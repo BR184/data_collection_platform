@@ -28,6 +28,7 @@
 | `docs/archive/completed/bug-fix-report-20260520.md` | 历史报告 / 已归档 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
 | `docs/archive/completed/deep-test-report-20260519.md` | 历史报告 / 已归档 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
 | `docs/current-state/system-test-statistics-review-import-refresh-alignment-20260622.md` | 当前对齐方案 | 记录议题统计、评审导入和首次进入刷新策略的当前修复方案，供后续实现、联调和验收使用。 |
+| `docs/current-state/label-group-default-module-scope-20260622.md` | 当前方案 / 待实现 | 固定标签组按值类型应用、模块字段同维度、系统测试默认模块范围通过用户可维护标签组配置实现的方案。 |
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/frontend-record-page-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
