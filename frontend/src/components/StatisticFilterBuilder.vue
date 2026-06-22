@@ -237,6 +237,14 @@ function isSelectField(condition: StatisticFilterConditionDraft) {
   return fieldForCondition(condition.fieldKey)?.type === 'select';
 }
 
+function usesValueSelect(condition: StatisticFilterConditionDraft) {
+  return isSelectField(condition) || supportsLabelGroupValue(condition);
+}
+
+function allowsCreateValue(condition: StatisticFilterConditionDraft) {
+  return supportsLabelGroupValue(condition) && !isSelectField(condition);
+}
+
 function fieldOptions(condition: StatisticFilterConditionDraft) {
   return fieldForCondition(condition.fieldKey)?.options ?? [];
 }
@@ -459,11 +467,12 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           />
           <template v-if="needsValue(condition)">
             <SmartSelect
-              v-if="isSelectField(condition)"
+              v-if="usesValueSelect(condition)"
               :model-value="String(condition.value ?? '')"
               class="stat-filter-value"
               placeholder="值"
               :options="valueOptionsForCondition(condition)"
+              :allow-create="allowsCreateValue(condition)"
               @change="handleValueSelectChange(condition, $event)"
             />
             <el-input-number

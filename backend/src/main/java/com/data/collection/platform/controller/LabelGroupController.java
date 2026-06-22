@@ -8,6 +8,8 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRelat
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleSourceResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCompatiblePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupCreateRequest;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDefaultFilterResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupDefaultFilterUpdateRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupUpdateRequest;
@@ -15,6 +17,7 @@ import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDefaultFilterService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCandidateService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleEvaluationService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCatalogService;
@@ -42,6 +45,7 @@ public class LabelGroupController {
   private final LabelGroupDynamicRuleCatalogService dynamicRuleCatalogService;
   private final LabelGroupDynamicRuleCandidateService dynamicRuleCandidateService;
   private final LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
+  private final LabelGroupDefaultFilterService labelGroupDefaultFilterService;
 
   public LabelGroupController(
       LabelDimensionCatalogService labelDimensionCatalogService,
@@ -50,7 +54,8 @@ public class LabelGroupController {
       LabelGroupExpansionService labelGroupExpansionService,
       LabelGroupDynamicRuleCatalogService dynamicRuleCatalogService,
       LabelGroupDynamicRuleCandidateService dynamicRuleCandidateService,
-      LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService) {
+      LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService,
+      LabelGroupDefaultFilterService labelGroupDefaultFilterService) {
     this.labelDimensionCatalogService = labelDimensionCatalogService;
     this.labelValueQueryService = labelValueQueryService;
     this.labelGroupService = labelGroupService;
@@ -58,6 +63,7 @@ public class LabelGroupController {
     this.dynamicRuleCatalogService = dynamicRuleCatalogService;
     this.dynamicRuleCandidateService = dynamicRuleCandidateService;
     this.dynamicRuleEvaluationService = dynamicRuleEvaluationService;
+    this.labelGroupDefaultFilterService = labelGroupDefaultFilterService;
   }
 
   @GetMapping
@@ -103,6 +109,18 @@ public class LabelGroupController {
     return ApiResponse.success(
         labelGroupExpansionService.expand(
             groupId, valueType, fieldKey, pageKey, sourceInstanceId));
+  }
+
+  @GetMapping("/default-filters")
+  public ApiResponse<List<LabelGroupDefaultFilterResponse>> listDefaultFilters() {
+    return ApiResponse.success(labelGroupDefaultFilterService.listSupportedDefaults());
+  }
+
+  @PutMapping("/default-filters")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<LabelGroupDefaultFilterResponse> saveDefaultFilter(
+      @RequestBody LabelGroupDefaultFilterUpdateRequest request) {
+    return ApiResponse.success(labelGroupDefaultFilterService.save(request));
   }
 
   @GetMapping("/dimensions")

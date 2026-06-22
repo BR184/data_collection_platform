@@ -5,6 +5,8 @@ import type {
   LabelGroupDynamicRulePreview,
   LabelGroupDynamicRulePreviewRequest,
   LabelGroupCompatiblePage,
+  LabelGroupDefaultFilter,
+  LabelGroupDefaultFilterSaveRequest,
   LabelGroupDynamicRuleSource,
   LabelGroupExpansion,
   LabelGroupSaveRequest,
@@ -108,6 +110,15 @@ export const labelGroupsApi = {
     const suffix = query.size > 0 ? `?${query.toString()}` : '';
     return request<LabelGroupExpansion>(`/api/label-groups/${groupId}/expand${suffix}`, {
       method: 'POST',
+    });
+  },
+  listLabelGroupDefaultFilters() {
+    return request<LabelGroupDefaultFilter[]>('/api/label-groups/default-filters');
+  },
+  saveLabelGroupDefaultFilter(payload: LabelGroupDefaultFilterSaveRequest) {
+    return request<LabelGroupDefaultFilter>('/api/label-groups/default-filters', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     });
   },
 };

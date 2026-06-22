@@ -114,6 +114,10 @@ final class StatisticFilterGroupSupport {
       String value = trimToNull(condition.value());
       String secondaryValue = trimToNull(condition.secondaryValue());
       if (condition.usesLabelGroup()) {
+        if (!Boolean.TRUE.equals(field.labelGroupEnabled())) {
+          throw new IllegalArgumentException(
+              "Field does not support label group filters: " + field.key());
+        }
         if (!isLabelGroupSetOperator(operator)) {
           throw new IllegalArgumentException(
               "Unsupported label group operator for field " + field.key() + ": " + condition.operator());

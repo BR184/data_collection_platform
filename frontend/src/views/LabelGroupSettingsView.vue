@@ -8,6 +8,7 @@ import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberP
 import type {
   LabelDimension,
   LabelGroup,
+  LabelGroupDefaultFilter,
   LabelGroupDynamicRulePreview,
   LabelGroupDynamicRuleRelation,
   LabelGroupDynamicRuleSource,
@@ -40,10 +41,13 @@ const valueTypeFilter = ref('');
 const candidateDimensionKey = ref('');
 const dimensions = ref<LabelDimension[]>([]);
 const groups = ref<LabelGroup[]>([]);
+const defaultFilters = ref<LabelGroupDefaultFilter[]>([]);
+const stringGroups = ref<LabelGroup[]>([]);
 const dynamicRuleSources = ref<LabelGroupDynamicRuleSource[]>([]);
 const dynamicRuleRelations = ref<LabelGroupDynamicRuleRelation[]>([]);
 const dynamicRulePreview = ref<LabelGroupDynamicRulePreview | null>(null);
 const form = ref<LabelGroupFormState>(createEmptyLabelGroupForm());
+const savingDefaultFilterKey = ref('');
 
 const valueTypeOptions = [
   { label: '字符串', value: 'STRING' },
@@ -56,6 +60,12 @@ const groupTypeOptions: Array<{ label: string; value: LabelGroupType }> = [
   { label: '静态组', value: 'STATIC' },
   { label: '动态组', value: 'DYNAMIC' },
   { label: '组合组', value: 'COMPOSITE' },
+];
+const defaultFilterOperatorOptions = [
+  { label: '包含任意一个', value: 'intersects' },
+  { label: '不包含任意一个', value: 'notIntersects' },
+  { label: '包含全部', value: 'containsAll' },
+  { label: '不包含全部', value: 'notContainsAll' },
 ];
 
 const candidateDimensions = computed(() => dimensions.value.filter((item) => item.staticSupported));
@@ -103,7 +113,14 @@ const childGroupExpandedPreview = computed(() =>
 );
 
 onMounted(async () => {
-  await Promise.all([loadDimensions(), loadGroups(), loadDynamicRuleSources(), loadDynamicRuleRelations()]);
+  await Promise.all([
+    loadDimensions(),
+    loadGroups(),
+    loadStringGroups(),
+    loadDefaultFilters(),
+    loadDynamicRuleSources(),
+    loadDynamicRuleRelations(),
+  ]);
 });
 
 watch(
@@ -154,6 +171,22 @@ async function loadGroups() {
     ElMessage.error(error instanceof Error ? error.message : '标签组加载失败');
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadStringGroups() {
+  try {
+    stringGroups.value = await api.listLabelGroups({ valueType: 'STRING', enabled: true });
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '字符串标签组加载失败');
+  }
+}
+
+async function loadDefaultFilters() {
+  try {
+    defaultFilters.value = await api.listLabelGroupDefaultFilters();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '默认应用加载失败');
   }
 }
 
@@ -236,7 +269,7 @@ async function submitForm() {
       ElMessage.success('标签组已创建');
     }
     dialogVisible.value = false;
-    await loadGroups();
+    await Promise.all([loadGroups(), loadStringGroups()]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标签组保存失败');
   } finally {
@@ -259,10 +292,39 @@ async function deleteGroup(group: LabelGroup) {
     await api.deleteLabelGroup(group.id);
     ElMessage.success('标签组已删除');
     await loadGroups();
+    await loadStringGroups();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '标签组删除失败');
   } finally {
     deletingId.value = null;
+  }
+}
+
+function defaultFilterRowKey(row: LabelGroupDefaultFilter) {
+  return `${row.pageKey}:${row.fieldKey}`;
+}
+
+async function saveDefaultFilter(row: LabelGroupDefaultFilter) {
+  const rowKey = defaultFilterRowKey(row);
+  savingDefaultFilterKey.value = rowKey;
+  try {
+    const saved = await api.saveLabelGroupDefaultFilter({
+      pageKey: row.pageKey,
+      fieldKey: row.fieldKey,
+      operator: row.operator || 'intersects',
+      labelGroupId: row.labelGroupId ?? null,
+      enabled: Boolean(row.enabled),
+      description: row.description ?? null,
+    });
+    const index = defaultFilters.value.findIndex((item) => defaultFilterRowKey(item) === rowKey);
+    if (index >= 0) {
+      defaultFilters.value.splice(index, 1, saved);
+    }
+    ElMessage.success('默认应用已保存');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '默认应用保存失败');
+  } finally {
+    savingDefaultFilterKey.value = '';
   }
 }
 </script>
@@ -302,6 +364,72 @@ async function deleteGroup(group: LabelGroup) {
         </div>
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建标签组</el-button>
       </div>
+    </el-card>
+
+    <el-card class="panel-card">
+      <el-table :data="defaultFilters" :row-key="defaultFilterRowKey" border>
+        <el-table-column prop="pageName" label="页面" min-width="170" />
+        <el-table-column prop="fieldName" label="字段" width="120" />
+        <el-table-column label="关系" width="180">
+          <template #default="{ row }">
+            <el-select
+              v-model="row.operator"
+              fit-input-width
+              popper-class="platform-select-dropdown"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in defaultFilterOperatorOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="标签组" min-width="220">
+          <template #default="{ row }">
+            <el-select
+              v-model="row.labelGroupId"
+              clearable
+              filterable
+              fit-input-width
+              placeholder="选择字符串标签组"
+              popper-class="platform-select-dropdown"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="group in stringGroups"
+                :key="group.id"
+                :label="group.name"
+                :value="group.id"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="启用" width="90">
+          <template #default="{ row }">
+            <el-switch v-model="row.enabled" />
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="220">
+          <template #default="{ row }">
+            <el-input v-model="row.description" maxlength="500" clearable />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              :loading="savingDefaultFilterKey === defaultFilterRowKey(row)"
+              @click="saveDefaultFilter(row)"
+            >
+              保存
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </el-card>
 
     <el-card class="panel-card">

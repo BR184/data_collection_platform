@@ -192,3 +192,27 @@ export interface LabelGroupExpansion {
   values: string[];
   members: LabelGroupMember[];
 }
+
+export interface LabelGroupDefaultFilter {
+  id?: number | null;
+  pageKey: string;
+  pageName: string;
+  fieldKey: string;
+  fieldName: string;
+  operator: string;
+  labelGroupId?: number | null;
+  labelGroupName?: string | null;
+  labelGroupValueType?: string | null;
+  enabled: boolean;
+  description?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface LabelGroupDefaultFilterSaveRequest {
+  pageKey: string;
+  fieldKey: string;
+  operator: string;
+  labelGroupId?: number | null;
+  enabled: boolean;
+  description?: string | null;
+}

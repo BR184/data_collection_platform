@@ -15,8 +15,26 @@ public final class StatisticFilterFieldFactory {
     return new StatisticFilterField(key, label, "select", "", "", width, List.of("eq", "ne"), options == null ? List.of() : options);
   }
 
+  public static StatisticFilterField selectLabelGroup(String key, String label, Integer width, List<StatisticFilterOption> options) {
+    return new StatisticFilterField(
+        key,
+        label,
+        "select",
+        "",
+        "",
+        width,
+        List.of("eq", "ne"),
+        options == null ? List.of() : options,
+        true,
+        "STRING");
+  }
+
   public static StatisticFilterField text(String key, String label, Integer width) {
     return new StatisticFilterField(key, label, "text", "", "", width, TEXT_OPERATORS, List.of());
+  }
+
+  public static StatisticFilterField textLabelGroup(String key, String label, Integer width) {
+    return new StatisticFilterField(key, label, "text", "", "", width, TEXT_OPERATORS, List.of(), true, "STRING");
   }
 
   public static StatisticFilterField number(String key, String label, Integer width) {

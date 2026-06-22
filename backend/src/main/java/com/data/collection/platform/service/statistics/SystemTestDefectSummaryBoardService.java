@@ -13,6 +13,7 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -23,6 +24,8 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDefaultFilterService;
+import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -43,6 +46,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "system-test-defect-summary";
+  private static final String MODULE_FIELD = "moduleName";
   private static final String RULE_VERSION = "system-test-defect-summary@2026-04-09-v6";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
@@ -53,16 +57,22 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final LabelGroupDefaultFilterService labelGroupDefaultFilterService;
+  private final LabelGroupExpansionService labelGroupExpansionService;
 
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
       IssueFactBoardRuntimeSupport runtimeSupport,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseCatalogService phaseCatalogService) {
+      SystemTestPhaseCatalogService phaseCatalogService,
+      LabelGroupDefaultFilterService labelGroupDefaultFilterService,
+      LabelGroupExpansionService labelGroupExpansionService) {
     super(jsonUtils);
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
+    this.labelGroupDefaultFilterService = labelGroupDefaultFilterService;
+    this.labelGroupExpansionService = labelGroupExpansionService;
   }
 
   @Override
@@ -81,7 +91,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
             StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions),
-            StatisticFilterFieldFactory.text("moduleName", "模块名称", 180),
+            StatisticFilterFieldFactory.textLabelGroup(MODULE_FIELD, "模块名称", 180),
             StatisticFilterFieldFactory.select(
                 "severityLevel",
                 "严重程度",
@@ -172,10 +182,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
     Map<String, List<String>> phaseValueCache = new LinkedHashMap<>();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup, phaseValueCache);
+    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, phaseValueCache);
     List<IssueSource> sources = snapshot.finalSources();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
-    for (String moduleName : moduleRows(moduleRowSources(snapshot.scopedSources(), filterGroup, phaseValueCache))) {
+    for (String moduleName : moduleRows(moduleRowSources(snapshot.scopedSources(), effectiveFilterGroup, phaseValueCache))) {
       buckets.computeIfAbsent(moduleName, AggregateBucket::new);
     }
     for (IssueSource issue : sources) {
@@ -191,13 +202,14 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount = definition.columnGroups().stream().flatMap(group -> group.leafColumns().stream()).mapToInt(c -> c.drilldown() ? 1 : 0).sum();
-    return new StatisticBoardResponse(definition, withoutReservedFilters(filters), filterGroup, rows,
+    return new StatisticBoardResponse(definition, withoutReservedFilters(filters), effectiveFilterGroup.appliedGroup(), rows,
         new StatisticBoardMeta(LocalDateTime.now(), System.currentTimeMillis() - startedAt, rows.size(), columnCount, drilldownCount));
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
-    List<IssueSource> scoped = loadBoardScopedSources(request.filters(), filterGroup).stream()
+    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+    List<IssueSource> scoped = loadBoardScopedSources(request.filters(), effectiveFilterGroup).stream()
         .filter(issue -> matchesRow(issue, request.rowKey())).filter(matchesMetric(request.columnKey()))
         .sorted(buildDetailComparator(request.sortField(), request.sortOrder())).toList();
     PageSlice<IssueSource> pageSlice =
@@ -221,29 +233,30 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
-    RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+    RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY, true, "系统测试缺陷汇总规则说明", RULE_VERSION,
         "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按模块展开。",
         "同一条议题如果关联多个模块，会分别计入对应模块；总计行仍按议题本身统计。", s.flowSteps(), buildMetricDefinitions(), null);
   }
 
-  private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    return buildRuleFlowSnapshot(loadSources(filters), filterGroup, new LinkedHashMap<>()).finalSources();
+  private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {
+    return buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, new LinkedHashMap<>()).finalSources();
   }
 
-  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
-    return buildRuleFlowSnapshot(loaded, filterGroup, new LinkedHashMap<>());
+  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, EffectiveFilterGroup effectiveFilterGroup) {
+    return buildRuleFlowSnapshot(loaded, effectiveFilterGroup, new LinkedHashMap<>());
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(
-      List<IssueSource> loaded, StatisticFilterGroup filterGroup, Map<String, List<String>> phaseValueCache) {
+      List<IssueSource> loaded, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
     List<IssueSource> validBeforeFilter = scoped.stream().filter(i -> !i.excluded()).toList();
     List<IssueSource> valid =
-        hasTestingPhaseCondition(filterGroup)
-            ? validBeforeFilter.stream().filter(issue -> matchesFilterGroup(issue, filterGroup, phaseValueCache)).toList()
+        hasTestingPhaseCondition(effectiveFilterGroup.userGroup())
+            ? validBeforeFilter.stream().filter(issue -> matchesEffectiveFilterGroup(issue, effectiveFilterGroup, phaseValueCache)).toList()
             : List.of();
     return new RuleFlowSnapshot(scoped, valid, List.of(
         StatisticRuleFlowSupport.step(
@@ -294,6 +307,83 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         i.title() + (i.moduleNames().isEmpty() ? "" : " | 模块: " + String.join("、", i.moduleNames())));
   }
 
+  private EffectiveFilterGroup buildEffectiveFilterGroup(StatisticFilterGroup userGroup) {
+    StatisticFilterGroup expandedUserGroup = expandLabelGroupConditions(userGroup);
+    StatisticFilterCondition defaultCondition =
+        labelGroupDefaultFilterService
+            .defaultCondition(BOARD_KEY, MODULE_FIELD)
+            .flatMap(this::tryExpandDefaultCondition)
+            .orElse(null);
+    return new EffectiveFilterGroup(
+        expandedUserGroup, defaultCondition, appliedFilterGroup(expandedUserGroup, defaultCondition));
+  }
+
+  private StatisticFilterGroup expandLabelGroupConditions(StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return emptyFilterGroup();
+    }
+    List<StatisticFilterCondition> conditions = new ArrayList<>();
+    for (StatisticFilterCondition condition : filterGroup.conditions()) {
+      conditions.add(expandLabelGroupCondition(condition));
+    }
+    return conditions.isEmpty() ? emptyFilterGroup() : new StatisticFilterGroup(filterGroup.logic(), conditions);
+  }
+
+  private StatisticFilterCondition expandLabelGroupCondition(StatisticFilterCondition condition) {
+    if (condition == null || !condition.usesLabelGroup()) {
+      return condition;
+    }
+    var expansion =
+        labelGroupExpansionService.expand(
+            condition.labelGroupId(),
+            labelGroupValueType(condition.fieldKey()),
+            condition.fieldKey(),
+            BOARD_KEY,
+            null);
+    return new StatisticFilterCondition(
+        condition.fieldKey(),
+        condition.operator(),
+        null,
+        null,
+        "LABEL_GROUP",
+        condition.labelGroupId(),
+        StringUtils.hasText(condition.labelGroupName()) ? condition.labelGroupName() : expansion.groupName(),
+        expansion.values());
+  }
+
+  private java.util.Optional<StatisticFilterCondition> tryExpandDefaultCondition(StatisticFilterCondition condition) {
+    try {
+      StatisticFilterCondition expanded = expandLabelGroupCondition(condition);
+      if (expanded.values() == null || expanded.values().isEmpty()) {
+        return java.util.Optional.empty();
+      }
+      return java.util.Optional.of(expanded);
+    } catch (Exception e) {
+      log.warn("Skip invalid default label-group filter for {}", BOARD_KEY, e);
+      return java.util.Optional.empty();
+    }
+  }
+
+  private StatisticFilterGroup appliedFilterGroup(
+      StatisticFilterGroup userGroup, StatisticFilterCondition defaultCondition) {
+    if (defaultCondition == null) {
+      return userGroup == null ? emptyFilterGroup() : userGroup;
+    }
+    if (userGroup == null || userGroup.conditions() == null || userGroup.conditions().isEmpty()) {
+      return new StatisticFilterGroup("AND", List.of(defaultCondition));
+    }
+    if (!"OR".equalsIgnoreCase(userGroup.logic())) {
+      List<StatisticFilterCondition> merged = new ArrayList<>(userGroup.conditions());
+      merged.add(defaultCondition);
+      return new StatisticFilterGroup("AND", merged);
+    }
+    return userGroup;
+  }
+
+  private String labelGroupValueType(String fieldKey) {
+    return "STRING";
+  }
+
   private List<String> moduleRows(List<IssueSource> scopedSources) {
     Set<String> moduleNames = new LinkedHashSet<>();
     for (IssueSource issue : scopedSources) {
@@ -303,12 +393,13 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private List<IssueSource> moduleRowSources(
-      List<IssueSource> scopedSources, StatisticFilterGroup filterGroup, Map<String, List<String>> phaseValueCache) {
-    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      List<IssueSource> scopedSources, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
+    StatisticFilterGroup userGroup = effectiveFilterGroup.userGroup();
+    if (userGroup == null || userGroup.conditions() == null || userGroup.conditions().isEmpty()) {
       return List.of();
     }
-    List<com.data.collection.platform.entity.statistics.StatisticFilterCondition> phaseConditions =
-        filterGroup.conditions().stream()
+    List<StatisticFilterCondition> phaseConditions =
+        userGroup.conditions().stream()
             .filter(condition -> condition != null && "testingPhase".equals(condition.fieldKey()))
             .toList();
     if (phaseConditions.isEmpty()) {
@@ -316,6 +407,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
     return scopedSources.stream()
         .filter(issue -> phaseConditions.stream().allMatch(condition -> matchesCondition(issue, condition, phaseValueCache)))
+        .filter(issue -> effectiveFilterGroup.defaultCondition() == null
+            || matchesCondition(issue, effectiveFilterGroup.defaultCondition(), phaseValueCache))
         .toList();
   }
 
@@ -365,6 +458,13 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return matchesFilterGroup(issue, filterGroup, new LinkedHashMap<>());
   }
 
+  private boolean matchesEffectiveFilterGroup(
+      IssueSource issue, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
+    return matchesFilterGroup(issue, effectiveFilterGroup.userGroup(), phaseValueCache)
+        && (effectiveFilterGroup.defaultCondition() == null
+            || matchesCondition(issue, effectiveFilterGroup.defaultCondition(), phaseValueCache));
+  }
+
   private boolean matchesFilterGroup(
       IssueSource issue, StatisticFilterGroup filterGroup, Map<String, List<String>> phaseValueCache) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
@@ -385,23 +485,32 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private boolean matchesCondition(
       IssueSource issue,
-      com.data.collection.platform.entity.statistics.StatisticFilterCondition condition) {
+      StatisticFilterCondition condition) {
     return matchesCondition(issue, condition, new LinkedHashMap<>());
   }
 
   private boolean matchesCondition(
       IssueSource issue,
-      com.data.collection.platform.entity.statistics.StatisticFilterCondition condition,
+      StatisticFilterCondition condition,
       Map<String, List<String>> phaseValueCache) {
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
     String operator = condition.operator();
     String value = trimTextToNull(condition.value());
+    if (condition.usesLabelGroup()) {
+      return switch (condition.fieldKey()) {
+        case MODULE_FIELD -> matchesSetOperator(issue.moduleNames(), operator, condition.values());
+        case "projectName" -> matchesSetOperator(singleValue(issue.projectName()), operator, condition.values());
+        case "severityLevel" -> matchesSetOperator(singleValue(issue.severityLevel()), operator, condition.values());
+        case "priorityLevel" -> matchesSetOperator(singleValue(issue.priorityLevel()), operator, condition.values());
+        default -> true;
+      };
+    }
     return switch (condition.fieldKey()) {
       case "projectName" -> matchesText(issue.projectName(), operator, value);
       case "testingPhase" -> matchesPhase(issue, operator, value, phaseValueCache);
-      case "moduleName" -> matchesAny(issue.moduleNames(), operator, value);
+      case MODULE_FIELD -> matchesAny(issue.moduleNames(), operator, value);
       case "severityLevel" -> matchesText(issue.severityLevel(), operator, value);
       case "priorityLevel" -> matchesText(issue.priorityLevel(), operator, value);
       default -> true;
@@ -455,6 +564,35 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       case "isNotEmpty" -> !safeCandidates.isEmpty();
       default -> true;
     };
+  }
+
+  private boolean matchesSetOperator(List<String> candidates, String operator, List<String> expectedValues) {
+    Set<String> candidateSet = normalizedSet(candidates);
+    Set<String> expectedSet = normalizedSet(expectedValues);
+    boolean containsAll = candidateSet.containsAll(expectedSet);
+    boolean intersects = expectedSet.stream().anyMatch(candidateSet::contains);
+    return switch (operator) {
+      case "intersects" -> intersects;
+      case "notIntersects" -> !intersects;
+      case "containsAll" -> containsAll;
+      case "notContainsAll" -> !containsAll;
+      default -> true;
+    };
+  }
+
+  private Set<String> normalizedSet(List<String> values) {
+    if (values == null || values.isEmpty()) {
+      return Set.of();
+    }
+    return values.stream()
+        .map(this::trimTextToNull)
+        .filter(java.util.Objects::nonNull)
+        .map(value -> value.toLowerCase(Locale.ROOT))
+        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+  }
+
+  private List<String> singleValue(String value) {
+    return StringUtils.hasText(value) ? List.of(value) : List.of();
   }
 
   private boolean containsIgnoreCase(String candidate, String value) {
@@ -669,6 +807,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     private boolean containsAny(String value, List<String> tokens) { return tokens.stream().anyMatch(token -> contains(value, token)); }
     private boolean contains(String value, String token) { return StringUtils.hasText(value) && value.contains(token); }
   }
+
+  private record EffectiveFilterGroup(
+      StatisticFilterGroup userGroup,
+      StatisticFilterCondition defaultCondition,
+      StatisticFilterGroup appliedGroup) {}
 
   private record RuleFlowSnapshot(List<IssueSource> scopedSources, List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
 }
