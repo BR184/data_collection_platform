@@ -34,6 +34,7 @@ D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-r
 
 - 后端 `app.jar` 或等价后端构建产物。
 - 前端 `dist/` 静态资源。
+- 无联网内网环境需要直接部署时，增量包必须包含已经构建好的后端/前端业务镜像 tar，不能要求目标服务器现场 `docker build`。
 - 必须随代码同步更新的 Nginx、启动脚本或环境变量模板。
 - 必须执行且可重复运行的 Flyway 迁移脚本。
 
@@ -44,8 +45,33 @@ D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-r
 - 使用全新的空平台包覆盖内网既有实例。
 - 无审批地执行会导致全量同步重跑的初始化流程。
 - 为普通代码更新执行 `docker compose down -v`、删除 volume、删除 PostgreSQL 容器数据目录或重置 `.env`。
+- 在无公网内网服务器上执行依赖 Docker Hub 解析基础镜像的 `docker build`。`FROM eclipse-temurin:21-jre`、`FROM nginx:1.27-alpine` 等基础镜像即使以前通过业务镜像间接存在，也可能因 tag 解析访问 `registry-1.docker.io` 而失败。
 
 如果确实需要重建镜像或替换容器，必须先明确说明原因并获得确认；即使替换后端或前端容器，也必须复用既有 PostgreSQL 数据卷和同步状态，不能重建平台数据库。只有在明确目标就是清空环境、重新初始化或灾难恢复时，才允许重新走全量空平台部署流程。
+
+### 无联网增量镜像包
+
+内网服务器无公网访问能力时，普通代码更新应发布“增量镜像包”，而不是只发布 `app.jar` / `dist` 文件包。增量镜像包与全量空平台包的边界如下：
+
+- 必须包含后端和前端业务镜像 tar，镜像 tag 默认沿用现有 `docker-compose.yml` 中的 tag，避免修改现场 compose。
+- 可以同时包含 `backend/app.jar` 和 `frontend/dist/` 作为审计产物，但目标服务器部署时不依赖现场构建。
+- 不包含 `postgres` 镜像、`offline-debs/`、数据库 dump、Docker volume、镜像表、事实表、同步状态或用户配置。
+- 部署时只执行 `docker load` 后端/前端业务镜像，然后 `docker compose --env-file .env up -d --no-deps --force-recreate backend frontend`。
+- 不执行 `docker build`，不重新 `docker load` postgres，不重启或重建 `postgres`，不删除 volume。
+
+增量镜像包部署命令模板：
+
+```bash
+cd qa-flex-platform-intranet-20260618-runnable-empty-working
+
+sudo docker load -i ../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/docker-images/qa-flex-platform-backend_<image-tag>.tar
+sudo docker load -i ../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/docker-images/qa-flex-platform-frontend_<image-tag>.tar
+
+sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
+sudo docker compose --env-file .env ps
+```
+
+如果增量包目录不在原部署目录的上一级，必须把 `../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/...` 改成现场实际路径。
 
 ## 包结构
 
