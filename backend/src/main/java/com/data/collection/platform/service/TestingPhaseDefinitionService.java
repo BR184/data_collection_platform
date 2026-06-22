@@ -9,9 +9,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -20,12 +18,9 @@ import org.springframework.stereotype.Service;
 public class TestingPhaseDefinitionService {
 
   private final JdbcTemplate jdbcTemplate;
-  private final SystemTestPhaseCatalogService phaseCatalogService;
 
-  public TestingPhaseDefinitionService(
-      JdbcTemplate jdbcTemplate, SystemTestPhaseCatalogService phaseCatalogService) {
+  public TestingPhaseDefinitionService(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
-    this.phaseCatalogService = phaseCatalogService;
   }
 
   public List<TestingPhaseDefinitionResponse> list(Long projectId, String keyword, Boolean enabled) {
@@ -85,12 +80,7 @@ public class TestingPhaseDefinitionService {
       args.add(enabled);
     }
     sql.append(" order by c.project_id asc, c.phase_start_at desc, c.testing_phase asc");
-    List<TestingPhaseDefinitionResponse> configured =
-        jdbcTemplate.query(sql.toString(), this::mapDefinition, args.toArray());
-    if (enabled != null && enabled && TextQuerySupport.trimToNull(keyword) == null) {
-      return mergeConfiguredWithDerivedDefinitions(configured, projectId);
-    }
-    return configured;
+    return jdbcTemplate.query(sql.toString(), this::mapDefinition, args.toArray());
   }
 
   public List<TestingPhaseProjectOptionResponse> listProjectOptions() {
@@ -297,50 +287,6 @@ public class TestingPhaseDefinitionService {
         rs.getLong("issue_count"),
         toLocalDateTime(rs.getTimestamp("created_at")),
         toLocalDateTime(rs.getTimestamp("updated_at")));
-  }
-
-  private List<TestingPhaseDefinitionResponse> fallbackDefinitions(Long projectId) {
-    List<TestingPhaseDefinitionResponse> definitions = new ArrayList<>();
-    long id = -1L;
-    for (SystemTestPhaseCatalogService.PhaseGroup group : phaseCatalogService.listGroups(projectId)) {
-      for (String testingPhase : group.testingPhases()) {
-        definitions.add(
-            new TestingPhaseDefinitionResponse(
-                id--,
-                group.projectId() == null ? SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID : group.projectId(),
-                group.name(),
-                testingPhase,
-                null,
-                null,
-                true,
-                "按老平台测试阶段标签自动识别",
-                0L,
-                null,
-                null));
-      }
-    }
-    return definitions;
-  }
-
-  private List<TestingPhaseDefinitionResponse> mergeConfiguredWithDerivedDefinitions(
-      List<TestingPhaseDefinitionResponse> configured, Long projectId) {
-    List<TestingPhaseDefinitionResponse> merged = new ArrayList<>(configured);
-    Set<String> knownKeys = new LinkedHashSet<>();
-    for (TestingPhaseDefinitionResponse definition : configured) {
-      knownKeys.add(phaseKey(definition.projectId(), definition.testingPhase()));
-    }
-    for (TestingPhaseDefinitionResponse definition : fallbackDefinitions(projectId)) {
-      if (knownKeys.add(phaseKey(definition.projectId(), definition.testingPhase()))) {
-        merged.add(definition);
-      }
-    }
-    return merged;
-  }
-
-  private String phaseKey(Long projectId, String testingPhase) {
-    return (projectId == null ? "" : projectId)
-        + "|"
-        + TextQuerySupport.normalizeDisplay(testingPhase).toLowerCase(java.util.Locale.ROOT);
   }
 
   private Timestamp toTimestamp(LocalDateTime value) {

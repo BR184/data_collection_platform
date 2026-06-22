@@ -31,20 +31,7 @@ public class SystemTestPhaseCatalogService {
   }
 
   public List<PhaseGroup> listGroups(Long projectId) {
-    List<PhaseEntry> entries = new ArrayList<>(loadConfiguredEntries(projectId));
-    Set<String> knownPhaseKeys = new LinkedHashSet<>();
-    for (PhaseEntry entry : entries) {
-      knownPhaseKeys.add(phaseKey(entry.projectId(), entry.testingPhase()));
-    }
-    Set<String> disabledPhaseKeys = loadConfiguredPhaseKeys(projectId, false);
-    for (PhaseEntry entry : loadDerivedEntries(projectId)) {
-      String key = phaseKey(entry.projectId(), entry.testingPhase());
-      if (disabledPhaseKeys.contains(key) || !knownPhaseKeys.add(key)) {
-        continue;
-      }
-      entries.add(entry);
-    }
-    return groupEntries(entries);
+    return groupEntries(loadConfiguredEntries(projectId));
   }
 
   public List<String> listParentNames(Long projectId) {
@@ -53,6 +40,14 @@ public class SystemTestPhaseCatalogService {
 
   public List<String> listTestingPhases(Long projectId) {
     return listGroups(projectId).stream().flatMap(group -> group.testingPhases().stream()).toList();
+  }
+
+  public List<String> listTestingPhasesByParent(Long projectId, String parentName) {
+    String normalizedParent = TextQuerySupport.normalizeDisplay(parentName);
+    return listGroups(projectId).stream()
+        .filter(group -> group.name().equalsIgnoreCase(normalizedParent))
+        .flatMap(group -> group.testingPhases().stream())
+        .toList();
   }
 
   public String parentName(String phaseLabel) {
@@ -104,33 +99,6 @@ public class SystemTestPhaseCatalogService {
     }
   }
 
-  private Set<String> loadConfiguredPhaseKeys(Long projectId, boolean enabled) {
-    List<Object> args = new ArrayList<>();
-    StringBuilder sql =
-        new StringBuilder(
-            """
-            select project_id, testing_phase
-              from testing_phase_calendar
-             where enabled = ?
-            """);
-    args.add(enabled);
-    if (projectId != null) {
-      sql.append(" and project_id = ?");
-      args.add(projectId);
-    }
-    try {
-      Set<String> keys = new LinkedHashSet<>();
-      jdbcTemplate.query(
-          sql.toString(),
-          (org.springframework.jdbc.core.RowCallbackHandler)
-              rs -> keys.add(phaseKey(rs.getLong("project_id"), rs.getString("testing_phase"))),
-          args.toArray());
-      return keys;
-    } catch (DataAccessException error) {
-      return Set.of();
-    }
-  }
-
   private PhaseEntry mapConfiguredEntry(ResultSet rs, int rowNum) throws SQLException {
     String testingPhase = TextQuerySupport.normalizeDisplay(rs.getString("testing_phase"));
     return new PhaseEntry(
@@ -139,66 +107,6 @@ public class SystemTestPhaseCatalogService {
         testingPhase,
         rs.getTimestamp("phase_start_at") == null ? null : rs.getTimestamp("phase_start_at").toLocalDateTime(),
         rs.getLong("issue_count"));
-  }
-
-  private List<PhaseEntry> loadDerivedEntries(Long projectId) {
-    List<Object> args = new ArrayList<>();
-    StringBuilder sql =
-        new StringBuilder(
-            """
-            select project_id,
-                   coalesce(testing_phase, '') as testing_phase,
-                   coalesce(system_test_label, '') as system_test_label,
-                   coalesce(label_names, '') as label_names,
-                   count(*) as issue_count
-              from issue_fact
-             where deleted = false
-            """);
-    if (projectId != null) {
-      sql.append(" and project_id = ?");
-      args.add(projectId);
-    }
-    sql.append(" group by project_id, testing_phase, system_test_label, label_names");
-    try {
-      List<PhaseEntry> entries = new ArrayList<>();
-      jdbcTemplate.query(
-          sql.toString(),
-          rs -> {
-            Long rowProjectId = rs.getLong("project_id");
-            long issueCount = rs.getLong("issue_count");
-            for (String candidate : phaseCandidates(rs)) {
-              if (!isSystemTestPhase(candidate)) {
-                continue;
-              }
-              String testingPhase = TextQuerySupport.normalizeDisplay(candidate);
-              entries.add(new PhaseEntry(rowProjectId, parentName(testingPhase), testingPhase, null, issueCount));
-            }
-          },
-          args.toArray());
-      return entries;
-    } catch (DataAccessException error) {
-      return List.of();
-    }
-  }
-
-  private List<String> phaseCandidates(ResultSet rs) throws SQLException {
-    Set<String> candidates = new LinkedHashSet<>();
-    addIfPresent(candidates, rs.getString("testing_phase"));
-    addIfPresent(candidates, rs.getString("system_test_label"));
-    String labels = rs.getString("label_names");
-    if (StringUtils.hasText(labels)) {
-      for (String label : labels.split(",")) {
-        addIfPresent(candidates, label);
-      }
-    }
-    return List.copyOf(candidates);
-  }
-
-  private void addIfPresent(Set<String> values, String value) {
-    String normalized = TextQuerySupport.trimToNull(value);
-    if (normalized != null) {
-      values.add(normalized);
-    }
   }
 
   private List<PhaseGroup> groupEntries(List<PhaseEntry> entries) {
@@ -212,12 +120,6 @@ public class SystemTestPhaseCatalogService {
       group.add(entry);
     }
     return groups.values().stream().map(MutablePhaseGroup::toPhaseGroup).toList();
-  }
-
-  private String phaseKey(Long projectId, String testingPhase) {
-    return (projectId == null ? "" : projectId)
-        + "|"
-        + TextQuerySupport.normalizeDisplay(testingPhase).toLowerCase(java.util.Locale.ROOT);
   }
 
   public record PhaseGroup(Long projectId, String name, List<String> testingPhases, long issueCount) {}
