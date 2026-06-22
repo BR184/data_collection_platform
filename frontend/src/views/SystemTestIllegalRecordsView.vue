@@ -10,13 +10,12 @@ import type {
   SystemTestIllegalRecordFilterOptionsResponse,
   SystemTestIllegalRecordRowResponse,
 } from '../types/api';
-import type { RecordTableColumn, RecordTableTagValue } from '../types/record-table';
+import type { RecordTableColumn, RecordTableFilterField, RecordTableTagValue } from '../types/record-table';
 import { buildSystemTestIllegalConditionFields } from './system-test/system-test-condition-fields';
 import type {
   IssueIllegalRecordFilterOptions,
   IssueIllegalRecordQueryParams,
 } from './issue-illegal-records/issue-illegal-records-types';
-import { SYSTEM_TEST_PHASE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 
 const initialFilterOptions: SystemTestIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -30,14 +29,6 @@ const initialFilterOptions: SystemTestIllegalRecordFilterOptionsResponse = {
   bugStatuses: [],
   categories: [],
   milestoneTitles: [],
-};
-
-const systemTestIllegalScopeProvider = {
-  ...SYSTEM_TEST_PHASE_SCOPE_PROVIDER,
-  placeholder: '选择测试阶段',
-  emptyLabel: undefined,
-  defaultStrategy: 'first-available' as const,
-  clearable: false,
 };
 
 const columns: RecordTableColumn[] = [
@@ -116,6 +107,18 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
 function buildConditionFields(options: IssueIllegalRecordFilterOptions): StatisticFilterField[] {
   return buildSystemTestIllegalConditionFields(options as SystemTestIllegalRecordFilterOptionsResponse);
 }
+
+function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTableFilterField[] {
+  return [
+    {
+      key: 'testingPhase',
+      label: '测试阶段',
+      type: 'select',
+      width: 240,
+      options: [{ label: '全部测试阶段', value: '' }, ...(options.testingPhases ?? [])],
+    },
+  ];
+}
 </script>
 
 <template>
@@ -136,10 +139,9 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :request-realtime-refresh="api.refreshSystemTestIllegalRecordRealtime"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
+    :build-primary-filters="buildPrimaryFilters"
     :columns="columns"
     :map-row="mapRow"
-    :scope-provider="systemTestIllegalScopeProvider"
-    :build-scope-options="(options) => buildScopeOptions(options.testingPhases ?? [])"
     :reset-clear-keys="[
       'keyword',
       'issueIid',

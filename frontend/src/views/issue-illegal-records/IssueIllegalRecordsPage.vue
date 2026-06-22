@@ -62,6 +62,14 @@ const filterOptions = ref({ ...props.initialFilterOptions });
 const canRefreshLatestData = computed(
   () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
 );
+const primaryFilters = computed(() => props.buildPrimaryFilters?.(filterOptions.value) ?? []);
+const primaryFilterKeys = computed(() => new Set(primaryFilters.value.map((field) => field.key)));
+const primaryFilterValues = computed<Record<string, unknown>>(() =>
+  primaryFilters.value.reduce<Record<string, unknown>>((values, field) => {
+    values[field.key] = route.query[field.key] ?? '';
+    return values;
+  }, {}),
+);
 
 const {
   syncStatus,
@@ -84,7 +92,10 @@ const {
 });
 
 const conditionFilterFields = computed<StatisticFilterField[]>(() => {
-  const hiddenKeys = props.scopeProvider ? new Set([props.scopeProvider.queryKey]) : new Set<string>();
+  const hiddenKeys = new Set<string>(primaryFilterKeys.value);
+  if (props.scopeProvider) {
+    hiddenKeys.add(props.scopeProvider.queryKey);
+  }
   return props.buildConditionFields(filterOptions.value).filter((field) => !hiddenKeys.has(field.key));
 });
 
@@ -134,6 +145,20 @@ const {
 });
 
 const tableRows = computed<Record<string, unknown>[]>(() => rows.value.map((row) => props.mapRow(row)));
+const activeFilterTags = computed(() => [
+  ...conditionActiveFilterTags.value,
+  ...primaryFilters.value.flatMap((field) => {
+    const value = primaryFilterValues.value[field.key];
+    const normalizedValue = Array.isArray(value)
+      ? value.map((item) => String(item)).filter(Boolean).join('、')
+      : String(value ?? '');
+    if (!normalizedValue) {
+      return [];
+    }
+    const option = field.options?.find((item) => item.value === normalizedValue);
+    return [{ key: field.key, label: field.label, value: option?.label || normalizedValue }];
+  }),
+]);
 const ruleSteps = computed(() => ruleExplanation.value?.flowSteps ?? []);
 const ruleFirstCount = computed(() => ruleSteps.value[0]?.inputCount ?? 0);
 const ruleFinalCount = computed(() => ruleSteps.value.at(-1)?.outputCount ?? 0);
@@ -320,6 +345,11 @@ async function handleClearFilter(key: string) {
   await handleBaseClearFilter(key);
 }
 
+async function handlePrimaryFilterChange(payload: { key: string; value: string | string[] | null }) {
+  const value = Array.isArray(payload.value) ? payload.value.filter(Boolean).join(',') : String(payload.value ?? '');
+  await patchQuery({ page: 1, [payload.key]: value || null });
+}
+
 async function handleConditionFilterApply() {
   await patchQuery(buildConditionApplyQueryPatch(route.query));
 }
@@ -357,7 +387,9 @@ async function handleConditionFilterReset() {
         :page="page"
         :page-size="pageSize"
         :total="total"
-        :active-filter-tags="conditionActiveFilterTags"
+        :primary-filters="primaryFilters"
+        :filter-values="primaryFilterValues"
+        :active-filter-tags="activeFilterTags"
         :keyword="String(route.query.keyword ?? '')"
         search-placeholder="输入关键字快速搜索"
         :show-search="true"
@@ -366,6 +398,7 @@ async function handleConditionFilterReset() {
         @reset="handleReset"
         @search="handleKeywordSearch"
         @query="handleQuery"
+        @filter-change="handlePrimaryFilterChange"
         @clear-filter="handleClearFilter"
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"

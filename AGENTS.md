@@ -114,9 +114,15 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 
 本地开发环境默认走本地认证，不依赖外部 SSO。
 
-- 认证提供方：`local`
-- 管理员账号：`admin / admin123`
-- 审批账号：`approval / approval`
+常用本地项目账号密码：
+
+| 用途 | 账号/变量 | 密码/值 | 说明 |
+|---|---|---|---|
+| 认证提供方 | `PLATFORM_AUTH_PROVIDER` | `local` | 本地开发默认认证方式，不依赖外部 SSO。 |
+| 平台管理员 | `admin` | `admin123` | 本地开发、页面联调和真实链路冒烟默认账号。 |
+| 审批用户 | `approval` | `approval` | 本地审批链路验证账号。 |
+| 平台数据库 | `DATASOURCE_PASSWORD` | `change_this_password` | 默认连接 `jdbc:postgresql://localhost:15432/qaflex`。 |
+
 - 后端本地启动时，常需要显式设置 `PLATFORM_SECURE_CONFIG_REQUIRED=false`
 - 涉及登录、提交、搜索、刷新后再提交等有状态接口时，通常需要同时携带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头
 - 做 API 冒烟或真实链路时，先确认登录态和 CSRF，再判断业务是否通了

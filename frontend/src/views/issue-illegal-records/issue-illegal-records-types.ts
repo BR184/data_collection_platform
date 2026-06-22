@@ -5,7 +5,7 @@ import type {
   StatisticFilterField,
   StatisticFilterGroup,
 } from '../../types/api';
-import type { RecordTableColumn } from '../../types/record-table';
+import type { RecordTableColumn, RecordTableFilterField } from '../../types/record-table';
 import type { DataScopeOption, DataScopeProvider } from '../../types/data-scope';
 
 export interface IssueIllegalRecordRow {
@@ -106,6 +106,7 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   requestSingleRecordRefresh?: (row: Row) => Promise<Row | null>;
   initialFilterOptions: IssueIllegalRecordFilterOptions;
   buildConditionFields: (options: IssueIllegalRecordFilterOptions) => StatisticFilterField[];
+  buildPrimaryFilters?: (options: IssueIllegalRecordFilterOptions) => RecordTableFilterField[];
   columns: RecordTableColumn[];
   mapRow: (row: Row) => Record<string, unknown>;
   resetClearKeys: string[];
