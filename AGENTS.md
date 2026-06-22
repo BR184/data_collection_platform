@@ -26,6 +26,14 @@
 
 后续移动 Markdown 时必须同步修正文档内引用路径，避免留下指向旧路径的死链接。不要因为 IDE 仍打开了旧路径文档，就把已归档文档当作当前规则入口。
 
+### 0.0.2 内网打包与增量更新规则入口
+
+涉及内网离线打包、部署更新、Docker 容器、数据卷、全量同步、同步状态、用户持久化视图或页面设置保留时，必须先阅读：
+
+- `docs/intranet-offline-packaging-standard.md`
+
+当前内网已部署基线包为 `D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-runnable-empty-working-ubuntu2404-offline.tar.gz`。后续普通 bugfix 和代码更新默认基于该基线包已运行的内网实例做同容器代码增量更新，不重新制作全新的空平台全量包，不重建平台 PostgreSQL 数据卷，不清空同步状态和用户数据。只有业务方明确批准重建环境、清空环境或灾难恢复时，才允许重新走全量空平台部署流程。
+
 ### 0.0 老平台重构口径红线
 
 本项目不是重新实现一个新业务平台，而是对老平台 `D:\projects\spidergitdata-dev` 的架构重构和体验升级。新平台可以改进半实时刷新、查询性能、筛选体验、权限、可维护性和用户效率，但凡涉及数据底层、事实字段、统计数量、列表字段、字段值、非法判定、导出、下钻、默认筛选范围和页面展示口径，必须优先遵从老平台代码中已经写死的规则以及 `docs/platform-page-business-rules.md`。
