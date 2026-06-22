@@ -139,7 +139,7 @@ function normalizeText(value: string | null | undefined) {
 }
 
 function parentPhaseName(testingPhase: string, fallback: string) {
-  const match = testingPhase.match(/(第[一二三四五六七八九十0-9]+轮系统测试|回归测试)/);
+  const match = testingPhase.match(/(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)/);
   if (!match) {
     return fallback || testingPhase;
   }

@@ -56,7 +56,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
-      Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试)");
+      Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, title, project_id, project_name,
              coalesce(author_name,'') as author_name, coalesce(assignee_name,'') as assignee_name,

@@ -70,7 +70,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
-      Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试)");
+      Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final String PHASE_OPTION_SQL = """
       select coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,

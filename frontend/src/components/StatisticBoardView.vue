@@ -544,15 +544,34 @@ onMounted(() => {
 });
 
 async function autoRefreshPageData() {
-  if (!autoRefreshOnEnter.value || loading.value) {
+  if (!autoRefreshOnEnter.value) {
     return;
   }
+  await waitForInitialBoardLoad();
   const markerKey = autoRefreshMarkerKey();
   if (window.sessionStorage.getItem(markerKey) === 'true') {
     return;
   }
-  window.sessionStorage.setItem(markerKey, 'true');
   await autoRefreshBoard();
+  window.sessionStorage.setItem(markerKey, 'true');
+}
+
+async function waitForInitialBoardLoad() {
+  if (!loading.value) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    const stop = watch(
+      loading,
+      (nextLoading) => {
+        if (!nextLoading) {
+          stop();
+          resolve();
+        }
+      },
+      { flush: 'post' },
+    );
+  });
 }
 
 function autoRefreshMarkerKey() {

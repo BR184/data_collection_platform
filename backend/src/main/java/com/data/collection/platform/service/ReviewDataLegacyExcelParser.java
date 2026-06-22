@@ -24,7 +24,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ReviewDataLegacyExcelParser {
-  private static final int MAX_ROWS = 5000;
   private static final List<String> REVIEW_TYPE_VALUES =
       List.of("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "其他");
   private static final String FALLBACK_REVIEW_TYPE = "其他";
@@ -44,10 +43,6 @@ public class ReviewDataLegacyExcelParser {
       List<ReviewDataLegacyExcelRow> rows = new ArrayList<>();
       List<ReviewDataLegacyExcelImportIssue> issues = new ArrayList<>();
       for (int rowIndex = headerRow.rowIndex() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-        if (rows.size() >= MAX_ROWS) {
-          issues.add(issue(rowIndex + 1, "file", ReviewDataLegacyExcelIssueLevel.ERROR, "单次最多导入 5000 行"));
-          break;
-        }
         Row row = sheet.getRow(rowIndex);
         if (isBlankRow(row)) {
           continue;
@@ -94,7 +89,8 @@ public class ReviewDataLegacyExcelParser {
     String notReachReason = text(row, columns, "notReachStandardReason");
 
     if (isBlank(title)) {
-      issues.add(issue(rowNumber, "title", ReviewDataLegacyExcelIssueLevel.ERROR, "评审的工作产品不能为空"));
+      title = "旧平台评审记录-第" + rowNumber + "行";
+      issues.add(issue(rowNumber, "title", ReviewDataLegacyExcelIssueLevel.WARNING, "评审的工作产品为空，将按行号生成历史导入标题"));
     }
     if (isBlank(projectName)) {
       projectName = "未标注项目";

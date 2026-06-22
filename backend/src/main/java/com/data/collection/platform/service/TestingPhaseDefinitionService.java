@@ -9,7 +9,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -85,13 +87,10 @@ public class TestingPhaseDefinitionService {
     sql.append(" order by c.project_id asc, c.phase_start_at desc, c.testing_phase asc");
     List<TestingPhaseDefinitionResponse> configured =
         jdbcTemplate.query(sql.toString(), this::mapDefinition, args.toArray());
-    if (!configured.isEmpty()
-        || enabled == null
-        || !enabled
-        || TextQuerySupport.trimToNull(keyword) != null) {
-      return configured;
+    if (enabled != null && enabled && TextQuerySupport.trimToNull(keyword) == null) {
+      return mergeConfiguredWithDerivedDefinitions(configured, projectId);
     }
-    return fallbackDefinitions(projectId);
+    return configured;
   }
 
   public List<TestingPhaseProjectOptionResponse> listProjectOptions() {
@@ -321,6 +320,27 @@ public class TestingPhaseDefinitionService {
       }
     }
     return definitions;
+  }
+
+  private List<TestingPhaseDefinitionResponse> mergeConfiguredWithDerivedDefinitions(
+      List<TestingPhaseDefinitionResponse> configured, Long projectId) {
+    List<TestingPhaseDefinitionResponse> merged = new ArrayList<>(configured);
+    Set<String> knownKeys = new LinkedHashSet<>();
+    for (TestingPhaseDefinitionResponse definition : configured) {
+      knownKeys.add(phaseKey(definition.projectId(), definition.testingPhase()));
+    }
+    for (TestingPhaseDefinitionResponse definition : fallbackDefinitions(projectId)) {
+      if (knownKeys.add(phaseKey(definition.projectId(), definition.testingPhase()))) {
+        merged.add(definition);
+      }
+    }
+    return merged;
+  }
+
+  private String phaseKey(Long projectId, String testingPhase) {
+    return (projectId == null ? "" : projectId)
+        + "|"
+        + TextQuerySupport.normalizeDisplay(testingPhase).toLowerCase(java.util.Locale.ROOT);
   }
 
   private Timestamp toTimestamp(LocalDateTime value) {

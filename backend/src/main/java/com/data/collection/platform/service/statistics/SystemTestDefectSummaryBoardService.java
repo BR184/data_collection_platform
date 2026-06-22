@@ -53,7 +53,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
   private static final List<String> REALTIME_REFRESH_TABLES = List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final Pattern TURN_LABEL_PATTERN =
-      Pattern.compile("第[一二三四五六七八九十0-9]+轮(系统测试|回归测试)|回归测试");
+      Pattern.compile("第[一二三四五六七八九十0-9]+轮(系统测试|回归测试)|回归测试|系统测试");
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
