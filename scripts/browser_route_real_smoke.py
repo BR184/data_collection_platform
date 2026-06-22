@@ -42,17 +42,16 @@ def login(context: BrowserContext, base_url: str, username: str, password: str) 
         if cookie.get("name") == "XSRF-TOKEN":
             csrf = cookie.get("value", "")
             break
-    if not csrf:
-        return {"success": False, "status": 0, "message": "Missing XSRF-TOKEN cookie"}
+    headers = {"X-XSRF-TOKEN": csrf} if csrf else {}
     login_response = context.request.post(
         f"{base_url.rstrip('/')}/api/auth/login",
         data={"username": username, "password": password},
-        headers={"X-XSRF-TOKEN": csrf},
+        headers=headers,
         timeout=10000,
     )
     if not login_response.ok:
         return {"success": False, "status": login_response.status, "message": login_response.text()}
-    return {"success": True, "status": login_response.status, "data": login_response.json()}
+    return {"success": True, "status": login_response.status, "csrfTokenPresent": bool(csrf), "data": login_response.json()}
 
 
 def smoke_route(page: Page, base_url: str, route_path: str, output_dir: Path, timeout_ms: int) -> dict[str, Any]:

@@ -19,8 +19,9 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValuePageResponse;
 import com.data.collection.platform.entity.labelgroup.LabelValueResponse;
 import com.data.collection.platform.service.labelgroup.LabelDimensionCatalogService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCandidateService;
+import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleCatalogService;
 import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleEvaluationService;
-import com.data.collection.platform.service.labelgroup.LabelGroupDynamicRuleTemplateService;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.labelgroup.LabelGroupService;
 import com.data.collection.platform.service.labelgroup.LabelValueQueryService;
@@ -41,6 +42,7 @@ class LabelGroupControllerTest {
   @Mock private LabelValueQueryService labelValueQueryService;
   @Mock private LabelGroupService labelGroupService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private LabelGroupDynamicRuleCandidateService dynamicRuleCandidateService;
   @Mock private LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
 
   private MockMvc mockMvc;
@@ -54,7 +56,8 @@ class LabelGroupControllerTest {
                     labelValueQueryService,
                     labelGroupService,
                     labelGroupExpansionService,
-                    new LabelGroupDynamicRuleTemplateService(),
+                    new LabelGroupDynamicRuleCatalogService(),
+                    dynamicRuleCandidateService,
                     dynamicRuleEvaluationService))
             .setControllerAdvice(new GlobalRestExceptionHandler())
             .build();
@@ -104,23 +107,52 @@ class LabelGroupControllerTest {
   }
 
   @Test
-  void shouldReturnDynamicRuleTemplatesForNaturalLanguageForm() throws Exception {
-    mockMvc.perform(get("/api/label-groups/dynamic-rule-templates"))
+  void shouldReturnDynamicRuleSourcesForDslForm() throws Exception {
+    mockMvc.perform(get("/api/label-groups/dynamic-rule-sources"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data[0].key").value("recent-active-assignee"))
-        .andExpect(jsonPath("$.data[0].name").value("最近 N 天活跃处理人"))
-        .andExpect(jsonPath("$.data[0].outputValueType").value("STRING"))
-        .andExpect(jsonPath("$.data[0].parameters[0].key").value("days"))
-        .andExpect(jsonPath("$.data[0].parameters[0].controlType").value("number"));
+        .andExpect(jsonPath("$.data[0].key").value("review_records"))
+        .andExpect(jsonPath("$.data[0].name").value("评审记录"))
+        .andExpect(jsonPath("$.data[0].fields[0].key").value("id"))
+        .andExpect(jsonPath("$.data[0].fields[0].valueType").value("NUMBER"));
+  }
+
+  @Test
+  void shouldReturnDynamicRuleRelationsForDslForm() throws Exception {
+    mockMvc.perform(get("/api/label-groups/dynamic-rule-relations"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data[0].name").value("评审记录-问题项记录ID"))
+        .andExpect(jsonPath("$.data[0].leftSourceKey").value("review_records"))
+        .andExpect(jsonPath("$.data[0].rightSourceKey").value("review_problem_items"));
+  }
+
+  @Test
+  void shouldReturnDynamicRuleFieldCandidates() throws Exception {
+    when(dynamicRuleCandidateService.listCandidates(eq("issue_fact"), eq("moduleName"), eq("草"), eq(1), eq(50)))
+        .thenReturn(
+            new LabelValuePageResponse(
+                List.of(new LabelValueResponse("草图", "草图", LabelValueKind.STRING_LITERAL, "FACT", 12)),
+                1,
+                1,
+                50));
+
+    mockMvc.perform(
+            get("/api/label-groups/dynamic-rule-sources/issue_fact/fields/moduleName/candidates")
+                .param("keyword", "草")
+                .param("page", "1")
+                .param("size", "50"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.items[0].value").value("草图"))
+        .andExpect(jsonPath("$.data.total").value(1));
   }
 
   @Test
   void shouldPreviewDynamicRuleMembers() throws Exception {
-    when(dynamicRuleEvaluationService.preview(eq("recent-active-assignee"), eq("{\"days\":30}")))
+    when(dynamicRuleEvaluationService.preview(org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             new LabelGroupDynamicRulePreviewResponse(
-                "recent-active-assignee",
                 "STRING",
                 "SUCCESS",
                 "已计算出 1 个成员",
@@ -132,8 +164,19 @@ class LabelGroupControllerTest {
                 .content(
                     """
                     {
-                      "ruleTemplateKey": "recent-active-assignee",
-                      "ruleParamsJson": "{\\"days\\":30}"
+                      "ruleConfig": {
+                        "rootSourceKey": "issue_fact",
+                        "output": {
+                          "sourceKey": "issue_fact",
+                          "fieldKey": "assigneeName",
+                          "valueType": "STRING",
+                          "labelFieldKey": "assigneeName",
+                          "normalizer": "TRIM"
+                        },
+                        "filters": [],
+                        "relations": [],
+                        "groupBy": []
+                      }
                     }
                     """))
         .andExpect(status().isOk())

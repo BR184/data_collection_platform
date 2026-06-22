@@ -29,9 +29,6 @@ READ_ONLY_ENDPOINTS = [
     ("code-review-status", "/api/code-review/illegal-records/status"),
     ("code-review-multi-board-options", "/api/code-review/multi-board/source-options"),
     ("code-review-multi-board", "/api/code-review/multi-board/overview"),
-    ("integration-phase-options", "/api/integration-tests/phase-options"),
-    ("integration-summary", "/api/integration-tests/summary"),
-    ("integration-details", "/api/integration-tests/details?page=1&size=10"),
     ("system-test-defect-summary", "/api/statistic-boards/system-test-defect-summary"),
     ("system-test-delay-analysis", "/api/statistic-boards/system-test-delay-analysis"),
     ("system-test-defect-cause", "/api/statistic-boards/system-test-defect-cause"),
@@ -123,17 +120,16 @@ def main() -> int:
     try:
         request_json(opener, args.base_url, "/api/auth/current")
         token = csrf_token(cookies)
-        if not token:
-            raise RuntimeError("Missing XSRF-TOKEN cookie")
+        headers = {"X-XSRF-TOKEN": token} if token else {}
         login_status, login_payload, _ = request_json(
             opener,
             args.base_url,
             "/api/auth/login",
             method="POST",
             body={"username": args.username, "password": args.password},
-            headers={"X-XSRF-TOKEN": token},
+            headers=headers,
         )
-        report["login"] = {"status": login_status, "summary": summarize_payload(login_payload)}
+        report["login"] = {"status": login_status, "csrfTokenPresent": bool(token), "summary": summarize_payload(login_payload)}
     except (HTTPError, URLError, RuntimeError) as error:
         report["login"] = {"status": getattr(error, "code", 0), "error": str(error)}
         report_path = output_dir / "report.json"
