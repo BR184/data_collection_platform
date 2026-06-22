@@ -7,6 +7,9 @@
 --   sudo docker cp testing_phase.csv qaflex-postgres:/tmp/testing_phase.csv
 --   sudo docker cp import-legacy-testing-phase.sql qaflex-postgres:/tmp/import-legacy-testing-phase.sql
 --   sudo docker exec -it qaflex-postgres psql -U qaflex -d qaflex -f /tmp/import-legacy-testing-phase.sql
+--
+-- The packaged platform seeds the current legacy phase definitions through Flyway.
+-- Keep this script for later manual replacement when a fresh old-platform CSV is exported.
 
 create temporary table legacy_testing_phase_import (
     legacy_source_id_text text,

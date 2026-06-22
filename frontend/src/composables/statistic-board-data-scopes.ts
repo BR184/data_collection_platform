@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import { api } from '../api';
+import { authState } from './auth-state';
 import type { DataScopeOption, DataScopeProvider } from '../types/data-scope';
 import type { TestingPhaseDefinitionResponse } from '../types/api';
 
@@ -20,7 +21,7 @@ const SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER: DataScopeProvider = {
   id: 'system-test-defect-summary-phase',
   label: '测试阶段',
   queryKey: 'testingPhase',
-  mode: 'cascader-single',
+  mode: 'single-select',
   placeholder: '选择测试阶段',
   defaultStrategy: 'first-available',
   clearable: false,
@@ -61,14 +62,14 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
     }
     return {
       provider: SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER,
-      options,
+      options: parentOptions,
       loading,
     };
   });
 
   watch(
-    boardKey,
-    async (nextBoardKey) => {
+    [boardKey, () => authState.currentUser.authenticated],
+    async ([nextBoardKey]) => {
       if (!SYSTEM_TEST_BOARD_KEYS.has(nextBoardKey) || loaded.value || loading.value) {
         return;
       }
@@ -90,10 +91,14 @@ function buildTestingPhaseTree(definitions: TestingPhaseDefinitionResponse[]): D
   const projectMap = new Map<string, DataScopeOption>();
   for (const definition of definitions) {
     const testingPhase = normalizeText(definition.testingPhase);
+    const parentName = normalizeText(definition.legacyPhaseName) || normalizeText(definition.projectName);
     if (!testingPhase) {
       continue;
     }
-    const projectName = phaseScopeValue(parentPhaseName(testingPhase, normalizeText(definition.projectName)));
+    if (!parentName) {
+      continue;
+    }
+    const projectName = phaseScopeValue(parentName);
     const parent = projectMap.get(projectName) ?? {
       label: projectName,
       value: phaseScopeValue(projectName),
@@ -109,24 +114,20 @@ function buildTestingPhaseTree(definitions: TestingPhaseDefinitionResponse[]): D
   return [...projectMap.values()]
     .map((project) => ({
       ...project,
-      children: [...(project.children ?? [])].sort((left, right) =>
-        left.label.localeCompare(right.label, 'zh-CN'),
-      ),
-    }))
-    .sort((left, right) => right.label.localeCompare(left.label, 'zh-CN'));
+      children: [...(project.children ?? [])],
+    }));
 }
 
 function buildParentOptions(definitions: TestingPhaseDefinitionResponse[]): DataScopeOption[] {
   const parents = new Map<string, DataScopeOption>();
   for (const definition of definitions) {
-    const testingPhase = normalizeText(definition.testingPhase);
-    const parent = parentPhaseName(testingPhase, normalizeText(definition.projectName));
+    const parent = normalizeText(definition.legacyPhaseName) || normalizeText(definition.projectName);
     if (!parent) {
       continue;
     }
     parents.set(parent, { label: parent, value: parent });
   }
-  return [...parents.values()].sort((left, right) => right.label.localeCompare(left.label, 'zh-CN'));
+  return [...parents.values()];
 }
 
 function phaseScopeValue(projectName: string) {
@@ -135,12 +136,4 @@ function phaseScopeValue(projectName: string) {
 
 function normalizeText(value: string | null | undefined) {
   return String(value ?? '').trim();
-}
-
-function parentPhaseName(testingPhase: string, fallback: string) {
-  const match = testingPhase.match(/(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)/);
-  if (!match) {
-    return fallback || testingPhase;
-  }
-  return testingPhase.replace(match[1], '').trim() || fallback || testingPhase;
 }
