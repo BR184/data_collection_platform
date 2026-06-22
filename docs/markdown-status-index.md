@@ -4,11 +4,11 @@
 <!-- DOC_STATUS_END -->
 
 # Markdown 状态索引
-更新日期：2026-06-09
+更新日期：2026-06-22
 
 ## 范围
 
-本索引覆盖仓库自维护 Markdown：根目录文档、`docs/*.md`、`docs/plans/*.md`。不覆盖 `node_modules`、`.tmp`、`tools` 等第三方或构建/离线包目录中的 Markdown。
+本索引覆盖仓库自维护 Markdown：根目录文档、`docs/*.md`、`docs/current-state/*.md`、`docs/plans/*.md` 和 `docs/archive/` 中的归档入口及主要历史文档。不覆盖 `node_modules`、`.tmp`、`tools` 等第三方或构建/离线包目录中的 Markdown。
 
 ## 状态说明
 
@@ -22,10 +22,12 @@
 
 | 文档 | 状态 | 说明 |
 | --- | --- | --- |
-| `AGENT.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
+| `AGENTS.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `README.md` | 常驻入口 | 项目启动、运行和模块说明入口，继续维护。 |
-| `docs/bug-fix-report-20260520.md` | 历史报告 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
-| `docs/deep-test-report-20260519.md` | 历史报告 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
+| `docs/archive/README.md` | 归档入口 | 说明归档目录用途和归档文档使用边界。 |
+| `docs/archive/completed/bug-fix-report-20260520.md` | 历史报告 / 已归档 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
+| `docs/archive/completed/deep-test-report-20260519.md` | 历史报告 / 已归档 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
+| `docs/current-state/system-test-statistics-review-import-refresh-alignment-20260622.md` | 当前对齐方案 | 记录议题统计、评审导入和首次进入刷新策略的当前修复方案，供后续实现、联调和验收使用。 |
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/frontend-record-page-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
@@ -33,7 +35,7 @@
 | `docs/intranet-offline-packaging-standard.md` | 常驻发布标准 | 定义内网离线发布包的固定结构、拓扑、镜像标签与验收清单。 |
 | `docs/gitlab-direct-sync-system-hook-runbook.md` | 遗留 Runbook / 待降级 | System Hook 仍有历史运维价值，但实时主路径已倾向增量补偿；后续应降级或归档。 |
 | `docs/gitlab-sync-orchestrator-runbook.md` | 常驻 Runbook | 当前运维和排查说明，继续有效。 |
-| `docs/legacy-table-display-policy-investigation-20260603.md` | 调查报告 / 待实施对齐 | 旧平台表格展示口径、模块行骨架、过滤规则和下钻差异调查；本轮只记录结论，未改业务代码。 |
+| `docs/archive/completed/legacy-table-display-policy-investigation-20260603.md` | 调查报告 / 已归档 | 旧平台表格展示口径、模块行骨架、过滤规则和下钻差异调查；当前口径以业务规则总表和现行方案为准。 |
 | `docs/markdown-status-index.md` | 常驻索引 | 汇总所有项目自维护 Markdown 的当前有效性、遗留项和废弃说明。 |
 | `docs/plans/2026-04-24-code-review-phase1-design.md` | 已完成 | 方案或修复已落地，保留为历史追溯。 |
 | `docs/plans/2026-04-27-data-scope-reuse.md` | 已完成 | 方案或修复已落地，保留为历史追溯。 |
@@ -61,7 +63,22 @@
 | `docs/plans/2026-06-01-user-journey-test-fixes-plan.md` | 待实施修复方案 | 针对用户旅程测试报告的代码级修复方案：健康检查 endpoint、同源文案对齐、游客态质量看板请求策略、窄屏登录、镜像设置离页草稿保护、全量同步二次确认（待复测）。仅方案未改代码。 |
 | `docs/plans/2026-06-01-sync-source-duplication-log-scroll-compensation-investigation.md` | 已实施并验证 | 同源保护、同步日志滚动条、补偿 planning/缓存优化已落地并通过相关测试。 |
 | `docs/platform-auth-security.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
-| `docs/platform-smoke-test-matrix-20260520.md` | 历史报告 | 阶段性报告，保留作追溯，不作为当前待办清单。 |
+| `docs/archive/completed/local-gitlab-old-new-comparison-20260602.md` | 历史对比 / 已归档 | 老新平台阶段性对比记录，保留作追溯。 |
+| `docs/archive/completed/old-new-visible-diffs-and-full-chain-comparison-20260603.md` | 历史对比 / 已归档 | 老新平台可见差异和全链路对比记录，保留作追溯。 |
+| `docs/archive/completed/platform-smoke-test-matrix-20260520.md` | 历史报告 / 已归档 | 阶段性冒烟矩阵，保留作追溯，不作为当前待办清单。 |
+| `docs/archive/completed/real-chain-old-platform-comparison-ledger-20260602.md` | 历史对比 / 已归档 | 真实链路老平台对比台账，保留作追溯。 |
+| `docs/archive/completed/system-test-issue-and-integration-gap-investigation-20260603.md` | 调查报告 / 已归档 | 系统测试议题和集成差异调查，当前修复方案已由当前状态文档承接。 |
 | `docs/project-progress.md` | 进度快照 | 项目阶段性进展记录，保留作历史，不等同于当前任务列表。 |
 | `docs/runtime-artifacts.md` | 常驻 Runbook | 当前运维和排查说明，继续有效。 |
 | `数据采集平台议题统计规则.md` | 已归档 / 被取代 | 旧议题统计口径入口，已由 `docs/platform-page-business-rules.md` 统一整合；不再作为实现依据。 |
+
+## 归档审计记录
+
+以下审计记录已移动到 `docs/archive/completed/audits/`，仅作历史追溯，不作为当前修复入口：
+
+- `code-review-illegal-records-gap-audit.md`
+- `customer-issue-defect-summary-gap-audit.md`
+- `customer-issue-followup-pages-gap-audit.md`
+- `customer-issue-illegal-records-gap-audit.md`
+- `deprecated-function-remnant-audit.md`
+- `quality-board-gap-audit.md`

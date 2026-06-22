@@ -604,7 +604,7 @@ private int resolveMaxContinuationTasksPerTable() {
 
 为避免后续内网大数据同步后的冒烟测试与基础功能问题混在一起，已新增全平台功能标记与分组冒烟测试矩阵：
 
-- **文档**: `docs/platform-smoke-test-matrix-20260520.md`
+- **文档**: `docs/archive/completed/platform-smoke-test-matrix-20260520.md`
 - **范围**: 后端 API、服务抽象、同步编排、System Hook、多源隔离、数据库查看、事实构建、各业务页面、前端组件、组合函数和工具函数。
 - **原则**: 先完成小数据/真实链路基础冒烟，再进入大数据量压力专项；内网源库验收必须按非 Docker 的 PostgreSQL 直连方式确认，Docker 容器直连只能作为本地 DIRECT 分支验证；功能真实链路测试以 `18181` 当前 Vite 源码前端 -> `18080` 当前源码后端为有效口径，`18083/18182` 只作为旧容器环境参考。
 - **当前新增缺口**: 测试阶段定义模块真实 CRUD 链路已补测通过；数据库查看需要补全同步日志表。

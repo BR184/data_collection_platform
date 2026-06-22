@@ -725,7 +725,7 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 ## 2026-06-02 第十六批修复记录
 
 ### 已实施
-- 新增 `docs/real-chain-old-platform-comparison-ledger-20260602.md`，把真实链路、mock-only、unit-only、环境阻塞、未执行和老平台同批数据对比项统一登记。
+- 新增 `docs/archive/completed/real-chain-old-platform-comparison-ledger-20260602.md`，把真实链路、mock-only、unit-only、环境阻塞、未执行和老平台同批数据对比项统一登记。
 - 台账明确 `PASS_SAME_DATA`、`PASS_REAL`、`PARTIAL_REAL`、`PASS_MOCK_ONLY`、`PASS_UNIT_ONLY`、`FAILED`、`BLOCKED_ENV`、`NOT_RUN` 状态口径，避免把 mock 路由 smoke 或单测误标为真实通过。
 - 台账把 2026-06-02 最新修复后尚未真实复跑的项全部保留为 `NOT_RUN`、`BLOCKED_ENV`、`PARTIAL_REAL` 或 `PASS_UNIT_ONLY`，并记录后续统一跑通动作。
 - 新增 `scripts/check_verification_ledger.py`，校验台账内每条状态表行都有合法状态；非真实通过项必须写清楚阻塞/说明和后续动作。
@@ -741,7 +741,7 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 - 新增 `scripts/real_chain_api_smoke.py`，通过前端 `18181` 代理登录后调用 28 个只读核心 API，覆盖配置、数据库查看、评审、代码走查、集成测试、系统测试、客户问题和统计看板。
 - 修复 `scripts/check_issue_fact_module_pollution.py` 在 Windows 上通过 `psql -c` 传递中文 SQL 时可能触发编码问题的缺陷，改为通过 stdin 向 `psql` 投递 SQL，并设置 `PGCLIENTENCODING=UTF8`。
 - 使用真实平台库对 `cc/default/dgm` 三个主要源执行 issue fact full rebuild，清理历史 `module_names` 污染。
-- 更新 `docs/real-chain-old-platform-comparison-ledger-20260602.md`：新平台真实路由、只读 API 和模块污染复查已标为真实链路结果；新老同批数据对比因老平台运行环境缺失标为 `BLOCKED_ENV`。
+- 更新 `docs/archive/completed/real-chain-old-platform-comparison-ledger-20260602.md`：新平台真实路由、只读 API 和模块污染复查已标为真实链路结果；新老同批数据对比因老平台运行环境缺失标为 `BLOCKED_ENV`。
 
 ### 已验证
 - 后端 `18080` health 返回 `{"status":"UP"}`；Java 进程来自当前工作区 `D:\projects\data_collection_platform`。
@@ -785,7 +785,7 @@ platform.gitlab-mirror.scheduler-delay-ms: 60000
 - 针对项目 1 issue #1 notes 分页长时间不结束的问题，在老平台本地测试运行中给 `getAllIssueNotes` 增加 `old.platform.issue.notes.max.pages` 上限，避免外网样本阻塞全量 issue 入库。该补丁只用于外网对比，不纳入新平台仓库。
 - 新增 `scripts/compare_old_platform_issue_data_to_new_facts.py`，直接比较老平台 MySQL `spider_issue_data` 与新平台 PostgreSQL `issue_fact` 的同批 issue 数量、IID 和展示字段。
 - 修复新平台 issue fact 构建漏填处理人的问题：`GitlabFactSourceSqlProvider` 新增 `issue_assignee_names` 聚合，`FactBuildService` 写入 `assignee_name`。
-- 更新 `docs/local-gitlab-old-new-comparison-20260602.md` 和 `docs/real-chain-old-platform-comparison-ledger-20260602.md`，把新老同批对比从“环境阻塞”更新为“真实跑通但字段失败”。
+- 更新 `docs/archive/completed/local-gitlab-old-new-comparison-20260602.md` 和 `docs/archive/completed/real-chain-old-platform-comparison-ledger-20260602.md`，把新老同批对比从“环境阻塞”更新为“真实跑通但字段失败”。
 
 ### 已验证
 - 老平台 `8091` 重新拉起后，`POST /spiderCCProduct/updateIssueInfo2Spider_issue_data?projectId=2` 返回 200，旧库 project 2 为 6 行。
