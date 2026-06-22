@@ -2,8 +2,11 @@ export interface TestingPhaseDefinitionResponse {
   id: number;
   projectId: number;
   projectName: string;
+  legacySourceId?: number | null;
+  legacyPhaseName?: string | null;
+  legacySortOrder?: number | null;
   testingPhase: string;
-  phaseStartAt: string;
+  phaseStartAt?: string | null;
   phaseEndAt?: string | null;
   enabled: boolean;
   remark: string;
@@ -14,8 +17,11 @@ export interface TestingPhaseDefinitionResponse {
 
 export interface TestingPhaseDefinitionSaveRequest {
   projectId: number;
+  legacySourceId?: number | null;
+  legacyPhaseName?: string | null;
+  legacySortOrder?: number | null;
   testingPhase: string;
-  phaseStartAt: string;
+  phaseStartAt?: string | null;
   phaseEndAt?: string | null;
   enabled: boolean;
   remark?: string | null;

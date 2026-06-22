@@ -30,7 +30,10 @@ public class TestingPhaseDefinitionService {
             """
             select c.id,
                    c.project_id,
-                   coalesce(p.project_name, '') as project_name,
+                   coalesce(c.legacy_phase_name, p.project_name, '') as project_name,
+                   c.legacy_source_id,
+                   c.legacy_phase_name,
+                   c.legacy_sort_order,
                    c.testing_phase,
                    c.phase_start_at,
                    c.phase_end_at,
@@ -65,6 +68,7 @@ public class TestingPhaseDefinitionService {
            and (
              c.testing_phase ilike ?
              or c.remark ilike ?
+             or c.legacy_phase_name ilike ?
              or coalesce(p.project_name, '') ilike ?
              or c.project_id::text ilike ?
            )
@@ -74,12 +78,13 @@ public class TestingPhaseDefinitionService {
       args.add(likeKeyword);
       args.add(likeKeyword);
       args.add(likeKeyword);
+      args.add(likeKeyword);
     }
     if (enabled != null) {
       sql.append(" and c.enabled = ?");
       args.add(enabled);
     }
-    sql.append(" order by c.project_id asc, c.phase_start_at desc, c.testing_phase asc");
+    sql.append(" order by c.legacy_sort_order asc nulls last, c.project_id asc, c.phase_start_at desc nulls last, c.testing_phase asc");
     return jdbcTemplate.query(sql.toString(), this::mapDefinition, args.toArray());
   }
 
@@ -109,19 +114,25 @@ public class TestingPhaseDefinitionService {
     jdbcTemplate.update(
         """
         insert into testing_phase_calendar(
-          project_id, testing_phase, phase_start_at, phase_end_at, enabled, remark, updated_at
+          project_id, legacy_source_id, legacy_phase_name, legacy_sort_order, testing_phase, phase_start_at, phase_end_at, enabled, remark, updated_at
         )
-        values (?, ?, ?, ?, ?, ?, current_timestamp)
+        values (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)
         on conflict (project_id, testing_phase) do update
-           set phase_start_at = excluded.phase_start_at,
+           set legacy_source_id = excluded.legacy_source_id,
+               legacy_phase_name = excluded.legacy_phase_name,
+               legacy_sort_order = excluded.legacy_sort_order,
+               phase_start_at = excluded.phase_start_at,
                phase_end_at = excluded.phase_end_at,
                enabled = excluded.enabled,
                remark = excluded.remark,
                updated_at = current_timestamp
         """,
         normalized.projectId(),
+        normalized.legacySourceId(),
+        normalized.legacyPhaseName(),
+        normalized.legacySortOrder(),
         normalized.testingPhase(),
-        Timestamp.valueOf(normalized.phaseStartAt()),
+        toTimestamp(normalized.phaseStartAt()),
         toTimestamp(normalized.phaseEndAt()),
         normalized.enabled(),
         normalized.remark());
@@ -135,6 +146,9 @@ public class TestingPhaseDefinitionService {
         """
         update testing_phase_calendar
            set project_id = ?,
+               legacy_source_id = ?,
+               legacy_phase_name = ?,
+               legacy_sort_order = ?,
                testing_phase = ?,
                phase_start_at = ?,
                phase_end_at = ?,
@@ -144,8 +158,11 @@ public class TestingPhaseDefinitionService {
          where id = ?
         """,
         normalized.projectId(),
+        normalized.legacySourceId(),
+        normalized.legacyPhaseName(),
+        normalized.legacySortOrder(),
         normalized.testingPhase(),
-        Timestamp.valueOf(normalized.phaseStartAt()),
+        toTimestamp(normalized.phaseStartAt()),
         toTimestamp(normalized.phaseEndAt()),
         normalized.enabled(),
         normalized.remark(),
@@ -172,7 +189,10 @@ public class TestingPhaseDefinitionService {
         """
         select c.id,
                c.project_id,
-               coalesce(p.project_name, '') as project_name,
+               coalesce(c.legacy_phase_name, p.project_name, '') as project_name,
+               c.legacy_source_id,
+               c.legacy_phase_name,
+               c.legacy_sort_order,
                c.testing_phase,
                c.phase_start_at,
                c.phase_end_at,
@@ -207,7 +227,10 @@ public class TestingPhaseDefinitionService {
           """
           select c.id,
                  c.project_id,
-                 coalesce(p.project_name, '') as project_name,
+                 coalesce(c.legacy_phase_name, p.project_name, '') as project_name,
+                 c.legacy_source_id,
+                 c.legacy_phase_name,
+                 c.legacy_sort_order,
                  c.testing_phase,
                  c.phase_start_at,
                  c.phase_end_at,
@@ -257,15 +280,15 @@ public class TestingPhaseDefinitionService {
       throw new BizException("测试阶段不能为空");
     }
     LocalDateTime phaseStartAt = request.phaseStartAt();
-    if (phaseStartAt == null) {
-      throw new BizException("阶段开始时间不能为空");
-    }
     LocalDateTime phaseEndAt = request.phaseEndAt();
-    if (phaseEndAt != null && phaseEndAt.isBefore(phaseStartAt)) {
+    if (phaseStartAt != null && phaseEndAt != null && phaseEndAt.isBefore(phaseStartAt)) {
       throw new BizException("阶段结束时间不能早于开始时间");
     }
     return new NormalizedPhaseDefinition(
         projectId,
+        request.legacySourceId(),
+        TextQuerySupport.trimToNull(request.legacyPhaseName()),
+        request.legacySortOrder(),
         testingPhase,
         phaseStartAt,
         phaseEndAt,
@@ -279,6 +302,9 @@ public class TestingPhaseDefinitionService {
         rs.getLong("id"),
         rs.getLong("project_id"),
         TextQuerySupport.normalizeDisplay(rs.getString("project_name")),
+        rs.getObject("legacy_source_id", Long.class),
+        TextQuerySupport.normalizeDisplay(rs.getString("legacy_phase_name")),
+        rs.getObject("legacy_sort_order", Integer.class),
         TextQuerySupport.normalizeDisplay(rs.getString("testing_phase")),
         toLocalDateTime(rs.getTimestamp("phase_start_at")),
         toLocalDateTime(rs.getTimestamp("phase_end_at")),
@@ -299,6 +325,9 @@ public class TestingPhaseDefinitionService {
 
   private record NormalizedPhaseDefinition(
       Long projectId,
+      Long legacySourceId,
+      String legacyPhaseName,
+      Integer legacySortOrder,
       String testingPhase,
       LocalDateTime phaseStartAt,
       LocalDateTime phaseEndAt,

@@ -75,6 +75,8 @@ public class SystemTestPhaseCatalogService {
         new StringBuilder(
             """
             select c.project_id,
+                   c.legacy_phase_name,
+                   c.legacy_sort_order,
                    c.testing_phase,
                    c.phase_start_at,
                    coalesce(s.issue_count, 0) as issue_count
@@ -91,7 +93,7 @@ public class SystemTestPhaseCatalogService {
       sql.append(" and c.project_id = ?");
       args.add(projectId);
     }
-    sql.append(" order by c.phase_start_at desc nulls last, c.testing_phase asc");
+    sql.append(" order by c.legacy_sort_order asc nulls last, c.phase_start_at desc nulls last, c.testing_phase asc");
     try {
       return jdbcTemplate.query(sql.toString(), this::mapConfiguredEntry, args.toArray());
     } catch (DataAccessException error) {
@@ -101,11 +103,13 @@ public class SystemTestPhaseCatalogService {
 
   private PhaseEntry mapConfiguredEntry(ResultSet rs, int rowNum) throws SQLException {
     String testingPhase = TextQuerySupport.normalizeDisplay(rs.getString("testing_phase"));
+    String legacyPhaseName = TextQuerySupport.normalizeDisplay(rs.getString("legacy_phase_name"));
     return new PhaseEntry(
         rs.getLong("project_id"),
-        parentName(testingPhase),
+        StringUtils.hasText(legacyPhaseName) ? legacyPhaseName : parentName(testingPhase),
         testingPhase,
         rs.getTimestamp("phase_start_at") == null ? null : rs.getTimestamp("phase_start_at").toLocalDateTime(),
+        rs.getObject("legacy_sort_order", Integer.class),
         rs.getLong("issue_count"));
   }
 
@@ -125,7 +129,7 @@ public class SystemTestPhaseCatalogService {
   public record PhaseGroup(Long projectId, String name, List<String> testingPhases, long issueCount) {}
 
   private record PhaseEntry(
-      Long projectId, String name, String testingPhase, LocalDateTime startAt, long issueCount) {}
+      Long projectId, String name, String testingPhase, LocalDateTime startAt, Integer sortOrder, long issueCount) {}
 
   private static final class MutablePhaseGroup {
     private final Long projectId;

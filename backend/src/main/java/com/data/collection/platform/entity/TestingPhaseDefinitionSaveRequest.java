@@ -6,8 +6,11 @@ import java.time.LocalDateTime;
 
 public record TestingPhaseDefinitionSaveRequest(
     @NotNull Long projectId,
+    Long legacySourceId,
+    String legacyPhaseName,
+    Integer legacySortOrder,
     @NotBlank String testingPhase,
-    @NotNull LocalDateTime phaseStartAt,
+    LocalDateTime phaseStartAt,
     LocalDateTime phaseEndAt,
     Boolean enabled,
     String remark) {}
