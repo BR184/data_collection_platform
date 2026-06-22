@@ -114,8 +114,10 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
       key: 'testingPhase',
       label: '测试阶段',
       type: 'select',
+      defaultStrategy: 'first-available',
+      clearable: false,
       width: 240,
-      options: [{ label: '全部测试阶段', value: '' }, ...(options.testingPhases ?? [])],
+      options: options.testingPhases ?? [],
     },
   ];
 }

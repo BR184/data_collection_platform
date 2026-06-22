@@ -22,6 +22,7 @@ export interface RecordTableFilterField {
   key: string;
   label: string;
   type: RecordTableFilterType;
+  defaultStrategy?: 'empty' | 'first-available';
   placeholder?: string;
   width?: number;
   advanced?: boolean;

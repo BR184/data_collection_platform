@@ -106,6 +106,30 @@ useDataScope({
   mountToShell: true,
 });
 
+watch(
+  [primaryFilters, () => route.query],
+  async ([fields]) => {
+    const patch: Record<string, string | number> = {};
+    for (const field of fields) {
+      if (field.defaultStrategy !== 'first-available') {
+        continue;
+      }
+      const currentValue = String(route.query[field.key] ?? '').trim();
+      if (currentValue) {
+        continue;
+      }
+      const fallback = field.options?.find((option) => option.value)?.value ?? '';
+      if (fallback) {
+        patch[field.key] = fallback;
+      }
+    }
+    if (Object.keys(patch).length) {
+      await patchQuery({ page: 1, ...patch });
+    }
+  },
+  { immediate: true, deep: true },
+);
+
 const {
   filterDraft,
   activeFilterTags: conditionActiveFilterTags,

@@ -6,10 +6,9 @@ export const SYSTEM_TEST_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
   label: '测试阶段',
   queryKey: 'testingPhase',
   mode: 'single-select',
-  placeholder: '全部测试阶段',
-  emptyLabel: '全部测试阶段',
-  defaultStrategy: 'empty',
-  clearable: true,
+  placeholder: '选择测试阶段',
+  defaultStrategy: 'first-available',
+  clearable: false,
   compact: true,
   summaryPrefix: '当前测试阶段',
 };
