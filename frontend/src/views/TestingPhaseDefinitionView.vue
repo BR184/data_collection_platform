@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { ArrowDown, ArrowUp, Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowRight, ArrowUp, Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import type {
@@ -23,7 +23,7 @@ const childEditMode = ref(false);
 const selectedGroupId = ref<number | null>(null);
 const projectId = ref<number>(LEGACY_CROWN_CAD_PROJECT_ID);
 const keyword = ref('');
-const enabledFilter = ref<string>('true');
+const enabledFilter = ref<string>('');
 const groups = ref<TestingPhaseGroupResponse[]>([]);
 const projectOptions = ref<TestingPhaseProjectOptionResponse[]>([]);
 
@@ -50,6 +50,7 @@ const childForm = reactive<TestingPhaseDefinitionSaveRequest & { id?: number }>(
 });
 
 const enabledOptions = [
+  { label: '全部', value: '' },
   { label: '启用', value: 'true' },
   { label: '停用', value: 'false' },
 ];
@@ -92,8 +93,8 @@ async function loadGroups() {
       keyword: keyword.value,
       enabled: enabledFilter.value,
     });
-    if (!selectedGroupId.value || !groups.value.some((item) => item.id === selectedGroupId.value)) {
-      selectedGroupId.value = groups.value[0]?.id ?? null;
+    if (selectedGroupId.value && !groups.value.some((item) => item.id === selectedGroupId.value)) {
+      selectedGroupId.value = null;
     }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '测试阶段定义加载失败');
@@ -102,8 +103,8 @@ async function loadGroups() {
   }
 }
 
-function selectGroup(row?: TestingPhaseGroupResponse) {
-  selectedGroupId.value = row?.id ?? selectedGroupId.value;
+function selectGroup(row: TestingPhaseGroupResponse) {
+  selectedGroupId.value = selectedGroupId.value === row.id ? null : row.id;
 }
 
 function resetGroupForm() {
@@ -453,53 +454,66 @@ function nextChildSortOrder() {
       </div>
     </el-card>
 
-    <div class="testing-phase-layout">
-      <el-card class="panel-card phase-panel">
+    <div class="testing-phase-layout" :class="{ 'has-selection': selectedGroup }">
+      <el-card class="panel-card phase-list-panel">
         <template #header>
           <div class="phase-panel-header">
             <span>阶段名称</span>
             <el-button link type="primary" :icon="Plus" @click="openCreateGroupDialog">新增</el-button>
           </div>
         </template>
-        <el-table
-          v-loading="loading"
-          :data="groups"
-          row-key="id"
-          highlight-current-row
-          border
-          @current-change="selectGroup"
-        >
-          <el-table-column prop="sortOrder" label="排序" width="74" />
-          <el-table-column prop="name" label="阶段名称" min-width="130" />
-          <el-table-column prop="issueCount" label="议题数" width="82" />
-          <el-table-column label="状态" width="82">
-            <template #default="{ row }">
-              <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '启用' : '停用' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="210" fixed="right">
-            <template #default="{ row, $index }">
-              <el-button link :icon="ArrowUp" :disabled="$index === 0" @click.stop="moveGroup(row, -1)" />
-              <el-button link :icon="ArrowDown" :disabled="$index === groups.length - 1" @click.stop="moveGroup(row, 1)" />
-              <el-button link type="primary" :icon="Edit" @click.stop="openEditGroupDialog(row)" />
-              <el-button link type="primary" @click.stop="toggleGroupEnabled(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
+        <div v-loading="loading" class="phase-list">
+          <div
+            v-for="(row, index) in groups"
+            :key="row.id"
+            class="phase-list-row"
+            :class="{ active: selectedGroupId === row.id, disabled: !row.enabled }"
+            role="button"
+            tabindex="0"
+            @click="selectGroup(row)"
+            @keydown.enter="selectGroup(row)"
+            @keydown.space.prevent="selectGroup(row)"
+          >
+            <span class="phase-row-order">{{ row.sortOrder }}</span>
+            <span class="phase-row-main">
+              <span class="phase-row-title">{{ row.name }}</span>
+              <span class="phase-row-meta">
+                <span>{{ row.children.length }} 个测试阶段</span>
+                <span>{{ row.issueCount }} 个议题</span>
+              </span>
+            </span>
+            <el-tag :type="row.enabled ? 'success' : 'info'" size="small" effect="plain">
+              {{ row.enabled ? '启用' : '停用' }}
+            </el-tag>
+            <span class="phase-row-actions" @click.stop>
+              <el-button link :icon="ArrowUp" :disabled="index === 0" @click="moveGroup(row, -1)" />
+              <el-button link :icon="ArrowDown" :disabled="index === groups.length - 1" @click="moveGroup(row, 1)" />
+              <el-button link type="primary" :icon="Edit" @click="openEditGroupDialog(row)" />
+              <el-button link type="primary" @click="toggleGroupEnabled(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
               <el-button
                 link
                 type="danger"
                 :icon="Delete"
                 :loading="deletingId === row.id"
-                @click.stop="deleteGroup(row)"
+                @click="deleteGroup(row)"
               />
-            </template>
-          </el-table-column>
-        </el-table>
+            </span>
+            <el-icon class="phase-row-chevron"><ArrowRight /></el-icon>
+          </div>
+          <el-empty v-if="!loading && groups.length === 0" description="暂无阶段名称" />
+        </div>
       </el-card>
 
-      <el-card class="panel-card phase-panel">
+      <el-card v-if="selectedGroup" class="panel-card phase-detail-panel">
         <template #header>
           <div class="phase-panel-header">
-            <span>{{ selectedGroup?.name ?? '测试阶段名称' }}</span>
-            <el-button type="primary" link :icon="Plus" :disabled="!selectedGroup" @click="openCreateChildDialog">新增</el-button>
+            <div class="phase-detail-title">
+              <span>{{ selectedGroup.name }}</span>
+              <el-tag :type="selectedGroup.enabled ? 'success' : 'info'" size="small" effect="plain">
+                {{ selectedGroup.enabled ? '启用' : '停用' }}
+              </el-tag>
+            </div>
+            <el-button type="primary" link :icon="Plus" @click="openCreateChildDialog">新增测试阶段</el-button>
           </div>
         </template>
         <el-table v-loading="loading" :data="childRows" row-key="id" border>
@@ -530,6 +544,7 @@ function nextChildSortOrder() {
           </el-table-column>
         </el-table>
       </el-card>
+
     </div>
 
     <el-dialog v-model="groupDialogVisible" :title="groupEditMode ? '编辑阶段名称' : '新增阶段名称'" width="520px">
@@ -622,12 +637,17 @@ function nextChildSortOrder() {
 
 .testing-phase-layout {
   display: grid;
-  grid-template-columns: minmax(420px, 0.9fr) minmax(520px, 1.2fr);
+  grid-template-columns: minmax(520px, 1fr);
   gap: 16px;
   min-width: 0;
 }
 
-.phase-panel {
+.testing-phase-layout.has-selection {
+  grid-template-columns: minmax(420px, 0.85fr) minmax(540px, 1.15fr);
+}
+
+.phase-list-panel,
+.phase-detail-panel {
   min-width: 0;
 }
 
@@ -637,6 +657,95 @@ function nextChildSortOrder() {
   justify-content: space-between;
   gap: 12px;
   font-weight: 600;
+}
+
+.phase-detail-title {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.phase-list {
+  display: grid;
+  gap: 8px;
+  min-height: 180px;
+}
+
+.phase-list-row {
+  display: grid;
+  grid-template-columns: 48px minmax(160px, 1fr) auto auto 18px;
+  align-items: center;
+  width: 100%;
+  min-height: 58px;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.phase-list-row:hover {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-fill-color-light);
+}
+
+.phase-list-row.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.phase-list-row.disabled {
+  color: var(--el-text-color-secondary);
+}
+
+.phase-row-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+}
+
+.phase-row-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.phase-row-title {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phase-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.phase-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.phase-row-chevron {
+  color: var(--el-text-color-placeholder);
 }
 
 .testing-phase-form {
@@ -651,7 +760,8 @@ function nextChildSortOrder() {
 }
 
 @media (max-width: 1120px) {
-  .testing-phase-layout {
+  .testing-phase-layout,
+  .testing-phase-layout.has-selection {
     grid-template-columns: 1fr;
   }
 }
@@ -669,6 +779,19 @@ function nextChildSortOrder() {
 
   .testing-phase-toolbar-main > * {
     width: 100% !important;
+  }
+
+  .phase-list-row {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+  }
+
+  .phase-row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .phase-row-chevron {
+    display: none;
   }
 }
 </style>
