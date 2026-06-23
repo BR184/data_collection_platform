@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -35,7 +36,6 @@ public class LabelGroupService {
   static final String TYPE_STATIC = "STATIC";
   static final String TYPE_DYNAMIC = "DYNAMIC";
   static final String TYPE_COMPOSITE = "COMPOSITE";
-  static final String SYSTEM_TEST_DEFECT_SUMMARY_DEFAULT_GROUP_NAME = "系统测试缺陷汇总";
   private static final String DEFAULT_USER = "system";
 
   private final LabelGroupRepository repository;
@@ -69,8 +69,9 @@ public class LabelGroupService {
     members = materializeDynamicMembers(groupType, members, dynamicRule);
     dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
+    valueType = defaultSystemGroupValueType(name, groupType, valueType, members, childGroups, dynamicRule);
     validateStaticMembersComeFromCandidates(groupType, members);
-    validateGroupShape(null, groupType, valueType, members, childGroups, dynamicRule);
+    validateGroupShape(null, name, groupType, valueType, members, childGroups, dynamicRule);
 
     LabelGroupRecord group =
         repository.createGroup(name, valueType, groupType, trimToNull(request.description()), DEFAULT_USER);
@@ -92,8 +93,9 @@ public class LabelGroupService {
     members = materializeDynamicMembers(groupType, members, dynamicRule);
     dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
+    valueType = defaultSystemGroupValueType(name, groupType, valueType, members, childGroups, dynamicRule);
     validateStaticMembersComeFromCandidates(groupType, members);
-    validateGroupShape(groupId, groupType, valueType, members, childGroups, dynamicRule);
+    validateGroupShape(groupId, name, groupType, valueType, members, childGroups, dynamicRule);
     boolean enabled = request.enabled() == null ? existing.enabled() : request.enabled();
 
     repository.updateGroup(
@@ -237,12 +239,16 @@ public class LabelGroupService {
 
   private void validateGroupShape(
       Long groupId,
+      String groupName,
       String groupType,
       String valueType,
       List<LabelGroupMemberRecord> members,
       List<LabelGroupRecord> childGroups,
       LabelGroupDynamicRuleRecord dynamicRule) {
-    if (members.isEmpty() && childGroups.isEmpty() && dynamicRule == null) {
+    if (members.isEmpty()
+        && childGroups.isEmpty()
+        && dynamicRule == null
+        && !isEmptySystemDefaultStaticGroup(groupName, groupType, members, childGroups, dynamicRule)) {
       throw new BizException("标签组成员不能为空");
     }
     if (valueType == null) {
@@ -335,6 +341,32 @@ public class LabelGroupService {
       valueType = mergeValueType(valueType, childGroup.valueType(), childGroup.name());
     }
     return valueType;
+  }
+
+  private String defaultSystemGroupValueType(
+      String groupName,
+      String groupType,
+      String valueType,
+      List<LabelGroupMemberRecord> members,
+      List<LabelGroupRecord> childGroups,
+      LabelGroupDynamicRuleRecord dynamicRule) {
+    if (valueType == null && isEmptySystemDefaultStaticGroup(groupName, groupType, members, childGroups, dynamicRule)) {
+      return TYPE_STRING;
+    }
+    return valueType;
+  }
+
+  private boolean isEmptySystemDefaultStaticGroup(
+      String groupName,
+      String groupType,
+      List<LabelGroupMemberRecord> members,
+      List<LabelGroupRecord> childGroups,
+      LabelGroupDynamicRuleRecord dynamicRule) {
+    return TYPE_STATIC.equals(groupType)
+        && SystemDefaultLabelGroupCatalog.isSystemDefaultGroupName(groupName)
+        && members.isEmpty()
+        && childGroups.isEmpty()
+        && dynamicRule == null;
   }
 
   private LabelGroupDynamicRuleRecord normalizeDynamicRule(Long groupId, LabelGroupDynamicRuleRequest request) {
@@ -483,7 +515,7 @@ public class LabelGroupService {
   }
 
   private boolean isSystemDefaultGroup(String name) {
-    return SYSTEM_TEST_DEFECT_SUMMARY_DEFAULT_GROUP_NAME.equals(name);
+    return SystemDefaultLabelGroupCatalog.isSystemDefaultGroupName(name);
   }
 
   private String requireName(String value) {
