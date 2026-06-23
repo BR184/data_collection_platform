@@ -13,6 +13,7 @@ export type LabelGroupType = 'STATIC' | 'DYNAMIC' | 'COMPOSITE';
 export interface LabelGroupFormState {
   id: number | null;
   name: string;
+  systemDefault: boolean;
   groupType: LabelGroupType;
   applicableScope: 'SAME_TYPE' | 'SAME_FIELD';
   sourceFieldKey: string;
@@ -110,6 +111,7 @@ export function createEmptyLabelGroupForm(): LabelGroupFormState {
   return {
     id: null,
     name: '',
+    systemDefault: false,
     groupType: 'STATIC',
     applicableScope: 'SAME_TYPE',
     sourceFieldKey: '',
@@ -163,6 +165,7 @@ export function createLabelGroupForm(group: LabelGroup): LabelGroupFormState {
   return {
     id: group.id,
     name: group.name,
+    systemDefault: group.systemDefault === true,
     groupType: group.groupType,
     applicableScope: group.applicableScope === 'SAME_FIELD' ? 'SAME_FIELD' : 'SAME_TYPE',
     sourceFieldKey: group.sourceFieldKey ?? '',

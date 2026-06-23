@@ -92,12 +92,17 @@ public class LabelGroupService {
   @Transactional
   public LabelGroupResponse update(Long groupId, LabelGroupUpdateRequest request) {
     LabelGroupRecord existing = findExisting(groupId);
-    String name = requireName(request.name());
+    boolean systemDefault = isSystemDefaultGroup(existing.name());
+    String name = systemDefault ? existing.name() : requireName(request.name());
     validateDuplicateName(name, groupId);
-    String groupType = normalizeGroupType(request.groupType() == null ? existing.groupType() : request.groupType());
-    String applicableScope = normalizeApplicableScope(request.applicableScope() == null ? existing.applicableScope() : request.applicableScope());
+    String groupType = systemDefault
+        ? existing.groupType()
+        : normalizeGroupType(request.groupType() == null ? existing.groupType() : request.groupType());
+    String applicableScope = systemDefault
+        ? existing.applicableScope()
+        : normalizeApplicableScope(request.applicableScope() == null ? existing.applicableScope() : request.applicableScope());
     String sourceFieldKey = normalizeSourceFieldKey(
-        request.sourceFieldKey() == null ? existing.sourceFieldKey() : request.sourceFieldKey(),
+        systemDefault || request.sourceFieldKey() == null ? existing.sourceFieldKey() : request.sourceFieldKey(),
         applicableScope);
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
@@ -157,7 +162,10 @@ public class LabelGroupService {
 
   @Transactional
   public void delete(Long groupId) {
-    findExisting(groupId);
+    LabelGroupRecord existing = findExisting(groupId);
+    if (isSystemDefaultGroup(existing.name())) {
+      throw new BizException("系统默认标签组不能删除，可编辑成员、备注或停用");
+    }
     repository.deleteById(groupId);
   }
 

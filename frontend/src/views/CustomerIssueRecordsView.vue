@@ -132,7 +132,6 @@ const {
 const {
   handleReset,
   handleQuery,
-  handleKeywordSearch,
   handleRefresh,
   handleSizeChange,
   handleCurrentChange,
@@ -611,21 +610,17 @@ async function handleConditionFilterReset() {
         :columns="columns"
         :rows="tableRows"
         :loading="isTableLoading"
-        :keyword-auto-search="true"
         :page="page"
         :page-size="pageSize"
         :total="total"
         :active-filter-tags="allActiveFilterTags"
         :primary-filters="primaryFilters"
         :filter-values="filterValues"
-        :keyword="String(route.query.keyword ?? '')"
-        search-placeholder="输入关键字快速搜索"
-        :show-search="true"
+        :show-search="false"
         :show-refresh="false"
         :empty-description="emptyDescription"
         @filter-change="handleFilterChange"
         @reset="handleReset"
-        @search="handleKeywordSearch"
         @query="handleQuery"
         @clear-filter="handleClearFilter"
         @size-change="handleSizeChange"
@@ -645,7 +640,7 @@ async function handleConditionFilterReset() {
           </div>
         </template>
 
-        <template #primary-actions>
+        <template #toolbar-actions>
           <div class="customer-record-toolbar-actions">
             <SyncMetaBadge :value="lastSyncedText" />
             <el-button

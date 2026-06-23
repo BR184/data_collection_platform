@@ -258,6 +258,10 @@ async function submitForm() {
 }
 
 async function deleteGroup(group: LabelGroup) {
+  if (group.systemDefault) {
+    ElMessage.warning('系统默认标签组不能删除，可编辑成员、备注或停用');
+    return;
+  }
   try {
     await ElMessageBox.confirm(`确认删除标签组“${group.name}”？删除后业务页面将无法继续选择该标签组。`, '删除标签组', {
       confirmButtonText: '删除',
@@ -367,15 +371,24 @@ async function deleteGroup(group: LabelGroup) {
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :icon="Edit" @click="openEditDialog(row)">编辑</el-button>
-            <el-button
-              link
-              type="danger"
-              :icon="Delete"
-              :loading="deletingId === row.id"
-              @click="deleteGroup(row)"
+            <el-tooltip
+              :disabled="!row.systemDefault"
+              content="系统默认标签组不能删除，可编辑成员、备注或停用"
+              placement="top"
             >
-              删除
-            </el-button>
+              <span>
+                <el-button
+                  link
+                  type="danger"
+                  :icon="Delete"
+                  :disabled="row.systemDefault"
+                  :loading="deletingId === row.id"
+                  @click="deleteGroup(row)"
+                >
+                  删除
+                </el-button>
+              </span>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -389,10 +402,16 @@ async function deleteGroup(group: LabelGroup) {
     >
       <el-form label-position="top" class="label-group-form">
         <el-form-item label="标签组名称" required>
-          <el-input v-model="form.name" maxlength="100" show-word-limit placeholder="例如：核心人员、重点关注人员" />
+          <el-input
+            v-model="form.name"
+            maxlength="100"
+            show-word-limit
+            :disabled="form.systemDefault"
+            placeholder="例如：核心人员、重点关注人员"
+          />
         </el-form-item>
         <el-form-item label="标签组类型" required>
-          <el-segmented v-model="form.groupType" :options="groupTypeOptions" />
+          <el-segmented v-model="form.groupType" :options="groupTypeOptions" :disabled="form.systemDefault" />
         </el-form-item>
         <el-form-item label="当前值类型">
           <el-tag :type="currentValueType === 'MIXED' ? 'danger' : 'primary'" effect="plain">
@@ -400,13 +419,18 @@ async function deleteGroup(group: LabelGroup) {
           </el-tag>
         </el-form-item>
         <el-form-item label="适用范围" required>
-          <el-segmented v-model="form.applicableScope" :options="applicableScopeOptions" />
+          <el-segmented
+            v-model="form.applicableScope"
+            :options="applicableScopeOptions"
+            :disabled="form.systemDefault"
+          />
         </el-form-item>
         <el-form-item v-if="form.applicableScope === 'SAME_FIELD'" label="来源字段" required>
           <el-select
             v-model="form.sourceFieldKey"
             filterable
             fit-input-width
+            :disabled="form.systemDefault"
             placeholder="选择同字段限制来源"
             popper-class="platform-select-dropdown"
             style="width: 100%"
