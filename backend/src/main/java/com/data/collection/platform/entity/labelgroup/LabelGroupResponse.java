@@ -15,6 +15,7 @@ public record LabelGroupResponse(
     List<LabelGroupChildResponse> childGroups,
     LabelGroupDynamicRuleResponse dynamicRule,
     List<LabelGroupMemberResponse> expandedPreview,
+    boolean systemDefault,
     String createdBy,
     OffsetDateTime createdAt,
     String updatedBy,

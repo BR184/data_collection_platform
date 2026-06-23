@@ -35,6 +35,7 @@ public class LabelGroupService {
   static final String TYPE_STATIC = "STATIC";
   static final String TYPE_DYNAMIC = "DYNAMIC";
   static final String TYPE_COMPOSITE = "COMPOSITE";
+  static final String SYSTEM_TEST_DEFECT_SUMMARY_DEFAULT_GROUP_NAME = "系统测试缺陷汇总";
   private static final String DEFAULT_USER = "system";
 
   private final LabelGroupRepository repository;
@@ -117,6 +118,26 @@ public class LabelGroupService {
 
   public LabelGroupResponse get(Long groupId) {
     return toResponse(findExisting(groupId));
+  }
+
+  Optional<ExpandedLabelGroup> expandSystemDefault(String groupName, String valueType) {
+    String safeName = trimToNull(groupName);
+    String safeValueType = normalizeValueType(valueType);
+    if (safeName == null || safeValueType == null) {
+      return Optional.empty();
+    }
+    return repository.list(safeValueType, null, true).stream()
+        .filter(group -> safeName.equals(group.name()))
+        .findFirst()
+        .flatMap(group -> {
+          try {
+            ExpandedLabelGroup expanded = new ExpandedLabelGroup(
+                group.id(), group.name(), group.valueType(), List.copyOf(expandValues(group, new LinkedHashSet<>())));
+            return expanded.values().isEmpty() ? Optional.empty() : Optional.of(expanded);
+          } catch (RuntimeException ignored) {
+            return Optional.empty();
+          }
+        });
   }
 
   @Transactional
@@ -454,10 +475,15 @@ public class LabelGroupService {
         childGroups,
         dynamicRule,
         expandedPreview,
+        isSystemDefaultGroup(group.name()),
         group.createdBy(),
         group.createdAt(),
         group.updatedBy(),
         group.updatedAt());
+  }
+
+  private boolean isSystemDefaultGroup(String name) {
+    return SYSTEM_TEST_DEFECT_SUMMARY_DEFAULT_GROUP_NAME.equals(name);
   }
 
   private String requireName(String value) {

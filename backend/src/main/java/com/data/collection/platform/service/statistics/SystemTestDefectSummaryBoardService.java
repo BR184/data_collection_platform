@@ -312,7 +312,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     StatisticFilterCondition defaultCondition =
         labelGroupDefaultFilterService
             .defaultCondition(BOARD_KEY, MODULE_FIELD)
-            .flatMap(this::tryExpandDefaultCondition)
             .orElse(null);
     return new EffectiveFilterGroup(
         expandedUserGroup, defaultCondition, appliedFilterGroup(expandedUserGroup, defaultCondition));
@@ -349,19 +348,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         condition.labelGroupId(),
         StringUtils.hasText(condition.labelGroupName()) ? condition.labelGroupName() : expansion.groupName(),
         expansion.values());
-  }
-
-  private java.util.Optional<StatisticFilterCondition> tryExpandDefaultCondition(StatisticFilterCondition condition) {
-    try {
-      StatisticFilterCondition expanded = expandLabelGroupCondition(condition);
-      if (expanded.values() == null || expanded.values().isEmpty()) {
-        return java.util.Optional.empty();
-      }
-      return java.util.Optional.of(expanded);
-    } catch (Exception e) {
-      log.warn("Skip invalid default label-group filter for {}", BOARD_KEY, e);
-      return java.util.Optional.empty();
-    }
   }
 
   private StatisticFilterGroup appliedFilterGroup(
