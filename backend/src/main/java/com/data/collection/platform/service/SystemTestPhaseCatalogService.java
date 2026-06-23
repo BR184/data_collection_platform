@@ -75,12 +75,15 @@ public class SystemTestPhaseCatalogService {
         new StringBuilder(
             """
             select c.project_id,
-                   c.legacy_phase_name,
-                   c.legacy_sort_order,
+                   coalesce(g.name, c.legacy_phase_name) as legacy_phase_name,
+                   coalesce(g.sort_order, c.legacy_sort_order) as legacy_sort_order,
+                   c.child_sort_order,
                    c.testing_phase,
                    c.phase_start_at,
                    coalesce(s.issue_count, 0) as issue_count
               from testing_phase_calendar c
+              left join testing_phase_groups g
+                on g.id = c.phase_group_id
               left join (
                 select project_id, testing_phase, count(*) as issue_count
                   from issue_fact
@@ -88,12 +91,13 @@ public class SystemTestPhaseCatalogService {
                  group by project_id, testing_phase
               ) s on s.project_id = c.project_id and s.testing_phase = c.testing_phase
              where c.enabled = true
+               and coalesce(g.enabled, true) = true
             """);
     if (projectId != null) {
       sql.append(" and c.project_id = ?");
       args.add(projectId);
     }
-    sql.append(" order by c.legacy_sort_order asc nulls last, c.phase_start_at desc nulls last, c.testing_phase asc");
+    sql.append(" order by coalesce(g.sort_order, c.legacy_sort_order) asc nulls last, c.child_sort_order asc nulls last, c.phase_start_at desc nulls last, c.testing_phase asc");
     try {
       return jdbcTemplate.query(sql.toString(), this::mapConfiguredEntry, args.toArray());
     } catch (DataAccessException error) {

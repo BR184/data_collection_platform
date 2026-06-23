@@ -114,9 +114,6 @@ const routes: RouteRecordRaw[] = [
     ...buildShellRoute('question-metrics-issue-search', SystemTestIssueSearchView),
   },
   {
-    ...buildShellRoute('question-metrics-testing-phase-definition', TestingPhaseDefinitionView),
-  },
-  {
     ...buildShellRoute('customer-issues-home', StatisticBoardPage),
   },
   {
@@ -139,6 +136,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('label-group-settings', LabelGroupSettingsView),
+  },
+  {
+    ...buildShellRoute('testing-phase-definition', TestingPhaseDefinitionView),
   },
   {
     ...buildShellRoute('mirror-settings', MirrorSettingsView),

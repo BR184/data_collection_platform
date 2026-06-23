@@ -2,7 +2,7 @@ import { computed, ref, watch, type Ref } from 'vue';
 import { api } from '../api';
 import { authState } from './auth-state';
 import type { DataScopeOption, DataScopeProvider } from '../types/data-scope';
-import type { TestingPhaseDefinitionResponse } from '../types/api';
+import type { TestingPhaseGroupResponse } from '../types/api';
 
 const LEGACY_CROWN_CAD_PROJECT_ID = 9;
 
@@ -45,11 +45,10 @@ const SYSTEM_TEST_PARENT_SCOPE_PROVIDER: DataScopeProvider = {
 };
 
 export function useStatisticBoardDataScope(boardKey: Ref<string>) {
-  const testingPhaseDefinitions = ref<TestingPhaseDefinitionResponse[]>([]);
+  const testingPhaseGroups = ref<TestingPhaseGroupResponse[]>([]);
   const loading = ref(false);
   const loaded = ref(false);
-  const options = computed(() => buildTestingPhaseTree(testingPhaseDefinitions.value));
-  const parentOptions = computed(() => buildParentOptions(testingPhaseDefinitions.value));
+  const parentOptions = computed(() => buildParentOptions(testingPhaseGroups.value));
 
   const config = computed<StatisticBoardDataScopeConfig | null>(() => {
     if (!SYSTEM_TEST_BOARD_KEYS.has(boardKey.value)) {
@@ -77,7 +76,7 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
       }
       loading.value = true;
       try {
-        testingPhaseDefinitions.value = await api.getTestingPhases({
+        testingPhaseGroups.value = await api.getTestingPhaseGroups({
           projectId: LEGACY_CROWN_CAD_PROJECT_ID,
           enabled: true,
         });
@@ -92,51 +91,14 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   return config;
 }
 
-function buildTestingPhaseTree(definitions: TestingPhaseDefinitionResponse[]): DataScopeOption[] {
-  const projectMap = new Map<string, DataScopeOption>();
-  for (const definition of definitions) {
-    const testingPhase = normalizeText(definition.testingPhase);
-    const parentName = normalizeText(definition.legacyPhaseName) || normalizeText(definition.projectName);
-    if (!testingPhase) {
-      continue;
-    }
-    if (!parentName) {
-      continue;
-    }
-    const projectName = phaseScopeValue(parentName);
-    const parent = projectMap.get(projectName) ?? {
-      label: projectName,
-      value: phaseScopeValue(projectName),
-      children: [],
-    };
-    parent.children = parent.children ?? [];
-    parent.children.push({
-      label: testingPhase,
-      value: testingPhase,
-    });
-    projectMap.set(projectName, parent);
-  }
-  return [...projectMap.values()]
-    .map((project) => ({
-      ...project,
-      children: [...(project.children ?? [])],
+function buildParentOptions(groups: TestingPhaseGroupResponse[]): DataScopeOption[] {
+  return groups
+    .map((group) => normalizeText(group.name))
+    .filter(Boolean)
+    .map((parent) => ({
+      label: parent,
+      value: parent,
     }));
-}
-
-function buildParentOptions(definitions: TestingPhaseDefinitionResponse[]): DataScopeOption[] {
-  const parents = new Map<string, DataScopeOption>();
-  for (const definition of definitions) {
-    const parent = normalizeText(definition.legacyPhaseName) || normalizeText(definition.projectName);
-    if (!parent) {
-      continue;
-    }
-    parents.set(parent, { label: parent, value: parent });
-  }
-  return [...parents.values()];
-}
-
-function phaseScopeValue(projectName: string) {
-  return projectName;
 }
 
 function normalizeText(value: string | null | undefined) {

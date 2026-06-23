@@ -528,6 +528,8 @@ create table if not exists testing_phase_calendar (
     legacy_phase_name varchar(128),
     legacy_sort_order integer,
     testing_phase varchar(128) not null,
+    phase_group_id bigint,
+    child_sort_order integer,
     phase_start_at timestamp,
     phase_end_at timestamp,
     enabled boolean not null default true,
@@ -535,6 +537,18 @@ create table if not exists testing_phase_calendar (
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
     unique (project_id, testing_phase)
+);
+
+create table if not exists testing_phase_groups (
+    id bigserial primary key,
+    project_id bigint not null,
+    name varchar(128) not null,
+    sort_order integer not null default 0,
+    enabled boolean not null default true,
+    remark varchar(255),
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uk_testing_phase_groups_project_name unique (project_id, name)
 );
 
 create table if not exists module_dictionary (
@@ -821,6 +835,8 @@ create index if not exists idx_merge_request_fact_owner_search_spell_trgm on mer
 create index if not exists idx_merge_request_fact_owner_search_initials_trgm on merge_request_fact using gin (owner_search_initials public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_testing_phase_calendar_context on testing_phase_calendar(project_id, testing_phase, enabled);
 create index if not exists idx_testing_phase_calendar_legacy_name on testing_phase_calendar(project_id, legacy_phase_name, enabled, legacy_sort_order);
+create index if not exists idx_testing_phase_calendar_group on testing_phase_calendar(phase_group_id, enabled, child_sort_order);
+create index if not exists idx_testing_phase_groups_context on testing_phase_groups(project_id, enabled, sort_order, name);
 create unique index if not exists uk_module_dictionary_global on module_dictionary(dictionary_domain, alias_name) where project_id is null;
 create unique index if not exists uk_module_dictionary_project on module_dictionary(dictionary_domain, project_id, alias_name) where project_id is not null;
 create index if not exists idx_module_dictionary_context on module_dictionary(dictionary_domain, project_id, enabled, priority desc);

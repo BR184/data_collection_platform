@@ -9,6 +9,8 @@ public record TestingPhaseDefinitionResponse(
     Long legacySourceId,
     String legacyPhaseName,
     Integer legacySortOrder,
+    Long phaseGroupId,
+    Integer childSortOrder,
     String testingPhase,
     LocalDateTime phaseStartAt,
     LocalDateTime phaseEndAt,

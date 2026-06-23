@@ -4,6 +4,8 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.TestingPhaseDefinitionResponse;
 import com.data.collection.platform.entity.TestingPhaseDefinitionSaveRequest;
+import com.data.collection.platform.entity.TestingPhaseGroupResponse;
+import com.data.collection.platform.entity.TestingPhaseGroupSaveRequest;
 import com.data.collection.platform.entity.TestingPhaseProjectOptionResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.TestingPhaseDefinitionService;
@@ -38,6 +40,14 @@ public class TestingPhaseDefinitionController {
     return ApiResponse.success(testingPhaseDefinitionService.list(projectId, keyword, enabled));
   }
 
+  @GetMapping("/groups")
+  public ApiResponse<List<TestingPhaseGroupResponse>> listGroups(
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String keyword,
+      @RequestParam(required = false) Boolean enabled) {
+    return ApiResponse.success(testingPhaseDefinitionService.listGroups(projectId, keyword, enabled));
+  }
+
   @GetMapping("/project-options")
   public ApiResponse<List<TestingPhaseProjectOptionResponse>> listProjectOptions() {
     return ApiResponse.success(testingPhaseDefinitionService.listProjectOptions());
@@ -50,11 +60,25 @@ public class TestingPhaseDefinitionController {
     return ApiResponse.success("测试阶段定义已保存", testingPhaseDefinitionService.create(request));
   }
 
+  @PostMapping("/groups")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<TestingPhaseGroupResponse> createGroup(
+      @RequestBody @Valid TestingPhaseGroupSaveRequest request) {
+    return ApiResponse.success("阶段名称已保存", testingPhaseDefinitionService.createGroup(request));
+  }
+
   @PutMapping("/{id}")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<TestingPhaseDefinitionResponse> update(
       @PathVariable Long id, @RequestBody @Valid TestingPhaseDefinitionSaveRequest request) {
     return ApiResponse.success("测试阶段定义已更新", testingPhaseDefinitionService.update(id, request));
+  }
+
+  @PutMapping("/groups/{id}")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<TestingPhaseGroupResponse> updateGroup(
+      @PathVariable Long id, @RequestBody @Valid TestingPhaseGroupSaveRequest request) {
+    return ApiResponse.success("阶段名称已更新", testingPhaseDefinitionService.updateGroup(id, request));
   }
 
   @PatchMapping("/{id}/enabled")
@@ -66,11 +90,27 @@ public class TestingPhaseDefinitionController {
         testingPhaseDefinitionService.setEnabled(id, request.enabled()));
   }
 
+  @PatchMapping("/groups/{id}/enabled")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<TestingPhaseGroupResponse> setGroupEnabled(
+      @PathVariable Long id, @RequestBody EnabledRequest request) {
+    return ApiResponse.success(
+        "阶段名称状态已更新",
+        testingPhaseDefinitionService.setGroupEnabled(id, request.enabled()));
+  }
+
   @DeleteMapping("/{id}")
   @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Void> delete(@PathVariable Long id) {
     testingPhaseDefinitionService.delete(id);
     return ApiResponse.success("测试阶段定义已删除", null);
+  }
+
+  @DeleteMapping("/groups/{id}")
+  @RequireRole(AuthRole.ADMIN)
+  public ApiResponse<Void> deleteGroup(@PathVariable Long id) {
+    testingPhaseDefinitionService.deleteGroup(id);
+    return ApiResponse.success("阶段名称已删除", null);
   }
 
   public record EnabledRequest(boolean enabled) {}

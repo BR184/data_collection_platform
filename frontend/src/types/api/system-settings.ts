@@ -5,6 +5,8 @@ export interface TestingPhaseDefinitionResponse {
   legacySourceId?: number | null;
   legacyPhaseName?: string | null;
   legacySortOrder?: number | null;
+  phaseGroupId?: number | null;
+  childSortOrder?: number | null;
   testingPhase: string;
   phaseStartAt?: string | null;
   phaseEndAt?: string | null;
@@ -20,6 +22,8 @@ export interface TestingPhaseDefinitionSaveRequest {
   legacySourceId?: number | null;
   legacyPhaseName?: string | null;
   legacySortOrder?: number | null;
+  phaseGroupId?: number | null;
+  childSortOrder?: number | null;
   testingPhase: string;
   phaseStartAt?: string | null;
   phaseEndAt?: string | null;
@@ -30,4 +34,25 @@ export interface TestingPhaseDefinitionSaveRequest {
 export interface TestingPhaseProjectOptionResponse {
   projectId: number;
   projectName: string;
+}
+
+export interface TestingPhaseGroupResponse {
+  id: number;
+  projectId: number;
+  name: string;
+  sortOrder: number;
+  enabled: boolean;
+  remark: string;
+  issueCount: number;
+  children: TestingPhaseDefinitionResponse[];
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface TestingPhaseGroupSaveRequest {
+  projectId: number;
+  name: string;
+  sortOrder?: number | null;
+  enabled: boolean;
+  remark?: string | null;
 }

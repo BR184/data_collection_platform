@@ -9,6 +9,8 @@ public record TestingPhaseDefinitionSaveRequest(
     Long legacySourceId,
     String legacyPhaseName,
     Integer legacySortOrder,
+    Long phaseGroupId,
+    Integer childSortOrder,
     @NotBlank String testingPhase,
     LocalDateTime phaseStartAt,
     LocalDateTime phaseEndAt,

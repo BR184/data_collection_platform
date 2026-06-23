@@ -164,10 +164,6 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     allowedQueryPrefixes: ['filters.'],
     persistedQueryKeys: ['projectId'],
   },
-  'question-metrics-testing-phase-definition': {
-    allowedQueryKeys: ['projectId', 'keyword', 'enabled'],
-    persistedQueryKeys: ['projectId'],
-  },
   'question-metrics-illegal-records': {
     allowedQueryKeys: [
       'page',
@@ -268,6 +264,10 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   },
   'label-group-settings': {
     allowedQueryKeys: ['valueType', 'keyword', 'projectId'],
+    persistedQueryKeys: ['projectId'],
+  },
+  'testing-phase-definition': {
+    allowedQueryKeys: ['projectId', 'keyword', 'enabled'],
     persistedQueryKeys: ['projectId'],
   },
   'database-browser': {

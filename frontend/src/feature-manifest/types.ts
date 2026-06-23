@@ -20,7 +20,6 @@ export type PageKey =
   | 'question-metrics-defect-cause'
   | 'question-metrics-phase-statistics'
   | 'question-metrics-issue-search'
-  | 'question-metrics-testing-phase-definition'
   | 'customer-issues-home'
   | 'customer-issues-illegal-records'
   | 'customer-issues-defect-cause'
@@ -29,6 +28,7 @@ export type PageKey =
   | 'customer-issues-response-efficiency'
   | 'customer-issues-issue-by-function'
   | 'label-group-settings'
+  | 'testing-phase-definition'
   | 'mirror-settings'
   | 'database-browser';
 
