@@ -257,20 +257,26 @@ async function submitChildForm() {
   }
 }
 
-async function toggleGroupEnabled(row: TestingPhaseGroupResponse) {
+async function setGroupEnabled(row: TestingPhaseGroupResponse, enabled: boolean) {
+  if (row.enabled === enabled) {
+    return;
+  }
   try {
-    await api.setTestingPhaseGroupEnabled(row.id, !row.enabled);
-    ElMessage.success(!row.enabled ? '阶段名称已启用' : '阶段名称已停用');
+    await api.setTestingPhaseGroupEnabled(row.id, enabled);
+    ElMessage.success(enabled ? '阶段名称已启用' : '阶段名称已停用');
     await loadGroups();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '阶段名称状态更新失败');
   }
 }
 
-async function toggleChildEnabled(row: TestingPhaseDefinitionResponse) {
+async function setChildEnabled(row: TestingPhaseDefinitionResponse, enabled: boolean) {
+  if (row.enabled === enabled) {
+    return;
+  }
   try {
-    await api.setTestingPhaseEnabled(row.id, !row.enabled);
-    ElMessage.success(!row.enabled ? '测试阶段名称已启用' : '测试阶段名称已停用');
+    await api.setTestingPhaseEnabled(row.id, enabled);
+    ElMessage.success(enabled ? '测试阶段名称已启用' : '测试阶段名称已停用');
     await loadGroups();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '测试阶段名称状态更新失败');
@@ -482,14 +488,19 @@ function nextChildSortOrder() {
                 <span>{{ row.issueCount }} 个议题</span>
               </span>
             </span>
-            <el-tag :type="row.enabled ? 'success' : 'info'" size="small" effect="plain">
-              {{ row.enabled ? '启用' : '停用' }}
-            </el-tag>
+            <el-switch
+              :model-value="row.enabled"
+              size="small"
+              inline-prompt
+              active-text="启"
+              inactive-text="停"
+              @click.stop
+              @change="setGroupEnabled(row, Boolean($event))"
+            />
             <span class="phase-row-actions" @click.stop>
               <el-button link :icon="ArrowUp" :disabled="index === 0" @click="moveGroup(row, -1)" />
               <el-button link :icon="ArrowDown" :disabled="index === groups.length - 1" @click="moveGroup(row, 1)" />
               <el-button link type="primary" :icon="Edit" @click="openEditGroupDialog(row)" />
-              <el-button link type="primary" @click="toggleGroupEnabled(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
               <el-button
                 link
                 type="danger"
@@ -523,16 +534,22 @@ function nextChildSortOrder() {
           <el-table-column prop="issueCount" label="议题数" width="82" />
           <el-table-column label="状态" width="82">
             <template #default="{ row }">
-              <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '启用' : '停用' }}</el-tag>
+              <el-switch
+                :model-value="row.enabled"
+                size="small"
+                inline-prompt
+                active-text="启"
+                inactive-text="停"
+                @change="setChildEnabled(row, Boolean($event))"
+              />
             </template>
           </el-table-column>
           <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
-          <el-table-column label="操作" width="210" fixed="right">
+          <el-table-column label="操作" width="168" fixed="right">
             <template #default="{ row, $index }">
               <el-button link :icon="ArrowUp" :disabled="$index === 0" @click="moveChild(row, -1)" />
               <el-button link :icon="ArrowDown" :disabled="$index === childRows.length - 1" @click="moveChild(row, 1)" />
               <el-button link type="primary" :icon="Edit" @click="openEditChildDialog(row)" />
-              <el-button link type="primary" @click="toggleChildEnabled(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
               <el-button
                 link
                 type="danger"

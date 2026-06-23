@@ -20,6 +20,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,12 +39,22 @@ public class LabelGroupService {
 
   private final LabelGroupRepository repository;
   private final LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService;
+  private final ObjectProvider<LabelValueQueryService> labelValueQueryServiceProvider;
 
+  @Autowired
   public LabelGroupService(
       LabelGroupRepository repository,
-      LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService) {
+      LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService,
+      ObjectProvider<LabelValueQueryService> labelValueQueryServiceProvider) {
     this.repository = repository;
     this.dynamicRuleEvaluationService = dynamicRuleEvaluationService;
+    this.labelValueQueryServiceProvider = labelValueQueryServiceProvider;
+  }
+
+  LabelGroupService(
+      LabelGroupRepository repository,
+      LabelGroupDynamicRuleEvaluationService dynamicRuleEvaluationService) {
+    this(repository, dynamicRuleEvaluationService, null);
   }
 
   @Transactional
@@ -56,6 +68,7 @@ public class LabelGroupService {
     members = materializeDynamicMembers(groupType, members, dynamicRule);
     dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
+    validateStaticMembersComeFromCandidates(groupType, members);
     validateGroupShape(null, groupType, valueType, members, childGroups, dynamicRule);
 
     LabelGroupRecord group =
@@ -78,6 +91,7 @@ public class LabelGroupService {
     members = materializeDynamicMembers(groupType, members, dynamicRule);
     dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
+    validateStaticMembersComeFromCandidates(groupType, members);
     validateGroupShape(groupId, groupType, valueType, members, childGroups, dynamicRule);
     boolean enabled = request.enabled() == null ? existing.enabled() : request.enabled();
 
@@ -248,6 +262,22 @@ public class LabelGroupService {
     }
     if (expandedCount > MAX_MEMBER_COUNT) {
       throw new BizException("标签组展开后超过 200 个值，请拆分后保存");
+    }
+  }
+
+  private void validateStaticMembersComeFromCandidates(
+      String groupType, List<LabelGroupMemberRecord> members) {
+    if (!TYPE_STATIC.equals(groupType) || members.isEmpty() || labelValueQueryServiceProvider == null) {
+      return;
+    }
+    LabelValueQueryService labelValueQueryService = labelValueQueryServiceProvider.getIfAvailable();
+    if (labelValueQueryService == null) {
+      return;
+    }
+    for (LabelGroupMemberRecord member : members) {
+      if (!labelValueQueryService.existsStaticCandidateValue(member.memberValue())) {
+        throw new BizException("标签组成员必须来自候选来源：" + member.memberValue());
+      }
     }
   }
 

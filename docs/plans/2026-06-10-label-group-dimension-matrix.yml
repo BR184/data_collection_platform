@@ -13,7 +13,7 @@ dimensions:
     valueKind: STRING_LITERAL
     source: 事实层项目名称字段
     mvpSupported: true
-    notes: 字段候选来自现有项目筛选字段；静态字符串标签组仍允许用户手动输入成员值
+    notes: 字段候选来自现有项目筛选字段；静态字符串标签组成员必须来自平台登记候选来源
   - key: review_owner
     name: 评审负责人
     valueKind: STRING_LITERAL

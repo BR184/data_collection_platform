@@ -15,6 +15,7 @@ const props = withDefaults(
     disabled?: boolean;
     loading?: boolean;
     allowCreate?: boolean;
+    popperClassExtra?: string;
   }>(),
   {
     placeholder: '',
@@ -25,6 +26,7 @@ const props = withDefaults(
     disabled: false,
     loading: false,
     allowCreate: false,
+    popperClassExtra: '',
   },
 );
 
@@ -55,6 +57,9 @@ const popperClass = computed(() => {
   }
   if (props.compact && props.multiple) {
     classNames.push('smart-select-dropdown--compact-multiple');
+  }
+  if (props.popperClassExtra) {
+    classNames.push(props.popperClassExtra);
   }
   return classNames.join(' ');
 });
@@ -362,5 +367,31 @@ function isLabelGroupOption(value: string) {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+
+.condition-field-select-dropdown .el-select-dropdown__list {
+  display: block;
+  padding: 4px 0;
+}
+
+.condition-field-select-dropdown .el-select-dropdown__item {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.condition-field-select-dropdown .smart-select-option {
+  justify-content: flex-start;
+  width: 100%;
+  text-align: left;
+}
+
+.condition-field-select-dropdown .smart-select-option-label {
+  text-align: left;
 }
 </style>

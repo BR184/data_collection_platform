@@ -456,6 +456,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             class="stat-filter-field"
             placeholder="字段"
             :options="fieldSelectOptions()"
+            popper-class-extra="condition-field-select-dropdown"
             @change="handleFieldSelectChange(condition, $event)"
           />
           <SmartSelect

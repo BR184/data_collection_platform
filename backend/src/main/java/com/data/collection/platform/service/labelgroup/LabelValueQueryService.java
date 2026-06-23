@@ -70,6 +70,17 @@ public class LabelValueQueryService {
     return new LabelValuePageResponse(values.subList(from, to), values.size(), safePage, safeSize);
   }
 
+  public boolean existsStaticCandidateValue(String value) {
+    String text = TextQuerySupport.trimToNull(value);
+    if (text == null) {
+      return false;
+    }
+    return dimensionCatalogService.listDimensions().stream()
+        .filter(LabelDimensionDefinition::staticSupported)
+        .flatMap(dimension -> loadOptions(dimension.key(), null, null).stream())
+        .anyMatch(option -> text.equals(option.value()));
+  }
+
   private List<OptionItemResponse> loadOptions(String dimensionKey, String pageKey, String sourceInstanceId) {
     if ("closure_status".equals(dimensionKey)) {
       return List.of(new OptionItemResponse("需求如此", "需求如此"));

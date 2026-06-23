@@ -538,7 +538,7 @@ async function saveDefaultFilter(row: LabelGroupDefaultFilter) {
               clearable
               fit-input-width
               filterable
-              placeholder="可选，仅用于搜索候选值"
+              placeholder="选择成员值来源"
               popper-class="platform-select-dropdown"
               style="width: 100%"
             >

@@ -28,14 +28,15 @@ const candidates = ref<LabelGroupMember[]>([]);
 const selectedValues = computed({
   get: () => props.modelValue.map((member) => member.value),
   set: (values: string[]) => {
-    const nextMembers = values.map((value) => {
-      const existing = props.modelValue.find((member) => member.value === value);
-      if (existing) {
-        return existing;
-      }
-      const candidate = candidates.value.find((member) => member.value === value);
-      return candidate ?? { value, label: value };
-    });
+    const nextMembers = values
+      .map((value) => {
+        const existing = props.modelValue.find((member) => member.value === value);
+        if (existing) {
+          return existing;
+        }
+        return candidates.value.find((member) => member.value === value) ?? null;
+      })
+      .filter((member): member is LabelGroupMember => Boolean(member));
     emit('update:modelValue', nextMembers);
   },
 });
@@ -102,17 +103,15 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         multiple
         filterable
         remote
-        allow-create
-        default-first-option
         reserve-keyword
         :collapse-tags="false"
         :collapse-tags-tooltip="false"
         :loading="loading"
-        :disabled="disabled"
+        :disabled="disabled || !dimensionKey"
         fit-input-width
         :remote-method="loadCandidates"
         popper-class="label-member-picker-dropdown smart-select-dropdown smart-select-dropdown--compact smart-select-dropdown--compact-multiple"
-        placeholder="搜索候选值或直接输入自定义值"
+        :placeholder="dimensionKey ? '搜索并选择候选成员' : '请先选择候选来源，再搜索选择成员'"
         no-data-text="暂无可选标签值"
         no-match-text="未找到匹配的标签值"
       >
@@ -130,7 +129,7 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         </el-option>
       </el-select>
       <div class="label-member-picker-foot">
-        <span>已选 {{ modelValue.length }} 个成员</span>
+        <span>{{ dimensionKey ? `已选 ${modelValue.length} 个成员` : '请选择候选来源后添加成员' }}</span>
         <span v-if="unavailableMembers.length" class="label-member-warning">
           {{ unavailableMembers.length }} 个成员当前数据中暂无命中
         </span>

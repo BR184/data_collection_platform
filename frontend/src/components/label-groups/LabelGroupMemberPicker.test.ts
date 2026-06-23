@@ -5,7 +5,7 @@ import LabelGroupMemberPicker from './LabelGroupMemberPicker.vue';
 import type { LabelValuePage } from '../../types/api';
 
 describe('LabelGroupMemberPicker', () => {
-  it('allows manual entry before candidate source is selected', () => {
+  it('requires a candidate source before adding members', () => {
     const wrapper = mount(LabelGroupMemberPicker, {
       props: {
         modelValue: [],
@@ -15,6 +15,7 @@ describe('LabelGroupMemberPicker', () => {
     });
 
     expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(true);
+    expect(wrapper.text()).toContain('请选择候选来源后添加成员');
   });
 
   it('loads candidates for the selected dimension and supports keyword search', async () => {
@@ -87,6 +88,23 @@ describe('LabelGroupMemberPicker', () => {
     selectModel.vm.$emit('update:modelValue', ['草图']);
 
     expect(wrapper.emitted('update:modelValue')?.[0][0]).toEqual([{ value: '草图', label: '草图', currentAvailable: true }]);
+  });
+
+  it('drops values that are not present in the candidate list', async () => {
+    const wrapper = mount(LabelGroupMemberPicker, {
+      props: {
+        modelValue: [],
+        dimensionKey: 'module',
+        fetchValues: async () => page([{ value: '草图', label: '草图' }]),
+      },
+      global: { plugins: [ElementPlus] },
+    });
+    await flushPromises();
+
+    const selectModel = wrapper.findComponent({ name: 'ElSelect' });
+    selectModel.vm.$emit('update:modelValue', ['不存在的值']);
+
+    expect(wrapper.emitted('update:modelValue')?.[0][0]).toEqual([]);
   });
 
   it('filters candidates after the group has inferred a value type', async () => {

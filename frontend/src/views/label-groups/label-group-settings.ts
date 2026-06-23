@@ -269,7 +269,7 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
     }
   }
   if (form.groupType === 'STATIC' && !form.members.length && !form.childGroupIds.length) {
-    return '请选择或输入标签组成员';
+    return '请选择标签组成员';
   }
   if (form.members.length > 200) {
     return '标签组成员超过 200 个，请拆分后保存';
