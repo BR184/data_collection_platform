@@ -10,14 +10,14 @@ class IssueLabelRulesTest {
 
   @Test
   void parseLegacyLabelMapAlignsWithOldPlatformPrefixedLabels() {
-    // 老平台输入：["模块：草图", "工具箱：工具", "严重程度：致命"]
-    // 老平台输出：{"模块": ["草图", "工具"], "严重程度": ["致命"]}
+    // 老平台兼容模块/工具箱标签中的中文冒号、ASCII 冒号和连字符分隔符。
     Map<String, List<String>> result = IssueLabelRules.parseLegacyLabelMap(List.of(
         "模块：草图",
-        "工具箱：工具",
+        "工具箱:工具",
+        "模块-工程图",
         "严重程度：致命"));
 
-    assertThat(result.get("模块")).containsExactlyInAnyOrder("草图", "工具");
+    assertThat(result.get("模块")).containsExactlyInAnyOrder("草图", "工具", "工程图");
     assertThat(result.get("严重程度")).containsExactly("致命");
     assertThat(result).hasSize(2);
   }

@@ -6,8 +6,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
 final class IssueLabelRules {
@@ -41,8 +39,7 @@ final class IssueLabelRules {
   private static final List<String> SYSTEM_TEST_LABEL_TOKENS = List.of("系统测试", "回归测试");
   private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
-  private static final Pattern MERGE_REQUEST_MODULE_LABEL_PATTERN =
-      Pattern.compile("^(?:模块|工具箱)\\s*[：-]\\s*(.+)$");
+  private static final List<Character> LEGACY_PREFIX_SEPARATORS = List.of('：', ':', '-');
   private static final List<String> LEGACY_PREFIXES = List.of(
       "模块",
       "工具箱",
@@ -206,16 +203,39 @@ final class IssueLabelRules {
   }
 
   private static LegacyPrefixedLabel parseLegacyPrefixedLabel(String label) {
-    int separatorIndex = label.indexOf('：');
+    int separatorIndex = firstLegacyPrefixSeparatorIndex(label);
     if (separatorIndex <= 0) {
       return null;
     }
     String prefix = label.substring(0, separatorIndex).trim();
     String value = label.substring(separatorIndex + 1).trim();
-    if (!LEGACY_PREFIXES.contains(prefix) || IssueRuleSupport.normalizeText(value) == null) {
+    String normalizedValue = IssueRuleSupport.normalizeText(value);
+    if (!LEGACY_PREFIXES.contains(prefix)
+        || normalizedValue == null
+        || startsWithLegacyPrefixSeparator(normalizedValue)) {
       return null;
     }
     return new LegacyPrefixedLabel(prefix.equals("工具箱") ? "模块" : prefix, value);
+  }
+
+  private static int firstLegacyPrefixSeparatorIndex(String label) {
+    int separatorIndex = -1;
+    for (char separator : LEGACY_PREFIX_SEPARATORS) {
+      int currentIndex = label.indexOf(separator);
+      if (currentIndex > 0 && (separatorIndex < 0 || currentIndex < separatorIndex)) {
+        separatorIndex = currentIndex;
+      }
+    }
+    return separatorIndex;
+  }
+
+  private static boolean startsWithLegacyPrefixSeparator(String value) {
+    for (char separator : LEGACY_PREFIX_SEPARATORS) {
+      if (value.charAt(0) == separator) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void appendLegacyLabelValue(Map<String, List<String>> result, String groupName, String value) {
@@ -227,18 +247,15 @@ final class IssueLabelRules {
 
   private static String extractMergeRequestModuleName(String label) {
     String trimmed = label.trim();
-    Matcher matcher = MERGE_REQUEST_MODULE_LABEL_PATTERN.matcher(trimmed);
-    if (matcher.matches()) {
-      return normalizeModuleValue(matcher.group(1));
+    LegacyPrefixedLabel prefixedLabel = parseLegacyPrefixedLabel(trimmed);
+    if (prefixedLabel != null && "模块".equals(prefixedLabel.groupName())) {
+      return normalizeModuleValue(prefixedLabel.value());
     }
     return null;
   }
 
   private static String normalizeModuleValue(String value) {
     String cleaned = value.trim();
-    if (cleaned.startsWith(":") || cleaned.startsWith("：") || cleaned.startsWith("-")) {
-      return null;
-    }
     String normalized = IssueRuleSupport.normalizeText(cleaned);
     return normalized == null ? null : cleaned;
   }
