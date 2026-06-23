@@ -172,7 +172,9 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.rowSources()) {
@@ -201,7 +203,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     return new StatisticBoardResponse(
         definition,
         withoutReservedFilters(filters),
-        filterGroup,
+        effectiveFilterGroup,
         rows,
         new StatisticBoardMeta(
             LocalDateTime.now(),
@@ -214,8 +216,10 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -236,7 +240,10 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), parseFilterGroup(filters, buildDefinition()));
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,

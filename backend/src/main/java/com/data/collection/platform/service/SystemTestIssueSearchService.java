@@ -343,15 +343,19 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       return condition;
     }
     String fieldKey = requireSupportedLabelGroupField(condition.fieldKey());
+    String expectedValueType = LABEL_GROUP_FIELD_VALUE_TYPES.get(fieldKey);
     if (!LabelGroupFilterOperatorSupport.isSetOperator(condition.operator())) {
       throw new com.data.collection.platform.common.exception.BizException("标签组筛选只支持集合关系");
+    }
+    if (!LabelGroupFilterOperatorSupport.supportsPartialContainsAny(condition.operator(), expectedValueType)) {
+      throw new com.data.collection.platform.common.exception.BizException("局部包含任意标签组仅支持字符串字段");
     }
     if (condition.labelGroupId() == null) {
       throw new com.data.collection.platform.common.exception.BizException("标签组筛选缺少标签组 ID");
     }
     LabelGroupExpansionResponse expansion =
         labelGroupExpansionService.expand(
-            condition.labelGroupId(), LABEL_GROUP_FIELD_VALUE_TYPES.get(fieldKey), fieldKey, PAGE_KEY, sourceInstance);
+            condition.labelGroupId(), expectedValueType, fieldKey, PAGE_KEY, sourceInstance);
     if (expansion.values().size() > MAX_LABEL_GROUP_FILTER_VALUES) {
       throw new com.data.collection.platform.common.exception.BizException("筛选条件展开后超过 200 个值，请减少普通筛选值或拆分标签组");
     }

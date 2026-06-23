@@ -165,7 +165,9 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.finalSources()) {
@@ -197,7 +199,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return new StatisticBoardResponse(
         definition,
         withoutReservedFilters(filters),
-        filterGroup,
+        effectiveFilterGroup,
         rows,
         new StatisticBoardMeta(
             LocalDateTime.now(),
@@ -210,8 +212,10 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -232,8 +236,11 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot =
-        buildRuleFlowSnapshot(loadSources(filters), parseFilterGroup(filters, buildDefinition()));
+        buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -285,7 +292,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "testing-phase-filter",
                 "应用测试阶段切换",
-                "根据页面顶部选择的测试阶段父级收口客户问题里程碑；未选择时保留全部客户问题范围。",
+                "根据页面顶部选择的测试阶段父级收口客户问题里程碑；未选择时按老平台默认使用阶段列表第一项。",
                 scoped.size(),
                 phaseFiltered,
                 this::toRuleFlowSample

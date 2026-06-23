@@ -29,9 +29,7 @@ import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceS
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
-import type { RecordTableActiveFilterTag, RecordTableColumn } from '../types/record-table';
-import { CUSTOMER_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
-import { useDataScope } from '../composables/useDataScope';
+import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
 import { useRoute } from 'vue-router';
 
@@ -171,24 +169,6 @@ const {
     'updatedAtEnd',
   ],
   queryClearKeys: [
-    'issueIid',
-    'title',
-    'projectName',
-    'moduleName',
-    'functionName',
-    'reasonCategory',
-    'authorName',
-    'assigneeName',
-    'severityLevel',
-    'priorityLevel',
-    'issueState',
-    'bugStatus',
-    'category',
-    'milestoneTitle',
-    'createdAtStart',
-    'createdAtEnd',
-    'updatedAtStart',
-    'updatedAtEnd',
   ],
   rangeKeys: {
     updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
@@ -212,15 +192,198 @@ const columns = computed<RecordTableColumn[]>(() => [
   { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
 ]);
 
-const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
-  ...conditionActiveFilterTags.value,
+const filterValues = computed<Record<string, unknown>>(() => ({
+  createdAtRange: route.query.createdAtStart && route.query.createdAtEnd
+    ? [String(route.query.createdAtStart), String(route.query.createdAtEnd)]
+    : [],
+  updatedAtRange: route.query.updatedAtStart && route.query.updatedAtEnd
+    ? [String(route.query.updatedAtStart), String(route.query.updatedAtEnd)]
+    : [],
+  milestoneTitle: String(route.query.milestoneTitle ?? ''),
+  issueIid: String(route.query.issueIid ?? ''),
+  title: String(route.query.title ?? ''),
+  projectName: String(route.query.projectName ?? ''),
+  moduleName: String(route.query.moduleName ?? ''),
+  functionName: String(route.query.functionName ?? ''),
+  reasonCategory: String(route.query.reasonCategory ?? ''),
+  authorName: String(route.query.authorName ?? ''),
+  assigneeName: String(route.query.assigneeName ?? ''),
+  severityLevel: String(route.query.severityLevel ?? ''),
+  priorityLevel: String(route.query.priorityLevel ?? ''),
+  issueState: String(route.query.issueState ?? ''),
+  bugStatus: String(route.query.bugStatus ?? ''),
+  category: String(route.query.category ?? ''),
+}));
+
+const primaryFilters = computed<RecordTableFilterField[]>(() => [
+  {
+    key: 'milestoneTitle',
+    label: '里程碑',
+    type: 'select',
+    placeholder: '切换里程碑',
+    width: 180,
+    options: [{ label: '全部里程碑', value: '' }, ...filterOptions.value.milestoneTitles],
+  },
+  {
+    key: 'issueIid',
+    label: '议题编号',
+    type: 'input',
+    placeholder: '输入议题编号',
+    width: 156,
+  },
+  { key: 'title', label: '议题标题', type: 'input', placeholder: '输入标题关键字' },
+  {
+    key: 'projectName',
+    label: '项目',
+    type: 'select',
+    options: [{ label: '全部项目', value: '' }, ...filterOptions.value.projectNames],
+  },
+  {
+    key: 'moduleName',
+    label: '模块名',
+    type: 'select',
+    width: 180,
+    options: [{ label: '全部模块', value: '' }, ...filterOptions.value.moduleNames],
+  },
+  {
+    key: 'functionName',
+    label: '功能名',
+    type: 'select',
+    width: 180,
+    options: [{ label: '全部功能', value: '' }, ...filterOptions.value.functionNames],
+  },
+  {
+    key: 'reasonCategory',
+    label: '缺陷原因',
+    type: 'select',
+    options: [{ label: '全部缺陷原因', value: '' }, ...filterOptions.value.reasonCategories],
+  },
+  {
+    key: 'authorName',
+    label: '议题提交人',
+    type: 'select',
+    options: [{ label: '全部提交人', value: '' }, ...filterOptions.value.authorNames],
+  },
+  {
+    key: 'assigneeName',
+    label: '议题处理人',
+    type: 'select',
+    options: [{ label: '全部处理人', value: '' }, ...filterOptions.value.assigneeNames],
+  },
+  {
+    key: 'severityLevel',
+    label: '严重程度',
+    type: 'select',
+    options: [{ label: '全部严重程度', value: '' }, ...filterOptions.value.severityLevels],
+  },
+  {
+    key: 'priorityLevel',
+    label: '缺陷优先级',
+    type: 'select',
+    options: [{ label: '全部优先级', value: '' }, ...filterOptions.value.priorityLevels],
+  },
+  {
+    key: 'issueState',
+    label: '议题状态',
+    type: 'select',
+    options: [{ label: '全部状态', value: '' }, ...filterOptions.value.issueStates],
+  },
+  {
+    key: 'bugStatus',
+    label: '测试状态',
+    type: 'select',
+    options: [{ label: '全部测试状态', value: '' }, ...filterOptions.value.bugStatuses],
+  },
+  {
+    key: 'category',
+    label: '议题类别',
+    type: 'select',
+    options: [{ label: '全部类别', value: '' }, ...filterOptions.value.categories],
+  },
+  {
+    key: 'createdAtRange',
+    label: '提交时间',
+    type: 'daterange',
+    width: 280,
+    startPlaceholder: '开始日期',
+    endPlaceholder: '结束日期',
+  },
+  {
+    key: 'updatedAtRange',
+    label: '更新时间',
+    type: 'daterange',
+    width: 280,
+    startPlaceholder: '开始日期',
+    endPlaceholder: '结束日期',
+  },
 ]);
 
-useDataScope({
-  provider: CUSTOMER_MILESTONE_SCOPE_PROVIDER,
-  options: computed(() => buildScopeOptions(filterOptions.value.milestoneTitles ?? [], '全部里程碑')),
-  mountToShell: true,
+const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
+  const tags: RecordTableActiveFilterTag[] = [];
+  const values = filterValues.value;
+  if (values.milestoneTitle) {
+    tags.push({ key: 'milestoneTitle', label: '里程碑', value: String(values.milestoneTitle) });
+  }
+  if (values.issueIid) {
+    tags.push({ key: 'issueIid', label: '议题编号', value: String(values.issueIid) });
+  }
+  if (values.title) {
+    tags.push({ key: 'title', label: '议题标题', value: String(values.title) });
+  }
+  if (values.projectName) {
+    tags.push({ key: 'projectName', label: '项目', value: String(values.projectName) });
+  }
+  if (values.moduleName) {
+    tags.push({ key: 'moduleName', label: '模块名', value: String(values.moduleName) });
+  }
+  if (values.functionName) {
+    tags.push({ key: 'functionName', label: '功能名', value: String(values.functionName) });
+  }
+  if (values.reasonCategory) {
+    tags.push({ key: 'reasonCategory', label: '缺陷原因', value: String(values.reasonCategory) });
+  }
+  if (values.authorName) {
+    tags.push({ key: 'authorName', label: '议题提交人', value: String(values.authorName) });
+  }
+  if (values.assigneeName) {
+    tags.push({ key: 'assigneeName', label: '议题处理人', value: String(values.assigneeName) });
+  }
+  if (values.severityLevel) {
+    tags.push({ key: 'severityLevel', label: '严重程度', value: String(values.severityLevel) });
+  }
+  if (values.priorityLevel) {
+    tags.push({ key: 'priorityLevel', label: '缺陷优先级', value: String(values.priorityLevel) });
+  }
+  if (values.issueState) {
+    tags.push({ key: 'issueState', label: '议题状态', value: String(values.issueState) });
+  }
+  if (values.bugStatus) {
+    tags.push({ key: 'bugStatus', label: '测试状态', value: String(values.bugStatus) });
+  }
+  if (values.category) {
+    tags.push({ key: 'category', label: '议题类别', value: String(values.category) });
+  }
+  if (Array.isArray(values.createdAtRange) && values.createdAtRange.length === 2) {
+    tags.push({
+      key: 'createdAtRange',
+      label: '提交时间',
+      value: `${values.createdAtRange[0]} ~ ${values.createdAtRange[1]}`,
+    });
+  }
+  if (Array.isArray(values.updatedAtRange) && values.updatedAtRange.length === 2) {
+    tags.push({
+      key: 'updatedAtRange',
+      label: '更新时间',
+      value: `${values.updatedAtRange[0]} ~ ${values.updatedAtRange[1]}`,
+    });
+  }
+  return tags;
 });
+
+const allActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
+  ...conditionActiveFilterTags.value,
+  ...primaryActiveFilterTags.value,
+]);
 
 const tableRows = computed<Record<string, unknown>[]>(() =>
   rows.value.map((row) => ({
@@ -397,6 +560,23 @@ async function handleClearFilter(key: string) {
   await handleBaseClearFilter(key);
 }
 
+async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
+  if (payload.key === 'createdAtRange') {
+    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
+    await patchQuery({ page: 1, createdAtStart: start || null, createdAtEnd: end || null });
+    return;
+  }
+  if (payload.key === 'updatedAtRange') {
+    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
+    await patchQuery({ page: 1, updatedAtStart: start || null, updatedAtEnd: end || null });
+    return;
+  }
+  await patchQuery({
+    page: 1,
+    [payload.key]: Array.isArray(payload.value) ? payload.value.join(',') || null : payload.value || null,
+  });
+}
+
 async function handleConditionFilterApply() {
   await patchQuery(buildConditionApplyQueryPatch(route.query));
 }
@@ -436,11 +616,14 @@ async function handleConditionFilterReset() {
         :page-size="pageSize"
         :total="total"
         :active-filter-tags="allActiveFilterTags"
+        :primary-filters="primaryFilters"
+        :filter-values="filterValues"
         :keyword="String(route.query.keyword ?? '')"
         search-placeholder="输入关键字快速搜索"
         :show-search="true"
         :show-refresh="false"
         :empty-description="emptyDescription"
+        @filter-change="handleFilterChange"
         @reset="handleReset"
         @search="handleKeywordSearch"
         @query="handleQuery"

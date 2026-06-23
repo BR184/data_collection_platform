@@ -211,7 +211,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, milestoneOptions);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
 
@@ -256,7 +257,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, loadMilestoneOptions());
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
@@ -291,7 +293,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, milestoneOptions);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     long moduleCount =
         snapshot.scopedSources().stream().flatMap(issue -> issue.moduleNames().stream()).distinct().count();
@@ -353,9 +356,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   @Override
   public String exportFilename(Map<String, String> filters) {
-    String milestone = resolvedMilestoneForExport(filters);
-    if (StringUtils.hasText(milestone)) {
-      return milestone + "-客户问题缺陷原因统计表.xlsx";
+    String scope = resolvedPhaseOrMilestoneForExport(filters);
+    if (StringUtils.hasText(scope)) {
+      return scope + "-客户问题缺陷原因统计表.xlsx";
     }
     return exportFilename();
   }
@@ -625,35 +628,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     }
   }
 
-  private StatisticFilterGroup applyDefaultMilestone(
-      StatisticFilterGroup filterGroup,
-      List<StatisticFilterOption> milestoneOptions) {
-    if (hasMilestoneCondition(filterGroup)) {
-      return filterGroup;
-    }
-    String defaultMilestone = defaultMilestone(milestoneOptions);
-    if (!StringUtils.hasText(defaultMilestone)) {
-      return filterGroup == null ? emptyFilterGroup() : filterGroup;
-    }
-    List<StatisticFilterCondition> conditions = new ArrayList<>();
-    if (filterGroup != null && filterGroup.conditions() != null) {
-      conditions.addAll(filterGroup.conditions());
-    }
-    conditions.add(new StatisticFilterCondition(MILESTONE_FIELD, "eq", defaultMilestone, null));
-    return new StatisticFilterGroup("AND", conditions);
-  }
-
-  private String defaultMilestone(List<StatisticFilterOption> milestoneOptions) {
-    if (milestoneOptions == null || milestoneOptions.isEmpty()) {
-      return "";
-    }
-    return milestoneOptions.stream()
-        .map(StatisticFilterOption::value)
-        .filter(StringUtils::hasText)
-        .findFirst()
-        .orElse("");
-  }
-
   private String selectedMilestone(StatisticFilterGroup filterGroup) {
     if (filterGroup == null || filterGroup.conditions() == null) {
       return "";
@@ -667,19 +641,16 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         .orElse("");
   }
 
-  private String resolvedMilestoneForExport(Map<String, String> filters) {
+  private String resolvedPhaseOrMilestoneForExport(Map<String, String> filters) {
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup, milestoneOptions);
-    return selectedMilestone(effectiveFilterGroup);
-  }
-
-  private boolean hasMilestoneCondition(StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null) {
-      return false;
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    String milestone = selectedMilestone(effectiveFilterGroup);
+    if (StringUtils.hasText(milestone)) {
+      return milestone;
     }
-    return filterGroup.conditions().stream()
-        .anyMatch(condition -> MILESTONE_FIELD.equals(condition.fieldKey()) && StringUtils.hasText(condition.value()));
+    return CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
   }
 
   private boolean matchesMilestone(IssueSource issue, StatisticFilterGroup filterGroup) {

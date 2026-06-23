@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -115,16 +116,20 @@ public class SystemTestHorizontalComparisonExportService {
           "遗留率-二三级缺陷遗留率(%)");
   private static final List<String> LEGACY_FIXED_STATUS_TOKENS = List.of("已修复", "待合并", "未更新");
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
-  private static final List<String> SYSTEM_TEST_SCOPE_TOKENS = List.of("系统测试", "回归测试");
   private static final Set<String> STANDARD_REASON_CATEGORIES =
       Set.of("需求理解偏差", "新增需求", "编码逻辑错误", "环境部署问题", "算法机制不支持");
 
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
-  public SystemTestHorizontalComparisonExportService(JdbcTemplate jdbcTemplate, JsonUtils jsonUtils) {
+  public SystemTestHorizontalComparisonExportService(
+      JdbcTemplate jdbcTemplate,
+      JsonUtils jsonUtils,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   public String exportCsv(Map<String, String> filters) {
@@ -374,18 +379,18 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   private List<IssueExportSource> loadIssueSources(ExportScope scope) {
+    List<String> resolvedPhases = resolvedTestingPhases(scope.testingPhase());
+    if (resolvedPhases.isEmpty()) {
+      return List.of();
+    }
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     predicates.add("deleted = false");
-    predicates.add(systemTestScopePredicate(args));
+    predicates.add(resolvedPhasePredicate(resolvedPhases, args));
     predicates.add("is_excluded = false");
     if (StringUtils.hasText(scope.projectName())) {
       predicates.add("lower(coalesce(project_name, '')) like ?");
       args.add(like(scope.projectName()));
-    }
-    if (StringUtils.hasText(scope.testingPhase())) {
-      predicates.add("lower(coalesce(phase_filter_value, '')) = ?");
-      args.add(scope.testingPhase().toLowerCase(Locale.ROOT));
     }
     if (StringUtils.hasText(scope.moduleName())) {
       predicates.add("lower(',' || replace(coalesce(module_names, ''), ', ', ',') || ',') like ?");
@@ -417,15 +422,29 @@ public class SystemTestHorizontalComparisonExportService {
         args.toArray());
   }
 
-  private String systemTestScopePredicate(List<Object> args) {
+  private List<String> resolvedTestingPhases(String selectedPhase) {
+    String phase = StringUtils.hasText(selectedPhase)
+        ? selectedPhase
+        : phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+            .filter(StringUtils::hasText)
+            .findFirst()
+            .orElse("");
+    if (!StringUtils.hasText(phase)) {
+      return List.of();
+    }
+    return phaseScopeResolver.resolveLegacyCrownCadPhases(phase);
+  }
+
+  private String resolvedPhasePredicate(List<String> resolvedPhases, List<Object> args) {
     List<String> parts = new ArrayList<>();
-    for (String token : SYSTEM_TEST_SCOPE_TOKENS) {
-      parts.add("lower(coalesce(testing_phase, '')) like ?");
-      args.add("%" + token + "%");
-      parts.add("lower(coalesce(system_test_label, '')) like ?");
-      args.add("%" + token + "%");
+    for (String phase : resolvedPhases) {
+      String normalized = phase.toLowerCase(Locale.ROOT);
+      parts.add("lower(coalesce(testing_phase, '')) = ?");
+      args.add(normalized);
+      parts.add("lower(coalesce(system_test_label, '')) = ?");
+      args.add(normalized);
       parts.add("lower(coalesce(label_names, '')) like ?");
-      args.add("%" + token + "%");
+      args.add("%" + normalized + "%");
     }
     return "(" + String.join(" or ", parts) + ")";
   }

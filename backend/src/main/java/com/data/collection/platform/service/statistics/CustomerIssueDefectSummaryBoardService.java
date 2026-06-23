@@ -214,7 +214,9 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    List<IssueSource> sources = loadBoardScopedSources(filters, filterGroup);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    List<IssueSource> sources = loadBoardScopedSources(filters, effectiveFilterGroup);
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : sources) {
       for (String moduleName : issue.moduleNames()) {
@@ -238,7 +240,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     return new StatisticBoardResponse(
         definition,
         withoutReservedFilters(filters),
-        filterGroup,
+        effectiveFilterGroup,
         rows,
         new StatisticBoardMeta(
             LocalDateTime.now(),
@@ -250,8 +252,10 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
-        loadBoardScopedSources(request.filters(), filterGroup).stream()
+        loadBoardScopedSources(request.filters(), effectiveFilterGroup).stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -283,7 +287,9 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,

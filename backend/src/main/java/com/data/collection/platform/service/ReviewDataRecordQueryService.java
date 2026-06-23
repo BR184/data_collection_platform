@@ -209,6 +209,9 @@ public class ReviewDataRecordQueryService {
     if (!LabelGroupFilterOperatorSupport.isSetOperator(condition.operator())) {
       throw new BizException("标签组筛选只支持集合关系");
     }
+    if (!LabelGroupFilterOperatorSupport.supportsPartialContainsAny(condition.operator(), expectedValueType)) {
+      throw new BizException("局部包含任意标签组仅支持字符串字段");
+    }
     if (condition.labelGroupId() == null) {
       throw new BizException("标签组筛选缺少标签组 ID");
     }

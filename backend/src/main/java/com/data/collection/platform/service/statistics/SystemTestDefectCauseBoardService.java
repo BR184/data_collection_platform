@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticColumnLeaf;
 import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -206,9 +207,12 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    filterGroup = SystemTestPhaseFilterGroupExpander.expand(filterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
-    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticFilterGroup effectiveFilterGroup =
+        applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.scopedSources()) {
@@ -246,15 +250,17 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             rows.size(),
             columnCount,
             drilldownCount);
-    return new StatisticBoardResponse(definition, withoutReservedFilters(filters), filterGroup, rows, meta);
+    return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
-    filterGroup = SystemTestPhaseFilterGroupExpander.expand(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup =
+        applyDefaultTestingPhase(filterGroup, loadPhaseOptions());
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).reasonSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -285,9 +291,12 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
-    filterGroup = SystemTestPhaseFilterGroupExpander.expand(filterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
+    StatisticFilterGroup effectiveFilterGroup =
+        applyDefaultTestingPhase(filterGroup, phaseOptions);
+    effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     long moduleCount =
         snapshot.scopedSources().stream()
             .flatMap(issue -> issue.moduleNames().stream())
@@ -601,6 +610,46 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       log.debug("Failed to load phase options for {}", BOARD_KEY, e);
       return List.of();
     }
+  }
+
+  private StatisticFilterGroup applyDefaultTestingPhase(
+      StatisticFilterGroup filterGroup,
+      List<StatisticFilterOption> phaseOptions) {
+    if (StringUtils.hasText(SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup))) {
+      return filterGroup;
+    }
+    String defaultPhase = defaultTestingPhase(phaseOptions);
+    if (!StringUtils.hasText(defaultPhase)) {
+      return filterGroup == null ? emptyFilterGroup() : filterGroup;
+    }
+    List<StatisticFilterCondition> conditions = new ArrayList<>();
+    if (filterGroup != null && filterGroup.conditions() != null) {
+      conditions.addAll(filterGroup.conditions());
+    }
+    conditions.add(new StatisticFilterCondition("testingPhase", "eq", defaultPhase, null));
+    return new StatisticFilterGroup("AND", conditions);
+  }
+
+  private String defaultTestingPhase(List<StatisticFilterOption> phaseOptions) {
+    if (phaseOptions == null || phaseOptions.isEmpty()) {
+      return "";
+    }
+    return phaseOptions.stream()
+        .map(StatisticFilterOption::value)
+        .filter(StringUtils::hasText)
+        .findFirst()
+        .orElse("");
+  }
+
+  private Map<String, String> appliedFilters(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup) {
+    Map<String, String> applied = new LinkedHashMap<>(withoutReservedFilters(filters));
+    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    if (StringUtils.hasText(selectedTestingPhase)) {
+      applied.put("testingPhase", selectedTestingPhase);
+    }
+    return applied;
   }
 
   private String displayPhaseLabel(String phaseKey, String selectedTestingPhase) {

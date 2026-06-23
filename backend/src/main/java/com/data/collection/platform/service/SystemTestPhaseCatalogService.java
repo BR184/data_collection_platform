@@ -97,8 +97,9 @@ public class SystemTestPhaseCatalogService {
                   from issue_fact
                  where deleted = false
                  group by project_id, testing_phase
-              ) s on s.project_id = c.project_id and s.testing_phase = c.testing_phase
+             ) s on s.project_id = c.project_id and s.testing_phase = c.testing_phase
              where c.enabled = true
+               and (c.phase_group_id is null or g.id is not null)
                and coalesce(g.enabled, true) = true
             """);
     if (projectId != null) {

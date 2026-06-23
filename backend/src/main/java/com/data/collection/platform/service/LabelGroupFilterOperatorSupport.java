@@ -19,6 +19,10 @@ final class LabelGroupFilterOperatorSupport {
     return "partialContainsAny".equals(operator);
   }
 
+  static boolean supportsPartialContainsAny(String operator, String fieldValueType) {
+    return !isPartialContainsAny(operator) || "STRING".equalsIgnoreCase(TextQuerySupport.trimToNull(fieldValueType));
+  }
+
   static String normalize(String operator) {
     if ("eq".equals(operator)) {
       return "intersects";

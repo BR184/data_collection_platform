@@ -34,7 +34,19 @@ const selectedValues = computed({
         if (existing) {
           return existing;
         }
-        return candidates.value.find((member) => member.value === value) ?? null;
+        const candidate = candidates.value.find((member) => member.value === value);
+        if (candidate) {
+          return candidate;
+        }
+        const normalized = value.trim();
+        if (!normalized || (props.valueType && inferValueType(normalized) !== props.valueType)) {
+          return null;
+        }
+        return {
+          value: normalized,
+          label: normalized,
+          currentAvailable: false,
+        };
       })
       .filter((member): member is LabelGroupMember => Boolean(member));
     emit('update:modelValue', nextMembers);

@@ -5,7 +5,7 @@ import LabelGroupMemberPicker from './LabelGroupMemberPicker.vue';
 import type { LabelValuePage } from '../../types/api';
 
 describe('LabelGroupMemberPicker', () => {
-  it('requires a candidate source before adding members', () => {
+  it('allows manual member input without a candidate source', () => {
     const wrapper = mount(LabelGroupMemberPicker, {
       props: {
         modelValue: [],
@@ -15,7 +15,7 @@ describe('LabelGroupMemberPicker', () => {
     });
 
     expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(true);
-    expect(wrapper.text()).toContain('请选择候选来源后添加成员');
+    expect(wrapper.findComponent({ name: 'ElSelect' }).props('placeholder')).toContain('直接输入成员');
   });
 
   it('loads candidates for the selected dimension and supports keyword search', async () => {
@@ -73,7 +73,7 @@ describe('LabelGroupMemberPicker', () => {
     expect(wrapper.text()).toContain('张三');
   });
 
-  it('emits selected members from existing candidates only', async () => {
+  it('emits selected members from existing candidates', async () => {
     const wrapper = mount(LabelGroupMemberPicker, {
       props: {
         modelValue: [],
@@ -90,7 +90,7 @@ describe('LabelGroupMemberPicker', () => {
     expect(wrapper.emitted('update:modelValue')?.[0][0]).toEqual([{ value: '草图', label: '草图', currentAvailable: true }]);
   });
 
-  it('drops values that are not present in the candidate list', async () => {
+  it('keeps manually entered values that are not present in the candidate list', async () => {
     const wrapper = mount(LabelGroupMemberPicker, {
       props: {
         modelValue: [],
@@ -104,7 +104,9 @@ describe('LabelGroupMemberPicker', () => {
     const selectModel = wrapper.findComponent({ name: 'ElSelect' });
     selectModel.vm.$emit('update:modelValue', ['不存在的值']);
 
-    expect(wrapper.emitted('update:modelValue')?.[0][0]).toEqual([]);
+    expect(wrapper.emitted('update:modelValue')?.[0][0]).toEqual([
+      { value: '不存在的值', label: '不存在的值', currentAvailable: false },
+    ]);
   });
 
   it('filters candidates after the group has inferred a value type', async () => {

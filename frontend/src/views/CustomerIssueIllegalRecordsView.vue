@@ -6,16 +6,13 @@ import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecords
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../utils/issue-severity-display';
-import type {
-  DataScopeOption,
-  DataScopeProvider,
-} from '../types/data-scope';
+import type { DataScopeOption } from '../types/data-scope';
 import type {
   CustomerIssueIllegalRecordFilterOptionsResponse,
   CustomerIssueIllegalRecordRowResponse,
   StatisticFilterField,
 } from '../types/api';
-import type { RecordTableColumn } from '../types/record-table';
+import type { RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import { buildCustomerIssueIllegalConditionFields } from './customer-issues/customer-issue-condition-fields';
 import type {
   IssueIllegalRecordFilterOptions,
@@ -24,19 +21,6 @@ import type {
 
 const LEGACY_CROWN_CAD_PROJECT_ID = 9;
 const phaseScopeOptions = ref<DataScopeOption[]>([]);
-
-const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
-  id: 'customer-issue-illegal-testing-phase',
-  label: '测试阶段',
-  queryKey: 'testingPhase',
-  mode: 'single-select',
-  placeholder: '全部测试阶段',
-  emptyLabel: '全部测试阶段',
-  defaultStrategy: 'empty',
-  clearable: true,
-  compact: true,
-  summaryPrefix: '当前测试阶段',
-};
 
 const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -131,9 +115,19 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
   return buildCustomerIssueIllegalConditionFields(options as CustomerIssueIllegalRecordFilterOptionsResponse);
 }
 
-function buildPhaseScopeOptions() {
-  return phaseScopeOptions.value;
+function buildPrimaryFilters(): RecordTableFilterField[] {
+  return [
+    {
+      key: 'testingPhase',
+      label: '测试阶段',
+      type: 'select',
+      clearable: true,
+      width: 240,
+      options: phaseScopeOptions.value,
+    },
+  ];
 }
+
 </script>
 
 <template>
@@ -159,10 +153,9 @@ function buildPhaseScopeOptions() {
     })"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
+    :build-primary-filters="buildPrimaryFilters"
     :columns="columns"
     :map-row="mapRow"
-    :scope-provider="CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER"
-    :build-scope-options="buildPhaseScopeOptions"
     created-at-detail-label="议题提交时间"
     updated-at-detail-label="议题更新时间"
     issue-state-detail-label="议题状态"

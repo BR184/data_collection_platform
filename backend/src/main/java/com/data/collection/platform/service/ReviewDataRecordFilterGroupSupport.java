@@ -109,6 +109,9 @@ final class ReviewDataRecordFilterGroupSupport {
       if (!LabelGroupFilterOperatorSupport.isSetOperator(operator)) {
         throw new BizException("标签组筛选只支持集合关系");
       }
+      if (!LabelGroupFilterOperatorSupport.supportsPartialContainsAny(operator, fieldValueType(fieldKey))) {
+        throw new BizException("局部包含任意标签组仅支持字符串字段");
+      }
       if (condition.labelGroupId() == null) {
         throw new BizException("标签组筛选缺少标签组 ID");
       }
@@ -132,6 +135,10 @@ final class ReviewDataRecordFilterGroupSupport {
       return null;
     }
     return new StatisticFilterCondition(fieldKey, operator, value, secondaryValue);
+  }
+
+  private static String fieldValueType(String fieldKey) {
+    return "reviewDate".equals(fieldKey) ? "DATE" : "STRING";
   }
 
   private static boolean matchesCondition(

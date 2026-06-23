@@ -791,7 +791,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
     boolean hasAnyPhaseLabel(List<String> expectedLabels) {
       if (expectedLabels == null || expectedLabels.isEmpty()) {
-        return true;
+        return false;
       }
       List<String> actualLabels = phaseLabels();
       return expectedLabels.stream().anyMatch(expected ->

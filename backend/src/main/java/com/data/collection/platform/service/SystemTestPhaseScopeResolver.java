@@ -22,6 +22,10 @@ public class SystemTestPhaseScopeResolver {
     return resolvePhases(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, phaseOrParents);
   }
 
+  public List<String> listEnabledLegacyCrownCadParentNames() {
+    return phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
+  }
+
   public List<String> resolvePhases(Long projectId, String phaseOrParent) {
     String normalized = TextQuerySupport.trimToNull(phaseOrParent);
     if (normalized == null) {
