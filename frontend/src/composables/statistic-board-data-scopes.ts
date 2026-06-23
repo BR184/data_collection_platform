@@ -19,6 +19,14 @@ const SYSTEM_TEST_BOARD_KEYS = new Set([
   'system-test-phase-statistics',
 ]);
 
+const CUSTOMER_ISSUE_PHASE_BOARD_KEYS = new Set([
+  'customer-issue-defect-summary',
+  'customer-issue-defect-cause',
+  'customer-issue-delay-issues',
+  'customer-issue-response-efficiency',
+  'customer-issue-by-function',
+]);
+
 const SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER: DataScopeProvider = {
   id: 'system-test-defect-summary-phase',
   label: '测试阶段',
@@ -44,6 +52,19 @@ const SYSTEM_TEST_PARENT_SCOPE_PROVIDER: DataScopeProvider = {
   summaryPrefix: '当前里程碑',
 };
 
+const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
+  id: 'customer-issue-phase',
+  label: '测试阶段',
+  queryKey: 'testingPhase',
+  mode: 'single-select',
+  placeholder: '全部测试阶段',
+  emptyLabel: '全部测试阶段',
+  defaultStrategy: 'empty',
+  clearable: true,
+  compact: true,
+  summaryPrefix: '当前测试阶段',
+};
+
 export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   const testingPhaseGroups = ref<TestingPhaseGroupResponse[]>([]);
   const loading = ref(false);
@@ -51,6 +72,13 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   const parentOptions = computed(() => buildParentOptions(testingPhaseGroups.value));
 
   const config = computed<StatisticBoardDataScopeConfig | null>(() => {
+    if (CUSTOMER_ISSUE_PHASE_BOARD_KEYS.has(boardKey.value)) {
+      return {
+        provider: CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER,
+        options: parentOptions,
+        loading,
+      };
+    }
     if (!SYSTEM_TEST_BOARD_KEYS.has(boardKey.value)) {
       return null;
     }
@@ -71,7 +99,11 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   watch(
     [boardKey, () => authState.currentUser.authenticated],
     async ([nextBoardKey]) => {
-      if (!SYSTEM_TEST_BOARD_KEYS.has(nextBoardKey) || loaded.value || loading.value) {
+      if (
+        (!SYSTEM_TEST_BOARD_KEYS.has(nextBoardKey) && !CUSTOMER_ISSUE_PHASE_BOARD_KEYS.has(nextBoardKey))
+        || loaded.value
+        || loading.value
+      ) {
         return;
       }
       loading.value = true;

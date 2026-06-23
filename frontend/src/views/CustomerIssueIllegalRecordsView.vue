@@ -1,10 +1,15 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecordsPage.vue';
 // 客户问题非法数据页沿用同一个非法记录页面骨架，差异只体现在规则说明和接口域。
 // 这种薄封装让系统测试与客户问题两类页面保持一致的筛选、分页和导出体验。
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../utils/issue-severity-display';
+import type {
+  DataScopeOption,
+  DataScopeProvider,
+} from '../types/data-scope';
 import type {
   CustomerIssueIllegalRecordFilterOptionsResponse,
   CustomerIssueIllegalRecordRowResponse,
@@ -16,7 +21,22 @@ import type {
   IssueIllegalRecordFilterOptions,
   IssueIllegalRecordQueryParams,
 } from './issue-illegal-records/issue-illegal-records-types';
-import { CUSTOMER_REQUIRED_MILESTONE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
+
+const LEGACY_CROWN_CAD_PROJECT_ID = 9;
+const phaseScopeOptions = ref<DataScopeOption[]>([]);
+
+const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
+  id: 'customer-issue-illegal-testing-phase',
+  label: '测试阶段',
+  queryKey: 'testingPhase',
+  mode: 'single-select',
+  placeholder: '全部测试阶段',
+  emptyLabel: '全部测试阶段',
+  defaultStrategy: 'empty',
+  clearable: true,
+  compact: true,
+  summaryPrefix: '当前测试阶段',
+};
 
 const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -72,6 +92,7 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
     title: params.title,
     projectName: params.projectName,
     moduleName: params.moduleName,
+    testingPhase: params.testingPhase,
     illegalReason: params.illegalReason,
     severityLevel: params.severityLevel,
     priorityLevel: params.priorityLevel,
@@ -91,8 +112,27 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
   });
 }
 
+async function loadFilterOptions(projectId?: string | number | null) {
+  const [options, phaseGroups] = await Promise.all([
+    api.getCustomerIssueIllegalRecordFilterOptions(projectId),
+    api.getTestingPhaseGroups({
+      projectId: LEGACY_CROWN_CAD_PROJECT_ID,
+      enabled: true,
+    }),
+  ]);
+  phaseScopeOptions.value = phaseGroups
+    .map((group) => String(group.name ?? '').trim())
+    .filter(Boolean)
+    .map((name) => ({ label: name, value: name }));
+  return options;
+}
+
 function buildConditionFields(options: IssueIllegalRecordFilterOptions): StatisticFilterField[] {
   return buildCustomerIssueIllegalConditionFields(options as CustomerIssueIllegalRecordFilterOptionsResponse);
+}
+
+function buildPhaseScopeOptions() {
+  return phaseScopeOptions.value;
 }
 </script>
 
@@ -108,7 +148,7 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :load-records="loadRecords"
     :export-records="api.exportCustomerIssueIllegalRecords"
     export-filename-prefix="客户问题非法数据"
-    :load-filter-options="api.getCustomerIssueIllegalRecordFilterOptions"
+    :load-filter-options="loadFilterOptions"
     :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
     :load-realtime-status="api.getCustomerIssueIllegalRecordRealtimeStatus"
     :request-realtime-refresh="api.refreshCustomerIssueIllegalRecordRealtime"
@@ -121,8 +161,8 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
     :build-condition-fields="buildConditionFields"
     :columns="columns"
     :map-row="mapRow"
-    :scope-provider="CUSTOMER_REQUIRED_MILESTONE_SCOPE_PROVIDER"
-    :build-scope-options="(options) => buildScopeOptions(options.milestoneTitles ?? [])"
+    :scope-provider="CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER"
+    :build-scope-options="buildPhaseScopeOptions"
     created-at-detail-label="议题提交时间"
     updated-at-detail-label="议题更新时间"
     issue-state-detail-label="议题状态"
@@ -137,6 +177,7 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
       'title',
       'projectName',
       'moduleName',
+      'testingPhase',
       'illegalReason',
       'severityLevel',
       'priorityLevel',
@@ -154,6 +195,7 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
       'title',
       'projectName',
       'moduleName',
+      'testingPhase',
       'illegalReason',
       'severityLevel',
       'priorityLevel',

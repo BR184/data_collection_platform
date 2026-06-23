@@ -30,6 +30,7 @@
 | `docs/current-state/system-test-statistics-review-import-refresh-alignment-20260622.md` | 当前对齐方案 | 记录议题统计、评审导入和首次进入刷新策略的当前修复方案，供后续实现、联调和验收使用。 |
 | `docs/current-state/label-group-default-module-scope-20260622.md` | 当前方案 / 实施中 | 固定标签组按值类型应用、模块字段同维度、系统测试默认模块范围通过用户可维护标签组配置实现的方案；另记录客户问题非 CC_PRODUCT 页面后续需补测试阶段切换。 |
 | `docs/current-state/testing-phase-two-level-management-20260622.md` | 当前方案 / 实施中 | 固定议题测试阶段定义的系统设置入口、父子两级维护、父级排序驱动下拉和子级展开匹配规则。 |
+| `docs/current-state/testing-phase-display-statistics-whitelist-20260623.md` | 当前口径 / 常驻 | 固定测试阶段维护表作为下拉与统计白名单：表外阶段及其议题在下拉、表格统计、明细中全部屏蔽；表格总数严格按当前选中阶段粒度（父级或具体子级）在 `issue_fact` 命中条数实时重算。 |
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/frontend-record-page-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |

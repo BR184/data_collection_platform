@@ -27,6 +27,7 @@ public class CustomerIssueRequestAssembler {
     return new CustomerIssueIllegalRecordQueryRequest(
         listRequestAssembler.toServiceRequest(request),
         request.getIllegalReason(),
+        request.getTestingPhase(),
         request.getFilterGroup());
   }
 }

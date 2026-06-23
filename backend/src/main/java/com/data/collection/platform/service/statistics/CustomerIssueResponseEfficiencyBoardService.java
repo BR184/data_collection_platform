@@ -25,6 +25,7 @@ import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.ResultSet;
@@ -104,16 +105,19 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public CustomerIssueResponseEfficiencyBoardService(
       JsonUtils jsonUtils,
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -132,6 +136,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         "模块",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
+            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "产品版本", 180),
             StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
             StatisticFilterFieldFactory.select(
@@ -420,6 +425,13 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
+    }
+    if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
+      return CustomerIssueTestingPhaseFilterSupport.matches(
+          issue.milestoneTitle(),
+          issue.testingPhase(),
+          new StatisticFilterGroup("AND", List.of(condition)),
+          phaseScopeResolver);
     }
     if ("moduleName".equals(condition.fieldKey())) {
       return matchesCandidates(issue.displayModuleNames(), condition);

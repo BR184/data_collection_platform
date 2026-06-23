@@ -25,6 +25,7 @@ import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -54,16 +55,19 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public CustomerIssueDefectSummaryBoardService(
       JsonUtils jsonUtils,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       IssueFactBoardRuntimeSupport runtimeSupport,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -82,6 +86,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         "模块名",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
+            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
             StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
             StatisticFilterFieldFactory.select(
@@ -329,6 +334,14 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "condition-filter",
+                "应用页面筛选",
+                "应用当前页面条件筛选和顶部测试阶段切换。",
+                valid.size(),
+                filtered,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "module-expand",
                 "按模块展开",
                 "同一条议题可能属于多个模块，模块行会分别计入；总计行仍按议题本身统计。",
@@ -360,6 +373,13 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
     }
+    if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
+      return CustomerIssueTestingPhaseFilterSupport.matches(
+          issue.milestoneTitle(),
+          issue.testingPhase(),
+          new StatisticFilterGroup("AND", List.of(condition)),
+          phaseScopeResolver);
+    }
     List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
     if (condition.usesLabelGroup()) {
       return matchesSetOperator(actualValues, condition.values(), condition.operator());
@@ -377,6 +397,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
     return switch (fieldKey) {
       case "projectName" -> List.of(Objects.toString(issue.projectName(), ""));
+      case CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "milestoneTitle" -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "moduleName" -> issue.moduleNames();
       case "severityLevel" -> List.of(Objects.toString(issue.severityLevel(), ""));

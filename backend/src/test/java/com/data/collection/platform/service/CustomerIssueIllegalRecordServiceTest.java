@@ -27,6 +27,7 @@ class CustomerIssueIllegalRecordServiceTest {
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
   @Mock private FactBuildService factBuildService;
+  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -37,7 +38,8 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService,
+            phaseScopeResolver);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
 
@@ -66,6 +68,7 @@ class CustomerIssueIllegalRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 null,
+                null,
                 null));
 
     assertThat(response.total()).isEqualTo(1);
@@ -86,7 +89,8 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService,
+            phaseScopeResolver);
     when(issueLinkService.issueUrl("default", 325L, 201))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/201");
     when(issueFactRecordRepository.findPage(any()))
@@ -147,7 +151,8 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService,
+            phaseScopeResolver);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -184,6 +189,7 @@ class CustomerIssueIllegalRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 null,
+                null,
                 """
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":9,"labelGroupName":"模块组"}]}
                 """));
@@ -201,7 +207,8 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService);
+            factBuildService,
+            phaseScopeResolver);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(203, "illegal a", "draft", true, "missing module")));
@@ -234,6 +241,7 @@ class CustomerIssueIllegalRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
+                null,
                 null,
                 """
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":9,"labelGroupName":"模块组"}]}

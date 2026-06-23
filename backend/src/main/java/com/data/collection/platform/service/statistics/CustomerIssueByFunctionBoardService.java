@@ -23,6 +23,7 @@ import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -96,16 +97,19 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public CustomerIssueByFunctionBoardService(
       JsonUtils jsonUtils,
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -124,6 +128,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         "模块 / 功能",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
+            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("moduleName", "模块名称", 180),
             StatisticFilterFieldFactory.text("functionName", "功能名称", 180),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
@@ -160,7 +165,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), filterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.finalSources()) {
@@ -206,7 +211,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters())).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters()), filterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -227,7 +232,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters));
+    RuleFlowSnapshot snapshot =
+        buildRuleFlowSnapshot(loadSources(filters), parseFilterGroup(filters, buildDefinition()));
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -250,11 +256,13 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
 
-  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded) {
+  private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
-    List<IssueSource> withFunction = scoped.stream().filter(issue -> StringUtils.hasText(issue.functionName())).toList();
+    List<IssueSource> phaseFiltered =
+        scoped.stream().filter(issue -> matchesTestingPhase(issue, filterGroup)).toList();
+    List<IssueSource> withFunction = phaseFiltered.stream().filter(issue -> StringUtils.hasText(issue.functionName())).toList();
     return new RuleFlowSnapshot(
         withFunction,
         List.of(
@@ -275,10 +283,18 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "testing-phase-filter",
+                "应用测试阶段切换",
+                "根据页面顶部选择的测试阶段父级收口客户问题里程碑；未选择时保留全部客户问题范围。",
+                scoped.size(),
+                phaseFiltered,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "function-filter",
                 "保留已识别功能",
                 "只保留 issue_fact.function_name 非空的议题。",
-                scoped.size(),
+                phaseFiltered.size(),
                 withFunction,
                 this::toRuleFlowSample
             ),
@@ -291,6 +307,11 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
                 withFunction,
                 this::toRuleFlowSample
             )));
+  }
+
+  private boolean matchesTestingPhase(IssueSource issue, StatisticFilterGroup filterGroup) {
+    return CustomerIssueTestingPhaseFilterSupport.matches(
+        issue.milestoneTitle(), issue.testingPhase(), filterGroup, phaseScopeResolver);
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {

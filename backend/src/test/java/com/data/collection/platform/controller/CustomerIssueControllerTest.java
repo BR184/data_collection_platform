@@ -192,6 +192,7 @@ class CustomerIssueControllerTest {
                 "Design",
                 null,
                 null,
+                null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
         .thenReturn("issue_iid,title\n201,Delay sample\n");
 
@@ -280,6 +281,7 @@ class CustomerIssueControllerTest {
                     "updatedAt",
                     "desc"),
                 "Module mismatch",
+                null,
                 null)))
         .thenReturn(
             new CustomerIssueIllegalRecordListResponse(
@@ -368,6 +370,7 @@ class CustomerIssueControllerTest {
                     "updatedAt",
                     "desc"),
                 "Module mismatch",
+                null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
         .thenReturn("issue_iid,illegal_reason\n301,Module mismatch\n");
 

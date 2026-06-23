@@ -24,6 +24,7 @@ import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -62,6 +63,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
              issue_iid,
              coalesce(title, '') as title,
              coalesce(issue_state, 'opened') as issue_state,
+             coalesce(testing_phase, '') as testing_phase,
+             coalesce(system_test_label, '') as system_test_label,
              coalesce(priority_level, '') as priority_level,
              coalesce(bug_status, '') as bug_status,
              coalesce(category, '') as category,
@@ -98,16 +101,19 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public CustomerIssueDelayIssuesBoardService(
       JsonUtils jsonUtils,
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -126,6 +132,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         "模块",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
+            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
             StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
             StatisticFilterFieldFactory.select(
@@ -343,6 +350,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         rs.getInt("issue_iid"),
         StatisticSourceValueSupport.text(rs.getString("title")),
         StatisticSourceValueSupport.text(rs.getString("issue_state")),
+        StatisticSourceValueSupport.text(rs.getString("testing_phase")),
+        StatisticSourceValueSupport.text(rs.getString("system_test_label")),
         StatisticSourceValueSupport.text(rs.getString("priority_level")),
         StatisticSourceValueSupport.text(rs.getString("bug_status")),
         StatisticSourceValueSupport.text(rs.getString("category")),
@@ -437,6 +446,13 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
     if (condition == null || !StringUtils.hasText(condition.fieldKey())) {
       return true;
+    }
+    if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
+      return CustomerIssueTestingPhaseFilterSupport.matches(
+          issue.milestoneTitle(),
+          issue.testingPhase(),
+          new StatisticFilterGroup("AND", List.of(condition)),
+          phaseScopeResolver);
     }
     if ("moduleName".equals(condition.fieldKey())) {
       return matchesCandidates(issue.displayModuleNames(), condition);
@@ -563,6 +579,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       Integer iid,
       String title,
       String issueState,
+      String testingPhase,
+      String systemTestLabel,
       String priorityLevel,
       String bugStatus,
       String category,
@@ -580,7 +598,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       LocalDateTime closedAt) {
     IssueScopeContext scopeContext() {
       return new IssueScopeContext(
-          projectId, projectName, milestoneTitle, "", "", createdAt, labels);
+          projectId, projectName, milestoneTitle, testingPhase, systemTestLabel, createdAt, labels);
     }
 
     boolean open() {

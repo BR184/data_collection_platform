@@ -28,6 +28,7 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.sql.ResultSet;
@@ -119,6 +120,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public CustomerIssueDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -127,7 +129,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       FactBuildService factBuildService,
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
-      StatisticIssueLinkSupport issueLinkSupport) {
+      StatisticIssueLinkSupport issueLinkSupport,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
     this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
@@ -135,6 +138,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
+    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   @Override
@@ -155,7 +159,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         "",
         "",
         "模块",
-        List.of(StatisticFilterFieldFactory.select(MILESTONE_FIELD, "里程碑", 220, milestoneOptions)),
+        List.of(
+            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
+            StatisticFilterFieldFactory.select(MILESTONE_FIELD, "里程碑", 220, milestoneOptions)),
         List.of(
             StatisticColumnGroup.withChildren(
                 "requirement-problem",
@@ -436,9 +442,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.customerDefaultExcluded()).toList();
     List<IssueSource> milestoneFiltered =
         valid.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
-    List<IssueSource> withReason = milestoneFiltered.stream().filter(IssueSource::hasDefectCause).toList();
+    List<IssueSource> phaseFiltered =
+        milestoneFiltered.stream().filter(issue -> matchesTestingPhase(issue, filterGroup)).toList();
+    List<IssueSource> withReason = phaseFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
-        milestoneFiltered,
+        phaseFiltered,
         withReason,
         List.of(
             StatisticRuleFlowSupport.step(
@@ -474,10 +482,18 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "testing-phase-filter",
+                "应用测试阶段切换",
+                "根据页面顶部选择的测试阶段父级收口客户问题里程碑；未选择时保留当前里程碑范围。",
+                milestoneFiltered.size(),
+                phaseFiltered,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "reason-category-filter",
                 "保留已识别原因",
                 "只保留评论文本中命中老平台缺陷原因字段的议题，原因个数按字段命中数计算。",
-                milestoneFiltered.size(),
+                phaseFiltered.size(),
                 withReason,
                 this::toRuleFlowSample
             )));
@@ -697,6 +713,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       case "eq" -> condition.value().equals(issue.milestoneTitle());
       default -> true;
     };
+  }
+
+  private boolean matchesTestingPhase(IssueSource issue, StatisticFilterGroup filterGroup) {
+    return CustomerIssueTestingPhaseFilterSupport.matches(
+        issue.milestoneTitle(), issue.testingPhase(), filterGroup, phaseScopeResolver);
   }
 
   private Map<String, String> appliedFilters(
