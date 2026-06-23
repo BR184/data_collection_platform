@@ -114,11 +114,7 @@ final class StatisticFilterGroupSupport {
       String value = trimToNull(condition.value());
       String secondaryValue = trimToNull(condition.secondaryValue());
       if (condition.usesLabelGroup()) {
-        if (!Boolean.TRUE.equals(field.labelGroupEnabled())) {
-          throw new IllegalArgumentException(
-              "Field does not support label group filters: " + field.key());
-        }
-        if (!isLabelGroupSetOperator(operator)) {
+        if (!isLabelGroupOperator(operator)) {
           throw new IllegalArgumentException(
               "Unsupported label group operator for field " + field.key() + ": " + condition.operator());
         }
@@ -166,7 +162,12 @@ final class StatisticFilterGroupSupport {
         || "intersects".equals(operator)
         || "notIntersects".equals(operator)
         || "containsAll".equals(operator)
-        || "notContainsAll".equals(operator);
+        || "notContainsAll".equals(operator)
+        || "partialContainsAny".equals(operator);
+  }
+
+  private static boolean isLabelGroupOperator(String operator) {
+    return isLabelGroupSetOperator(operator);
   }
 
   private static String normalizeLabelGroupOperator(String operator) {

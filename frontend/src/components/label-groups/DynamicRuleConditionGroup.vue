@@ -82,7 +82,11 @@ function operatorOptions(condition: RuleConditionFormState): RecordTableFilterOp
     return numberOperatorOptions();
   }
   const field = currentField(condition);
-  return (field?.operators ?? []).map((operator) => ({ label: operatorLabel(operator), value: operator }));
+  return (field?.operators ?? []).map((operator) => ({
+    label: operatorLabel(operator),
+    value: operator,
+    variant: 'normal',
+  }));
 }
 
 function addCondition() {

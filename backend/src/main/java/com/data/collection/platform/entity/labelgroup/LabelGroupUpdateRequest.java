@@ -5,6 +5,8 @@ import java.util.List;
 public record LabelGroupUpdateRequest(
     String name,
     String groupType,
+    String applicableScope,
+    String sourceFieldKey,
     String description,
     Boolean enabled,
     List<LabelGroupMemberRequest> members,

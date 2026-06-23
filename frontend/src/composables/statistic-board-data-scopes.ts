@@ -41,15 +41,14 @@ const SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER: DataScopeProvider = {
 
 const SYSTEM_TEST_PARENT_SCOPE_PROVIDER: DataScopeProvider = {
   id: 'system-test-parent-phase',
-  label: '里程碑',
+  label: '测试阶段',
   queryKey: 'testingPhase',
   mode: 'single-select',
-  placeholder: '全部里程碑',
-  emptyLabel: '全部里程碑',
+  placeholder: '选择测试阶段',
   defaultStrategy: 'first-available',
-  clearable: true,
+  clearable: false,
   compact: true,
-  summaryPrefix: '当前里程碑',
+  summaryPrefix: '当前测试阶段',
 };
 
 const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {

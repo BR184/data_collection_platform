@@ -56,6 +56,8 @@
 
 ## 4. 建议实现落点
 
+> 2026-06-23 更新：本节 §4.1 的“逐字段 `labelGroupEnabled` 作为允许与否的闸门”已被 `docs/plans/2026-06-10-label-group-value-set-design.md`（2026-06-23 修订）取代。现在默认所有字段都能用匹配 `valueType` 的标签组，是否可用由“字段值类型 + 标签组 `applicable_scope`（SAME_TYPE/SAME_FIELD）”决定；`labelGroupEnabled` 若保留，仅作前端渲染/候选提示，不作判据。本节其余落点（默认模块范围标签组、后端展开、管理入口）仍有效。
+
 ### 4.1 字段元数据
 
 统计板后端字段定义需要返回：

@@ -74,6 +74,7 @@ def filter_options() -> dict[str, Any]:
     return {
         "projectNames": [],
         "moduleNames": [],
+        "functionNames": [],
         "testingPhases": [],
         "authorNames": [],
         "assigneeNames": [],

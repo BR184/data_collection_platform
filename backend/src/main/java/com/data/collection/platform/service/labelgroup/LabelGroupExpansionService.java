@@ -24,6 +24,8 @@ public class LabelGroupExpansionService {
         && !expectedValueType.equals(expanded.valueType())) {
       throw new BizException("字段值类型与标签组值类型不兼容");
     }
+    LabelGroupRecord group = labelGroupService.requireGroup(groupId);
+    validateApplicableScope(group, fieldKey);
 
     LinkedHashSet<String> values = new LinkedHashSet<>(expanded.values());
     if (isClosureStatusField(fieldKey, pageKey) && values.contains("需求如此")) {
@@ -47,5 +49,36 @@ public class LabelGroupExpansionService {
   private boolean isClosureStatusField(String fieldKey, String pageKey) {
     return "closure_status".equals(fieldKey)
         || ("bugStatus".equals(fieldKey) && "customer-issues-cc-product-issues".equals(pageKey));
+  }
+
+  private void validateApplicableScope(LabelGroupRecord group, String fieldKey) {
+    String scope = group.applicableScope();
+    if (!"SAME_FIELD".equalsIgnoreCase(scope)) {
+      return;
+    }
+    String sourceFieldKey = group.sourceFieldKey();
+    String normalizedFieldKey = fieldKey == null ? null : fieldKey.trim();
+    if (normalizedFieldKey == null || sourceFieldKey == null) {
+      throw new BizException("SAME_FIELD 标签组必须指定来源字段");
+    }
+    if (!sameFieldKey(sourceFieldKey, normalizedFieldKey)) {
+      throw new BizException("当前字段不能使用该标签组");
+    }
+  }
+
+  private boolean sameFieldKey(String left, String right) {
+    return normalizeFieldKey(left).equals(normalizeFieldKey(right));
+  }
+
+  private String normalizeFieldKey(String key) {
+    String normalized = key == null ? "" : key.trim();
+    return switch (normalized) {
+      case "模块", "模块名", "模块名称", "module", "moduleName", "moduleNames" -> "moduleName";
+      case "评审负责人", "reviewOwner" -> "reviewOwner";
+      case "评审专家", "reviewExpert" -> "reviewExpert";
+      case "项目", "projectName" -> "projectName";
+      case "客户问题处理人", "customer_assignee", "issue_assignee", "assigneeName" -> "assigneeName";
+      default -> normalized;
+    };
   }
 }

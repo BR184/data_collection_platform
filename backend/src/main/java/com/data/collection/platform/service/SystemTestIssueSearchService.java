@@ -28,6 +28,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
       Map.ofEntries(
+          Map.entry("title", "STRING"),
           Map.entry("projectName", "STRING"),
           Map.entry("moduleName", "STRING"),
           Map.entry("functionName", "STRING"),
@@ -86,6 +87,10 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
     List<String> resolvedTestingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(request.testingPhases());
+    if (!request.testingPhases().isEmpty() && resolvedTestingPhases.isEmpty()) {
+      return new SystemTestIssueSearchListResponse(
+          List.of(), 0, safePage, safeSize, safeSortField, safeSortOrder);
+    }
 
     if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =

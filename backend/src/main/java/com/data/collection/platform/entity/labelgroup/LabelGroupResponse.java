@@ -8,6 +8,8 @@ public record LabelGroupResponse(
     String name,
     String valueType,
     String groupType,
+    String applicableScope,
+    String sourceFieldKey,
     String description,
     boolean enabled,
     int memberCount,

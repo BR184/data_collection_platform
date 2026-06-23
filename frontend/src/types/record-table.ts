@@ -13,6 +13,7 @@ export interface RecordTableLinkValue {
 export interface RecordTableFilterOption {
   label: string;
   value: string;
+  variant?: 'normal' | 'label-group';
 }
 
 export type RecordTableFilterType = 'input' | 'select' | 'daterange';

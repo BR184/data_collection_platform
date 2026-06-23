@@ -24,19 +24,29 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
 
   @Override
   public LabelGroupRecord createGroup(
-      String name, String valueType, String groupType, String description, String username) {
+      String name,
+      String valueType,
+      String groupType,
+      String applicableScope,
+      String sourceFieldKey,
+      String description,
+      String username) {
     GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("name", name)
             .addValue("valueType", valueType)
             .addValue("groupType", groupType)
+            .addValue("applicableScope", applicableScope)
+            .addValue("sourceFieldKey", sourceFieldKey)
             .addValue("description", description)
             .addValue("username", username);
     jdbcTemplate.update(
         """
-        insert into label_groups (name, value_type, group_type, description, created_by, updated_by)
-        values (:name, :valueType, :groupType, :description, :username, :username)
+        insert into label_groups
+          (name, value_type, group_type, applicable_scope, source_field_key, description, created_by, updated_by)
+        values
+          (:name, :valueType, :groupType, :applicableScope, :sourceFieldKey, :description, :username, :username)
         """,
         params,
         keyHolder,
@@ -118,6 +128,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         loadGroups(
             """
             select id, name, value_type, group_type, description, enabled,
+                   applicable_scope, source_field_key,
                    created_by, created_at, updated_by, updated_at
             from label_groups
             where id = :groupId
@@ -132,6 +143,7 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         new StringBuilder(
             """
             select id, name, value_type, group_type, description, enabled,
+                   applicable_scope, source_field_key,
                    created_by, created_at, updated_by, updated_at
             from label_groups
             where 1 = 1
@@ -181,6 +193,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
       String name,
       String valueType,
       String groupType,
+      String applicableScope,
+      String sourceFieldKey,
       String description,
       boolean enabled,
       String username) {
@@ -190,6 +204,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         set name = :name,
             value_type = :valueType,
             group_type = :groupType,
+            applicable_scope = :applicableScope,
+            source_field_key = :sourceFieldKey,
             description = :description,
             enabled = :enabled,
             updated_by = :username,
@@ -201,6 +217,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
             .addValue("name", name)
             .addValue("valueType", valueType)
             .addValue("groupType", groupType)
+            .addValue("applicableScope", applicableScope)
+            .addValue("sourceFieldKey", sourceFieldKey)
             .addValue("description", description)
             .addValue("enabled", enabled)
             .addValue("username", username));
@@ -277,6 +295,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
             group.name(),
             group.valueType(),
             group.groupType(),
+            group.applicableScope(),
+            group.sourceFieldKey(),
             group.description(),
             group.enabled(),
             group.createdBy(),
@@ -300,6 +320,8 @@ class JdbcLabelGroupRepository implements LabelGroupRepository {
         rs.getString("name"),
         rs.getString("value_type"),
         rs.getString("group_type"),
+        rs.getString("applicable_scope"),
+        rs.getString("source_field_key"),
         rs.getString("description"),
         rs.getBoolean("enabled"),
         rs.getString("created_by"),

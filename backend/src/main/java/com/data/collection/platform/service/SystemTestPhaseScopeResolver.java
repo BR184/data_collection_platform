@@ -28,7 +28,12 @@ public class SystemTestPhaseScopeResolver {
       return List.of();
     }
     List<String> configuredPhases = phaseCatalogService.listTestingPhasesByParent(projectId, normalized);
-    return configuredPhases.isEmpty() ? List.of(normalized) : configuredPhases;
+    if (!configuredPhases.isEmpty()) {
+      return configuredPhases;
+    }
+    return phaseCatalogService.isConfiguredTestingPhase(projectId, normalized)
+        ? List.of(normalized)
+        : List.of();
   }
 
   public List<String> resolvePhases(Long projectId, List<String> phaseOrParents) {

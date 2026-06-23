@@ -412,6 +412,15 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     if (safeExpected.stream().noneMatch(value -> trimToNull(value) != null)) {
       return false;
     }
+    if ("partialContainsAny".equals(operator)) {
+      return safeActual.stream()
+          .filter(value -> trimToNull(value) != null)
+          .anyMatch(
+              actual ->
+                  safeExpected.stream()
+                      .filter(value -> trimToNull(value) != null)
+                      .anyMatch(expected -> containsIgnoreCase(actual, expected)));
+    }
     boolean intersects =
         safeActual.stream()
             .filter(value -> trimToNull(value) != null)

@@ -569,6 +569,8 @@ create table if not exists label_groups (
     name varchar(100) not null,
     value_type varchar(32),
     group_type varchar(16) not null default 'STATIC',
+    applicable_scope varchar(16) not null default 'SAME_TYPE',
+    source_field_key varchar(100),
     description varchar(500),
     enabled boolean not null default true,
     created_by varchar(100),
@@ -576,6 +578,7 @@ create table if not exists label_groups (
     updated_by varchar(100),
     updated_at timestamptz not null default now(),
     constraint ck_label_groups_type check (group_type in ('STATIC', 'DYNAMIC', 'COMPOSITE')),
+    constraint ck_label_groups_scope check (applicable_scope in ('SAME_TYPE', 'SAME_FIELD')),
     constraint uk_label_groups_name unique (name)
 );
 

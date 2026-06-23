@@ -5,7 +5,13 @@ import java.util.Optional;
 
 public interface LabelGroupRepository {
   LabelGroupRecord createGroup(
-      String name, String valueType, String groupType, String description, String username);
+      String name,
+      String valueType,
+      String groupType,
+      String applicableScope,
+      String sourceFieldKey,
+      String description,
+      String username);
 
   void replaceMembers(Long groupId, List<LabelGroupMemberRecord> members);
 
@@ -24,6 +30,8 @@ public interface LabelGroupRepository {
       String name,
       String valueType,
       String groupType,
+      String applicableScope,
+      String sourceFieldKey,
       String description,
       boolean enabled,
       String username);

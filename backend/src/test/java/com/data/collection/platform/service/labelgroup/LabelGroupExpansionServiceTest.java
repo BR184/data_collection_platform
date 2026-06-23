@@ -86,6 +86,7 @@ class LabelGroupExpansionServiceTest {
         "测试组",
         valueType,
         "STATIC",
+        "SAME_TYPE",
         null,
         enabled,
         "system",

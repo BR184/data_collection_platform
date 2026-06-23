@@ -212,7 +212,7 @@ function normalizeRoutePersistedOperator(
   valueType?: string | null,
 ): StatisticFilterOperator {
   if (valueType === 'LABEL_GROUP') {
-    return normalizeLabelGroupOperator(operator);
+    return operator === 'partialContainsAny' ? 'partialContainsAny' : normalizeLabelGroupOperator(operator);
   }
   return operator || 'eq';
 }
@@ -221,7 +221,10 @@ function normalizeRouteDraftOperator(
   operator: StatisticFilterOperator | '',
   valueType?: string | null,
 ): StatisticFilterOperator | '' {
-  return valueType === 'LABEL_GROUP' ? normalizeLabelGroupOperator(operator) : operator;
+  if (valueType === 'LABEL_GROUP') {
+    return operator === 'partialContainsAny' ? 'partialContainsAny' : normalizeLabelGroupOperator(operator);
+  }
+  return operator;
 }
 
 function normalizeRouteScalar(value: string | number | null | undefined) {

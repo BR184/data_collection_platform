@@ -107,11 +107,13 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         :collapse-tags="false"
         :collapse-tags-tooltip="false"
         :loading="loading"
-        :disabled="disabled || !dimensionKey"
+        :disabled="disabled"
+        allow-create
+        default-first-option
         fit-input-width
         :remote-method="loadCandidates"
         popper-class="label-member-picker-dropdown smart-select-dropdown smart-select-dropdown--compact smart-select-dropdown--compact-multiple"
-        :placeholder="dimensionKey ? '搜索并选择候选成员' : '请先选择候选来源，再搜索选择成员'"
+        :placeholder="dimensionKey ? '搜索并选择候选成员，也可直接输入' : '直接输入成员，或先选择候选来源再搜索'"
         no-data-text="暂无可选标签值"
         no-match-text="未找到匹配的标签值"
       >
@@ -129,7 +131,7 @@ function defaultFetchValues(dimensionKey: string, searchKeyword: string) {
         </el-option>
       </el-select>
       <div class="label-member-picker-foot">
-        <span>{{ dimensionKey ? `已选 ${modelValue.length} 个成员` : '请选择候选来源后添加成员' }}</span>
+        <span>已选 {{ modelValue.length }} 个成员</span>
         <span v-if="unavailableMembers.length" class="label-member-warning">
           {{ unavailableMembers.length }} 个成员当前数据中暂无命中
         </span>

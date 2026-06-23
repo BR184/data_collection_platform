@@ -106,6 +106,10 @@ function isOptionSelected(value: string) {
 function isLabelGroupOption(value: string) {
   return value.startsWith('__label_group__:');
 }
+
+function optionVariant(option: RecordTableFilterOption) {
+  return option.variant ?? (isLabelGroupOption(option.value) ? 'label-group' : 'normal');
+}
 </script>
 
 <template>
@@ -135,7 +139,8 @@ function isLabelGroupOption(value: string) {
       :value="option.value"
       :class="{
         'smart-select-option-item--selected': isOptionSelected(option.value),
-        'smart-select-option-item--label-group': isLabelGroupOption(option.value),
+        'smart-select-option-item--normal': optionVariant(option) === 'normal',
+        'smart-select-option-item--label-group': optionVariant(option) === 'label-group',
       }"
     >
       <div class="smart-select-option">
@@ -223,6 +228,22 @@ function isLabelGroupOption(value: string) {
   color: #fff !important;
   font-weight: 400 !important;
   box-shadow: 0 6px 14px rgba(37, 99, 235, 0.18);
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--normal,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--normal {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(239, 246, 255, 0.74);
+  color: #1d4ed8;
+}
+
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--normal.hover,
+.smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--normal:hover,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--normal.hover,
+.smart-select-dropdown--compact .el-select-dropdown__item.smart-select-option-item--normal:hover {
+  border-color: rgba(37, 99, 235, 0.36);
+  background: rgba(219, 234, 254, 0.86);
+  color: #1e40af;
 }
 
 .smart-select-dropdown .el-select-dropdown__item.smart-select-option-item--label-group,

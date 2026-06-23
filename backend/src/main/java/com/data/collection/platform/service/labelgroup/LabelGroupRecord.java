@@ -8,6 +8,8 @@ record LabelGroupRecord(
     String name,
     String valueType,
     String groupType,
+    String applicableScope,
+    String sourceFieldKey,
     String description,
     boolean enabled,
     String createdBy,

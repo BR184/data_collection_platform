@@ -19,6 +19,10 @@ final class SystemTestPhaseFilterSupport {
       SystemTestPhaseFilterSource source,
       StatisticFilterGroup filterGroup,
       SystemTestPhaseScopeResolver phaseScopeResolver) {
+    if (phaseScopeResolver != null
+        && !matchesConfiguredWhitelist(source.phaseLabel(), phaseScopeResolver)) {
+      return false;
+    }
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return true;
     }
@@ -89,6 +93,13 @@ final class SystemTestPhaseFilterSupport {
     return value == null
         || (StringUtils.hasText(phaseCandidate)
             && phaseScopeResolver.matchesLegacyCrownCadPhase(phaseCandidate, value));
+  }
+
+  private static boolean matchesConfiguredWhitelist(
+      String phaseCandidate,
+      SystemTestPhaseScopeResolver phaseScopeResolver) {
+    return StringUtils.hasText(phaseCandidate)
+        && phaseScopeResolver.matchesLegacyCrownCadPhase(phaseCandidate, phaseCandidate);
   }
 
   private static String trimToEmpty(String value) {

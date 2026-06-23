@@ -10,6 +10,7 @@ import com.data.collection.platform.entity.labelgroup.LabelGroupCreateRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupDynamicRuleRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupMemberRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupResponse;
+import com.data.collection.platform.entity.labelgroup.LabelGroupRuleConfigRequest;
 import com.data.collection.platform.entity.labelgroup.LabelGroupUpdateRequest;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -23,11 +24,21 @@ import org.junit.jupiter.api.Test;
 class LabelGroupServiceTest {
   private InMemoryLabelGroupRepository repository;
   private LabelGroupService service;
+  private LabelGroupDynamicRuleEvaluationService evaluationService;
 
   @BeforeEach
   void setUp() {
     repository = new InMemoryLabelGroupRepository();
-    service = new LabelGroupService(repository, null);
+    evaluationService = mock(LabelGroupDynamicRuleEvaluationService.class);
+    when(evaluationService.outputValueType(org.mockito.ArgumentMatchers.any()))
+        .thenReturn("STRING");
+    when(evaluationService.serializeRuleConfig(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> ((LabelGroupRuleConfigRequest) invocation.getArgument(0)).outputFieldKey());
+    when(evaluationService.parseRuleConfig(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(invocation -> dynamicRuleConfig(invocation.getArgument(0)));
+    when(evaluationService.materializeMembers(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> materializedMembers((LabelGroupRuleConfigRequest) invocation.getArgument(0)));
+    service = new LabelGroupService(repository, evaluationService);
   }
 
   @Test
@@ -37,6 +48,8 @@ class LabelGroupServiceTest {
             new LabelGroupCreateRequest(
                 "核心人员",
                 "STATIC",
+                null,
+                null,
                 "常用人员字符串集合",
                 List.of(member("张三"), member("李四")),
                 List.of(),
@@ -129,8 +142,8 @@ class LabelGroupServiceTest {
 
     assertThat(dynamic.valueType()).isEqualTo("STRING");
     assertThat(dynamic.dynamicRule()).isNotNull();
-    assertThat(dynamic.dynamicRule().ruleTemplateKey()).isEqualTo("recent-active-assignee");
-    assertThat(dynamic.dynamicRule().ruleParamsJson()).isEqualTo("{\"days\":30}");
+    assertThat(dynamic.dynamicRule().ruleConfig().outputSourceKey()).isEqualTo("review-records");
+    assertThat(dynamic.dynamicRule().ruleConfig().outputFieldKey()).isEqualTo("recent-active-assignee");
     assertThat(dynamic.expandedPreview()).isEmpty();
   }
 
@@ -142,10 +155,11 @@ class LabelGroupServiceTest {
                 "最近活跃处理人",
                 "DYNAMIC",
                 null,
+                null,
+                null,
                 List.of(),
                 List.of(),
-                new LabelGroupDynamicRuleRequest(
-                    "recent-active-assignee", "{\"days\":30,\"scope\":\"system-test\"}")));
+                new LabelGroupDynamicRuleRequest(dynamicRuleConfig("recent-active-assignee"))));
 
     assertThat(dynamic.valueType()).isEqualTo("STRING");
     assertThat(dynamic.members()).isEmpty();
@@ -156,8 +170,12 @@ class LabelGroupServiceTest {
   void shouldMarkDynamicRuleComputedWhenMaterializingMembers() {
     LabelGroupDynamicRuleEvaluationService evaluationService =
         mock(LabelGroupDynamicRuleEvaluationService.class);
-    when(evaluationService.outputValueType("recent-active-assignee")).thenReturn("STRING");
-    when(evaluationService.materializeMembers("recent-active-assignee", "{\"days\":30}"))
+    when(evaluationService.outputValueType(org.mockito.ArgumentMatchers.any())).thenReturn("STRING");
+    when(evaluationService.serializeRuleConfig(org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(invocation -> ((LabelGroupRuleConfigRequest) invocation.getArgument(0)).outputFieldKey());
+    when(evaluationService.parseRuleConfig(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(invocation -> dynamicRuleConfig(invocation.getArgument(0)));
+    when(evaluationService.materializeMembers(org.mockito.ArgumentMatchers.any()))
         .thenReturn(List.of(new LabelGroupMemberRecord(null, null, "张三", "张三", 0)));
     LabelGroupService dynamicService = new LabelGroupService(repository, evaluationService);
 
@@ -209,6 +227,8 @@ class LabelGroupServiceTest {
                         "A",
                         "STATIC",
                         null,
+                        null,
+                        null,
                         true,
                         List.of(member("张三")),
                         List.of(groupB.id()),
@@ -251,7 +271,7 @@ class LabelGroupServiceTest {
 
   private LabelGroupCreateRequest request(
       String name, String groupType, List<LabelGroupMemberRequest> members, List<Long> childGroupIds) {
-    return new LabelGroupCreateRequest(name, groupType, null, members, childGroupIds, null);
+    return new LabelGroupCreateRequest(name, groupType, null, null, null, members, childGroupIds, null);
   }
 
   private LabelGroupCreateRequest dynamicRequest(
@@ -260,13 +280,38 @@ class LabelGroupServiceTest {
         name,
         "DYNAMIC",
         null,
+        null,
+        null,
         members,
         List.of(),
-        new LabelGroupDynamicRuleRequest(templateKey, "{\"days\":30}"));
+        new LabelGroupDynamicRuleRequest(dynamicRuleConfig(templateKey)));
   }
 
   private LabelGroupMemberRequest member(String value) {
     return new LabelGroupMemberRequest(value, value);
+  }
+
+  private static LabelGroupRuleConfigRequest dynamicRuleConfig(String outputFieldKey) {
+    return new LabelGroupRuleConfigRequest(
+        "review-records",
+        outputFieldKey,
+        Boolean.TRUE,
+        null,
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        List.of(),
+        50);
+  }
+
+  private static List<LabelGroupMemberRecord> materializedMembers(LabelGroupRuleConfigRequest ruleConfig) {
+    if (ruleConfig != null && ruleConfig.outputFieldKey() != null && ruleConfig.outputFieldKey().contains("未声明")) {
+      return List.of(new LabelGroupMemberRecord(null, null, "张三", "张三", 0));
+    }
+    return List.of();
   }
 
   private static final class InMemoryLabelGroupRepository implements LabelGroupRepository {
@@ -277,7 +322,13 @@ class LabelGroupServiceTest {
 
     @Override
     public LabelGroupRecord createGroup(
-        String name, String valueType, String groupType, String description, String username) {
+        String name,
+        String valueType,
+        String groupType,
+        String applicableScope,
+        String sourceFieldKey,
+        String description,
+        String username) {
       Long id = nextId++;
       LabelGroupRecord group =
           new LabelGroupRecord(
@@ -285,6 +336,8 @@ class LabelGroupServiceTest {
               name,
               valueType,
               groupType,
+              applicableScope,
+              sourceFieldKey,
               description,
               true,
               username,
@@ -334,8 +387,7 @@ class LabelGroupServiceTest {
               : new LabelGroupDynamicRuleRecord(
                   nextDynamicRuleId++,
                   groupId,
-                  rule.ruleTemplateKey(),
-                  rule.ruleParamsJson(),
+                  rule.ruleConfigJson(),
                   rule.outputValueType(),
                   rule.lastStatus(),
                   rule.lastError(),
@@ -369,6 +421,8 @@ class LabelGroupServiceTest {
         String name,
         String valueType,
         String groupType,
+        String applicableScope,
+        String sourceFieldKey,
         String description,
         boolean enabled,
         String username) {
@@ -380,6 +434,8 @@ class LabelGroupServiceTest {
               name,
               valueType,
               groupType,
+              applicableScope,
+              sourceFieldKey,
               description,
               enabled,
               group.createdBy(),
@@ -415,6 +471,8 @@ class LabelGroupServiceTest {
           group.name(),
           group.valueType(),
           group.groupType(),
+          group.applicableScope(),
+          group.sourceFieldKey(),
           group.description(),
           group.enabled(),
           group.createdBy(),
@@ -433,6 +491,8 @@ class LabelGroupServiceTest {
           group.name(),
           group.valueType(),
           group.groupType(),
+          group.applicableScope(),
+          group.sourceFieldKey(),
           group.description(),
           group.enabled(),
           group.createdBy(),
@@ -451,6 +511,8 @@ class LabelGroupServiceTest {
           group.name(),
           group.valueType(),
           group.groupType(),
+          group.applicableScope(),
+          group.sourceFieldKey(),
           group.description(),
           group.enabled(),
           group.createdBy(),

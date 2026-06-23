@@ -24,6 +24,7 @@ import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
+import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.labelgroup.LabelGroupDefaultFilterService;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import java.util.ArrayList;
@@ -57,6 +58,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private final IssueFactBoardRuntimeSupport runtimeSupport;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final LabelGroupDefaultFilterService labelGroupDefaultFilterService;
   private final LabelGroupExpansionService labelGroupExpansionService;
 
@@ -65,12 +67,14 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       IssueFactBoardRuntimeSupport runtimeSupport,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
+      SystemTestPhaseScopeResolver phaseScopeResolver,
       LabelGroupDefaultFilterService labelGroupDefaultFilterService,
       LabelGroupExpansionService labelGroupExpansionService) {
     super(jsonUtils);
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
+    this.phaseScopeResolver = phaseScopeResolver;
     this.labelGroupDefaultFilterService = labelGroupDefaultFilterService;
     this.labelGroupExpansionService = labelGroupExpansionService;
   }
@@ -534,9 +538,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return List.of();
     }
     return phaseValueCache.computeIfAbsent(normalized, key -> {
-      List<String> configuredPhases =
-          phaseCatalogService.listTestingPhasesByParent(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID, key);
-      return configuredPhases.isEmpty() ? List.of(key) : configuredPhases;
+      return phaseScopeResolver.resolveLegacyCrownCadPhases(key);
     });
   }
 
@@ -553,6 +555,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private boolean matchesSetOperator(List<String> candidates, String operator, List<String> expectedValues) {
+    if ("partialContainsAny".equals(operator)) {
+      return matchesPartialContainsAny(candidates, expectedValues);
+    }
     Set<String> candidateSet = normalizedSet(candidates);
     Set<String> expectedSet = normalizedSet(expectedValues);
     boolean containsAll = candidateSet.containsAll(expectedSet);
@@ -564,6 +569,17 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       case "notContainsAll" -> !containsAll;
       default -> true;
     };
+  }
+
+  private boolean matchesPartialContainsAny(List<String> candidates, List<String> expectedValues) {
+    List<String> safeCandidates = candidates == null ? List.of() : candidates;
+    List<String> safeExpected = expectedValues == null ? List.of() : expectedValues;
+    return safeCandidates.stream()
+        .filter(value -> trimTextToNull(value) != null)
+        .anyMatch(candidate ->
+            safeExpected.stream()
+                .filter(value -> trimTextToNull(value) != null)
+                .anyMatch(expected -> containsIgnoreCase(candidate, expected)));
   }
 
   private Set<String> normalizedSet(List<String> values) {

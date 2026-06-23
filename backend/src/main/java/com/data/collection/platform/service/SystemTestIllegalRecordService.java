@@ -62,8 +62,11 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
     StatisticFilterGroup filterGroup =
         SystemTestPhaseFilterGroupExpander.expand(parsedFilterGroup, phaseScopeResolver);
-    List<String> resolvedTestingPhases =
-        phaseScopeResolver.resolveLegacyCrownCadPhases(request.testingPhase());
+    List<String> resolvedTestingPhases = resolvedRequestedPhaseOrWhitelist(request.testingPhase());
+    if (resolvedTestingPhases.isEmpty()) {
+      return new SystemTestIllegalRecordListResponse(
+          List.of(), 0, safePage, safeSize, safeSortField, safeSortOrder);
+    }
 
     if (canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
@@ -102,7 +105,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
             .filter(view -> matchesDisplayModule(view, listRequest.moduleName()))
-            .filter(view -> matchesTestingPhase(view, request.testingPhase()))
+            .filter(view -> matchesTestingPhase(view, resolvedTestingPhases))
             .filter(view -> matchesIllegalReason(view, request.illegalReason()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
@@ -382,6 +385,10 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return phaseScopeResolver.matchesLegacyCrownCadPhase(view.primaryPhaseLabel(), testingPhase);
   }
 
+  private boolean matchesTestingPhase(IssueFactRecord view, List<String> testingPhases) {
+    return phaseScopeResolver.matchesLegacyCrownCadPhases(view.primaryPhaseLabel(), testingPhases);
+  }
+
   private boolean matchesIllegalReason(IssueFactRecord view, String illegalReason) {
     String normalizedExpected = SystemTestIllegalReasonSupport.normalize(illegalReason);
     return normalizedExpected == null || displayIllegalReasons(view).contains(normalizedExpected);
@@ -403,6 +410,14 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
 
   private Long defaultProjectId(Long projectId) {
     return projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId;
+  }
+
+  private List<String> resolvedRequestedPhaseOrWhitelist(String testingPhase) {
+    String normalized = TextQuerySupport.trimToNull(testingPhase);
+    if (normalized != null) {
+      return phaseScopeResolver.resolveLegacyCrownCadPhases(normalized);
+    }
+    return phaseScopeResolver.resolveLegacyCrownCadPhases(phaseScopeOptions());
   }
 
   private List<String> phaseScopeOptions() {

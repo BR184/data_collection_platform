@@ -4,7 +4,7 @@
 <!-- DOC_STATUS_END -->
 
 # Markdown 状态索引
-更新日期：2026-06-22
+更新日期：2026-06-23
 
 ## 范围
 
@@ -65,6 +65,7 @@
 | `docs/plans/2026-06-01-project-wide-user-journey-test-report.md` | 发布级用户旅程测试报告 / 已转修复方案 | 本地浏览器发布级用户路径测试报告；问题已转入 `docs/plans/2026-06-01-user-journey-test-fixes-plan.md` 跟踪修复。 |
 | `docs/plans/2026-06-01-user-journey-test-fixes-plan.md` | 待实施修复方案 | 针对用户旅程测试报告的代码级修复方案：健康检查 endpoint、同源文案对齐、游客态质量看板请求策略、窄屏登录、镜像设置离页草稿保护、全量同步二次确认（待复测）。仅方案未改代码。 |
 | `docs/plans/2026-06-01-sync-source-duplication-log-scroll-compensation-investigation.md` | 已实施并验证 | 同源保护、同步日志滚动条、补偿 planning/缓存优化已落地并通过相关测试。 |
+| `docs/plans/2026-06-10-label-group-value-set-design.md` | 常驻设计入口 / 2026-06-23 修订 | 标签组能力唯一设计入口。2026-06-23 修订：适用范围默认全开、组级 applicableScope（SAME_TYPE/SAME_FIELD）、成员允许手动输入、新增 partialContainsAny 关系、标签组入口前移到“关系”控件并以颜色区分去前缀。 |
 | `docs/platform-auth-security.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/archive/completed/local-gitlab-old-new-comparison-20260602.md` | 历史对比 / 已归档 | 老新平台阶段性对比记录，保留作追溯。 |
 | `docs/archive/completed/old-new-visible-diffs-and-full-chain-comparison-20260603.md` | 历史对比 / 已归档 | 老新平台可见差异和全链路对比记录，保留作追溯。 |

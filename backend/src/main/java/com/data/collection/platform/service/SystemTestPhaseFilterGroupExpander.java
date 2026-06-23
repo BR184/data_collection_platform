@@ -31,9 +31,6 @@ public final class SystemTestPhaseFilterGroupExpander {
       return condition;
     }
     List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(condition.value());
-    if (phases.isEmpty()) {
-      return condition;
-    }
     return new StatisticFilterCondition(
         condition.fieldKey(),
         condition.operator(),

@@ -19,6 +19,8 @@ describe('label group settings helpers', () => {
       id: null,
       name: '',
       groupType: 'STATIC',
+      applicableScope: 'SAME_TYPE',
+      sourceFieldKey: '',
       description: '',
       enabled: true,
       members: [],
@@ -73,6 +75,8 @@ describe('label group settings helpers', () => {
     expect(buildLabelGroupSaveRequest(form)).toEqual({
       name: '核心人员',
       groupType: 'STATIC',
+      applicableScope: 'SAME_TYPE',
+      sourceFieldKey: null,
       description: '常用人员',
       enabled: true,
       members: [{ value: '张三', label: '张三' }],

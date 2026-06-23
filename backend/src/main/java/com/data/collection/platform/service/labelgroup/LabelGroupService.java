@@ -63,6 +63,8 @@ public class LabelGroupService {
     String name = requireName(request.name());
     validateDuplicateName(name, null);
     String groupType = normalizeGroupType(request.groupType());
+    String applicableScope = normalizeApplicableScope(request.applicableScope());
+    String sourceFieldKey = normalizeSourceFieldKey(request.sourceFieldKey(), applicableScope);
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
     LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(null, request.dynamicRule());
@@ -70,11 +72,17 @@ public class LabelGroupService {
     dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
     valueType = defaultSystemGroupValueType(name, groupType, valueType, members, childGroups, dynamicRule);
-    validateStaticMembersComeFromCandidates(groupType, members);
-    validateGroupShape(null, name, groupType, valueType, members, childGroups, dynamicRule);
+    validateGroupShape(null, name, groupType, valueType, applicableScope, sourceFieldKey, members, childGroups, dynamicRule);
 
     LabelGroupRecord group =
-        repository.createGroup(name, valueType, groupType, trimToNull(request.description()), DEFAULT_USER);
+        repository.createGroup(
+            name,
+            valueType,
+            groupType,
+            applicableScope,
+            sourceFieldKey,
+            trimToNull(request.description()),
+            DEFAULT_USER);
     repository.replaceMembers(group.id(), members);
     repository.replaceReferences(group.id(), childGroups.stream().map(LabelGroupRecord::id).toList());
     repository.replaceDynamicRule(group.id(), dynamicRule);
@@ -87,6 +95,10 @@ public class LabelGroupService {
     String name = requireName(request.name());
     validateDuplicateName(name, groupId);
     String groupType = normalizeGroupType(request.groupType() == null ? existing.groupType() : request.groupType());
+    String applicableScope = normalizeApplicableScope(request.applicableScope() == null ? existing.applicableScope() : request.applicableScope());
+    String sourceFieldKey = normalizeSourceFieldKey(
+        request.sourceFieldKey() == null ? existing.sourceFieldKey() : request.sourceFieldKey(),
+        applicableScope);
     List<LabelGroupMemberRecord> members = normalizeMembers(request.members());
     List<LabelGroupRecord> childGroups = loadChildGroups(request.childGroupIds());
     LabelGroupDynamicRuleRecord dynamicRule = normalizeDynamicRule(groupId, request.dynamicRule());
@@ -94,8 +106,7 @@ public class LabelGroupService {
     dynamicRule = markDynamicRuleComputed(groupType, dynamicRule);
     String valueType = inferGroupValueType(members, childGroups, dynamicRule);
     valueType = defaultSystemGroupValueType(name, groupType, valueType, members, childGroups, dynamicRule);
-    validateStaticMembersComeFromCandidates(groupType, members);
-    validateGroupShape(groupId, name, groupType, valueType, members, childGroups, dynamicRule);
+    validateGroupShape(groupId, name, groupType, valueType, applicableScope, sourceFieldKey, members, childGroups, dynamicRule);
     boolean enabled = request.enabled() == null ? existing.enabled() : request.enabled();
 
     repository.updateGroup(
@@ -103,6 +114,8 @@ public class LabelGroupService {
         name,
         valueType,
         groupType,
+        applicableScope,
+        sourceFieldKey,
         trimToNull(request.description()),
         enabled,
         DEFAULT_USER);
@@ -242,6 +255,8 @@ public class LabelGroupService {
       String groupName,
       String groupType,
       String valueType,
+      String applicableScope,
+      String sourceFieldKey,
       List<LabelGroupMemberRecord> members,
       List<LabelGroupRecord> childGroups,
       LabelGroupDynamicRuleRecord dynamicRule) {
@@ -260,6 +275,7 @@ public class LabelGroupService {
     if (!TYPE_DYNAMIC.equals(groupType) && dynamicRule != null) {
       throw new BizException("只有动态标签组可以配置动态规则");
     }
+    validateApplicableScope(applicableScope, sourceFieldKey, valueType);
     if (TYPE_DYNAMIC.equals(groupType) && !childGroups.isEmpty()) {
       throw new BizException("动态标签组不能直接保存子标签组引用");
     }
@@ -289,22 +305,6 @@ public class LabelGroupService {
     }
     if (expandedCount > MAX_MEMBER_COUNT) {
       throw new BizException("标签组展开后超过 200 个值，请拆分后保存");
-    }
-  }
-
-  private void validateStaticMembersComeFromCandidates(
-      String groupType, List<LabelGroupMemberRecord> members) {
-    if (!TYPE_STATIC.equals(groupType) || members.isEmpty() || labelValueQueryServiceProvider == null) {
-      return;
-    }
-    LabelValueQueryService labelValueQueryService = labelValueQueryServiceProvider.getIfAvailable();
-    if (labelValueQueryService == null) {
-      return;
-    }
-    for (LabelGroupMemberRecord member : members) {
-      if (!labelValueQueryService.existsStaticCandidateValue(member.memberValue())) {
-        throw new BizException("标签组成员必须来自候选来源：" + member.memberValue());
-      }
     }
   }
 
@@ -500,6 +500,8 @@ public class LabelGroupService {
         group.name(),
         group.valueType(),
         group.groupType(),
+        group.applicableScope(),
+        group.sourceFieldKey(),
         group.description(),
         group.enabled(),
         expanded == null ? members.size() : expanded.values().size(),
@@ -541,6 +543,53 @@ public class LabelGroupService {
   private String normalizeValueType(String value) {
     String valueType = trimToNull(value);
     return valueType == null ? null : valueType.toUpperCase(Locale.ROOT);
+  }
+
+  private String normalizeApplicableScope(String value) {
+    String scope = trimToNull(value);
+    if (scope == null) {
+      return "SAME_TYPE";
+    }
+    scope = scope.toUpperCase(Locale.ROOT);
+    if (!Set.of("SAME_TYPE", "SAME_FIELD").contains(scope)) {
+      throw new BizException("标签组适用范围不支持：" + value);
+    }
+    return scope;
+  }
+
+  private String normalizeSourceFieldKey(String value, String applicableScope) {
+    String sourceFieldKey = trimToNull(value);
+    if ("SAME_FIELD".equals(applicableScope)) {
+      if (sourceFieldKey == null) {
+        throw new BizException("SAME_FIELD 适用范围必须指定来源字段");
+      }
+      return normalizeSameFieldKey(sourceFieldKey);
+    }
+    return sourceFieldKey;
+  }
+
+  private void validateApplicableScope(String applicableScope, String sourceFieldKey, String valueType) {
+    if (valueType == null) {
+      return;
+    }
+    if ("SAME_FIELD".equals(applicableScope) && trimToNull(sourceFieldKey) == null) {
+      throw new BizException("SAME_FIELD 适用范围必须指定来源字段");
+    }
+  }
+
+  private String normalizeSameFieldKey(String value) {
+    String normalized = trimToNull(value);
+    if (normalized == null) {
+      return null;
+    }
+    return switch (normalized) {
+      case "模块", "模块名", "模块名称", "module", "moduleName", "moduleNames" -> "moduleName";
+      case "评审负责人", "reviewOwner" -> "reviewOwner";
+      case "评审专家", "reviewExpert" -> "reviewExpert";
+      case "项目", "project", "projectName" -> "projectName";
+      case "客户问题处理人", "customer_assignee", "issue_assignee", "assigneeName" -> "assigneeName";
+      default -> normalized;
+    };
   }
 
   private String requireText(String value, String message) {

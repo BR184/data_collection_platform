@@ -13,6 +13,7 @@ export type StatisticFilterOperator =
   | 'notIntersects'
   | 'containsAll'
   | 'notContainsAll'
+  | 'partialContainsAny'
   | 'isEmpty'
   | 'isNotEmpty'
   | 'gt'

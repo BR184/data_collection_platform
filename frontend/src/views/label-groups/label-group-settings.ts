@@ -14,6 +14,8 @@ export interface LabelGroupFormState {
   id: number | null;
   name: string;
   groupType: LabelGroupType;
+  applicableScope: 'SAME_TYPE' | 'SAME_FIELD';
+  sourceFieldKey: string;
   description: string;
   enabled: boolean;
   members: LabelGroupMember[];
@@ -109,6 +111,8 @@ export function createEmptyLabelGroupForm(): LabelGroupFormState {
     id: null,
     name: '',
     groupType: 'STATIC',
+    applicableScope: 'SAME_TYPE',
+    sourceFieldKey: '',
     description: '',
     enabled: true,
     members: [],
@@ -160,6 +164,8 @@ export function createLabelGroupForm(group: LabelGroup): LabelGroupFormState {
     id: group.id,
     name: group.name,
     groupType: group.groupType,
+    applicableScope: group.applicableScope === 'SAME_FIELD' ? 'SAME_FIELD' : 'SAME_TYPE',
+    sourceFieldKey: group.sourceFieldKey ?? '',
     description: group.description ?? '',
     enabled: group.enabled,
     members: group.members.map((member) => ({
@@ -204,6 +210,8 @@ export function buildLabelGroupSaveRequest(form: LabelGroupFormState): LabelGrou
   return {
     name: form.name.trim(),
     groupType: form.groupType,
+    applicableScope: form.applicableScope,
+    sourceFieldKey: form.applicableScope === 'SAME_FIELD' ? form.sourceFieldKey.trim() : null,
     description: form.description.trim() || null,
     enabled: form.enabled,
     members: form.groupType === 'COMPOSITE' || form.groupType === 'DYNAMIC'
@@ -267,6 +275,9 @@ export function validateLabelGroupForm(form: LabelGroupFormState) {
     if (ruleError) {
       return ruleError;
     }
+  }
+  if (form.applicableScope === 'SAME_FIELD' && !form.sourceFieldKey.trim()) {
+    return '请选择适用来源字段';
   }
   if (form.groupType === 'STATIC' && !form.members.length && !form.childGroupIds.length) {
     return '请选择标签组成员';

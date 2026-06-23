@@ -232,6 +232,9 @@ final class IssueFactFilterGroupSqlSupport {
 
   private static Optional<SqlPredicate> textCondition(
       String column, StatisticFilterCondition condition) {
+    if (condition.usesLabelGroup()) {
+      return labelGroupTextCondition(column, condition);
+    }
     return switch (condition.operator()) {
       case "eq" -> Optional.of(
           new SqlPredicate("lower(coalesce(" + column + ", '')) = ?", List.of(lower(condition.value()))));
@@ -243,6 +246,56 @@ final class IssueFactFilterGroupSqlSupport {
           new SqlPredicate("nullif(btrim(coalesce(" + column + ", '')), '') is not null", List.of()));
       default -> Optional.empty();
     };
+  }
+
+  private static Optional<SqlPredicate> labelGroupTextCondition(
+      String column, StatisticFilterCondition condition) {
+    if (LabelGroupFilterOperatorSupport.isPartialContainsAny(condition.operator())) {
+      return partialContainsAnyCondition(column, condition);
+    }
+    List<String> values = normalizedLabelGroupValues(condition);
+    if (values.isEmpty()) {
+      return Optional.of(falsePredicate());
+    }
+    String placeholders = String.join(",", values.stream().map(ignored -> "?").toList());
+    String predicate = "lower(coalesce(" + column + ", '')) in (" + placeholders + ")";
+    return switch (condition.operator()) {
+      case "notIntersects", "notContainsAll" -> Optional.of(new SqlPredicate("not (" + predicate + ")", new ArrayList<>(values)));
+      case "containsAll" -> values.size() == 1
+          ? Optional.of(new SqlPredicate(predicate, new ArrayList<>(values)))
+          : Optional.of(falsePredicate());
+      default -> Optional.of(new SqlPredicate(predicate, new ArrayList<>(values)));
+    };
+  }
+
+  private static Optional<SqlPredicate> partialContainsAnyCondition(
+      String column, StatisticFilterCondition condition) {
+    List<String> patterns = normalizedLabelGroupValues(condition).stream()
+        .map(LabelGroupFilterOperatorSupport::likeContainsPattern)
+        .filter(value -> value != null)
+        .toList();
+    if (patterns.isEmpty()) {
+      return Optional.of(falsePredicate());
+    }
+    List<String> predicates = new ArrayList<>();
+    List<Object> args = new ArrayList<>();
+    for (String pattern : patterns) {
+      predicates.add("lower(coalesce(" + column + ", '')) like ? escape '\\'");
+      args.add(pattern);
+    }
+    return Optional.of(new SqlPredicate(String.join(" or ", predicates), args));
+  }
+
+  private static List<String> normalizedLabelGroupValues(StatisticFilterCondition condition) {
+    if (condition.values() == null) {
+      return List.of();
+    }
+    return condition.values().stream()
+        .map(TextQuerySupport::trimToNull)
+        .filter(value -> value != null)
+        .map(value -> value.toLowerCase(Locale.ROOT))
+        .distinct()
+        .toList();
   }
 
   private static Optional<SqlPredicate> containsTextCondition(

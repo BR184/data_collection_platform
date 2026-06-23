@@ -292,6 +292,8 @@ class LabelGroupControllerTest {
         "核心人员",
         "STRING",
         "STATIC",
+        "SAME_TYPE",
+        null,
         "常用人员",
         true,
         2,

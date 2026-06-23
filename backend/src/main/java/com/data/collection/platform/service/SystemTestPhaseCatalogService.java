@@ -35,7 +35,7 @@ public class SystemTestPhaseCatalogService {
   }
 
   public List<String> listParentNames(Long projectId) {
-    return listGroups(projectId).stream().map(PhaseGroup::name).toList();
+    return loadEnabledGroupNames(projectId);
   }
 
   public List<String> listTestingPhases(Long projectId) {
@@ -48,6 +48,14 @@ public class SystemTestPhaseCatalogService {
         .filter(group -> group.name().equalsIgnoreCase(normalizedParent))
         .flatMap(group -> group.testingPhases().stream())
         .toList();
+  }
+
+  public boolean isConfiguredTestingPhase(Long projectId, String testingPhase) {
+    String normalized = TextQuerySupport.trimToNull(testingPhase);
+    if (normalized == null) {
+      return false;
+    }
+    return listTestingPhases(projectId).stream().anyMatch(phase -> phase.equalsIgnoreCase(normalized));
   }
 
   public String parentName(String phaseLabel) {
@@ -100,6 +108,33 @@ public class SystemTestPhaseCatalogService {
     sql.append(" order by coalesce(g.sort_order, c.legacy_sort_order) asc nulls last, c.child_sort_order asc nulls last, c.phase_start_at desc nulls last, c.testing_phase asc");
     try {
       return jdbcTemplate.query(sql.toString(), this::mapConfiguredEntry, args.toArray());
+    } catch (DataAccessException error) {
+      return List.of();
+    }
+  }
+
+  private List<String> loadEnabledGroupNames(Long projectId) {
+    List<Object> args = new ArrayList<>();
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            select g.name
+              from testing_phase_groups g
+             where g.enabled = true
+            """);
+    if (projectId != null) {
+      sql.append(" and g.project_id = ?");
+      args.add(projectId);
+    }
+    sql.append(" order by g.sort_order asc nulls last, g.name asc");
+    try {
+      return jdbcTemplate.query(
+          sql.toString(),
+          (rs, rowNum) -> TextQuerySupport.normalizeDisplay(rs.getString("name")),
+          args.toArray())
+          .stream()
+          .filter(StringUtils::hasText)
+          .toList();
     } catch (DataAccessException error) {
       return List.of();
     }

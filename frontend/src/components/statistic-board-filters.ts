@@ -176,6 +176,7 @@ export function operatorLabel(operator: StatisticFilterOperator | '') {
       notIntersects: '不包含任意一个',
       containsAll: '包含全部',
       notContainsAll: '不包含全部',
+      partialContainsAny: '局部包含任意',
       gt: '大于',
       gte: '大于等于',
       lt: '小于',

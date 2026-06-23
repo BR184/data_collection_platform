@@ -460,7 +460,7 @@ function nextChildSortOrder() {
       </div>
     </el-card>
 
-    <div class="testing-phase-layout" :class="{ 'has-selection': selectedGroup }">
+    <div class="testing-phase-layout">
       <el-card class="panel-card phase-list-panel">
         <template #header>
           <div class="phase-panel-header">
@@ -515,9 +515,9 @@ function nextChildSortOrder() {
         </div>
       </el-card>
 
-      <el-card v-if="selectedGroup" class="panel-card phase-detail-panel">
+      <el-card class="panel-card phase-detail-panel">
         <template #header>
-          <div class="phase-panel-header">
+          <div v-if="selectedGroup" class="phase-panel-header">
             <div class="phase-detail-title">
               <span>{{ selectedGroup.name }}</span>
               <el-tag :type="selectedGroup.enabled ? 'success' : 'info'" size="small" effect="plain">
@@ -526,8 +526,11 @@ function nextChildSortOrder() {
             </div>
             <el-button type="primary" link :icon="Plus" @click="openCreateChildDialog">新增测试阶段</el-button>
           </div>
+          <div v-else class="phase-panel-header">
+            <span>测试阶段名称</span>
+          </div>
         </template>
-        <el-table v-loading="loading" :data="childRows" row-key="id" border>
+        <el-table v-if="selectedGroup" v-loading="loading" :data="childRows" row-key="id" border>
           <el-table-column prop="childSortOrder" label="排序" width="74" />
           <el-table-column prop="testingPhase" label="测试阶段名称" min-width="220" />
           <el-table-column prop="legacySourceId" label="老平台ID" min-width="166" />
@@ -560,6 +563,7 @@ function nextChildSortOrder() {
             </template>
           </el-table-column>
         </el-table>
+        <el-empty v-else description="请选择左侧阶段名称" />
       </el-card>
 
     </div>
@@ -654,13 +658,9 @@ function nextChildSortOrder() {
 
 .testing-phase-layout {
   display: grid;
-  grid-template-columns: minmax(520px, 1fr);
+  grid-template-columns: minmax(420px, 0.85fr) minmax(540px, 1.15fr);
   gap: 16px;
   min-width: 0;
-}
-
-.testing-phase-layout.has-selection {
-  grid-template-columns: minmax(420px, 0.85fr) minmax(540px, 1.15fr);
 }
 
 .phase-list-panel,
@@ -777,8 +777,7 @@ function nextChildSortOrder() {
 }
 
 @media (max-width: 1120px) {
-  .testing-phase-layout,
-  .testing-phase-layout.has-selection {
+  .testing-phase-layout {
     grid-template-columns: 1fr;
   }
 }

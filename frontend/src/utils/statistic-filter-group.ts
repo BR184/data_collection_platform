@@ -1,6 +1,6 @@
 import type { StatisticFilterGroup, StatisticFilterOperator } from '../types/api';
 
-type LabelGroupSetOperator = 'intersects' | 'notIntersects' | 'containsAll' | 'notContainsAll';
+type LabelGroupSetOperator = 'intersects' | 'notIntersects' | 'containsAll' | 'notContainsAll' | 'partialContainsAny';
 type NormalizableFilterCondition = Omit<StatisticFilterGroup['conditions'][number], 'operator'> & {
   operator: StatisticFilterOperator | '';
 };
@@ -15,7 +15,7 @@ export function defaultLabelGroupOperator(): StatisticFilterOperator {
 export function isLabelGroupOperator(
   operator: StatisticFilterOperator | '',
 ): operator is LabelGroupSetOperator {
-  return ['intersects', 'notIntersects', 'containsAll', 'notContainsAll'].includes(operator);
+  return ['intersects', 'notIntersects', 'containsAll', 'notContainsAll', 'partialContainsAny'].includes(operator);
 }
 
 export function normalizeLabelGroupOperator(operator: StatisticFilterOperator | ''): StatisticFilterOperator {

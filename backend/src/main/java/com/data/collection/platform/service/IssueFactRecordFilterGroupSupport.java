@@ -124,6 +124,10 @@ final class IssueFactRecordFilterGroupSupport {
       if (!LabelGroupFilterOperatorSupport.isSetOperator(operator)) {
         throw new BizException("标签组筛选只支持集合关系");
       }
+      if (LabelGroupFilterOperatorSupport.isPartialContainsAny(operator)
+          && !isStringField(fieldKey)) {
+        throw new BizException("局部包含任意标签组仅支持字符串字段");
+      }
       if (condition.labelGroupId() == null) {
         throw new BizException("标签组筛选缺少标签组 ID");
       }
@@ -147,6 +151,10 @@ final class IssueFactRecordFilterGroupSupport {
       return null;
     }
     return new StatisticFilterCondition(fieldKey, operator, value, secondaryValue);
+  }
+
+  private static boolean isStringField(String fieldKey) {
+    return !List.of("createdAt", "updatedAt").contains(fieldKey);
   }
 
   private static boolean matchesCondition(

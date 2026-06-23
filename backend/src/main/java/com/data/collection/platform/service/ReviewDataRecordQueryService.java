@@ -21,6 +21,7 @@ public class ReviewDataRecordQueryService {
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
       Map.of(
+          "title", "STRING",
           "projectName", "STRING",
           "moduleName", "STRING",
           "reviewOwner", "STRING",

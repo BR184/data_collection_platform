@@ -13,7 +13,6 @@ import {
   createFilterConditionDraft,
   isLabelGroupOperator,
   labelGroupSelectValue,
-  normalizeLabelGroupOperator,
   operatorLabel,
   parseLabelGroupSelectValue,
   usesSecondaryValue,
@@ -55,6 +54,7 @@ const labelGroupOperators: StatisticFilterOperator[] = [
   'notIntersects',
   'containsAll',
   'notContainsAll',
+  'partialContainsAny',
 ];
 
 const conditionSummaries = computed(() =>
@@ -191,10 +191,13 @@ function handleConditionFieldChange(condition: StatisticFilterConditionDraft) {
 }
 
 function operatorOptionsForCondition(condition: StatisticFilterConditionDraft) {
-  if (condition.valueType === 'LABEL_GROUP') {
-    return labelGroupOperators;
+  const field = fieldForCondition(condition.fieldKey);
+  const literalOperators = field?.operators ?? [];
+  if (!supportsLabelGroupValue(condition)) {
+    return literalOperators;
   }
-  return fieldForCondition(condition.fieldKey)?.operators ?? [];
+  const groupOperators = labelGroupOperators.filter((operator) => operator !== 'partialContainsAny' || labelGroupValueType(field) === 'STRING');
+  return [...literalOperators, ...groupOperators];
 }
 
 function usesDatePicker(condition: StatisticFilterConditionDraft) {
@@ -238,11 +241,11 @@ function isSelectField(condition: StatisticFilterConditionDraft) {
 }
 
 function usesValueSelect(condition: StatisticFilterConditionDraft) {
-  return isSelectField(condition) || supportsLabelGroupValue(condition);
+  return isSelectField(condition) || condition.valueType === 'LABEL_GROUP';
 }
 
 function allowsCreateValue(condition: StatisticFilterConditionDraft) {
-  return supportsLabelGroupValue(condition) && !isSelectField(condition);
+  return condition.valueType !== 'LABEL_GROUP' && !isSelectField(condition);
 }
 
 function fieldOptions(condition: StatisticFilterConditionDraft) {
@@ -258,7 +261,11 @@ function fieldSelectOptions(): RecordTableFilterOption[] {
 }
 
 function operatorSelectOptions(condition: StatisticFilterConditionDraft): RecordTableFilterOption[] {
-  return operatorOptionsForCondition(condition).map((operator) => ({ label: operatorLabel(operator), value: operator }));
+  return operatorOptionsForCondition(condition).map((operator) => ({
+    label: operatorLabel(operator),
+    value: operator,
+    variant: isLabelGroupOperator(operator) ? 'label-group' : 'normal',
+  }));
 }
 
 function handleFieldSelectChange(condition: StatisticFilterConditionDraft, value: string | string[]) {
@@ -270,7 +277,13 @@ function handleOperatorSelectChange(condition: StatisticFilterConditionDraft, va
   condition.operator = String(Array.isArray(value) ? value[0] ?? '' : value ?? '') as StatisticFilterOperator | '';
   condition.value = '';
   condition.secondaryValue = '';
-  clearLabelGroupValue(condition);
+  if (isLabelGroupOperator(condition.operator)) {
+    condition.valueType = 'LABEL_GROUP';
+    condition.labelGroupId = null;
+    condition.labelGroupName = null;
+  } else {
+    clearLabelGroupValue(condition);
+  }
   void ensureLabelGroupsForField(fieldForCondition(condition.fieldKey));
 }
 
@@ -283,7 +296,6 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
     condition.valueType = 'LABEL_GROUP';
     condition.labelGroupId = groupId;
     condition.labelGroupName = group?.name ?? '';
-    condition.operator = normalizeLabelGroupOperator(condition.operator);
     return;
   }
   condition.value = nextValue;
@@ -303,27 +315,32 @@ function conditionRowClass(condition: StatisticFilterConditionDraft) {
 
 function supportsLabelGroupValue(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
-  return Boolean(field?.labelGroupEnabled);
+  return Boolean(labelGroupValueType(field));
 }
 
 function labelGroupValueType(field: StatisticFilterField | null) {
-  return field?.labelGroupValueType || 'STRING';
+  return field?.labelGroupValueType || (field?.type === 'number' ? 'NUMBER' : field?.type === 'datetime' ? 'DATE' : 'STRING');
 }
 
 function labelGroupsForCondition(condition: StatisticFilterConditionDraft) {
-  return labelGroupsByValueType.value[labelGroupValueType(fieldForCondition(condition.fieldKey))] ?? [];
+  const field = fieldForCondition(condition.fieldKey);
+  const fieldKey = field?.labelDimensionKey || field?.key || '';
+  return (labelGroupsByValueType.value[labelGroupValueType(field)] ?? []).filter((group) =>
+    group.applicableScope !== 'SAME_FIELD' || sameFieldKey(group.sourceFieldKey ?? '', fieldKey),
+  );
 }
 
 function valueOptionsForCondition(condition: StatisticFilterConditionDraft): RecordTableFilterOption[] {
   const literalOptions = fieldOptions(condition);
-  if (!supportsLabelGroupValue(condition)) {
+  if (condition.valueType !== 'LABEL_GROUP') {
     return literalOptions;
   }
   const groupOptions = labelGroupsForCondition(condition).map((group) => ({
-    label: `标签组 / ${group.name}`,
+    label: group.name,
     value: labelGroupSelectValue(group.id),
+    variant: 'label-group' as const,
   }));
-  return [...literalOptions, ...groupOptions];
+  return groupOptions;
 }
 
 function summarizeCondition(condition: StatisticFilterConditionDraft) {
@@ -343,7 +360,7 @@ function summarizeCondition(condition: StatisticFilterConditionDraft) {
 
 function summarizeConditionValue(condition: StatisticFilterConditionDraft) {
   if (condition.valueType === 'LABEL_GROUP') {
-    return condition.labelGroupName ? `标签组 / ${condition.labelGroupName}` : '标签组';
+    return condition.labelGroupName || '标签组';
   }
   const option = valueOptionsForCondition(condition).find((item) => String(item.value) === String(condition.value ?? ''));
   if (option) {
@@ -362,7 +379,7 @@ async function ensureLabelGroupsForVisibleFields() {
 }
 
 async function ensureLabelGroupsForField(field: StatisticFilterField | null) {
-  if (!field?.labelGroupEnabled) {
+  if (!field) {
     return;
   }
   const valueType = labelGroupValueType(field);
@@ -374,6 +391,27 @@ async function ensureLabelGroupsForField(field: StatisticFilterField | null) {
     ...labelGroupsByValueType.value,
     [valueType]: groups,
   };
+}
+
+function sameFieldKey(left: string, right: string) {
+  return normalizeFieldKey(left) === normalizeFieldKey(right);
+}
+
+function normalizeFieldKey(value: string) {
+  return ({
+    module: 'moduleName',
+    moduleName: 'moduleName',
+    moduleNames: 'moduleName',
+    review_owner: 'reviewOwner',
+    reviewOwner: 'reviewOwner',
+    review_expert: 'reviewExpert',
+    reviewExpert: 'reviewExpert',
+    project: 'projectName',
+    projectName: 'projectName',
+    customer_assignee: 'assigneeName',
+    issue_assignee: 'assigneeName',
+    assigneeName: 'assigneeName',
+  } as Record<string, string>)[value] ?? value;
 }
 
 function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {

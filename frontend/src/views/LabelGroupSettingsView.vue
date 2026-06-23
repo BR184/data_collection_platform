@@ -58,7 +58,15 @@ const groupTypeOptions: Array<{ label: string; value: LabelGroupType }> = [
   { label: '组合组', value: 'COMPOSITE' },
 ];
 
+const applicableScopeOptions = [
+  { label: '同类型字段可用', value: 'SAME_TYPE' },
+  { label: '仅同来源字段可用', value: 'SAME_FIELD' },
+];
+
 const candidateDimensions = computed(() => dimensions.value.filter((item) => item.staticSupported));
+const sourceFieldOptions = computed(() =>
+  candidateDimensions.value.map((dimension) => ({ label: dimension.name, value: dimension.key })),
+);
 const dynamicRuleSourceMap = computed(() => new Map(dynamicRuleSources.value.map((item) => [item.key, item])));
 const currentDynamicSource = computed(() => dynamicRuleSourceMap.value.get(form.value.dynamicRule.outputSourceKey));
 const currentDynamicField = computed(
@@ -327,6 +335,11 @@ async function deleteGroup(group: LabelGroup) {
         <el-table-column label="值类型" width="100">
           <template #default="{ row }">{{ valueTypeLabel(row.valueType) }}</template>
         </el-table-column>
+        <el-table-column label="适用范围" width="150">
+          <template #default="{ row }">
+            {{ row.applicableScope === 'SAME_FIELD' ? '仅同来源字段' : '同类型字段' }}
+          </template>
+        </el-table-column>
         <el-table-column label="成员" min-width="260">
           <template #default="{ row }">
             <div class="label-group-member-cell">
@@ -385,6 +398,26 @@ async function deleteGroup(group: LabelGroup) {
           <el-tag :type="currentValueType === 'MIXED' ? 'danger' : 'primary'" effect="plain">
             {{ valueTypeLabel(currentValueType) }}
           </el-tag>
+        </el-form-item>
+        <el-form-item label="适用范围" required>
+          <el-segmented v-model="form.applicableScope" :options="applicableScopeOptions" />
+        </el-form-item>
+        <el-form-item v-if="form.applicableScope === 'SAME_FIELD'" label="来源字段" required>
+          <el-select
+            v-model="form.sourceFieldKey"
+            filterable
+            fit-input-width
+            placeholder="选择同字段限制来源"
+            popper-class="platform-select-dropdown"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in sourceFieldOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
 
         <template v-if="form.groupType === 'DYNAMIC'">

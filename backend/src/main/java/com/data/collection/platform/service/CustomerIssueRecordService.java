@@ -28,6 +28,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
       Map.ofEntries(
+          Map.entry("title", "STRING"),
           Map.entry("moduleName", "STRING"),
           Map.entry("functionName", "STRING"),
           Map.entry("priorityLevel", "STRING"),

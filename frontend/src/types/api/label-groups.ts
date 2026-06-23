@@ -162,6 +162,8 @@ export interface LabelGroup {
   name: string;
   valueType?: string | null;
   groupType: 'STATIC' | 'DYNAMIC' | 'COMPOSITE';
+  applicableScope?: 'SAME_TYPE' | 'SAME_FIELD' | string | null;
+  sourceFieldKey?: string | null;
   description?: string | null;
   enabled: boolean;
   systemDefault?: boolean;
@@ -179,6 +181,8 @@ export interface LabelGroup {
 export interface LabelGroupSaveRequest {
   name: string;
   groupType?: 'STATIC' | 'DYNAMIC' | 'COMPOSITE';
+  applicableScope?: 'SAME_TYPE' | 'SAME_FIELD';
+  sourceFieldKey?: string | null;
   description?: string | null;
   enabled?: boolean;
   members?: LabelGroupMember[];
