@@ -33,6 +33,7 @@ const loading = ref(false);
 const saving = ref(false);
 const previewingDynamicRule = ref(false);
 const deletingId = ref<number | null>(null);
+const togglingId = ref<number | null>(null);
 const dialogVisible = ref(false);
 const editMode = ref(false);
 const keyword = ref('');
@@ -282,6 +283,35 @@ async function deleteGroup(group: LabelGroup) {
     deletingId.value = null;
   }
 }
+
+async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
+  if (group.enabled === enabled) {
+    return;
+  }
+  const previous = group.enabled;
+  group.enabled = enabled;
+  togglingId.value = group.id;
+  try {
+    await api.updateLabelGroup(group.id, {
+      name: group.name,
+      groupType: group.groupType,
+      applicableScope: group.applicableScope === 'SAME_FIELD' ? 'SAME_FIELD' : 'SAME_TYPE',
+      sourceFieldKey: group.applicableScope === 'SAME_FIELD' ? group.sourceFieldKey ?? null : null,
+      description: group.description ?? null,
+      enabled,
+      members: group.members,
+      childGroupIds: (group.childGroups ?? []).map((child) => child.id),
+      dynamicRule: group.dynamicRule ? { ruleConfig: group.dynamicRule.ruleConfig } : null,
+    });
+    ElMessage.success(enabled ? '标签组已启用' : '标签组已停用');
+    await loadGroups();
+  } catch (error) {
+    group.enabled = previous;
+    ElMessage.error(error instanceof Error ? error.message : '标签组状态更新失败');
+  } finally {
+    togglingId.value = null;
+  }
+}
 </script>
 
 <template>
@@ -315,18 +345,36 @@ async function deleteGroup(group: LabelGroup) {
             @keyup.enter="loadGroups"
             @clear="loadGroups"
           />
-          <el-button :icon="Refresh" :loading="loading" @click="loadGroups">刷新</el-button>
+          <el-tooltip content="刷新" placement="top">
+            <el-button
+              class="label-group-icon-button"
+              :icon="Refresh"
+              :loading="loading"
+              aria-label="刷新"
+              @click="loadGroups"
+            />
+          </el-tooltip>
         </div>
-        <el-button type="primary" :icon="Plus" @click="openCreateDialog">新建标签组</el-button>
+        <el-tooltip content="新建标签组" placement="top">
+          <el-button
+            class="label-group-icon-button"
+            type="primary"
+            :icon="Plus"
+            aria-label="新建标签组"
+            @click="openCreateDialog"
+          />
+        </el-tooltip>
       </div>
     </el-card>
 
     <el-card class="panel-card">
       <el-table v-loading="loading" :data="groups" row-key="id" border>
-        <el-table-column label="标签组名称" min-width="170">
+        <el-table-column label="标签组名称" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="label-group-name-cell">
-              <span>{{ row.name }}</span>
+              <el-tooltip :content="row.name" placement="top" :show-after="300">
+                <span>{{ row.name }}</span>
+              </el-tooltip>
               <el-tag v-if="row.systemDefault" size="small" effect="plain">系统默认</el-tag>
             </div>
           </template>
@@ -362,33 +410,49 @@ async function deleteGroup(group: LabelGroup) {
         <el-table-column label="成员数" width="90">
           <template #default="{ row }">{{ row.memberCount }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="90">
+        <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '启用' : '停用' }}</el-tag>
+            <el-switch
+              class="label-group-status-switch"
+              :model-value="row.enabled"
+              :loading="togglingId === row.id"
+              aria-label="切换标签组状态"
+              @change="setGroupEnabled(row, Boolean($event))"
+            />
           </template>
         </el-table-column>
         <el-table-column prop="updatedAt" label="更新时间" width="180" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" width="104" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" :icon="Edit" @click="openEditDialog(row)">编辑</el-button>
-            <el-tooltip
-              :disabled="!row.systemDefault"
-              content="系统默认标签组不能删除，可编辑成员、备注或停用"
-              placement="top"
-            >
-              <span>
+            <div class="label-group-row-actions">
+              <el-tooltip content="编辑" placement="top">
                 <el-button
+                  class="label-group-icon-button"
                   link
-                  type="danger"
-                  :icon="Delete"
-                  :disabled="row.systemDefault"
-                  :loading="deletingId === row.id"
-                  @click="deleteGroup(row)"
-                >
-                  删除
-                </el-button>
-              </span>
-            </el-tooltip>
+                  type="primary"
+                  :icon="Edit"
+                  aria-label="编辑"
+                  @click="openEditDialog(row)"
+                />
+              </el-tooltip>
+              <el-tooltip
+                :content="row.systemDefault ? '系统默认标签组不能删除，可编辑成员、备注或停用' : '删除'"
+                placement="top"
+              >
+                <span>
+                  <el-button
+                    class="label-group-icon-button"
+                    link
+                    type="danger"
+                    :icon="Delete"
+                    :disabled="row.systemDefault"
+                    :loading="deletingId === row.id"
+                    aria-label="删除"
+                    @click="deleteGroup(row)"
+                  />
+                </span>
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -545,9 +609,6 @@ async function deleteGroup(group: LabelGroup) {
         <el-form-item label="备注">
           <el-input v-model="form.description" type="textarea" :rows="2" maxlength="500" show-word-limit />
         </el-form-item>
-        <el-form-item v-if="editMode" label="状态">
-          <el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" />
-        </el-form-item>
       </el-form>
 
       <template #footer>
@@ -594,6 +655,25 @@ async function deleteGroup(group: LabelGroup) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.label-group-icon-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 17px;
+}
+
+.label-group-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.label-group-status-switch {
+  transform: scale(1.08);
+  transform-origin: left center;
 }
 
 .label-group-member-cell {
