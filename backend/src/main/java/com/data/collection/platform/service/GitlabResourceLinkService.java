@@ -14,6 +14,7 @@ public class GitlabResourceLinkService {
   private final JdbcTemplate jdbcTemplate;
   private final String gitlabWebBaseUrl;
   private final Map<ProjectPathCacheKey, Optional<String>> projectPathCache = new ConcurrentHashMap<>();
+  private final Map<String, Optional<String>> sourceBaseUrlCache = new ConcurrentHashMap<>();
   private volatile java.util.List<String> projectMirrorTables;
 
   public GitlabResourceLinkService(JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties) {
@@ -37,8 +38,14 @@ public class GitlabResourceLinkService {
     return resourceUrl(sourceInstance, projectId, mergeRequestIid, "merge_requests");
   }
 
+  public void clearCache() {
+    sourceBaseUrlCache.clear();
+    projectPathCache.clear();
+    projectMirrorTables = null;
+  }
+
   private String resourceUrl(String sourceInstance, Long projectId, Integer iid, String resourcePath) {
-    String baseUrl = normalizeBaseUrl(gitlabWebBaseUrl);
+    String baseUrl = baseUrl(sourceInstance);
     if (!StringUtils.hasText(baseUrl) || projectId == null || iid == null) {
       return null;
     }
@@ -51,6 +58,37 @@ public class GitlabResourceLinkService {
     String normalizedSourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return projectPathCache.computeIfAbsent(
         new ProjectPathCacheKey(normalizedSourceInstance, projectId), this::loadProjectPath);
+  }
+
+  private String baseUrl(String sourceInstance) {
+    String normalizedSourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    Optional<String> sourceBaseUrl =
+        sourceBaseUrlCache.computeIfAbsent(normalizedSourceInstance, this::loadSourceBaseUrl);
+    if (sourceBaseUrl.isPresent()) {
+      return sourceBaseUrl.get();
+    }
+    if (!GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(normalizedSourceInstance)) {
+      return null;
+    }
+    return normalizeBaseUrl(gitlabWebBaseUrl);
+  }
+
+  private Optional<String> loadSourceBaseUrl(String sourceInstance) {
+    try {
+      String configured =
+          jdbcTemplate.queryForObject(
+              """
+              select nullif(btrim(web_base_url), '')
+                from gitlab_sync_configs
+               where source_instance = ?
+               limit 1
+              """,
+              String.class,
+              sourceInstance);
+      return Optional.ofNullable(normalizeBaseUrl(configured));
+    } catch (DataAccessException ignored) {
+      return Optional.empty();
+    }
   }
 
   private Optional<String> loadProjectPath(ProjectPathCacheKey key) {
@@ -179,7 +217,11 @@ public class GitlabResourceLinkService {
       return null;
     }
     String withScheme = trimmed.matches("(?i)^https?://.*") ? trimmed : "http://" + trimmed;
-    return withScheme.replaceAll("/+$", "");
+    String normalized = withScheme.replaceAll("/+$", "");
+    if ("http://localhost".equalsIgnoreCase(normalized) || "https://localhost".equalsIgnoreCase(normalized)) {
+      return null;
+    }
+    return normalized;
   }
 
   private record ProjectPathCacheKey(String sourceInstance, Long projectId) {}

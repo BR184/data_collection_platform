@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
+import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
 import type { SyncRunLog } from '../types/api';
 import {
   formatDuration,
@@ -26,14 +27,6 @@ const typeFilter = ref('');
 const statusFilter = ref('');
 const tableRef = ref<{ doLayout?: () => void }>();
 const tableShellRef = ref<HTMLElement>();
-const horizontalScrollbarRef = ref<HTMLElement>();
-const scrollbarAwake = ref(false);
-const hasHorizontalOverflow = ref(false);
-const horizontalSpacerWidth = ref(0);
-let scrollbarAwakeTimer: number | undefined;
-let observedTableScrollWrap: HTMLElement | undefined;
-let resizeObserver: ResizeObserver | undefined;
-let syncingHorizontalScroll = false;
 
 const typeOptions = computed(() => {
   const optionMap = new Map<string, string>();
@@ -58,6 +51,20 @@ const filteredLogs = computed(() =>
     return typeMatched && statusMatched;
   }),
 );
+
+const {
+  floatingScrollbarRef,
+  scrollbarAwake,
+  hasHorizontalOverflow,
+  horizontalSpacerWidth,
+  wakeHorizontalScrollbar,
+  handleHorizontalWheel,
+  handleFloatingHorizontalScroll,
+  scheduleHorizontalScrollbarUpdate,
+} = useFloatingHorizontalScrollbar({
+  tableShellRef,
+  watchedSources: [filteredLogs],
+});
 
 function typeFilterKey(log: SyncRunLog) {
   return log.runType?.trim() || log.syncType;
@@ -90,123 +97,11 @@ function sourcePageText(log: SyncRunLog) {
   return log.sourcePageKey || log.requestReason || '-';
 }
 
-function wakeHorizontalScrollbar() {
-  updateHorizontalScrollbar();
-  scrollbarAwake.value = true;
-  if (scrollbarAwakeTimer !== undefined) {
-    window.clearTimeout(scrollbarAwakeTimer);
-  }
-  scrollbarAwakeTimer = window.setTimeout(() => {
-    scrollbarAwake.value = false;
-    scrollbarAwakeTimer = undefined;
-  }, 1200);
-}
-
 async function handleExpandChange() {
-  await nextTick();
   tableRef.value?.doLayout?.();
-  updateHorizontalScrollbar();
+  await scheduleHorizontalScrollbarUpdate();
   wakeHorizontalScrollbar();
 }
-
-function handleHorizontalWheel(event: WheelEvent) {
-  if (!event.shiftKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-    return;
-  }
-  const tableBody = getTableScrollWrap();
-  if (!tableBody) {
-    return;
-  }
-  tableBody.scrollLeft += event.deltaY;
-  event.preventDefault();
-  wakeHorizontalScrollbar();
-}
-
-function getTableScrollWrap() {
-  return tableShellRef.value?.querySelector<HTMLElement>('.el-table__body-wrapper .el-scrollbar__wrap')
-    ?? tableShellRef.value?.querySelector<HTMLElement>('.el-scrollbar__wrap');
-}
-
-function updateHorizontalScrollbar() {
-  const tableBody = getTableScrollWrap();
-  if (!tableBody) {
-    hasHorizontalOverflow.value = false;
-    horizontalSpacerWidth.value = 0;
-    return;
-  }
-
-  attachTableScrollListener(tableBody);
-  horizontalSpacerWidth.value = tableBody.scrollWidth;
-  hasHorizontalOverflow.value = tableBody.scrollWidth > tableBody.clientWidth + 1;
-  syncFloatingScrollbarFromTable();
-}
-
-function attachTableScrollListener(tableBody: HTMLElement) {
-  if (observedTableScrollWrap === tableBody) {
-    return;
-  }
-  observedTableScrollWrap?.removeEventListener('scroll', syncFloatingScrollbarFromTable);
-  observedTableScrollWrap = tableBody;
-  observedTableScrollWrap.addEventListener('scroll', syncFloatingScrollbarFromTable, { passive: true });
-}
-
-function syncFloatingScrollbarFromTable() {
-  if (syncingHorizontalScroll) {
-    return;
-  }
-  const tableBody = getTableScrollWrap();
-  const horizontalScrollbar = horizontalScrollbarRef.value;
-  if (!tableBody || !horizontalScrollbar) {
-    return;
-  }
-  syncingHorizontalScroll = true;
-  horizontalScrollbar.scrollLeft = tableBody.scrollLeft;
-  window.requestAnimationFrame(() => {
-    syncingHorizontalScroll = false;
-  });
-}
-
-function handleFloatingHorizontalScroll() {
-  if (syncingHorizontalScroll) {
-    return;
-  }
-  const tableBody = getTableScrollWrap();
-  const horizontalScrollbar = horizontalScrollbarRef.value;
-  if (!tableBody || !horizontalScrollbar) {
-    return;
-  }
-  syncingHorizontalScroll = true;
-  tableBody.scrollLeft = horizontalScrollbar.scrollLeft;
-  window.requestAnimationFrame(() => {
-    syncingHorizontalScroll = false;
-  });
-  wakeHorizontalScrollbar();
-}
-
-async function scheduleHorizontalScrollbarUpdate() {
-  await nextTick();
-  updateHorizontalScrollbar();
-}
-
-watch(filteredLogs, () => {
-  void scheduleHorizontalScrollbarUpdate();
-});
-
-onMounted(() => {
-  void scheduleHorizontalScrollbarUpdate();
-  if (typeof ResizeObserver !== 'undefined' && tableShellRef.value) {
-    resizeObserver = new ResizeObserver(() => updateHorizontalScrollbar());
-    resizeObserver.observe(tableShellRef.value);
-  }
-});
-
-onBeforeUnmount(() => {
-  if (scrollbarAwakeTimer !== undefined) {
-    window.clearTimeout(scrollbarAwakeTimer);
-  }
-  observedTableScrollWrap?.removeEventListener('scroll', syncFloatingScrollbarFromTable);
-  resizeObserver?.disconnect();
-});
 </script>
 
 <template>
@@ -332,7 +227,7 @@ onBeforeUnmount(() => {
       </el-table>
       <div
         v-show="hasHorizontalOverflow"
-        ref="horizontalScrollbarRef"
+        ref="floatingScrollbarRef"
         class="sync-log-floating-horizontal"
         aria-hidden="true"
         @mouseenter="wakeHorizontalScrollbar"

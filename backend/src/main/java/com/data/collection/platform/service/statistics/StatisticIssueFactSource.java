@@ -16,6 +16,10 @@ public record StatisticIssueFactSource(IssueFactRecord record) {
     return record.issueIid();
   }
 
+  public String sourceInstance() {
+    return record.sourceInstance();
+  }
+
   public String title() {
     return record.title();
   }

@@ -43,6 +43,7 @@ public class GitlabSyncControllerResponseMapper {
     sanitized.setEnabled(source.isEnabled());
     sanitized.setSourceEnabled(source.getSourceEnabled() == null ? source.isEnabled() : source.getSourceEnabled());
     sanitized.setSourceInstance(source.getSourceInstance());
+    sanitized.setWebBaseUrl(source.getWebBaseUrl());
     sanitized.setAutoSyncEnabled(source.isAutoSyncEnabled());
     sanitized.setSourceMode(source.getSourceMode());
     sanitized.setWhitelistMode(source.getWhitelistMode());

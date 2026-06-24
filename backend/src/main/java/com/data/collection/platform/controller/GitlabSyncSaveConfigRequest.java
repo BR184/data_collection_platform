@@ -15,6 +15,7 @@ public record GitlabSyncSaveConfigRequest(
     boolean autoSyncEnabled,
     Boolean systemHookEnabled,
     String sourceInstance,
+    String webBaseUrl,
     @NotNull SourceMode sourceMode,
     @NotNull WhitelistMode whitelistMode,
     List<String> whitelistTables,

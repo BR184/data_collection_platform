@@ -162,14 +162,22 @@ function rgbToHex(red: number, green: number, blue: number) {
 
 <style scoped>
 .detail-cell-link {
-  color: #1677ff;
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0 3px;
+  border-radius: 3px;
+  color: inherit !important;
+  font-weight: inherit;
+  text-decoration: none !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-cell-link:hover {
-  color: #4096ff;
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
 }
 
 .detail-cell-text {

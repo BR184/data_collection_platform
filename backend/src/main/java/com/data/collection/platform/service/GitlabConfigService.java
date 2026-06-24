@@ -32,10 +32,15 @@ public class GitlabConfigService {
 
   private final GitlabSyncConfigMapper configMapper;
   private final GitlabMirrorProperties properties;
+  private final GitlabResourceLinkService resourceLinkService;
 
-  public GitlabConfigService(GitlabSyncConfigMapper configMapper, GitlabMirrorProperties properties) {
+  public GitlabConfigService(
+      GitlabSyncConfigMapper configMapper,
+      GitlabMirrorProperties properties,
+      GitlabResourceLinkService resourceLinkService) {
     this.configMapper = configMapper;
     this.properties = properties;
+    this.resourceLinkService = resourceLinkService;
   }
 
   public GitlabSyncConfig getConfig() {
@@ -123,6 +128,7 @@ public class GitlabConfigService {
       normalized.setUpdatedAt(now);
       configMapper.updateById(normalized);
     }
+    resourceLinkService.clearCache();
     return getConfigById(normalized.getId());
   }
 
@@ -245,6 +251,7 @@ public class GitlabConfigService {
     config.setEnabled(false);
     config.setSourceEnabled(false);
     config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
+    config.setWebBaseUrl(null);
     config.setAutoSyncEnabled(false);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
@@ -283,6 +290,7 @@ public class GitlabConfigService {
     normalized.setEnabled(sourceEnabled);
     normalized.setSourceEnabled(sourceEnabled);
     normalized.setSourceInstance(sourceInstance);
+    normalized.setWebBaseUrl(normalizeOptionalText(config.getWebBaseUrl()));
     normalized.setAutoSyncEnabled(autoSyncEnabled);
     normalized.setSourceMode(config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode());
     normalized.setWhitelistMode(normalizeWhitelistMode(config.getWhitelistMode()));
@@ -404,6 +412,14 @@ public class GitlabConfigService {
       return WhitelistMode.RECOMMENDED;
     }
     return whitelistMode;
+  }
+
+  private String normalizeOptionalText(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 
   private boolean resolveSystemHookEnabled(

@@ -503,6 +503,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     return new IssueSource(
         source.id(),
         source.iid(),
+        source.sourceInstance(),
         source.title(),
         source.projectId(),
         source.projectName(),
@@ -536,7 +537,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
+    issueLinkSupport.putIssueFields(record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName());
     record.put("title", issue.title());
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("severityLabel", issue.severityLabel());
@@ -722,6 +723,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private record IssueSource(
       Long id,
       Integer iid,
+      String sourceInstance,
       String title,
       Long projectId,
       String projectName,

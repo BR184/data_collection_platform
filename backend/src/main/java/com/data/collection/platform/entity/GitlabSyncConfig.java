@@ -27,6 +27,9 @@ public class GitlabSyncConfig {
   @TableField("source_instance")
   private String sourceInstance;
 
+  @TableField("web_base_url")
+  private String webBaseUrl;
+
   @TableField("auto_sync_enabled")
   private boolean autoSyncEnabled;
 

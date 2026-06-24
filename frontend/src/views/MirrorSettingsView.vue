@@ -40,6 +40,7 @@ const form = ref<GitlabSyncConfig>({
   enabled: true,
   sourceEnabled: true,
   sourceInstance: 'default',
+  webBaseUrl: '',
   autoSyncEnabled: true,
   sourceMode: 'DOCKER',
   whitelistMode: 'RECOMMENDED',
@@ -510,6 +511,7 @@ async function createNewConfig() {
     id: undefined,
     name: 'GitLab new source',
     sourceInstance: '',
+    webBaseUrl: '',
     dbPassword: '',
     systemHookSecret: '',
     lastFullSyncAt: null,
@@ -761,6 +763,9 @@ onBeforeRouteLeave(async () => {
         </el-form-item>
         <el-form-item label="数据源名称">
           <el-input v-model="form.name" />
+        </el-form-item>
+        <el-form-item label="GitLab Web 地址">
+          <el-input v-model="form.webBaseUrl" placeholder="例如 http://gitlab.company.local" />
         </el-form-item>
         <el-form-item label="启用数据源">
           <el-switch v-model="form.sourceEnabled" />

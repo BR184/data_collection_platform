@@ -177,21 +177,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                 leaf("level2_legacy_count", "二级缺陷遗留数量", true, "count"),
                 leaf("level3_legacy_count", "三级缺陷遗留数量", true, "count"),
                 leaf("level23_legacy_rate", "二三级缺陷遗留率(%)", false, "ratio")))),
-        StatisticIssueDetailColumns.systemTest(
-            "标题",
-            "模块",
-            List.of(
-                StatisticIssueDetailColumns.severity("severityLevel", "严重程度", 140),
-                StatisticIssueDetailColumns.bugStatus(),
-                StatisticIssueDetailColumns.delayCause(),
-                StatisticIssueDetailColumns.state("状态")),
-            List.of(
-                StatisticIssueDetailColumns.author("创建人"),
-                StatisticIssueDetailColumns.assignee("处理人", 140)),
-            List.of(
-                StatisticIssueDetailColumns.project("所属项目"),
-                StatisticIssueDetailColumns.createdAt(),
-                StatisticIssueDetailColumns.labels())),
+        StatisticIssueDetailColumns.moduleTableLegacyDetail(),
         10, "当前没有可展示的系统测试缺陷统计数据。");
   }
 
@@ -733,6 +719,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return new IssueSource(
         source.id(),
         source.iid(),
+        source.sourceInstance(),
         source.title(),
         source.projectId(),
         source.projectName(),
@@ -765,7 +752,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private Map<String, Object> toDetailRecord(IssueSource i) {
     Map<String, Object> r = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(r, i.iid(), i.projectId(), i.projectName());
+    issueLinkSupport.putIssueFields(r, i.sourceInstance(), i.iid(), i.projectId(), i.projectName());
     r.put("title", i.title()); r.put("moduleNames", String.join("、", i.moduleNames()));
     r.put("projectName", i.projectName());
     r.put("severityLevel", i.displaySeverityLevel());
@@ -971,7 +958,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
   }
 
-  private record IssueSource(Long id, Integer iid, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, List<String> moduleNames, List<String> labels) {
+  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, List<String> moduleNames, List<String> labels) {
     boolean inSystemTestScope() { return hasScope(testingPhase) || hasScope(systemTestLabel) || labels.stream().anyMatch(this::hasScope); }
     boolean isClosed() { return closedAt != null || "closed".equalsIgnoreCase(issueState); }
     boolean isPriority(String priority) { return priority.equalsIgnoreCase(priorityLevel); }

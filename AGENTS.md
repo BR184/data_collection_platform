@@ -138,6 +138,7 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 - 内网或 Docker Compose 可能显式配置 `PLATFORM_AUTH_CSRF_ENABLED=false`。此时 `/api/auth/current` 可能不会下发 `XSRF-TOKEN`，真实链路脚本不能因为拿不到 XSRF Cookie 就判定登录失败；应直接 `POST /api/auth/login` 提交 JSON 账号密码，复用返回的 `JSESSIONID` 继续访问业务接口。
 - 做 API 冒烟或真实链路时，先确认登录态和 CSRF 开关，再判断业务是否通了。脚本应自适应两种模式：CSRF 开启时带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头；CSRF 关闭时只依赖登录后的会话 Cookie。
 - 代码改动后，若后端已在运行，必须重启最新后端实例再做页面联调或接口验证；不要拿旧进程继续判断新代码是否生效
+- 每次实现完或修改完需要做页面联调、冒烟或真实链路验证时，必须拉起或重启最新版后端和前端，再判断功能是否生效；不要用旧的 `18080` / `18181` 进程验证新代码。
 
 ### 1.2 后端拉起与排障事实
 

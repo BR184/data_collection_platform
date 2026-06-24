@@ -53,7 +53,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
       """
-      select project_id,
+      select source_instance,
+             project_id,
              coalesce(project_name, '') as project_name,
              issue_id,
              issue_iid,
@@ -338,6 +339,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueSource(
+        StatisticSourceValueSupport.text(rs.getString("source_instance"), "default"),
         rs.getLong("project_id"),
         StatisticSourceValueSupport.text(rs.getString("project_name")),
         rs.getLong("issue_id"),
@@ -408,7 +410,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
+    issueLinkSupport.putIssueFields(record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName());
     record.put("title", issue.title());
     record.put("moduleNames", String.join("、", issue.displayModuleNames()));
     record.put("functionName", issue.functionName());
@@ -485,6 +487,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   }
 
   private record IssueSource(
+      String sourceInstance,
       Long projectId,
       String projectName,
       Long id,

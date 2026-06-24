@@ -57,7 +57,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
       """
-      select project_id,
+      select source_instance,
+             project_id,
              coalesce(project_name, '') as project_name,
              issue_id,
              issue_iid,
@@ -352,6 +353,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueSource(
+        StatisticSourceValueSupport.text(rs.getString("source_instance"), "default"),
         rs.getLong("project_id"),
         StatisticSourceValueSupport.text(rs.getString("project_name")),
         rs.getLong("issue_id"),
@@ -419,7 +421,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
+    issueLinkSupport.putIssueFields(record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName());
     record.put("moduleNames", String.join("、", issue.displayModuleNames()));
     record.put("title", issue.title());
     record.put("state", issue.issueState());
@@ -581,6 +583,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   }
 
   private record IssueSource(
+      String sourceInstance,
       Long projectId,
       String projectName,
       Long id,

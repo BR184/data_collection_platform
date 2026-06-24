@@ -1,11 +1,24 @@
 <!-- DOC_STATUS_START -->
-> 文档状态：当前修复方案 / 待实施
-> 说明：2026-06-23 内网测试发现的 8 个问题，逐条给出根因、改动落点（file:line）、可落地的分步方案与验收点。供后续 AI 员工照此稳步推进，不做模糊描述。
+> 文档状态：当前修复方案 / 已实施，长期体验优化另列
+> 说明：2026-06-23 内网测试发现的 8 个问题，P0/P1/P2 主路径已按本方案落地；阶段定义页拖拽/批量排序属于后续体验优化，不影响当前统计口径和主流程验收。
 <!-- DOC_STATUS_END -->
 
 # 内网测试问题修复方案（2026-06-23）
 
 来源：2026-06-23 内网真机测试记录（系统测试缺陷汇总等页面）。共 8 个问题，混合了数据口径 bug、性能、功能增强与 UI 优化。
+
+## 当前落地状态（2026-06-24）
+
+| 编号 | 当前状态 | 说明 |
+|---|---|---|
+| 1 | 已实施 | 回退 token 已对齐老平台 `回退` / `倒退` / `（退`；部署后需按本文末重建 fact。 |
+| 2 | 已实施 | 纯展示 query（排序、分页、明细页码等）变化不再触发整卡片后端重拉。 |
+| 5 | 已实施 | 系统测试缺陷汇总已补齐标题、测试状态、延期原因、人员、状态、时间、标签等行级筛选字段；比率类聚合字段仍按规则排除。 |
+| 7 | 已实施 | 缺陷汇总顶部测试阶段已使用父子树选择，父级展开、子级精确筛选复用后端 resolver。 |
+| 3 | 已实施 | 动态标签组来源已登记 GitLab 议题、标签、标签关联、MR 镜像表；仍按白名单字段开放，不暴露全部 ODS。 |
+| 4 | 已实施 | 组合标签组 SAME_FIELD 已在前端子组候选、保存校验和展开校验中传导。 |
+| 6 | 已实施 | 下钻明细已实现表头/排序热区优化、GitLab 标签风格、紧凑行高、展开行完整字段和浮动横向滚动条；系统测试缺陷汇总字段已按老平台 `ModuleTableDetail.vue` 对齐。2026-06-24 追补的统计下钻 GitLab 链接 sourceInstance、源级 GitLab Web 地址配置、长标题列宽度边界已按共享链路收敛。 |
+| 8 | 主路径已实施，长期优化另列 | 阶段定义页已做状态 switch 外置、响应式工具栏、表头对齐等低风险优化；拖拽排序或批量排序属于后续体验升级。 |
 
 约定：
 - 每条按「现象 → 根因（带 file:line 证据）→ 分步方案 → 验收」组织。
@@ -222,6 +235,15 @@ SAME_FIELD 父组对子组到底应是哪种约束？两种可选，必须先定
 ### 现象
 下钻明细表（点统计单元格弹出）：表头文字没上下居中、排序点击热区太小、横向滚动条拖拽热区太小难选中；标签/测试状态字段是纯文字，应做成 GitLab V16 标签风格。
 
+### 2026-06-24 内网老平台字段校正
+真实内网老平台 `ModuleTableDetail.vue` 的系统测试缺陷汇总下钻字段必须作为新平台字段口径：
+
+- 主表列：议题编号、模块名、议题标题、议题状态、严重程度、测试状态。
+- 展开区：议题更新时间、议题提交时间、模块名、议题编号、议题标题、议题提交人、议题处理人、议题状态、测试状态、议题严重程度。
+- 议题编号按老平台 `#28159` 形式展示并保留 GitLab 跳转能力；链接视觉保持普通表格文本风格，不使用蓝色加粗下划线强样式。
+- `delayCause` 在老平台组件中只在调用方传入 `delayShow=true` 时显示，不属于系统测试缺陷汇总默认下钻列。
+- 新平台的 GitLab 标签风格、紧凑行高、展开区布局和浮动横向滚动条只是展示增强，不得改变上述字段集合和字段含义。
+
 ### 根因（已确认）
 组件是 [StatisticBoardDetailDialog.vue](frontend/src/components/StatisticBoardDetailDialog.vue)（裸 `el-table` + `v-for el-table-column`，:64-96）。
 - **表头不居中**：全局样式 [styles.css:2177-2180](frontend/src/styles.css#L2177) 表头 `th` 用非对称 padding `0 0 4px`，文字偏上；body 单元格是对称 `10px 0`。
@@ -244,6 +266,29 @@ SAME_FIELD 父组对子组到底应是哪种约束？两种可选，必须先定
 ### 风险
 - 第 1 步若改全局 styles.css 会影响所有 el-table，务必走弹窗局部 `:deep()`。
 - 第 3 步抽 composable 要回归 MirrorSyncLogTable 自身，避免改坏既有页面。
+
+### 2026-06-24 追补：统计下钻链接与长标题列
+
+#### 现象
+- 统计类下钻表中议题编号看起来可点击，但点击后跳回数据采集平台或 `localhost`，不是对应 GitLab 页面；部分本地 demo 数据因为没有镜像项目路径，编号根本不能形成有效链接。
+- 当前修复主要落在"系统测试缺陷汇总"，"申请延期缺陷明细"等其他统计下钻仍走通用列定义。
+- "申请延期缺陷明细"的"议题标题"列会无上限吸收弹窗剩余宽度，导致表格横向布局被撑开。
+
+#### 根因（已确认）
+- 统计下钻的 9 个看板都调用 `StatisticIssueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName())`，该方法内部走 `GitlabResourceLinkService.issueUrl(projectId, iid)`，没有传 `sourceInstance`。议题查询、非法数据列表等记录页已使用 `sourceInstance + projectId + iid` 生成链接，统计下钻链路与记录页链路不一致。
+- `GitlabResourceLinkService` 只使用全局 `platform.gitlab-mirror.web-base-url` 作为 GitLab Web 基地址。该配置默认是 `http://localhost`；本地或内网关闭强安全校验时，容易生成指向平台/localhost 的错误链接。当前 `gitlab_sync_configs` 只保存 GitLab 数据库连接信息，没有保存该数据源对应的 GitLab Web 访问地址，无法稳定支持平台和 GitLab 不同服务器、或多 GitLab 源实例。
+- `StatisticIssueDetailColumns.title()` 使用 `width=null, minWidth=260`，前端传给 Element Plus 后会让标题列吸收剩余宽度。该问题是共享列定义缺少宽度边界，不应在"申请延期"单页做补丁。
+
+#### 修复方案（共享链路，不做单页补丁）
+1. 在 `gitlab_sync_configs` 增加可空 `web_base_url` 字段，管理端同步配置读写该字段。链接服务按 `sourceInstance` 优先读取对应配置的 `web_base_url`；`default` 源为空时才回退全局 `GITLAB_WEB_BASE_URL`，非 `default` 源没有源级 Web 地址时不生成链接。
+2. 统计事实来源 `StatisticIssueFactSource` 暴露 `sourceInstance`；各统计看板内部 `IssueSource` 记录和 `toDetailRecord` 传递 `sourceInstance`，统一调用 source-aware 的 `putIssueFields`。
+3. `StatisticIssueLinkSupport` 保留旧重载作兼容，但统计看板应迁移到 `putIssueFields(record, sourceInstance, iid, projectId, projectName)`，并统一按老平台 `#28159` 形式展示议题编号。缺少 GitLab Web 地址或项目路径时，议题编号只显示普通文本，不生成错误链接；默认 `http://localhost` 视为未配置。
+4. 共享明细列定义给标题列稳定宽度边界，避免单列吞掉弹窗剩余空间。完整标题继续通过 tooltip/展开区展示，不丢失老平台可见数据。
+
+#### 验收
+- 所有统计类下钻中，议题编号按对应 `sourceInstance` 跳转到正确 GitLab Web 页面；没有可用链接时显示文本而不是错误链接。
+- `系统测试缺陷汇总`、`申请延期缺陷明细`、`缺陷原因分析明细`、`议题阶段统计明细` 等使用同一套链接生成逻辑。
+- "议题标题"列不再随弹窗剩余宽度无限拉宽；完整标题仍可通过 tooltip 或展开区查看。
 
 ---
 

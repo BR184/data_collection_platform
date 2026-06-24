@@ -70,7 +70,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
        where deleted = false
       """;
   private static final String FACT_SQL = """
-      select issue_id as id, issue_iid as iid, title, project_id, project_name,
+      select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
              coalesce(author_name,'') as author_name, coalesce(assignee_name,'') as assignee_name,
              created_at_source as created_at, updated_at_source as updated_at,
              closed_at_source as closed_at, coalesce(issue_state,'opened') as issue_state,
@@ -420,7 +420,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(record, issue.iid(), issue.projectId(), issue.projectName());
+    issueLinkSupport.putIssueFields(record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName());
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("title", issue.title());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
@@ -480,6 +480,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return new IssueSource(
         rs.getLong("id"),
         rs.getInt("iid"),
+        StatisticSourceValueSupport.text(rs.getString("source_instance"), "default"),
         StatisticSourceValueSupport.text(rs.getString("title"), ""),
         rs.getLong("project_id"),
         StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
@@ -597,6 +598,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private record IssueSource(
       Long id,
       Integer iid,
+      String sourceInstance,
       String title,
       Long projectId,
       String projectName,

@@ -24,14 +24,16 @@ import org.junit.jupiter.api.Test;
 
 class GitlabConfigServiceTest {
   private GitlabSyncConfigMapper configMapper;
+  private GitlabResourceLinkService resourceLinkService;
   private GitlabConfigService configService;
 
   @BeforeEach
   void setUp() {
     configMapper = mock(GitlabSyncConfigMapper.class);
+    resourceLinkService = mock(GitlabResourceLinkService.class);
     GitlabMirrorProperties properties = new GitlabMirrorProperties();
     properties.setMaxSyncThreads(16);
-    configService = new GitlabConfigService(configMapper, properties);
+    configService = new GitlabConfigService(configMapper, properties, resourceLinkService);
   }
 
   @Test

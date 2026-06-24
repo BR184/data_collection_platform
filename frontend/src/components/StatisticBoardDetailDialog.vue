@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
 import StatisticBoardDetailCell from './StatisticBoardDetailCell.vue';
 import type {
   StatisticDetailCellValue,
@@ -29,6 +30,8 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
 }>();
 
+const tableShellRef = ref<HTMLElement>();
+
 interface DetailDisplayCell {
   label: string;
   href: string | null;
@@ -54,6 +57,29 @@ const mainTableColumns = computed(() => (props.detail?.columns ?? []).filter((co
 const expandColumns = computed(() => (props.detail?.columns ?? []).filter((column) => column.expandOnly));
 
 const hasExpandColumns = computed(() => expandColumns.value.length > 0);
+
+const {
+  floatingScrollbarRef,
+  scrollbarAwake,
+  hasHorizontalOverflow,
+  horizontalSpacerWidth,
+  wakeHorizontalScrollbar,
+  handleHorizontalWheel,
+  handleFloatingHorizontalScroll,
+  scheduleHorizontalScrollbarUpdate,
+} = useFloatingHorizontalScrollbar({
+  tableShellRef,
+  watchedSources: [detailRows, mainTableColumns],
+});
+
+watch(
+  () => props.modelValue,
+  (visible) => {
+    if (visible) {
+      void scheduleHorizontalScrollbarUpdate();
+    }
+  },
+);
 
 function isStructuredCellValue(value: StatisticDetailCellValue): value is StatisticDetailLinkValue {
   return value != null && typeof value === 'object' && 'label' in value;
@@ -95,49 +121,71 @@ function splitTags(value: unknown) {
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="stat-detail-shell" v-loading="loading">
-      <el-table
+      <div
         v-if="detail"
-        :data="detailRows"
-        border
-        stripe
-        size="small"
-        class="stat-detail-table"
-        :class="detailTableClass"
-        @sort-change="onSortChange"
+        ref="tableShellRef"
+        class="stat-detail-table-shell"
+        :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
+        tabindex="0"
+        @mouseenter="wakeHorizontalScrollbar"
+        @mousemove="wakeHorizontalScrollbar"
+        @focusin="wakeHorizontalScrollbar"
+        @wheel="handleHorizontalWheel"
       >
-        <el-table-column v-if="hasExpandColumns" type="expand" width="42">
-          <template #default="{ row }: { row: DetailDisplayRow }">
-            <div class="stat-detail-expand-panel">
-              <el-descriptions :column="2" border size="small" class="stat-detail-expand-descriptions">
-                <el-descriptions-item
-                  v-for="column in expandColumns"
-                  :key="column.key"
-                  :label="column.label"
-                  label-class-name="stat-detail-expand-label"
-                  class-name="stat-detail-expand-content"
-                >
-                  <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" multiline />
-                </el-descriptions-item>
-              </el-descriptions>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column
-          v-for="column in mainTableColumns"
-          :key="column.key"
-          :prop="column.key"
-          :label="column.label"
-          :width="column.width || undefined"
-          :min-width="column.minWidth || 140"
-          :sortable="column.sortable ? 'custom' : false"
-          show-overflow-tooltip
+        <el-table
+          :data="detailRows"
+          border
+          stripe
+          size="small"
+          class="stat-detail-table"
+          :class="detailTableClass"
+          @expand-change="scheduleHorizontalScrollbarUpdate"
+          @sort-change="onSortChange"
         >
-          <template #default="{ row }: { row: DetailDisplayRow }">
-            <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" />
-          </template>
-        </el-table-column>
-      </el-table>
+          <el-table-column v-if="hasExpandColumns" type="expand" width="42">
+            <template #default="{ row }: { row: DetailDisplayRow }">
+              <div class="stat-detail-expand-panel">
+                <el-descriptions :column="2" border size="small" class="stat-detail-expand-descriptions">
+                <el-descriptions-item
+                  v-for="(column, index) in expandColumns"
+                  :key="`expand-${column.key}-${index}`"
+                    :label="column.label"
+                    label-class-name="stat-detail-expand-label"
+                    class-name="stat-detail-expand-content"
+                  >
+                    <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" multiline />
+                  </el-descriptions-item>
+                </el-descriptions>
+              </div>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            v-for="(column, index) in mainTableColumns"
+            :key="`main-${column.key}-${index}`"
+            :prop="column.key"
+            :label="column.label"
+            :width="column.width || undefined"
+            :min-width="column.minWidth || 140"
+            :sortable="column.sortable ? 'custom' : false"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }: { row: DetailDisplayRow }">
+              <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" />
+            </template>
+          </el-table-column>
+        </el-table>
+        <div
+          v-show="hasHorizontalOverflow"
+          ref="floatingScrollbarRef"
+          class="stat-detail-floating-horizontal"
+          aria-hidden="true"
+          @mouseenter="wakeHorizontalScrollbar"
+          @scroll="handleFloatingHorizontalScroll"
+        >
+          <div class="stat-detail-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+        </div>
+      </div>
 
       <div class="detail-pagination">
         <el-pagination
@@ -178,6 +226,16 @@ function splitTags(value: unknown) {
   color: #1f2329;
 }
 
+.stat-detail-table-shell {
+  position: relative;
+  outline: none;
+  scrollbar-gutter: stable;
+}
+
+.stat-detail-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  display: none !important;
+}
+
 .stat-detail-table :deep(.el-table__header th) {
   vertical-align: middle;
   padding: 6px 0;
@@ -215,5 +273,45 @@ function splitTags(value: unknown) {
 .stat-detail-table :deep(.caret-wrapper) {
   height: 28px;
   justify-content: center;
+}
+
+.stat-detail-floating-horizontal {
+  position: sticky;
+  right: 14px;
+  bottom: 2px;
+  left: 0;
+  z-index: 3;
+  height: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: none;
+  opacity: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 72%) transparent;
+  transition: opacity 0.14s ease;
+}
+
+.stat-detail-table-shell:hover .stat-detail-floating-horizontal,
+.stat-detail-table-shell:focus-within .stat-detail-floating-horizontal,
+.stat-detail-table-shell.is-scrollbar-awake .stat-detail-floating-horizontal {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.stat-detail-floating-horizontal::-webkit-scrollbar {
+  height: 8px;
+}
+
+.stat-detail-floating-horizontal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stat-detail-floating-horizontal::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(148 163 184 / 72%);
+}
+
+.stat-detail-floating-horizontal-spacer {
+  height: 1px;
 }
 </style>

@@ -42,12 +42,33 @@ final class StatisticIssueDetailColumns {
     return List.copyOf(columns);
   }
 
+  static List<StatisticDetailColumn> moduleTableLegacyDetail() {
+    List<StatisticDetailColumn> columns = new ArrayList<>();
+    columns.add(new StatisticDetailColumn("iid", "议题编号", 120, 120, true));
+    columns.add(new StatisticDetailColumn("moduleNames", "模块名", 160, 160, true, "tags"));
+    columns.add(new StatisticDetailColumn("title", "议题标题", 360, 260, true));
+    columns.add(new StatisticDetailColumn("state", "议题状态", 120, 120, true, "tag"));
+    columns.add(new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true, "tag"));
+    columns.add(new StatisticDetailColumn("bugStatus", "测试状态", 180, 180, true, "tags"));
+    columns.add(StatisticDetailColumn.expandOnly("updatedAt", "议题更新时间", 180, 180, true));
+    columns.add(StatisticDetailColumn.expandOnly("createdAt", "议题提交时间", 180, 180, true));
+    columns.add(StatisticDetailColumn.expandOnly("moduleNames", "模块名", null, 180, true, "tags"));
+    columns.add(StatisticDetailColumn.expandOnly("iid", "议题编号", 120, 120, true));
+    columns.add(StatisticDetailColumn.expandOnly("title", "议题标题", 420, 260, true));
+    columns.add(StatisticDetailColumn.expandOnly("authorName", "议题提交人", 140, 140, true));
+    columns.add(StatisticDetailColumn.expandOnly("assigneeName", "议题处理人", 140, 140, true));
+    columns.add(StatisticDetailColumn.expandOnly("state", "议题状态", 120, 120, true, "tag"));
+    columns.add(StatisticDetailColumn.expandOnly("bugStatus", "测试状态", 180, 180, true, "tags"));
+    columns.add(StatisticDetailColumn.expandOnly("severityLevel", "议题严重程度", 140, 140, true, "tag"));
+    return List.copyOf(columns);
+  }
+
   static StatisticDetailColumn issueNumber() {
     return new StatisticDetailColumn("iid", "议题编号", 120, 120, true);
   }
 
   static StatisticDetailColumn title(String label) {
-    return new StatisticDetailColumn("title", label, null, 260, true);
+    return new StatisticDetailColumn("title", label, 360, 260, true);
   }
 
   static StatisticDetailColumn state(String label) {

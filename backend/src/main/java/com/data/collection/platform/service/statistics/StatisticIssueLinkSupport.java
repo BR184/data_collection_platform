@@ -16,9 +16,15 @@ public class StatisticIssueLinkSupport {
 
   public void putIssueFields(
       Map<String, Object> record, Integer issueIid, Long projectId, String projectName) {
-    String issueUrl = issueLinkService.issueUrl(projectId, issueIid);
+    putIssueFields(record, null, issueIid, projectId, projectName);
+  }
+
+  public void putIssueFields(
+      Map<String, Object> record, String sourceInstance, Integer issueIid, Long projectId, String projectName) {
+    String issueUrl = issueLinkService.issueUrl(sourceInstance, projectId, issueIid);
     record.put("issueIid", issueIid);
     record.put("issueUrl", issueUrl);
+    record.put("sourceInstance", sourceInstance);
     record.put("projectId", projectId);
     record.put("projectName", projectName);
     record.put("iid", issueLinkValue(issueIid, issueUrl));
@@ -26,7 +32,7 @@ public class StatisticIssueLinkSupport {
 
   private Map<String, String> issueLinkValue(Integer issueIid, String issueUrl) {
     Map<String, String> value = new LinkedHashMap<>();
-    value.put("label", issueIid == null ? "-" : String.valueOf(issueIid));
+    value.put("label", issueIid == null ? "-" : "#" + issueIid);
     if (StringUtils.hasText(issueUrl)) {
       value.put("href", issueUrl);
     }
