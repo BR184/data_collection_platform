@@ -249,7 +249,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY, true, "系统测试缺陷汇总规则说明", RULE_VERSION,
         "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按模块生成父表格。",
-        "父表格沿用老平台模块展示口径，模块行按模块文本包含关系计数；下钻明细仍展示精确命中当前模块和指标的唯一议题列表。", s.flowSteps(), buildMetricDefinitions(), null);
+        "父表格和下钻明细复用同一套模块成员与指标匹配口径，单元格数字与下钻明细 total 保持一致。", s.flowSteps(), buildMetricDefinitions(), null);
   }
 
   private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {
@@ -305,7 +305,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "module-expand",
             "按模块展开",
-            "父表格按老平台模块文本包含口径归入模块行；下钻明细按精确模块命中展示唯一议题。",
+            "按事实层模块成员展开模块行；父表格单元格与下钻明细使用同一套模块成员和指标匹配口径。",
             valid.size(),
             valid.stream().mapToLong(i -> i.moduleNames().size()).sum(),
             valid,
@@ -810,12 +810,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return !StringUtils.hasText(rowKey) || TOTAL_ROW_KEY.equals(rowKey) || issue.moduleNames().contains(rowKey);
   }
 
-  private boolean matchesSummaryRow(IssueSource issue, String rowKey) {
-    return !StringUtils.hasText(rowKey)
-        || TOTAL_ROW_KEY.equals(rowKey)
-        || issue.moduleNames().stream().anyMatch(moduleName -> containsIgnoreCase(moduleName, rowKey));
-  }
-
   private Comparator<IssueSource> buildDetailComparator(String sortField, String sortOrder) {
     Comparator<IssueSource> c = switch (StringUtils.hasText(sortField) ? sortField.trim() : "updatedAt") {
       case "iid" -> SortSupport.nullableComparable(IssueSource::iid);
@@ -840,7 +834,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private static String percent(double value) { return StatisticMetricCalculator.percent(value); }
 
   private StatisticRowData toSummaryRowData(String rowKey, String rowLabel, List<IssueSource> sourceIssues) {
-    List<IssueSource> rowIssues = sourceIssues.stream().filter(issue -> matchesSummaryRow(issue, rowKey)).toList();
+    List<IssueSource> rowIssues = sourceIssues.stream().filter(issue -> matchesRow(issue, rowKey)).toList();
     SummaryCounts counts = SummaryCounts.from(rowIssues, sourceIssues.size());
     return new StatisticRowData(rowKey, rowLabel, List.of(
         cell("level1_back", counts.level1Back(), count(counts.level1Back()), true, rowKey),
