@@ -39,6 +39,42 @@ interface DetailDisplayRow {
   cells: Record<string, DetailDisplayCell>;
 }
 
+const LABEL_LIKE_SINGLE_COLUMN_KEYS = new Set([
+  'bugStatus',
+  'category',
+  'delayCause',
+  'delayType',
+  'functionName',
+  'illegalReason',
+  'priorityLevel',
+  'primaryPhaseLabel',
+  'reasonCategory',
+  'severityLabel',
+  'severityLevel',
+  'state',
+  'systemTestLabel',
+  'testingPhase',
+]);
+
+const LABEL_LIKE_MULTI_COLUMN_KEYS = new Set(['labels', 'moduleNames']);
+
+const GITLAB_LABEL_PALETTE = [
+  '#6699cc',
+  '#5cb85c',
+  '#f0ad4e',
+  '#d9534f',
+  '#8fbc8f',
+  '#428bca',
+  '#d66a6a',
+  '#7b68ee',
+  '#00a6a6',
+  '#b37feb',
+  '#6f42c1',
+  '#db6d28',
+  '#1f75cb',
+  '#009966',
+];
+
 const detailRows = computed<DetailDisplayRow[]>(() =>
   (props.detail?.records ?? []).map((record) => ({
     record,
@@ -63,6 +99,19 @@ function createDetailCell(record: Record<string, unknown>, column: StatisticDeta
   };
 }
 
+function isGitlabLabelColumn(column: StatisticDetailColumn) {
+  return (
+    column.type === 'tag' ||
+    column.type === 'tags' ||
+    LABEL_LIKE_SINGLE_COLUMN_KEYS.has(column.key) ||
+    LABEL_LIKE_MULTI_COLUMN_KEYS.has(column.key)
+  );
+}
+
+function isGitlabMultiLabelColumn(column: StatisticDetailColumn) {
+  return column.type === 'tags' || LABEL_LIKE_MULTI_COLUMN_KEYS.has(column.key);
+}
+
 function splitTags(value: unknown) {
   const rawValue = String(value ?? '').trim();
   if (!rawValue || rawValue === '-') {
@@ -74,17 +123,60 @@ function splitTags(value: unknown) {
     .filter(Boolean);
 }
 
-function tagType(label: string) {
-  if (label.includes('一级') || label === '已关闭') {
-    return 'danger';
+function gitlabLabelStyle(label: string) {
+  const backgroundColor = gitlabLabelColor(label);
+  return {
+    '--gitlab-label-bg': backgroundColor,
+    '--gitlab-label-color': readableTextColor(backgroundColor),
+    '--gitlab-label-border': darkenHexColor(backgroundColor, 0.16),
+  };
+}
+
+function gitlabLabelColor(label: string) {
+  if (label.includes('一级') || label === 'P1') {
+    return '#d9534f';
   }
-  if (label.includes('二级') || label.includes('申请延期') || label.includes('未修复')) {
-    return 'warning';
+  if (label.includes('二级') || label === 'P2' || label.includes('申请延期')) {
+    return '#f0ad4e';
   }
-  if (label.includes('已修复') || label.includes('完成') || label === '未关闭') {
-    return 'success';
+  if (label.includes('三级') || label === 'P3') {
+    return '#428bca';
   }
-  return 'info';
+  if (label.includes('已修复') || label.includes('完成') || label === '已关闭') {
+    return '#5cb85c';
+  }
+  if (label.includes('系统测试') || label.includes('回归测试')) {
+    return '#6699cc';
+  }
+  const hash = Array.from(label).reduce((value, char) => (value * 31 + char.charCodeAt(0)) >>> 0, 0);
+  return GITLAB_LABEL_PALETTE[hash % GITLAB_LABEL_PALETTE.length];
+}
+
+function readableTextColor(hexColor: string) {
+  const { red, green, blue } = hexToRgb(hexColor);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.62 ? '#1f2329' : '#ffffff';
+}
+
+function darkenHexColor(hexColor: string, amount: number) {
+  const { red, green, blue } = hexToRgb(hexColor);
+  return rgbToHex(red * (1 - amount), green * (1 - amount), blue * (1 - amount));
+}
+
+function hexToRgb(hexColor: string) {
+  const normalized = hexColor.replace('#', '');
+  const value = Number.parseInt(normalized, 16);
+  return {
+    red: (value >> 16) & 255,
+    green: (value >> 8) & 255,
+    blue: value & 255,
+  };
+}
+
+function rgbToHex(red: number, green: number, blue: number) {
+  return `#${[red, green, blue]
+    .map((value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0'))
+    .join('')}`;
 }
 </script>
 
@@ -106,6 +198,7 @@ function tagType(label: string) {
         :data="detailRows"
         border
         stripe
+        size="small"
         class="stat-detail-table"
         :class="detailTableClass"
         @sort-change="onSortChange"
@@ -121,27 +214,31 @@ function tagType(label: string) {
           show-overflow-tooltip
         >
           <template #default="{ row }: { row: DetailDisplayRow }">
-            <div v-if="column.type === 'tags'" class="detail-cell-tags">
-              <el-tag
+            <div
+              v-if="isGitlabMultiLabelColumn(column)"
+              class="detail-cell-tags detail-cell-gitlab-labels"
+              :title="row.cells[column.key]?.label"
+            >
+              <span
                 v-for="tag in row.cells[column.key]?.tags ?? []"
                 :key="`${column.key}-${tag}`"
-                size="small"
-                :type="tagType(tag)"
-                effect="plain"
+                class="detail-gitlab-label"
+                :style="gitlabLabelStyle(tag)"
+                :title="tag"
               >
                 {{ tag }}
-              </el-tag>
+              </span>
               <span v-if="!(row.cells[column.key]?.tags ?? []).length" class="detail-cell-empty">-</span>
             </div>
-            <el-tag
-              v-else-if="column.type === 'tag' && row.cells[column.key]?.label"
-              size="small"
-              :type="tagType(row.cells[column.key]?.label ?? '')"
-              effect="plain"
+            <span
+              v-else-if="isGitlabLabelColumn(column) && row.cells[column.key]?.label && row.cells[column.key]?.label !== '-'"
+              class="detail-gitlab-label"
+              :style="gitlabLabelStyle(row.cells[column.key]?.label ?? '')"
+              :title="row.cells[column.key]?.label"
             >
               {{ row.cells[column.key]?.label }}
-            </el-tag>
-            <span v-else-if="column.type === 'tag'" class="detail-cell-empty">-</span>
+            </span>
+            <span v-else-if="isGitlabLabelColumn(column)" class="detail-cell-empty">-</span>
             <a
               v-else-if="row.cells[column.key]?.href"
               class="detail-cell-link"
@@ -186,7 +283,12 @@ function tagType(label: string) {
 }
 
 .detail-cell-text {
+  display: inline-block;
+  max-width: 100%;
   color: #1f2329;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-cell-empty {
@@ -196,20 +298,55 @@ function tagType(label: string) {
 .detail-cell-tags {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-height: 24px;
+  gap: 4px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  min-height: 20px;
+  overflow: hidden;
+}
+
+.detail-cell-gitlab-labels {
+  justify-content: flex-start;
+}
+
+.detail-gitlab-label {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 18px;
+  padding: 1px 6px;
+  border: 1px solid var(--gitlab-label-border);
+  border-radius: 4px;
+  background: var(--gitlab-label-bg);
+  color: var(--gitlab-label-color);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  white-space: nowrap;
+  text-align: left;
 }
 
 .stat-detail-table :deep(.el-table__header th) {
   vertical-align: middle;
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 .stat-detail-table :deep(.cell) {
   display: flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 24px;
+  width: 100%;
+  line-height: 1.35 !important;
+  overflow: hidden;
+}
+
+.stat-detail-table :deep(td.el-table__cell) {
+  padding: 6px 0 !important;
+  vertical-align: middle;
+}
+
+.stat-detail-table :deep(.el-table__row) {
+  height: 36px;
 }
 
 .stat-detail-table :deep(.el-table__column-filter-trigger),
