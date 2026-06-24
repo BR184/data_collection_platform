@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Predicate;
@@ -96,6 +97,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
             StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions),
             StatisticFilterFieldFactory.textLabelGroup(MODULE_FIELD, "模块名称", 180),
+            StatisticFilterFieldFactory.textLabelGroup("title", "标题", 220),
             StatisticFilterFieldFactory.select(
                 "severityLevel",
                 "严重程度",
@@ -108,7 +110,21 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                 List.of(
                     new StatisticFilterOption("P1", "P1"),
                     new StatisticFilterOption("P2", "P2"),
-                    new StatisticFilterOption("P3", "P3")))),
+                    new StatisticFilterOption("P3", "P3"))),
+            StatisticFilterFieldFactory.textLabelGroup("bugStatus", "测试状态", 180),
+            StatisticFilterFieldFactory.textLabelGroup("delayCause", "延期原因", 180),
+            StatisticFilterFieldFactory.textLabelGroup("authorName", "创建人", 160),
+            StatisticFilterFieldFactory.textLabelGroup("assigneeName", "处理人", 160),
+            StatisticFilterFieldFactory.select(
+                "state",
+                "状态",
+                140,
+                List.of(
+                    new StatisticFilterOption("open", "未关闭"),
+                    new StatisticFilterOption("closed", "已关闭"))),
+            StatisticFilterFieldFactory.datetime("createdAt", "议题提交时间", 180),
+            StatisticFilterFieldFactory.datetime("updatedAt", "更新时间", 180),
+            StatisticFilterFieldFactory.textLabelGroup("labels", "标签", 220)),
         List.of(
             StatisticColumnGroup.withChildren("level1", "一级缺陷", List.of(
                 new StatisticColumnGroup("level1-classification", "分类", List.of(
@@ -164,16 +180,16 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         List.of(
             new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
             new StatisticDetailColumn("title", "标题", null, 260, true),
-            new StatisticDetailColumn("moduleNames", "模块", null, 180, true),
+            new StatisticDetailColumn("moduleNames", "模块", null, 180, true, "tags"),
             new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-            new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true),
-            new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
+            new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true, "tag"),
+            new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true, "tags"),
             new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
             new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
             new StatisticDetailColumn("assigneeName", "处理人", 140, 140, true),
-            new StatisticDetailColumn("state", "状态", 120, 120, true),
+            new StatisticDetailColumn("state", "状态", 120, 120, true, "tag"),
             new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
-            new StatisticDetailColumn("labels", "标签", null, 240, false),
+            new StatisticDetailColumn("labels", "标签", null, 240, false, "tags"),
             new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true)),
         10, "当前没有可展示的系统测试缺陷统计数据。");
   }
@@ -531,8 +547,14 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return switch (condition.fieldKey()) {
         case MODULE_FIELD -> matchesSetOperator(issue.moduleNames(), operator, condition.values());
         case "projectName" -> matchesSetOperator(singleValue(issue.projectName()), operator, condition.values());
+        case "title" -> matchesSetOperator(singleValue(issue.title()), operator, condition.values());
         case "severityLevel" -> matchesSetOperator(singleValue(issue.severityLevel()), operator, condition.values());
         case "priorityLevel" -> matchesSetOperator(singleValue(issue.priorityLevel()), operator, condition.values());
+        case "bugStatus" -> matchesSetOperator(singleValue(issue.bugStatus()), operator, condition.values());
+        case "delayCause" -> matchesSetOperator(singleValue(issue.delayCause()), operator, condition.values());
+        case "authorName" -> matchesSetOperator(singleValue(issue.authorName()), operator, condition.values());
+        case "assigneeName" -> matchesSetOperator(singleValue(issue.assigneeName()), operator, condition.values());
+        case "labels" -> matchesSetOperator(issue.labels(), operator, condition.values());
         default -> true;
       };
     }
@@ -540,10 +562,69 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       case "projectName" -> matchesText(issue.projectName(), operator, value);
       case "testingPhase" -> matchesPhase(issue, operator, value, phaseValueCache);
       case MODULE_FIELD -> matchesAny(issue.moduleNames(), operator, value);
+      case "title" -> matchesText(issue.title(), operator, value);
       case "severityLevel" -> matchesText(issue.severityLevel(), operator, value);
       case "priorityLevel" -> matchesText(issue.priorityLevel(), operator, value);
+      case "bugStatus" -> matchesText(issue.bugStatus(), operator, value);
+      case "delayCause" -> matchesText(issue.delayCause(), operator, value);
+      case "authorName" -> matchesText(issue.authorName(), operator, value);
+      case "assigneeName" -> matchesText(issue.assigneeName(), operator, value);
+      case "state" -> matchesIssueState(issue, operator, value);
+      case "createdAt" -> matchesDateTime(issue.createdAt(), operator, value, condition.secondaryValue());
+      case "updatedAt" -> matchesDateTime(issue.updatedAt(), operator, value, condition.secondaryValue());
+      case "labels" -> matchesAny(issue.labels(), operator, value);
       default -> true;
     };
+  }
+
+  private boolean matchesIssueState(IssueSource issue, String operator, String value) {
+    String state = issue.isClosed() ? "closed" : "open";
+    return matchesText(state, operator, value);
+  }
+
+  private boolean matchesDateTime(LocalDateTime candidate, String operator, String value, String secondaryValue) {
+    if (candidate == null) {
+      return "isEmpty".equals(operator);
+    }
+    if (!StringUtils.hasText(value)) {
+      return true;
+    }
+    LocalDateTime target = parseDateTimeBoundary(value, false);
+    if (target == null) {
+      return true;
+    }
+    return switch (operator) {
+      case "year" -> candidate.getYear() == target.getYear();
+      case "month" -> candidate.getYear() == target.getYear() && candidate.getMonth() == target.getMonth();
+      case "day", "at" -> candidate.toLocalDate().equals(target.toLocalDate());
+      case "before" -> candidate.isBefore(target);
+      case "after" -> candidate.isAfter(target);
+      case "between" -> {
+        LocalDateTime end = parseDateTimeBoundary(secondaryValue, true);
+        yield end == null || (!candidate.isBefore(target) && !candidate.isAfter(end));
+      }
+      case "isEmpty" -> false;
+      case "isNotEmpty" -> true;
+      default -> true;
+    };
+  }
+
+  private LocalDateTime parseDateTimeBoundary(String value, boolean endOfDay) {
+    String normalized = trimTextToNull(value);
+    if (normalized == null) {
+      return null;
+    }
+    try {
+      return LocalDateTime.parse(normalized);
+    } catch (java.time.format.DateTimeParseException ignored) {
+      // Date-only picker values are common in board filters.
+    }
+    try {
+      LocalDate date = LocalDate.parse(normalized);
+      return endOfDay ? date.atTime(23, 59, 59, 999_999_999) : date.atStartOfDay();
+    } catch (java.time.format.DateTimeParseException ignored) {
+      return null;
+    }
   }
 
   private boolean matchesText(String candidate, String operator, String value) {

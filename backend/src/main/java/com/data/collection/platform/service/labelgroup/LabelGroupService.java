@@ -186,12 +186,21 @@ public class LabelGroupService {
   }
 
   private LinkedHashSet<String> expandValues(LabelGroupRecord group, LinkedHashSet<Long> visiting) {
+    return expandValues(group, new LinkedHashSet<>(), visiting);
+  }
+
+  private LinkedHashSet<String> expandValues(
+      LabelGroupRecord group,
+      LinkedHashSet<String> parentSourceFieldKeys,
+      LinkedHashSet<Long> visiting) {
     if (!group.enabled()) {
       throw new BizException("标签组已禁用，不能应用筛选：" + group.name());
     }
+    validateInheritedSameFieldScope(group, parentSourceFieldKeys);
     if (!visiting.add(group.id())) {
       throw new BizException("标签组引用存在循环：" + group.name());
     }
+    LinkedHashSet<String> nextSourceFieldKeys = inheritedSourceFieldKeys(group, parentSourceFieldKeys);
     LinkedHashSet<String> values = new LinkedHashSet<>();
     for (LabelGroupMemberRecord member : group.members()) {
       values.add(member.memberValue());
@@ -203,7 +212,7 @@ public class LabelGroupService {
           && !group.valueType().equals(childGroup.valueType())) {
         throw new BizException("子标签组值类型不一致：" + childGroup.name());
       }
-      values.addAll(expandValues(childGroup, visiting));
+      values.addAll(expandValues(childGroup, nextSourceFieldKeys, visiting));
     }
     visiting.remove(group.id());
     return values;
@@ -303,13 +312,15 @@ public class LabelGroupService {
       if (TYPE_STATIC.equals(groupType) && !TYPE_STATIC.equals(childGroup.groupType())) {
         throw new BizException("静态标签组只能嵌套静态标签组：" + childGroup.name());
       }
+      validateChildApplicableScope(applicableScope, sourceFieldKey, childGroup);
       if (groupId != null && wouldCreateCycle(groupId, childGroup, new LinkedHashSet<>())) {
         throw new BizException("标签组引用存在循环：" + childGroup.name());
       }
     }
+    LinkedHashSet<String> inheritedSourceFieldKeys = inheritedSourceFieldKeys(applicableScope, sourceFieldKey);
     int expandedCount = members.size();
     for (LabelGroupRecord childGroup : childGroups) {
-      expandedCount += expandValues(childGroup, new LinkedHashSet<>()).size();
+      expandedCount += expandValues(childGroup, inheritedSourceFieldKeys, new LinkedHashSet<>()).size();
     }
     if (expandedCount > MAX_MEMBER_COUNT) {
       throw new BizException("标签组展开后超过 200 个值，请拆分后保存");
@@ -571,7 +582,7 @@ public class LabelGroupService {
       if (sourceFieldKey == null) {
         throw new BizException("SAME_FIELD 适用范围必须指定来源字段");
       }
-      return normalizeSameFieldKey(sourceFieldKey);
+      return LabelGroupFieldKeySupport.normalize(sourceFieldKey);
     }
     return sourceFieldKey;
   }
@@ -585,19 +596,49 @@ public class LabelGroupService {
     }
   }
 
-  private String normalizeSameFieldKey(String value) {
-    String normalized = trimToNull(value);
-    if (normalized == null) {
-      return null;
+  private void validateChildApplicableScope(String parentScope, String parentSourceFieldKey, LabelGroupRecord childGroup) {
+    if (!"SAME_FIELD".equals(parentScope) || !"SAME_FIELD".equals(childGroup.applicableScope())) {
+      return;
     }
-    return switch (normalized) {
-      case "模块", "模块名", "模块名称", "module", "moduleName", "moduleNames" -> "moduleName";
-      case "评审负责人", "reviewOwner" -> "reviewOwner";
-      case "评审专家", "reviewExpert" -> "reviewExpert";
-      case "项目", "project", "projectName" -> "projectName";
-      case "客户问题处理人", "customer_assignee", "issue_assignee", "assigneeName" -> "assigneeName";
-      default -> normalized;
-    };
+    if (!LabelGroupFieldKeySupport.same(parentSourceFieldKey, childGroup.sourceFieldKey())) {
+      throw new BizException("子标签组来源字段与父组不一致：" + childGroup.name());
+    }
+  }
+
+  private LinkedHashSet<String> inheritedSourceFieldKeys(String applicableScope, String sourceFieldKey) {
+    LinkedHashSet<String> sourceFieldKeys = new LinkedHashSet<>();
+    if ("SAME_FIELD".equals(applicableScope)) {
+      String normalizedSourceFieldKey = LabelGroupFieldKeySupport.normalize(sourceFieldKey);
+      if (normalizedSourceFieldKey != null) {
+        sourceFieldKeys.add(normalizedSourceFieldKey);
+      }
+    }
+    return sourceFieldKeys;
+  }
+
+  private void validateInheritedSameFieldScope(
+      LabelGroupRecord group,
+      LinkedHashSet<String> parentSourceFieldKeys) {
+    if (parentSourceFieldKeys.isEmpty() || !"SAME_FIELD".equals(group.applicableScope())) {
+      return;
+    }
+    String sourceFieldKey = LabelGroupFieldKeySupport.normalize(group.sourceFieldKey());
+    if (sourceFieldKey == null || !parentSourceFieldKeys.contains(sourceFieldKey)) {
+      throw new BizException("子标签组来源字段与父组不一致：" + group.name());
+    }
+  }
+
+  private LinkedHashSet<String> inheritedSourceFieldKeys(
+      LabelGroupRecord group,
+      LinkedHashSet<String> parentSourceFieldKeys) {
+    LinkedHashSet<String> sourceFieldKeys = new LinkedHashSet<>(parentSourceFieldKeys);
+    if ("SAME_FIELD".equals(group.applicableScope())) {
+      String sourceFieldKey = LabelGroupFieldKeySupport.normalize(group.sourceFieldKey());
+      if (sourceFieldKey != null) {
+        sourceFieldKeys.add(sourceFieldKey);
+      }
+    }
+    return sourceFieldKeys;
   }
 
   private String requireText(String value, String message) {

@@ -75,7 +75,8 @@ public class LabelGroupDynamicRuleCandidateService {
           and btrim(cast(%1$s as text)) not like '未设定%%'
           and btrim(cast(%1$s as text)) not like '未标注%%'
           and btrim(cast(%1$s as text)) <> 'GitLab接口报错'
-        """.formatted(field.columnName()));
+          and coalesce(%2$s, false) = false
+        """.formatted(field.columnName(), source.activeColumnName()));
     String normalizedKeyword = TextQuerySupport.trimToNull(keyword);
     if (normalizedKeyword != null) {
       where.append(" and lower(cast(").append(field.columnName()).append(" as text)) like :keyword");

@@ -51,6 +51,7 @@ import {
 import {
   buildFilterGroupFromRouteQuery,
 } from './statistic-board-route-query';
+import type { LocationQuery } from 'vue-router';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
@@ -421,6 +422,20 @@ const {
   openStatisticDetail,
 });
 
+const PRESENTATION_QUERY_KEYS = new Set([
+  'sortBy',
+  'sortOrder',
+  'tablePage',
+  'tablePageSize',
+  'detailPage',
+  'detailPageSize',
+  'detailSortBy',
+  'detailSortOrder',
+  'detailVisible',
+  'detailRowKey',
+  'detailColumnKey',
+]);
+
 function sortIconForDirection(direction: SortDirection) {
   if (direction === 'asc') {
     return ArrowUp;
@@ -523,7 +538,12 @@ watch(
 
 watch(
   () => route.query,
-  async () => {
+  async (nextQuery, previousQuery) => {
+    if (previousQuery && hasOnlyPresentationQueryChanges(nextQuery, previousQuery)) {
+      syncTablePaginationFromRoute();
+      syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10);
+      return;
+    }
     resetRuleExplanation();
     await refreshStatisticBoardRouteState({
       setLoading: (nextLoading) => {
@@ -538,6 +558,25 @@ watch(
   },
   { immediate: true, deep: true },
 );
+
+function hasOnlyPresentationQueryChanges(nextQuery: LocationQuery, previousQuery: LocationQuery) {
+  const allKeys = new Set([...Object.keys(nextQuery), ...Object.keys(previousQuery)]);
+  let changed = false;
+  for (const key of allKeys) {
+    if (queryValueSignature(nextQuery[key]) === queryValueSignature(previousQuery[key])) {
+      continue;
+    }
+    changed = true;
+    if (!PRESENTATION_QUERY_KEYS.has(key)) {
+      return false;
+    }
+  }
+  return changed;
+}
+
+function queryValueSignature(value: LocationQuery[string]) {
+  return Array.isArray(value) ? value.join('\u0000') : String(value ?? '');
+}
 
 onMounted(() => {
   void autoRefreshPageData();

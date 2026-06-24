@@ -419,7 +419,7 @@ function nextChildSortOrder() {
             fit-input-width
             placeholder="选择项目"
             popper-class="platform-select-dropdown"
-            style="width: 220px"
+            class="testing-phase-toolbar__project"
           >
             <el-option
               v-for="option in projectSelectOptions"
@@ -434,7 +434,7 @@ function nextChildSortOrder() {
             fit-input-width
             placeholder="全部状态"
             popper-class="platform-select-dropdown"
-            style="width: 130px"
+            class="testing-phase-toolbar__status"
             @change="loadGroups"
             @clear="loadGroups"
           >
@@ -449,7 +449,7 @@ function nextChildSortOrder() {
             v-model="keyword"
             clearable
             placeholder="搜索阶段或测试阶段名称"
-            style="width: 280px"
+            class="testing-phase-toolbar__keyword"
             :prefix-icon="Search"
             @keyup.enter="loadGroups"
             @clear="loadGroups"
@@ -491,9 +491,7 @@ function nextChildSortOrder() {
             <el-switch
               :model-value="row.enabled"
               size="small"
-              inline-prompt
-              active-text="启"
-              inactive-text="停"
+              :aria-label="row.enabled ? '停用阶段名称' : '启用阶段名称'"
               @click.stop
               @change="setGroupEnabled(row, Boolean($event))"
             />
@@ -540,9 +538,7 @@ function nextChildSortOrder() {
               <el-switch
                 :model-value="row.enabled"
                 size="small"
-                inline-prompt
-                active-text="启"
-                inactive-text="停"
+                :aria-label="row.enabled ? '停用测试阶段名称' : '启用测试阶段名称'"
                 @change="setChildEnabled(row, Boolean($event))"
               />
             </template>
@@ -652,8 +648,22 @@ function nextChildSortOrder() {
 
 .testing-phase-toolbar-main {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
+}
+
+.testing-phase-toolbar__project {
+  width: clamp(180px, 24vw, 240px);
+}
+
+.testing-phase-toolbar__status {
+  width: 132px;
+}
+
+.testing-phase-toolbar__keyword {
+  width: clamp(220px, 30vw, 340px);
 }
 
 .testing-phase-layout {
@@ -763,6 +773,17 @@ function nextChildSortOrder() {
 
 .phase-row-chevron {
   color: var(--el-text-color-placeholder);
+}
+
+.phase-detail-panel :deep(.el-table__header th) {
+  vertical-align: middle;
+  padding: 8px 0;
+}
+
+.phase-detail-panel :deep(.el-table .cell) {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
 }
 
 .testing-phase-form {

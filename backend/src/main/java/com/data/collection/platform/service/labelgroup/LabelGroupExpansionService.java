@@ -61,24 +61,8 @@ public class LabelGroupExpansionService {
     if (normalizedFieldKey == null || sourceFieldKey == null) {
       throw new BizException("SAME_FIELD 标签组必须指定来源字段");
     }
-    if (!sameFieldKey(sourceFieldKey, normalizedFieldKey)) {
+    if (!LabelGroupFieldKeySupport.same(sourceFieldKey, normalizedFieldKey)) {
       throw new BizException("当前字段不能使用该标签组");
     }
-  }
-
-  private boolean sameFieldKey(String left, String right) {
-    return normalizeFieldKey(left).equals(normalizeFieldKey(right));
-  }
-
-  private String normalizeFieldKey(String key) {
-    String normalized = key == null ? "" : key.trim();
-    return switch (normalized) {
-      case "模块", "模块名", "模块名称", "module", "moduleName", "moduleNames" -> "moduleName";
-      case "评审负责人", "reviewOwner" -> "reviewOwner";
-      case "评审专家", "reviewExpert" -> "reviewExpert";
-      case "项目", "projectName" -> "projectName";
-      case "客户问题处理人", "customer_assignee", "issue_assignee", "assigneeName" -> "assigneeName";
-      default -> normalized;
-    };
   }
 }

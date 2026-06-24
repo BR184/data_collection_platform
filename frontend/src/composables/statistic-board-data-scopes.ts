@@ -31,7 +31,7 @@ const SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER: DataScopeProvider = {
   id: 'system-test-defect-summary-phase',
   label: '测试阶段',
   queryKey: 'testingPhase',
-  mode: 'single-select',
+  mode: 'tree-single',
   placeholder: '选择测试阶段',
   defaultStrategy: 'first-available',
   clearable: false,
@@ -69,6 +69,7 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   const loading = ref(false);
   const loaded = ref(false);
   const parentOptions = computed(() => buildParentOptions(testingPhaseGroups.value));
+  const phaseTreeOptions = computed(() => buildTreeOptions(testingPhaseGroups.value));
 
   const config = computed<StatisticBoardDataScopeConfig | null>(() => {
     if (CUSTOMER_ISSUE_PHASE_BOARD_KEYS.has(boardKey.value)) {
@@ -90,7 +91,7 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
     }
     return {
       provider: SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER,
-      options: parentOptions,
+      options: phaseTreeOptions,
       loading,
     };
   });
@@ -130,6 +131,29 @@ function buildParentOptions(groups: TestingPhaseGroupResponse[]): DataScopeOptio
       label: parent,
       value: parent,
     }));
+}
+
+function buildTreeOptions(groups: TestingPhaseGroupResponse[]): DataScopeOption[] {
+  return groups
+    .map((group) => {
+      const parent = normalizeText(group.name);
+      if (!parent) {
+        return null;
+      }
+      const children = (group.children ?? [])
+        .map((child) => normalizeText(child.testingPhase))
+        .filter(Boolean)
+        .map((phase) => ({
+          label: phase,
+          value: phase,
+        }));
+      return {
+        label: parent,
+        value: parent,
+        ...(children.length > 0 ? { children } : {}),
+      };
+    })
+    .filter((option): option is DataScopeOption => option != null);
 }
 
 function normalizeText(value: string | null | undefined) {

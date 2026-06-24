@@ -133,7 +133,7 @@ public class LabelGroupDynamicRuleEvaluationService {
     SqlParts sqlParts = buildFromAndJoins(outputSource.key(), sources, aliases, relations);
     List<String> where = new ArrayList<>();
     for (String sourceKey : sources.keySet()) {
-      where.add(aliases.get(sourceKey) + ".deleted = false");
+      where.add(sourceActivePredicate(sources.get(sourceKey), aliases.get(sourceKey)));
     }
     appendConditionGroup(where, params, aliases, effectiveConditionGroup(ruleConfig.filterGroup(), ruleConfig.filters()), false, Map.of(), "f");
 
@@ -583,6 +583,10 @@ public class LabelGroupDynamicRuleEvaluationService {
       throw new BizException("动态规则字段所属数据源未加入查询：" + field.name());
     }
     return alias + "." + field.columnName();
+  }
+
+  private String sourceActivePredicate(DynamicRuleSourceDefinition source, String alias) {
+    return "coalesce(" + alias + "." + source.activeColumnName() + ", false) = false";
   }
 
   private int normalizeLimit(Integer limit, int defaultValue) {

@@ -5,5 +5,10 @@ public record StatisticDetailColumn(
     String label,
     Integer width,
     Integer minWidth,
-    boolean sortable) {
+    boolean sortable,
+    String type) {
+
+  public StatisticDetailColumn(String key, String label, Integer width, Integer minWidth, boolean sortable) {
+    this(key, label, width, minWidth, sortable, null);
+  }
 }

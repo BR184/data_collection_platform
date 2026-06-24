@@ -27,7 +27,7 @@ final class IssueClassificationRules {
       Map.entry("机制问题", List.of("机制问题")),
       Map.entry("计算效率", List.of("计算效率")));
 
-  private static final List<String> REGRESSION_TITLE_TOKENS = List.of("回退", "倒退", "退");
+  private static final List<String> REGRESSION_TITLE_TOKENS = List.of("回退", "倒退", "（退");
   private static final List<String> CRASH_TITLE_TOKENS = List.of("挂机");
   private static final List<String> FLOW_OK_LABELS = List.of("待合并", "需求如此", "建议", "需求");
   private static final List<String> APPLY_DELAY_LABELS = List.of("申请延期");

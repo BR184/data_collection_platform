@@ -89,6 +89,7 @@ export interface StatisticDetailColumn {
   width?: number | null;
   minWidth?: number | null;
   sortable: boolean;
+  type?: 'tag' | 'tags' | string | null;
 }
 
 export interface StatisticDetailLinkValue {

@@ -25,6 +25,8 @@ public class LabelGroupDynamicRuleCatalogService {
   static final String CANDIDATE_NONE = "NONE";
   static final String CANDIDATE_STATIC = "STATIC";
   static final String CANDIDATE_DISTINCT = "DISTINCT";
+  private static final String FACT_ACTIVE_COLUMN = "deleted";
+  private static final String MIRROR_ACTIVE_COLUMN = "mirror_deleted";
 
   private static final List<String> TEXT_OPERATORS =
       List.of("eq", "ne", "contains", "notContains", "startsWith", "endsWith", "isEmpty", "isNotEmpty", "in");
@@ -149,6 +151,7 @@ public class LabelGroupDynamicRuleCatalogService {
         "评审记录",
         "评审数据管理主记录事实表",
         "review_records",
+        FACT_ACTIVE_COLUMN,
         List.of(
             field("id", "记录ID", "id", VALUE_NUMBER, false, true, true, true),
             candidateField("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
@@ -166,6 +169,7 @@ public class LabelGroupDynamicRuleCatalogService {
         "评审问题项",
         "评审问题明细事实表",
         "review_problem_items",
+        FACT_ACTIVE_COLUMN,
         List.of(
             field("id", "问题项ID", "id", VALUE_NUMBER, false, true, true, true),
             field("reviewRecordId", "评审记录ID", "review_record_id", VALUE_NUMBER, false, true, true, true),
@@ -181,6 +185,7 @@ public class LabelGroupDynamicRuleCatalogService {
         "议题事实",
         "系统测试和客户问题共用议题事实表",
         "issue_fact",
+        FACT_ACTIVE_COLUMN,
         List.of(
             field("projectId", "项目ID", "project_id", VALUE_NUMBER, true, true, true, true),
             candidateField("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
@@ -206,6 +211,7 @@ public class LabelGroupDynamicRuleCatalogService {
         "代码走查 MR",
         "代码走查合并请求事实表",
         "merge_request_fact",
+        FACT_ACTIVE_COLUMN,
         List.of(
             field("projectId", "项目ID", "project_id", VALUE_NUMBER, true, true, true, true),
             candidateField("projectName", "项目", "project_name", VALUE_STRING, true, true, true, false),
@@ -226,6 +232,62 @@ public class LabelGroupDynamicRuleCatalogService {
             field("defectCount", "代码走查缺陷数", "defect_count", VALUE_NUMBER, true, true, true, true),
             field("scanBugCount", "扫描缺陷数", "scan_bug_count", VALUE_NUMBER, true, true, true, true),
             field("addedLines", "新增行数", "added_lines", VALUE_NUMBER, true, true, true, true))));
+    put(sources, source(
+        "ods_gitlab_issues",
+        "GitLab议题镜像",
+        "GitLab 原始 issues 镜像表，适合按原始议题字段生成成员",
+        "ods_gitlab_issues",
+        MIRROR_ACTIVE_COLUMN,
+        List.of(
+            field("id", "议题ID", "id", VALUE_NUMBER, true, true, true, true),
+            field("iid", "议题IID", "iid", VALUE_NUMBER, true, true, true, true),
+            field("projectId", "项目ID", "project_id", VALUE_NUMBER, true, true, true, true),
+            field("title", "标题", "title", VALUE_STRING, true, true, true, false),
+            field("authorId", "作者ID", "author_id", VALUE_NUMBER, true, true, true, true),
+            field("stateId", "状态ID", "state_id", VALUE_NUMBER, true, true, true, true),
+            field("createdAt", "创建时间", "created_at", VALUE_DATE, true, true, true, false),
+            field("updatedAt", "更新时间", "updated_at", VALUE_DATE, true, true, true, false),
+            field("closedAt", "关闭时间", "closed_at", VALUE_DATE, true, true, true, false))));
+    put(sources, source(
+        "ods_gitlab_labels",
+        "GitLab标签镜像",
+        "GitLab 原始 labels 镜像表，适合生成标签文本成员",
+        "ods_gitlab_labels",
+        MIRROR_ACTIVE_COLUMN,
+        List.of(
+            field("id", "标签ID", "id", VALUE_NUMBER, true, true, true, true),
+            candidateField("title", "标签名称", "title", VALUE_STRING, true, true, true, false))));
+    put(sources, source(
+        "ods_gitlab_label_links",
+        "GitLab标签关联镜像",
+        "GitLab 原始 label_links 镜像表，适合按目标类型和标签关联生成成员",
+        "ods_gitlab_label_links",
+        MIRROR_ACTIVE_COLUMN,
+        List.of(
+            field("id", "关联ID", "id", VALUE_NUMBER, true, true, true, true),
+            field("labelId", "标签ID", "label_id", VALUE_NUMBER, true, true, true, true),
+            field("targetId", "目标ID", "target_id", VALUE_NUMBER, true, true, true, true),
+            staticField("targetType", "目标类型", "target_type", VALUE_STRING, true, true, true, false,
+                "Issue", "MergeRequest"),
+            field("createdAt", "创建时间", "created_at", VALUE_DATE, true, true, true, false),
+            field("updatedAt", "更新时间", "updated_at", VALUE_DATE, true, true, true, false))));
+    put(sources, source(
+        "ods_gitlab_merge_requests",
+        "GitLab MR 镜像",
+        "GitLab 原始 merge_requests 镜像表，适合按 MR 原始字段生成成员",
+        "ods_gitlab_merge_requests",
+        MIRROR_ACTIVE_COLUMN,
+        List.of(
+            field("id", "MR ID", "id", VALUE_NUMBER, true, true, true, true),
+            field("iid", "MR IID", "iid", VALUE_NUMBER, true, true, true, true),
+            field("targetProjectId", "目标项目ID", "target_project_id", VALUE_NUMBER, true, true, true, true),
+            field("title", "标题", "title", VALUE_STRING, true, true, true, false),
+            field("authorId", "作者ID", "author_id", VALUE_NUMBER, true, true, true, true),
+            field("mergeUserId", "合并人ID", "merge_user_id", VALUE_NUMBER, true, true, true, true),
+            candidateField("targetBranch", "目标分支", "target_branch", VALUE_STRING, true, true, true, false),
+            candidateField("sourceBranch", "源分支", "source_branch", VALUE_STRING, true, true, true, false),
+            field("createdAt", "创建时间", "created_at", VALUE_DATE, true, true, true, false),
+            field("updatedAt", "更新时间", "updated_at", VALUE_DATE, true, true, true, false))));
     return Map.copyOf(sources);
   }
 
@@ -243,12 +305,13 @@ public class LabelGroupDynamicRuleCatalogService {
       String name,
       String description,
       String tableName,
+      String activeColumnName,
       List<DynamicRuleFieldDefinition> fields) {
     Map<String, DynamicRuleFieldDefinition> fieldByKey = new LinkedHashMap<>();
     for (DynamicRuleFieldDefinition field : fields) {
       fieldByKey.put(field.key(), field);
     }
-    return new DynamicRuleSourceDefinition(key, name, description, tableName, Map.copyOf(fieldByKey));
+    return new DynamicRuleSourceDefinition(key, name, description, tableName, activeColumnName, Map.copyOf(fieldByKey));
   }
 
   private DynamicRuleFieldDefinition field(
@@ -381,6 +444,7 @@ public class LabelGroupDynamicRuleCatalogService {
       String name,
       String description,
       String tableName,
+      String activeColumnName,
       Map<String, DynamicRuleFieldDefinition> fields) {}
 
   public record DynamicRuleFieldDefinition(

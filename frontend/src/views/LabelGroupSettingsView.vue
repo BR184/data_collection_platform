@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import DynamicLabelGroupRuleBuilder from '../components/label-groups/DynamicLabelGroupRuleBuilder.vue';
 import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberPicker.vue';
+import { sameLabelGroupFieldKey } from '../utils/label-group-field-key';
 import type {
   LabelDimension,
   LabelGroup,
@@ -105,7 +106,8 @@ const childGroupOptions = computed(() => {
     .filter((group) => group.id !== currentId)
     .filter((group) => group.enabled)
     .filter((group) => form.value.groupType === 'COMPOSITE' || group.groupType === 'STATIC')
-    .filter((group) => !valueType || valueType === 'MIXED' || !group.valueType || group.valueType === valueType);
+    .filter((group) => !valueType || valueType === 'MIXED' || !group.valueType || group.valueType === valueType)
+    .filter((group) => childGroupMatchesSourceField(group));
 });
 const childGroupExpandedPreview = computed(() =>
   buildChildGroupExpandedPreview(groups.value, form.value.childGroupIds),
@@ -148,6 +150,23 @@ watch(currentValueType, (valueType) => {
     return !group?.valueType || group.valueType === valueType;
   });
 });
+
+watch(
+  () => [form.value.applicableScope, form.value.sourceFieldKey],
+  () => {
+    form.value.childGroupIds = form.value.childGroupIds.filter((id) => {
+      const group = groups.value.find((item) => item.id === id);
+      return group ? childGroupMatchesSourceField(group) : false;
+    });
+  },
+);
+
+function childGroupMatchesSourceField(group: LabelGroup) {
+  if (form.value.applicableScope !== 'SAME_FIELD' || group.applicableScope !== 'SAME_FIELD') {
+    return true;
+  }
+  return sameLabelGroupFieldKey(group.sourceFieldKey, form.value.sourceFieldKey);
+}
 
 async function loadDimensions() {
   try {
