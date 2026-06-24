@@ -104,15 +104,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
        where deleted = false
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
-      List.of(
-          new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("title", "标题", null, 260, true),
-          new StatisticDetailColumn("reasonCategory", "缺陷原因", 160, 160, true),
-          new StatisticDetailColumn("moduleNames", "模块", null, 180, true),
-          new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-          new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
-          new StatisticDetailColumn("state", "状态", 120, 120, true),
-          new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
+      StatisticIssueDetailColumns.customerIssue(
+          "标题",
+          "模块",
+          List.of(
+              new StatisticDetailColumn("reasonCategory", "缺陷原因", 160, 160, true, "tag"),
+              StatisticIssueDetailColumns.state("状态")),
+          List.of(StatisticIssueDetailColumns.author("创建人")),
+          List.of(StatisticIssueDetailColumns.project("所属项目")));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;

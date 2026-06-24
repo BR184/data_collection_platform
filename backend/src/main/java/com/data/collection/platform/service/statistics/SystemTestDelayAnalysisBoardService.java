@@ -87,18 +87,18 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
        where deleted = false
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
-      List.of(
-          new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
-          new StatisticDetailColumn("title", "议题标题", null, 260, true),
-          new StatisticDetailColumn("state", "议题状态", 120, 120, true),
-          new StatisticDetailColumn("severityLevel", "严重程度", 120, 120, true),
-          new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
-          new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
-          new StatisticDetailColumn("updatedAt", "议题更新时间", 180, 180, true),
-          new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
-          new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
-          new StatisticDetailColumn("assigneeName", "议题处理人", 160, 160, true));
+      StatisticIssueDetailColumns.systemTest(
+          "议题标题",
+          "模块名",
+          List.of(
+              StatisticIssueDetailColumns.state("议题状态"),
+              StatisticIssueDetailColumns.severity("severityLevel", "严重程度", 120),
+              StatisticIssueDetailColumns.bugStatus(),
+              StatisticIssueDetailColumns.delayCause()),
+          List.of(
+              StatisticIssueDetailColumns.author("议题提交人"),
+              StatisticIssueDetailColumns.assignee("议题处理人", 160)),
+          List.of(StatisticIssueDetailColumns.createdAt()));
 
   private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;

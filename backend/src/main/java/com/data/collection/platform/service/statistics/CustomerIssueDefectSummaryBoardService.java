@@ -191,18 +191,18 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                     leaf("level2_legacy_count", "二级缺陷遗留数量", true, "count"),
                     leaf("level3_legacy_count", "三级缺陷遗留数量", true, "count"),
                     leaf("level23_legacy_rate", "二三级缺陷遗留率(%)", false, "ratio")))),
-        List.of(
-            new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-            new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
-            new StatisticDetailColumn("title", "议题标题", null, 260, true),
-            new StatisticDetailColumn("state", "议题状态", 120, 120, true),
-            new StatisticDetailColumn("severityLabel", "严重程度", 140, 140, true),
-            new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
-            new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
-            new StatisticDetailColumn("updatedAt", "议题更新时间", 180, 180, true),
-            new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
-            new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
-            new StatisticDetailColumn("assigneeName", "议题处理人", 160, 160, true)),
+        StatisticIssueDetailColumns.customerIssue(
+            "议题标题",
+            "模块名",
+            List.of(
+                StatisticIssueDetailColumns.state("议题状态"),
+                StatisticIssueDetailColumns.severity("severityLabel", "严重程度", 140),
+                StatisticIssueDetailColumns.bugStatus(),
+                StatisticIssueDetailColumns.delayCause()),
+            List.of(
+                StatisticIssueDetailColumns.author("议题提交人"),
+                StatisticIssueDetailColumns.assignee("议题处理人", 160)),
+            List.of(StatisticIssueDetailColumns.createdAt())),
         10,
         "当前没有可展示的客户问题缺陷统计数据。");
   }

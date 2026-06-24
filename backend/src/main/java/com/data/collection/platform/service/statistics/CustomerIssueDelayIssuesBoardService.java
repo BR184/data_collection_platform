@@ -84,19 +84,20 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
        where deleted = false
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
-      List.of(
-          new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
-          new StatisticDetailColumn("title", "议题标题", null, 280, true),
-          new StatisticDetailColumn("state", "议题状态", 120, 120, true),
-          new StatisticDetailColumn("priorityLevel", "紧急程度", 120, 120, true),
-          new StatisticDetailColumn("delayType", "延期类型", 140, 140, true),
-          new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
-          new StatisticDetailColumn("milestoneTitle", "里程碑", 180, 180, true),
-          new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
-          new StatisticDetailColumn("updatedAt", "议题更新时间", 180, 180, true),
-          new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
-          new StatisticDetailColumn("assigneeName", "议题处理人", 160, 160, true));
+      StatisticIssueDetailColumns.customerIssue(
+          "议题标题",
+          "模块名",
+          List.of(
+              StatisticIssueDetailColumns.state("议题状态"),
+              new StatisticDetailColumn("priorityLevel", "紧急程度", 120, 120, true, "tag"),
+              new StatisticDetailColumn("delayType", "延期类型", 140, 140, true, "tag"),
+              StatisticIssueDetailColumns.bugStatus()),
+          List.of(
+              StatisticIssueDetailColumns.author("议题提交人"),
+              StatisticIssueDetailColumns.assignee("议题处理人", 160)),
+          List.of(
+              StatisticIssueDetailColumns.milestone("里程碑"),
+              StatisticIssueDetailColumns.createdAt()));
 
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;

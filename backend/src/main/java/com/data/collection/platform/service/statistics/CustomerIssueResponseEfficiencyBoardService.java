@@ -87,20 +87,21 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       """;
 
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
-      List.of(
-          new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("moduleNames", "模块名", null, 180, true),
-          new StatisticDetailColumn("title", "议题标题", null, 280, true),
-          new StatisticDetailColumn("state", "议题状态", 120, 120, true),
-          new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true),
-          new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true),
-          new StatisticDetailColumn("milestoneTitle", "产品版本", 180, 180, true),
-          new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
-          new StatisticDetailColumn("researchTemplateTime", "调研模板回复时间", 180, 180, true),
-          new StatisticDetailColumn("fixedLabelTime", "已修复标签时间", 180, 180, true),
-          new StatisticDetailColumn("authorName", "议题提交人", 140, 140, true),
-          new StatisticDetailColumn("assigneeName", "议题处理人", 160, 160, true),
-          new StatisticDetailColumn("updatedAt", "议题更新时间", 180, 180, true));
+      StatisticIssueDetailColumns.customerIssue(
+          "议题标题",
+          "模块名",
+          List.of(
+              StatisticIssueDetailColumns.state("议题状态"),
+              StatisticIssueDetailColumns.severity("severityLevel", "严重程度", 140),
+              StatisticIssueDetailColumns.bugStatus()),
+          List.of(
+              new StatisticDetailColumn("researchTemplateTime", "调研模板回复时间", 180, 180, true),
+              new StatisticDetailColumn("fixedLabelTime", "已修复标签时间", 180, 180, true),
+              StatisticIssueDetailColumns.author("议题提交人"),
+              StatisticIssueDetailColumns.assignee("议题处理人", 160)),
+          List.of(
+              StatisticIssueDetailColumns.milestone("产品版本"),
+              StatisticIssueDetailColumns.createdAt()));
 
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;

@@ -80,6 +80,7 @@ declare module 'vue' {
     SavedTableViewsManager: typeof import('./components/SavedTableViewsManager.vue')['default']
     SavedTableViewsPanel: typeof import('./components/SavedTableViewsPanel.vue')['default']
     SmartSelect: typeof import('./components/base/SmartSelect.vue')['default']
+    StatisticBoardDetailCell: typeof import('./components/StatisticBoardDetailCell.vue')['default']
     StatisticBoardDetailDialog: typeof import('./components/StatisticBoardDetailDialog.vue')['default']
     StatisticBoardRuleExplanationDrawer: typeof import('./components/StatisticBoardRuleExplanationDrawer.vue')['default']
     StatisticBoardToolbar: typeof import('./components/StatisticBoardToolbar.vue')['default']

@@ -82,17 +82,17 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
        where deleted = false
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
-      List.of(
-          new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-          new StatisticDetailColumn("title", "标题", null, 260, true),
-          new StatisticDetailColumn("moduleNames", "模块", null, 180, true),
-          new StatisticDetailColumn("functionName", "功能", 180, 180, true),
-          new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-          new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true),
-          new StatisticDetailColumn("priorityLevel", "优先级", 120, 120, true),
-          new StatisticDetailColumn("state", "状态", 120, 120, true),
-          new StatisticDetailColumn("reasonCategory", "缺陷原因", 160, 160, true),
-          new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true));
+      StatisticIssueDetailColumns.customerIssue(
+          "标题",
+          "模块",
+          List.of(
+              new StatisticDetailColumn("functionName", "功能", 180, 180, true, "tag"),
+              StatisticIssueDetailColumns.severity("severityLevel", "严重程度", 140),
+              new StatisticDetailColumn("priorityLevel", "优先级", 120, 120, true, "tag"),
+              StatisticIssueDetailColumns.state("状态"),
+              new StatisticDetailColumn("reasonCategory", "缺陷原因", 160, 160, true, "tag")),
+          List.of(),
+          List.of(StatisticIssueDetailColumns.project("所属项目")));
 
   private final IssueFactQueryService issueFactQueryService;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;

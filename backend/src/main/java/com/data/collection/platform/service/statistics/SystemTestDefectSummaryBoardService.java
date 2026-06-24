@@ -177,20 +177,21 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                 leaf("level2_legacy_count", "二级缺陷遗留数量", true, "count"),
                 leaf("level3_legacy_count", "三级缺陷遗留数量", true, "count"),
                 leaf("level23_legacy_rate", "二三级缺陷遗留率(%)", false, "ratio")))),
-        List.of(
-            new StatisticDetailColumn("iid", "议题编号", 120, 120, true),
-            new StatisticDetailColumn("title", "标题", null, 260, true),
-            new StatisticDetailColumn("moduleNames", "模块", null, 180, true, "tags"),
-            new StatisticDetailColumn("projectName", "所属项目", null, 160, true),
-            new StatisticDetailColumn("severityLevel", "严重程度", 140, 140, true, "tag"),
-            new StatisticDetailColumn("bugStatus", "测试状态", 160, 160, true, "tags"),
-            new StatisticDetailColumn("delayCause", "延期原因", 160, 160, true),
-            new StatisticDetailColumn("authorName", "创建人", 140, 140, true),
-            new StatisticDetailColumn("assigneeName", "处理人", 140, 140, true),
-            new StatisticDetailColumn("state", "状态", 120, 120, true, "tag"),
-            new StatisticDetailColumn("createdAt", "议题提交时间", 180, 180, true),
-            new StatisticDetailColumn("labels", "标签", null, 240, false, "tags"),
-            new StatisticDetailColumn("updatedAt", "更新时间", 180, 180, true)),
+        StatisticIssueDetailColumns.systemTest(
+            "标题",
+            "模块",
+            List.of(
+                StatisticIssueDetailColumns.severity("severityLevel", "严重程度", 140),
+                StatisticIssueDetailColumns.bugStatus(),
+                StatisticIssueDetailColumns.delayCause(),
+                StatisticIssueDetailColumns.state("状态")),
+            List.of(
+                StatisticIssueDetailColumns.author("创建人"),
+                StatisticIssueDetailColumns.assignee("处理人", 140)),
+            List.of(
+                StatisticIssueDetailColumns.project("所属项目"),
+                StatisticIssueDetailColumns.createdAt(),
+                StatisticIssueDetailColumns.labels())),
         10, "当前没有可展示的系统测试缺陷统计数据。");
   }
 
