@@ -103,8 +103,9 @@ final class StatisticFilterGroupSupport {
       }
       StatisticFilterField field = fieldMap.get(trimToNull(condition.fieldKey()));
       if (field == null) {
-        throw new IllegalArgumentException(
-            "Unsupported statistic filter field: " + condition.fieldKey());
+        // 忽略当前看板不支持的筛选字段，而不是抛异常
+        // 这允许跨看板导航时残留的筛选条件被自动过滤掉
+        continue;
       }
       String operator = trimToNull(condition.operator());
       if (operator == null) {
