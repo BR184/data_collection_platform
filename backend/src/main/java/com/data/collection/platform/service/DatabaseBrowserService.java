@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -68,13 +69,14 @@ public class DatabaseBrowserService {
     listMirrorRegistries()
         .forEach(
             registry -> {
+              TableSyncStatus syncStatus = resolveTableSyncStatus(registry);
               allTables.put(
                   registry.getMirrorTableName(),
                   new DatabaseTableOption(
                       registry.getMirrorTableName(),
                       mirrorTableDefinitionFactory.buildMirrorLabel(registry.getSourceTableName()),
-                      registry.getSyncStatus(),
-                      registry.getLastSyncTime(),
+                      syncStatus.status(),
+                      syncStatus.lastSyncTime(),
                       TABLE_KIND_MIRROR,
                       hasMirrorBaseline(registry)));
               if (includeSourceTables) {
@@ -83,8 +85,8 @@ public class DatabaseBrowserService {
                     new DatabaseTableOption(
                         sourceTableKey(registry),
                         buildSourceLabel(registry),
-                        registry.getSyncStatus(),
-                        registry.getLastSyncTime(),
+                        syncStatus.status(),
+                        syncStatus.lastSyncTime(),
                         TABLE_KIND_SOURCE,
                         false));
               }
@@ -132,6 +134,7 @@ public class DatabaseBrowserService {
             DatabaseBrowserRowMapperFactory.createTableRowMapper(),
             sqlBundle.arguments().toArray());
 
+    TableSyncStatus syncStatus = resolveTableSyncStatus(context.registry());
     return new DatabaseTableRowsResponse(
         tableName,
         context.definition().label(),
@@ -143,9 +146,9 @@ public class DatabaseBrowserService {
         validatedSortField,
         validatedSortOrder,
         normalizedKeyword,
-        context.registry() == null ? "IDLE" : context.registry().getSyncStatus(),
-        context.registry() == null ? null : context.registry().getLastSyncTime(),
-        buildStatusMessage(context.registry()),
+        syncStatus.status(),
+        syncStatus.lastSyncTime(),
+        buildStatusMessage(context.registry(), syncStatus),
         context.registry() == null ? TABLE_KIND_LOCAL : TABLE_KIND_MIRROR,
         context.registry() != null && hasMirrorBaseline(context.registry()));
   }
@@ -229,6 +232,7 @@ public class DatabaseBrowserService {
         safeSize);
     boolean hasMore = rows.size() == safeSize;
     long visibleTotal = ((long) safePage - 1) * safeSize + rows.size() + (hasMore ? 1 : 0);
+    TableSyncStatus syncStatus = resolveTableSyncStatus(registry);
     return new DatabaseTableRowsResponse(
         tableName,
         buildSourceLabel(registry),
@@ -240,8 +244,8 @@ public class DatabaseBrowserService {
         validatedSortField,
         validatedSortOrder,
         normalizedKeyword,
-        registry.getSyncStatus(),
-        registry.getLastSyncTime(),
+        syncStatus.status(),
+        syncStatus.lastSyncTime(),
         "来源表为管理员实时只读预览；为保护百万级内网源库，当前页不执行全表 count。",
         TABLE_KIND_SOURCE,
         false);
@@ -345,14 +349,54 @@ public class DatabaseBrowserService {
     return config != null && (config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled());
   }
 
-  private String buildStatusMessage(GitlabMirrorTableRegistry registry) {
+  private String buildStatusMessage(GitlabMirrorTableRegistry registry, TableSyncStatus syncStatus) {
     if (registry != null && !hasMirrorBaseline(registry)) {
       return "该镜像表尚未完成全量同步基线，需先执行全量同步后才能单表刷新。";
     }
-    if (registry != null && Objects.equals(registry.getSyncStatus(), "SYNCING")) {
+    if (registry != null && Objects.equals(syncStatus.status(), "SYNCING")) {
       return "数据正在同步中，当前展示为历史稳定版本。";
     }
     return null;
+  }
+
+  private TableSyncStatus resolveTableSyncStatus(GitlabMirrorTableRegistry registry) {
+    if (registry == null) {
+      return new TableSyncStatus("IDLE", null);
+    }
+    List<String> activeStatuses =
+        jdbcTemplate.queryForList(
+            """
+            select task.status
+              from sync_run_table_tasks task
+              join sync_runs run on run.id = task.run_id
+             where task.config_id = ?
+               and task.source_table = ?
+               and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
+               and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+             order by case task.status when 'RUNNING' then 0 when 'RETRYING' then 1 else 2 end,
+                      task.started_at nulls last,
+                      task.created_at desc,
+                      task.id desc
+             limit 1
+            """,
+            String.class,
+            registry.getConfigId(),
+            registry.getSourceTableName());
+    if (activeStatuses != null && !activeStatuses.isEmpty()) {
+      return new TableSyncStatus("SYNCING", registry.getLastSyncTime());
+    }
+    String registryStatus = registry.getSyncStatus();
+    if ("SYNCING".equals(registryStatus)) {
+      return new TableSyncStatus("IDLE", registry.getLastSyncTime());
+    }
+    if (isKnownRegistryStatus(registryStatus)) {
+      return new TableSyncStatus(registryStatus, registry.getLastSyncTime());
+    }
+    return new TableSyncStatus("IDLE", registry.getLastSyncTime());
+  }
+
+  private boolean isKnownRegistryStatus(String status) {
+    return status != null && Set.of("IDLE", "ERROR", "SUCCESS", "FAILED", "TIMEOUT", "CANCELLED").contains(status);
   }
 
   private boolean hasMirrorBaseline(GitlabMirrorTableRegistry registry) {
@@ -360,5 +404,8 @@ public class DatabaseBrowserService {
   }
 
   private record SourceTableSelection(Long configId, String sourceTable) {
+  }
+
+  private record TableSyncStatus(String status, java.time.LocalDateTime lastSyncTime) {
   }
 }

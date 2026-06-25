@@ -20,8 +20,14 @@ final class IssueLabelRules {
       Map.entry("P3", List.of("P3")));
   private static final List<String> EXCLUDED_LABELS = List.of("功能屏蔽", "已拒绝", "建议");
   private static final List<String> CLOSED_EXCLUSION_LABELS = List.of("申请否决", "需求如此", "设计如此");
+
+  // 客户问题项目ID（CC_PRODUCT，老平台项目ID=325）
+  // 该项目不排除"功能屏蔽"、"已拒绝"、"建议"，与老平台保持一致
+  private static final long CUSTOMER_ISSUE_PROJECT_ID = 325L;
+
   private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成", "待合并");
   private static final List<String> UNREPRODUCED_LABELS = List.of("未复现");
+  private static final List<String> LEGACY_STATUS_LABELS = List.of("历史遗留");
   private static final List<String> LEGACY_BUG_STATUS_LABELS = List.of(
       "已修复/完成",
       "已修复",
@@ -90,11 +96,26 @@ final class IssueLabelRules {
     return null;
   }
 
-  static boolean isExcluded(List<String> labels, boolean closed) {
-    return exclusionReason(labels, closed) != null;
+  static boolean isLegacyByLabel(List<String> labels) {
+    return IssueRuleSupport.containsAnyLabel(labels, LEGACY_STATUS_LABELS);
   }
 
-  static String exclusionReason(List<String> labels, boolean closed) {
+  static boolean isExcluded(List<String> labels, boolean closed, Long projectId) {
+    return exclusionReason(labels, closed, projectId) != null;
+  }
+
+  static String exclusionReason(List<String> labels, boolean closed, Long projectId) {
+    if (CustomerIssueScopeRules.isCustomerProject(projectId, null)) {
+      if (closed) {
+        for (String excluded : CLOSED_EXCLUSION_LABELS) {
+          if (IssueRuleSupport.hasLabel(labels, excluded)) {
+            return excluded + "+Closed";
+          }
+        }
+      }
+      return null;
+    }
+
     for (String excluded : EXCLUDED_LABELS) {
       if (IssueRuleSupport.hasLabel(labels, excluded)) {
         return excluded;

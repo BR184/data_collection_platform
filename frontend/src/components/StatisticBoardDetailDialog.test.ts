@@ -60,7 +60,7 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
           name: 'ElTableColumn',
           props: ['prop', 'label', 'sortable'],
           template:
-            '<div class="column">{{ label }}: <slot :row="{ cells: { iid: { label: \'301\', href: \'http://gitlab.example.com/-/issues/301\', tags: [] }, title: { label: \'Issue A\', href: null, tags: [\'Issue A\'] }, status: { label: \'-\', href: null, tags: [] } } }" /></div>',
+            '<div class="column">{{ label }}: <slot :row="{ cells: { iid: { label: \'301\', href: \'http://gitlab.example.com/-/issues/301\', tags: [], labelColors: {} }, title: { label: \'Issue A\', href: null, tags: [\'Issue A\'], labelColors: {} }, status: { label: \'-\', href: null, tags: [], labelColors: {} } } }" /></div>',
         },
         ElPagination: {
           name: 'ElPagination',

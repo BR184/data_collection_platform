@@ -470,7 +470,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName());
+    issueLinkSupport.putIssueMetadata(
+        record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName(), issue.id(), issue.labels());
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("title", issue.title());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");

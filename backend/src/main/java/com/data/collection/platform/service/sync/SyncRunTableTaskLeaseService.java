@@ -19,6 +19,7 @@ public class SyncRunTableTaskLeaseService {
   }
 
   public int recoverTimedOutTasks() {
+    int orphaned = terminalizeActiveTasksForTerminalRuns();
     int retried =
         jdbcTemplate.update(
             """
@@ -52,7 +53,8 @@ public class SyncRunTableTaskLeaseService {
                and lease_until < current_timestamp
                and retry_count >= max_retry_count
             """);
-    return retried + timedOut;
+    int resetRegistries = resetRegistrySyncingStatusWithoutActiveTasks();
+    return orphaned + retried + timedOut + resetRegistries;
   }
 
   public boolean isRunCancellationRequested(Long runId) {
@@ -81,12 +83,180 @@ public class SyncRunTableTaskLeaseService {
         update sync_run_table_tasks
            set status = 'CANCELLED',
                last_error = coalesce(last_error, '同步运行已取消'),
+               lease_owner = null,
+               lease_until = null,
+               heartbeat_at = null,
                finished_at = current_timestamp,
                updated_at = current_timestamp
          where run_id = ?
            and status = 'QUEUED'
         """,
         runId);
+  }
+
+  public int cancelQueuedAndRetryingTasks(Long runId) {
+    return jdbcTemplate.update(
+        """
+        update sync_run_table_tasks
+           set status = 'CANCELLED',
+               last_error = coalesce(last_error, '同步运行已取消'),
+               lease_owner = null,
+               lease_until = null,
+               heartbeat_at = null,
+               finished_at = current_timestamp,
+               updated_at = current_timestamp
+         where run_id = ?
+           and status in ('QUEUED', 'RETRYING')
+        """,
+        runId);
+  }
+
+  public int cancelQueuedRetryingAndStaleRunningTasks(Long runId) {
+    int cancelled =
+        jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = 'CANCELLED',
+                   last_error = coalesce(last_error, '同步运行已取消'),
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where run_id = ?
+               and (
+                 status in ('QUEUED', 'RETRYING')
+                 or (status = 'RUNNING' and (lease_until is null or lease_until < current_timestamp))
+               )
+            """,
+            runId);
+    resetRegistrySyncingStatusWithoutActiveTasks();
+    return cancelled;
+  }
+
+  public boolean hasLiveRunningTask(Long runId) {
+    if (runId == null) {
+      return false;
+    }
+    Integer count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from sync_run_table_tasks
+             where run_id = ?
+               and status = 'RUNNING'
+               and lease_until is not null
+               and lease_until >= current_timestamp
+            """,
+            Integer.class,
+            runId);
+    return count != null && count > 0;
+  }
+
+  public int cancelActiveTasksForRun(Long runId) {
+    int cancelled =
+        jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = 'CANCELLED',
+                   last_error = coalesce(last_error, '同步运行已取消'),
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where run_id = ?
+               and status in ('QUEUED', 'RUNNING', 'RETRYING')
+            """,
+            runId);
+    resetRegistrySyncingStatusWithoutActiveTasks();
+    return cancelled;
+  }
+
+  public int terminalizeActiveTasksForRun(Long runId, SyncRunStatus runStatus, String message) {
+    if (runId == null || runStatus == null || !SyncRunStateMachine.isTerminal(runStatus)) {
+      return 0;
+    }
+    int updated =
+        jdbcTemplate.update(
+            """
+            update sync_run_table_tasks
+               set status = ?,
+                   last_error = coalesce(last_error, ?),
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+             where run_id = ?
+               and status in ('QUEUED', 'RUNNING', 'RETRYING')
+            """,
+            taskTerminalStatus(runStatus),
+            terminalTaskMessage(runStatus, message),
+            runId);
+    resetRegistrySyncingStatusWithoutActiveTasks();
+    return updated;
+  }
+
+  public int terminalizeActiveTasksForTerminalRuns() {
+    int updated =
+        jdbcTemplate.update(
+            """
+            update sync_run_table_tasks task
+               set status = case
+                     when run.status = 'TIMEOUT' then 'TIMEOUT'
+                     when run.status = 'FAILED' then 'FAILED'
+                     else 'CANCELLED'
+                   end,
+                   last_error = coalesce(task.last_error, 'Parent sync run is already terminal: ' || run.status),
+                   lease_owner = null,
+                   lease_until = null,
+                   heartbeat_at = null,
+                   finished_at = current_timestamp,
+                   updated_at = current_timestamp
+              from sync_runs run
+             where task.run_id = run.id
+               and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
+               and run.status in ('SUCCESS', 'PARTIAL_SUCCESS', 'FAILED', 'CANCELLED', 'TIMEOUT', 'MERGED')
+            """);
+    if (updated > 0) {
+      resetRegistrySyncingStatusWithoutActiveTasks();
+    }
+    return updated;
+  }
+
+  private int resetRegistrySyncingStatusWithoutActiveTasks() {
+    return jdbcTemplate.update(
+        """
+        update sys_table_registry registry
+           set sync_status = 'IDLE',
+               updated_at = current_timestamp
+         where registry.sync_status = 'SYNCING'
+           and not exists (
+             select 1
+               from sync_run_table_tasks task
+               join sync_runs run on run.id = task.run_id
+              where task.config_id = registry.config_id
+                and task.source_table = registry.source_table_name
+                and task.status in ('QUEUED', 'RUNNING', 'RETRYING')
+                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+           )
+        """);
+  }
+
+  private String taskTerminalStatus(SyncRunStatus runStatus) {
+    return switch (runStatus) {
+      case FAILED -> SyncRunStatus.FAILED.name();
+      case TIMEOUT -> SyncRunStatus.TIMEOUT.name();
+      default -> SyncRunStatus.CANCELLED.name();
+    };
+  }
+
+  private String terminalTaskMessage(SyncRunStatus runStatus, String message) {
+    if (message != null && !message.isBlank()) {
+      return message;
+    }
+    return "Parent sync run finished with status " + runStatus.name();
   }
 
   public SyncRunTableTask claimNextQueuedTask(Long runId, String owner, int leaseSeconds) {

@@ -20,12 +20,12 @@ public final class IssueFactNormalizationRules {
     return IssueLabelRules.normalizePriorityLevel(labels);
   }
 
-  public static boolean isExcluded(List<String> labels, boolean closed) {
-    return IssueLabelRules.isExcluded(labels, closed);
+  public static boolean isExcluded(List<String> labels, boolean closed, Long projectId) {
+    return IssueLabelRules.isExcluded(labels, closed, projectId);
   }
 
-  public static String exclusionReason(List<String> labels, boolean closed) {
-    return IssueLabelRules.exclusionReason(labels, closed);
+  public static String exclusionReason(List<String> labels, boolean closed, Long projectId) {
+    return IssueLabelRules.exclusionReason(labels, closed, projectId);
   }
 
   public static boolean isFixed(List<String> labels, boolean closed) {
@@ -150,9 +150,10 @@ public final class IssueFactNormalizationRules {
   }
 
   public static boolean isLegacy(
+      List<String> labels,
       boolean closed,
       LocalDateTime createdAt,
       LocalDateTime phaseStartAt) {
-    return IssueLegacyRules.isLegacy(closed, createdAt, phaseStartAt);
+    return IssueLegacyRules.isLegacy(labels, closed, createdAt, phaseStartAt);
   }
 }

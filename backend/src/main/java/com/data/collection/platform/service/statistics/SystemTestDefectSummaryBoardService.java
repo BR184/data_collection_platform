@@ -752,7 +752,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private Map<String, Object> toDetailRecord(IssueSource i) {
     Map<String, Object> r = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(r, i.sourceInstance(), i.iid(), i.projectId(), i.projectName());
+    issueLinkSupport.putIssueMetadata(r, i.sourceInstance(), i.iid(), i.projectId(), i.projectName(), i.id(), i.labels());
     r.put("title", i.title()); r.put("moduleNames", String.join("、", i.moduleNames()));
     r.put("projectName", i.projectName());
     r.put("severityLevel", i.displaySeverityLevel());

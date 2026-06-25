@@ -2,16 +2,12 @@ package com.data.collection.platform.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 @Service
 public class CustomerIssueScopeProfile implements IssueScopeProfile {
-  static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
-  static final LocalDate CUSTOMER_ISSUE_START_DATE = LocalDate.of(2026, 1, 1);
-  private static final List<String> CUSTOMER_PROJECT_TOKENS =
-      List.of("cc_product", "cc-product", "ccproduct");
+  static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeRules.LEGACY_CC_PRODUCT_PROJECT_ID;
+  static final LocalDate CUSTOMER_ISSUE_START_DATE = CustomerIssueScopeRules.CUSTOMER_ISSUE_START_DATE;
 
   private final SystemTestScopeProfile systemTestScopeProfile;
 
@@ -36,20 +32,14 @@ public class CustomerIssueScopeProfile implements IssueScopeProfile {
   }
 
   private boolean isCreatedAfterStart(LocalDateTime createdAt) {
-    return createdAt == null || !createdAt.toLocalDate().isBefore(CUSTOMER_ISSUE_START_DATE);
+    return CustomerIssueScopeRules.isInCustomerIssueDateRange(createdAt);
   }
 
   private boolean isCustomerProjectScope(IssueScopeContext context) {
-    if (context.projectId() != null && context.projectId() == LEGACY_CC_PRODUCT_PROJECT_ID) {
+    if (CustomerIssueScopeRules.isCustomerProject(context.projectId(), context.projectName())
+        || CustomerIssueScopeRules.containsCustomerProjectToken(context.milestoneTitle())) {
       return true;
     }
-    if (containsCustomerToken(context.projectName()) || containsCustomerToken(context.milestoneTitle())) {
-      return true;
-    }
-    return context.labels().stream().anyMatch(this::containsCustomerToken);
-  }
-
-  private boolean containsCustomerToken(String value) {
-    return StringUtils.hasText(value) && IssueRuleSupport.containsToken(value, CUSTOMER_PROJECT_TOKENS);
+    return context.labels().stream().anyMatch(CustomerIssueScopeRules::containsCustomerProjectToken);
   }
 }

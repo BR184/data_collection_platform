@@ -44,7 +44,7 @@ class GitlabSourceSchemaGuardTest {
             "ods_gitlab_label_links",
             List.of("label_id", "target_id", "target_type", "mirror_deleted"),
             "ods_gitlab_labels",
-            List.of("id", "title", "mirror_deleted"),
+            List.of("id", "title", "color", "mirror_deleted"),
             "ods_gitlab_notes",
             List.of("id", "noteable_id", "noteable_type", "note", "created_at", "updated_at", "mirror_deleted")));
 
@@ -70,7 +70,7 @@ class GitlabSourceSchemaGuardTest {
     columns.put("ods_gitlab_projects", List.of("id", "name", "mirror_deleted"));
     columns.put("ods_gitlab_users", List.of("id", "name", "mirror_deleted"));
     columns.put("ods_gitlab_label_links", List.of("label_id", "target_id", "target_type", "mirror_deleted"));
-    columns.put("ods_gitlab_labels", List.of("id", "title", "mirror_deleted"));
+    columns.put("ods_gitlab_labels", List.of("id", "title", "color", "mirror_deleted"));
     columns.put(
         "ods_gitlab_notes",
         List.of("id", "noteable_id", "noteable_type", "note", "created_at", "updated_at", "mirror_deleted"));

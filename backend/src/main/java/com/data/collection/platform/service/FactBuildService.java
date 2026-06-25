@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -489,8 +488,8 @@ public class FactBuildService {
     fact.setReasonCategory(IssueFactNormalizationRules.normalizeReasonCategory(labels, notesText));
     fact.setSystemTestLabel(IssueFactNormalizationRules.normalizeSystemTestLabel(labels));
     fact.setLabelNames(String.join(", ", labels));
-    fact.setExcluded(IssueFactNormalizationRules.isExcluded(labels, closed));
-    fact.setExclusionReason(IssueFactNormalizationRules.exclusionReason(labels, closed));
+    fact.setExcluded(IssueFactNormalizationRules.isExcluded(labels, closed, fact.getProjectId()));
+    fact.setExclusionReason(IssueFactNormalizationRules.exclusionReason(labels, closed, fact.getProjectId()));
     fact.setFixed(IssueFactNormalizationRules.isFixed(labels, closed));
     fact.setDelayIssue(IssueFactNormalizationRules.hasDelayFlag(labels, notesText));
     fact.setDelayReason(IssueFactNormalizationRules.normalizeDelayReason(labels, notesText));
@@ -528,6 +527,7 @@ public class FactBuildService {
         resolveDeadlineAt,
         LocalDateTime.now()));
     fact.setLegacy(IssueFactNormalizationRules.isLegacy(
+        labels,
         closed,
         createdAt,
         phaseCalendar == null ? null : phaseCalendar.phaseStartAt()));
@@ -539,21 +539,10 @@ public class FactBuildService {
     if (labels.stream().anyMatch(label -> IssueRuleSupport.containsToken(label, List.of("系统测试", "回归测试")))) {
       return false;
     }
-    boolean inCustomerDateRange = createdAt == null || !createdAt.toLocalDate().isBefore(java.time.LocalDate.of(2026, 1, 1));
-    if (projectId != null && projectId == 325L) {
-      return inCustomerDateRange;
-    }
-    String normalizedProject = projectName == null ? "" : projectName.toLowerCase(Locale.ROOT);
-    if (normalizedProject.contains("cc_product") || normalizedProject.contains("cc-product") || normalizedProject.contains("ccproduct")) {
-      return inCustomerDateRange;
-    }
-    for (String label : labels) {
-      String normalized = label == null ? "" : label.toLowerCase(Locale.ROOT);
-      if (normalized.contains("cc_product") || normalized.contains("cc-product") || normalized.contains("ccproduct")) {
-        return inCustomerDateRange;
-      }
-    }
-    return false;
+    boolean inCustomerDateRange = CustomerIssueScopeRules.isInCustomerIssueDateRange(createdAt);
+    return inCustomerDateRange
+        && (CustomerIssueScopeRules.isCustomerProject(projectId, projectName)
+            || labels.stream().anyMatch(CustomerIssueScopeRules::containsCustomerProjectToken));
   }
 
   private MergeRequestFact mapMergeRequestFact(

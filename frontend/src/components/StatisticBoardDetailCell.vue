@@ -5,6 +5,7 @@ interface DetailDisplayCell {
   label: string;
   href: string | null;
   tags: string[];
+  labelColors: Record<string, string>;
 }
 
 defineProps<{
@@ -62,8 +63,8 @@ function isGitlabMultiLabelColumn(column: StatisticDetailColumn) {
   return column.type === 'tags' || LABEL_LIKE_MULTI_COLUMN_KEYS.has(column.key);
 }
 
-function gitlabLabelStyle(label: string) {
-  const backgroundColor = gitlabLabelColor(label);
+function gitlabLabelStyle(label: string, labelColors: Record<string, string> = {}) {
+  const backgroundColor = gitlabLabelColor(label, labelColors);
   return {
     '--gitlab-label-bg': backgroundColor,
     '--gitlab-label-color': readableTextColor(backgroundColor),
@@ -71,7 +72,11 @@ function gitlabLabelStyle(label: string) {
   };
 }
 
-function gitlabLabelColor(label: string) {
+function gitlabLabelColor(label: string, labelColors: Record<string, string>) {
+  const realColor = labelColors[label];
+  if (realColor) {
+    return realColor;
+  }
   if (label.includes('一级') || label === 'P1') {
     return '#d9534f';
   }
@@ -130,7 +135,7 @@ function rgbToHex(red: number, green: number, blue: number) {
       v-for="tag in cell?.tags ?? []"
       :key="`${column.key}-${tag}`"
       class="detail-gitlab-label"
-      :style="gitlabLabelStyle(tag)"
+      :style="gitlabLabelStyle(tag, cell?.labelColors)"
       :title="tag"
     >
       {{ tag }}
@@ -140,7 +145,7 @@ function rgbToHex(red: number, green: number, blue: number) {
   <span
     v-else-if="isGitlabLabelColumn(column) && cell?.label && cell.label !== '-'"
     class="detail-gitlab-label"
-    :style="gitlabLabelStyle(cell.label)"
+    :style="gitlabLabelStyle(cell.label, cell.labelColors)"
     :title="cell.label"
   >
     {{ cell.label }}

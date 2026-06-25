@@ -535,7 +535,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private Map<String, Object> toDetailRecord(IssueSource issue) {
     Map<String, Object> record = new LinkedHashMap<>();
-    issueLinkSupport.putIssueFields(record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName());
+    issueLinkSupport.putIssueMetadata(
+        record, issue.sourceInstance(), issue.iid(), issue.projectId(), issue.projectName(), issue.id(), issue.labels());
     record.put("title", issue.title());
     record.put("reasonCategory", String.join("、", issue.causeLabels()));
     record.put("moduleNames", String.join("、", issue.moduleNames()));

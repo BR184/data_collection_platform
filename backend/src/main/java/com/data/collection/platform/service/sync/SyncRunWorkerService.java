@@ -133,6 +133,7 @@ public class SyncRunWorkerService {
     run.setErrorMessage(errorMessage);
     run.setUpdatedAt(LocalDateTime.now());
     syncRunMapper.updateById(run);
+    tableWorkerService.terminalizeActiveTasksForRun(run.getId(), status, errorMessage);
   }
 
   private void updateSyncTimestamps(SyncRun run) {

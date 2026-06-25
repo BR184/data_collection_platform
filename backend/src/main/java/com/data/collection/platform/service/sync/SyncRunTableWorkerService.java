@@ -1,5 +1,6 @@
 package com.data.collection.platform.service.sync;
 
+import com.data.collection.platform.entity.sync.SyncRunStatus;
 import com.data.collection.platform.entity.sync.SyncRunTableTask;
 import java.util.ArrayList;
 import java.util.List;
@@ -118,6 +119,10 @@ public class SyncRunTableWorkerService {
 
   public int recoverTimedOutTasks() {
     return taskLeaseService.recoverTimedOutTasks();
+  }
+
+  public int terminalizeActiveTasksForRun(Long runId, SyncRunStatus runStatus, String message) {
+    return taskLeaseService.terminalizeActiveTasksForRun(runId, runStatus, message);
   }
 
   public boolean isRunCancellationRequested(Long runId) {

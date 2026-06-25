@@ -142,10 +142,15 @@ public class SyncRunStatusService {
         jdbcTemplate.queryForObject(
             """
             select count(*)
-              from sync_run_table_tasks
-             where config_id = ?
-               and source_instance = ?
-               and status = ?
+              from sync_run_table_tasks task
+              join sync_runs run on run.id = task.run_id
+             where task.config_id = ?
+               and task.source_instance = ?
+               and task.status = ?
+               and (
+                 task.status not in ('QUEUED', 'RUNNING', 'RETRYING')
+                 or run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+               )
             """,
             Integer.class,
             config.getId(),

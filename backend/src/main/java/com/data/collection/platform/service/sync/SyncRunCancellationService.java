@@ -25,10 +25,15 @@ public class SyncRunCancellationService {
 
   private final SyncRunMapper syncRunMapper;
   private final JdbcTemplate jdbcTemplate;
+  private final SyncRunTableTaskLeaseService tableTaskLeaseService;
 
-  public SyncRunCancellationService(SyncRunMapper syncRunMapper, JdbcTemplate jdbcTemplate) {
+  public SyncRunCancellationService(
+      SyncRunMapper syncRunMapper,
+      JdbcTemplate jdbcTemplate,
+      SyncRunTableTaskLeaseService tableTaskLeaseService) {
     this.syncRunMapper = syncRunMapper;
     this.jdbcTemplate = jdbcTemplate;
+    this.tableTaskLeaseService = tableTaskLeaseService;
   }
 
   @Transactional
@@ -48,6 +53,19 @@ public class SyncRunCancellationService {
       run.setErrorMessage("任务启动前已取消");
     }
     syncRunMapper.updateById(run);
+    if (queued) {
+      tableTaskLeaseService.cancelActiveTasksForRun(run.getId());
+    } else {
+      tableTaskLeaseService.cancelQueuedRetryingAndStaleRunningTasks(run.getId());
+      if (!tableTaskLeaseService.hasLiveRunningTask(run.getId())) {
+        run.setStatus(SyncRunStatus.CANCELLED);
+        run.setFinishedAt(now);
+        run.setErrorMessage("同步运行已取消");
+        run.setUpdatedAt(now);
+        syncRunMapper.updateById(run);
+        tableTaskLeaseService.cancelActiveTasksForRun(run.getId());
+      }
+    }
     recordCancellationEvent(run, requestedBy, reason, now, queued);
     return new SyncRunCancellationResult(
         true,

@@ -36,6 +36,7 @@ interface DetailDisplayCell {
   label: string;
   href: string | null;
   tags: string[];
+  labelColors: Record<string, string>;
 }
 
 interface DetailDisplayRow {
@@ -93,7 +94,20 @@ function createDetailCell(record: Record<string, unknown>, column: StatisticDeta
     label,
     href,
     tags: splitTags(label),
+    labelColors: extractLabelColors(record),
   };
+}
+
+function extractLabelColors(record: Record<string, unknown>) {
+  const raw = record._labelColors;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>)
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0)
+      .map(([label, color]) => [label, color.trim()]),
+  );
 }
 
 function splitTags(value: unknown) {
