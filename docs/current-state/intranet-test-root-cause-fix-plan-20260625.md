@@ -209,6 +209,9 @@
 5. 客户问题按功能展示缺陷数量、延期问题、缺陷响应效率、缺陷原因分析的统计父表、下钻和规则说明已统一读取事实层 `is_excluded` 并套用客户问题公共排除，避免统计页和记录页总量口径分裂。
 6. `docs/platform-page-business-rules.md` 已补充系统测试记录页和客户问题记录页的老平台入口、默认范围和公共排除规则。
 7. 客户问题延期问题已按老平台 `SpiderIssueDataDAOImpl.getDelayIssue` / `SpiderIssueDataService.getDelayIssue` 补回 `GitLab 接口报错` 排除：父表、下钻和规则说明统一剔除 `illegal_reason / illegal_reasons` 含该非法类型的议题。
+8. 代码走查非法数据的“无代码走查/代码走查异常”已收敛到老平台 `assignee` 四类占位值：`没有合法评论`、`代码走查时间或缺陷数异常`、`代码走查标题异常`、`代码走查记录行数异常`。SQL 分页路径和 Java 规则路径统一使用该口径，不再把普通空走查时长或空走查状态扩大为非法。
+9. 已核对老平台 `defect.investigation.level=1` 配置，因此默认总非法数据继续包含未标注项目名和未标注模块名；当前不按 level=2 收窄。
+10. 代码走查 `GitLab 接口报错` 已按老平台 `sonar_qube_result / target_branch / assignee` 来源补齐到新平台拆分字段：扫描状态、目标分支、负责人/走查人展示字段都会参与判定。
 
 影响项：
 

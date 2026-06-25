@@ -292,9 +292,16 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String missingReviewPredicate() {
-    return "(nullif(btrim(coalesce(review_exception_reason, '')), '') is not null "
-        + "or (coalesce(reviewer_names, '') not in ('无需走查', '无需走查扫描') "
-        + "and (review_status is null or btrim(review_status) = '' or review_duration_minutes is null)))";
+    StringBuilder sql = new StringBuilder("review_exception_reason in (");
+    List<String> reasons = CodeReviewIllegalRuleRegistry.LEGACY_REVIEW_EXCEPTION_REASONS;
+    for (int index = 0; index < reasons.size(); index++) {
+      if (index > 0) {
+        sql.append(", ");
+      }
+      sql.append("'").append(reasons.get(index).replace("'", "''")).append("'");
+    }
+    sql.append(")");
+    return sql.toString();
   }
 
   private static String notScannedPredicate() {
@@ -331,6 +338,7 @@ final class CodeReviewIllegalRecordSqlSupport {
         " or ",
         "scan_status = 'GitLab 接口报错'",
         "target_branch = 'GitLab 接口报错'",
+        "owner_name = 'GitLab 接口报错'",
         "reviewer_names = 'GitLab 接口报错'");
   }
 

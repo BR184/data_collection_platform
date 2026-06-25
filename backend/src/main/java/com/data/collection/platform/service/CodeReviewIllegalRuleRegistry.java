@@ -22,6 +22,8 @@ final class CodeReviewIllegalRuleRegistry {
   static final String SCAN_FAILED_LABEL = "静态扫描失败";
   static final String CLANG_RESULT_FALSE_LABEL = "注释率分析工具Clang分析错误";
   static final String GITLAB_ERROR_LABEL = "GitLab 接口报错";
+  static final List<String> LEGACY_REVIEW_EXCEPTION_REASONS =
+      List.of("没有合法评论", "代码走查时间或缺陷数异常", "代码走查标题异常", "代码走查记录行数异常");
 
   private static final Set<String> NOT_SCANNED_STATUSES =
       Set.of(
@@ -44,11 +46,7 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "missing-review",
               MISSING_REVIEW_LABEL,
-              source ->
-                  !isNoNeedReview(source.reviewerNames())
-                      && (StringUtils.hasText(source.reviewExceptionReason())
-                          || !StringUtils.hasText(source.reviewStatus())
-                          || source.reviewDurationMinutes() == null)),
+              source -> LEGACY_REVIEW_EXCEPTION_REASONS.contains(source.reviewExceptionReason())),
           new CodeReviewIllegalRule(
               "not-scanned",
               NOT_SCANNED_LABEL,
@@ -80,6 +78,7 @@ final class CodeReviewIllegalRuleRegistry {
               source ->
                   GITLAB_ERROR_LABEL.equals(source.scanStatus())
                       || GITLAB_ERROR_LABEL.equals(source.targetBranch())
+                      || GITLAB_ERROR_LABEL.equals(source.owner())
                       || GITLAB_ERROR_LABEL.equals(source.reviewerNames())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =
@@ -106,10 +105,6 @@ final class CodeReviewIllegalRuleRegistry {
               List.of("comment-rate-not-pass", "clang-result-false")));
 
   private CodeReviewIllegalRuleRegistry() {
-  }
-
-  private static boolean isNoNeedReview(String reviewerNames) {
-    return "无需走查".equals(reviewerNames) || "无需走查扫描".equals(reviewerNames);
   }
 
   static List<String> evaluateIllegalTypes(CodeReviewIllegalRecordSource source) {
