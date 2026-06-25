@@ -48,15 +48,18 @@ const filteredOptions = computed(() => {
 });
 
 const popperClass = computed(() => {
-  const classNames = ['platform-select-dropdown', 'smart-select-dropdown'];
-  if (props.compact) {
-    classNames.push('smart-select-dropdown--compact');
-  }
+  const classNames = ['platform-select-dropdown'];
   if (props.multiple) {
+    classNames.push('smart-select-dropdown');
+    if (props.compact) {
+      classNames.push('smart-select-dropdown--compact');
+    }
     classNames.push('smart-select-dropdown--multiple');
-  }
-  if (props.compact && props.multiple) {
-    classNames.push('smart-select-dropdown--compact-multiple');
+    if (props.compact) {
+      classNames.push('smart-select-dropdown--compact-multiple');
+    }
+  } else {
+    classNames.push('smart-select-dropdown--single');
   }
   if (props.popperClassExtra) {
     classNames.push(props.popperClassExtra);
@@ -151,7 +154,6 @@ function optionVariant(option: RecordTableFilterOption) {
 </template>
 
 <style>
-.platform-select-dropdown .smart-select-option,
 .smart-select-dropdown .smart-select-option {
   display: flex;
   align-items: center;
@@ -159,7 +161,62 @@ function optionVariant(option: RecordTableFilterOption) {
   max-width: 100%;
 }
 
-.platform-select-dropdown .el-select-dropdown__list,
+.smart-select-dropdown--single .smart-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  text-align: center;
+}
+
+.smart-select-dropdown--single .el-select-dropdown__list {
+  display: block;
+  padding: 4px 0;
+}
+
+.smart-select-dropdown--single .el-select-dropdown__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  height: auto;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  color: rgba(15, 23, 42, 0.78);
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: none;
+}
+
+.smart-select-dropdown--single .el-select-dropdown__item.hover,
+.smart-select-dropdown--single .el-select-dropdown__item:hover {
+  background: rgba(64, 158, 255, 0.08);
+  color: #1d4ed8;
+}
+
+.smart-select-dropdown--single .el-select-dropdown__item.selected,
+.smart-select-dropdown--single .el-select-dropdown__item.is-selected,
+.smart-select-dropdown--single .el-select-dropdown__item[aria-selected='true'],
+.smart-select-dropdown--single .el-select-dropdown__item.smart-select-option-item--selected {
+  background: rgba(64, 158, 255, 0.14) !important;
+  color: #1d4ed8 !important;
+  font-weight: 500 !important;
+}
+
+.smart-select-dropdown--single .smart-select-option-label {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
 .smart-select-dropdown .el-select-dropdown__list,
 .smart-select-dropdown--compact .el-select-dropdown__list {
   display: flex;
@@ -173,7 +230,6 @@ function optionVariant(option: RecordTableFilterOption) {
   overflow-x: hidden;
 }
 
-.platform-select-dropdown .el-select-dropdown__item,
 .smart-select-dropdown .el-select-dropdown__item,
 .smart-select-dropdown--compact .el-select-dropdown__item {
   flex: 0 1 auto;
@@ -199,8 +255,6 @@ function optionVariant(option: RecordTableFilterOption) {
     box-shadow 0.18s ease;
 }
 
-.platform-select-dropdown .el-select-dropdown__item.hover,
-.platform-select-dropdown .el-select-dropdown__item:hover,
 .smart-select-dropdown .el-select-dropdown__item.hover,
 .smart-select-dropdown .el-select-dropdown__item:hover,
 .smart-select-dropdown--compact .el-select-dropdown__item.hover,
@@ -210,7 +264,6 @@ function optionVariant(option: RecordTableFilterOption) {
   color: #1d4ed8;
 }
 
-.platform-select-dropdown .el-select-dropdown__item.selected,
 .smart-select-dropdown .el-select-dropdown__item.selected,
 .smart-select-dropdown--compact .el-select-dropdown__item.selected {
   border-color: rgba(64, 158, 255, 0.48);
@@ -313,14 +366,12 @@ function optionVariant(option: RecordTableFilterOption) {
   font-weight: 400;
 }
 
-.platform-select-dropdown .smart-select-option,
 .smart-select-dropdown .smart-select-option,
 .smart-select-dropdown--compact .smart-select-option {
   justify-content: center;
   text-align: center;
 }
 
-.platform-select-dropdown .smart-select-option-label,
 .smart-select-dropdown .smart-select-option-label,
 .smart-select-dropdown--compact .smart-select-option-label {
   display: block;

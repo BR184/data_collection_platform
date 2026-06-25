@@ -59,6 +59,22 @@ const expandColumns = computed(() => (props.detail?.columns ?? []).filter((colum
 
 const hasExpandColumns = computed(() => expandColumns.value.length > 0);
 
+const tableContentWidth = computed(() => {
+  const expandColumnWidth = hasExpandColumns.value ? 42 : 0;
+  const dataColumnWidth = mainTableColumns.value.reduce((total, column) => {
+    return total + (column.width ?? column.minWidth ?? 140);
+  }, 0);
+  return expandColumnWidth + dataColumnWidth + 2;
+});
+
+const tableShellStyle = computed(() => ({
+  '--stat-detail-table-content-width': `${tableContentWidth.value}px`,
+}));
+
+const dialogStyle = computed(() => ({
+  '--stat-detail-table-content-width': `${tableContentWidth.value}px`,
+}));
+
 const {
   floatingScrollbarRef,
   scrollbarAwake,
@@ -127,7 +143,7 @@ function splitTags(value: unknown) {
     :model-value="modelValue"
     :title="detail?.title || '明细数据'"
     class="stat-detail-dialog"
-    width="72%"
+    :style="dialogStyle"
     top="8vh"
     align-center
     destroy-on-close
@@ -140,6 +156,7 @@ function splitTags(value: unknown) {
         ref="tableShellRef"
         class="stat-detail-table-shell"
         :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
+        :style="tableShellStyle"
         tabindex="0"
         @mouseenter="wakeHorizontalScrollbar"
         @mousemove="wakeHorizontalScrollbar"
@@ -151,6 +168,7 @@ function splitTags(value: unknown) {
           border
           stripe
           size="small"
+          :fit="false"
           class="stat-detail-table"
           :class="detailTableClass"
           @expand-change="scheduleHorizontalScrollbarUpdate"
@@ -219,6 +237,16 @@ function splitTags(value: unknown) {
 </template>
 
 <style scoped>
+:global(.stat-detail-dialog) {
+  width: fit-content;
+  min-width: min(720px, calc(100vw - 32px));
+  max-width: calc(100vw - 96px);
+}
+
+:global(.stat-detail-dialog .el-dialog__body) {
+  width: min(var(--stat-detail-table-content-width, 960px), calc(100vw - 160px));
+}
+
 .stat-detail-expand-panel {
   padding: 10px 16px 12px 42px;
   background: #fafcff;
@@ -242,6 +270,7 @@ function splitTags(value: unknown) {
 
 .stat-detail-table-shell {
   position: relative;
+  width: min(var(--stat-detail-table-content-width, 960px), 100%);
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
@@ -249,9 +278,8 @@ function splitTags(value: unknown) {
   scrollbar-gutter: stable both-edges;
 }
 
-.stat-detail-table :deep(.el-table__header th) {
-  vertical-align: middle;
-  padding: 6px 0;
+.stat-detail-table {
+  width: var(--stat-detail-table-content-width, 960px);
 }
 
 .stat-detail-table :deep(td .cell) {
@@ -276,16 +304,6 @@ function splitTags(value: unknown) {
   display: block;
   min-height: 0;
   overflow: visible;
-}
-
-.stat-detail-table :deep(.el-table__column-filter-trigger),
-.stat-detail-table :deep(.caret-wrapper) {
-  width: 28px;
-}
-
-.stat-detail-table :deep(.caret-wrapper) {
-  height: 28px;
-  justify-content: center;
 }
 
 .stat-detail-floating-horizontal {

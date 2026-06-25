@@ -52,7 +52,7 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
         },
         ElTable: {
           name: 'ElTable',
-          props: ['data'],
+          props: ['data', 'fit'],
           emits: ['sortChange'],
           template: '<div class="table"><slot /></div>',
         },
@@ -77,6 +77,7 @@ describe('StatisticBoardDetailDialog', () => {
   it('renders detail title, columns and formatted cell values', () => {
     const wrapper = mountDialog();
 
+    expect(wrapper.findComponent({ name: 'ElTable' }).props('fit')).toBe(false);
     expect(wrapper.text()).toContain('Issue detail');
     expect(wrapper.text()).toContain('IID');
     expect(wrapper.text()).toContain('Title');
