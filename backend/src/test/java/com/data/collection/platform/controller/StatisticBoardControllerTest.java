@@ -228,7 +228,7 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-summary");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名称");
     assertThat(response.definition().filters()).extracting("key")
-        .containsExactly("projectName", "moduleName", "severityLevel", "priorityLevel");
+        .containsExactly("projectName", "testingPhase", "milestoneTitle", "moduleName", "severityLevel", "priorityLevel");
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
     assertThat(response.meta().columnCount()).isEqualTo(38);
@@ -291,7 +291,17 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-response-efficiency");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块");
     assertThat(response.definition().filters()).extracting("key")
-        .containsExactly("projectName", "moduleName", "severityLevel", "priorityLevel");
+        .containsExactly(
+            "projectName",
+            "testingPhase",
+            "milestoneTitle",
+            "moduleName",
+            "severityLevel",
+            "priorityLevel",
+            "issueState",
+            "bugStatus",
+            "authorName",
+            "assigneeName");
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("response", "resolve");
     assertThat(response.definition().columnGroups())
@@ -337,7 +347,7 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-by-function");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块 / 功能");
     assertThat(response.definition().filters()).extracting("key")
-        .containsExactly("projectName", "moduleName", "functionName", "milestoneTitle", "severityLevel");
+        .containsExactly("projectName", "testingPhase", "moduleName", "functionName", "milestoneTitle", "severityLevel");
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("quantity", "severity");
     assertThat(response.definition().columnGroups())
@@ -506,9 +516,9 @@ class StatisticBoardControllerTest {
 
   @Test
   void shouldExportBoardCsv() {
-    ResponseEntity<String> response = controller.exportBoard("mirror-table-overview", Map.of());
+    ResponseEntity<?> response = controller.exportBoard("mirror-table-overview", Map.of());
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody()).contains("统计对象");
+    assertThat(response.getBody().toString()).contains("统计对象");
   }
 
   private String textFilter(String fieldKey, String operator, String value) {

@@ -25,6 +25,8 @@ class SystemTestIllegalRecordServiceTest {
   @Mock private SystemTestScopeProfile systemTestScopeProfile;
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private FactBuildService factBuildService;
+  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
+  @Mock private SystemTestPhaseCatalogService phaseCatalogService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -258,6 +260,7 @@ class SystemTestIllegalRecordServiceTest {
                 "",
                 "",
                 "",
+                "",
                 1,
                 20,
                 "updatedAt",
@@ -286,7 +289,9 @@ class SystemTestIllegalRecordServiceTest {
         systemTestScopeProfile,
         new ObjectMapper(),
         issueLinkService,
-        factBuildService);
+        factBuildService,
+        phaseScopeResolver,
+        phaseCatalogService);
   }
 
   private IssueFactRecord record(

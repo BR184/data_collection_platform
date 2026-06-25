@@ -11,6 +11,10 @@ spring:
     username: ${DATASOURCE_USERNAME:qaflex}
     password: ${DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DATASOURCE_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${DATASOURCE_MINIMUM_IDLE:4}
+      connection-timeout: ${DATASOURCE_CONNECTION_TIMEOUT_MS:30000}
   sql:
     init:
       mode: ${SPRING_SQL_INIT_MODE:never}

@@ -192,7 +192,6 @@ class CustomerIssueControllerTest {
                 "Design",
                 null,
                 null,
-                null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
         .thenReturn("issue_iid,title\n201,Delay sample\n");
 
@@ -290,10 +289,12 @@ class CustomerIssueControllerTest {
                         9002L,
                         301,
                         "http://gitlab.example.com/-/issues/301",
+                        "default",
                         325L,
                         "CC_PRODUCT",
                         "Illegal sample",
                         "opened",
+                        "R1",
                         "Module mismatch",
                         "S1",
                         "P0",
@@ -303,6 +304,9 @@ class CustomerIssueControllerTest {
                         "Alice",
                         "Bob",
                         "Sketch",
+                        "",
+                        "",
+                        "",
                         LocalDateTime.of(2026, 4, 11, 10, 0),
                         LocalDateTime.of(2026, 4, 20, 16, 30),
                         null,

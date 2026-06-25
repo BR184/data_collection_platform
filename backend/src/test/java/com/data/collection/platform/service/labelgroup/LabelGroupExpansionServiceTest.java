@@ -88,6 +88,7 @@ class LabelGroupExpansionServiceTest {
         "STATIC",
         "SAME_TYPE",
         null,
+        null,
         enabled,
         "system",
         OffsetDateTime.now(),

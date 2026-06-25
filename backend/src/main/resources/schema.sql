@@ -746,6 +746,7 @@ create extension if not exists pg_trgm with schema public;
 create index if not exists idx_operation_audit_logs_created_at on operation_audit_logs(created_at desc);
 create index if not exists idx_operation_audit_logs_request_path on operation_audit_logs(request_path, created_at desc);
 create index if not exists idx_gitlab_mirror_records_table on gitlab_mirror_records(config_id, table_name);
+create index if not exists idx_gitlab_mirror_records_table_updated on gitlab_mirror_records(config_id, table_name, updated_at_source);
 create index if not exists idx_collect_form_records_context on collect_form_records(project_id, resource_type, resource_id, template_code);
 create index if not exists idx_collect_form_record_audit_logs_record on collect_form_record_audit_logs(record_id, created_at desc);
 create index if not exists idx_collect_form_record_audit_logs_editor on collect_form_record_audit_logs(editor_username, editor_id, created_at desc);
@@ -816,6 +817,10 @@ create index if not exists idx_issue_fact_assignee_search_compact_trgm on issue_
 create index if not exists idx_issue_fact_assignee_search_spell_trgm on issue_fact using gin (assignee_search_spell public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_assignee_search_initials_trgm on issue_fact using gin (assignee_search_initials public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_phase_filter on issue_fact(phase_filter_value) where deleted = false;
+create index if not exists idx_issue_fact_active_testing_phase on issue_fact(testing_phase) where deleted = false;
+create index if not exists idx_issue_fact_active_reason_category on issue_fact(reason_category) where deleted = false;
+create index if not exists idx_issue_fact_active_phase_severity_excluded on issue_fact(testing_phase, severity_level, is_excluded) where deleted = false;
+create index if not exists idx_issue_fact_active_phase_reason_severity on issue_fact(testing_phase, reason_category, severity_level) where deleted = false;
 create index if not exists idx_issue_fact_phase_search_text_trgm on issue_fact using gin (phase_search_text public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_phase_search_compact_trgm on issue_fact using gin (phase_search_compact public.gin_trgm_ops) where deleted = false;
 create index if not exists idx_issue_fact_phase_search_spell_trgm on issue_fact using gin (phase_search_spell public.gin_trgm_ops) where deleted = false;

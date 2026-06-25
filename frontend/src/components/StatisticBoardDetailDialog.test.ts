@@ -60,7 +60,7 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
           name: 'ElTableColumn',
           props: ['prop', 'label', 'sortable'],
           template:
-            '<div class="column">{{ label }}: <slot :row="{ iid: { label: \'301\', href: \'http://gitlab.example.com/-/issues/301\' }, title: \'Issue A\', status: null }" /></div>',
+            '<div class="column">{{ label }}: <slot :row="{ cells: { iid: { label: \'301\', href: \'http://gitlab.example.com/-/issues/301\', tags: [] }, title: { label: \'Issue A\', href: null, tags: [\'Issue A\'] }, status: { label: \'-\', href: null, tags: [] } } }" /></div>',
         },
         ElPagination: {
           name: 'ElPagination',
@@ -119,10 +119,14 @@ describe('StatisticBoardDetailDialog', () => {
 
   it('falls back to plain text for structured values without href', () => {
     const wrapper = mountDialog({
+      detail: {
+        ...detail,
+        columns: [{ key: 'status', label: 'Status', minWidth: 160, sortable: false }],
+      },
       detailCellValue: () => ({ label: '302' }) as unknown as string,
     });
 
     expect(wrapper.find('a.detail-cell-link').exists()).toBe(false);
-    expect(wrapper.text()).toContain('302');
+    expect(wrapper.text()).toContain('-');
   });
 });

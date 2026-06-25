@@ -126,6 +126,7 @@ class CustomerIssueIllegalRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 "missing module",
+                null,
                 null));
 
     assertThat(response.records()).hasSize(1);
@@ -196,6 +197,54 @@ class CustomerIssueIllegalRecordServiceTest {
 
     assertThat(response.records()).extracting(CustomerIssueIllegalRecordRowResponse::issueIid).containsExactly(201);
     verify(issueFactRecordRepository, never()).findPage(any());
+  }
+
+  @Test
+  void shouldUseMilestoneAsCustomerIssueTestingPhaseDisplayAndFilter() {
+    CustomerIssueIllegalRecordService service =
+        new CustomerIssueIllegalRecordService(
+            issueFactRecordRepository,
+            customerIssueScopeProfile,
+            new ObjectMapper(),
+            issueLinkService,
+            labelGroupExpansionService,
+            factBuildService,
+            phaseScopeResolver);
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(List.of(record(204, "illegal milestone", "draft", true, "missing module")));
+
+    CustomerIssueIllegalRecordListResponse response =
+        service.listRecords(
+            new CustomerIssueIllegalRecordQueryRequest(
+                new IssueFactRecordListRequest(
+                    325L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                null,
+                "R1",
+                null));
+
+    assertThat(response.records()).hasSize(1);
+    assertThat(response.records().getFirst().testingPhase()).isEqualTo("R1");
+    verify(phaseScopeResolver, never()).matchesLegacyCrownCadPhase(any(), any());
   }
 
   @Test

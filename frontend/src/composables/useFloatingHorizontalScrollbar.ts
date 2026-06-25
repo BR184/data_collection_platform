@@ -56,7 +56,8 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
 
     attachTableScrollListener(tableBody);
     horizontalSpacerWidth.value = tableBody.scrollWidth;
-    hasHorizontalOverflow.value = tableBody.scrollWidth > tableBody.clientWidth + 1;
+    const pixelTolerance = 1 / (window.devicePixelRatio || 1);
+    hasHorizontalOverflow.value = tableBody.scrollWidth > tableBody.clientWidth + pixelTolerance;
     syncFloatingScrollbarFromTable();
   }
 

@@ -232,16 +232,12 @@ function splitTags(value: unknown) {
   scrollbar-gutter: stable;
 }
 
-.stat-detail-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
-  display: none !important;
-}
-
 .stat-detail-table :deep(.el-table__header th) {
   vertical-align: middle;
   padding: 6px 0;
 }
 
-.stat-detail-table :deep(.cell) {
+.stat-detail-table :deep(td .cell) {
   display: flex;
   align-items: center;
   min-height: 24px;

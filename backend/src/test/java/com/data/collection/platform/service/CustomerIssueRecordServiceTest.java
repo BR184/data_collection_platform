@@ -306,6 +306,7 @@ class CustomerIssueRecordServiceTest {
                 "",
                 "",
                 "",
+                "",
                 1,
                 20,
                 "updatedAt",

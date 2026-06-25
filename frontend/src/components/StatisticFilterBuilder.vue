@@ -689,7 +689,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 6px;
   min-width: 0;
   max-width: 100%;
@@ -733,7 +733,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-row {
   display: grid;
-  grid-template-columns: minmax(112px, 0.9fr) minmax(88px, 0.7fr) minmax(0, 1.2fr) 28px;
+  grid-template-columns: minmax(176px, 1.15fr) minmax(120px, 0.72fr) minmax(240px, 1.7fr) 28px;
   align-items: center;
   gap: 4px;
   width: 100%;
@@ -748,16 +748,16 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-row.has-secondary-value {
   grid-column: 1 / -1;
-  grid-template-columns: minmax(112px, 0.82fr) minmax(88px, 0.64fr) minmax(0, 1fr) minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(176px, 1.08fr) minmax(120px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
 }
 
 .stat-filter-row.is-selecting {
-  grid-template-columns: 24px minmax(112px, 0.9fr) minmax(88px, 0.7fr) minmax(0, 1.2fr) 28px;
+  grid-template-columns: 24px minmax(176px, 1.15fr) minmax(120px, 0.72fr) minmax(240px, 1.7fr) 28px;
 }
 
 .stat-filter-row.is-selecting.has-secondary-value {
   grid-column: 1 / -1;
-  grid-template-columns: 24px minmax(112px, 0.82fr) minmax(88px, 0.64fr) minmax(0, 1fr) minmax(0, 1fr) 28px;
+  grid-template-columns: 24px minmax(176px, 1.08fr) minmax(120px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
 }
 
 .stat-filter-check {
@@ -838,19 +838,19 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   }
 
   .stat-filter-row {
-    grid-template-columns: minmax(112px, 1fr) minmax(88px, 0.72fr) minmax(0, 1.2fr) 28px;
+    grid-template-columns: minmax(156px, 1fr) minmax(108px, 0.7fr) minmax(180px, 1.25fr) 28px;
   }
 
   .stat-filter-row.has-secondary-value {
-    grid-template-columns: minmax(112px, 0.84fr) minmax(88px, 0.64fr) minmax(0, 1fr) minmax(0, 1fr) 28px;
+    grid-template-columns: minmax(156px, 0.88fr) minmax(108px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
   }
 
   .stat-filter-row.is-selecting {
-    grid-template-columns: 24px minmax(112px, 1fr) minmax(88px, 0.72fr) minmax(0, 1.2fr) 28px;
+    grid-template-columns: 24px minmax(156px, 1fr) minmax(108px, 0.7fr) minmax(180px, 1.25fr) 28px;
   }
 
   .stat-filter-row.is-selecting.has-secondary-value {
-    grid-template-columns: 24px minmax(112px, 0.84fr) minmax(88px, 0.64fr) minmax(0, 1fr) minmax(0, 1fr) 28px;
+    grid-template-columns: 24px minmax(156px, 0.88fr) minmax(108px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
   }
 
   .stat-filter-value.secondary {

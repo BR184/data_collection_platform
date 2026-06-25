@@ -72,7 +72,6 @@ class JdbcLabelGroupRepositoryTest {
         new LabelGroupDynamicRuleRecord(
             null,
             3L,
-            "recent-active-assignee",
             "{\"days\":30}",
             "STRING",
             "SUCCESS",

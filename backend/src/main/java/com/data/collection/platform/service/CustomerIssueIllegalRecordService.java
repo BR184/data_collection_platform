@@ -419,7 +419,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         view.projectName(),
         view.title(),
         view.issueState(),
-        view.primaryPhaseLabel(),
+        CustomerIssuePhaseSupport.displayPhase(view),
         displayIllegalReason(view),
         IssueDisplayValueSupport.displaySeverityLevelOrBlank(view.severityLevel()),
         view.priorityLevel(),
@@ -470,7 +470,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     if (TextQuerySupport.equalsNormalized(view.milestoneTitle(), normalized)) {
       return true;
     }
-    return phaseScopeResolver.matchesLegacyCrownCadPhase(view.primaryPhaseLabel(), normalized);
+    return phaseScopeResolver.matchesLegacyCrownCadPhase(CustomerIssuePhaseSupport.displayPhase(view), normalized);
   }
 
   private boolean hasSupportedCustomerIllegalReason(IssueFactRecord view) {

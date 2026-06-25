@@ -24,6 +24,8 @@ class SystemTestIssueSearchServiceTest {
   @Mock private IssueFactRecordRepository issueFactRecordRepository;
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
+  @Mock private SystemTestPhaseCatalogService phaseCatalogService;
 
   @Test
   void shouldUseSqlPageForPlainSearchRequests() {
@@ -348,7 +350,9 @@ class SystemTestIssueSearchServiceTest {
         issueFactRecordRepository,
         issueLinkService,
         new ObjectMapper(),
-        labelGroupExpansionService);
+        labelGroupExpansionService,
+        phaseScopeResolver,
+        phaseCatalogService);
   }
 
   private IssueFactRecord record(
