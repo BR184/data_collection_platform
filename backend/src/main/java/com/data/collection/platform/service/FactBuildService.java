@@ -537,9 +537,6 @@ public class FactBuildService {
   }
 
   private boolean isCustomerIssueIssueFact(List<String> labels, Long projectId, String projectName, LocalDateTime createdAt) {
-    if (labels.stream().anyMatch(label -> IssueRuleSupport.containsToken(label, List.of("系统测试", "回归测试")))) {
-      return false;
-    }
     boolean inCustomerDateRange = CustomerIssueScopeRules.isInCustomerIssueDateRange(createdAt);
     return inCustomerDateRange
         && (CustomerIssueScopeRules.isCustomerProject(projectId, projectName)
