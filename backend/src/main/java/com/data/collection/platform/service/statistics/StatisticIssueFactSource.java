@@ -201,7 +201,10 @@ public record StatisticIssueFactSource(IssueFactRecord record) {
   }
 
   public boolean isRetestFailed() {
-    return labels().contains("复测未通过");
+    // 老平台逻辑：bug_status LIKE '%未修复%'
+    // bug_status 在新平台对应 bugStatus() 字段
+    String status = bugStatus();
+    return status != null && status.contains("未修复");
   }
 
   public boolean isOtherReason(Set<String> knownReasonCategories) {
