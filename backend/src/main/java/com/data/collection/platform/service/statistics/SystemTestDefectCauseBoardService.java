@@ -744,7 +744,13 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         long numerator = totalBucket.countByMetric(metric.key());
         String display = denominator == 0 ? "0" : String.format(java.util.Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
-        cells.add(new StatisticCellData(metric.key(), numerator, display, false, null, Map.of("rowKey", "__ratio__")));
+        cells.add(new StatisticCellData(
+            metric.key(),
+            StatisticMetricCalculator.ratioSortValue(numerator, denominator),
+            display,
+            false,
+            null,
+            Map.of("rowKey", "__ratio__")));
       }
       return new StatisticRowData("__ratio__", "比例", cells);
     }

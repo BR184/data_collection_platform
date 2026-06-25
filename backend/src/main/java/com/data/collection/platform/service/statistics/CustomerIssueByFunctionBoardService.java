@@ -173,6 +173,9 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.finalSources()) {
       for (String moduleName : issue.displayModuleNames()) {
+        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+          continue;
+        }
         String rowKey = rowKey(moduleName, issue.functionName());
         String rowLabel = moduleName + " / " + issue.functionName();
         buckets.computeIfAbsent(rowKey, key -> new AggregateBucket(rowLabel, key)).accept(issue);
@@ -487,7 +490,12 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
     private StatisticCellData rateCell(String key, long numerator, long denominator) {
       return new StatisticCellData(
-          key, numerator, rate(numerator, denominator), false, null, Map.of("rowKey", rowKey));
+          key,
+          StatisticMetricCalculator.ratioSortValue(numerator, denominator),
+          rate(numerator, denominator),
+          false,
+          null,
+          Map.of("rowKey", rowKey));
     }
   }
 

@@ -181,12 +181,20 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.rowSources()) {
       for (String moduleName : issue.displayModuleNames()) {
+        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+          continue;
+        }
         buckets.computeIfAbsent(moduleName, AggregateBucket::new);
       }
     }
-    buckets.computeIfAbsent(EMPTY_MODULE_LABEL, AggregateBucket::new);
+    if (StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(EMPTY_MODULE_LABEL, effectiveFilterGroup)) {
+      buckets.computeIfAbsent(EMPTY_MODULE_LABEL, AggregateBucket::new);
+    }
     for (IssueSource issue : snapshot.finalSources()) {
       for (String moduleName : issue.displayModuleNames()) {
+        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+          continue;
+        }
         buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
       }
     }

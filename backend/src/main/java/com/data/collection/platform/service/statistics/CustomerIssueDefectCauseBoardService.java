@@ -220,11 +220,17 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.scopedSources()) {
       for (String moduleName : issue.moduleNames()) {
+        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+          continue;
+        }
         buckets.computeIfAbsent(moduleName, AggregateBucket::new);
       }
     }
     for (IssueSource issue : snapshot.reasonSources()) {
       for (String moduleName : issue.moduleNames()) {
+        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+          continue;
+        }
         buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
       }
     }
@@ -757,7 +763,13 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         long numerator = totalBucket.countByMetric(metric.key());
         String display = denominator == 0 ? "0" : String.format(java.util.Locale.ROOT, "%.2f%%", numerator * 100.0 / denominator);
-        cells.add(new StatisticCellData(metric.key(), numerator, display, false, null, Map.of("rowKey", "__ratio__")));
+        cells.add(new StatisticCellData(
+            metric.key(),
+            StatisticMetricCalculator.ratioSortValue(numerator, denominator),
+            display,
+            false,
+            null,
+            Map.of("rowKey", "__ratio__")));
       }
       return new StatisticRowData("__ratio__", "比例", cells);
     }

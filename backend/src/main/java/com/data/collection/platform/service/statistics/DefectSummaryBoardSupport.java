@@ -113,6 +113,14 @@ public final class DefectSummaryBoardSupport {
     return StatisticMetricCalculator.percent(value);
   }
 
+  private static long rateSort(long numerator, long denominator) {
+    return StatisticMetricCalculator.ratioSortValue(numerator, denominator);
+  }
+
+  private static long percentSort(double value) {
+    return StatisticMetricCalculator.percentSortValue(value);
+  }
+
   private record AggregateBucket(String rowLabel, List<StatisticIssueFactSource> issues) {
     private AggregateBucket(String rowLabel) {
       this(rowLabel, new ArrayList<>());
@@ -188,39 +196,39 @@ public final class DefectSummaryBoardSupport {
               cell("level1_other", level1Other, count(level1Other), true, rowKey),
               cell("level1_fixed", level1Fixed, count(level1Fixed), true, rowKey),
               cell("level1_total", level1, count(level1), true, rowKey),
-              cell("level1_rate", level1Fixed, rate(level1Fixed, level1), false, rowKey),
+              cell("level1_rate", rateSort(level1Fixed, level1), rate(level1Fixed, level1), false, rowKey),
               cell("level2_fixed", level2Fixed, count(level2Fixed), true, rowKey),
               cell("level2_total", level2, count(level2), true, rowKey),
-              cell("level2_rate", level2Fixed, rate(level2Fixed, level2), false, rowKey),
+              cell("level2_rate", rateSort(level2Fixed, level2), rate(level2Fixed, level2), false, rowKey),
               cell("level3_fixed", level3Fixed, count(level3Fixed), true, rowKey),
               cell("level3_total", level3, count(level3), true, rowKey),
-              cell("level3_rate", level3Fixed, rate(level3Fixed, level3), false, rowKey),
+              cell("level3_rate", rateSort(level3Fixed, level3), rate(level3Fixed, level3), false, rowKey),
               cell("suggestion_total", suggestion, count(suggestion), true, rowKey),
               cell("p1_count", p1, count(p1), true, rowKey),
-              cell("p1_fix_rate", p1Fixed, rate(p1Fixed, p1), false, rowKey),
-              cell("p1_close_rate", p1Closed, rate(p1Closed, p1), false, rowKey),
+              cell("p1_fix_rate", rateSort(p1Fixed, p1), rate(p1Fixed, p1), false, rowKey),
+              cell("p1_close_rate", rateSort(p1Closed, p1), rate(p1Closed, p1), false, rowKey),
               cell("p2_count", p2, count(p2), true, rowKey),
-              cell("p2_fix_rate", p2Fixed, rate(p2Fixed, p2), false, rowKey),
-              cell("p2_close_rate", p2Closed, rate(p2Closed, p2), false, rowKey),
+              cell("p2_fix_rate", rateSort(p2Fixed, p2), rate(p2Fixed, p2), false, rowKey),
+              cell("p2_close_rate", rateSort(p2Closed, p2), rate(p2Closed, p2), false, rowKey),
               cell("p3_count", p3, count(p3), true, rowKey),
-              cell("p3_fix_rate", p3Fixed, rate(p3Fixed, p3), false, rowKey),
+              cell("p3_fix_rate", rateSort(p3Fixed, p3), rate(p3Fixed, p3), false, rowKey),
               cell("module_total", total, count(total), true, rowKey),
-              cell("defect_ratio", Math.round(defectRatio), percent(defectRatio), false, rowKey),
-              cell("delay_defect_ratio", Math.round(delayRatio), percent(delayRatio), false, rowKey),
+              cell("defect_ratio", percentSort(defectRatio), percent(defectRatio), false, rowKey),
+              cell("delay_defect_ratio", percentSort(delayRatio), percent(delayRatio), false, rowKey),
               cell("solved_count", solved, count(solved), true, rowKey),
-              cell("fix_rate", solved, rate(solved, total), false, rowKey),
-              cell("close_rate", closed, rate(closed, total), false, rowKey),
+              cell("fix_rate", rateSort(solved, total), rate(solved, total), false, rowKey),
+              cell("close_rate", rateSort(closed, total), rate(closed, total), false, rowKey),
               cell("open_count", open, count(open), true, rowKey),
               cell("extension_count", extension, count(extension), true, rowKey),
               cell("retest_failed_count", retest, count(retest), true, rowKey),
               cell("new_issue_fixed", newFixed, count(newFixed), true, rowKey),
               cell("new_issue_total", newTotal, count(newTotal), true, rowKey),
-              cell("new_issue_fix_rate", newFixed, rate(newFixed, newTotal), false, rowKey),
-              cell("new_issue_close_rate", newClosed, rate(newClosed, newTotal), false, rowKey),
-              cell("level1_legacy_rate", level1Legacy, rate(level1Legacy, level1), false, rowKey),
+              cell("new_issue_fix_rate", rateSort(newFixed, newTotal), rate(newFixed, newTotal), false, rowKey),
+              cell("new_issue_close_rate", rateSort(newClosed, newTotal), rate(newClosed, newTotal), false, rowKey),
+              cell("level1_legacy_rate", rateSort(level1Legacy, level1), rate(level1Legacy, level1), false, rowKey),
               cell("level2_legacy_count", level2Legacy, count(level2Legacy), true, rowKey),
               cell("level3_legacy_count", level3Legacy, count(level3Legacy), true, rowKey),
-              cell("level23_legacy_rate", level23Legacy, rate(level23Legacy, level23), false, rowKey)));
+              cell("level23_legacy_rate", rateSort(level23Legacy, level23), rate(level23Legacy, level23), false, rowKey)));
     }
 
     private StatisticCellData cell(
