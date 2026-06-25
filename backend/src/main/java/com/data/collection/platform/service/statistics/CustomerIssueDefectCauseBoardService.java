@@ -85,7 +85,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
              coalesce(reason_category,'') as reason_category,
              coalesce(raw_payload,'') as reason_text,
              coalesce(module_names,'') as module_names,
-             coalesce(label_names,'') as label_names
+             coalesce(label_names,'') as label_names,
+             coalesce(is_excluded, false) as is_excluded
         from issue_fact
        where deleted = false
       """;
@@ -101,7 +102,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
              coalesce(reason_category,'') as reason_category,
              coalesce(raw_payload,'') as reason_text,
              coalesce(module_names,'') as module_names,
-             coalesce(label_names,'') as label_names
+             coalesce(label_names,'') as label_names,
+             coalesce(is_excluded, false) as is_excluded
         from issue_fact
        where deleted = false
       """;
@@ -449,7 +451,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
             .filter(issue -> StringUtils.hasText(issue.milestoneTitle()))
             .toList();
-    List<IssueSource> valid = scoped.stream().filter(issue -> !issue.customerDefaultExcluded()).toList();
+    List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> milestoneFiltered =
         valid.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
     List<IssueSource> phaseFiltered =
@@ -621,14 +623,15 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
         StatisticSourceValueSupport.text(rs.getString("reason_text"), ""),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
-        StatisticSourceValueSupport.split(rs.getString("label_names")));
+        StatisticSourceValueSupport.split(rs.getString("label_names")),
+        rs.getBoolean("is_excluded"));
   }
 
   private List<StatisticFilterOption> loadMilestoneOptions() {
     try {
       return issueFactQueryService.query(MILESTONE_OPTION_SQL, Map.of(), this::mapIssueFact).stream()
           .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
-          .filter(issue -> !issue.customerDefaultExcluded())
+          .filter(issue -> !issue.excluded())
           .map(IssueSource::milestoneTitle)
           .filter(StringUtils::hasText)
           .distinct()
@@ -805,7 +808,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       String reasonCategory,
       String reasonText,
       List<String> moduleNames,
-      List<String> labels) {
+      List<String> labels,
+      boolean excluded) {
     IssueScopeContext scopeContext() {
       return new IssueScopeContext(
           projectId, projectName, milestoneTitle, testingPhase, systemTestLabel, createdAt, labels);
@@ -817,13 +821,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
     boolean isClosed() {
       return closedAt != null || "closed".equalsIgnoreCase(issueState);
-    }
-
-    boolean customerDefaultExcluded() {
-      if (!isClosed()) {
-        return false;
-      }
-      return contains(bugStatus, "申请否决") || contains(bugStatus, "需求如此");
     }
 
     boolean matchesMetric(String metricKey) {

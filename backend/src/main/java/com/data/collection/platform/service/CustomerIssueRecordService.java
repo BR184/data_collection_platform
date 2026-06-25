@@ -86,7 +86,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   request.assigneeName(),
                   TOPIC_DELAY.equals(safeTopic),
                   false,
-                  false,
+                  true,
                   false,
                   false,
                   false,
@@ -347,7 +347,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     String safeTopic = normalizeTopic(topic);
     List<IssueFactRecord> loaded = loadFacts(projectId);
     List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
-    List<IssueFactRecord> topicScoped = applyTopic(scoped, safeTopic);
+    List<IssueFactRecord> visible = scoped.stream().filter(view -> !view.excluded()).toList();
+    List<IssueFactRecord> topicScoped = applyTopic(visible, safeTopic);
     return new StatisticBoardRuleExplanationResponse(
         "customer-issue-" + safeTopic + "-records",
         true,
@@ -358,7 +359,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
             step("scope-filter", "限定客户问题范围", "复用客户问题 scope profile，避免和系统测试口径混在一起。", scoped, loaded.size()),
-            step("topic-filter", topicTitle(safeTopic), topicFilterDescription(safeTopic), topicScoped, scoped.size())),
+            step("exclude-filter", "剔除排除数据", "按老平台 CC_Product 记录页查询口径，排除已关闭的申请否决、需求如此和设计如此类数据。", visible, scoped.size()),
+            step("topic-filter", topicTitle(safeTopic), topicFilterDescription(safeTopic), topicScoped, visible.size())),
         List.of(
             new StatisticRuleMetricDefinition(
                 "total",
@@ -376,7 +378,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private List<IssueFactRecord> loadTopicScopedViews(String topic, Long projectId) {
-    return applyTopic(scopeCustomerIssues(loadFacts(projectId)), topic);
+    return applyTopic(scopeVisibleCustomerIssues(loadFacts(projectId)), topic);
   }
 
   private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, String topic) {
@@ -390,6 +392,10 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return rows.stream()
         .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()))
         .toList();
+  }
+
+  private List<IssueFactRecord> scopeVisibleCustomerIssues(List<IssueFactRecord> rows) {
+    return scopeCustomerIssues(rows).stream().filter(view -> !view.excluded()).toList();
   }
 
   private CustomerIssueRecordRowResponse toResponse(IssueFactRecord view) {

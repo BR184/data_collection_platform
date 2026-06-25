@@ -73,6 +73,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
              coalesce(module_names, '') as module_names,
              coalesce(function_name, '') as function_name,
              coalesce(label_names, '') as label_names,
+             coalesce(is_excluded, false) as is_excluded,
              coalesce(is_fixed, false) as is_fixed,
              coalesce(delay_issue, false) as delay_issue,
              coalesce(is_response_delayed, false) as is_response_delayed,
@@ -271,8 +272,9 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
+    List<IssueSource> visible = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> phaseFiltered =
-        scoped.stream().filter(issue -> matchesTestingPhase(issue, filterGroup)).toList();
+        visible.stream().filter(issue -> matchesTestingPhase(issue, filterGroup)).toList();
     List<IssueSource> withFunction = phaseFiltered.stream().filter(issue -> StringUtils.hasText(issue.functionName())).toList();
     return new RuleFlowSnapshot(
         withFunction,
@@ -294,10 +296,18 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
+                "exclude-filter",
+                "剔除排除数据",
+                "按客户问题公共排除规则剔除 issue_fact.is_excluded = true 的议题。",
+                scoped.size(),
+                visible,
+                this::toRuleFlowSample
+            ),
+            StatisticRuleFlowSupport.step(
                 "testing-phase-filter",
                 "应用测试阶段切换",
                 "根据页面顶部选择的测试阶段父级收口客户问题里程碑；未选择时按老平台默认使用阶段列表第一项。",
-                scoped.size(),
+                visible.size(),
                 phaseFiltered,
                 this::toRuleFlowSample
             ),
@@ -362,6 +372,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.text(rs.getString("function_name")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
+        rs.getBoolean("is_excluded"),
         rs.getBoolean("is_fixed"),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_response_delayed"),
@@ -520,6 +531,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       List<String> moduleNames,
       String functionName,
       List<String> labels,
+      boolean excluded,
       boolean fixed,
       boolean delayIssue,
       boolean responseDelayed,

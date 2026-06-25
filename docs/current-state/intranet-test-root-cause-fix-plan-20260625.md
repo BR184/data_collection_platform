@@ -31,6 +31,44 @@
 
 ## 共性根因
 
+### 0. 展示数据筛选规则必须按老平台页面入口逐页对齐
+
+本轮重新确认：内网剩余数据差异主要不是镜像库缺数据，而是新平台页面展示层没有完整复刻老平台每个页面的默认筛选规则。后续对齐时必须以“老平台源码入口 -> 查询构造器 -> 实际 WHERE/内存过滤”为准，不能只按页面名称或字段直觉推断。
+
+当前已确认的典型规则：
+
+1. 系统测试缺陷汇总页老平台入口是 `DataAnalysisController.getModuleTable -> SpiderIssueDataService.getModuleTable -> SpiderIssueDataDAOImpl.findByModuleTableAndTestingPhase`。
+   - CrownCAD 项目必须传测试阶段；为空时老平台直接返回空。
+   - 父级阶段先经 `TestingPhaseService.getByName(phase)` 展开；若没有展开结果，才把传入值当具体测试阶段。
+   - 聚合统计阶段用 `testing_phase like %子阶段%` 匹配，不是严格等值。
+   - 公共过滤使用 `QueryUtil.setQueryFilter(query, projectId)`：非 CC_Product 排除 `功能屏蔽`、`已拒绝`、`建议`，并排除关闭的 `申请否决`、关闭的 `需求如此`。
+   - 示例“工程图模块的回退个数”：先按上述阶段、项目和公共过滤取数，再限定 `severity_level = 一级缺陷`，再限定 `issue_title like （退 or 回退 or 倒退`，最后在 `ModuleTableRow` 中按模块名归属统计工程图行。新平台不得从标题括号说明或裸标签反推模块。
+2. 系统测试议题查询/记录类列表老平台入口是 `IssueStaticDataController.filter -> SpiderIssueDataQueryBuilder.buildPage`。
+   - 默认 `projectId=9`。
+   - 记录类列表不强制命中系统测试/回归测试标签，但仍默认排除 `已拒绝`、`功能屏蔽`，并在 `queryFilter` 默认开启时继续走 `QueryUtil.setQueryFilter` 的公共排除。
+   - 顶部测试阶段传 `phaseName` 时，经 `TestingPhaseService.getByName` 展开后用 `testing_phase in (...)`；传 `phaseNameList` 时直接用集合 `in`。
+3. 客户问题记录类列表老平台入口同样走 `IssueStaticDataController.filter` 的 CC_Product 分支。
+   - `projectId=325` 时默认 `submission_date >= 2026-01-01`。
+   - 客户问题顶部范围主要按 `milestone` 匹配，不应硬套系统测试 `testing_phase`。
+   - CC_Product 分支仍会调用 `setFilterRejected(true)`，并保留 `queryFilter`；新平台以事实层 `is_excluded=false` 承接客户问题公共排除，即只排关闭态 `申请否决`、`需求如此`、`设计如此` 等历史闭环噪声，不把 `建议/已拒绝/功能屏蔽` 按系统测试项目规则额外排除。
+
+当前页面规则矩阵：
+
+| 页面 | 老平台入口 | 默认范围 | 阶段/里程碑匹配 | 公共排除 | 新平台承接入口 |
+|---|---|---|---|---|---|
+| 系统测试缺陷汇总 | `DataAnalysisController.getModuleTable` | CrownCAD，必须选择测试阶段 | 父级阶段展开后 `testing_phase like %子阶段%` | 非 CC_Product 公共排除 | `SystemTestDefectSummaryBoardService` |
+| 系统测试议题查询 | `IssueStaticDataController.filter` | 默认 `projectId=9`，不强制系统测试标签 | 父级阶段展开后匹配具体 `testing_phase` | 非 CC_Product 记录页公共排除 | `SystemTestIssueSearchService` |
+| 系统测试非法数据 | `IssueStaticDataController.getIllegalIssue` / 记录页规则 | 默认 `projectId=9`，系统测试范围 | 父级阶段展开后匹配具体 `testing_phase` | 非 CC_Product 公共排除 | `SystemTestIllegalRecordService` |
+| CC_PRODUCT议题 / 延期记录 | `IssueStaticDataController.filter` 的 CC_Product 分支 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueRecordService` |
+| 客户问题缺陷非法数据 | `IssueStaticDataController.getIllegalIssue` + CC_Product 范围 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueIllegalRecordService` |
+| 客户问题缺陷汇总 | `findAllByPhase` 的 CC_Product 分支 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueDefectSummaryBoardService` |
+| 客户问题缺陷原因分析 | `findAllByPhase(causeExist)` 的 CC_Product 分支 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueDefectCauseBoardService` |
+| 客户问题延期问题 | `DataAnalysisController.getDelayIssue` / `getDelayIssue` | `projectId=325`、open 延期议题 | `milestone` / `milestone_title` | 客户问题公共排除，且排除 GitLab 接口报错非法数据需继续核对 | `CustomerIssueDelayIssuesBoardService` |
+| 客户问题响应效率 | `findRespIssue` / `getHasRespOrFixedIssue` | `projectId=325`，按响应/解决字段分别统计 | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueResponseEfficiencyBoardService` |
+| 客户问题按功能展示缺陷数量 | `getIssueByFunctionNameAndModule` | `projectId=325`，模块 + 功能名 | `milestone` / `milestone_title` | 业务规则总表要求客户问题公共排除；老平台该明细接口源码未显式 `setQueryFilter`，待业务确认是否属于遗漏 | `CustomerIssueByFunctionBoardService` |
+
+后续每个页面都必须补齐类似矩阵：页面入口、默认项目/阶段/里程碑、公共排除、特殊字段映射、聚合和下钻是否共用同一查询口径。
+
 ### A. 客户问题把里程碑当测试阶段使用不完整
 
 客户问题真实分类维度是 `milestone_title`。当前若页面或服务继续用 `primaryPhaseLabel()` / `testing_phase` 作为唯一筛选条件，会导致：
@@ -159,6 +197,29 @@
 
 - 问题 4 大概率已被第三轮“标题含 `退` 不进其他一级”覆盖，需内网重建 issue fact 后复核。
 - 问题 5 仍需提供具体 issue iid 或新老平台差异明细；目前仅凭源码无法证明新平台漏掉某个老平台合法严重程度/模块规则，暂不写单条或猜测规则。
+
+### 2026-06-25 第五轮：记录类页面展示筛选规则对齐
+
+已完成：
+
+1. 系统测试议题查询已按老平台记录页入口补回 `is_excluded=false`，即列表、导出和筛选候选默认排除 `已拒绝`、`功能屏蔽`、`建议`、关闭的 `申请否决` 和关闭的 `需求如此`，但不强制要求命中系统测试/回归测试标签。
+2. 客户问题 `CC_PRODUCT议题` 和延期专题 SQL 分页路径补回 `is_excluded=false`，与老平台 CC_Product 分支的 `setFilterRejected/queryFilter` 行为对齐。
+3. 客户问题 `CC_PRODUCT议题` 和延期专题的 Java fallback、筛选候选和规则说明统一走“可见客户问题”范围，避免 SQL 分页和导出/候选口径不一致。
+4. 客户问题缺陷非法数据 SQL 分页路径、Java fallback、筛选候选、单条刷新结果和规则说明统一排除关闭态 `申请否决`、`需求如此`、`设计如此` 等客户问题公共排除数据。
+5. 客户问题按功能展示缺陷数量、延期问题、缺陷响应效率、缺陷原因分析的统计父表、下钻和规则说明已统一读取事实层 `is_excluded` 并套用客户问题公共排除，避免统计页和记录页总量口径分裂。
+6. `docs/platform-page-business-rules.md` 已补充系统测试记录页和客户问题记录页的老平台入口、默认范围和公共排除规则。
+
+影响项：
+
+- 问题 9：系统测试/议题查询数据量比老平台多约 1W。
+- 问题 14/15：客户问题记录类页面按里程碑展示时的默认范围和总量。
+- 问题 1/2/16/17：客户问题统计类页面父表、下钻和记录列表之间的默认范围一致性。
+- 问题 8：系统测试/客户问题非法数据记录类页面默认范围。
+
+仍需继续逐页补证：
+
+- 代码走查非法数据仍需用老平台 MR 入口继续核对时间范围、目标分支默认值、项目候选来源和非法类型映射。
+- 客户问题延期问题老平台 `getDelayIssue` 额外排除 `illegal_list` 包含 GitLab 接口报错的数据；新平台是否需要用 `illegal_reason/illegal_reasons` 同步该特例，需用内网差异明细确认。
 
 ---
 

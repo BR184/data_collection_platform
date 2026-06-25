@@ -107,7 +107,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   request.assigneeName(),
                   false,
                   false,
-                  false,
+                  true,
                   false,
                   false,
                   false,
@@ -128,6 +128,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 listRequest,
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
+            .filter(view -> !view.excluded())
             .filter(view -> matchesTestingPhase(view, request.testingPhases()))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))

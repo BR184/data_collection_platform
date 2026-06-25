@@ -78,6 +78,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
              coalesce(assignee_name, '') as assignee_name,
              coalesce(module_names, '') as module_names,
              coalesce(label_names, '') as label_names,
+             coalesce(is_excluded, false) as is_excluded,
              research_template_time,
              fixed_label_time,
              created_at_source,
@@ -283,8 +284,9 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
+    List<IssueSource> visible = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> rowSources =
-        scoped.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
+        visible.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
         rowSources,
         rowSources,
@@ -304,10 +306,17 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
                 scoped,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
+                "exclude-filter",
+                "剔除排除数据",
+                "按客户问题公共排除规则剔除 issue_fact.is_excluded = true 的议题。",
+                scoped.size(),
+                visible,
+                this::toRuleFlowSample),
+            StatisticRuleFlowSupport.step(
                 "condition-filter",
                 "应用页面筛选",
                 "应用当前页面条件筛选和顶部查询参数。",
-                scoped.size(),
+                visible.size(),
                 rowSources,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
@@ -363,6 +372,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         StatisticSourceValueSupport.text(rs.getString("assignee_name")),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
+        rs.getBoolean("is_excluded"),
         StatisticSourceValueSupport.time(rs.getTimestamp("research_template_time")),
         StatisticSourceValueSupport.time(rs.getTimestamp("fixed_label_time")),
         StatisticSourceValueSupport.time(rs.getTimestamp("created_at_source")),
@@ -621,6 +631,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       String assigneeName,
       List<String> moduleNames,
       List<String> labels,
+      boolean excluded,
       LocalDateTime researchTemplateTime,
       LocalDateTime fixedLabelTime,
       LocalDateTime createdAt,

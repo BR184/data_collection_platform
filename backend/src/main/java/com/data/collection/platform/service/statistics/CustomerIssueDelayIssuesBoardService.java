@@ -74,6 +74,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
              coalesce(assignee_name, '') as assignee_name,
              coalesce(module_names, '') as module_names,
              coalesce(label_names, '') as label_names,
+             coalesce(is_excluded, false) as is_excluded,
              coalesce(delay_issue, false) as delay_issue,
              coalesce(is_response_delayed, false) as is_response_delayed,
              coalesce(is_resolve_delayed, false) as is_resolve_delayed,
@@ -288,8 +289,9 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
+    List<IssueSource> visible = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> openIssues =
-        scoped.stream().filter(IssueSource::open).toList();
+        visible.stream().filter(IssueSource::open).toList();
     List<IssueSource> delayed =
         openIssues.stream().filter(issue -> issue.responseDelayed() || issue.resolveDelayed()).toList();
     List<IssueSource> rowSources =
@@ -315,10 +317,17 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
                 scoped,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
+                "exclude-filter",
+                "剔除排除数据",
+                "按客户问题公共排除规则剔除 issue_fact.is_excluded = true 的议题。",
+                scoped.size(),
+                visible,
+                this::toRuleFlowSample),
+            StatisticRuleFlowSupport.step(
                 "open-filter",
                 "保留 open 议题",
                 "延期问题页只统计仍处于 open 状态的客户问题议题。",
-                scoped.size(),
+                visible.size(),
                 openIssues,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
@@ -378,6 +387,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("assignee_name")),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
+        rs.getBoolean("is_excluded"),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_response_delayed"),
         rs.getBoolean("is_resolve_delayed"),
@@ -609,6 +619,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       String assigneeName,
       List<String> moduleNames,
       List<String> labels,
+      boolean excluded,
       boolean delayIssue,
       boolean responseDelayed,
       boolean resolveDelayed,

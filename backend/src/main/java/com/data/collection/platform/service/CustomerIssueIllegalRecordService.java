@@ -94,7 +94,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   null,
                   false,
                   true,
-                  false,
+                  true,
                   false,
                   true,
                   false,
@@ -352,8 +352,9 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {
     List<IssueFactRecord> loaded = loadFacts(projectId);
     List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
+    List<IssueFactRecord> visible = scoped.stream().filter(view -> !view.excluded()).toList();
     List<IssueFactRecord> illegal =
-        scoped.stream().filter(IssueFactRecord::illegal).filter(this::hasSupportedCustomerIllegalReason).toList();
+        visible.stream().filter(IssueFactRecord::illegal).filter(this::hasSupportedCustomerIllegalReason).toList();
     return new StatisticBoardRuleExplanationResponse(
         WORKSPACE_KEY,
         true,
@@ -364,7 +365,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
             step("scope-filter", "限定客户问题范围", "复用客户问题 scope profile，避免和系统测试口径混在一起。", scoped, loaded.size()),
-            step("illegal-filter", "筛出非法数据", "保留 issue_fact.is_illegal = true 的客户问题缺陷。", illegal, scoped.size())),
+            step("exclude-filter", "剔除排除数据", "按老平台 CC_Product 记录页查询口径，排除已关闭的申请否决、需求如此和设计如此类数据。", visible, scoped.size()),
+            step("illegal-filter", "筛出非法数据", "保留 issue_fact.is_illegal = true 的客户问题缺陷。", illegal, visible.size())),
         List.of(
             new StatisticRuleMetricDefinition(
                 "illegal-total",
@@ -400,13 +402,17 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   }
 
   private List<IssueFactRecord> loadScopedViews(Long projectId) {
-    return scopeCustomerIssues(loadFacts(projectId));
+    return scopeVisibleCustomerIssues(loadFacts(projectId));
   }
 
   private List<IssueFactRecord> scopeCustomerIssues(List<IssueFactRecord> rows) {
     return rows.stream()
         .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()))
         .toList();
+  }
+
+  private List<IssueFactRecord> scopeVisibleCustomerIssues(List<IssueFactRecord> rows) {
+    return scopeCustomerIssues(rows).stream().filter(view -> !view.excluded()).toList();
   }
 
   private CustomerIssueIllegalRecordRowResponse toResponse(IssueFactRecord view) {
