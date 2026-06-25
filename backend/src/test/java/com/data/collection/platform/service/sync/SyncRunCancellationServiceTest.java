@@ -22,19 +22,22 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class SyncRunCancellationServiceTest {
   private SyncRunMapper syncRunMapper;
   private JdbcTemplate jdbcTemplate;
+  private SyncRunTableTaskLeaseService tableTaskLeaseService;
   private SyncRunCancellationService cancellationService;
 
   @BeforeEach
   void setUp() {
     syncRunMapper = org.mockito.Mockito.mock(SyncRunMapper.class);
     jdbcTemplate = org.mockito.Mockito.mock(JdbcTemplate.class);
-    cancellationService = new SyncRunCancellationService(syncRunMapper, jdbcTemplate);
+    tableTaskLeaseService = org.mockito.Mockito.mock(SyncRunTableTaskLeaseService.class);
+    cancellationService = new SyncRunCancellationService(syncRunMapper, jdbcTemplate, tableTaskLeaseService);
   }
 
   @Test
   void shouldMarkRunningRunAsCancelling() {
     SyncRun running = run(7L, SyncRunStatus.RUNNING);
     when(syncRunMapper.selectList(any())).thenReturn(List.of(running));
+    when(tableTaskLeaseService.hasLiveRunningTask(7L)).thenReturn(true);
 
     var result = cancellationService.requestCancel(1L, "admin", "manual stop");
 
@@ -73,6 +76,7 @@ class SyncRunCancellationServiceTest {
     assertThat(saved.getFinishedAt()).isNotNull();
     assertThat(result.accepted()).isTrue();
     assertThat(result.status()).isEqualTo(SyncRunStatus.CANCELLED);
+    verify(tableTaskLeaseService).cancelActiveTasksForRun(8L);
   }
 
   @Test
@@ -93,6 +97,7 @@ class SyncRunCancellationServiceTest {
     SyncRun running = run(9L, SyncRunStatus.RUNNING);
     running.setCreatedAt(LocalDateTime.now());
     when(syncRunMapper.selectList(any())).thenReturn(List.of(queued, running));
+    when(tableTaskLeaseService.hasLiveRunningTask(9L)).thenReturn(true);
 
     var result = cancellationService.requestCancel(1L, "admin", "manual stop");
 

@@ -230,6 +230,7 @@ class IssueFactNormalizationRulesTest {
         deadline,
         LocalDateTime.of(2026, 4, 9, 10, 0))).isFalse();
     assertThat(IssueFactNormalizationRules.isLegacy(
+        List.of(),
         false,
         LocalDateTime.of(2026, 3, 1, 9, 0),
         LocalDateTime.of(2026, 4, 1, 9, 0))).isTrue();
