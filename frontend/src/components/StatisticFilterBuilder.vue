@@ -66,6 +66,9 @@ const conditionSummaries = computed(() =>
 
 const visibleSummaryChips = computed(() => conditionSummaries.value.slice(0, visibleConditionLimit));
 const hiddenSummaryCount = computed(() => Math.max(0, conditionSummaries.value.length - visibleSummaryChips.value.length));
+const fieldSelectCharacterWidth = computed(() =>
+  props.fields.reduce((max, field) => Math.max(max, field.label.trim().length), 0),
+);
 
 watch(
   () => props.modelValue.conditions.length,
@@ -316,8 +319,24 @@ function conditionRowClass(condition: StatisticFilterConditionDraft) {
 function conditionRowStyle(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
   const fieldWidth = field?.width ?? 176;
+  const fieldLabelDrivenWidth = fieldSelectCharacterWidth.value * 14 + 44;
+  const normalizedFieldWidth = Math.max(128, Math.min(Math.max(fieldWidth, fieldLabelDrivenWidth), 216));
+  const operatorWidth = usesSecondaryValue(condition.operator) ? 104 : 112;
+  const valueWidth = usesSecondaryValue(condition.operator)
+    ? usesDatePicker(condition)
+      ? 176
+      : isNumericField(condition)
+        ? 148
+        : 164
+    : usesDatePicker(condition)
+      ? 188
+      : isNumericField(condition)
+        ? 132
+        : 172;
   return {
-    '--condition-field-min': `${Math.max(156, Math.min(fieldWidth, 280))}px`,
+    '--condition-field-width': `${normalizedFieldWidth}px`,
+    '--condition-operator-width': `${operatorWidth}px`,
+    '--condition-value-width': `${valueWidth}px`,
   };
 }
 
@@ -697,8 +716,9 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-list {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 6px;
   min-width: 0;
   max-width: 100%;
@@ -738,15 +758,21 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   max-height: 220px;
   overflow-y: auto;
   padding-right: 4px;
+  align-content: flex-start;
 }
 
 .stat-filter-row {
   display: grid;
-  grid-template-columns: minmax(var(--condition-field-min, 176px), 1.2fr) minmax(128px, 0.72fr) minmax(240px, 1.8fr) 28px;
+  grid-template-columns:
+    minmax(0, var(--condition-field-width, 160px))
+    minmax(0, var(--condition-operator-width, 112px))
+    minmax(0, var(--condition-value-width, 172px))
+    28px;
   align-items: center;
   gap: 4px;
-  width: 100%;
-  max-width: 100%;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: min(100%, 1000px);
   min-width: 0;
   min-height: 32px;
   padding: 2px 4px 2px 8px;
@@ -756,17 +782,31 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-row.has-secondary-value {
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(var(--condition-field-min, 176px), 1.12fr) minmax(128px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
+  grid-template-columns:
+    minmax(0, var(--condition-field-width, 160px))
+    minmax(0, var(--condition-operator-width, 104px))
+    minmax(0, var(--condition-value-width, 164px))
+    minmax(0, var(--condition-value-width, 164px))
+    28px;
 }
 
 .stat-filter-row.is-selecting {
-  grid-template-columns: 24px minmax(var(--condition-field-min, 176px), 1.2fr) minmax(128px, 0.72fr) minmax(240px, 1.8fr) 28px;
+  grid-template-columns:
+    24px
+    minmax(0, var(--condition-field-width, 160px))
+    minmax(0, var(--condition-operator-width, 112px))
+    minmax(0, var(--condition-value-width, 172px))
+    28px;
 }
 
 .stat-filter-row.is-selecting.has-secondary-value {
-  grid-column: 1 / -1;
-  grid-template-columns: 24px minmax(var(--condition-field-min, 176px), 1.12fr) minmax(128px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
+  grid-template-columns:
+    24px
+    minmax(0, var(--condition-field-width, 160px))
+    minmax(0, var(--condition-operator-width, 104px))
+    minmax(0, var(--condition-value-width, 164px))
+    minmax(0, var(--condition-value-width, 164px))
+    28px;
 }
 
 .stat-filter-check {
@@ -846,20 +886,12 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
     justify-content: flex-start;
   }
 
-  .stat-filter-row {
-    grid-template-columns: minmax(156px, 1fr) minmax(112px, 0.7fr) minmax(180px, 1.25fr) 28px;
-  }
-
-  .stat-filter-row.has-secondary-value {
-    grid-template-columns: minmax(156px, 0.88fr) minmax(112px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
-  }
-
-  .stat-filter-row.is-selecting {
-    grid-template-columns: 24px minmax(156px, 1fr) minmax(112px, 0.7fr) minmax(180px, 1.25fr) 28px;
-  }
-
+  .stat-filter-row,
+  .stat-filter-row.has-secondary-value,
+  .stat-filter-row.is-selecting,
   .stat-filter-row.is-selecting.has-secondary-value {
-    grid-template-columns: 24px minmax(156px, 0.88fr) minmax(112px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .stat-filter-value.secondary {
@@ -872,12 +904,9 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 @media (max-width: 760px) {
-  .stat-filter-list {
-    grid-template-columns: 1fr;
-  }
-
   .stat-filter-row {
     grid-template-columns: 1fr;
+    width: 100%;
   }
 
   .stat-filter-value.secondary,

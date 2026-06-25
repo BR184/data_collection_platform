@@ -49,6 +49,7 @@ const filteredOptions = computed(() => {
 
 const popperClass = computed(() => {
   const classNames = ['platform-select-dropdown'];
+  const hasSemanticOptions = props.options.some((option) => option.variant || isLabelGroupOption(option.value));
   if (props.multiple) {
     classNames.push('smart-select-dropdown');
     if (props.compact) {
@@ -60,6 +61,9 @@ const popperClass = computed(() => {
     }
   } else {
     classNames.push('smart-select-dropdown--single');
+    if (hasSemanticOptions) {
+      classNames.push('smart-select-dropdown--semantic');
+    }
   }
   if (props.popperClassExtra) {
     classNames.push(props.popperClassExtra);
@@ -215,6 +219,63 @@ function optionVariant(option: RecordTableFilterOption) {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--normal {
+  background: rgba(239, 246, 255, 0.74);
+  color: #1d4ed8;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--normal.hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--normal:hover {
+  background: rgba(219, 234, 254, 0.86);
+  color: #1e40af;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group {
+  background: rgba(236, 253, 245, 0.96);
+  color: #047857;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group.hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group:hover {
+  background: rgba(209, 250, 229, 0.98);
+  color: #065f46;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group
+  .smart-select-option-label {
+  color: inherit;
+  font-weight: 600;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group.smart-select-option-item--selected,
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group.selected,
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group.is-selected,
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group[aria-selected='true'] {
+  background: #059669 !important;
+  color: #fff !important;
+}
+
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group.smart-select-option-item--selected.hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group.smart-select-option-item--selected:hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group.selected.hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic .el-select-dropdown__item.smart-select-option-item--label-group.selected:hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group.is-selected.hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group.is-selected:hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group[aria-selected='true'].hover,
+.smart-select-dropdown--single.smart-select-dropdown--semantic
+  .el-select-dropdown__item.smart-select-option-item--label-group[aria-selected='true']:hover {
+  background: #047857 !important;
+  color: #fff !important;
 }
 
 .smart-select-dropdown .el-select-dropdown__list,
