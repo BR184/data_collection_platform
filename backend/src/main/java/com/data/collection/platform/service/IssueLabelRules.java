@@ -25,7 +25,8 @@ final class IssueLabelRules {
   // 该项目不排除"功能屏蔽"、"已拒绝"、"建议"，与老平台保持一致
   private static final long CUSTOMER_ISSUE_PROJECT_ID = 325L;
 
-  private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成", "待合并");
+  // 老平台 setFixQuery: bug_status = '待合并' OR LIKE '%已修复%' OR LIKE '%待合并%' OR LIKE '%未更新%'
+  private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成", "待合并", "未更新");
   private static final List<String> UNREPRODUCED_LABELS = List.of("未复现");
   private static final List<String> LEGACY_STATUS_LABELS = List.of("历史遗留");
   private static final List<String> LEGACY_BUG_STATUS_LABELS = List.of(
