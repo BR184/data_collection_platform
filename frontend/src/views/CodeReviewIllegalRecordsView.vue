@@ -6,6 +6,7 @@ import { Download, InfoFilled, RefreshRight } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
+import SmartSelect from '../components/base/SmartSelect.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
@@ -126,9 +127,12 @@ const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
 });
 
 const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
+const projectScopeValue = computed(() => String(route.query.projectId ?? ''));
+const projectScopeOptions = computed(() => filterOptions.value.projects ?? []);
 const sourceScope = useDataScope({
   provider: CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
   options: computed(() => buildScopeOptions(sourceOptions.value)),
+  clearQueryKeysOnChange: ['projectId'],
   mountToShell: true,
   loading: isTableLoading,
 });
@@ -306,6 +310,11 @@ async function handleConditionFilterReset() {
   await patchQuery(buildConditionResetQueryPatch(route.query));
 }
 
+async function handleProjectScopeChange(value: string | string[]) {
+  const nextValue = String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
+  await patchQuery({ projectId: nextValue || null, page: 1 });
+}
+
 const taskStartedText = computed(() =>
   syncStatus.value?.lastRefreshStartedAt
     ? formatBeijingDateTime(syncStatus.value.lastRefreshStartedAt, '')
@@ -375,6 +384,17 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
       <template #primary-actions>
         <div class="code-review-illegal-toolbar-actions">
+          <div class="code-review-project-scope">
+            <span class="code-review-illegal-toolbar-label">项目</span>
+            <SmartSelect
+              :model-value="projectScopeValue"
+              :options="projectScopeOptions"
+              placeholder="全部项目"
+              class="code-review-project-select"
+              popper-class-extra="code-review-project-select-dropdown"
+              @change="handleProjectScopeChange"
+            />
+          </div>
           <SyncMetaBadge :value="lastSyncedText" />
           <span v-if="taskStartedText" class="code-review-illegal-batch-meta">
             任务执行时间：{{ taskStartedText }}
@@ -639,6 +659,18 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 .code-review-illegal-toolbar-label {
   font-size: 12px;
   color: rgba(0, 0, 0, 0.45);
+}
+
+.code-review-project-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.code-review-project-select {
+  width: 220px;
+  max-width: min(220px, 48vw);
 }
 
 .code-review-illegal-batch-meta {

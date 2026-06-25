@@ -17,16 +17,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReviewDataFilterOptionServiceTest {
 
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
+  @Mock private ReviewDataMirrorOptionRepository mirrorOptionRepository;
 
   @Test
   void shouldBuildReviewDataFilterOptionsFromCurrentRecords() {
-    ReviewDataFilterOptionService service = new ReviewDataFilterOptionService(persistenceSupport);
+    ReviewDataFilterOptionService service = new ReviewDataFilterOptionService(persistenceSupport, mirrorOptionRepository);
     when(persistenceSupport.loadRecordsForFilterOptions())
         .thenReturn(
             List.of(
                 record("CrownCAD", "Sketch", "Alice", "V1.0"),
                 record("CrownCAD", "Sketch", "Bob", "V1.1")));
     when(persistenceSupport.loadExpertOptions()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadProjectNames()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadUserNames()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadMilestoneTitles()).thenReturn(List.of());
 
     List<String> ownerOptions =
         service.getFilterOptions().reviewOwners().stream()

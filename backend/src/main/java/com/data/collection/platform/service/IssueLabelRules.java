@@ -19,7 +19,7 @@ final class IssueLabelRules {
       Map.entry("P2", List.of("P2")),
       Map.entry("P3", List.of("P3")));
   private static final List<String> EXCLUDED_LABELS = List.of("功能屏蔽", "已拒绝", "建议");
-  private static final List<String> CLOSED_EXCLUSION_LABELS = List.of("申请否决", "数据异常", "需求如此");
+  private static final List<String> CLOSED_EXCLUSION_LABELS = List.of("申请否决", "需求如此", "设计如此");
   private static final List<String> FIXED_LABELS = List.of("已修复", "已修复/完成", "待合并");
   private static final List<String> UNREPRODUCED_LABELS = List.of("未复现");
   private static final List<String> LEGACY_BUG_STATUS_LABELS = List.of(

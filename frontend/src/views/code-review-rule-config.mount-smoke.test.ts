@@ -23,6 +23,7 @@ describe('CodeReviewIllegalRuleConfigView mount smoke', () => {
       if (url.includes('/api/code-review/illegal-records/filter-options')) {
         return jsonResponse({
           requestTypes: [{ label: '合并请求', value: 'merge_request' }],
+          projects: [],
           repositoryNames: [],
           illegalTypes: [],
           targetBranches: [],

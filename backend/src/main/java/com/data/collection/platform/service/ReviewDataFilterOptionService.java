@@ -43,24 +43,44 @@ public class ReviewDataFilterOptionService {
           new OptionItemResponse("未评审", "未评审"));
 
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
+  private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
 
-  public ReviewDataFilterOptionService(ReviewDataRecordPersistenceSupport persistenceSupport) {
+  public ReviewDataFilterOptionService(
+      ReviewDataRecordPersistenceSupport persistenceSupport,
+      ReviewDataMirrorOptionRepository mirrorOptionRepository) {
     this.persistenceSupport = persistenceSupport;
+    this.mirrorOptionRepository = mirrorOptionRepository;
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
     List<ReviewDataRecordRowResponse> records = persistenceSupport.loadRecordsForFilterOptions();
+    List<String> mirrorUserNames = mirrorOptionRepository.loadUserNames();
 
     return new ReviewDataFilterOptionsResponse(
-        toOptions(records.stream().map(ReviewDataRecordRowResponse::projectName).toList()),
-        toOptions(records.stream().map(ReviewDataRecordRowResponse::moduleName).toList()),
-        toOptions(records.stream().map(ReviewDataRecordRowResponse::reviewOwner).toList()),
+        toOptions(mergeValues(
+            mirrorOptionRepository.loadProjectNames(),
+            records.stream().map(ReviewDataRecordRowResponse::projectName).toList())),
+        toOptions(mergeValues(
+            mirrorOptionRepository.loadModuleNames(),
+            records.stream().map(ReviewDataRecordRowResponse::moduleName).toList())),
+        toOptions(mergeValues(
+            mirrorUserNames,
+            records.stream().map(ReviewDataRecordRowResponse::reviewOwner).toList())),
         REVIEW_TYPE_OPTIONS,
-        toOptions(persistenceSupport.loadExpertOptions()),
-        toOptions(records.stream().map(ReviewDataRecordRowResponse::reviewVersion).toList()),
+        toOptions(mergeValues(mirrorUserNames, persistenceSupport.loadExpertOptions())),
+        toOptions(mergeValues(
+            mirrorOptionRepository.loadMilestoneTitles(),
+            records.stream().map(ReviewDataRecordRowResponse::reviewVersion).toList())),
         PROBLEM_STATUS_OPTIONS,
         REVIEW_CATEGORY_OPTIONS,
         PROBLEM_CATEGORY_OPTIONS);
+  }
+
+  private List<String> mergeValues(List<String> first, List<String> second) {
+    LinkedHashSet<String> values = new LinkedHashSet<>();
+    values.addAll(first);
+    values.addAll(second);
+    return List.copyOf(values);
   }
 
   private List<OptionItemResponse> toOptions(List<String> values) {

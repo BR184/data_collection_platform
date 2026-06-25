@@ -14,6 +14,7 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
       if (url.includes('/api/code-review/illegal-records/filter-options')) {
         return jsonResponse({
           requestTypes: [],
+          projects: [],
           repositoryNames: [],
           illegalTypes: [],
           targetBranches: [],
@@ -82,6 +83,7 @@ describe('CodeReviewIllegalRecordsView mount smoke', () => {
       if (url.includes('/api/code-review/illegal-records/filter-options')) {
         return jsonResponse({
           requestTypes: [],
+          projects: [],
           repositoryNames: [],
           illegalTypes: [],
           targetBranches: [],

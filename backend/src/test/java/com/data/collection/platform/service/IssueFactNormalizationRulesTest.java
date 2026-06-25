@@ -28,6 +28,8 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("功能屏蔽"), false)).isEqualTo("功能屏蔽");
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("申请否决"), true)).isEqualTo("申请否决+Closed");
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("需求如此"), true)).isEqualTo("需求如此+Closed");
+    assertThat(IssueFactNormalizationRules.exclusionReason(List.of("设计如此"), true)).isEqualTo("设计如此+Closed");
+    assertThat(IssueFactNormalizationRules.exclusionReason(List.of("数据异常"), true)).isNull();
     assertThat(IssueFactNormalizationRules.isFixed(List.of("待合并"), false)).isTrue();
     assertThat(IssueFactNormalizationRules.isFixed(List.of("未复现"), true)).isTrue();
     assertThat(IssueFactNormalizationRules.isFixed(List.of("已修复/完成"), false)).isTrue();

@@ -56,6 +56,7 @@ export const CODE_REVIEW_ILLEGAL_RECORD_COLUMNS: RecordTableColumn[] = [
 export function createDefaultCodeReviewFilterOptions(): CodeReviewIllegalRecordFilterOptionsResponse {
   return {
     requestTypes: [{ label: '合并请求', value: 'merge_request' }],
+    projects: [],
     repositoryNames: [],
     illegalTypes: [],
     targetBranches: [],

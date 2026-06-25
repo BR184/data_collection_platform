@@ -8,6 +8,7 @@ import {
 
 const fields = buildCodeReviewRuleFields({
   requestTypes: [],
+  projects: [],
   repositoryNames: [],
   illegalTypes: [],
   targetBranches: [

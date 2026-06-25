@@ -26,6 +26,7 @@ const route = useRoute();
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>({
   requestTypes: [{ label: '合并请求', value: 'merge_request' }],
+  projects: [],
   repositoryNames: [],
   illegalTypes: [],
   targetBranches: [],

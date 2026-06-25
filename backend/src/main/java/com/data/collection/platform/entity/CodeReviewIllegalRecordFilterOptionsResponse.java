@@ -4,6 +4,7 @@ import java.util.List;
 
 public record CodeReviewIllegalRecordFilterOptionsResponse(
     List<OptionItemResponse> requestTypes,
+    List<OptionItemResponse> projects,
     List<OptionItemResponse> repositoryNames,
     List<OptionItemResponse> illegalTypes,
     List<OptionItemResponse> targetBranches,

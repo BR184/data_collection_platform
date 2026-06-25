@@ -313,6 +313,14 @@ function conditionRowClass(condition: StatisticFilterConditionDraft) {
   };
 }
 
+function conditionRowStyle(condition: StatisticFilterConditionDraft) {
+  const field = fieldForCondition(condition.fieldKey);
+  const fieldWidth = field?.width ?? 176;
+  return {
+    '--condition-field-min': `${Math.max(156, Math.min(fieldWidth, 280))}px`,
+  };
+}
+
 function supportsLabelGroupValue(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
   return Boolean(labelGroupValueType(field));
@@ -481,6 +489,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           :key="condition.id"
           class="stat-filter-row"
           :class="conditionRowClass(condition)"
+          :style="conditionRowStyle(condition)"
         >
           <el-checkbox
             v-if="batchDeleteMode"
@@ -733,7 +742,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-row {
   display: grid;
-  grid-template-columns: minmax(176px, 1.15fr) minmax(120px, 0.72fr) minmax(240px, 1.7fr) 28px;
+  grid-template-columns: minmax(var(--condition-field-min, 176px), 1.2fr) minmax(128px, 0.72fr) minmax(240px, 1.8fr) 28px;
   align-items: center;
   gap: 4px;
   width: 100%;
@@ -748,16 +757,16 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-row.has-secondary-value {
   grid-column: 1 / -1;
-  grid-template-columns: minmax(176px, 1.08fr) minmax(120px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
+  grid-template-columns: minmax(var(--condition-field-min, 176px), 1.12fr) minmax(128px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
 }
 
 .stat-filter-row.is-selecting {
-  grid-template-columns: 24px minmax(176px, 1.15fr) minmax(120px, 0.72fr) minmax(240px, 1.7fr) 28px;
+  grid-template-columns: 24px minmax(var(--condition-field-min, 176px), 1.2fr) minmax(128px, 0.72fr) minmax(240px, 1.8fr) 28px;
 }
 
 .stat-filter-row.is-selecting.has-secondary-value {
   grid-column: 1 / -1;
-  grid-template-columns: 24px minmax(176px, 1.08fr) minmax(120px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
+  grid-template-columns: 24px minmax(var(--condition-field-min, 176px), 1.12fr) minmax(128px, 0.68fr) minmax(180px, 1fr) minmax(180px, 1fr) 28px;
 }
 
 .stat-filter-check {
@@ -838,19 +847,19 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   }
 
   .stat-filter-row {
-    grid-template-columns: minmax(156px, 1fr) minmax(108px, 0.7fr) minmax(180px, 1.25fr) 28px;
+    grid-template-columns: minmax(156px, 1fr) minmax(112px, 0.7fr) minmax(180px, 1.25fr) 28px;
   }
 
   .stat-filter-row.has-secondary-value {
-    grid-template-columns: minmax(156px, 0.88fr) minmax(108px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
+    grid-template-columns: minmax(156px, 0.88fr) minmax(112px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
   }
 
   .stat-filter-row.is-selecting {
-    grid-template-columns: 24px minmax(156px, 1fr) minmax(108px, 0.7fr) minmax(180px, 1.25fr) 28px;
+    grid-template-columns: 24px minmax(156px, 1fr) minmax(112px, 0.7fr) minmax(180px, 1.25fr) 28px;
   }
 
   .stat-filter-row.is-selecting.has-secondary-value {
-    grid-template-columns: 24px minmax(156px, 0.88fr) minmax(108px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
+    grid-template-columns: 24px minmax(156px, 0.88fr) minmax(112px, 0.62fr) minmax(150px, 1fr) minmax(150px, 1fr) 28px;
   }
 
   .stat-filter-value.secondary {

@@ -176,6 +176,7 @@ class CodeReviewControllerTest {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
             List.of()));
 
     mockMvc.perform(get("/api/code-review/illegal-records/filter-options").param("source", "cc"))

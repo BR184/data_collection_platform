@@ -488,15 +488,45 @@ public class CodeReviewIllegalRecordService {
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
             .toList();
+    List<CodeReviewIllegalRecordView> projectRows =
+        sourceLoader
+            .loadSources(
+                CodeReviewIllegalRecordQuerySupport.buildFactFilters(
+                    null, null, null, null, null, null, null, null, null, request.source()))
+            .stream()
+            .map(this::toView)
+            .filter(row -> !row.illegalTypes().isEmpty())
+            .toList();
 
     return new CodeReviewIllegalRecordFilterOptionsResponse(
         REQUEST_TYPE_OPTIONS,
+        toProjectOptions(projectRows),
         toOptions(rows, CodeReviewIllegalRecordView::repositoryName),
         LEGACY_ILLEGAL_TYPE_OPTIONS,
         toLegacyOptions(rows, CodeReviewIllegalRecordView::targetBranch),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::mergedBy),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::moduleName),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::projectName));
+  }
+
+  private List<OptionItemResponse> toProjectOptions(List<CodeReviewIllegalRecordView> rows) {
+    return rows.stream()
+        .filter(row -> row.projectId() != null)
+        .collect(
+            java.util.stream.Collectors.toMap(
+                CodeReviewIllegalRecordView::projectId,
+                row -> new OptionItemResponse(projectOptionLabel(row), String.valueOf(row.projectId())),
+                (left, right) -> left,
+                java.util.LinkedHashMap::new))
+        .values()
+        .stream()
+        .toList();
+  }
+
+  private String projectOptionLabel(CodeReviewIllegalRecordView row) {
+    String name = TextQuerySupport.trimToNull(row.projectName());
+    String projectId = String.valueOf(row.projectId());
+    return name == null ? projectId : name + " / " + projectId;
   }
 
   public RealtimeWorkspaceStatusResponse getRealtimeStatus() {
