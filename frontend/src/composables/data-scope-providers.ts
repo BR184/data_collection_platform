@@ -10,6 +10,7 @@ export const SYSTEM_TEST_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
   defaultStrategy: 'first-available',
   clearable: false,
   compact: true,
+  dropdownLayout: 'list',
   summaryPrefix: '当前测试阶段',
 };
 

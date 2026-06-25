@@ -48,6 +48,7 @@ const SYSTEM_TEST_PARENT_SCOPE_PROVIDER: DataScopeProvider = {
   defaultStrategy: 'first-available',
   clearable: false,
   compact: true,
+  dropdownLayout: 'list',
   summaryPrefix: '当前测试阶段',
 };
 
@@ -61,6 +62,7 @@ const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
   defaultStrategy: 'empty',
   clearable: true,
   compact: true,
+  dropdownLayout: 'list',
   summaryPrefix: '当前测试阶段',
 };
 

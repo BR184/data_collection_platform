@@ -79,6 +79,7 @@ function findOptionPath(options: DataScopeOption[], targetValue: string): string
         :placeholder="provider.placeholder || provider.label"
         :clearable="provider.clearable ?? true"
         :compact="provider.compact ?? false"
+        :dropdown-layout="provider.dropdownLayout ?? 'grid'"
         :disabled="disabled"
         :loading="loading"
         class="data-scope-bar__select"

@@ -418,9 +418,13 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     record.put("projectName", issue.projectName());
     record.put("severityLevel", issue.displaySeverityLevel());
     record.put("priorityLevel", issue.priorityLevel());
+    record.put("bugStatus", issue.bugStatus());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
     record.put("reasonCategory", StringUtils.hasText(issue.reasonCategory()) ? issue.reasonCategory() : "未归因");
+    record.put("createdAt", issue.createdAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.createdAt()));
     record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
+    record.put("authorName", issue.authorName());
+    record.put("assigneeName", issue.assigneeName());
     return record;
   }
 

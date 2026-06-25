@@ -18,6 +18,7 @@ export interface DataScopeProvider {
   defaultStrategy?: DataScopeDefaultStrategy;
   clearable?: boolean;
   compact?: boolean;
+  dropdownLayout?: 'grid' | 'list';
   summaryPrefix?: string;
 }
 

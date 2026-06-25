@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
+import { computed } from 'vue';
 import StatisticBoardDetailCell from './StatisticBoardDetailCell.vue';
 import type {
   StatisticDetailCellValue,
@@ -29,8 +28,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
 }>();
-
-const tableShellRef = ref<HTMLElement>();
 
 interface DetailDisplayCell {
   label: string;
@@ -74,29 +71,6 @@ const tableShellStyle = computed(() => ({
 const dialogStyle = computed(() => ({
   '--stat-detail-table-content-width': `${tableContentWidth.value}px`,
 }));
-
-const {
-  floatingScrollbarRef,
-  scrollbarAwake,
-  hasHorizontalOverflow,
-  horizontalSpacerWidth,
-  wakeHorizontalScrollbar,
-  handleHorizontalWheel,
-  handleFloatingHorizontalScroll,
-  scheduleHorizontalScrollbarUpdate,
-} = useFloatingHorizontalScrollbar({
-  tableShellRef,
-  watchedSources: [detailRows, mainTableColumns],
-});
-
-watch(
-  () => props.modelValue,
-  (visible) => {
-    if (visible) {
-      void scheduleHorizontalScrollbarUpdate();
-    }
-  },
-);
 
 function isStructuredCellValue(value: StatisticDetailCellValue): value is StatisticDetailLinkValue {
   return value != null && typeof value === 'object' && 'label' in value;
@@ -153,15 +127,9 @@ function splitTags(value: unknown) {
     <div class="stat-detail-shell" v-loading="loading">
       <div
         v-if="detail"
-        ref="tableShellRef"
         class="stat-detail-table-shell"
-        :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
         :style="tableShellStyle"
         tabindex="0"
-        @mouseenter="wakeHorizontalScrollbar"
-        @mousemove="wakeHorizontalScrollbar"
-        @focusin="wakeHorizontalScrollbar"
-        @wheel="handleHorizontalWheel"
       >
         <el-table
           :data="detailRows"
@@ -171,7 +139,6 @@ function splitTags(value: unknown) {
           :fit="false"
           class="stat-detail-table"
           :class="detailTableClass"
-          @expand-change="scheduleHorizontalScrollbarUpdate"
           @sort-change="onSortChange"
         >
           <el-table-column v-if="hasExpandColumns" type="expand" width="42">
@@ -207,16 +174,6 @@ function splitTags(value: unknown) {
             </template>
           </el-table-column>
         </el-table>
-        <div
-          v-show="hasHorizontalOverflow"
-          ref="floatingScrollbarRef"
-          class="stat-detail-floating-horizontal"
-          aria-hidden="true"
-          @mouseenter="wakeHorizontalScrollbar"
-          @scroll="handleFloatingHorizontalScroll"
-        >
-          <div class="stat-detail-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
-        </div>
       </div>
 
       <div class="detail-pagination">
@@ -275,7 +232,6 @@ function splitTags(value: unknown) {
   max-width: 100%;
   overflow-x: auto;
   outline: none;
-  scrollbar-gutter: stable both-edges;
 }
 
 .stat-detail-table {
@@ -306,43 +262,4 @@ function splitTags(value: unknown) {
   overflow: visible;
 }
 
-.stat-detail-floating-horizontal {
-  position: sticky;
-  right: 0;
-  bottom: 2px;
-  left: 0;
-  z-index: 3;
-  height: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  pointer-events: none;
-  opacity: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 72%) transparent;
-  transition: opacity 0.14s ease;
-}
-
-.stat-detail-table-shell:hover .stat-detail-floating-horizontal,
-.stat-detail-table-shell:focus-within .stat-detail-floating-horizontal,
-.stat-detail-table-shell.is-scrollbar-awake .stat-detail-floating-horizontal {
-  pointer-events: auto;
-  opacity: 1;
-}
-
-.stat-detail-floating-horizontal::-webkit-scrollbar {
-  height: 8px;
-}
-
-.stat-detail-floating-horizontal::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.stat-detail-floating-horizontal::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgb(148 163 184 / 72%);
-}
-
-.stat-detail-floating-horizontal-spacer {
-  height: 1px;
-}
 </style>

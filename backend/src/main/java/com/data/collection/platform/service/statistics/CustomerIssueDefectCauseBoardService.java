@@ -76,6 +76,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private static final String MILESTONE_OPTION_SQL = """
       select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
              coalesce(author_name,'') as author_name, created_at_source as created_at,
+             coalesce(assignee_name,'') as assignee_name,
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
              coalesce(bug_status,'') as bug_status,
@@ -91,6 +92,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
              coalesce(author_name,'') as author_name, created_at_source as created_at,
+             coalesce(assignee_name,'') as assignee_name,
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
              coalesce(bug_status,'') as bug_status,
@@ -542,7 +544,10 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     record.put("moduleNames", String.join("、", issue.moduleNames()));
     record.put("projectName", issue.projectName());
     record.put("authorName", issue.authorName());
+    record.put("assigneeName", issue.assigneeName());
+    record.put("bugStatus", issue.bugStatus());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
+    record.put("createdAt", issue.createdAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.createdAt()));
     record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
     return record;
   }
@@ -599,6 +604,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("project_name"), "未命名项目"),
         StatisticSourceValueSupport.text(rs.getString("milestone_title"), ""),
         StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
+        StatisticSourceValueSupport.text(rs.getString("assignee_name"), ""),
         StatisticSourceValueSupport.time(rs.getTimestamp("created_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
@@ -776,6 +782,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       String projectName,
       String milestoneTitle,
       String authorName,
+      String assigneeName,
       LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt,
