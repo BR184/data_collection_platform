@@ -219,7 +219,12 @@ public class CodeReviewIllegalRecordSourceLoader {
         request.keyword());
     appendContains(where, args, "project_name", request.projectName());
     appendContains(where, args, "repository_name", request.repositoryName());
-    appendLegacyTargetBranch(where, args, request.targetBranch(), request.source());
+    appendContains(
+        where,
+        args,
+        "target_branch",
+        CodeReviewIllegalRecordQuerySupport.legacyTargetBranch(
+            request.projectName(), request.targetBranch()));
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());
@@ -246,7 +251,12 @@ public class CodeReviewIllegalRecordSourceLoader {
         request.keyword());
     appendContains(where, args, "project_name", request.projectName());
     appendContains(where, args, "repository_name", request.repositoryName());
-    appendContains(where, args, "target_branch", request.targetBranch());
+    appendContains(
+        where,
+        args,
+        "target_branch",
+        CodeReviewIllegalRecordQuerySupport.legacyTargetBranch(
+            request.projectName(), request.targetBranch()));
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());
@@ -335,20 +345,6 @@ public class CodeReviewIllegalRecordSourceLoader {
     }
     where.append(" and lower(coalesce(source_instance, 'default')) = ?");
     args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
-  }
-
-  private void appendLegacyTargetBranch(
-      StringBuilder where, List<Object> args, String targetBranch, String source) {
-    String normalized = TextQuerySupport.trimToNull(targetBranch);
-    if (normalized == null && isLegacyDefaultDevSource(source)) {
-      normalized = "dev";
-    }
-    appendContains(where, args, "target_branch", normalized);
-  }
-
-  private boolean isLegacyDefaultDevSource(String source) {
-    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
-    return "cc".equals(normalized) || "dgm".equals(normalized) || "default".equals(normalized);
   }
 
   private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {

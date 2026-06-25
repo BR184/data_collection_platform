@@ -71,7 +71,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   public SystemTestIssueSearchListResponse listRecords(SystemTestIssueSearchQueryRequest request) {
-    IssueFactRecordListRequest listRequest = request.listRequest();
+    IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
     String safeSortField =
@@ -147,7 +147,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     List<SystemTestIssueSearchRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
-      IssueFactRecordListRequest listRequest = request.listRequest();
+      IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
       SystemTestIssueSearchQueryRequest pageRequest =
           new SystemTestIssueSearchQueryRequest(
               new IssueFactRecordListRequest(
@@ -300,7 +300,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private List<IssueFactRecord> loadIssueSearchOptionFacts(Long projectId, String sourceInstance) {
     return issueFactRecordRepository.findForFilterOptions(
         new IssueFactRecordListRequest(
-            projectId,
+            projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId,
             null,
             null,
             null,
@@ -394,6 +394,33 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     }
     String lower = normalized.toLowerCase(Locale.ROOT);
     return !CUSTOMER_RELEASE_MODULE.matcher(lower).matches() && !normalized.endsWith("客户");
+  }
+
+  private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {
+    return new IssueFactRecordListRequest(
+        request.projectId() == null ? LEGACY_CROWN_CAD_PROJECT_ID : request.projectId(),
+        request.keyword(),
+        request.searchType(),
+        request.issueIid(),
+        request.title(),
+        request.projectName(),
+        request.moduleName(),
+        request.functionName(),
+        request.severityLevel(),
+        request.priorityLevel(),
+        request.issueState(),
+        request.bugStatus(),
+        request.category(),
+        request.milestoneTitle(),
+        request.createdAtStart(),
+        request.createdAtEnd(),
+        request.updatedAtStart(),
+        request.updatedAtEnd(),
+        request.sourceInstance(),
+        request.page(),
+        request.size(),
+        request.sortField(),
+        request.sortOrder());
   }
 
   private SystemTestIssueSearchRowResponse toResponse(IssueFactRecord view) {
