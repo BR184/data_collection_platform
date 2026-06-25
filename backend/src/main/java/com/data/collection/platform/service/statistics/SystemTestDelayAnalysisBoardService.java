@@ -168,7 +168,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
@@ -214,7 +214,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         applyDefaultTestingPhase(filterGroup, loadPhaseOptions());
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters(), effectiveFilterGroup), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -249,7 +249,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     long causeCount =
         LEGACY_DELAY_CAUSES.stream()
             .filter(cause -> snapshot.finalSources().stream().anyMatch(issue -> cause.equals(issue.delayCause())))
@@ -435,12 +435,14 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return record;
   }
 
-  private List<IssueSource> loadSources(Map<String, String> filters) {
+  private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove("testingPhase");
     Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
     try {
-      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
+      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
     } catch (DataAccessException e) {
       log.warn("Failed to load issue facts", e);
@@ -457,8 +459,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     }
   }
 
-  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters) {
-    List<IssueSource> facts = loadSourcesFromFact(projectId, filters);
+  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
+    List<IssueSource> facts = loadSourcesFromFact(projectId, filters, phasePredicate);
     if (!facts.isEmpty()) {
       return facts;
     }
@@ -466,7 +468,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return List.of();
   }
 
-  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters) {
+  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {
     Map<String, String> mergedFilters = new LinkedHashMap<>();
     if (filters != null) {
       mergedFilters.putAll(filters);
@@ -474,7 +476,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     if (projectId != null) {
       mergedFilters.put("projectId", String.valueOf(projectId));
     }
-    return issueFactQueryService.query(FACT_SQL, mergedFilters, this::mapIssueFact);
+    return issueFactQueryService.query(FACT_SQL, mergedFilters, phasePredicate.sql(), phasePredicate.args(), this::mapIssueFact);
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {

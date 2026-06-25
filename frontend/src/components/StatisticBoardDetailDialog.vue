@@ -242,8 +242,11 @@ function splitTags(value: unknown) {
 
 .stat-detail-table-shell {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
   outline: none;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 
 .stat-detail-table :deep(.el-table__header th) {
@@ -287,7 +290,7 @@ function splitTags(value: unknown) {
 
 .stat-detail-floating-horizontal {
   position: sticky;
-  right: 14px;
+  right: 0;
   bottom: 2px;
   left: 0;
   z-index: 3;

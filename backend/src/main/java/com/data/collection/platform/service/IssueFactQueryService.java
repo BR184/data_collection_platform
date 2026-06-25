@@ -21,9 +21,24 @@ public class IssueFactQueryService extends AbstractFactQueryService {
   }
 
   public <T> List<T> query(String selectSql, Map<String, String> filters, RowMapper<T> rowMapper) {
+    return query(selectSql, filters, null, List.of(), rowMapper);
+  }
+
+  public <T> List<T> query(
+      String selectSql,
+      Map<String, String> filters,
+      String extraPredicateSql,
+      List<?> extraArgs,
+      RowMapper<T> rowMapper) {
     StringBuilder sql = new StringBuilder(selectSql);
     List<Object> args = new ArrayList<>();
     applyCommonFilters(sql, args, filters == null ? Map.of() : filters);
+    if (trimToNull(extraPredicateSql) != null) {
+      sql.append(" and (").append(extraPredicateSql).append(")");
+      if (extraArgs != null && !extraArgs.isEmpty()) {
+        args.addAll(extraArgs);
+      }
+    }
     return queryWithMonitoring("issue-fact-filter-query", sql.toString(), args, rowMapper);
   }
 
