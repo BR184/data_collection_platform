@@ -9,12 +9,6 @@ public class CustomerIssueScopeProfile implements IssueScopeProfile {
   static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeRules.LEGACY_CC_PRODUCT_PROJECT_ID;
   static final LocalDate CUSTOMER_ISSUE_START_DATE = CustomerIssueScopeRules.CUSTOMER_ISSUE_START_DATE;
 
-  private final SystemTestScopeProfile systemTestScopeProfile;
-
-  public CustomerIssueScopeProfile(SystemTestScopeProfile systemTestScopeProfile) {
-    this.systemTestScopeProfile = systemTestScopeProfile;
-  }
-
   @Override
   public String key() {
     return "customer-issue";
@@ -22,7 +16,7 @@ public class CustomerIssueScopeProfile implements IssueScopeProfile {
 
   @Override
   public boolean matches(IssueScopeContext context) {
-    if (context == null || systemTestScopeProfile.matches(context)) {
+    if (context == null) {
       return false;
     }
     if (!isCustomerProjectScope(context)) {

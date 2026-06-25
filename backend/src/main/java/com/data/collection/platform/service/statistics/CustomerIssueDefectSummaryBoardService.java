@@ -326,7 +326,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "按客户问题 scope profile 收口 issue_fact：排除系统测试/回归测试口径，并优先识别 CC_Product 与创建时间边界。",
+                "按客户问题 scope profile 收口 issue_fact：优先识别 CC_Product、里程碑与创建时间边界。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample

@@ -464,7 +464,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "按客户问题 scope profile 收口 issue_fact：排除系统测试/回归测试口径，限定 CC_Product、自 2026-01-01 以来创建且携带里程碑。",
+                "按客户问题 scope profile 收口 issue_fact：限定 CC_Product、自 2026-01-01 以来创建且携带里程碑。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample

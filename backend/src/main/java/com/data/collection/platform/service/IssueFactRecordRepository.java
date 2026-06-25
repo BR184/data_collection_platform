@@ -181,7 +181,7 @@ public class IssueFactRecordRepository {
     appendSourceInstance(where, args, query.listRequest());
     appendBaseFilters(where, args, query.listRequest(), query.useDisplayModuleFilter());
     appendEqIgnoreCase(where, args, "reason_category", query.reasonCategory());
-    String testingPhaseColumn = query.useFullTestingPhaseFilter() ? "testing_phase" : "phase_filter_value";
+    String testingPhaseColumn = testingPhaseColumn(query);
     appendInIgnoreCase(where, args, testingPhaseColumn, query.testingPhases());
     if (query.testingPhases().isEmpty()) {
       appendEqIgnoreCase(where, args, testingPhaseColumn, query.testingPhase());
@@ -207,9 +207,6 @@ public class IssueFactRecordRepository {
       appendSystemTestScope(where, args);
       return;
     }
-    where.append(" and not (");
-    appendSystemTestScopeExpression(where, args);
-    where.append(")");
     where.append(" and (project_id = ?");
     args.add(LEGACY_CC_PRODUCT_PROJECT_ID);
     for (String token : CUSTOMER_SCOPE_TOKENS) {
@@ -223,6 +220,13 @@ public class IssueFactRecordRepository {
     where.append(")");
     where.append(" and (created_at_source is null or created_at_source >= ?)");
     args.add(CUSTOMER_ISSUE_START_DATE.atStartOfDay());
+  }
+
+  private String testingPhaseColumn(IssueFactRecordPageQuery query) {
+    if (query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER) {
+      return "milestone_title";
+    }
+    return query.useFullTestingPhaseFilter() ? "testing_phase" : "phase_filter_value";
   }
 
   private void appendSystemTestScope(StringBuilder where, List<Object> args) {

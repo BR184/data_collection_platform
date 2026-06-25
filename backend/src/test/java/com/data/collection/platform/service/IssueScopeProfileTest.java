@@ -10,7 +10,7 @@ class IssueScopeProfileTest {
 
   private final SystemTestScopeProfile systemTestScopeProfile = new SystemTestScopeProfile();
   private final CustomerIssueScopeProfile customerIssueScopeProfile =
-      new CustomerIssueScopeProfile(systemTestScopeProfile);
+      new CustomerIssueScopeProfile();
 
   @Test
   void shouldRecognizeSystemTestScopeFromTestingPhaseAndLabels() {
@@ -53,7 +53,7 @@ class IssueScopeProfileTest {
   }
 
   @Test
-  void shouldRejectCustomerIssueWhenItAlsoMatchesSystemTestScope() {
+  void shouldKeepCustomerIssueScopeWhenCcProductAlsoHasSystemTestLabel() {
     IssueScopeContext overlapped =
         new IssueScopeContext(
             325L,
@@ -64,7 +64,7 @@ class IssueScopeProfileTest {
             LocalDateTime.of(2026, 4, 10, 9, 0),
             List.of("工程图", "P2"));
 
-    assertThat(customerIssueScopeProfile.matches(overlapped)).isFalse();
+    assertThat(customerIssueScopeProfile.matches(overlapped)).isTrue();
   }
 
   @Test

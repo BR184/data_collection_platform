@@ -79,7 +79,7 @@ class IssueFactDiagnosticsServiceTest {
         new IssueFactDiagnosticsService(
             issueFactQueryService,
             new SystemTestScopeProfile(),
-            new CustomerIssueScopeProfile(new SystemTestScopeProfile()));
+            new CustomerIssueScopeProfile());
 
     IssueFactDiagnosticsResponse response = service.getDiagnostics();
 
