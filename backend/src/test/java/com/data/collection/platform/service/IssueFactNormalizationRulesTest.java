@@ -178,11 +178,12 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.isRegression(level1, "模型回退导致显示错误")).isTrue();
     assertThat(IssueFactNormalizationRules.isCrash(level1, "启动后出现挂机问题")).isTrue();
     assertThat(IssueFactNormalizationRules.isLevel1Other(level1, "一级缺陷但不属于回退")).isFalse();
+    assertThat(IssueFactNormalizationRules.isLevel1Other(level1, "退出草图后等待时间较长")).isFalse();
     assertThat(IssueFactNormalizationRules.isLevel1Other(level1, "一级缺陷但属于渲染错误")).isTrue();
 
     assertThat(IssueFactNormalizationRules.illegalReason(List.of("模块A"), false, List.of("模块A"), "", false)).isEqualTo("未设定严重程度");
     assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷"), false, List.of(), "", false)).isEqualTo("未设定模块");
-    assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A"), false, List.of("模块A"), "", false)).isEqualTo("流程越位");
+    assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A"), false, List.of("模块A"), "", false)).isNull();
     assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A", "待合并"), false, List.of("模块A"), "", false)).isNull();
 
     String validTemplate = "# 问题调研情况说明\n业务逻辑错误";

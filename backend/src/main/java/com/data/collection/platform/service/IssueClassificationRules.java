@@ -28,8 +28,9 @@ final class IssueClassificationRules {
       Map.entry("计算效率", List.of("计算效率")));
 
   private static final List<String> REGRESSION_TITLE_TOKENS = List.of("回退", "倒退", "（退");
+  private static final List<String> LEGACY_LEVEL1_OTHER_EXCLUDE_TITLE_TOKENS =
+      List.of("退", "回退", "倒退", "挂机");
   private static final List<String> CRASH_TITLE_TOKENS = List.of("挂机");
-  private static final List<String> FLOW_OK_LABELS = List.of("待合并", "需求如此", "建议", "需求");
   private static final List<String> APPLY_DELAY_LABELS = List.of("申请延期");
   private static final List<String> TEMPLATE_HEADER_TOKENS = List.of("# 问题调研情况说明", "问题调研情况说明");
   private static final String NOTE_SEPARATOR = "\\R---\\R";
@@ -94,7 +95,8 @@ final class IssueClassificationRules {
   }
 
   static boolean isLevel1Other(List<String> labels, String title) {
-    return isLevel1(labels) && !isRegression(labels, title) && !isCrash(labels, title);
+    return isLevel1(labels)
+        && !IssueRuleSupport.containsToken(title, LEGACY_LEVEL1_OTHER_EXCLUDE_TITLE_TOKENS);
   }
 
   static boolean isIllegal(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
@@ -123,11 +125,6 @@ final class IssueClassificationRules {
           reasons.add(NON_UNIQUE_REASON);
         }
       }
-    }
-    if (!closed
-        && !IssueRuleSupport.containsAnyLabel(labels, FLOW_OK_LABELS)
-        && !IssueRuleSupport.containsAnyLabel(labels, APPLY_DELAY_LABELS)) {
-      reasons.add("流程越位");
     }
     return List.copyOf(reasons);
   }
