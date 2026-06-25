@@ -208,6 +208,7 @@
 4. 客户问题缺陷非法数据 SQL 分页路径、Java fallback、筛选候选、单条刷新结果和规则说明统一排除关闭态 `申请否决`、`需求如此`、`设计如此` 等客户问题公共排除数据。
 5. 客户问题按功能展示缺陷数量、延期问题、缺陷响应效率、缺陷原因分析的统计父表、下钻和规则说明已统一读取事实层 `is_excluded` 并套用客户问题公共排除，避免统计页和记录页总量口径分裂。
 6. `docs/platform-page-business-rules.md` 已补充系统测试记录页和客户问题记录页的老平台入口、默认范围和公共排除规则。
+7. 客户问题延期问题已按老平台 `SpiderIssueDataDAOImpl.getDelayIssue` / `SpiderIssueDataService.getDelayIssue` 补回 `GitLab 接口报错` 排除：父表、下钻和规则说明统一剔除 `illegal_reason / illegal_reasons` 含该非法类型的议题。
 
 影响项：
 
@@ -219,7 +220,6 @@
 仍需继续逐页补证：
 
 - 代码走查非法数据仍需用老平台 MR 入口继续核对时间范围、目标分支默认值、项目候选来源和非法类型映射。
-- 客户问题延期问题老平台 `getDelayIssue` 额外排除 `illegal_list` 包含 GitLab 接口报错的数据；新平台是否需要用 `illegal_reason/illegal_reasons` 同步该特例，需用内网差异明细确认。
 
 ---
 

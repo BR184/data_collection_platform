@@ -53,6 +53,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private static final String P1 = "P1";
   private static final String P2 = "P2";
   private static final String P3 = "P3";
+  private static final String GITLAB_API_ERROR = "GitLab接口报错";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
@@ -79,6 +80,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
              coalesce(is_response_delayed, false) as is_response_delayed,
              coalesce(is_resolve_delayed, false) as is_resolve_delayed,
              coalesce(illegal_reason, '') as illegal_reason,
+             coalesce(illegal_reasons, '') as illegal_reasons,
              created_at_source,
              updated_at_source,
              closed_at_source
@@ -290,8 +292,10 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
     List<IssueSource> visible = scoped.stream().filter(issue -> !issue.excluded()).toList();
+    List<IssueSource> gitlabReadable =
+        visible.stream().filter(issue -> !issue.hasGitLabApiError()).toList();
     List<IssueSource> openIssues =
-        visible.stream().filter(IssueSource::open).toList();
+        gitlabReadable.stream().filter(IssueSource::open).toList();
     List<IssueSource> delayed =
         openIssues.stream().filter(issue -> issue.responseDelayed() || issue.resolveDelayed()).toList();
     List<IssueSource> rowSources =
@@ -324,10 +328,17 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
                 visible,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
+                "gitlab-api-filter",
+                "剔除 GitLab 接口报错",
+                "对齐老平台 getDelayIssue：排除 illegal_list / illegal_reasons 包含 GitLab 接口报错的议题。",
+                visible.size(),
+                gitlabReadable,
+                this::toRuleFlowSample),
+            StatisticRuleFlowSupport.step(
                 "open-filter",
                 "保留 open 议题",
                 "延期问题页只统计仍处于 open 状态的客户问题议题。",
-                visible.size(),
+                gitlabReadable.size(),
                 openIssues,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
@@ -392,6 +403,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         rs.getBoolean("is_response_delayed"),
         rs.getBoolean("is_resolve_delayed"),
         StatisticSourceValueSupport.text(rs.getString("illegal_reason")),
+        StatisticSourceValueSupport.split(rs.getString("illegal_reasons")),
         StatisticSourceValueSupport.time(rs.getTimestamp("created_at_source")),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at_source")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at_source")));
@@ -624,6 +636,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       boolean responseDelayed,
       boolean resolveDelayed,
       String illegalReason,
+      List<String> illegalReasons,
       LocalDateTime createdAt,
       LocalDateTime updatedAt,
       LocalDateTime closedAt) {
@@ -678,6 +691,21 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       }
       return delayIssue ? "申请延期" : "-";
     }
+
+    boolean hasGitLabApiError() {
+      if (matchesGitLabApiError(illegalReason)) {
+        return true;
+      }
+      return illegalReasons != null && illegalReasons.stream().anyMatch(CustomerIssueDelayIssuesBoardService::matchesGitLabApiError);
+    }
+  }
+
+  private static boolean matchesGitLabApiError(String value) {
+    return GITLAB_API_ERROR.equals(normalizeApiError(value));
+  }
+
+  private static String normalizeApiError(String value) {
+    return value == null ? "" : value.replace(" ", "").trim();
   }
 
   private record RuleFlowSnapshot(
