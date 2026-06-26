@@ -12,8 +12,12 @@
 | 系统测试/系统测试非法数据比老平台多 | 新平台系统测试范围同时命中 `testing_phase`、`system_test_label` 和 `label_names` 中包含“系统测试/回归测试”的记录；老平台记录列表主要按项目和测试阶段定义展开后的阶段过滤。范围更宽会导致非法记录偏多。 | 已确认代码原因 |
 | 系统测试/议题查询少约 2000 条 | 议题查询使用 `Scope.ALL`，但测试阶段条件走 `phase_filter_value`，和系统测试非法数据使用 `Scope.SYSTEM_TEST + testing_phase` 的口径不同；同时默认项目和阶段展开路径不完全一致，导致同一测试阶段下数量不一致。 | 已确认代码原因 |
 | 系统测试/缺陷原因分析、议题阶段统计 15 秒超时 | 这两个统计看板不是 SQL 分页加载。接口先从 `issue_fact` 全量加载符合过滤的事实数据，再在 Java 内存中做规则流、模块/阶段聚合和明细分页；前端请求默认 15 秒超时，因此数据量大时会超时。 | 已确认代码原因 |
+| 系统测试和客户问题部分看板能加载但接近 15 秒 | 同类统计看板普遍是“数据库拉取一批事实 -> Java 规则流过滤/聚合 -> 前端本地分页”。系统测试缺陷汇总、客户问题缺陷汇总、客户问题延期、客户问题缺陷原因、按功能展示、响应效率等页面也存在全量或大范围事实加载，页面能返回只是当前数据量/筛选条件还没突破 15 秒。 | 已确认代码原因 |
+| 部分页面默认范围是全部测试阶段，而不是老平台默认阶段 | 老平台相关页面会默认使用当前测试阶段，例如当前样例 `CC2026R3`，或使用阶段列表第一项；新平台客户问题顶部范围前端配置为 `defaultStrategy = empty` 且显示“全部测试阶段”。这会扩大默认查询范围、放大统计看板全量聚合耗时，并导致页面数量与老平台默认口径不一致。 | 已确认代码原因 |
+| 系统测试缺陷汇总首屏数据抖动，先显示总计 0 再显示完整数据 | 前端统计板 `route.query` watcher 首次立即请求；系统测试阶段数据范围选项异步加载后，`useDataScope` 再按 `first-available` 写入 `testingPhase` 并触发第二次请求。第一次请求没有 `testingPhase` 时，后端 `SystemTestDefectSummaryBoardService` 明确把有效数据置空但仍追加“总计”行，因此短暂显示总计 0；第二次带默认阶段后才显示完整数据。 | 已确认代码原因 |
 | 单表刷新、手动增量同步突然很慢、拉取量很大 | 增量任务只带 `last_watermark_at`，没有带 `last_cursor_pk`，SQL 边界为 `updated_at >= watermark`，会反复拉取同一水位时间戳上的历史行。手动增量同步还会规划全部白名单表，不是只刷新当前页面表。 | 已确认并已修正同步边界 |
 | 页面“刷新最新数据”比预期重 | 统计页刷新不是只刷新表格结果，而是先刷新背后的 GitLab 镜像原始表，再重建事实表。例如系统测试/客户问题会刷新 `issues/projects/users/label_links/labels/notes`，代码走查会刷新 MR 相关镜像表，然后重建 `issue_fact` 或 `merge_request_fact`。 | 已确认代码原因 |
+| 同步合并仍会产生额外运行记录 | 当前 `SyncRunSubmissionService` 在复用/合并已有运行时会插入状态为 `MERGED` 的 `sync_runs` 记录。它不会被调度执行，但会让运行历史、状态展示和后续排查看起来像创建过额外同步。用户期望是被吸收的同步不能进队列，甚至不创建运行单元。 | 已确认代码差距 |
 | 事实重建有时从增量退化成全量 | `FactBuildService` 在发现既有事实缺少搜索索引或阶段派生字段时，会让 `changedSince = null`，下一次事实构建就不带增量谓词，表现为全量重建。升级后旧事实表缺字段或索引为空时尤其容易触发。 | 已确认代码原因 |
 | 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。当前只能确认新平台非法判断依赖 `review_exception_reason`、`scan_status`、`scan_bug_count`、`annotation_rate_result`、`bug_count_result`、`project_name/module_name` 占位值和 GitLab 报错字段；需要内网按这些字段核验缺失样本是否命中老平台非法条件但未命中新平台谓词。 | 已纠正旧结论，需内网字段核验 |
 
@@ -28,7 +32,46 @@
 
 结论：缺陷原因分析、议题阶段统计的 15 秒超时主要来自统计看板全量事实加载和 Java 聚合，不是“所有表格默认分页失效”。
 
-### 2. 刷新慢来自两层放大
+同类风险页面已经扫到：
+
+| 页面 | 当前加载模式 | 性能风险 |
+| --- | --- | --- |
+| 系统测试缺陷汇总 | `IssueFactBoardRuntimeSupport.loadFacts(...)` 读取事实后，在 Java 中做系统测试范围、默认模块范围、阶段和模块聚合。 | 没选阶段时仍会先读系统测试范围事实；选阶段后仍不是 SQL 聚合。 |
+| 系统测试缺陷原因分析 | `IssueFactQueryService.query(FACT_SQL, filters, phasePredicate...)` 拉取阶段范围事实，再 Java 聚合原因和模块。 | 阶段谓词进 SQL，但明细分页和聚合都在内存侧完成。 |
+| 系统测试议题阶段统计 | 同样先查询阶段范围事实，再 Java 按轮次聚合。 | 数据量大时主表和下钻都会重复构造规则流。 |
+| 系统测试申请延期缺陷分析 | 先查询阶段范围事实，再 Java 保留延期原因并聚合固定延期类型。 | 页面当前能返回，但仍有接近 15 秒的同类结构性风险。 |
+| 客户问题缺陷汇总 | `runtimeSupport.loadFacts(...)` 后用 `CustomerIssueScopeProfile` 在 Java 中收口 CC_Product、日期、里程碑和模块。 | 客户问题范围没有完全前推到 SQL，模块行也依赖过滤后的内存结果。 |
+| 客户问题延期问题 | `issueFactQueryService.query(FACT_SQL, queryFilters...)` 读取事实后，在 Java 中执行客户问题范围、排除、GitLab 报错、open、延期和模块聚合。 | 默认范围如果没带 `projectId/milestone`，会先拉大集合再过滤。 |
+| 客户问题缺陷原因分析 | 查询事实后 Java 执行客户问题范围、里程碑/测试阶段和原因聚合；里程碑候选也会查询 `issue_fact` 后再过滤客户问题范围。 | 候选项和主表都存在大范围读取。 |
+| 客户问题按功能展示缺陷数量 | 查询事实后 Java 按客户问题范围、功能和模块展开。 | 功能/模块聚合没有 SQL 预聚合。 |
+| 客户问题响应/解决效率 | 查询事实后 Java 计算响应周期、解决周期并按模块展开。 | 周期计算和模块展开都在内存侧。 |
+
+这些页面“默认分页”的说法只适用于最终表格展示或下钻切片，不适用于主接口的数据读取。真正要降到稳定 1-3 秒，需要把页面范围、默认阶段/里程碑、客户问题 scope 和主要聚合前推到 SQL，或建立统计快照/缓存。
+
+### 2. 默认测试阶段未对齐会同时影响数量和性能
+
+老平台不是所有页面默认“全部测试阶段”。已从代码确认到的旧平台默认包括：
+
+- `D:/projects/spidergitdata-dev/webapp/src/views/PageStandard/IllegalIssueSearch.vue`：没有阶段值时使用 `CC2026R3`。
+- `D:/projects/spidergitdata-dev/webapp/src/views/PageStatisticsInfo/charts/RollbackModulePieChart.vue`：`testingPhase` 初始值为 `CC2026R3`。
+- `D:/projects/spidergitdata-dev/webapp/src/views/PageNinePersonalQuality/NinePersonalQuality.vue`：`testingPhase` 和 `projectName` 初始值为 `CC2026R3`。
+- `D:/projects/spidergitdata-dev/webapp/src/views/PageHome/ContentComponents/QuestionnaireInfo/ModuleTable.vue`：阶段列表加载后默认取 `phaseNameList[0]`。
+
+新平台现状：
+
+- `frontend/src/composables/statistic-board-data-scopes.ts` 中系统测试相关数据范围使用 `defaultStrategy = 'first-available'`，但客户问题数据范围使用 `defaultStrategy = 'empty'`，占位和空值文案都是“全部测试阶段”。
+- 客户问题后端 `CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(...)` 又会在没有显式阶段时补第一个启用父级阶段，导致前端显示/URL 的“全部测试阶段”和后端实际筛选范围不一致。
+- 部分系统测试服务端规则说明和代码也不完全一致，例如 `SystemTestDefectCauseBoardService` 的规则流文案写“未选择时保留全部系统测试阶段”，但实际代码会补默认阶段。
+
+影响判断：
+
+1. 对比老平台时，如果新平台默认全阶段，会把多版本、多阶段数据一起纳入，系统测试非法数据等页面会天然偏多，慢加载页面也会更接近 15 秒。
+2. 客户问题页面如果前端默认“全部测试阶段”、后端又静默补默认阶段，用户看到的筛选范围、URL、导出/下钻条件和接口真实条件不一致，排查统计差异时容易误判。
+3. 默认阶段应来源于“系统设置 - 议题测试阶段定义”的排序或后续显式默认配置，当前内网样例是 `CC2026R3`，但不能把该版本写死成永久规则。
+
+已同步到常驻业务规则：系统测试和客户问题相关页面进入时应默认选中老平台当前默认或第一可用启用父级阶段，不得隐式默认“全部测试阶段”；默认值必须同时体现在顶部控件、URL、接口筛选、导出和下钻条件中。
+
+### 3. 刷新慢来自两层放大
 
 第一层是镜像刷新放大：
 
@@ -42,7 +85,35 @@
 - 源库扫描 SQL 使用 `updated_at >= watermark`，导致同一 `updated_at` 水位上的历史行被重复拉取。
 - 本次已改为：任务规划时带上 `lastWatermarkAt + lastCursorPk`；执行时无更新先用 `max(updated_at)` 直接 0 行返回；无游标的首批增量改成 `updated_at > watermark`；SQL 时间字面量保留到微秒，避免把同一秒内旧数据重新扫入。
 
-### 3. 客户问题空表格的直接触发点
+### 3.1 同步合并目标与当前差距
+
+用户期望的同步编排口径：
+
+1. 全量同步优先级最高，尤其第一次全量同步；第一次全量同步期间，任何同步都合并到全量同步。
+2. 非全量同步时，例如增量更新运行中，任何单表刷新都合并到该增量更新，不进入队列，也不创建新的同步运行单元。
+3. 任意时刻同一数据源只能有当前同步进程；其他全量/增量/补偿/页面刷新请求只能被吸收或拒绝，不能排队。
+4. 多个不同表的单表刷新如果没有全量/增量运行，可按提交时间顺序处理；同一表短时间多次刷新只执行一次。
+5. 自动同步应走增量更新；凌晨 2 点全量补偿对账是独立的全量补偿更新，需要和普通自动增量区分。
+
+当前代码现状：
+
+- `SyncRunPolicyService.exclusiveScopeOf(...)` 已经把 `FULL_SYNC`、`INCREMENTAL_SYNC`、`TABLE_REFRESH`、`SYSTEM_HOOK`、`COMPENSATION_SCAN`、`FULL_COMPENSATION_SCAN` 放在同一个 mirror exclusive scope，因此同一数据源不会并发跑多个镜像同步。
+- `SyncRunDispatcherService.claimNextQueuedRun(...)` 只会调度 `QUEUED`，并且同一 `exclusive_scope` 有 `RUNNING/RETRYING/CANCELLING` 时不会再启动其他 run。
+- `SyncRunSubmissionService.shouldReuseMirrorRun(...)` 会让运行中的全量、增量、System Hook、全量补偿吸收大部分后续镜像请求；同表 `TABLE_REFRESH` 也会去重。
+- 但被吸收的请求仍通过 `recordAbsorbedSubmission(...)` 插入 `status = MERGED` 的 `sync_runs` 记录。它不执行，但违反“不要创建”的目标，也会污染运行历史和状态理解。
+- 不同表的 `TABLE_REFRESH` 当前不是动态追加到正在运行的表刷新 run；如果没有可复用的 active run，仍可能创建新的 `QUEUED` run，依赖 dispatcher 串行处理。这和“多个不同表按时间顺序”接近，但和“任何同步过程中只有当前同步进程可存在，其他同步无法进入队列甚至创建”存在模型冲突，需要决定是保留表级顺序队列，还是改为动态并入当前 run 的任务集合。
+- `SyncRunTableWorkerService.drainRunTasks(...)` 会持续 claim 当前 run 下 `QUEUED` 表任务，机制上支持“运行中追加表任务”；但追加必须和 run 完成状态更新使用同一把提交锁，否则可能出现 worker 已经 drain 完、run 正在标记成功时又追加新表任务的竞态。
+- 当前普通定时任务是 `GitlabCompensationScheduler` 提交 `COMPENSATION_SCAN`，不是 `INCREMENTAL_SYNC`；凌晨每日全量补偿是 `GitlabDailyVerificationScheduler` 提交 `FULL_COMPENSATION_SCAN`，默认时间 `02:00`。因此“自动同步就是增量更新”与当前命名和编排不完全一致，需要统一：要么把普通自动任务改为 `INCREMENTAL_SYNC`，要么在业务文案中明确 `COMPENSATION_SCAN` 就是自动增量补偿扫描。
+
+建议后续同步编排修正方向：
+
+1. 被 active run 吸收的请求直接返回当前 run 的 `SyncRunSubmissionResult`，不再插入 `MERGED` run。
+2. 对全量/增量/全量补偿运行中的任何页面刷新请求，直接复用当前 run；返回消息说明“已由当前同步覆盖”。
+3. 对同表短时间重复单表刷新，保持同表去重，但去重不落 `MERGED` 记录。
+4. 对不同表单表刷新需要先定模型：若允许“表级顺序”，可以保留一个 active/queued `TABLE_REFRESH` run 并追加表任务；若严格“不创建其他同步”，则需要把新表动态写入当前 run 的任务表，而不是新建 run。
+5. 调整自动同步入口：普通自动同步提交 `INCREMENTAL_SYNC`；凌晨 2 点保留 `FULL_COMPENSATION_SCAN`，并在状态展示、文案和日志中区分“自动增量”和“全量补偿对账”。
+
+### 4. 客户问题空表格的直接触发点
 
 客户问题页面按规则需要顶部“测试阶段”切换，但当前实现默认选择系统设置中第一个启用父级阶段：
 
@@ -51,14 +122,27 @@
 
 如果内网 CC_Product 的里程碑不是这个父级阶段，默认筛选会把客户问题数据过滤空。客户问题缺陷汇总、按功能展示等页面又从 `finalSources` 生成模块行，所以不是“只有数量为 0”，而是连模块行都没有。延期问题页因为有“未设定模块”兜底，所以表现为只剩一行且全 0。
 
-### 4. 系统测试非法数据偏多、议题查询偏少的口径差
+### 5. 系统测试非法数据偏多、议题查询偏少的口径差
 
 - 系统测试非法数据走 `IssueFactRecordPageQuery.Scope.SYSTEM_TEST`，范围条件会匹配 `testing_phase/system_test_label/label_names` 里的系统测试或回归测试。
 - 议题查询走 `IssueFactRecordPageQuery.Scope.ALL`，默认项目是 CrownCAD，但不使用同一套系统测试 scope；阶段筛选默认走 `phase_filter_value`。
 
 因此这两个页面在新平台内部也不是完全同一口径，更不用说和老平台记录列表口径比较。非法数据偏多和议题查询少 2000 条都可以由这组范围差异解释。
 
-### 5. 代码走查 MR 29874 的纠正
+### 6. 系统测试缺陷汇总首屏抖动
+
+触发链路如下：
+
+1. `StatisticBoardView.vue` 监听 `route.query`，并设置 `immediate: true`，页面进入时会立刻请求看板接口。
+2. `useStatisticBoardDataScope(...)` 异步加载“系统设置 - 议题测试阶段定义”的启用阶段。
+3. `useDataScope(...)` 对系统测试缺陷汇总使用 `defaultStrategy = first-available`；阶段选项返回后，如果 URL 还没有 `testingPhase`，会把第一个可用阶段写入路由。
+4. 路由变化触发第二次看板请求。
+5. 第一次请求没有 `testingPhase`，而 `SystemTestDefectSummaryBoardService.buildRuleFlowSnapshot(...)` 中 `hasTestingPhaseCondition(...)` 为 false 时直接把 `valid` 置为 `List.of()`；同时 `doLoadBoard(...)` 总会追加 `toSummaryRowData(TOTAL_ROW_KEY, TOTAL_ROW_LABEL, sources)`，所以前端会短暂展示“总计”一行且所有指标为 0。
+6. 第二次请求带上默认 `testingPhase` 后，后端返回真实模块行和总计行，页面看起来就发生了数据抖动。
+
+结论：这不是数据源瞬间变化，也不是表格组件计算错误，而是初始化阶段的两次请求加上后端“无测试阶段时返回总计 0”的组合效果。修正方向是前端在 required data scope 默认值落路由前不要发首个看板请求，或者后端对缺少必选测试阶段的系统测试缺陷汇总不返回总计 0 行。
+
+### 7. 代码走查 MR 29874 的纠正
 
 旧结论“MR 29874 模块为空导致缺失”已经作废。
 
@@ -117,7 +201,9 @@ select source_instance,
 
 这些原因已经确认，但本次只修正同步水位边界：
 
-- 统计看板全量加载导致的 15 秒超时，需要改成 SQL 聚合、服务端分页明细或缓存快照。
-- 客户问题默认测试阶段把数据过滤空，需要重新确认默认阶段策略：客户问题页应优先按里程碑可用项默认，不能直接套系统测试第一个父级阶段。
+- 统计看板全量加载导致的 15 秒超时和接近 15 秒慢加载，需要改成 SQL 聚合、服务端分页明细或缓存快照。
+- 系统测试缺陷汇总首屏抖动，需要阻止必选数据范围默认值落定前的首次请求，或让后端缺少必选阶段时返回空状态而不是总计 0。
+- 默认测试阶段策略需要统一修正：系统测试和客户问题相关页面应对齐老平台默认阶段，前端显示、URL、后端补默认、导出和下钻必须一致；客户问题页不能前端显示“全部测试阶段”而后端静默补第一阶段，也不能直接套用与 CC_Product 里程碑不匹配的系统测试父级。
 - 系统测试非法数据和议题查询需要统一系统测试记录页范围口径。
 - 代码走查少 6000 条需要内网按字段核验后，再修正 `merge_request_fact` 字段映射或非法 SQL 谓词。
+- 同步合并编排还需要按目标模型调整：被吸收请求不再创建 `MERGED` run；普通自动同步和凌晨全量补偿的 run type、文案和优先级需要统一确认。
