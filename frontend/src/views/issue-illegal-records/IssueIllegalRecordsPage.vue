@@ -64,6 +64,13 @@ const canRefreshLatestData = computed(
 );
 const primaryFilters = computed(() => props.buildPrimaryFilters?.(filterOptions.value) ?? []);
 const primaryFilterKeys = computed(() => new Set(primaryFilters.value.map((field) => field.key)));
+const nativePrimarySelectKeys = computed(() => new Set(props.nativePrimarySelectKeys ?? []));
+const nativePrimaryFilters = computed(() =>
+  primaryFilters.value.filter((field) => field.type === 'select' && nativePrimarySelectKeys.value.has(field.key)),
+);
+const tablePrimaryFilters = computed(() =>
+  primaryFilters.value.filter((field) => !nativePrimarySelectKeys.value.has(field.key)),
+);
 const primaryFilterDefaultsReady = computed(() =>
   primaryFilters.value.every((field) => {
     if (field.defaultStrategy !== 'first-available') {
@@ -455,6 +462,34 @@ async function handleConditionFilterReset() {
     </template>
 
     <section class="issue-illegal-page">
+      <section v-if="nativePrimaryFilters.length" class="issue-illegal-native-filters">
+        <el-form inline class="issue-illegal-native-filter-form">
+          <el-form-item
+            v-for="field in nativePrimaryFilters"
+            :key="field.key"
+            :label="field.label"
+          >
+            <el-select
+              :model-value="String(primaryFilterValues[field.key] ?? '')"
+              :placeholder="field.placeholder || field.label"
+              :clearable="field.clearable ?? true"
+              filterable
+              class="issue-illegal-native-select"
+              :style="{ width: `${field.width ?? 240}px` }"
+              @change="handlePrimaryFilterChange({ key: field.key, value: String($event ?? '') })"
+              @clear="handlePrimaryFilterChange({ key: field.key, value: '' })"
+            >
+              <el-option
+                v-for="option in field.options ?? []"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </section>
+
       <BaseRecordTable
         :columns="columns"
         :rows="tableRows"
@@ -463,7 +498,7 @@ async function handleConditionFilterReset() {
         :page="page"
         :page-size="pageSize"
         :total="total"
-        :primary-filters="primaryFilters"
+        :primary-filters="tablePrimaryFilters"
         :filter-values="primaryFilterValues"
         :active-filter-tags="activeFilterTags"
         :keyword="String(route.query.keyword ?? '')"
@@ -644,6 +679,27 @@ async function handleConditionFilterReset() {
 .issue-illegal-page {
   display: grid;
   gap: 12px;
+}
+
+.issue-illegal-native-filters {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.issue-illegal-native-filter-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.issue-illegal-native-filter-form :deep(.el-form-item) {
+  margin: 0;
+}
+
+.issue-illegal-native-select {
+  max-width: min(100%, 360px);
 }
 
 .issue-illegal-toolbar-actions,

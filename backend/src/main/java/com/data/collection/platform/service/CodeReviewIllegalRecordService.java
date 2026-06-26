@@ -482,7 +482,16 @@ public class CodeReviewIllegalRecordService {
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    request.projectId(), null, null, null, null, null, null, null, null, request.source()))
+                    request.projectId(),
+                    null,
+                    null,
+                    null,
+                    request.projectName(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    request.source()))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -505,7 +514,7 @@ public class CodeReviewIllegalRecordService {
         toLegacyOptions(rows, CodeReviewIllegalRecordView::targetBranch),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::mergedBy),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::moduleName),
-        toLegacyOptions(rows, CodeReviewIllegalRecordView::projectName));
+        toLegacyOptions(projectRows, CodeReviewIllegalRecordView::projectName));
   }
 
   private List<OptionItemResponse> toProjectOptions(List<CodeReviewIllegalRecordView> rows) {

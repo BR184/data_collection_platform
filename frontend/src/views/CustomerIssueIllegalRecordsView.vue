@@ -155,6 +155,7 @@ function buildPrimaryFilters(): RecordTableFilterField[] {
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :build-primary-filters="buildPrimaryFilters"
+    :native-primary-select-keys="['testingPhase']"
     :columns="columns"
     :map-row="mapRow"
     created-at-detail-label="议题提交时间"

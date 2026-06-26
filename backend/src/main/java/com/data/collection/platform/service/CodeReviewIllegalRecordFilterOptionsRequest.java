@@ -1,3 +1,3 @@
 package com.data.collection.platform.service;
 
-public record CodeReviewIllegalRecordFilterOptionsRequest(Long projectId, String source) {}
+public record CodeReviewIllegalRecordFilterOptionsRequest(Long projectId, String projectName, String source) {}

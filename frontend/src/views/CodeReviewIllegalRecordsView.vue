@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 // 代码走查非法记录页承接固定老平台口径下的记录检索结果，重点是让违规数据可筛选、可导出。
 import { ElMessage } from '../element-plus-services';
-import { Download, InfoFilled, RefreshRight } from '@element-plus/icons-vue';
+import { Download, InfoFilled, RefreshRight, View } from '@element-plus/icons-vue';
 import BaseRecordTable from '../components/base/BaseRecordTable.vue';
 import PageSettingsButton from '../components/PageSettingsButton.vue';
 import RuleExplanationDrawer from '../components/RuleExplanationDrawer.vue';
@@ -57,7 +57,7 @@ const {
 } = useRouteTableState({
   defaults: {
     page: 1,
-    pageSize: 20,
+    pageSize: 40,
     sortBy: 'mergedAt',
     sortOrder: 'desc',
   },
@@ -127,12 +127,12 @@ const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
 });
 
 const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
-const projectScopeValue = computed(() => String(route.query.projectId ?? ''));
-const projectScopeOptions = computed(() => filterOptions.value.projects ?? []);
+const projectScopeValue = computed(() => String(route.query.projectName ?? ''));
+const projectScopeOptions = computed(() => filterOptions.value.projectNames ?? []);
 const sourceScope = useDataScope({
   provider: CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
   options: computed(() => buildScopeOptions(sourceOptions.value)),
-  clearQueryKeysOnChange: ['projectId'],
+  clearQueryKeysOnChange: ['projectId', 'projectName'],
   mountToShell: true,
   loading: isTableLoading,
 });
@@ -166,6 +166,7 @@ async function loadFilterOptions() {
   filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
     route.query.projectId as string | undefined,
     sourceScope.value.value || undefined,
+    String(route.query.projectName ?? ''),
   );
 }
 
@@ -268,6 +269,17 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function sourceDisplayLabel(value?: string | null) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized || normalized === 'default' || normalized === 'cc') {
+    return 'CrownCAD';
+  }
+  if (normalized === 'dgm') {
+    return 'DGM';
+  }
+  return value || '-';
+}
+
 bindLoader(async () => {
   try {
     await loadSourceOptions();
@@ -312,7 +324,7 @@ async function handleConditionFilterReset() {
 
 async function handleProjectScopeChange(value: string | string[]) {
   const nextValue = String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
-  await patchQuery({ projectId: nextValue || null, page: 1 });
+  await patchQuery({ projectName: nextValue || null, projectId: null, page: 1 });
 }
 
 const taskStartedText = computed(() =>
@@ -359,7 +371,9 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :loading="isTableLoading"
       :page="page"
       :page-size="pageSize"
+      :page-size-options="[40, 60, 100]"
       :total="total"
+      :row-actions-width="184"
       :active-filter-tags="conditionActiveFilterTags"
       :show-search="false"
       :show-refresh="false"
@@ -432,16 +446,31 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       </template>
 
       <template #row-actions="{ row }">
-        <el-button class="record-detail-trigger" link @click="openDetailDrawer(row)">查看详情</el-button>
-        <el-button
-          v-if="canRefreshLatestData"
-          class="record-detail-trigger"
-          link
-          :loading="rowRefreshKey === rowRefreshIdentity(row)"
-          @click="handleRefreshRow(row)"
-        >
-          刷新本条
-        </el-button>
+        <div class="code-review-row-actions">
+          <el-tooltip content="查看代码走查详情" placement="top">
+            <el-button
+              class="code-review-row-action-button"
+              :icon="View"
+              size="small"
+              plain
+              @click="openDetailDrawer(row)"
+            >
+              查看详细
+            </el-button>
+          </el-tooltip>
+          <el-tooltip v-if="canRefreshLatestData" content="刷新本条数据并更新页面" placement="top">
+            <el-button
+              class="code-review-row-action-button"
+              :icon="RefreshRight"
+              size="small"
+              plain
+              :loading="rowRefreshKey === rowRefreshIdentity(row)"
+              @click="handleRefreshRow(row)"
+            >
+              刷新本条
+            </el-button>
+          </el-tooltip>
+        </div>
       </template>
     </BaseRecordTable>
 
@@ -483,7 +512,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
         <section class="record-detail-section">
           <div class="record-detail-section-title">基础信息</div>
           <el-descriptions :column="2" border size="small" class="record-detail-descriptions">
-            <el-descriptions-item label="合并请求编号">
+            <el-descriptions-item label="走查编号">
               <el-link
                 v-if="selectedRow.mergeRequestLink"
                 :href="selectedRow.mergeRequestLink"
@@ -494,20 +523,22 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               </el-link>
               <span v-else>{{ selectedRow.mergeRequestIid }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="请求类型">{{ selectedRow.requestType || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="所属项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="代码库">{{ selectedRow.repositoryName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="所属项目">{{ sourceDisplayLabel(selectedRow.sourceInstance) }}</el-descriptions-item>
+            <el-descriptions-item label="走查时间">{{ formatCodeReviewDate(selectedRow.codeWalkthroughDate) }}</el-descriptions-item>
+            <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="被走查人">{{ selectedRow.author || '-' }}</el-descriptions-item>
             <el-descriptions-item label="走查人">{{ selectedRow.reviewerNames || '-' }}</el-descriptions-item>
             <el-descriptions-item label="被指派人">{{ selectedRow.assigneeNames || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="合并人">{{ selectedRow.mergedBy || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="合并目标分支">{{ selectedRow.targetBranch || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="走查时间">{{ formatCodeReviewDate(selectedRow.codeWalkthroughDate) }}</el-descriptions-item>
             <el-descriptions-item label="合并时间">{{ formatCodeReviewDateTime(selectedRow.mergedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="合并人">{{ selectedRow.mergedBy || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="合并目标分支">{{ selectedRow.targetBranch || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="项目名称">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="代码库">{{ selectedRow.repositoryName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="请求类型">{{ selectedRow.requestType || '-' }}</el-descriptions-item>
             <el-descriptions-item label="项目 ID">{{ selectedRow.projectId ?? '-' }}</el-descriptions-item>
             <el-descriptions-item label="功能名称">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="走查状态">{{ selectedRow.reviewStatus || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="走查异常原因">{{ selectedRow.reviewExceptionReason || '-' }}</el-descriptions-item>
             <el-descriptions-item label="扫描状态">{{ selectedRow.scanStatus || '-' }}</el-descriptions-item>
             <el-descriptions-item label="编码规范扫描结果">{{ selectedRow.annotationRateResult || '-' }}</el-descriptions-item>
             <el-descriptions-item label="静态扫描结果">{{ selectedRow.bugCountResult || '-' }}</el-descriptions-item>
@@ -532,6 +563,9 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             </el-tag>
             <span v-if="!selectedRow.illegalTypes.length" class="record-detail-empty">-</span>
           </div>
+          <div v-if="selectedRow.reviewExceptionReason" class="record-detail-hint">
+            老平台走查异常原始值：{{ selectedRow.reviewExceptionReason }}
+          </div>
         </section>
 
         <section class="record-detail-section">
@@ -542,11 +576,11 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               <strong class="record-detail-metric-value">{{ formatCodeReviewPercent(selectedRow.commentRate) }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">缺陷数量</span>
+              <span class="record-detail-metric-label">缺陷数（个）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.defectCount) }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">新增代码行数</span>
+              <span class="record-detail-metric-label">新增走查代码行数（LOC）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.addedLines, ' 行') }}</strong>
             </article>
             <article class="record-detail-metric-card">
@@ -554,23 +588,23 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.deletedLines, ' 行') }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">走查工作量</span>
+              <span class="record-detail-metric-label">走查工作量（分钟）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewDurationMinutes, ' 分钟') }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">走查速率</span>
+              <span class="record-detail-metric-label">代码走查速率（LOC/H）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedLocPerHour, ' LOC/H') }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">走查速率</span>
+              <span class="record-detail-metric-label">代码走查速率（KLOC/H）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedKlocPerHour, ' KLOC/H') }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">缺陷密度</span>
+              <span class="record-detail-metric-label">代码走查缺陷密度（个/KLOC）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.defectDensityPerKloc, ' 个/KLOC') }}</strong>
             </article>
             <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">走查效率</span>
+              <span class="record-detail-metric-label">代码走查效率（个/H）</span>
               <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewEfficiencyPerHour, ' 个/H') }}</strong>
             </article>
             <article class="record-detail-metric-card">
@@ -703,14 +737,21 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   border-radius: 999px;
 }
 
-.record-detail-trigger {
-  padding-inline: 0;
-  font-weight: 500;
-  color: rgba(37, 99, 235, 0.88);
+.code-review-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
 }
 
-.record-detail-trigger:hover {
-  color: rgb(29, 78, 216);
+.code-review-row-action-button {
+  min-width: 76px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .record-detail-drawer :deep(.el-drawer__header) {
@@ -788,7 +829,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
 .record-detail-content {
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(15, 23, 42, 0.06);
   color: rgba(15, 23, 42, 0.76);
@@ -806,6 +847,16 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   color: rgba(15, 23, 42, 0.4);
 }
 
+.record-detail-hint {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(217, 119, 6, 0.18);
+  background: rgba(255, 251, 235, 0.72);
+  color: rgba(120, 53, 15, 0.88);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .record-detail-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -816,7 +867,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   display: grid;
   gap: 8px;
   padding: 16px;
-  border-radius: 14px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(15, 23, 42, 0.06);
 }

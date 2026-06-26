@@ -224,7 +224,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         args,
         "target_branch",
         CodeReviewIllegalRecordQuerySupport.legacyTargetBranch(
-            request.projectName(), request.targetBranch()));
+            request.source(), request.targetBranch()));
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());
@@ -256,7 +256,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         args,
         "target_branch",
         CodeReviewIllegalRecordQuerySupport.legacyTargetBranch(
-            request.projectName(), request.targetBranch()));
+            request.source(), request.targetBranch()));
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());

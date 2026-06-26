@@ -107,6 +107,7 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   initialFilterOptions: IssueIllegalRecordFilterOptions;
   buildConditionFields: (options: IssueIllegalRecordFilterOptions) => StatisticFilterField[];
   buildPrimaryFilters?: (options: IssueIllegalRecordFilterOptions) => RecordTableFilterField[];
+  nativePrimarySelectKeys?: string[];
   columns: RecordTableColumn[];
   mapRow: (row: Row) => Record<string, unknown>;
   resetClearKeys: string[];

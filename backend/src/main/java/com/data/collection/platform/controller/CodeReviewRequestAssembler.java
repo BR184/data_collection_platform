@@ -41,7 +41,8 @@ public class CodeReviewRequestAssembler {
 
   public CodeReviewIllegalRecordFilterOptionsRequest toIllegalRecordFilterOptionsRequest(
       CodeReviewIllegalRecordFilterOptionsWebRequest request) {
-    return new CodeReviewIllegalRecordFilterOptionsRequest(request.getProjectId(), request.getSource());
+    return new CodeReviewIllegalRecordFilterOptionsRequest(
+        request.getProjectId(), request.getProjectName(), request.getSource());
   }
 
   public CodeReviewRulePreviewRequest toRulePreviewRequest(CodeReviewRulePreviewWebRequest request) {

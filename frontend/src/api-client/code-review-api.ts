@@ -71,10 +71,15 @@ export const codeReviewApi = {
       timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
     });
   },
-  getCodeReviewIllegalRecordFilterOptions(projectId?: string | number | null, source?: string | null) {
+  getCodeReviewIllegalRecordFilterOptions(
+    projectId?: string | number | null,
+    source?: string | null,
+    projectName?: string | null,
+  ) {
     const query = new URLSearchParams(
       {
         ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+        ...(projectName ? { projectName } : {}),
         ...(source ? { source } : {}),
       },
     );

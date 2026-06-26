@@ -29,7 +29,7 @@ final class CodeReviewIllegalRecordQuerySupport {
     putIfPresent(filters, "mergedAtStart", mergedAtStart);
     putIfPresent(filters, "mergedAtEnd", mergedAtEnd);
     putIfPresent(filters, "projectName", projectName);
-    putIfPresent(filters, "targetBranch", legacyTargetBranch(projectName, targetBranch));
+    putIfPresent(filters, "targetBranch", legacyTargetBranch(source, targetBranch));
     putIfPresent(filters, "moduleName", moduleName);
     putIfPresent(filters, "mergeRequestIid", mergeRequestIid);
     putIfPresent(filters, "author", owner);
@@ -112,13 +112,17 @@ final class CodeReviewIllegalRecordQuerySupport {
     }
   }
 
-  static String legacyTargetBranch(String projectName, String targetBranch) {
+  static String legacyTargetBranch(String source, String targetBranch) {
     String normalized = TextQuerySupport.trimToNull(targetBranch);
     if (normalized != null) {
       return normalized;
     }
-    String normalizedProject = TextQuerySupport.trimToNull(projectName);
-    if ("CrownCAD".equals(normalizedProject) || "DGM".equals(normalizedProject)) {
+    String normalizedSource = TextQuerySupport.trimToNull(source);
+    if (normalizedSource == null) {
+      return null;
+    }
+    String sourceKey = GitlabSourceInstanceSupport.normalizeSourceInstance(normalizedSource);
+    if ("cc".equals(sourceKey) || "default".equals(sourceKey) || "dgm".equals(sourceKey)) {
       return "dev";
     }
     return null;

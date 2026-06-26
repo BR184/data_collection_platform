@@ -62,7 +62,7 @@ const scopeTags = computed(() => {
   append('合并人', 'mergedBy');
   append('模块名', 'moduleName');
   append('合并请求编号', 'mergeRequestIid');
-  append('责任人', 'owner');
+  append('被走查人', 'owner');
   append('数据源', 'source');
 
   const mergedAtStart = String(route.query.mergedAtStart ?? '').trim();
@@ -89,6 +89,7 @@ async function loadFilterOptions() {
     filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
       route.query.projectId as string | undefined,
       String(route.query.source ?? '') || undefined,
+      String(route.query.projectName ?? '') || undefined,
     );
   } finally {
     filterLoading.value = false;

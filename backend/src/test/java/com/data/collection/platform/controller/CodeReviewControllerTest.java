@@ -168,7 +168,7 @@ class CodeReviewControllerTest {
   @Test
   void shouldReturnIllegalRecordFilterOptions() throws Exception {
     when(codeReviewIllegalRecordService.getFilterOptions(
-            new CodeReviewIllegalRecordFilterOptionsRequest(null, "cc")))
+            new CodeReviewIllegalRecordFilterOptionsRequest(null, null, "cc")))
         .thenReturn(new CodeReviewIllegalRecordFilterOptionsResponse(
             List.of(new OptionItemResponse("合并请求", "merge_request")),
             List.of(),

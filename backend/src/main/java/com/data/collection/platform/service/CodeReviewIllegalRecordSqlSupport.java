@@ -167,13 +167,7 @@ final class CodeReviewIllegalRecordSqlSupport {
 
   private static Optional<SqlPredicate> ownerCondition(StatisticFilterCondition condition) {
     if ("contains".equals(condition.operator()) || "notContains".equals(condition.operator())) {
-      return indexedSearchCondition(
-          List.of(
-              "owner_search_text",
-              "owner_search_compact",
-              "owner_search_spell",
-              "owner_search_initials"),
-          condition);
+      return textContainsCondition("author_name", condition);
     }
     return textCondition("author_name", condition);
   }
