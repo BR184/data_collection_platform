@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 // 非法记录通用页承接系统测试和客户问题两类场景，差异通过配置和接口适配传入。
 // 页面内部统一处理关键词、条件筛选、规则说明、分页和导出，避免两个业务域重复实现。
 import { ElMessage } from '../../element-plus-services';
-import { Download, InfoFilled, Refresh, RefreshRight } from '@element-plus/icons-vue';
+import { Download, InfoFilled, Refresh, RefreshRight, View } from '@element-plus/icons-vue';
 import BaseRecordTable from '../../components/base/BaseRecordTable.vue';
 import PageSettingsButton from '../../components/PageSettingsButton.vue';
 import PageStateShell from '../../components/base/PageStateShell.vue';
@@ -55,7 +55,6 @@ const detailVisible = ref(false);
 const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
-const singleRecordRefreshingKey = ref<string | null>(null);
 const primaryDefaultPatchInFlight = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? ''));
 const filterOptions = ref({ ...props.initialFilterOptions });
@@ -339,40 +338,6 @@ async function handleRefreshLatestData() {
   }
 }
 
-function rowRefreshKey(row: IssueIllegalRecordRow) {
-  return `${row.sourceInstance ?? ''}:${row.projectId ?? ''}:${row.issueIid}`;
-}
-
-async function handleRefreshSingleRecord(row: IssueIllegalRecordRow) {
-  if (!props.requestSingleRecordRefresh) {
-    return;
-  }
-  const key = rowRefreshKey(row);
-  singleRecordRefreshingKey.value = key;
-  try {
-    await props.requestSingleRecordRefresh(row);
-    ElMessage.success('已刷新本条数据');
-    await Promise.all([loadFilterOptions(), loadTableData()]);
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新本条数据失败');
-  } finally {
-    singleRecordRefreshingKey.value = null;
-  }
-}
-
-function canRefreshSingleRecord(row: IssueIllegalRecordRow) {
-  return (
-    authState.currentUser.role === 'ADMIN'
-    && Boolean(props.requestSingleRecordRefresh)
-    && row.projectId != null
-    && row.issueIid != null
-  );
-}
-
-function rawRow(row: Record<string, unknown>) {
-  return row.__raw as IssueIllegalRecordRow;
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -564,18 +529,19 @@ async function handleConditionFilterReset() {
         </template>
 
         <template #row-actions="{ row }">
-          <el-button
-            v-if="canRefreshSingleRecord(rawRow(row))"
-            link
-            :icon="RefreshRight"
-            :loading="singleRecordRefreshingKey === rowRefreshKey(rawRow(row))"
-            @click="handleRefreshSingleRecord(rawRow(row))"
-          >
-            刷新本条
-          </el-button>
-          <el-button class="issue-illegal-detail-trigger customer-illegal-detail-trigger" link @click="openDetailDrawer(row)">
-            查看详情
-          </el-button>
+          <div class="issue-illegal-row-actions customer-illegal-row-actions">
+            <el-tooltip content="查看议题详情" placement="top">
+              <el-button
+                class="issue-illegal-row-action-button customer-illegal-row-action-button"
+                :icon="View"
+                size="small"
+                plain
+                @click="openDetailDrawer(row)"
+              >
+                查看详情
+              </el-button>
+            </el-tooltip>
+          </div>
         </template>
       </BaseRecordTable>
 
@@ -601,6 +567,7 @@ async function handleConditionFilterReset() {
             <div class="issue-illegal-detail-section-title customer-illegal-detail-section-title">基础信息</div>
             <el-descriptions :column="2" border size="small">
               <el-descriptions-item label="议题编号">#{{ selectedRow.issueIid }}</el-descriptions-item>
+              <el-descriptions-item label="议题标题">{{ selectedRow.title || '-' }}</el-descriptions-item>
               <el-descriptions-item :label="issueStateDetailLabel || '状态'">
                 {{ normalizeIssueState(selectedRow.issueState) }}
               </el-descriptions-item>
@@ -710,10 +677,22 @@ async function handleConditionFilterReset() {
   flex-wrap: wrap;
 }
 
-.issue-illegal-detail-trigger {
-  padding-inline: 0;
+.issue-illegal-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.issue-illegal-row-action-button {
+  flex: 0 0 auto;
+  min-width: 76px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 500;
-  color: rgba(37, 99, 235, 0.88);
 }
 
 .issue-illegal-drawer :deep(.el-drawer__header) {

@@ -71,7 +71,6 @@ const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
-const rowRefreshKey = ref('');
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 
@@ -157,11 +156,6 @@ function openDetailDrawer(row: Record<string, unknown>) {
   detailVisible.value = true;
 }
 
-function rowRefreshIdentity(row: Record<string, unknown>) {
-  const raw = row.__raw as CodeReviewIllegalRecordRowResponse | undefined;
-  return raw ? `${raw.projectId}-${raw.mergeRequestIid}` : '';
-}
-
 async function loadFilterOptions() {
   filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
     route.query.projectId as string | undefined,
@@ -240,28 +234,6 @@ async function handleRefreshLatestData() {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
     realtimeRefreshLoading.value = false;
-  }
-}
-
-async function handleRefreshRow(row: Record<string, unknown>) {
-  const raw = row.__raw as CodeReviewIllegalRecordRowResponse | undefined;
-  if (!raw) {
-    return;
-  }
-  rowRefreshKey.value = `${raw.projectId}-${raw.mergeRequestIid}`;
-  try {
-    await api.refreshCodeReviewIllegalRecord({
-      source: sourceScope.value.value || undefined,
-      projectId: raw.projectId,
-      mergeRequestIid: raw.mergeRequestIid,
-    });
-    ElMessage.success('已刷新本条数据');
-    await loadTableData();
-    await loadSyncStatus();
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '刷新本条数据失败');
-  } finally {
-    rowRefreshKey.value = '';
   }
 }
 
@@ -373,7 +345,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :page-size="pageSize"
       :page-size-options="[40, 60, 100]"
       :total="total"
-      :row-actions-width="184"
+      :row-actions-width="112"
       :active-filter-tags="conditionActiveFilterTags"
       :show-search="false"
       :show-refresh="false"
@@ -456,18 +428,6 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               @click="openDetailDrawer(row)"
             >
               查看详细
-            </el-button>
-          </el-tooltip>
-          <el-tooltip v-if="canRefreshLatestData" content="刷新本条数据并更新页面" placement="top">
-            <el-button
-              class="code-review-row-action-button"
-              :icon="RefreshRight"
-              size="small"
-              plain
-              :loading="rowRefreshKey === rowRefreshIdentity(row)"
-              @click="handleRefreshRow(row)"
-            >
-              刷新本条
             </el-button>
           </el-tooltip>
         </div>
@@ -740,12 +700,13 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 .code-review-row-actions {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+  justify-content: center;
+  width: 100%;
   min-width: 0;
 }
 
 .code-review-row-action-button {
+  flex: 0 0 auto;
   min-width: 76px;
   height: 28px;
   padding: 0 8px;

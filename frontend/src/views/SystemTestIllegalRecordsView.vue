@@ -33,22 +33,13 @@ const initialFilterOptions: SystemTestIllegalRecordFilterOptionsResponse = {
 
 const columns: RecordTableColumn[] = [
   { key: 'issueIid', label: '议题编号', type: 'link', sortable: true, width: 110, fixed: 'left' },
-  { key: 'title', label: '标题', sortable: true, minWidth: 260 },
-  { key: 'illegalReason', label: '非法类型', type: 'tag', sortable: true, minWidth: 150 },
-  { key: 'projectName', label: '项目名称', sortable: true, minWidth: 140 },
-  { key: 'moduleNames', label: '模块', type: 'tags', sortable: true, minWidth: 180 },
-  { key: 'functionName', label: '功能名', sortable: true, minWidth: 180 },
-  { key: 'testingPhase', label: '测试阶段', sortable: true, minWidth: 180 },
+  { key: 'moduleNames', label: '模块名', type: 'tags', sortable: true, minWidth: 180 },
+  { key: 'title', label: '议题标题', sortable: true, minWidth: 320 },
+  { key: 'issueState', label: '议题状态', type: 'tag', sortable: true, width: 110 },
   { key: 'severityLevel', label: '严重程度', type: 'tag', sortable: true, width: 120 },
-  { key: 'bugStatus', label: '缺陷状态', sortable: true, minWidth: 140 },
-  { key: 'issueState', label: '状态', type: 'tag', sortable: true, width: 110 },
-  { key: 'assigneeName', label: '处理人', sortable: true, minWidth: 120 },
-  { key: 'updatedAt', label: '更新时间', sortable: true, minWidth: 170 },
+  { key: 'assigneeName', label: '议题处理人', sortable: true, minWidth: 120 },
+  { key: 'illegalReason', label: '非法类型', type: 'tag', sortable: true, minWidth: 150 },
 ];
-
-function formatDateTime(value?: string | null) {
-  return value ? value.replace('T', ' ').slice(0, 19) : '-';
-}
 
 function buildStateTag(value: string): RecordTableTagValue {
   return value.toLowerCase() === 'closed'
@@ -62,16 +53,11 @@ function mapRow(row: SystemTestIllegalRecordRowResponse): Record<string, unknown
     issueId: row.issueId,
     issueIid: buildIssueIidCellValue(row.issueIid, row.issueLink),
     title: row.title || '-',
-    illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
-    projectName: row.projectName || '-',
     moduleNames: row.moduleNames ? [{ label: row.moduleNames, type: 'info' as const }] : [],
-    functionName: row.functionName || '-',
-    testingPhase: row.testingPhase || '-',
     severityLevel: row.severityLevel ? [buildIssueSeverityTag(row.severityLevel)] : [],
-    bugStatus: row.bugStatus || '-',
     issueState: row.issueState ? [buildStateTag(row.issueState)] : [],
     assigneeName: row.assigneeName || '-',
-    updatedAt: formatDateTime(row.updatedAt),
+    illegalReason: [{ label: row.illegalReason || '未说明', type: 'warning' as const }],
   };
 }
 
@@ -144,6 +130,14 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     :build-primary-filters="buildPrimaryFilters"
     :columns="columns"
     :map-row="mapRow"
+    created-at-detail-label="议题提交时间"
+    updated-at-detail-label="议题更新时间"
+    issue-state-detail-label="议题状态"
+    module-detail-label="模块名"
+    author-detail-label="议题提交人"
+    assignee-detail-label="议题处理人"
+    severity-detail-label="议题严重程度"
+    bug-status-detail-label="测试状态"
     :reset-clear-keys="[
       'keyword',
       'issueIid',
@@ -183,10 +177,5 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     ]"
     default-sort-by="updatedAt"
     default-sort-order="desc"
-    :request-single-record-refresh="(row) => api.refreshSystemTestIllegalRecord({
-      source: row.sourceInstance,
-      projectId: row.projectId,
-      issueIid: row.issueIid,
-    })"
   />
 </template>

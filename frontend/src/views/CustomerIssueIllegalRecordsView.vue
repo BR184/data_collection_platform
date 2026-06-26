@@ -147,11 +147,6 @@ function buildPrimaryFilters(): RecordTableFilterField[] {
     :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
     :load-realtime-status="api.getCustomerIssueIllegalRecordRealtimeStatus"
     :request-realtime-refresh="api.refreshCustomerIssueIllegalRecordRealtime"
-    :request-single-record-refresh="(row) => api.refreshCustomerIssueIllegalRecord({
-      source: row.sourceInstance,
-      projectId: row.projectId,
-      issueIid: row.issueIid,
-    })"
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :build-primary-filters="buildPrimaryFilters"

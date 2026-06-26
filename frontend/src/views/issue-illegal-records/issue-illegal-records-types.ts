@@ -103,7 +103,6 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   loadRuleExplanation: (projectId?: string | number | null) => Promise<StatisticBoardRuleExplanationResponse>;
   loadRealtimeStatus?: () => Promise<RealtimeWorkspaceStatusResponse>;
   requestRealtimeRefresh?: () => Promise<RealtimeWorkspaceStatusResponse>;
-  requestSingleRecordRefresh?: (row: Row) => Promise<Row | null>;
   initialFilterOptions: IssueIllegalRecordFilterOptions;
   buildConditionFields: (options: IssueIllegalRecordFilterOptions) => StatisticFilterField[];
   buildPrimaryFilters?: (options: IssueIllegalRecordFilterOptions) => RecordTableFilterField[];

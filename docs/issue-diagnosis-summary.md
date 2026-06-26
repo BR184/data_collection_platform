@@ -294,6 +294,35 @@ select source_instance,
 7. 代码走查 `GitLab 接口报错` 判断兼容有空格和无空格文案，并把扫描状态、目标分支、负责人、审查人、指派人展示字段都纳入判断，降低老平台非法样本漏判。
 8. 事实增量构建遇到旧事实缺少搜索索引/阶段派生字段时，先按小批量修补索引，再用 `max(ods_updated_at)` 计算增量边界，不再直接退化成全量事实重建。
 9. 页面“进入页面自动刷新最新数据”的默认偏好改为关闭；用户显式打开后才会在进页时触发刷新，避免普通打开统计看板就创建同步 run。
+10. 代码走查非法数据、系统测试非法数据和客户问题非法数据的行操作已统一收敛为只保留“查看详情/查看详细”。用户侧不再展示“刷新本条”，避免开发测试阶段误触真实同步/GitLab 写链路，也避免和老平台使用习惯不一致。后端单条刷新接口暂不删除，仅作为内部调试/兼容接口保留，不再作为这些页面的可见入口。
+11. 系统测试非法数据主表展示字段已按老平台 `IllegalIssueSearch.vue` 对齐为：议题编号、模块名、议题标题、议题状态、严重程度、议题处理人、非法类型。客户问题非法数据沿用同一字段集合；测试阶段、功能名、提交/更新时间、提交人、测试状态、里程碑和标签等字段保留在详情抽屉中。
+
+## 已复核的新老平台字段映射
+
+本节用于后续内网验收时逐项核对“老平台筛选/展示字段”和“新平台前端、后端、事实层字段”是否一致。结论以当前代码和 `docs/platform-page-business-rules.md` 为准。
+
+| 页面 | 老平台字段/参数 | 新平台前端 key / 展示字段 | 后端请求/服务字段 | 新平台事实/SQL 字段 | 复核结论 |
+| --- | --- | --- | --- | --- | --- |
+| 代码走查非法数据 | 顶部项目 `projectName` | `projectName`，顶部“项目”切换 | `CodeReviewIllegalRecordQueryRequest.projectName` | `merge_request_fact.project_name like ?` | 已对齐。这里是代码走查所属项目/版本，不是 GitLab `projectId`。 |
+| 代码走查非法数据 | 数据源/老平台 `name`，用于 `CrownCAD/DGM` 目标分支默认 | `source`，数据源切换 | `CodeReviewIllegalRecordQueryRequest.source` | `merge_request_fact.source_instance` | 已对齐。只有明确选择 CrownCAD 或 DGM 且目标分支为空时，才按老平台补 `dev`。 |
+| 代码走查非法数据 | 被走查人 `author` | 条件筛选仍使用页面 key `owner`，详情展示“被走查人” | `CodeReviewIllegalRecordQueryRequest.owner`，规则层映射为 `author` | SQL 条件使用 `author_name`；详情来源 `author_name as author` | 已对齐。不能映射到 `owner_name`，`owner_name` 是责任人/看板维度，不是非法数据页的被走查人。 |
+| 代码走查非法数据 | 走查人 `assignee` | 详情展示“走查人” | `reviewerNames` | `reviewer_names`，并兼容旧走查异常来源 | 已对齐为展示字段；非法类型仍需继续用构造数据对比旧平台异常文案覆盖率。 |
+| 代码走查非法数据 | 被指派人 `assigneed` | 详情展示“被指派人” | `assigneeNames` | `assignee_names` | 已对齐展示。 |
+| 代码走查非法数据 | 展开行字段：走查编号、所属项目、走查时间、模块名、被走查人、走查人、被指派人、合并时间、合并人、目标分支、工作量、行数、缺陷数、速率/密度/效率 | `CodeReviewIllegalRecordsView.vue` 详情抽屉 | `CodeReviewIllegalRecordRowResponse` | `merge_request_fact` 派生字段 | 已对齐老平台必备字段；新平台追加项目名称、代码库、扫描状态和分类缺陷数不改变老字段含义。 |
+| 系统测试非法数据 | 顶部测试阶段 `phaseName/testingPhase` | `testingPhase`，默认第一可用启用父级阶段 | `SystemTestIllegalRecordQueryRequest.testingPhase` | 父级阶段展开后匹配 `issue_fact.testing_phase` | 已对齐。默认不再落到全部测试阶段。 |
+| 系统测试非法数据 | 模块名 `moduleName` | 条件 key `moduleName`，主表“模块名” | `IssueFactRecordListRequest.moduleName` | `issue_fact.module_names` 拆分/显示模块匹配 | 已对齐。主表字段名也改为“模块名”。 |
+| 系统测试非法数据 | 非法类型 `illegalType / illegalList` | 条件 key `illegalReason`，主表“非法类型” | `SystemTestIllegalRecordQueryRequest.illegalReason` | `issue_fact.illegal_reasons` / `illegal_reason`，通过 `SystemTestIllegalReasonSupport` 做老文案映射 | 已对齐多值非法类型口径。 |
+| 系统测试非法数据 | 议题提交人 `author` | 条件 key `authorName`，详情“议题提交人” | `IssueFactRecordListRequest.authorName` | `issue_fact.author_name` | 已对齐。 |
+| 系统测试非法数据 | 议题处理人 `handler` | 条件 key `assigneeName`，主表/详情“议题处理人” | `IssueFactRecordListRequest.assigneeName` | `issue_fact.assignee_name` | 已对齐。 |
+| 系统测试非法数据 | 展开行字段：更新时间、提交时间、模块名、功能名、议题编号、标题、提交人、处理人、状态、测试状态、严重程度 | 主表保留老平台 7 列；详情抽屉补齐完整展开字段 | `SystemTestIllegalRecordRowResponse` | `issue_fact.updated_at_source/created_at_source/module_names/function_name/iid/title/author_name/assignee_name/issue_state/bug_status/severity_level` | 已对齐。测试阶段、里程碑、项目和标签作为新平台增强信息保留在详情。 |
+| 客户问题非法数据 | 顶部里程碑/测试阶段 `mileStone` | `testingPhase`，Element Plus 原生单选，一行一个选项 | `CustomerIssueIllegalRecordQueryRequest.testingPhase` | 优先匹配 `issue_fact.milestone_title`，再兼容父级阶段展开后的 `testing_phase` | 已对齐客户问题使用体验，范围固定 `CC_Product` / 项目 325。 |
+| 客户问题非法数据 | 模块名 `moduleName` | 条件 key `moduleName`，主表“模块名” | `IssueFactRecordListRequest.moduleName` | `issue_fact.module_names` | 已对齐。 |
+| 客户问题非法数据 | 非法类型 `illegalType / illegalList` | 条件 key `illegalReason`，主表“非法类型” | `CustomerIssueIllegalRecordQueryRequest.illegalReason` | `issue_fact.illegal_reasons` / `illegal_reason`，通过 `CustomerIssueIllegalReasonSupport` 做老文案映射 | 已对齐，并追加客户问题调研模板、计划解决时间、一级缺陷签字规则。 |
+| 客户问题非法数据 | 议题提交人 `author` | 条件 key `authorName`，详情“议题提交人” | `IssueFactRecordListRequest.authorName` | `issue_fact.author_name` | 已对齐。 |
+| 客户问题非法数据 | 议题处理人 `handler` | 条件 key `assigneeName`，主表/详情“议题处理人” | `IssueFactRecordListRequest.assigneeName` | `issue_fact.assignee_name` | 已对齐。 |
+| 客户问题非法数据 | 展开行字段同老平台 `IllegalIssueSearchCCProduct.vue` | 主表同系统测试非法数据；详情抽屉补齐完整展开字段 | `CustomerIssueIllegalRecordRowResponse` | `issue_fact` 客户问题事实字段 | 已对齐。项目、里程碑、优先级和标签为新平台增强字段。 |
+| 系统测试议题查询 | 老平台默认项目 CrownCAD `projectId=9`，阶段按父级展开 | 前端 URL/接口默认补 `projectId=9` 和 `testingPhase` | `SystemTestIssueSearchRequest` | `issue_fact.project_id`、`testing_phase` / `phase_filter_value` | 已对齐默认范围；后续仍需用样本对比列表字段和导出字段。 |
+| 系统测试缺陷汇总 | `phase` 默认第一阶段或 `CC2026R3`，按 `testing_phase LIKE` | 数据范围 key `testingPhase` | `SystemTestDefectSummaryBoardService` | `issue_fact.testing_phase` 按阶段定义展开后 `LIKE` 匹配 | 已对齐核心统计范围和默认阶段；模块目录差异需在后续样本对比中单独标记。 |
 
 ## 本地烟测和真实链路验证
 
