@@ -81,26 +81,7 @@ public class SyncRunTablePlanningService {
       if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
         continue;
       }
-      SyncRunTableTask task = new SyncRunTableTask();
-      task.setRunId(run.getId());
-      task.setConfigId(run.getConfigId());
-      task.setStateId(state.getId());
-      task.setSourceInstance(run.getSourceInstance());
-      task.setSourceTable(sourceTable);
-      task.setMirrorTable(state.getMirrorTable());
-      task.setTaskType(run.getRunType().name());
-      task.setStatus(SyncRunStatus.QUEUED);
-      task.setRowStrategy("INCREMENTAL");
-      task.setWatermarkAt(state.getLastWatermarkAt());
-      task.setBatchSize(500);
-      task.setRunAfter(now);
-      task.setRetryCount(0);
-      task.setMaxRetryCount(3);
-      task.setRowsScanned(0L);
-      task.setRowsApplied(0L);
-      task.setCreatedAt(now);
-      task.setUpdatedAt(now);
-      taskMapper.insert(task);
+      taskMapper.insert(createTask(run, state, state.getLastWatermarkAt(), now));
       planned++;
       existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
     }
@@ -200,6 +181,8 @@ public class SyncRunTablePlanningService {
       }
       SyncRunTableTask task = createTask(run, state, INITIAL_WATERMARK, now);
       task.setRowStrategy("PRECISE");
+      task.setCursorUpdatedAt(null);
+      task.setCursorPk(null);
       task.setLookupColumn(target.lookupColumn());
       task.setLookupValue(target.lookupValue());
       taskMapper.insert(task);
@@ -280,6 +263,7 @@ public class SyncRunTablePlanningService {
     task.setStatus(SyncRunStatus.QUEUED);
     task.setRowStrategy(rowStrategyForTask(run));
     task.setWatermarkAt(watermark);
+    seedIncrementalCursor(task, state, watermark);
     task.setBatchSize(500);
     task.setRunAfter(now);
     task.setRetryCount(0);
@@ -289,6 +273,23 @@ public class SyncRunTablePlanningService {
     task.setCreatedAt(now);
     task.setUpdatedAt(now);
     return task;
+  }
+
+  private void seedIncrementalCursor(
+      SyncRunTableTask task,
+      SyncRunTableState state,
+      LocalDateTime watermark) {
+    if (task == null
+        || state == null
+        || !"INCREMENTAL".equalsIgnoreCase(task.getRowStrategy())
+        || watermark == null
+        || state.getLastWatermarkAt() == null
+        || !watermark.equals(state.getLastWatermarkAt())
+        || isBlank(state.getLastCursorPk())) {
+      return;
+    }
+    task.setCursorUpdatedAt(state.getLastWatermarkAt());
+    task.setCursorPk(state.getLastCursorPk());
   }
 
   private LocalDateTime resolveTaskWatermark(SyncRun run, SyncRunTableState state) {

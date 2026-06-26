@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.Objects;
 
 class GitlabSourceScanSqlBuilder {
+  private static final DateTimeFormatter TIMESTAMP_LITERAL_FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
+
   String buildFullTableScanSql(TableWhitelistOption option) {
     return "select * from %s".formatted(quoteQualifiedPublicTable(option.tableName()));
   }
@@ -98,7 +101,7 @@ class GitlabSourceScanSqlBuilder {
     return "select * from %s where %s >= timestamp '%s'".formatted(
         quoteQualifiedPublicTable(option.tableName()),
         quoteIdentifier(option.updatedAtColumn()),
-        since.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        formatTimestampLiteral(since));
   }
 
   String buildCursorBatchScanSql(
@@ -109,22 +112,23 @@ class GitlabSourceScanSqlBuilder {
       int batchSize) {
     String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
     String primaryKeyColumn = quoteIdentifier(firstPrimaryKey(option));
+    boolean hasCursor = cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank();
     StringBuilder sql = new StringBuilder("select * from ")
         .append(quoteQualifiedPublicTable(option.tableName()))
         .append(" where ")
         .append(updatedAtColumn)
-        .append(" >= timestamp '")
-        .append(watermark.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+        .append(hasCursor ? " >= timestamp '" : " > timestamp '")
+        .append(formatTimestampLiteral(watermark))
         .append("'");
-    if (cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank()) {
+    if (hasCursor) {
       sql.append(" and (")
           .append(updatedAtColumn)
           .append(" > timestamp '")
-          .append(cursorUpdatedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+          .append(formatTimestampLiteral(cursorUpdatedAt))
           .append("' or (")
           .append(updatedAtColumn)
           .append(" = timestamp '")
-          .append(cursorUpdatedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+          .append(formatTimestampLiteral(cursorUpdatedAt))
           .append("' and ")
           .append(primaryKeyColumn)
           .append(" > ")
@@ -320,5 +324,9 @@ class GitlabSourceScanSqlBuilder {
         .filter(value -> !value.isBlank())
         .findFirst()
         .orElse("id");
+  }
+
+  private String formatTimestampLiteral(LocalDateTime value) {
+    return value.format(TIMESTAMP_LITERAL_FORMATTER);
   }
 }

@@ -81,15 +81,30 @@ public class SyncRunTableTaskExecutor {
       if (!fullTask && !fullReconcileTask && !preciseTask && !"INCREMENTAL".equalsIgnoreCase(state.getRowStrategy())) {
         throw new IllegalStateException("当前表任务不能由增量同步执行器处理");
       }
-      if (!fullTask && !fullReconcileTask && !preciseTask && task.getCursorUpdatedAt() == null && task.getCursorPk() == null) {
+      LocalDateTime cursorUpdatedAt = task.getCursorUpdatedAt();
+      String cursorPk = task.getCursorPk();
+      boolean shouldProbeSourceWatermark =
+          !fullTask && !fullReconcileTask && !preciseTask && !Boolean.TRUE.equals(state.getDirtyFlag());
+      if (shouldProbeSourceWatermark) {
         LocalDateTime sourceMaxUpdatedAt = sourceTableReader.findMaxUpdatedAt(config, option);
         if (sourceMaxUpdatedAt != null
             && state.getLastWatermarkAt() != null
             && !sourceMaxUpdatedAt.isAfter(state.getLastWatermarkAt())) {
-          markSuccess(task, state, 0, 0, new RowCursor(state.getLastWatermarkAt(), ""), false);
+          markSuccess(task, state, 0, 0, new RowCursor(state.getLastWatermarkAt(), state.getLastCursorPk()), false);
           mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
           return;
         }
+      }
+      if (!fullTask
+          && !fullReconcileTask
+          && !preciseTask
+          && cursorUpdatedAt == null
+          && isBlank(cursorPk)
+          && state.getLastWatermarkAt() != null
+          && state.getLastWatermarkAt().equals(scanStart)
+          && !isBlank(state.getLastCursorPk())) {
+        cursorUpdatedAt = state.getLastWatermarkAt();
+        cursorPk = state.getLastCursorPk();
       }
       List<Map<String, Object>> rows =
           fullTask || fullReconcileTask
@@ -98,7 +113,7 @@ public class SyncRunTableTaskExecutor {
               : preciseTask
                   ? sourceTableReader.readPrecise(config, option, task.getLookupColumn(), task.getLookupValue())
                   : sourceTableReader.readIncrementalBatch(
-                      config, option, scanStart, task.getCursorUpdatedAt(), task.getCursorPk(), batchSize);
+                      config, option, scanStart, cursorUpdatedAt, cursorPk, batchSize);
       if (isRunCancellationRequested(task.getRunId())) {
         finishTask(task.getId(), 0L, 0L, "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
@@ -258,6 +273,10 @@ public class SyncRunTableTaskExecutor {
         .filter(value -> !value.isBlank())
         .findFirst()
         .orElse("id");
+  }
+
+  private boolean isBlank(String value) {
+    return value == null || value.isBlank();
   }
 
   private String primaryKeySignature(String primaryKeys, Map<String, Object> row) {

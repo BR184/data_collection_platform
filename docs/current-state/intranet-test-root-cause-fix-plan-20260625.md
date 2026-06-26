@@ -63,7 +63,7 @@
 | 客户问题缺陷非法数据 | `IssueStaticDataController.getIllegalIssue` + CC_Product 范围 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueIllegalRecordService` |
 | 客户问题缺陷汇总 | `findAllByPhase` 的 CC_Product 分支 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueDefectSummaryBoardService` |
 | 客户问题缺陷原因分析 | `findAllByPhase(causeExist)` 的 CC_Product 分支 | `projectId=325` 且 `submission_date >= 2026-01-01` | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueDefectCauseBoardService` |
-| 客户问题延期问题 | `DataAnalysisController.getDelayIssue` / `getDelayIssue` | `projectId=325`、open 延期议题 | `milestone` / `milestone_title` | 客户问题公共排除，且排除 GitLab 接口报错非法数据需继续核对 | `CustomerIssueDelayIssuesBoardService` |
+| 客户问题延期问题 | `DataAnalysisController.getDelayIssue` / `getDelayIssue` | `projectId=325`、open 延期议题 | `milestone` / `milestone_title` | 客户问题公共排除，且排除 GitLab 接口报错非法数据 | `CustomerIssueDelayIssuesBoardService` |
 | 客户问题响应效率 | `findRespIssue` / `getHasRespOrFixedIssue` | `projectId=325`，按响应/解决字段分别统计 | `milestone` / `milestone_title` | 客户问题公共排除 | `CustomerIssueResponseEfficiencyBoardService` |
 | 客户问题按功能展示缺陷数量 | `getIssueByFunctionNameAndModule` | `projectId=325`，模块 + 功能名 | `milestone` / `milestone_title` | 业务规则总表要求客户问题公共排除；老平台该明细接口源码未显式 `setQueryFilter`，待业务确认是否属于遗漏 | `CustomerIssueByFunctionBoardService` |
 
@@ -220,9 +220,9 @@
 - 问题 1/2/16/17：客户问题统计类页面父表、下钻和记录列表之间的默认范围一致性。
 - 问题 8：系统测试/客户问题非法数据记录类页面默认范围。
 
-仍需继续逐页补证：
+源码对齐边界：
 
-- 代码走查非法数据仍需用老平台 MR 入口继续核对时间范围、目标分支默认值、项目候选来源和非法类型映射。
+- 代码走查非法数据已按老平台 MR 入口核对时间范围、目标分支默认值、项目候选来源和非法类型映射；剩余总量差异进入内网真实数据对比，重点复核 `merge_request_fact` 构建范围、镜像表覆盖范围，以及老平台 `merged_local_date_time` 与新平台 `merged_at_source` 在真实数据上的差异。
 
 ---
 

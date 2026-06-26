@@ -66,8 +66,8 @@ class GitlabSourceScanSqlBuilderTest {
         200);
 
     assertThat(sql)
-        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-02 03:04:05' "
-            + "and (\"Updated At\" > timestamp '2026-01-02 03:05:06' or (\"Updated At\" = timestamp '2026-01-02 03:05:06' "
+        .isEqualTo("select * from \"public\".\"Issue Events\" where \"Updated At\" >= timestamp '2026-01-02 03:04:05.000000' "
+            + "and (\"Updated At\" > timestamp '2026-01-02 03:05:06.000000' or (\"Updated At\" = timestamp '2026-01-02 03:05:06.000000' "
             + "and \"Issue ID\" > '101')) order by \"Updated At\" asc, \"Issue ID\" asc limit 200");
   }
 
