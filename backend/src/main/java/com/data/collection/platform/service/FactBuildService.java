@@ -448,7 +448,7 @@ public class FactBuildService {
           fact.setSourceInstance(defaultText(rs.getString("source_instance"), sourceInstance));
           fact.setProjectId(rs.getLong("project_id"));
           fact.setIssueId(rs.getLong("issue_id"));
-          fact.setIssueIid((Long) rs.getObject("issue_iid"));
+          fact.setIssueIid(nullableLong(rs, "issue_iid"));
           fact.setTitle(defaultText(rs.getString("title")));
           fact.setProjectName(defaultText(rs.getString("project_name")));
           fact.setModuleNames(defaultText(rs.getString("module_names")));
@@ -571,7 +571,7 @@ public class FactBuildService {
           fact.setProjectId(rs.getLong("project_id"));
           fact.setProjectName(defaultText(rs.getString("project_name")));
           fact.setIssueId(rs.getLong("issue_id"));
-          fact.setIssueIid((Long) rs.getObject("issue_iid"));
+          fact.setIssueIid(nullableLong(rs, "issue_iid"));
           fact.setTitle(defaultText(rs.getString("title")));
           fact.setIssueState(defaultText(rs.getString("issue_state")));
           fact.setIssueType(defaultText(rs.getString("issue_type")));
@@ -1062,6 +1062,11 @@ public class FactBuildService {
 
   private LocalDateTime toLocalDateTime(Timestamp timestamp) {
     return timestamp == null ? null : timestamp.toLocalDateTime();
+  }
+
+  private Long nullableLong(ResultSet rs, String columnName) throws SQLException {
+    Object value = rs.getObject(columnName);
+    return value instanceof Number number ? number.longValue() : null;
   }
 
   private List<String> readTextArray(Array array) throws SQLException {

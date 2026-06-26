@@ -42,6 +42,31 @@ class ReviewDataFilterOptionServiceTest {
     verify(persistenceSupport).loadRecordsForFilterOptions();
   }
 
+  @Test
+  void shouldIncludeMirrorOptionsForCreatingReviewsEvenWhenRecordsDoNotReferenceThem() {
+    ReviewDataFilterOptionService service = new ReviewDataFilterOptionService(persistenceSupport, mirrorOptionRepository);
+    when(persistenceSupport.loadRecordsForFilterOptions())
+        .thenReturn(List.of(record("ImportedProject", "ImportedModule", "ImportedOwner", "ImportedVersion")));
+    when(persistenceSupport.loadExpertOptions()).thenReturn(List.of("ImportedExpert"));
+    when(mirrorOptionRepository.loadProjectNames()).thenReturn(List.of("MirrorProject"));
+    when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of("MirrorModule"));
+    when(mirrorOptionRepository.loadUserNames()).thenReturn(List.of("MirrorUser"));
+    when(mirrorOptionRepository.loadMilestoneTitles()).thenReturn(List.of("MirrorMilestone"));
+
+    var options = service.getFilterOptions();
+
+    assertThat(options.projectNames().stream().map(option -> option.value()).toList())
+        .containsExactly("MirrorProject", "ImportedProject");
+    assertThat(options.moduleNames().stream().map(option -> option.value()).toList())
+        .containsExactly("MirrorModule", "ImportedModule");
+    assertThat(options.reviewOwners().stream().map(option -> option.value()).toList())
+        .containsExactly("MirrorUser", "ImportedOwner");
+    assertThat(options.reviewExperts().stream().map(option -> option.value()).toList())
+        .containsExactly("MirrorUser", "ImportedExpert");
+    assertThat(options.reviewVersions().stream().map(option -> option.value()).toList())
+        .containsExactly("MirrorMilestone", "ImportedVersion");
+  }
+
   private ReviewDataRecordRowResponse record(
       String projectName, String moduleName, String reviewOwner, String reviewVersion) {
     return new ReviewDataRecordRowResponse(
