@@ -2,6 +2,7 @@ package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.CustomerIssuePhaseSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.TextQuerySupport;
 import java.util.ArrayList;
@@ -102,35 +103,16 @@ final class CustomerIssueTestingPhaseFilterSupport {
     boolean allowedParent = value == null || containsIgnoreCase(enabledParentNames, value);
     return switch (condition.operator()) {
       case "eq" -> value == null || (allowedParent
-          && (matchesSelectedPhase(milestone, value, phaseScopeResolver)
-              || matchesSelectedPhase(phase, value, phaseScopeResolver)));
+          && CustomerIssuePhaseSupport.matchesSelectedPhase(milestone, phase, value, phaseScopeResolver));
       case "ne" -> value == null && phase == null && milestone == null
           || !allowedParent
-          || (!matchesSelectedPhase(milestone, value, phaseScopeResolver)
-              && !matchesSelectedPhase(phase, value, phaseScopeResolver));
+          || !CustomerIssuePhaseSupport.matchesSelectedPhase(milestone, phase, value, phaseScopeResolver);
       case "contains" -> value == null || (allowedParent
           && (containsIgnoreCase(milestone, value) || containsIgnoreCase(phase, value)));
       case "isEmpty" -> !StringUtils.hasText(milestone) && !StringUtils.hasText(phase);
       case "isNotEmpty" -> StringUtils.hasText(milestone) || StringUtils.hasText(phase);
       default -> true;
     };
-  }
-
-  private static boolean matchesSelectedPhase(
-      String candidatePhase,
-      String selectedParent,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
-    if (selectedParent == null) {
-      return true;
-    }
-    if (!StringUtils.hasText(candidatePhase)) {
-      return false;
-    }
-    if (equalsIgnoreCase(candidatePhase, selectedParent)) {
-      return true;
-    }
-    return phaseScopeResolver != null
-        && phaseScopeResolver.matchesLegacyCrownCadPhase(candidatePhase, selectedParent);
   }
 
   private static boolean equalsIgnoreCase(String left, String right) {

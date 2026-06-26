@@ -106,6 +106,17 @@ const currentDataScopeSummary = computed(() =>
   dataScope.summary.value ? `${dataScope.summary.value.label}：${dataScope.summary.value.value}` : '',
 );
 const currentDataScopeLoading = computed(() => dataScopeConfig.value?.loading.value ?? false);
+const routeScopeReady = computed(() => {
+  const provider = dataScopeConfig.value?.provider;
+  if (!provider || provider.defaultStrategy !== 'first-available') {
+    return true;
+  }
+  const options = dataScopeConfig.value?.options.value ?? [];
+  if (!options.length) {
+    return Boolean(dataScopeConfig.value?.loaded.value);
+  }
+  return String(route.query[provider.queryKey] ?? '').trim() !== '';
+});
 
 const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup());
 const {
@@ -537,9 +548,14 @@ watch(
 );
 
 watch(
-  () => route.query,
+  () => [route.query, routeScopeReady.value] as const,
   async (nextQuery, previousQuery) => {
-    if (previousQuery && hasOnlyPresentationQueryChanges(nextQuery, previousQuery)) {
+    if (!routeScopeReady.value) {
+      return;
+    }
+    const nextRouteQuery = nextQuery[0];
+    const previousRouteQuery = previousQuery?.[0];
+    if (previousRouteQuery && hasOnlyPresentationQueryChanges(nextRouteQuery, previousRouteQuery)) {
       syncTablePaginationFromRoute();
       syncDetailFromRoute(route.query, board.value?.rows ?? [], board.value?.definition.defaultPageSize ?? 10);
       return;

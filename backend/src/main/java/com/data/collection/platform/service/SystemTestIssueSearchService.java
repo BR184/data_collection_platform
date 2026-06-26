@@ -86,8 +86,9 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         SystemTestPhaseFilterGroupExpander.expand(parsedFilterGroup, phaseScopeResolver);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
-    List<String> resolvedTestingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(request.testingPhases());
-    if (!request.testingPhases().isEmpty() && resolvedTestingPhases.isEmpty()) {
+    List<String> requestedTestingPhases = effectiveTestingPhases(request.testingPhases());
+    List<String> resolvedTestingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(requestedTestingPhases);
+    if (!requestedTestingPhases.isEmpty() && resolvedTestingPhases.isEmpty()) {
       return new SystemTestIssueSearchListResponse(
           List.of(), 0, safePage, safeSize, safeSortField, safeSortOrder);
     }
@@ -129,7 +130,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
             .filter(view -> !view.excluded())
-            .filter(view -> matchesTestingPhase(view, request.testingPhases()))
+            .filter(view -> matchesTestingPhase(view, requestedTestingPhases))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
             .filter(view -> matchesFunctionName(view, listRequest.functionName()))
@@ -475,6 +476,16 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
 
   private boolean matchesTestingPhase(IssueFactRecord view, List<String> testingPhases) {
     return phaseScopeResolver.matchesLegacyCrownCadPhases(view.primaryPhaseLabel(), testingPhases);
+  }
+
+  private List<String> effectiveTestingPhases(List<String> requestedTestingPhases) {
+    if (requestedTestingPhases != null && !requestedTestingPhases.isEmpty()) {
+      return requestedTestingPhases;
+    }
+    return phaseCatalogService.listParentNames(LEGACY_CROWN_CAD_PROJECT_ID).stream()
+        .findFirst()
+        .map(List::of)
+        .orElse(List.of());
   }
 
   private boolean matchesFunctionName(IssueFactRecord view, String functionName) {

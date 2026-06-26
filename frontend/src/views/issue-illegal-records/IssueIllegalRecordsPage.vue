@@ -56,14 +56,26 @@ const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
 const singleRecordRefreshingKey = ref<string | null>(null);
+const primaryDefaultPatchInFlight = ref(false);
 const projectId = computed(() => String(route.query.projectId ?? ''));
-const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
 const filterOptions = ref({ ...props.initialFilterOptions });
 const canRefreshLatestData = computed(
   () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
 );
 const primaryFilters = computed(() => props.buildPrimaryFilters?.(filterOptions.value) ?? []);
 const primaryFilterKeys = computed(() => new Set(primaryFilters.value.map((field) => field.key)));
+const primaryFilterDefaultsReady = computed(() =>
+  primaryFilters.value.every((field) => {
+    if (field.defaultStrategy !== 'first-available') {
+      return true;
+    }
+    if (String(route.query[field.key] ?? '').trim()) {
+      return true;
+    }
+    return !field.options?.some((option) => option.value) && filterOptionsLoaded.value;
+  }),
+);
+const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value && primaryFilterDefaultsReady.value);
 const primaryFilterValues = computed<Record<string, unknown>>(() =>
   primaryFilters.value.reduce<Record<string, unknown>>((values, field) => {
     values[field.key] = route.query[field.key] ?? '';
@@ -108,23 +120,13 @@ useDataScope({
 
 watch(
   [primaryFilters, () => route.query],
-  async ([fields]) => {
-    const patch: Record<string, string | number> = {};
-    for (const field of fields) {
-      if (field.defaultStrategy !== 'first-available') {
-        continue;
-      }
-      const currentValue = String(route.query[field.key] ?? '').trim();
-      if (currentValue) {
-        continue;
-      }
-      const fallback = field.options?.find((option) => option.value)?.value ?? '';
-      if (fallback) {
-        patch[field.key] = fallback;
-      }
+  async () => {
+    if (!filterOptionsLoaded.value || primaryDefaultPatchInFlight.value) {
+      return;
     }
-    if (Object.keys(patch).length) {
-      await patchQuery({ page: 1, ...patch });
+    const patchedDefault = await applyPrimaryFilterDefaults();
+    if (patchedDefault) {
+      await loadCurrentPage();
     }
   },
   { immediate: true, deep: true },
@@ -225,6 +227,43 @@ async function loadTableData() {
   const response = await props.loadRecords(buildCurrentQueryParams(true));
   rows.value = response.records;
   total.value = response.total;
+}
+
+async function applyPrimaryFilterDefaults() {
+  if (!filterOptionsLoaded.value || primaryDefaultPatchInFlight.value) {
+    return false;
+  }
+  const patch: Record<string, string | number> = {};
+  for (const field of primaryFilters.value) {
+    if (field.defaultStrategy !== 'first-available') {
+      continue;
+    }
+    const currentValue = String(route.query[field.key] ?? '').trim();
+    if (currentValue) {
+      continue;
+    }
+    const fallback = field.options?.find((option) => option.value)?.value ?? '';
+    if (fallback) {
+      patch[field.key] = fallback;
+    }
+  }
+  if (!Object.keys(patch).length) {
+    return false;
+  }
+  primaryDefaultPatchInFlight.value = true;
+  try {
+    await patchQuery({ page: 1, ...patch });
+  } finally {
+    primaryDefaultPatchInFlight.value = false;
+  }
+  return true;
+}
+
+async function loadCurrentPage() {
+  initializeFromQuery(route.query);
+  await loadTableData();
+  await loadRealtimeStatus();
+  pageInitialized.value = true;
 }
 
 function buildCurrentQueryParams(includePagination: boolean) {
@@ -332,11 +371,17 @@ function sleep(ms: number) {
 }
 
 bindLoader(async () => {
+  if (!filterOptionsLoaded.value) {
+    return;
+  }
+  if (primaryDefaultPatchInFlight.value) {
+    return;
+  }
+  if (!primaryFilterDefaultsReady.value) {
+    return;
+  }
   try {
-    initializeFromQuery(route.query);
-    await loadTableData();
-    await loadRealtimeStatus();
-    pageInitialized.value = true;
+    await loadCurrentPage();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : `${props.title}加载失败`);
     rows.value = [];
@@ -348,13 +393,20 @@ bindLoader(async () => {
 watch(
   projectId,
   async () => {
+    filterOptionsLoaded.value = false;
+    pageInitialized.value = false;
     resetRuleExplanation();
     try {
       await loadFilterOptions();
       filterOptionsLoaded.value = true;
+      const patchedDefault = await applyPrimaryFilterDefaults();
+      if ((patchedDefault || primaryFilterDefaultsReady.value)) {
+        await loadCurrentPage();
+      }
     } catch (error) {
       ElMessage.error(error instanceof Error ? error.message : `${props.title}筛选项加载失败`);
       filterOptionsLoaded.value = true;
+      pageInitialized.value = true;
     }
   },
   { immediate: true },

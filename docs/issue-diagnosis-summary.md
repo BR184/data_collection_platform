@@ -188,6 +188,17 @@ select source_instance,
 - `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunTableTaskExecutor.java`
 - `backend/src/main/java/com/data/collection/platform/service/GitlabSourceScanSqlBuilder.java`
 - `backend/src/test/java/com/data/collection/platform/service/GitlabExternalDbServiceTest.java`
+- `backend/src/main/java/com/data/collection/platform/service/RealtimeIncrementalRefreshService.java`
+- `backend/src/main/java/com/data/collection/platform/service/IssueFactRealtimeRefreshService.java`
+- `backend/src/main/java/com/data/collection/platform/service/MergeRequestFactRealtimeRefreshService.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/IssueFactBoardRuntimeSupport.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/SystemTestDefectCauseBoardService.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/SystemTestPhaseStatisticsBoardService.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/SystemTestDelayAnalysisBoardService.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/CustomerIssueDefectCauseBoardService.java`
+- `backend/src/main/java/com/data/collection/platform/service/CodeReviewIllegalRecordService.java`
+- `backend/src/main/java/com/data/collection/platform/service/sync/SyncRunSubmissionService.java`
+- `backend/src/main/java/com/data/collection/platform/service/GitlabCompensationScheduler.java`
 
 行为变化：
 
@@ -196,14 +207,55 @@ select source_instance,
 3. 无历史游标的增量首批扫描使用 `updated_at > watermark`，避免历史边界行反复被拉取。
 4. 增量扫描 SQL 保留 `updated_at` 微秒精度，避免把水位截断到秒后扩大扫描窗口。
 5. 已排队但没有 cursor 的旧任务，执行时会从当前表状态补 cursor，降低增量更新包部署后的旧任务风险。
+6. 业务页面“刷新最新数据”不再同步刷新原始镜像表并立刻重建事实表，而是提交/复用一次手动增量同步；事实刷新由同步完成监听器统一触发，页面状态显示为镜像同步已提交、事实层排队等待。
+7. 被已有同步吸收的请求不再插入 `MERGED` 运行记录，避免“没有执行但历史里多出一个同步单元”的状态污染。
+8. 普通定时自动同步已改为提交 `INCREMENTAL_SYNC`；凌晨 2 点全量补偿对账仍保持 `FULL_COMPENSATION_SCAN`，两类任务在运行类型上区分。
 
-## 暂未在本次修复中处理的项
+## 本次已落地的页面口径修正
 
-这些原因已经确认，但本次只修正同步水位边界：
+已修改：
 
-- 统计看板全量加载导致的 15 秒超时和接近 15 秒慢加载，需要改成 SQL 聚合、服务端分页明细或缓存快照。
-- 系统测试缺陷汇总首屏抖动，需要阻止必选数据范围默认值落定前的首次请求，或让后端缺少必选阶段时返回空状态而不是总计 0。
-- 默认测试阶段策略需要统一修正：系统测试和客户问题相关页面应对齐老平台默认阶段，前端显示、URL、后端补默认、导出和下钻必须一致；客户问题页不能前端显示“全部测试阶段”而后端静默补第一阶段，也不能直接套用与 CC_Product 里程碑不匹配的系统测试父级。
-- 系统测试非法数据和议题查询需要统一系统测试记录页范围口径。
-- 代码走查少 6000 条需要内网按字段核验后，再修正 `merge_request_fact` 字段映射或非法 SQL 谓词。
-- 同步合并编排还需要按目标模型调整：被吸收请求不再创建 `MERGED` run；普通自动同步和凌晨全量补偿的 run type、文案和优先级需要统一确认。
+- `frontend/src/composables/statistic-board-data-scopes.ts`
+- `frontend/src/components/StatisticBoardView.vue`
+- `frontend/src/composables/usePageAutoRefreshPreference.ts`
+- `frontend/src/composables/usePageAutoRefreshPreference.test.ts`
+- `frontend/src/views/CustomerIssueIllegalRecordsView.vue`
+- `frontend/src/views/issue-illegal-records/IssueIllegalRecordsPage.vue`
+- `frontend/src/views/SystemTestIssueSearchView.vue`
+- `backend/src/main/java/com/data/collection/platform/service/CustomerIssueIllegalRecordService.java`
+- `backend/src/main/java/com/data/collection/platform/service/CustomerIssuePhaseSupport.java`
+- `backend/src/main/java/com/data/collection/platform/service/SystemTestIllegalRecordService.java`
+- `backend/src/main/java/com/data/collection/platform/service/SystemTestIssueSearchService.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/CustomerIssueTestingPhaseFilterSupport.java`
+- `backend/src/main/java/com/data/collection/platform/service/CodeReviewIllegalRuleRegistry.java`
+- `backend/src/main/java/com/data/collection/platform/service/CodeReviewIllegalRecordSqlSupport.java`
+
+行为变化：
+
+1. 系统测试和客户问题相关页面默认阶段统一走第一可用启用父级阶段，前端控件不再显示“全部测试阶段”作为默认范围。
+2. 统计看板会等待 `first-available` 默认阶段写入 URL 后再请求数据，避免系统测试缺陷汇总首屏先出现“总计 0”再二次刷新成真实数据。
+3. 系统测试非法数据改回记录列表口径：默认项目 `9`，默认第一可用父级阶段，按阶段定义展开后匹配事实层 `testing_phase`，不再用 `Scope.SYSTEM_TEST` 的宽泛标签命中范围扩大数据。
+4. 系统测试议题查询在无阶段参数时也补第一可用父级阶段，前端显示、URL、接口查询和导出入口保持同一默认范围。
+5. 客户问题阶段匹配增加版本键兼容，`2026R3`、`CC2026R3`、`CrownCAD 2026R3` 这类里程碑/阶段值可命中同一个父级阶段；记录页和统计页共用 `CustomerIssuePhaseSupport`，避免 CC_Product 有模块但被默认阶段过滤成空表。
+6. 代码走查 `GitLab 接口报错` 判断兼容有空格和无空格文案，并把扫描状态、目标分支、负责人、审查人、指派人展示字段都纳入判断，降低老平台非法样本漏判。
+7. 事实增量构建遇到旧事实缺少搜索索引/阶段派生字段时，先按小批量修补索引，再用 `max(ods_updated_at)` 计算增量边界，不再直接退化成全量事实重建。
+8. 页面“进入页面自动刷新最新数据”的默认偏好改为关闭；用户显式打开后才会在进页时触发刷新，避免普通打开统计看板就创建同步 run。
+
+## 本地烟测和真实链路验证
+
+本地默认 `qaflex` 库存在 Flyway 历史漂移，因此本次用隔离库 `qaflex_smoke_20260626` 验证，不修改原库。烟测数据包含系统测试 `1001/1002/1003`、客户问题 `31095` 和代码走查 MR `29874`。
+
+已验证：
+
+1. 后端 `mvn -q -DskipTests compile` 通过。
+2. 前端 `npm.cmd run typecheck` 通过。
+3. 系统测试非法数据进入页面后 URL 和列表请求均带 `testingPhase=CC2026R3`，能看到 `1001`，不会包含 `CC2026R4` 的 `1002`。
+4. 客户问题非法数据进入页面后 URL 和列表请求均带 `testingPhase=CC2026R3`，能看到 `31095`，模块显示为 `平台`。
+5. 系统测试议题阶段统计进入页面后 URL 带 `testingPhase=CC2026R3`，接口返回第一轮系统测试非 0 总计，且浏览器请求中没有自动 `/refresh`。
+6. 代码走查非法数据能命中 MR `29874` 的 `GitLab 接口报错`。
+
+## 仍需真实内网验证或后续专项优化的项
+
+- 统计看板主接口仍是“查询事实 -> Java 聚合 -> 明细分页切片”的结构。本次已通过默认阶段对齐和刷新链路瘦身降低触发大范围查询的概率，但要稳定解决大数据量下 15 秒超时，仍需要后续把主要聚合前推到 SQL、增加统计快照或缓存。
+- 代码走查非法数据少约 6000 条已补充 GitLab 报错谓词和字段覆盖，但还需要在内网用缺失样本核验 `review_exception_reason / scan_status / bug_count_result / annotation_rate_result` 等事实字段，确认是否还有老平台字段映射差异。
+- 客户问题模块默认阶段兼容了版本键匹配，但最终仍依赖内网阶段定义和 CC_Product 里程碑命名；若业务里程碑不是版本格式，需要在阶段定义或客户问题里程碑映射规则中补正式配置入口，不能在页面写死特殊值。

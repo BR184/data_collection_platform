@@ -19,12 +19,11 @@ import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
-import com.data.collection.platform.service.FactBuildService;
-import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
+import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
@@ -92,9 +91,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
               StatisticIssueDetailColumns.assignee("议题处理人", 140)),
           List.of(StatisticIssueDetailColumns.createdAt()));
 
-  private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
-  private final FactBuildService factBuildService;
+  private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
@@ -102,17 +100,15 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
-      GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
-      FactBuildService factBuildService,
+      RealtimeIncrementalRefreshService realtimeIncrementalRefreshService,
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
       SystemTestPhaseScopeResolver phaseScopeResolver) {
     super(jsonUtils);
-    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
-    this.factBuildService = factBuildService;
+    this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
     this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
@@ -242,7 +238,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
 
   @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
-    return realtimeWorkspaceService.requestRefresh(BOARD_KEY, this::refreshMirrorForRealtimeView);
+    return realtimeWorkspaceService.requestRefreshWithResult(BOARD_KEY, this::refreshMirrorForRealtimeView);
   }
 
   @Override
@@ -500,13 +496,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     }
   }
 
-  private void refreshMirrorForRealtimeView() {
-    try {
-      gitlabMirrorSyncService.refreshTablesOnDemand(REALTIME_REFRESH_TABLES, BOARD_KEY);
-      factBuildService.rebuildIssueFacts(false);
-    } catch (Exception e) {
-      log.warn("On-demand mirror refresh for {} failed", BOARD_KEY, e);
-    }
+  private com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }
 
   private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters, SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate) {

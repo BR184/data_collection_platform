@@ -1,6 +1,5 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import java.util.List;
@@ -20,17 +19,14 @@ public class MergeRequestFactRealtimeRefreshService {
           "namespaces",
           "users");
 
-  private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
-  private final FactBuildService factBuildService;
+  private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
 
   public MergeRequestFactRealtimeRefreshService(
-      GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
-      FactBuildService factBuildService) {
-    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
+      RealtimeIncrementalRefreshService realtimeIncrementalRefreshService) {
     this.realtimeWorkspaceService = realtimeWorkspaceService;
-    this.factBuildService = factBuildService;
+    this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
   }
 
   public RealtimeWorkspaceStatusResponse getStatus(String workspaceKey) {
@@ -41,19 +37,9 @@ public class MergeRequestFactRealtimeRefreshService {
     return realtimeWorkspaceService.requestRefreshWithResult(
         workspaceKey,
         () -> {
-          GitlabMirrorSyncService.OnDemandRefreshResult mirrorResult =
-              gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
-                  REALTIME_REFRESH_TABLES, workspaceKey);
-          FactBuildResponse factResult = factBuildService.rebuildMergeRequestFacts(false);
-          return new RealtimeWorkspaceRefreshResult(
-              mirrorResult.jobId(),
-              mirrorResult.sourceTables(),
-              mirrorResult.plannedTasks(),
-              mirrorResult.unsupportedTables(),
-              true,
-              mirrorResult.status().name(),
-              "SUCCESS",
-              factResult.message());
+          RealtimeWorkspaceRefreshResult result =
+              realtimeIncrementalRefreshService.requestIncrementalRefresh(workspaceKey, REALTIME_REFRESH_TABLES);
+          return result;
         });
   }
 }

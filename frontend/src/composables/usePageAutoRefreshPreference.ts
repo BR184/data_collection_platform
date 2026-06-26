@@ -21,7 +21,7 @@ function readStoredPreference(scopeKey?: string) {
   if (scopedValue != null) {
     return scopedValue !== 'false';
   }
-  return window.localStorage.getItem(STORAGE_KEY) !== 'false';
+  return window.localStorage.getItem(STORAGE_KEY) === 'true';
 }
 
 export function usePageAutoRefreshPreference(scopeKey?: ScopeKeySource) {

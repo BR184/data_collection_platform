@@ -473,10 +473,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     if (normalized == null) {
       return true;
     }
-    if (TextQuerySupport.equalsNormalized(view.milestoneTitle(), normalized)) {
-      return true;
-    }
-    return phaseScopeResolver.matchesLegacyCrownCadPhase(CustomerIssuePhaseSupport.displayPhase(view), normalized);
+    return CustomerIssuePhaseSupport.matchesSelectedPhase(
+        view.milestoneTitle(), view.primaryPhaseLabel(), normalized, phaseScopeResolver);
   }
 
   private boolean hasSupportedCustomerIllegalReason(IssueFactRecord view) {

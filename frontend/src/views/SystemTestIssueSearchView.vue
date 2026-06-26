@@ -62,6 +62,10 @@ const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   categories: [],
   milestoneTitles: [],
 });
+const testingPhaseDefaultReady = computed(() =>
+  parseMultiQueryValue(route.query.testingPhase).length > 0
+    || Boolean(filterOptions.value.testingPhases.find((option) => option.value)),
+);
 const conditionFilterFields = computed<StatisticFilterField[]>(() =>
   buildSystemTestIssueSearchConditionFields(filterOptions.value),
 );
@@ -181,7 +185,8 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     key: 'testingPhase',
     label: '测试阶段',
     type: 'select',
-    multiple: true,
+    defaultStrategy: 'first-available',
+    clearable: false,
     width: 280,
     options: filterOptions.value.testingPhases,
   },
@@ -278,6 +283,16 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 bindLoader(async () => {
   try {
     await Promise.all([loadFilterOptions(), loadSyncStatus()]);
+    if (!parseMultiQueryValue(route.query.testingPhase).length) {
+      const fallback = filterOptions.value.testingPhases.find((option) => option.value)?.value ?? '';
+      if (fallback) {
+        await patchQuery({ page: 1, testingPhase: fallback });
+        return;
+      }
+    }
+    if (!testingPhaseDefaultReady.value) {
+      return;
+    }
     initializeFromQuery(route.query);
     await loadTableData();
   } catch (error) {

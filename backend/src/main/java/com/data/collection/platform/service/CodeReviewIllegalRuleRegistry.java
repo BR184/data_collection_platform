@@ -22,6 +22,7 @@ final class CodeReviewIllegalRuleRegistry {
   static final String SCAN_FAILED_LABEL = "静态扫描失败";
   static final String CLANG_RESULT_FALSE_LABEL = "注释率分析工具Clang分析错误";
   static final String GITLAB_ERROR_LABEL = "GitLab 接口报错";
+  private static final Set<String> GITLAB_ERROR_VALUES = Set.of(GITLAB_ERROR_LABEL, "GitLab接口报错");
   static final List<String> LEGACY_REVIEW_EXCEPTION_REASONS =
       List.of("没有合法评论", "代码走查时间或缺陷数异常", "代码走查标题异常", "代码走查记录行数异常");
 
@@ -76,10 +77,11 @@ final class CodeReviewIllegalRuleRegistry {
               "gitlab-error",
               GITLAB_ERROR_LABEL,
               source ->
-                  GITLAB_ERROR_LABEL.equals(source.scanStatus())
-                      || GITLAB_ERROR_LABEL.equals(source.targetBranch())
-                      || GITLAB_ERROR_LABEL.equals(source.owner())
-                      || GITLAB_ERROR_LABEL.equals(source.reviewerNames())));
+                  isGitlabError(source.scanStatus())
+                      || isGitlabError(source.targetBranch())
+                      || isGitlabError(source.owner())
+                      || isGitlabError(source.reviewerNames())
+                      || isGitlabError(source.assigneeNames())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =
       List.of(
@@ -183,5 +185,10 @@ final class CodeReviewIllegalRuleRegistry {
   static boolean includesClangInDefaultIllegal(String source) {
     String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
     return !("cc".equals(normalized) || GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(normalized));
+  }
+
+  static boolean isGitlabError(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    return normalized != null && GITLAB_ERROR_VALUES.contains(normalized);
   }
 }

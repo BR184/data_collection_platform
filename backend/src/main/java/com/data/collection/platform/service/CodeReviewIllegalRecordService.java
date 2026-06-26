@@ -7,7 +7,6 @@ import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
 import com.data.collection.platform.entity.CodeReviewRuleConfig;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewSample;
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
@@ -111,23 +110,23 @@ public class CodeReviewIllegalRecordService {
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL, CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL, CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL));
 
-  private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
+  private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   private final FactBuildService factBuildService;
   private final CodeReviewIllegalRecordSourceLoader sourceLoader;
   private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
 
   public CodeReviewIllegalRecordService(
-      GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
+      RealtimeIncrementalRefreshService realtimeIncrementalRefreshService,
       FactBuildService factBuildService,
       CodeReviewIllegalRecordSourceLoader sourceLoader,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties) {
-    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
+    this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
     this.factBuildService = factBuildService;
     this.sourceLoader = sourceLoader;
     this.issueLinkService = issueLinkService;
@@ -687,19 +686,7 @@ public class CodeReviewIllegalRecordService {
   }
 
   private RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
-    GitlabMirrorSyncService.OnDemandRefreshResult mirrorResult =
-        gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
-            REALTIME_REFRESH_TABLES, WORKSPACE_KEY);
-    FactBuildResponse factResult = factBuildService.rebuildMergeRequestFacts(false);
-    return new RealtimeWorkspaceRefreshResult(
-        mirrorResult.jobId(),
-        mirrorResult.sourceTables(),
-        mirrorResult.plannedTasks(),
-        mirrorResult.unsupportedTables(),
-        true,
-        mirrorResult.status().name(),
-        "SUCCESS",
-        factResult.message());
+    return realtimeIncrementalRefreshService.requestIncrementalRefresh(WORKSPACE_KEY, REALTIME_REFRESH_TABLES);
   }
 
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {

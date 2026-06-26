@@ -6,14 +6,14 @@ describe('usePageAutoRefreshPreference', () => {
     window.localStorage.clear();
   });
 
-  it('defaults to enabled and persists user changes', () => {
+  it('defaults to disabled and persists user changes', () => {
     const first = usePageAutoRefreshPreference();
-    expect(first.autoRefreshOnEnter.value).toBe(true);
-
-    first.toggleAutoRefreshOnEnter();
     expect(first.autoRefreshOnEnter.value).toBe(false);
 
+    first.toggleAutoRefreshOnEnter();
+    expect(first.autoRefreshOnEnter.value).toBe(true);
+
     const second = usePageAutoRefreshPreference();
-    expect(second.autoRefreshOnEnter.value).toBe(false);
+    expect(second.autoRefreshOnEnter.value).toBe(true);
   });
 });

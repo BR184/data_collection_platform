@@ -334,12 +334,14 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String gitlabErrorPredicate() {
+    String values = "('GitLab 接口报错', 'GitLab接口报错')";
     return String.join(
         " or ",
-        "scan_status = 'GitLab 接口报错'",
-        "target_branch = 'GitLab 接口报错'",
-        "owner_name = 'GitLab 接口报错'",
-        "reviewer_names = 'GitLab 接口报错'");
+        "scan_status in " + values,
+        "target_branch in " + values,
+        "owner_name in " + values,
+        "reviewer_names in " + values,
+        "assignee_names in " + values);
   }
 
   private static SqlPredicate truePredicate() {

@@ -10,6 +10,7 @@ export interface StatisticBoardDataScopeConfig {
   provider: DataScopeProvider;
   options: Ref<DataScopeOption[]>;
   loading: Ref<boolean>;
+  loaded: Ref<boolean>;
 }
 
 const SYSTEM_TEST_BOARD_KEYS = new Set([
@@ -57,10 +58,9 @@ const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
   label: '测试阶段',
   queryKey: 'testingPhase',
   mode: 'single-select',
-  placeholder: '全部测试阶段',
-  emptyLabel: '全部测试阶段',
-  defaultStrategy: 'empty',
-  clearable: true,
+  placeholder: '选择测试阶段',
+  defaultStrategy: 'first-available',
+  clearable: false,
   compact: true,
   dropdownLayout: 'list',
   summaryPrefix: '当前测试阶段',
@@ -79,6 +79,7 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
         provider: CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER,
         options: parentOptions,
         loading,
+        loaded,
       };
     }
     if (!SYSTEM_TEST_BOARD_KEYS.has(boardKey.value)) {
@@ -89,12 +90,14 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
         provider: SYSTEM_TEST_PARENT_SCOPE_PROVIDER,
         options: parentOptions,
         loading,
+        loaded,
       };
     }
     return {
       provider: SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER,
       options: phaseTreeOptions,
       loading,
+      loaded,
     };
   });
 

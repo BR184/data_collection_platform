@@ -36,7 +36,7 @@
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
 | `docs/frontend-record-page-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |
-| `docs/issue-diagnosis-summary.md` | 当前诊断总结 / 待后续修复 | 2026-06-26 内网测试问题根因同步入口，记录客户问题空表、系统测试差异、默认测试阶段未对齐、统计超时/慢加载页面清单、系统测试缺陷汇总首屏抖动、同步水位偏移、同步合并差距和代码走查 MR 29874 纠正结论。 |
+| `docs/issue-diagnosis-summary.md` | 当前诊断总结 / 已实施，待内网验证与性能专项 | 2026-06-26 内网测试问题根因同步入口，记录客户问题空表、系统测试差异、默认测试阶段未对齐、统计超时/慢加载页面清单、系统测试缺陷汇总首屏抖动、同步水位偏移、同步合并差距和代码走查 MR 29874 纠正结论；本轮已落地默认阶段、记录页口径、页面刷新增量化、事实增量退化保护和同步合并修正，统计看板 SQL 聚合/缓存与代码走查内网样本核验仍为后续专项。 |
 | `docs/platform-page-business-rules.md` | 常驻业务规则 | 数据采集平台所有页面、统计口径、筛选、导出、下钻和规则说明的统一业务规则总表；页面开发必须先读。 |
 | `docs/intranet-offline-packaging-standard.md` | 常驻发布标准 | 定义内网离线发布包的固定结构、拓扑、镜像标签与验收清单。 |
 | `docs/gitlab-direct-sync-system-hook-runbook.md` | 遗留 Runbook / 待降级 | System Hook 仍有历史运维价值，但实时主路径已倾向增量补偿；后续应降级或归档。 |

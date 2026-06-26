@@ -72,7 +72,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
-                  IssueFactRecordPageQuery.Scope.SYSTEM_TEST,
+                  IssueFactRecordPageQuery.Scope.ALL,
                   listRequest,
                   filterGroup,
                   null,
@@ -417,7 +417,10 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     if (normalized != null) {
       return phaseScopeResolver.resolveLegacyCrownCadPhases(normalized);
     }
-    return phaseScopeResolver.resolveLegacyCrownCadPhases(phaseScopeOptions());
+    return phaseScopeOptions().stream()
+        .findFirst()
+        .map(phaseScopeResolver::resolveLegacyCrownCadPhases)
+        .orElse(List.of());
   }
 
   private List<String> phaseScopeOptions() {

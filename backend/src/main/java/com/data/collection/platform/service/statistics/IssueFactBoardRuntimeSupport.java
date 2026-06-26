@@ -1,12 +1,10 @@
 package com.data.collection.platform.service.statistics;
 
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
-import com.data.collection.platform.service.FactBuildService;
-import com.data.collection.platform.service.GitlabMirrorSyncService;
 import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
+import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -17,19 +15,16 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class IssueFactBoardRuntimeSupport {
   private final IssueFactRecordRepository issueFactRecordRepository;
-  private final GitlabMirrorSyncService gitlabMirrorSyncService;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
-  private final FactBuildService factBuildService;
+  private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
 
   public IssueFactBoardRuntimeSupport(
       IssueFactRecordRepository issueFactRecordRepository,
-      GitlabMirrorSyncService gitlabMirrorSyncService,
       RealtimeWorkspaceService realtimeWorkspaceService,
-      FactBuildService factBuildService) {
+      RealtimeIncrementalRefreshService realtimeIncrementalRefreshService) {
     this.issueFactRecordRepository = issueFactRecordRepository;
-    this.gitlabMirrorSyncService = gitlabMirrorSyncService;
     this.realtimeWorkspaceService = realtimeWorkspaceService;
-    this.factBuildService = factBuildService;
+    this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
   }
 
   public List<StatisticIssueFactSource> loadFacts(
@@ -56,18 +51,9 @@ public class IssueFactBoardRuntimeSupport {
     return realtimeWorkspaceService.requestRefreshWithResult(
         boardKey,
         () -> {
-          GitlabMirrorSyncService.OnDemandRefreshResult mirrorResult =
-              gitlabMirrorSyncService.refreshTablesOnDemandDetailed(realtimeRefreshTables, boardKey);
-          FactBuildResponse factResult = factBuildService.rebuildIssueFacts(false);
-          return new RealtimeWorkspaceRefreshResult(
-              mirrorResult.jobId(),
-              mirrorResult.sourceTables(),
-              mirrorResult.plannedTasks(),
-              mirrorResult.unsupportedTables(),
-              true,
-              mirrorResult.status().name(),
-              "SUCCESS",
-              factResult.message());
+          RealtimeWorkspaceRefreshResult result =
+              realtimeIncrementalRefreshService.requestIncrementalRefresh(boardKey, realtimeRefreshTables);
+          return result;
         });
   }
 }

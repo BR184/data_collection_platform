@@ -3,8 +3,6 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SyncTriggerType;
-import com.data.collection.platform.entity.SyncType;
-import com.data.collection.platform.entity.sync.SyncRunType;
 import com.data.collection.platform.service.sync.SyncRunSubmissionService;
 import java.time.Clock;
 import java.time.Duration;
@@ -12,7 +10,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -66,14 +63,10 @@ public class GitlabCompensationScheduler {
             config.getSourceInstance());
         continue;
       }
-      submissionService.submitRun(
+      submissionService.submitIncrementalSync(
           config,
-          SyncType.COMPENSATION,
-          SyncRunType.COMPENSATION_SCAN,
           SyncTriggerType.SCHEDULE,
-          "Scheduled compensation scan",
-          List.of(),
-          null);
+          "Scheduled incremental sync");
     }
   }
 

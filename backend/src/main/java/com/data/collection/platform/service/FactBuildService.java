@@ -36,6 +36,7 @@ public class FactBuildService {
   private static final String DEFAULT_SOURCE_INSTANCE = "default";
   private static final String MIRROR_INGEST_CHANNEL = "MIRROR";
   private static final int FACT_BATCH_SIZE = 200;
+  private static final int SEARCH_INDEX_REPAIR_LIMIT = 1000;
 
   private final JdbcTemplate jdbcTemplate;
   private final IssueFactMapper issueFactMapper;
@@ -311,9 +312,9 @@ public class FactBuildService {
   }
 
   private LocalDateTime getIssueFactChangedSince(String sourceInstance) {
-    if (hasIssueFactsMissingSearchIndexes(sourceInstance)) {
-      log.info("Issue fact search indexes are missing on existing rows; next rebuild will refresh all issue facts");
-      return null;
+    int repaired = repairIssueFactSearchIndexes(sourceInstance);
+    if (repaired > 0) {
+      log.info("Repaired {} issue fact search index row(s) before incremental fact build", repaired);
     }
     return jdbcTemplate.queryForObject(
         """
@@ -328,10 +329,9 @@ public class FactBuildService {
   }
 
   private LocalDateTime getMergeRequestFactChangedSince(String sourceInstance) {
-    if (hasMergeRequestFactsMissingSearchIndexes(sourceInstance)) {
-      log.info(
-          "Merge request fact search indexes are missing on existing rows; next rebuild will refresh all merge request facts");
-      return null;
+    int repaired = repairMergeRequestFactSearchIndexes(sourceInstance);
+    if (repaired > 0) {
+      log.info("Repaired {} merge request fact search index row(s) before incremental fact build", repaired);
     }
     return jdbcTemplate.queryForObject(
         """
@@ -345,60 +345,154 @@ public class FactBuildService {
             sourceInstance);
   }
 
-  private boolean hasIssueFactsMissingSearchIndexes(String sourceInstance) {
-    Boolean result =
-        jdbcTemplate.queryForObject(
-            """
-            select exists (
-                select 1
-                  from issue_fact
-                 where source_system = ?
-                   and source_instance = ?
-                   and deleted = false
-                   and (
-                        search_text is null
-                     or search_compact is null
-                     or search_spell is null
-                     or search_initials is null
-                     or primary_phase_label is null
-                     or phase_filter_value is null
-                   )
-                 limit 1
-            )
-            """,
-            Boolean.class,
-            DEFAULT_SOURCE_SYSTEM,
-            sourceInstance);
-    return Boolean.TRUE.equals(result);
+  private int repairIssueFactSearchIndexes(String sourceInstance) {
+    int repaired = 0;
+    while (repaired < SEARCH_INDEX_REPAIR_LIMIT) {
+      int batchLimit = Math.min(FACT_BATCH_SIZE, SEARCH_INDEX_REPAIR_LIMIT - repaired);
+      List<IssueFact> batch = loadIssueFactsMissingSearchIndexes(sourceInstance, batchLimit);
+      if (batch.isEmpty()) {
+        return repaired;
+      }
+      refreshIssueFactSearchIndexes(batch);
+      repaired += batch.size();
+      if (batch.size() < batchLimit) {
+        return repaired;
+      }
+    }
+    return repaired;
   }
 
-  private boolean hasMergeRequestFactsMissingSearchIndexes(String sourceInstance) {
-    Boolean result =
-        jdbcTemplate.queryForObject(
-            """
-            select exists (
-                select 1
-                  from merge_request_fact
-                 where source_system = ?
-                   and source_instance = ?
-                   and deleted = false
-                   and (
-                        search_text is null
-                     or search_compact is null
-                     or search_spell is null
-                     or search_initials is null
-                     or owner_search_text is null
-                     or owner_search_compact is null
-                     or owner_search_spell is null
-                     or owner_search_initials is null
-                   )
-                 limit 1
-            )
+  private List<IssueFact> loadIssueFactsMissingSearchIndexes(String sourceInstance, int limit) {
+    return jdbcTemplate.query(
+        """
+            select source_system,
+                   source_instance,
+                   project_id,
+                   issue_id,
+                   issue_iid,
+                   title,
+                   project_name,
+                   module_names,
+                   testing_phase,
+                   system_test_label,
+                   label_names,
+                   reason_category,
+                   illegal_reason,
+                   author_name,
+                   assignee_name,
+                   bug_status,
+                   category,
+                   milestone_title
+              from issue_fact
+             where source_system = ?
+               and source_instance = ?
+               and deleted = false
+               and (
+                    search_text is null
+                 or search_compact is null
+                 or search_spell is null
+                 or search_initials is null
+                 or primary_phase_label is null
+                 or phase_filter_value is null
+               )
+             order by updated_at_source desc nulls last, issue_id desc
+             limit ?
             """,
-            Boolean.class,
-            DEFAULT_SOURCE_SYSTEM,
-            sourceInstance);
-    return Boolean.TRUE.equals(result);
+        (rs, rowNum) -> {
+          IssueFact fact = new IssueFact();
+          fact.setSourceSystem(defaultText(rs.getString("source_system"), DEFAULT_SOURCE_SYSTEM));
+          fact.setSourceInstance(defaultText(rs.getString("source_instance"), sourceInstance));
+          fact.setProjectId(rs.getLong("project_id"));
+          fact.setIssueId(rs.getLong("issue_id"));
+          fact.setIssueIid((Long) rs.getObject("issue_iid"));
+          fact.setTitle(defaultText(rs.getString("title")));
+          fact.setProjectName(defaultText(rs.getString("project_name")));
+          fact.setModuleNames(defaultText(rs.getString("module_names")));
+          fact.setTestingPhase(defaultText(rs.getString("testing_phase")));
+          fact.setSystemTestLabel(defaultText(rs.getString("system_test_label")));
+          fact.setLabelNames(defaultText(rs.getString("label_names")));
+          fact.setReasonCategory(defaultText(rs.getString("reason_category")));
+          fact.setIllegalReason(defaultText(rs.getString("illegal_reason")));
+          fact.setAuthorName(defaultText(rs.getString("author_name")));
+          fact.setAssigneeName(defaultText(rs.getString("assignee_name")));
+          fact.setBugStatus(defaultText(rs.getString("bug_status")));
+          fact.setCategory(defaultText(rs.getString("category")));
+          fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
+          return fact;
+        },
+        DEFAULT_SOURCE_SYSTEM,
+        sourceInstance,
+        limit);
+  }
+
+  private int repairMergeRequestFactSearchIndexes(String sourceInstance) {
+    int repaired = 0;
+    while (repaired < SEARCH_INDEX_REPAIR_LIMIT) {
+      int batchLimit = Math.min(FACT_BATCH_SIZE, SEARCH_INDEX_REPAIR_LIMIT - repaired);
+      List<MergeRequestFact> batch = loadMergeRequestFactsMissingSearchIndexes(sourceInstance, batchLimit);
+      if (batch.isEmpty()) {
+        return repaired;
+      }
+      refreshMergeRequestFactSearchIndexes(batch);
+      repaired += batch.size();
+      if (batch.size() < batchLimit) {
+        return repaired;
+      }
+    }
+    return repaired;
+  }
+
+  private List<MergeRequestFact> loadMergeRequestFactsMissingSearchIndexes(String sourceInstance, int limit) {
+    return jdbcTemplate.query(
+        """
+            select source_system,
+                   source_instance,
+                   project_id,
+                   merge_request_id,
+                   title,
+                   author_name,
+                   owner_name,
+                   project_name,
+                   repository_name,
+                   module_name,
+                   target_branch,
+                   merge_user_name
+              from merge_request_fact
+             where source_system = ?
+               and source_instance = ?
+               and deleted = false
+               and (
+                    search_text is null
+                 or search_compact is null
+                 or search_spell is null
+                 or search_initials is null
+                 or owner_search_text is null
+                 or owner_search_compact is null
+                 or owner_search_spell is null
+                 or owner_search_initials is null
+               )
+             order by merged_at_source desc nulls last, merge_request_id desc
+             limit ?
+            """,
+        (rs, rowNum) -> {
+          MergeRequestFact fact = new MergeRequestFact();
+          fact.setSourceSystem(defaultText(rs.getString("source_system"), DEFAULT_SOURCE_SYSTEM));
+          fact.setSourceInstance(defaultText(rs.getString("source_instance"), sourceInstance));
+          fact.setProjectId(rs.getLong("project_id"));
+          fact.setMergeRequestId(rs.getLong("merge_request_id"));
+          fact.setTitle(defaultText(rs.getString("title")));
+          fact.setAuthorName(defaultText(rs.getString("author_name")));
+          fact.setOwnerName(defaultText(rs.getString("owner_name")));
+          fact.setProjectName(defaultText(rs.getString("project_name")));
+          fact.setRepositoryName(defaultText(rs.getString("repository_name")));
+          fact.setModuleName(defaultText(rs.getString("module_name")));
+          fact.setTargetBranch(defaultText(rs.getString("target_branch")));
+          fact.setMergeUserName(defaultText(rs.getString("merge_user_name")));
+          return fact;
+        },
+        DEFAULT_SOURCE_SYSTEM,
+        sourceInstance,
+        limit);
   }
 
   private String sourceInstanceForConfig(Long configId) {
