@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecordsPage.vue';
 // 客户问题非法数据页沿用同一个非法记录页面骨架，差异只体现在规则说明和接口域。
 // 这种薄封装让系统测试与客户问题两类页面保持一致的筛选、分页和导出体验。
@@ -19,8 +18,7 @@ import type {
   IssueIllegalRecordQueryParams,
 } from './issue-illegal-records/issue-illegal-records-types';
 
-const LEGACY_CROWN_CAD_PROJECT_ID = 9;
-const phaseScopeOptions = ref<DataScopeOption[]>([]);
+const LEGACY_CC_PRODUCT_PROJECT_ID = 325;
 
 const initialFilterOptions: CustomerIssueIllegalRecordFilterOptionsResponse = {
   projectNames: [],
@@ -97,18 +95,7 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
 }
 
 async function loadFilterOptions(projectId?: string | number | null) {
-  const [options, phaseGroups] = await Promise.all([
-    api.getCustomerIssueIllegalRecordFilterOptions(projectId),
-    api.getTestingPhaseGroups({
-      projectId: LEGACY_CROWN_CAD_PROJECT_ID,
-      enabled: true,
-    }),
-  ]);
-  phaseScopeOptions.value = phaseGroups
-    .map((group) => String(group.name ?? '').trim())
-    .filter(Boolean)
-    .map((name) => ({ label: name, value: name }));
-  return options;
+  return api.getCustomerIssueIllegalRecordFilterOptions(projectId || LEGACY_CC_PRODUCT_PROJECT_ID);
 }
 
 function buildConditionFields(options: IssueIllegalRecordFilterOptions): StatisticFilterField[] {
@@ -118,13 +105,13 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
 function buildPrimaryFilters(): RecordTableFilterField[] {
   return [
     {
-      key: 'testingPhase',
-      label: '测试阶段',
+      key: 'milestoneTitle',
+      label: '里程碑',
       type: 'select',
       defaultStrategy: 'first-available',
       clearable: false,
       width: 240,
-      options: phaseScopeOptions.value,
+      options: filterOptions.value.milestoneTitles as DataScopeOption[],
     },
   ];
 }
@@ -150,7 +137,7 @@ function buildPrimaryFilters(): RecordTableFilterField[] {
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :build-primary-filters="buildPrimaryFilters"
-    :native-primary-select-keys="['testingPhase']"
+    :native-primary-select-keys="['milestoneTitle']"
     :columns="columns"
     :map-row="mapRow"
     created-at-detail-label="议题提交时间"
@@ -200,5 +187,6 @@ function buildPrimaryFilters(): RecordTableFilterField[] {
     ]"
     default-sort-by="updatedAt"
     default-sort-order="desc"
+    :default-project-id="LEGACY_CC_PRODUCT_PROJECT_ID"
   />
 </template>

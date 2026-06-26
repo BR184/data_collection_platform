@@ -56,7 +56,7 @@ const selectedRow = ref<IssueIllegalRecordRow | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
 const primaryDefaultPatchInFlight = ref(false);
-const projectId = computed(() => String(route.query.projectId ?? ''));
+const projectId = computed(() => String(route.query.projectId ?? props.defaultProjectId ?? ''));
 const filterOptions = ref({ ...props.initialFilterOptions });
 const canRefreshLatestData = computed(
   () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
@@ -274,7 +274,8 @@ async function loadCurrentPage() {
 
 function buildCurrentQueryParams(includePagination: boolean) {
   return {
-    projectId: route.query.projectId as string | undefined,
+    projectId: (route.query.projectId as string | undefined)
+      ?? (props.defaultProjectId == null ? undefined : String(props.defaultProjectId)),
     keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),

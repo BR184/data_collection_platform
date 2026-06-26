@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import org.springframework.util.StringUtils;
 
 final class SystemTestPhaseSqlPredicateSupport {
@@ -34,10 +33,6 @@ final class SystemTestPhaseSqlPredicateSupport {
     for (String phase : phases) {
       clauses.add("testing_phase = ?");
       args.add(phase);
-      clauses.add("system_test_label = ?");
-      args.add(phase);
-      clauses.add("lower(coalesce(label_names, '')) like ?");
-      args.add("%" + phase.toLowerCase(Locale.ROOT) + "%");
     }
     return new SqlPredicate(String.join(" or ", clauses), args);
   }

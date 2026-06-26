@@ -44,7 +44,8 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "customer-issue-by-function";
-  private static final String RULE_VERSION = "customer-issue-by-function@2026-04-22-v1";
+  private static final String RULE_VERSION = "customer-issue-by-function@2026-06-26-v2";
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
@@ -127,7 +128,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         "基于 issue_fact.function_name 的客户问题模块/功能维度缺陷数量统计。",
         "",
         "",
-        "模块 / 功能",
+        "序号",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
             StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
@@ -141,23 +142,11 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
                 IssueDisplayValueSupport.severityFilterOptions(true))),
         List.of(
             new StatisticColumnGroup(
-                "quantity",
-                "缺陷数量",
+                "placeholder",
+                "功能缺陷数量",
                 List.of(
-                    leaf("total", "问题数量", true, "count"),
-                    leaf("fixed", "已修复/关闭", true, "count"),
-                    leaf("open", "未关闭", true, "count"),
-                    leaf("delay", "申请延期", true, "count"),
-                    leaf("response_delayed", "响应延期", true, "count"),
-                    leaf("function_ratio", "功能占比", false, "ratio"))),
-            new StatisticColumnGroup(
-                "severity",
-                "严重程度",
-                List.of(
-                    leaf("level1", "一级缺陷", true, "count"),
-                    leaf("level2", "二级缺陷", true, "count"),
-                    leaf("level3", "三级缺陷", true, "count"),
-                    leaf("suggestion", "建议类", true, "count")))),
+                    leaf("placeholder_function", "功能", false, "text"),
+                    leaf("placeholder_count", "问题数量", false, "count")))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的客户问题功能缺陷数量数据。");
@@ -170,8 +159,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     StatisticFilterGroup effectiveFilterGroup =
         CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
-    StatisticBoardDefinition definition = buildDefinition();
-    Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    Map<String, List<AggregateBucket>> bucketsByModule = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.finalSources()) {
       for (String moduleName : issue.displayModuleNames()) {
         if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
@@ -179,22 +167,27 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         }
         String rowKey = rowKey(moduleName, issue.functionName());
         String rowLabel = moduleName + " / " + issue.functionName();
-        buckets.computeIfAbsent(rowKey, key -> new AggregateBucket(rowLabel, key)).accept(issue);
+        bucketsByModule
+            .computeIfAbsent(moduleName, ignored -> new ArrayList<>())
+            .stream()
+            .filter(bucket -> bucket.rowKey().equals(rowKey))
+            .findFirst()
+            .orElseGet(() -> {
+              AggregateBucket bucket = new AggregateBucket(rowLabel, rowKey);
+              bucketsByModule.get(moduleName).add(bucket);
+              return bucket;
+            })
+            .accept(issue);
       }
     }
-    List<StatisticRowData> rows =
-        buckets.values().stream()
+    bucketsByModule.replaceAll((moduleName, buckets) ->
+        buckets.stream()
             .sorted(
                 Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER)
                     .thenComparing(bucket -> bucket.issues().size(), Comparator.reverseOrder()))
-            .map(bucket -> bucket.toRowData(snapshot.finalSources().size()))
-            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-    if (!snapshot.finalSources().isEmpty()) {
-      rows.add(
-          new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY)
-              .acceptAll(snapshot.finalSources())
-              .toRowData(snapshot.finalSources().size()));
-    }
+            .toList());
+    StatisticBoardDefinition definition = buildDefinition(bucketsByModule.keySet().stream().toList());
+    List<StatisticRowData> rows = toLegacyPivotRows(bucketsByModule);
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount =
         definition.columnGroups().stream()
@@ -221,7 +214,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
-            .filter(issue -> matchesRow(issue, request.rowKey()))
+            .filter(issue -> matchesDetailRequest(issue, request))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
             .toList();
@@ -256,12 +249,35 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
-                "total", "问题数量", "统计当前模块/功能下的客户问题缺陷数量。", "问题数量 = count(issue_fact where customer scope and function_name is not empty)", null),
-            new StatisticRuleMetricDefinition(
-                "function_ratio", "功能占比", "当前功能缺陷数量占客户问题功能缺陷总数的比例。", "功能占比 = 当前模块/功能问题数量 / 功能缺陷总数", null),
-            new StatisticRuleMetricDefinition(
-                "severity", "严重程度", "按 issue_fact.severity_level 拆分一级、二级、三级与建议类。", "各严重程度数量 = count(severity_level)", null)),
+                "legacy-pivot", "模块功能列", "主表按老平台 IssueShowByFunction.vue 展示：每个模块是一个列组，下面固定“功能”和“问题数量”两列。", "问题数量 = count(CC_Product issue_fact where module_name and function_name match)", null)),
         null);
+  }
+
+  private StatisticBoardDefinition buildDefinition(List<String> moduleNames) {
+    List<StatisticColumnGroup> columnGroups = moduleNames.stream()
+        .map(moduleName -> new StatisticColumnGroup(
+            columnKey(moduleName),
+            moduleName,
+            List.of(
+                leaf(functionColumnKey(moduleName), "功能", false, "text"),
+                leaf(countColumnKey(moduleName), "问题数量", true, "count"))))
+        .toList();
+    if (columnGroups.isEmpty()) {
+      columnGroups = buildDefinition().columnGroups();
+    }
+    StatisticBoardDefinition base = buildDefinition();
+    return new StatisticBoardDefinition(
+        base.boardKey(),
+        base.title(),
+        base.description(),
+        base.queryTitle(),
+        base.queryDescription(),
+        base.rowHeaderLabel(),
+        base.filters(),
+        columnGroups,
+        base.detailColumns(),
+        base.defaultPageSize(),
+        base.emptyText());
   }
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
@@ -342,6 +358,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   }
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.putIfAbsent("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
     try {
       return issueFactQueryService.query(FACT_SQL, queryFilters, this::mapIssueFact);
     } catch (DataAccessException error) {
@@ -390,16 +407,18 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         .anyMatch(requestedRowKey::equals);
   }
 
+  private boolean matchesDetailRequest(IssueSource issue, StatisticDetailRequest request) {
+    CellAddress address = parseCellAddress(request.rowKey(), request.columnKey(), request.filters());
+    if (address != null) {
+      return issue.displayModuleNames().contains(address.moduleName())
+          && address.functionName().equals(issue.functionName());
+    }
+    return matchesRow(issue, request.rowKey());
+  }
+
   private Predicate<IssueSource> matchesMetric(String columnKey) {
     return switch (columnKey) {
-      case "fixed" -> IssueSource::isSolvedLike;
-      case "open" -> issue -> !issue.isClosed();
-      case "delay" -> IssueSource::delayIssue;
-      case "response_delayed" -> IssueSource::responseDelayed;
-      case "level1" -> issue -> issue.isSeverity("LEVEL1");
-      case "level2" -> issue -> issue.isSeverity("LEVEL2");
-      case "level3" -> issue -> issue.isSeverity("LEVEL3");
-      case "suggestion" -> issue -> issue.isSeverity("SUGGESTION");
+      case "placeholder_count" -> issue -> false;
       default -> issue -> true;
     };
   }
@@ -446,12 +465,109 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return moduleName + ROW_KEY_SEPARATOR + functionName;
   }
 
-  private static String count(long value) {
-    return StatisticMetricCalculator.count(value);
+  private List<StatisticRowData> toLegacyPivotRows(Map<String, List<AggregateBucket>> bucketsByModule) {
+    int maxRows = bucketsByModule.values().stream().mapToInt(List::size).max().orElse(0);
+    List<StatisticRowData> rows = new ArrayList<>();
+    for (int rowIndex = 0; rowIndex < maxRows; rowIndex++) {
+      List<StatisticCellData> cells = new ArrayList<>();
+      for (Map.Entry<String, List<AggregateBucket>> entry : bucketsByModule.entrySet()) {
+        String moduleName = entry.getKey();
+        AggregateBucket bucket = rowIndex < entry.getValue().size() ? entry.getValue().get(rowIndex) : null;
+        String functionName = bucket == null ? "" : functionNameFromRowKey(bucket.rowKey());
+        long countValue = bucket == null ? 0 : bucket.issues().size();
+        String rowKey = String.valueOf(rowIndex + 1);
+        cells.add(new StatisticCellData(
+            functionColumnKey(moduleName),
+            0,
+            functionName,
+            false,
+            null,
+            Map.of()));
+        cells.add(new StatisticCellData(
+            countColumnKey(moduleName),
+            countValue,
+            countValue == 0 ? "-" : count(countValue),
+            countValue > 0,
+            countValue > 0 ? "issue-list" : null,
+            countValue > 0 ? Map.of("rowKey", rowKey) : Map.of()));
+      }
+      rows.add(new StatisticRowData(String.valueOf(rowIndex + 1), String.valueOf(rowIndex + 1), cells));
+    }
+    return rows;
   }
 
-  private static String rate(long numerator, long denominator) {
-    return StatisticMetricCalculator.rate(numerator, denominator);
+  private CellAddress parseCellAddress(String rowKey, String columnKey, Map<String, String> filters) {
+    String moduleName = moduleNameFromCountColumnKey(columnKey);
+    Integer rowIndex = parseOneBasedIndex(rowKey);
+    if (!StringUtils.hasText(moduleName) || rowIndex == null) {
+      return null;
+    }
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    List<AggregateBucket> buckets = bucketsForModule(loadSources(filters), effectiveFilterGroup, moduleName);
+    if (rowIndex < 1 || rowIndex > buckets.size()) {
+      return null;
+    }
+    String functionName = functionNameFromRowKey(buckets.get(rowIndex - 1).rowKey());
+    return StringUtils.hasText(functionName) ? new CellAddress(moduleName, functionName) : null;
+  }
+
+  private List<AggregateBucket> bucketsForModule(
+      List<IssueSource> sources, StatisticFilterGroup effectiveFilterGroup, String moduleName) {
+    Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    for (IssueSource issue : buildRuleFlowSnapshot(sources, effectiveFilterGroup).finalSources()) {
+      if (!issue.displayModuleNames().contains(moduleName)) {
+        continue;
+      }
+      String rowKey = rowKey(moduleName, issue.functionName());
+      buckets.computeIfAbsent(rowKey, key -> new AggregateBucket(moduleName + " / " + issue.functionName(), rowKey))
+          .accept(issue);
+    }
+    return buckets.values().stream()
+        .sorted(
+            Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(bucket -> bucket.issues().size(), Comparator.reverseOrder()))
+        .toList();
+  }
+
+  private String functionNameFromRowKey(String rowKey) {
+    if (!StringUtils.hasText(rowKey)) {
+      return "";
+    }
+    int separatorIndex = rowKey.indexOf(ROW_KEY_SEPARATOR);
+    return separatorIndex < 0 ? "" : rowKey.substring(separatorIndex + ROW_KEY_SEPARATOR.length());
+  }
+
+  private Integer parseOneBasedIndex(String rowKey) {
+    try {
+      return StringUtils.hasText(rowKey) ? Integer.parseInt(rowKey) : null;
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
+  }
+
+  private String columnKey(String moduleName) {
+    return "module_" + Integer.toHexString(moduleName.hashCode());
+  }
+
+  private String functionColumnKey(String moduleName) {
+    return "func_name::" + moduleName;
+  }
+
+  private String countColumnKey(String moduleName) {
+    return "func_count::" + moduleName;
+  }
+
+  private String moduleNameFromCountColumnKey(String columnKey) {
+    String prefix = "func_count::";
+    return StringUtils.hasText(columnKey) && columnKey.startsWith(prefix)
+        ? columnKey.substring(prefix.length())
+        : null;
+  }
+
+  private static String count(long value) {
+    return StatisticMetricCalculator.count(value);
   }
 
   private record AggregateBucket(String rowLabel, String rowKey, List<IssueSource> issues) {
@@ -459,56 +575,13 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       this(rowLabel, rowKey, new ArrayList<>());
     }
 
-    AggregateBucket acceptAll(List<IssueSource> sourceIssues) {
-      issues.addAll(sourceIssues);
-      return this;
-    }
-
     void accept(IssueSource issue) {
       issues.add(issue);
     }
 
-    StatisticRowData toRowData(long overall) {
-      long total = issues.size();
-      long fixed = issues.stream().filter(IssueSource::isSolvedLike).count();
-      long open = issues.stream().filter(issue -> !issue.isClosed()).count();
-      long delay = issues.stream().filter(IssueSource::delayIssue).count();
-      long responseDelayed = issues.stream().filter(IssueSource::responseDelayed).count();
-      long level1 = issues.stream().filter(issue -> issue.isSeverity("LEVEL1")).count();
-      long level2 = issues.stream().filter(issue -> issue.isSeverity("LEVEL2")).count();
-      long level3 = issues.stream().filter(issue -> issue.isSeverity("LEVEL3")).count();
-      long suggestion = issues.stream().filter(issue -> issue.isSeverity("SUGGESTION")).count();
-      return new StatisticRowData(
-          rowKey,
-          rowLabel,
-          List.of(
-              countCell("total", total),
-              countCell("fixed", fixed),
-              countCell("open", open),
-              countCell("delay", delay),
-              countCell("response_delayed", responseDelayed),
-              rateCell("function_ratio", total, overall),
-              countCell("level1", level1),
-              countCell("level2", level2),
-              countCell("level3", level3),
-              countCell("suggestion", suggestion)));
-    }
-
-    private StatisticCellData countCell(String key, long numericValue) {
-      return new StatisticCellData(
-          key, numericValue, count(numericValue), true, "issue-list", Map.of("rowKey", rowKey));
-    }
-
-    private StatisticCellData rateCell(String key, long numerator, long denominator) {
-      return new StatisticCellData(
-          key,
-          StatisticMetricCalculator.ratioSortValue(numerator, denominator),
-          rate(numerator, denominator),
-          false,
-          null,
-          Map.of("rowKey", rowKey));
-    }
   }
+
+  private record CellAddress(String moduleName, String functionName) {}
 
   private record IssueSource(
       String sourceInstance,

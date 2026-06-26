@@ -113,6 +113,7 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   queryClearKeys: string[];
   defaultSortBy?: string;
   defaultSortOrder?: 'asc' | 'desc';
+  defaultProjectId?: string | number;
   scopeProvider?: DataScopeProvider;
   buildScopeOptions?: (options: IssueIllegalRecordFilterOptions) => DataScopeOption[];
   createdAtDetailLabel?: string;

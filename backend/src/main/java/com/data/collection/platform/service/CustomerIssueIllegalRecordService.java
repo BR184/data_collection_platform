@@ -27,6 +27,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
       Map.ofEntries(
           Map.entry("title", "STRING"),
@@ -62,7 +63,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   public CustomerIssueIllegalRecordListResponse listRecords(
       CustomerIssueIllegalRecordQueryRequest request) {
-    IssueFactRecordListRequest listRequest = request.listRequest();
+    IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
     String safeSortField =
@@ -187,7 +188,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     List<CustomerIssueIllegalRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
-      IssueFactRecordListRequest listRequest = request.listRequest();
+      IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
       CustomerIssueIllegalRecordQueryRequest pageRequest =
           new CustomerIssueIllegalRecordQueryRequest(
               new IssueFactRecordListRequest(
@@ -311,7 +312,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     List<IssueFactRecord> rows =
-        loadScopedViews(projectId).stream()
+        loadScopedViews(defaultProjectId(projectId)).stream()
             .filter(IssueFactRecord::illegal)
             .filter(this::hasSupportedCustomerIllegalReason)
             .toList();
@@ -337,9 +338,10 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   public CustomerIssueIllegalRecordRowResponse refreshSingleRecord(
       String sourceInstance, Long projectId, Long issueIid) {
-    factBuildService.rebuildIssueFactByIid(sourceInstance, projectId, issueIid);
+    Long safeProjectId = defaultProjectId(projectId);
+    factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    return loadScopedViews(projectId).stream()
+    return loadScopedViews(safeProjectId).stream()
         .filter(IssueFactRecord::illegal)
         .filter(this::hasSupportedCustomerIllegalReason)
         .filter(row -> row.issueIid() != null && row.issueIid().longValue() == issueIid)
@@ -350,7 +352,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {
-    List<IssueFactRecord> loaded = loadFacts(projectId);
+    List<IssueFactRecord> loaded = loadFacts(defaultProjectId(projectId));
     List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
     List<IssueFactRecord> visible = scoped.stream().filter(view -> !view.excluded()).toList();
     List<IssueFactRecord> illegal =
@@ -403,6 +405,37 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   private List<IssueFactRecord> loadScopedViews(Long projectId) {
     return scopeVisibleCustomerIssues(loadFacts(projectId));
+  }
+
+  private Long defaultProjectId(Long projectId) {
+    return projectId == null ? LEGACY_CC_PRODUCT_PROJECT_ID : projectId;
+  }
+
+  private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {
+    return new IssueFactRecordListRequest(
+        defaultProjectId(request.projectId()),
+        request.keyword(),
+        request.searchType(),
+        request.issueIid(),
+        request.title(),
+        request.projectName(),
+        request.moduleName(),
+        request.functionName(),
+        request.severityLevel(),
+        request.priorityLevel(),
+        request.issueState(),
+        request.bugStatus(),
+        request.category(),
+        request.milestoneTitle(),
+        request.createdAtStart(),
+        request.createdAtEnd(),
+        request.updatedAtStart(),
+        request.updatedAtEnd(),
+        request.sourceInstance(),
+        request.page(),
+        request.size(),
+        request.sortField(),
+        request.sortOrder());
   }
 
   private List<IssueFactRecord> scopeCustomerIssues(List<IssueFactRecord> rows) {

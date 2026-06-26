@@ -5,6 +5,51 @@
 
 ## 总览
 
+## 2026-06-26 内网复测后新增差距结论
+
+> 复测反馈说明，上一轮文档里多处“已对齐默认范围/字段映射”的判断还停留在局部代码路径，未覆盖真实页面入口、默认筛选和 SQL 快路径。当前优先级最高的是空表、15 秒超时和慢加载。
+
+### P0：客户问题模块空表和慢加载
+
+1. 客户问题页面必须以 `CC_PRODUCT` / `CC_Product` 项目 `325` 为范围，顶部切换语义应优先对齐老平台的 `mileStone/milestone`。老平台 `IllegalIssueSearchCCProduct.vue` 会调用 `getAllMileStoneName({ projectId: 325 })`，默认取 `mileStoneList[0]`，查询时提交 `projectId=325` 和 `milestone=this.mileStone`。
+2. 新平台客户问题非法数据页当前仍从 CrownCAD 项目 `9` 加载阶段定义，并把主筛选字段做成 `testingPhase`，默认 `first-available`。这会把 CC_Product 的真实里程碑误套成 CrownCAD 系统测试父级阶段，是“缺陷非法数据空表”的直接高概率原因。
+3. 新平台客户问题统计看板 `customer-issue-defect-summary / defect-cause / delay-issues / response-efficiency / by-function` 也共用 `statistic-board-data-scopes.ts` 的 CrownCAD 项目 `9` 阶段组，查询键为 `testingPhase`。如果 CC_Product 真实里程碑与 CrownCAD 阶段定义不完全一致，就会过滤空或统计偏差。
+4. `CC_PRODUCT议题` 记录页本身使用 `milestoneTitle`，但默认仍是“全部里程碑”，没有对齐老平台进入页面默认取第一个里程碑；这能解释“两版前正常、现在为空/差距大”的一部分现象，尤其当后端公共范围和页面默认条件不一致时。
+5. 客户问题慢加载不是分页失效，而是统计看板仍先从 `issue_fact` 拉取一批记录，再在 Java 内存里做客户问题范围、里程碑/阶段、模块、延期和原因聚合。下一轮修复必须把 `project_id=325`、`created_at>=2026-01-01`、客户问题公共排除、`milestone_title` 默认值前推到 SQL，不能只靠 Java 后置过滤。
+
+### P0：系统测试 15 秒超时和慢加载
+
+1. `系统测试/议题阶段统计`、`系统测试/缺陷原因分析`、`申请延期缺陷分析` 的主接口仍是事实表查询后 Java 聚合。当前 SQL 只前推了阶段谓词，没有做 SQL 聚合，也没有把系统测试公共排除规则完整前推为 SQL 条件，因此内网数据量大时仍会超过前端 15 秒超时。
+2. `SystemTestPhaseSqlPredicateSupport` 会把所选父级阶段展开后匹配 `testing_phase/system_test_label/label_names`，这比纯 `testing_phase` 更宽。老平台多处统计接口是 `testingPhaseService.getByName(phase)` 后按具体测试阶段集合查 `SpiderIssueDataQueryBuilder.setTestingPhases(phases)`；后续要逐页确认是否允许 label_names 模糊命中。
+3. 慢加载页面需要按优先级改成 SQL 聚合或统计快照：先处理超时的三个页面，再处理客户问题延期、缺陷原因、按功能、响应效率等接近 15 秒的页面。
+4. 本轮已先将系统测试统计页的阶段 SQL 收口为只匹配 `issue_fact.testing_phase = 展开后的具体测试轮次`，不再额外用 `system_test_label` 或 `label_names` 放宽命中。该修复针对内网反馈的缺陷汇总“装配/其他 - CC2026R3 多 1 条”以及三个超时页的范围放大问题；后续内网仍需重点用下钻明细确认多出的那条是否来自宽阶段匹配。
+
+### P0：系统测试议题查询默认范围误对齐
+
+1. 本次内网明确反馈：`系统测试/议题查询` 不应该默认锁定 `CC2026R3`，应该默认显示“全部”。上一轮文档把“系统测试统计看板默认当前阶段”的规则泛化到了议题查询页，这是错误的。
+2. 新平台 `SystemTestIssueSearchView.vue` 当前把 `testingPhase` 主筛选设为 `defaultStrategy: first-available` 且 `clearable=false`，因此会默认写入第一可用阶段。应改为默认全部，并确保后端仍默认 `projectId=9`、保留老平台公共排除规则。
+3. `系统测试非法数据` 与 `议题查询` 不是同一默认策略：非法数据老平台默认取阶段列表首项，议题查询默认全部。两者不能再共用一个泛化的“系统测试页面默认阶段”结论。
+
+### P0：系统测试非法数据数量偏多
+
+1. 当前新平台 SQL 快路径使用 `IssueFactRecordPageQuery.Scope.ALL`，再附加阶段集合、非法和公共排除条件；这意味着系统测试范围没有被 `Scope.SYSTEM_TEST` 或老平台具体阶段集合严格收束。
+2. 如果内网同一项目中存在阶段字段相近但不属于老平台系统测试统计范围的数据，新平台会偏多。下一轮应把系统测试非法数据的 SQL 快路径改成老平台记录入口口径：默认 `projectId=9`，阶段只按阶段定义展开后的具体测试阶段匹配，并复用公共排除。
+3. 文档旧结论中“偏多来自 `Scope.SYSTEM_TEST` 同时匹配 label_names 的宽范围”已不完整；当前代码实际风险是 `Scope.ALL + 阶段集合/过滤条件` 与老平台查询构造器不完全一致。
+
+### P0：代码走查非法数据项目切换和少 6000 条
+
+1. 代码走查页面顶部当前切换的是 `source` 数据源，不等价于老平台“项目/版本”切换。老平台项目筛选对应 `projectName`，新平台虽然有 `projectName` 条件，但用户入口不够突出，导致“只能切 CrownCAD”的使用体验仍未对齐。
+2. `CodeReviewIllegalRecordQuerySupport.legacyTargetBranch()` 当前在 `source=default/cc/dgm` 且未选目标分支时都会默认补 `dev`。常驻规则要求只有明确选择 CrownCAD 或 DGM 时才补 `dev`；全数据源或默认源不应隐式限制到 `dev`。这会导致默认查询少掉非 `dev` 目标分支记录。
+3. 默认非法 SQL 中 `Clang 分析错误` 对 `cc/default` 默认不纳入总非法，只在非 cc 数据源或显式筛选该非法类型时命中。若老平台默认总非法包含该类，可能形成明显数量缺口，需要直接对照老平台 `StaticDataController` 和 `SpiderCrowncadDataService` 的非法判定。
+4. 字段映射中 `owner -> author_name` 方向是对的，但还要逐项复核：项目切换 `projectName -> merge_request_fact.project_name`、数据源 `source -> source_instance`、目标分支 `targetBranch -> target_branch`、被走查人 `owner -> author_name`、合并人 `mergedBy -> merge_user_name`、模块 `moduleName -> module_name`。
+
+### 下一轮修复优先级
+
+1. 先修客户问题缺陷非法数据和 CC_PRODUCT 议题空表：客户问题入口改为 CC_Product 里程碑候选和默认里程碑，不再用 CrownCAD 项目 9 阶段定义作为默认。
+2. 再修三个系统测试超时页：把项目、阶段集合、公共排除、必要聚合前推 SQL；至少避免主表接口拉全量事实后 Java 聚合。
+3. 再修系统测试议题查询默认全部，以及系统测试非法数据 SQL 快路径范围。
+4. 最后修代码走查项目切换入口、默认 targetBranch 补 `dev` 条件和默认非法类型覆盖。
+
 | 问题 | 当前原因判断 | 状态 |
 | --- | --- | --- |
 | 客户问题模块大部分页面空表格、连模块名也没有 | 客户问题页面默认注入顶部“测试阶段”筛选，筛选按 `milestone_title` / `testing_phase` 匹配；如果内网 CC_Product 议题的里程碑与系统设置父级阶段不一致，`CustomerIssueTestingPhaseFilterSupport` 会把数据全部过滤掉。部分页面又从过滤后的结果生成模块行，导致模块目录也为空。 | 已确认代码原因 |
@@ -13,6 +58,7 @@
 | 系统测试/议题查询少约 2000 条 | 议题查询使用 `Scope.ALL`，但测试阶段条件走 `phase_filter_value`，和系统测试非法数据使用 `Scope.SYSTEM_TEST + testing_phase` 的口径不同；同时默认项目和阶段展开路径不完全一致，导致同一测试阶段下数量不一致。 | 已确认代码原因 |
 | 系统测试/缺陷原因分析、议题阶段统计 15 秒超时 | 这两个统计看板不是 SQL 分页加载。接口先从 `issue_fact` 全量加载符合过滤的事实数据，再在 Java 内存中做规则流、模块/阶段聚合和明细分页；前端请求默认 15 秒超时，因此数据量大时会超时。 | 已确认代码原因 |
 | 系统测试和客户问题部分看板能加载但接近 15 秒 | 同类统计看板普遍是“数据库拉取一批事实 -> Java 规则流过滤/聚合 -> 前端本地分页”。系统测试缺陷汇总、客户问题缺陷汇总、客户问题延期、客户问题缺陷原因、按功能展示、响应效率等页面也存在全量或大范围事实加载，页面能返回只是当前数据量/筛选条件还没突破 15 秒。 | 已确认代码原因 |
+| 客户问题/按功能展示缺陷数量字段比老平台少 | 老平台 `IssueShowByFunction.vue` 主表不是“模块 / 功能”扁平行，而是按模块动态生成列组，每个模块下面固定展示“功能”和“问题数量”两列；新平台此前改成一行一个模块/功能，并追加严重程度等统计列，导致用户看到的主表列形态少于老平台。 | 已确认代码原因，本轮已改为老平台同款动态模块列结构 |
 | 部分页面默认范围是全部测试阶段，而不是老平台默认阶段 | 老平台相关页面会默认使用当前测试阶段，例如当前样例 `CC2026R3`，或使用阶段列表第一项；新平台客户问题顶部范围前端配置为 `defaultStrategy = empty` 且显示“全部测试阶段”。这会扩大默认查询范围、放大统计看板全量聚合耗时，并导致页面数量与老平台默认口径不一致。 | 已确认代码原因 |
 | 系统测试缺陷汇总首屏数据抖动，先显示总计 0 再显示完整数据 | 前端统计板 `route.query` watcher 首次立即请求；系统测试阶段数据范围选项异步加载后，`useDataScope` 再按 `first-available` 写入 `testingPhase` 并触发第二次请求。第一次请求没有 `testingPhase` 时，后端 `SystemTestDefectSummaryBoardService` 明确把有效数据置空但仍追加“总计”行，因此短暂显示总计 0；第二次带默认阶段后才显示完整数据。 | 已确认代码原因 |
 | 单表刷新、手动增量同步突然很慢、拉取量很大 | 增量任务只带 `last_watermark_at`，没有带 `last_cursor_pk`，SQL 边界为 `updated_at >= watermark`，会反复拉取同一水位时间戳上的历史行。手动增量同步还会规划全部白名单表，不是只刷新当前页面表。 | 已确认并已修正同步边界 |
@@ -56,6 +102,12 @@
 | 客户问题缺陷原因分析 | 查询事实后 Java 执行客户问题范围、里程碑/测试阶段和原因聚合；里程碑候选也会查询 `issue_fact` 后再过滤客户问题范围。 | 候选项和主表都存在大范围读取。 |
 | 客户问题按功能展示缺陷数量 | 查询事实后 Java 按客户问题范围、功能和模块展开。 | 功能/模块聚合没有 SQL 预聚合。 |
 | 客户问题响应/解决效率 | 查询事实后 Java 计算响应周期、解决周期并按模块展开。 | 周期计算和模块展开都在内存侧。 |
+
+按功能展示缺陷数量的字段对齐补充：
+
+1. 老平台页面 `D:/projects/spidergitdata-dev/webapp/src/views/PageStandard/IssueShowByFunction.vue` 主表按模块动态生成列组，每个模块列组下只有两个子列：`功能`、`问题数量`。
+2. 本轮新平台 `customer-issue-by-function` 主表已改为同款动态列结构：首列为序号，每个模块生成一个列组，列组下展示功能名和问题数量；点击问题数量仍下钻到对应模块 + 功能的议题明细。
+3. 该页面性能仍属于“事实查询后 Java 透视聚合”，本轮只先收口默认 `projectId=325` 和展示字段。若内网数据量仍接近 15 秒，下一步应把 `project_id=325`、`created_at>=2026-01-01`、`milestone_title` 和 `function_name is not null` 聚合前推 SQL。
 
 这些页面“默认分页”的说法只适用于最终表格展示或下钻切片，不适用于主接口的数据读取。真正要降到稳定 1-3 秒，需要把页面范围、默认阶段/里程碑、客户问题 scope 和主要聚合前推到 SQL，或建立统计快照/缓存。
 
