@@ -49,7 +49,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-04-09-v6";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-06-26-v7";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -190,13 +190,17 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     long startedAt = System.currentTimeMillis();
     Map<String, List<String>> phaseValueCache = new LinkedHashMap<>();
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, phaseValueCache);
+    RuleFlowSnapshot snapshot =
+        buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup, phaseValueCache);
     List<IssueSource> sources = snapshot.finalSources();
+    boolean hasRequiredPhase = hasTestingPhaseCondition(effectiveFilterGroup.userGroup());
     List<StatisticRowData> rows = new ArrayList<>(moduleRows(moduleRowSources(snapshot.scopedSources(), effectiveFilterGroup, phaseValueCache)).stream()
         .map(moduleName -> toSummaryRowData(moduleName, moduleName, sources))
         .sorted(Comparator.comparing(StatisticRowData::rowLabel, String.CASE_INSENSITIVE_ORDER))
         .toList());
-    rows.add(toSummaryRowData(TOTAL_ROW_KEY, TOTAL_ROW_LABEL, sources));
+    if (hasRequiredPhase) {
+      rows.add(toSummaryRowData(TOTAL_ROW_KEY, TOTAL_ROW_LABEL, sources));
+    }
     StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount = definition.columnGroups().stream().flatMap(group -> group.leafColumns().stream()).mapToInt(c -> c.drilldown() ? 1 : 0).sum();
@@ -232,15 +236,15 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
-    RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY, true, "系统测试缺陷汇总规则说明", RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按模块生成父表格。",
+        "当前统计基于 issue_fact 的归一化事实字段，默认限定 CrownCAD 老平台项目 9，并按测试阶段定义展开后的 testing_phase 匹配。",
         "父表格和下钻明细复用同一套模块成员与指标匹配口径，单元格数字与下钻明细 total 保持一致。", s.flowSteps(), buildMetricDefinitions(), null);
   }
 
   private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {
-    return buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup, new LinkedHashMap<>()).finalSources();
+    return buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup, new LinkedHashMap<>()).finalSources();
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, EffectiveFilterGroup effectiveFilterGroup) {
@@ -250,7 +254,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private RuleFlowSnapshot buildRuleFlowSnapshot(
       List<IssueSource> loaded, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
-    List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
+    List<IssueSource> scoped = initial;
     List<IssueSource> validBeforeFilter = scoped.stream().filter(i -> !i.excluded()).toList();
     List<IssueSource> valid =
         hasTestingPhaseCondition(effectiveFilterGroup.userGroup())
@@ -268,7 +272,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "scope-filter",
             "限定系统测试范围",
-            "只保留带有系统测试或回归测试标签的议题。",
+            "按老平台系统测试缺陷汇总入口限定 CrownCAD 项目和测试阶段定义范围，不再以“系统测试/回归测试”标签作为前置范围。",
             initial.size(),
             scoped,
             this::toRuleFlowSample
@@ -400,7 +404,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return List.of();
     }
     return scopedSources.stream()
-        .filter(issue -> issue.hasAnyPhaseLabel(enabledPhaseValues))
+        .filter(issue -> issue.matchesAnyTestingPhaseLike(enabledPhaseValues))
         .filter(issue -> matchesModuleDirectoryFilters(issue, effectiveFilterGroup, phaseValueCache))
         .toList();
   }
@@ -462,10 +466,16 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         new StatisticRuleMetricDefinition("legacy", "遗留率", "遗留区沿用老平台 ModuleTableRow 写死口径，而不是 issue_fact.is_legacy。", "一级缺陷遗留率 = (一级缺陷总数 - 一级 setFixQuery 命中数) / 一级缺陷总数；二/三级遗留数量 = 对应严重程度下 bug_status 不含已修复、待合并、未更新；二三级遗留率 = 二三级 setFixQuery 命中数 / 模块总缺陷数", null));
   }
 
-  private List<IssueSource> loadSources(Map<String, String> filters) {
+  private List<IssueSource> loadSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {
+    if (!hasTestingPhaseCondition(effectiveFilterGroup.userGroup())) {
+      return List.of();
+    }
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.put("projectId", String.valueOf(effectiveProjectId(queryFilters)));
+    alignTestingPhaseSqlFilter(queryFilters, effectiveFilterGroup.userGroup());
     try {
       return runtimeSupport
-          .loadFacts(withoutReservedFilters(filters), StatisticIssueFactSource::inSystemTestScope)
+          .loadFacts(queryFilters, null)
           .stream()
           .map(this::toIssueSource)
           .toList();
@@ -473,6 +483,42 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       log.warn("Failed to load issue facts", e);
       return List.of();
     }
+  }
+
+  private long effectiveProjectId(Map<String, String> filters) {
+    Long projectId =
+        filters == null ? null : StatisticSourceValueSupport.parseLong(filters.get("projectId"));
+    return projectId == null ? SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID : projectId;
+  }
+
+  private void alignTestingPhaseSqlFilter(Map<String, String> queryFilters, StatisticFilterGroup filterGroup) {
+    String selectedPhase = selectedTestingPhase(filterGroup);
+    if (selectedPhase == null) {
+      queryFilters.remove("testingPhase");
+      return;
+    }
+    List<String> resolvedPhases = legacyPhaseValues(selectedPhase, new LinkedHashMap<>());
+    boolean selectedCanBeUsedAsSqlContains =
+        !resolvedPhases.isEmpty()
+            && resolvedPhases.stream().allMatch(phase -> containsIgnoreCase(phase, selectedPhase));
+    if (!selectedCanBeUsedAsSqlContains) {
+      queryFilters.remove("testingPhase");
+      return;
+    }
+    queryFilters.put("testingPhase", selectedPhase);
+  }
+
+  private String selectedTestingPhase(StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null) {
+      return null;
+    }
+    return filterGroup.conditions().stream()
+        .filter(condition -> condition != null && "testingPhase".equals(condition.fieldKey()))
+        .map(StatisticFilterCondition::value)
+        .map(this::trimTextToNull)
+        .filter(java.util.Objects::nonNull)
+        .findFirst()
+        .orElse(null);
   }
 
   private List<StatisticFilterOption> loadPhaseOptions() {
@@ -630,11 +676,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       IssueSource issue, String operator, String value, Map<String, List<String>> phaseValueCache) {
     List<String> legacyPhaseValues = legacyPhaseValues(value, phaseValueCache);
     return switch (operator) {
-      case "eq" -> value == null || issue.hasAnyPhaseLabel(legacyPhaseValues);
-      case "ne" -> value == null || !issue.hasAnyPhaseLabel(legacyPhaseValues);
-      case "contains" -> value == null || issue.phaseLabels().stream().anyMatch(label -> containsIgnoreCase(label, value));
-      case "isEmpty" -> issue.phaseLabels().isEmpty();
-      case "isNotEmpty" -> !issue.phaseLabels().isEmpty();
+      case "eq" -> value == null || issue.matchesAnyTestingPhaseLike(legacyPhaseValues);
+      case "ne" -> value == null || !issue.matchesAnyTestingPhaseLike(legacyPhaseValues);
+      case "contains" -> value == null || issue.matchesTestingPhaseLike(value);
+      case "isEmpty" -> !StringUtils.hasText(issue.testingPhase());
+      case "isNotEmpty" -> StringUtils.hasText(issue.testingPhase());
       default -> true;
     };
   }
@@ -645,7 +691,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       return List.of();
     }
     return phaseValueCache.computeIfAbsent(normalized, key -> {
-      return phaseScopeResolver.resolveLegacyCrownCadPhases(key);
+      List<String> resolved = phaseScopeResolver.resolveLegacyCrownCadPhases(key);
+      return resolved.isEmpty() ? List.of(key) : resolved;
     });
   }
 
@@ -961,7 +1008,6 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, List<String> moduleNames, List<String> labels) {
-    boolean inSystemTestScope() { return hasScope(testingPhase) || hasScope(systemTestLabel) || labels.stream().anyMatch(this::hasScope); }
     boolean isClosed() { return closedAt != null || "closed".equalsIgnoreCase(issueState); }
     boolean isPriority(String priority) { return priority.equalsIgnoreCase(priorityLevel); }
     boolean isSeverity(String severity) { return severity.equalsIgnoreCase(severityLevel); }
@@ -981,38 +1027,19 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     boolean isLegacyOpenForLevel23() { return !containsAny(bugStatus, LEGACY_FIXED_STATUS_TOKENS); }
     boolean hasExtensionLabel() { return contains(bugStatus, "申请延期") || labels.contains("申请延期"); }
     boolean isRetestFailed() { return contains(bugStatus, "未修复"); }
-    String primaryPhaseLabel() {
-      if (hasScope(testingPhase)) {
-        return testingPhase;
-      }
-      if (hasScope(systemTestLabel)) {
-        return systemTestLabel;
-      }
-      return labels.stream().filter(this::hasScope).findFirst().orElse("");
-    }
-    List<String> phaseLabels() {
-      Set<String> values = new LinkedHashSet<>();
-      addScopeLabel(values, testingPhase);
-      addScopeLabel(values, systemTestLabel);
-      labels.forEach(label -> addScopeLabel(values, label));
-      return List.copyOf(values);
-    }
-    boolean hasAnyPhaseLabel(List<String> expectedLabels) {
-      if (expectedLabels == null || expectedLabels.isEmpty()) {
+    boolean matchesAnyTestingPhaseLike(List<String> expectedPhases) {
+      if (expectedPhases == null || expectedPhases.isEmpty()) {
         return false;
       }
-      List<String> actualLabels = phaseLabels();
-      return expectedLabels.stream().anyMatch(expected ->
-          actualLabels.stream().anyMatch(actual -> actual.equalsIgnoreCase(expected)));
+      return expectedPhases.stream().anyMatch(this::matchesTestingPhaseLike);
+    }
+    boolean matchesTestingPhaseLike(String expectedPhase) {
+      return StringUtils.hasText(testingPhase)
+          && StringUtils.hasText(expectedPhase)
+          && testingPhase.toLowerCase(Locale.ROOT).contains(expectedPhase.toLowerCase(Locale.ROOT));
     }
     String displaySeverityLevel() {
       return IssueDisplayValueSupport.displaySeverityLevelOrBlank(severityLevel);
-    }
-    private boolean hasScope(String value) { return StringUtils.hasText(value) && (value.contains("系统测试") || value.contains("回归测试")); }
-    private void addScopeLabel(Set<String> values, String value) {
-      if (hasScope(value)) {
-        values.add(value.trim());
-      }
     }
     private boolean containsAny(String value, List<String> tokens) { return tokens.stream().anyMatch(token -> contains(value, token)); }
     private boolean contains(String value, String token) { return StringUtils.hasText(value) && value.contains(token); }

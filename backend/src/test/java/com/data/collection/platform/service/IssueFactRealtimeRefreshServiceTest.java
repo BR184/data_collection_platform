@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.SyncStatus;
@@ -24,7 +23,7 @@ class IssueFactRealtimeRefreshServiceTest {
 
   @Mock private GitlabMirrorSyncService gitlabMirrorSyncService;
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
-  @Mock private FactBuildService factBuildService;
+  @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
 
   private IssueFactRealtimeRefreshService service;
 
@@ -32,9 +31,8 @@ class IssueFactRealtimeRefreshServiceTest {
   void setUp() {
     service =
         new IssueFactRealtimeRefreshService(
-            gitlabMirrorSyncService,
             realtimeWorkspaceService,
-            factBuildService);
+            realtimeIncrementalRefreshService);
   }
 
   @Test
@@ -49,22 +47,22 @@ class IssueFactRealtimeRefreshServiceTest {
   }
 
   @Test
-  void shouldRefreshIssueMirrorTablesAndRebuildIssueFacts() {
+  void shouldSubmitIncrementalRefreshForIssueMirrorTables() {
     when(realtimeWorkspaceService.requestRefreshWithResult(eq("system-test-issues"), org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             new RealtimeWorkspaceStatusResponse(
                 "system-test-issues", true, "REFRESHING", "started", true, null, null, null));
-    when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(anyList(), eq("system-test-issues")))
+    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(eq("system-test-issues"), anyList()))
         .thenReturn(
-            new GitlabMirrorSyncService.OnDemandRefreshResult(
+            new RealtimeWorkspaceRefreshResult(
                 41L,
                 List.of("issues", "projects"),
                 2,
                 List.of("notes"),
-                SyncStatus.SUCCESS,
+                true,
+                SyncStatus.QUEUED.name(),
+                "QUEUED",
                 "mirror ok"));
-    when(factBuildService.rebuildIssueFacts(false))
-        .thenReturn(new FactBuildResponse("issue", false, 7, "issue facts ok"));
 
     RealtimeWorkspaceStatusResponse response = service.requestRefresh("system-test-issues");
 
@@ -74,17 +72,17 @@ class IssueFactRealtimeRefreshServiceTest {
     verify(realtimeWorkspaceService).requestRefreshWithResult(eq("system-test-issues"), refreshAction.capture());
     RealtimeWorkspaceRefreshResult result = refreshAction.getValue().get();
     ArgumentCaptor<List<String>> sourceTables = ArgumentCaptor.forClass(List.class);
-    verify(gitlabMirrorSyncService).refreshTablesOnDemandDetailed(sourceTables.capture(), eq("system-test-issues"));
+    verify(realtimeIncrementalRefreshService)
+        .requestIncrementalRefresh(eq("system-test-issues"), sourceTables.capture());
     assertThat(sourceTables.getValue())
         .containsExactly("issues", "projects", "users", "label_links", "labels", "notes");
-    verify(factBuildService).rebuildIssueFacts(false);
     assertThat(result.jobId()).isEqualTo(41L);
     assertThat(result.sourceTables()).containsExactly("issues", "projects");
     assertThat(result.plannedTasks()).isEqualTo(2);
     assertThat(result.unsupportedTables()).containsExactly("notes");
     assertThat(result.factRefreshPlanned()).isTrue();
-    assertThat(result.mirrorStatus()).isEqualTo("SUCCESS");
-    assertThat(result.factStatus()).isEqualTo("SUCCESS");
-    assertThat(result.message()).isEqualTo("issue facts ok");
+    assertThat(result.mirrorStatus()).isEqualTo("QUEUED");
+    assertThat(result.factStatus()).isEqualTo("QUEUED");
+    assertThat(result.message()).isEqualTo("mirror ok");
   }
 }

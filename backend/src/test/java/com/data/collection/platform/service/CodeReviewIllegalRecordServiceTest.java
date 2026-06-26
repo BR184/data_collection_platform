@@ -7,14 +7,12 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.SyncStatus;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,8 +29,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CodeReviewIllegalRecordServiceTest {
 
-  @Mock private GitlabMirrorSyncService gitlabMirrorSyncService;
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
+  @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   @Mock private FactBuildService factBuildService;
   @Mock private CodeReviewIllegalRecordSourceLoader sourceLoader;
   @Mock private GitlabResourceLinkService gitlabResourceLinkService;
@@ -45,8 +43,8 @@ class CodeReviewIllegalRecordServiceTest {
     gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
     service =
         new CodeReviewIllegalRecordService(
-            gitlabMirrorSyncService,
             realtimeWorkspaceService,
+            realtimeIncrementalRefreshService,
             factBuildService,
             sourceLoader,
             gitlabResourceLinkService,
@@ -79,9 +77,9 @@ class CodeReviewIllegalRecordServiceTest {
                 2,
                 1,
                 20));
-    when(gitlabResourceLinkService.mergeRequestUrl(2001L, 5))
+    when(gitlabResourceLinkService.mergeRequestUrl("cc", 2001L, 5))
         .thenReturn("http://gitlab.example.com/group/repo-a/-/merge_requests/5");
-    when(gitlabResourceLinkService.mergeRequestUrl(2001L, 12))
+    when(gitlabResourceLinkService.mergeRequestUrl("cc", 2001L, 12))
         .thenReturn("http://gitlab.example.com/group/repo-b/-/merge_requests/12");
 
     CodeReviewIllegalRecordListResponse response =
@@ -132,7 +130,7 @@ class CodeReviewIllegalRecordServiceTest {
                 1,
                 1,
                 20));
-    when(gitlabResourceLinkService.mergeRequestUrl(2001L, 5))
+    when(gitlabResourceLinkService.mergeRequestUrl("cc", 2001L, 5))
         .thenReturn("http://gitlab.example.com/parent/subgroup/repo-short-name/-/merge_requests/5");
 
     CodeReviewIllegalRecordListResponse response =
@@ -311,9 +309,9 @@ class CodeReviewIllegalRecordServiceTest {
 
   @Test
   void shouldPropagateRealtimeRefreshFailureToWorkspaceStatus() {
-    RuntimeException failure = new RuntimeException("mirror refresh failed");
-    when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
-            anyList(), eq(CodeReviewIllegalRecordService.WORKSPACE_KEY)))
+    RuntimeException failure = new RuntimeException("incremental refresh failed");
+    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(
+            eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), anyList()))
         .thenThrow(failure);
 
     service.requestRealtimeRefresh();
@@ -323,17 +321,22 @@ class CodeReviewIllegalRecordServiceTest {
     verify(realtimeWorkspaceService)
         .requestRefreshWithResult(eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), refreshAction.capture());
     assertThatThrownBy(refreshAction.getValue()::get).isSameAs(failure);
-    verify(factBuildService, never()).rebuildMergeRequestFacts(false);
   }
 
   @Test
   void shouldReturnStructuredRealtimeRefreshResult() {
-    when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
-            anyList(), eq(CodeReviewIllegalRecordService.WORKSPACE_KEY)))
-        .thenReturn(new GitlabMirrorSyncService.OnDemandRefreshResult(
-            31L, List.of("merge_requests"), 1, List.of("label_links"), SyncStatus.SUCCESS, "mirror ok"));
-    when(factBuildService.rebuildMergeRequestFacts(false))
-        .thenReturn(new FactBuildResponse("merge-request", false, 9, "fact ok"));
+    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(
+            eq(CodeReviewIllegalRecordService.WORKSPACE_KEY), anyList()))
+        .thenReturn(
+            new RealtimeWorkspaceRefreshResult(
+                31L,
+                List.of("merge_requests"),
+                0,
+                List.of(),
+                true,
+                SyncStatus.QUEUED.name(),
+                "QUEUED",
+                "incremental queued"));
 
     service.requestRealtimeRefresh();
 
@@ -344,12 +347,12 @@ class CodeReviewIllegalRecordServiceTest {
     RealtimeWorkspaceRefreshResult result = refreshAction.getValue().get();
     assertThat(result.jobId()).isEqualTo(31L);
     assertThat(result.sourceTables()).containsExactly("merge_requests");
-    assertThat(result.plannedTasks()).isEqualTo(1);
-    assertThat(result.unsupportedTables()).containsExactly("label_links");
+    assertThat(result.plannedTasks()).isZero();
+    assertThat(result.unsupportedTables()).isEmpty();
     assertThat(result.factRefreshPlanned()).isTrue();
-    assertThat(result.mirrorStatus()).isEqualTo("SUCCESS");
-    assertThat(result.factStatus()).isEqualTo("SUCCESS");
-    assertThat(result.message()).isEqualTo("fact ok");
+    assertThat(result.mirrorStatus()).isEqualTo("QUEUED");
+    assertThat(result.factStatus()).isEqualTo("QUEUED");
+    assertThat(result.message()).isEqualTo("incremental queued");
   }
 
   private CodeReviewIllegalRecordSource source(

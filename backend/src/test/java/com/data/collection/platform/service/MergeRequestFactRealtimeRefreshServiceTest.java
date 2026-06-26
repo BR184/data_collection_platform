@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.SyncStatus;
@@ -24,7 +23,7 @@ class MergeRequestFactRealtimeRefreshServiceTest {
 
   @Mock private GitlabMirrorSyncService gitlabMirrorSyncService;
   @Mock private RealtimeWorkspaceService realtimeWorkspaceService;
-  @Mock private FactBuildService factBuildService;
+  @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
 
   private MergeRequestFactRealtimeRefreshService service;
 
@@ -32,9 +31,8 @@ class MergeRequestFactRealtimeRefreshServiceTest {
   void setUp() {
     service =
         new MergeRequestFactRealtimeRefreshService(
-            gitlabMirrorSyncService,
             realtimeWorkspaceService,
-            factBuildService);
+            realtimeIncrementalRefreshService);
   }
 
   @Test
@@ -50,23 +48,23 @@ class MergeRequestFactRealtimeRefreshServiceTest {
   }
 
   @Test
-  void shouldRefreshMergeRequestMirrorTablesAndRebuildMergeRequestFacts() {
+  void shouldSubmitIncrementalRefreshForMergeRequestMirrorTables() {
     when(realtimeWorkspaceService.requestRefreshWithResult(
             eq("code-review-multi-board"), org.mockito.ArgumentMatchers.any()))
         .thenReturn(
             new RealtimeWorkspaceStatusResponse(
                 "code-review-multi-board", true, "REFRESHING", "started", true, null, null, null));
-    when(gitlabMirrorSyncService.refreshTablesOnDemandDetailed(anyList(), eq("code-review-multi-board")))
+    when(realtimeIncrementalRefreshService.requestIncrementalRefresh(eq("code-review-multi-board"), anyList()))
         .thenReturn(
-            new GitlabMirrorSyncService.OnDemandRefreshResult(
+            new RealtimeWorkspaceRefreshResult(
                 51L,
                 List.of("merge_requests", "merge_request_metrics"),
                 2,
                 List.of("namespaces"),
-                SyncStatus.SUCCESS,
+                true,
+                SyncStatus.QUEUED.name(),
+                "QUEUED",
                 "mirror ok"));
-    when(factBuildService.rebuildMergeRequestFacts(false))
-        .thenReturn(new FactBuildResponse("merge-request", false, 11, "merge request facts ok"));
 
     RealtimeWorkspaceStatusResponse response = service.requestRefresh("code-review-multi-board");
 
@@ -76,8 +74,8 @@ class MergeRequestFactRealtimeRefreshServiceTest {
     verify(realtimeWorkspaceService).requestRefreshWithResult(eq("code-review-multi-board"), refreshAction.capture());
     RealtimeWorkspaceRefreshResult result = refreshAction.getValue().get();
     ArgumentCaptor<List<String>> sourceTables = ArgumentCaptor.forClass(List.class);
-    verify(gitlabMirrorSyncService)
-        .refreshTablesOnDemandDetailed(sourceTables.capture(), eq("code-review-multi-board"));
+    verify(realtimeIncrementalRefreshService)
+        .requestIncrementalRefresh(eq("code-review-multi-board"), sourceTables.capture());
     assertThat(sourceTables.getValue())
         .containsExactly(
             "merge_requests",
@@ -89,14 +87,13 @@ class MergeRequestFactRealtimeRefreshServiceTest {
             "projects",
             "namespaces",
             "users");
-    verify(factBuildService).rebuildMergeRequestFacts(false);
     assertThat(result.jobId()).isEqualTo(51L);
     assertThat(result.sourceTables()).containsExactly("merge_requests", "merge_request_metrics");
     assertThat(result.plannedTasks()).isEqualTo(2);
     assertThat(result.unsupportedTables()).containsExactly("namespaces");
     assertThat(result.factRefreshPlanned()).isTrue();
-    assertThat(result.mirrorStatus()).isEqualTo("SUCCESS");
-    assertThat(result.factStatus()).isEqualTo("SUCCESS");
-    assertThat(result.message()).isEqualTo("merge request facts ok");
+    assertThat(result.mirrorStatus()).isEqualTo("QUEUED");
+    assertThat(result.factStatus()).isEqualTo("QUEUED");
+    assertThat(result.message()).isEqualTo("mirror ok");
   }
 }

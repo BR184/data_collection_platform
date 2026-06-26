@@ -19,7 +19,18 @@
 | 页面“刷新最新数据”比预期重 | 统计页刷新不是只刷新表格结果，而是先刷新背后的 GitLab 镜像原始表，再重建事实表。例如系统测试/客户问题会刷新 `issues/projects/users/label_links/labels/notes`，代码走查会刷新 MR 相关镜像表，然后重建 `issue_fact` 或 `merge_request_fact`。 | 已确认代码原因 |
 | 同步合并仍会产生额外运行记录 | 当前 `SyncRunSubmissionService` 在复用/合并已有运行时会插入状态为 `MERGED` 的 `sync_runs` 记录。它不会被调度执行，但会让运行历史、状态展示和后续排查看起来像创建过额外同步。用户期望是被吸收的同步不能进队列，甚至不创建运行单元。 | 已确认代码差距 |
 | 事实重建有时从增量退化成全量 | `FactBuildService` 在发现既有事实缺少搜索索引或阶段派生字段时，会让 `changedSince = null`，下一次事实构建就不带增量谓词，表现为全量重建。升级后旧事实表缺字段或索引为空时尤其容易触发。 | 已确认代码原因 |
-| 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。当前只能确认新平台非法判断依赖 `review_exception_reason`、`scan_status`、`scan_bug_count`、`annotation_rate_result`、`bug_count_result`、`project_name/module_name` 占位值和 GitLab 报错字段；需要内网按这些字段核验缺失样本是否命中老平台非法条件但未命中新平台谓词。 | 已纠正旧结论，需内网字段核验 |
+| 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。当前只能确认新平台非法判断依赖 `review_exception_reason`、`scan_status`、`scan_bug_count`、`annotation_rate_result`、`bug_count_result`、`project_name/module_name` 占位值和 GitLab 报错字段；后续应通过构造不同测试数据，对比新老平台页面规则筛选差异，确认哪些老平台非法条件没有命中新平台谓词。 | 已纠正旧结论，需规则差异对比 |
+
+## 客户问题模块范围补充
+
+客户问题模块的数据范围必须记为 `CC_PRODUCT` / `CC_Product`，不是系统测试 CrownCAD 项目范围。依据来自 `C:\Users\admin\Downloads\产品客户问题响应管理机制.mm` 中“数据来源为 CCPRODUCT 数据”的需求说明，以及常驻规则 `docs/platform-page-business-rules.md`：
+
+1. 默认项目为 `CC_Product`，当前老平台项目 ID 为 `325`。
+2. 默认统计 2026-01-01 之后创建的客户问题议题。
+3. 客户问题页面的顶部范围切换按里程碑/版本体验对齐老平台，优先匹配 `milestone_title`，再兼容按父级阶段展开后的 `testing_phase`。
+4. 客户问题缺陷汇总、延期问题、非法数据、缺陷原因、按功能展示和响应/解决效率都不能回退到 CrownCAD 系统测试项目 `9` 的筛选口径。
+
+后续排查客户问题页面空表时，第一步应先确认 `project_id=325`、创建时间下限、里程碑/阶段匹配和客户问题公共排除规则是否同时成立；不能用系统测试页面的 `testing_phase` 命中结果直接判断客户问题模块是否有数据。
 
 ## 关键代码证据
 
@@ -142,6 +153,47 @@
 
 结论：这不是数据源瞬间变化，也不是表格组件计算错误，而是初始化阶段的两次请求加上后端“无测试阶段时返回总计 0”的组合效果。修正方向是前端在 required data scope 默认值落路由前不要发首个看板请求，或者后端对缺少必选测试阶段的系统测试缺陷汇总不返回总计 0 行。
 
+### 6.1 老平台系统测试缺陷汇总筛选规则提取
+
+本节直接从老平台代码提取，后续对齐时以这些入口为准：
+
+- 前端入口：`D:/projects/spidergitdata-dev/webapp/src/views/PageHome/ContentComponents/QuestionnaireInfo/ModuleTable.vue`
+- 主接口：`D:/projects/spidergitdata-dev/src/main/java/com/huayun/controller/DataAnalysisController.java#getModuleTable`
+- 主服务：`D:/projects/spidergitdata-dev/src/main/java/com/huayun/service/SpiderIssueDataService.java#getModuleTable`
+- 指标查询：`D:/projects/spidergitdata-dev/src/main/java/com/huayun/service/impl/SpiderIssueDataDAOImpl.java#findByModuleTableAndTestingPhase`
+- 公共过滤：`D:/projects/spidergitdata-dev/src/main/java/com/huayun/utils/QueryUtil.java#setQueryFilter`
+- 模块成员匹配：`D:/projects/spidergitdata-dev/src/main/java/com/huayun/utils/ModuleSplitUtil.java#isContainModule`
+
+提取到的规则：
+
+1. 默认项目是 CrownCAD 系统测试项目 `projectId=9`；接口 `projectId` 默认值也是 `9`。
+2. 前端阶段下拉加载后默认选择 `phaseNameList[0].value`，然后请求 `/dataAnalysis/getModuleTable?phase=...`；不是默认“全部测试阶段”。
+3. `phase` 如果是父级阶段名，老平台用 `testingPhaseService.getByName(phase)` 展开为具体测试阶段；如果查不到，就把传入值当作具体 `testing_phase`。
+4. 系统测试缺陷汇总没有显式阶段时，老平台 `projectId=9` 直接返回 `null`，不会查询全量。
+5. CrownCAD 项目主查询按 `testing_phase LIKE %具体阶段%` 匹配，而不是只精确等于阶段值，也不是只靠“系统测试/回归测试”标签命中。
+6. 模块行目录来自 `dropDownService.getModuleNameFromSpiderIssueData(projectId, testingPhases)`，也就是指定项目和阶段范围内出现过的模块名；随后追加固定的“总计”行。
+7. 指标查询先套公共过滤：系统测试项目默认排除 `category` 含 `功能屏蔽`、`category` 含 `建议`、`bug_status` 含 `已拒绝`，并排除关闭状态下的 `申请否决`、`需求如此`。
+8. 模块匹配不是子串包含，而是把 `module_name` 按 `&` 拆分并 `trim` 后与目标模块精确相等；总计行不做模块过滤。
+9. 一级缺陷总数：`severity_level = 一级缺陷`。
+10. 一级回退：`severity_level = 一级缺陷` 且标题包含 `（退`、`回退` 或 `倒退`。
+11. 一级挂机：`severity_level = 一级缺陷` 且标题包含 `挂机`。
+12. 一级其他：`severity_level = 一级缺陷` 且标题不包含 `退`、`回退`、`倒退`、`挂机`；因此“退出”等包含 `退` 的标题不会进入其他一级。
+13. 二级/三级缺陷总数分别按 `severity_level = 二级缺陷 / 三级缺陷`。
+14. 建议类列来自 `category` 含 `建议`，但公共过滤也排除了 `category` 含 `建议`，所以默认公共口径下建议类通常为 0。
+15. `已修复/未更新`、各严重程度已修复、P1/P2/P3 已修复等修复类统计，老平台多处使用 `bug_status` 含 `已修复/完成` 或 `未复现` 或 `status = CLOSED`；部分遗留列还沿用 `已修复/待合并/未更新` 的旧标签口径。
+16. P1/P2/P3 数量按 `urgency = P1/P2/P3`，与严重程度一级/二级/三级是两套独立标签体系。
+17. 申请延期按 `bug_status` 含 `申请延期`；延期占比 = 模块延期缺陷总数 / 模块总缺陷数。
+18. 复测未通过按 `bug_status` 含 `未修复`。
+19. 新发议题按 `bug_status` 不含 `历史遗留`；新发修复/关闭在此基础上叠加修复或关闭条件。
+20. 缺陷占比 = 模块总缺陷数 / 当前测试阶段总缺陷数；总计行直接使用该阶段全部有效议题。
+
+与新平台当前实现需要继续对照的重点：
+
+1. 新平台 `SystemTestDefectSummaryBoardService` 当前说明和执行中仍强调 `inSystemTestScope`，即系统测试/回归测试范围；老平台缺陷汇总主查询的第一限定是 `project_id=9 + testing_phase LIKE 展开后的具体阶段`。如果事实数据存在阶段字段但缺少系统测试标签，新平台可能少；如果标签宽泛但阶段不在当前父级展开范围，新平台可能多。
+2. 老平台模块目录来自“指定阶段内出现过的模块名”，新平台为了避免空目录和支持默认模块范围，目录改成启用阶段范围加默认标签组/模块筛选。这是产品化修正，但做 1:1 差异定位时要单独标记为目录规则差异，不能混同为单元格计数差异。
+3. 老平台在 DAO 查询层大量使用 `LIKE`，例如 `testing_phase LIKE %阶段%`、`bug_status LIKE ...`、`category LIKE ...`；新平台事实层若使用归一化枚举等值匹配，需要确认归一化值能覆盖旧文案。
+4. 后续系统测试缺陷汇总差异排查应按“同一批构造数据在老平台导入/新平台导入后逐列比较”的方式推进，优先覆盖：只有阶段无系统测试标签、只有系统测试标签但阶段不匹配、标题含“退出”、多模块 `A & B`、关闭的申请否决/需求如此、建议类、历史遗留、新发、P1/P2/P3 和未修复样本。
+
 ### 7. 代码走查 MR 29874 的纠正
 
 旧结论“MR 29874 模块为空导致缺失”已经作废。
@@ -227,6 +279,7 @@ select source_instance,
 - `backend/src/main/java/com/data/collection/platform/service/SystemTestIllegalRecordService.java`
 - `backend/src/main/java/com/data/collection/platform/service/SystemTestIssueSearchService.java`
 - `backend/src/main/java/com/data/collection/platform/service/statistics/CustomerIssueTestingPhaseFilterSupport.java`
+- `backend/src/main/java/com/data/collection/platform/service/statistics/SystemTestDefectSummaryBoardService.java`
 - `backend/src/main/java/com/data/collection/platform/service/CodeReviewIllegalRuleRegistry.java`
 - `backend/src/main/java/com/data/collection/platform/service/CodeReviewIllegalRecordSqlSupport.java`
 
@@ -236,10 +289,11 @@ select source_instance,
 2. 统计看板会等待 `first-available` 默认阶段写入 URL 后再请求数据，避免系统测试缺陷汇总首屏先出现“总计 0”再二次刷新成真实数据。
 3. 系统测试非法数据改回记录列表口径：默认项目 `9`，默认第一可用父级阶段，按阶段定义展开后匹配事实层 `testing_phase`，不再用 `Scope.SYSTEM_TEST` 的宽泛标签命中范围扩大数据。
 4. 系统测试议题查询在无阶段参数时也补第一可用父级阶段，前端显示、URL、接口查询和导出入口保持同一默认范围。
-5. 客户问题阶段匹配增加版本键兼容，`2026R3`、`CC2026R3`、`CrownCAD 2026R3` 这类里程碑/阶段值可命中同一个父级阶段；记录页和统计页共用 `CustomerIssuePhaseSupport`，避免 CC_Product 有模块但被默认阶段过滤成空表。
-6. 代码走查 `GitLab 接口报错` 判断兼容有空格和无空格文案，并把扫描状态、目标分支、负责人、审查人、指派人展示字段都纳入判断，降低老平台非法样本漏判。
-7. 事实增量构建遇到旧事实缺少搜索索引/阶段派生字段时，先按小批量修补索引，再用 `max(ods_updated_at)` 计算增量边界，不再直接退化成全量事实重建。
-8. 页面“进入页面自动刷新最新数据”的默认偏好改为关闭；用户显式打开后才会在进页时触发刷新，避免普通打开统计看板就创建同步 run。
+5. 系统测试缺陷汇总改回老平台主口径：默认项目 `9`，没有测试阶段时不查询全量；有阶段时先按阶段定义展开具体轮次，再用事实层 `testing_phase LIKE 具体阶段` 参与统计，不再用“系统测试/回归测试”标签作为前置范围。
+6. 客户问题阶段匹配增加版本键兼容，`2026R3`、`CC2026R3`、`CrownCAD 2026R3` 这类里程碑/阶段值可命中同一个父级阶段；记录页和统计页共用 `CustomerIssuePhaseSupport`，避免 CC_Product 有模块但被默认阶段过滤成空表。
+7. 代码走查 `GitLab 接口报错` 判断兼容有空格和无空格文案，并把扫描状态、目标分支、负责人、审查人、指派人展示字段都纳入判断，降低老平台非法样本漏判。
+8. 事实增量构建遇到旧事实缺少搜索索引/阶段派生字段时，先按小批量修补索引，再用 `max(ods_updated_at)` 计算增量边界，不再直接退化成全量事实重建。
+9. 页面“进入页面自动刷新最新数据”的默认偏好改为关闭；用户显式打开后才会在进页时触发刷新，避免普通打开统计看板就创建同步 run。
 
 ## 本地烟测和真实链路验证
 
@@ -257,5 +311,6 @@ select source_instance,
 ## 仍需真实内网验证或后续专项优化的项
 
 - 统计看板主接口仍是“查询事实 -> Java 聚合 -> 明细分页切片”的结构。本次已通过默认阶段对齐和刷新链路瘦身降低触发大范围查询的概率，但要稳定解决大数据量下 15 秒超时，仍需要后续把主要聚合前推到 SQL、增加统计快照或缓存。
-- 代码走查非法数据少约 6000 条已补充 GitLab 报错谓词和字段覆盖，但还需要在内网用缺失样本核验 `review_exception_reason / scan_status / bug_count_result / annotation_rate_result` 等事实字段，确认是否还有老平台字段映射差异。
+- 代码走查非法数据少约 6000 条已补充 GitLab 报错谓词和字段覆盖；后续应通过构造不同测试数据，对比新老平台页面规则筛选差异，核验 `review_exception_reason / scan_status / bug_count_result / annotation_rate_result` 等事实字段是否还有老平台字段映射差异。
 - 客户问题模块默认阶段兼容了版本键匹配，但最终仍依赖内网阶段定义和 CC_Product 里程碑命名；若业务里程碑不是版本格式，需要在阶段定义或客户问题里程碑映射规则中补正式配置入口，不能在页面写死特殊值。
+- 对于无法直接复现内网全量环境的问题，后续不要表述为“缺失内网样本导致无法判断”；应明确为“通过不同测试数据组合，对比新老平台不同页面之间的规则筛选差异”，再根据差异矩阵定位是哪条筛选规则不一致。

@@ -1,8 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,8 +29,6 @@ class SystemTestDefectSummaryRuleExplanationTest {
 
   @Test
   void shouldDescribeSystemTestBoardRuleFlowEvenWhenMirrorTablesAreEmpty() {
-    when(runtimeSupport.loadFacts(anyMap(), any()))
-        .thenReturn(List.of());
     when(phaseCatalogService.listParentNames(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID))
         .thenReturn(List.of());
     when(labelGroupDefaultFilterService.defaultCondition("system-test-defect-summary", "moduleName"))
@@ -49,7 +45,7 @@ class SystemTestDefectSummaryRuleExplanationTest {
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(Map.of());
 
     assertThat(response.supported()).isTrue();
-    assertThat(response.version()).isEqualTo("system-test-defect-summary@2026-04-09-v6");
+    assertThat(response.version()).isEqualTo("system-test-defect-summary@2026-06-26-v7");
     assertThat(response.flowSteps()).extracting("key")
         .containsExactly("source-load", "scope-filter", "exclude-invalid-issues", "apply-filter-group", "module-expand");
     assertThat(response.flowSteps()).allSatisfy(step -> {
