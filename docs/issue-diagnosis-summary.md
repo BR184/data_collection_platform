@@ -323,6 +323,40 @@ select source_instance,
 | 客户问题非法数据 | 展开行字段同老平台 `IllegalIssueSearchCCProduct.vue` | 主表同系统测试非法数据；详情抽屉补齐完整展开字段 | `CustomerIssueIllegalRecordRowResponse` | `issue_fact` 客户问题事实字段 | 已对齐。项目、里程碑、优先级和标签为新平台增强字段。 |
 | 系统测试议题查询 | 老平台默认项目 CrownCAD `projectId=9`，阶段按父级展开 | 前端 URL/接口默认补 `projectId=9` 和 `testingPhase` | `SystemTestIssueSearchRequest` | `issue_fact.project_id`、`testing_phase` / `phase_filter_value` | 已对齐默认范围；后续仍需用样本对比列表字段和导出字段。 |
 | 系统测试缺陷汇总 | `phase` 默认第一阶段或 `CC2026R3`，按 `testing_phase LIKE` | 数据范围 key `testingPhase` | `SystemTestDefectSummaryBoardService` | `issue_fact.testing_phase` 按阶段定义展开后 `LIKE` 匹配 | 已对齐核心统计范围和默认阶段；模块目录差异需在后续样本对比中单独标记。 |
+| 系统测试议题查询 | `issuableReference` | 筛选/主表 `issueIid` | `SystemTestIssueSearchRequest.issueIid` | `issue_fact.iid`，跳转使用 `source_instance + project_id + iid` | 已对齐。 |
+| 系统测试议题查询 | `issueTitle` | 筛选/主表 `title` | `IssueFactRecordListRequest.title` | `issue_fact.title` | 已对齐。 |
+| 系统测试议题查询 | `projectId/projectName` | 默认 `projectId=9`，筛选 `projectName` | `IssueFactRecordListRequest.projectId/projectName` | `issue_fact.project_id/project_name` | 已对齐默认 CrownCAD 范围；项目名称筛选不替代项目 ID 默认。 |
+| 系统测试议题查询 | `moduleName` | 筛选 `moduleName`，主表“模块” | `IssueFactRecordListRequest.moduleName` | `issue_fact.module_names` 多模块拆分匹配 | 已对齐。 |
+| 系统测试议题查询 | `functionName` | 筛选/主表 `functionName` | `IssueFactRecordListRequest.functionName` | `issue_fact.function_name` | 已对齐。 |
+| 系统测试议题查询 | `author` | 筛选 `authorName`，主表/详情“创建人” | `IssueFactRecordListRequest.authorName` | `issue_fact.author_name` | 已对齐。 |
+| 系统测试议题查询 | `handler` | 筛选/主表 `assigneeName`，展示“处理人” | `IssueFactRecordListRequest.assigneeName` | `issue_fact.assignee_name` | 已对齐。 |
+| 系统测试议题查询 | `status` | 筛选 `issueState`，主表“议题状态” | `IssueFactRecordListRequest.issueState` | `issue_fact.issue_state` | 已对齐。 |
+| 系统测试议题查询 | `bugStatus` | 筛选/主表 `bugStatus` | `IssueFactRecordListRequest.bugStatus` | `issue_fact.bug_status` | 已对齐。 |
+| 系统测试议题查询 | `severityLevel` | 筛选/主表 `severityLevel` | `IssueFactRecordListRequest.severityLevel` | `issue_fact.severity_level` | 已对齐。 |
+| 系统测试议题查询 | `category` | 筛选 `category` | `IssueFactRecordListRequest.category` | `issue_fact.category` | 已对齐。 |
+| 系统测试议题查询 | `mileStone` | 筛选 `milestoneTitle` | `IssueFactRecordListRequest.milestoneTitle` | `issue_fact.milestone_title` | 已对齐。 |
+| 系统测试议题查询 | `submissionDate/updatedDate` | `createdAtRange/updatedAtRange` | `createdAtStart/createdAtEnd/updatedAtStart/updatedAtEnd` | `issue_fact.created_at_source/updated_at_source` | 已对齐。 |
+| 系统测试缺陷原因分析 | 顶部测试阶段 | 数据范围 `testingPhase`，默认第一可用父级阶段 | `SystemTestDefectCauseBoardService` | 先按阶段定义展开，再匹配 `issue_fact.testing_phase` | 已对齐默认范围；主接口仍是事实查询后 Java 聚合，性能风险另列。 |
+| 系统测试议题阶段统计 | 顶部测试阶段 | 数据范围 `testingPhase`，默认第一可用父级阶段 | `SystemTestPhaseStatisticsBoardService` | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐默认范围。 |
+| 系统测试申请延期缺陷分析 | 顶部测试阶段 | 数据范围 `testingPhase`，默认第一可用父级阶段 | `SystemTestDelayAnalysisBoardService` | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐默认范围。 |
+| 系统测试横向对比 | `projectName/testingPhase/moduleName` | 条件筛选 `projectName/testingPhase/moduleName` | `SystemTestHorizontalComparisonExportService.ExportScope` | 议题按 `issue_fact.testing_phase/module_names`，代码走查按 `merge_request_fact.project_name/target_branch`，评审按 `review_records.project_name` | 已对齐核心范围；导出格式仍需按老平台模板继续逐列复核。 |
+| 客户问题缺陷汇总 | 老平台里程碑/版本切换 | 数据范围 `testingPhase`，展示“测试阶段” | `CustomerIssueTestingPhaseFilterSupport` | 优先 `issue_fact.milestone_title`，再兼容 `testing_phase` | 已对齐默认不再“全部测试阶段”，范围固定 CC_Product。 |
+| 客户问题缺陷原因分析 | 老平台里程碑/版本切换 | 数据范围 `testingPhase`，条件 `milestoneTitle` 可叠加 | `CustomerIssueDefectCauseBoardService` | `milestone_title` 优先，`testing_phase` 兼容 | 已对齐范围和阶段切换。 |
+| 客户问题延期问题 | 老平台里程碑、模块、紧急程度/延期类型 | 数据范围 `testingPhase`，条件 `moduleName/priorityLevel/delayIssue` | `CustomerIssueDelayIssuesBoardService` | `issue_fact.milestone_title/module_names/priority_level/is_response_delayed/is_resolve_delayed` | 已对齐范围；SLA 字段来自事实层本次新规则，内网需重点验收 P1/P2/P3 和 18 天规则。 |
+| 客户问题响应/解决效率 | 老平台里程碑/版本切换 | 数据范围 `testingPhase`，条件 `milestoneTitle/moduleName` | `CustomerIssueResponseEfficiencyBoardService` | `issue_fact.milestone_title/testing_phase/module_names/response_cycle_hours/resolve_cycle_days` | 已对齐范围；周期计算依赖本次事实层重建。 |
+| 客户问题按功能展示 | 老平台里程碑、模块、功能 | 数据范围 `testingPhase`，条件 `moduleName/functionName/milestoneTitle` | `CustomerIssueByFunctionBoardService` | `issue_fact.milestone_title/testing_phase/module_names/function_name` | 已对齐范围和字段映射。 |
+| 评审数据管理-新增评审 | 项目 | 表单 `projectName` | `ReviewDataFilterOptionService.projectNames` / `ReviewDataRecordSaveRequest.projectName` | 候选优先 `ods_gitlab_projects.name`，保存到 `review_records.project_name` | 已对齐：候选来自镜像库全量项目，历史评审数据仅兜底补充。 |
+| 评审数据管理-新增评审 | 模块 | 表单 `moduleName` | `ReviewDataFilterOptionService.moduleNames` / `ReviewDataRecordSaveRequest.moduleName` | 候选优先 `ods_gitlab_labels.title` 按模块标签规则归一化，保存到 `review_records.module_name` | 已对齐。 |
+| 评审数据管理-新增评审 | 评审负责人 | 表单 `reviewOwner` | `ReviewDataFilterOptionService.reviewOwners` / `ReviewDataRecordSaveRequest.reviewOwner` | 候选优先 `ods_gitlab_users.name`，保存到 `review_records.review_owner` | 已对齐。 |
+| 评审数据管理-新增评审 | 评审专家/作者/责任人 | 表单 `reviewExperts`、`authorName`；问题项 `reviewerName/ownerName` | `ReviewDataRecordSaveRequest.reviewExperts/descriptions.authorName/contents.reviewerName`，问题项保存请求 | 候选优先 `ods_gitlab_users.name`，分别保存到 `review_record_experts`、`review_descriptions.author_name`、`review_problem_items.*` | 已对齐，避免只从已导入评审记录取人。 |
+| 评审数据管理-新增评审 | 评审版本 | 表单 `reviewVersion` | `ReviewDataFilterOptionService.reviewVersions` / `ReviewDataRecordSaveRequest.reviewVersion` | 候选优先 `ods_gitlab_milestones.title`，保存到 `review_records.review_version` 和描述行版本 | 已对齐。 |
+| 镜像设置-延期标签写回 | 老平台 GitLab 写标签任务 | 配置 `delayLabelWritebackEnabled`，默认 false | `GitlabSyncConfig.delayLabelWritebackEnabled` + 后端全局开关 `platform.gitlab-mirror.delay-label-writeback-api-enabled` | `gitlab_sync_configs.delay_label_writeback_enabled` + 环境变量 `CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED` | 已对齐安全边界：发布包默认关闭全局写接口；只有全局开关和数据源开关同时开启且配置 token/web 地址时，才差异增删 `响应已延期/解决已延期` 并去重，不覆盖全量 labels。 |
+
+字段映射审计边界：
+
+1. 上表覆盖本轮已经修改或明确复核过的页面、切换字段、筛选字段、主表/详情/表单字段和关键导出范围字段。
+2. 未在本轮改动且未列入上表的页面，不能因为本次打包就视为已经完成逐字段老平台源码审计；后续仍按“老平台源码字段 -> 新平台前端 key -> 后端请求 -> SQL/事实字段”的路径补齐。
+3. 本次相对 2026-06-25 空包包含 `FactBuildService`、`IssueFactNormalizationRules`、客户问题 SLA、延期标签写回配置、增量同步边界和事实刷新链路变更，因此内网交付按“空数据新包”打包；既有内网实例如果要保留数据，需要另行制定迁移/事实重建方案，不能把空包直接覆盖已有数据卷。
 
 ## 本地烟测和真实链路验证
 
@@ -345,7 +379,7 @@ select source_instance,
 ### 老平台已有功能，必须继续对齐
 
 1. 客户问题模块仍是第一优先级遗留项。客户问题范围必须固定为 `CC_PRODUCT` / `CC_Product`，老平台项目 ID 为 `325`，并按 `C:\Users\admin\Downloads\产品客户问题响应管理机制.mm` 的响应、解决、延期、非法模板规则执行。本轮已补齐平台内事实闭环：`issue_fact.is_response_delayed` 只对 CC_Product、2026-01-01 后创建、open 且未按 `# 问题调研情况说明` 响应的议题生效，并按 P1/P2/P3 或未设定紧急程度的 24/48/72 小时规则计算；模板响应后即使原始标签仍有 `响应已延期`，事实延期也会取消。`issue_fact.is_resolve_delayed` 按调研模板“计划解决时间/预计解决时间”日期和 18 天上限取更早期限，`申请延期`、`数据异常`、`需求如此/设计如此`、`未复现`，以及带 `已修复/完成` 且已填写修复模板 `### 1、修复状态` 的议题会取消解决延期。
-2. 老平台还会在每小时 CC_Product 任务中通过 GitLab API 更新 `响应已延期` / `解决已延期` 标签。本轮已补后端受控写回通道：`gitlab_sync_configs.delay_label_writeback_enabled = true` 且配置 `api_token`、`web_base_url` 后，事实构建和小时级客户问题延期闭环任务会按事实字段计算差异，只通过 GitLab Issue API 的 `add_labels` / `remove_labels` 增删这两个延期标签；不覆盖 GitLab 上的完整 labels，不改写其它标签，重复延期标签会先去重，差异为空时不发请求。默认开关为 false，没有 token 时只更新平台事实字段，不写 GitLab。
+2. 老平台还会在每小时 CC_Product 任务中通过 GitLab API 更新 `响应已延期` / `解决已延期` 标签。本轮已补后端受控写回通道，但为了避免开发测试阶段扰动仍在运行的老平台，写回需要同时满足全局开关 `CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=true` 和数据源开关 `gitlab_sync_configs.delay_label_writeback_enabled = true`，并配置 `api_token`、`web_base_url`。本次内网测试包默认全局关闭，即使页面误开数据源开关也不会调用 GitLab 写接口；验收时先看 `issue_fact.is_response_delayed`、`issue_fact.is_resolve_delayed`、延期统计页和差异去重规则。后续如需真实验证写回，应使用隔离 GitLab/隔离项目，或由业务方明确批准后再临时打开全局开关。开启后，事实构建和小时级客户问题延期闭环任务会按事实字段计算差异，只通过 GitLab Issue API 的 `add_labels` / `remove_labels` 增删这两个延期标签；不覆盖 GitLab 上的完整 labels，不改写其它标签，重复延期标签会先去重，差异为空时不发请求。
 3. 客户问题响应/解决效率需要用不同测试数据继续和老平台逐页对比。重点样本应覆盖：无紧急程度按 P3、按模板响应、未按模板响应、预计解决时间早于 18 天、预计解决时间超过 18 天、已修复/完成、申请延期、数据异常、需求如此/设计如此、未复现、多模块议题。对比目标不是模拟完整内网环境，而是用同一批构造数据在新老平台不同页面之间确认规则筛选差异。
 4. 系统测试缺陷原因分析和议题阶段统计仍有 15 秒超时结构性风险。当前缺陷原因占比分母已经按“缺陷原因个数”聚合，能覆盖一个议题多个原因时占比总和应为 100% 的老平台规则；但主接口仍是 `issue_fact` 查询后在 Java 聚合，再做明细分页切片。默认阶段对齐只能缩小范围，不能彻底保证大数据量下稳定 1-3 秒，需要后续把核心聚合前推 SQL，或增加统计快照/缓存。
 5. 普通统计看板导出还没有完全达到“一字不差”。`StatisticBoardController` 只有遇到 `StatisticBoardWorkbookExportSupport` 才导出 xlsx，否则走 `StatisticBoardCsvSupport`；CSV 当前只导出一行叶子列表头，不能保留页面多级表头。已实现工作簿导出的主要是系统测试/客户问题缺陷原因分析和系统测试横向对比，系统测试缺陷汇总、议题阶段统计、申请延期缺陷分析、客户问题缺陷汇总、延期问题、按功能展示、响应效率等普通看板仍需按“当前看到的表格”导出多级表头和当前数据。

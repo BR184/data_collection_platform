@@ -2,13 +2,14 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.data.collection.platform.entity.GitlabSyncConfig;
 import java.net.http.HttpClient;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CustomerIssueDelayLabelWritebackServiceTest {
   private final CustomerIssueDelayLabelWritebackService service =
-      new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient());
+      new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient(), true);
 
   @Test
   void shouldOnlyAddAndRemoveDelayLabels() {
@@ -53,5 +54,19 @@ class CustomerIssueDelayLabelWritebackServiceTest {
             List.of("C")));
 
     assertThat(body).isEqualTo("add_labels=A%2CB&remove_labels=C");
+  }
+
+  @Test
+  void shouldRequireGlobalApiSwitchBeforeWritebackCanRun() {
+    GitlabSyncConfig config = new GitlabSyncConfig();
+    config.setDelayLabelWritebackEnabled(true);
+    config.setWebBaseUrl("https://gitlab.example.com");
+    config.setApiToken("token");
+
+    CustomerIssueDelayLabelWritebackService disabledService =
+        new CustomerIssueDelayLabelWritebackService(HttpClient.newHttpClient(), false);
+
+    assertThat(disabledService.isEnabled(config)).isFalse();
+    assertThat(service.isEnabled(config)).isTrue();
   }
 }

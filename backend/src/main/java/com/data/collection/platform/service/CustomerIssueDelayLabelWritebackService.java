@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,13 +26,16 @@ public class CustomerIssueDelayLabelWritebackService {
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
   private final HttpClient httpClient;
+  private final boolean apiWritebackEnabled;
 
-  public CustomerIssueDelayLabelWritebackService() {
-    this(HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build());
+  public CustomerIssueDelayLabelWritebackService(
+      @Value("${platform.gitlab-mirror.delay-label-writeback-api-enabled:false}") boolean apiWritebackEnabled) {
+    this(HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(), apiWritebackEnabled);
   }
 
-  CustomerIssueDelayLabelWritebackService(HttpClient httpClient) {
+  CustomerIssueDelayLabelWritebackService(HttpClient httpClient, boolean apiWritebackEnabled) {
     this.httpClient = httpClient;
+    this.apiWritebackEnabled = apiWritebackEnabled;
   }
 
   public void syncLabels(GitlabSyncConfig config, IssueFact fact) {
@@ -94,8 +98,9 @@ public class CustomerIssueDelayLabelWritebackService {
     return new LabelChange(List.copyOf(addLabels), List.copyOf(removeLabels));
   }
 
-  private boolean isEnabled(GitlabSyncConfig config) {
-    return config != null
+  boolean isEnabled(GitlabSyncConfig config) {
+    return apiWritebackEnabled
+        && config != null
         && Boolean.TRUE.equals(config.getDelayLabelWritebackEnabled())
         && StringUtils.hasText(config.getWebBaseUrl())
         && StringUtils.hasText(config.getApiToken());
