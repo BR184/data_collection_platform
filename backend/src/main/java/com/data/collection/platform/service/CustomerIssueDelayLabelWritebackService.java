@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -28,6 +29,7 @@ public class CustomerIssueDelayLabelWritebackService {
   private final HttpClient httpClient;
   private final boolean apiWritebackEnabled;
 
+  @Autowired
   public CustomerIssueDelayLabelWritebackService(
       @Value("${platform.gitlab-mirror.delay-label-writeback-api-enabled:false}") boolean apiWritebackEnabled) {
     this(HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build(), apiWritebackEnabled);
