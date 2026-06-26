@@ -214,6 +214,7 @@ class IssueFactNormalizationRulesTest {
     String notes = "# 问题调研情况说明\n预计解决时间 7 天";
     assertThat(IssueFactNormalizationRules.hasResponse(notes)).isTrue();
     assertThat(IssueFactNormalizationRules.isResponseDelayed(List.of("响应已延期"), "")).isTrue();
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(List.of("响应已延期"), notes)).isFalse();
     assertThat(IssueFactNormalizationRules.resolveSlaDays(notes)).isEqualTo(7);
     assertThat(IssueFactNormalizationRules.resolveSlaDays("预计解决时间 28 天")).isEqualTo(18);
 
@@ -235,5 +236,66 @@ class IssueFactNormalizationRulesTest {
         false,
         LocalDateTime.of(2026, 3, 1, 9, 0),
         LocalDateTime.of(2026, 4, 1, 9, 0))).isTrue();
+  }
+
+  @Test
+  void shouldCalculateCustomerIssueResponseDelayByPriorityAndTemplateReply() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(
+        List.of("P1"),
+        "",
+        createdAt,
+        "P1",
+        LocalDateTime.of(2026, 4, 2, 11, 0))).isTrue();
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(
+        List.of("P1"),
+        "",
+        createdAt,
+        "P1",
+        LocalDateTime.of(2026, 4, 2, 9, 0))).isFalse();
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(
+        List.of("P2"),
+        "",
+        createdAt,
+        "P2",
+        LocalDateTime.of(2026, 4, 3, 11, 0))).isTrue();
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(
+        List.of(),
+        "",
+        createdAt,
+        null,
+        LocalDateTime.of(2026, 4, 4, 11, 0))).isTrue();
+    assertThat(IssueFactNormalizationRules.isResponseDelayed(
+        List.of("响应已延期", "P1"),
+        "# 问题调研情况说明\n## 问题原因\n已完成调研",
+        createdAt,
+        "P1",
+        LocalDateTime.of(2026, 4, 2, 11, 0))).isFalse();
+  }
+
+  @Test
+  void shouldUsePlanSolutionDateBeforeEighteenDayResolutionDeadline() {
+    LocalDateTime createdAt = LocalDateTime.of(2026, 4, 1, 10, 0);
+    String earlierPlan = "# 问题调研情况说明\n## 计划解决时间：2026.04.08";
+    assertThat(IssueFactNormalizationRules.resolveDeadline(createdAt, earlierPlan))
+        .isEqualTo(LocalDateTime.of(2026, 4, 8, 0, 0));
+
+    String laterPlan = "# 问题调研情况说明\n## 计划解决时间：2026年5月1日";
+    assertThat(IssueFactNormalizationRules.resolveDeadline(createdAt, laterPlan))
+        .isEqualTo(LocalDateTime.of(2026, 4, 19, 10, 0));
+
+    LocalDateTime earlierDeadline = IssueFactNormalizationRules.resolveDeadline(createdAt, earlierPlan);
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷"),
+        false,
+        false,
+        earlierDeadline,
+        LocalDateTime.of(2026, 4, 9, 10, 0))).isTrue();
+    assertThat(IssueFactNormalizationRules.isResolveDelayed(
+        List.of("一级缺陷", "已修复/完成"),
+        true,
+        true,
+        earlierDeadline,
+        LocalDateTime.of(2026, 4, 9, 10, 0))).isFalse();
   }
 }

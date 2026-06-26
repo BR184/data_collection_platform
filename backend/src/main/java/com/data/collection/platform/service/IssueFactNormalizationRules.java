@@ -133,6 +133,15 @@ public final class IssueFactNormalizationRules {
     return IssueSlaRules.isResponseDelayed(labels, notesText);
   }
 
+  public static boolean isResponseDelayed(
+      List<String> labels,
+      String notesText,
+      LocalDateTime createdAt,
+      String priorityLevel,
+      LocalDateTime now) {
+    return IssueSlaRules.isResponseDelayed(labels, notesText, createdAt, priorityLevel, now);
+  }
+
   public static int resolveSlaDays(String notesText) {
     return IssueSlaRules.resolveSlaDays(notesText);
   }
@@ -141,12 +150,29 @@ public final class IssueFactNormalizationRules {
     return IssueSlaRules.resolveDeadline(createdAt, resolveSlaDays);
   }
 
+  public static LocalDateTime resolveDeadline(LocalDateTime createdAt, String notesText) {
+    return IssueSlaRules.resolveDeadline(createdAt, notesText);
+  }
+
+  public static boolean hasFixCaseNote(String notesText) {
+    return IssueSlaRules.hasFixCaseNote(notesText);
+  }
+
   public static boolean isResolveDelayed(
       List<String> labels,
       boolean fixed,
       LocalDateTime resolveDeadlineAt,
       LocalDateTime now) {
     return IssueSlaRules.isResolveDelayed(labels, fixed, resolveDeadlineAt, now);
+  }
+
+  public static boolean isResolveDelayed(
+      List<String> labels,
+      boolean fixed,
+      boolean hasFixCaseNote,
+      LocalDateTime resolveDeadlineAt,
+      LocalDateTime now) {
+    return IssueSlaRules.isResolveDelayed(labels, fixed, hasFixCaseNote, resolveDeadlineAt, now);
   }
 
   public static boolean isLegacy(

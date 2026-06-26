@@ -31,6 +31,7 @@ public class GitlabMirrorProperties {
   private int incrementalLookbackMinutes = 5;
   private int maxSyncThreads = 16;
   private int maxContinuationTasksPerTable = 50000;
+  private int customerIssueDelayCheckDelayMs = 3600000;
 
   public boolean isSchedulerEnabled() {
     return schedulerEnabled;
@@ -246,5 +247,13 @@ public class GitlabMirrorProperties {
 
   public void setMaxContinuationTasksPerTable(int maxContinuationTasksPerTable) {
     this.maxContinuationTasksPerTable = maxContinuationTasksPerTable;
+  }
+
+  public int getCustomerIssueDelayCheckDelayMs() {
+    return customerIssueDelayCheckDelayMs;
+  }
+
+  public void setCustomerIssueDelayCheckDelayMs(int customerIssueDelayCheckDelayMs) {
+    this.customerIssueDelayCheckDelayMs = customerIssueDelayCheckDelayMs;
   }
 }

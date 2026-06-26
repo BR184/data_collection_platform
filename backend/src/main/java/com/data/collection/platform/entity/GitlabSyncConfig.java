@@ -30,6 +30,12 @@ public class GitlabSyncConfig {
   @TableField("web_base_url")
   private String webBaseUrl;
 
+  @TableField("api_token")
+  private String apiToken;
+
+  @TableField("delay_label_writeback_enabled")
+  private Boolean delayLabelWritebackEnabled;
+
   @TableField("auto_sync_enabled")
   private boolean autoSyncEnabled;
 

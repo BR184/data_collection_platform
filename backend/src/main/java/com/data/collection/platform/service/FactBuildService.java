@@ -48,6 +48,7 @@ public class FactBuildService {
   private final GitlabConfigService configService;
   private final GitlabFactSourceSqlProvider factSourceSqlProvider;
   private final GitlabFactSourceQueryExecutor factSourceQueryExecutor;
+  private final CustomerIssueDelayLabelWritebackService delayLabelWritebackService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -57,7 +58,8 @@ public class FactBuildService {
       FactBuildTaskService factBuildTaskService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       SqlQueryMonitor sqlQueryMonitor,
-      GitlabConfigService configService) {
+      GitlabConfigService configService,
+      CustomerIssueDelayLabelWritebackService delayLabelWritebackService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
@@ -68,6 +70,7 @@ public class FactBuildService {
     this.configService = configService;
     this.factSourceSqlProvider = new GitlabFactSourceSqlProvider();
     this.factSourceQueryExecutor = new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor);
+    this.delayLabelWritebackService = delayLabelWritebackService;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -127,6 +130,7 @@ public class FactBuildService {
     List<IssueFact> facts =
         loadSingleIssueFacts(normalizedSource, projectId, issueIid, calendar, moduleDictionary);
     batchUpsertIssueFacts(facts);
+    syncCustomerIssueDelayLabels(normalizedSource, facts);
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -142,6 +146,7 @@ public class FactBuildService {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
       List<IssueFact> facts = loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary);
       batchUpsertIssueFacts(facts);
+      syncCustomerIssueDelayLabels(sourceInstance, facts);
       return new FactBuildResponse(
           factScope("issue", sourceInstance),
           full,
@@ -151,6 +156,45 @@ public class FactBuildService {
       log.warn("Failed to rebuild issue facts", e);
       throw e;
     }
+  }
+
+  public FactBuildResponse refreshCustomerIssueDelayFactsForConfig(GitlabSyncConfig config) {
+    String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
+    List<IssueFact> facts = loadOpenCustomerIssueFacts(sourceInstance);
+    List<IssueFact> changedFacts = new ArrayList<>();
+    LocalDateTime now = LocalDateTime.now();
+    for (IssueFact fact : facts) {
+      boolean nextResponseDelayed =
+          IssueFactNormalizationRules.isResponseDelayed(
+              labelsOf(fact),
+              fact.getRawPayload(),
+              fact.getCreatedAtSource(),
+              fact.getPriorityLevel(),
+              now);
+      boolean nextResolveDelayed =
+          IssueFactNormalizationRules.isResolveDelayed(
+              labelsOf(fact),
+              Boolean.TRUE.equals(fact.getFixed()),
+              IssueFactNormalizationRules.hasFixCaseNote(fact.getRawPayload()),
+              fact.getResolveDeadlineAt(),
+              now);
+      if (Boolean.TRUE.equals(fact.getResponseDelayed()) == nextResponseDelayed
+          && Boolean.TRUE.equals(fact.getResolveDelayed()) == nextResolveDelayed
+          && Boolean.TRUE.equals(fact.getResponseOverdue()) == nextResponseDelayed) {
+        continue;
+      }
+      fact.setResponseDelayed(nextResponseDelayed);
+      fact.setResponseOverdue(nextResponseDelayed);
+      fact.setResolveDelayed(nextResolveDelayed);
+      changedFacts.add(fact);
+    }
+    batchUpsertIssueFacts(changedFacts);
+    syncCustomerIssueDelayLabels(sourceInstance, changedFacts);
+    return new FactBuildResponse(
+        factScope("customer-issue-delay", sourceInstance),
+        false,
+        changedFacts.size(),
+        "客户问题延期事实已按当前时间刷新");
   }
 
   private List<IssueFact> loadIssueFacts(
@@ -505,6 +549,83 @@ public class FactBuildService {
     return DEFAULT_SOURCE_INSTANCE.equals(normalized) ? scope : normalized + ":" + scope;
   }
 
+  private List<IssueFact> loadOpenCustomerIssueFacts(String sourceInstance) {
+    return jdbcTemplate.query(
+        """
+            select *
+              from issue_fact
+             where source_system = ?
+               and source_instance = ?
+               and deleted = false
+               and project_id = ?
+               and coalesce(issue_state, '') <> 'closed'
+               and created_at_source >= ?
+            """,
+        (rs, rowNum) -> {
+          IssueFact fact = new IssueFact();
+          fact.setSourceSystem(defaultText(rs.getString("source_system"), DEFAULT_SOURCE_SYSTEM));
+          fact.setSourceInstance(defaultText(rs.getString("source_instance"), sourceInstance));
+          fact.setIngestChannel(defaultText(rs.getString("ingest_channel")));
+          fact.setSourceSummary(defaultText(rs.getString("source_summary")));
+          fact.setRawPayload(defaultText(rs.getString("raw_payload"), ""));
+          fact.setProjectId(rs.getLong("project_id"));
+          fact.setProjectName(defaultText(rs.getString("project_name")));
+          fact.setIssueId(rs.getLong("issue_id"));
+          fact.setIssueIid((Long) rs.getObject("issue_iid"));
+          fact.setTitle(defaultText(rs.getString("title")));
+          fact.setIssueState(defaultText(rs.getString("issue_state")));
+          fact.setIssueType(defaultText(rs.getString("issue_type")));
+          fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
+          fact.setAuthorName(defaultText(rs.getString("author_name")));
+          fact.setAssigneeName(defaultText(rs.getString("assignee_name")));
+          fact.setCreatedAtSource(toLocalDateTime(rs.getTimestamp("created_at_source")));
+          fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at_source")));
+          fact.setOdsUpdatedAt(toLocalDateTime(rs.getTimestamp("ods_updated_at")));
+          fact.setClosedAtSource(toLocalDateTime(rs.getTimestamp("closed_at_source")));
+          fact.setModuleName(defaultText(rs.getString("module_name"), null));
+          fact.setPrimaryModuleName(defaultText(rs.getString("primary_module_name"), null));
+          fact.setModuleNames(defaultText(rs.getString("module_names")));
+          fact.setFunctionName(defaultText(rs.getString("function_name")));
+          fact.setTestingPhase(defaultText(rs.getString("testing_phase")));
+          fact.setSeverityLevel(defaultText(rs.getString("severity_level")));
+          fact.setSeverityAlias(defaultText(rs.getString("severity_alias")));
+          fact.setPriorityLevel(defaultText(rs.getString("priority_level")));
+          fact.setUrgency(defaultText(rs.getString("urgency")));
+          fact.setBugStatus(defaultText(rs.getString("bug_status")));
+          fact.setCategory(defaultText(rs.getString("category")));
+          fact.setReasonCategory(defaultText(rs.getString("reason_category")));
+          fact.setSystemTestLabel(defaultText(rs.getString("system_test_label")));
+          fact.setLabelNames(defaultText(rs.getString("label_names")));
+          fact.setExcluded(rs.getBoolean("is_excluded"));
+          fact.setExclusionReason(defaultText(rs.getString("exclusion_reason")));
+          fact.setFixed(rs.getBoolean("is_fixed"));
+          fact.setDelayIssue(rs.getBoolean("delay_issue"));
+          fact.setDelayReason(defaultText(rs.getString("delay_reason")));
+          fact.setDelayCause(defaultText(rs.getString("delay_cause")));
+          fact.setRegression(rs.getBoolean("is_regression"));
+          fact.setCrash(rs.getBoolean("is_crash"));
+          fact.setLevel1Other(rs.getBoolean("is_level1_other"));
+          fact.setIllegal(rs.getBoolean("is_illegal"));
+          fact.setIllegalReason(defaultText(rs.getString("illegal_reason")));
+          fact.setIllegalReasons(defaultText(rs.getString("illegal_reasons")));
+          fact.setHasResponse(rs.getBoolean("has_response"));
+          fact.setResearchTemplateTime(toLocalDateTime(rs.getTimestamp("research_template_time")));
+          fact.setResponseOverdue(rs.getBoolean("response_overdue"));
+          fact.setResponseDelayed(rs.getBoolean("is_response_delayed"));
+          fact.setResolveSlaDays(rs.getInt("resolve_sla_days"));
+          fact.setResolveDeadlineAt(toLocalDateTime(rs.getTimestamp("resolve_deadline_at")));
+          fact.setFixedLabelTime(toLocalDateTime(rs.getTimestamp("fixed_label_time")));
+          fact.setResolveDelayed(rs.getBoolean("is_resolve_delayed"));
+          fact.setLegacy(rs.getBoolean("is_legacy"));
+          fact.setDeleted(false);
+          return fact;
+        },
+        DEFAULT_SOURCE_SYSTEM,
+        sourceInstance,
+        CustomerIssueScopeRules.LEGACY_CC_PRODUCT_PROJECT_ID,
+        CustomerIssueScopeRules.CUSTOMER_ISSUE_START_DATE.atStartOfDay());
+  }
+
   private Map<PhaseCalendarKey, PhaseCalendarEntry> loadPhaseCalendar() {
     List<PhaseCalendarEntry> entries = jdbcTemplate.query(
         """
@@ -543,8 +664,11 @@ public class FactBuildService {
     String severityLevel = IssueFactNormalizationRules.normalizeSeverityLevel(labels);
     String priorityLevel = IssueFactNormalizationRules.normalizePriorityLevel(labels);
     int resolveSlaDays = IssueFactNormalizationRules.resolveSlaDays(notesText);
-    LocalDateTime resolveDeadlineAt = IssueFactNormalizationRules.resolveDeadline(createdAt, resolveSlaDays);
+    LocalDateTime resolveDeadlineAt = IssueFactNormalizationRules.resolveDeadline(createdAt, notesText);
     PhaseCalendarEntry phaseCalendar = calendar.get(new PhaseCalendarKey(rs.getLong("project_id"), normalizeKey(testingPhase)));
+    boolean customerIssue = isCustomerIssueIssueFact(labels, rs.getLong("project_id"), rs.getString("project_name"), createdAt);
+    boolean openCustomerIssue = customerIssue && !closed;
+    LocalDateTime now = LocalDateTime.now();
 
     IssueFact fact = new IssueFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
@@ -593,7 +717,6 @@ public class FactBuildService {
     fact.setCrash(IssueFactNormalizationRules.isCrash(labels, title));
     fact.setLevel1Other(IssueFactNormalizationRules.isLevel1Other(labels, title));
     boolean fixed = Boolean.TRUE.equals(fact.getFixed());
-    boolean customerIssue = isCustomerIssueIssueFact(labels, rs.getLong("project_id"), rs.getString("project_name"), createdAt);
     fact.setIllegal(customerIssue
         ? IssueFactNormalizationRules.isCustomerIssueIllegal(labels, moduleNames, notesText, fixed)
         : IssueFactNormalizationRules.isIllegal(labels, closed, moduleNames, notesText, fixed));
@@ -604,7 +727,8 @@ public class FactBuildService {
         ? IssueFactNormalizationRules.customerIssueIllegalReasons(labels, moduleNames, notesText, fixed)
         : IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, fixed)));
     fact.setHasResponse(IssueFactNormalizationRules.hasResponse(notesText));
-    boolean responseDelayed = IssueFactNormalizationRules.isResponseDelayed(labels, notesText);
+    boolean responseDelayed = openCustomerIssue
+        && IssueFactNormalizationRules.isResponseDelayed(labels, notesText, createdAt, priorityLevel, now);
     fact.setResearchTemplateTime(toLocalDateTime(rs.getTimestamp("research_template_time")));
     fact.setResponseOverdue(responseDelayed);
     fact.setResponseDelayed(responseDelayed);
@@ -616,11 +740,12 @@ public class FactBuildService {
             && fact.getBugStatus().contains("已修复/完成")
             ? toLocalDateTime(rs.getTimestamp("fixed_label_time"))
             : null);
-    fact.setResolveDelayed(IssueFactNormalizationRules.isResolveDelayed(
+    fact.setResolveDelayed(openCustomerIssue && IssueFactNormalizationRules.isResolveDelayed(
         labels,
         Boolean.TRUE.equals(fact.getFixed()),
+        IssueFactNormalizationRules.hasFixCaseNote(notesText),
         resolveDeadlineAt,
-        LocalDateTime.now()));
+        now));
     fact.setLegacy(IssueFactNormalizationRules.isLegacy(
         labels,
         closed,
@@ -767,6 +892,40 @@ public class FactBuildService {
       issueFactMapper.batchUpsert(batch);
       refreshIssueFactSearchIndexes(batch);
     }
+  }
+
+  private void syncCustomerIssueDelayLabels(String sourceInstance, List<IssueFact> facts) {
+    if (facts == null || facts.isEmpty()) {
+      return;
+    }
+    GitlabSyncConfig config = configForSourceInstance(sourceInstance);
+    for (IssueFact fact : facts) {
+      if (fact == null || !CustomerIssueScopeRules.isCustomerProject(fact.getProjectId(), fact.getProjectName())) {
+        continue;
+      }
+      delayLabelWritebackService.syncLabels(config, fact);
+    }
+  }
+
+  private GitlabSyncConfig configForSourceInstance(String sourceInstance) {
+    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    return configService.listConfigs().stream()
+        .filter(config -> normalized.equals(GitlabSourceInstanceSupport.sourceInstanceOf(config)))
+        .findFirst()
+        .orElseGet(configService::getConfig);
+  }
+
+  private List<String> labelsOf(IssueFact fact) {
+    if (fact == null || !StringUtils.hasText(fact.getLabelNames())) {
+      return List.of();
+    }
+    List<String> labels = new ArrayList<>();
+    for (String part : fact.getLabelNames().split(",")) {
+      if (StringUtils.hasText(part)) {
+        labels.add(part.trim());
+      }
+    }
+    return List.copyOf(labels);
   }
 
   private void batchUpsertMergeRequestFacts(List<MergeRequestFact> facts) {

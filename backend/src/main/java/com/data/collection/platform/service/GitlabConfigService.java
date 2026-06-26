@@ -252,6 +252,8 @@ public class GitlabConfigService {
     config.setSourceEnabled(false);
     config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance));
     config.setWebBaseUrl(null);
+    config.setApiToken("");
+    config.setDelayLabelWritebackEnabled(false);
     config.setAutoSyncEnabled(false);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
@@ -291,6 +293,8 @@ public class GitlabConfigService {
     normalized.setSourceEnabled(sourceEnabled);
     normalized.setSourceInstance(sourceInstance);
     normalized.setWebBaseUrl(normalizeOptionalText(config.getWebBaseUrl()));
+    normalized.setApiToken(resolveSecret(config.getApiToken(), current.getApiToken()));
+    normalized.setDelayLabelWritebackEnabled(Boolean.TRUE.equals(config.getDelayLabelWritebackEnabled()));
     normalized.setAutoSyncEnabled(autoSyncEnabled);
     normalized.setSourceMode(config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode());
     normalized.setWhitelistMode(normalizeWhitelistMode(config.getWhitelistMode()));
@@ -596,6 +600,9 @@ public class GitlabConfigService {
     }
     if (config.getSystemHookEnabled() == null) {
       config.setSystemHookEnabled(config.getSystemHookSecret() != null && !config.getSystemHookSecret().isBlank());
+    }
+    if (config.getDelayLabelWritebackEnabled() == null) {
+      config.setDelayLabelWritebackEnabled(false);
     }
     if (config.getSyncThreadMode() == null || config.getSyncThreadMode().isBlank()) {
       config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);

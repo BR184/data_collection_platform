@@ -315,14 +315,15 @@ select source_instance,
 
 ### 老平台已有功能，必须继续对齐
 
-1. 客户问题模块仍是第一优先级遗留项。客户问题范围必须固定为 `CC_PRODUCT` / `CC_Product`，老平台项目 ID 为 `325`，并按 `C:\Users\admin\Downloads\产品客户问题响应管理机制.mm` 的响应、解决、延期、非法模板规则执行。当前已经修正默认阶段和 CC_Product 范围，但客户问题延期链路还没有完全等价老平台：`CustomerIssueDelayIssuesBoardService` 只消费 `issue_fact.is_response_delayed / is_resolve_delayed`，事实构建中的响应延期主要来自 `响应已延期` 标签或模板状态；老平台文档要求按 P1/P2/P3 的 24/48/72 小时窗口定时判定，模板响应后取消延期标签。这一套每小时轮询、自动标记和取消的闭环仍需专项补齐。
-2. 客户问题响应/解决效率需要用不同测试数据继续和老平台逐页对比。重点样本应覆盖：无紧急程度按 P3、按模板响应、未按模板响应、预计解决时间早于 18 天、预计解决时间超过 18 天、已修复/完成、申请延期、数据异常、需求如此/设计如此、未复现、多模块议题。对比目标不是模拟完整内网环境，而是用同一批构造数据在新老平台不同页面之间确认规则筛选差异。
-3. 系统测试缺陷原因分析和议题阶段统计仍有 15 秒超时结构性风险。当前缺陷原因占比分母已经按“缺陷原因个数”聚合，能覆盖一个议题多个原因时占比总和应为 100% 的老平台规则；但主接口仍是 `issue_fact` 查询后在 Java 聚合，再做明细分页切片。默认阶段对齐只能缩小范围，不能彻底保证大数据量下稳定 1-3 秒，需要后续把核心聚合前推 SQL，或增加统计快照/缓存。
-4. 普通统计看板导出还没有完全达到“一字不差”。`StatisticBoardController` 只有遇到 `StatisticBoardWorkbookExportSupport` 才导出 xlsx，否则走 `StatisticBoardCsvSupport`；CSV 当前只导出一行叶子列表头，不能保留页面多级表头。已实现工作簿导出的主要是系统测试/客户问题缺陷原因分析和系统测试横向对比，系统测试缺陷汇总、议题阶段统计、申请延期缺陷分析、客户问题缺陷汇总、延期问题、按功能展示、响应效率等普通看板仍需按“当前看到的表格”导出多级表头和当前数据。
-5. 系统测试横向对比导出已经有专门 xlsx 服务，但讨论中要求必须和老平台格式完全一致。当前代码 `SystemTestHorizontalComparisonExportService` 使用扁平 header 文案生成工作簿，并按 `target_branch = dev`、`MERGED` 统计代码走查；仍需拿老平台导出模板逐列、合并表头、顺序、空行过滤、数值格式和 DGM/CrownCAD 分块进行一次精确复核。
-6. 代码走查非法数据少约 6000 条仍不能只用 MR 29874 解释。当前目标分支筛选已支持：只在明确选择 CrownCAD 或 DGM 且目标分支为空时默认补 `dev`，用户可按条件筛选其他分支；但缺失数量仍需直接提取老平台非法判断代码，和新平台 `review_exception_reason / scan_status / scan_bug_count / annotation_rate_result / bug_count_result / project_name / module_name / target_branch / owner_name / reviewer_names` 映射逐项比对。下一步应用同一批构造 MR 数据在新老平台导入后比较非法类型命中差异。
-7. 议题刷新必须包含评论。当前 `IssueFactRealtimeRefreshService` 的刷新表包含 `notes`，`GitlabFactSourceSqlProvider` 也从 `ods_gitlab_notes` 汇总 issue 评论并写入事实层 `raw_payload`、缺陷原因、响应模板和 SLA 字段；这条链路代码上已经覆盖。但需要在后续真实链路中用“只改评论、不改议题主体字段”的数据验证增量同步是否会触发 `notes -> issue_fact -> 缺陷原因/客户问题延期/响应效率` 更新。
-8. 官方默认筛选、默认阶段、展示规则不能被个人保存视图覆盖。当前讨论确认这是老平台已确认的固定规则边界；后续如果实现保存视图，必须只作用于个人账号，不能改写平台官方默认条件、导出条件和领导视角默认展示。
+1. 客户问题模块仍是第一优先级遗留项。客户问题范围必须固定为 `CC_PRODUCT` / `CC_Product`，老平台项目 ID 为 `325`，并按 `C:\Users\admin\Downloads\产品客户问题响应管理机制.mm` 的响应、解决、延期、非法模板规则执行。本轮已补齐平台内事实闭环：`issue_fact.is_response_delayed` 只对 CC_Product、2026-01-01 后创建、open 且未按 `# 问题调研情况说明` 响应的议题生效，并按 P1/P2/P3 或未设定紧急程度的 24/48/72 小时规则计算；模板响应后即使原始标签仍有 `响应已延期`，事实延期也会取消。`issue_fact.is_resolve_delayed` 按调研模板“计划解决时间/预计解决时间”日期和 18 天上限取更早期限，`申请延期`、`数据异常`、`需求如此/设计如此`、`未复现`，以及带 `已修复/完成` 且已填写修复模板 `### 1、修复状态` 的议题会取消解决延期。
+2. 老平台还会在每小时 CC_Product 任务中通过 GitLab API 覆盖议题 labels，自动新增或移除 `响应已延期` / `解决已延期` 标签。本轮已补后端受控写回通道：`gitlab_sync_configs.delay_label_writeback_enabled = true` 且配置 `api_token`、`web_base_url` 后，事实构建和小时级客户问题延期闭环任务会按事实字段整理 labels 并调用 GitLab Issue API 写回；默认开关为 false，没有 token 时只更新平台事实字段，不写 GitLab。
+3. 客户问题响应/解决效率需要用不同测试数据继续和老平台逐页对比。重点样本应覆盖：无紧急程度按 P3、按模板响应、未按模板响应、预计解决时间早于 18 天、预计解决时间超过 18 天、已修复/完成、申请延期、数据异常、需求如此/设计如此、未复现、多模块议题。对比目标不是模拟完整内网环境，而是用同一批构造数据在新老平台不同页面之间确认规则筛选差异。
+4. 系统测试缺陷原因分析和议题阶段统计仍有 15 秒超时结构性风险。当前缺陷原因占比分母已经按“缺陷原因个数”聚合，能覆盖一个议题多个原因时占比总和应为 100% 的老平台规则；但主接口仍是 `issue_fact` 查询后在 Java 聚合，再做明细分页切片。默认阶段对齐只能缩小范围，不能彻底保证大数据量下稳定 1-3 秒，需要后续把核心聚合前推 SQL，或增加统计快照/缓存。
+5. 普通统计看板导出还没有完全达到“一字不差”。`StatisticBoardController` 只有遇到 `StatisticBoardWorkbookExportSupport` 才导出 xlsx，否则走 `StatisticBoardCsvSupport`；CSV 当前只导出一行叶子列表头，不能保留页面多级表头。已实现工作簿导出的主要是系统测试/客户问题缺陷原因分析和系统测试横向对比，系统测试缺陷汇总、议题阶段统计、申请延期缺陷分析、客户问题缺陷汇总、延期问题、按功能展示、响应效率等普通看板仍需按“当前看到的表格”导出多级表头和当前数据。
+6. 系统测试横向对比导出已经有专门 xlsx 服务，但讨论中要求必须和老平台格式完全一致。当前代码 `SystemTestHorizontalComparisonExportService` 使用扁平 header 文案生成工作簿，并按 `target_branch = dev`、`MERGED` 统计代码走查；仍需拿老平台导出模板逐列、合并表头、顺序、空行过滤、数值格式和 DGM/CrownCAD 分块进行一次精确复核。
+7. 代码走查非法数据少约 6000 条仍不能只用 MR 29874 解释。当前目标分支筛选已支持：只在明确选择 CrownCAD 或 DGM 且目标分支为空时默认补 `dev`，用户可按条件筛选其他分支；但缺失数量仍需直接提取老平台非法判断代码，和新平台 `review_exception_reason / scan_status / scan_bug_count / annotation_rate_result / bug_count_result / project_name / module_name / target_branch / owner_name / reviewer_names` 映射逐项比对。下一步应用同一批构造 MR 数据在新老平台导入后比较非法类型命中差异。
+8. 议题刷新必须包含评论。当前 `IssueFactRealtimeRefreshService` 的刷新表包含 `notes`，`GitlabFactSourceSqlProvider` 也从 `ods_gitlab_notes` 汇总 issue 评论并写入事实层 `raw_payload`、缺陷原因、响应模板和 SLA 字段；这条链路代码上已经覆盖。但需要在后续真实链路中用“只改评论、不改议题主体字段”的数据验证增量同步是否会触发 `notes -> issue_fact -> 缺陷原因/客户问题延期/响应效率` 更新。
+9. 官方默认筛选、默认阶段、展示规则不能被个人保存视图覆盖。当前讨论确认这是老平台已确认的固定规则边界；后续如果实现保存视图，必须只作用于个人账号，不能改写平台官方默认条件、导出条件和领导视角默认展示。
 
 ### 后续新功能，先不作为本轮对齐目标
 

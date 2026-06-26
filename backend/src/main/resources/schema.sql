@@ -5,6 +5,8 @@ create table if not exists gitlab_sync_configs (
     source_enabled boolean not null default true,
     source_instance varchar(128) not null default 'default',
     web_base_url varchar(255),
+    api_token varchar(255),
+    delay_label_writeback_enabled boolean not null default false,
     auto_sync_enabled boolean not null default true,
     source_mode varchar(32) not null default 'DOCKER',
     whitelist_mode varchar(32) not null default 'RECOMMENDED',
@@ -640,6 +642,8 @@ create table if not exists sys_table_registry (
 alter table gitlab_sync_configs add column if not exists source_mode varchar(32) not null default 'DOCKER';
 alter table gitlab_sync_configs add column if not exists source_instance varchar(128) not null default 'default';
 alter table gitlab_sync_configs add column if not exists web_base_url varchar(255);
+alter table gitlab_sync_configs add column if not exists api_token varchar(255);
+alter table gitlab_sync_configs add column if not exists delay_label_writeback_enabled boolean not null default false;
 alter table gitlab_sync_configs add column if not exists source_enabled boolean not null default true;
 alter table gitlab_sync_configs add column if not exists docker_container_name varchar(255);
 alter table gitlab_sync_configs add column if not exists system_hook_enabled boolean not null default false;
