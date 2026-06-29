@@ -206,18 +206,19 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     StatisticFilterGroup effectiveFilterGroup =
         applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
+    List<String> moduleRows = loadBoardModuleRows(filters, effectiveFilterGroup);
+    Map<String, AggregateCounts> aggregateCounts = loadBoardAggregateCounts(filters, effectiveFilterGroup);
+    AggregateCounts totalCounts = loadBoardTotalAggregateCounts(filters, effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
-    for (IssueSource issue : snapshot.scopedSources()) {
-      for (String moduleName : issue.moduleNames()) {
-        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
-      }
+    for (String moduleName : moduleRows) {
+      buckets.computeIfAbsent(moduleName, AggregateBucket::new);
     }
-    for (IssueSource issue : snapshot.reasonSources()) {
-      for (String moduleName : issue.moduleNames()) {
-        buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
+    for (Map.Entry<String, AggregateCounts> entry : aggregateCounts.entrySet()) {
+      AggregateBucket bucket = buckets.get(entry.getKey());
+      if (bucket != null) {
+        bucket.accept(entry.getValue());
       }
     }
 
@@ -227,7 +228,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     if (!buckets.isEmpty()) {
-      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.reasonSources());
+      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).accept(totalCounts);
       rows.add(totalBucket.toRowData());
       rows.add(AggregateBucket.ratioRow(totalBucket));
     }
@@ -572,6 +573,194 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return issueFactQueryService.query(FACT_SQL, mergedFilters, phasePredicate.sql(), phasePredicate.args(), this::mapIssueFact);
   }
 
+  private List<String> loadBoardModuleRows(
+      Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.remove("testingPhase");
+    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    if (projectId != null) {
+      queryFilters.put("projectId", String.valueOf(projectId));
+    }
+    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+    String sql = """
+        select btrim(module_name) as module_name
+          from issue_fact
+          cross join lateral regexp_split_to_table(coalesce(module_names,''), ',') as modules(module_name)
+         where deleted = false
+           and coalesce(is_excluded,false) = false
+           and coalesce(module_names,'') <> ''
+        """;
+    try {
+      return issueFactQueryService.query(
+              sql,
+              queryFilters,
+              phasePredicate.sql(),
+              phasePredicate.args(),
+              "group by btrim(module_name) having btrim(module_name) <> ''",
+              (rs, rowNum) -> StatisticSourceValueSupport.text(rs.getString("module_name"), ""))
+          .stream()
+          .filter(StringUtils::hasText)
+          .distinct()
+          .sorted(String.CASE_INSENSITIVE_ORDER)
+          .toList();
+    } catch (DataAccessException e) {
+      log.warn("Failed to load system test defect cause module rows", e);
+      return List.of();
+    }
+  }
+
+  private Map<String, AggregateCounts> loadBoardAggregateCounts(
+      Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.remove("testingPhase");
+    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    if (projectId != null) {
+      queryFilters.put("projectId", String.valueOf(projectId));
+    }
+    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+    String sql = buildBoardAggregateSql();
+    try {
+      return issueFactQueryService.query(
+              sql,
+              queryFilters,
+              phasePredicate.sql(),
+              phasePredicate.args(),
+              "group by btrim(module_name) having btrim(module_name) <> ''",
+              this::mapAggregateCounts)
+          .stream()
+          .collect(
+              java.util.stream.Collectors.toMap(
+                  Map.Entry::getKey,
+                  Map.Entry::getValue,
+                  AggregateCounts::plus,
+                  LinkedHashMap::new));
+    } catch (DataAccessException e) {
+      log.warn("Failed to load system test defect cause aggregate counts", e);
+      return Map.of();
+    }
+  }
+
+  private AggregateCounts loadBoardTotalAggregateCounts(
+      Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.remove("testingPhase");
+    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    if (projectId != null) {
+      queryFilters.put("projectId", String.valueOf(projectId));
+    }
+    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+    try {
+      List<AggregateCounts> results =
+          issueFactQueryService.query(
+              buildBoardTotalAggregateSql(),
+              queryFilters,
+              phasePredicate.sql(),
+              phasePredicate.args(),
+              "",
+              (rs, rowNum) -> mapAggregateCountsWithoutModule(rs));
+      return results.isEmpty() ? AggregateCounts.empty() : results.get(0);
+    } catch (DataAccessException e) {
+      log.warn("Failed to load system test defect cause total aggregate counts", e);
+      return AggregateCounts.empty();
+    }
+  }
+
+  private String buildBoardAggregateSql() {
+    StringBuilder sql = new StringBuilder(
+        """
+        select btrim(module_name) as module_name
+        """);
+    for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+      String matched = metricMatchedSql(metric);
+      sql.append(", sum(case when ").append(matched).append(" then 1 else 0 end) as ").append(metric.key());
+      sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL1' then 1 else 0 end) as ")
+          .append(metric.key()).append("_level1");
+      sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL2' then 1 else 0 end) as ")
+          .append(metric.key()).append("_level2");
+      sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL3' then 1 else 0 end) as ")
+          .append(metric.key()).append("_level3");
+      sql.append(", sum(case when ").append(matched)
+          .append(" and (severity_level = 'SUGGESTION' or category like '%建议%') then 1 else 0 end) as ")
+          .append(metric.key()).append("_suggestion");
+    }
+    sql.append(
+        """
+          from issue_fact
+          cross join lateral regexp_split_to_table(coalesce(module_names,''), ',') as modules(module_name)
+         where deleted = false
+           and coalesce(is_excluded,false) = false
+           and coalesce(module_names,'') <> ''
+           and (coalesce(reason_category,'') <> '' or coalesce(raw_payload,'') <> '')
+        """);
+    return sql.toString();
+  }
+
+  private String buildBoardTotalAggregateSql() {
+    StringBuilder sql = new StringBuilder("select 1 as total_marker");
+    for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+      String matched = metricMatchedSql(metric);
+      sql.append(", sum(case when ").append(matched).append(" then 1 else 0 end) as ").append(metric.key());
+      sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL1' then 1 else 0 end) as ")
+          .append(metric.key()).append("_level1");
+      sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL2' then 1 else 0 end) as ")
+          .append(metric.key()).append("_level2");
+      sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL3' then 1 else 0 end) as ")
+          .append(metric.key()).append("_level3");
+      sql.append(", sum(case when ").append(matched)
+          .append(" and (severity_level = 'SUGGESTION' or category like '%建议%') then 1 else 0 end) as ")
+          .append(metric.key()).append("_suggestion");
+    }
+    sql.append(
+        """
+          from issue_fact
+         where deleted = false
+           and coalesce(is_excluded,false) = false
+           and coalesce(module_names,'') <> ''
+           and (coalesce(reason_category,'') <> '' or coalesce(raw_payload,'') <> '')
+        """);
+    return sql.toString();
+  }
+
+  private String metricMatchedSql(DefectCauseMetricCatalog.Metric metric) {
+    List<String> reasonMatches = new ArrayList<>();
+    List<String> rawMatches = new ArrayList<>();
+    for (String token : metric.tokens()) {
+      String literal = sqlLiteral(token);
+      reasonMatches.add("reason_category like '%" + literal + "%'");
+      rawMatches.add("raw_payload like '%" + literal + "%'");
+    }
+    return "((coalesce(reason_category,'') <> '' and ("
+        + String.join(" or ", reasonMatches)
+        + ")) or (coalesce(reason_category,'') = '' and ("
+        + String.join(" or ", rawMatches)
+        + ")))";
+  }
+
+  private String sqlLiteral(String value) {
+    return value == null ? "" : value.replace("'", "''");
+  }
+
+  private Map.Entry<String, AggregateCounts> mapAggregateCounts(ResultSet rs, int rowNum) throws SQLException {
+    return Map.entry(
+        StatisticSourceValueSupport.text(rs.getString("module_name"), ""),
+        mapAggregateCountsWithoutModule(rs));
+  }
+
+  private AggregateCounts mapAggregateCountsWithoutModule(ResultSet rs) throws SQLException {
+    Map<String, Long> counts = new LinkedHashMap<>();
+    for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+      counts.put(metric.key(), rs.getLong(metric.key()));
+      counts.put(metric.key() + "_level1", rs.getLong(metric.key() + "_level1"));
+      counts.put(metric.key() + "_level2", rs.getLong(metric.key() + "_level2"));
+      counts.put(metric.key() + "_level3", rs.getLong(metric.key() + "_level3"));
+      counts.put(metric.key() + "_suggestion", rs.getLong(metric.key() + "_suggestion"));
+    }
+    return new AggregateCounts(counts);
+  }
+
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueSource(
         rs.getLong("id"),
@@ -692,7 +881,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return StatisticMetricCalculator.count(value);
   }
 
-  private record AggregateBucket(String rowLabel, String rowKey, List<IssueSource> issues) {
+  private record AggregateBucket(String rowLabel, String rowKey, List<AggregateCounts> counts) {
     AggregateBucket(String rowLabel) {
       this(rowLabel, rowLabel, new ArrayList<>());
     }
@@ -701,13 +890,13 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       this(rowLabel, rowKey, new ArrayList<>());
     }
 
-    AggregateBucket acceptAll(List<IssueSource> sourceIssues) {
-      issues.addAll(sourceIssues);
+    AggregateBucket acceptAll(List<AggregateCounts> sourceCounts) {
+      counts.addAll(sourceCounts);
       return this;
     }
 
-    void accept(IssueSource issue) {
-      issues.add(issue);
+    void accept(AggregateCounts count) {
+      counts.add(count);
     }
 
     StatisticRowData toRowData() {
@@ -722,7 +911,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     }
 
     private long countByMetric(String metricKey) {
-      return issues.stream().filter(issue -> issue.matchesMetric(metricKey)).count();
+      return counts.stream().mapToLong(count -> count.value(metricKey)).sum();
     }
 
     private long metricTotal() {
@@ -752,7 +941,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       detailParams.put("level1", count(countByMetricAndSeverity(key, "LEVEL1")));
       detailParams.put("level2", count(countByMetricAndSeverity(key, "LEVEL2")));
       detailParams.put("level3", count(countByMetricAndSeverity(key, "LEVEL3")));
-      detailParams.put("suggestion", count(issues.stream().filter(issue -> issue.matchesMetric(key) && issue.isSuggestion()).count()));
+      detailParams.put("suggestion", count(countByMetricAndSeverity(key, "SUGGESTION")));
       return new StatisticCellData(
           key,
           numericValue,
@@ -763,10 +952,33 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     }
 
     private long countByMetricAndSeverity(String metricKey, String severity) {
-      return issues.stream()
-          .filter(issue -> issue.matchesMetric(metricKey))
-          .filter(issue -> issue.isSeverity(severity))
-          .count();
+      return counts.stream()
+          .mapToLong(count -> count.value(metricKey + "_" + severity.toLowerCase(java.util.Locale.ROOT)))
+          .sum();
+    }
+  }
+
+  private record AggregateCounts(Map<String, Long> values) {
+    static AggregateCounts empty() {
+      Map<String, Long> emptyValues = new LinkedHashMap<>();
+      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+        emptyValues.put(metric.key(), 0L);
+        emptyValues.put(metric.key() + "_level1", 0L);
+        emptyValues.put(metric.key() + "_level2", 0L);
+        emptyValues.put(metric.key() + "_level3", 0L);
+        emptyValues.put(metric.key() + "_suggestion", 0L);
+      }
+      return new AggregateCounts(emptyValues);
+    }
+
+    long value(String key) {
+      return values.getOrDefault(key, 0L);
+    }
+
+    AggregateCounts plus(AggregateCounts other) {
+      Map<String, Long> merged = new LinkedHashMap<>(values);
+      other.values.forEach((key, value) -> merged.merge(key, value, Long::sum));
+      return new AggregateCounts(merged);
     }
   }
 

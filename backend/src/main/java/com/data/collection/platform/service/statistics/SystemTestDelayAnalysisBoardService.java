@@ -85,6 +85,17 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         from issue_fact
        where deleted = false
       """;
+  private static final String BOARD_AGGREGATE_SQL = """
+      select delay_cause as row_key,
+             sum(case when severity_level = 'LEVEL1' then 1 else 0 end) as level1,
+             sum(case when severity_level = 'LEVEL2' then 1 else 0 end) as level2,
+             sum(case when severity_level = 'LEVEL3' then 1 else 0 end) as level3,
+             sum(case when severity_level = 'SUGGESTION' or category like '%建议%' then 1 else 0 end) as suggestion
+        from issue_fact
+       where deleted = false
+         and coalesce(is_excluded,false) = false
+         and delay_cause in ('技术卡点','方案卡点','资源卡点','数据异常','算法问题','机制问题','计算效率')
+      """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
           "议题标题",
@@ -164,16 +175,17 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
+    Map<String, AggregateCounts> aggregateCounts = loadBoardAggregateCounts(filters, effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (String delayCause : LEGACY_DELAY_CAUSES) {
       buckets.put(delayCause, new AggregateBucket(delayCause));
     }
-    for (IssueSource issue : snapshot.finalSources()) {
-      if (LEGACY_DELAY_CAUSES.contains(issue.delayCause())) {
-        buckets.get(issue.delayCause()).accept(issue);
+    for (Map.Entry<String, AggregateCounts> entry : aggregateCounts.entrySet()) {
+      AggregateBucket bucket = buckets.get(entry.getKey());
+      if (bucket != null) {
+        bucket.accept(entry.getValue());
       }
     }
 
@@ -470,6 +482,45 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return issueFactQueryService.query(FACT_SQL, mergedFilters, phasePredicate.sql(), phasePredicate.args(), this::mapIssueFact);
   }
 
+  private Map<String, AggregateCounts> loadBoardAggregateCounts(
+      Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.remove(TESTING_PHASE_FIELD);
+    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    if (projectId != null) {
+      queryFilters.put("projectId", String.valueOf(projectId));
+    }
+    SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
+        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+    try {
+      return issueFactQueryService.query(
+              BOARD_AGGREGATE_SQL,
+              queryFilters,
+              phasePredicate.sql(),
+              phasePredicate.args(),
+              "group by delay_cause",
+              (rs, rowNum) ->
+                  Map.entry(
+                      StatisticSourceValueSupport.text(rs.getString("row_key"), ""),
+                      new AggregateCounts(
+                          rs.getLong("level1"),
+                          rs.getLong("level2"),
+                          rs.getLong("level3"),
+                          rs.getLong("suggestion"))))
+          .stream()
+          .filter(entry -> LEGACY_DELAY_CAUSES.contains(entry.getKey()))
+          .collect(
+              java.util.stream.Collectors.toMap(
+                  Map.Entry::getKey,
+                  Map.Entry::getValue,
+                  AggregateCounts::plus,
+                  LinkedHashMap::new));
+    } catch (DataAccessException e) {
+      log.warn("Failed to load system test delay analysis aggregate counts", e);
+      return Map.of();
+    }
+  }
+
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueSource(
         rs.getLong("id"),
@@ -548,7 +599,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return StatisticMetricCalculator.count(value);
   }
 
-  private record AggregateBucket(String rowLabel, String rowKey, List<IssueSource> issues) {
+  private record AggregateBucket(String rowLabel, String rowKey, List<AggregateCounts> counts) {
     AggregateBucket(String rowLabel) {
       this(rowLabel, rowLabel, new ArrayList<>());
     }
@@ -557,15 +608,15 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       this(rowLabel, rowKey, new ArrayList<>());
     }
 
-    void accept(IssueSource issue) {
-      issues.add(issue);
+    void accept(AggregateCounts count) {
+      counts.add(count);
     }
 
     StatisticRowData toRowData() {
-      long level1 = issues.stream().filter(IssueSource::isLevel1).count();
-      long level2 = issues.stream().filter(IssueSource::isLevel2).count();
-      long level3 = issues.stream().filter(IssueSource::isLevel3).count();
-      long suggestion = issues.stream().filter(IssueSource::isSuggestion).count();
+      long level1 = counts.stream().mapToLong(AggregateCounts::level1).sum();
+      long level2 = counts.stream().mapToLong(AggregateCounts::level2).sum();
+      long level3 = counts.stream().mapToLong(AggregateCounts::level3).sum();
+      long suggestion = counts.stream().mapToLong(AggregateCounts::suggestion).sum();
       long total = level1 + level2 + level3 + suggestion;
       return new StatisticRowData(
           rowKey,
@@ -586,6 +637,16 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
           drilldown,
           drilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
+    }
+  }
+
+  private record AggregateCounts(long level1, long level2, long level3, long suggestion) {
+    AggregateCounts plus(AggregateCounts other) {
+      return new AggregateCounts(
+          level1 + other.level1,
+          level2 + other.level2,
+          level3 + other.level3,
+          suggestion + other.suggestion);
     }
   }
 

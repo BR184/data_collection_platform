@@ -19,16 +19,19 @@ public class FactRefreshTaskWorkerService {
   private final FactBuildTaskService taskService;
   private final GitlabConfigService configService;
   private final FactBuildService factBuildService;
+  private final FactRefreshImpactScopeService impactScopeService;
   private final GitlabMirrorProperties properties;
 
   public FactRefreshTaskWorkerService(
       FactBuildTaskService taskService,
       GitlabConfigService configService,
       FactBuildService factBuildService,
+      FactRefreshImpactScopeService impactScopeService,
       GitlabMirrorProperties properties) {
     this.taskService = taskService;
     this.configService = configService;
     this.factBuildService = factBuildService;
+    this.impactScopeService = impactScopeService;
     this.properties = properties;
   }
 
@@ -49,9 +52,10 @@ public class FactRefreshTaskWorkerService {
   public FactBuildResponse execute(QueuedFactBuildTask task) {
     try {
       GitlabSyncConfig config = configService.getConfigById(task.configId());
-      FactBuildResponse response = switch (normalizeFactType(task.factType())) {
-        case "ISSUE" -> factBuildService.rebuildIssueFactsForQueuedTask(config, task.full());
-        case "MERGE_REQUEST" -> factBuildService.rebuildMergeRequestFactsForQueuedTask(config, task.full());
+      String factType = normalizeFactType(task.factType());
+      FactBuildResponse response = switch (factType) {
+        case "ISSUE" -> rebuildIssueFacts(task, config, factType);
+        case "MERGE_REQUEST" -> rebuildMergeRequestFacts(task, config, factType);
         default -> throw new IllegalArgumentException("Unsupported fact refresh type: " + task.factType());
       };
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
@@ -65,6 +69,30 @@ public class FactRefreshTaskWorkerService {
 
   private String normalizeFactType(String factType) {
     return factType == null ? "" : factType.trim().toUpperCase(Locale.ROOT);
+  }
+
+  private FactBuildResponse rebuildIssueFacts(QueuedFactBuildTask task, GitlabSyncConfig config, String factType) {
+    if (task.full()) {
+      return factBuildService.rebuildIssueFactsForQueuedTask(config, true);
+    }
+    FactRefreshImpactScopeService.ImpactScope scope =
+        impactScopeService.resolve(task.mirrorRunId(), task.sourceInstance(), factType);
+    if (scope.fallbackRequired()) {
+      return factBuildService.rebuildIssueFactsForQueuedTask(config, false);
+    }
+    return factBuildService.rebuildIssueFactsByTargets(task.sourceInstance(), scope.targets());
+  }
+
+  private FactBuildResponse rebuildMergeRequestFacts(QueuedFactBuildTask task, GitlabSyncConfig config, String factType) {
+    if (task.full()) {
+      return factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true);
+    }
+    FactRefreshImpactScopeService.ImpactScope scope =
+        impactScopeService.resolve(task.mirrorRunId(), task.sourceInstance(), factType);
+    if (scope.fallbackRequired()) {
+      return factBuildService.rebuildMergeRequestFactsForQueuedTask(config, false);
+    }
+    return factBuildService.rebuildMergeRequestFactsByTargets(task.sourceInstance(), scope.targets());
   }
 
   private static String resolveWorkerId() {

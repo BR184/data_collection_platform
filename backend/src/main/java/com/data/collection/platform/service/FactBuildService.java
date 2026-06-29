@@ -138,6 +138,27 @@ public class FactBuildService {
         facts.isEmpty() ? "未找到对应议题事实源数据" : "议题事实已按单条刷新");
   }
 
+  public FactBuildResponse rebuildIssueFactsByTargets(
+      String sourceInstance,
+      List<FactRefreshImpactScopeService.Target> targets) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    List<FactRefreshImpactScopeService.Target> safeTargets = distinctTargets(targets);
+    if (safeTargets.isEmpty()) {
+      return new FactBuildResponse(factScope("issue", normalizedSource), false, 0, "没有需要刷新的议题事实");
+    }
+    sourceSchemaGuard.verifyIssueFactSource(normalizedSource);
+    Map<PhaseCalendarKey, PhaseCalendarEntry> calendar = loadPhaseCalendar();
+    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+    List<IssueFact> facts = loadIssueFactsByTargets(normalizedSource, safeTargets, calendar, moduleDictionary);
+    batchUpsertIssueFacts(facts);
+    syncCustomerIssueDelayLabels(normalizedSource, facts);
+    return new FactBuildResponse(
+        factScope("issue", normalizedSource),
+        false,
+        facts.size(),
+        "议题事实已按受影响对象刷新");
+  }
+
   private FactBuildResponse rebuildIssueFactsInternal(boolean full, String sourceInstance) {
     sourceSchemaGuard.verifyIssueFactSource(sourceInstance);
     LocalDateTime changedSince = full ? null : getIssueFactChangedSince(sourceInstance);
@@ -247,6 +268,36 @@ public class FactBuildService {
     }
   }
 
+  private List<IssueFact> loadIssueFactsByTargets(
+      String sourceInstance,
+      List<FactRefreshImpactScopeService.Target> targets,
+      Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
+      ModuleDictionary moduleDictionary) {
+    String predicate = buildIssueTargetPredicate(targets);
+    List<Object> args = targetArgs(targets);
+    try {
+      return queryIssueFacts(
+          sourceInstance,
+          factSourceSqlProvider.issueSourceSql() + predicate,
+          null,
+          args,
+          calendar,
+          moduleDictionary);
+    } catch (DataAccessException error) {
+      if (!isMilestoneQueryFallbackAllowed(error)) {
+        throw error;
+      }
+      log.warn("Targeted issue fact build fallback activated because milestone join is unavailable", error);
+      return queryIssueFacts(
+          sourceInstance,
+          factSourceSqlProvider.issueSourceSqlFallback() + predicate,
+          null,
+          args,
+          calendar,
+          moduleDictionary);
+    }
+  }
+
   private List<IssueFact> queryIssueFacts(
       String sourceInstance,
       String baseSql,
@@ -329,6 +380,33 @@ public class FactBuildService {
         false,
         facts.size(),
         facts.isEmpty() ? "未找到对应合并请求事实源数据" : "合并请求事实已按单条刷新");
+  }
+
+  public FactBuildResponse rebuildMergeRequestFactsByTargets(
+      String sourceInstance,
+      List<FactRefreshImpactScopeService.Target> targets) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    List<FactRefreshImpactScopeService.Target> safeTargets = distinctTargets(targets);
+    if (safeTargets.isEmpty()) {
+      return new FactBuildResponse(factScope("merge-request", normalizedSource), false, 0, "没有需要刷新的合并请求事实");
+    }
+    sourceSchemaGuard.verifyMergeRequestFactSource(normalizedSource);
+    ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
+    List<MergeRequestFact> facts =
+        factSourceQueryExecutor.query(
+            "merge-request-fact-target-query",
+            normalizedSource,
+            factSourceSqlProvider.mergeRequestSourceSql() + buildMergeRequestTargetPredicate(safeTargets),
+            "",
+            null,
+            targetArgs(safeTargets),
+            (rs, rowNum) -> mapMergeRequestFact(rs, rowNum, normalizedSource, moduleDictionary));
+    batchUpsertMergeRequestFacts(facts);
+    return new FactBuildResponse(
+        factScope("merge-request", normalizedSource),
+        false,
+        facts.size(),
+        "合并请求事实已按受影响对象刷新");
   }
 
   private FactBuildResponse rebuildMergeRequestFactsInternal(boolean full, String sourceInstance) {
@@ -760,6 +838,47 @@ public class FactBuildService {
     return inCustomerDateRange
         && (CustomerIssueScopeRules.isCustomerProject(projectId, projectName)
             || labels.stream().anyMatch(CustomerIssueScopeRules::containsCustomerProjectToken));
+  }
+
+  private List<FactRefreshImpactScopeService.Target> distinctTargets(
+      List<FactRefreshImpactScopeService.Target> targets) {
+    if (targets == null || targets.isEmpty()) {
+      return List.of();
+    }
+    return targets.stream()
+        .filter(target -> target != null && target.projectId() != null && target.iid() != null)
+        .distinct()
+        .toList();
+  }
+
+  private String buildIssueTargetPredicate(List<FactRefreshImpactScopeService.Target> targets) {
+    if (targets == null || targets.isEmpty()) {
+      return " and false";
+    }
+    return targets.stream()
+        .map(ignored -> "(i.project_id = ? and i.iid = ?)")
+        .collect(java.util.stream.Collectors.joining(" or ", " and (", ")"));
+  }
+
+  private String buildMergeRequestTargetPredicate(List<FactRefreshImpactScopeService.Target> targets) {
+    if (targets == null || targets.isEmpty()) {
+      return " and false";
+    }
+    return targets.stream()
+        .map(ignored -> "(mr.target_project_id = ? and mr.iid = ?)")
+        .collect(java.util.stream.Collectors.joining(" or ", " and (", ")"));
+  }
+
+  private List<Object> targetArgs(List<FactRefreshImpactScopeService.Target> targets) {
+    if (targets == null || targets.isEmpty()) {
+      return List.of();
+    }
+    List<Object> args = new ArrayList<>(targets.size() * 2);
+    for (FactRefreshImpactScopeService.Target target : targets) {
+      args.add(target.projectId());
+      args.add(target.iid());
+    }
+    return args;
   }
 
   private MergeRequestFact mapMergeRequestFact(

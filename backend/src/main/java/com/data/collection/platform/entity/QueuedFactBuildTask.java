@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public record QueuedFactBuildTask(
     Long id,
+    Long mirrorRunId,
     Long configId,
     String sourceInstance,
     String factType,

@@ -359,6 +359,7 @@ public class FactBuildTaskService {
   private QueuedFactBuildTask mapQueuedTask(ResultSet rs) throws java.sql.SQLException {
     return new QueuedFactBuildTask(
         rs.getLong("id"),
+        parseLong(rs.getString("run_id")),
         rs.getLong("config_id"),
         rs.getString("source_instance"),
         rs.getString("fact_type"),
@@ -367,6 +368,17 @@ public class FactBuildTaskService {
         rs.getInt("retry_count"),
         rs.getInt("max_retry_count"),
         toLocalDateTime(rs.getTimestamp("lease_until")));
+  }
+
+  private Long parseLong(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Long.parseLong(value.trim());
+    } catch (NumberFormatException ignored) {
+      return null;
+    }
   }
 
   private boolean tryAcquireLock(Connection connection) throws Exception {
