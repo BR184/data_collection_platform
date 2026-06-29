@@ -40,7 +40,9 @@ class SystemTestDefectSummaryRuleExplanationTest {
         phaseCatalogService,
         phaseScopeResolver,
         labelGroupDefaultFilterService,
-        labelGroupExpansionService);
+        labelGroupExpansionService,
+        mock(StatisticBoardSnapshotService.class),
+        mock(StatisticBoardSnapshotRequestFactory.class));
 
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(Map.of());
 

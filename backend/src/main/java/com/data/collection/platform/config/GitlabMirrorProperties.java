@@ -31,6 +31,10 @@ public class GitlabMirrorProperties {
   private int incrementalLookbackMinutes = 5;
   private int maxSyncThreads = 16;
   private int maxContinuationTasksPerTable = 50000;
+  private boolean largeTableShardSyncEnabled = true;
+  private String largeTableShardTables = "notes,events";
+  private int largeTableShardKeyLength = 1;
+  private long largeTableShardMinRows = 50000L;
   private int customerIssueDelayCheckDelayMs = 3600000;
 
   public boolean isSchedulerEnabled() {
@@ -247,6 +251,38 @@ public class GitlabMirrorProperties {
 
   public void setMaxContinuationTasksPerTable(int maxContinuationTasksPerTable) {
     this.maxContinuationTasksPerTable = maxContinuationTasksPerTable;
+  }
+
+  public boolean isLargeTableShardSyncEnabled() {
+    return largeTableShardSyncEnabled;
+  }
+
+  public void setLargeTableShardSyncEnabled(boolean largeTableShardSyncEnabled) {
+    this.largeTableShardSyncEnabled = largeTableShardSyncEnabled;
+  }
+
+  public String getLargeTableShardTables() {
+    return largeTableShardTables;
+  }
+
+  public void setLargeTableShardTables(String largeTableShardTables) {
+    this.largeTableShardTables = largeTableShardTables;
+  }
+
+  public int getLargeTableShardKeyLength() {
+    return largeTableShardKeyLength;
+  }
+
+  public void setLargeTableShardKeyLength(int largeTableShardKeyLength) {
+    this.largeTableShardKeyLength = largeTableShardKeyLength;
+  }
+
+  public long getLargeTableShardMinRows() {
+    return largeTableShardMinRows;
+  }
+
+  public void setLargeTableShardMinRows(long largeTableShardMinRows) {
+    this.largeTableShardMinRows = largeTableShardMinRows;
   }
 
   public int getCustomerIssueDelayCheckDelayMs() {

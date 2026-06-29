@@ -42,7 +42,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardService
-    implements RuleExplainableStatisticBoardSupport {
+    implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-by-function";
   private static final String RULE_VERSION = "customer-issue-by-function@2026-06-26-v2";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -101,18 +101,24 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final StatisticBoardSnapshotService snapshotService;
+  private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
 
   public CustomerIssueByFunctionBoardService(
       JsonUtils jsonUtils,
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      StatisticBoardSnapshotService snapshotService,
+      StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
     super(jsonUtils);
     this.issueFactQueryService = issueFactQueryService;
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.snapshotService = snapshotService;
+    this.snapshotRequestFactory = snapshotRequestFactory;
   }
 
   @Override
@@ -155,9 +161,17 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   @Override
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    long startedAt = System.currentTimeMillis();
     StatisticFilterGroup effectiveFilterGroup =
         CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
+    return snapshotService.readOrRefresh(
+        snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
+        () -> buildBoardResponse(filters, effectiveFilterGroup));
+  }
+
+  private StatisticBoardResponse buildBoardResponse(
+      Map<String, String> filters, StatisticFilterGroup effectiveFilterGroup) {
+    long startedAt = System.currentTimeMillis();
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     Map<String, List<AggregateBucket>> bucketsByModule = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.finalSources()) {
@@ -205,6 +219,19 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             rows.size(),
             columnCount,
             drilldownCount));
+  }
+
+  @Override
+  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(emptyFilterGroup(), phaseScopeResolver);
+    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+    snapshotService.save(
+        snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
+        buildBoardResponse(filters, effectiveFilterGroup));
   }
 
   @Override
@@ -282,6 +309,32 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
+  }
+
+  private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
+    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    return snapshotRequestFactory.issueRequest(
+        BOARD_KEY,
+        RULE_VERSION,
+        "project=325;testingPhase=" + (StringUtils.hasText(selectedPhase) ? selectedPhase : "none"),
+        filters,
+        definition,
+        effectiveFilterGroup);
+  }
+
+  private Map<String, String> customerSnapshotFilters(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup) {
+    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
+    payload.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    if (StringUtils.hasText(selectedPhase)) {
+      payload.put(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, selectedPhase);
+    }
+    return payload;
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {

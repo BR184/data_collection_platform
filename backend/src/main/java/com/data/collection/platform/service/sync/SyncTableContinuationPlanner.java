@@ -63,6 +63,8 @@ public class SyncTableContinuationPlanner {
     task.setCursorPk(cursorPk);
     task.setLookupColumn(previousTask.getLookupColumn());
     task.setLookupValue(previousTask.getLookupValue());
+    task.setShardKey(previousTask.getShardKey());
+    task.setShardKeyLength(previousTask.getShardKeyLength());
     task.setBatchSize(batchSize);
     task.setRunAfter(now);
     task.setRetryCount(0);

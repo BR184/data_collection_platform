@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
@@ -92,15 +93,16 @@ public class StatisticBoardSnapshotService {
         """
         insert into statistic_board_snapshots(
           board_key, scope_key, rule_version, source_version, filter_hash, filter_payload,
-          applied_filter_payload, row_payload, meta_payload, status, error_message,
+          applied_filter_payload, definition_payload, row_payload, meta_payload, status, error_message,
           generated_at, refreshed_at, created_at, updated_at
-        ) values (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, 'READY', null,
+        ) values (?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, 'READY', null,
                   current_timestamp, current_timestamp, current_timestamp, current_timestamp)
         on conflict (board_key, scope_key, rule_version, filter_hash)
         do update set
           source_version = excluded.source_version,
           filter_payload = excluded.filter_payload,
           applied_filter_payload = excluded.applied_filter_payload,
+          definition_payload = excluded.definition_payload,
           row_payload = excluded.row_payload,
           meta_payload = excluded.meta_payload,
           status = 'READY',
@@ -116,6 +118,7 @@ public class StatisticBoardSnapshotService {
         filterHash(request.filterPayload()),
         jsonUtils.toJson(request.filterPayload()),
         jsonUtils.toJson(response.appliedFilters()),
+        jsonUtils.toJson(response.definition()),
         jsonUtils.toJson(response.rows()),
         jsonUtils.toJson(metaPayload));
   }
@@ -174,6 +177,7 @@ public class StatisticBoardSnapshotService {
         rs.getString("source_version"),
         jsonUtils.fromJson(rs.getString("filter_payload"), MAP_TYPE),
         jsonUtils.fromJson(rs.getString("applied_filter_payload"), MAP_TYPE),
+        definitionPayload(rs),
         jsonUtils.fromJson(rs.getString("row_payload"), ROWS_TYPE),
         new StatisticBoardMeta(
             parseTime(metaPayload.get("generatedAt")),
@@ -182,6 +186,14 @@ public class StatisticBoardSnapshotService {
             (int) number(metaPayload.get("columnCount")),
             (int) number(metaPayload.get("drilldownColumnCount"))),
         rs.getTimestamp("refreshed_at").toLocalDateTime());
+  }
+
+  private StatisticBoardDefinition definitionPayload(ResultSet rs) throws SQLException {
+    String value = rs.getString("definition_payload");
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    return jsonUtils.fromJson(value, StatisticBoardDefinition.class);
   }
 
   private LocalDateTime parseTime(Object value) {
@@ -207,13 +219,13 @@ public class StatisticBoardSnapshotService {
       String ruleVersion,
       String sourceVersion,
       Map<String, ?> filterPayload,
-      com.data.collection.platform.entity.statistics.StatisticBoardDefinition definition,
+      StatisticBoardDefinition definition,
       com.data.collection.platform.entity.statistics.StatisticFilterGroup appliedFilterGroup) {
     StatisticBoardResponse toResponse(Snapshot snapshot) {
       @SuppressWarnings("unchecked")
       Map<String, String> appliedFilters = (Map<String, String>) (Map<?, ?>) snapshot.appliedFilterPayload();
       return new StatisticBoardResponse(
-          definition,
+          snapshot.definition() == null ? definition : snapshot.definition(),
           appliedFilters,
           appliedFilterGroup,
           snapshot.rows(),
@@ -228,6 +240,7 @@ public class StatisticBoardSnapshotService {
       String sourceVersion,
       Map<String, Object> filterPayload,
       Map<String, Object> appliedFilterPayload,
+      StatisticBoardDefinition definition,
       List<StatisticRowData> rows,
       StatisticBoardMeta meta,
       LocalDateTime refreshedAt) {}

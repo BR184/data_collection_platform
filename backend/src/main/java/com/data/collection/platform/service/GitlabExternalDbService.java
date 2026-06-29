@@ -282,6 +282,24 @@ public class GitlabExternalDbService implements DisposableBean {
     return scanSqlBuilder.buildShardCursorScanSql(option, schema, shardKey, cursorPk, batchSize);
   }
 
+  public List<Map<String, Object>> incrementalShardCursorScan(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String shardKey,
+      LocalDateTime watermark,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk,
+      int batchSize) {
+    if (watermark == null || option.updatedAtColumn() == null || option.updatedAtColumn().isBlank()) {
+      return List.of();
+    }
+    return executeSourceQuery(
+        config,
+        scanSqlBuilder.buildIncrementalShardCursorScanSql(
+            option, schema, shardKey, watermark, cursorUpdatedAt, cursorPk, batchSize));
+  }
+
   Map<String, String> discoverPrimaryKeysByTable(GitlabSyncConfig config) {
     return schemaDiscoveryService.discoverPrimaryKeysByTable(config);
   }

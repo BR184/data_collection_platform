@@ -60,7 +60,11 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport {
+    implements
+        RealtimeStatisticBoardSupport,
+        RuleExplainableStatisticBoardSupport,
+        StatisticBoardWorkbookExportSupport,
+        StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
   private static final String RULE_VERSION = "customer-issue-defect-cause@2026-06-17-v2";
   private static final String MILESTONE_FIELD = "milestoneTitle";
@@ -122,6 +126,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final StatisticBoardSnapshotService snapshotService;
+  private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
 
   public CustomerIssueDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -130,7 +136,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       IssueFactQueryService issueFactQueryService,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      StatisticBoardSnapshotService snapshotService,
+      StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
     super(jsonUtils);
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
@@ -138,6 +146,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.snapshotService = snapshotService;
+    this.snapshotRequestFactory = snapshotRequestFactory;
   }
 
   @Override
@@ -208,12 +218,22 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    long startedAt = System.currentTimeMillis();
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticFilterGroup effectiveFilterGroup =
         CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
+    Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
+    return snapshotService.readOrRefresh(
+        snapshotRequest(snapshotFilters, effectiveFilterGroup, definition),
+        () -> buildBoardResponse(filters, effectiveFilterGroup, definition));
+  }
+
+  private StatisticBoardResponse buildBoardResponse(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
+    long startedAt = System.currentTimeMillis();
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.scopedSources()) {
@@ -258,6 +278,53 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             columnCount,
             drilldownCount);
     return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
+  }
+
+  @Override
+  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
+    StatisticFilterGroup effectiveFilterGroup =
+        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(emptyFilterGroup(), phaseScopeResolver);
+    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+    snapshotService.save(
+        snapshotRequest(filters, effectiveFilterGroup, definition),
+        buildBoardResponse(filters, effectiveFilterGroup, definition));
+  }
+
+  private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
+    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedMilestone = selectedMilestone(effectiveFilterGroup);
+    return snapshotRequestFactory.issueRequest(
+        BOARD_KEY,
+        RULE_VERSION,
+        "project=325;testingPhase=" + (StringUtils.hasText(selectedPhase) ? selectedPhase : "none")
+            + ";milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
+        filters,
+        definition,
+        effectiveFilterGroup);
+  }
+
+  private Map<String, String> customerSnapshotFilters(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup) {
+    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
+    payload.put("projectId", "325");
+    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    if (StringUtils.hasText(selectedPhase)) {
+      payload.put(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, selectedPhase);
+    }
+    String selectedMilestone = selectedMilestone(effectiveFilterGroup);
+    if (StringUtils.hasText(selectedMilestone)) {
+      payload.put(MILESTONE_FIELD, selectedMilestone);
+    }
+    return payload;
   }
 
   @Override

@@ -291,12 +291,25 @@ public class SyncRunTableTaskLeaseService {
   }
 
   public void finishTask(Long taskId, Long rowsScanned, Long rowsApplied, String status, String errorMessage) {
+    finishTask(taskId, rowsScanned, rowsApplied, status, errorMessage, null, null);
+  }
+
+  public void finishTask(
+      Long taskId,
+      Long rowsScanned,
+      Long rowsApplied,
+      String status,
+      String errorMessage,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk) {
     jdbcTemplate.update(
         """
         update sync_run_table_tasks
            set status = ?,
                rows_scanned = coalesce(?, rows_scanned),
                rows_applied = coalesce(?, rows_applied),
+               cursor_updated_at = coalesce(?, cursor_updated_at),
+               cursor_pk = coalesce(?, cursor_pk),
                last_error = ?,
                finished_at = current_timestamp,
                updated_at = current_timestamp
@@ -305,8 +318,47 @@ public class SyncRunTableTaskLeaseService {
         status,
         rowsScanned,
         rowsApplied,
+        cursorUpdatedAt,
+        cursorPk,
         errorMessage,
         taskId);
+  }
+
+  public boolean hasActiveShardTasks(Long runId, String sourceTable) {
+    Integer count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from sync_run_table_tasks
+             where run_id = ?
+               and source_table = ?
+               and shard_key is not null
+               and status in ('QUEUED', 'RUNNING', 'RETRYING')
+            """,
+            Integer.class,
+            runId,
+            sourceTable);
+    return count != null && count > 0;
+  }
+
+  public LocalDateTime findMergedShardWatermark(Long runId, String sourceTable) {
+    return jdbcTemplate.queryForObject(
+        """
+        select min(shard_watermark) as merged_watermark
+          from (
+            select shard_key,
+                   max(coalesce(cursor_updated_at, watermark_at)) as shard_watermark
+              from sync_run_table_tasks
+             where run_id = ?
+               and source_table = ?
+               and shard_key is not null
+               and status = 'SUCCESS'
+             group by shard_key
+          ) shard_progress
+        """,
+        (rs, rowNum) -> toDateTime(rs.getTimestamp("merged_watermark")),
+        runId,
+        sourceTable);
   }
 
   private SyncRunTableTask mapTask(ResultSet rs, int rowNum) throws SQLException {
@@ -326,6 +378,8 @@ public class SyncRunTableTaskLeaseService {
     task.setCursorPk(rs.getString("cursor_pk"));
     task.setLookupColumn(rs.getString("lookup_column"));
     task.setLookupValue(rs.getString("lookup_value"));
+    task.setShardKey(rs.getString("shard_key"));
+    task.setShardKeyLength(rs.getObject("shard_key_length") == null ? null : rs.getInt("shard_key_length"));
     task.setBatchSize(rs.getInt("batch_size"));
     task.setRunAfter(toDateTime(rs.getTimestamp("run_after")));
     task.setLeaseOwner(rs.getString("lease_owner"));

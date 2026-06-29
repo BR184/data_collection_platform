@@ -57,6 +57,12 @@ public class SyncRunTableTask {
   @TableField("lookup_value")
   private String lookupValue;
 
+  @TableField("shard_key")
+  private String shardKey;
+
+  @TableField("shard_key_length")
+  private Integer shardKeyLength;
+
   @TableField("batch_size")
   private Integer batchSize;
 

@@ -84,7 +84,11 @@ public class SyncRunTableTaskExecutor {
       LocalDateTime cursorUpdatedAt = task.getCursorUpdatedAt();
       String cursorPk = task.getCursorPk();
       boolean shouldProbeSourceWatermark =
-          !fullTask && !fullReconcileTask && !preciseTask && !Boolean.TRUE.equals(state.getDirtyFlag());
+          !fullTask
+              && !fullReconcileTask
+              && !preciseTask
+              && !hasShard(task)
+              && !Boolean.TRUE.equals(state.getDirtyFlag());
       if (shouldProbeSourceWatermark) {
         LocalDateTime sourceMaxUpdatedAt = sourceTableReader.findMaxUpdatedAt(config, option);
         if (sourceMaxUpdatedAt != null
@@ -112,8 +116,18 @@ public class SyncRunTableTaskExecutor {
                   config, option, preparedMirrorTable.mirrorSchema(), task.getCursorPk(), batchSize)
               : preciseTask
                   ? sourceTableReader.readPrecise(config, option, task.getLookupColumn(), task.getLookupValue())
-                  : sourceTableReader.readIncrementalBatch(
-                      config, option, scanStart, cursorUpdatedAt, cursorPk, batchSize);
+                  : hasShard(task)
+                      ? sourceTableReader.readIncrementalShardBatch(
+                          config,
+                          option,
+                          preparedMirrorTable.mirrorSchema(),
+                          task.getShardKey(),
+                          scanStart,
+                          cursorUpdatedAt,
+                          cursorPk,
+                          batchSize)
+                      : sourceTableReader.readIncrementalBatch(
+                          config, option, scanStart, cursorUpdatedAt, cursorPk, batchSize);
       if (isRunCancellationRequested(task.getRunId())) {
         finishTask(task.getId(), 0L, 0L, "CANCELLED", "同步运行已取消");
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
@@ -128,7 +142,7 @@ public class SyncRunTableTaskExecutor {
         mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
         return;
       }
-      RowCursor lastCursor = lastCursor(rows, state, fullTask || fullReconcileTask);
+      RowCursor lastCursor = lastCursor(rows, state, fullTask || fullReconcileTask, hasShard(task));
       boolean hasMore =
           !preciseTask
               && rows.size() >= batchSize
@@ -145,14 +159,18 @@ public class SyncRunTableTaskExecutor {
       RowCursor completionCursor = (fullTask || fullReconcileTask) && !hasMore
           ? new RowCursor(findFullSyncWatermark(config, option, state), lastCursor.primaryKey())
           : lastCursor;
-      markSuccess(task, state, scannedRows, appliedRows, completionCursor, hasMore);
-      if (hasMore && !isRunCancellationRequested(task.getRunId())) {
-        try {
-          continuationPlanner.enqueueContinuationTask(
-              task, lastCursor.updatedAt(), lastCursor.primaryKey(), batchSize);
-        } catch (BizException e) {
-          markFailure(task, state, e);
-          return;
+      if (hasShard(task)) {
+        markShardSuccess(task, state, scannedRows, appliedRows, completionCursor, hasMore, batchSize);
+      } else {
+        markSuccess(task, state, scannedRows, appliedRows, completionCursor, hasMore);
+        if (hasMore && !isRunCancellationRequested(task.getRunId())) {
+          try {
+            continuationPlanner.enqueueContinuationTask(
+                task, lastCursor.updatedAt(), lastCursor.primaryKey(), batchSize);
+          } catch (BizException e) {
+            markFailure(task, state, e);
+            return;
+          }
         }
       }
       mirrorSchemaService.markTableIdle(config.getId(), state.getSourceTable(), LocalDateTime.now());
@@ -173,6 +191,23 @@ public class SyncRunTableTaskExecutor {
 
   private void finishTask(Long taskId, Long rowsScanned, Long rowsApplied, String status, String errorMessage) {
     taskLeaseService.finishTask(taskId, rowsScanned, rowsApplied, status, errorMessage);
+  }
+
+  private void finishTask(
+      Long taskId,
+      Long rowsScanned,
+      Long rowsApplied,
+      String status,
+      String errorMessage,
+      RowCursor cursor) {
+    taskLeaseService.finishTask(
+        taskId,
+        rowsScanned,
+        rowsApplied,
+        status,
+        errorMessage,
+        cursor == null ? null : cursor.updatedAt(),
+        cursor == null ? null : cursor.primaryKey());
   }
 
   private SyncRunTableState findState(SyncRunTableTask task) {
@@ -215,6 +250,48 @@ public class SyncRunTableTaskExecutor {
     stateMapper.updateById(state);
   }
 
+  private void markShardSuccess(
+      SyncRunTableTask task,
+      SyncRunTableState state,
+      long scannedRows,
+      long appliedRows,
+      RowCursor lastCursor,
+      boolean hasMore,
+      int batchSize) {
+    if (hasMore && !isRunCancellationRequested(task.getRunId())) {
+      try {
+        continuationPlanner.enqueueContinuationTask(
+            task, lastCursor.updatedAt(), lastCursor.primaryKey(), batchSize);
+      } catch (BizException e) {
+        markFailure(task, state, e);
+        return;
+      }
+    }
+    LocalDateTime now = LocalDateTime.now();
+    finishTask(task.getId(), scannedRows, appliedRows, "SUCCESS", null, lastCursor);
+    if (taskLeaseService.hasActiveShardTasks(task.getRunId(), task.getSourceTable())) {
+      state.setDirtyFlag(true);
+      state.setLastSuccessAt(now);
+      state.setLastError("");
+      state.setRetryCount(0);
+      state.setUpdatedAt(now);
+      stateMapper.updateById(state);
+      return;
+    }
+    LocalDateTime mergedWatermark =
+        taskLeaseService.findMergedShardWatermark(task.getRunId(), task.getSourceTable());
+    state.setDirtyFlag(false);
+    state.setLastSuccessAt(now);
+    if (mergedWatermark != null) {
+      state.setLastWatermarkAt(mergedWatermark);
+      state.setLastCursorPk("");
+    }
+    state.setLastError("");
+    state.setRetryCount(0);
+    state.setUpdatedAt(now);
+    stateMapper.updateById(state);
+  }
+
   private void markFailure(SyncRunTableTask task, SyncRunTableState state, Exception e) {
     String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     mirrorSchemaService.markTableError(task.getConfigId(), task.getSourceTable());
@@ -234,7 +311,12 @@ public class SyncRunTableTaskExecutor {
         state.getSourceTable(), state.getSourceTable(), state.getPrimaryKeyColumns(), state.getUpdatedAtColumn(), true);
   }
 
-  private RowCursor lastCursor(List<Map<String, Object>> rows, SyncRunTableState state, boolean fullTask) {
+  private boolean hasShard(SyncRunTableTask task) {
+    return task != null && task.getShardKey() != null && !task.getShardKey().isBlank();
+  }
+
+  private RowCursor lastCursor(
+      List<Map<String, Object>> rows, SyncRunTableState state, boolean fullTask, boolean shardTask) {
     if (rows == null || rows.isEmpty()) {
       return RowCursor.empty();
     }
@@ -246,7 +328,7 @@ public class SyncRunTableTaskExecutor {
       return RowCursor.empty();
     }
     LocalDateTime updatedAt = toLocalDateTime(row.get(state.getUpdatedAtColumn()));
-    Object primaryKey = row.get(firstPrimaryKey(state.getPrimaryKeyColumns()));
+    Object primaryKey = shardTask ? row.get("pk_signature") : row.get(firstPrimaryKey(state.getPrimaryKeyColumns()));
     return new RowCursor(updatedAt, primaryKey == null ? "" : String.valueOf(primaryKey));
   }
 

@@ -258,6 +258,56 @@ class GitlabSourceScanSqlBuilder {
         Math.max(1, batchSize)).strip();
   }
 
+  String buildIncrementalShardCursorScanSql(
+      TableWhitelistOption option,
+      SourceTableSchema schema,
+      String shardKey,
+      LocalDateTime watermark,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk,
+      int batchSize) {
+    String updatedAtColumn = quoteIdentifier(option.updatedAtColumn());
+    String pkExpression = primaryKeySignatureExpression(splitPrimaryKeys(option.primaryKey()), "source_rows");
+    boolean hasCursor = cursorUpdatedAt != null && cursorPk != null && !cursorPk.isBlank();
+    StringBuilder predicate = new StringBuilder()
+        .append(updatedAtColumn)
+        .append(hasCursor ? " >= timestamp '" : " > timestamp '")
+        .append(formatTimestampLiteral(watermark))
+        .append("'");
+    if (hasCursor) {
+      predicate.append(" and (")
+          .append(updatedAtColumn)
+          .append(" > timestamp '")
+          .append(formatTimestampLiteral(cursorUpdatedAt))
+          .append("' or (")
+          .append(updatedAtColumn)
+          .append(" = timestamp '")
+          .append(formatTimestampLiteral(cursorUpdatedAt))
+          .append("' and pk_signature > ")
+          .append(toSqlLiteral(cursorPk))
+          .append("))");
+    }
+    return """
+        select *
+          from (
+            select source_rows.*,
+                   %s as pk_signature
+              from %s source_rows
+          ) shard_rows
+         where substring(md5(pk_signature), 1, %d) = %s
+           and %s
+         order by %s asc, pk_signature asc
+         limit %d
+        """.formatted(
+        pkExpression,
+        quoteQualifiedPublicTable(option.tableName()),
+        Math.max(1, Math.min(8, shardKey == null ? 1 : shardKey.length())),
+        toSqlLiteral(shardKey),
+        predicate,
+        updatedAtColumn,
+        Math.max(1, batchSize)).strip();
+  }
+
   private String quoteIdentifier(String identifier) {
     return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }

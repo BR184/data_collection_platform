@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.sync;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
+import com.data.collection.platform.entity.GitlabTableProbe;
 import com.data.collection.platform.entity.SourceTableSchema;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.service.GitlabExternalDbService;
@@ -37,6 +38,19 @@ public class SourceTableReader {
     return externalDbService.incrementalCursorScan(config, option, watermark, cursorUpdatedAt, cursorPk, batchSize);
   }
 
+  public List<Map<String, Object>> readIncrementalShardBatch(
+      GitlabSyncConfig config,
+      TableWhitelistOption option,
+      SourceTableSchema mirrorSchema,
+      String shardKey,
+      LocalDateTime watermark,
+      LocalDateTime cursorUpdatedAt,
+      String cursorPk,
+      int batchSize) {
+    return externalDbService.incrementalShardCursorScan(
+        config, option, mirrorSchema, shardKey, watermark, cursorUpdatedAt, cursorPk, batchSize);
+  }
+
   public List<Map<String, Object>> readPrecise(
       GitlabSyncConfig config,
       TableWhitelistOption option,
@@ -47,6 +61,10 @@ public class SourceTableReader {
 
   public LocalDateTime findMaxUpdatedAt(GitlabSyncConfig config, TableWhitelistOption option) {
     return externalDbService.findMaxUpdatedAt(config, option);
+  }
+
+  public GitlabTableProbe probeTable(GitlabSyncConfig config, TableWhitelistOption option) {
+    return externalDbService.probeTable(config, option);
   }
 
   public Set<String> findExistingPrimaryKeySignatures(

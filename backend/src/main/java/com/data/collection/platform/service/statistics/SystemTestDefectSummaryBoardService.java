@@ -46,7 +46,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
+    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
   private static final String RULE_VERSION = "system-test-defect-summary@2026-06-26-v7";
@@ -62,6 +62,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final LabelGroupDefaultFilterService labelGroupDefaultFilterService;
   private final LabelGroupExpansionService labelGroupExpansionService;
+  private final StatisticBoardSnapshotService snapshotService;
+  private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
 
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
@@ -70,7 +72,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       SystemTestPhaseCatalogService phaseCatalogService,
       SystemTestPhaseScopeResolver phaseScopeResolver,
       LabelGroupDefaultFilterService labelGroupDefaultFilterService,
-      LabelGroupExpansionService labelGroupExpansionService) {
+      LabelGroupExpansionService labelGroupExpansionService,
+      StatisticBoardSnapshotService snapshotService,
+      StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
     super(jsonUtils);
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
@@ -78,6 +82,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     this.phaseScopeResolver = phaseScopeResolver;
     this.labelGroupDefaultFilterService = labelGroupDefaultFilterService;
     this.labelGroupExpansionService = labelGroupExpansionService;
+    this.snapshotService = snapshotService;
+    this.snapshotRequestFactory = snapshotRequestFactory;
   }
 
   @Override
@@ -187,9 +193,19 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    return snapshotService.readOrRefresh(
+        snapshotRequest(filters, effectiveFilterGroup, definition),
+        () -> buildBoardResponse(filters, effectiveFilterGroup, definition));
+  }
+
+  private StatisticBoardResponse buildBoardResponse(
+      Map<String, String> filters,
+      EffectiveFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
     long startedAt = System.currentTimeMillis();
     Map<String, List<String>> phaseValueCache = new LinkedHashMap<>();
-    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
     RuleFlowSnapshot snapshot =
         buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup, phaseValueCache);
     List<IssueSource> sources = snapshot.finalSources();
@@ -201,11 +217,29 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     if (hasRequiredPhase) {
       rows.add(toSummaryRowData(TOTAL_ROW_KEY, TOTAL_ROW_LABEL, sources));
     }
-    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
     int columnCount = definition.columnGroups().stream().mapToInt(StatisticColumnGroup::columnCount).sum();
     int drilldownCount = definition.columnGroups().stream().flatMap(group -> group.leafColumns().stream()).mapToInt(c -> c.drilldown() ? 1 : 0).sum();
     return new StatisticBoardResponse(definition, withoutReservedFilters(filters), effectiveFilterGroup.appliedGroup(), rows,
         new StatisticBoardMeta(LocalDateTime.now(), System.currentTimeMillis() - startedAt, rows.size(), columnCount, drilldownCount));
+  }
+
+  @Override
+  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    for (StatisticFilterOption option : loadPhaseOptions()) {
+      StatisticFilterGroup filterGroup =
+          new StatisticFilterGroup(
+              "AND",
+              List.of(new StatisticFilterCondition("testingPhase", "eq", option.value(), null)));
+      EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+      Map<String, String> filters = Map.of("testingPhase", option.value());
+      snapshotService.save(
+          snapshotRequest(filters, effectiveFilterGroup, definition),
+          buildBoardResponse(filters, effectiveFilterGroup, definition));
+    }
   }
 
   @Override
@@ -307,6 +341,26 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource i) {
     return new StatisticRuleFlowStepSample("#" + i.iid() + " " + i.projectName(),
         i.title() + (i.moduleNames().isEmpty() ? "" : " | 模块: " + String.join("、", i.moduleNames())));
+  }
+
+  private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
+      Map<String, String> filters,
+      EffectiveFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
+    String selectedPhase = selectedTestingPhase(effectiveFilterGroup.userGroup());
+    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
+    if (StringUtils.hasText(selectedPhase)) {
+      payload.put("testingPhase", selectedPhase);
+    }
+    payload.put("projectId", String.valueOf(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
+    return snapshotRequestFactory.issueRequest(
+        BOARD_KEY,
+        RULE_VERSION,
+        "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
+            + ";testingPhase=" + (StringUtils.hasText(selectedPhase) ? selectedPhase : "none"),
+        payload,
+        definition,
+        effectiveFilterGroup.appliedGroup());
   }
 
   private EffectiveFilterGroup buildEffectiveFilterGroup(StatisticFilterGroup userGroup) {

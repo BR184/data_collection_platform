@@ -3,6 +3,7 @@ package com.data.collection.platform.service.sync;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.TableWhitelistOption;
 import com.data.collection.platform.entity.sync.SyncRun;
@@ -17,8 +18,10 @@ import com.data.collection.platform.service.GitlabConfigService;
 import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.GitlabWhitelistService;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -36,6 +39,7 @@ public class SyncRunTablePlanningService {
   private final JsonUtils jsonUtils;
   private final GitlabConfigService configService;
   private final GitlabWhitelistService whitelistService;
+  private final GitlabMirrorProperties mirrorProperties;
 
   public SyncRunTablePlanningService(
       SyncRunMapper syncRunMapper,
@@ -43,13 +47,15 @@ public class SyncRunTablePlanningService {
       SyncRunTableTaskMapper taskMapper,
       JsonUtils jsonUtils,
       GitlabConfigService configService,
-      GitlabWhitelistService whitelistService) {
+      GitlabWhitelistService whitelistService,
+      GitlabMirrorProperties mirrorProperties) {
     this.syncRunMapper = syncRunMapper;
     this.stateMapper = stateMapper;
     this.taskMapper = taskMapper;
     this.jsonUtils = jsonUtils;
     this.configService = configService;
     this.whitelistService = whitelistService;
+    this.mirrorProperties = mirrorProperties;
   }
 
   public int planRunTables(Long runId) {
@@ -78,12 +84,17 @@ public class SyncRunTablePlanningService {
     int planned = existingTaskKeys.size();
     for (String sourceTable : sourceTables) {
       SyncRunTableState state = resolveRunnableState(run, sourceTable);
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+      int shardPlanned = planShardTasksIfNeeded(run, state, existingTaskKeys, now);
+      if (shardPlanned > 0) {
+        planned += shardPlanned;
+        continue;
+      }
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null, null))) {
         continue;
       }
       taskMapper.insert(createTask(run, state, state.getLastWatermarkAt(), now));
       planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null, null));
     }
     log.info("Planned {} table tasks for run {}", planned, runId);
     return planned;
@@ -118,12 +129,17 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+      int shardPlanned = planShardTasksIfNeeded(run, state, existingTaskKeys, now);
+      if (shardPlanned > 0) {
+        planned += shardPlanned;
+        continue;
+      }
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null, null))) {
         continue;
       }
       taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
       planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null, null));
     }
     log.info("Planned {} whitelist table tasks for run {}", planned, run.getId());
     return planned;
@@ -145,12 +161,17 @@ public class SyncRunTablePlanningService {
       if (!isRunnableIncrementalState(state)) {
         continue;
       }
-      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null))) {
+      int shardPlanned = planShardTasksIfNeeded(run, state, existingTaskKeys, now);
+      if (shardPlanned > 0) {
+        planned += shardPlanned;
+        continue;
+      }
+      if (existingTaskKeys.contains(taskKey(state.getSourceTable(), null, null, null))) {
         continue;
       }
       taskMapper.insert(createTask(run, state, resolveTaskWatermark(run, state), now));
       planned++;
-      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null));
+      existingTaskKeys.add(taskKey(state.getSourceTable(), null, null, null));
     }
     log.info("Planned {} compensation table tasks from existing states for run {}", planned, run.getId());
     return planned;
@@ -175,7 +196,7 @@ public class SyncRunTablePlanningService {
         continue;
       }
       SyncRunTableState state = upsertState(run, config, option, now);
-      String taskKey = taskKey(state.getSourceTable(), target.lookupColumn(), target.lookupValue());
+      String taskKey = taskKey(state.getSourceTable(), target.lookupColumn(), target.lookupValue(), null);
       if (existingTaskKeys.contains(taskKey)) {
         continue;
       }
@@ -275,6 +296,85 @@ public class SyncRunTablePlanningService {
     return task;
   }
 
+  private int planShardTasksIfNeeded(
+      SyncRun run,
+      SyncRunTableState state,
+      Set<String> existingTaskKeys,
+      LocalDateTime now) {
+    if (!shouldPlanSharded(run, state)) {
+      return 0;
+    }
+    int shardKeyLength = shardKeyLength();
+    int planned = 0;
+    for (String shardKey : shardKeys(shardKeyLength)) {
+      String taskKey = taskKey(state.getSourceTable(), null, null, shardKey);
+      if (existingTaskKeys.contains(taskKey)) {
+        continue;
+      }
+      SyncRunTableTask task = createTask(run, state, resolveTaskWatermark(run, state), now);
+      task.setShardKey(shardKey);
+      task.setShardKeyLength(shardKeyLength);
+      task.setCursorUpdatedAt(null);
+      task.setCursorPk(null);
+      taskMapper.insert(task);
+      existingTaskKeys.add(taskKey);
+      planned++;
+    }
+    if (planned > 0) {
+      log.info(
+          "Planned {} shard tasks for table {}, runId={}",
+          planned,
+          state.getSourceTable(),
+          run.getId());
+    }
+    return planned;
+  }
+
+  private boolean shouldPlanSharded(SyncRun run, SyncRunTableState state) {
+    return mirrorProperties != null
+        && mirrorProperties.isLargeTableShardSyncEnabled()
+        && !isFullTableRun(run)
+        && run != null
+        && run.getRunType() != SyncRunType.SYSTEM_HOOK
+        && state != null
+        && !isBlank(state.getPrimaryKeyColumns())
+        && !isBlank(state.getUpdatedAtColumn())
+        && shardTableNames().contains(GitlabSourceInstanceSupport.normalizeSourceTableName(state.getSourceTable()));
+  }
+
+  private Set<String> shardTableNames() {
+    if (mirrorProperties == null || isBlank(mirrorProperties.getLargeTableShardTables())) {
+      return Set.of();
+    }
+    return List.of(mirrorProperties.getLargeTableShardTables().split(",")).stream()
+        .map(GitlabSourceInstanceSupport::normalizeSourceTableName)
+        .filter(value -> !value.isBlank())
+        .collect(Collectors.toCollection(LinkedHashSet::new));
+  }
+
+  private int shardKeyLength() {
+    if (mirrorProperties == null) {
+      return 1;
+    }
+    return Math.max(1, Math.min(2, mirrorProperties.getLargeTableShardKeyLength()));
+  }
+
+  private List<String> shardKeys(int length) {
+    List<String> result = new ArrayList<>();
+    appendShardKeys(result, "", length);
+    return result;
+  }
+
+  private void appendShardKeys(List<String> result, String prefix, int remaining) {
+    if (remaining <= 0) {
+      result.add(prefix);
+      return;
+    }
+    for (char c : "0123456789abcdef".toCharArray()) {
+      appendShardKeys(result, prefix + c, remaining - 1);
+    }
+  }
+
   private void seedIncrementalCursor(
       SyncRunTableTask task,
       SyncRunTableState state,
@@ -363,21 +463,22 @@ public class SyncRunTablePlanningService {
         taskMapper.selectList(
             new QueryWrapper<SyncRunTableTask>()
                 .eq("run_id", runId)
-                .select("source_table", "lookup_column", "lookup_value"));
+                .select("source_table", "lookup_column", "lookup_value", "shard_key"));
     if (existingTasks == null || existingTasks.isEmpty()) {
       return new LinkedHashSet<>();
     }
     return existingTasks.stream()
-        .map(task -> taskKey(task.getSourceTable(), task.getLookupColumn(), task.getLookupValue()))
+        .map(task -> taskKey(task.getSourceTable(), task.getLookupColumn(), task.getLookupValue(), task.getShardKey()))
         .collect(Collectors.toCollection(LinkedHashSet::new));
   }
 
-  private String taskKey(String sourceTable, String lookupColumn, String lookupValue) {
+  private String taskKey(String sourceTable, String lookupColumn, String lookupValue, String shardKey) {
     return String.join(
         "|",
         GitlabSourceInstanceSupport.normalizeSourceTableName(sourceTable),
         lookupColumn == null ? "" : lookupColumn,
-        lookupValue == null ? "" : lookupValue);
+        lookupValue == null ? "" : lookupValue,
+        shardKey == null ? "" : shardKey.toLowerCase(Locale.ROOT));
   }
 
   private SyncRunPayload parsePayload(SyncRun run) {
