@@ -30,7 +30,7 @@ import { useConditionFilterGroupState } from '../composables/useConditionFilterG
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
-import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import { useRoute } from 'vue-router';
 
 const currentRoute = useRoute();
@@ -505,8 +505,8 @@ function buildCurrentQueryParams(includePagination: boolean) {
 async function handleExport() {
   exportLoading.value = true;
   try {
-    const csv = await api.exportCustomerIssueRecords(buildCurrentQueryParams(false));
-    downloadCsv(csv, `${pageTitle.value}_${formatExportFileDate(new Date())}.csv`);
+    const workbook = await api.exportCustomerIssueRecords(buildCurrentQueryParams(false));
+    downloadBlob(workbook, `${pageTitle.value}_${formatExportFileDate(new Date())}.xlsx`);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {

@@ -496,11 +496,11 @@ async function handleExtraAction(actionKey: string) {
 async function exportCustomerIssues() {
   customerIssueExportLoading.value = true;
   try {
-    const csv = await api.exportCustomerIssueRecords({
+    const workbook = await api.exportCustomerIssueRecords({
       topic: 'cc-product',
       filterGroup: buildFilterPayload(),
     });
-    downloadCsv(csv, `客户问题全量议题数据_${formatExportFileDate(new Date())}.csv`);
+    downloadBlob(workbook, `客户问题全量议题数据_${formatExportFileDate(new Date())}.xlsx`);
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);

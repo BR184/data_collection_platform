@@ -12,7 +12,7 @@ import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
 } from '../types/api';
-import { EXPORT_REQUEST_TIMEOUT_MS, request, requestText } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob, requestText } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 type SystemTestIssueSearchQueryParams = {
@@ -223,6 +223,13 @@ async function requestCsv(url: string) {
   });
 }
 
+async function requestWorkbook(url: string) {
+  return requestBlob(url, {
+    errorPrefix: '导出失败',
+    timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+  });
+}
+
 export const issueRecordsApi = {
   getSystemTestIssueSearchRecords(params: SystemTestIssueSearchQueryParams) {
     const query = buildSystemTestIssueSearchQuery(params);
@@ -353,7 +360,7 @@ export const issueRecordsApi = {
   },
   exportCustomerIssueIllegalRecords(params: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
     const query = buildCustomerIssueIllegalRecordQuery(params, false);
-    return requestCsv(`/api/customer-issues/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/customer-issues/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
   },
   getCustomerIssueIllegalRecordFilterOptions(projectId?: string | number | null) {
     const query = new URLSearchParams(
@@ -398,7 +405,7 @@ export const issueRecordsApi = {
   },
   exportCustomerIssueRecords(params: Parameters<typeof buildCustomerIssueRecordQuery>[0]) {
     const query = buildCustomerIssueRecordQuery(params, false);
-    return requestCsv(`/api/customer-issues/records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/customer-issues/records/export${query.toString() ? `?${query.toString()}` : ''}`);
   },
   getCustomerIssueRecordFilterOptions(topic: CustomerIssueRecordTopic, projectId?: string | number | null) {
     const query = new URLSearchParams({

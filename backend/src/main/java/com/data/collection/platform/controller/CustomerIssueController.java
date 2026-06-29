@@ -13,9 +13,11 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordService;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
+import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,15 +60,15 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/records/export")
-  public ResponseEntity<String> exportRecords(
+  public ResponseEntity<byte[]> exportRecords(
       @ModelAttribute CustomerIssueRecordListWebRequest request) {
-    String csv =
-        customerIssueRecordService.exportRecordsCsv(
+    byte[] workbook =
+        customerIssueRecordService.exportRecordsWorkbook(
             customerIssueRequestAssembler.toRecordQueryRequest(request));
     return ResponseEntity.ok()
-        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-records.csv\"")
-        .body(csv);
+        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(recordExportFilename(request.getTopic())))
+        .body(workbook);
   }
 
   @GetMapping("/records/filter-options")
@@ -106,15 +108,15 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/illegal-records/export")
-  public ResponseEntity<String> exportIllegalRecords(
+  public ResponseEntity<byte[]> exportIllegalRecords(
       @ModelAttribute CustomerIssueIllegalRecordListWebRequest request) {
-    String csv =
-        customerIssueIllegalRecordService.exportRecordsCsv(
+    byte[] workbook =
+        customerIssueIllegalRecordService.exportRecordsWorkbook(
             customerIssueRequestAssembler.toIllegalRecordQueryRequest(request));
     return ResponseEntity.ok()
-        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-illegal-records.csv\"")
-        .body(csv);
+        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("客户问题非法数据.xlsx"))
+        .body(workbook);
   }
 
   @GetMapping("/illegal-records/filter-options")
@@ -153,5 +155,15 @@ public class CustomerIssueController {
 
   private String recordWorkspaceKey(String topic) {
     return TOPIC_DELAY.equalsIgnoreCase(topic) ? "customer-issue-delay-records" : "customer-issue-cc-product-records";
+  }
+
+  private String recordExportFilename(String topic) {
+    return TOPIC_DELAY.equalsIgnoreCase(topic) ? "延期问题明细.xlsx" : "CC_PRODUCT议题明细.xlsx";
+  }
+
+  private String contentDisposition(String filename) {
+    String fallback = filename.replace("\"", "");
+    String encoded = UriUtils.encode(filename, StandardCharsets.UTF_8);
+    return "attachment; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded;
   }
 }

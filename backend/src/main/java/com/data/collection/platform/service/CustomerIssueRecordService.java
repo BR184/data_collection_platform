@@ -182,7 +182,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return normalized;
   }
 
-  public String exportRecordsCsv(CustomerIssueRecordQueryRequest request) {
+  public byte[] exportRecordsWorkbook(CustomerIssueRecordQueryRequest request) {
     List<CustomerIssueRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
@@ -226,98 +226,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       }
       page += 1;
     }
-
-    List<String> lines = new ArrayList<>();
-    List<String> labelGroupSnapshots = describeExpandedLabelGroupFilters(request);
-    if (!labelGroupSnapshots.isEmpty()) {
-      lines.add(String.join(
-          ",",
-          List.of("标签组筛选快照", CsvExportSupport.cell(String.join("；", labelGroupSnapshots)))));
-    }
-    lines.add(
-        String.join(
-            ",",
-            List.of(
-                "问题编号",
-                "项目",
-                "模块",
-                "功能名",
-                "缺陷原因",
-                "严重程度",
-                "优先级",
-                "缺陷状态",
-                "状态",
-                "创建人",
-                "处理人",
-                "缺陷分类",
-                "里程碑",
-                "延期问题",
-                "延期原因",
-                "延期分类",
-                "响应延期",
-                "解决延期",
-                "非法数据",
-                "非法原因",
-                "创建时间",
-                "更新时间",
-                "关闭时间",
-                "标题",
-                "链接")));
-    for (CustomerIssueRecordRowResponse row : rows) {
-      lines.add(
-          String.join(
-              ",",
-              List.of(
-                  CsvExportSupport.cell(row.issueIid()),
-                  CsvExportSupport.cell(row.projectName()),
-                  CsvExportSupport.cell(row.moduleNames()),
-                  CsvExportSupport.cell(row.functionName()),
-                  CsvExportSupport.cell(row.reasonCategory()),
-                  CsvExportSupport.cell(row.severityLevel()),
-                  CsvExportSupport.cell(row.priorityLevel()),
-                  CsvExportSupport.cell(row.bugStatus()),
-                  CsvExportSupport.cell(row.issueState()),
-                  CsvExportSupport.cell(row.authorName()),
-                  CsvExportSupport.cell(row.assigneeName()),
-                  CsvExportSupport.cell(row.category()),
-                  CsvExportSupport.cell(row.milestoneTitle()),
-                  CsvExportSupport.cell(row.delayIssue() ? "是" : "否"),
-                  CsvExportSupport.cell(row.delayReason()),
-                  CsvExportSupport.cell(row.delayCause()),
-                  CsvExportSupport.cell(row.responseDelayed() ? "是" : "否"),
-                  CsvExportSupport.cell(row.resolveDelayed() ? "是" : "否"),
-                  CsvExportSupport.cell(row.illegal() ? "是" : "否"),
-                  CsvExportSupport.cell(row.illegalReason()),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
-                  CsvExportSupport.cell(row.title()),
-                  CsvExportSupport.cell(row.issueLink()))));
-    }
-    return String.join("\n", lines) + "\n";
-  }
-
-  private List<String> describeExpandedLabelGroupFilters(CustomerIssueRecordQueryRequest request) {
-    StatisticFilterGroup filterGroup =
-        IssueFactRecordFilterGroupSupport.parse(
-            objectMapper,
-            request.filterGroupJson(),
-            IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
-    StatisticFilterGroup expandedFilterGroup =
-        expandLabelGroupConditions(filterGroup, request.listRequest().sourceInstance());
-    if (expandedFilterGroup == null || expandedFilterGroup.conditions() == null) {
-      return List.of();
-    }
-    return expandedFilterGroup.conditions().stream()
-        .filter(StatisticFilterCondition::usesLabelGroup)
-        .map(condition -> "%s %s %s（标签组：%s）".formatted(
-            condition.fieldKey(),
-            condition.operator(),
-            TextQuerySupport.trimToNull(condition.labelGroupName()) == null
-                ? condition.labelGroupId()
-                : condition.labelGroupName(),
-            String.join("、", condition.values())))
-        .toList();
+    return CustomerIssueRecordWorkbookExportSupport.exportRecords(rows);
   }
 
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(String topic, Long projectId) {

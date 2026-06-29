@@ -170,7 +170,7 @@
 
 ### 5.1 统计范围
 
-1. 客户问题默认统计 `CC_Product` 项目 `325` 自 2026-01-01 之后创建的议题；项目范围必须来自老平台项目 ID `project_id=325`，不能因为 `project_name`、里程碑、测试阶段或标签文本包含 `cc_product` 就反推出客户问题范围。
+1. 客户问题默认统计 `CC_Product` 项目 `325` 自 2026-01-01 之后创建的议题；项目范围必须来自老平台项目 ID `project_id=325`，不能因为 `project_name`、里程碑、测试阶段或标签文本包含 `cc_product` 就反推出客户问题范围。该 2026-01-01 起始日期必须覆盖客户问题统计、延期问题、按功能展示缺陷数量、缺陷响应/解决效率四类页面，不得在性能优化、快照、中间表或导出链路中绕过。
 2. 客户问题统计默认只纳入携带里程碑的议题。
 3. 客户问题采集频率为每小时执行一次全量议题爬取或同步任务。
 4. 客户问题默认排除：
@@ -183,6 +183,7 @@
 8. 客户问题记录类页面必须区分页面画像，不能把所有记录页套同一条公共排除：
    - `CC_PRODUCT议题` 对齐老平台 `IssueStaticDataController.findCCProductIssueInfo -> ProjectIssueInfoQueryBuilder`：默认 `projectId=325`，默认全里程碑，里程碑只是可选筛选；默认排除 `bug_status` 包含 `已拒绝` 的记录，不套用客户问题统计页公共排除，也不套用 2026-01-01 运营统计起始日期。
    - 客户问题延期记录、客户问题缺陷非法数据等统计/非法类记录入口对齐老平台 `SpiderIssueDataDAO` + `QueryUtil.setQueryFilter`：默认 `projectId=325`，顶部范围使用 `milestone_title` 而不是系统测试 `testing_phase`，并复用客户问题公共排除规则。旧 URL 或旧接口里残留的 `testingPhase` 只能在入口处归一化为 `milestoneTitle`，不能作为服务层第二套阶段筛选继续存在。导出、筛选候选、分页总数和页面列表必须复用同一套规则。
+9. 客户问题记录类导出必须保持老平台 Excel 字段顺序。`CC_PRODUCT议题` / 延期记录导出字段对齐老平台 `ProjectIssueInfoExcelBo`；客户问题缺陷非法数据导出字段对齐老平台 `SpiderIssueData` / `IssueExcelBo` 的议题基础字段并包含“非法类型”。导出文件格式为 `.xlsx`，不得把 CSV 当作正式兼容格式。
 
 ### 5.2 缺陷汇总
 
