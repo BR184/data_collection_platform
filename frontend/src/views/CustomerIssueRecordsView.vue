@@ -65,6 +65,7 @@ const detailVisible = ref(false);
 const selectedRow = ref<CustomerIssueRecordRowResponse | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const milestoneDefaultPatchInFlight = ref(false);
 
 const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
   projectNames: [],
@@ -85,7 +86,13 @@ const topic = computed<CustomerIssueRecordTopic>(() =>
   resolveTopic(),
 );
 const projectId = computed(() => String(route.query.projectId ?? ''));
-const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value);
+const milestoneDefaultReady = computed(() => {
+  if (String(route.query.milestoneTitle ?? '').trim()) {
+    return true;
+  }
+  return filterOptionsLoaded.value && !filterOptions.value.milestoneTitles.some((option) => option.value);
+});
+const pageReady = computed(() => pageInitialized.value && filterOptionsLoaded.value && milestoneDefaultReady.value);
 const isDelayTopic = computed(() => topic.value === 'delay');
 const pageTitle = computed(() => (isDelayTopic.value ? '延期问题明细' : 'CC_PRODUCT 议题明细'));
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
@@ -219,9 +226,11 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     key: 'milestoneTitle',
     label: '里程碑',
     type: 'select',
+    defaultStrategy: 'first-available',
+    clearable: false,
     placeholder: '切换里程碑',
     width: 180,
-    options: [{ label: '全部里程碑', value: '' }, ...filterOptions.value.milestoneTitles],
+    options: filterOptions.value.milestoneTitles,
   },
   {
     key: 'issueIid',
@@ -522,11 +531,11 @@ function sleep(ms: number) {
 }
 
 bindLoader(async () => {
+  if (!filterOptionsLoaded.value || milestoneDefaultPatchInFlight.value || !milestoneDefaultReady.value) {
+    return;
+  }
   try {
-    initializeFromQuery(route.query);
-    await loadTableData();
-    await loadSyncStatus();
-    pageInitialized.value = true;
+    await loadCurrentPage();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}加载失败`);
     rows.value = [];
@@ -538,17 +547,64 @@ bindLoader(async () => {
 watch(
   [topic, projectId],
   async () => {
+    filterOptionsLoaded.value = false;
+    pageInitialized.value = false;
     resetRuleExplanation();
     try {
       await loadFilterOptions();
       filterOptionsLoaded.value = true;
+      const patchedDefault = await applyMilestoneDefault();
+      if (patchedDefault || milestoneDefaultReady.value) {
+        await loadCurrentPage();
+      }
     } catch (error) {
       ElMessage.error(error instanceof Error ? error.message : `${pageTitle.value}筛选项加载失败`);
       filterOptionsLoaded.value = true;
+      pageInitialized.value = true;
     }
   },
   { immediate: true },
 );
+
+watch(
+  [() => route.query.milestoneTitle, filterOptionsLoaded],
+  async () => {
+    if (!filterOptionsLoaded.value || milestoneDefaultPatchInFlight.value) {
+      return;
+    }
+    const patchedDefault = await applyMilestoneDefault();
+    if (patchedDefault) {
+      await loadCurrentPage();
+    }
+  },
+);
+
+async function applyMilestoneDefault() {
+  if (!filterOptionsLoaded.value || milestoneDefaultPatchInFlight.value) {
+    return false;
+  }
+  if (String(route.query.milestoneTitle ?? '').trim()) {
+    return false;
+  }
+  const fallback = filterOptions.value.milestoneTitles.find((option) => option.value)?.value ?? '';
+  if (!fallback) {
+    return false;
+  }
+  milestoneDefaultPatchInFlight.value = true;
+  try {
+    await patchQuery({ page: 1, milestoneTitle: fallback });
+  } finally {
+    milestoneDefaultPatchInFlight.value = false;
+  }
+  return true;
+}
+
+async function loadCurrentPage() {
+  initializeFromQuery(route.query);
+  await loadTableData();
+  await loadSyncStatus();
+  pageInitialized.value = true;
+}
 
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as CustomerIssueRecordRowResponse) ?? null;

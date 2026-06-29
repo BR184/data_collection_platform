@@ -122,7 +122,7 @@ final class CodeReviewIllegalRecordQuerySupport {
       return null;
     }
     String sourceKey = GitlabSourceInstanceSupport.normalizeSourceInstance(normalizedSource);
-    if ("cc".equals(sourceKey) || "default".equals(sourceKey) || "dgm".equals(sourceKey)) {
+    if ("cc".equals(sourceKey) || "dgm".equals(sourceKey)) {
       return "dev";
     }
     return null;

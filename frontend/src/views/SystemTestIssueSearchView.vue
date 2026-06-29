@@ -62,10 +62,6 @@ const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
   categories: [],
   milestoneTitles: [],
 });
-const testingPhaseDefaultReady = computed(() =>
-  parseMultiQueryValue(route.query.testingPhase).length > 0
-    || Boolean(filterOptions.value.testingPhases.find((option) => option.value)),
-);
 const conditionFilterFields = computed<StatisticFilterField[]>(() =>
   buildSystemTestIssueSearchConditionFields(filterOptions.value),
 );
@@ -185,10 +181,9 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     key: 'testingPhase',
     label: '测试阶段',
     type: 'select',
-    defaultStrategy: 'first-available',
-    clearable: false,
+    clearable: true,
     width: 280,
-    options: filterOptions.value.testingPhases,
+    options: [{ label: '全部测试阶段', value: '' }, ...filterOptions.value.testingPhases],
   },
   {
     key: 'moduleName',
@@ -283,16 +278,6 @@ const tableRows = computed<Record<string, unknown>[]>(() =>
 bindLoader(async () => {
   try {
     await Promise.all([loadFilterOptions(), loadSyncStatus()]);
-    if (!parseMultiQueryValue(route.query.testingPhase).length) {
-      const fallback = filterOptions.value.testingPhases.find((option) => option.value)?.value ?? '';
-      if (fallback) {
-        await patchQuery({ page: 1, testingPhase: fallback });
-        return;
-      }
-    }
-    if (!testingPhaseDefaultReady.value) {
-      return;
-    }
     initializeFromQuery(route.query);
     await loadTableData();
   } catch (error) {

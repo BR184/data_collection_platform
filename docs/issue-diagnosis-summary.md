@@ -12,9 +12,9 @@
 ### P0：客户问题模块空表和慢加载
 
 1. 客户问题页面必须以 `CC_PRODUCT` / `CC_Product` 项目 `325` 为范围，顶部切换语义应优先对齐老平台的 `mileStone/milestone`。老平台 `IllegalIssueSearchCCProduct.vue` 会调用 `getAllMileStoneName({ projectId: 325 })`，默认取 `mileStoneList[0]`，查询时提交 `projectId=325` 和 `milestone=this.mileStone`。
-2. 新平台客户问题非法数据页当前仍从 CrownCAD 项目 `9` 加载阶段定义，并把主筛选字段做成 `testingPhase`，默认 `first-available`。这会把 CC_Product 的真实里程碑误套成 CrownCAD 系统测试父级阶段，是“缺陷非法数据空表”的直接高概率原因。
-3. 新平台客户问题统计看板 `customer-issue-defect-summary / defect-cause / delay-issues / response-efficiency / by-function` 也共用 `statistic-board-data-scopes.ts` 的 CrownCAD 项目 `9` 阶段组，查询键为 `testingPhase`。如果 CC_Product 真实里程碑与 CrownCAD 阶段定义不完全一致，就会过滤空或统计偏差。
-4. `CC_PRODUCT议题` 记录页本身使用 `milestoneTitle`，但默认仍是“全部里程碑”，没有对齐老平台进入页面默认取第一个里程碑；这能解释“两版前正常、现在为空/差距大”的一部分现象，尤其当后端公共范围和页面默认条件不一致时。
+2. 已修复：客户问题非法数据页固定 `projectId=325`，顶部使用 CC_Product 里程碑/版本语义，默认取第一可用里程碑，不再用 CrownCAD 项目 `9` 的阶段定义作为记录入口默认条件。
+3. 客户问题统计看板仍通过统一的顶部 `testingPhase` 数据范围控件承载“测试阶段/里程碑”体验，但后端统一优先匹配 `milestone_title`，再兼容父级阶段展开后的 `testing_phase`；后续内网复测重点确认 CC_Product 真实里程碑是否都能通过版本键命中。
+4. 已修复：`CC_PRODUCT议题` 记录页加载筛选项后默认写入第一个 `milestoneTitle`，不再以“全部里程碑”作为首屏查询条件。
 5. 客户问题慢加载不是分页失效，而是统计看板仍先从 `issue_fact` 拉取一批记录，再在 Java 内存里做客户问题范围、里程碑/阶段、模块、延期和原因聚合。本轮已先给客户问题五个聚合看板接入 `statistic_board_snapshots` 首屏快照，重复打开不再重复聚合；首次缺快照时若仍接近 15 秒，下一步再把 `project_id=325`、`created_at>=2026-01-01`、客户问题公共排除、`milestone_title` 默认值和主要聚合前推到 SQL。
 
 ### P0：系统测试 15 秒超时和慢加载
@@ -27,19 +27,19 @@
 ### P0：系统测试议题查询默认范围误对齐
 
 1. 本次内网明确反馈：`系统测试/议题查询` 不应该默认锁定 `CC2026R3`，应该默认显示“全部”。上一轮文档把“系统测试统计看板默认当前阶段”的规则泛化到了议题查询页，这是错误的。
-2. 新平台 `SystemTestIssueSearchView.vue` 当前把 `testingPhase` 主筛选设为 `defaultStrategy: first-available` 且 `clearable=false`，因此会默认写入第一可用阶段。应改为默认全部，并确保后端仍默认 `projectId=9`、保留老平台公共排除规则。
+2. 已修复：`SystemTestIssueSearchView.vue` 不再把 `testingPhase` 设为 `first-available`，前端下拉默认展示“全部测试阶段”；`SystemTestIssueSearchService` 在无阶段参数时也不再隐式补第一可用阶段。后端仍默认 `projectId=9`，并保留老平台公共排除规则。
 3. `系统测试非法数据` 与 `议题查询` 不是同一默认策略：非法数据老平台默认取阶段列表首项，议题查询默认全部。两者不能再共用一个泛化的“系统测试页面默认阶段”结论。
 
 ### P0：系统测试非法数据数量偏多
 
-1. 当前新平台 SQL 快路径使用 `IssueFactRecordPageQuery.Scope.ALL`，再附加阶段集合、非法和公共排除条件；这意味着系统测试范围没有被 `Scope.SYSTEM_TEST` 或老平台具体阶段集合严格收束。
-2. 如果内网同一项目中存在阶段字段相近但不属于老平台系统测试统计范围的数据，新平台会偏多。下一轮应把系统测试非法数据的 SQL 快路径改成老平台记录入口口径：默认 `projectId=9`，阶段只按阶段定义展开后的具体测试阶段匹配，并复用公共排除。
-3. 文档旧结论中“偏多来自 `Scope.SYSTEM_TEST` 同时匹配 label_names 的宽范围”已不完整；当前代码实际风险是 `Scope.ALL + 阶段集合/过滤条件` 与老平台查询构造器不完全一致。
+1. 已修复：系统测试非法数据 SQL 快路径已从 `IssueFactRecordPageQuery.Scope.ALL` 收口到 `Scope.SYSTEM_TEST`，并继续默认 `projectId=9`、按阶段定义展开具体测试阶段、复用公共排除规则。
+2. 仍需内网样本对比：`Scope.SYSTEM_TEST` 会按系统测试/回归测试语义识别事实范围；若老平台记录入口仅靠 `projectId=9 + testing_phase`，极端样本仍可能出现差异。后续用“只有阶段无系统测试标签/只有标签无阶段/阶段近似但不在定义中”的构造数据继续确认是否还要进一步收口。
+3. 文档旧结论中“偏多来自 `Scope.ALL + 阶段集合/过滤条件`”已对应修复；剩余差异不再按该原因归因。
 
 ### P0：代码走查非法数据项目切换和少 6000 条
 
 1. 代码走查页面顶部当前切换的是 `source` 数据源，不等价于老平台“项目/版本”切换。老平台项目筛选对应 `projectName`，新平台虽然有 `projectName` 条件，但用户入口不够突出，导致“只能切 CrownCAD”的使用体验仍未对齐。
-2. `CodeReviewIllegalRecordQuerySupport.legacyTargetBranch()` 当前在 `source=default/cc/dgm` 且未选目标分支时都会默认补 `dev`。常驻规则要求只有明确选择 CrownCAD 或 DGM 时才补 `dev`；全数据源或默认源不应隐式限制到 `dev`。这会导致默认查询少掉非 `dev` 目标分支记录。
+2. 已修复：`CodeReviewIllegalRecordQuerySupport.legacyTargetBranch()` 只有明确选择 `cc` 或 `dgm` 且未选目标分支时才补 `dev`；全数据源或默认源不再隐式限制到 `dev`。
 3. 默认非法 SQL 中 `Clang 分析错误` 对 `cc/default` 默认不纳入总非法，只在非 cc 数据源或显式筛选该非法类型时命中。若老平台默认总非法包含该类，可能形成明显数量缺口，需要直接对照老平台 `StaticDataController` 和 `SpiderCrowncadDataService` 的非法判定。
 4. 字段映射中 `owner -> author_name` 方向是对的，但还要逐项复核：项目切换 `projectName -> merge_request_fact.project_name`、数据源 `source -> source_instance`、目标分支 `targetBranch -> target_branch`、被走查人 `owner -> author_name`、合并人 `mergedBy -> merge_user_name`、模块 `moduleName -> module_name`。
 
@@ -47,23 +47,23 @@
 
 1. 先修客户问题缺陷非法数据和 CC_PRODUCT 议题空表：客户问题入口改为 CC_Product 里程碑候选和默认里程碑，不再用 CrownCAD 项目 9 阶段定义作为默认。
 2. 再复测系统测试四个聚合看板和客户问题五个聚合看板的首屏快照命中情况；如果首次缺快照仍慢，再把项目、阶段集合、公共排除、必要聚合进一步前推 SQL。
-3. 再修系统测试议题查询默认全部，以及系统测试非法数据 SQL 快路径范围。
-4. 最后修代码走查项目切换入口、默认 targetBranch 补 `dev` 条件和默认非法类型覆盖。
+3. 已完成系统测试议题查询默认全部，以及系统测试非法数据 SQL 快路径范围收口。
+4. 已完成代码走查默认 targetBranch 补 `dev` 条件修正；项目切换入口和非法类型覆盖仍需内网样本继续验收。
 
 | 问题 | 当前原因判断 | 状态 |
 | --- | --- | --- |
-| 客户问题模块大部分页面空表格、连模块名也没有 | 客户问题页面默认注入顶部“测试阶段”筛选，筛选按 `milestone_title` / `testing_phase` 匹配；如果内网 CC_Product 议题的里程碑与系统设置父级阶段不一致，`CustomerIssueTestingPhaseFilterSupport` 会把数据全部过滤掉。部分页面又从过滤后的结果生成模块行，导致模块目录也为空。 | 已确认代码原因 |
-| 客户问题延期问题只有“未设定模块”且数量为 0 | 延期问题页先用客户问题范围取 `rowSources`，再按默认测试阶段筛选；若默认测试阶段不匹配，只有兜底的“未设定模块”行会被保留，延期计数来自 `finalSources`，因此全为 0。 | 已确认代码原因 |
-| 系统测试/系统测试非法数据比老平台多 | 新平台系统测试范围同时命中 `testing_phase`、`system_test_label` 和 `label_names` 中包含“系统测试/回归测试”的记录；老平台记录列表主要按项目和测试阶段定义展开后的阶段过滤。范围更宽会导致非法记录偏多。 | 已确认代码原因 |
-| 系统测试/议题查询少约 2000 条 | 议题查询使用 `Scope.ALL`，但测试阶段条件走 `phase_filter_value`，和系统测试非法数据使用 `Scope.SYSTEM_TEST + testing_phase` 的口径不同；同时默认项目和阶段展开路径不完全一致，导致同一测试阶段下数量不一致。 | 已确认代码原因 |
+| 客户问题模块大部分页面空表格、连模块名也没有 | 入口默认范围已修复：记录页走 CC_Product 里程碑默认值，统计页后端优先匹配 `milestone_title` 并兼容阶段展开。若内网仍空，应优先核对真实里程碑与版本键兼容，而不是再按 CrownCAD 项目 `9` 阶段误归因。 | 已修复主要入口问题，待内网数据复核 |
+| 客户问题延期问题只有“未设定模块”且数量为 0 | 延期问题页已接入客户问题默认阶段/里程碑匹配和统计快照；若仍只剩兜底行，重点检查 CC_Product 里程碑是否没有命中当前默认父级阶段/版本键。 | 已修复主要入口问题，待内网数据复核 |
+| 系统测试/系统测试非法数据比老平台多 | 已修复 SQL 快路径 `Scope.ALL` 风险，当前默认项目 `9`、默认第一父级阶段、按阶段定义展开后匹配。剩余差异需要用边界样本确认 `Scope.SYSTEM_TEST` 语义是否还比老平台记录入口更宽。 | 已修复主要代码原因，待样本复核 |
+| 系统测试/议题查询少约 2000 条 | 已按内网反馈改为默认“全部测试阶段”，空阶段不再补第一父级阶段；仍默认项目 `9` 和公共排除规则。后续差异应继续从老平台记录列表公共过滤、字段映射和导出字段对比。 | 已修复默认范围 |
 | 系统测试/缺陷原因分析、议题阶段统计 15 秒超时 | 这两个统计看板原来不是 SQL 分页加载，接口先从 `issue_fact` 全量加载符合过滤的事实数据，再在 Java 内存中做规则流、模块/阶段聚合和明细分页；前端请求默认 15 秒超时，因此数据量大时会超时。本轮已把首屏主表接入统计快照表，详情/规则说明/导出仍需单独复测。 | 已确认代码原因，首屏主表已快照化 |
 | 系统测试和客户问题部分看板能加载但接近 15 秒 | 同类统计看板普遍是“数据库拉取一批事实 -> Java 规则流过滤/聚合 -> 前端本地分页”。系统测试缺陷汇总、客户问题缺陷汇总、客户问题延期、客户问题缺陷原因、按功能展示、响应效率等页面也存在全量或大范围事实加载，页面能返回只是当前数据量/筛选条件还没突破 15 秒。 | 已确认代码原因 |
 | 客户问题/按功能展示缺陷数量字段比老平台少 | 老平台 `IssueShowByFunction.vue` 主表不是“模块 / 功能”扁平行，而是按模块动态生成列组，每个模块下面固定展示“功能”和“问题数量”两列；新平台此前改成一行一个模块/功能，并追加严重程度等统计列，导致用户看到的主表列形态少于老平台。 | 已确认代码原因，本轮已改为老平台同款动态模块列结构 |
-| 部分页面默认范围是全部测试阶段，而不是老平台默认阶段 | 老平台相关页面会默认使用当前测试阶段，例如当前样例 `CC2026R3`，或使用阶段列表第一项；新平台客户问题顶部范围前端配置为 `defaultStrategy = empty` 且显示“全部测试阶段”。这会扩大默认查询范围、放大统计看板全量聚合耗时，并导致页面数量与老平台默认口径不一致。 | 已确认代码原因 |
+| 部分页面默认范围是全部测试阶段，而不是老平台默认阶段 | 系统测试统计看板、系统测试非法数据和客户问题相关页面已默认第一可用阶段/里程碑；系统测试议题查询按内网反馈保留“全部测试阶段”默认。 | 已修复并区分页面例外 |
 | 系统测试缺陷汇总首屏数据抖动，先显示总计 0 再显示完整数据 | 前端统计板 `route.query` watcher 首次立即请求；系统测试阶段数据范围选项异步加载后，`useDataScope` 再按 `first-available` 写入 `testingPhase` 并触发第二次请求。第一次请求没有 `testingPhase` 时，后端 `SystemTestDefectSummaryBoardService` 明确把有效数据置空但仍追加“总计”行，因此短暂显示总计 0；第二次带默认阶段后才显示完整数据。 | 已确认代码原因 |
 | 单表刷新、手动增量同步突然很慢、拉取量很大 | 镜像表增量任务已有 `updated_at + cursor` 的增量扫描机制，但页面实时刷新入口当前仍调用全局增量同步，没有把页面声明的 `REALTIME_REFRESH_TABLES` 传入同步运行；因此系统测试缺陷汇总等页面刷新会扩大到全部白名单表，容易扫到 `events` 等大表。 | 已确认代码原因，第一轮修复中 |
 | 页面“刷新最新数据”比预期重 | 统计页刷新不是只刷新表格结果，而是先刷新背后的 GitLab 镜像原始表，再重建事实表。例如系统测试/客户问题会刷新 `issues/projects/users/label_links/labels/notes`，代码走查会刷新 MR 相关镜像表，然后重建 `issue_fact` 或 `merge_request_fact`。事实层 SQL 还会聚合 `ods_gitlab_notes` 生成模板、缺陷原因和 SLA 字段，所以镜像层只拉增量不等于事实层计算一定只扫增量。 | 已确认代码原因，第一轮先收窄刷新提交范围 |
-| 同步合并仍会产生额外运行记录 | 当前 `SyncRunSubmissionService` 在复用/合并已有运行时会插入状态为 `MERGED` 的 `sync_runs` 记录。它不会被调度执行，但会让运行历史、状态展示和后续排查看起来像创建过额外同步。用户期望是被吸收的同步不能进队列，甚至不创建运行单元。 | 已确认代码差距 |
+| 同步合并仍会产生额外运行记录 | 活动中的全量/增量/补偿/同表刷新已直接返回当前运行单元，不再为吸收请求新建 run。仍存在一个边界：提交新的全量同步时，会把已经排队的低优先级镜像 run 标记为 `MERGED`，这是对历史队列的终止记录，不是新建吸收记录；若产品要求历史中完全不出现 `MERGED`，需另行改日志展示或队列清理策略。 | 主要吸收路径已修复，剩余历史展示边界 |
 | 事实重建有时从增量退化成全量 | `FactBuildService` 在发现既有事实缺少搜索索引或阶段派生字段时，会让 `changedSince = null`，下一次事实构建就不带增量谓词，表现为全量重建。升级后旧事实表缺字段或索引为空时尤其容易触发。 | 已确认代码原因 |
 | 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。当前只能确认新平台非法判断依赖 `review_exception_reason`、`scan_status`、`scan_bug_count`、`annotation_rate_result`、`bug_count_result`、`project_name/module_name` 占位值和 GitLab 报错字段；后续应通过构造不同测试数据，对比新老平台页面规则筛选差异，确认哪些老平台非法条件没有命中新平台谓词。 | 已纠正旧结论，需规则差异对比 |
 
@@ -163,9 +163,9 @@
 
 新平台现状：
 
-- `frontend/src/composables/statistic-board-data-scopes.ts` 中系统测试相关数据范围使用 `defaultStrategy = 'first-available'`，但客户问题数据范围使用 `defaultStrategy = 'empty'`，占位和空值文案都是“全部测试阶段”。
-- 客户问题后端 `CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(...)` 又会在没有显式阶段时补第一个启用父级阶段，导致前端显示/URL 的“全部测试阶段”和后端实际筛选范围不一致。
-- 部分系统测试服务端规则说明和代码也不完全一致，例如 `SystemTestDefectCauseBoardService` 的规则流文案写“未选择时保留全部系统测试阶段”，但实际代码会补默认阶段。
+- 系统测试统计看板、系统测试非法数据和客户问题统计看板已统一使用 `defaultStrategy = 'first-available'`，默认值写入 URL 后再请求主数据，避免前端显示“全部”但后端静默补默认阶段。
+- `系统测试/议题查询` 是内网确认的例外：默认阶段为空，表示“全部测试阶段”；显式选择阶段时才按父级阶段展开到具体轮次。
+- `CC_PRODUCT议题` 记录页已改为加载 CC_Product 里程碑候选后默认写入第一个里程碑，避免先按“全部里程碑”请求一次列表。
 
 影响判断：
 
@@ -173,7 +173,7 @@
 2. 客户问题页面如果前端默认“全部测试阶段”、后端又静默补默认阶段，用户看到的筛选范围、URL、导出/下钻条件和接口真实条件不一致，排查统计差异时容易误判。
 3. 默认阶段应来源于“系统设置 - 议题测试阶段定义”的排序或后续显式默认配置，当前内网样例是 `CC2026R3`，但不能把该版本写死成永久规则。
 
-已同步到常驻业务规则：系统测试和客户问题相关页面进入时应默认选中老平台当前默认或第一可用启用父级阶段，不得隐式默认“全部测试阶段”；默认值必须同时体现在顶部控件、URL、接口筛选、导出和下钻条件中。
+已同步到常驻业务规则：系统测试统计看板、系统测试非法数据和客户问题相关页面进入时应默认选中老平台当前默认或第一可用启用父级阶段/里程碑，不得隐式默认“全部测试阶段”；默认值必须同时体现在顶部控件、URL、接口筛选、导出和下钻条件中。系统测试议题查询明确作为例外，默认阶段为空。
 
 ### 3. 刷新慢来自两层放大
 
@@ -224,14 +224,14 @@
 - `CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(...)`
 - 匹配逻辑：`milestone_title` 或 `testing_phase` 等于父级，或能通过父级展开匹配子级。
 
-如果内网 CC_Product 的里程碑不是这个父级阶段，默认筛选会把客户问题数据过滤空。客户问题缺陷汇总、按功能展示等页面又从 `finalSources` 生成模块行，所以不是“只有数量为 0”，而是连模块行都没有。延期问题页因为有“未设定模块”兜底，所以表现为只剩一行且全 0。
+如果内网 CC_Product 的里程碑不是这个父级阶段，默认筛选会把客户问题数据过滤空。当前代码已补 `CustomerIssuePhaseSupport` 的版本键兼容，并让 CC_PRODUCT 记录页默认走真实里程碑候选；客户问题统计页仍需内网复测确认“父级阶段 -> 里程碑/版本键”是否覆盖所有真实里程碑。
 
 ### 5. 系统测试非法数据偏多、议题查询偏少的口径差
 
-- 系统测试非法数据走 `IssueFactRecordPageQuery.Scope.SYSTEM_TEST`，范围条件会匹配 `testing_phase/system_test_label/label_names` 里的系统测试或回归测试。
-- 议题查询走 `IssueFactRecordPageQuery.Scope.ALL`，默认项目是 CrownCAD，但不使用同一套系统测试 scope；阶段筛选默认走 `phase_filter_value`。
+- 系统测试非法数据走 `IssueFactRecordPageQuery.Scope.SYSTEM_TEST`，默认项目 `9`，默认第一可用父级阶段，并按阶段定义展开后筛选非法数据。
+- 议题查询走 `IssueFactRecordPageQuery.Scope.ALL`，默认项目也是 `9`，但不默认选择阶段；这是内网确认的“全部测试阶段”检索入口。
 
-因此这两个页面在新平台内部也不是完全同一口径，更不用说和老平台记录列表口径比较。非法数据偏多和议题查询少 2000 条都可以由这组范围差异解释。
+因此这两个页面默认范围本来就不同：非法数据是阶段内质量问题列表，议题查询是 CrownCAD 项目记录检索。后续数量差异不能再简单按“一个多一个少”互相校验，而应分别和老平台对应页面同条件对比。
 
 ### 6. 系统测试缺陷汇总首屏抖动
 
@@ -378,10 +378,10 @@ select source_instance,
 
 行为变化：
 
-1. 系统测试和客户问题相关页面默认阶段统一走第一可用启用父级阶段，前端控件不再显示“全部测试阶段”作为默认范围。
+1. 系统测试统计看板、系统测试非法数据和客户问题相关页面默认阶段/里程碑走第一可用启用父级阶段；`系统测试/议题查询` 是记录检索特例，默认显示“全部测试阶段”。
 2. 统计看板会等待 `first-available` 默认阶段写入 URL 后再请求数据，避免系统测试缺陷汇总首屏先出现“总计 0”再二次刷新成真实数据。
-3. 系统测试非法数据改回记录列表口径：默认项目 `9`，默认第一可用父级阶段，按阶段定义展开后匹配事实层 `testing_phase`，不再用 `Scope.SYSTEM_TEST` 的宽泛标签命中范围扩大数据。
-4. 系统测试议题查询在无阶段参数时也补第一可用父级阶段，前端显示、URL、接口查询和导出入口保持同一默认范围。
+3. 系统测试非法数据改回记录列表口径：默认项目 `9`，默认第一可用父级阶段，按阶段定义展开后匹配事实层 `testing_phase`，SQL 快路径不再使用 `Scope.ALL`。
+4. 系统测试议题查询在无阶段参数时保持空阶段，表示“全部测试阶段”；前端显示、URL、接口查询和导出入口保持同一默认范围。
 5. 系统测试缺陷汇总改回老平台主口径：默认项目 `9`，没有测试阶段时不查询全量；有阶段时先按阶段定义展开具体轮次，再用事实层 `testing_phase LIKE 具体阶段` 参与统计，不再用“系统测试/回归测试”标签作为前置范围。
 6. 客户问题阶段匹配增加版本键兼容，`2026R3`、`CC2026R3`、`CrownCAD 2026R3` 这类里程碑/阶段值可命中同一个父级阶段；记录页和统计页共用 `CustomerIssuePhaseSupport`，避免 CC_Product 有模块但被默认阶段过滤成空表。
 7. 代码走查 `GitLab 接口报错` 判断兼容有空格和无空格文案，并把扫描状态、目标分支、负责人、审查人、指派人展示字段都纳入判断，降低老平台非法样本漏判。
@@ -389,6 +389,7 @@ select source_instance,
 9. 页面“进入页面自动刷新最新数据”的默认偏好改为关闭；用户显式打开后才会在进页时触发刷新，避免普通打开统计看板就创建同步 run。
 10. 代码走查非法数据、系统测试非法数据和客户问题非法数据的行操作已统一收敛为只保留“查看详情/查看详细”。用户侧不再展示“刷新本条”，避免开发测试阶段误触真实同步/GitLab 写链路，也避免和老平台使用习惯不一致。后端单条刷新接口暂不删除，仅作为内部调试/兼容接口保留，不再作为这些页面的可见入口。
 11. 系统测试非法数据主表展示字段已按老平台 `IllegalIssueSearch.vue` 对齐为：议题编号、模块名、议题标题、议题状态、严重程度、议题处理人、非法类型。客户问题非法数据沿用同一字段集合；测试阶段、功能名、提交/更新时间、提交人、测试状态、里程碑和标签等字段保留在详情抽屉中。
+12. 普通统计看板导出已接入通用 xlsx 工作簿导出，按当前 `StatisticBoardDefinition.columnGroups` 递归生成多级表头，并按页面当前 rows/cells 导出。已有专用导出的系统测试/客户问题缺陷原因分析和系统测试横向对比继续使用专用实现。
 
 ## 已复核的新老平台字段映射
 
@@ -414,7 +415,7 @@ select source_instance,
 | 客户问题非法数据 | 议题提交人 `author` | 条件 key `authorName`，详情“议题提交人” | `IssueFactRecordListRequest.authorName` | `issue_fact.author_name` | 已对齐。 |
 | 客户问题非法数据 | 议题处理人 `handler` | 条件 key `assigneeName`，主表/详情“议题处理人” | `IssueFactRecordListRequest.assigneeName` | `issue_fact.assignee_name` | 已对齐。 |
 | 客户问题非法数据 | 展开行字段同老平台 `IllegalIssueSearchCCProduct.vue` | 主表同系统测试非法数据；详情抽屉补齐完整展开字段 | `CustomerIssueIllegalRecordRowResponse` | `issue_fact` 客户问题事实字段 | 已对齐。项目、里程碑、优先级和标签为新平台增强字段。 |
-| 系统测试议题查询 | 老平台默认项目 CrownCAD `projectId=9`，阶段按父级展开 | 前端 URL/接口默认补 `projectId=9` 和 `testingPhase` | `SystemTestIssueSearchRequest` | `issue_fact.project_id`、`testing_phase` / `phase_filter_value` | 已对齐默认范围；后续仍需用样本对比列表字段和导出字段。 |
+| 系统测试议题查询 | 老平台默认项目 CrownCAD `projectId=9`，默认全部测试阶段；显式选择阶段时按父级展开 | 前端 URL/接口默认不写 `testingPhase`，下拉展示“全部测试阶段”；显式选择时写入 `testingPhase` | `SystemTestIssueSearchRequest` | `issue_fact.project_id`，显式阶段筛选时使用 `testing_phase` / `phase_filter_value` | 已对齐内网反馈的默认范围；后续仍需用样本对比列表字段和导出字段。 |
 | 系统测试缺陷汇总 | `phase` 默认第一阶段或 `CC2026R3`，按 `testing_phase LIKE` | 数据范围 key `testingPhase` | `SystemTestDefectSummaryBoardService` | `issue_fact.testing_phase` 按阶段定义展开后 `LIKE` 匹配 | 已对齐核心统计范围和默认阶段；模块目录差异需在后续样本对比中单独标记。 |
 | 系统测试议题查询 | `issuableReference` | 筛选/主表 `issueIid` | `SystemTestIssueSearchRequest.issueIid` | `issue_fact.iid`，跳转使用 `source_instance + project_id + iid` | 已对齐。 |
 | 系统测试议题查询 | `issueTitle` | 筛选/主表 `title` | `IssueFactRecordListRequest.title` | `issue_fact.title` | 已对齐。 |
@@ -449,7 +450,7 @@ select source_instance,
 
 1. 上表覆盖本轮已经修改或明确复核过的页面、切换字段、筛选字段、主表/详情/表单字段和关键导出范围字段。
 2. 未在本轮改动且未列入上表的页面，不能因为本次打包就视为已经完成逐字段老平台源码审计；后续仍按“老平台源码字段 -> 新平台前端 key -> 后端请求 -> SQL/事实字段”的路径补齐。
-3. 本次相对 2026-06-25 空包包含 `FactBuildService`、`IssueFactNormalizationRules`、客户问题 SLA、延期标签写回配置、增量同步边界和事实刷新链路变更，因此内网交付按“空数据新包”打包；既有内网实例如果要保留数据，需要另行制定迁移/事实重建方案，不能把空包直接覆盖已有数据卷。
+3. 本次相对 2026-06-25 空包包含 `FactBuildService`、`IssueFactNormalizationRules`、客户问题 SLA、延期标签写回配置、增量同步边界、事实刷新链路、统计快照和统计口径变更。既有内网实例交付应按“需要事实层重建的增量更新包”处理：保留 PostgreSQL volume、镜像表、同步状态和用户配置，替换业务镜像后基于现有镜像表重建事实层并预热统计快照；只有业务方明确要求清空环境时才制作空数据新包。
 
 ## 本地烟测和真实链路验证
 
@@ -475,7 +476,7 @@ select source_instance,
 2. 老平台还会在每小时 CC_Product 任务中通过 GitLab API 更新 `响应已延期` / `解决已延期` 标签。本轮已补后端受控写回通道，但为了避免开发测试阶段扰动仍在运行的老平台，写回需要同时满足全局开关 `CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=true` 和数据源开关 `gitlab_sync_configs.delay_label_writeback_enabled = true`，并配置 `api_token`、`web_base_url`。本次内网测试包默认全局关闭，即使页面误开数据源开关也不会调用 GitLab 写接口；验收时先看 `issue_fact.is_response_delayed`、`issue_fact.is_resolve_delayed`、延期统计页和差异去重规则。后续如需真实验证写回，应使用隔离 GitLab/隔离项目，或由业务方明确批准后再临时打开全局开关。开启后，事实构建和小时级客户问题延期闭环任务会按事实字段计算差异，只通过 GitLab Issue API 的 `add_labels` / `remove_labels` 增删这两个延期标签；不覆盖 GitLab 上的完整 labels，不改写其它标签，重复延期标签会先去重，差异为空时不发请求。
 3. 客户问题响应/解决效率需要用不同测试数据继续和老平台逐页对比。重点样本应覆盖：无紧急程度按 P3、按模板响应、未按模板响应、预计解决时间早于 18 天、预计解决时间超过 18 天、已修复/完成、申请延期、数据异常、需求如此/设计如此、未复现、多模块议题。对比目标不是模拟完整内网环境，而是用同一批构造数据在新老平台不同页面之间确认规则筛选差异。
 4. 系统测试缺陷汇总、缺陷原因分析、议题阶段统计、申请延期缺陷分析，以及客户问题缺陷汇总、缺陷原因分析、延期问题、响应效率、按功能展示的首屏主接口已在 2026-06-29 接入 `statistic_board_snapshots`。仍需内网全量复测确认重复打开是否稳定低于 15 秒；详情、规则说明和导出路径仍可能走原明细查询，若复测仍慢，再继续做 SQL 分页、详情快照或流式导出。
-5. 普通统计看板导出还没有完全达到“一字不差”。`StatisticBoardController` 只有遇到 `StatisticBoardWorkbookExportSupport` 才导出 xlsx，否则走 `StatisticBoardCsvSupport`；CSV 当前只导出一行叶子列表头，不能保留页面多级表头。已实现工作簿导出的主要是系统测试/客户问题缺陷原因分析和系统测试横向对比，系统测试缺陷汇总、议题阶段统计、申请延期缺陷分析、客户问题缺陷汇总、延期问题、按功能展示、响应效率等普通看板仍需按“当前看到的表格”导出多级表头和当前数据。
+5. 普通统计看板导出已补齐通用 xlsx 工作簿：`AbstractStatisticBoardService` 默认实现 `StatisticBoardWorkbookExportSupport`，按当前页面定义导出多级表头和当前数据。仍需内网验收下载文件的列顺序、合并表头和数值格式是否满足老平台使用习惯；若某个页面有老平台专用模板，再单独覆盖默认导出。
 6. 系统测试横向对比导出已经有专门 xlsx 服务，但讨论中要求必须和老平台格式完全一致。当前代码 `SystemTestHorizontalComparisonExportService` 使用扁平 header 文案生成工作簿，并按 `target_branch = dev`、`MERGED` 统计代码走查；仍需拿老平台导出模板逐列、合并表头、顺序、空行过滤、数值格式和 DGM/CrownCAD 分块进行一次精确复核。
 7. 代码走查非法数据少约 6000 条仍不能只用 MR 29874 解释。当前目标分支筛选已支持：只在明确选择 CrownCAD 或 DGM 且目标分支为空时默认补 `dev`，用户可按条件筛选其他分支；但缺失数量仍需直接提取老平台非法判断代码，和新平台 `review_exception_reason / scan_status / scan_bug_count / annotation_rate_result / bug_count_result / project_name / module_name / target_branch / owner_name / reviewer_names` 映射逐项比对。下一步应用同一批构造 MR 数据在新老平台导入后比较非法类型命中差异。
 8. 议题刷新必须包含评论。当前 `IssueFactRealtimeRefreshService` 的刷新表包含 `notes`，`GitlabFactSourceSqlProvider` 也从 `ods_gitlab_notes` 汇总 issue 评论并写入事实层 `raw_payload`、缺陷原因、响应模板和 SLA 字段；这条链路代码上已经覆盖。但需要在后续真实链路中用“只改评论、不改议题主体字段”的数据验证增量同步是否会触发 `notes -> issue_fact -> 缺陷原因/客户问题延期/响应效率` 更新。

@@ -482,10 +482,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     if (requestedTestingPhases != null && !requestedTestingPhases.isEmpty()) {
       return requestedTestingPhases;
     }
-    return phaseCatalogService.listParentNames(LEGACY_CROWN_CAD_PROJECT_ID).stream()
-        .findFirst()
-        .map(List::of)
-        .orElse(List.of());
+    return List.of();
   }
 
   private boolean matchesFunctionName(IssueFactRecord view, String functionName) {

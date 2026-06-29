@@ -72,7 +72,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
-                  IssueFactRecordPageQuery.Scope.ALL,
+                  IssueFactRecordPageQuery.Scope.SYSTEM_TEST,
                   listRequest,
                   filterGroup,
                   null,

@@ -8,7 +8,7 @@ import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import java.util.Map;
 
-public abstract class AbstractStatisticBoardService {
+public abstract class AbstractStatisticBoardService implements StatisticBoardWorkbookExportSupport {
   // 统计板基类统一处理定义、筛选解析、明细查询和 CSV 导出。
   // 具体看板只实现领域数据聚合，避免每个看板重复解析高级筛选 JSON。
   private final JsonUtils jsonUtils;
@@ -40,6 +40,21 @@ public abstract class AbstractStatisticBoardService {
 
   public String exportBoardCsv(Map<String, String> filters) {
     return StatisticBoardCsvSupport.export(loadBoard(filters));
+  }
+
+  @Override
+  public byte[] exportBoardWorkbook(Map<String, String> filters) {
+    return StatisticBoardWorkbookSupport.export(loadBoard(filters));
+  }
+
+  @Override
+  public String exportFilename() {
+    return boardKey() + ".xlsx";
+  }
+
+  @Override
+  public String exportFilename(Map<String, String> filters) {
+    return boardKey() + ".xlsx";
   }
 
   protected abstract StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup);
