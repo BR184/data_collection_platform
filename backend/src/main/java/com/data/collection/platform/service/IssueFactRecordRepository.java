@@ -57,8 +57,6 @@ public class IssueFactRecordRepository {
   private static final String FACT_SQL = FACT_SELECT_SQL + " where deleted = false";
   private static final List<String> SYSTEM_TEST_SCOPE_TOKENS =
       List.of("\u7cfb\u7edf\u6d4b\u8bd5", "\u56de\u5f52\u6d4b\u8bd5");
-  private static final List<String> CUSTOMER_SCOPE_TOKENS =
-      List.of("cc_product", "cc-product", "ccproduct");
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final LocalDate CUSTOMER_ISSUE_START_DATE = LocalDate.of(2026, 1, 1);
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
@@ -212,13 +210,8 @@ public class IssueFactRecordRepository {
       appendSystemTestScope(where, args);
       return;
     }
-    where.append(" and (project_id = ?");
+    where.append(" and project_id = ?");
     args.add(LEGACY_CC_PRODUCT_PROJECT_ID);
-    for (String token : CUSTOMER_SCOPE_TOKENS) {
-      where.append(" or lower(coalesce(project_name, '')) like ?");
-      args.add("%" + token + "%");
-    }
-    where.append(")");
     where.append(" and (created_at_source is null or created_at_source >= ?)");
     args.add(CUSTOMER_ISSUE_START_DATE.atStartOfDay());
   }
@@ -237,6 +230,9 @@ public class IssueFactRecordRepository {
   }
 
   private void appendSystemTestScopeExpression(StringBuilder where, List<Object> args) {
+    where.append("project_id = ?");
+    args.add(9L);
+    where.append(" and (");
     boolean first = true;
     for (String token : SYSTEM_TEST_SCOPE_TOKENS) {
       if (!first) {
@@ -245,11 +241,8 @@ public class IssueFactRecordRepository {
       first = false;
       where.append("lower(coalesce(testing_phase, '')) like ?");
       args.add("%" + token + "%");
-      where.append(" or lower(coalesce(system_test_label, '')) like ?");
-      args.add("%" + token + "%");
-      where.append(" or lower(coalesce(label_names, '')) like ?");
-      args.add("%" + token + "%");
     }
+    where.append(")");
   }
 
   private void appendBaseFilters(

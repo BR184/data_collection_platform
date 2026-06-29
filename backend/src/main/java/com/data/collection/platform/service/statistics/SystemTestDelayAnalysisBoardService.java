@@ -501,7 +501,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove("testingPhase");
-    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
         SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
     try {
@@ -537,14 +537,18 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     return issueFactQueryService.query(FACT_SQL, mergedFilters, phasePredicate.sql(), phasePredicate.args(), this::mapIssueFact);
   }
 
+  private long effectiveProjectId(Map<String, String> filters) {
+    Long projectId =
+        filters == null ? null : StatisticSourceValueSupport.parseLong(filters.get("projectId"));
+    return projectId == null ? SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID : projectId;
+  }
+
   private Map<String, AggregateCounts> loadBoardAggregateCounts(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove(TESTING_PHASE_FIELD);
-    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
-    if (projectId != null) {
-      queryFilters.put("projectId", String.valueOf(projectId));
-    }
+    Long projectId = effectiveProjectId(queryFilters);
+    queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
         SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
     try {

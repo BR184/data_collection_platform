@@ -13,7 +13,7 @@ class IssueScopeProfileTest {
       new CustomerIssueScopeProfile();
 
   @Test
-  void shouldRecognizeSystemTestScopeFromTestingPhaseAndLabels() {
+  void shouldRecognizeSystemTestScopeFromCrownCadTestingPhaseOnly() {
     IssueScopeContext byPhase =
         new IssueScopeContext(
             9L,
@@ -23,7 +23,7 @@ class IssueScopeProfileTest {
             "",
             LocalDateTime.of(2026, 4, 10, 9, 0),
             List.of("工程图", "P1"));
-    IssueScopeContext byLabel =
+    IssueScopeContext byLabelOnly =
         new IssueScopeContext(
             9L,
             "CrownCAD",
@@ -32,9 +32,19 @@ class IssueScopeProfileTest {
             "",
             LocalDateTime.of(2026, 4, 10, 9, 0),
             List.of("CC2026R1回归测试", "草图"));
+    IssueScopeContext byOtherProject =
+        new IssueScopeContext(
+            325L,
+            "CC_Product",
+            null,
+            "CC2026R1第一轮系统测试",
+            "",
+            LocalDateTime.of(2026, 4, 10, 9, 0),
+            List.of("工程图", "P1"));
 
     assertThat(systemTestScopeProfile.matches(byPhase)).isTrue();
-    assertThat(systemTestScopeProfile.matches(byLabel)).isTrue();
+    assertThat(systemTestScopeProfile.matches(byLabelOnly)).isFalse();
+    assertThat(systemTestScopeProfile.matches(byOtherProject)).isFalse();
   }
 
   @Test
@@ -50,6 +60,21 @@ class IssueScopeProfileTest {
             List.of("工程图", "P2"));
 
     assertThat(customerIssueScopeProfile.matches(customerIssue)).isTrue();
+  }
+
+  @Test
+  void shouldNotRecognizeCustomerIssueScopeFromProjectNameOnly() {
+    IssueScopeContext projectNameOnly =
+        new IssueScopeContext(
+            9L,
+            "CC_Product",
+            "CC2026R1-M1",
+            "",
+            "",
+            LocalDateTime.of(2026, 4, 10, 9, 0),
+            List.of("工程图", "P2"));
+
+    assertThat(customerIssueScopeProfile.matches(projectNameOnly)).isFalse();
   }
 
   @Test

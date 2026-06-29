@@ -835,9 +835,7 @@ public class FactBuildService {
 
   private boolean isCustomerIssueIssueFact(List<String> labels, Long projectId, String projectName, LocalDateTime createdAt) {
     boolean inCustomerDateRange = CustomerIssueScopeRules.isInCustomerIssueDateRange(createdAt);
-    return inCustomerDateRange
-        && (CustomerIssueScopeRules.isCustomerProject(projectId, projectName)
-            || labels.stream().anyMatch(CustomerIssueScopeRules::containsCustomerProjectToken));
+    return inCustomerDateRange && CustomerIssueScopeRules.isCustomerProject(projectId, projectName);
   }
 
   private List<FactRefreshImpactScopeService.Target> distinctTargets(

@@ -55,6 +55,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
   private static final String FIXED_STATUS = "已修复/完成";
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
@@ -392,6 +393,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.putIfAbsent("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
     try {
       return issueFactQueryService.query(FACT_SQL, queryFilters, this::mapIssueFact);
     } catch (DataAccessException error) {

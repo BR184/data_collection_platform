@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class SystemTestScopeProfile implements IssueScopeProfile {
+  private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final List<String> SYSTEM_TEST_TOKENS = List.of("系统测试", "回归测试");
 
   @Override
@@ -18,9 +19,9 @@ public class SystemTestScopeProfile implements IssueScopeProfile {
     if (context == null) {
       return false;
     }
-    return hasScope(context.testingPhase())
-        || hasScope(context.systemTestLabel())
-        || context.labels().stream().anyMatch(this::hasScope);
+    return context.projectId() != null
+        && context.projectId() == LEGACY_CROWN_CAD_PROJECT_ID
+        && hasScope(context.testingPhase());
   }
 
   private boolean hasScope(String value) {

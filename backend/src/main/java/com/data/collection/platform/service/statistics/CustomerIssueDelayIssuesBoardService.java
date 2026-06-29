@@ -54,6 +54,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private static final String P2 = "P2";
   private static final String P3 = "P3";
   private static final String GITLAB_API_ERROR = "GitLab接口报错";
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
@@ -420,6 +421,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.putIfAbsent("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
     try {
       return issueFactQueryService.query(FACT_SQL, queryFilters, this::mapIssueFact);
     } catch (DataAccessException error) {

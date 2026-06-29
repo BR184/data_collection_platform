@@ -67,6 +67,26 @@
 | 事实重建有时从增量退化成全量 | `FactBuildService` 在发现既有事实缺少搜索索引或阶段派生字段时，会让 `changedSince = null`，下一次事实构建就不带增量谓词，表现为全量重建。升级后旧事实表缺字段或索引为空时尤其容易触发。 | 已确认代码原因 |
 | 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。本轮源码复核确认非法数据页默认应为“全部数据源”，只有明确选择 CrownCAD/DGM 且目标分支为空时才补 `dev`；前端此前默认第一数据源会缩小范围。剩余差异继续按老平台非法条件和新平台事实字段逐项比对。 | 已修正默认数据源和目标分支入口，仍需内网样本复核非法类型覆盖 |
 
+### 2026-06-29 深层规则复核补充
+
+本节记录本轮直接对照老平台源码后排除的误判方向，避免后续继续在同一处反复猜测：
+
+1. 代码走查非法数据默认总数中，CrownCAD/默认数据源不把仅命中 `注释率分析工具Clang分析错误` 的记录纳入总非法；DGM/非默认库会纳入。依据老平台 `StaticDataController.getIllegalData` 展示层和 `SpiderCrowncadQueryBuilder.setSearchIllegalQuery` 查询层。新平台 `CodeReviewIllegalRuleRegistry.includesClangInDefaultIllegal` 与 `CodeReviewIllegalRecordSqlSupport.illegalPredicate` 当前行为一致，这一点不是少 6000 条的根因。
+2. 代码走查非 CrownCAD/DGM 的 `dev` 分支，或 CrownCAD/DGM 非 `dev` 分支，老平台采集阶段 `MergeRequestDAOImpl.setAssignee` 会直接写入 `无需走查扫描`，不进入“无代码走查/代码走查异常”判定。新平台 `GitlabFactSourceSqlProvider` 只在 `target_project_id in (9,79) and target_branch='dev'` 时生成 `review_exception_reason`，其余置空并展示为无需走查扫描，这一点与老平台一致。
+3. 客户问题/按功能展示缺陷数量主表对齐老平台 `DataAnalysisController.getIssueCountByFunc -> SpiderIssueDataService.getIssueCountByFunction -> getIssueByProjectIdAndMileStone`。该入口会调用 `setQueryFilter`，但 `projectId=325` 时老平台不会排除 `功能屏蔽/已拒绝/建议`，只继续排除关闭的 `申请否决/需求如此`。新平台事实层 `IssueLabelRules` 已对 `projectId=325` 做同样特例，因此 `customer-issue-by-function` 使用 `is_excluded=false` 本身不是字段少或数量少的根因。
+4. 客户问题里程碑默认顺序对齐老平台倒序策略。老平台 `MilestoneController.getAllMileStone` 和 `DropDownLabelController.getMileStone` 都按里程碑文本倒序返回，页面默认取第一个；新平台 `CustomerIssueMilestoneCatalogService.listMilestones` 当前为 `order by milestone_title desc`，因此默认第一可用里程碑方向一致。
+5. 下一轮代码走查少量差异必须继续沿事实字段生成链路查，而不是只看页面筛选：老平台非法来源字段是 `assignee/sonar_qube_result/annotation_rate_result/bug_count_result/project_name/module_name/target_branch`；新平台对应 `review_exception_reason/scan_status/annotation_rate_result/bug_count_result/project_name/module_name/target_branch/owner_name/reviewer_names/assignee_names`。需要重点比对 `code_review_external_metrics` 导入值、`GitlabFactSourceSqlProvider` 聚合值和 `merge_request_fact` 最终值。
+
+### 2026-06-29 来源数据范围收口修复
+
+本轮继续沿老平台源码逐页复核“项目/阶段/里程碑/数据源”入口，确认此前为了兼容脏数据保留的文本兜底会让内网数据范围偏宽，尤其容易放大统计页首屏查询和非法数据列表数量。
+
+1. 客户问题范围已收口为老平台项目 ID `project_id=325`，不再因为 `project_name`、里程碑、测试阶段或标签文本包含 `CC_PRODUCT/CC_Product` 就反推出客户问题范围。依据老平台 `IssueStaticDataController.findCCProductIssueInfo`、`findIllegalIssue` 和 `SpiderIssueDataDAOImpl.findIllegalIssue`：客户问题记录、非法、延期和统计入口均以 `projectId=325` 为硬范围，再叠加 `submission_date >= 2026-01-01` 与里程碑筛选。
+2. 系统测试记录/非法范围已收口为老平台 CrownCAD 项目 ID `project_id=9` 且事实层 `testing_phase` 命中系统测试或回归测试轮次；不再用 `system_test_label` 或 `label_names` 作为页面查询兜底。依据老平台 `SpiderIssueDataQueryBuilder.setTestingPhases` / `findIllegalIssue`：系统测试页面核心筛选是 `project_id=9 + testing_phase in 展开后的轮次集合`。
+3. 客户问题五个聚合页中，缺陷汇总、缺陷原因、延期问题、响应效率和按功能展示均已在 SQL/事实查询入口前推 `projectId=325`，避免首次缺统计快照时先扫全库再由 `CustomerIssueScopeProfile` 在 Java 内存过滤。
+4. 系统测试缺陷原因分析和申请延期缺陷分析补齐默认 `projectId=9`，与系统测试缺陷汇总、议题阶段统计的默认 CrownCAD 范围一致，避免无显式项目参数时扫描非 CrownCAD 项目。
+5. 这一轮只完成“来源数据范围”对齐；下一轮仍需继续深入每个页面的字段展示、非法判定、阶段统计公式、缺陷响应效率公式和导出字段，不能因为范围收口就视为全部业务口径已 1:1 完成。
+
 ## 客户问题模块范围补充
 
 客户问题模块的数据范围必须记为 `CC_PRODUCT` / `CC_Product`，不是系统测试 CrownCAD 项目范围。依据来自 `C:\Users\admin\Downloads\产品客户问题响应管理机制.mm` 中“数据来源为 CCPRODUCT 数据”的需求说明，以及常驻规则 `docs/platform-page-business-rules.md`：

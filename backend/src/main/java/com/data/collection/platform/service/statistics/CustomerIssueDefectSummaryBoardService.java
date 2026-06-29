@@ -48,6 +48,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private static final String RULE_VERSION = "customer-issue-defect-summary@2026-04-22-v1";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
@@ -378,7 +379,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "按客户问题 scope profile 收口 issue_fact：优先识别 CC_Product、里程碑与创建时间边界。",
+                "按客户问题 scope profile 收口 issue_fact：限定 project_id=325、创建时间边界和 CC_Product 里程碑。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample
@@ -542,10 +543,12 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
+    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
+    queryFilters.putIfAbsent("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
     try {
       return runtimeSupport
           .loadFacts(
-              withoutReservedFilters(filters),
+              queryFilters,
               source -> customerIssueScopeProfile.matches(source.scopeContext()))
           .stream()
           .map(this::toIssueSource)

@@ -70,6 +70,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
@@ -598,7 +599,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
     queryFilters.remove(MILESTONE_FIELD);
-    Long projectId = StatisticSourceValueSupport.parseLong(queryFilters.get("projectId"));
+    Long projectId = effectiveProjectId(queryFilters);
+    queryFilters.put("projectId", String.valueOf(projectId));
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
       return facts.isEmpty() ? List.of() : facts;
@@ -630,6 +632,12 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       mergedFilters.put("projectId", String.valueOf(projectId));
     }
     return issueFactQueryService.query(FACT_SQL, mergedFilters, this::mapIssueFact);
+  }
+
+  private long effectiveProjectId(Map<String, String> filters) {
+    Long projectId =
+        filters == null ? null : StatisticSourceValueSupport.parseLong(filters.get("projectId"));
+    return projectId == null ? LEGACY_CC_PRODUCT_PROJECT_ID : projectId;
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
