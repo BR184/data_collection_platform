@@ -554,7 +554,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     queryFilters.remove(TESTING_PHASE_FIELD);
     Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -597,7 +597,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       queryFilters.put("projectId", String.valueOf(projectId));
     }
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       return issueFactQueryService.query(
               BOARD_AGGREGATE_SQL,

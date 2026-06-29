@@ -576,7 +576,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -623,7 +623,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     String sql = """
         select btrim(module_name) as module_name
           from issue_fact
@@ -658,7 +658,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     String sql = buildBoardAggregateSql();
     try {
       return issueFactQueryService.query(
@@ -688,7 +688,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       List<AggregateCounts> results =
           issueFactQueryService.query(

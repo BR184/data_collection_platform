@@ -76,7 +76,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
               new IssueFactRecordPageQuery(
-                  IssueFactRecordPageQuery.Scope.CUSTOMER,
+                  recordProfile.pageScope(),
                   listRequest,
                   expandedFilterGroup,
                   request.reasonCategory(),
@@ -348,8 +348,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   public StatisticBoardRuleExplanationResponse getRuleExplanation(String topic, Long projectId) {
     String safeTopic = normalizeTopic(topic);
     List<IssueFactRecord> loaded = loadFacts(projectId);
-    List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
     CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
+    List<IssueFactRecord> scoped = scopeCustomerIssues(loaded, recordProfile);
     List<IssueFactRecord> visible = applyRecordProfile(scoped, recordProfile);
     List<IssueFactRecord> topicScoped = applyTopic(visible, recordProfile);
     return new StatisticBoardRuleExplanationResponse(
@@ -381,7 +381,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private List<IssueFactRecord> loadTopicScopedViews(CustomerIssueRecordProfile profile, Long projectId) {
-    return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(projectId)), profile), profile);
+    return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(projectId), profile), profile), profile);
   }
 
   private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, CustomerIssueRecordProfile profile) {
@@ -392,8 +392,13 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private List<IssueFactRecord> scopeCustomerIssues(List<IssueFactRecord> rows) {
+    return scopeCustomerIssues(rows, CustomerIssueRecordProfile.customerOperationsProfile());
+  }
+
+  private List<IssueFactRecord> scopeCustomerIssues(
+      List<IssueFactRecord> rows, CustomerIssueRecordProfile profile) {
     return rows.stream()
-        .filter(view -> customerIssueScopeProfile.matches(view.scopeContext()))
+        .filter(view -> profile.scope().matches(view, customerIssueScopeProfile))
         .toList();
   }
 
@@ -483,6 +488,8 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       boolean delayOnly,
       boolean excludeExcluded,
       boolean excludeRejectedBugStatus,
+      IssueFactRecordPageQuery.Scope pageScope,
+      CustomerIssueRecordScope scope,
       String explanation) {
 
     private static CustomerIssueRecordProfile forTopic(String topic) {
@@ -491,14 +498,47 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             true,
             true,
             false,
+            IssueFactRecordPageQuery.Scope.CUSTOMER,
+            CustomerIssueRecordScope.CUSTOMER_OPERATIONS,
             "延期记录复用客户问题统计口径，排除已关闭的申请否决、需求如此和设计如此类数据。");
       }
       return new CustomerIssueRecordProfile(
           false,
           false,
           true,
-          "CC_PRODUCT 议题对齐老平台 ProjectIssueInfoQueryBuilder，默认全里程碑，排除 bug_status 包含“已拒绝”的记录，不套用客户问题统计页公共排除。");
+          IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT,
+          CustomerIssueRecordScope.CUSTOMER_PROJECT,
+          "CC_PRODUCT 议题对齐老平台 ProjectIssueInfoQueryBuilder，默认全里程碑，查询 CC_Product 项目全量历史记录，排除 bug_status 包含“已拒绝”的记录，不套用客户问题统计页公共排除或 2026-01-01 运营统计起始日期。");
     }
+
+    private static CustomerIssueRecordProfile customerOperationsProfile() {
+      return new CustomerIssueRecordProfile(
+          false,
+          true,
+          false,
+          IssueFactRecordPageQuery.Scope.CUSTOMER,
+          CustomerIssueRecordScope.CUSTOMER_OPERATIONS,
+          "客户问题运营统计口径限定 CC_Product 项目且创建时间不早于 2026-01-01。");
+    }
+  }
+
+  private enum CustomerIssueRecordScope {
+    CUSTOMER_PROJECT {
+      @Override
+      boolean matches(IssueFactRecord record, CustomerIssueScopeProfile customerIssueScopeProfile) {
+        return record != null
+            && record.projectId() != null
+            && record.projectId() == CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
+      }
+    },
+    CUSTOMER_OPERATIONS {
+      @Override
+      boolean matches(IssueFactRecord record, CustomerIssueScopeProfile customerIssueScopeProfile) {
+        return record != null && customerIssueScopeProfile.matches(record.scopeContext());
+      }
+    };
+
+    abstract boolean matches(IssueFactRecord record, CustomerIssueScopeProfile customerIssueScopeProfile);
   }
 
   private static Map<String, Comparator<IssueFactRecord>> createSortComparators() {

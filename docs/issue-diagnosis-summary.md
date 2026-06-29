@@ -20,9 +20,9 @@
 ### P0：系统测试 15 秒超时和慢加载
 
 1. `系统测试/缺陷汇总`、`系统测试/议题阶段统计`、`系统测试/缺陷原因分析`、`申请延期缺陷分析` 的主接口已落地统计快照中间表。首次缺快照时仍由页面服务按当前老平台口径生成一次，后续同一事实版本、规则版本和阶段范围直接读取 `statistic_board_snapshots`，避免每次打开页面都重复扫描大范围 `issue_fact`。
-2. `SystemTestPhaseSqlPredicateSupport` 会把所选父级阶段展开后匹配 `testing_phase/system_test_label/label_names`，这比纯 `testing_phase` 更宽。老平台多处统计接口是 `testingPhaseService.getByName(phase)` 后按具体测试阶段集合查 `SpiderIssueDataQueryBuilder.setTestingPhases(phases)`；后续要逐页确认是否允许 label_names 模糊命中。
+2. `SystemTestPhaseSqlPredicateSupport` 已区分两类老平台入口：统计聚合页对齐 `SpiderIssueDataQueryBuilder.setTestingPhases(phases)`，按展开后的具体阶段执行 `testing_phase LIKE %phase%`；记录/非法页对齐 `findIllegalIssue` 等记录入口，按展开后的具体阶段集合匹配 `testing_phase`，不再用 `system_test_label` 或 `label_names` 兜底扩大范围。
 3. 慢加载页面已按优先级进入统计快照：系统测试四个聚合看板和客户问题五个聚合看板均已覆盖。记录类分页页面、下钻详情、规则说明和导出仍走各自实时查询，需要内网复测后再决定是否继续做详情快照、SQL 分页或流式导出。
-4. 本轮已先将系统测试统计页的阶段 SQL 收口为只匹配 `issue_fact.testing_phase = 展开后的具体测试轮次`，不再额外用 `system_test_label` 或 `label_names` 放宽命中。该修复针对内网反馈的缺陷汇总“装配/其他 - CC2026R3 多 1 条”以及三个超时页的范围放大问题；后续内网仍需重点用下钻明细确认多出的那条是否来自宽阶段匹配。
+4. 本轮已将系统测试页面的阶段来源范围从 `system_test_label/label_names` 收口回 `issue_fact.testing_phase`，但保留老平台统计聚合页的 `LIKE %具体轮次%` 语义。缺陷汇总“装配/其他 - CC2026R3 多 1 条”若复测仍存在，下一步应转入字段/判定级对齐，重点核对公共排除、模块归一化、状态字段和一级其他标题分类，而不是继续把阶段范围改成全局精确等值。
 
 ### P0：系统测试议题查询默认范围误对齐
 
@@ -81,18 +81,19 @@
 
 本轮继续沿老平台源码逐页复核“项目/阶段/里程碑/数据源”入口，确认此前为了兼容脏数据保留的文本兜底会让内网数据范围偏宽，尤其容易放大统计页首屏查询和非法数据列表数量。
 
-1. 客户问题范围已收口为老平台项目 ID `project_id=325`，不再因为 `project_name`、里程碑、测试阶段或标签文本包含 `CC_PRODUCT/CC_Product` 就反推出客户问题范围。依据老平台 `IssueStaticDataController.findCCProductIssueInfo`、`findIllegalIssue` 和 `SpiderIssueDataDAOImpl.findIllegalIssue`：客户问题记录、非法、延期和统计入口均以 `projectId=325` 为硬范围，再叠加 `submission_date >= 2026-01-01` 与里程碑筛选。
-2. 系统测试记录/非法范围已收口为老平台 CrownCAD 项目 ID `project_id=9` 且事实层 `testing_phase` 命中系统测试或回归测试轮次；不再用 `system_test_label` 或 `label_names` 作为页面查询兜底。依据老平台 `SpiderIssueDataQueryBuilder.setTestingPhases` / `findIllegalIssue`：系统测试页面核心筛选是 `project_id=9 + testing_phase in 展开后的轮次集合`。
+1. 客户问题范围已收口为老平台项目 ID `project_id=325`，不再因为 `project_name`、里程碑、测试阶段或标签文本包含 `CC_PRODUCT/CC_Product` 就反推出客户问题范围。依据老平台 `IssueStaticDataController.findCCProductIssueInfo -> ProjectIssueInfoQueryBuilder`：`CC_PRODUCT议题` 记录页以 `projectId=325` 为硬范围，默认全里程碑，只排除 `bug_status` 包含 `已拒绝` 的记录，不叠加 `submission_date >= 2026-01-01`。客户问题非法、延期和统计入口依据老平台 `findIllegalIssue` / `SpiderIssueDataDAOImpl` 继续使用 `projectId=325 + submission_date >= 2026-01-01 + 里程碑筛选` 的运营统计口径。
+2. 系统测试范围已收口为老平台 CrownCAD 项目 ID `project_id=9` 且事实层 `testing_phase` 命中系统测试或回归测试轮次；不再用 `system_test_label` 或 `label_names` 作为页面查询兜底。依据老平台源码，需要区分两类入口：统计聚合页使用 `SpiderIssueDataQueryBuilder.setTestingPhases` 的 `testing_phase LIKE %具体轮次%`；记录/非法页使用 `findIllegalIssue` 等记录入口的具体阶段集合匹配。
 3. 客户问题五个聚合页中，缺陷汇总、缺陷原因、延期问题、响应效率和按功能展示均已在 SQL/事实查询入口前推 `projectId=325`，避免首次缺统计快照时先扫全库再由 `CustomerIssueScopeProfile` 在 Java 内存过滤。
 4. 系统测试缺陷原因分析和申请延期缺陷分析补齐默认 `projectId=9`，与系统测试缺陷汇总、议题阶段统计的默认 CrownCAD 范围一致，避免无显式项目参数时扫描非 CrownCAD 项目。
-5. 这一轮只完成“来源数据范围”对齐；下一轮仍需继续深入每个页面的字段展示、非法判定、阶段统计公式、缺陷响应效率公式和导出字段，不能因为范围收口就视为全部业务口径已 1:1 完成。
+5. 本轮来源范围复核还确认：系统测试公共过滤不包含“关闭的数据异常”排除，老平台 `QueryUtil` 中该段代码是注释状态；代码走查非法页默认仍是全部数据源，`projectName -> merge_request_fact.project_name`、`source -> source_instance`、`targetBranch -> target_branch` 三层入口必须分开。若内网仍只看到 CrownCAD 项目，优先核查 `merge_request_fact` 中其他项目是否满足默认非法范围，而不是把 source 默认改回第一项。
+6. 这一轮只完成“来源数据范围”对齐；下一轮仍需继续深入每个页面的字段展示、非法判定、阶段统计公式、缺陷响应效率公式和导出字段，不能因为范围收口就视为全部业务口径已 1:1 完成。
 
 ## 客户问题模块范围补充
 
 客户问题模块的数据范围必须记为 `CC_PRODUCT` / `CC_Product`，不是系统测试 CrownCAD 项目范围。依据来自 `C:\Users\admin\Downloads\产品客户问题响应管理机制.mm` 中“数据来源为 CCPRODUCT 数据”的需求说明，以及常驻规则 `docs/platform-page-business-rules.md`：
 
 1. 默认项目为 `CC_Product`，当前老平台项目 ID 为 `325`。
-2. 默认统计 2026-01-01 之后创建的客户问题议题。
+2. 默认统计页面统计 2026-01-01 之后创建的客户问题议题；`CC_PRODUCT议题` 是记录页特例，默认查询 CC_Product 项目历史议题，不套用该日期下限。
 3. 客户问题页面的顶部范围切换按里程碑/版本体验对齐老平台，除 `CC_PRODUCT议题` 默认全里程碑外，其余客户问题统计/非法/延期类页面默认第一可用里程碑。统计看板链路统一为前端 `milestoneTitle`、接口 `filterGroup.milestoneTitle`、后端 `issue_fact.milestone_title`、快照键 `project=325;milestone=...`；旧 `testingPhase` 参数只作为兼容输入归一化，不再作为新链路主字段。
 4. 客户问题缺陷汇总、延期问题、非法数据、缺陷原因、按功能展示和响应/解决效率都不能回退到 CrownCAD 系统测试项目 `9` 的筛选口径，也不能通过里程碑或标签文本中的 `cc_product` 反推出客户问题范围。
 
@@ -425,7 +426,7 @@ select source_instance,
 | 系统测试/议题阶段统计 | CrownCAD 系统测试范围，轮次来自阶段定义 | `testingPhase` 与阶段定义子轮次 | 默认第一可用启用父级阶段 | 父级阶段展开为轮次，再按 `testing_phase` 统计 | 已对齐来源范围；阶段判定规则下一轮深入。 |
 | 系统测试/申请延期缺陷分析 | CrownCAD 系统测试范围 | `testingPhase` | 默认第一可用启用父级阶段 | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐来源范围。 |
 | 系统测试/横向对比 | 系统测试、评审、CrownCAD/DGM 代码走查组合 | `projectName/testingPhase/moduleName` | 按页面传入项目和阶段，不默认从客户问题或其他项目取数 | 系统测试走 `issue_fact`，代码走查走 `merge_request_fact`，评审走评审表 | 已对齐核心来源；导出模板和每列公式下一轮复核。 |
-| 客户问题/CC_PRODUCT议题 | CC_Product 项目 `325`，`created_at >= 2026-01-01`，默认全里程碑 | `projectId=325`，`milestoneTitle` 可选 | 默认全部里程碑 | 用户选择里程碑时匹配 `issue_fact.milestone_title` | 已对齐。它是客户问题模块唯一默认全里程碑的记录页。 |
+| 客户问题/CC_PRODUCT议题 | CC_Product 项目 `325`，默认全里程碑，不套用 2026-01-01 运营统计日期下限 | `projectId=325`，`milestoneTitle` 可选 | 默认全部里程碑 | 用户选择里程碑时匹配 `issue_fact.milestone_title`，默认排除 `bug_status` 包含 `已拒绝` | 已对齐。它是客户问题模块唯一默认全里程碑的记录页。 |
 | 客户问题/延期问题明细 | CC_Product 项目 `325`，延期类记录 | `projectId=325`，`milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 匹配 `issue_fact.milestone_title` | 已对齐来源范围；P1/P2/P3 和 18 天规则下一轮继续深测。 |
 | 客户问题/缺陷非法数据 | CC_Product 项目 `325`，客户问题公共排除 | `projectId=325`，`milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 前端 URL/接口/导出使用 `milestoneTitle`；旧 `testingPhase` 只归一化为里程碑兼容输入 | 本轮修正完成，不再把系统测试阶段当独立来源条件。 |
 | 客户问题/缺陷汇总 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围。 |

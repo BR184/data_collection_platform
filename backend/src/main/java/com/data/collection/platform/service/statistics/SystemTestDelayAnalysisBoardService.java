@@ -503,7 +503,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -550,7 +550,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.exactPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       return issueFactQueryService.query(
               BOARD_AGGREGATE_SQL,

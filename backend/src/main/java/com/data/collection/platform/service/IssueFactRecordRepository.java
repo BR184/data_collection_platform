@@ -212,12 +212,16 @@ public class IssueFactRecordRepository {
     }
     where.append(" and project_id = ?");
     args.add(LEGACY_CC_PRODUCT_PROJECT_ID);
+    if (scope == IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT) {
+      return;
+    }
     where.append(" and (created_at_source is null or created_at_source >= ?)");
     args.add(CUSTOMER_ISSUE_START_DATE.atStartOfDay());
   }
 
   private String testingPhaseColumn(IssueFactRecordPageQuery query) {
-    if (query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER) {
+    if (query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+        || query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT) {
       return "milestone_title";
     }
     return query.useFullTestingPhaseFilter() ? "testing_phase" : "phase_filter_value";

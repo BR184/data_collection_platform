@@ -13,7 +13,7 @@ final class SystemTestPhaseSqlPredicateSupport {
 
   private SystemTestPhaseSqlPredicateSupport() {}
 
-  static SqlPredicate exactPhasePredicate(
+  static SqlPredicate legacyStatisticPhasePredicate(
       StatisticFilterGroup filterGroup, SystemTestPhaseScopeResolver phaseScopeResolver) {
     String selectedPhase = selectedExactTestingPhase(filterGroup);
     if (!StringUtils.hasText(selectedPhase) || phaseScopeResolver == null) {
@@ -31,8 +31,8 @@ final class SystemTestPhaseSqlPredicateSupport {
     List<String> clauses = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (String phase : phases) {
-      clauses.add("testing_phase = ?");
-      args.add(phase);
+      clauses.add("testing_phase like ?");
+      args.add("%" + phase + "%");
     }
     return new SqlPredicate(String.join(" or ", clauses), args);
   }

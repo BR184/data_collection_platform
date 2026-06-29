@@ -32,6 +32,7 @@ public record IssueFactRecordPageQuery(
 
   public enum Scope {
     ALL,
+    CUSTOMER_PROJECT,
     CUSTOMER,
     SYSTEM_TEST
   }

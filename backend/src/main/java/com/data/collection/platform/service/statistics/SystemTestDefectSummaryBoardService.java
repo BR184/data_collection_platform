@@ -314,7 +314,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "exclude-invalid-issues",
             "排除无效数据",
-            "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/数据异常/需求如此的议题。",
+            "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
             scoped.size(),
             validBeforeFilter,
             this::toRuleFlowSample

@@ -79,7 +79,7 @@ class CustomerIssueRecordServiceTest {
         .findPage(
             argThat(
                 query ->
-                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT
                         && !query.delayOnly()
                         && !query.illegalOnly()));
   }
