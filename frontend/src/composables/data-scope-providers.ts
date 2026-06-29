@@ -62,6 +62,18 @@ export const CODE_REVIEW_SOURCE_SCOPE_PROVIDER: DataScopeProvider = {
   summaryPrefix: '当前数据源',
 };
 
+export const CODE_REVIEW_OPTIONAL_SOURCE_SCOPE_PROVIDER: DataScopeProvider = {
+  id: 'code-review-source',
+  label: '数据源',
+  queryKey: 'source',
+  mode: 'segmented',
+  placeholder: '全部数据源',
+  defaultStrategy: 'empty',
+  clearable: true,
+  compact: true,
+  summaryPrefix: '当前数据源',
+};
+
 export function buildScopeOptions(
   values: Array<OptionItemResponse | string>,
   emptyLabel?: string,

@@ -97,6 +97,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   true,
                   true,
                   false,
+                  false,
                   true,
                   false,
                   false,

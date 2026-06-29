@@ -70,6 +70,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
             IssueFactRecordFilterGroupSupport.CUSTOMER_ISSUE_FILTER_OPERATORS);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
+    CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
 
     if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
@@ -84,9 +85,10 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                   List.of(),
                   request.authorName(),
                   request.assigneeName(),
-                  TOPIC_DELAY.equals(safeTopic),
+                  recordProfile.delayOnly(),
                   false,
-                  true,
+                  recordProfile.excludeExcluded(),
+                  recordProfile.excludeRejectedBugStatus(),
                   false,
                   false,
                   false,
@@ -106,7 +108,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
 
     List<IssueFactRecord> filtered =
         applyBaseFilters(
-                loadTopicScopedViews(safeTopic, listRequest.projectId()),
+                loadTopicScopedViews(recordProfile, listRequest.projectId()),
                 listRequest,
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
@@ -325,7 +327,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(
       String topic, Long projectId, String sourceInstance) {
     List<IssueFactRecord> rows =
-        loadTopicScopedViews(normalizeTopic(topic), projectId).stream()
+        loadTopicScopedViews(CustomerIssueRecordProfile.forTopic(normalizeTopic(topic)), projectId).stream()
             .filter(view -> matchesSourceInstance(view, sourceInstance))
             .toList();
     return new CustomerIssueRecordFilterOptionsResponse(
@@ -347,8 +349,9 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     String safeTopic = normalizeTopic(topic);
     List<IssueFactRecord> loaded = loadFacts(projectId);
     List<IssueFactRecord> scoped = scopeCustomerIssues(loaded);
-    List<IssueFactRecord> visible = scoped.stream().filter(view -> !view.excluded()).toList();
-    List<IssueFactRecord> topicScoped = applyTopic(visible, safeTopic);
+    CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
+    List<IssueFactRecord> visible = applyRecordProfile(scoped, recordProfile);
+    List<IssueFactRecord> topicScoped = applyTopic(visible, recordProfile);
     return new StatisticBoardRuleExplanationResponse(
         "customer-issue-" + safeTopic + "-records",
         true,
@@ -359,7 +362,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         List.of(
             step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
             step("scope-filter", "限定客户问题范围", "复用客户问题 scope profile，避免和系统测试口径混在一起。", scoped, loaded.size()),
-            step("exclude-filter", "剔除排除数据", "按老平台 CC_Product 记录页查询口径，排除已关闭的申请否决、需求如此和设计如此类数据。", visible, scoped.size()),
+            step("exclude-filter", "剔除排除数据", recordProfile.explanation(), visible, scoped.size()),
             step("topic-filter", topicTitle(safeTopic), topicFilterDescription(safeTopic), topicScoped, visible.size())),
         List.of(
             new StatisticRuleMetricDefinition(
@@ -377,12 +380,12 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         null);
   }
 
-  private List<IssueFactRecord> loadTopicScopedViews(String topic, Long projectId) {
-    return applyTopic(scopeVisibleCustomerIssues(loadFacts(projectId)), topic);
+  private List<IssueFactRecord> loadTopicScopedViews(CustomerIssueRecordProfile profile, Long projectId) {
+    return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(projectId)), profile), profile);
   }
 
-  private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, String topic) {
-    if (TOPIC_DELAY.equals(topic)) {
+  private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, CustomerIssueRecordProfile profile) {
+    if (profile.delayOnly()) {
       return rows.stream().filter(IssueFactRecord::delayRelated).toList();
     }
     return rows;
@@ -394,8 +397,16 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         .toList();
   }
 
-  private List<IssueFactRecord> scopeVisibleCustomerIssues(List<IssueFactRecord> rows) {
-    return scopeCustomerIssues(rows).stream().filter(view -> !view.excluded()).toList();
+  private List<IssueFactRecord> applyRecordProfile(
+      List<IssueFactRecord> rows, CustomerIssueRecordProfile profile) {
+    return rows.stream()
+        .filter(view -> !profile.excludeExcluded() || !view.excluded())
+        .filter(view -> !profile.excludeRejectedBugStatus() || !containsRejectedBugStatus(view))
+        .toList();
+  }
+
+  private boolean containsRejectedBugStatus(IssueFactRecord view) {
+    return TextQuerySupport.containsAbstractSearch(view.bugStatus(), "已拒绝");
   }
 
   private CustomerIssueRecordRowResponse toResponse(IssueFactRecord view) {
@@ -465,7 +476,29 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     if (TOPIC_DELAY.equals(topic)) {
       return "保留 delay_issue、is_response_delayed 或 is_resolve_delayed 命中的客户问题议题。";
     }
-    return "不再做额外过滤，保留客户问题范围内的全部议题。";
+    return "对齐老平台 CC_PRODUCT 议题记录页，不默认选择里程碑，保留客户问题范围内除已拒绝状态外的议题。";
+  }
+
+  private record CustomerIssueRecordProfile(
+      boolean delayOnly,
+      boolean excludeExcluded,
+      boolean excludeRejectedBugStatus,
+      String explanation) {
+
+    private static CustomerIssueRecordProfile forTopic(String topic) {
+      if (TOPIC_DELAY.equals(topic)) {
+        return new CustomerIssueRecordProfile(
+            true,
+            true,
+            false,
+            "延期记录复用客户问题统计口径，排除已关闭的申请否决、需求如此和设计如此类数据。");
+      }
+      return new CustomerIssueRecordProfile(
+          false,
+          false,
+          true,
+          "CC_PRODUCT 议题对齐老平台 ProjectIssueInfoQueryBuilder，默认全里程碑，排除 bug_status 包含“已拒绝”的记录，不套用客户问题统计页公共排除。");
+    }
   }
 
   private static Map<String, Comparator<IssueFactRecord>> createSortComparators() {

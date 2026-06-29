@@ -16,6 +16,7 @@ public record IssueFactRecordPageQuery(
     boolean delayOnly,
     boolean illegalOnly,
     boolean excludeExcluded,
+    boolean excludeRejectedBugStatus,
     boolean supportedSystemIllegalReasonsOnly,
     boolean supportedCustomerIllegalReasonsOnly,
     boolean useDisplayModuleFilter,

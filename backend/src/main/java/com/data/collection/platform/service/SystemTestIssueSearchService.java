@@ -112,6 +112,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                   false,
                   false,
                   false,
+                  false,
                   true,
                   safePage,
                   safeSize,

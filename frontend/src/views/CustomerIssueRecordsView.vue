@@ -86,7 +86,11 @@ const topic = computed<CustomerIssueRecordTopic>(() =>
   resolveTopic(),
 );
 const projectId = computed(() => String(route.query.projectId ?? ''));
+const requiresMilestoneDefault = computed(() => isDelayTopic.value);
 const milestoneDefaultReady = computed(() => {
+  if (!requiresMilestoneDefault.value) {
+    return true;
+  }
   if (String(route.query.milestoneTitle ?? '').trim()) {
     return true;
   }
@@ -226,11 +230,13 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     key: 'milestoneTitle',
     label: '里程碑',
     type: 'select',
-    defaultStrategy: 'first-available',
-    clearable: false,
-    placeholder: '切换里程碑',
+    defaultStrategy: isDelayTopic.value ? 'first-available' : 'empty',
+    clearable: !isDelayTopic.value,
+    placeholder: isDelayTopic.value ? '切换里程碑' : '全部里程碑',
     width: 180,
-    options: filterOptions.value.milestoneTitles,
+    options: isDelayTopic.value
+      ? filterOptions.value.milestoneTitles
+      : [{ label: '全部里程碑', value: '' }, ...filterOptions.value.milestoneTitles],
   },
   {
     key: 'issueIid',
@@ -581,6 +587,9 @@ watch(
 
 async function applyMilestoneDefault() {
   if (!filterOptionsLoaded.value || milestoneDefaultPatchInFlight.value) {
+    return false;
+  }
+  if (!requiresMilestoneDefault.value) {
     return false;
   }
   if (String(route.query.milestoneTitle ?? '').trim()) {

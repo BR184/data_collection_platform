@@ -30,10 +30,6 @@ public class CustomerIssueScopeProfile implements IssueScopeProfile {
   }
 
   private boolean isCustomerProjectScope(IssueScopeContext context) {
-    if (CustomerIssueScopeRules.isCustomerProject(context.projectId(), context.projectName())
-        || CustomerIssueScopeRules.containsCustomerProjectToken(context.milestoneTitle())) {
-      return true;
-    }
-    return context.labels().stream().anyMatch(CustomerIssueScopeRules::containsCustomerProjectToken);
+    return CustomerIssueScopeRules.isCustomerProject(context.projectId(), context.projectName());
   }
 }

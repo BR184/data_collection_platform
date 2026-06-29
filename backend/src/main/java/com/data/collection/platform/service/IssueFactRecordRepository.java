@@ -133,6 +133,7 @@ public class IssueFactRecordRepository {
                 false,
                 false,
                 false,
+                false,
                 1,
                 20,
                 "updatedAt",
@@ -195,6 +196,10 @@ public class IssueFactRecordRepository {
     if (query.excludeExcluded()) {
       where.append(" and is_excluded = false");
     }
+    if (query.excludeRejectedBugStatus()) {
+      where.append(" and lower(coalesce(bug_status, '')) not like ?");
+      args.add("%已拒绝%");
+    }
     return new QueryParts(where.toString(), args);
   }
 
@@ -211,10 +216,6 @@ public class IssueFactRecordRepository {
     args.add(LEGACY_CC_PRODUCT_PROJECT_ID);
     for (String token : CUSTOMER_SCOPE_TOKENS) {
       where.append(" or lower(coalesce(project_name, '')) like ?");
-      args.add("%" + token + "%");
-      where.append(" or lower(coalesce(milestone_title, '')) like ?");
-      args.add("%" + token + "%");
-      where.append(" or lower(coalesce(label_names, '')) like ?");
       args.add("%" + token + "%");
     }
     where.append(")");

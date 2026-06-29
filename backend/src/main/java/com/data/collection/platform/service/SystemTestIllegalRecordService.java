@@ -84,6 +84,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
                   false,
                   true,
                   true,
+                  false,
                   true,
                   false,
                   true,
