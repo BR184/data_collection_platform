@@ -22,6 +22,7 @@ export function useDataScope(options: UseDataScopeOptions) {
   const route = useRoute();
   const router = useRouter();
   const syncing = ref(false);
+  let currentPatchPromise: Promise<void> | null = null;
   const shellToken = `scope-${Math.random().toString(36).slice(2, 10)}`;
   const scopeOptions = computed(() => toValue(options.options));
   const flatOptions = computed(() => flattenOptions(scopeOptions.value));
@@ -74,12 +75,14 @@ export function useDataScope(options: UseDataScopeOptions) {
     }
     syncing.value = true;
     try {
-      await router.replace({
+      currentPatchPromise = router.replace({
         path: route.path,
         query: nextQuery,
         hash: route.hash,
-      });
+      }).then(() => undefined);
+      await currentPatchPromise;
     } finally {
+      currentPatchPromise = null;
       syncing.value = false;
     }
   }
@@ -95,26 +98,52 @@ export function useDataScope(options: UseDataScopeOptions) {
     return '';
   }
 
+  const defaultReady = computed(() => {
+    const currentProvider = provider.value;
+    if (!currentProvider || currentProvider.defaultStrategy !== 'first-available') {
+      return true;
+    }
+    const currentOptions = flatOptions.value;
+    if (!currentOptions.length) {
+      return true;
+    }
+    const currentValue = value.value;
+    return Boolean(currentValue && currentOptions.some((option) => option.value === currentValue));
+  });
+
+  async function ensureDefaultApplied() {
+    const currentProvider = provider.value;
+    if (!currentProvider) {
+      return false;
+    }
+    if (syncing.value && currentPatchPromise) {
+      await currentPatchPromise;
+      return true;
+    }
+    const currentOptions = flatOptions.value;
+    if (!currentOptions.length) {
+      return false;
+    }
+    const currentValue = value.value;
+    const optionExists = currentValue === '' || currentOptions.some((option) => option.value === currentValue);
+    if (optionExists && (currentValue || currentProvider.defaultStrategy !== 'first-available')) {
+      return false;
+    }
+    const nextValue = resolveFallbackValue();
+    if (nextValue === currentValue) {
+      return false;
+    }
+    await patchQuery(nextValue);
+    return true;
+  }
+
   watch(
     [provider, flatOptions, value],
-    async ([currentProvider, currentOptions, currentValue]) => {
+    async ([currentProvider]) => {
       if (!currentProvider || syncing.value) {
         return;
       }
-      if (!currentOptions.length) {
-        return;
-      }
-      const optionExists = currentValue === '' || currentOptions.some((option) => option.value === currentValue);
-      if (optionExists) {
-        if (currentValue || currentProvider.defaultStrategy !== 'first-available') {
-          return;
-        }
-      }
-      const nextValue = optionExists ? resolveFallbackValue() : resolveFallbackValue();
-      if (nextValue === currentValue) {
-        return;
-      }
-      await patchQuery(nextValue);
+      await ensureDefaultApplied();
     },
     { immediate: true },
   );
@@ -144,6 +173,8 @@ export function useDataScope(options: UseDataScopeOptions) {
     value,
     selectedOption,
     summary,
+    defaultReady,
+    ensureDefaultApplied,
     setValue: patchQuery,
   };
 }

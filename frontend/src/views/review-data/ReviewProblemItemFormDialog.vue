@@ -57,11 +57,22 @@ watch(
   { immediate: true, deep: true },
 );
 
-const reviewerOptions = computed(() =>
-  (props.expertOptionsOverride ?? []).length
-    ? props.expertOptionsOverride!.map((item) => ({ label: item, value: item }))
-    : props.filterOptions.reviewExperts,
-);
+const reviewerOptions = computed(() => {
+  const values = new Map<string, { label: string; value: string }>();
+  for (const item of props.expertOptionsOverride ?? []) {
+    const value = String(item ?? '').trim();
+    if (value) {
+      values.set(value, { label: value, value });
+    }
+  }
+  for (const option of props.filterOptions.reviewExperts) {
+    const value = String(option.value ?? '').trim();
+    if (value && !values.has(value)) {
+      values.set(value, option);
+    }
+  }
+  return [...values.values()];
+});
 const reviewCategoryOptions = computed(() => props.filterOptions.reviewCategories);
 const problemCategoryOptions = computed(() => props.filterOptions.problemCategories);
 const problemStatusOptions = computed(() => props.filterOptions.problemStatuses);

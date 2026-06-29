@@ -54,6 +54,7 @@ const sourceScope = useDataScope({
   mountToShell: true,
   loading,
 });
+const sourceScopeReady = computed(() => sourceScope.defaultReady.value);
 
 const pageReady = computed(() => initialized.value);
 const sourceDescription = computed(() =>
@@ -134,7 +135,10 @@ function sleep(ms: number) {
 async function initializePage() {
   try {
     await loadSourceOptions();
-    await loadOverview();
+    await sourceScope.ensureDefaultApplied();
+    if (sourceScopeReady.value) {
+      await loadOverview();
+    }
     await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '代码走查多元看板加载失败');

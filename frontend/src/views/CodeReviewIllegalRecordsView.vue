@@ -135,6 +135,7 @@ const sourceScope = useDataScope({
   mountToShell: true,
   loading: isTableLoading,
 });
+const sourceScopeReady = computed(() => sourceScope.defaultReady.value);
 
 const tableEmptyDescription = computed(() =>
   '当前筛选条件下没有查询到非法记录。',
@@ -255,6 +256,10 @@ function sourceDisplayLabel(value?: string | null) {
 bindLoader(async () => {
   try {
     await loadSourceOptions();
+    const patchedSource = await sourceScope.ensureDefaultApplied();
+    if (patchedSource || !sourceScopeReady.value) {
+      return;
+    }
     await loadFilterOptions();
     initializeFromQuery(route.query);
     await loadTableData();

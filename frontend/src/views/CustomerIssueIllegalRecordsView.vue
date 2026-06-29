@@ -5,7 +5,6 @@ import IssueIllegalRecordsPage from './issue-illegal-records/IssueIllegalRecords
 import { api } from '../api';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag } from '../utils/issue-severity-display';
-import type { DataScopeOption } from '../types/data-scope';
 import type {
   CustomerIssueIllegalRecordFilterOptionsResponse,
   CustomerIssueIllegalRecordRowResponse,
@@ -102,7 +101,7 @@ function buildConditionFields(options: IssueIllegalRecordFilterOptions): Statist
   return buildCustomerIssueIllegalConditionFields(options as CustomerIssueIllegalRecordFilterOptionsResponse);
 }
 
-function buildPrimaryFilters(): RecordTableFilterField[] {
+function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTableFilterField[] {
   return [
     {
       key: 'milestoneTitle',
@@ -111,7 +110,7 @@ function buildPrimaryFilters(): RecordTableFilterField[] {
       defaultStrategy: 'first-available',
       clearable: false,
       width: 240,
-      options: filterOptions.value.milestoneTitles as DataScopeOption[],
+      options: options.milestoneTitles ?? [],
     },
   ];
 }
