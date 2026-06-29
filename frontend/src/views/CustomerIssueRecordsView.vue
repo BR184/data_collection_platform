@@ -85,7 +85,6 @@ const filterOptions = ref<CustomerIssueRecordFilterOptionsResponse>({
 const topic = computed<CustomerIssueRecordTopic>(() =>
   resolveTopic(),
 );
-const projectId = computed(() => String(route.query.projectId ?? ''));
 const requiresMilestoneDefault = computed(() => isDelayTopic.value);
 const milestoneDefaultReady = computed(() => {
   if (!requiresMilestoneDefault.value) {
@@ -120,7 +119,7 @@ const {
   resetRuleExplanation,
   openRuleExplanation,
 } = useRuleExplanationPanel({
-  load: () => api.getCustomerIssueRecordRuleExplanation(topic.value, projectId.value || undefined),
+  load: () => api.getCustomerIssueRecordRuleExplanation(topic.value),
   fallback: (reason) => createFallbackRuleExplanation(reason),
 });
 
@@ -463,7 +462,7 @@ function createFallbackRuleExplanation(reason: string): StatisticBoardRuleExplan
 }
 
 async function loadFilterOptions() {
-  filterOptions.value = await api.getCustomerIssueRecordFilterOptions(topic.value, route.query.projectId as string | undefined);
+  filterOptions.value = await api.getCustomerIssueRecordFilterOptions(topic.value);
 }
 
 async function loadTableData() {
@@ -475,7 +474,6 @@ async function loadTableData() {
 function buildCurrentQueryParams(includePagination: boolean) {
   return {
     topic: topic.value,
-    projectId: route.query.projectId as string | undefined,
     keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),
@@ -551,7 +549,7 @@ bindLoader(async () => {
 });
 
 watch(
-  [topic, projectId],
+  [topic],
   async () => {
     filterOptionsLoaded.value = false;
     pageInitialized.value = false;

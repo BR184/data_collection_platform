@@ -323,7 +323,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   }
 
   private Long defaultProjectId(Long projectId) {
-    return projectId == null ? LEGACY_CC_PRODUCT_PROJECT_ID : projectId;
+    return LEGACY_CC_PRODUCT_PROJECT_ID;
   }
 
   private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {

@@ -47,7 +47,11 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "missing-review",
               MISSING_REVIEW_LABEL,
-              source -> LEGACY_REVIEW_EXCEPTION_REASONS.contains(source.reviewExceptionReason())),
+              source ->
+                  isLegacyReviewException(source.reviewExceptionReason())
+                      || isLegacyReviewException(source.owner())
+                      || isLegacyReviewException(source.reviewerNames())
+                      || isLegacyReviewException(source.assigneeNames())),
           new CodeReviewIllegalRule(
               "not-scanned",
               NOT_SCANNED_LABEL,
@@ -58,9 +62,7 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "open-scan-issue",
               OPEN_SCAN_ISSUE_LABEL,
-              source ->
-                  OPEN_SCAN_ISSUE_LABEL.equals(source.bugCountResult())
-                      || source.scanBugCount() != null && source.scanBugCount() > 0),
+              source -> OPEN_SCAN_ISSUE_LABEL.equals(source.bugCountResult())),
           new CodeReviewIllegalRule(
               "comment-rate-not-pass",
               COMMENT_RATE_NOT_PASS_LABEL,
@@ -190,5 +192,10 @@ final class CodeReviewIllegalRuleRegistry {
   static boolean isGitlabError(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized != null && GITLAB_ERROR_VALUES.contains(normalized);
+  }
+
+  static boolean isLegacyReviewException(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    return normalized != null && LEGACY_REVIEW_EXCEPTION_REASONS.contains(normalized);
   }
 }

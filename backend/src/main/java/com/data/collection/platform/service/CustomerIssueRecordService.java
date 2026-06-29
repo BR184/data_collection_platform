@@ -24,6 +24,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
   private static final String RULE_VERSION = "customer-issue-records@2026-04-22-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
+  private static final long LEGACY_CC_PRODUCT_PROJECT_ID = CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
   private static final Map<String, String> LABEL_GROUP_FIELD_VALUE_TYPES =
@@ -56,7 +57,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
-    IssueFactRecordListRequest listRequest = request.listRequest();
+    IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
     String safeSortField =
@@ -186,7 +187,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     List<CustomerIssueRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
-      IssueFactRecordListRequest listRequest = request.listRequest();
+      IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
       CustomerIssueRecordQueryRequest pageRequest =
           new CustomerIssueRecordQueryRequest(
               request.topic(),
@@ -236,7 +237,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(
       String topic, Long projectId, String sourceInstance) {
     List<IssueFactRecord> rows =
-        loadTopicScopedViews(CustomerIssueRecordProfile.forTopic(normalizeTopic(topic)), projectId).stream()
+        loadTopicScopedViews(CustomerIssueRecordProfile.forTopic(normalizeTopic(topic)), LEGACY_CC_PRODUCT_PROJECT_ID).stream()
             .filter(view -> matchesSourceInstance(view, sourceInstance))
             .toList();
     return new CustomerIssueRecordFilterOptionsResponse(
@@ -256,7 +257,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(String topic, Long projectId) {
     String safeTopic = normalizeTopic(topic);
-    List<IssueFactRecord> loaded = loadFacts(projectId);
+    List<IssueFactRecord> loaded = loadFacts(LEGACY_CC_PRODUCT_PROJECT_ID);
     CustomerIssueRecordProfile recordProfile = CustomerIssueRecordProfile.forTopic(safeTopic);
     List<IssueFactRecord> scoped = scopeCustomerIssues(loaded, recordProfile);
     List<IssueFactRecord> visible = applyRecordProfile(scoped, recordProfile);
@@ -290,7 +291,34 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   }
 
   private List<IssueFactRecord> loadTopicScopedViews(CustomerIssueRecordProfile profile, Long projectId) {
-    return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(projectId), profile), profile), profile);
+    return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(LEGACY_CC_PRODUCT_PROJECT_ID), profile), profile), profile);
+  }
+
+  private IssueFactRecordListRequest withCustomerProject(IssueFactRecordListRequest request) {
+    return new IssueFactRecordListRequest(
+        LEGACY_CC_PRODUCT_PROJECT_ID,
+        request.keyword(),
+        request.searchType(),
+        request.issueIid(),
+        request.title(),
+        request.projectName(),
+        request.moduleName(),
+        request.functionName(),
+        request.severityLevel(),
+        request.priorityLevel(),
+        request.issueState(),
+        request.bugStatus(),
+        request.category(),
+        request.milestoneTitle(),
+        request.createdAtStart(),
+        request.createdAtEnd(),
+        request.updatedAtStart(),
+        request.updatedAtEnd(),
+        request.sourceInstance(),
+        request.page(),
+        request.size(),
+        request.sortField(),
+        request.sortOrder());
   }
 
   private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, CustomerIssueRecordProfile profile) {
@@ -437,7 +465,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       boolean matches(IssueFactRecord record, CustomerIssueScopeProfile customerIssueScopeProfile) {
         return record != null
             && record.projectId() != null
-            && record.projectId() == CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
+            && record.projectId().longValue() == CustomerIssueScopeProfile.LEGACY_CC_PRODUCT_PROJECT_ID;
       }
     },
     CUSTOMER_OPERATIONS {

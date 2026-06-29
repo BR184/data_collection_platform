@@ -295,7 +295,13 @@ final class CodeReviewIllegalRecordSqlSupport {
       sql.append("'").append(reasons.get(index).replace("'", "''")).append("'");
     }
     sql.append(")");
-    return sql.toString();
+    String values = sql.substring(sql.indexOf("in (") + 3);
+    return String.join(
+        " or ",
+        "review_exception_reason in " + values,
+        "owner_name in " + values,
+        "reviewer_names in " + values,
+        "assignee_names in " + values);
   }
 
   private static String notScannedPredicate() {
@@ -312,7 +318,7 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String openScanIssuePredicate() {
-    return "(bug_count_result = '静态扫描问题未关闭' or (scan_bug_count is not null and scan_bug_count > 0))";
+    return "bug_count_result = '静态扫描问题未关闭'";
   }
 
   private static String commentRateNotPassPredicate() {

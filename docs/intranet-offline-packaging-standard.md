@@ -12,6 +12,8 @@
 - 操作系统：Ubuntu 24.04 amd64。
 - 目标服务器无公网访问能力。
 - 平台和 GitLab 部署在不同服务器。
+- 平台内网访问地址固定为 `http://172.22.10.115:18181`。
+- GitLab Web 地址固定为 `http://172.22.10.233`。
 - 平台自带 PostgreSQL 作为平台库，GitLab PostgreSQL 只作为后续在 UI 中配置的数据源。
 
 ## 发布包类型
@@ -259,8 +261,8 @@ http://localhost:18080/actuator/health
 `.env.example` 和 `.env` 必须包含：
 
 ```text
-PLATFORM_PUBLIC_BASE_URL=http://REPLACE_WITH_PLATFORM_SERVER_IP:18181
-GITLAB_WEB_BASE_URL=http://REPLACE_WITH_GITLAB_SERVER_IP
+PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:18181
+GITLAB_WEB_BASE_URL=http://172.22.10.233
 
 POSTGRES_USER=qaflex
 POSTGRES_PASSWORD=qaflex
@@ -279,7 +281,7 @@ PLATFORM_APPROVAL_USERNAME=approval
 PLATFORM_APPROVAL_PASSWORD=approval123
 ```
 
-真实部署前必须修改 `PLATFORM_PUBLIC_BASE_URL`；`GITLAB_WEB_BASE_URL` 只用于平台展示链接和默认提示，不等同于 GitLab 数据库连接。
+`PLATFORM_PUBLIC_BASE_URL` 和 `GITLAB_WEB_BASE_URL` 是当前内网环境固定值，打包生成的 `.env` 和 `.env.example` 必须直接写入上述地址。`GITLAB_WEB_BASE_URL` 只用于平台展示链接和默认提示，不等同于 GitLab 数据库连接；GitLab PostgreSQL 连接仍必须在平台 UI 的数据源配置中维护。
 
 ## 目标机部署步骤
 

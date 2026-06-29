@@ -67,7 +67,7 @@ function mapRow(row: CustomerIssueIllegalRecordRowResponse): Record<string, unkn
 
 function loadRecords(params: IssueIllegalRecordQueryParams) {
   return api.getCustomerIssueIllegalRecords({
-    projectId: params.projectId,
+    projectId: LEGACY_CC_PRODUCT_PROJECT_ID,
     keyword: params.keyword,
     issueIid: params.issueIid,
     title: params.title,
@@ -93,8 +93,8 @@ function loadRecords(params: IssueIllegalRecordQueryParams) {
   });
 }
 
-async function loadFilterOptions(projectId?: string | number | null) {
-  return api.getCustomerIssueIllegalRecordFilterOptions(projectId || LEGACY_CC_PRODUCT_PROJECT_ID);
+async function loadFilterOptions() {
+  return api.getCustomerIssueIllegalRecordFilterOptions(LEGACY_CC_PRODUCT_PROJECT_ID);
 }
 
 function buildConditionFields(options: IssueIllegalRecordFilterOptions): StatisticFilterField[] {
@@ -186,6 +186,5 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     ]"
     default-sort-by="updatedAt"
     default-sort-order="desc"
-    :default-project-id="LEGACY_CC_PRODUCT_PROJECT_ID"
   />
 </template>

@@ -635,9 +635,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private long effectiveProjectId(Map<String, String> filters) {
-    Long projectId =
-        filters == null ? null : StatisticSourceValueSupport.parseLong(filters.get("projectId"));
-    return projectId == null ? LEGACY_CC_PRODUCT_PROJECT_ID : projectId;
+    return LEGACY_CC_PRODUCT_PROJECT_ID;
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {

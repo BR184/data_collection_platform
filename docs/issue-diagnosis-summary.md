@@ -9,6 +9,13 @@
 
 > 复测反馈说明，上一轮文档里多处“已对齐默认范围/字段映射”的判断还停留在局部代码路径，未覆盖真实页面入口、默认筛选和 SQL 快路径。当前优先级最高的是空表、15 秒超时和慢加载。
 
+### 2026-06-29 内网再次确认后的根因修正
+
+1. 客户问题模块空表的直接根因已确认不是 CC_Product 镜像库缺数据，也不是里程碑缺失。内网确认 `projectId=325`/CC_Product 有数据、里程碑有值，但页面 URL / link 中仍残留 `project_id=9`。新平台此前允许客户问题页面携带并持久化 `projectId`，后端客户问题统计和记录服务又只在 `projectId` 为空时默认 325，导致传入 9 时与客户问题固定项目 325 的 scope 形成矛盾条件，最终表现为空表、无模块行或统计全为 0。
+2. 本轮修复后的客户问题范围原则：客户问题模块的页面入口、路由查询、接口请求和后端查询都固定使用 CC_Product 项目 `325`。客户问题页面不再允许或持久化 `projectId`；旧链接、旧 sessionStorage 或手工 URL 中残留的 `projectId=9` 也会被后端强制规整为 `325`，不能再改变客户问题数据域。
+3. 代码走查非法数据差 6000 条且集合不一致，不能再只按数量问题处理，也不能归因于 MR 29874 缺模块。MR 29874 已确认在镜像库 `merge_request` 和 `merge_request_fact` 中存在且模块为“平台”。当前根因方向是老平台非法判断基于 `spider_crowncad_data` 的字段等值：`assignee`、`sonar_qube_result`、`annotation_rate_result`、`bug_count_result`、`project_name`、`module_name`、`target_branch`；新平台必须把这些字段语义完整转译到 `merge_request_fact`，否则即使总数接近，筛出来的数据集合也会不同。
+4. 本轮已修正一处代码走查非法判定偏差：老平台“无代码走查”实际检查 `assignee in (没有合法评论, 代码走查时间或缺陷数异常, 代码走查标题异常, 代码走查记录行数异常)`，新平台现在同时兼容这些值出现在 `review_exception_reason`、`owner_name`、`reviewer_names`、`assignee_names`；老平台“静态扫描问题未关闭”按 `bug_count_result = 静态扫描问题未关闭` 判断，新平台不再仅因 `scan_bug_count > 0` 扩大命中集合。
+
 ### P0：客户问题模块空表和慢加载
 
 1. 客户问题页面必须以 `CC_PRODUCT` / `CC_Product` 项目 `325` 为范围，顶部切换语义应优先对齐老平台的 `mileStone/milestone`。老平台 `IllegalIssueSearchCCProduct.vue` 会调用 `getAllMileStoneName({ projectId: 325 })`，默认取 `mileStoneList[0]`，查询时提交 `projectId=325` 和 `milestone=this.mileStone`。

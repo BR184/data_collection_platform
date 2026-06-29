@@ -24,12 +24,13 @@ const statisticBoardQueryKeys = [
   'testingPhase',
 ];
 
+const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys.filter((key) => key !== 'projectId');
+
 const customerIssueRecordQueryKeys = [
   'page',
   'pageSize',
   'sortBy',
   'sortOrder',
-  'projectId',
   'keyword',
   'issueIid',
   'title',
@@ -196,9 +197,9 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     persistedQueryKeys: ['projectId'],
   },
   'customer-issues-home': {
-    allowedQueryKeys: statisticBoardQueryKeys,
+    allowedQueryKeys: customerIssueStatisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'customer-issue-defect-summary',
   },
   'customer-issues-illegal-records': {
@@ -207,7 +208,6 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'pageSize',
       'sortBy',
       'sortOrder',
-      'projectId',
       'keyword',
       'issueIid',
       'title',
@@ -229,35 +229,35 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'filterLogic',
     ],
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
   },
   'customer-issues-defect-cause': {
-    allowedQueryKeys: statisticBoardQueryKeys,
+    allowedQueryKeys: customerIssueStatisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'customer-issue-defect-cause',
   },
   'customer-issues-cc-product-issues': {
     allowedQueryKeys: customerIssueRecordQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
   },
   'customer-issues-delay-issues': {
-    allowedQueryKeys: statisticBoardQueryKeys,
+    allowedQueryKeys: customerIssueStatisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'customer-issue-delay-issues',
   },
   'customer-issues-response-efficiency': {
-    allowedQueryKeys: statisticBoardQueryKeys,
+    allowedQueryKeys: customerIssueStatisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'customer-issue-response-efficiency',
   },
   'customer-issues-issue-by-function': {
-    allowedQueryKeys: statisticBoardQueryKeys,
+    allowedQueryKeys: customerIssueStatisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'customer-issue-by-function',
   },
   'mirror-settings': {

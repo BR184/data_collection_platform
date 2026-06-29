@@ -544,7 +544,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
     Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    queryFilters.putIfAbsent("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+    queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
     try {
       return runtimeSupport
           .loadFacts(
