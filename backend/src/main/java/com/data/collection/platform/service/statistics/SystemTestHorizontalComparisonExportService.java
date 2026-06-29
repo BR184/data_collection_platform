@@ -19,10 +19,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -31,94 +33,11 @@ import org.springframework.util.StringUtils;
 @Service
 public class SystemTestHorizontalComparisonExportService {
   private static final String FILTER_GROUP_PARAM = "filterGroup";
-  private static final List<String> HEADERS =
-      List.of(
-          "模块名称",
-          "需求评审数据-需求评审缺陷密度(个/页)",
-          "需求评审数据-需求文档页数",
-          "需求评审数据-需求评审缺陷数",
-          "需求评审数据-文档规范",
-          "需求评审数据-完整性",
-          "需求评审数据-功能性",
-          "需求评审数据-可行性",
-          "设计评审数据-设计评审缺陷密度(个/页)",
-          "设计评审数据-设计文档页数",
-          "设计评审数据-设计评审缺陷数",
-          "设计评审数据-文档规范",
-          "设计评审数据-完整性",
-          "设计评审数据-功能性",
-          "设计评审数据-可行性",
-          "代码走查-代码走查数据(CrownCAD)-代码走查缺陷密度(个/KLOC)",
-          "代码走查-代码走查数据(CrownCAD)-代码走查行数",
-          "代码走查-代码走查数据(CrownCAD)-代码走查缺陷合计(个)",
-          "代码走查-代码走查数据(CrownCAD)-规范类缺陷数(个)",
-          "代码走查-代码走查数据(CrownCAD)-逻辑类缺陷数(个)",
-          "代码走查-代码走查数据(CrownCAD)-设计类缺陷数(个)",
-          "代码走查-代码走查数据(CrownCAD)-性能类缺陷数(个)",
-          "代码走查-代码走查数据(CrownCAD)-其他类缺陷数(个)",
-          "代码走查-代码走查数据(DGM)-代码走查缺陷密度(个/KLOC)",
-          "代码走查-代码走查数据(DGM)-代码走查行数",
-          "代码走查-代码走查数据(DGM)-代码走查缺陷合计(个)",
-          "代码走查-代码走查数据(DGM)-规范类缺陷数(个)",
-          "代码走查-代码走查数据(DGM)-逻辑类缺陷数(个)",
-          "代码走查-代码走查数据(DGM)-设计类缺陷数(个)",
-          "代码走查-代码走查数据(DGM)-性能类缺陷数(个)",
-          "代码走查-代码走查数据(DGM)-其他类缺陷数(个)",
-          "缺陷原因-需求理解偏差-个数(个)",
-          "缺陷原因-需求理解偏差-占比(%)",
-          "缺陷原因-新增需求-个数(个)",
-          "缺陷原因-新增需求-占比(%)",
-          "缺陷原因-编码逻辑错误-个数(个)",
-          "缺陷原因-编码逻辑错误-占比(%)",
-          "缺陷原因-环境部署问题-个数(个)",
-          "缺陷原因-环境部署问题-占比(%)",
-          "缺陷原因-算法机制不支持-个数(个)",
-          "缺陷原因-算法机制不支持-占比(%)",
-          "缺陷原因-其他原因-个数(个)",
-          "缺陷原因-其他原因-占比(%)",
-          "一级缺陷-分类-回退",
-          "一级缺陷-分类-挂机",
-          "一级缺陷-分类-其他",
-          "一级缺陷-一级缺陷已修复数量",
-          "一级缺陷-一级缺陷数量(个)",
-          "一级缺陷-一级缺陷修复率(%)",
-          "二级缺陷-二级缺陷已修复数量",
-          "二级缺陷-二级缺陷(个)",
-          "二级缺陷-二级缺陷修复率(%)",
-          "三级缺陷-三级缺陷修复数量",
-          "三级缺陷-三级缺陷(个)",
-          "三级缺陷-三级缺陷修复率(%)",
-          "建议类缺陷(个)",
-          "P1-P1级别缺陷",
-          "P1-P1缺陷修复率(%)",
-          "P1-P1缺陷关闭率(%)",
-          "P2-P2级别缺陷",
-          "P2-P2缺陷修复率(%)",
-          "P2-P2缺陷关闭率(%)",
-          "P3-P3级别缺陷",
-          "P3-P3缺陷修复率(%)",
-          "模块总缺陷数(个)",
-          "缺陷占比(%)",
-          "延期缺陷占比(%)",
-          "已修复/未更新",
-          "修复率(%)",
-          "关闭率(%)",
-          "未关闭缺陷数(个)",
-          "申请延期(个)",
-          "复测未通过缺陷数(个)",
-          "新发议题-新发议题修复数量",
-          "新发议题-新发议题数量",
-          "新发议题-新发缺陷修复率(%)",
-          "新发议题-新发缺陷关闭率(%)",
-          "遗留率-一级缺陷遗留率(%)",
-          "遗留率-二级缺陷遗留数量",
-          "遗留率-三级缺陷遗留数量",
-          "遗留率-二三级缺陷遗留率(%)");
+  private static final String EXPORT_SHEET_NAME = "系统测试数据分析";
+  private static final int HEADER_DEPTH = 3;
+  private static final List<ExportColumn> EXPORT_COLUMNS = buildExportColumns();
   private static final List<String> LEGACY_FIXED_STATUS_TOKENS = List.of("已修复", "待合并", "未更新");
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
-  private static final Set<String> STANDARD_REASON_CATEGORIES =
-      Set.of("需求理解偏差", "新增需求", "编码逻辑错误", "环境部署问题", "算法机制不支持");
-
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
@@ -140,11 +59,11 @@ public class SystemTestHorizontalComparisonExportService {
     List<HorizontalRow> rows = loadRows(filters);
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-      Sheet sheet = workbook.createSheet("系统测试横向对比");
+      Sheet sheet = workbook.createSheet(EXPORT_SHEET_NAME);
       writeWorkbookRows(sheet, rows);
-      sheet.createFreezePane(1, 1);
+      sheet.createFreezePane(1, HEADER_DEPTH);
       sheet.setColumnWidth(0, 24 * 256);
-      for (int columnIndex = 1; columnIndex < HEADERS.size(); columnIndex++) {
+      for (int columnIndex = 1; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
         sheet.setColumnWidth(columnIndex, 18 * 256);
       }
       workbook.write(outputStream);
@@ -156,6 +75,9 @@ public class SystemTestHorizontalComparisonExportService {
 
   public String exportFilename(Map<String, String> filters) {
     ExportScope scope = ExportScope.from(filters, parseFilterGroup(filters));
+    if (StringUtils.hasText(scope.testingPhase())) {
+      return scope.testingPhase() + "-系统测试数据横向对比数据.xlsx";
+    }
     if (StringUtils.hasText(scope.projectName())) {
       return scope.projectName() + "-系统测试数据横向对比数据.xlsx";
     }
@@ -184,18 +106,76 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   private void writeWorkbookRows(Sheet sheet, List<HorizontalRow> rows) {
-    Row headerRow = sheet.createRow(0);
-    for (int columnIndex = 0; columnIndex < HEADERS.size(); columnIndex++) {
-      createCell(headerRow, columnIndex, HEADERS.get(columnIndex));
-    }
-    int rowIndex = 1;
+    writeHeaderRows(sheet);
+    int rowIndex = HEADER_DEPTH;
     for (HorizontalRow sourceRow : rows) {
       Row row = sheet.createRow(rowIndex++);
-      List<String> values = sourceRow.values();
-      for (int columnIndex = 0; columnIndex < values.size(); columnIndex++) {
-        createCell(row, columnIndex, values.get(columnIndex));
+      for (int columnIndex = 0; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
+        createCell(row, columnIndex, EXPORT_COLUMNS.get(columnIndex).value(sourceRow));
       }
     }
+  }
+
+  private void writeHeaderRows(Sheet sheet) {
+    for (int headerRowIndex = 0; headerRowIndex < HEADER_DEPTH; headerRowIndex++) {
+      sheet.createRow(headerRowIndex);
+    }
+    for (int columnIndex = 0; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
+      ExportColumn column = EXPORT_COLUMNS.get(columnIndex);
+      List<String> labels = column.normalizedHeader();
+      for (int headerRowIndex = 0; headerRowIndex < HEADER_DEPTH; headerRowIndex++) {
+        createCell(sheet.getRow(headerRowIndex), columnIndex, labels.get(headerRowIndex));
+      }
+    }
+    mergeHeaderCells(sheet);
+  }
+
+  private void mergeHeaderCells(Sheet sheet) {
+    for (int columnIndex = 0; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
+      int rowIndex = 0;
+      while (rowIndex < HEADER_DEPTH - 1) {
+        String value = cellValue(sheet, rowIndex, columnIndex);
+        int endRow = rowIndex;
+        while (endRow + 1 < HEADER_DEPTH && value.equals(cellValue(sheet, endRow + 1, columnIndex))) {
+          endRow++;
+        }
+        if (endRow > rowIndex) {
+          sheet.addMergedRegion(new CellRangeAddress(rowIndex, endRow, columnIndex, columnIndex));
+        }
+        rowIndex = endRow + 1;
+      }
+    }
+    for (int rowIndex = 0; rowIndex < HEADER_DEPTH; rowIndex++) {
+      int columnIndex = 0;
+      while (columnIndex < EXPORT_COLUMNS.size() - 1) {
+        String value = cellValue(sheet, rowIndex, columnIndex);
+        int endColumn = columnIndex;
+        while (endColumn + 1 < EXPORT_COLUMNS.size() && value.equals(cellValue(sheet, rowIndex, endColumn + 1))) {
+          endColumn++;
+        }
+        if (endColumn > columnIndex && shouldMergeHorizontally(sheet, rowIndex, columnIndex, endColumn)) {
+          sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, columnIndex, endColumn));
+        }
+        columnIndex = endColumn + 1;
+      }
+    }
+  }
+
+  private boolean shouldMergeHorizontally(Sheet sheet, int rowIndex, int startColumn, int endColumn) {
+    if (!StringUtils.hasText(cellValue(sheet, rowIndex, startColumn))) {
+      return false;
+    }
+    for (int columnIndex = startColumn; columnIndex <= endColumn; columnIndex++) {
+      if (rowIndex + 1 < HEADER_DEPTH && !StringUtils.hasText(cellValue(sheet, rowIndex + 1, columnIndex))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private String cellValue(Sheet sheet, int rowIndex, int columnIndex) {
+    Cell cell = sheet.getRow(rowIndex).getCell(columnIndex);
+    return cell == null ? "" : cell.getStringCellValue();
   }
 
   private void createCell(Row row, int columnIndex, String value) {
@@ -286,10 +266,12 @@ public class SystemTestHorizontalComparisonExportService {
               coalesce(sum(problem.doc_specification_count), 0)::integer as doc_specification_count,
               coalesce(sum(problem.integrity_count), 0)::integer as integrity_count,
               coalesce(sum(problem.functionality_count), 0)::integer as functionality_count,
-              coalesce(sum(problem.feasibility_count), 0)::integer as feasibility_count
+              coalesce(sum(problem.feasibility_count), 0)::integer as feasibility_count,
+              coalesce(sum(problem.total_workload_hours), 0)::numeric as workload_hours
             from review_records r
             left join lateral (
               select
+                coalesce(sum(workload_hours), 0) as total_workload_hours,
                 count(*) filter (
                   where problem_status not in ('已拒绝', '未评审', '无问题')
                     and problem_category <> '无问题'
@@ -331,15 +313,16 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getInt("doc_specification_count"),
                 rs.getInt("integrity_count"),
                 rs.getInt("functionality_count"),
-                rs.getInt("feasibility_count")),
+                rs.getInt("feasibility_count"),
+                rs.getBigDecimal("workload_hours") == null ? 0D : rs.getBigDecimal("workload_hours").doubleValue()),
         args.toArray());
   }
 
   private List<CodeReviewMetric> loadCodeReviewMetrics(String projectName, boolean crownCad) {
-    String sourcePredicate =
-        crownCad
-            ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
-            : "lower(coalesce(source_instance, '')) = 'dgm'";
+      String sourcePredicate =
+          crownCad
+              ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
+              : "lower(coalesce(source_instance, '')) = 'dgm'";
     List<Object> args = new ArrayList<>();
     StringBuilder sql =
         new StringBuilder(
@@ -351,7 +334,10 @@ public class SystemTestHorizontalComparisonExportService {
               coalesce(sum(code_logic_specification_count), 0)::integer as code_logic_specification_count,
               coalesce(sum(design_specification_count), 0)::integer as design_specification_count,
               coalesce(sum(performance_specification_count), 0)::integer as performance_specification_count,
-              coalesce(sum(other_specification_count), 0)::integer as other_specification_count
+              coalesce(sum(other_specification_count), 0)::integer as other_specification_count,
+              coalesce(sum(review_duration_minutes), 0)::integer as review_duration_minutes,
+              coalesce(avg(review_efficiency_per_hour), 0)::numeric as review_efficiency_per_hour,
+              coalesce(avg(review_speed_loc_per_hour), 0)::numeric as review_speed_loc_per_hour
             from merge_request_fact
             where deleted = false
               and %s
@@ -374,7 +360,14 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getInt("code_logic_specification_count"),
                 rs.getInt("design_specification_count"),
                 rs.getInt("performance_specification_count"),
-                rs.getInt("other_specification_count")),
+                rs.getInt("other_specification_count"),
+                rs.getInt("review_duration_minutes"),
+                rs.getBigDecimal("review_efficiency_per_hour") == null
+                    ? 0D
+                    : rs.getBigDecimal("review_efficiency_per_hour").doubleValue(),
+                rs.getBigDecimal("review_speed_loc_per_hour") == null
+                    ? 0D
+                    : rs.getBigDecimal("review_speed_loc_per_hour").doubleValue()),
         args.toArray());
   }
 
@@ -409,6 +402,7 @@ public class SystemTestHorizontalComparisonExportService {
           bug_status,
           category,
           reason_category,
+          raw_payload,
           delay_issue,
           is_regression,
           is_crash,
@@ -441,10 +435,6 @@ public class SystemTestHorizontalComparisonExportService {
       String normalized = phase.toLowerCase(Locale.ROOT);
       parts.add("lower(coalesce(testing_phase, '')) = ?");
       args.add(normalized);
-      parts.add("lower(coalesce(system_test_label, '')) = ?");
-      args.add(normalized);
-      parts.add("lower(coalesce(label_names, '')) like ?");
-      args.add("%" + normalized + "%");
     }
     return "(" + String.join(" or ", parts) + ")";
   }
@@ -461,6 +451,7 @@ public class SystemTestHorizontalComparisonExportService {
         text(rs.getString("bug_status")),
         text(rs.getString("category")),
         text(rs.getString("reason_category")),
+        text(rs.getString("raw_payload")),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_regression"),
         rs.getBoolean("is_crash"),
@@ -500,7 +491,6 @@ public class SystemTestHorizontalComparisonExportService {
   private void mergeIssues(
       Map<String, HorizontalRow> rows, List<IssueExportSource> issues, ExportScope scope) {
     long overall = issues.size();
-    long causeTotal = issues.stream().filter(issue -> StringUtils.hasText(issue.reasonCategory())).count();
     for (IssueExportSource issue : issues) {
       for (String moduleName : issue.moduleNames()) {
         if (StringUtils.hasText(scope.moduleName()) && !moduleName.equalsIgnoreCase(scope.moduleName())) {
@@ -509,6 +499,10 @@ public class SystemTestHorizontalComparisonExportService {
         rows.computeIfAbsent(moduleName, HorizontalRow::new).issues.add(issue);
       }
     }
+    long causeTotal =
+        rows.values().stream()
+            .mapToLong(row -> DefectCauseMetricCatalog.METRICS.stream().mapToLong(row::reasonCount).sum())
+            .sum();
     for (HorizontalRow row : rows.values()) {
       row.issueOverallCount = overall;
       row.issueCauseTotal = causeTotal;
@@ -518,11 +512,11 @@ public class SystemTestHorizontalComparisonExportService {
   private String toCsv(List<HorizontalRow> rows) {
     StringBuilder builder = new StringBuilder();
     StringJoiner header = new StringJoiner(",");
-    HEADERS.forEach(value -> header.add(csv(value)));
+    EXPORT_COLUMNS.forEach(column -> header.add(csv(column.flatHeader())));
     builder.append(header).append('\n');
     for (HorizontalRow row : rows) {
       StringJoiner values = new StringJoiner(",");
-      row.values().forEach(value -> values.add(csv(value)));
+      EXPORT_COLUMNS.forEach(column -> values.add(csv(column.value(row))));
       builder.append(values).append('\n');
     }
     return builder.toString();
@@ -564,16 +558,16 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   private static String decimal(double value) {
-    return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+    return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).toPlainString();
   }
 
   private static String floorDecimal(double value) {
-    return BigDecimal.valueOf(value).setScale(2, RoundingMode.DOWN).stripTrailingZeros().toPlainString();
+    return BigDecimal.valueOf(value).setScale(2, RoundingMode.DOWN).toPlainString();
   }
 
   private static String codeReviewDensity(long defectCount, long lineCount) {
     if (lineCount <= 0) {
-      return "0";
+      return "0.00";
     }
     return decimal(defectCount * 1000D / lineCount);
   }
@@ -585,16 +579,171 @@ public class SystemTestHorizontalComparisonExportService {
     return decimal(numerator * 100D / denominator);
   }
 
+  private static String ratio(long numerator, long denominator) {
+    if (denominator <= 0) {
+      return "0.00";
+    }
+    return decimal(numerator * 100D / denominator);
+  }
+
   private static boolean containsAny(String value, List<String> tokens) {
     return tokens.stream().anyMatch(token -> StringUtils.hasText(value) && value.contains(token));
   }
 
   private static ReviewMetric emptyReview() {
-    return new ReviewMetric("", 0, 0, 0, 0, 0, 0);
+    return new ReviewMetric("", 0, 0, 0, 0, 0, 0, 0D);
   }
 
   private static CodeReviewMetric emptyCodeReview() {
-    return new CodeReviewMetric("", 0, 0, 0, 0, 0, 0);
+    return new CodeReviewMetric("", 0, 0, 0, 0, 0, 0, 0, 0D, 0D);
+  }
+
+  private static List<ExportColumn> buildExportColumns() {
+    List<ExportColumn> columns = new ArrayList<>();
+    columns.add(column("模块名称", HorizontalRow::moduleName));
+    addReviewColumns(columns, "需求评审数据", "需求评审", "需求文档页数", HorizontalRow::demandReview);
+    addReviewColumns(columns, "设计评审数据", "设计评审", "设计文档页数", HorizontalRow::designReview);
+    addCodeReviewColumns(columns, "代码走查数据(CrownCAD)", HorizontalRow::crownCadCodeReview);
+    addCodeReviewColumns(columns, "代码走查数据(dgm)", HorizontalRow::dgmCodeReview);
+    addCauseGroupColumns(columns, "需求问题");
+    addCauseGroupColumns(columns, "设计问题");
+    addCauseGroupColumns(columns, "编码规范");
+    addCauseGroupColumns(columns, "打包问题");
+    addCauseGroupColumns(columns, "依赖问题");
+    addCauseGroupColumns(columns, "精度问题");
+    columns.add(column("一级缺陷", "分类", "回退", row -> count(row.level1Regression())));
+    columns.add(column("一级缺陷", "分类", "挂机", row -> count(row.level1Crash())));
+    columns.add(column("一级缺陷", "分类", "其他", row -> count(row.level1Other())));
+    columns.add(column("一级缺陷", "一级缺陷已修复数量", row -> count(row.level1Fixed())));
+    columns.add(column("一级缺陷", "一级缺陷数量(个)", row -> count(row.level1())));
+    columns.add(column("一级缺陷", "一级缺陷修复率（%）", row -> rate(row.level1Fixed(), row.level1())));
+    columns.add(column("二级缺陷", "二级缺陷已修复数量", row -> count(row.level2Fixed())));
+    columns.add(column("二级缺陷", "二级缺陷（个）", row -> count(row.level2())));
+    columns.add(column("二级缺陷", "二级缺陷修复率(%)", row -> rate(row.level2Fixed(), row.level2())));
+    columns.add(column("三级缺陷", "三级缺陷修复数量", row -> count(row.level3Fixed())));
+    columns.add(column("三级缺陷", "三级缺陷(个)", row -> count(row.level3())));
+    columns.add(column("三级缺陷", "三级缺陷修复率(%)", row -> rate(row.level3Fixed(), row.level3())));
+    columns.add(column("建议类缺陷(个)", row -> count(row.suggestion())));
+    columns.add(column("P1", "P1级别缺陷", row -> count(row.priorityCount("P1"))));
+    columns.add(column("P1", "P1缺陷修复率(%)", row -> rate(row.priorityFixed("P1"), row.priorityCount("P1"))));
+    columns.add(column("P1", "P1缺陷关闭率(%)", row -> rate(row.priorityClosed("P1"), row.priorityCount("P1"))));
+    columns.add(column("P2", "P2级别缺陷", row -> count(row.priorityCount("P2"))));
+    columns.add(column("P2", "P2缺陷修复率(%)", row -> rate(row.priorityFixed("P2"), row.priorityCount("P2"))));
+    columns.add(column("P3", "P3级别缺陷", row -> count(row.priorityCount("P3"))));
+    columns.add(column("P3", "P3缺陷修复率(%)", row -> rate(row.priorityFixed("P3"), row.priorityCount("P3"))));
+    columns.add(column("模块总缺陷数(个)", row -> count(row.total())));
+    columns.add(column("系统测试缺陷密度\n（个/千行）", HorizontalRow::systemTestDefectDensity));
+    columns.add(column("缺陷占比(%)", row -> rate(row.total(), row.issueOverallCount())));
+    columns.add(column("延期缺陷占比(%)", row -> rate(row.delayIssueCount(), row.total())));
+    columns.add(column("已修复/未更新", row -> count(row.fixed())));
+    columns.add(column("修复率(%)", row -> rate(row.fixed(), row.total())));
+    columns.add(column("关闭率(%)", row -> rate(row.closed(), row.total())));
+    columns.add(column("未关闭缺陷数(个)", row -> count(row.open())));
+    columns.add(column("申请延期(个)", row -> count(row.extension())));
+    columns.add(column("复测未通过缺陷数(个)", row -> count(row.retestFailed())));
+    columns.add(column("新发议题", "新发议题修复数量", row -> count(row.newFixed())));
+    columns.add(column("新发议题", "新发议题数量", row -> count(row.newIssues())));
+    columns.add(column("新发议题", "新发缺陷修复率(%)", row -> rate(row.newFixed(), row.newIssues())));
+    columns.add(column("新发议题", "新发缺陷关闭率(%)", row -> rate(row.newClosed(), row.newIssues())));
+    columns.add(column("遗留率", "一级缺陷遗留率(%)", row -> rate(row.level1() - row.level1Fixed(), row.level1())));
+    columns.add(column("遗留率", "二级缺陷遗留数量", row -> count(row.level2Open())));
+    columns.add(column("遗留率", "三级缺陷遗留数量", row -> count(row.level3Open())));
+    columns.add(column("遗留率", "二三级缺陷遗留率(%)", row -> rate(row.level23Fixed(), row.total())));
+    return List.copyOf(columns);
+  }
+
+  private static void addReviewColumns(
+      List<ExportColumn> columns,
+      String group,
+      String labelPrefix,
+      String pagesLabel,
+      Function<HorizontalRow, ReviewMetric> metricGetter) {
+    columns.add(column(group, labelPrefix + "缺陷密度(个/页)", row -> metricGetter.apply(row).density()));
+    columns.add(column(group, pagesLabel, row -> count(metricGetter.apply(row).reviewPages())));
+    columns.add(column(group, labelPrefix + "缺陷数", row -> count(metricGetter.apply(row).defectCount())));
+    columns.add(column(group, "文档规范", row -> count(metricGetter.apply(row).docSpecification())));
+    columns.add(column(group, "完整性", row -> count(metricGetter.apply(row).integrity())));
+    columns.add(column(group, "功能性", row -> count(metricGetter.apply(row).functionality())));
+    columns.add(column(group, "可行性", row -> count(metricGetter.apply(row).feasibility())));
+    columns.add(column(group, "规范类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).docSpecification())));
+    columns.add(column(group, "完整性占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).integrity())));
+    columns.add(column(group, "功能性占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).functionality())));
+    columns.add(column(group, "可行性占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).feasibility())));
+    columns.add(column(group, "评审工作量", row -> decimal(metricGetter.apply(row).workloadHours())));
+    columns.add(column(group, "评审效率\n（个/小时）", row -> metricGetter.apply(row).efficiency()));
+    columns.add(column(group, "评审速率\n（页/小时）", row -> metricGetter.apply(row).speed()));
+  }
+
+  private static void addCodeReviewColumns(
+      List<ExportColumn> columns,
+      String sourceGroup,
+      Function<HorizontalRow, CodeReviewMetric> metricGetter) {
+    columns.add(column("代码走查", sourceGroup, "代码走查缺陷密度(个/KLOC)", row -> metricGetter.apply(row).density()));
+    columns.add(column("代码走查", sourceGroup, "代码走查行数", row -> count(metricGetter.apply(row).addedLines())));
+    columns.add(column("代码走查", sourceGroup, "代码走查缺陷合计(个)", row -> count(metricGetter.apply(row).defectSum())));
+    columns.add(column("代码走查", sourceGroup, "规范类缺陷数(个)", row -> count(metricGetter.apply(row).codeSpecification())));
+    columns.add(column("代码走查", sourceGroup, "逻辑类缺陷数(个)", row -> count(metricGetter.apply(row).codeLogicSpecification())));
+    columns.add(column("代码走查", sourceGroup, "设计类缺陷数(个)", row -> count(metricGetter.apply(row).designSpecification())));
+    columns.add(column("代码走查", sourceGroup, "性能类缺陷数(个)", row -> count(metricGetter.apply(row).performanceSpecification())));
+    columns.add(column("代码走查", sourceGroup, "其他类缺陷数(个)", row -> count(metricGetter.apply(row).otherSpecification())));
+    columns.add(column("代码走查", sourceGroup, "规范类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).codeSpecification())));
+    columns.add(column("代码走查", sourceGroup, "逻辑类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).codeLogicSpecification())));
+    columns.add(column("代码走查", sourceGroup, "设计类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).designSpecification())));
+    columns.add(column("代码走查", sourceGroup, "性能类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).performanceSpecification())));
+    columns.add(column("代码走查", sourceGroup, "其他占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).otherSpecification())));
+    columns.add(column("代码走查", sourceGroup, "代码走查工作量", row -> metricGetter.apply(row).workloadHours()));
+    columns.add(column("代码走查", sourceGroup, "代码走查效率（个/小时）", row -> metricGetter.apply(row).efficiency()));
+    columns.add(column("代码走查", sourceGroup, "代码走查速率\n（行/小时）", row -> metricGetter.apply(row).speed()));
+  }
+
+  private static void addCauseGroupColumns(List<ExportColumn> columns, String groupLabel) {
+    String exportGroupLabel = "编码规范".equals(groupLabel) ? "编码问题" : groupLabel;
+    DefectCauseMetricCatalog.METRICS.stream()
+        .filter(metric -> groupLabel.equals(metric.groupLabel()))
+        .forEach(metric -> {
+          columns.add(column(exportGroupLabel, metric.label(), "个数", row -> count(row.reasonCount(metric))));
+          columns.add(column(exportGroupLabel, metric.label(), "占比(%)", row -> rate(row.reasonCount(metric), row.issueCauseTotal())));
+        });
+    columns.add(column(exportGroupLabel, "合计", row -> count(row.reasonGroupTotal(groupLabel))));
+    columns.add(column(exportGroupLabel, "占比(%)", row -> rate(row.reasonGroupTotal(groupLabel), row.issueCauseTotal())));
+  }
+
+  private static ExportColumn column(String header, Function<HorizontalRow, String> valueGetter) {
+    return new ExportColumn(List.of(header), valueGetter);
+  }
+
+  private static ExportColumn column(String group, String header, Function<HorizontalRow, String> valueGetter) {
+    return new ExportColumn(List.of(group, header), valueGetter);
+  }
+
+  private static ExportColumn column(
+      String group,
+      String subgroup,
+      String header,
+      Function<HorizontalRow, String> valueGetter) {
+    return new ExportColumn(List.of(group, subgroup, header), valueGetter);
+  }
+
+  private record ExportColumn(List<String> header, Function<HorizontalRow, String> valueGetter) {
+    List<String> normalizedHeader() {
+      if (header.size() == HEADER_DEPTH) {
+        return header;
+      }
+      List<String> labels = new ArrayList<>(header);
+      String last = labels.get(labels.size() - 1);
+      while (labels.size() < HEADER_DEPTH) {
+        labels.add(last);
+      }
+      return labels;
+    }
+
+    String flatHeader() {
+      return String.join("-", header);
+    }
+
+    String value(HorizontalRow row) {
+      return valueGetter.apply(row);
+    }
   }
 
   private record ExportScope(String projectName, String reviewProjectName, String testingPhase, String moduleName) {
@@ -651,12 +800,31 @@ public class SystemTestHorizontalComparisonExportService {
       int docSpecification,
       int integrity,
       int functionality,
-      int feasibility) {
+      int feasibility,
+      double workloadHours) {
     String density() {
       if (reviewPages <= 0) {
-        return "0";
+        return "0.00";
       }
       return floorDecimal(defectCount * 1D / reviewPages);
+    }
+
+    String categoryRate(long value) {
+      return ratio(value, defectCount);
+    }
+
+    String efficiency() {
+      if (workloadHours <= 0D) {
+        return "0.00";
+      }
+      return decimal(defectCount / workloadHours);
+    }
+
+    String speed() {
+      if (workloadHours <= 0D) {
+        return "0.00";
+      }
+      return decimal(reviewPages / workloadHours);
     }
   }
 
@@ -667,7 +835,10 @@ public class SystemTestHorizontalComparisonExportService {
       int codeLogicSpecification,
       int designSpecification,
       int performanceSpecification,
-      int otherSpecification) {
+      int otherSpecification,
+      int reviewDurationMinutes,
+      double reviewEfficiencyPerHour,
+      double reviewSpeedLocPerHour) {
     int defectSum() {
       return codeSpecification
           + codeLogicSpecification
@@ -678,6 +849,37 @@ public class SystemTestHorizontalComparisonExportService {
 
     String density() {
       return codeReviewDensity(defectSum(), addedLines);
+    }
+
+    String categoryRate(long value) {
+      return ratio(value, defectSum());
+    }
+
+    String workloadHours() {
+      if (reviewDurationMinutes <= 0) {
+        return "0.00";
+      }
+      return decimal(reviewDurationMinutes / 60D);
+    }
+
+    String efficiency() {
+      if (reviewEfficiencyPerHour > 0D) {
+        return decimal(reviewEfficiencyPerHour);
+      }
+      if (reviewDurationMinutes <= 0) {
+        return "0.00";
+      }
+      return decimal(defectSum() / (reviewDurationMinutes / 60D));
+    }
+
+    String speed() {
+      if (reviewSpeedLocPerHour > 0D) {
+        return decimal(reviewSpeedLocPerHour);
+      }
+      if (reviewDurationMinutes <= 0) {
+        return "0.00";
+      }
+      return decimal(addedLines / (reviewDurationMinutes / 60D));
     }
   }
 
@@ -692,6 +894,7 @@ public class SystemTestHorizontalComparisonExportService {
       String bugStatus,
       String category,
       String reasonCategory,
+      String rawPayload,
       boolean delayIssue,
       boolean regression,
       boolean crash,
@@ -748,6 +951,14 @@ public class SystemTestHorizontalComparisonExportService {
     boolean isRetestFailed() {
       return bugStatus.contains("未修复");
     }
+
+    boolean matchesReason(DefectCauseMetricCatalog.Metric metric) {
+      if (DefectCauseMetricCatalog.containsAny(reasonCategory, metric.tokens())) {
+        return true;
+      }
+      return !StringUtils.hasText(reasonCategory)
+          && DefectCauseMetricCatalog.containsAny(DefectCauseMetricCatalog.latestReasonText(rawPayload), metric.tokens());
+    }
   }
 
   private static final class HorizontalRow {
@@ -780,117 +991,148 @@ public class SystemTestHorizontalComparisonExportService {
           && issues.isEmpty();
     }
 
-    List<String> values() {
-      long total = issues.size();
-      long closed = issues.stream().filter(IssueExportSource::isClosed).count();
-      long open = total - closed;
-      long fixed = issues.stream().filter(IssueExportSource::isLegacyFixed).count();
-      long level1 = issues.stream().filter(IssueExportSource::isLevel1).count();
-      long level1Fixed = issues.stream().filter(issue -> issue.isLevel1() && issue.isLegacyFixed()).count();
-      long level2 = issues.stream().filter(IssueExportSource::isLevel2).count();
-      long level2Fixed = issues.stream().filter(issue -> issue.isLevel2() && issue.isLegacyFixed()).count();
-      long level3 = issues.stream().filter(IssueExportSource::isLevel3).count();
-      long level3Fixed = issues.stream().filter(issue -> issue.isLevel3() && issue.isLegacyFixed()).count();
-      long p1 = issues.stream().filter(issue -> issue.isPriority("P1")).count();
-      long p1Fixed = issues.stream().filter(issue -> issue.isPriority("P1") && issue.isPriorityFixed()).count();
-      long p1Closed = issues.stream().filter(issue -> issue.isPriority("P1") && issue.isClosed()).count();
-      long p2 = issues.stream().filter(issue -> issue.isPriority("P2")).count();
-      long p2Fixed = issues.stream().filter(issue -> issue.isPriority("P2") && issue.isPriorityFixed()).count();
-      long p2Closed =
-          issues.stream().filter(issue -> issue.isPriority("P2") && issue.isPriorityClosedWithResolvedStatus()).count();
-      long p3 = issues.stream().filter(issue -> issue.isPriority("P3")).count();
-      long p3Fixed = issues.stream().filter(issue -> issue.isPriority("P3") && issue.isPriorityFixed()).count();
-      long newIssues = issues.stream().filter(IssueExportSource::isNewIssue).count();
-      long newFixed = issues.stream().filter(issue -> issue.isNewIssue() && issue.isLegacyFixed()).count();
-      long newClosed = issues.stream().filter(IssueExportSource::isNewClosed).count();
-      long level2Open = issues.stream().filter(issue -> issue.isLevel2() && !issue.isLegacyFixed()).count();
-      long level3Open = issues.stream().filter(issue -> issue.isLevel3() && !issue.isLegacyFixed()).count();
-      long level23Fixed =
-          issues.stream().filter(issue -> (issue.isLevel2() || issue.isLevel3()) && issue.isLegacyFixed()).count();
-      List<String> values = new ArrayList<>();
-      values.add(moduleName);
-      addReviewValues(values, demandReview);
-      addReviewValues(values, designReview);
-      addCodeReviewValues(values, crownCadCodeReview);
-      addCodeReviewValues(values, dgmCodeReview);
-      addReasonValues(values, "需求理解偏差");
-      addReasonValues(values, "新增需求");
-      addReasonValues(values, "编码逻辑错误");
-      addReasonValues(values, "环境部署问题");
-      addReasonValues(values, "算法机制不支持");
-      long otherReason =
-          issues.stream()
-              .filter(issue -> StringUtils.hasText(issue.reasonCategory()))
-              .filter(issue -> !STANDARD_REASON_CATEGORIES.contains(issue.reasonCategory()))
-              .count();
-      values.add(count(otherReason));
-      values.add(rate(otherReason, issueCauseTotal));
-      values.add(count(issues.stream().filter(issue -> issue.isLevel1() && issue.regression()).count()));
-      values.add(count(issues.stream().filter(issue -> issue.isLevel1() && issue.crash()).count()));
-      values.add(count(issues.stream().filter(issue -> issue.isLevel1() && issue.level1Other()).count()));
-      values.add(count(level1Fixed));
-      values.add(count(level1));
-      values.add(rate(level1Fixed, level1));
-      values.add(count(level2Fixed));
-      values.add(count(level2));
-      values.add(rate(level2Fixed, level2));
-      values.add(count(level3Fixed));
-      values.add(count(level3));
-      values.add(rate(level3Fixed, level3));
-      values.add(count(issues.stream().filter(IssueExportSource::isSuggestion).count()));
-      values.add(count(p1));
-      values.add(rate(p1Fixed, p1));
-      values.add(rate(p1Closed, p1));
-      values.add(count(p2));
-      values.add(rate(p2Fixed, p2));
-      values.add(rate(p2Closed, p2));
-      values.add(count(p3));
-      values.add(rate(p3Fixed, p3));
-      values.add(count(total));
-      values.add(rate(total, issueOverallCount));
-      values.add(rate(issues.stream().filter(IssueExportSource::delayIssue).count(), total));
-      values.add(count(fixed));
-      values.add(rate(fixed, total));
-      values.add(rate(closed, total));
-      values.add(count(open));
-      values.add(count(issues.stream().filter(IssueExportSource::hasExtensionLabel).count()));
-      values.add(count(issues.stream().filter(IssueExportSource::isRetestFailed).count()));
-      values.add(count(newFixed));
-      values.add(count(newIssues));
-      values.add(rate(newFixed, newIssues));
-      values.add(rate(newClosed, newIssues));
-      values.add(rate(level1 - level1Fixed, level1));
-      values.add(count(level2Open));
-      values.add(count(level3Open));
-      values.add(rate(level23Fixed, total));
-      return values;
+    ReviewMetric demandReview() {
+      return demandReview;
     }
 
-    private void addReviewValues(List<String> values, ReviewMetric metric) {
-      values.add(metric.density());
-      values.add(count(metric.reviewPages()));
-      values.add(count(metric.defectCount()));
-      values.add(count(metric.docSpecification()));
-      values.add(count(metric.integrity()));
-      values.add(count(metric.functionality()));
-      values.add(count(metric.feasibility()));
+    ReviewMetric designReview() {
+      return designReview;
     }
 
-    private void addCodeReviewValues(List<String> values, CodeReviewMetric metric) {
-      values.add(metric.density());
-      values.add(count(metric.addedLines()));
-      values.add(count(metric.defectSum()));
-      values.add(count(metric.codeSpecification()));
-      values.add(count(metric.codeLogicSpecification()));
-      values.add(count(metric.designSpecification()));
-      values.add(count(metric.performanceSpecification()));
-      values.add(count(metric.otherSpecification()));
+    CodeReviewMetric crownCadCodeReview() {
+      return crownCadCodeReview;
     }
 
-    private void addReasonValues(List<String> values, String reasonCategory) {
-      long reasonCount = issues.stream().filter(issue -> reasonCategory.equals(issue.reasonCategory())).count();
-      values.add(count(reasonCount));
-      values.add(rate(reasonCount, issueCauseTotal));
+    CodeReviewMetric dgmCodeReview() {
+      return dgmCodeReview;
+    }
+
+    long issueCauseTotal() {
+      return issueCauseTotal;
+    }
+
+    long issueOverallCount() {
+      return issueOverallCount;
+    }
+
+    long reasonCount(DefectCauseMetricCatalog.Metric metric) {
+      return issues.stream().filter(issue -> issue.matchesReason(metric)).count();
+    }
+
+    long reasonGroupTotal(String groupLabel) {
+      return DefectCauseMetricCatalog.METRICS.stream()
+          .filter(metric -> groupLabel.equals(metric.groupLabel()))
+          .mapToLong(this::reasonCount)
+          .sum();
+    }
+
+    long total() {
+      return issues.size();
+    }
+
+    long closed() {
+      return issues.stream().filter(IssueExportSource::isClosed).count();
+    }
+
+    long open() {
+      return total() - closed();
+    }
+
+    long fixed() {
+      return issues.stream().filter(IssueExportSource::isLegacyFixed).count();
+    }
+
+    long level1() {
+      return issues.stream().filter(IssueExportSource::isLevel1).count();
+    }
+
+    long level1Fixed() {
+      return issues.stream().filter(issue -> issue.isLevel1() && issue.isLegacyFixed()).count();
+    }
+
+    long level1Regression() {
+      return issues.stream().filter(issue -> issue.isLevel1() && issue.regression()).count();
+    }
+
+    long level1Crash() {
+      return issues.stream().filter(issue -> issue.isLevel1() && issue.crash()).count();
+    }
+
+    long level1Other() {
+      return issues.stream().filter(issue -> issue.isLevel1() && issue.level1Other()).count();
+    }
+
+    long level2() {
+      return issues.stream().filter(IssueExportSource::isLevel2).count();
+    }
+
+    long level2Fixed() {
+      return issues.stream().filter(issue -> issue.isLevel2() && issue.isLegacyFixed()).count();
+    }
+
+    long level2Open() {
+      return issues.stream().filter(issue -> issue.isLevel2() && !issue.isLegacyFixed()).count();
+    }
+
+    long level3() {
+      return issues.stream().filter(IssueExportSource::isLevel3).count();
+    }
+
+    long level3Fixed() {
+      return issues.stream().filter(issue -> issue.isLevel3() && issue.isLegacyFixed()).count();
+    }
+
+    long level3Open() {
+      return issues.stream().filter(issue -> issue.isLevel3() && !issue.isLegacyFixed()).count();
+    }
+
+    long level23Fixed() {
+      return issues.stream().filter(issue -> (issue.isLevel2() || issue.isLevel3()) && issue.isLegacyFixed()).count();
+    }
+
+    long suggestion() {
+      return issues.stream().filter(IssueExportSource::isSuggestion).count();
+    }
+
+    long priorityCount(String priority) {
+      return issues.stream().filter(issue -> issue.isPriority(priority)).count();
+    }
+
+    long priorityFixed(String priority) {
+      return issues.stream().filter(issue -> issue.isPriority(priority) && issue.isPriorityFixed()).count();
+    }
+
+    long priorityClosed(String priority) {
+      return issues.stream().filter(issue -> issue.isPriority(priority) && issue.isClosed()).count();
+    }
+
+    long delayIssueCount() {
+      return issues.stream().filter(IssueExportSource::delayIssue).count();
+    }
+
+    long extension() {
+      return issues.stream().filter(IssueExportSource::hasExtensionLabel).count();
+    }
+
+    long retestFailed() {
+      return issues.stream().filter(IssueExportSource::isRetestFailed).count();
+    }
+
+    long newIssues() {
+      return issues.stream().filter(IssueExportSource::isNewIssue).count();
+    }
+
+    long newFixed() {
+      return issues.stream().filter(issue -> issue.isNewIssue() && issue.isLegacyFixed()).count();
+    }
+
+    long newClosed() {
+      return issues.stream().filter(IssueExportSource::isNewClosed).count();
+    }
+
+    String systemTestDefectDensity() {
+      long addedLines = (long) crownCadCodeReview.addedLines() + dgmCodeReview.addedLines();
+      return codeReviewDensity(total(), addedLines);
     }
   }
 }
