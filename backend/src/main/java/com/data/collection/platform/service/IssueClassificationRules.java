@@ -32,7 +32,8 @@ final class IssueClassificationRules {
       List.of("退", "回退", "倒退", "挂机");
   private static final List<String> CRASH_TITLE_TOKENS = List.of("挂机");
   private static final List<String> APPLY_DELAY_LABELS = List.of("申请延期");
-  private static final List<String> TEMPLATE_HEADER_TOKENS = List.of("# 问题调研情况说明", "问题调研情况说明");
+  private static final List<String> FIX_TEMPLATE_HEADER_TOKENS = List.of("### 1、修复状态");
+  private static final List<String> RESEARCH_TEMPLATE_HEADER_TOKENS = List.of("# 问题调研情况说明", "问题调研情况说明");
   private static final String NOTE_SEPARATOR = "\\R---\\R";
   private static final String RESEARCH_TEMPLATE_HEADER = "# 问题调研情况说明";
   private static final String TEMPLATE_PASSED = "模板验证通过";
@@ -48,11 +49,15 @@ final class IssueClassificationRules {
   private IssueClassificationRules() {
   }
 
-  static String normalizeReasonCategory(List<String> labels, String notesText) {
-    String fromLatestNote = templateSnapshot(notesText).normalizedReasonCategory();
+  static String normalizeFixReasonCategory(List<String> labels, String notesText) {
+    String fromLatestNote = fixTemplateSnapshot(notesText).normalizedReasonCategory();
     if (fromLatestNote != null) {
       return fromLatestNote;
     }
+    return normalizeReasonCategoryFromLabelsOrText(labels, notesText);
+  }
+
+  private static String normalizeReasonCategoryFromLabelsOrText(List<String> labels, String notesText) {
     for (Map.Entry<String, List<String>> entry : REASON_CATEGORY_TOKENS.entrySet()) {
       if (IssueRuleSupport.containsAny(labels, notesText, entry.getValue())) {
         return entry.getKey();
@@ -100,7 +105,7 @@ final class IssueClassificationRules {
   }
 
   static boolean isIllegal(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
-    return !illegalReasons(labels, closed, modules, notesText, fixed).isEmpty();
+    return !systemTestIllegalReasons(labels, modules, notesText, fixed).isEmpty();
   }
 
   static String illegalReason(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
@@ -109,6 +114,11 @@ final class IssueClassificationRules {
   }
 
   static List<String> illegalReasons(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
+    return systemTestIllegalReasons(labels, modules, notesText, fixed);
+  }
+
+  private static List<String> systemTestIllegalReasons(
+      List<String> labels, List<String> modules, String notesText, boolean fixed) {
     List<String> reasons = new java.util.ArrayList<>();
     if (IssueLabelRules.normalizeSeverityLevel(labels) == null) {
       reasons.add(MISSING_SEVERITY);
@@ -117,10 +127,11 @@ final class IssueClassificationRules {
       reasons.add(MISSING_MODULE);
     }
     if (fixed) {
-      if (!hasTemplateReply(notesText)) {
+      IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
+      if (!snapshot.hasTemplateReply()) {
         reasons.add(TEMPLATE_NOT_FOLLOWED);
       } else {
-        int reasonCount = latestReasonCategoryCount(notesText);
+        int reasonCount = snapshot.latestReasonCategoryCount();
         if (reasonCount != 1) {
           reasons.add(NON_UNIQUE_REASON);
         }
@@ -142,35 +153,27 @@ final class IssueClassificationRules {
 
   static List<String> customerIssueIllegalReasons(
       List<String> labels, List<String> modules, String notesText, boolean fixed) {
-    List<String> reasons = new java.util.ArrayList<>();
-    if (IssueLabelRules.normalizeSeverityLevel(labels) == null) {
-      reasons.add(MISSING_SEVERITY);
-    }
-    if (modules == null || modules.isEmpty()) {
-      reasons.add(MISSING_MODULE);
-    }
-    if (fixed) {
-      if (!hasTemplateReply(notesText)) {
-        reasons.add(TEMPLATE_NOT_FOLLOWED);
-      } else {
-        int reasonCount = latestReasonCategoryCount(notesText);
-        if (reasonCount != 1) {
-          reasons.add(NON_UNIQUE_REASON);
-        }
-      }
-    }
+    List<String> reasons = new java.util.ArrayList<>(systemTestIllegalReasons(labels, modules, notesText, fixed));
     if (hasInvalidCustomerResearchTemplate(notesText, IssueLabelRules.normalizeSeverityLevel(labels))) {
       reasons.add(INVALID_RESEARCH_TEMPLATE);
     }
     return List.copyOf(reasons);
   }
 
-  static boolean hasTemplateReply(String notesText) {
-    return templateSnapshot(notesText).hasTemplateReply();
+  static boolean hasFixTemplateReply(String notesText) {
+    return fixTemplateSnapshot(notesText).hasTemplateReply();
   }
 
-  static int latestReasonCategoryCount(String notesText) {
-    return templateSnapshot(notesText).latestReasonCategoryCount();
+  static int latestFixReasonCategoryCount(String notesText) {
+    return fixTemplateSnapshot(notesText).latestReasonCategoryCount();
+  }
+
+  static boolean hasResearchTemplateReply(String notesText) {
+    return researchTemplateSnapshot(notesText).hasTemplateReply();
+  }
+
+  static int latestResearchReasonCategoryCount(String notesText) {
+    return researchTemplateSnapshot(notesText).latestReasonCategoryCount();
   }
 
   private static boolean hasInvalidCustomerResearchTemplate(String notesText, String severityLevel) {
@@ -306,7 +309,11 @@ final class IssueClassificationRules {
     return LEVEL1.equals(IssueLabelRules.normalizeSeverityLevel(labels));
   }
 
-  private static IssueTemplateSnapshot templateSnapshot(String notesText) {
-    return IssueTemplateParsingSupport.parse(notesText, REASON_CATEGORY_TOKENS, TEMPLATE_HEADER_TOKENS);
+  private static IssueTemplateSnapshot fixTemplateSnapshot(String notesText) {
+    return IssueTemplateParsingSupport.parse(notesText, REASON_CATEGORY_TOKENS, FIX_TEMPLATE_HEADER_TOKENS);
+  }
+
+  private static IssueTemplateSnapshot researchTemplateSnapshot(String notesText) {
+    return IssueTemplateParsingSupport.parse(notesText, REASON_CATEGORY_TOKENS, RESEARCH_TEMPLATE_HEADER_TOKENS);
   }
 }

@@ -28,7 +28,7 @@ class CustomerIssueRecordServiceTest {
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
 
   @Test
-  void shouldUseSqlPageForPlainListRequests() {
+  void shouldForceLegacyCcProductProjectForPlainListRequests() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
@@ -49,7 +49,7 @@ class CustomerIssueRecordServiceTest {
             new CustomerIssueRecordQueryRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
-                    325L,
+                    9L,
                     null,
                     null,
                     null,
@@ -80,6 +80,7 @@ class CustomerIssueRecordServiceTest {
             argThat(
                 query ->
                     query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT
+                        && query.listRequest().projectId().equals(325L)
                         && !query.delayOnly()
                         && !query.illegalOnly()));
   }

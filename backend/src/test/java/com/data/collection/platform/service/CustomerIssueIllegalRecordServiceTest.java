@@ -27,10 +27,9 @@ class CustomerIssueIllegalRecordServiceTest {
   @Mock private GitlabResourceLinkService issueLinkService;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
   @Mock private FactBuildService factBuildService;
-  @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
 
   @Test
-  void shouldUseSqlPageForPlainIllegalListRequests() {
+  void shouldForceLegacyCcProductProjectForPlainIllegalListRequests() {
     CustomerIssueIllegalRecordService service =
         new CustomerIssueIllegalRecordService(
             issueFactRecordRepository,
@@ -38,8 +37,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService,
-            phaseScopeResolver);
+            factBuildService);
     when(issueFactRecordRepository.findPage(any()))
         .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
 
@@ -47,7 +45,7 @@ class CustomerIssueIllegalRecordServiceTest {
         service.listRecords(
             new CustomerIssueIllegalRecordQueryRequest(
                 new IssueFactRecordListRequest(
-                    325L,
+                    9L,
                     null,
                     null,
                     null,
@@ -77,6 +75,7 @@ class CustomerIssueIllegalRecordServiceTest {
             argThat(
                 query ->
                     query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
+                        && query.listRequest().projectId().equals(325L)
                         && query.illegalOnly()));
   }
 
@@ -89,8 +88,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService,
-            phaseScopeResolver);
+            factBuildService);
     when(issueLinkService.issueUrl("default", 325L, 201))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/201");
     when(issueFactRecordRepository.findPage(any()))
@@ -152,8 +150,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService,
-            phaseScopeResolver);
+            factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
@@ -208,8 +205,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService,
-            phaseScopeResolver);
+            factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(204, "illegal milestone", "draft", true, "missing module")));
@@ -244,7 +240,6 @@ class CustomerIssueIllegalRecordServiceTest {
 
     assertThat(response.records()).hasSize(1);
     assertThat(response.records().getFirst().testingPhase()).isEqualTo("R1");
-    verify(phaseScopeResolver, never()).matchesLegacyCrownCadPhase(any(), any());
   }
 
   @Test
@@ -256,8 +251,7 @@ class CustomerIssueIllegalRecordServiceTest {
             new ObjectMapper(),
             issueLinkService,
             labelGroupExpansionService,
-            factBuildService,
-            phaseScopeResolver);
+            factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(203, "illegal a", "draft", true, "missing module")));

@@ -29,7 +29,7 @@ final class IssueTemplateParsingSupport {
     boolean hasTemplateReply = IssueRuleSupport.containsToken(notesText, templateHeaders);
     int resolveSlaDays = resolveSlaDays(notesText);
     LocalDateTime planSolutionTime = planSolutionTime(notesText);
-    Set<String> latestCategories = latestReasonCategories(notesText, reasonCategoryTokens);
+    Set<String> latestCategories = latestTemplateReasonCategories(notesText, reasonCategoryTokens, templateHeaders);
     String normalizedReasonCategory =
         latestCategories.size() == 1 ? latestCategories.iterator().next() : null;
     return new IssueTemplateSnapshot(
@@ -129,24 +129,25 @@ final class IssueTemplateParsingSupport {
     }
   }
 
-  private static Set<String> latestReasonCategories(
-      String notesText, Map<String, java.util.List<String>> reasonCategoryTokens) {
-    String latestNote = latestReasonNote(notesText, reasonCategoryTokens);
-    if (latestNote == null) {
+  private static Set<String> latestTemplateReasonCategories(
+      String notesText,
+      Map<String, java.util.List<String>> reasonCategoryTokens,
+      java.util.List<String> templateHeaders) {
+    String latestTemplateNote = latestTemplateNote(notesText, templateHeaders);
+    if (latestTemplateNote == null) {
       return Set.of();
     }
-    return matchedReasonCategories(latestNote, reasonCategoryTokens);
+    return matchedReasonCategories(latestTemplateNote, reasonCategoryTokens);
   }
 
-  private static String latestReasonNote(
-      String notesText, Map<String, java.util.List<String>> reasonCategoryTokens) {
+  private static String latestTemplateNote(String notesText, java.util.List<String> templateHeaders) {
     if (!StringUtils.hasText(notesText)) {
       return null;
     }
     String[] notes = notesText.split(NOTE_SEPARATOR);
     for (int index = notes.length - 1; index >= 0; index--) {
       String candidate = notes[index];
-      if (!matchedReasonCategories(candidate, reasonCategoryTokens).isEmpty()) {
+      if (IssueRuleSupport.containsToken(candidate, templateHeaders)) {
         return candidate;
       }
     }

@@ -71,7 +71,7 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
       ],
     });
 
-    await router.push('/customer-issues/illegal-records?projectId=325');
+    await router.push('/customer-issues/illegal-records?projectId=9');
     await router.isReady();
 
     const wrapper = mount(CustomerIssueIllegalRecordsView, {
@@ -140,7 +140,7 @@ describe('CustomerIssueIllegalRecordsView mount smoke', () => {
       ],
     });
 
-    await router.push('/customer-issues/illegal-records?projectId=325&keyword=illegal&illegalReason=Module%20mismatch&sortBy=updatedAt&sortOrder=desc');
+    await router.push('/customer-issues/illegal-records?projectId=9&keyword=illegal&illegalReason=Module%20mismatch&sortBy=updatedAt&sortOrder=desc');
     await router.isReady();
 
     const wrapper = mount(CustomerIssueIllegalRecordsView, {

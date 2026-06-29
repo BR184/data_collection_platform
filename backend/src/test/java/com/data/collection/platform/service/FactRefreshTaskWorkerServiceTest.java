@@ -10,6 +10,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
+import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,8 @@ class FactRefreshTaskWorkerServiceTest {
   private FactBuildTaskService taskService;
   private GitlabConfigService configService;
   private FactBuildService factBuildService;
+  private FactRefreshImpactScopeService impactScopeService;
+  private StatisticBoardSnapshotRefreshService snapshotRefreshService;
   private GitlabMirrorProperties properties;
   private FactRefreshTaskWorkerService workerService;
 
@@ -26,13 +29,17 @@ class FactRefreshTaskWorkerServiceTest {
     taskService = mock(FactBuildTaskService.class);
     configService = mock(GitlabConfigService.class);
     factBuildService = mock(FactBuildService.class);
+    impactScopeService = mock(FactRefreshImpactScopeService.class);
+    snapshotRefreshService = mock(StatisticBoardSnapshotRefreshService.class);
     properties = new GitlabMirrorProperties();
     properties.setHeartbeatTimeoutSeconds(9);
     workerService = new FactRefreshTaskWorkerService(
         taskService,
         configService,
         factBuildService,
-        properties);
+        impactScopeService,
+        properties,
+        snapshotRefreshService);
   }
 
   @Test
@@ -40,6 +47,7 @@ class FactRefreshTaskWorkerServiceTest {
     GitlabSyncConfig config = config();
     QueuedFactBuildTask task = new QueuedFactBuildTask(
         10L,
+        1L,
         1L,
         "corp-main",
         "ISSUE",
@@ -65,6 +73,7 @@ class FactRefreshTaskWorkerServiceTest {
   void shouldMarkTaskFailedWhenFactRefreshThrows() {
     QueuedFactBuildTask task = new QueuedFactBuildTask(
         11L,
+        1L,
         1L,
         "corp-main",
         "UNKNOWN",

@@ -15,6 +15,7 @@
 2. 本轮修复后的客户问题范围原则：客户问题模块的页面入口、路由查询、接口请求和后端查询都固定使用 CC_Product 项目 `325`。客户问题页面不再允许或持久化 `projectId`；旧链接、旧 sessionStorage 或手工 URL 中残留的 `projectId=9` 也会被后端强制规整为 `325`，不能再改变客户问题数据域。
 3. 代码走查非法数据差 6000 条且集合不一致，不能再只按数量问题处理，也不能归因于 MR 29874 缺模块。MR 29874 已确认在镜像库 `merge_request` 和 `merge_request_fact` 中存在且模块为“平台”。当前根因方向是老平台非法判断基于 `spider_crowncad_data` 的字段等值：`assignee`、`sonar_qube_result`、`annotation_rate_result`、`bug_count_result`、`project_name`、`module_name`、`target_branch`；新平台必须把这些字段语义完整转译到 `merge_request_fact`，否则即使总数接近，筛出来的数据集合也会不同。
 4. 本轮已修正一处代码走查非法判定偏差：老平台“无代码走查”实际检查 `assignee in (没有合法评论, 代码走查时间或缺陷数异常, 代码走查标题异常, 代码走查记录行数异常)`，新平台现在同时兼容这些值出现在 `review_exception_reason`、`owner_name`、`reviewer_names`、`assignee_names`；老平台“静态扫描问题未关闭”按 `bug_count_result = 静态扫描问题未关闭` 判断，新平台不再仅因 `scan_bug_count > 0` 扩大命中集合。
+5. 系统测试缺陷原因分析空表和非法数据偏差的事实层根因已修正：老平台 `spider_issue_data.cause` 只来自修复模板 `### 1、修复状态`，非法数据的“未按照模板回复/缺陷原因不唯一”也只检查该修复模板。新平台此前把客户问题调研模板 `# 问题调研情况说明` 与修复模板混在同一套解析里，且缺陷原因看板在 `reason_category` 为空时会回退扫描 `raw_payload` 全文，导致系统测试原因统计可能为空、偏多或与非法判定不一致。本轮已收口为：`issue_fact.reason_category` 对齐老平台 `cause`，统一按修复模板生成；系统测试和客户问题缺陷原因统计、横向对比导出只使用 `reason_category`，不再从评论全文兜底扩大；客户问题调研模板只用于响应/延期 SLA 和客户问题附加非法类型“未按照要求填写缺陷调研模板”。
 
 ### P0：客户问题模块空表和慢加载
 

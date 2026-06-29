@@ -35,7 +35,7 @@ describe('router query normalization', () => {
     expect(normalizeQuery(to)).toBeNull();
   });
 
-  it('keeps persisted projectId but drops unrelated module query params when switching modules', () => {
+  it('drops legacy projectId when switching into fixed customer issue pages', () => {
     const from = router.resolve({
       path: '/review-data/home',
       query: {
@@ -47,13 +47,32 @@ describe('router query normalization', () => {
     const to = router.resolve({
       path: '/customer-issues/home',
       query: {
-        projectId: '1001',
+        projectId: '9',
         keyword: 'should-drop',
       },
     });
 
-    expect(normalizeQuery(to, from)).toEqual({
-      projectId: '1001',
+    expect(normalizeQuery(to, from)).toEqual({});
+  });
+
+  it('does not restore persisted projectId on customer issue routes', () => {
+    sessionStorage.setItem('route-query:projectId', '9');
+    const to = router.resolve('/customer-issues/cc-product-issues');
+
+    expect(normalizeQuery(to)).toBeNull();
+  });
+
+  it('strips projectId from legacy customer issue links while keeping allowed milestone filters', () => {
+    const to = router.resolve({
+      path: '/customer-issues/cc-product-issues',
+      query: {
+        projectId: '9',
+        milestoneTitle: '2026R3',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      milestoneTitle: '2026R3',
     });
   });
 
@@ -75,7 +94,7 @@ describe('router query normalization', () => {
     });
   });
 
-  it('preserves source instance and search type on system-test issue search routes', () => {
+  it('preserves whitelisted system-test issue search query keys', () => {
     const to = router.resolve({
       path: '/question-metrics/issue-search',
       query: {
@@ -88,7 +107,12 @@ describe('router query normalization', () => {
       },
     });
 
-    expect(normalizeQuery(to)).toBeNull();
+    expect(normalizeQuery(to)).toEqual({
+      sourceInstance: 'cc',
+      projectId: '1001',
+      filterGroup:
+        '{"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
+    });
   });
 
   it('preserves record page filterGroup on customer issue record routes', () => {

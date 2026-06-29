@@ -953,11 +953,7 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     boolean matchesReason(DefectCauseMetricCatalog.Metric metric) {
-      if (DefectCauseMetricCatalog.containsAny(reasonCategory, metric.tokens())) {
-        return true;
-      }
-      return !StringUtils.hasText(reasonCategory)
-          && DefectCauseMetricCatalog.containsAny(DefectCauseMetricCatalog.latestReasonText(rawPayload), metric.tokens());
+      return DefectCauseMetricCatalog.containsAny(reasonCategory, metric.tokens());
     }
   }
 

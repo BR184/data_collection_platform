@@ -48,6 +48,16 @@ class IssueFactNormalizationRulesTest {
   void shouldNormalizeReasonAndDelayCategories() {
     assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of("业务逻辑错误"), "")).isEqualTo("编码逻辑错误");
     assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of(), "本次属于编译打包问题")).isEqualTo("环境部署问题");
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(
+        List.of(),
+        """
+        日常讨论：编译/打包/部署问题
+        ---
+        ### 1、修复状态
+        [x] 需求理解有误
+        ### 3、请描述具体原因：
+        """))
+        .isEqualTo("需求理解偏差");
     assertThat(IssueFactNormalizationRules.normalizeDelayReason(List.of("申请延期"), "当前属于算法问题")).isEqualTo("算法问题");
     assertThat(IssueFactNormalizationRules.inferDelayCause(List.of("申请延期"), "当前属于算法问题")).isEqualTo("算法问题");
   }
@@ -186,9 +196,10 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A"), false, List.of("模块A"), "", false)).isNull();
     assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A", "待合并"), false, List.of("模块A"), "", false)).isNull();
 
-    String validTemplate = "# 问题调研情况说明\n业务逻辑错误";
-    assertThat(IssueFactNormalizationRules.hasTemplateReply(validTemplate)).isTrue();
-    assertThat(IssueFactNormalizationRules.latestReasonCategoryCount(validTemplate)).isEqualTo(1);
+    String validTemplate = "### 1、修复状态\n[x] 编码逻辑：业务逻辑错误\n### 3、请描述具体原因：\n";
+    assertThat(IssueFactNormalizationRules.hasFixTemplateReply(validTemplate)).isTrue();
+    assertThat(IssueFactNormalizationRules.latestFixReasonCategoryCount(validTemplate)).isEqualTo(1);
+    assertThat(IssueFactNormalizationRules.hasResearchTemplateReply(validTemplate)).isFalse();
     assertThat(IssueFactNormalizationRules.illegalReason(
         List.of("一级缺陷", "模块A", "已修复/完成"),
         true,
@@ -199,7 +210,7 @@ class IssueFactNormalizationRulesTest {
         List.of("一级缺陷", "模块A", "已修复/完成"),
         true,
         List.of("模块A"),
-        "# 问题调研情况说明\n业务逻辑错误\n新增需求问题",
+        "### 1、修复状态\n[x] 编码逻辑：业务逻辑错误\n[x] 新增需求问题\n### 3、请描述具体原因：\n",
         true)).isEqualTo("缺陷原因不唯一");
     assertThat(IssueFactNormalizationRules.illegalReason(
         List.of("一级缺陷", "模块A", "已修复/完成"),
@@ -207,6 +218,43 @@ class IssueFactNormalizationRulesTest {
         List.of("模块A"),
         validTemplate,
         true)).isNull();
+  }
+
+  @Test
+  void shouldKeepSystemTestIllegalCauseValidationOnFixTemplateOnly() {
+    String researchTemplate = "# 问题调研情况说明\n编码逻辑：业务逻辑错误";
+
+    assertThat(IssueFactNormalizationRules.hasResearchTemplateReply(researchTemplate)).isTrue();
+    assertThat(IssueFactNormalizationRules.hasFixTemplateReply(researchTemplate)).isFalse();
+    assertThat(IssueFactNormalizationRules.illegalReason(
+        List.of("一级缺陷", "模块A", "已修复/完成"),
+        true,
+        List.of("模块A"),
+        researchTemplate,
+        true)).isEqualTo("未按照模板回复");
+  }
+
+  @Test
+  void shouldAppendCustomerResearchTemplateValidationAfterLegacyFixCauseRules() {
+    String invalidResearchTemplate =
+        """
+        ### 1、修复状态
+        [x] 编码逻辑：业务逻辑错误
+        ### 3、请描述具体原因：
+        ---
+        # 问题调研情况说明
+        ## 问题原因：已定位
+        ## 修改方案：已修改
+        ## 计划解决时间：2026.04.01
+        ## 计划合并的版本分支：
+        """;
+
+    assertThat(IssueFactNormalizationRules.customerIssueIllegalReasons(
+        List.of("二级缺陷", "模块A", "已修复/完成"),
+        List.of("模块A"),
+        invalidResearchTemplate,
+        true))
+        .containsExactly("未按照要求填写缺陷调研模板");
   }
 
   @Test

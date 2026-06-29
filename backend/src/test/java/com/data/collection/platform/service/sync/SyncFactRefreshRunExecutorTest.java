@@ -46,7 +46,17 @@ class SyncFactRefreshRunExecutorTest {
     GitlabSyncConfig config = new GitlabSyncConfig();
     config.setId(1L);
     QueuedFactBuildTask task =
-        new QueuedFactBuildTask(101L, 1L, "alpha", "ISSUE", "alpha:issue", true, 0, 3, LocalDateTime.now().plusSeconds(30));
+        new QueuedFactBuildTask(
+            101L,
+            14L,
+            1L,
+            "alpha",
+            "ISSUE",
+            "alpha:issue",
+            true,
+            0,
+            3,
+            LocalDateTime.now().plusSeconds(30));
     when(configService.getConfigById(1L)).thenReturn(config);
     when(factBuildTaskService.enqueueMirrorRefreshTasks(config, true, 14L)).thenReturn(1);
     when(factBuildTaskService.claimNextQueuedTaskForRun(14L, "fact-run-worker", 30))

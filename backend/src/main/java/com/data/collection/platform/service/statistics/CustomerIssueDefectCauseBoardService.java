@@ -348,7 +348,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         true,
         "客户问题缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact.raw_payload 中保留的 GitLab 评论文本，按老平台缺陷原因模板字段匹配原因个数。",
+        "当前统计使用 issue_fact.reason_category 已解析事实字段，对齐老平台 spider_issue_data.cause 口径。",
         "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         java.util.stream.Stream.concat(
                 snapshot.flowSteps().stream(),
@@ -858,10 +858,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
     private Set<String> matchedMetricKeys() {
       Set<String> matched = new LinkedHashSet<>();
-      String text = DefectCauseMetricCatalog.latestReasonText(reasonText);
-      if (!StringUtils.hasText(text)) {
-        text = reasonCategory;
-      }
+      String text = reasonCategory;
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
           matched.add(metric.key());

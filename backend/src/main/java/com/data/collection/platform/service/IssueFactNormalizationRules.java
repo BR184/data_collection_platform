@@ -37,7 +37,7 @@ public final class IssueFactNormalizationRules {
   }
 
   public static String normalizeReasonCategory(List<String> labels, String notesText) {
-    return IssueClassificationRules.normalizeReasonCategory(labels, notesText);
+    return IssueClassificationRules.normalizeFixReasonCategory(labels, notesText);
   }
 
   public static boolean hasDelayFlag(List<String> labels, String notesText) {
@@ -117,12 +117,20 @@ public final class IssueFactNormalizationRules {
     return IssueClassificationRules.customerIssueIllegalReasons(labels, modules, notesText, fixed);
   }
 
-  public static boolean hasTemplateReply(String notesText) {
-    return IssueClassificationRules.hasTemplateReply(notesText);
+  public static boolean hasFixTemplateReply(String notesText) {
+    return IssueClassificationRules.hasFixTemplateReply(notesText);
   }
 
-  public static int latestReasonCategoryCount(String notesText) {
-    return IssueClassificationRules.latestReasonCategoryCount(notesText);
+  public static int latestFixReasonCategoryCount(String notesText) {
+    return IssueClassificationRules.latestFixReasonCategoryCount(notesText);
+  }
+
+  public static boolean hasResearchTemplateReply(String notesText) {
+    return IssueClassificationRules.hasResearchTemplateReply(notesText);
+  }
+
+  public static int latestResearchReasonCategoryCount(String notesText) {
+    return IssueClassificationRules.latestResearchReasonCategoryCount(notesText);
   }
 
   public static boolean hasResponse(String notesText) {

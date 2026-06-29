@@ -340,7 +340,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         true,
         "缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计优先使用 issue_fact.reason_category 已解析事实字段，必要时再回退 GitLab 评论原文解析，按老平台缺陷原因模板字段匹配原因个数。",
+        "当前统计使用 issue_fact.reason_category 已解析事实字段，对齐老平台 spider_issue_data.cause 口径。",
         "模块行来自当前系统测试范围内的模块全集；不要求议题携带已修复/完成标签；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),
@@ -730,7 +730,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
          where deleted = false
            and coalesce(is_excluded,false) = false
            and coalesce(module_names,'') <> ''
-           and (coalesce(reason_category,'') <> '' or coalesce(raw_payload,'') <> '')
+           and coalesce(reason_category,'') <> ''
         """);
     return sql.toString();
   }
@@ -755,24 +755,18 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
           from issue_fact
          where deleted = false
            and coalesce(is_excluded,false) = false
-           and (coalesce(reason_category,'') <> '' or coalesce(raw_payload,'') <> '')
+           and coalesce(reason_category,'') <> ''
         """);
     return sql.toString();
   }
 
   private String metricMatchedSql(DefectCauseMetricCatalog.Metric metric) {
     List<String> reasonMatches = new ArrayList<>();
-    List<String> rawMatches = new ArrayList<>();
     for (String token : metric.tokens()) {
       String literal = sqlLiteral(token);
       reasonMatches.add("reason_category like '%" + literal + "%'");
-      rawMatches.add("raw_payload like '%" + literal + "%'");
     }
-    return "((coalesce(reason_category,'') <> '' and ("
-        + String.join(" or ", reasonMatches)
-        + ")) or (coalesce(reason_category,'') = '' and ("
-        + String.join(" or ", rawMatches)
-        + ")))";
+    return "(coalesce(reason_category,'') <> '' and (" + String.join(" or ", reasonMatches) + "))";
   }
 
   private String sqlLiteral(String value) {
@@ -1100,9 +1094,6 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     private Set<String> matchedMetricKeys() {
       Set<String> matched = new LinkedHashSet<>();
       String text = reasonCategory;
-      if (!StringUtils.hasText(text)) {
-        text = DefectCauseMetricCatalog.latestReasonText(reasonText);
-      }
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
           matched.add(metric.key());
