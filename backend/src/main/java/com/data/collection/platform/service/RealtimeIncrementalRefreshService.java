@@ -2,8 +2,6 @@ package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.SyncStatus;
-import com.data.collection.platform.entity.SyncTriggerType;
-import com.data.collection.platform.entity.sync.SyncRunSubmissionResult;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -16,20 +14,22 @@ public class RealtimeIncrementalRefreshService {
   }
 
   public RealtimeWorkspaceRefreshResult requestIncrementalRefresh(String reason, List<String> coveredSourceTables) {
-    SyncRunSubmissionResult submission =
-        gitlabMirrorSyncService.startIncrementalSync(SyncTriggerType.MANUAL, reason);
+    GitlabMirrorSyncService.OnDemandRefreshResult submission =
+        gitlabMirrorSyncService.refreshTablesOnDemandDetailed(
+            coveredSourceTables,
+            reason,
+            reason,
+            "REALTIME_WORKSPACE_REFRESH");
     String mirrorStatus = normalizeMirrorStatus(submission.status());
     return new RealtimeWorkspaceRefreshResult(
-        submission.runId(),
-        coveredSourceTables,
-        0,
-        List.of(),
+        submission.jobId(),
+        submission.sourceTables(),
+        submission.plannedTasks(),
+        submission.unsupportedTables(),
         true,
         mirrorStatus,
         "QUEUED",
-        submission.message() == null || submission.message().isBlank()
-            ? "已提交增量同步，事实层将在镜像同步完成后自动刷新"
-            : submission.message());
+        buildMessage(submission));
   }
 
   private String normalizeMirrorStatus(SyncStatus status) {
@@ -37,5 +37,16 @@ public class RealtimeIncrementalRefreshService {
       return SyncStatus.QUEUED.name();
     }
     return status.name();
+  }
+
+  private String buildMessage(GitlabMirrorSyncService.OnDemandRefreshResult submission) {
+    String message = submission.message();
+    if (message != null && !message.isBlank()) {
+      return message;
+    }
+    if (submission.sourceTables().isEmpty()) {
+      return "没有需要刷新的源表。";
+    }
+    return "已提交页面相关源表增量刷新，事实层将在镜像同步完成后自动刷新。";
   }
 }
