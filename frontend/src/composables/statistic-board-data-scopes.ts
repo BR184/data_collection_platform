@@ -5,6 +5,7 @@ import type { DataScopeOption, DataScopeProvider } from '../types/data-scope';
 import type { TestingPhaseGroupResponse } from '../types/api';
 
 const LEGACY_CROWN_CAD_PROJECT_ID = 9;
+const LEGACY_CC_PRODUCT_PROJECT_ID = 325;
 
 export interface StatisticBoardDataScopeConfig {
   provider: DataScopeProvider;
@@ -53,33 +54,36 @@ const SYSTEM_TEST_PARENT_SCOPE_PROVIDER: DataScopeProvider = {
   summaryPrefix: '当前测试阶段',
 };
 
-const CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER: DataScopeProvider = {
-  id: 'customer-issue-phase',
-  label: '测试阶段',
-  queryKey: 'testingPhase',
+const CUSTOMER_ISSUE_MILESTONE_SCOPE_PROVIDER: DataScopeProvider = {
+  id: 'customer-issue-milestone',
+  label: '里程碑',
+  queryKey: 'milestoneTitle',
   mode: 'single-select',
-  placeholder: '选择测试阶段',
+  placeholder: '选择里程碑',
   defaultStrategy: 'first-available',
   clearable: false,
   compact: true,
   dropdownLayout: 'list',
-  summaryPrefix: '当前测试阶段',
+  summaryPrefix: '当前里程碑',
 };
 
 export function useStatisticBoardDataScope(boardKey: Ref<string>) {
   const testingPhaseGroups = ref<TestingPhaseGroupResponse[]>([]);
-  const loading = ref(false);
-  const loaded = ref(false);
+  const customerMilestoneOptions = ref<DataScopeOption[]>([]);
+  const phaseLoading = ref(false);
+  const phaseLoaded = ref(false);
+  const customerLoading = ref(false);
+  const customerLoaded = ref(false);
   const parentOptions = computed(() => buildParentOptions(testingPhaseGroups.value));
   const phaseTreeOptions = computed(() => buildTreeOptions(testingPhaseGroups.value));
 
   const config = computed<StatisticBoardDataScopeConfig | null>(() => {
     if (CUSTOMER_ISSUE_PHASE_BOARD_KEYS.has(boardKey.value)) {
       return {
-        provider: CUSTOMER_ISSUE_PHASE_SCOPE_PROVIDER,
-        options: parentOptions,
-        loading,
-        loaded,
+        provider: CUSTOMER_ISSUE_MILESTONE_SCOPE_PROVIDER,
+        options: customerMilestoneOptions,
+        loading: customerLoading,
+        loaded: customerLoaded,
       };
     }
     if (!SYSTEM_TEST_BOARD_KEYS.has(boardKey.value)) {
@@ -89,37 +93,56 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
       return {
         provider: SYSTEM_TEST_PARENT_SCOPE_PROVIDER,
         options: parentOptions,
-        loading,
-        loaded,
+        loading: phaseLoading,
+        loaded: phaseLoaded,
       };
     }
     return {
       provider: SYSTEM_TEST_DEFECT_SUMMARY_SCOPE_PROVIDER,
       options: phaseTreeOptions,
-      loading,
-      loaded,
+      loading: phaseLoading,
+      loaded: phaseLoaded,
     };
   });
 
   watch(
     [boardKey, () => authState.currentUser.authenticated],
     async ([nextBoardKey]) => {
-      if (
-        (!SYSTEM_TEST_BOARD_KEYS.has(nextBoardKey) && !CUSTOMER_ISSUE_PHASE_BOARD_KEYS.has(nextBoardKey))
-        || loaded.value
-        || loading.value
-      ) {
+      if (!SYSTEM_TEST_BOARD_KEYS.has(nextBoardKey) || phaseLoaded.value || phaseLoading.value) {
         return;
       }
-      loading.value = true;
+      phaseLoading.value = true;
       try {
         testingPhaseGroups.value = await api.getTestingPhaseGroups({
           projectId: LEGACY_CROWN_CAD_PROJECT_ID,
           enabled: true,
         });
-        loaded.value = true;
+        phaseLoaded.value = true;
       } finally {
-        loading.value = false;
+        phaseLoading.value = false;
+      }
+    },
+    { immediate: true },
+  );
+
+  watch(
+    [boardKey, () => authState.currentUser.authenticated],
+    async ([nextBoardKey]) => {
+      if (!CUSTOMER_ISSUE_PHASE_BOARD_KEYS.has(nextBoardKey) || customerLoaded.value || customerLoading.value) {
+        return;
+      }
+      customerLoading.value = true;
+      try {
+        const options = await api.getCustomerIssueRecordFilterOptions('cc-product', LEGACY_CC_PRODUCT_PROJECT_ID);
+        customerMilestoneOptions.value = (options.milestoneTitles ?? [])
+          .map((item) => ({
+            label: item.label ?? item.value,
+            value: item.value,
+          }))
+          .filter((item) => normalizeText(item.value));
+        customerLoaded.value = true;
+      } finally {
+        customerLoading.value = false;
       }
     },
     { immediate: true },

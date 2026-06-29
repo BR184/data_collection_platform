@@ -11,8 +11,17 @@ const route = useRoute();
 const boardKey = computed(
   () => getStatisticBoardKey(route.meta.pageKey as PageKey | undefined) ?? 'mirror-table-overview',
 );
+
+const uiHooks = computed(() =>
+  boardKey.value === 'customer-issue-by-function'
+    ? {
+        rootClass: 'customer-issue-function-board',
+        tableClass: 'customer-issue-function-table',
+      }
+    : {},
+);
 </script>
 
 <template>
-  <StatisticBoardView :board-key="boardKey" />
+  <StatisticBoardView :board-key="boardKey" :ui-hooks="uiHooks" />
 </template>

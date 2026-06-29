@@ -107,6 +107,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
 
@@ -116,6 +117,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseScopeResolver phaseScopeResolver,
+      CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
     super(jsonUtils);
@@ -123,6 +125,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
   }
@@ -182,8 +185,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   @Override
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
         snapshotRequest(snapshotFilters, effectiveFilterGroup, buildDefinition()),
@@ -246,8 +248,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     if (!context.affectsIssues()) {
       return;
     }
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(emptyFilterGroup(), phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
     Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
     snapshotService.save(
         snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
@@ -258,11 +259,11 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup,
       StatisticBoardDefinition definition) {
-    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    String selectedMilestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
     return snapshotRequestFactory.issueRequest(
         BOARD_KEY,
         RULE_VERSION,
-        "project=325;testingPhase=" + (StringUtils.hasText(selectedPhase) ? selectedPhase : "none"),
+        "project=325;milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
         filters,
         definition,
         effectiveFilterGroup);
@@ -271,20 +272,15 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   private Map<String, String> customerSnapshotFilters(
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
-    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
-    payload.put("projectId", "325");
-    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
-    if (StringUtils.hasText(selectedPhase)) {
-      payload.put(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, selectedPhase);
-    }
-    return payload;
+    return CustomerIssueMilestoneFilterSupport
+        .snapshotFilters(withoutReservedFilters(filters), effectiveFilterGroup, 325L)
+        .filters();
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
@@ -308,8 +304,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
@@ -543,11 +538,11 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       return true;
     }
     if (CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey())) {
-      return CustomerIssueTestingPhaseFilterSupport.matches(
+      return CustomerIssueMilestoneFilterSupport.matches(
           issue.milestoneTitle(),
           issue.testingPhase(),
-          new StatisticFilterGroup("AND", List.of(condition)),
-          phaseScopeResolver);
+          CustomerIssueMilestoneFilterSupport.normalizeLegacyTestingPhase(
+              new StatisticFilterGroup("AND", List.of(condition)), phaseScopeResolver));
     }
     if ("moduleName".equals(condition.fieldKey())) {
       return matchesCandidates(issue.displayModuleNames(), condition);
@@ -589,6 +584,11 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       case "isNotEmpty" -> StringUtils.hasText(candidate);
       default -> true;
     };
+  }
+
+  private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
+    return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
+        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
   }
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {

@@ -67,7 +67,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
   private static final String RULE_VERSION = "customer-issue-defect-cause@2026-06-17-v2";
-  private static final String MILESTONE_FIELD = "milestoneTitle";
+  private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -76,23 +76,6 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final List<DefectCauseMetricCatalog.Metric> CAUSE_METRICS =
       DefectCauseMetricCatalog.METRICS;
-  private static final String MILESTONE_OPTION_SQL = """
-      select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
-             coalesce(author_name,'') as author_name, created_at_source as created_at,
-             coalesce(assignee_name,'') as assignee_name,
-             updated_at_source as updated_at, closed_at_source as closed_at,
-             coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
-             coalesce(bug_status,'') as bug_status,
-             coalesce(testing_phase,'') as testing_phase,
-             coalesce(system_test_label,'') as system_test_label,
-             coalesce(reason_category,'') as reason_category,
-             coalesce(raw_payload,'') as reason_text,
-             coalesce(module_names,'') as module_names,
-             coalesce(label_names,'') as label_names,
-             coalesce(is_excluded, false) as is_excluded
-        from issue_fact
-       where deleted = false
-      """;
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
              coalesce(author_name,'') as author_name, created_at_source as created_at,
@@ -126,6 +109,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
 
@@ -137,6 +121,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       CustomerIssueScopeProfile customerIssueScopeProfile,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseScopeResolver phaseScopeResolver,
+      CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
       StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
     super(jsonUtils);
@@ -146,6 +131,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
   }
@@ -219,8 +205,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
     Map<String, String> snapshotFilters = customerSnapshotFilters(filters, effectiveFilterGroup);
     return snapshotService.readOrRefresh(
@@ -287,8 +272,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     }
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(emptyFilterGroup(), phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
     Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
     snapshotService.save(
         snapshotRequest(filters, effectiveFilterGroup, definition),
@@ -299,13 +283,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup,
       StatisticBoardDefinition definition) {
-    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
-    String selectedMilestone = selectedMilestone(effectiveFilterGroup);
+    String selectedMilestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
     return snapshotRequestFactory.issueRequest(
         BOARD_KEY,
         RULE_VERSION,
-        "project=325;testingPhase=" + (StringUtils.hasText(selectedPhase) ? selectedPhase : "none")
-            + ";milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
+        "project=325;milestone=" + (StringUtils.hasText(selectedMilestone) ? selectedMilestone : "none"),
         filters,
         definition,
         effectiveFilterGroup);
@@ -314,23 +296,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private Map<String, String> customerSnapshotFilters(
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
-    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
-    payload.put("projectId", "325");
-    String selectedPhase = CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
-    if (StringUtils.hasText(selectedPhase)) {
-      payload.put(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, selectedPhase);
-    }
-    String selectedMilestone = selectedMilestone(effectiveFilterGroup);
-    if (StringUtils.hasText(selectedMilestone)) {
-      payload.put(MILESTONE_FIELD, selectedMilestone);
-    }
-    return payload;
+    return CustomerIssueMilestoneFilterSupport
+        .snapshotFilters(withoutReservedFilters(filters), effectiveFilterGroup, 325L)
+        .filters();
   }
 
   @Override
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     List<IssueSource> scoped =
         buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
@@ -365,8 +338,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
     long moduleCount =
         snapshot.scopedSources().stream().flatMap(issue -> issue.moduleNames().stream()).distinct().count();
@@ -557,9 +529,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
-                "testing-phase-filter",
-                "应用测试阶段切换",
-                "根据页面顶部选择的测试阶段父级收口客户问题里程碑；未选择时保留当前里程碑范围。",
+                "milestone-filter",
+                "应用里程碑切换",
+                "根据页面顶部选择的 CC_Product 里程碑收口客户问题；未选择时按老平台默认使用里程碑列表第一项。",
                 milestoneFiltered.size(),
                 phaseFiltered,
                 this::toRuleFlowSample
@@ -686,45 +658,24 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private List<StatisticFilterOption> loadMilestoneOptions() {
-    try {
-      return issueFactQueryService.query(MILESTONE_OPTION_SQL, Map.of(), this::mapIssueFact).stream()
-          .filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext()))
-          .filter(issue -> !issue.excluded())
-          .map(IssueSource::milestoneTitle)
-          .filter(StringUtils::hasText)
-          .distinct()
-          .sorted(String.CASE_INSENSITIVE_ORDER)
-          .map(value -> new StatisticFilterOption(value, value))
-          .toList();
-    } catch (DataAccessException e) {
-      log.debug("Failed to load milestone options for {}", BOARD_KEY, e);
-      return List.of();
-    }
+    return milestoneCatalogService.listMilestones().stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
   }
 
   private String selectedMilestone(StatisticFilterGroup filterGroup) {
-    if (filterGroup == null || filterGroup.conditions() == null) {
-      return "";
-    }
-    return filterGroup.conditions().stream()
-        .filter(condition -> MILESTONE_FIELD.equals(condition.fieldKey()))
-        .filter(condition -> "eq".equals(condition.operator()))
-        .map(StatisticFilterCondition::value)
-        .filter(StringUtils::hasText)
-        .findFirst()
-        .orElse("");
+    return CustomerIssueMilestoneFilterSupport.selectedMilestone(filterGroup);
   }
 
   private String resolvedPhaseOrMilestoneForExport(Map<String, String> filters) {
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
-    StatisticFilterGroup effectiveFilterGroup =
-        CustomerIssueTestingPhaseFilterSupport.applyDefaultTestingPhase(filterGroup, phaseScopeResolver);
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     String milestone = selectedMilestone(effectiveFilterGroup);
     if (StringUtils.hasText(milestone)) {
       return milestone;
     }
-    return CustomerIssueTestingPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    return "";
   }
 
   private boolean matchesMilestone(IssueSource issue, StatisticFilterGroup filterGroup) {
@@ -761,8 +712,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private boolean matchesTestingPhase(IssueSource issue, StatisticFilterGroup filterGroup) {
-    return CustomerIssueTestingPhaseFilterSupport.matches(
-        issue.milestoneTitle(), issue.testingPhase(), filterGroup, phaseScopeResolver);
+    return CustomerIssueMilestoneFilterSupport.matches(issue.milestoneTitle(), issue.testingPhase(), filterGroup);
   }
 
   private Map<String, String> appliedFilters(
@@ -774,6 +724,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       applied.put(MILESTONE_FIELD, milestone);
     }
     return applied;
+  }
+
+  private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
+    return CustomerIssueMilestoneFilterSupport.applyDefaultMilestone(
+        filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
   }
 
   private DefectCauseMetricCatalog.Metric metric(String key) {
