@@ -43,7 +43,6 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private final ObjectMapper objectMapper;
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final FactBuildService factBuildService;
-  private final SystemTestPhaseScopeResolver phaseScopeResolver;
 
   public CustomerIssueIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
@@ -51,14 +50,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
       ObjectMapper objectMapper,
       GitlabResourceLinkService issueLinkService,
       LabelGroupExpansionService labelGroupExpansionService,
-      FactBuildService factBuildService,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      FactBuildService factBuildService) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.factBuildService = factBuildService;
-    this.phaseScopeResolver = phaseScopeResolver;
   }
 
   public CustomerIssueIllegalRecordListResponse listRecords(
@@ -79,7 +76,6 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
     if (!hasLabelGroupFilters
         && !StringUtils.hasText(request.illegalReason())
-        && !StringUtils.hasText(request.testingPhase())
         && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
       PageSlice<IssueFactRecord> pageSlice =
           loadFactPage(
@@ -89,7 +85,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   expandedFilterGroup,
                   null,
                   request.illegalReason(),
-                  request.testingPhase(),
+                  null,
                   List.of(),
                   null,
                   null,
@@ -119,7 +115,6 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             .stream()
             .filter(IssueFactRecord::illegal)
             .filter(this::hasSupportedCustomerIllegalReason)
-            .filter(view -> matchesTestingPhase(view, request.testingPhase()))
             .filter(view -> matchesIllegalReason(view, request.illegalReason()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
@@ -500,15 +495,6 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     return normalized == null
         || displayIllegalReasons(view).stream()
             .anyMatch(reason -> CustomerIssueIllegalReasonSupport.matches(reason, normalized));
-  }
-
-  private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
-    String normalized = TextQuerySupport.trimToNull(testingPhase);
-    if (normalized == null) {
-      return true;
-    }
-    return CustomerIssuePhaseSupport.matchesSelectedPhase(
-        view.milestoneTitle(), view.primaryPhaseLabel(), normalized, phaseScopeResolver);
   }
 
   private boolean hasSupportedCustomerIllegalReason(IssueFactRecord view) {

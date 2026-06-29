@@ -392,6 +392,38 @@ select source_instance,
 11. 系统测试非法数据主表展示字段已按老平台 `IllegalIssueSearch.vue` 对齐为：议题编号、模块名、议题标题、议题状态、严重程度、议题处理人、非法类型。客户问题非法数据沿用同一字段集合；测试阶段、功能名、提交/更新时间、提交人、测试状态、里程碑和标签等字段保留在详情抽屉中。
 12. 普通统计看板导出已接入通用 xlsx 工作簿导出，按当前 `StatisticBoardDefinition.columnGroups` 递归生成多级表头，并按页面当前 rows/cells 导出。已有专用导出的系统测试/客户问题缺陷原因分析和系统测试横向对比继续使用专用实现。
 
+## 2026-06-29 来源数据规则筛选闭环矩阵
+
+本节只确认“页面到底从哪批数据里取数”，覆盖项目、数据源、测试阶段、轮次、里程碑和版本切换；不把字段展示、非法判定和统计公式混在同一层判断。下一轮再按本节范围逐页深入到表格字段、导出字段、非法判断、议题阶段判断、缺陷响应效率和各聚合指标公式。
+
+| 页面/模块 | 老平台来源范围 | 新平台当前来源字段 | 默认策略 | 切换/筛选落点 | 本轮结论 |
+| --- | --- | --- | --- | --- | --- |
+| 系统测试/议题查询 | CrownCAD 项目 `projectId=9`，记录检索默认全部阶段 | `projectId=9`，`testingPhase` 可选 | 默认不写 `testingPhase`，表示全部测试阶段 | 显式选择父级阶段后展开到具体 `testing_phase` | 已对齐。不能再默认锁定 `CC2026R3`。 |
+| 系统测试/系统测试非法数据 | CrownCAD 项目 `9`，老平台默认阶段列表第一项 | `projectId=9`，`testingPhase` | 默认第一可用启用父级阶段 | 父级阶段展开后匹配事实层 `testing_phase` | 已对齐。列表、导出、筛选候选都复用同一默认阶段。 |
+| 系统测试/缺陷汇总 | CrownCAD 系统测试范围，必须选择阶段 | `testingPhase` | 默认第一可用启用父级阶段；无阶段不扫全量 | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐来源范围。`装配/其他` 多 1 条进入下一轮字段/分类规则样本级复核。 |
+| 系统测试/缺陷原因分析 | CrownCAD 系统测试范围 | `testingPhase` | 默认第一可用启用父级阶段 | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐来源范围；指标公式下一轮逐项核对。 |
+| 系统测试/议题阶段统计 | CrownCAD 系统测试范围，轮次来自阶段定义 | `testingPhase` 与阶段定义子轮次 | 默认第一可用启用父级阶段 | 父级阶段展开为轮次，再按 `testing_phase` 统计 | 已对齐来源范围；阶段判定规则下一轮深入。 |
+| 系统测试/申请延期缺陷分析 | CrownCAD 系统测试范围 | `testingPhase` | 默认第一可用启用父级阶段 | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐来源范围。 |
+| 系统测试/横向对比 | 系统测试、评审、CrownCAD/DGM 代码走查组合 | `projectName/testingPhase/moduleName` | 按页面传入项目和阶段，不默认从客户问题或其他项目取数 | 系统测试走 `issue_fact`，代码走查走 `merge_request_fact`，评审走评审表 | 已对齐核心来源；导出模板和每列公式下一轮复核。 |
+| 客户问题/CC_PRODUCT议题 | CC_Product 项目 `325`，`created_at >= 2026-01-01`，默认全里程碑 | `projectId=325`，`milestoneTitle` 可选 | 默认全部里程碑 | 用户选择里程碑时匹配 `issue_fact.milestone_title` | 已对齐。它是客户问题模块唯一默认全里程碑的记录页。 |
+| 客户问题/延期问题明细 | CC_Product 项目 `325`，延期类记录 | `projectId=325`，`milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 匹配 `issue_fact.milestone_title` | 已对齐来源范围；P1/P2/P3 和 18 天规则下一轮继续深测。 |
+| 客户问题/缺陷非法数据 | CC_Product 项目 `325`，客户问题公共排除 | `projectId=325`，`milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 前端 URL/接口/导出使用 `milestoneTitle`；旧 `testingPhase` 只归一化为里程碑兼容输入 | 本轮修正完成，不再把系统测试阶段当独立来源条件。 |
+| 客户问题/缺陷汇总 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围。 |
+| 客户问题/缺陷原因分析 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；原因分类规则下一轮逐项对齐。 |
+| 客户问题/延期问题 | CC_Product 项目 `325`，客户问题延期事实 | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；SLA 判断下一轮深对齐。 |
+| 客户问题/缺陷响应效率 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；响应/解决周期公式下一轮深对齐。 |
+| 客户问题/按功能展示缺陷数量 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；表格字段和 UI 下一轮继续优化。 |
+| 代码走查/非法数据 | 合并状态 `MERGED`，合并时间晚于 `2024-04-01`，排除“无需标注”模块 | `source` 数据源、`projectName` 项目/版本、`targetBranch` | 默认“全部数据源”，不隐式补 `dev`；仅选择 CrownCAD/DGM 且目标分支空时补 `dev` | 数据源匹配 `source_instance`，项目切换匹配 `merge_request_fact.project_name` | 已对齐来源筛选边界；少 6000 条进入下一轮非法规则和字段映射深对齐。 |
+| 评审数据管理/列表 | 已导入评审记录 | `sourceInstance/projectName/...` | 不强制默认项目或阶段 | 列表筛选匹配评审业务表 | 已对齐来源层。 |
+| 评审数据管理/新增评审、问题清单 | 下拉应来自镜像库全集，不限已导入评审数据 | 项目/模块/人员/版本候选优先镜像库 | 不依赖导入记录先存在 | 项目 `ods_gitlab_projects`，人员 `ods_gitlab_users`，模块 `ods_gitlab_labels` 归一化，版本 `ods_gitlab_milestones` | 已对齐候选来源；本地库未监听，实库抽样需内网复核。 |
+
+来源规则本轮边界：
+
+1. `testingPhase` 只属于系统测试阶段语义；客户问题页面的正式来源字段是 `milestoneTitle`。旧链接或旧接口参数中的 `testingPhase` 只能兼容归一化为 `milestoneTitle`，不能再独立参与客户问题过滤。
+2. “全部”不是统一默认。系统测试议题查询和 CC_PRODUCT 议题是默认全部范围；系统测试统计/非法页默认第一阶段；客户问题统计/非法/延期/效率/按功能页默认第一里程碑；代码走查非法页默认全部数据源。
+3. 代码走查页面的 `source` 和 `projectName` 是两个维度：`source` 决定 CrownCAD/DGM/全部数据源，`projectName` 才是老平台可切换的项目或版本筛选。
+4. 评审新增类表单的下拉候选属于“录入候选来源”，必须取镜像库全集；评审列表筛选属于“已录入业务记录来源”，两者不能混用。
+
 ## 已复核的新老平台字段映射
 
 本节用于后续内网验收时逐项核对“老平台筛选/展示字段”和“新平台前端、后端、事实层字段”是否一致。结论以当前代码和 `docs/platform-page-business-rules.md` 为准。
@@ -410,7 +442,7 @@ select source_instance,
 | 系统测试非法数据 | 议题提交人 `author` | 条件 key `authorName`，详情“议题提交人” | `IssueFactRecordListRequest.authorName` | `issue_fact.author_name` | 已对齐。 |
 | 系统测试非法数据 | 议题处理人 `handler` | 条件 key `assigneeName`，主表/详情“议题处理人” | `IssueFactRecordListRequest.assigneeName` | `issue_fact.assignee_name` | 已对齐。 |
 | 系统测试非法数据 | 展开行字段：更新时间、提交时间、模块名、功能名、议题编号、标题、提交人、处理人、状态、测试状态、严重程度 | 主表保留老平台 7 列；详情抽屉补齐完整展开字段 | `SystemTestIllegalRecordRowResponse` | `issue_fact.updated_at_source/created_at_source/module_names/function_name/iid/title/author_name/assignee_name/issue_state/bug_status/severity_level` | 已对齐。测试阶段、里程碑、项目和标签作为新平台增强信息保留在详情。 |
-| 客户问题非法数据 | 顶部里程碑/测试阶段 `mileStone` | `testingPhase`，Element Plus 原生单选，一行一个选项 | `CustomerIssueIllegalRecordQueryRequest.testingPhase` | 优先匹配 `issue_fact.milestone_title`，再兼容父级阶段展开后的 `testing_phase` | 已对齐客户问题使用体验，范围固定 `CC_Product` / 项目 325。 |
+| 客户问题非法数据 | 顶部里程碑/测试阶段 `mileStone` | `milestoneTitle`，Element Plus 原生单选，一行一个选项；旧 URL 的 `testingPhase` 只兼容转入 `milestoneTitle` | `IssueFactRecordListRequest.milestoneTitle`；`CustomerIssueIllegalRecordQueryRequest.testingPhase` 新链路置空 | `issue_fact.milestone_title` | 本轮已收口。客户问题非法页不再依赖 CrownCAD 系统测试阶段定义，也不再因为旧 `testingPhase` 参数绕开 SQL 快路径。 |
 | 客户问题非法数据 | 模块名 `moduleName` | 条件 key `moduleName`，主表“模块名” | `IssueFactRecordListRequest.moduleName` | `issue_fact.module_names` | 已对齐。 |
 | 客户问题非法数据 | 非法类型 `illegalType / illegalList` | 条件 key `illegalReason`，主表“非法类型” | `CustomerIssueIllegalRecordQueryRequest.illegalReason` | `issue_fact.illegal_reasons` / `illegal_reason`，通过 `CustomerIssueIllegalReasonSupport` 做老文案映射 | 已对齐，并追加客户问题调研模板、计划解决时间、一级缺陷签字规则。 |
 | 客户问题非法数据 | 议题提交人 `author` | 条件 key `authorName`，详情“议题提交人” | `IssueFactRecordListRequest.authorName` | `issue_fact.author_name` | 已对齐。 |
@@ -435,11 +467,11 @@ select source_instance,
 | 系统测试议题阶段统计 | 顶部测试阶段 | 数据范围 `testingPhase`，默认第一可用父级阶段 | `SystemTestPhaseStatisticsBoardService` | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐默认范围。 |
 | 系统测试申请延期缺陷分析 | 顶部测试阶段 | 数据范围 `testingPhase`，默认第一可用父级阶段 | `SystemTestDelayAnalysisBoardService` | 阶段定义展开后匹配 `issue_fact.testing_phase` | 已对齐默认范围。 |
 | 系统测试横向对比 | `projectName/testingPhase/moduleName` | 条件筛选 `projectName/testingPhase/moduleName` | `SystemTestHorizontalComparisonExportService.ExportScope` | 议题按 `issue_fact.testing_phase/module_names`，代码走查按 `merge_request_fact.project_name/target_branch`，评审按 `review_records.project_name` | 已对齐核心范围；导出格式仍需按老平台模板继续逐列复核。 |
-| 客户问题缺陷汇总 | 老平台里程碑/版本切换 | 数据范围 `testingPhase`，展示“测试阶段” | `CustomerIssueTestingPhaseFilterSupport` | 优先 `issue_fact.milestone_title`，再兼容 `testing_phase` | 已对齐默认不再“全部测试阶段”，范围固定 CC_Product。 |
-| 客户问题缺陷原因分析 | 老平台里程碑/版本切换 | 数据范围 `testingPhase`，条件 `milestoneTitle` 可叠加 | `CustomerIssueDefectCauseBoardService` | `milestone_title` 优先，`testing_phase` 兼容 | 已对齐范围和阶段切换。 |
-| 客户问题延期问题 | 老平台里程碑、模块、紧急程度/延期类型 | 数据范围 `testingPhase`，条件 `moduleName/priorityLevel/delayIssue` | `CustomerIssueDelayIssuesBoardService` | `issue_fact.milestone_title/module_names/priority_level/is_response_delayed/is_resolve_delayed` | 已对齐范围；SLA 字段来自事实层本次新规则，内网需重点验收 P1/P2/P3 和 18 天规则。 |
-| 客户问题响应/解决效率 | 老平台里程碑/版本切换 | 数据范围 `testingPhase`，条件 `milestoneTitle/moduleName` | `CustomerIssueResponseEfficiencyBoardService` | `issue_fact.milestone_title/testing_phase/module_names/response_cycle_hours/resolve_cycle_days` | 已对齐范围；周期计算依赖本次事实层重建。 |
-| 客户问题按功能展示 | 老平台里程碑、模块、功能 | 数据范围 `testingPhase`，条件 `moduleName/functionName/milestoneTitle` | `CustomerIssueByFunctionBoardService` | `issue_fact.milestone_title/testing_phase/module_names/function_name` | 已对齐范围和字段映射。 |
+| 客户问题缺陷汇总 | 老平台里程碑/版本切换 | 数据范围 `milestoneTitle`，展示“里程碑” | `CustomerIssueDefectSummaryBoardService` | `issue_fact.milestone_title` | 已对齐默认不再“全部测试阶段”，范围固定 CC_Product；旧 `testingPhase` 只兼容归一化。 |
+| 客户问题缺陷原因分析 | 老平台里程碑/版本切换 | 数据范围 `milestoneTitle` | `CustomerIssueDefectCauseBoardService` | `issue_fact.milestone_title` | 已对齐范围和里程碑切换。 |
+| 客户问题延期问题 | 老平台里程碑、模块、紧急程度/延期类型 | 数据范围 `milestoneTitle`，条件 `moduleName/priorityLevel/delayIssue` | `CustomerIssueDelayIssuesBoardService` | `issue_fact.milestone_title/module_names/priority_level/is_response_delayed/is_resolve_delayed` | 已对齐范围；SLA 字段来自事实层本次新规则，内网需重点验收 P1/P2/P3 和 18 天规则。 |
+| 客户问题响应/解决效率 | 老平台里程碑/版本切换 | 数据范围 `milestoneTitle`，条件 `moduleName` | `CustomerIssueResponseEfficiencyBoardService` | `issue_fact.milestone_title/module_names/response_cycle_hours/resolve_cycle_days` | 已对齐范围；周期计算依赖本次事实层重建。 |
+| 客户问题按功能展示 | 老平台里程碑、模块、功能 | 数据范围 `milestoneTitle`，条件 `moduleName/functionName` | `CustomerIssueByFunctionBoardService` | `issue_fact.milestone_title/module_names/function_name` | 已对齐范围和字段映射。 |
 | 评审数据管理-新增评审 | 项目 | 表单 `projectName` | `ReviewDataFilterOptionService.projectNames` / `ReviewDataRecordSaveRequest.projectName` | 候选优先 `ods_gitlab_projects.name`，保存到 `review_records.project_name` | 已对齐：候选来自镜像库全量项目，历史评审数据仅兜底补充。 |
 | 评审数据管理-新增评审 | 模块 | 表单 `moduleName` | `ReviewDataFilterOptionService.moduleNames` / `ReviewDataRecordSaveRequest.moduleName` | 候选优先 `ods_gitlab_labels.title` 按模块标签规则归一化，保存到 `review_records.module_name` | 已对齐。 |
 | 评审数据管理-新增评审 | 评审负责人 | 表单 `reviewOwner` | `ReviewDataFilterOptionService.reviewOwners` / `ReviewDataRecordSaveRequest.reviewOwner` | 候选优先 `ods_gitlab_users.name`，保存到 `review_records.review_owner` | 已对齐。 |

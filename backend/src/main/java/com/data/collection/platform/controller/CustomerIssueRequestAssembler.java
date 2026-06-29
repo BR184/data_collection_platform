@@ -2,6 +2,8 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.service.CustomerIssueIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CustomerIssueRecordQueryRequest;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
+import com.data.collection.platform.service.TextQuerySupport;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,10 +26,44 @@ public class CustomerIssueRequestAssembler {
 
   public CustomerIssueIllegalRecordQueryRequest toIllegalRecordQueryRequest(
       CustomerIssueIllegalRecordListWebRequest request) {
+    IssueFactRecordListRequest listRequest = listRequestAssembler.toServiceRequest(request);
     return new CustomerIssueIllegalRecordQueryRequest(
-        listRequestAssembler.toServiceRequest(request),
+        withLegacyTestingPhaseAsMilestone(listRequest, request.getTestingPhase()),
         request.getIllegalReason(),
-        request.getTestingPhase(),
+        null,
         request.getFilterGroup());
+  }
+
+  private IssueFactRecordListRequest withLegacyTestingPhaseAsMilestone(
+      IssueFactRecordListRequest request, String legacyTestingPhase) {
+    String milestoneTitle = TextQuerySupport.trimToNull(request.milestoneTitle());
+    String legacyMilestone = TextQuerySupport.trimToNull(legacyTestingPhase);
+    if (milestoneTitle != null || legacyMilestone == null) {
+      return request;
+    }
+    return new IssueFactRecordListRequest(
+        request.projectId(),
+        request.keyword(),
+        request.searchType(),
+        request.issueIid(),
+        request.title(),
+        request.projectName(),
+        request.moduleName(),
+        request.functionName(),
+        request.severityLevel(),
+        request.priorityLevel(),
+        request.issueState(),
+        request.bugStatus(),
+        request.category(),
+        legacyMilestone,
+        request.createdAtStart(),
+        request.createdAtEnd(),
+        request.updatedAtStart(),
+        request.updatedAtEnd(),
+        request.sourceInstance(),
+        request.page(),
+        request.size(),
+        request.sortField(),
+        request.sortOrder());
   }
 }

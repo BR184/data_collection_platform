@@ -182,7 +182,7 @@
 7. 客户问题上述顶部切换必须对齐老平台默认里程碑：进入页面默认选中 CC_Product 里程碑列表中的第一可用项，不能默认“全部测试阶段”或 CrownCAD 阶段定义中的第一父级阶段。默认里程碑必须同时体现在顶部控件、URL 查询参数、接口筛选条件、导出/下钻条件和后端补默认结果中。只有业务规则明确要求全里程碑的页面才能展示全部范围。
 8. 客户问题记录类页面必须区分页面画像，不能把所有记录页套同一条公共排除：
    - `CC_PRODUCT议题` 对齐老平台 `IssueStaticDataController.findCCProductIssueInfo -> ProjectIssueInfoQueryBuilder`：默认 `projectId=325`，默认 `created_at/submission_date >= 2026-01-01`，默认全里程碑，里程碑只是可选筛选；默认排除 `bug_status` 包含 `已拒绝` 的记录，不套用客户问题统计页公共排除。
-   - 客户问题延期记录、客户问题缺陷非法数据等统计/非法类记录入口对齐老平台 `SpiderIssueDataDAO` + `QueryUtil.setQueryFilter`：默认 `projectId=325`，顶部范围使用 `milestone_title` 而不是系统测试 `testing_phase`，并复用客户问题公共排除规则。导出、筛选候选、分页总数和页面列表必须复用同一套规则。
+   - 客户问题延期记录、客户问题缺陷非法数据等统计/非法类记录入口对齐老平台 `SpiderIssueDataDAO` + `QueryUtil.setQueryFilter`：默认 `projectId=325`，顶部范围使用 `milestone_title` 而不是系统测试 `testing_phase`，并复用客户问题公共排除规则。旧 URL 或旧接口里残留的 `testingPhase` 只能在入口处归一化为 `milestoneTitle`，不能作为服务层第二套阶段筛选继续存在。导出、筛选候选、分页总数和页面列表必须复用同一套规则。
 
 ### 5.2 缺陷汇总
 
