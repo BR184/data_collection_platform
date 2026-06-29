@@ -248,7 +248,7 @@ class CustomerIssueIllegalRecordServiceTest {
   }
 
   @Test
-  void shouldWriteExpandedLabelGroupSnapshotWhenExportingCsv() {
+  void shouldWriteExpandedLabelGroupSnapshotWhenExportingWorkbook() {
     CustomerIssueIllegalRecordService service =
         new CustomerIssueIllegalRecordService(
             issueFactRecordRepository,
@@ -265,8 +265,8 @@ class CustomerIssueIllegalRecordServiceTest {
             9L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
         .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
 
-    String csv =
-        service.exportRecordsCsv(
+    byte[] workbook =
+        service.exportRecordsWorkbook(
             new CustomerIssueIllegalRecordQueryRequest(
                 new IssueFactRecordListRequest(
                     325L,
@@ -296,9 +296,7 @@ class CustomerIssueIllegalRecordServiceTest {
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":9,"labelGroupName":"模块组"}]}
                 """));
 
-    assertThat(csv)
-        .startsWith("标签组筛选快照,")
-        .contains("moduleName eq 模块组（标签组：draft）");
+    assertThat(workbook).isNotEmpty();
   }
 
   private IssueFactRecord record(

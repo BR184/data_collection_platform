@@ -12,7 +12,7 @@ import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { buildIssueIidCellValue } from '../utils/issue-record-links';
 import { buildIssueSeverityTag, displayIssueSeverity } from '../utils/issue-severity-display';
-import { downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import type {
   StatisticFilterField,
   SystemTestIssueSearchFilterOptionsResponse,
@@ -353,8 +353,8 @@ function buildCurrentQueryParams(includePagination: boolean) {
 async function handleExport() {
   exportLoading.value = true;
   try {
-    const csv = await api.exportSystemTestIssueSearchRecords(buildCurrentQueryParams(false));
-    downloadCsv(csv, `系统测试问题记录_${formatExportFileDate(new Date())}.csv`);
+    const workbook = await api.exportSystemTestIssueSearchRecords(buildCurrentQueryParams(false));
+    downloadBlob(workbook, `系统测试问题记录_${formatExportFileDate(new Date())}.xlsx`);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {

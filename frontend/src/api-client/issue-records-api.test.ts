@@ -3,11 +3,11 @@ import { issueRecordsApi } from './issue-records-api';
 
 vi.mock('./request', () => ({
   request: vi.fn(() => Promise.resolve({})),
-  requestText: vi.fn(() => Promise.resolve('csv')),
+  requestBlob: vi.fn(() => Promise.resolve(new Blob())),
   EXPORT_REQUEST_TIMEOUT_MS: 180_000,
 }));
 
-import { request, requestText } from './request';
+import { request, requestBlob } from './request';
 
 describe('issueRecordsApi source instance query contract', () => {
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('issueRecordsApi source instance query contract', () => {
       issueIid: '22637',
     });
 
-    expect(requestText).toHaveBeenCalledWith(
+    expect(requestBlob).toHaveBeenCalledWith(
       expect.stringContaining('/api/question-metrics/issues/export?keyword=22637&searchType=issueIid&issueIid=22637&sourceInstance=cc'),
       expect.any(Object),
     );
@@ -68,7 +68,7 @@ describe('issueRecordsApi source instance query contract', () => {
 
     issueRecordsApi.exportSystemTestIssueSearchRecords({ filterGroup });
 
-    expect(decodeURIComponent(String(vi.mocked(requestText).mock.calls[0][0]))).toContain(
+    expect(decodeURIComponent(String(vi.mocked(requestBlob).mock.calls[0][0]))).toContain(
       '/api/question-metrics/issues/export?filterGroup={"logic":"AND","conditions":[{"fieldKey":"assigneeName","operator":"intersects","value":null,"valueType":"LABEL_GROUP","labelGroupId":1,"labelGroupName":"核心人员"}]}',
     );
   });

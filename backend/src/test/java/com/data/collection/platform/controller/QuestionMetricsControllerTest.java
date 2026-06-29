@@ -181,8 +181,8 @@ class QuestionMetricsControllerTest {
   }
 
   @Test
-  void shouldExportIssueSearchRecordsCsvWithCurrentFilters() throws Exception {
-    when(systemTestIssueSearchService.exportRecordsCsv(
+  void shouldExportIssueSearchRecordsWorkbookWithCurrentFilters() throws Exception {
+    when(systemTestIssueSearchService.exportRecordsWorkbook(
             new SystemTestIssueSearchQueryRequest(
                 new IssueFactRecordListRequest(
                     1001L,
@@ -210,7 +210,7 @@ class QuestionMetricsControllerTest {
                 null,
                 null,
                 null)))
-        .thenReturn("issue_iid,title\n809,Sample issue\n");
+        .thenReturn(new byte[] {1, 2, 3});
 
     mockMvc.perform(
             get("/api/question-metrics/issues/export")
@@ -221,9 +221,11 @@ class QuestionMetricsControllerTest {
                 .param("sortBy", "updatedAt")
                 .param("sortOrder", "desc"))
         .andExpect(status().isOk())
-        .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-issues.csv\""))
-        .andExpect(content().contentType("text/csv;charset=UTF-8"))
-        .andExpect(content().string("issue_iid,title\n809,Sample issue\n"));
+        .andExpect(header().string(
+            HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"系统测试问题记录.xlsx\"; filename*=UTF-8''%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E9%97%AE%E9%A2%98%E8%AE%B0%E5%BD%95.xlsx"))
+        .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(content().bytes(new byte[] {1, 2, 3}));
   }
 
   @Test
@@ -346,8 +348,8 @@ class QuestionMetricsControllerTest {
   }
 
   @Test
-  void shouldExportSystemTestIllegalRecordsCsvWithCurrentFilters() throws Exception {
-    when(systemTestIllegalRecordService.exportRecordsCsv(
+  void shouldExportSystemTestIllegalRecordsWorkbookWithCurrentFilters() throws Exception {
+    when(systemTestIllegalRecordService.exportRecordsWorkbook(
             new SystemTestIllegalRecordQueryRequest(
                 new IssueFactRecordListRequest(
                     1001L,
@@ -376,7 +378,7 @@ class QuestionMetricsControllerTest {
                 null,
                 null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
-        .thenReturn("issue_iid,illegal_reason\n809,missing module\n");
+        .thenReturn(new byte[] {4, 5, 6});
 
     mockMvc.perform(
             get("/api/question-metrics/illegal-records/export")
@@ -389,10 +391,11 @@ class QuestionMetricsControllerTest {
                 .param("sortBy", "updatedAt")
                 .param("sortOrder", "desc"))
         .andExpect(status().isOk())
-        .andExpect(
-            header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-illegal-records.csv\""))
-        .andExpect(content().contentType("text/csv;charset=UTF-8"))
-        .andExpect(content().string("issue_iid,illegal_reason\n809,missing module\n"));
+        .andExpect(header().string(
+            HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"系统测试非法数据.xlsx\"; filename*=UTF-8''%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E9%9D%9E%E6%B3%95%E6%95%B0%E6%8D%AE.xlsx"))
+        .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(content().bytes(new byte[] {4, 5, 6}));
   }
 
   @Test

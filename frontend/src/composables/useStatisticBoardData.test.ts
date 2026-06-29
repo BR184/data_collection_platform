@@ -40,7 +40,7 @@ function setup() {
       })),
       loadBoardData: vi.fn(async () => board),
       exportBoardFile: vi.fn(async () => ({
-        blob: new Blob(['项目,阻塞数\nmodule-a,1'], { type: 'text/csv' }),
+        blob: new Blob(['workbook'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
         filename: '当前里程碑-客户问题缺陷原因统计表.xlsx',
       })),
       onBoardLoaded: vi.fn<(response: StatisticBoardResponse) => void>(),

@@ -12,7 +12,7 @@ import type {
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
 } from '../types/api';
-import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob, requestText } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 type SystemTestIssueSearchQueryParams = {
@@ -216,13 +216,6 @@ function buildCustomerIssueRecordQuery(params: {
   });
 }
 
-async function requestCsv(url: string) {
-  return requestText(url, {
-    errorPrefix: '导出失败',
-    timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
-  });
-}
-
 async function requestWorkbook(url: string) {
   return requestBlob(url, {
     errorPrefix: '导出失败',
@@ -237,7 +230,7 @@ export const issueRecordsApi = {
   },
   exportSystemTestIssueSearchRecords(params: SystemTestIssueSearchQueryParams) {
     const query = buildSystemTestIssueSearchQuery(params, false);
-    return requestCsv(`/api/question-metrics/issues/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/question-metrics/issues/export${query.toString() ? `?${query.toString()}` : ''}`);
   },
   getSystemTestIssueSearchFilterOptions(
     projectId?: string | number | null,
@@ -267,7 +260,7 @@ export const issueRecordsApi = {
   },
   exportSystemTestIllegalRecords(params: SystemTestIllegalRecordQueryParams) {
     const query = buildSystemTestIllegalRecordQuery(params, false);
-    return requestCsv(`/api/question-metrics/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
+    return requestWorkbook(`/api/question-metrics/illegal-records/export${query.toString() ? `?${query.toString()}` : ''}`);
   },
   getSystemTestIllegalRecordFilterOptions(projectId?: string | number | null) {
     const query = new URLSearchParams(

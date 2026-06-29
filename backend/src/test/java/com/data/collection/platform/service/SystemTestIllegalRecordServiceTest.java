@@ -239,7 +239,7 @@ class SystemTestIllegalRecordServiceTest {
                 1,
                 100));
 
-    service.exportRecordsCsv(
+    service.exportRecordsWorkbook(
         new SystemTestIllegalRecordQueryRequest(
             new IssueFactRecordListRequest(
                 1001L,

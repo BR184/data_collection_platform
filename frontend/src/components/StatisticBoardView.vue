@@ -36,7 +36,7 @@ import { useDataScope } from '../composables/useDataScope';
 import { useStatisticBoardDataScope } from '../composables/statistic-board-data-scopes';
 import PageSettingsDialog from './PageSettingsDialog.vue';
 import { usePageSavedViews } from '../composables/usePageSavedViews';
-import { downloadBlob, downloadCsv, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -512,10 +512,10 @@ async function exportCustomerIssues() {
 async function exportSystemTestIssues() {
   issueExportLoading.value = true;
   try {
-    const csv = await api.exportSystemTestIssueSearchRecords({
+    const workbook = await api.exportSystemTestIssueSearchRecords({
       filterGroup: buildFilterPayload(),
     });
-    downloadCsv(csv, `系统测试议题数据_${formatExportFileDate(new Date())}.csv`);
+    downloadBlob(workbook, `系统测试议题数据_${formatExportFileDate(new Date())}.xlsx`);
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);

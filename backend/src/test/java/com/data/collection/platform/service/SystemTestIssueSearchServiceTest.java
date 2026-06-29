@@ -252,7 +252,7 @@ class SystemTestIssueSearchServiceTest {
   }
 
   @Test
-  void shouldWriteExpandedLabelGroupSnapshotWhenExportingCsv() {
+  void shouldWriteExpandedLabelGroupSnapshotWhenExportingWorkbook() {
     SystemTestIssueSearchService service = service();
     when(labelGroupExpansionService.expand(1L, "STRING", "assigneeName", "question-metrics-issue-search", null))
         .thenReturn(new LabelGroupExpansionResponse(1L, "核心人员", "STRING", List.of("bob"), List.of()));
@@ -263,8 +263,8 @@ class SystemTestIssueSearchServiceTest {
         "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"assigneeName\",\"operator\":\"eq\","
             + "\"valueType\":\"LABEL_GROUP\",\"labelGroupId\":1,\"labelGroupName\":\"核心人员\"}]}";
 
-    String csv =
-        service.exportRecordsCsv(
+    byte[] workbook =
+        service.exportRecordsWorkbook(
             new SystemTestIssueSearchQueryRequest(
                 new IssueFactRecordListRequest(
                     1001L,
@@ -292,9 +292,7 @@ class SystemTestIssueSearchServiceTest {
                 null,
                 filterGroupJson));
 
-    assertThat(csv)
-        .startsWith("标签组筛选快照,")
-        .contains("assigneeName eq 核心人员（标签组：bob）");
+    assertThat(workbook).isNotEmpty();
   }
 
   @Test

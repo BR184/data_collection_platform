@@ -14,9 +14,11 @@ import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
+import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class QuestionMetricsController {
   private static final String ISSUE_SEARCH_WORKSPACE_KEY = "system-test-issues";
   private static final String ILLEGAL_RECORDS_WORKSPACE_KEY = "system-test-illegal-records";
+  private static final MediaType EXCEL_MEDIA_TYPE =
+      MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
   private final SystemTestIssueSearchService systemTestIssueSearchService;
   private final SystemTestIllegalRecordService systemTestIllegalRecordService;
@@ -58,15 +62,15 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/issues/export")
-  public ResponseEntity<String> exportIssues(
+  public ResponseEntity<byte[]> exportIssues(
       @ModelAttribute SystemTestIssueSearchListWebRequest request) {
-    String csv =
-        systemTestIssueSearchService.exportRecordsCsv(
+    byte[] workbook =
+        systemTestIssueSearchService.exportRecordsWorkbook(
             questionMetricsRequestAssembler.toIssueSearchQueryRequest(request));
     return ResponseEntity.ok()
-        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-issues.csv\"")
-        .body(csv);
+        .contentType(EXCEL_MEDIA_TYPE)
+        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("系统测试问题记录.xlsx"))
+        .body(workbook);
   }
 
   @GetMapping("/issues/filter-options")
@@ -99,15 +103,21 @@ public class QuestionMetricsController {
   }
 
   @GetMapping("/illegal-records/export")
-  public ResponseEntity<String> exportIllegalRecords(
+  public ResponseEntity<byte[]> exportIllegalRecords(
       @ModelAttribute SystemTestIllegalRecordListWebRequest request) {
-    String csv =
-        systemTestIllegalRecordService.exportRecordsCsv(
+    byte[] workbook =
+        systemTestIllegalRecordService.exportRecordsWorkbook(
             questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request));
     return ResponseEntity.ok()
-        .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"system-test-illegal-records.csv\"")
-        .body(csv);
+        .contentType(EXCEL_MEDIA_TYPE)
+        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("系统测试非法数据.xlsx"))
+        .body(workbook);
+  }
+
+  private String contentDisposition(String filename) {
+    String fallback = filename.replace("\"", "");
+    String encoded = UriUtils.encode(filename, StandardCharsets.UTF_8);
+    return "attachment; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded;
   }
 
   @GetMapping("/illegal-records/filter-options")

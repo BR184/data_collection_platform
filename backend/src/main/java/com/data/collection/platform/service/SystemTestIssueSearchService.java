@@ -146,7 +146,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
   }
 
-  public String exportRecordsCsv(SystemTestIssueSearchQueryRequest request) {
+  public byte[] exportRecordsWorkbook(SystemTestIssueSearchQueryRequest request) {
     List<SystemTestIssueSearchRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
@@ -189,69 +189,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       }
       page += 1;
     }
-
-    List<String> lines = new ArrayList<>();
-    List<String> labelGroupSnapshots = describeExpandedLabelGroupFilters(request);
-    if (!labelGroupSnapshots.isEmpty()) {
-      lines.add(String.join(
-          ",",
-          List.of("标签组筛选快照", CsvExportSupport.cell(String.join("；", labelGroupSnapshots)))));
-    }
-    lines.add(
-        String.join(
-            ",",
-            List.of(
-                "sourceInstance",
-                "projectId",
-                "问题编号",
-                "项目",
-                "模块",
-                "测试阶段",
-                "议题严重程度",
-                "测试状态",
-                "议题状态",
-                "议题提交人",
-                "议题处理人",
-                "议题指派人",
-                "优先级",
-                "功能名称",
-                "议题类别",
-                "里程碑",
-                "延期原因",
-                "议题提交时间",
-                "议题更新时间",
-                "议题关闭时间",
-                "议题标题",
-                "链接")));
-    for (SystemTestIssueSearchRowResponse row : rows) {
-      lines.add(
-          String.join(
-              ",",
-              List.of(
-                  CsvExportSupport.cell(row.sourceInstance()),
-                  CsvExportSupport.cell(row.projectId()),
-                  CsvExportSupport.cell(row.issueIid()),
-                  CsvExportSupport.cell(row.projectName()),
-                  CsvExportSupport.cell(row.moduleNames()),
-                  CsvExportSupport.cell(row.testingPhase()),
-                  CsvExportSupport.cell(row.severityLevel()),
-                  CsvExportSupport.cell(row.bugStatus()),
-                  CsvExportSupport.cell(row.issueState()),
-                  CsvExportSupport.cell(row.authorName()),
-                  CsvExportSupport.cell(row.assigneeName()),
-                  CsvExportSupport.cell(row.assigneeName()),
-                  CsvExportSupport.cell(row.priorityLevel()),
-                  CsvExportSupport.cell(row.functionName()),
-                  CsvExportSupport.cell(row.category()),
-                  CsvExportSupport.cell(row.milestoneTitle()),
-                  CsvExportSupport.cell(row.delayCause()),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
-                  CsvExportSupport.cell(row.title()),
-                  CsvExportSupport.cell(row.issueLink()))));
-    }
-    return String.join("\n", lines) + "\n";
+    return SystemTestIssueRecordWorkbookExportSupport.exportRecords(rows, describeExpandedLabelGroupFilters(request));
   }
 
   private List<String> describeExpandedLabelGroupFilters(SystemTestIssueSearchQueryRequest request) {

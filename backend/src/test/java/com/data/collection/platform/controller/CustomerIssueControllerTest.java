@@ -161,8 +161,8 @@ class CustomerIssueControllerTest {
   }
 
   @Test
-  void shouldExportCustomerIssueRecordsCsvWithCurrentFilters() throws Exception {
-    when(customerIssueRecordService.exportRecordsCsv(
+  void shouldExportCustomerIssueRecordsWorkbookWithCurrentFilters() throws Exception {
+    when(customerIssueRecordService.exportRecordsWorkbook(
             new CustomerIssueRecordQueryRequest(
                 "delay",
                 new IssueFactRecordListRequest(
@@ -193,7 +193,7 @@ class CustomerIssueControllerTest {
                 null,
                 null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
-        .thenReturn("issue_iid,title\n201,Delay sample\n");
+        .thenReturn(new byte[] {1, 2, 3});
 
     mockMvc.perform(
             get("/api/customer-issues/records/export")
@@ -206,9 +206,11 @@ class CustomerIssueControllerTest {
                 .param("sortBy", "updatedAt")
                 .param("sortOrder", "desc"))
         .andExpect(status().isOk())
-        .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-records.csv\""))
-        .andExpect(content().contentType("text/csv;charset=UTF-8"))
-        .andExpect(content().string("issue_iid,title\n201,Delay sample\n"));
+        .andExpect(header().string(
+            HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"延期问题明细.xlsx\"; filename*=UTF-8''%E5%BB%B6%E6%9C%9F%E9%97%AE%E9%A2%98%E6%98%8E%E7%BB%86.xlsx"))
+        .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(content().bytes(new byte[] {1, 2, 3}));
   }
 
   @Test
@@ -349,8 +351,8 @@ class CustomerIssueControllerTest {
   }
 
   @Test
-  void shouldExportCustomerIssueIllegalRecordsCsvWithCurrentFilters() throws Exception {
-    when(customerIssueIllegalRecordService.exportRecordsCsv(
+  void shouldExportCustomerIssueIllegalRecordsWorkbookWithCurrentFilters() throws Exception {
+    when(customerIssueIllegalRecordService.exportRecordsWorkbook(
             new CustomerIssueIllegalRecordQueryRequest(
                 new IssueFactRecordListRequest(
                     325L,
@@ -376,7 +378,7 @@ class CustomerIssueControllerTest {
                 "Module mismatch",
                 null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
-        .thenReturn("issue_iid,illegal_reason\n301,Module mismatch\n");
+        .thenReturn(new byte[] {4, 5, 6});
 
     mockMvc.perform(
             get("/api/customer-issues/illegal-records/export")
@@ -388,10 +390,11 @@ class CustomerIssueControllerTest {
                 .param("sortBy", "updatedAt")
                 .param("sortOrder", "desc"))
         .andExpect(status().isOk())
-        .andExpect(
-            header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"customer-issue-illegal-records.csv\""))
-        .andExpect(content().contentType("text/csv;charset=UTF-8"))
-        .andExpect(content().string("issue_iid,illegal_reason\n301,Module mismatch\n"));
+        .andExpect(header().string(
+            HttpHeaders.CONTENT_DISPOSITION,
+            "attachment; filename=\"客户问题非法数据.xlsx\"; filename*=UTF-8''%E5%AE%A2%E6%88%B7%E9%97%AE%E9%A2%98%E9%9D%9E%E6%B3%95%E6%95%B0%E6%8D%AE.xlsx"))
+        .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .andExpect(content().bytes(new byte[] {4, 5, 6}));
   }
 
   @Test

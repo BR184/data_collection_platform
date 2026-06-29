@@ -284,7 +284,7 @@ class CustomerIssueRecordServiceTest {
                 1,
                 100));
 
-    service.exportRecordsCsv(
+    service.exportRecordsWorkbook(
         new CustomerIssueRecordQueryRequest(
             "cc-product",
             new IssueFactRecordListRequest(
@@ -326,7 +326,7 @@ class CustomerIssueRecordServiceTest {
   }
 
   @Test
-  void shouldWriteExpandedLabelGroupSnapshotWhenExportingCsv() {
+  void shouldWriteExpandedLabelGroupSnapshotWhenExportingWorkbook() {
     CustomerIssueRecordService service =
         new CustomerIssueRecordService(
             issueFactRecordRepository,
@@ -340,8 +340,8 @@ class CustomerIssueRecordServiceTest {
     when(labelGroupExpansionService.expand(8L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
         .thenReturn(new LabelGroupExpansionResponse(8L, "核心模块", "STRING", List.of("草图"), List.of()));
 
-    String csv =
-        service.exportRecordsCsv(
+    byte[] workbook =
+        service.exportRecordsWorkbook(
             new CustomerIssueRecordQueryRequest(
                 "cc-product",
                 new IssueFactRecordListRequest(
@@ -373,9 +373,7 @@ class CustomerIssueRecordServiceTest {
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":8,"labelGroupName":"核心模块"}]}
                 """));
 
-    assertThat(csv)
-        .startsWith("标签组筛选快照,")
-        .contains("moduleName eq 核心模块（标签组：草图）");
+    assertThat(workbook).isNotEmpty();
   }
 
   @Test

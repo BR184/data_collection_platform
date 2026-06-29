@@ -121,7 +121,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
   }
 
-  public String exportRecordsCsv(SystemTestIllegalRecordQueryRequest request) {
+  public byte[] exportRecordsWorkbook(SystemTestIllegalRecordQueryRequest request) {
     List<SystemTestIllegalRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
@@ -165,55 +165,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       }
       page += 1;
     }
-
-    List<String> lines = new ArrayList<>();
-    lines.add(
-        String.join(
-            ",",
-            List.of(
-                "问题编号",
-                "非法类型",
-                "项目",
-                "模块",
-                "功能名",
-                "测试阶段",
-                "严重程度",
-                "缺陷状态",
-                "状态",
-                "创建人",
-                "处理人",
-                "缺陷分类",
-                "里程碑",
-                "创建时间",
-                "更新时间",
-                "关闭时间",
-                "标题",
-                "链接")));
-    for (SystemTestIllegalRecordRowResponse row : rows) {
-      lines.add(
-          String.join(
-              ",",
-              List.of(
-                  CsvExportSupport.cell(row.issueIid()),
-                  CsvExportSupport.cell(row.illegalReason()),
-                  CsvExportSupport.cell(row.projectName()),
-                  CsvExportSupport.cell(row.moduleNames()),
-                  CsvExportSupport.cell(row.functionName()),
-                  CsvExportSupport.cell(row.testingPhase()),
-                  CsvExportSupport.cell(row.severityLevel()),
-                  CsvExportSupport.cell(row.bugStatus()),
-                  CsvExportSupport.cell(row.issueState()),
-                  CsvExportSupport.cell(row.authorName()),
-                  CsvExportSupport.cell(row.assigneeName()),
-                  CsvExportSupport.cell(row.category()),
-                  CsvExportSupport.cell(row.milestoneTitle()),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.createdAt())),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.updatedAt())),
-                  CsvExportSupport.cell(CsvExportSupport.dateTime(row.closedAt())),
-                  CsvExportSupport.cell(row.title()),
-                  CsvExportSupport.cell(row.issueLink()))));
-    }
-    return String.join("\n", lines) + "\n";
+    return SystemTestIssueRecordWorkbookExportSupport.exportIllegalRecords(rows);
   }
 
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
