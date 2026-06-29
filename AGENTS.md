@@ -32,9 +32,17 @@
 
 - `docs/intranet-offline-packaging-standard.md`
 
-当前内网已部署基线包为 `D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-runnable-empty-working-ubuntu2404-offline.tar.gz`。后续普通 bugfix 和代码更新默认基于该基线包已运行的内网实例做同容器代码增量更新，不重新制作全新的空平台全量包，不重建平台 PostgreSQL 数据卷，不清空同步状态和用户数据。只有业务方明确批准重建环境、清空环境或灾难恢复时，才允许重新走全量空平台部署流程。
+当前内网已部署基线包为 `D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-runnable-empty-working-ubuntu2404-offline.tar.gz`。后续交付必须先区分三类包：
+
+1. 离线全新部署包：只用于新服务器首次部署、明确清空环境、灾难恢复或业务方批准重建；平台数据为空。
+2. 需要事实层重建的增量更新包：用于修复后端事实字段、统计口径、非法判定、默认范围、字段映射、快照/中间表结构等会改变事实结果的问题。仍然保留既有容器、PostgreSQL volume、用户配置、同步状态和镜像表，只基于现有镜像表重建事实层并预热统计快照，不能清库或重新全量同步。
+3. 不需要事实层重建的增量更新包：用于纯前端展示、样式、文案、按钮布局或不改变事实表/统计结果的小修。只替换前后端业务镜像并做健康检查，不触发事实重建。
+
+默认基于该基线包已运行的内网实例做增量更新，不重新制作全新的空平台全量包，不重建平台 PostgreSQL 数据卷，不清空同步状态和用户数据。只有业务方明确批准重建环境、清空环境或灾难恢复时，才允许重新走全量空平台部署流程。
 
 内网服务器按无公网 Ubuntu 24.04 部署处理，普通增量更新不能要求目标服务器现场 `docker build`。即使 20260618 全量包里已有业务镜像，`docker build` 仍可能解析 `FROM eclipse-temurin:21-jre` / `FROM nginx:1.27-alpine` 并访问 Docker Hub，导致内网失败。面向内网交付的增量更新包必须带已经构建好的后端/前端业务镜像 tar，部署时只 `docker load` 这两个业务镜像，然后 `docker compose --env-file .env up -d --no-deps --force-recreate backend frontend`；不要重新加载 postgres，不要重建或删除 volume，不要执行 `docker compose down -v`。
+
+判断是否需要事实层重建时，只要改动涉及 `issue_fact`、`merge_request_fact`、事实字段派生、统计数量、筛选口径、非法判定、延期/响应效率、代码走查规则、默认阶段/里程碑、老平台字段映射或统计快照，就按“需要事实层重建的增量更新包”处理。事实层重建不是全量镜像同步；它不删除镜像表、不清空用户数据、不重置同步状态。
 
 ### 0.0 老平台重构口径红线
 

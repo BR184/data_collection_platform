@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.SourceMode;
 import com.data.collection.platform.entity.TableWhitelistOption;
@@ -51,6 +52,8 @@ class SyncRunTablePlanningServiceTest {
     jsonUtils = new JsonUtils(new ObjectMapper());
     configService = mock(GitlabConfigService.class);
     whitelistService = mock(GitlabWhitelistService.class);
+    GitlabMirrorProperties mirrorProperties = new GitlabMirrorProperties();
+    mirrorProperties.setLargeTableShardSyncEnabled(false);
     planningService =
         new SyncRunTablePlanningService(
             syncRunMapper,
@@ -58,7 +61,8 @@ class SyncRunTablePlanningServiceTest {
             taskMapper,
             jsonUtils,
             configService,
-            whitelistService);
+            whitelistService,
+            mirrorProperties);
   }
 
   @Test
