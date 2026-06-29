@@ -46,8 +46,8 @@ class IssueFactNormalizationRulesTest {
 
   @Test
   void shouldNormalizeReasonAndDelayCategories() {
-    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of("业务逻辑错误"), "")).isEqualTo("编码逻辑错误");
-    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of(), "本次属于编译打包问题")).isEqualTo("环境部署问题");
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of("业务逻辑错误"), "")).isEqualTo("编码逻辑：业务逻辑错误");
+    assertThat(IssueFactNormalizationRules.normalizeReasonCategory(List.of(), "本次属于编译打包问题")).isEqualTo("编译/打包/部署问题");
     assertThat(IssueFactNormalizationRules.normalizeReasonCategory(
         List.of(),
         """
@@ -57,7 +57,7 @@ class IssueFactNormalizationRulesTest {
         [x] 需求理解有误
         ### 3、请描述具体原因：
         """))
-        .isEqualTo("需求理解偏差");
+        .isEqualTo("新增理解偏差");
     assertThat(IssueFactNormalizationRules.normalizeDelayReason(List.of("申请延期"), "当前属于算法问题")).isEqualTo("算法问题");
     assertThat(IssueFactNormalizationRules.inferDelayCause(List.of("申请延期"), "当前属于算法问题")).isEqualTo("算法问题");
   }

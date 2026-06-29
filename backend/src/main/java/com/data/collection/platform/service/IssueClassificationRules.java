@@ -13,11 +13,30 @@ final class IssueClassificationRules {
   static final String INVALID_RESEARCH_TEMPLATE = "未按照要求填写缺陷调研模板";
 
   static final Map<String, List<String>> REASON_CATEGORY_TOKENS = IssueRuleSupport.ordered(
-      Map.entry("需求理解偏差", List.of("新增理解偏差数量", "需求理解有误数量")),
-      Map.entry("新增需求", List.of("新增需求数量", "新增需求问题数量", "新增需求问题")),
-      Map.entry("编码逻辑错误", List.of("业务逻辑错误", "编码逻辑错误")),
-      Map.entry("环境部署问题", List.of("编译/打包/部署问题", "编译打包问题")),
-      Map.entry("算法机制不支持", List.of("机制不支持", "算法/机制不支持")));
+      Map.entry("新增理解偏差", List.of("新增理解偏差", "新增理解偏差数量", "需求理解有误", "需求理解有误数量")),
+      Map.entry("需求遗漏", List.of("需求遗漏", "需求遗漏数量")),
+      Map.entry("新增需求", List.of("新增需求", "新增需求数量", "新增需求问题", "新增需求问题数量")),
+      Map.entry("需求变更未同步", List.of("需求变更未同步", "需求变更未同步数量")),
+      Map.entry("功能设计遗漏", List.of("功能设计遗漏", "功能设计遗漏数量")),
+      Map.entry("设计方案不合理", List.of("设计方案不合理", "设计方案不合理数量")),
+      Map.entry("场景考虑不全", List.of("场景考虑不全", "场景考虑不全数量")),
+      Map.entry("术语、提示信息不合适", List.of("术语、提示信息不合适", "提示信息不合理")),
+      Map.entry("编码规范错误", List.of("编码规范错误", "编码规范错误数量")),
+      Map.entry("功能编码遗漏", List.of("功能编码遗漏", "功能编码遗漏数量")),
+      Map.entry("编码逻辑：计算与算法错误", List.of("编码逻辑：计算与算法错误")),
+      Map.entry("编码逻辑：流程控制错误", List.of("编码逻辑：流程控制错误")),
+      Map.entry("编码逻辑：数据与状态处理错误", List.of("编码逻辑：数据与状态处理错误")),
+      Map.entry("编码逻辑：业务逻辑错误", List.of("编码逻辑：业务逻辑错误", "编码逻辑错误", "业务逻辑错误")),
+      Map.entry("编码逻辑：集成与接口错误", List.of("编码逻辑：集成与接口错误", "调用接口错误")),
+      Map.entry("环境配置问题", List.of("环境配置问题")),
+      Map.entry("编译/打包/部署问题", List.of("编译/打包/部署问题", "编译打包问题")),
+      Map.entry("第三方库问题", List.of("第三方库问题")),
+      Map.entry("算法不支持", List.of("算法不支持")),
+      Map.entry("机制不支持", List.of("机制不支持", "算法/机制不支持")),
+      Map.entry("前置数据异常", List.of("前置数据异常", "前置数据异常（如缺少模板文件、前置输入文件本身错误等）")),
+      Map.entry("未识别的前后置任务", List.of("未识别的前后置任务")),
+      Map.entry("精度导致约束求解异常", List.of("精度导致约束求解异常")),
+      Map.entry("精度导致算法执行异常", List.of("精度导致算法执行异常")));
   static final Map<String, List<String>> DELAY_REASON_TOKENS = IssueRuleSupport.ordered(
       Map.entry("技术卡点", List.of("技术卡点")),
       Map.entry("方案卡点", List.of("方案卡点")),
@@ -58,12 +77,13 @@ final class IssueClassificationRules {
   }
 
   private static String normalizeReasonCategoryFromLabelsOrText(List<String> labels, String notesText) {
+    List<String> matched = new java.util.ArrayList<>();
     for (Map.Entry<String, List<String>> entry : REASON_CATEGORY_TOKENS.entrySet()) {
       if (IssueRuleSupport.containsAny(labels, notesText, entry.getValue())) {
-        return entry.getKey();
+        matched.add(entry.getKey());
       }
     }
-    return null;
+    return matched.isEmpty() ? null : String.join(" ", matched);
   }
 
   static boolean hasDelayFlag(List<String> labels, String notesText) {
