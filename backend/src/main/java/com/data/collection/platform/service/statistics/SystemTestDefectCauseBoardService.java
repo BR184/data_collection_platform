@@ -62,7 +62,8 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport {
+    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport,
+        StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-cause";
   private static final String RULE_VERSION = "system-test-defect-cause@2026-04-22-v1";
   private static final String TOTAL_ROW_KEY = "__total__";
@@ -115,6 +116,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final StatisticBoardSnapshotService snapshotService;
 
   public SystemTestDefectCauseBoardService(
       JsonUtils jsonUtils,
@@ -123,7 +125,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      StatisticBoardSnapshotService snapshotService) {
     super(jsonUtils);
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
@@ -131,6 +134,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.snapshotService = snapshotService;
   }
 
   @Override
@@ -201,15 +205,26 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   @Override
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    long startedAt = System.currentTimeMillis();
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup effectiveFilterGroup =
         applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
+    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    StatisticFilterGroup appliedGroup = effectiveFilterGroup;
+    return snapshotService.readOrRefresh(
+        snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
+        () -> buildBoardResponse(filters, appliedGroup, definition));
+  }
+
+  private StatisticBoardResponse buildBoardResponse(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
+    long startedAt = System.currentTimeMillis();
     List<String> moduleRows = loadBoardModuleRows(filters, effectiveFilterGroup);
     Map<String, AggregateCounts> aggregateCounts = loadBoardAggregateCounts(filters, effectiveFilterGroup);
     AggregateCounts totalCounts = loadBoardTotalAggregateCounts(filters, effectiveFilterGroup);
-    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (String moduleName : moduleRows) {
@@ -228,7 +243,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     if (!buckets.isEmpty()) {
-      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).accept(totalCounts);
+      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY);
+      totalBucket.accept(totalCounts);
       rows.add(totalBucket.toRowData());
       rows.add(AggregateBucket.ratioRow(totalBucket));
     }
@@ -247,6 +263,27 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             columnCount,
             drilldownCount);
     return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
+  }
+
+  @Override
+  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
+    for (StatisticFilterOption option : phaseOptions) {
+      Map<String, String> filters = Map.of("testingPhase", option.value());
+      StatisticFilterGroup filterGroup =
+          SystemTestPhaseFilterGroupExpander.expand(
+              new StatisticFilterGroup(
+                  "AND",
+                  List.of(new StatisticFilterCondition("testingPhase", "eq", option.value(), null))),
+              phaseScopeResolver);
+      snapshotService.save(
+          snapshotRequest(filters, filterGroup, definition, option.value()),
+          buildBoardResponse(filters, filterGroup, definition));
+    }
   }
 
   @Override
@@ -675,16 +712,16 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         """);
     for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
       String matched = metricMatchedSql(metric);
-      sql.append(", sum(case when ").append(matched).append(" then 1 else 0 end) as ").append(metric.key());
+      sql.append(", sum(case when ").append(matched).append(" then 1 else 0 end) as ").append(sqlIdentifier(metric.key()));
       sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL1' then 1 else 0 end) as ")
-          .append(metric.key()).append("_level1");
+          .append(sqlIdentifier(metric.key() + "_level1"));
       sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL2' then 1 else 0 end) as ")
-          .append(metric.key()).append("_level2");
+          .append(sqlIdentifier(metric.key() + "_level2"));
       sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL3' then 1 else 0 end) as ")
-          .append(metric.key()).append("_level3");
+          .append(sqlIdentifier(metric.key() + "_level3"));
       sql.append(", sum(case when ").append(matched)
           .append(" and (severity_level = 'SUGGESTION' or category like '%建议%') then 1 else 0 end) as ")
-          .append(metric.key()).append("_suggestion");
+          .append(sqlIdentifier(metric.key() + "_suggestion"));
     }
     sql.append(
         """
@@ -702,23 +739,22 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     StringBuilder sql = new StringBuilder("select 1 as total_marker");
     for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
       String matched = metricMatchedSql(metric);
-      sql.append(", sum(case when ").append(matched).append(" then 1 else 0 end) as ").append(metric.key());
+      sql.append(", sum(case when ").append(matched).append(" then 1 else 0 end) as ").append(sqlIdentifier(metric.key()));
       sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL1' then 1 else 0 end) as ")
-          .append(metric.key()).append("_level1");
+          .append(sqlIdentifier(metric.key() + "_level1"));
       sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL2' then 1 else 0 end) as ")
-          .append(metric.key()).append("_level2");
+          .append(sqlIdentifier(metric.key() + "_level2"));
       sql.append(", sum(case when ").append(matched).append(" and severity_level = 'LEVEL3' then 1 else 0 end) as ")
-          .append(metric.key()).append("_level3");
+          .append(sqlIdentifier(metric.key() + "_level3"));
       sql.append(", sum(case when ").append(matched)
           .append(" and (severity_level = 'SUGGESTION' or category like '%建议%') then 1 else 0 end) as ")
-          .append(metric.key()).append("_suggestion");
+          .append(sqlIdentifier(metric.key() + "_suggestion"));
     }
     sql.append(
         """
           from issue_fact
          where deleted = false
            and coalesce(is_excluded,false) = false
-           and coalesce(module_names,'') <> ''
            and (coalesce(reason_category,'') <> '' or coalesce(raw_payload,'') <> '')
         """);
     return sql.toString();
@@ -741,6 +777,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
   private String sqlLiteral(String value) {
     return value == null ? "" : value.replace("'", "''");
+  }
+
+  private String sqlIdentifier(String value) {
+    return "\"" + value.replace("\"", "\"\"") + "\"";
   }
 
   private Map.Entry<String, AggregateCounts> mapAggregateCounts(ResultSet rs, int rowNum) throws SQLException {
@@ -833,6 +873,24 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       applied.put("testingPhase", selectedTestingPhase);
     }
     return applied;
+  }
+
+  private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition,
+      String selectedTestingPhase) {
+    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
+    payload.put("testingPhase", StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "");
+    return new StatisticBoardSnapshotService.SnapshotRequest(
+        BOARD_KEY,
+        "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
+            + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
+        RULE_VERSION,
+        snapshotService.issueFactSourceVersion(),
+        payload,
+        definition,
+        effectiveFilterGroup);
   }
 
   private String displayPhaseLabel(String phaseKey, String selectedTestingPhase) {

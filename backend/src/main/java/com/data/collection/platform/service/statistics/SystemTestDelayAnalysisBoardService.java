@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
+    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-delay-analysis";
   private static final String RULE_VERSION = "system-test-delay-analysis@2026-04-22-v1";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
@@ -116,6 +116,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final StatisticBoardSnapshotService snapshotService;
 
   public SystemTestDelayAnalysisBoardService(
       JsonUtils jsonUtils,
@@ -124,7 +125,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      StatisticBoardSnapshotService snapshotService) {
     super(jsonUtils);
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
@@ -132,6 +134,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.snapshotService = snapshotService;
   }
 
   @Override
@@ -171,12 +174,23 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   @Override
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    long startedAt = System.currentTimeMillis();
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
-    Map<String, AggregateCounts> aggregateCounts = loadBoardAggregateCounts(filters, effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
+    String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    StatisticFilterGroup appliedGroup = effectiveFilterGroup;
+    return snapshotService.readOrRefresh(
+        snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
+        () -> buildBoardResponse(filters, appliedGroup, definition));
+  }
+
+  private StatisticBoardResponse buildBoardResponse(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition) {
+    long startedAt = System.currentTimeMillis();
+    Map<String, AggregateCounts> aggregateCounts = loadBoardAggregateCounts(filters, effectiveFilterGroup);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (String delayCause : LEGACY_DELAY_CAUSES) {
@@ -213,6 +227,27 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         effectiveFilterGroup,
         rows,
         meta);
+  }
+
+  @Override
+  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
+    for (StatisticFilterOption option : phaseOptions) {
+      Map<String, String> filters = Map.of(TESTING_PHASE_FIELD, option.value());
+      StatisticFilterGroup filterGroup =
+          SystemTestPhaseFilterGroupExpander.expand(
+              new StatisticFilterGroup(
+                  "AND",
+                  List.of(new StatisticFilterCondition(TESTING_PHASE_FIELD, "eq", option.value(), null))),
+              phaseScopeResolver);
+      snapshotService.save(
+          snapshotRequest(filters, filterGroup, definition, option.value()),
+          buildBoardResponse(filters, filterGroup, definition));
+    }
   }
 
   @Override
@@ -382,6 +417,26 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       applied.put(TESTING_PHASE_FIELD, selectedTestingPhase);
     }
     return applied;
+  }
+
+  private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition,
+      String selectedTestingPhase) {
+    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
+    payload.put(
+        TESTING_PHASE_FIELD,
+        StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "");
+    return new StatisticBoardSnapshotService.SnapshotRequest(
+        BOARD_KEY,
+        "project=" + SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID
+            + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
+        RULE_VERSION,
+        snapshotService.issueFactSourceVersion(),
+        payload,
+        definition,
+        effectiveFilterGroup);
   }
 
   private StatisticRuleFlowStepSample toRuleFlowSample(IssueSource issue) {

@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,11 +38,15 @@ public class FactRefreshImpactScopeService {
     }
     String normalizedFactType = factType.trim().toUpperCase(Locale.ROOT);
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    return switch (normalizedFactType) {
-      case "ISSUE" -> resolveIssueScope(tasks, normalizedSource);
-      case "MERGE_REQUEST" -> resolveMergeRequestScope(tasks, normalizedSource);
-      default -> ImpactScope.fallback();
-    };
+    try {
+      return switch (normalizedFactType) {
+        case "ISSUE" -> resolveIssueScope(tasks, normalizedSource);
+        case "MERGE_REQUEST" -> resolveMergeRequestScope(tasks, normalizedSource);
+        default -> ImpactScope.fallback();
+      };
+    } catch (DataAccessException e) {
+      return ImpactScope.fallback();
+    }
   }
 
   private ImpactScope resolveIssueScope(List<SyncRunTableTask> tasks, String sourceInstance) {

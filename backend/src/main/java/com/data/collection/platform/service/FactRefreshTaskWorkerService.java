@@ -4,6 +4,7 @@ import com.data.collection.platform.config.GitlabMirrorProperties;
 import com.data.collection.platform.entity.FactBuildResponse;
 import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
+import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import java.net.InetAddress;
 import java.util.Locale;
 import java.util.UUID;
@@ -21,18 +22,21 @@ public class FactRefreshTaskWorkerService {
   private final FactBuildService factBuildService;
   private final FactRefreshImpactScopeService impactScopeService;
   private final GitlabMirrorProperties properties;
+  private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
 
   public FactRefreshTaskWorkerService(
       FactBuildTaskService taskService,
       GitlabConfigService configService,
       FactBuildService factBuildService,
       FactRefreshImpactScopeService impactScopeService,
-      GitlabMirrorProperties properties) {
+      GitlabMirrorProperties properties,
+      StatisticBoardSnapshotRefreshService snapshotRefreshService) {
     this.taskService = taskService;
     this.configService = configService;
     this.factBuildService = factBuildService;
     this.impactScopeService = impactScopeService;
     this.properties = properties;
+    this.snapshotRefreshService = snapshotRefreshService;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.fact-worker-delay-ms:5000}")
@@ -59,6 +63,7 @@ public class FactRefreshTaskWorkerService {
         default -> throw new IllegalArgumentException("Unsupported fact refresh type: " + task.factType());
       };
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
+      snapshotRefreshService.refreshAfterFactBuild(factType, task.full());
       return response;
     } catch (Exception e) {
       taskService.finishQueuedTask(task.id(), "FAILED", 0, "事实数据刷新失败", e.getMessage());

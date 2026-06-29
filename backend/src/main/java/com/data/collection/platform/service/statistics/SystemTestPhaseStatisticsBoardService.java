@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoardService
-    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport {
+    implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-phase-statistics";
   private static final String RULE_VERSION = "system-test-phase-statistics@2026-06-17-v2";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
@@ -109,6 +109,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final StatisticBoardSnapshotService snapshotService;
 
   public SystemTestPhaseStatisticsBoardService(
       JsonUtils jsonUtils,
@@ -117,7 +118,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseCatalogService phaseCatalogService,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      StatisticBoardSnapshotService snapshotService) {
     super(jsonUtils);
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
@@ -125,6 +127,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     this.issueLinkSupport = issueLinkSupport;
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.snapshotService = snapshotService;
   }
 
   @Override
@@ -164,7 +167,6 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   @Override
   protected StatisticBoardResponse doLoadBoard(
       Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    long startedAt = System.currentTimeMillis();
     long projectId = effectiveProjectId(filters);
     List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
     List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
@@ -172,6 +174,19 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     effectiveFilterGroup = SystemTestPhaseFilterGroupExpander.expand(effectiveFilterGroup, phaseScopeResolver);
     String selectedTestingPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition(phaseOptions);
+    StatisticFilterGroup appliedGroup = effectiveFilterGroup;
+    return snapshotService.readOrRefresh(
+        snapshotRequest(filters, appliedGroup, definition, selectedTestingPhase),
+        () -> buildBoardResponse(filters, appliedGroup, definition, phaseDefinitions, selectedTestingPhase));
+  }
+
+  private StatisticBoardResponse buildBoardResponse(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition,
+      List<PhaseDefinition> phaseDefinitions,
+      String selectedTestingPhase) {
+    long startedAt = System.currentTimeMillis();
     Map<String, AggregateCounts> aggregateCounts = loadBoardAggregateCounts(filters, effectiveFilterGroup);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
@@ -210,6 +225,29 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             columnCount,
             drilldownCount);
     return new StatisticBoardResponse(definition, appliedFilters(filters, effectiveFilterGroup), effectiveFilterGroup, rows, meta);
+  }
+
+  @Override
+  public void refreshSnapshots(StatisticBoardSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    long projectId = SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
+    List<PhaseDefinition> phaseDefinitions = loadPhaseDefinitions(projectId);
+    List<StatisticFilterOption> phaseOptions = phaseOptionsFromDefinitions(phaseDefinitions);
+    StatisticBoardDefinition definition = buildDefinition(phaseOptions);
+    for (StatisticFilterOption option : phaseOptions) {
+      Map<String, String> filters = Map.of(TESTING_PHASE_FIELD, option.value());
+      StatisticFilterGroup filterGroup =
+          SystemTestPhaseFilterGroupExpander.expand(
+              new StatisticFilterGroup(
+                  "AND",
+                  List.of(new StatisticFilterCondition(TESTING_PHASE_FIELD, "eq", option.value(), null))),
+              phaseScopeResolver);
+      snapshotService.save(
+          snapshotRequest(filters, filterGroup, definition, option.value()),
+          buildBoardResponse(filters, filterGroup, definition, phaseDefinitions, option.value()));
+    }
   }
 
   @Override
@@ -398,6 +436,27 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       applied.put(TESTING_PHASE_FIELD, selectedTestingPhase);
     }
     return applied;
+  }
+
+  private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
+      Map<String, String> filters,
+      StatisticFilterGroup effectiveFilterGroup,
+      StatisticBoardDefinition definition,
+      String selectedTestingPhase) {
+    long projectId = effectiveProjectId(filters);
+    Map<String, String> payload = new LinkedHashMap<>(withoutReservedFilters(filters));
+    payload.put("projectId", String.valueOf(projectId));
+    if (StringUtils.hasText(selectedTestingPhase)) {
+      payload.put(TESTING_PHASE_FIELD, selectedTestingPhase);
+    }
+    return new StatisticBoardSnapshotService.SnapshotRequest(
+        BOARD_KEY,
+        "project=" + projectId + ";testingPhase=" + (StringUtils.hasText(selectedTestingPhase) ? selectedTestingPhase : "none"),
+        RULE_VERSION,
+        snapshotService.issueFactSourceVersion(),
+        payload,
+        definition,
+        effectiveFilterGroup);
   }
 
   private String displayPhaseLabel(String phaseKey, String selectedTestingPhase) {
