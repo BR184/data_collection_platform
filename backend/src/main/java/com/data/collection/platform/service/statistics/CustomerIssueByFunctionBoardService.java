@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticDetailColumn;
 import com.data.collection.platform.entity.statistics.StatisticDetailRequest;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.entity.statistics.StatisticFilterOption;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
@@ -81,7 +82,18 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
              created_at_source,
              updated_at_source,
              closed_at_source
+       from issue_fact
+       where deleted = false
+      """;
+  private static final String FUNCTION_AGGREGATE_SQL =
+      """
+      select btrim(modules.module_name) as module_name,
+             coalesce(function_name, '') as function_name,
+             count(*) as issue_count
         from issue_fact
+        cross join lateral regexp_split_to_table(
+             coalesce(nullif(module_names, ''), '未设定模块'),
+             ',') as modules(module_name)
        where deleted = false
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
@@ -174,34 +186,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private StatisticBoardResponse buildBoardResponse(
       Map<String, String> filters, StatisticFilterGroup effectiveFilterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
-    Map<String, List<AggregateBucket>> bucketsByModule = new LinkedHashMap<>();
-    for (IssueSource issue : snapshot.finalSources()) {
-      for (String moduleName : issue.displayModuleNames()) {
-        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
-          continue;
-        }
-        String rowKey = rowKey(moduleName, issue.functionName());
-        String rowLabel = moduleName + " / " + issue.functionName();
-        bucketsByModule
-            .computeIfAbsent(moduleName, ignored -> new ArrayList<>())
-            .stream()
-            .filter(bucket -> bucket.rowKey().equals(rowKey))
-            .findFirst()
-            .orElseGet(() -> {
-              AggregateBucket bucket = new AggregateBucket(rowLabel, rowKey);
-              bucketsByModule.get(moduleName).add(bucket);
-              return bucket;
-            })
-            .accept(issue);
-      }
-    }
-    bucketsByModule.replaceAll((moduleName, buckets) ->
-        buckets.stream()
-            .sorted(
-                Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER)
-                    .thenComparing(bucket -> bucket.issues().size(), Comparator.reverseOrder()))
-            .toList());
+    Map<String, List<AggregateBucket>> bucketsByModule = loadFunctionBuckets(filters, effectiveFilterGroup);
     List<String> orderedModules =
         bucketsByModule.entrySet().stream()
             .sorted(
@@ -238,11 +223,15 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     if (!context.affectsIssues()) {
       return;
     }
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
-    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
-    snapshotService.save(
-        snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
-        buildBoardResponse(filters, effectiveFilterGroup));
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    for (StatisticFilterGroup filterGroup :
+        CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
+      StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+      Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+      snapshotService.save(
+          snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
+          buildBoardResponse(filters, effectiveFilterGroup));
+    }
   }
 
   @Override
@@ -250,7 +239,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters(), effectiveFilterGroup), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesDetailRequest(issue, request))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -274,7 +263,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     RuleFlowSnapshot snapshot =
-        buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+        buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -414,14 +403,79 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
                     issue.title() + " | 功能: " + issue.functionName());
   }
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(parseFilterGroup(filters, buildDefinition()));
+    return loadSources(filters, effectiveFilterGroup);
+  }
+
+  private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.withExtraPredicate(
+            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            "coalesce(function_name, '') <> ''",
+            List.of());
     try {
-      return issueFactQueryService.query(FACT_SQL, queryFilters, this::mapIssueFact);
+      return issueFactQueryService.query(
+          FACT_SQL,
+          scope.filters(),
+          scope.predicate(),
+          scope.args(),
+          this::mapIssueFact);
     } catch (DataAccessException error) {
       log.warn("Failed to load customer issue by function facts", error);
       return List.of();
     }
+  }
+
+  private Map<String, List<AggregateBucket>> loadFunctionBuckets(
+      Map<String, String> filters,
+      StatisticFilterGroup filterGroup) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.withExtraPredicate(
+            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            "coalesce(function_name, '') <> ''",
+            List.of());
+    try {
+      List<AggregateBucket> buckets =
+          issueFactQueryService.query(
+              FUNCTION_AGGREGATE_SQL,
+              scope.filters(),
+              scope.predicate(),
+              scope.args(),
+              """
+              group by btrim(modules.module_name), coalesce(function_name, '')
+              having btrim(modules.module_name) <> ''
+              order by lower(btrim(modules.module_name)), lower(coalesce(function_name, ''))
+              """,
+              this::mapFunctionBucket);
+      Map<String, List<AggregateBucket>> bucketsByModule = new LinkedHashMap<>();
+      for (AggregateBucket bucket : buckets) {
+        String moduleName = moduleNameFromRowKey(bucket.rowKey());
+        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup)) {
+          continue;
+        }
+        bucketsByModule.computeIfAbsent(moduleName, ignored -> new ArrayList<>()).add(bucket);
+      }
+      bucketsByModule.replaceAll((moduleName, moduleBuckets) ->
+          moduleBuckets.stream()
+              .sorted(
+                  Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER)
+                      .thenComparing(AggregateBucket::count, Comparator.reverseOrder()))
+              .toList());
+      return bucketsByModule;
+    } catch (DataAccessException error) {
+      log.warn("Failed to load customer issue by function aggregates", error);
+      return Map.of();
+    }
+  }
+
+  private AggregateBucket mapFunctionBucket(ResultSet rs, int rowNum) throws SQLException {
+    String moduleName = StatisticSourceValueSupport.text(rs.getString("module_name"), EMPTY_MODULE_LABEL);
+    String functionName = StatisticSourceValueSupport.text(rs.getString("function_name"));
+    String rowKey = rowKey(moduleName, functionName);
+    return new AggregateBucket(
+        moduleName + " / " + functionName,
+        rowKey,
+        rs.getLong("issue_count"));
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
@@ -531,7 +585,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         String moduleName = entry.getKey();
         AggregateBucket bucket = rowIndex < entry.getValue().size() ? entry.getValue().get(rowIndex) : null;
         String functionName = bucket == null ? "" : functionNameFromRowKey(bucket.rowKey());
-        long countValue = bucket == null ? 0 : bucket.issues().size();
+        long countValue = bucket == null ? 0 : bucket.count();
         String rowKey = String.valueOf(rowIndex + 1);
         cells.add(new StatisticCellData(
             functionColumnKey(moduleName),
@@ -561,7 +615,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     }
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
-    List<AggregateBucket> buckets = bucketsForModule(loadSources(filters), effectiveFilterGroup, moduleName);
+    List<AggregateBucket> buckets = bucketsForModule(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup, moduleName);
     if (rowIndex < 1 || rowIndex > buckets.size()) {
       return null;
     }
@@ -592,12 +646,26 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         filterGroup, milestoneCatalogService.listMilestones(), phaseScopeResolver);
   }
 
+  private List<StatisticFilterOption> loadMilestoneOptions() {
+    return milestoneCatalogService.listMilestones().stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
+  }
+
   private String functionNameFromRowKey(String rowKey) {
     if (!StringUtils.hasText(rowKey)) {
       return "";
     }
     int separatorIndex = rowKey.indexOf(ROW_KEY_SEPARATOR);
     return separatorIndex < 0 ? "" : rowKey.substring(separatorIndex + ROW_KEY_SEPARATOR.length());
+  }
+
+  private String moduleNameFromRowKey(String rowKey) {
+    if (!StringUtils.hasText(rowKey)) {
+      return "";
+    }
+    int separatorIndex = rowKey.indexOf(ROW_KEY_SEPARATOR);
+    return separatorIndex < 0 ? rowKey : rowKey.substring(0, separatorIndex);
   }
 
   private Integer parseOneBasedIndex(String rowKey) {
@@ -631,13 +699,21 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return StatisticMetricCalculator.count(value);
   }
 
-  private record AggregateBucket(String rowLabel, String rowKey, List<IssueSource> issues) {
+  private record AggregateBucket(String rowLabel, String rowKey, long aggregateCount, List<IssueSource> issues) {
     AggregateBucket(String rowLabel, String rowKey) {
-      this(rowLabel, rowKey, new ArrayList<>());
+      this(rowLabel, rowKey, 0L, new ArrayList<>());
+    }
+
+    AggregateBucket(String rowLabel, String rowKey, long aggregateCount) {
+      this(rowLabel, rowKey, aggregateCount, List.of());
     }
 
     void accept(IssueSource issue) {
       issues.add(issue);
+    }
+
+    long count() {
+      return aggregateCount > 0L ? aggregateCount : issues.size();
     }
 
   }

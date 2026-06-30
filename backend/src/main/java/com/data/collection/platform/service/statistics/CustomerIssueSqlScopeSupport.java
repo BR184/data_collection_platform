@@ -64,5 +64,22 @@ final class CustomerIssueSqlScopeSupport {
             null)));
   }
 
+  static SqlScope withExtraPredicate(
+      SqlScope scope,
+      String predicate,
+      List<?> args) {
+    if (scope == null || !StringUtils.hasText(predicate)) {
+      return scope;
+    }
+    List<Object> mergedArgs = new ArrayList<>(scope.args());
+    if (args != null && !args.isEmpty()) {
+      mergedArgs.addAll(args);
+    }
+    return new SqlScope(
+        scope.filters(),
+        scope.predicate() + " and " + predicate,
+        mergedArgs);
+  }
+
   record SqlScope(Map<String, String> filters, String predicate, List<Object> args) {}
 }

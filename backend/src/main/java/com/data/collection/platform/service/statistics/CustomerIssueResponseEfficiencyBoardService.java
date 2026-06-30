@@ -196,7 +196,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.rowSources()) {
@@ -248,11 +248,15 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     if (!context.affectsIssues()) {
       return;
     }
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
-    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
-    snapshotService.save(
-        snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
-        buildBoardResponse(filters, effectiveFilterGroup));
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    for (StatisticFilterGroup filterGroup :
+        CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
+      StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+      Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+      snapshotService.save(
+          snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
+          buildBoardResponse(filters, effectiveFilterGroup));
+    }
   }
 
   private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
@@ -282,7 +286,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters(), effectiveFilterGroup), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -305,7 +309,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -392,14 +396,33 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(parseFilterGroup(filters, buildDefinition()));
+    return loadSources(filters, effectiveFilterGroup);
+  }
+
+  private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.withExtraPredicate(
+            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            "(research_template_time is not null or (fixed_label_time is not null and coalesce(bug_status, '') like ?))",
+            List.of("%" + FIXED_STATUS + "%"));
     try {
-      return issueFactQueryService.query(FACT_SQL, queryFilters, this::mapIssueFact);
+      return issueFactQueryService.query(
+          FACT_SQL,
+          scope.filters(),
+          scope.predicate(),
+          scope.args(),
+          this::mapIssueFact);
     } catch (DataAccessException error) {
       log.warn("Failed to load customer issue response efficiency facts", error);
       return List.of();
     }
+  }
+
+  private List<StatisticFilterOption> loadMilestoneOptions() {
+    return milestoneCatalogService.listMilestones().stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {

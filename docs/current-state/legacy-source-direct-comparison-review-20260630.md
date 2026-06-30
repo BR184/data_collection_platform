@@ -415,6 +415,13 @@
 - 响应效率可用 SQL 做基础筛选和平均值计算，展示格式仍由 Java 组装。
 - 按功能展示后续按 `module + function_name` 做 SQL 聚合。
 
+当前落地状态：
+
+- 客户问题延期问题已复用 `CustomerIssueSqlScopeSupport`，并将 `project_id=325`、`created_at_source>=2026-01-01`、当前 `milestone_title`、`is_excluded=false`、open 状态、响应/解决延期命中以及 `GitLab接口报错` 排除下推到 SQL；模块展开和展示行仍由 Java 组装。
+- 客户问题缺陷响应效率已复用同一客户问题 SQL scope，并将当前里程碑、公共排除以及至少存在响应/解决周期事实字段的基础范围下推到 SQL；响应周期/解决周期均值和展示格式仍由 Java 组装，避免改变现有页面字段语义。
+- 客户问题按功能展示缺陷数量已复用客户问题 SQL scope，并把首屏主表改为 SQL 按 `module_names + function_name` 聚合计数；下钻明细继续按同一 scope 查询 issue_fact 明细，保证主表和下钻范围一致。
+- 三个 P1 页面快照预热均改为前 3 个活跃里程碑，快照 key 继续包含 `milestoneTitle`。
+
 ### 9.4 验收口径
 
 - 清空或置 stale 客户问题 P0 快照后，首次打开也应返回表格。

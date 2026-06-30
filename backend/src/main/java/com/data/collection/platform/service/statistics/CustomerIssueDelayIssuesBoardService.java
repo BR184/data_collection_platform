@@ -197,7 +197,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       Map<String, String> filters,
       StatisticFilterGroup effectiveFilterGroup) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.rowSources()) {
@@ -249,11 +249,15 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     if (!context.affectsIssues()) {
       return;
     }
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
-    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
-    snapshotService.save(
-        snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
-        buildBoardResponse(filters, effectiveFilterGroup));
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    for (StatisticFilterGroup filterGroup :
+        CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
+      StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+      Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+      snapshotService.save(
+          snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
+          buildBoardResponse(filters, effectiveFilterGroup));
+    }
   }
 
   private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
@@ -283,7 +287,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).finalSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters(), effectiveFilterGroup), effectiveFilterGroup).finalSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -306,7 +310,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -420,14 +424,37 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(parseFilterGroup(filters, buildDefinition()));
+    return loadSources(filters, effectiveFilterGroup);
+  }
+
+  private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.withExtraPredicate(
+            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            """
+            lower(coalesce(issue_state, 'opened')) <> 'closed'
+            and (coalesce(is_response_delayed, false) = true or coalesce(is_resolve_delayed, false) = true)
+            and replace(coalesce(illegal_reason, '') || ',' || coalesce(illegal_reasons, ''), ' ', '') not like ?
+            """,
+            List.of("%" + GITLAB_API_ERROR + "%"));
     try {
-      return issueFactQueryService.query(FACT_SQL, queryFilters, this::mapIssueFact);
+      return issueFactQueryService.query(
+          FACT_SQL,
+          scope.filters(),
+          scope.predicate(),
+          scope.args(),
+          this::mapIssueFact);
     } catch (DataAccessException error) {
       log.warn("Failed to load customer issue delay facts", error);
       return List.of();
     }
+  }
+
+  private List<StatisticFilterOption> loadMilestoneOptions() {
+    return milestoneCatalogService.listMilestones().stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
