@@ -219,7 +219,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       StatisticFilterGroup effectiveFilterGroup,
       StatisticBoardDefinition definition) {
     long startedAt = System.currentTimeMillis();
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
 
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
     for (IssueSource issue : snapshot.scopedSources()) {
@@ -273,11 +273,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     }
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticBoardDefinition definition = buildDefinition(milestoneOptions);
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
-    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
-    snapshotService.save(
-        snapshotRequest(filters, effectiveFilterGroup, definition),
-        buildBoardResponse(filters, effectiveFilterGroup, definition));
+    for (StatisticFilterGroup filterGroup :
+        CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
+      StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+      Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+      snapshotService.save(
+          snapshotRequest(filters, effectiveFilterGroup, definition),
+          buildBoardResponse(filters, effectiveFilterGroup, definition));
+    }
   }
 
   private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
@@ -306,7 +309,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   protected StatisticDetailResponse doLoadDetail(StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters()), effectiveFilterGroup).reasonSources().stream()
+        buildRuleFlowSnapshot(loadSources(request.filters(), effectiveFilterGroup), effectiveFilterGroup).reasonSources().stream()
             .filter(issue -> matchesRow(issue, request.rowKey()))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
@@ -340,7 +343,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     long moduleCount =
         snapshot.scopedSources().stream().flatMap(issue -> issue.moduleNames().stream()).distinct().count();
     return new StatisticBoardRuleExplanationResponse(
@@ -597,12 +600,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    queryFilters.remove(MILESTONE_FIELD);
-    Long projectId = effectiveProjectId(queryFilters);
-    queryFilters.put("projectId", String.valueOf(projectId));
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(milestoneOptions));
+    return loadSources(filters, applyDefaultMilestone(filterGroup));
+  }
+
+  private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     try {
-      List<IssueSource> facts = ensureFactsReady(projectId, queryFilters);
+      List<IssueSource> facts = ensureFactsReady(withoutReservedFilters(filters), filterGroup);
       return facts.isEmpty() ? List.of() : facts;
     } catch (DataAccessException e) {
       log.warn("Failed to load issue facts", e);
@@ -614,8 +619,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     return realtimeIncrementalRefreshService.requestIncrementalRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }
 
-  private List<IssueSource> ensureFactsReady(Long projectId, Map<String, String> filters) {
-    List<IssueSource> facts = loadSourcesFromFact(projectId, filters);
+  private List<IssueSource> ensureFactsReady(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    List<IssueSource> facts = loadSourcesFromFact(filters, filterGroup);
     if (!facts.isEmpty()) {
       return facts;
     }
@@ -623,19 +628,15 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     return List.of();
   }
 
-  private List<IssueSource> loadSourcesFromFact(Long projectId, Map<String, String> filters) {
-    Map<String, String> mergedFilters = new LinkedHashMap<>();
-    if (filters != null) {
-      mergedFilters.putAll(filters);
-    }
-    if (projectId != null) {
-      mergedFilters.put("projectId", String.valueOf(projectId));
-    }
-    return issueFactQueryService.query(FACT_SQL, mergedFilters, this::mapIssueFact);
-  }
-
-  private long effectiveProjectId(Map<String, String> filters) {
-    return LEGACY_CC_PRODUCT_PROJECT_ID;
+  private List<IssueSource> loadSourcesFromFact(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.boardScope(filters, filterGroup);
+    return issueFactQueryService.query(
+        FACT_SQL,
+        scope.filters(),
+        scope.predicate(),
+        scope.args(),
+        this::mapIssueFact);
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {

@@ -8,6 +8,7 @@ import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,40 @@ class StatisticBoardControllerTest {
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final String STAT_LINK_SOURCE_INSTANCE = "stat_link_test";
   private static final String TEST_GITLAB_WEB_BASE_URL = "http://gitlab.test.local:18080";
+  private static final List<String> DEFECT_CAUSE_COLUMN_GROUP_KEYS =
+      List.of(
+          "requirement-problem",
+          "design-problem",
+          "code-problem",
+          "package-problem",
+          "dependency-problem",
+          "precision-problem");
+  private static final List<String> DEFECT_CAUSE_METRIC_KEYS =
+      List.of(
+          "demand_misunderstand",
+          "missing_requirement",
+          "add_demand_2",
+          "demand_change_not_sync",
+          "design_forget",
+          "design_scheme",
+          "incomplete",
+          "prompt_message",
+          "standard_error",
+          "function_forget",
+          "logic_calculation_algorithm_error",
+          "logic_flow_control_error",
+          "logic_data_state_process_error",
+          "logic_business_logic_error",
+          "logic_integration_interface_error",
+          "environment_config_issue",
+          "compilation_package_deployment_issue",
+          "other_thirdParty",
+          "algorithm_not_support",
+          "mechanism_not_support",
+          "precondition_data_exception",
+          "other_unIdentifyTask",
+          "precision_constraint_exception",
+          "precision_algorithm_exception");
 
   @Autowired
   private StatisticBoardController controller;
@@ -39,6 +74,8 @@ class StatisticBoardControllerTest {
   void cleanStatisticLinkFixtures() {
     jdbcTemplate.update("delete from issue_fact where source_instance = ?", STAT_LINK_SOURCE_INSTANCE);
     jdbcTemplate.update("delete from ods_gitlab_projects where id in (?, ?)", 325L, 901L);
+    jdbcTemplate.update("delete from ods_gitlab_stat_link_test_projects where id in (?, ?)", 325L, 901L);
+    jdbcTemplate.update("delete from gitlab_sync_configs where source_instance = ?", STAT_LINK_SOURCE_INSTANCE);
   }
 
   @Test
@@ -64,7 +101,21 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
     assertThat(response.definition().filters()).extracting("key")
-        .containsExactly("projectName", "testingPhase", "moduleName", "severityLevel", "priorityLevel");
+        .containsExactly(
+            "projectName",
+            "testingPhase",
+            "moduleName",
+            "title",
+            "severityLevel",
+            "priorityLevel",
+            "bugStatus",
+            "delayCause",
+            "authorName",
+            "assigneeName",
+            "state",
+            "createdAt",
+            "updatedAt",
+            "labels");
     assertThat(response.definition().columnGroups())
         .anySatisfy(group -> {
           assertThat(group.key()).isEqualTo("level1");
@@ -173,30 +224,36 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().boardKey()).isEqualTo("system-test-defect-cause");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块");
     assertThat(response.definition().filters()).extracting("key").containsExactly("testingPhase");
-    assertThat(response.definition().columnGroups()).extracting("key")
-        .containsExactly("requirement-problem", "implementation-problem", "environment-problem", "summary");
+    assertThat(response.definition().columnGroups()).extracting("key").containsExactlyElementsOf(DEFECT_CAUSE_COLUMN_GROUP_KEYS);
     assertThat(response.definition().columnGroups())
         .anySatisfy(group -> {
           assertThat(group.key()).isEqualTo("requirement-problem");
           assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("requirement_understanding", "new_requirement");
+              .containsExactly("demand_misunderstand", "missing_requirement", "add_demand_2", "demand_change_not_sync");
         })
         .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("implementation-problem");
+          assertThat(group.key()).isEqualTo("code-problem");
           assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("implementation_logic");
+              .containsExactly(
+                  "standard_error",
+                  "function_forget",
+                  "logic_calculation_algorithm_error",
+                  "logic_flow_control_error",
+                  "logic_data_state_process_error",
+                  "logic_business_logic_error",
+                  "logic_integration_interface_error");
         })
         .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("environment-problem");
+          assertThat(group.key()).isEqualTo("dependency-problem");
           assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("environment_deployment", "algorithm_mechanism", "other_reason");
-        })
-        .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("summary");
-          assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("total");
+              .containsExactly(
+                  "other_thirdParty",
+                  "algorithm_not_support",
+                  "mechanism_not_support",
+                  "precondition_data_exception",
+                  "other_unIdentifyTask");
         });
-    assertThat(response.meta().columnCount()).isEqualTo(7);
+    assertThat(response.meta().columnCount()).isEqualTo(24);
   }
 
   @Test
@@ -209,15 +266,7 @@ class StatisticBoardControllerTest {
     assertThat(response.supported()).isTrue();
     assertThat(response.version()).isNotBlank();
     assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
-    assertThat(response.metricDefinitions()).extracting("key")
-        .containsExactly(
-            "requirement_understanding",
-            "new_requirement",
-            "implementation_logic",
-            "environment_deployment",
-            "algorithm_mechanism",
-            "other_reason",
-            "total");
+    assertThat(response.metricDefinitions()).extracting("key").containsExactlyElementsOf(DEFECT_CAUSE_METRIC_KEYS);
   }
 
   @Test
@@ -226,7 +275,7 @@ class StatisticBoardControllerTest {
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-summary");
-    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名称");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名");
     assertThat(response.definition().filters()).extracting("key")
         .containsExactly("projectName", "testingPhase", "milestoneTitle", "moduleName", "severityLevel", "priorityLevel");
     assertThat(response.definition().columnGroups()).extracting("key")
@@ -255,10 +304,9 @@ class StatisticBoardControllerTest {
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-cause");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块");
-    assertThat(response.definition().filters()).isEmpty();
-    assertThat(response.definition().columnGroups()).extracting("key")
-        .containsExactly("requirement-problem", "implementation-problem", "environment-problem", "summary");
-    assertThat(response.meta().columnCount()).isEqualTo(7);
+    assertThat(response.definition().filters()).extracting("key").containsExactly("testingPhase", "milestoneTitle");
+    assertThat(response.definition().columnGroups()).extracting("key").containsExactlyElementsOf(DEFECT_CAUSE_COLUMN_GROUP_KEYS);
+    assertThat(response.meta().columnCount()).isEqualTo(24);
   }
 
   @Test
@@ -271,15 +319,7 @@ class StatisticBoardControllerTest {
     assertThat(response.supported()).isTrue();
     assertThat(response.version()).isNotBlank();
     assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
-    assertThat(response.metricDefinitions()).extracting("key")
-        .containsExactly(
-            "requirement_understanding",
-            "new_requirement",
-            "implementation_logic",
-            "environment_deployment",
-            "algorithm_mechanism",
-            "other_reason",
-            "total");
+    assertThat(response.metricDefinitions()).extracting("key").containsExactlyElementsOf(DEFECT_CAUSE_METRIC_KEYS);
   }
 
   @Test
@@ -302,26 +342,13 @@ class StatisticBoardControllerTest {
             "bugStatus",
             "authorName",
             "assigneeName");
-    assertThat(response.definition().columnGroups()).extracting("key")
-        .containsExactly("response", "resolve");
-    assertThat(response.definition().columnGroups())
-        .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("response");
-          assertThat(group.leafColumns()).extracting("key")
-              .containsExactly(
-                  "total",
-                  "responded",
-                  "unresponded",
-                  "response_overdue",
-                  "response_delayed",
-                  "response_rate");
-        })
-        .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("resolve");
-          assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("resolve_delayed", "resolve_on_time", "resolve_delay_rate");
-        });
-    assertThat(response.meta().columnCount()).isEqualTo(9);
+    assertThat(response.definition().columnGroups()).extracting("key").containsExactly("legacy-fields");
+    assertThat(response.definition().columnGroups()).singleElement().satisfies(group -> {
+      assertThat(group.key()).isEqualTo("legacy-fields");
+      assertThat(group.leafColumns()).extracting("key")
+          .containsExactly("milestone_title", "response_cycle_hours", "resolution_cycle_days");
+    });
+    assertThat(response.meta().columnCount()).isEqualTo(3);
   }
 
   @Test
@@ -335,7 +362,7 @@ class StatisticBoardControllerTest {
     assertThat(response.version()).isNotBlank();
     assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(3);
     assertThat(response.metricDefinitions()).extracting("key")
-        .containsExactly("response_rate", "response_delayed", "resolve_delay_rate");
+        .containsExactly("response_cycle_hours", "resolution_cycle_days");
   }
 
   @Test
@@ -553,6 +580,28 @@ class StatisticBoardControllerTest {
         projectPath);
     jdbcTemplate.update(
         """
+        insert into ods_gitlab_stat_link_test_projects(id, name, path, mirror_deleted)
+        values (?, ?, ?, false)
+        on conflict (id) do update
+          set name = excluded.name,
+              path = excluded.path,
+              mirror_deleted = false
+        """,
+        projectId,
+        projectName,
+        projectPath);
+    jdbcTemplate.update(
+        """
+        insert into gitlab_sync_configs(name, source_instance, web_base_url, source_mode, db_name, db_username, db_password)
+        values (?, ?, ?, 'DOCKER', 'gitlabhq_production', 'gitlab_ro', 'secret')
+        on conflict (source_instance) do update
+          set web_base_url = excluded.web_base_url
+        """,
+        STAT_LINK_SOURCE_INSTANCE,
+        STAT_LINK_SOURCE_INSTANCE,
+        TEST_GITLAB_WEB_BASE_URL);
+    jdbcTemplate.update(
+        """
         insert into issue_fact(
           source_instance, project_id, project_name, issue_id, issue_iid, title, issue_state,
           milestone_title, author_name, created_at_source, updated_at_source, module_name,
@@ -593,7 +642,7 @@ class StatisticBoardControllerTest {
     assertThat(record).containsEntry("projectId", projectId);
     assertThat(record).containsEntry("projectName", projectName);
     assertThat(record.get("iid"))
-        .isEqualTo(Map.of("label", String.valueOf(issueIid), "href", issueUrl));
+        .isEqualTo(Map.of("label", "#" + issueIid, "href", issueUrl));
   }
 
   private void ensureStatisticLinkProjectTables() {
@@ -610,6 +659,25 @@ class StatisticBoardControllerTest {
     jdbcTemplate.execute(
         """
         create table if not exists ods_gitlab_namespaces (
+          id bigint primary key,
+          path varchar(255),
+          full_path varchar(255),
+          mirror_deleted boolean default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_stat_link_test_projects (
+          id bigint primary key,
+          name varchar(255),
+          path varchar(255),
+          namespace_id bigint,
+          mirror_deleted boolean default false
+        )
+        """);
+    jdbcTemplate.execute(
+        """
+        create table if not exists ods_gitlab_stat_link_test_namespaces (
           id bigint primary key,
           path varchar(255),
           full_path varchar(255),

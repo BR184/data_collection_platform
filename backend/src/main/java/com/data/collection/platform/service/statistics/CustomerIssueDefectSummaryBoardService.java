@@ -20,12 +20,15 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -53,8 +57,43 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
+  private static final String FACT_SQL =
+      """
+      select issue_id as id,
+             issue_iid as iid,
+             coalesce(source_instance, 'default') as source_instance,
+             coalesce(title, '') as title,
+             project_id,
+             coalesce(project_name, '') as project_name,
+             coalesce(milestone_title, '') as milestone_title,
+             coalesce(author_name, '') as author_name,
+             created_at_source as created_at,
+             updated_at_source as updated_at,
+             closed_at_source as closed_at,
+             coalesce(issue_state, 'opened') as issue_state,
+             coalesce(testing_phase, '') as testing_phase,
+             coalesce(system_test_label, '') as system_test_label,
+             coalesce(severity_level, '') as severity_level,
+             coalesce(priority_level, '') as priority_level,
+             coalesce(is_excluded, false) as is_excluded,
+             coalesce(bug_status, '') as bug_status,
+             coalesce(category, '') as category,
+             coalesce(delay_cause, '') as delay_cause,
+             coalesce(assignee_name, '') as assignee_name,
+             coalesce(is_fixed, false) as is_fixed,
+             coalesce(delay_issue, false) as delay_issue,
+             coalesce(is_regression, false) as is_regression,
+             coalesce(is_crash, false) as is_crash,
+             coalesce(is_level1_other, false) as is_level1_other,
+             coalesce(is_legacy, false) as is_legacy,
+             coalesce(module_names, '') as module_names,
+             coalesce(label_names, '') as label_names
+        from issue_fact
+       where deleted = false
+      """;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final IssueFactBoardRuntimeSupport runtimeSupport;
+  private final IssueFactQueryService issueFactQueryService;
   private final StatisticIssueLinkSupport issueLinkSupport;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
@@ -65,6 +104,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       JsonUtils jsonUtils,
       CustomerIssueScopeProfile customerIssueScopeProfile,
       IssueFactBoardRuntimeSupport runtimeSupport,
+      IssueFactQueryService issueFactQueryService,
       StatisticIssueLinkSupport issueLinkSupport,
       SystemTestPhaseScopeResolver phaseScopeResolver,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
@@ -73,6 +113,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     super(jsonUtils);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.runtimeSupport = runtimeSupport;
+    this.issueFactQueryService = issueFactQueryService;
     this.issueLinkSupport = issueLinkSupport;
     this.phaseScopeResolver = phaseScopeResolver;
     this.milestoneCatalogService = milestoneCatalogService;
@@ -276,11 +317,15 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     if (!context.affectsIssues()) {
       return;
     }
-    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(emptyFilterGroup());
-    Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
-    snapshotService.save(
-        snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
-        buildBoardResponse(filters, effectiveFilterGroup));
+    List<StatisticFilterOption> milestoneOptions = loadMilestoneOptions();
+    for (StatisticFilterGroup filterGroup :
+        CustomerIssueSqlScopeSupport.milestoneFilterGroups(milestoneOptions, 3)) {
+      StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+      Map<String, String> filters = customerSnapshotFilters(Map.of(), effectiveFilterGroup);
+      snapshotService.save(
+          snapshotRequest(filters, effectiveFilterGroup, buildDefinition()),
+          buildBoardResponse(filters, effectiveFilterGroup));
+    }
   }
 
   private StatisticBoardSnapshotService.SnapshotRequest snapshotRequest(
@@ -342,7 +387,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
-    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters), effectiveFilterGroup);
+    RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
         true,
@@ -356,7 +401,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
-    return buildRuleFlowSnapshot(loadSources(filters), filterGroup).finalSources();
+    return buildRuleFlowSnapshot(loadSources(filters, filterGroup), filterGroup).finalSources();
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
@@ -533,6 +578,13 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                     issue.title()
                         + (issue.moduleNames().isEmpty() ? "" : " | 模块: " + String.join("、", issue.moduleNames())));
   }
+
+  private List<StatisticFilterOption> loadMilestoneOptions() {
+    return milestoneCatalogService.listMilestones().stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
+  }
+
   private List<StatisticRuleMetricDefinition> buildMetricDefinitions() {
     return List.of(
         new StatisticRuleMetricDefinition("level1", "一级缺陷", "一级缺陷基于 severity_level = LEVEL1，再拆分回退、挂机、其他一级。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),
@@ -543,20 +595,59 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters) {
-    Map<String, String> queryFilters = new LinkedHashMap<>(withoutReservedFilters(filters));
-    queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+    return loadSources(filters, applyDefaultMilestone(parseFilterGroup(filters, buildDefinition())));
+  }
+
+  private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup);
     try {
-      return runtimeSupport
-          .loadFacts(
-              queryFilters,
-              source -> customerIssueScopeProfile.matches(source.scopeContext()))
-          .stream()
-          .map(this::toIssueSource)
-          .toList();
-    } catch (Exception e) {
+      return issueFactQueryService.query(
+          FACT_SQL,
+          scope.filters(),
+          scope.predicate(),
+          scope.args(),
+          this::mapIssueFact);
+    } catch (DataAccessException e) {
       log.warn("Failed to load issue facts", e);
       return List.of();
     }
+  }
+
+  private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
+    return new IssueSource(
+        rs.getLong("id"),
+        rs.getInt("iid"),
+        StatisticSourceValueSupport.text(rs.getString("source_instance"), "default"),
+        StatisticSourceValueSupport.text(rs.getString("title"), ""),
+        rs.getLong("project_id"),
+        StatisticSourceValueSupport.text(rs.getString("project_name"), ""),
+        StatisticSourceValueSupport.text(rs.getString("milestone_title"), ""),
+        StatisticSourceValueSupport.text(rs.getString("author_name"), ""),
+        StatisticSourceValueSupport.time(rs.getTimestamp("created_at")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("updated_at")),
+        StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
+        StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
+        StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
+        StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
+        StatisticSourceValueSupport.text(rs.getString("severity_level"), ""),
+        StatisticSourceValueSupport.text(rs.getString("priority_level"), ""),
+        rs.getBoolean("is_excluded"),
+        "",
+        StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
+        StatisticSourceValueSupport.text(rs.getString("category"), ""),
+        StatisticSourceValueSupport.text(rs.getString("delay_cause"), ""),
+        StatisticSourceValueSupport.text(rs.getString("assignee_name"), ""),
+        rs.getBoolean("is_fixed"),
+        rs.getBoolean("delay_issue"),
+        rs.getBoolean("is_regression"),
+        rs.getBoolean("is_crash"),
+        rs.getBoolean("is_level1_other"),
+        false,
+        "",
+        rs.getBoolean("is_legacy"),
+        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        StatisticSourceValueSupport.split(rs.getString("label_names")));
   }
 
   private IssueSource toIssueSource(StatisticIssueFactSource source) {

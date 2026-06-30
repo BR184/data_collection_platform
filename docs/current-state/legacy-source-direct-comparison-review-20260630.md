@@ -372,3 +372,50 @@
 2. 继续审查系统测试议题查询是否仍使用 `Scope.SYSTEM_TEST` 或 `is_excluded=false`。
 3. 申请延期缺陷分析已补充旧源码取证；后续重点确认默认阶段和 `delay_cause` 事实生成。
 4. 修改后按仓库规则只做一次最小编译/类型检查。
+
+## 9. 2026-06-30 客户问题统计首次缺快照执行方案
+
+本节记录 2026-06-30 继续修复前的执行方案。该方案区分“快照命中后页面快速返回”和“首次缺快照/快照失效后仍同步聚合”的两层问题，后续实现以本节和 `docs/platform-page-business-rules.md` 为依据。
+
+### 9.1 根因判断
+
+- 客户问题五个聚合看板已经接入 `statistic_board_snapshots`，快照命中时不再重复聚合。
+- 当前快照服务在未命中时仍同步执行 `responseSupplier.get()` 并保存结果；因此首次打开、快照失效或事实层版本变化后，用户请求仍会等待现场计算完成。
+- 现有客户问题统计服务已经有部分 SQL 前置条件，例如 `projectId=325`，但主聚合和部分过滤仍在 Java 内存完成；问题不是“完全全局扫 issue_fact”，而是“半 SQL、半 Java 聚合”导致缺快照路径仍可能慢或超时。
+- 系统测试非法数据属于记录分页范围问题，不属于客户问题统计性能问题；必须单独审计默认 `projectId=9`、默认第一测试阶段和 `Scope.SYSTEM_TEST` 是否生效。
+
+### 9.2 P0 执行范围
+
+1. **P0-0：系统测试非法数据范围审计**
+   - 审查 `SystemTestIllegalRecordService`、分页查询对象和 SQL repository。
+   - 确认默认 `projectId=9`、默认第一测试阶段、SQL 范围不是 `Scope.ALL`，且不再用标签兜底扩大范围。
+   - 若后端已满足，仅记录审计结论；若未满足，作为 P0 同批补丁。
+   - 审计结论：当前后端主分页已使用 `IssueFactRecordPageQuery.Scope.SYSTEM_TEST`，`projectId` 为空时默认 `9`，`testingPhase` 为空时取系统测试阶段列表第一项并展开，暂不需要额外补后端范围补丁。
+2. **P0-1：客户问题 SQL scope 支撑**
+   - 抽取统一的客户问题 SQL scope 支撑，避免五个服务各自半 SQL、半 Java 过滤。
+   - 统一下推 `project_id=325`、`created_at_source >= 2026-01-01`、`milestone_title = :milestoneTitle`、`is_excluded=false`。
+   - `milestoneTitle` 必须作为参数进入 SQL，不能写死默认里程碑。
+3. **P0-2：客户问题缺陷汇总首屏 SQL 化**
+   - 优先改造主表聚合路径。
+   - 模块拆分、严重程度计数和一级缺陷分类尽量在 SQL 前推；若标题分类 SQL 表达过硬，可保留 Java 分类，但输入必须已经按客户问题 scope 和当前里程碑收窄。
+4. **P0-3：客户问题缺陷原因分析首屏 SQL 化**
+   - 按 `module_names + reason_category` 聚合当前客户问题 scope、当前里程碑、公共排除后的数据。
+   - 保留老平台原因映射规则，不因 SQL 优化改变口径。
+5. **P0-4：默认快照预热**
+   - 保留现有快照命中读取。
+   - 事实层重建后预热客户问题 P0 页面。
+   - 预热前 3 个活跃里程碑，快照 key 必须包含 `milestoneTitle`，不同里程碑不共享快照。
+
+### 9.3 P1 暂缓范围
+
+- 客户问题延期问题、缺陷响应效率、按功能展示缺陷数量在 P0 稳定后再 SQL 化。
+- 延期页优先下推 `is_response_delayed/is_resolve_delayed/open/illegal_reasons not contains GitLab接口报错`。
+- 响应效率可用 SQL 做基础筛选和平均值计算，展示格式仍由 Java 组装。
+- 按功能展示后续按 `module + function_name` 做 SQL 聚合。
+
+### 9.4 验收口径
+
+- 清空或置 stale 客户问题 P0 快照后，首次打开也应返回表格。
+- 默认请求的 applied filters 必须包含 `projectId=325` 和明确 `milestoneTitle`。
+- SQL 慢日志中不应再出现客户问题 P0 首屏一次性大范围拉取后长时间 Java 聚合。
+- 系统测试非法数据单独给出范围审计结论或补丁，不与客户问题性能优化混为同一个问题。
