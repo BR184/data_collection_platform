@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Lock, Loading, User } from '@element-plus/icons-vue';
+import { Expand, Fold, Lock, Loading, User } from '@element-plus/icons-vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
@@ -24,6 +24,7 @@ const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/
 const route = useRoute();
 const router = useRouter();
 const loginDialogVisible = ref(false);
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'platform-shell-sidebar-collapsed';
 const loginForm = reactive({
   username: '',
   password: '',
@@ -63,6 +64,24 @@ const authModeTagType = computed(() => {
   }
   return 'info';
 });
+const sidebarCollapsed = ref(readSidebarCollapsedPreference());
+
+function readSidebarCollapsedPreference() {
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function toggleSidebarCollapsed() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(sidebarCollapsed.value));
+  } catch {
+    // Browser privacy modes can reject localStorage writes; the in-memory state still works.
+  }
+}
 
 function openModule(moduleKey: string) {
   const targetModule = moduleByKey.get(moduleKey as never);
@@ -201,14 +220,25 @@ watch(
       </div>
     </header>
 
-    <div class="shell-body">
-      <aside class="shell-sidebar">
+    <div class="shell-body" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+      <aside class="shell-sidebar" :class="{ collapsed: sidebarCollapsed }">
         <div class="sidebar-title">
           <component :is="activeModule.icon" class="sidebar-title-icon" />
-          <span>{{ activeModule.title }}</span>
+          <span v-if="!sidebarCollapsed" class="sidebar-title-text">{{ activeModule.title }}</span>
+          <el-tooltip :content="sidebarCollapsed ? '展开副模块栏' : '收起副模块栏'" placement="right">
+            <button
+              type="button"
+              class="sidebar-toggle"
+              :aria-label="sidebarCollapsed ? '展开副模块栏' : '收起副模块栏'"
+              :aria-expanded="!sidebarCollapsed"
+              @click="toggleSidebarCollapsed"
+            >
+              <component :is="sidebarCollapsed ? Expand : Fold" class="sidebar-toggle-icon" />
+            </button>
+          </el-tooltip>
         </div>
 
-        <div class="sidebar-menu">
+        <div v-if="!sidebarCollapsed" class="sidebar-menu">
           <button
             v-for="page in activeModule.pages"
             :key="page.key"

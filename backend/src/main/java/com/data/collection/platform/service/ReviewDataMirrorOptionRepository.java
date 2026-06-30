@@ -24,7 +24,7 @@ public class ReviewDataMirrorOptionRepository {
           from ods_gitlab_projects
          where coalesce(mirror_deleted, false) = false
            and nullif(trim(name), '') is not null
-         order by name
+         order by coalesce(last_activity_at, created_at, updated_at) desc nulls last
         """,
         "ods_gitlab_projects");
   }
@@ -36,7 +36,7 @@ public class ReviewDataMirrorOptionRepository {
           from ods_gitlab_users
          where coalesce(mirror_deleted, false) = false
            and nullif(trim(name), '') is not null
-         order by name
+         order by coalesce(last_activity_on, created_at, updated_at) desc nulls last
         """,
         "ods_gitlab_users");
   }

@@ -15,6 +15,7 @@ export interface ReviewRecordDialogDependencies {
   updateRecord: (recordId: number, payload: ReviewDataRecordSaveRequest) => Promise<unknown>;
   refreshRecords: () => Promise<void>;
   afterCreateRecord?: (record: ReviewDataRecordDetailResponse) => Promise<void>;
+  afterUpdateRecord?: (recordId: number) => Promise<void>;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
 }
@@ -54,8 +55,13 @@ export function useReviewRecordDialog(deps: ReviewRecordDialogDependencies) {
     recordDialogSaving.value = true;
     try {
       if (recordEditMode.value && editingRecordId.value != null) {
-        await deps.updateRecord(editingRecordId.value, payload);
+        const recordId = editingRecordId.value;
+        await deps.updateRecord(recordId, payload);
         deps.notifySuccess('评审记录已更新');
+        recordDialogVisible.value = false;
+        await deps.refreshRecords();
+        await deps.afterUpdateRecord?.(recordId);
+        return;
       } else {
         const createdRecord = await deps.createRecord(payload);
         deps.notifySuccess('评审记录已创建');
@@ -64,8 +70,6 @@ export function useReviewRecordDialog(deps: ReviewRecordDialogDependencies) {
         await deps.afterCreateRecord?.(createdRecord);
         return;
       }
-      recordDialogVisible.value = false;
-      await deps.refreshRecords();
     } catch (error) {
       deps.notifyError(error instanceof Error ? error.message : '评审记录保存失败');
     } finally {

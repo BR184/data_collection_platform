@@ -4,10 +4,12 @@ import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
 import java.util.Objects;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Slf4j
 public class ReviewDataRecordCommandService {
   private static final String DEFAULT_PENDING_REVIEW_STATUS = "未评审";
   private static final String DEFAULT_PENDING_REVIEW_CATEGORY = "独立评审";
@@ -70,6 +72,7 @@ public class ReviewDataRecordCommandService {
         request.weightedDefectDensity());
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
     persistLegacyParityDetails(recordId, request);
+    createMissingPendingProblemItems(recordId, request.reviewExperts());
     persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
   }
@@ -173,6 +176,64 @@ public class ReviewDataRecordCommandService {
           DEFAULT_PENDING_REVIEW_STATUS);
     }
     persistenceSupport.touchRecord(recordId);
+  }
+
+  private void createMissingPendingProblemItems(Long recordId, java.util.List<String> experts) {
+    log.info("createMissingPendingProblemItems called: recordId={}, experts={}", recordId, experts);
+    if (experts == null || experts.isEmpty()) {
+      log.info("No experts provided, skipping");
+      return;
+    }
+    java.util.List<ReviewDataProblemItemResponse> existingItems = persistenceSupport.listProblemItems(recordId);
+    log.info("Existing problem items count: {}", existingItems.size());
+
+    java.util.Set<String> reviewersWithItems = new java.util.HashSet<>();
+    for (ReviewDataProblemItemResponse item : existingItems) {
+      String reviewer = TextQuerySupport.normalizeForMatch(item.reviewerName());
+      if (reviewer != null) {
+        reviewersWithItems.add(reviewer);
+        log.debug("Found existing reviewer: original={}, normalized={}", item.reviewerName(), reviewer);
+      }
+    }
+    log.info("Reviewers with items: {}", reviewersWithItems);
+
+    boolean created = false;
+    for (String expert : experts) {
+      String normalizedExpert = TextQuerySupport.normalizeForMatch(expert);
+      log.debug("Checking expert: original={}, normalized={}", expert, normalizedExpert);
+
+      if (normalizedExpert == null) {
+        log.debug("Expert normalized to null, skipping: {}", expert);
+        continue;
+      }
+      if (reviewersWithItems.contains(normalizedExpert)) {
+        log.debug("Expert already has items, skipping: {}", expert);
+        continue;
+      }
+
+      log.info("Creating pending problem item for new expert: {}", expert);
+      persistenceSupport.insertProblemItem(
+          recordId,
+          expert,
+          0D,
+          DEFAULT_PENDING_REVIEW_CATEGORY,
+          "",
+          DEFAULT_PENDING_PROBLEM_CATEGORY,
+          DEFAULT_PENDING_PROBLEM_DESCRIPTION,
+          "",
+          "",
+          "",
+          DEFAULT_PENDING_REVIEW_STATUS);
+      reviewersWithItems.add(normalizedExpert);
+      created = true;
+    }
+
+    if (created) {
+      log.info("Created new pending items, touching record");
+      persistenceSupport.touchRecord(recordId);
+    } else {
+      log.info("No new pending items created");
+    }
   }
 
   private void persistLegacyParityDetails(Long recordId, ReviewDataRecordSaveRequest request) {

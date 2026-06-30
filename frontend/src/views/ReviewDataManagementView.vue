@@ -64,6 +64,7 @@ const {
 
 const {
   expandedRowKeys,
+  problemItemsMap,
   problemLoadingMap,
   loadProblemItems,
   handleExpandChange,
@@ -87,6 +88,14 @@ async function refreshAfterProblemItemMutation(recordId: number) {
   await refreshDetailIfOpen(recordId);
 }
 
+async function refreshAfterRecordUpdate(recordId: number) {
+  const hasCachedProblemItems = Object.prototype.hasOwnProperty.call(problemItemsMap.value, recordId);
+  const refreshProblemItems = hasCachedProblemItems || isProblemExpanded(recordId)
+    ? loadProblemItems(recordId)
+    : Promise.resolve();
+  await Promise.all([refreshProblemItems, refreshDetailIfOpen(recordId)]);
+}
+
 const {
   recordDialogVisible,
   recordDialogSaving,
@@ -100,6 +109,7 @@ const {
   createRecord: (payload) => api.createReviewDataRecord(payload),
   updateRecord: (recordId, payload) => api.updateReviewDataRecord(recordId, payload),
   refreshRecords: () => refreshReviewRecords(),
+  afterUpdateRecord: (recordId) => refreshAfterRecordUpdate(recordId),
   afterCreateRecord: async (detail) => {
     const recordId = detail.record.id;
     await toggleProblemPanel(recordId);

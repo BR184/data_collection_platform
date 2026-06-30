@@ -55,36 +55,48 @@ public class ReviewDataFilterOptionService {
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
-    // 按文档 6.8 规则：评审数据管理页"新增评审"候选值必须优先来自 GitLab 镜像库全量数据
-    // 项目来自 ods_gitlab_projects，人员来自 ods_gitlab_users
-    // 但根据内网老平台实际数据，模块和评审版本是自由文本，应从历史评审数据中提取候选值
+    // 按老平台实际行为：所有候选值都来自历史评审数据 (ReviewController.getAllModuleName/getAllProjectName/getReviewChargers)
+    // 按文档 6.8 规则：优先来自 GitLab 镜像库全量数据，历史评审导入数据作为补充兜底
+    // 最终方案：镜像库 + 历史数据合并，确保历史数据不丢失
+
+    // GitLab 镜像库数据
     List<String> mirrorUserNames = mirrorOptionRepository.loadUserNames();
     List<String> mirrorProjectNames = mirrorOptionRepository.loadProjectNames();
+    List<String> mirrorModuleNames = mirrorOptionRepository.loadModuleNames();
+    List<String> mirrorReviewVersions = mirrorOptionRepository.loadMilestoneTitles();
 
-    // 历史评审数据中的候选值
+    // 历史评审数据
     List<String> historicalProjectNames = historicalOptionRepository.loadProjectNames();
     List<String> historicalModuleNames = historicalOptionRepository.loadModuleNames();
     List<String> historicalReviewVersions = historicalOptionRepository.loadReviewVersions();
+    List<String> historicalReviewOwners = historicalOptionRepository.loadReviewOwners();
+    List<String> historicalReviewExperts = historicalOptionRepository.loadReviewExperts();
+    List<String> historicalAuthors = historicalOptionRepository.loadAuthors();
 
-    // 项目名称：镜像库 + 历史数据补充
+    // 合并：镜像库优先，历史数据补充
     List<String> allProjectNames = mergeValues(mirrorProjectNames, historicalProjectNames);
+    List<String> allModuleNames = mergeValues(mirrorModuleNames, historicalModuleNames);
+    List<String> allUserNames = mergeValues(mirrorUserNames, historicalReviewOwners, historicalReviewExperts, historicalAuthors);
+    List<String> allReviewVersions = mergeValues(mirrorReviewVersions, historicalReviewVersions);
 
     return new ReviewDataFilterOptionsResponse(
         toOptions(allProjectNames),              // 项目：镜像库 + 历史补充
-        toOptions(historicalModuleNames),        // 模块：历史数据（老平台是自由文本）
-        toOptions(mirrorUserNames),              // 评审负责人：镜像库
+        toOptions(allModuleNames),               // 模块：镜像标签归一化 + 历史补充
+        toOptions(allUserNames),                 // 评审负责人：镜像库 + 历史补充
         REVIEW_TYPE_OPTIONS,
-        toOptions(mirrorUserNames),              // 评审专家/作者/责任人：镜像库
-        toOptions(historicalReviewVersions),     // 评审版本：历史数据（老平台是自由文本）
+        toOptions(allUserNames),                 // 评审专家/作者/责任人：镜像库 + 历史补充
+        toOptions(allReviewVersions),            // 评审版本：镜像里程碑 + 历史补充
         PROBLEM_STATUS_OPTIONS,
         REVIEW_CATEGORY_OPTIONS,
         PROBLEM_CATEGORY_OPTIONS);
   }
 
-  private List<String> mergeValues(List<String> first, List<String> second) {
+  @SafeVarargs
+  private List<String> mergeValues(List<String>... sources) {
     java.util.LinkedHashSet<String> values = new java.util.LinkedHashSet<>();
-    values.addAll(first);
-    values.addAll(second);
+    for (List<String> source : sources) {
+      values.addAll(source);
+    }
     return List.copyOf(values);
   }
 

@@ -440,6 +440,11 @@ button {
   min-height: calc(100vh - 64px);
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
+  transition: grid-template-columns 0.18s ease;
+}
+
+.shell-body.sidebar-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .shell-sidebar {
@@ -452,6 +457,13 @@ button {
   position: sticky;
   top: 64px;
   height: calc(100vh - 64px);
+  overflow: hidden;
+  transition: padding 0.18s ease;
+}
+
+.shell-sidebar.collapsed {
+  padding: 16px 8px;
+  align-items: center;
 }
 
 .sidebar-title {
@@ -467,9 +479,59 @@ button {
   box-shadow: none;
 }
 
+.shell-sidebar.collapsed .sidebar-title {
+  width: 48px;
+  padding: 0;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  background: transparent;
+}
+
 .sidebar-title-icon {
   width: 18px;
   height: 18px;
+  flex: 0 0 auto;
+}
+
+.sidebar-title-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: auto;
+  border: 1px solid rgba(22, 119, 255, 0.14);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 119, 255, 0.06);
+  color: #1677ff;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
+  border-color: rgba(22, 119, 255, 0.32);
+  background: rgba(22, 119, 255, 0.12);
+  outline: none;
+}
+
+.shell-sidebar.collapsed .sidebar-toggle {
+  margin-left: 0;
+}
+
+.sidebar-toggle-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .sidebar-menu {
