@@ -26,7 +26,6 @@ export const ISSUE_RECORD_QUERY_KEYS = [
 ];
 
 export const CODE_REVIEW_RECORD_QUERY_KEYS = [
-  'projectId',
   'repositoryName',
   'mergedAtStart',
   'mergedAtEnd',

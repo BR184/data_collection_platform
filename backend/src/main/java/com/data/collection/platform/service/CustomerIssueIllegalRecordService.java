@@ -10,12 +10,16 @@ import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
+import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -43,6 +47,24 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private final ObjectMapper objectMapper;
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final FactBuildService factBuildService;
+  private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
+
+  @Autowired
+  public CustomerIssueIllegalRecordService(
+      IssueFactRecordRepository issueFactRecordRepository,
+      CustomerIssueScopeProfile customerIssueScopeProfile,
+      ObjectMapper objectMapper,
+      GitlabResourceLinkService issueLinkService,
+      LabelGroupExpansionService labelGroupExpansionService,
+      FactBuildService factBuildService,
+      CustomerIssueMilestoneCatalogService milestoneCatalogService) {
+    super(issueFactRecordRepository, issueLinkService);
+    this.customerIssueScopeProfile = customerIssueScopeProfile;
+    this.objectMapper = objectMapper;
+    this.labelGroupExpansionService = labelGroupExpansionService;
+    this.factBuildService = factBuildService;
+    this.milestoneCatalogService = milestoneCatalogService;
+  }
 
   public CustomerIssueIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
@@ -51,11 +73,14 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
       GitlabResourceLinkService issueLinkService,
       LabelGroupExpansionService labelGroupExpansionService,
       FactBuildService factBuildService) {
-    super(issueFactRecordRepository, issueLinkService);
-    this.customerIssueScopeProfile = customerIssueScopeProfile;
-    this.objectMapper = objectMapper;
-    this.labelGroupExpansionService = labelGroupExpansionService;
-    this.factBuildService = factBuildService;
+    this(
+        issueFactRecordRepository,
+        customerIssueScopeProfile,
+        objectMapper,
+        issueLinkService,
+        labelGroupExpansionService,
+        factBuildService,
+        null);
   }
 
   public CustomerIssueIllegalRecordListResponse listRecords(
@@ -248,7 +273,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         toOptions(rows, IssueFactRecord::issueState),
         toOptions(rows, IssueFactRecord::bugStatus),
         toOptions(rows, IssueFactRecord::category),
-        toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
+        toOptions(customerIssueMilestones(rows)));
   }
 
   public CustomerIssueIllegalRecordRowResponse refreshSingleRecord(
@@ -324,6 +349,19 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
 
   private Long defaultProjectId(Long projectId) {
     return LEGACY_CC_PRODUCT_PROJECT_ID;
+  }
+
+  private List<String> customerIssueMilestones(List<IssueFactRecord> rows) {
+    Set<String> milestones = new LinkedHashSet<>();
+    if (milestoneCatalogService != null) {
+      milestones.addAll(milestoneCatalogService.listMilestones());
+    }
+    rows.stream()
+        .map(IssueFactRecord::milestoneTitle)
+        .map(TextQuerySupport::trimToNull)
+        .filter(value -> value != null)
+        .forEach(milestones::add);
+    return List.copyOf(milestones);
   }
 
   private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {

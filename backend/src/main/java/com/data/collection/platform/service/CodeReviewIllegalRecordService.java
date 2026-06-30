@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 // 默认规则尽量下沉到 SQL 查询；用户自定义规则则通过规则配置和源数据加载器组合执行。
 public class CodeReviewIllegalRecordService {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
+  private static final String LEGACY_DEFAULT_PROJECT_NAME = "CrownCAD";
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -134,18 +135,19 @@ public class CodeReviewIllegalRecordService {
   }
 
   public CodeReviewIllegalRecordListResponse listRecords(CodeReviewIllegalRecordQueryRequest request) {
+    CodeReviewIllegalRecordQueryRequest safeRequest = withLegacyDefaultScope(request);
     int safePage = request.page() <= 0 ? 1 : request.page();
     int safeSize = request.size() <= 0 ? 20 : Math.min(request.size(), 100);
-    String safeSortField = CodeReviewIllegalRecordQuerySupport.normalizeSortField(request.sortField());
-    String safeSortOrder = CodeReviewIllegalRecordQuerySupport.normalizeSortOrder(request.sortOrder());
-    CodeReviewRuleConfig ruleConfig = parseRuleConfig(request.ruleConfigJson());
+    String safeSortField = CodeReviewIllegalRecordQuerySupport.normalizeSortField(safeRequest.sortField());
+    String safeSortOrder = CodeReviewIllegalRecordQuerySupport.normalizeSortOrder(safeRequest.sortOrder());
+    CodeReviewRuleConfig ruleConfig = parseRuleConfig(safeRequest.ruleConfigJson());
     StatisticFilterGroup filterGroup =
-        CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, request.filterGroupJson());
-    if (canUseDefaultSqlPage(request)) {
+        CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, safeRequest.filterGroupJson());
+    if (canUseDefaultSqlPage(safeRequest)) {
       PageSlice<CodeReviewIllegalRecordSource> sourcePage =
           sourceLoader.loadDefaultIllegalPage(
               new CodeReviewIllegalRecordSourcePageQuery(
-                  request, filterGroup, safePage, safeSize, safeSortField, safeSortOrder));
+                  safeRequest, filterGroup, safePage, safeSize, safeSortField, safeSortOrder));
       CodeReviewRuleConfig responseRuleConfig = null;
       List<CodeReviewIllegalRecordRowResponse> records =
           sourcePage.records().stream()
@@ -162,19 +164,19 @@ public class CodeReviewIllegalRecordService {
     }
     List<CodeReviewIllegalRecordView> scopedRows =
         loadScopedViews(
-            request.projectId(),
-            request.repositoryName(),
-            request.mergedAtStart(),
-            request.mergedAtEnd(),
-            request.keyword(),
-            request.projectName(),
-            request.requestType(),
-            request.targetBranch(),
-            request.mergedBy(),
-            request.moduleName(),
-            request.mergeRequestIid(),
-            request.owner(),
-            request.source());
+            safeRequest.projectId(),
+            safeRequest.repositoryName(),
+            safeRequest.mergedAtStart(),
+            safeRequest.mergedAtEnd(),
+            safeRequest.keyword(),
+            safeRequest.projectName(),
+            safeRequest.requestType(),
+            safeRequest.targetBranch(),
+            safeRequest.mergedBy(),
+            safeRequest.moduleName(),
+            safeRequest.mergeRequestIid(),
+            safeRequest.owner(),
+            safeRequest.source());
     List<CodeReviewIllegalRecordView> judgedRows =
         CodeReviewRuleConfigSupport.hasReadyConfig(ruleConfig)
             ? CodeReviewRuleConfigSupport.apply(scopedRows, ruleConfig)
@@ -187,7 +189,7 @@ public class CodeReviewIllegalRecordService {
             .filter(
                 row ->
                     CodeReviewIllegalRecordQuerySupport.matchesIllegalType(
-                        row.illegalTypes(), request.illegalType()))
+                        row.illegalTypes(), safeRequest.illegalType()))
             .sorted(CodeReviewIllegalRecordQuerySupport.buildComparator(safeSortField, safeSortOrder))
             .toList();
 
@@ -342,27 +344,28 @@ public class CodeReviewIllegalRecordService {
 
   private CodeReviewIllegalRecordQueryRequest pageRequest(
       CodeReviewIllegalRecordQueryRequest request, int page, String illegalType) {
+    CodeReviewIllegalRecordQueryRequest safeRequest = withLegacyDefaultScope(request);
     return new CodeReviewIllegalRecordQueryRequest(
-        request.projectId(),
-        request.repositoryName(),
-        request.mergedAtStart(),
-        request.mergedAtEnd(),
-        request.keyword(),
-        request.projectName(),
-        request.requestType(),
-        request.targetBranch(),
-        request.mergedBy(),
-        request.moduleName(),
+        safeRequest.projectId(),
+        safeRequest.repositoryName(),
+        safeRequest.mergedAtStart(),
+        safeRequest.mergedAtEnd(),
+        safeRequest.keyword(),
+        safeRequest.projectName(),
+        safeRequest.requestType(),
+        safeRequest.targetBranch(),
+        safeRequest.mergedBy(),
+        safeRequest.moduleName(),
         illegalType,
-        request.mergeRequestIid(),
-        request.owner(),
-        request.source(),
-        request.filterGroupJson(),
+        safeRequest.mergeRequestIid(),
+        safeRequest.owner(),
+        safeRequest.source(),
+        safeRequest.filterGroupJson(),
         page,
         EXPORT_PAGE_SIZE,
-        request.sortField(),
-        request.sortOrder(),
-        request.ruleConfigJson());
+        safeRequest.sortField(),
+        safeRequest.sortOrder(),
+        safeRequest.ruleConfigJson());
   }
 
   private boolean shouldExportAllCodeReviewSheet(CodeReviewIllegalRecordQueryRequest request) {
@@ -478,20 +481,21 @@ public class CodeReviewIllegalRecordService {
 
   public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(
       CodeReviewIllegalRecordFilterOptionsRequest request) {
+    CodeReviewIllegalRecordFilterOptionsRequest safeRequest = withLegacyDefaultScope(request);
     List<CodeReviewIllegalRecordView> rows =
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    request.projectId(),
+                    safeRequest.projectId(),
                     null,
                     null,
                     null,
-                    request.projectName(),
+                    safeRequest.projectName(),
                     null,
                     null,
                     null,
                     null,
-                    request.source()))
+                    safeRequest.source()))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -500,7 +504,7 @@ public class CodeReviewIllegalRecordService {
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    null, null, null, null, null, null, null, null, null, request.source()))
+                    null, null, null, null, null, null, null, null, null, safeRequest.source()))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -666,6 +670,51 @@ public class CodeReviewIllegalRecordService {
         .filter(row -> CodeReviewIllegalRecordQuerySupport.matchesRequestType(row.requestType(), requestType))
         .filter(row -> CodeReviewIllegalRecordQuerySupport.matchesEquals(row.mergedBy(), mergedBy))
         .toList();
+  }
+
+  private CodeReviewIllegalRecordQueryRequest withLegacyDefaultScope(
+      CodeReviewIllegalRecordQueryRequest request) {
+    String source = TextQuerySupport.trimToNull(request.source());
+    String normalizedSource = source == null ? "cc" : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    String projectName = TextQuerySupport.trimToNull(request.projectName());
+    boolean useLegacyDefaultProject =
+        projectName == null
+            && (source == null || "cc".equals(normalizedSource) || "default".equals(normalizedSource));
+    return new CodeReviewIllegalRecordQueryRequest(
+        useLegacyDefaultProject ? null : request.projectId(),
+        request.repositoryName(),
+        request.mergedAtStart(),
+        request.mergedAtEnd(),
+        request.keyword(),
+        useLegacyDefaultProject ? LEGACY_DEFAULT_PROJECT_NAME : request.projectName(),
+        request.requestType(),
+        request.targetBranch(),
+        request.mergedBy(),
+        request.moduleName(),
+        request.illegalType(),
+        request.mergeRequestIid(),
+        request.owner(),
+        source,
+        request.filterGroupJson(),
+        request.page(),
+        request.size(),
+        request.sortField(),
+        request.sortOrder(),
+        request.ruleConfigJson());
+  }
+
+  private CodeReviewIllegalRecordFilterOptionsRequest withLegacyDefaultScope(
+      CodeReviewIllegalRecordFilterOptionsRequest request) {
+    String source = TextQuerySupport.trimToNull(request.source());
+    String normalizedSource = source == null ? "cc" : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    String projectName = TextQuerySupport.trimToNull(request.projectName());
+    boolean useLegacyDefaultProject =
+        projectName == null
+            && (source == null || "cc".equals(normalizedSource) || "default".equals(normalizedSource));
+    return new CodeReviewIllegalRecordFilterOptionsRequest(
+        useLegacyDefaultProject ? null : request.projectId(),
+        useLegacyDefaultProject ? LEGACY_DEFAULT_PROJECT_NAME : request.projectName(),
+        source);
   }
 
   private CodeReviewRuleConfig parseRuleConfig(String ruleConfigJson) {

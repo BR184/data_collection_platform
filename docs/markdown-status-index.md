@@ -32,6 +32,7 @@
 | `docs/current-state/testing-phase-two-level-management-20260622.md` | 当前方案 / 实施中 | 固定议题测试阶段定义的系统设置入口、父子两级维护、父级排序驱动下拉和子级展开匹配规则。 |
 | `docs/current-state/intranet-test-issues-fix-plan-20260623.md` | 当前方案 / 已实施，长期体验优化另列 | 2026-06-23 内网测试发现的 8 个问题（回退 token、白屏卡顿、动态标签组数据源、组合组 SAME_FIELD 传导、统计筛选字段补齐、下钻表 UI、二级测试阶段、阶段定义页 UI）的根因、落地状态与验收口径；阶段定义页拖拽/批量排序作为后续体验优化。 |
 | `docs/current-state/intranet-test-root-cause-fix-plan-20260625.md` | 当前修复方案 / 待实施与真实环境验证 | 合并 2026-06-25 两份内网测试根因分析方案，统一跟踪系统测试、客户问题、代码走查、评审下拉、性能超时和统计差异共 18 个问题的根因、修复入口、优先级和验收口径。 |
+| `docs/current-state/intranet-retest-legacy-route-and-rule-gap-20260629.md` | 当前修复方案 / 待实施 | 记录 2026-06-29 内网复测后老 hash 地址、新平台页面契约、客户问题里程碑、系统测试记录/非法/原因规则和代码走查非法数据仍未对齐的根因与修复顺序。 |
 | `docs/current-state/testing-phase-display-statistics-whitelist-20260623.md` | 当前口径 / 常驻 | 固定测试阶段维护表作为下拉与统计白名单：表外阶段及其议题在下拉、表格统计、明细中全部屏蔽；表格总数严格按当前选中阶段粒度（父级或具体子级）在 `issue_fact` 命中条数实时重算。 |
 | `docs/fact-field-contract.md` | 常驻契约 | 字段、数据或交互契约，继续作为实现和验收依据。 |
 | `docs/flyway-migration-rules.md` | 常驻规则 | 继续作为当前工程规则或实现约束使用。 |

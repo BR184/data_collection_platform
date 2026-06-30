@@ -85,43 +85,11 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     StatisticFilterGroup filterGroup =
         SystemTestPhaseFilterGroupExpander.expand(parsedFilterGroup, phaseScopeResolver);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
-    boolean hasLabelGroupFilters = IssueFactRecordFilterGroupSupport.hasLabelGroupConditions(expandedFilterGroup);
     List<String> requestedTestingPhases = effectiveTestingPhases(request.testingPhases());
     List<String> resolvedTestingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(requestedTestingPhases);
     if (!requestedTestingPhases.isEmpty() && resolvedTestingPhases.isEmpty()) {
       return new SystemTestIssueSearchListResponse(
           List.of(), 0, safePage, safeSize, safeSortField, safeSortOrder);
-    }
-
-    if (!hasLabelGroupFilters && canUseSqlPage(listRequest, request.filterGroupJson(), safeSortField)) {
-      PageSlice<IssueFactRecord> pageSlice =
-          loadFactPage(
-              new IssueFactRecordPageQuery(
-                  IssueFactRecordPageQuery.Scope.ALL,
-                  listRequest,
-                  expandedFilterGroup,
-                  null,
-                  null,
-                  null,
-                  resolvedTestingPhases,
-                  request.authorName(),
-                  request.assigneeName(),
-                  false,
-                  false,
-                  true,
-                  false,
-                  false,
-                  false,
-                  false,
-                  true,
-                  safePage,
-                  safeSize,
-                  safeSortField,
-                  safeSortOrder));
-      List<SystemTestIssueSearchRowResponse> records =
-          pageSlice.records().stream().map(this::toResponse).toList();
-      return new SystemTestIssueSearchListResponse(
-          records, pageSlice.total(), pageSlice.page(), pageSlice.size(), safeSortField, safeSortOrder);
     }
 
     List<IssueFactRecord> filtered =
@@ -130,7 +98,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 listRequest,
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
-            .filter(view -> !view.excluded())
+            .filter(this::matchesLegacyIssueSearchVisibility)
             .filter(view -> matchesTestingPhase(view, requestedTestingPhases))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
@@ -407,6 +375,11 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         || TextQuerySupport.containsAbstractSearch(view.bugStatus(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.category(), normalizedKeyword)
         || TextQuerySupport.containsAbstractSearch(view.milestoneTitle(), normalizedKeyword);
+  }
+
+  private boolean matchesLegacyIssueSearchVisibility(IssueFactRecord view) {
+    return !TextQuerySupport.containsAbstractSearch(view.bugStatus(), "已拒绝")
+        && !TextQuerySupport.containsAbstractSearch(view.category(), "功能屏蔽");
   }
 
   private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {

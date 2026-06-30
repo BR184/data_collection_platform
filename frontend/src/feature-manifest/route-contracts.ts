@@ -82,7 +82,6 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'pageSize',
       'sortBy',
       'sortOrder',
-      'projectId',
       'filterGroup',
       'filterLogic',
       'repositoryName',
@@ -100,7 +99,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'source',
     ],
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
   },
   'code-review-multi-board': {
     allowedQueryKeys: ['source'],

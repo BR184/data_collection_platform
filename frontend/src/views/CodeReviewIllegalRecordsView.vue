@@ -159,7 +159,7 @@ function openDetailDrawer(row: Record<string, unknown>) {
 
 async function loadFilterOptions() {
   filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
-    route.query.projectId as string | undefined,
+    undefined,
     sourceScope.value.value || undefined,
     String(route.query.projectName ?? ''),
   );
@@ -187,7 +187,7 @@ async function loadTableData() {
 
 function buildCurrentQueryParams(includePagination: boolean) {
   return {
-    projectId: route.query.projectId as string | undefined,
+    projectId: undefined,
     repositoryName: String(route.query.repositoryName ?? ''),
     mergedAtStart: String(route.query.mergedAtStart ?? ''),
     mergedAtEnd: String(route.query.mergedAtEnd ?? ''),
