@@ -122,7 +122,7 @@ final class CodeReviewRuleConfigSupport {
               || !StringUtils.hasText(row.reviewStatus())
               || row.reviewDurationMinutes() == null);
       case "scanNotDone" -> isNotScanned(row.scanStatus());
-      case "scanIssueOpen" -> row.scanBugCount() != null && row.scanBugCount() > 0;
+      case "scanIssueOpen" -> CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL.equals(row.bugCountResult());
       case "targetBranch" -> matchesNotIn(row.targetBranch(), condition.value());
       case "mergeRequestContent" -> containsAny(row.mergeRequestContent(), condition.value());
       case "commentRateMissing" -> row.commentRate() == null;
@@ -138,9 +138,7 @@ final class CodeReviewRuleConfigSupport {
   private static boolean isNotScanned(String scanStatus) {
     String normalizedStatus = TextQuerySupport.trimToNull(scanStatus);
     return normalizedStatus != null
-        && List.of("NOT_SCANNED", "UNSCANNED", "\u672a\u626b\u63cf", "\u672a\u4ee3\u7801\u626b\u63cf", "\u672a\u8fdb\u884c\u4ee3\u7801\u626b\u63cf")
-            .stream()
-            .anyMatch(status -> TextQuerySupport.equalsNormalized(status, normalizedStatus));
+        && TextQuerySupport.equalsNormalized("\u672a\u8fdb\u884c\u4ee3\u7801\u626b\u63cf", normalizedStatus);
   }
 
   private static boolean isNoNeedReview(String reviewerNames) {

@@ -27,12 +27,7 @@ final class CodeReviewIllegalRuleRegistry {
       List.of("没有合法评论", "代码走查时间或缺陷数异常", "代码走查标题异常", "代码走查记录行数异常");
 
   private static final Set<String> NOT_SCANNED_STATUSES =
-      Set.of(
-          "NOT_SCANNED",
-          "UNSCANNED",
-          "\u672a\u626b\u63cf",
-          "\u672a\u4ee3\u7801\u626b\u63cf",
-          "\u672a\u8fdb\u884c\u4ee3\u7801\u626b\u63cf");
+      Set.of("\u672a\u8fdb\u884c\u4ee3\u7801\u626b\u63cf");
 
   private static final List<CodeReviewIllegalRule> ORDERED_RULES =
       List.of(

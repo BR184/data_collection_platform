@@ -247,17 +247,18 @@ fact.setIllegal(...isIllegal(..., fixedForIllegalCheck));
 
 ### P0-1: 客户问题统计页快照预热
 
-**状态**：部分修复
+**状态**：第三轮已补根治入口，待内网事实重建验证
 
 **已修复**：
 - ✅ 路由契约正确化
 - ✅ 加载状态降级逻辑
 - ✅ 候选加载失败不阻塞页面
+- ✅ 第三轮补充：`/api/facts/rebuild` 手动事实重建成功后会触发 `StatisticBoardSnapshotRefreshService.refreshAfterFactBuild(...)`
+- ✅ 第三轮补充：`scope=all` 会以 `ALL` 上下文触发 issue / merge request 相关 refresher，避免只有队列式事实重建才预热快照
 
 **未修复**：
-- ❌ 快照预热触发逻辑未改动
-- ❌ 事实重建后是否自动预热未验证
-- ❌ 预热失败的监控和重试未实现
+- ⚠️ 预热失败的监控和重试仍未实现
+- ⚠️ 需要内网在事实层重建后检查 `statistic_board_snapshots` 是否生成客户问题和系统测试默认范围快照
 
 **建议**：
 1. **短期**：手动触发快照预热
@@ -402,9 +403,24 @@ WHERE project_id = 9
 ### 短期补充
 
 3. **修复快照预热触发**
-   - 检查 `FactBuildService` 是否调用预热
-   - 添加预热失败日志
-   - 如果未调用，补充触发逻辑
+   - 已补 `/api/facts/rebuild` 成功后的预热调用
+   - 队列式事实重建原本已有 `FactRefreshTaskWorkerService -> StatisticBoardSnapshotRefreshService`
+   - 后续根据内网日志再补预热失败重试和监控
+
+### 第三轮根治补充：缺陷原因事实字段
+
+第二轮 `SystemTestDefectCauseBoardService` 使用 `raw_payload` 兜底能解决空表，但可能误命中非原因评论。第三轮已将根治点前移到事实层：
+
+- `IssueTemplateParsingSupport` 按老平台 `IssueServiceImpl.getCause(...)` 解析第一条 `### 1、修复状态` 评论，生成与 `spider_issue_data.cause` 等价的原因段文本。
+- `IssueClassificationRules.normalizeFixReasonCategory(...)` 优先写入该原因段文本，而不是只写单一归一化原因枚举。
+- 系统测试缺陷原因看板 `RULE_VERSION` 升至 `system-test-defect-cause@2026-06-30-v3`，查询只使用 `issue_fact.reason_category`，不再回退全文 `raw_payload`。
+- 客户问题缺陷原因看板 `RULE_VERSION` 升至 `customer-issue-defect-cause@2026-06-30-v3`。
+- 该修复必须重建 issue fact 后生效；否则旧 `reason_category` 仍会留在事实表中。
+
+### 第三轮根治补充：非法判定收敛
+
+- 系统测试非法数据继续以 `issue_fact.illegal_reasons` 对齐老平台 `illegal_list`，但底层“未按照模板回复/缺陷原因不唯一”已改用老平台原因段文本计算，避免旧实现因全文兜底导致非法数量膨胀。
+- 代码走查“未代码扫描”收敛为老平台字面值 `未进行代码扫描`，不再把 `NOT_SCANNED`、`UNSCANNED`、`未扫描`、`未代码扫描` 等扩展状态纳入默认非法口径。
 
 4. **对比数据差异根因**
    - 导出新旧平台同一范围的数据

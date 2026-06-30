@@ -11,7 +11,9 @@ import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
+import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import com.data.collection.platform.security.RequireRole;
+import java.util.Locale;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,18 +28,21 @@ public class FactBuildController {
   private final FactBuildTaskService factBuildTaskService;
   private final IssueFactDiagnosticsService issueFactDiagnosticsService;
   private final IssueSourceReadinessService issueSourceReadinessService;
+  private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
 
   public FactBuildController(
       FactBuildService factBuildService,
       FactBuildOperationGuard factBuildOperationGuard,
       FactBuildTaskService factBuildTaskService,
       IssueFactDiagnosticsService issueFactDiagnosticsService,
-      IssueSourceReadinessService issueSourceReadinessService) {
+      IssueSourceReadinessService issueSourceReadinessService,
+      StatisticBoardSnapshotRefreshService snapshotRefreshService) {
     this.factBuildService = factBuildService;
     this.factBuildOperationGuard = factBuildOperationGuard;
     this.factBuildTaskService = factBuildTaskService;
     this.issueFactDiagnosticsService = issueFactDiagnosticsService;
     this.issueSourceReadinessService = issueSourceReadinessService;
+    this.snapshotRefreshService = snapshotRefreshService;
   }
 
   @PostMapping("/rebuild")
@@ -59,7 +64,16 @@ public class FactBuildController {
                   ? factBuildService.rebuildAllFacts(full)
                   : factBuildService.rebuildAllFacts(full, configId);
             });
+    snapshotRefreshService.refreshAfterFactBuild(snapshotFactType(scope), full);
     return ApiResponse.success(response.message(), response);
+  }
+
+  private String snapshotFactType(String scope) {
+    return switch (scope == null ? "" : scope.trim().toLowerCase(Locale.ROOT)) {
+      case "issue" -> "ISSUE";
+      case "merge-request", "merge_request" -> "MERGE_REQUEST";
+      default -> "ALL";
+    };
   }
 
   private String guardScope(String scope, Long configId) {

@@ -5,11 +5,11 @@ public interface StatisticBoardSnapshotRefresher {
 
   record RefreshContext(String factType, boolean full) {
     boolean affectsIssues() {
-      return "ISSUE".equalsIgnoreCase(factType);
+      return "ISSUE".equalsIgnoreCase(factType) || "ALL".equalsIgnoreCase(factType);
     }
 
     boolean affectsMergeRequests() {
-      return "MERGE_REQUEST".equalsIgnoreCase(factType);
+      return "MERGE_REQUEST".equalsIgnoreCase(factType) || "ALL".equalsIgnoreCase(factType);
     }
   }
 }

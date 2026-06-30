@@ -69,9 +69,9 @@ final class IssueClassificationRules {
   }
 
   static String normalizeFixReasonCategory(List<String> labels, String notesText) {
-    String fromLatestNote = fixTemplateSnapshot(notesText).normalizedReasonCategory();
-    if (fromLatestNote != null) {
-      return fromLatestNote;
+    IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
+    if (snapshot.legacyReasonText() != null) {
+      return snapshot.legacyReasonText();
     }
     return normalizeReasonCategoryFromLabelsOrText(labels, notesText);
   }
@@ -151,7 +151,7 @@ final class IssueClassificationRules {
       if (!snapshot.hasTemplateReply()) {
         reasons.add(TEMPLATE_NOT_FOLLOWED);
       } else {
-        int reasonCount = snapshot.latestReasonCategoryCount();
+        int reasonCount = legacyMajorReasonCount(snapshot);
         if (reasonCount != 1) {
           reasons.add(NON_UNIQUE_REASON);
         }
@@ -185,7 +185,9 @@ final class IssueClassificationRules {
   }
 
   static int latestFixReasonCategoryCount(String notesText) {
-    return fixTemplateSnapshot(notesText).latestReasonCategoryCount();
+    IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
+    int legacyCount = legacyMajorReasonCount(snapshot);
+    return legacyCount > 0 ? legacyCount : snapshot.latestReasonCategoryCount();
   }
 
   static boolean hasResearchTemplateReply(String notesText) {
@@ -335,5 +337,35 @@ final class IssueClassificationRules {
 
   private static IssueTemplateSnapshot researchTemplateSnapshot(String notesText) {
     return IssueTemplateParsingSupport.parse(notesText, REASON_CATEGORY_TOKENS, RESEARCH_TEMPLATE_HEADER_TOKENS);
+  }
+
+  private static int legacyMajorReasonCount(IssueTemplateSnapshot snapshot) {
+    String cause = snapshot.legacyReasonText();
+    if (!org.springframework.util.StringUtils.hasText(cause)) {
+      return 0;
+    }
+    java.util.Set<String> categories = new java.util.LinkedHashSet<>();
+    addIfContains(categories, cause, "需求阶段",
+        "新增需求问题", "需求理解有误", "新增理解偏差", "需求遗漏", "新增需求", "需求变更未同步");
+    addIfContains(categories, cause, "设计问题",
+        "功能设计遗漏", "设计方案不合理", "场景考虑不全", "术语、提示不正确", "术语、提示信息不合适");
+    addIfContains(categories, cause, "编码问题",
+        "编码规范错误", "功能编码遗漏", "编码逻辑：计算与算法错误", "编码逻辑：流程控制错误",
+        "编码逻辑：数据与状态处理错误", "编码逻辑：业务逻辑错误", "编码逻辑：集成与接口错误",
+        "编码逻辑错误");
+    addIfContains(categories, cause, "打包问题", "环境配置问题", "编译/打包/部署问题");
+    addIfContains(categories, cause, "依赖问题",
+        "第三方库问题", "算法/机制不支持", "未识别的前后置任务", "算法不支持", "机制不支持", "前置数据异常");
+    addIfContains(categories, cause, "精度问题", "精度导致约束求解异常", "精度导致算法执行异常");
+    return categories.size();
+  }
+
+  private static void addIfContains(java.util.Set<String> categories, String text, String category, String... tokens) {
+    for (String token : tokens) {
+      if (text.contains(token)) {
+        categories.add(category);
+        return;
+      }
+    }
   }
 }

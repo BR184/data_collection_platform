@@ -21,6 +21,9 @@ final class IssueTemplateParsingSupport {
       Pattern.compile(
           "(\\d{4})\\s*(?:年|[.,，、/·`])\\s*(\\d{1,2})\\s*(?:月|[.,，、/·`])\\s*(\\d{1,2})\\s*(?:日)?");
   private static final String NOTE_SEPARATOR = "\\R---\\R";
+  private static final String FIX_TEMPLATE_HEADER = "### 1、修复状态";
+  private static final String FIX_TEMPLATE_DETAIL_FOOTER = "### 3、请描述具体原因：";
+  private static final String FIX_TEMPLATE_DETAIL_FOOTER_LEGACY = "（2）具体原因，请描述：";
 
   private IssueTemplateParsingSupport() {}
 
@@ -37,7 +40,8 @@ final class IssueTemplateParsingSupport {
         resolveSlaDays,
         planSolutionTime,
         latestCategories.size(),
-        normalizedReasonCategory);
+        normalizedReasonCategory,
+        legacyReasonText(notesText));
   }
 
   private static int resolveSlaDays(String notesText) {
@@ -152,6 +156,98 @@ final class IssueTemplateParsingSupport {
       }
     }
     return null;
+  }
+
+  private static String legacyReasonText(String notesText) {
+    if (!StringUtils.hasText(notesText)) {
+      return null;
+    }
+    String[] notes = notesText.split(NOTE_SEPARATOR);
+    for (String note : notes) {
+      String cause = legacyCauseInNote(note);
+      if (StringUtils.hasText(cause)) {
+        return processLegacyCause(cause);
+      }
+    }
+    return null;
+  }
+
+  private static String legacyCauseInNote(String note) {
+    if (!StringUtils.hasText(note)) {
+      return null;
+    }
+    String[] lines = note.replace("\r\n", "\n").replace('\r', '\n').split("\n");
+    if (lines.length == 0 || !lines[0].contains(FIX_TEMPLATE_HEADER)) {
+      return null;
+    }
+    StringBuilder cause = new StringBuilder();
+    int index = 0;
+    while (index < lines.length
+        && !lines[index].contains(FIX_TEMPLATE_DETAIL_FOOTER)
+        && !lines[index].contains(FIX_TEMPLATE_DETAIL_FOOTER_LEGACY)) {
+      String line = lines[index];
+      if (line.contains("[x]") || line.contains("[X]")) {
+        cause.append(line.replace("*", "").replace("[x]", "").replace("[X]", "").replace(" ", ""))
+            .append(' ');
+      }
+      index++;
+    }
+    if (index >= lines.length) {
+      return null;
+    }
+    cause.append("具体原因, 请描述：");
+    while (++index < lines.length) {
+      String line = lines[index];
+      if (line.contains("[ ]") || line.isBlank() || "```".equals(line)) {
+        continue;
+      }
+      cause.append(line.replace("#", "").replace(" ", "").replace("[x]", "").replace("[X]", ""));
+    }
+    return cause.toString();
+  }
+
+  private static String processLegacyCause(String cause) {
+    if (!StringUtils.hasText(cause)) {
+      return null;
+    }
+    String otherCause = "修改其他问题引起的";
+    if (!cause.contains(otherCause)) {
+      return cause;
+    }
+    for (String token : java.util.List.of(
+        "新增理解偏差",
+        "需求理解有误",
+        "需求遗漏",
+        "新增需求",
+        "需求变更未同步",
+        "功能设计遗漏",
+        "设计方案不合理",
+        "场景考虑不全",
+        "术语、提示信息不合适",
+        "编码规范错误",
+        "功能编码遗漏",
+        "编码逻辑：计算与算法错误",
+        "编码逻辑：流程控制错误",
+        "编码逻辑：数据与状态处理错误",
+        "编码逻辑：业务逻辑错误",
+        "编码逻辑错误",
+        "编码逻辑：集成与接口错误",
+        "编译打包问题",
+        "编译/打包/部署问题",
+        "环境配置问题",
+        "第三方库问题",
+        "算法不支持",
+        "机制不支持",
+        "算法/机制不支持",
+        "前置数据异常",
+        "未识别的前后置任务",
+        "精度导致约束求解异常",
+        "精度导致算法执行异常")) {
+      if (cause.contains(token)) {
+        return cause.replace(otherCause, "");
+      }
+    }
+    return cause;
   }
 
   private static Set<String> matchedReasonCategories(

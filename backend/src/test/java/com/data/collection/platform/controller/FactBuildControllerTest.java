@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +18,7 @@ import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
+import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +36,7 @@ class FactBuildControllerTest {
   @Mock private FactBuildTaskService factBuildTaskService;
   @Mock private IssueFactDiagnosticsService issueFactDiagnosticsService;
   @Mock private IssueSourceReadinessService issueSourceReadinessService;
+  @Mock private StatisticBoardSnapshotRefreshService snapshotRefreshService;
 
   private MockMvc mockMvc;
 
@@ -46,7 +49,8 @@ class FactBuildControllerTest {
                     new FactBuildOperationGuard(),
                     factBuildTaskService,
                     issueFactDiagnosticsService,
-                    issueSourceReadinessService))
+                    issueSourceReadinessService,
+                    snapshotRefreshService))
             .build();
   }
 
@@ -60,6 +64,7 @@ class FactBuildControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.scope").value("all"))
         .andExpect(jsonPath("$.data.affectedRows").value(12));
+    verify(snapshotRefreshService).refreshAfterFactBuild("ALL", false);
   }
 
   @Test
@@ -73,6 +78,7 @@ class FactBuildControllerTest {
         .andExpect(jsonPath("$.data.scope").value("issue"))
         .andExpect(jsonPath("$.data.full").value(true))
         .andExpect(jsonPath("$.data.affectedRows").value(6));
+    verify(snapshotRefreshService).refreshAfterFactBuild("ISSUE", true);
   }
 
   @Test
@@ -89,6 +95,7 @@ class FactBuildControllerTest {
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.scope").value("dgm:merge-request"))
         .andExpect(jsonPath("$.data.affectedRows").value(4));
+    verify(snapshotRefreshService).refreshAfterFactBuild("MERGE_REQUEST", false);
   }
 
   @Test

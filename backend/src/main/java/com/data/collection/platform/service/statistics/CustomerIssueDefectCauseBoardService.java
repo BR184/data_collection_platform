@@ -66,7 +66,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-06-17-v2";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-06-30-v3";
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";

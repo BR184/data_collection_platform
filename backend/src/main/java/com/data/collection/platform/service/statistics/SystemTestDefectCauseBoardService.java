@@ -65,7 +65,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-cause";
-  private static final String RULE_VERSION = "system-test-defect-cause@2026-06-30-v2";
+  private static final String RULE_VERSION = "system-test-defect-cause@2026-06-30-v3";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -97,7 +97,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
        from issue_fact
        where deleted = false
       """;
-  private static final String CAUSE_TEXT_SQL = "coalesce(nullif(reason_category,''), raw_payload, '')";
+  private static final String CAUSE_TEXT_SQL = "coalesce(reason_category, '')";
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
           "标题",
@@ -341,7 +341,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         true,
         "缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计优先使用 issue_fact.reason_category 已解析事实字段，缺失时回退评论文本命中老平台缺陷原因字段。",
+        "当前统计使用 issue_fact.reason_category 中按老平台 spider_issue_data.cause 解析出的缺陷原因段文本。",
         "模块行来自当前系统测试范围内的模块全集；不要求议题携带已修复/完成标签；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),

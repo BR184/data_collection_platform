@@ -7,4 +7,5 @@ record IssueTemplateSnapshot(
     int resolveSlaDays,
     LocalDateTime planSolutionTime,
     int latestReasonCategoryCount,
-    String normalizedReasonCategory) {}
+    String normalizedReasonCategory,
+    String legacyReasonText) {}

@@ -32,7 +32,7 @@ class CodeReviewIllegalRuleRegistryTest {
             null,
             null,
             LocalDateTime.of(2026, 4, 10, 8, 30),
-            "NOT_SCANNED",
+            "未进行代码扫描",
             2,
             null,
             null,
@@ -60,6 +60,56 @@ class CodeReviewIllegalRuleRegistryTest {
             CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL,
             CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL,
             CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL);
+  }
+
+  @Test
+  void shouldNotTreatTechnicalScanStatusCodesAsLegacyNotScanned() {
+    CodeReviewIllegalRecordSource source =
+        new CodeReviewIllegalRecordSource(
+            "cc",
+            1L,
+            101,
+            2001L,
+            "MR",
+            "Project A",
+            "repo-a",
+            LocalDateTime.of(2026, 4, 10, 9, 0),
+            "Alice",
+            "",
+            "",
+            "",
+            "",
+            "master",
+            "module-a",
+            List.of(),
+            null,
+            null,
+            null,
+            LocalDateTime.of(2026, 4, 10, 8, 30),
+            "NOT_SCANNED",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    assertThat(CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source))
+        .doesNotContain(CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL);
   }
 
   @Test
