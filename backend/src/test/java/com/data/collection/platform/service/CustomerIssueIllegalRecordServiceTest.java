@@ -158,7 +158,7 @@ class CustomerIssueIllegalRecordServiceTest {
                 record(201, "illegal a", "draft", true, "missing module"),
                 record(202, "illegal b", "sketch", true, "missing response")));
     when(labelGroupExpansionService.expand(
-            9L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
+            9L, "STRING", "moduleName", "customer-issues-illegal-records", "default"))
         .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
 
     CustomerIssueIllegalRecordListResponse response =
@@ -256,7 +256,7 @@ class CustomerIssueIllegalRecordServiceTest {
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(List.of(record(203, "illegal a", "draft", true, "missing module")));
     when(labelGroupExpansionService.expand(
-            9L, "STRING", "moduleName", "customer-issues-cc-product-issues", "default"))
+            9L, "STRING", "moduleName", "customer-issues-illegal-records", "default"))
         .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
 
     byte[] workbook =

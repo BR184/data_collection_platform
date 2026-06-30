@@ -26,7 +26,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordListService {
   private static final String WORKSPACE_KEY = "customer-issue-illegal-records";
-  private static final String PAGE_KEY = "customer-issues-cc-product-issues";
+  private static final String PAGE_KEY = "customer-issues-illegal-records";
   private static final String RULE_VERSION = "customer-issue-illegal-records@2026-04-22-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final int EXPORT_PAGE_SIZE = 100;

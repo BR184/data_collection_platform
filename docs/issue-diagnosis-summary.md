@@ -46,8 +46,8 @@
 
 ### P0：代码走查非法数据项目切换和少 6000 条
 
-1. 代码走查页面顶部同时区分 `source` 数据源和 `projectName` 项目/版本。老平台项目筛选对应 `projectName`；代码走查非法数据页默认数据源应为“全部数据源”，不能默认选择 CrownCAD，否则会触发 CrownCAD/DGM 的目标分支默认 `dev` 规则并缩小范围。
-2. 已修复：`CodeReviewIllegalRecordQuerySupport.legacyTargetBranch()` 只有明确选择 `cc` 或 `dgm` 且未选目标分支时才补 `dev`；全数据源或默认源不再隐式限制到 `dev`。
+1. 代码走查页面顶部同时区分 `source` 数据源和 `projectName` 项目/版本。2026-06-30 直接复核老平台 `codeThroughDataTable` 源码后，确认非法数据页默认数据源为 `CC`，默认项目名称筛选为 `CrownCAD`；此前“默认全部数据源”的判断作废。
+2. 已修复：`CodeReviewIllegalRecordQuerySupport.legacyTargetBranch()` 只有选择 `cc` 或 `dgm` 且未选目标分支时才补 `dev`；默认 `CC/CrownCAD` 时会按老平台进入该分支规则。
 3. 默认非法 SQL 中 `Clang 分析错误` 对 `cc/default` 默认不纳入总非法，只在非 cc 数据源或显式筛选该非法类型时命中。若老平台默认总非法包含该类，可能形成明显数量缺口，需要直接对照老平台 `StaticDataController` 和 `SpiderCrowncadDataService` 的非法判定。
 4. 字段映射中 `owner -> author_name` 方向是对的，但还要逐项复核：项目切换 `projectName -> merge_request_fact.project_name`、数据源 `source -> source_instance`、目标分支 `targetBranch -> target_branch`、被走查人 `owner -> author_name`、合并人 `mergedBy -> merge_user_name`、模块 `moduleName -> module_name`。
 
@@ -73,7 +73,7 @@
 | 页面“刷新最新数据”比预期重 | 统计页刷新不是只刷新表格结果，而是先刷新背后的 GitLab 镜像原始表，再重建事实表。例如系统测试/客户问题会刷新 `issues/projects/users/label_links/labels/notes`，代码走查会刷新 MR 相关镜像表，然后重建 `issue_fact` 或 `merge_request_fact`。事实层 SQL 还会聚合 `ods_gitlab_notes` 生成模板、缺陷原因和 SLA 字段，所以镜像层只拉增量不等于事实层计算一定只扫增量。 | 已确认代码原因，第一轮先收窄刷新提交范围 |
 | 同步合并仍会产生额外运行记录 | 活动中的全量/增量/补偿/同表刷新已直接返回当前运行单元，不再为吸收请求新建 run。仍存在一个边界：提交新的全量同步时，会把已经排队的低优先级镜像 run 标记为 `MERGED`，这是对历史队列的终止记录，不是新建吸收记录；若产品要求历史中完全不出现 `MERGED`，需另行改日志展示或队列清理策略。 | 主要吸收路径已修复，剩余历史展示边界 |
 | 事实重建有时从增量退化成全量 | `FactBuildService` 在发现既有事实缺少搜索索引或阶段派生字段时，会让 `changedSince = null`，下一次事实构建就不带增量谓词，表现为全量重建。升级后旧事实表缺字段或索引为空时尤其容易触发。 | 已确认代码原因 |
-| 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。本轮源码复核确认非法数据页默认应为“全部数据源”，只有明确选择 CrownCAD/DGM 且目标分支为空时才补 `dev`；前端此前默认第一数据源会缩小范围。剩余差异继续按老平台非法条件和新平台事实字段逐项比对。 | 已修正默认数据源和目标分支入口，仍需内网样本复核非法类型覆盖 |
+| 代码走查非法数据少约 6000 条 | 不能再归因于 MR 29874 模块为空。用户已确认 MR 29874 在镜像库 `merge_request` 和 `merge_request_fact` 中存在，且模块名为“平台”。2026-06-30 旧源码直接取证确认非法数据页默认应为 `CC/CrownCAD`，不是全部数据源；剩余差异继续按老平台非法条件和新平台事实字段逐项比对。 | 已修正默认数据源和目标分支入口，仍需内网样本复核非法类型覆盖 |
 
 ### 2026-06-29 深层规则复核补充
 
@@ -93,7 +93,7 @@
 2. 系统测试范围已收口为老平台 CrownCAD 项目 ID `project_id=9` 且事实层 `testing_phase` 命中系统测试或回归测试轮次；不再用 `system_test_label` 或 `label_names` 作为页面查询兜底。依据老平台源码，需要区分两类入口：统计聚合页使用 `SpiderIssueDataQueryBuilder.setTestingPhases` 的 `testing_phase LIKE %具体轮次%`；记录/非法页使用 `findIllegalIssue` 等记录入口的具体阶段集合匹配。
 3. 客户问题五个聚合页中，缺陷汇总、缺陷原因、延期问题、响应效率和按功能展示均已在 SQL/事实查询入口前推 `projectId=325`，避免首次缺统计快照时先扫全库再由 `CustomerIssueScopeProfile` 在 Java 内存过滤。
 4. 系统测试缺陷原因分析和申请延期缺陷分析补齐默认 `projectId=9`，与系统测试缺陷汇总、议题阶段统计的默认 CrownCAD 范围一致，避免无显式项目参数时扫描非 CrownCAD 项目。
-5. 本轮来源范围复核还确认：系统测试公共过滤不包含“关闭的数据异常”排除，老平台 `QueryUtil` 中该段代码是注释状态；代码走查非法页默认仍是全部数据源，`projectName -> merge_request_fact.project_name`、`source -> source_instance`、`targetBranch -> target_branch` 三层入口必须分开。若内网仍只看到 CrownCAD 项目，优先核查 `merge_request_fact` 中其他项目是否满足默认非法范围，而不是把 source 默认改回第一项。
+5. 本轮来源范围复核还确认：系统测试公共过滤不包含“关闭的数据异常”排除，老平台 `QueryUtil` 中该段代码是注释状态。代码走查非法页的 `projectName -> merge_request_fact.project_name`、`source -> source_instance`、`targetBranch -> target_branch` 三层入口必须分开；其中默认入口已由 2026-06-30 旧源码取证修正为 `source=CC`、`projectName=CrownCAD`。
 6. 这一轮只完成“来源数据范围”对齐；下一轮仍需继续深入每个页面的字段展示、非法判定、阶段统计公式、缺陷响应效率公式和导出字段，不能因为范围收口就视为全部业务口径已 1:1 完成。
 
 ## 客户问题模块范围补充
@@ -442,14 +442,14 @@ select source_instance,
 | 客户问题/延期问题 | CC_Product 项目 `325`，客户问题延期事实 | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；SLA 判断下一轮深对齐。 |
 | 客户问题/缺陷响应效率 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；响应/解决周期公式下一轮深对齐。 |
 | 客户问题/按功能展示缺陷数量 | CC_Product 项目 `325` | `milestoneTitle` | 默认第一可用 CC_Product 里程碑 | 快照键、下钻、导出均使用 `milestoneTitle` | 已对齐来源范围；表格字段和 UI 下一轮继续优化。 |
-| 代码走查/非法数据 | 合并状态 `MERGED`，合并时间晚于 `2024-04-01`，排除“无需标注”模块 | `source` 数据源、`projectName` 项目/版本、`targetBranch` | 默认“全部数据源”，不隐式补 `dev`；仅选择 CrownCAD/DGM 且目标分支空时补 `dev` | 数据源匹配 `source_instance`，项目切换匹配 `merge_request_fact.project_name` | 已对齐来源筛选边界；少 6000 条进入下一轮非法规则和字段映射深对齐。 |
+| 代码走查/非法数据 | 合并状态 `MERGED`，合并时间晚于 `2024-04-01`，排除“无需标注”模块 | `source` 数据源、`projectName` 项目/版本、`targetBranch` | 默认 `CC/CrownCAD`；仅选择 CrownCAD/DGM 且目标分支空时补 `dev` | 数据源匹配 `source_instance`，项目切换匹配 `merge_request_fact.project_name` | 已按老平台默认入口对齐来源筛选边界；少 6000 条进入下一轮非法规则和字段映射深对齐。 |
 | 评审数据管理/列表 | 已导入评审记录 | `sourceInstance/projectName/...` | 不强制默认项目或阶段 | 列表筛选匹配评审业务表 | 已对齐来源层。 |
 | 评审数据管理/新增评审、问题清单 | 下拉应来自镜像库全集，不限已导入评审数据 | 项目/模块/人员/版本候选优先镜像库 | 不依赖导入记录先存在 | 项目 `ods_gitlab_projects`，人员 `ods_gitlab_users`，模块 `ods_gitlab_labels` 归一化，版本 `ods_gitlab_milestones` | 已对齐候选来源；本地库未监听，实库抽样需内网复核。 |
 
 来源规则本轮边界：
 
 1. `testingPhase` 只属于系统测试阶段语义；客户问题页面的正式来源字段是 `milestoneTitle`。旧链接或旧接口参数中的 `testingPhase` 只能兼容归一化为 `milestoneTitle`，不能再独立参与客户问题过滤。
-2. “全部”不是统一默认。系统测试议题查询和 CC_PRODUCT 议题是默认全部范围；系统测试统计/非法页默认第一阶段；客户问题统计/非法/延期/效率/按功能页默认第一里程碑；代码走查非法页默认全部数据源。
+2. “全部”不是统一默认。系统测试议题查询和 CC_PRODUCT 议题是默认全部范围；系统测试统计/非法页默认第一阶段；客户问题统计/非法/延期/效率/按功能页默认第一里程碑；代码走查非法页默认 `CC/CrownCAD`。
 3. 代码走查页面的 `source` 和 `projectName` 是两个维度：`source` 决定 CrownCAD/DGM/全部数据源，`projectName` 才是老平台可切换的项目或版本筛选。
 4. 评审新增类表单的下拉候选属于“录入候选来源”，必须取镜像库全集；评审列表筛选属于“已录入业务记录来源”，两者不能混用。
 
@@ -556,7 +556,7 @@ select source_instance,
 1. 通用统计看板 `StatisticBoardView.vue` 已通过 `routeScopeReady` 等待 `useDataScope` 的 `first-available` 默认阶段写入路由后再加载主表，覆盖系统测试缺陷汇总、申请延期缺陷分析、系统测试缺陷原因分析、议题阶段统计，以及客户问题缺陷汇总、缺陷原因分析、延期问题、响应效率、按功能展示缺陷数量。该类页面不应再出现“先全部测试阶段/空阶段请求一次”的首屏请求。
 2. 系统测试/客户问题非法数据通用页 `IssueIllegalRecordsPage.vue` 已通过 `filterOptionsLoaded + primaryFilterDefaultsReady` 等待默认测试阶段或里程碑写入路由后再加载表格。系统测试非法数据默认第一可用测试阶段；客户问题非法数据默认 CC_Product 里程碑，项目固定 `325`。
 3. `CC_PRODUCT议题` / 客户问题延期记录页 `CustomerIssueRecordsView.vue` 已区分页面画像：`CC_PRODUCT议题` 默认全里程碑并允许“全部里程碑”，延期记录等待第一可用里程碑写入后再加载。
-4. 代码走查非法数据页和代码走查多元看板此前存在真实问题：`source` 数据源候选异步加载，`useDataScope` 再写入默认数据源，但页面加载函数已经先按空 `source` 发起请求。当前修正后，非法数据页默认“全部数据源”并不等待首个数据源；多元看板仍按页面语义等待首个数据源落路由后再请求业务数据。
+4. 代码走查非法数据页和代码走查多元看板此前存在真实问题：`source` 数据源候选异步加载，`useDataScope` 再写入默认数据源，但页面加载函数已经先按空 `source` 发起请求。当前修正后，非法数据页按老平台默认等待 `CC/CrownCAD` 范围落入路由后再请求业务数据；多元看板仍按页面语义等待首个数据源落路由后再请求业务数据。
 5. 系统测试议题查询、评审数据管理、系统测试多元看板、数据库浏览器等页面默认就是记录检索或全局概览，没有老平台要求的“必须默认某个阶段/里程碑”的异步默认范围；它们加载筛选项和列表/图表不是本轮所说的“错误首屏全量再默认重查”。其中系统测试议题查询按内网反馈必须默认“全部测试阶段”。
 6. 本地镜像库直查未完成：`localhost:15432` 当前没有 PostgreSQL 监听，无法用本机 `ods_gitlab_*` 表做实库抽样；本轮以代码证据确认候选来源，后续在内网或本地库恢复后再用只读 SQL 核对项目、用户、标签和里程碑候选数量。
 

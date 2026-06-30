@@ -39,7 +39,7 @@ import {
   mapCodeReviewIllegalTableRows,
 } from './code-review-illegal-records-view-helpers';
 import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
-import { CODE_REVIEW_OPTIONAL_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
+import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 import { formatBeijingDateTime } from '../utils/beijing-time';
 
@@ -129,8 +129,8 @@ const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
 const projectScopeValue = computed(() => String(route.query.projectName ?? ''));
 const projectScopeOptions = computed(() => filterOptions.value.projectNames ?? []);
 const sourceScope = useDataScope({
-  provider: CODE_REVIEW_OPTIONAL_SOURCE_SCOPE_PROVIDER,
-  options: computed(() => buildScopeOptions(sourceOptions.value, '全部数据源')),
+  provider: CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
+  options: computed(() => buildScopeOptions(sourceOptions.value)),
   clearQueryKeysOnChange: ['projectId', 'projectName'],
   mountToShell: true,
   loading: isTableLoading,

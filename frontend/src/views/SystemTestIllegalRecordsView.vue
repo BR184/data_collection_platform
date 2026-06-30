@@ -63,7 +63,7 @@ function mapRow(row: SystemTestIllegalRecordRowResponse): Record<string, unknown
 
 function loadRecords(params: IssueIllegalRecordQueryParams) {
   return api.getSystemTestIllegalRecords({
-    projectId: params.projectId,
+    projectId: undefined,
     keyword: params.keyword,
     issueIid: params.issueIid,
     title: params.title,

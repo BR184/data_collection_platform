@@ -20,11 +20,10 @@ const statisticBoardQueryKeys = [
   'detailColumnKey',
   'filterGroup',
   'filterLogic',
-  'projectId',
   'testingPhase',
 ];
 
-const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys.filter((key) => key !== 'projectId');
+const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys;
 
 const customerIssueRecordQueryKeys = [
   'page',
@@ -112,25 +111,25 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   'question-metrics-home': {
     allowedQueryKeys: statisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'system-test-defect-summary',
   },
   'question-metrics-delay-analysis': {
     allowedQueryKeys: statisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'system-test-delay-analysis',
   },
   'question-metrics-defect-cause': {
     allowedQueryKeys: statisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'system-test-defect-cause',
   },
   'question-metrics-phase-statistics': {
     allowedQueryKeys: statisticBoardQueryKeys,
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
     boardKey: 'system-test-phase-statistics',
   },
   'question-metrics-issue-search': {
@@ -139,7 +138,6 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'pageSize',
       'sortBy',
       'sortOrder',
-      'projectId',
       'sourceInstance',
       'issueIid',
       'title',
@@ -162,7 +160,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'filterLogic',
     ],
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
   },
   'question-metrics-illegal-records': {
     allowedQueryKeys: [
@@ -170,7 +168,6 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'pageSize',
       'sortBy',
       'sortOrder',
-      'projectId',
       'keyword',
       'issueIid',
       'title',
@@ -193,7 +190,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'filterLogic',
     ],
     allowedQueryPrefixes: ['filters.'],
-    persistedQueryKeys: ['projectId'],
+    persistedQueryKeys: [],
   },
   'customer-issues-home': {
     allowedQueryKeys: customerIssueStatisticBoardQueryKeys,

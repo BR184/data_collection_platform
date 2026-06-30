@@ -289,7 +289,7 @@ bindLoader(async () => {
 
 async function loadFilterOptions() {
   filterOptions.value = await api.getSystemTestIssueSearchFilterOptions(
-    route.query.projectId as string | undefined,
+    undefined,
     String(route.query.sourceInstance ?? '') || undefined,
   );
 }
@@ -324,7 +324,7 @@ async function loadTableData() {
 
 function buildCurrentQueryParams(includePagination: boolean) {
   return {
-    projectId: route.query.projectId as string | undefined,
+    projectId: undefined,
     sourceInstance: String(route.query.sourceInstance ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),

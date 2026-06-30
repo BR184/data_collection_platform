@@ -37,10 +37,16 @@ public class CustomerIssueMilestoneCatalogService {
            and coalesce(m.mirror_deleted, false) = false
          where coalesce(i.mirror_deleted, false) = false
            and i.project_id = ?
+           and i.created_at >= ?
            and nullif(btrim(m.title), '') is not null
          order by milestone_title desc
         """;
-    return queryMilestones(sql, "ods_gitlab_milestones", LEGACY_CC_PRODUCT_PROJECT_ID);
+    return queryMilestones(
+      sql,
+      "ods_gitlab_milestones",
+      LEGACY_CC_PRODUCT_PROJECT_ID,
+      CUSTOMER_ISSUE_START_DATE
+    );
   }
 
   private List<String> listFactMilestones() {
