@@ -47,11 +47,7 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "missing-review",
               MISSING_REVIEW_LABEL,
-              source ->
-                  isLegacyReviewException(source.reviewExceptionReason())
-                      || isLegacyReviewException(source.owner())
-                      || isLegacyReviewException(source.reviewerNames())
-                      || isLegacyReviewException(source.assigneeNames())),
+              source -> isLegacyReviewException(source.assigneeNames())),
           new CodeReviewIllegalRule(
               "not-scanned",
               NOT_SCANNED_LABEL,
@@ -81,8 +77,6 @@ final class CodeReviewIllegalRuleRegistry {
               source ->
                   isGitlabError(source.scanStatus())
                       || isGitlabError(source.targetBranch())
-                      || isGitlabError(source.owner())
-                      || isGitlabError(source.reviewerNames())
                       || isGitlabError(source.assigneeNames())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =

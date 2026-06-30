@@ -795,15 +795,17 @@ public class FactBuildService {
     fact.setCrash(IssueFactNormalizationRules.isCrash(labels, title));
     fact.setLevel1Other(IssueFactNormalizationRules.isLevel1Other(labels, title));
     boolean fixed = Boolean.TRUE.equals(fact.getFixed());
+    boolean fixedForIllegalCheck =
+        StringUtils.hasText(fact.getBugStatus()) && fact.getBugStatus().contains("已修复");
     fact.setIllegal(customerIssue
-        ? IssueFactNormalizationRules.isCustomerIssueIllegal(labels, moduleNames, notesText, fixed)
-        : IssueFactNormalizationRules.isIllegal(labels, closed, moduleNames, notesText, fixed));
+        ? IssueFactNormalizationRules.isCustomerIssueIllegal(labels, moduleNames, notesText, fixedForIllegalCheck)
+        : IssueFactNormalizationRules.isIllegal(labels, closed, moduleNames, notesText, fixedForIllegalCheck));
     fact.setIllegalReason(customerIssue
-        ? IssueFactNormalizationRules.customerIssueIllegalReason(labels, moduleNames, notesText, fixed)
-        : IssueFactNormalizationRules.illegalReason(labels, closed, moduleNames, notesText, fixed));
+        ? IssueFactNormalizationRules.customerIssueIllegalReason(labels, moduleNames, notesText, fixedForIllegalCheck)
+        : IssueFactNormalizationRules.illegalReason(labels, closed, moduleNames, notesText, fixedForIllegalCheck));
     fact.setIllegalReasons(String.join(", ", customerIssue
-        ? IssueFactNormalizationRules.customerIssueIllegalReasons(labels, moduleNames, notesText, fixed)
-        : IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, fixed)));
+        ? IssueFactNormalizationRules.customerIssueIllegalReasons(labels, moduleNames, notesText, fixedForIllegalCheck)
+        : IssueFactNormalizationRules.illegalReasons(labels, closed, moduleNames, notesText, fixedForIllegalCheck)));
     fact.setHasResponse(IssueFactNormalizationRules.hasResponse(notesText));
     boolean responseDelayed = openCustomerIssue
         && IssueFactNormalizationRules.isResponseDelayed(labels, notesText, createdAt, priorityLevel, now);

@@ -65,7 +65,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-cause";
-  private static final String RULE_VERSION = "system-test-defect-cause@2026-04-22-v1";
+  private static final String RULE_VERSION = "system-test-defect-cause@2026-06-30-v2";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -94,9 +94,10 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
              coalesce(raw_payload,'') as reason_text,
              coalesce(module_names,'') as module_names,
              coalesce(label_names,'') as label_names
-        from issue_fact
+       from issue_fact
        where deleted = false
       """;
+  private static final String CAUSE_TEXT_SQL = "coalesce(nullif(reason_category,''), raw_payload, '')";
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
           "标题",
@@ -340,7 +341,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         true,
         "缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计使用 issue_fact.reason_category 已解析事实字段，对齐老平台 spider_issue_data.cause 口径。",
+        "当前统计优先使用 issue_fact.reason_category 已解析事实字段，缺失时回退评论文本命中老平台缺陷原因字段。",
         "模块行来自当前系统测试范围内的模块全集；不要求议题携带已修复/完成标签；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         List.of(
             snapshot.flowSteps().get(0),
@@ -730,8 +731,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
          where deleted = false
            and coalesce(is_excluded,false) = false
            and coalesce(module_names,'') <> ''
-           and coalesce(reason_category,'') <> ''
-        """);
+        """)
+        .append("   and ").append(CAUSE_TEXT_SQL).append(" <> ''\n");
     return sql.toString();
   }
 
@@ -755,8 +756,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
           from issue_fact
          where deleted = false
            and coalesce(is_excluded,false) = false
-           and coalesce(reason_category,'') <> ''
-        """);
+        """)
+        .append("   and ").append(CAUSE_TEXT_SQL).append(" <> ''\n");
     return sql.toString();
   }
 
@@ -764,9 +765,9 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     List<String> reasonMatches = new ArrayList<>();
     for (String token : metric.tokens()) {
       String literal = sqlLiteral(token);
-      reasonMatches.add("reason_category like '%" + literal + "%'");
+      reasonMatches.add(CAUSE_TEXT_SQL + " like '%" + literal + "%'");
     }
-    return "(coalesce(reason_category,'') <> '' and (" + String.join(" or ", reasonMatches) + "))";
+    return "(" + CAUSE_TEXT_SQL + " <> '' and (" + String.join(" or ", reasonMatches) + "))";
   }
 
   private String sqlLiteral(String value) {
@@ -1093,7 +1094,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
     private Set<String> matchedMetricKeys() {
       Set<String> matched = new LinkedHashSet<>();
-      String text = reasonCategory;
+      String text = StringUtils.hasText(reasonCategory) ? reasonCategory : reasonText;
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
         if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
           matched.add(metric.key());

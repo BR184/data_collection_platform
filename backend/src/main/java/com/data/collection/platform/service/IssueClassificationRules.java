@@ -93,7 +93,7 @@ final class IssueClassificationRules {
 
   static String normalizeDelayReason(List<String> labels, String notesText) {
     for (Map.Entry<String, List<String>> entry : DELAY_REASON_TOKENS.entrySet()) {
-      if (IssueRuleSupport.containsAny(labels, notesText, entry.getValue())) {
+      if (IssueRuleSupport.containsAnyLabel(labels, entry.getValue())) {
         return entry.getKey();
       }
     }

@@ -76,6 +76,20 @@ describe('router query normalization', () => {
     });
   });
 
+  it('uses milestoneTitle instead of testingPhase on customer issue statistic boards', () => {
+    const to = router.resolve({
+      path: '/customer-issues/home',
+      query: {
+        testingPhase: 'CC2026R3',
+        milestoneTitle: 'CC2026R3',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      milestoneTitle: 'CC2026R3',
+    });
+  });
+
   it('drops non-whitelisted query params on special standalone routes', () => {
     const to = router.resolve({
       path: '/external/code-review-form',

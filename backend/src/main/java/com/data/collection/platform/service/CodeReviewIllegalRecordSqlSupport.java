@@ -298,9 +298,6 @@ final class CodeReviewIllegalRecordSqlSupport {
     String values = sql.substring(sql.indexOf("in (") + 3);
     return String.join(
         " or ",
-        "review_exception_reason in " + values,
-        "owner_name in " + values,
-        "reviewer_names in " + values,
         "assignee_names in " + values);
   }
 
@@ -339,8 +336,6 @@ final class CodeReviewIllegalRecordSqlSupport {
         " or ",
         "scan_status in " + values,
         "target_branch in " + values,
-        "owner_name in " + values,
-        "reviewer_names in " + values,
         "assignee_names in " + values);
   }
 

@@ -23,7 +23,9 @@ const statisticBoardQueryKeys = [
   'testingPhase',
 ];
 
-const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys;
+const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys
+  .filter((key) => key !== 'testingPhase')
+  .concat('milestoneTitle');
 
 const customerIssueRecordQueryKeys = [
   'page',
