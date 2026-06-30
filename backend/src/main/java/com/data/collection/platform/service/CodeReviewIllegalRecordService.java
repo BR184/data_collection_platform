@@ -42,7 +42,7 @@ import org.springframework.stereotype.Service;
 // 默认规则尽量下沉到 SQL 查询；用户自定义规则则通过规则配置和源数据加载器组合执行。
 public class CodeReviewIllegalRecordService {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
-  private static final String LEGACY_DEFAULT_PROJECT_NAME = "CrownCAD";
+  private static final String LEGACY_DEFAULT_SOURCE = "cc";
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -481,21 +481,23 @@ public class CodeReviewIllegalRecordService {
 
   public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(
       CodeReviewIllegalRecordFilterOptionsRequest request) {
-    CodeReviewIllegalRecordFilterOptionsRequest safeRequest = withLegacyDefaultScope(request);
+    String source = request == null ? null : request.source();
+    Long projectId = request == null ? null : request.projectId();
+    String projectName = request == null ? null : request.projectName();
     List<CodeReviewIllegalRecordView> rows =
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    safeRequest.projectId(),
+                    projectId,
                     null,
                     null,
                     null,
-                    safeRequest.projectName(),
+                    projectName,
                     null,
                     null,
                     null,
                     null,
-                    safeRequest.source()))
+                    source))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -504,7 +506,7 @@ public class CodeReviewIllegalRecordService {
         sourceLoader
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    null, null, null, null, null, null, null, null, null, safeRequest.source()))
+                    null, null, null, null, null, null, null, null, null, source))
             .stream()
             .map(this::toView)
             .filter(row -> !row.illegalTypes().isEmpty())
@@ -675,18 +677,14 @@ public class CodeReviewIllegalRecordService {
   private CodeReviewIllegalRecordQueryRequest withLegacyDefaultScope(
       CodeReviewIllegalRecordQueryRequest request) {
     String source = TextQuerySupport.trimToNull(request.source());
-    String normalizedSource = source == null ? "cc" : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
-    String projectName = TextQuerySupport.trimToNull(request.projectName());
-    boolean useLegacyDefaultProject =
-        projectName == null
-            && (source == null || "cc".equals(normalizedSource) || "default".equals(normalizedSource));
+    String normalizedSource = source == null ? LEGACY_DEFAULT_SOURCE : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
     return new CodeReviewIllegalRecordQueryRequest(
-        useLegacyDefaultProject ? null : request.projectId(),
+        request.projectId(),
         request.repositoryName(),
         request.mergedAtStart(),
         request.mergedAtEnd(),
         request.keyword(),
-        useLegacyDefaultProject ? LEGACY_DEFAULT_PROJECT_NAME : request.projectName(),
+        request.projectName(),
         request.requestType(),
         request.targetBranch(),
         request.mergedBy(),
@@ -694,27 +692,13 @@ public class CodeReviewIllegalRecordService {
         request.illegalType(),
         request.mergeRequestIid(),
         request.owner(),
-        source,
+        normalizedSource,
         request.filterGroupJson(),
         request.page(),
         request.size(),
         request.sortField(),
         request.sortOrder(),
         request.ruleConfigJson());
-  }
-
-  private CodeReviewIllegalRecordFilterOptionsRequest withLegacyDefaultScope(
-      CodeReviewIllegalRecordFilterOptionsRequest request) {
-    String source = TextQuerySupport.trimToNull(request.source());
-    String normalizedSource = source == null ? "cc" : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
-    String projectName = TextQuerySupport.trimToNull(request.projectName());
-    boolean useLegacyDefaultProject =
-        projectName == null
-            && (source == null || "cc".equals(normalizedSource) || "default".equals(normalizedSource));
-    return new CodeReviewIllegalRecordFilterOptionsRequest(
-        useLegacyDefaultProject ? null : request.projectId(),
-        useLegacyDefaultProject ? LEGACY_DEFAULT_PROJECT_NAME : request.projectName(),
-        source);
   }
 
   private CodeReviewRuleConfig parseRuleConfig(String ruleConfigJson) {

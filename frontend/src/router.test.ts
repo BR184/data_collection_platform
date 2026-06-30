@@ -90,6 +90,20 @@ describe('router query normalization', () => {
     });
   });
 
+  it('drops testingPhase on customer issue illegal records', () => {
+    const to = router.resolve({
+      path: '/customer-issues/illegal-records',
+      query: {
+        testingPhase: 'CC2026R3',
+        milestoneTitle: 'CC_Product_V1',
+      },
+    });
+
+    expect(normalizeQuery(to)).toEqual({
+      milestoneTitle: 'CC_Product_V1',
+    });
+  });
+
   it('drops non-whitelisted query params on special standalone routes', () => {
     const to = router.resolve({
       path: '/external/code-review-form',

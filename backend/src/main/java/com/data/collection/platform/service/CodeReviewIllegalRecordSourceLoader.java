@@ -343,8 +343,13 @@ public class CodeReviewIllegalRecordSourceLoader {
     if (normalized == null) {
       return;
     }
+    String source = GitlabSourceInstanceSupport.normalizeSourceInstance(normalized);
+    if ("cc".equals(source) || "default".equals(source)) {
+      where.append(" and lower(coalesce(source_instance, 'default')) in ('cc', 'default')");
+      return;
+    }
     where.append(" and lower(coalesce(source_instance, 'default')) = ?");
-    args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
+    args.add(source);
   }
 
   private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {

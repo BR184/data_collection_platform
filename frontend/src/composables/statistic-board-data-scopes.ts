@@ -140,8 +140,8 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
             value: item.value,
           }))
           .filter((item) => normalizeText(item.value));
-        customerLoaded.value = true;
       } finally {
+        customerLoaded.value = true;
         customerLoading.value = false;
       }
     },
