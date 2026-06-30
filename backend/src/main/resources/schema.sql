@@ -442,6 +442,8 @@ create table if not exists issue_fact (
      illegal_reason varchar(255),
      illegal_reasons text,
      has_response boolean not null default false,
+    research_template_time timestamp,
+    fixed_label_time timestamp,
     response_overdue boolean not null default false,
     is_response_delayed boolean not null default false,
     resolve_sla_days integer not null default 18,
@@ -619,6 +621,27 @@ create table if not exists label_group_dynamic_rules (
     constraint uk_label_group_dynamic_rules_group unique (group_id)
 );
 
+create table if not exists statistic_board_snapshots (
+    id bigserial primary key,
+    board_key varchar(128) not null,
+    scope_key varchar(512) not null,
+    rule_version varchar(128) not null,
+    source_version varchar(128),
+    filter_hash varchar(64) not null,
+    filter_payload jsonb not null default '{}'::jsonb,
+    applied_filter_payload jsonb not null default '{}'::jsonb,
+    definition_payload jsonb,
+    row_payload jsonb not null default '[]'::jsonb,
+    meta_payload jsonb not null default '{}'::jsonb,
+    status varchar(32) not null default 'READY',
+    error_message text,
+    generated_at timestamp not null default current_timestamp,
+    refreshed_at timestamp not null default current_timestamp,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint uk_statistic_board_snapshots_scope unique (board_key, scope_key, rule_version, filter_hash)
+);
+
 create table if not exists sys_table_registry (
     id bigserial primary key,
     config_id bigint not null references gitlab_sync_configs(id) on delete cascade,
@@ -693,6 +716,8 @@ alter table issue_fact add column if not exists is_illegal boolean not null defa
 alter table issue_fact add column if not exists illegal_reason varchar(255);
 alter table issue_fact add column if not exists illegal_reasons text;
 alter table issue_fact add column if not exists has_response boolean not null default false;
+alter table issue_fact add column if not exists research_template_time timestamp;
+alter table issue_fact add column if not exists fixed_label_time timestamp;
 alter table issue_fact add column if not exists response_overdue boolean not null default false;
 alter table issue_fact add column if not exists is_response_delayed boolean not null default false;
 alter table issue_fact add column if not exists resolve_sla_days integer not null default 18;
@@ -869,6 +894,13 @@ create index if not exists idx_sync_run_table_states_table on sync_run_table_sta
 create index if not exists idx_sync_run_table_tasks_dispatch on sync_run_table_tasks(status, run_after, source_instance, created_at);
 create index if not exists idx_sync_run_table_tasks_run on sync_run_table_tasks(run_id, status, created_at);
 create index if not exists idx_sync_run_table_tasks_table on sync_run_table_tasks(config_id, source_instance, source_table, status, created_at desc);
+create index if not exists idx_statistic_board_snapshots_lookup
+    on statistic_board_snapshots(board_key, scope_key, rule_version, source_version, filter_hash, status);
+create index if not exists idx_statistic_board_snapshots_refreshed
+    on statistic_board_snapshots(board_key, refreshed_at desc);
+create index if not exists idx_issue_fact_customer_response_times
+    on issue_fact(project_id, milestone_title, research_template_time, fixed_label_time)
+    where project_id = 325 and deleted = false;
 create index if not exists idx_sync_run_events_run on sync_run_events(run_id, created_at desc);
 create index if not exists idx_sync_worker_leases_heartbeat on sync_worker_leases(worker_type, heartbeat_at desc);
 create unique index if not exists uk_gitlab_sync_configs_source_instance on gitlab_sync_configs(source_instance);

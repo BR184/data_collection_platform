@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticDetailResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -372,23 +373,16 @@ class StatisticBoardControllerTest {
 
     assertThat(response).isNotNull();
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-by-function");
-    assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块 / 功能");
+    assertThat(response.definition().rowHeaderLabel()).isEqualTo("序号");
     assertThat(response.definition().filters()).extracting("key")
         .containsExactly("projectName", "testingPhase", "moduleName", "functionName", "milestoneTitle", "severityLevel");
-    assertThat(response.definition().columnGroups()).extracting("key")
-        .containsExactly("quantity", "severity");
-    assertThat(response.definition().columnGroups())
-        .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("quantity");
-          assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("total", "fixed", "open", "delay", "response_delayed", "function_ratio");
-        })
-        .anySatisfy(group -> {
-          assertThat(group.key()).isEqualTo("severity");
-          assertThat(group.leafColumns()).extracting("key")
-              .containsExactly("level1", "level2", "level3", "suggestion");
-        });
-    assertThat(response.meta().columnCount()).isEqualTo(10);
+    assertThat(response.definition().columnGroups()).extracting("key").containsExactly("placeholder");
+    assertThat(response.definition().columnGroups()).singleElement().satisfies(group -> {
+      assertThat(group.key()).isEqualTo("placeholder");
+      assertThat(group.leafColumns()).extracting("key")
+          .containsExactly("placeholder_function", "placeholder_count");
+    });
+    assertThat(response.meta().columnCount()).isEqualTo(2);
   }
 
   @Test
@@ -402,7 +396,7 @@ class StatisticBoardControllerTest {
     assertThat(response.version()).isNotBlank();
     assertThat(response.flowSteps()).hasSizeGreaterThanOrEqualTo(4);
     assertThat(response.metricDefinitions()).extracting("key")
-        .containsExactly("total", "function_ratio", "severity");
+        .containsExactly("legacy-pivot");
   }
 
   @Test
@@ -503,7 +497,7 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test"))
+                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "Milestone"))
             .getData(),
         11001,
         325L,
@@ -518,7 +512,7 @@ class StatisticBoardControllerTest {
                 10,
                 null,
                 null,
-                Map.of("sourceInstance", "stat-link-test"))
+                Map.of("sourceInstance", "stat-link-test", "milestoneTitle", "Milestone"))
             .getData(),
         11001,
         325L,
@@ -545,7 +539,7 @@ class StatisticBoardControllerTest {
   void shouldExportBoardCsv() {
     ResponseEntity<?> response = controller.exportBoard("mirror-table-overview", Map.of());
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody().toString()).contains("统计对象");
+    assertThat(new String((byte[]) response.getBody(), StandardCharsets.UTF_8)).contains("统计对象");
   }
 
   private String textFilter(String fieldKey, String operator, String value) {
