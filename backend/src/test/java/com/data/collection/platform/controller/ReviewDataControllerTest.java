@@ -178,12 +178,15 @@ class ReviewDataControllerTest {
                 List.of(new OptionItemResponse("V1.0", "V1.0")),
                 List.of(new OptionItemResponse("Resolved", "Resolved")),
                 List.of(new OptionItemResponse("Meeting Review", "Meeting Review")),
-                List.of(new OptionItemResponse("Formatting", "Formatting"))));
+                List.of(new OptionItemResponse("Formatting", "Formatting")),
+                List.of(new OptionItemResponse("CC2026R1", "CC2026R1")),
+                List.of(new OptionItemResponse("Sketch", "Sketch"))));
 
     mockMvc.perform(get("/api/review-data/records/filter-options"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.projectNames[0].value").value("CrownCAD"))
+        .andExpect(jsonPath("$.data.formProjectNames[0].value").value("CC2026R1"))
         .andExpect(jsonPath("$.data.reviewExperts[0].value").value("Bob"))
         .andExpect(jsonPath("$.data.reviewVersions[0].value").value("V1.0"));
 

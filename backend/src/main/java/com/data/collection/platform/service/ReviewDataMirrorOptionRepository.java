@@ -29,6 +29,12 @@ public class ReviewDataMirrorOptionRepository {
         "ods_gitlab_projects");
   }
 
+  public List<String> loadLabelProjectNames() {
+    // 评审录入里的“项目名称”来自 GitLab 标签，而不是 GitLab 项目表。
+    // 标签格式为“项目：xxx”或“项目:xxx”，下拉只展示并提交 xxx。
+    return loadLegacyLabelValues("项目");
+  }
+
   public List<String> loadUserNames() {
     return queryDistinct(
         """
@@ -42,21 +48,7 @@ public class ReviewDataMirrorOptionRepository {
   }
 
   public List<String> loadModuleNames() {
-    List<String> labelTitles =
-        queryDistinct(
-            """
-            select title
-              from ods_gitlab_labels
-             where coalesce(mirror_deleted, false) = false
-               and nullif(trim(title), '') is not null
-             order by title
-            """,
-            "ods_gitlab_labels");
-    Set<String> modules = new LinkedHashSet<>();
-    for (String title : labelTitles) {
-      modules.addAll(IssueFactNormalizationRules.normalizeModuleNames(List.of(title)));
-    }
-    return List.copyOf(modules);
+    return loadLegacyLabelValues("模块");
   }
 
   public List<String> loadMilestoneTitles() {
@@ -78,5 +70,23 @@ public class ReviewDataMirrorOptionRepository {
       log.debug("Review data mirror option source {} is unavailable", sourceName, error);
       return List.of();
     }
+  }
+
+  private List<String> loadLegacyLabelValues(String groupName) {
+    List<String> labelTitles =
+        queryDistinct(
+            """
+            select title
+              from ods_gitlab_labels
+             where coalesce(mirror_deleted, false) = false
+               and nullif(trim(title), '') is not null
+             order by title
+            """,
+            "ods_gitlab_labels");
+    Set<String> values = new LinkedHashSet<>();
+    for (String title : labelTitles) {
+      values.addAll(IssueFactNormalizationRules.parseLegacyLabelMap(List.of(title)).getOrDefault(groupName, List.of()));
+    }
+    return List.copyOf(values);
   }
 }

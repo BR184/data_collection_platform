@@ -196,7 +196,9 @@ class LabelValueQueryServiceTest {
         List.of(),
         List.of(),
         List.of(),
-        List.of());
+        List.of(),
+        projectNames,
+        moduleNames);
   }
 
   private static CustomerIssueRecordFilterOptionsResponse customerOptions(

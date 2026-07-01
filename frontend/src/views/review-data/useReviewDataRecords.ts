@@ -43,6 +43,8 @@ export function createEmptyReviewDataFilterOptions(): ReviewDataFilterOptionsRes
     problemStatuses: [],
     reviewCategories: [],
     problemCategories: [],
+    formProjectNames: [],
+    formModuleNames: [],
   };
 }
 

@@ -12,6 +12,10 @@ import {
 } from '../review-data-management';
 import { focusFirstInvalidFormField } from '../../utils/formFocus';
 
+const REVIEW_VERSION_FORM_OPTIONS = ['V0.1', 'V0.2', 'V0.3', 'V0.4', 'V0.5', 'V0.6', 'V1', 'V2', 'V3'].map(
+  (value) => ({ label: value, value }),
+);
+
 const props = defineProps<{
   visible: boolean;
   saving: boolean;
@@ -71,12 +75,12 @@ watch(
   { immediate: true, deep: true },
 );
 
-const projectOptions = computed(() => props.filterOptions.projectNames);
-const moduleOptions = computed(() => props.filterOptions.moduleNames);
+const projectOptions = computed(() => props.filterOptions.formProjectNames ?? props.filterOptions.projectNames);
+const moduleOptions = computed(() => props.filterOptions.formModuleNames ?? props.filterOptions.moduleNames);
 const reviewOwnerOptions = computed(() => props.filterOptions.reviewOwners);
 const reviewTypeOptions = computed(() => props.filterOptions.reviewTypes);
 const expertOptions = computed(() => props.filterOptions.reviewExperts);
-const reviewVersionOptions = computed(() => props.filterOptions.reviewVersions);
+const reviewVersionOptions = computed(() => REVIEW_VERSION_FORM_OPTIONS);
 
 const rules: FormRules<ReviewRecordFormModel> = {
   projectName: [{ required: true, message: '请选择项目名称', trigger: 'change' }],
@@ -214,7 +218,14 @@ function handleClose() {
           <SmartSelect v-model="form.authorName" :options="expertOptions" compact placeholder="请选择作者" @change="syncPrimaryFields" />
         </el-form-item>
         <el-form-item label="评审版本" prop="reviewVersion">
-          <SmartSelect v-model="form.reviewVersion" :options="reviewVersionOptions" compact placeholder="请选择评审版本" @change="syncPrimaryFields" />
+          <SmartSelect
+            v-model="form.reviewVersion"
+            :options="reviewVersionOptions"
+            compact
+            allow-create
+            placeholder="请选择或输入评审版本"
+            @change="syncPrimaryFields"
+          />
         </el-form-item>
         <el-form-item v-if="editMode" label="不达标说明" prop="notReachStandardReason" class="review-form-wide">
           <el-input

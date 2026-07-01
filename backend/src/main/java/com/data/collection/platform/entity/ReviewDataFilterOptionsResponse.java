@@ -11,4 +11,6 @@ public record ReviewDataFilterOptionsResponse(
     List<OptionItemResponse> reviewVersions,
     List<OptionItemResponse> problemStatuses,
     List<OptionItemResponse> reviewCategories,
-    List<OptionItemResponse> problemCategories) {}
+    List<OptionItemResponse> problemCategories,
+    List<OptionItemResponse> formProjectNames,
+    List<OptionItemResponse> formModuleNames) {}

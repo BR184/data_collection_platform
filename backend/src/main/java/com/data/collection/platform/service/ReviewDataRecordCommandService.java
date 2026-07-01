@@ -3,13 +3,14 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
-import lombok.extern.slf4j.Slf4j;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Slf4j
 public class ReviewDataRecordCommandService {
   private static final String DEFAULT_PENDING_REVIEW_STATUS = "未评审";
   private static final String DEFAULT_PENDING_REVIEW_CATEGORY = "独立评审";
@@ -72,7 +73,7 @@ public class ReviewDataRecordCommandService {
         request.weightedDefectDensity());
     persistenceSupport.replaceExperts(recordId, request.reviewExperts());
     persistLegacyParityDetails(recordId, request);
-    createMissingPendingProblemItems(recordId, request.reviewExperts());
+    syncPendingProblemItemsWithExperts(recordId, request.reviewExperts());
     persistenceSupport.refreshSearchIndex(recordId);
     return recordId;
   }
@@ -154,7 +155,7 @@ public class ReviewDataRecordCommandService {
     persistenceSupport.touchRecord(recordId);
   }
 
-  private void createPendingProblemItems(Long recordId, java.util.List<String> experts) {
+  private void createPendingProblemItems(Long recordId, List<String> experts) {
     if (experts == null || experts.isEmpty()) {
       return;
     }
@@ -178,40 +179,41 @@ public class ReviewDataRecordCommandService {
     persistenceSupport.touchRecord(recordId);
   }
 
-  private void createMissingPendingProblemItems(Long recordId, java.util.List<String> experts) {
-    log.info("createMissingPendingProblemItems called: recordId={}, experts={}", recordId, experts);
-    if (experts == null || experts.isEmpty()) {
-      log.info("No experts provided, skipping");
-      return;
-    }
-    java.util.List<ReviewDataProblemItemResponse> existingItems = persistenceSupport.listProblemItems(recordId);
-    log.info("Existing problem items count: {}", existingItems.size());
+  private void syncPendingProblemItemsWithExperts(Long recordId, List<String> experts) {
+    List<ReviewDataProblemItemResponse> existingItems = persistenceSupport.listProblemItems(recordId);
+    Set<String> requestedExperts = normalizeExpertNames(experts);
 
-    java.util.Set<String> reviewersWithItems = new java.util.HashSet<>();
+    boolean deleted = deletePendingProblemItemsForRemovedExperts(recordId, existingItems, requestedExperts);
+    boolean created = createMissingPendingProblemItems(recordId, experts, existingItems);
+    if (deleted || created) {
+      persistenceSupport.touchRecord(recordId);
+    }
+  }
+
+  private boolean createMissingPendingProblemItems(
+      Long recordId, List<String> experts, List<ReviewDataProblemItemResponse> existingItems) {
+    if (experts == null || experts.isEmpty()) {
+      return false;
+    }
+
+    Set<String> reviewersWithItems = new HashSet<>();
     for (ReviewDataProblemItemResponse item : existingItems) {
       String reviewer = TextQuerySupport.normalizeForMatch(item.reviewerName());
       if (reviewer != null) {
         reviewersWithItems.add(reviewer);
-        log.debug("Found existing reviewer: original={}, normalized={}", item.reviewerName(), reviewer);
       }
     }
-    log.info("Reviewers with items: {}", reviewersWithItems);
 
     boolean created = false;
     for (String expert : experts) {
       String normalizedExpert = TextQuerySupport.normalizeForMatch(expert);
-      log.debug("Checking expert: original={}, normalized={}", expert, normalizedExpert);
-
       if (normalizedExpert == null) {
-        log.debug("Expert normalized to null, skipping: {}", expert);
         continue;
       }
       if (reviewersWithItems.contains(normalizedExpert)) {
-        log.debug("Expert already has items, skipping: {}", expert);
         continue;
       }
 
-      log.info("Creating pending problem item for new expert: {}", expert);
       persistenceSupport.insertProblemItem(
           recordId,
           expert,
@@ -228,12 +230,58 @@ public class ReviewDataRecordCommandService {
       created = true;
     }
 
-    if (created) {
-      log.info("Created new pending items, touching record");
-      persistenceSupport.touchRecord(recordId);
-    } else {
-      log.info("No new pending items created");
+    return created;
+  }
+
+  private boolean deletePendingProblemItemsForRemovedExperts(
+      Long recordId, List<ReviewDataProblemItemResponse> existingItems, Set<String> requestedExperts) {
+    boolean deleted = false;
+    for (ReviewDataProblemItemResponse item : existingItems) {
+      String reviewer = TextQuerySupport.normalizeForMatch(item.reviewerName());
+      if (reviewer == null || requestedExperts.contains(reviewer)) {
+        continue;
+      }
+      if (!isDefaultPendingProblemItem(item)) {
+        continue;
+      }
+      persistenceSupport.softDeleteProblemItem(recordId, item.id());
+      deleted = true;
     }
+    return deleted;
+  }
+
+  private Set<String> normalizeExpertNames(List<String> experts) {
+    Set<String> result = new HashSet<>();
+    if (experts == null) {
+      return result;
+    }
+    for (String expert : experts) {
+      String normalizedExpert = TextQuerySupport.normalizeForMatch(expert);
+      if (normalizedExpert != null) {
+        result.add(normalizedExpert);
+      }
+    }
+    return result;
+  }
+
+  private boolean isDefaultPendingProblemItem(ReviewDataProblemItemResponse item) {
+    return isZeroWorkload(item.workloadHours())
+        && DEFAULT_PENDING_REVIEW_CATEGORY.equals(item.reviewCategory())
+        && isBlank(item.documentPosition())
+        && DEFAULT_PENDING_PROBLEM_CATEGORY.equals(item.problemCategory())
+        && DEFAULT_PENDING_PROBLEM_DESCRIPTION.equals(item.problemDescription())
+        && isBlank(item.suggestedSolution())
+        && isBlank(item.ownerName())
+        && isBlank(item.rejectionReason())
+        && DEFAULT_PENDING_REVIEW_STATUS.equals(item.problemStatus());
+  }
+
+  private boolean isZeroWorkload(Double workloadHours) {
+    return workloadHours == null || Double.compare(workloadHours, 0D) == 0;
+  }
+
+  private boolean isBlank(String value) {
+    return TextQuerySupport.trimToNull(value) == null;
   }
 
   private void persistLegacyParityDetails(Long recordId, ReviewDataRecordSaveRequest request) {

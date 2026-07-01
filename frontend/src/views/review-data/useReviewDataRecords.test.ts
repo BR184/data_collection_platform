@@ -55,6 +55,8 @@ function filterOptions(): ReviewDataFilterOptionsResponse {
     problemStatuses: [],
     reviewCategories: [],
     problemCategories: [],
+    formProjectNames: [],
+    formModuleNames: [],
   };
 }
 

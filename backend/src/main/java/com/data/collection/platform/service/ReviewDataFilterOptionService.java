@@ -62,6 +62,7 @@ public class ReviewDataFilterOptionService {
     // GitLab 镜像库数据
     List<String> mirrorUserNames = mirrorOptionRepository.loadUserNames();
     List<String> mirrorProjectNames = mirrorOptionRepository.loadProjectNames();
+    List<String> mirrorLabelProjectNames = mirrorOptionRepository.loadLabelProjectNames();
     List<String> mirrorModuleNames = mirrorOptionRepository.loadModuleNames();
     List<String> mirrorReviewVersions = mirrorOptionRepository.loadMilestoneTitles();
 
@@ -88,7 +89,9 @@ public class ReviewDataFilterOptionService {
         toOptions(allReviewVersions),            // 评审版本：镜像里程碑 + 历史补充
         PROBLEM_STATUS_OPTIONS,
         REVIEW_CATEGORY_OPTIONS,
-        PROBLEM_CATEGORY_OPTIONS);
+        PROBLEM_CATEGORY_OPTIONS,
+        toOptions(mirrorLabelProjectNames),       // 新增/编辑评审项目：GitLab 项目标签，格式 项目:xxx/项目：xxx
+        toOptions(mirrorModuleNames));            // 新增/编辑评审模块：GitLab 模块标签，格式 模块:xxx/模块：xxx
   }
 
   @SafeVarargs

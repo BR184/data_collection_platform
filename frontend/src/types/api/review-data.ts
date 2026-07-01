@@ -65,6 +65,8 @@ export interface ReviewDataFilterOptionsResponse {
   problemStatuses: OptionItemResponse[];
   reviewCategories: OptionItemResponse[];
   problemCategories: OptionItemResponse[];
+  formProjectNames?: OptionItemResponse[];
+  formModuleNames?: OptionItemResponse[];
 }
 
 export interface ReviewDataProblemItemResponse {
