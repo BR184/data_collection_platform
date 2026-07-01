@@ -51,7 +51,7 @@ function formatNumber(value?: number | null, digits = 2) {
           <el-descriptions-item label="评审负责人">{{ displayText(detailData.record.reviewOwner) }}</el-descriptions-item>
           <el-descriptions-item label="评审专家">{{ detailData.reviewExperts.join('、') || '-' }}</el-descriptions-item>
           <el-descriptions-item label="评审规模">{{ detailData.record.reviewScalePages }} 页</el-descriptions-item>
-          <el-descriptions-item label="评审工作产品">{{ displayText(detailData.record.reviewProduct) }}</el-descriptions-item>
+          <el-descriptions-item label="评审的工作产品">{{ displayText(detailData.record.reviewProduct) }}</el-descriptions-item>
           <el-descriptions-item label="作者">{{ displayText(detailData.record.authorName) }}</el-descriptions-item>
           <el-descriptions-item label="评审版本">{{ displayText(detailData.record.reviewVersion) }}</el-descriptions-item>
           <el-descriptions-item label="不达标说明">{{ displayText(detailData.record.notReachStandardReason) }}</el-descriptions-item>
@@ -91,7 +91,7 @@ function formatNumber(value?: number | null, digits = 2) {
           <span>工作产品描述</span>
         </header>
         <el-table :data="detailData.descriptions" border size="small" empty-text="暂无工作产品描述">
-          <el-table-column prop="reviewProduct" label="评审工作产品" min-width="150" />
+          <el-table-column prop="reviewProduct" label="评审的工作产品" min-width="150" />
           <el-table-column prop="reviewVersion" label="版本" width="100" />
           <el-table-column prop="authorName" label="作者" width="100" />
           <el-table-column label="规模" width="90" align="right">

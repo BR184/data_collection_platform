@@ -137,7 +137,7 @@ function handleClose() {
         <el-form-item label="评审专家" prop="reviewerName">
           <SmartSelect v-model="form.reviewerName" :options="reviewerOptions" compact placeholder="请选择评审专家" />
         </el-form-item>
-        <el-form-item label="评审工作量" prop="workloadHours">
+        <el-form-item label="评审工作量(小时)" prop="workloadHours">
           <el-input-number v-model="form.workloadHours" :min="0" :step="0.1" class="problem-form-number" />
         </el-form-item>
         <el-form-item label="评审类别" prop="reviewCategory">
@@ -146,8 +146,8 @@ function handleClose() {
         <el-form-item label="问题状态" prop="problemStatus">
           <SmartSelect v-model="form.problemStatus" :options="problemStatusOptions" compact placeholder="请选择问题状态" />
         </el-form-item>
-        <el-form-item label="文档中的位置" prop="documentPosition" class="span-2">
-          <el-input v-model="form.documentPosition" placeholder="请输入文档中的位置" />
+        <el-form-item label="在文档中的位置" prop="documentPosition" class="span-2">
+          <el-input v-model="form.documentPosition" placeholder="请输入在文档中的位置" />
         </el-form-item>
         <el-form-item label="问题类别" prop="problemCategory">
           <SmartSelect v-model="form.problemCategory" :options="problemCategoryOptions" compact placeholder="请选择问题类别" />

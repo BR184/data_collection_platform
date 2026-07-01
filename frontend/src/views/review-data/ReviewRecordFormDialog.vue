@@ -207,7 +207,7 @@ function handleClose() {
         <el-form-item label="评审规模(页)" prop="reviewScalePages">
           <el-input-number v-model="form.reviewScalePages" :min="0" :step="1" class="review-form-number" />
         </el-form-item>
-        <el-form-item label="评审工作产品" prop="reviewProduct">
+        <el-form-item label="评审的工作产品" prop="reviewProduct">
           <el-input v-model="form.reviewProduct" placeholder="请输入评审的工作产品" @change="syncPrimaryFields" />
         </el-form-item>
         <el-form-item label="作者" prop="authorName">
@@ -216,24 +216,12 @@ function handleClose() {
         <el-form-item label="评审版本" prop="reviewVersion">
           <SmartSelect v-model="form.reviewVersion" :options="reviewVersionOptions" compact placeholder="请选择评审版本" @change="syncPrimaryFields" />
         </el-form-item>
-        <el-form-item label="不达标说明" prop="notReachStandardReason" class="review-form-wide">
+        <el-form-item v-if="editMode" label="不达标说明" prop="notReachStandardReason" class="review-form-wide">
           <el-input
             v-model="form.notReachStandardReason"
             type="textarea"
             :rows="2"
             placeholder="评审缺陷密度不达标时填写原因说明"
-          />
-        </el-form-item>
-        <el-form-item label="原文件名" prop="sourceFileName">
-          <el-input v-model="form.sourceFileName" placeholder="旧平台原始评审文件名" />
-        </el-form-item>
-        <el-form-item label="加权密度" prop="weightedDefectDensity">
-          <el-input-number
-            v-model="form.weightedDefectDensity"
-            :min="0"
-            :step="0.01"
-            :precision="2"
-            class="review-form-number"
           />
         </el-form-item>
       </div>
