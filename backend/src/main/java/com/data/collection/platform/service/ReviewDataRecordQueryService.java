@@ -30,16 +30,22 @@ public class ReviewDataRecordQueryService {
   private final ReviewDataSummaryService summaryService;
   private final JsonUtils jsonUtils;
   private final LabelGroupExpansionService labelGroupExpansionService;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   public ReviewDataRecordQueryService(
       ReviewDataRecordPersistenceSupport persistenceSupport,
       ReviewDataSummaryService summaryService,
       JsonUtils jsonUtils,
-      LabelGroupExpansionService labelGroupExpansionService) {
+      LabelGroupExpansionService labelGroupExpansionService,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      ReviewDataMatchModeRecordRepository matchModeRecordRepository) {
     this.persistenceSupport = persistenceSupport;
     this.summaryService = summaryService;
     this.jsonUtils = jsonUtils;
     this.labelGroupExpansionService = labelGroupExpansionService;
+    this.matchModeSwitchService = matchModeSwitchService;
+    this.matchModeRecordRepository = matchModeRecordRepository;
   }
 
   public ReviewDataRecordListResponse listRecords(ReviewDataRecordQueryRequest request) {
@@ -59,6 +65,16 @@ public class ReviewDataRecordQueryService {
     boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
     boolean titleSearchFilter =
         hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(expandedFilterGroup);
+    //兼容模式-MatchMode
+    if (matchModeSwitchService.isEnabled()) {
+      return listMatchModeRecords(
+          request,
+          hasFilterGroup ? expandedFilterGroup : null,
+          safePage,
+          safeSize,
+          safeSortField,
+          safeSortOrder);
+    }
     boolean canUseSqlPath =
         !hasLabelGroupFilters
             && (!keywordSearch || !persistenceSupport.hasMissingSearchIndexes())
@@ -98,6 +114,48 @@ public class ReviewDataRecordQueryService {
         safeSize,
         safeSortField,
         safeSortOrder);
+  }
+
+  //兼容模式-MatchMode
+  private ReviewDataRecordListResponse listMatchModeRecords(
+      ReviewDataRecordQueryRequest request,
+      StatisticFilterGroup filterGroup,
+      int safePage,
+      int safeSize,
+      String safeSortField,
+      String safeSortOrder) {
+    List<ReviewDataRecordRowResponse> baseRows =
+        matchModeRecordRepository.loadRecords().stream()
+            .filter(row -> containsText(row.title(), request.title()))
+            .filter(row -> equalsText(row.projectName(), request.projectName()))
+            .filter(row -> equalsText(row.moduleName(), request.moduleName()))
+            .filter(row -> containsText(row.reviewOwner(), request.reviewOwner()))
+            .filter(row -> equalsText(row.reviewType(), request.reviewType()))
+            .filter(row -> containsExpert(row.reviewExpertsSummary(), request.reviewExpert()))
+            .filter(row -> ReviewDataSearchSupport.matchesKeyword(row, request.keyword()))
+            .toList();
+    Map<Long, List<String>> problemStatusesByRecordId =
+        needsProblemStatuses(filterGroup, request.problemStatus())
+            ? matchModeRecordRepository.loadProblemStatusesByRecordIds(baseRows)
+            : Map.of();
+    List<ReviewDataRecordRowResponse> filtered =
+        baseRows.stream()
+            .filter(row -> matchesProblemStatus(row, request.problemStatus(), problemStatusesByRecordId))
+            .filter(
+                row ->
+                    filterGroup == null
+                        || ReviewDataRecordFilterGroupSupport.matches(row, filterGroup, problemStatusesByRecordId))
+            .sorted(ReviewDataRecordSortSupport.buildComparator(safeSortField, safeSortOrder))
+            .toList();
+    PageSlice<ReviewDataRecordRowResponse> pageSlice = PageSliceSupport.slice(filtered, safePage, safeSize);
+    return new ReviewDataRecordListResponse(
+        pageSlice.records(),
+        pageSlice.total(),
+        pageSlice.page(),
+        pageSlice.size(),
+        safeSortField,
+        safeSortOrder,
+        summaryService.buildSummary(filtered));
   }
 
   private ReviewDataRecordListResponse listRecordsWithJavaFilters(
@@ -148,6 +206,16 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {
+    //兼容模式-MatchMode
+    if (matchModeSwitchService.isEnabled()) {
+      ReviewDataRecordRowResponse record = matchModeRecordRepository.getRecordOrThrow(recordId);
+      return new ReviewDataRecordDetailResponse(
+          record,
+          matchModeRecordRepository.listRecordExperts(recordId),
+          matchModeRecordRepository.listProblemItems(recordId),
+          List.of(),
+          List.of());
+    }
     ReviewDataRecordRowResponse record = persistenceSupport.getRecordOrThrow(recordId);
     return new ReviewDataRecordDetailResponse(
         record,
@@ -158,6 +226,11 @@ public class ReviewDataRecordQueryService {
   }
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
+    //兼容模式-MatchMode
+    if (matchModeSwitchService.isEnabled()) {
+      matchModeRecordRepository.getRecordOrThrow(recordId);
+      return matchModeRecordRepository.listProblemItems(recordId);
+    }
     persistenceSupport.assertRecordExists(recordId);
     return persistenceSupport.listProblemItems(recordId);
   }
@@ -182,8 +255,53 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
+    //兼容模式-MatchMode
+    if (matchModeSwitchService.isEnabled()) {
+      return matchModeRecordRepository.listProblemItems(recordId).stream()
+          .filter(item -> java.util.Objects.equals(item.id(), itemId))
+          .findFirst()
+          .orElseThrow(() -> new IllegalArgumentException("评审问题不存在: " + itemId));
+    }
     persistenceSupport.assertRecordExists(recordId);
     return persistenceSupport.getProblemItemOrThrow(recordId, itemId);
+  }
+
+  private boolean containsText(String source, String expected) {
+    String normalized = TextQuerySupport.trimToNull(expected);
+    return normalized == null || ReviewDataSearchSupport.matchesContains(source, normalized);
+  }
+
+  private boolean equalsText(String source, String expected) {
+    String normalized = TextQuerySupport.trimToNull(expected);
+    return normalized == null || TextQuerySupport.normalizeDisplay(source).equals(normalized);
+  }
+
+  private boolean containsExpert(String expertSummary, String expected) {
+    String normalized = TextQuerySupport.trimToNull(expected);
+    if (normalized == null) {
+      return true;
+    }
+    for (String expert : TextQuerySupport.normalizeDisplay(expertSummary).split("、")) {
+      if (normalized.equals(TextQuerySupport.normalizeDisplay(expert))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean needsProblemStatuses(StatisticFilterGroup filterGroup, String problemStatus) {
+    return TextQuerySupport.trimToNull(problemStatus) != null
+        || (filterGroup != null && ReviewDataRecordFilterGroupSupport.needsField(filterGroup, "problemStatus"));
+  }
+
+  private boolean matchesProblemStatus(
+      ReviewDataRecordRowResponse row,
+      String expectedStatus,
+      Map<Long, List<String>> problemStatusesByRecordId) {
+    String normalized = TextQuerySupport.trimToNull(expectedStatus);
+    return normalized == null
+        || problemStatusesByRecordId.getOrDefault(row.id(), List.of()).stream()
+            .anyMatch(status -> normalized.equals(TextQuerySupport.normalizeDisplay(status)));
   }
 
   private StatisticFilterGroup expandLabelGroupConditions(

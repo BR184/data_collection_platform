@@ -3,6 +3,7 @@ import type {
   CodeReviewMatchModeDbSettingsResponse,
   CodeReviewMatchModeDbSettingsSaveRequest,
   CodeReviewMatchModeSyncResponse,
+  CodeReviewMatchModeTableOptionResponse,
 } from '../types/api';
 import { request } from './request';
 
@@ -26,10 +27,17 @@ export const legacyDatabaseApi = {
       timeoutMs: 30_000,
     });
   },
+  getCodeReviewMatchModeTableOptions(payload: CodeReviewMatchModeDbSettingsSaveRequest) {
+    return request<CodeReviewMatchModeTableOptionResponse[]>(`${basePath}/table-options`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: 30_000,
+    });
+  },
   syncCodeReviewMatchModeDbNow() {
     return request<CodeReviewMatchModeSyncResponse>(`${basePath}/sync-now`, {
       method: 'POST',
-      timeoutMs: 180_000,
+      timeoutMs: 600_000,
     });
   },
 };

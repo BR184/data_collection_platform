@@ -1,5 +1,7 @@
 package com.data.collection.platform.entity;
 
+import java.util.List;
+
 public record CodeReviewMatchModeDbSettingsSaveRequest(
     Boolean enabled,
     Boolean syncEnabled,
@@ -9,8 +11,6 @@ public record CodeReviewMatchModeDbSettingsSaveRequest(
     String mysqlUsername,
     String mysqlPassword,
     String mysqlTableName,
-    Integer mysqlFetchSize,
-    String mongoUri,
-    String mongoDatabase,
-    String mongoAnnotationCollection) {
+    List<String> selectedTableNames,
+    Integer mysqlFetchSize) {
 }

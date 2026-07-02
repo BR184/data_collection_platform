@@ -4,18 +4,26 @@ import { Check, Connection, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from '../element-plus-services';
 import { api } from '../api';
 import PageStateShell from '../components/base/PageStateShell.vue';
+import SmartSelect from '../components/base/SmartSelect.vue';
 import type {
   CodeReviewMatchModeDbSettingsResponse,
   CodeReviewMatchModeDbSettingsSaveRequest,
+  CodeReviewMatchModeTableOptionResponse,
 } from '../types/api';
+import type { RecordTableFilterOption } from '../types/record-table';
 import { formatBeijingDateTime } from '../utils/beijing-time';
 
 // 兼容模式-MatchMode：该页面只维护短期老平台数据库连接，不属于 GitLab 镜像设置。
+const defaultSelectedTableNames = ['spider_crowncad_data'];
+
 const initialized = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
 const syncing = ref(false);
+const tableOptionsLoading = ref(false);
+const tableOptionsLoaded = ref(false);
+const tableOptions = ref<CodeReviewMatchModeTableOptionResponse[]>([]);
 const settings = ref<CodeReviewMatchModeDbSettingsResponse | null>(null);
 
 const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
@@ -27,10 +35,8 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   mysqlUsername: 'root',
   mysqlPassword: '',
   mysqlTableName: 'spider_crowncad_data',
+  selectedTableNames: [...defaultSelectedTableNames],
   mysqlFetchSize: 1000,
-  mongoUri: '',
-  mongoDatabase: 'spider',
-  mongoAnnotationCollection: 'annotationRateInfo',
 });
 
 const statusTagType = computed(() => {
@@ -62,6 +68,25 @@ const statusText = computed(() => {
 
 const lastSyncTime = computed(() => formatDateTime(settings.value?.syncFinishedAt || settings.value?.syncStartedAt));
 const updatedTime = computed(() => formatDateTime(settings.value?.updatedAt));
+const selectedImportTableText = computed(() =>
+  form.selectedTableNames.length > 0 ? form.selectedTableNames.join('、') : '未选择',
+);
+const tableSelectOptions = computed<RecordTableFilterOption[]>(() => {
+  const known = new Set<string>();
+  const options = tableOptions.value.map((option) => {
+    known.add(option.tableName);
+    return {
+      label: option.label || option.tableName,
+      value: option.tableName,
+    };
+  });
+  for (const tableName of form.selectedTableNames) {
+    if (!known.has(tableName)) {
+      options.push({ label: tableName, value: tableName });
+    }
+  }
+  return options;
+});
 
 onMounted(async () => {
   await loadSettings();
@@ -96,7 +121,7 @@ async function testConnection() {
   try {
     const result = await api.testCodeReviewMatchModeDbConnection(buildPayload());
     if (result.success) {
-      ElMessage.success(`${result.message}，当前表 ${result.recordCount} 条`);
+      ElMessage.success(result.message);
     } else {
       ElMessage.warning(result.message || '老平台 MySQL 连接失败');
     }
@@ -120,6 +145,30 @@ async function syncNow() {
   }
 }
 
+async function ensureTableOptions(force = false) {
+  if (tableOptionsLoading.value) {
+    return;
+  }
+  if (!force && tableOptionsLoaded.value) {
+    return;
+  }
+  tableOptionsLoading.value = true;
+  try {
+    tableOptions.value = await api.getCodeReviewMatchModeTableOptions(buildPayload());
+    tableOptionsLoaded.value = true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载老平台 MySQL 表列表失败');
+  } finally {
+    tableOptionsLoading.value = false;
+  }
+}
+
+function handleTableSelectVisibleChange(visible: boolean) {
+  if (visible) {
+    void ensureTableOptions();
+  }
+}
+
 function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   settings.value = nextSettings;
   form.enabled = nextSettings.enabled;
@@ -130,10 +179,8 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   form.mysqlUsername = nextSettings.mysqlUsername || '';
   form.mysqlPassword = '';
   form.mysqlTableName = nextSettings.mysqlTableName || 'spider_crowncad_data';
+  form.selectedTableNames = normalizeSelectedTableNames(nextSettings.selectedTableNames);
   form.mysqlFetchSize = nextSettings.mysqlFetchSize || 1000;
-  form.mongoUri = '';
-  form.mongoDatabase = nextSettings.mongoDatabase || '';
-  form.mongoAnnotationCollection = nextSettings.mongoAnnotationCollection || 'annotationRateInfo';
 }
 
 function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
@@ -146,11 +193,16 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     mysqlUsername: form.mysqlUsername.trim(),
     mysqlPassword: form.mysqlPassword?.trim() || null,
     mysqlTableName: form.mysqlTableName.trim() || 'spider_crowncad_data',
+    selectedTableNames: normalizeSelectedTableNames(form.selectedTableNames),
     mysqlFetchSize: Number(form.mysqlFetchSize || 1000),
-    mongoUri: form.mongoUri?.trim() || null,
-    mongoDatabase: form.mongoDatabase?.trim() || null,
-    mongoAnnotationCollection: form.mongoAnnotationCollection.trim() || 'annotationRateInfo',
   };
+}
+
+function normalizeSelectedTableNames(tableNames?: string[] | null) {
+  const normalized = Array.from(
+    new Set((tableNames ?? []).map((tableName) => tableName.trim()).filter(Boolean)),
+  );
+  return normalized.length > 0 ? normalized : [...defaultSelectedTableNames];
 }
 
 function formatDateTime(value?: string | null) {
@@ -179,8 +231,12 @@ function formatDateTime(value?: string | null) {
             <strong>{{ form.syncEnabled ? '开启' : '关闭' }}</strong>
           </div>
           <div class="legacy-db-status-item">
-            <span>兼容表记录数</span>
+            <span>导入记录数</span>
             <strong>{{ settings?.syncRecordCount ?? 0 }}</strong>
+          </div>
+          <div class="legacy-db-status-item">
+            <span>导入范围</span>
+            <strong>{{ selectedImportTableText }}</strong>
           </div>
           <div class="legacy-db-status-item">
             <span>最近同步</span>
@@ -220,6 +276,30 @@ function formatDateTime(value?: string | null) {
 
           <el-divider>MySQL</el-divider>
 
+          <el-form-item label="导入表白名单">
+            <div class="legacy-db-table-select">
+              <SmartSelect
+                v-model="form.selectedTableNames"
+                multiple
+                style="width: 100%"
+                placeholder="选择老平台 MySQL 表"
+                :loading="tableOptionsLoading"
+                :options="tableSelectOptions"
+                @visible-change="handleTableSelectVisibleChange"
+              />
+              <el-button :icon="Refresh" :loading="tableOptionsLoading" @click="ensureTableOptions(true)">
+                刷新表列表
+              </el-button>
+            </div>
+            <div class="form-help-text">
+              {{
+                tableOptionsLoaded
+                  ? `已加载 ${tableOptions.length} 张可选表，已选择 ${form.selectedTableNames.length} 张。`
+                  : '打开下拉菜单后加载当前 MySQL 数据库中的表。'
+              }}
+            </div>
+          </el-form-item>
+
           <div class="legacy-db-form-grid">
             <el-form-item label="主机">
               <el-input v-model="form.mysqlHost" placeholder="172.22.10.72" />
@@ -241,7 +321,7 @@ function formatDateTime(value?: string | null) {
                 :placeholder="settings?.mysqlPasswordConfigured ? '已配置，留空不修改' : ''"
               />
             </el-form-item>
-            <el-form-item label="数据表">
+            <el-form-item label="代码走查兼容表">
               <el-input v-model="form.mysqlTableName" />
             </el-form-item>
             <el-form-item label="抓取批量">
@@ -254,25 +334,6 @@ function formatDateTime(value?: string | null) {
             </el-form-item>
           </div>
 
-          <el-divider>MongoDB 注释率</el-divider>
-
-          <div class="legacy-db-form-grid">
-            <el-form-item label="连接 URI">
-              <el-input
-                v-model="form.mongoUri"
-                type="password"
-                show-password
-                :placeholder="settings?.mongoUriConfigured ? '已配置，留空不修改' : '可选'"
-              />
-            </el-form-item>
-            <el-form-item label="数据库">
-              <el-input v-model="form.mongoDatabase" placeholder="可选" />
-            </el-form-item>
-            <el-form-item label="集合">
-              <el-input v-model="form.mongoAnnotationCollection" />
-            </el-form-item>
-          </div>
-
           <div class="legacy-db-actions">
             <el-button type="primary" :icon="Check" :loading="saving" @click="saveSettings">保存设置</el-button>
             <el-button :icon="Connection" :loading="testing" @click="testConnection">测试连接</el-button>
@@ -282,7 +343,7 @@ function formatDateTime(value?: string | null) {
               :disabled="!form.enabled || !form.syncEnabled"
               @click="syncNow"
             >
-              立即同步
+              立即导入
             </el-button>
           </div>
         </el-form>
@@ -355,6 +416,13 @@ function formatDateTime(value?: string | null) {
   width: 100%;
 }
 
+.legacy-db-table-select {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
 .legacy-db-actions {
   display: flex;
   align-items: center;
@@ -373,6 +441,10 @@ function formatDateTime(value?: string | null) {
   .legacy-db-form-grid,
   .legacy-db-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .legacy-db-table-select {
+    flex-direction: column;
   }
 
   .legacy-db-actions {

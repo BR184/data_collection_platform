@@ -1,6 +1,7 @@
 package com.data.collection.platform.entity;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CodeReviewMatchModeDbSettingsResponse(
     boolean enabled,
@@ -11,10 +12,8 @@ public record CodeReviewMatchModeDbSettingsResponse(
     String mysqlUsername,
     boolean mysqlPasswordConfigured,
     String mysqlTableName,
+    List<String> selectedTableNames,
     int mysqlFetchSize,
-    String mongoDatabase,
-    String mongoAnnotationCollection,
-    boolean mongoUriConfigured,
     String syncStatus,
     String syncMessage,
     long syncRecordCount,

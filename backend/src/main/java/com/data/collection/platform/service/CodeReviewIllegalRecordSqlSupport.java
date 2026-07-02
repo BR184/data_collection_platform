@@ -266,11 +266,11 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String missingProjectPredicate() {
-    return "not (coalesce(label_names, '') ~ '(^|,)[[:space:]]*项目[[:space:]]*[:：][[:space:]]*[^,[:space:]:：][^,]*')";
+    return "project_name = '未标注项目名' or not (coalesce(label_names, '') ~ '(^|,)[[:space:]]*项目[[:space:]]*[:：][[:space:]]*[^,[:space:]:：][^,]*')";
   }
 
   private static String missingModulePredicate() {
-    return "not (coalesce(label_names, '') ~ '(^|,)[[:space:]]*模块[[:space:]]*[:：][[:space:]]*[^,[:space:]:：][^,]*')";
+    return "module_name = '未标注模块名' or not (coalesce(label_names, '') ~ '(^|,)[[:space:]]*模块[[:space:]]*[:：][[:space:]]*[^,[:space:]:：][^,]*')";
   }
 
   private static String missingReviewPredicate() {
@@ -306,7 +306,7 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String openScanIssuePredicate() {
-    return "coalesce(scan_bug_count, 0) <> 0";
+    return "bug_count_result = '静态扫描问题未关闭' or coalesce(scan_bug_count, 0) <> 0";
   }
 
   private static String commentRateNotPassPredicate() {

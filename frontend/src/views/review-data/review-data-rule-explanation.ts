@@ -90,6 +90,12 @@ export const reviewDataRuleExplanationContent: ReviewDataRuleExplanationContent 
       note: '清单评审工作量合计为空、为 0 或小于 0 时按 0 处理。',
     },
     {
+      key: 'reachStandard',
+      label: '是否达标',
+      definition: '达标判断：评审缺陷密度介于[0.2~0.6]',
+      formula: '达标判断：评审缺陷密度介于[0.2~0.6]',
+    },
+    {
       key: 'totalRecords',
       label: '顶部卡片：评审记录',
       definition: '当前筛选条件下的评审记录总条数。',

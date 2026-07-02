@@ -36,11 +36,11 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "missing-project",
               MISSING_PROJECT_LABEL,
-              source -> !hasRequiredLabel(source.labelTitles(), "项目")),
+              source -> isLegacyMissingProject(source.projectName()) || !hasRequiredLabel(source.labelTitles(), "项目")),
           new CodeReviewIllegalRule(
               "missing-module",
               MISSING_MODULE_LABEL,
-              source -> !hasRequiredLabel(source.labelTitles(), "模块")),
+              source -> isLegacyMissingModule(source.moduleName()) || !hasRequiredLabel(source.labelTitles(), "模块")),
           new CodeReviewIllegalRule(
               "missing-review",
               MISSING_REVIEW_LABEL,
@@ -58,7 +58,9 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "open-scan-issue",
               OPEN_SCAN_ISSUE_LABEL,
-              source -> source.scanBugCount() != null && source.scanBugCount() != 0),
+              source ->
+                  OPEN_SCAN_ISSUE_LABEL.equals(source.bugCountResult())
+                      || (source.scanBugCount() != null && source.scanBugCount() != 0)),
           new CodeReviewIllegalRule(
               "comment-rate-not-pass",
               COMMENT_RATE_NOT_PASS_LABEL,
@@ -179,6 +181,14 @@ final class CodeReviewIllegalRuleRegistry {
   static boolean isLegacyReviewException(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized != null && LEGACY_REVIEW_EXCEPTION_REASONS.contains(normalized);
+  }
+
+  static boolean isLegacyMissingProject(String value) {
+    return MISSING_PROJECT_LABEL.equals(TextQuerySupport.trimToNull(value));
+  }
+
+  static boolean isLegacyMissingModule(String value) {
+    return MISSING_MODULE_LABEL.equals(TextQuerySupport.trimToNull(value));
   }
 
   static boolean hasRequiredLabel(List<String> labels, String groupName) {

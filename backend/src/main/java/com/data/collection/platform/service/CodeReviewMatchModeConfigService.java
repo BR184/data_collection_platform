@@ -4,12 +4,17 @@ import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.CodeReviewMatchModeConnectionTestResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsSaveRequest;
+import com.data.collection.platform.entity.CodeReviewMatchModeTableOptionResponse;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -17,6 +22,8 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class CodeReviewMatchModeConfigService {
+  private static final List<String> DEFAULT_SELECTED_TABLES = List.of("spider_crowncad_data");
+
   private static final String SETTINGS_SQL = """
       select s.enabled,
              s.sync_enabled,
@@ -26,10 +33,8 @@ public class CodeReviewMatchModeConfigService {
              s.mysql_username,
              s.mysql_password,
              s.mysql_table_name,
+             s.selected_table_names,
              s.mysql_fetch_size,
-             s.mongo_uri,
-             s.mongo_database,
-             s.mongo_annotation_collection,
              s.updated_at,
              st.status as sync_status,
              st.message as sync_message,
@@ -55,10 +60,8 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlUsername(),
         settings.mysqlPassword(),
         settings.mysqlTableName(),
+        settings.selectedTableNames(),
         settings.mysqlFetchSize(),
-        settings.mongoUri(),
-        settings.mongoDatabase(),
-        settings.mongoAnnotationCollection(),
         settings.syncEnabled());
   }
 
@@ -86,10 +89,8 @@ public class CodeReviewMatchModeConfigService {
                mysql_username = ?,
                mysql_password = ?,
                mysql_table_name = ?,
+               selected_table_names = ?,
                mysql_fetch_size = ?,
-               mongo_uri = ?,
-               mongo_database = ?,
-               mongo_annotation_collection = ?,
                updated_at = current_timestamp
          where id = 1
         """,
@@ -101,10 +102,8 @@ public class CodeReviewMatchModeConfigService {
         normalized.mysqlUsername(),
         normalized.mysqlPassword(),
         normalized.mysqlTableName(),
-        normalized.mysqlFetchSize(),
-        normalized.mongoUri(),
-        normalized.mongoDatabase(),
-        normalized.mongoAnnotationCollection());
+        storeTableNames(normalized.selectedTableNames()),
+        normalized.mysqlFetchSize());
     return getResponse();
   }
 
@@ -118,23 +117,49 @@ public class CodeReviewMatchModeConfigService {
             settings.mysqlUsername(),
             settings.mysqlPassword(),
             settings.mysqlTableName(),
+            settings.selectedTableNames(),
             settings.mysqlFetchSize(),
-            settings.mongoUri(),
-            settings.mongoDatabase(),
-            settings.mongoAnnotationCollection(),
             settings.syncEnabled());
     if (!StringUtils.hasText(config.mysqlJdbcUrl()) || !StringUtils.hasText(config.mysqlUsername())) {
       return new CodeReviewMatchModeConnectionTestResponse(false, "老平台 MySQL 连接配置不完整", 0);
     }
     try (Connection connection =
-            DriverManager.getConnection(config.mysqlJdbcUrl(), config.mysqlUsername(), config.mysqlPassword());
-        PreparedStatement statement =
-            connection.prepareStatement("select count(*) from " + safeTableName(config.mysqlTableName()));
-        ResultSet rs = statement.executeQuery()) {
-      long count = rs.next() ? rs.getLong(1) : 0;
-      return new CodeReviewMatchModeConnectionTestResponse(true, "老平台 MySQL 连接成功", count);
+        DriverManager.getConnection(config.mysqlJdbcUrl(), config.mysqlUsername(), config.mysqlPassword())) {
+      connection.setReadOnly(true);
+      long total = 0L;
+      List<String> countSummaries = new ArrayList<>();
+      for (String tableName : config.selectedTableNames()) {
+        long count = countRows(connection, tableName);
+        total += count;
+        countSummaries.add(tableName + " " + count + " 条");
+      }
+      String message = "老平台 MySQL 连接成功";
+      if (!countSummaries.isEmpty()) {
+        message += "：" + String.join("，", countSummaries);
+      }
+      return new CodeReviewMatchModeConnectionTestResponse(true, message, total);
     } catch (SQLException | RuntimeException error) {
       return new CodeReviewMatchModeConnectionTestResponse(false, rootMessage(error), 0);
+    }
+  }
+
+  //兼容模式-MatchMode
+  public List<CodeReviewMatchModeTableOptionResponse> discoverTableOptions(
+      CodeReviewMatchModeDbSettingsSaveRequest request) {
+    CodeReviewMatchModeDbSettings settings = normalize(request, loadSettings());
+    String jdbcUrl = buildMysqlJdbcUrl(settings);
+    if (!StringUtils.hasText(jdbcUrl) || !StringUtils.hasText(settings.mysqlUsername())) {
+      throw new BizException("老平台 MySQL 连接配置不完整");
+    }
+    try (Connection connection =
+        DriverManager.getConnection(jdbcUrl, settings.mysqlUsername(), settings.mysqlPassword())) {
+      connection.setReadOnly(true);
+      Set<String> selected = new LinkedHashSet<>(settings.selectedTableNames());
+      return discoverTables(connection).stream()
+          .map(tableName -> new CodeReviewMatchModeTableOptionResponse(tableName, tableName, selected.contains(tableName)))
+          .toList();
+    } catch (SQLException | RuntimeException error) {
+      throw new BizException(rootMessage(error));
     }
   }
 
@@ -150,10 +175,8 @@ public class CodeReviewMatchModeConfigService {
               text(rs.getString("mysql_username")),
               rs.getString("mysql_password") == null ? "" : rs.getString("mysql_password"),
               text(rs.getString("mysql_table_name")),
+              parseStoredTableNames(rs.getString("selected_table_names")),
               rs.getInt("mysql_fetch_size"),
-              text(rs.getString("mongo_uri")),
-              text(rs.getString("mongo_database")),
-              text(rs.getString("mongo_annotation_collection")),
               text(rs.getString("sync_status")),
               text(rs.getString("sync_message")),
               rs.getLong("sync_record_count"),
@@ -182,15 +205,13 @@ public class CodeReviewMatchModeConfigService {
     String username = optionalText(request.mysqlUsername(), current.mysqlUsername());
     String password = resolveSecret(request.mysqlPassword(), current.mysqlPassword());
     String tableName = defaultText(request.mysqlTableName(), current.mysqlTableName(), "spider_crowncad_data");
-    safeTableName(tableName);
+    quoteMysqlIdentifier(tableName);
+    List<String> selectedTableNames =
+        normalizeSelectedTableNames(request.selectedTableNames(), current.selectedTableNames());
     int fetchSize = request.mysqlFetchSize() == null ? current.mysqlFetchSize() : request.mysqlFetchSize();
     if (fetchSize < 1 || fetchSize > 100000) {
       throw new BizException("兼容模式抓取批量大小必须在 1 到 100000 之间");
     }
-    String mongoUri = resolveSecret(request.mongoUri(), current.mongoUri());
-    String mongoDatabase = optionalText(request.mongoDatabase(), current.mongoDatabase());
-    String mongoCollection =
-        defaultText(request.mongoAnnotationCollection(), current.mongoAnnotationCollection(), "annotationRateInfo");
     return new CodeReviewMatchModeDbSettings(
         enabled,
         syncEnabled,
@@ -200,10 +221,8 @@ public class CodeReviewMatchModeConfigService {
         username,
         password,
         tableName,
+        selectedTableNames,
         fetchSize,
-        mongoUri,
-        mongoDatabase,
-        mongoCollection,
         current.syncStatus(),
         current.syncMessage(),
         current.syncRecordCount(),
@@ -222,10 +241,8 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlUsername(),
         StringUtils.hasText(settings.mysqlPassword()),
         settings.mysqlTableName(),
+        settings.selectedTableNames(),
         settings.mysqlFetchSize(),
-        settings.mongoDatabase(),
-        settings.mongoAnnotationCollection(),
-        StringUtils.hasText(settings.mongoUri()),
         settings.syncStatus() == null ? "IDLE" : settings.syncStatus(),
         settings.syncMessage(),
         settings.syncRecordCount(),
@@ -247,12 +264,80 @@ public class CodeReviewMatchModeConfigService {
         + "?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true";
   }
 
-  private String safeTableName(String tableName) {
-    String normalized = tableName == null || tableName.isBlank() ? "spider_crowncad_data" : tableName.trim();
-    if (!normalized.matches("[A-Za-z0-9_]+")) {
-      throw new BizException("兼容模式 MySQL 表名只能包含字母、数字和下划线");
+  private long countRows(Connection connection, String tableName) throws SQLException {
+    try (PreparedStatement statement =
+            connection.prepareStatement("select count(*) from " + quoteMysqlIdentifier(tableName));
+        ResultSet rs = statement.executeQuery()) {
+      return rs.next() ? rs.getLong(1) : 0L;
     }
-    return normalized;
+  }
+
+  private List<String> discoverTables(Connection connection) throws SQLException {
+    try (PreparedStatement statement = connection.prepareStatement("""
+        select table_name
+          from information_schema.tables
+         where table_schema = database()
+           and table_type = 'BASE TABLE'
+         order by table_name
+        """);
+        ResultSet rs = statement.executeQuery()) {
+      List<String> tableNames = new ArrayList<>();
+      while (rs.next()) {
+        tableNames.add(rs.getString("table_name"));
+      }
+      return tableNames;
+    }
+  }
+
+  private List<String> parseStoredTableNames(String storedValue) {
+    if (storedValue == null || storedValue.isBlank()) {
+      return DEFAULT_SELECTED_TABLES;
+    }
+    String[] parts = storedValue.split(",");
+    List<String> values = new ArrayList<>();
+    for (String part : parts) {
+      if (part != null && !part.isBlank()) {
+        values.add(part.trim());
+      }
+    }
+    return normalizeSelectedTableNames(values, DEFAULT_SELECTED_TABLES);
+  }
+
+  private List<String> normalizeSelectedTableNames(
+      List<String> requestedTableNames,
+      List<String> currentTableNames) {
+    if (requestedTableNames == null) {
+      return currentTableNames == null || currentTableNames.isEmpty()
+          ? DEFAULT_SELECTED_TABLES
+          : List.copyOf(currentTableNames);
+    }
+    Set<String> normalized = new LinkedHashSet<>();
+    for (String tableName : requestedTableNames) {
+      String normalizedTableName = TextQuerySupport.trimToNull(tableName);
+      if (normalizedTableName != null) {
+        quoteMysqlIdentifier(normalizedTableName);
+        normalized.add(normalizedTableName);
+      }
+    }
+    if (normalized.isEmpty()) {
+      throw new BizException("至少选择一张老平台 MySQL 表");
+    }
+    return List.copyOf(normalized);
+  }
+
+  private String storeTableNames(List<String> tableNames) {
+    return String.join(",", normalizeSelectedTableNames(tableNames, DEFAULT_SELECTED_TABLES));
+  }
+
+  private String quoteMysqlIdentifier(String tableName) {
+    String normalized = TextQuerySupport.trimToNull(tableName);
+    if (normalized == null) {
+      throw new BizException("兼容模式 MySQL 表名不能为空");
+    }
+    if (normalized.length() > 255 || normalized.indexOf('\0') >= 0) {
+      throw new BizException("兼容模式 MySQL 表名不合法");
+    }
+    return "`" + normalized.replace("`", "``") + "`";
   }
 
   private String defaultText(String nextValue, String currentValue, String fallback) {
@@ -305,10 +390,8 @@ public class CodeReviewMatchModeConfigService {
       String mysqlUsername,
       String mysqlPassword,
       String mysqlTableName,
+      List<String> selectedTableNames,
       int mysqlFetchSize,
-      String mongoUri,
-      String mongoDatabase,
-      String mongoAnnotationCollection,
       String syncStatus,
       String syncMessage,
       long syncRecordCount,

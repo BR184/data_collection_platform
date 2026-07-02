@@ -69,7 +69,16 @@ export function reviewDataColumns(): RecordTableColumn[] {
     { key: 'meetingReviewWorkload', label: '会议评审工作量(小时）', sortable: true, width: 120, align: 'right' },
     { key: 'meetingReviewProblemCount', label: '有效的会议评审问题数合计(个)', sortable: true, width: 150, align: 'right' },
     { key: 'notReachStandardReason', label: '不达标说明', width: 150 },
-    { key: 'reachStandard', label: '是否达标', type: 'tag', sortable: true, width: 110, align: 'center', fixed: 'right' },
+    {
+      key: 'reachStandard',
+      label: '是否达标',
+      headerTooltip: '达标判断：评审缺陷密度介于[0.2~0.6]',
+      type: 'tag',
+      sortable: true,
+      width: 110,
+      align: 'center',
+      fixed: 'right',
+    },
   ];
 }
 

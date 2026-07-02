@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { EditPen, Plus } from '@element-plus/icons-vue';
+import { EditPen, Plus, WarningFilled } from '@element-plus/icons-vue';
 // 问题项面板挂在评审记录行下方，用于展示专家问题列表和行内新增入口。
 // 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
@@ -14,6 +14,11 @@ defineProps<{
   onEditProblemItem: (recordId: number, item: ReviewDataProblemItemResponse) => void | Promise<void>;
   onDeleteProblemItem: (recordId: number, itemId: number) => void | Promise<void>;
 }>();
+
+function isPendingReview(row: Record<string, unknown>) {
+  const raw = row.__raw as ReviewDataProblemItemResponse | undefined;
+  return String(raw?.problemStatus ?? '').trim() === '未评审';
+}
 </script>
 
 <template>
@@ -57,6 +62,12 @@ defineProps<{
               {{ tag.label }}
             </el-tag>
           </template>
+          <span v-else-if="column.key === 'reviewerName'" class="problem-reviewer-cell">
+            <el-icon v-if="isPendingReview(row)" class="problem-reviewer-warning">
+              <WarningFilled />
+            </el-icon>
+            <span :class="{ 'problem-reviewer-name--offset': isPendingReview(row) }">{{ row[column.key] }}</span>
+          </span>
           <span v-else>{{ row[column.key] }}</span>
         </template>
       </el-table-column>
@@ -180,6 +191,23 @@ defineProps<{
 
 :deep(.problem-subtable .el-table__header th.el-table__cell) {
   background: #f8fafc;
+}
+
+.problem-reviewer-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.problem-reviewer-warning {
+  flex: 0 0 auto;
+  color: #e6a23c;
+  font-size: 16px;
+}
+
+.problem-reviewer-name--offset {
+  margin-left: 10px;
 }
 
 @keyframes problem-panel-drawer-in {

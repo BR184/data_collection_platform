@@ -6,9 +6,11 @@ import com.data.collection.platform.entity.CodeReviewMatchModeConnectionTestResp
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsSaveRequest;
 import com.data.collection.platform.entity.CodeReviewMatchModeSyncResponse;
+import com.data.collection.platform.entity.CodeReviewMatchModeTableOptionResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
 import com.data.collection.platform.service.CodeReviewMatchModeSyncService;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -49,6 +51,13 @@ public class CodeReviewMatchModeDbSettingsController {
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     CodeReviewMatchModeConnectionTestResponse result = configService.testConnection(request);
     return ApiResponse.success(result.message(), result);
+  }
+
+  //兼容模式-MatchMode
+  @PostMapping("/table-options")
+  public ApiResponse<List<CodeReviewMatchModeTableOptionResponse>> tableOptions(
+      @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
+    return ApiResponse.success(configService.discoverTableOptions(request));
   }
 
   //兼容模式-MatchMode

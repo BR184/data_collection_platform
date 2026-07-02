@@ -46,12 +46,18 @@ public class ReviewDataFilterOptionService {
 
   private final ReviewDataMirrorOptionRepository mirrorOptionRepository;
   private final ReviewDataHistoricalOptionRepository historicalOptionRepository;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   public ReviewDataFilterOptionService(
       ReviewDataMirrorOptionRepository mirrorOptionRepository,
-      ReviewDataHistoricalOptionRepository historicalOptionRepository) {
+      ReviewDataHistoricalOptionRepository historicalOptionRepository,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      ReviewDataMatchModeRecordRepository matchModeRecordRepository) {
     this.mirrorOptionRepository = mirrorOptionRepository;
     this.historicalOptionRepository = historicalOptionRepository;
+    this.matchModeSwitchService = matchModeSwitchService;
+    this.matchModeRecordRepository = matchModeRecordRepository;
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
@@ -73,11 +79,31 @@ public class ReviewDataFilterOptionService {
     List<String> historicalReviewOwners = historicalOptionRepository.loadReviewOwners();
     List<String> historicalReviewExperts = historicalOptionRepository.loadReviewExperts();
     List<String> historicalAuthors = historicalOptionRepository.loadAuthors();
+    //兼容模式-MatchMode
+    List<String> matchProjectNames = matchModeSwitchService.isEnabled()
+        ? matchModeRecordRepository.loadProjectNames()
+        : List.of();
+    List<String> matchModuleNames = matchModeSwitchService.isEnabled()
+        ? matchModeRecordRepository.loadModuleNames()
+        : List.of();
+    List<String> matchReviewOwners = matchModeSwitchService.isEnabled()
+        ? matchModeRecordRepository.loadReviewOwners()
+        : List.of();
+    List<String> matchReviewExperts = matchModeSwitchService.isEnabled()
+        ? matchModeRecordRepository.loadReviewExperts()
+        : List.of();
 
     // 合并：镜像库优先，历史数据补充
-    List<String> allProjectNames = mergeValues(mirrorProjectNames, historicalProjectNames);
-    List<String> allModuleNames = mergeValues(mirrorModuleNames, historicalModuleNames);
-    List<String> allUserNames = mergeValues(mirrorUserNames, historicalReviewOwners, historicalReviewExperts, historicalAuthors);
+    List<String> allProjectNames = mergeValues(mirrorProjectNames, historicalProjectNames, matchProjectNames);
+    List<String> allModuleNames = mergeValues(mirrorModuleNames, historicalModuleNames, matchModuleNames);
+    List<String> allUserNames =
+        mergeValues(
+            mirrorUserNames,
+            historicalReviewOwners,
+            historicalReviewExperts,
+            historicalAuthors,
+            matchReviewOwners,
+            matchReviewExperts);
     List<String> allReviewVersions = mergeValues(mirrorReviewVersions, historicalReviewVersions);
 
     return new ReviewDataFilterOptionsResponse(

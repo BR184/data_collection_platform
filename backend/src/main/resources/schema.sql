@@ -413,8 +413,8 @@ create table if not exists code_review_match_mode_records (
     commit_rate integer,
     function_name varchar(255),
     clang_added_line_count integer,
-    synced_at timestamp not null default current_timestamp,
-    unique (source_instance, project_id, merge_request_id)
+    legacy_source_id varchar(128),
+    synced_at timestamp not null default current_timestamp
 );
 
 create table if not exists code_review_match_mode_sync_state (
@@ -438,10 +438,8 @@ create table if not exists code_review_match_mode_db_settings (
     mysql_username varchar(255) not null default 'root',
     mysql_password varchar(255) not null default '',
     mysql_table_name varchar(255) not null default 'spider_crowncad_data',
+    selected_table_names text not null default 'spider_crowncad_data',
     mysql_fetch_size integer not null default 1000,
-    mongo_uri text,
-    mongo_database varchar(255) default 'spider',
-    mongo_annotation_collection varchar(255) not null default 'annotationRateInfo',
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
     constraint ck_code_review_match_mode_db_settings_singleton check (id = 1),
@@ -456,6 +454,78 @@ on conflict (id) do nothing;
 insert into code_review_match_mode_db_settings(id, enabled, sync_enabled)
 values (1, true, true)
 on conflict (id) do nothing;
+
+create table if not exists legacy_mysql_imported_tables (
+    id bigserial primary key,
+    table_name varchar(255) not null,
+    record_count bigint not null default 0,
+    last_synced_at timestamp,
+    column_names text,
+    synced_at timestamp not null default current_timestamp,
+    unique (table_name)
+);
+
+create table if not exists legacy_mysql_imported_rows (
+    id bigserial primary key,
+    table_name varchar(255) not null,
+    row_key varchar(512) not null,
+    raw_payload jsonb not null,
+    synced_at timestamp not null default current_timestamp,
+    unique (table_name, row_key)
+);
+
+create table if not exists review_data_match_mode_reports (
+    id bigserial primary key,
+    legacy_id varchar(128) not null,
+    project_name varchar(255),
+    title varchar(512),
+    module_name varchar(255),
+    source_type varchar(128),
+    doc_type varchar(128),
+    review_type_str varchar(255),
+    review_time timestamp,
+    review_charger varchar(128),
+    review_experts text,
+    defect_value integer,
+    defect_count_sum integer,
+    review_defect_density numeric(10, 2),
+    weighted_defect_density numeric(10, 2),
+    review_efficiency numeric(10, 2),
+    review_rate numeric(10, 2),
+    doc_specification integer,
+    integrity integer,
+    functionality integer,
+    feasibility integer,
+    not_reach_stand_cause text,
+    problem_detail_ids text,
+    description_ids text,
+    content_ids text,
+    create_time timestamp,
+    raw_payload jsonb,
+    synced_at timestamp not null default current_timestamp,
+    unique (legacy_id)
+);
+
+create table if not exists review_data_match_mode_problem_details (
+    id bigserial primary key,
+    legacy_id varchar(128) not null,
+    reviewer varchar(128),
+    workload numeric(8, 2),
+    review_type varchar(128),
+    position varchar(255),
+    problem_type varchar(128),
+    description text,
+    suggestion text,
+    liable_person varchar(128),
+    reason_for_not_accepting text,
+    problem_status varchar(128),
+    close_time date,
+    create_time timestamp,
+    update_time date,
+    raw_payload jsonb,
+    synced_at timestamp not null default current_timestamp,
+    unique (legacy_id)
+);
 
 create table if not exists issue_fact (
     id bigserial primary key,
@@ -904,6 +974,12 @@ create index if not exists idx_code_review_match_mode_records_query
     on code_review_match_mode_records(source_instance, merged_at_source desc, merge_request_iid desc);
 create index if not exists idx_code_review_match_mode_records_project
     on code_review_match_mode_records(project_name, target_branch, module_name);
+create index if not exists idx_review_match_mode_reports_query
+    on review_data_match_mode_reports(project_name, module_name, review_time desc, id desc);
+create index if not exists idx_review_match_mode_problem_legacy
+    on review_data_match_mode_problem_details(legacy_id);
+create index if not exists idx_legacy_mysql_imported_rows_table
+    on legacy_mysql_imported_rows(table_name, id);
 create index if not exists idx_issue_fact_context on issue_fact(source_system, source_instance, project_id, issue_iid);
 create index if not exists idx_issue_fact_state on issue_fact(issue_state, severity_level, priority_level);
 create index if not exists idx_issue_fact_module on issue_fact(module_name, testing_phase, bug_status);

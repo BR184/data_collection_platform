@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataProblemItemSaveRequest;
 import com.data.collection.platform.entity.ReviewDataRecordSaveRequest;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -152,8 +153,11 @@ public class ReviewDataRecordCommandService {
   @Transactional
   public void deleteProblemItem(Long recordId, Long itemId) {
     persistenceSupport.assertRecordExists(recordId);
-    persistenceSupport.assertProblemItemExists(recordId, itemId);
+    ReviewDataProblemItemResponse deletedItem = persistenceSupport.getProblemItemOrThrow(recordId, itemId);
     persistenceSupport.softDeleteProblemItem(recordId, itemId);
+    if (removeExpertWithoutProblemItems(recordId, deletedItem.reviewerName())) {
+      persistenceSupport.refreshSearchIndex(recordId);
+    }
     persistenceSupport.touchRecord(recordId);
   }
 
@@ -250,6 +254,37 @@ public class ReviewDataRecordCommandService {
       deleted = true;
     }
     return deleted;
+  }
+
+  private boolean removeExpertWithoutProblemItems(Long recordId, String reviewerName) {
+    String normalizedReviewer = TextQuerySupport.normalizeForMatch(reviewerName);
+    if (normalizedReviewer == null) {
+      return false;
+    }
+
+    boolean hasRemainingProblemItem =
+        persistenceSupport.listProblemItems(recordId).stream()
+            .map(ReviewDataProblemItemResponse::reviewerName)
+            .map(TextQuerySupport::normalizeForMatch)
+            .anyMatch(reviewer -> Objects.equals(reviewer, normalizedReviewer));
+    if (hasRemainingProblemItem) {
+      return false;
+    }
+
+    List<String> experts = persistenceSupport.listRecordExperts(recordId);
+    List<String> retainedExperts = new ArrayList<>();
+    boolean removed = false;
+    for (String expert : experts) {
+      if (Objects.equals(TextQuerySupport.normalizeForMatch(expert), normalizedReviewer)) {
+        removed = true;
+        continue;
+      }
+      retainedExperts.add(expert);
+    }
+    if (removed) {
+      persistenceSupport.replaceExperts(recordId, retainedExperts);
+    }
+    return removed;
   }
 
   private Set<String> normalizeExpertNames(List<String> experts) {

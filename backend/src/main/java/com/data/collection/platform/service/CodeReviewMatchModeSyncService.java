@@ -1,28 +1,26 @@
 package com.data.collection.platform.service;
 
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Sorts;
+import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.CodeReviewMatchModeSyncResponse;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.Document;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -33,19 +31,25 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class CodeReviewMatchModeSyncService {
   private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-  private static final String TEMP_TABLE = "code_review_match_mode_records_loading";
+  private static final String CODE_REVIEW_TARGET_TABLE = "code_review_match_mode_records";
+  private static final String CODE_REVIEW_TEMP_TABLE = "code_review_match_mode_records_loading";
+  private static final String RAW_TARGET_TABLE = "legacy_mysql_imported_rows";
+  private static final String RAW_TEMP_TABLE = "legacy_mysql_imported_rows_loading";
 
   private final CodeReviewMatchModeConfigService configService;
   private final CodeReviewMatchModeSwitchService switchService;
   private final JdbcTemplate jdbcTemplate;
+  private final JsonUtils jsonUtils;
 
   public CodeReviewMatchModeSyncService(
       CodeReviewMatchModeConfigService configService,
       CodeReviewMatchModeSwitchService switchService,
-      JdbcTemplate jdbcTemplate) {
+      JdbcTemplate jdbcTemplate,
+      JsonUtils jsonUtils) {
     this.configService = configService;
     this.switchService = switchService;
     this.jdbcTemplate = jdbcTemplate;
+    this.jsonUtils = jsonUtils;
   }
 
   //兼容模式-MatchMode
@@ -72,8 +76,8 @@ public class CodeReviewMatchModeSyncService {
     }
     markRunning();
     try {
-      int count = loadAndReplace(config);
-      markSuccess(count);
+      ImportSummary summary = loadAndReplace(config);
+      markSuccess(summary);
       return currentState(true, "兼容模式已同步老平台数据");
     } catch (Exception error) {
       log.warn("Code review match mode sync failed", error);
@@ -82,24 +86,36 @@ public class CodeReviewMatchModeSyncService {
     }
   }
 
-  private int loadAndReplace(CodeReviewMatchModeConfig config) throws SQLException {
-    createTempTable();
-    int count;
+  private ImportSummary loadAndReplace(CodeReviewMatchModeConfig config) throws SQLException {
+    List<String> selectedTableNames = config.selectedTableNames();
+    boolean refreshCodeReviewRecords = selectedTableNames.contains(config.mysqlTableName());
+    createTempTables(refreshCodeReviewRecords);
+    ImportSummary summary = new ImportSummary();
     try (Connection connection =
         DriverManager.getConnection(config.mysqlJdbcUrl(), config.mysqlUsername(), config.mysqlPassword())) {
       connection.setReadOnly(true);
-      try (PreparedStatement statement = connection.prepareStatement(selectSql(config.mysqlTableName()))) {
-        statement.setFetchSize(Math.max(1, config.mysqlFetchSize()));
-        try (ResultSet rs = statement.executeQuery()) {
-          count = insertRows(config, rs);
-        }
+      for (String tableName : selectedTableNames) {
+        TableLoadResult result = loadRawRows(connection, config, tableName);
+        summary.add(tableName, result.count(), result.columnNames());
+      }
+      if (refreshCodeReviewRecords) {
+        summary.setCodeReviewRecordCount(loadCodeReviewRows(connection, config));
       }
     } catch (RuntimeException | SQLException error) {
-      dropTempTable();
+      dropTempTables(refreshCodeReviewRecords);
       throw error;
     }
-    replaceSnapshot();
-    return count;
+    replaceSnapshots(selectedTableNames, refreshCodeReviewRecords, summary);
+    return summary;
+  }
+
+  private int loadCodeReviewRows(Connection connection, CodeReviewMatchModeConfig config) throws SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(selectSql(config.mysqlTableName()))) {
+      statement.setFetchSize(Math.max(1, config.mysqlFetchSize()));
+      try (ResultSet rs = statement.executeQuery()) {
+        return insertCodeReviewRows(config, rs);
+      }
+    }
   }
 
   private String selectSql(String tableName) {
@@ -143,18 +159,21 @@ public class CodeReviewMatchModeSyncService {
           function_name,
           ct_code_line_count
         from %s
-        """.formatted(safeTableName(tableName));
+        """.formatted(quoteMysqlIdentifier(tableName));
   }
 
-  private String safeTableName(String tableName) {
-    String normalized = tableName == null || tableName.isBlank() ? "spider_crowncad_data" : tableName.trim();
-    if (!normalized.matches("[A-Za-z0-9_]+")) {
-      throw new IllegalArgumentException("兼容模式 MySQL 表名只能包含字母、数字和下划线");
+  private String quoteMysqlIdentifier(String tableName) {
+    if (!StringUtils.hasText(tableName)) {
+      throw new IllegalArgumentException("兼容模式 MySQL 表名不能为空");
     }
-    return normalized;
+    String normalized = tableName.trim();
+    if (normalized.length() > 255 || normalized.indexOf('\0') >= 0) {
+      throw new IllegalArgumentException("兼容模式 MySQL 表名不合法");
+    }
+    return "`" + normalized.replace("`", "``") + "`";
   }
 
-  private int insertRows(CodeReviewMatchModeConfig config, ResultSet rs) throws SQLException {
+  private int insertCodeReviewRows(CodeReviewMatchModeConfig config, ResultSet rs) throws SQLException {
     String sql = """
         insert into %s (
           source_instance, project_id, project_name, repository_name, merge_request_id, merge_request_iid,
@@ -167,36 +186,20 @@ public class CodeReviewMatchModeSyncService {
           performance_specification_count, design_specification_count, other_specification_count,
           review_speed_loc_per_hour, review_speed_kloc_per_hour, review_defect_density_per_kloc,
           review_efficiency_per_hour, commit_count, commit_rate, function_name, clang_added_line_count,
-          synced_at
+          legacy_source_id, synced_at
         ) values (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp
         )
-        """.formatted(TEMP_TABLE);
+        """.formatted(CODE_REVIEW_TEMP_TABLE);
     int count = 0;
     List<Object[]> batch = new ArrayList<>();
-    MongoClient mongoClient = null;
-    MongoCollection<Document> collection = null;
-    if (hasMongoConfig(config)) {
-      try {
-        mongoClient = MongoClients.create(config.mongoUri());
-        collection = mongoClient.getDatabase(config.mongoDatabase()).getCollection(config.mongoAnnotationCollection());
-      } catch (RuntimeException error) {
-        log.warn("Failed to connect match mode MongoDB, fallback to MySQL annotation rate", error);
-      }
-    }
-    try {
-      while (rs.next()) {
-        LegacyRow row = mapLegacyRow(collection, rs);
-        batch.add(row.toArgs());
-        if (batch.size() >= 500) {
-          jdbcTemplate.batchUpdate(sql, batch);
-          count += batch.size();
-          batch.clear();
-        }
-      }
-    } finally {
-      if (mongoClient != null) {
-        mongoClient.close();
+    while (rs.next()) {
+      LegacyRow row = mapLegacyRow(rs);
+      batch.add(row.toArgs());
+      if (batch.size() >= 500) {
+        jdbcTemplate.batchUpdate(sql, batch);
+        count += batch.size();
+        batch.clear();
       }
     }
     if (!batch.isEmpty()) {
@@ -206,8 +209,57 @@ public class CodeReviewMatchModeSyncService {
     return count;
   }
 
-  private LegacyRow mapLegacyRow(MongoCollection<Document> annotationCollection, ResultSet rs) throws SQLException {
+  private TableLoadResult loadRawRows(
+      Connection connection, CodeReviewMatchModeConfig config, String tableName) throws SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(selectAllSql(tableName))) {
+      statement.setFetchSize(Math.max(1, config.mysqlFetchSize()));
+      try (ResultSet rs = statement.executeQuery()) {
+        return insertRawRows(tableName, rs);
+      }
+    }
+  }
+
+  private String selectAllSql(String tableName) {
+    return "select * from " + quoteMysqlIdentifier(tableName);
+  }
+
+  private TableLoadResult insertRawRows(String tableName, ResultSet rs) throws SQLException {
+    String sql = """
+        insert into %s (
+          table_name, row_key, raw_payload, synced_at
+        ) values (
+          ?, ?, ?::jsonb, current_timestamp
+        )
+        """.formatted(RAW_TEMP_TABLE);
+    int count = 0;
+    int rowIndex = 0;
+    List<Object[]> batch = new ArrayList<>();
+    ResultSetMetaData metadata = rs.getMetaData();
+    List<String> columnNames = new ArrayList<>();
+    for (int index = 1; index <= metadata.getColumnCount(); index++) {
+      String label = metadata.getColumnLabel(index);
+      columnNames.add(label == null || label.isBlank() ? metadata.getColumnName(index) : label);
+    }
+    while (rs.next()) {
+      rowIndex++;
+      Map<String, Object> row = currentRow(rs);
+      batch.add(new Object[] {tableName, legacyId(row, rowIndex), jsonUtils.toJson(row)});
+      if (batch.size() >= 500) {
+        jdbcTemplate.batchUpdate(sql, batch);
+        count += batch.size();
+        batch.clear();
+      }
+    }
+    if (!batch.isEmpty()) {
+      jdbcTemplate.batchUpdate(sql, batch);
+      count += batch.size();
+    }
+    return new TableLoadResult(count, List.copyOf(columnNames));
+  }
+
+  private LegacyRow mapLegacyRow(ResultSet rs) throws SQLException {
     String repositoryName = text(rs, "name");
+    String legacySourceId = rs.getObject("id") == null ? null : String.valueOf(rs.getObject("id"));
     Long mergeRequestId = longValue(rs.getObject("id"));
     Integer mergeRequestIid = parseIid(text(rs, "issuable_reference"));
     if (mergeRequestIid != null) {
@@ -225,7 +277,7 @@ public class CodeReviewMatchModeSyncService {
       mergedAt = parseDateTime(text(rs, "merged_time"));
     }
     LocalDateTime walkthroughDate = localDateTime(rs.getObject("code_walkthrough_date"));
-    Double annotationRate = mongoAnnotationRate(annotationCollection, repositoryName, mergeRequestIid, rs.getObject("annotation_rate"));
+    Double annotationRate = doubleValue(rs.getObject("annotation_rate"));
     TextQuerySupport.SearchIndex searchIndex =
         TextQuerySupport.buildSearchIndex(String.join(" ", safe(title), safe(author), safe(projectName), safe(repositoryName), safe(moduleName), safe(targetBranch), safe(mergedBy)));
     return new LegacyRow(
@@ -274,38 +326,8 @@ public class CodeReviewMatchModeSyncService {
         intValue(rs.getObject("commit_count")),
         intValue(rs.getObject("commit_rate")),
         text(rs, "function_name"),
-        intValue(rs.getObject("ct_code_line_count")));
-  }
-
-  private boolean hasMongoConfig(CodeReviewMatchModeConfig config) {
-    return StringUtils.hasText(config.mongoUri())
-        && StringUtils.hasText(config.mongoDatabase())
-        && StringUtils.hasText(config.mongoAnnotationCollection());
-  }
-
-  private Double mongoAnnotationRate(
-      MongoCollection<Document> annotationCollection,
-      String projectId,
-      Integer mergeRequestIid,
-      Object mysqlValue) {
-    Double fallback = doubleValue(mysqlValue);
-    if (annotationCollection == null || mergeRequestIid == null) {
-      return fallback;
-    }
-    try {
-      Document doc =
-          annotationCollection
-              .find(Filters.and(Filters.eq("projectId", projectId), Filters.eq("mergeRequestId", String.valueOf(mergeRequestIid))))
-              .sort(Sorts.descending("createTime"))
-              .first();
-      if (doc == null) {
-        return fallback;
-      }
-      return doubleValue(doc.get("annotationRate"));
-    } catch (RuntimeException error) {
-      log.debug("Failed to load match mode annotation rate from MongoDB", error);
-      return fallback;
-    }
+        intValue(rs.getObject("ct_code_line_count")),
+        legacySourceId);
   }
 
   private String reviewExceptionReason(ResultSet rs) throws SQLException {
@@ -319,30 +341,81 @@ public class CodeReviewMatchModeSyncService {
 
   private String syntheticLabels(String projectName, String moduleName) {
     List<String> labels = new ArrayList<>();
-    if (StringUtils.hasText(projectName)) {
+    if (StringUtils.hasText(projectName) && !CodeReviewIllegalRuleRegistry.isLegacyMissingProject(projectName)) {
       labels.add("项目：" + projectName.trim());
     }
-    if (StringUtils.hasText(moduleName)) {
+    if (StringUtils.hasText(moduleName) && !CodeReviewIllegalRuleRegistry.isLegacyMissingModule(moduleName)) {
       labels.add("模块：" + moduleName.trim());
     }
     return String.join(",", labels);
   }
 
   @Transactional
-  protected void createTempTable() {
-    dropTempTable();
-    jdbcTemplate.execute("create table " + TEMP_TABLE + " (like code_review_match_mode_records including defaults including constraints)");
+  protected void createTempTables(boolean refreshCodeReviewRecords) {
+    dropTempTables(refreshCodeReviewRecords);
+    jdbcTemplate.execute(
+        "create table "
+            + RAW_TEMP_TABLE
+            + " (like "
+            + RAW_TARGET_TABLE
+            + " including defaults including constraints)");
+    if (refreshCodeReviewRecords) {
+      jdbcTemplate.execute(
+          "create table "
+              + CODE_REVIEW_TEMP_TABLE
+              + " (like "
+              + CODE_REVIEW_TARGET_TABLE
+              + " including defaults including constraints)");
+    }
   }
 
   @Transactional
-  protected void replaceSnapshot() {
-    jdbcTemplate.execute("truncate table code_review_match_mode_records");
-    jdbcTemplate.execute("insert into code_review_match_mode_records select * from " + TEMP_TABLE);
-    dropTempTable();
+  protected void replaceSnapshots(
+      List<String> selectedTableNames,
+      boolean refreshCodeReviewRecords,
+      ImportSummary summary) {
+    for (String tableName : selectedTableNames) {
+      jdbcTemplate.update("delete from " + RAW_TARGET_TABLE + " where table_name = ?", tableName);
+    }
+    jdbcTemplate.execute(
+        "insert into "
+            + RAW_TARGET_TABLE
+            + " (table_name, row_key, raw_payload, synced_at) "
+            + "select table_name, row_key, raw_payload, synced_at from "
+            + RAW_TEMP_TABLE);
+    for (TableSummary tableSummary : summary.tableSummaries()) {
+      jdbcTemplate.update("""
+          insert into legacy_mysql_imported_tables(
+            table_name, record_count, last_synced_at, column_names, synced_at
+          ) values (
+            ?, ?, current_timestamp, ?, current_timestamp
+          )
+          on conflict (table_name) do update
+             set record_count = excluded.record_count,
+                 last_synced_at = excluded.last_synced_at,
+                 column_names = excluded.column_names,
+                 synced_at = current_timestamp
+          """,
+          tableSummary.tableName(),
+          tableSummary.count(),
+          jsonUtils.toJson(tableSummary.columnNames()));
+    }
+    if (refreshCodeReviewRecords) {
+      jdbcTemplate.execute("truncate table " + CODE_REVIEW_TARGET_TABLE);
+      jdbcTemplate.execute(
+          "insert into "
+              + CODE_REVIEW_TARGET_TABLE
+              + " select * from "
+              + CODE_REVIEW_TEMP_TABLE);
+    }
+    dropTempTables(refreshCodeReviewRecords);
   }
 
-  protected void dropTempTable() {
-    jdbcTemplate.execute("drop table if exists " + TEMP_TABLE);
+  protected void dropTempTables(boolean refreshCodeReviewRecords) {
+    jdbcTemplate.execute("drop table if exists " + RAW_TEMP_TABLE);
+    if (refreshCodeReviewRecords) {
+      jdbcTemplate.execute("drop table if exists " + CODE_REVIEW_TEMP_TABLE);
+    }
   }
 
   private void markRunning() {
@@ -354,13 +427,13 @@ public class CodeReviewMatchModeSyncService {
         """);
   }
 
-  private void markSuccess(int count) {
+  private void markSuccess(ImportSummary summary) {
     jdbcTemplate.update("""
         update code_review_match_mode_sync_state
            set status = 'SUCCESS', message = ?, record_count = ?, finished_at = current_timestamp,
                updated_at = current_timestamp
          where id = 1
-        """, "兼容模式已同步老平台数据", count);
+        """, "兼容模式已同步老平台数据：" + summary.describe(), summary.totalCount());
   }
 
   private void markFailed(String message) {
@@ -384,6 +457,65 @@ public class CodeReviewMatchModeSyncService {
             rs.getLong("record_count"),
             rs.getTimestamp("started_at") == null ? null : rs.getTimestamp("started_at").toLocalDateTime(),
             rs.getTimestamp("finished_at") == null ? null : rs.getTimestamp("finished_at").toLocalDateTime()));
+  }
+
+  private Map<String, Object> currentRow(ResultSet rs) throws SQLException {
+    ResultSetMetaData metadata = rs.getMetaData();
+    Map<String, Object> row = new LinkedHashMap<>();
+    for (int index = 1; index <= metadata.getColumnCount(); index++) {
+      String label = metadata.getColumnLabel(index);
+      row.put(label == null || label.isBlank() ? metadata.getColumnName(index) : label, jsonValue(rs.getObject(index)));
+    }
+    return row;
+  }
+
+  private Object value(Map<String, Object> row, String... candidates) {
+    if (row == null || row.isEmpty() || candidates == null) {
+      return null;
+    }
+    for (String candidate : candidates) {
+      String normalizedCandidate = normalizeColumnKey(candidate);
+      for (Map.Entry<String, Object> entry : row.entrySet()) {
+        if (normalizeColumnKey(entry.getKey()).equals(normalizedCandidate)) {
+          return entry.getValue();
+        }
+      }
+    }
+    return null;
+  }
+
+  private String textValue(Map<String, Object> row, String... candidates) {
+    Object value = value(row, candidates);
+    if (value == null) {
+      return null;
+    }
+    String text = String.valueOf(value).trim();
+    return text.isEmpty() ? null : text;
+  }
+
+  private String legacyId(Map<String, Object> row, int rowIndex) {
+    String id = textValue(row, "id", "_id", "legacy_id", "legacyId");
+    if (id != null) {
+      return rowIndex + "-" + id;
+    }
+    return "row-" + rowIndex + "-" + Integer.toHexString(row.toString().hashCode());
+  }
+
+  private Object jsonValue(Object value) {
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime().toString();
+    }
+    if (value instanceof java.sql.Date date) {
+      return date.toLocalDate().toString();
+    }
+    if (value instanceof Date date) {
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()).toString();
+    }
+    return value;
+  }
+
+  private String normalizeColumnKey(String key) {
+    return key == null ? "" : key.replace("_", "").toLowerCase(java.util.Locale.ROOT);
   }
 
   private String text(ResultSet rs, String column) throws SQLException {
@@ -425,6 +557,33 @@ public class CodeReviewMatchModeSyncService {
     return parseDateTime(String.valueOf(value));
   }
 
+  private LocalDate localDate(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof java.sql.Date date) {
+      return date.toLocalDate();
+    }
+    if (value instanceof Timestamp timestamp) {
+      return timestamp.toLocalDateTime().toLocalDate();
+    }
+    if (value instanceof LocalDate date) {
+      return date;
+    }
+    if (value instanceof LocalDateTime dateTime) {
+      return dateTime.toLocalDate();
+    }
+    if (value instanceof Date date) {
+      return LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault()).toLocalDate();
+    }
+    String text = String.valueOf(value).trim();
+    if (text.isEmpty()) {
+      return null;
+    }
+    LocalDateTime parsed = parseDateTime(text);
+    return parsed == null ? null : parsed.toLocalDate();
+  }
+
   private LocalDateTime parseDateTime(String value) {
     if (!StringUtils.hasText(value)) {
       return null;
@@ -448,7 +607,8 @@ public class CodeReviewMatchModeSyncService {
     if (value instanceof Number number) {
       return number.intValue();
     }
-    return Integer.parseInt(String.valueOf(value));
+    String text = String.valueOf(value).trim();
+    return text.isEmpty() ? null : Integer.parseInt(text);
   }
 
   private Long longValue(Object value) {
@@ -458,7 +618,8 @@ public class CodeReviewMatchModeSyncService {
     if (value instanceof Number number) {
       return number.longValue();
     }
-    return Long.parseLong(String.valueOf(value));
+    String text = String.valueOf(value).trim();
+    return text.isEmpty() ? null : Long.parseLong(text);
   }
 
   private Double doubleValue(Object value) {
@@ -468,7 +629,8 @@ public class CodeReviewMatchModeSyncService {
     if (value instanceof Number number) {
       return number.doubleValue();
     }
-    return Double.parseDouble(String.valueOf(value));
+    String text = String.valueOf(value).trim();
+    return text.isEmpty() ? null : Double.parseDouble(text);
   }
 
   private BigDecimal decimal(Object value) {
@@ -481,7 +643,53 @@ public class CodeReviewMatchModeSyncService {
     if (value instanceof Number number) {
       return BigDecimal.valueOf(number.doubleValue());
     }
-    return new BigDecimal(String.valueOf(value));
+    String text = String.valueOf(value).trim();
+    return text.isEmpty() ? null : new BigDecimal(text);
+  }
+
+  private static final class ImportSummary {
+    private final Map<String, TableSummary> tables = new LinkedHashMap<>();
+    private int codeReviewRecordCount;
+
+    void add(String tableName, int count, List<String> columnNames) {
+      tables.put(tableName, new TableSummary(tableName, count, columnNames));
+    }
+
+    void setCodeReviewRecordCount(int count) {
+      codeReviewRecordCount = count;
+    }
+
+    List<TableSummary> tableSummaries() {
+      return List.copyOf(tables.values());
+    }
+
+    long totalCount() {
+      long total = 0L;
+      for (TableSummary table : tables.values()) {
+        total += table.count();
+      }
+      return total;
+    }
+
+    String describe() {
+      if (tables.isEmpty()) {
+        return "未选择数据表";
+      }
+      List<String> parts = new ArrayList<>();
+      for (TableSummary table : tables.values()) {
+        parts.add(table.tableName() + " " + table.count() + " 条");
+      }
+      if (codeReviewRecordCount > 0) {
+        parts.add("代码走查兼容记录 " + codeReviewRecordCount + " 条");
+      }
+      return String.join("，", parts);
+    }
+  }
+
+  private record TableLoadResult(int count, List<String> columnNames) {
+  }
+
+  private record TableSummary(String tableName, int count, List<String> columnNames) {
   }
 
   private record LegacyRow(
@@ -530,7 +738,8 @@ public class CodeReviewMatchModeSyncService {
       Integer commitCount,
       Integer commitRate,
       String functionName,
-      Integer clangAddedLineCount) {
+      Integer clangAddedLineCount,
+      String legacySourceId) {
     Object[] toArgs() {
       return new Object[] {
           sourceInstance, projectId, projectName, repositoryName, mergeRequestId, mergeRequestIid, title,
@@ -541,7 +750,7 @@ public class CodeReviewMatchModeSyncService {
           deletedLines, codeSpecificationCount, codeLogicSpecificationCount, performanceSpecificationCount,
           designSpecificationCount, otherSpecificationCount, reviewSpeedLocPerHour, reviewSpeedKlocPerHour,
           reviewDefectDensityPerKloc, reviewEfficiencyPerHour, commitCount, commitRate, functionName,
-          clangAddedLineCount
+          clangAddedLineCount, legacySourceId
       };
     }
   }

@@ -2,7 +2,7 @@
 import { computed, ref, toRef, useSlots, watch } from 'vue';
 // 通用记录表封装分页、排序、关键词和条件筛选，是多个正式记录页的交互底座。
 // 表格不理解业务字段含义，只根据列配置和事件把用户意图传回页面层。
-import { ArrowDown, ArrowUp, Refresh } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, QuestionFilled, Refresh } from '@element-plus/icons-vue';
 import BaseSearchInput from './BaseSearchInput.vue';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';
 import RecordTableFilterFields from './RecordTableFilterFields.vue';
@@ -425,6 +425,16 @@ function handleStandaloneKeywordClear() {
           :header-align="column.headerAlign ?? 'center'"
           :show-overflow-tooltip="column.showOverflowTooltip ?? true"
         >
+          <template v-if="column.headerTooltip" #header>
+            <span class="record-table-header-help">
+              <span>{{ column.label }}</span>
+              <el-tooltip :content="column.headerTooltip" placement="top">
+                <el-icon class="record-table-header-help-icon">
+                  <QuestionFilled />
+                </el-icon>
+              </el-tooltip>
+            </span>
+          </template>
           <template #default="{ row }">
             <slot
               v-if="$slots[`cell-${column.key}`]"
@@ -686,6 +696,21 @@ function handleStandaloneKeywordClear() {
 
 :deep(.el-table th.el-table__cell) {
   background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+}
+
+.record-table-header-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.record-table-header-help-icon {
+  flex: 0 0 auto;
+  color: rgba(100, 116, 139, 0.86);
+  font-size: 14px;
+  vertical-align: middle;
 }
 
 :deep(.record-table-expand-column-hidden) {
