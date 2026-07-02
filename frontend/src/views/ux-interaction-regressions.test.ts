@@ -28,7 +28,7 @@ describe('UX interaction regressions', () => {
     expect(mirrorSettingsSource).toContain('onBeforeRouteLeave');
     expect(mirrorSettingsSource).toContain('confirmDiscardUnsavedChanges');
     expect(mirrorSettingsSource).toContain('未保存修改');
-    expect(mirrorSettingsSource).toContain('平台会阻止保存');
+    expect(mirrorSettingsSource).toContain('删除镜像数据');
   });
 
   it('shows loading feedback while testing the mirror connection', () => {
@@ -36,11 +36,11 @@ describe('UX interaction regressions', () => {
     expect(mirrorSettingsSource).toContain(':loading="testing"');
   });
 
-  it('keeps mirror source creation separate from selecting an existing source', () => {
-    expect(mirrorSettingsSource).toContain('isCreatingNewConfig');
-    expect(mirrorSettingsSource).toContain('新增数据源（未保存）');
-    expect(mirrorSettingsSource).toContain(':disabled="isCreatingNewConfig"');
-    expect(mirrorSettingsSource).toContain('cancelNewConfig');
+  it('keeps GitLab mirror settings as a single-source configuration', () => {
+    expect(mirrorSettingsSource).not.toContain('isCreatingNewConfig');
+    expect(mirrorSettingsSource).not.toContain('新增数据源');
+    expect(mirrorSettingsSource).not.toContain('来源标识');
+    expect(mirrorSettingsSource).not.toContain('cancelNewConfig');
     expect(mirrorSettingsSource).toContain('savedConfigActionDisabled');
     expect(mirrorSettingsSource).toContain('refreshCurrentStatus');
   });

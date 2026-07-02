@@ -37,11 +37,10 @@ public class FactRefreshImpactScopeService {
       return ImpactScope.empty();
     }
     String normalizedFactType = factType.trim().toUpperCase(Locale.ROOT);
-    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     try {
       return switch (normalizedFactType) {
-        case "ISSUE" -> resolveIssueScope(tasks, normalizedSource);
-        case "MERGE_REQUEST" -> resolveMergeRequestScope(tasks, normalizedSource);
+        case "ISSUE" -> resolveIssueScope(tasks);
+        case "MERGE_REQUEST" -> resolveMergeRequestScope(tasks);
         default -> ImpactScope.fallback();
       };
     } catch (DataAccessException e) {
@@ -49,7 +48,7 @@ public class FactRefreshImpactScopeService {
     }
   }
 
-  private ImpactScope resolveIssueScope(List<SyncRunTableTask> tasks, String sourceInstance) {
+  private ImpactScope resolveIssueScope(List<SyncRunTableTask> tasks) {
     Set<Target> targets = new LinkedHashSet<>();
     for (SyncRunTableTask task : tasks) {
       String table = normalizeTable(task.getSourceTable());
@@ -57,10 +56,10 @@ public class FactRefreshImpactScopeService {
         return ImpactScope.fallback();
       }
       switch (table) {
-        case "issues" -> addIssueTargetsFromIssues(task, sourceInstance, targets);
-        case "notes" -> addIssueTargetsFromNotes(task, sourceInstance, targets);
-        case "label_links" -> addIssueTargetsFromLabelLinks(task, sourceInstance, targets);
-        case "issue_assignees" -> addIssueTargetsFromIssueAssignees(task, sourceInstance, targets);
+        case "issues" -> addIssueTargetsFromIssues(task, targets);
+        case "notes" -> addIssueTargetsFromNotes(task, targets);
+        case "label_links" -> addIssueTargetsFromLabelLinks(task, targets);
+        case "issue_assignees" -> addIssueTargetsFromIssueAssignees(task, targets);
         default -> {
           // Tables unrelated to issue facts can be ignored for ISSUE tasks.
         }
@@ -72,7 +71,7 @@ public class FactRefreshImpactScopeService {
     return ImpactScope.precise(List.copyOf(targets));
   }
 
-  private ImpactScope resolveMergeRequestScope(List<SyncRunTableTask> tasks, String sourceInstance) {
+  private ImpactScope resolveMergeRequestScope(List<SyncRunTableTask> tasks) {
     Set<Target> targets = new LinkedHashSet<>();
     for (SyncRunTableTask task : tasks) {
       String table = normalizeTable(task.getSourceTable());
@@ -80,12 +79,12 @@ public class FactRefreshImpactScopeService {
         return ImpactScope.fallback();
       }
       switch (table) {
-        case "merge_requests" -> addMergeRequestTargetsFromMergeRequests(task, sourceInstance, targets);
-        case "merge_request_metrics" -> addMergeRequestTargetsFromMergeRequestMetrics(task, sourceInstance, targets);
+        case "merge_requests" -> addMergeRequestTargetsFromMergeRequests(task, targets);
+        case "merge_request_metrics" -> addMergeRequestTargetsFromMergeRequestMetrics(task, targets);
         case "merge_request_reviewers", "merge_request_assignees" ->
-            addMergeRequestTargetsFromJoinTable(task, sourceInstance, table, targets);
-        case "notes" -> addMergeRequestTargetsFromNotes(task, sourceInstance, targets);
-        case "label_links" -> addMergeRequestTargetsFromLabelLinks(task, sourceInstance, targets);
+            addMergeRequestTargetsFromJoinTable(task, table, targets);
+        case "notes" -> addMergeRequestTargetsFromNotes(task, targets);
+        case "label_links" -> addMergeRequestTargetsFromLabelLinks(task, targets);
         default -> {
           // Tables unrelated to merge request facts can be ignored for MERGE_REQUEST tasks.
         }
@@ -97,8 +96,8 @@ public class FactRefreshImpactScopeService {
     return ImpactScope.precise(List.copyOf(targets));
   }
 
-  private void addIssueTargetsFromIssues(SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String issues = quoteMirrorTable("issues", sourceInstance);
+  private void addIssueTargetsFromIssues(SyncRunTableTask task, Set<Target> targets) {
+    String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
         """
             select distinct project_id, iid
@@ -111,9 +110,9 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addIssueTargetsFromNotes(SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String notes = quoteMirrorTable("notes", sourceInstance);
-    String issues = quoteMirrorTable("issues", sourceInstance);
+  private void addIssueTargetsFromNotes(SyncRunTableTask task, Set<Target> targets) {
+    String notes = quoteMirrorTable("notes");
+    String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
         """
             select distinct i.project_id, i.iid
@@ -130,9 +129,9 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addIssueTargetsFromLabelLinks(SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String labelLinks = quoteMirrorTable("label_links", sourceInstance);
-    String issues = quoteMirrorTable("issues", sourceInstance);
+  private void addIssueTargetsFromLabelLinks(SyncRunTableTask task, Set<Target> targets) {
+    String labelLinks = quoteMirrorTable("label_links");
+    String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
         """
             select distinct i.project_id, i.iid
@@ -149,9 +148,9 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addIssueTargetsFromIssueAssignees(SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String assignees = quoteMirrorTable("issue_assignees", sourceInstance);
-    String issues = quoteMirrorTable("issues", sourceInstance);
+  private void addIssueTargetsFromIssueAssignees(SyncRunTableTask task, Set<Target> targets) {
+    String assignees = quoteMirrorTable("issue_assignees");
+    String issues = quoteMirrorTable("issues");
     targets.addAll(queryTargets(
         """
             select distinct i.project_id, i.iid
@@ -167,9 +166,8 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addMergeRequestTargetsFromMergeRequests(
-      SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String mergeRequests = quoteMirrorTable("merge_requests", sourceInstance);
+  private void addMergeRequestTargetsFromMergeRequests(SyncRunTableTask task, Set<Target> targets) {
+    String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
         """
             select distinct target_project_id as project_id, iid
@@ -182,10 +180,9 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addMergeRequestTargetsFromMergeRequestMetrics(
-      SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String metrics = quoteMirrorTable("merge_request_metrics", sourceInstance);
-    String mergeRequests = quoteMirrorTable("merge_requests", sourceInstance);
+  private void addMergeRequestTargetsFromMergeRequestMetrics(SyncRunTableTask task, Set<Target> targets) {
+    String metrics = quoteMirrorTable("merge_request_metrics");
+    String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
         """
             select distinct mr.target_project_id as project_id, mr.iid
@@ -202,9 +199,9 @@ public class FactRefreshImpactScopeService {
   }
 
   private void addMergeRequestTargetsFromJoinTable(
-      SyncRunTableTask task, String sourceInstance, String sourceTable, Set<Target> targets) {
-    String joinTable = quoteMirrorTable(sourceTable, sourceInstance);
-    String mergeRequests = quoteMirrorTable("merge_requests", sourceInstance);
+      SyncRunTableTask task, String sourceTable, Set<Target> targets) {
+    String joinTable = quoteMirrorTable(sourceTable);
+    String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
         """
             select distinct mr.target_project_id as project_id, mr.iid
@@ -220,9 +217,9 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addMergeRequestTargetsFromNotes(SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String notes = quoteMirrorTable("notes", sourceInstance);
-    String mergeRequests = quoteMirrorTable("merge_requests", sourceInstance);
+  private void addMergeRequestTargetsFromNotes(SyncRunTableTask task, Set<Target> targets) {
+    String notes = quoteMirrorTable("notes");
+    String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
         """
             select distinct mr.target_project_id as project_id, mr.iid
@@ -239,10 +236,9 @@ public class FactRefreshImpactScopeService {
         task.getId()));
   }
 
-  private void addMergeRequestTargetsFromLabelLinks(
-      SyncRunTableTask task, String sourceInstance, Set<Target> targets) {
-    String labelLinks = quoteMirrorTable("label_links", sourceInstance);
-    String mergeRequests = quoteMirrorTable("merge_requests", sourceInstance);
+  private void addMergeRequestTargetsFromLabelLinks(SyncRunTableTask task, Set<Target> targets) {
+    String labelLinks = quoteMirrorTable("label_links");
+    String mergeRequests = quoteMirrorTable("merge_requests");
     targets.addAll(queryTargets(
         """
             select distinct mr.target_project_id as project_id, mr.iid
@@ -269,8 +265,8 @@ public class FactRefreshImpactScopeService {
         taskId);
   }
 
-  private String quoteMirrorTable(String sourceTable, String sourceInstance) {
-    return quoteIdentifier(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable, sourceInstance));
+  private String quoteMirrorTable(String sourceTable) {
+    return quoteIdentifier(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable));
   }
 
   private String quoteIdentifier(String identifier) {

@@ -52,8 +52,12 @@ public class ReviewDataRecordReadRepository {
         coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
         coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
         coalesce(problem.meeting_review_problem_count, 0) as meeting_review_problem_count,
-        case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / problem.total_workload_hours end as review_efficiency,
-        case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else r.review_scale_pages::numeric / problem.total_workload_hours end as review_rate
+        """
+          + ReviewDataMetricSqlExpressions.REVIEW_EFFICIENCY
+          + " as review_efficiency,\n        "
+          + ReviewDataMetricSqlExpressions.REVIEW_RATE
+          + " as review_rate\n"
+          + """
       from review_records r
       left join (
         select
@@ -194,9 +198,14 @@ public class ReviewDataRecordReadRepository {
             coalesce(problem.independent_review_problem_count, 0) as independent_review_problem_count,
             coalesce(problem.meeting_review_workload, 0) as meeting_review_workload,
             coalesce(problem.meeting_review_problem_count, 0) as meeting_review_problem_count,
-            case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end as problem_density,
-            case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / problem.total_workload_hours end as review_efficiency,
-            case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else r.review_scale_pages::numeric / problem.total_workload_hours end as review_rate
+            """
+            + ReviewDataMetricSqlExpressions.PROBLEM_DENSITY
+            + " as problem_density,\n            "
+            + ReviewDataMetricSqlExpressions.REVIEW_EFFICIENCY
+            + " as review_efficiency,\n            "
+            + ReviewDataMetricSqlExpressions.REVIEW_RATE
+            + " as review_rate\n"
+            + """
         """
             + from.sql()
             + """
@@ -394,7 +403,7 @@ public class ReviewDataRecordReadRepository {
         rs.getLong("id"),
         TextQuerySupport.normalizeDisplay(rs.getString("project_name")),
         TextQuerySupport.normalizeDisplay(rs.getString("title")),
-        TextQuerySupport.normalizeDisplay(rs.getString("module_name")),
+        ReviewDataModuleNameSupport.normalize(rs.getString("module_name")),
         TextQuerySupport.normalizeDisplay(rs.getString("review_type")),
         rs.getDate("review_date") == null ? null : rs.getDate("review_date").toLocalDate(),
         TextQuerySupport.normalizeDisplay(rs.getString("review_owner")),
@@ -432,7 +441,8 @@ public class ReviewDataRecordReadRepository {
     if (problemCount == null || reviewScalePages == null || reviewScalePages <= 0) {
       return 0D;
     }
-    return problemCount.doubleValue() / reviewScalePages.doubleValue();
+    return ReviewDataNumberSupport.floorToTwoDecimals(
+        problemCount.doubleValue() / reviewScalePages.doubleValue());
   }
 
   private Boolean isReachStandard(Integer problemCount, Integer reviewScalePages) {

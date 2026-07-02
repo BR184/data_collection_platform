@@ -46,8 +46,14 @@ public class GitlabConfigService {
   public GitlabSyncConfig getConfig() {
     GitlabSyncConfig config =
         configMapper.selectOne(new LambdaQueryWrapper<GitlabSyncConfig>()
-            .orderByAsc(GitlabSyncConfig::getId)
+            .eq(GitlabSyncConfig::getSourceInstance, GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE)
             .last("limit 1"));
+    if (config == null) {
+      config =
+          configMapper.selectOne(new LambdaQueryWrapper<GitlabSyncConfig>()
+              .orderByAsc(GitlabSyncConfig::getId)
+              .last("limit 1"));
+    }
     if (config == null) {
       return defaultConfig();
     }
@@ -56,15 +62,7 @@ public class GitlabConfigService {
   }
 
   public List<GitlabSyncConfig> listConfigs() {
-    List<GitlabSyncConfig> configs =
-        configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
-            .orderByAsc(GitlabSyncConfig::getSourceInstance)
-            .orderByAsc(GitlabSyncConfig::getId));
-    if (configs == null || configs.isEmpty()) {
-      return List.of(defaultConfig());
-    }
-    configs.forEach(this::normalizePersistedSourceInstance);
-    return configs;
+    return List.of(getConfig());
   }
 
   public GitlabSyncConfig getConfigById(Long id) {
@@ -207,38 +205,18 @@ public class GitlabConfigService {
       GitlabSyncConfig byId = configMapper.selectById(input.getId());
       if (byId != null) {
         normalizePersistedSourceInstance(byId);
-        ensureSourceInstanceAvailableForUpdate(input, byId);
         return byId;
       }
     }
-    String sourceInstance =
-        GitlabSourceInstanceSupport.normalizeSourceInstance(input == null ? null : input.getSourceInstance());
-    validateSourceInstance(sourceInstance);
     GitlabSyncConfig bySource =
         configMapper.selectOne(new LambdaQueryWrapper<GitlabSyncConfig>()
-            .eq(GitlabSyncConfig::getSourceInstance, sourceInstance)
+            .eq(GitlabSyncConfig::getSourceInstance, GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE)
             .last("limit 1"));
     if (bySource != null) {
       normalizePersistedSourceInstance(bySource);
       return bySource;
     }
-    return defaultConfig(sourceInstance);
-  }
-
-  private void ensureSourceInstanceAvailableForUpdate(GitlabSyncConfig input, GitlabSyncConfig current) {
-    String nextSourceInstance =
-        GitlabSourceInstanceSupport.normalizeSourceInstance(input == null ? null : input.getSourceInstance());
-    validateSourceInstance(nextSourceInstance);
-    if (nextSourceInstance.equals(current.getSourceInstance())) {
-      return;
-    }
-    GitlabSyncConfig existing =
-        configMapper.selectOne(new LambdaQueryWrapper<GitlabSyncConfig>()
-            .eq(GitlabSyncConfig::getSourceInstance, nextSourceInstance)
-            .last("limit 1"));
-    if (existing != null && existing.getId() != null && !existing.getId().equals(current.getId())) {
-      throw new BizException("GitLab 数据源标识已存在：" + nextSourceInstance);
-    }
+    return defaultConfig();
   }
 
   private GitlabSyncConfig defaultConfig() {
@@ -254,6 +232,7 @@ public class GitlabConfigService {
     config.setWebBaseUrl(null);
     config.setApiToken("");
     config.setDelayLabelWritebackEnabled(false);
+    config.setMatchModeEnabled(true);
     config.setAutoSyncEnabled(false);
     config.setSourceMode(SourceMode.DOCKER);
     config.setWhitelistMode(WhitelistMode.RECOMMENDED);
@@ -283,18 +262,17 @@ public class GitlabConfigService {
     GitlabSyncConfig normalized = new GitlabSyncConfig();
     boolean sourceEnabled = config.getSourceEnabled() == null ? config.isEnabled() : config.getSourceEnabled();
     boolean autoSyncEnabled = config.isAutoSyncEnabled();
-    String sourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance());
-    validateSourceInstance(sourceInstance);
     String resolvedSystemHookSecret = resolveSecret(config.getSystemHookSecret(), current.getSystemHookSecret());
     boolean systemHookEnabled = resolveSystemHookEnabled(config, current, resolvedSystemHookSecret);
     normalized.setId(current.getId());
     normalized.setName(config.getName());
     normalized.setEnabled(sourceEnabled);
     normalized.setSourceEnabled(sourceEnabled);
-    normalized.setSourceInstance(sourceInstance);
+    normalized.setSourceInstance(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
     normalized.setWebBaseUrl(normalizeOptionalText(config.getWebBaseUrl()));
     normalized.setApiToken(resolveSecret(config.getApiToken(), current.getApiToken()));
     normalized.setDelayLabelWritebackEnabled(Boolean.TRUE.equals(config.getDelayLabelWritebackEnabled()));
+    normalized.setMatchModeEnabled(config.getMatchModeEnabled() == null || Boolean.TRUE.equals(config.getMatchModeEnabled()));
     normalized.setAutoSyncEnabled(autoSyncEnabled);
     normalized.setSourceMode(config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode());
     normalized.setWhitelistMode(normalizeWhitelistMode(config.getWhitelistMode()));
@@ -328,75 +306,7 @@ public class GitlabConfigService {
     normalized.setMaxSyncThreads(normalizeMaxSyncThreads(config.getMaxSyncThreads(), current.getMaxSyncThreads()));
     validateSystemHookConfig(normalized);
     validateSourceConfigForAutomaticSync(normalized);
-    validatePhysicalSourceUniqueness(normalized);
     return normalized;
-  }
-
-  private void validatePhysicalSourceUniqueness(GitlabSyncConfig normalized) {
-    if (!isSourceEnabled(normalized)) {
-      return;
-    }
-    String fingerprint = physicalSourceFingerprint(normalized);
-    if (!StringUtils.hasText(fingerprint)) {
-      return;
-    }
-    List<GitlabSyncConfig> enabledConfigs =
-        configMapper.selectList(new LambdaQueryWrapper<GitlabSyncConfig>()
-            .eq(GitlabSyncConfig::getSourceEnabled, true));
-    if (enabledConfigs == null || enabledConfigs.isEmpty()) {
-      return;
-    }
-    for (GitlabSyncConfig existing : enabledConfigs) {
-      normalizePersistedSourceInstance(existing);
-      if (existing.getId() != null && existing.getId().equals(normalized.getId())) {
-        continue;
-      }
-      if (!fingerprint.equals(physicalSourceFingerprint(existing))) {
-        continue;
-      }
-      if (!normalized.isAutoSyncEnabled() && !existing.isAutoSyncEnabled()) {
-        continue;
-      }
-      throw new BizException(
-          "同一个 GitLab 源库已由 "
-              + existing.getSourceInstance()
-              + " 启用；请停用其中一个，或关闭自动同步后作为测试源保存");
-    }
-  }
-
-  private String physicalSourceFingerprint(GitlabSyncConfig config) {
-    if (config == null) {
-      return "";
-    }
-    SourceMode sourceMode = config.getSourceMode() == null ? SourceMode.DOCKER : config.getSourceMode();
-    if (sourceMode == SourceMode.DIRECT) {
-      if (!StringUtils.hasText(config.getDbHost())
-          || config.getDbPort() == null
-          || !StringUtils.hasText(config.getDbName())
-          || !StringUtils.hasText(config.getDbUsername())) {
-        return "";
-      }
-      return String.join(
-          "|",
-          "direct",
-          normalizeFingerprintPart(config.getDbHost()),
-          String.valueOf(config.getDbPort()),
-          normalizeFingerprintPart(config.getDbName()),
-          normalizeFingerprintPart(config.getDbUsername()));
-    }
-    if (!StringUtils.hasText(config.getDockerContainerName()) || !StringUtils.hasText(config.getDbName())) {
-      return "";
-    }
-    return String.join(
-        "|",
-        "docker",
-        normalizeFingerprintPart(config.getDockerContainerName()),
-        normalizeFingerprintPart(config.getDbName()),
-        normalizeFingerprintPart(config.getDbUsername()));
-  }
-
-  private String normalizeFingerprintPart(String value) {
-    return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
   }
 
   private void validateSourceConfigForAutomaticSync(GitlabSyncConfig normalized) {
@@ -583,18 +493,8 @@ public class GitlabConfigService {
     return nextValue;
   }
 
-  private void validateSourceInstance(String sourceInstance) {
-    if (sourceInstance != null
-        && sourceInstance.length() > GitlabSourceInstanceSupport.MAX_SOURCE_INSTANCE_LENGTH) {
-      throw new BizException(
-          "GitLab 数据源标识长度不能超过 "
-              + GitlabSourceInstanceSupport.MAX_SOURCE_INSTANCE_LENGTH
-              + " 个字符");
-    }
-  }
-
   private void normalizePersistedSourceInstance(GitlabSyncConfig config) {
-    config.setSourceInstance(GitlabSourceInstanceSupport.normalizeSourceInstance(config.getSourceInstance()));
+    config.setSourceInstance(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
     if (config.getSourceEnabled() == null) {
       config.setSourceEnabled(config.isEnabled());
     }
@@ -603,6 +503,9 @@ public class GitlabConfigService {
     }
     if (config.getDelayLabelWritebackEnabled() == null) {
       config.setDelayLabelWritebackEnabled(false);
+    }
+    if (config.getMatchModeEnabled() == null) {
+      config.setMatchModeEnabled(true);
     }
     if (config.getSyncThreadMode() == null || config.getSyncThreadMode().isBlank()) {
       config.setSyncThreadMode(SyncThreadBudgetResolver.MODE_FIXED);

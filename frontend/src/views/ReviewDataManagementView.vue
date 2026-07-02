@@ -15,7 +15,7 @@ import ReviewDataRuleExplanationDrawer from './review-data/ReviewDataRuleExplana
 import ReviewProblemItemFormDialog from './review-data/ReviewProblemItemFormDialog.vue';
 import ReviewRecordFormDialog from './review-data/ReviewRecordFormDialog.vue';
 import { reviewDataRuleExplanationContent } from './review-data/review-data-rule-explanation';
-import { useReviewDataExport, formatExportFileDate } from './review-data/useReviewDataExport';
+import { useReviewDataExport } from './review-data/useReviewDataExport';
 import { useReviewDataDetail } from './review-data/useReviewDataDetail';
 import { useReviewDataPageActions } from './review-data/useReviewDataPageActions';
 import { useReviewDataRecords } from './review-data/useReviewDataRecords';
@@ -26,11 +26,16 @@ import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
 import { downloadBlob } from '../utils/csv-download';
 import type { ReviewDataRecordRowResponse } from '../types/api';
+import type {
+  RecordTableActiveFilterTag,
+  RecordTableFilterField,
+} from '../types/record-table';
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import {
+  buildReviewDataFilterTags,
   buildReviewDataFilterFields,
   reviewDataColumns,
   reviewProblemItemColumns,
@@ -161,12 +166,68 @@ const reviewDataSourceInstance = computed(() => String(route.query.sourceInstanc
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 const {
   filterDraft,
+  activeFilterTags: conditionFilterGroupTags,
   initializeFromQuery,
   buildFilterPayload,
   resetDraft,
   buildApplyQueryPatch,
   buildResetQueryPatch,
 } = useConditionFilterGroupState(reviewFilterFields);
+
+const filterValues = computed<Record<string, unknown>>(() => ({
+  title: String(route.query.title ?? ''),
+  projectName: String(route.query.projectName ?? ''),
+  moduleName: String(route.query.moduleName ?? ''),
+  reviewOwner: String(route.query.reviewOwner ?? ''),
+  reviewType: String(route.query.reviewType ?? ''),
+  problemStatus: String(route.query.problemStatus ?? ''),
+  reviewExpert: String(route.query.reviewExpert ?? ''),
+}));
+
+const primaryFilters = computed<RecordTableFilterField[]>(() => [
+  { key: 'title', label: '标题', type: 'input', placeholder: '输入标题关键字', width: 220 },
+  {
+    key: 'projectName',
+    label: '项目',
+    type: 'select',
+    options: [{ label: '全部项目', value: '' }, ...filterOptions.value.projectNames],
+  },
+  {
+    key: 'moduleName',
+    label: '模块',
+    type: 'select',
+    options: [{ label: '全部模块', value: '' }, ...filterOptions.value.moduleNames],
+  },
+  {
+    key: 'reviewOwner',
+    label: '负责人',
+    type: 'select',
+    options: [{ label: '全部负责人', value: '' }, ...filterOptions.value.reviewOwners],
+  },
+  {
+    key: 'reviewType',
+    label: '评审类型',
+    type: 'select',
+    options: [{ label: '全部评审类型', value: '' }, ...filterOptions.value.reviewTypes],
+  },
+  {
+    key: 'problemStatus',
+    label: '问题状态',
+    type: 'select',
+    options: [{ label: '全部问题状态', value: '' }, ...filterOptions.value.problemStatuses],
+  },
+  {
+    key: 'reviewExpert',
+    label: '评审专家',
+    type: 'select',
+    options: [{ label: '全部评审专家', value: '' }, ...filterOptions.value.reviewExperts],
+  },
+]);
+
+const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
+  ...conditionFilterGroupTags.value,
+  ...buildReviewDataFilterTags(filterValues.value),
+]);
 
 const {
   buildRecordQueryParams: buildReviewDataRecordQueryParams,
@@ -212,7 +273,19 @@ async function loadRows() {
 }
 
 async function handleClearFilter(key: string) {
-  void key;
+  if (key === 'filterGroup') {
+    resetDraft();
+    await patchQuery({ page: 1, ...buildResetQueryPatch(route.query) });
+    return;
+  }
+  await patchQuery({ page: 1, [key]: null });
+}
+
+async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
+  await patchQuery({
+    page: 1,
+    [payload.key]: Array.isArray(payload.value) ? payload.value.join(',') || null : payload.value,
+  });
 }
 
 async function handleConditionFilterApply() {
@@ -244,7 +317,7 @@ async function handleExportRecordProblemDetails(row: Record<string, unknown>) {
   }
   try {
     const blob = await api.exportReviewDataRecordProblemDetailsWorkbook(raw.id);
-    downloadBlob(blob, `评审问题详情_${raw.id}_${formatExportFileDate(new Date())}.xlsx`);
+    downloadBlob(blob, '评审问题详情导出.xlsx');
     ElMessage.success('已导出当前评审的问题详情');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评审问题详情导出失败');
@@ -313,6 +386,9 @@ const {
       :page="page"
       :page-size="pageSize"
       :total="total"
+      :primary-filters="primaryFilters"
+      :filter-values="filterValues"
+      :active-filter-tags="activeFilterTags"
       :expanded-row-keys="expandedRowKeys"
       :expand-column-visible="false"
       :row-actions-width="188"
@@ -321,6 +397,7 @@ const {
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
       @search="handleKeywordSearch"
+      @filter-change="handleFilterChange"
       @query="handleQuery"
       @clear-filter="handleClearFilter"
       @sort-change="handleSortChange"

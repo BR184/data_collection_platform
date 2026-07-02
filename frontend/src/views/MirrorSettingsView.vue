@@ -29,9 +29,6 @@ const tableSyncDiagnosticsLoading = ref(false);
 const tableTaskDrawerVisible = ref(false);
 const retryingFailedRun = ref(false);
 const selectedConfigId = ref<number | undefined>(undefined);
-const isCreatingNewConfig = ref(false);
-const previousConfigIdBeforeCreate = ref<number | undefined>(undefined);
-const newConfigSnapshot = ref('');
 const savedFormSnapshot = ref('');
 const ACTIVE_SYNC_STATUSES = ['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING'];
 
@@ -43,6 +40,7 @@ const form = ref<GitlabSyncConfig>({
   webBaseUrl: '',
   apiToken: '',
   delayLabelWritebackEnabled: false,
+  matchModeEnabled: true,
   autoSyncEnabled: true,
   sourceMode: 'DOCKER',
   whitelistMode: 'RECOMMENDED',
@@ -121,9 +119,6 @@ const {
     const saved = await api.saveConfig(config);
     await loadConfigs();
     selectedConfigId.value = saved.id;
-    isCreatingNewConfig.value = false;
-    previousConfigIdBeforeCreate.value = undefined;
-    newConfigSnapshot.value = '';
     savedFormSnapshot.value = formSnapshot(saved);
     return saved;
   },
@@ -161,10 +156,7 @@ const {
 const isDockerMode = computed(() => form.value.sourceMode === 'DOCKER');
 const sourceEnabled = computed(() => form.value.sourceEnabled ?? form.value.enabled);
 const syncEnabled = computed(() => sourceEnabled.value);
-const sourceSelectPlaceholder = computed(() =>
-  isCreatingNewConfig.value ? '新增数据源（未保存）' : '选择已绑定的数据源',
-);
-const savedConfigActionDisabled = computed(() => isCreatingNewConfig.value || selectedConfigId.value == null);
+const savedConfigActionDisabled = computed(() => selectedConfigId.value == null);
 const systemHookAutoRegistrationDisabled = computed(() =>
   savedConfigActionDisabled.value || !isDockerMode.value || !form.value.systemHookEnabled,
 );
@@ -219,38 +211,8 @@ const systemHookStatusMessage = computed(() => {
   }
   return systemHookRegistration.value?.message || '尚未检测 GitLab System Hook 状态。';
 });
-const duplicatePhysicalSourceMatches = computed(() => {
-  const currentFingerprint = physicalSourceFingerprint(form.value);
-  if (!currentFingerprint) {
-    return [];
-  }
-  return configs.value.filter((candidate) => {
-    if (!isSourceEnabled(candidate)) {
-      return false;
-    }
-    if (candidate.id != null && selectedConfigId.value != null && candidate.id === selectedConfigId.value) {
-      return false;
-    }
-    return physicalSourceFingerprint(candidate) === currentFingerprint;
-  });
-});
-const duplicatePhysicalSourceWarning = computed(() => {
-  if (!isSourceEnabled(form.value) || duplicatePhysicalSourceMatches.value.length === 0) {
-    return '';
-  }
-  const names = duplicatePhysicalSourceMatches.value
-    .map((item) => `${item.name || '未命名数据源'}（${item.sourceInstance || 'default'}）`)
-    .join('、');
-  const hasAutomaticSyncConflict =
-    Boolean(form.value.autoSyncEnabled)
-    || duplicatePhysicalSourceMatches.value.some((item) => Boolean(item.autoSyncEnabled));
-  if (hasAutomaticSyncConflict) {
-    return `当前数据源和 ${names} 指向同一个 GitLab 源库。若双方任一开启自动同步，平台会阻止保存；请停用其中一个数据源，或关闭自动同步后仅作为测试源保留。`;
-  }
-  return `当前数据源和 ${names} 指向同一个 GitLab 源库。当前双方均未开启自动同步，可以作为测试源保存；后续若同时启用自动同步，同一批 Issue、MR 和评论可能重复进入事实层。`;
-});
 const isFormDirty = computed(() => savedFormSnapshot.value !== '' && formSnapshot(form.value) !== savedFormSnapshot.value);
-const currentSourceText = computed(() => `${form.value.name || '未命名数据源'}（${form.value.sourceInstance || 'default'}）`);
+const currentSourceText = computed(() => form.value.name || 'GitLab 数据镜像');
 const currentSourceHealth = computed(() => {
   const healthItems = Array.isArray(sourceHealth.value) ? sourceHealth.value : [];
   return healthItems.find((item) => item.configId === selectedConfigId.value);
@@ -415,7 +377,7 @@ watch(
 watch(
   () => formSnapshot(form.value),
   (snapshot) => {
-    if (!isCreatingNewConfig.value && savedFormSnapshot.value === '') {
+    if (savedFormSnapshot.value === '') {
       savedFormSnapshot.value = snapshot;
     }
   },
@@ -462,7 +424,7 @@ async function loadSourceHealth() {
 }
 
 async function loadTableSyncDiagnostics(showError = false) {
-  if (selectedConfigId.value == null || isCreatingNewConfig.value) {
+  if (selectedConfigId.value == null) {
     tableSyncDiagnostics.value = null;
     return;
   }
@@ -479,99 +441,8 @@ async function loadTableSyncDiagnostics(showError = false) {
   }
 }
 
-async function handleConfigSelection(configId: number) {
-  if (isCreatingNewConfig.value) {
-    return;
-  }
-  const previousConfigId = form.value.id ?? selectedConfigId.value;
-  const canLeave = await confirmDiscardUnsavedChanges('切换数据源将放弃当前未保存的同步策略修改。');
-  if (!canLeave) {
-    selectedConfigId.value = previousConfigId;
-    return;
-  }
-  selectedConfigId.value = configId;
-  whitelistOptionsLoaded.value = false;
-  await loadStatus(true, true);
-  savedFormSnapshot.value = formSnapshot(form.value);
-  void loadSourceHealth();
-  void loadTableSyncDiagnostics(true);
-  void loadSystemHookRegistration(false);
-}
-
-async function createNewConfig() {
-  const canLeave = await confirmDiscardUnsavedChanges('新增数据源将放弃当前未保存的同步策略修改。');
-  if (!canLeave) {
-    return;
-  }
-  previousConfigIdBeforeCreate.value = selectedConfigId.value;
-  isCreatingNewConfig.value = true;
-  stopRunningRefresh();
-  selectedConfigId.value = undefined;
-  tableSyncDiagnostics.value = null;
-  form.value = {
-    ...form.value,
-    id: undefined,
-    name: 'GitLab new source',
-    sourceInstance: '',
-    webBaseUrl: '',
-    apiToken: '',
-    delayLabelWritebackEnabled: false,
-    dbPassword: '',
-    systemHookSecret: '',
-    lastFullSyncAt: null,
-    lastIncrementalSyncAt: null,
-  };
-  newConfigSnapshot.value = JSON.stringify(form.value);
-  savedFormSnapshot.value = formSnapshot(form.value);
-}
-
-function isSourceEnabled(config: GitlabSyncConfig) {
-  return config.sourceEnabled ?? config.enabled ?? true;
-}
-
-function physicalSourceFingerprint(config: GitlabSyncConfig) {
-  if (config.sourceMode === 'DOCKER') {
-    const containerName = normalizeFingerprintPart(config.dockerContainerName);
-    const database = normalizeFingerprintPart(config.dbName);
-    const username = normalizeFingerprintPart(config.dbUsername);
-    return containerName && database ? `docker:${containerName}:${database}:${username}` : '';
-  }
-  const host = normalizeFingerprintPart(config.dbHost);
-  const port = String(config.dbPort ?? 5432);
-  const database = normalizeFingerprintPart(config.dbName);
-  const username = normalizeFingerprintPart(config.dbUsername);
-  if (!host || !database) {
-    return '';
-  }
-  return `direct:${host}:${port}:${database}:${username}`;
-}
-
 function normalizeFingerprintPart(value: string | number | null | undefined) {
   return String(value ?? '').trim().toLowerCase();
-}
-
-async function cancelNewConfig() {
-  if (JSON.stringify(form.value) !== newConfigSnapshot.value) {
-    try {
-      await ElMessageBox.confirm('放弃未保存的数据源配置？', '取消新增数据源', {
-        type: 'warning',
-        confirmButtonText: '放弃',
-        cancelButtonText: '继续填写',
-      });
-    } catch {
-      return;
-    }
-  }
-  isCreatingNewConfig.value = false;
-  selectedConfigId.value = previousConfigIdBeforeCreate.value ?? configs.value.find((item) => item.id != null)?.id;
-  previousConfigIdBeforeCreate.value = undefined;
-  newConfigSnapshot.value = '';
-  whitelistOptionsLoaded.value = false;
-  await loadStatus(true, true);
-  savedFormSnapshot.value = formSnapshot(form.value);
-  void loadSourceHealth();
-  void loadTableSyncDiagnostics(true);
-  void loadSystemHookRegistration(false);
 }
 
 function formSnapshot(config: GitlabSyncConfig) {
@@ -592,6 +463,7 @@ function formSnapshot(config: GitlabSyncConfig) {
     dbPassword: config.dbPassword ?? '',
     apiToken: config.apiToken ?? '',
     delayLabelWritebackEnabled: Boolean(config.delayLabelWritebackEnabled),
+    matchModeEnabled: config.matchModeEnabled ?? true,
     dockerContainerName: normalizeFingerprintPart(config.dockerContainerName),
     systemHookSecret: config.systemHookSecret ?? '',
     systemHookEnabled: Boolean(config.systemHookEnabled),
@@ -627,9 +499,6 @@ async function confirmDiscardUnsavedChanges(message = '存在未保存的同步�
 }
 
 async function refreshCurrentStatus() {
-  if (isCreatingNewConfig.value) {
-    return;
-  }
   await refreshStatus();
   await Promise.all([
     loadMirrorSection('数据源健康状态', loadSourceHealth),
@@ -742,31 +611,6 @@ onBeforeRouteLeave(async () => {
       </template>
 
       <el-form label-width="150px">
-        <el-form-item label="GitLab 数据源">
-          <div style="display: flex; width: 100%; gap: 8px">
-            <el-select
-              v-model="selectedConfigId"
-              :placeholder="sourceSelectPlaceholder"
-              :disabled="isCreatingNewConfig"
-              fit-input-width
-              popper-class="platform-select-dropdown"
-              style="width: 100%"
-              @change="handleConfigSelection"
-            >
-              <el-option
-                v-for="item in configs"
-                :key="item.id ?? item.sourceInstance"
-                :label="`${item.name} (${item.sourceInstance})`"
-                :value="item.id"
-              />
-            </el-select>
-            <el-button v-if="!isCreatingNewConfig" @click="createNewConfig">新增数据源</el-button>
-            <el-button v-else @click="cancelNewConfig">取消新增</el-button>
-          </div>
-        </el-form-item>
-        <el-form-item label="来源标识">
-          <el-input v-model="form.sourceInstance" placeholder="例如 cc / dgm" />
-        </el-form-item>
         <el-form-item label="数据源名称">
           <el-input v-model="form.name" />
         </el-form-item>
@@ -776,7 +620,6 @@ onBeforeRouteLeave(async () => {
         <el-form-item label="启用数据源">
           <el-switch v-model="form.sourceEnabled" />
         </el-form-item>
-
         <el-divider>源数据库模式</el-divider>
 
         <el-form-item label="读取方式">
@@ -987,14 +830,6 @@ onBeforeRouteLeave(async () => {
           :closable="false"
           show-icon
         />
-        <el-alert
-          v-if="duplicatePhysicalSourceWarning"
-          :title="duplicatePhysicalSourceWarning"
-          type="warning"
-          :closable="false"
-          show-icon
-        />
-
         <el-space wrap>
           <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
           <el-button
@@ -1091,7 +926,6 @@ onBeforeRouteLeave(async () => {
             <div class="source-health-overview-copy">
               <div class="source-health-overview-title">
                 <span>{{ currentSourceHealthText }}</span>
-                <el-tag :type="currentSourceHealthTone" round>{{ currentSourceHealth.sourceInstance }}</el-tag>
               </div>
               <div class="source-health-overview-desc">{{ currentSourceHealthSummary }}</div>
             </div>

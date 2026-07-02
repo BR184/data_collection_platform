@@ -45,16 +45,7 @@ final class CodeReviewIllegalRecordSqlSupport {
           openScanIssuePredicate(),
           commentRateNotPassPredicate(),
           scanFailedPredicate(),
-          gitlabErrorPredicate()));
-      String normalizedSource = TextQuerySupport.trimToNull(source);
-      if (normalizedSource == null) {
-        predicates.add(
-            "("
-                + clangResultFalsePredicate()
-                + " and lower(coalesce(source_instance, 'default')) not in ('cc', 'default'))");
-      } else if (CodeReviewIllegalRuleRegistry.includesClangInDefaultIllegal(normalizedSource)) {
-        predicates.add(clangResultFalsePredicate());
-      }
+          clangResultFalsePredicate()));
       return String.join(" or ", predicates);
     }
     if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)
@@ -84,9 +75,6 @@ final class CodeReviewIllegalRecordSqlSupport {
     }
     if (CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL.equals(normalized)) {
       return clangResultFalsePredicate();
-    }
-    if (CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL.equals(normalized)) {
-      return gitlabErrorPredicate();
     }
     return "1 = 0";
   }
@@ -184,8 +172,8 @@ final class CodeReviewIllegalRecordSqlSupport {
   private static Optional<SqlPredicate> illegalTypeCondition(StatisticFilterCondition condition) {
     String predicate = illegalPredicate(condition.value());
     return switch (condition.operator()) {
-      case "eq" -> Optional.of(new SqlPredicate(predicate, List.of()));
-      case "ne" -> Optional.of(new SqlPredicate("not (" + predicate + ")", List.of()));
+      case "contains", "eq" -> Optional.of(new SqlPredicate(predicate, List.of()));
+      case "notContains", "ne" -> Optional.of(new SqlPredicate("not (" + predicate + ")", List.of()));
       default -> Optional.empty();
     };
   }
@@ -278,11 +266,11 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String missingProjectPredicate() {
-    return "project_name = '未标注项目名'";
+    return "not (coalesce(label_names, '') ~ '(^|,)[[:space:]]*项目[[:space:]]*[:：][[:space:]]*[^,[:space:]:：][^,]*')";
   }
 
   private static String missingModulePredicate() {
-    return "module_name = '未标注模块名'";
+    return "not (coalesce(label_names, '') ~ '(^|,)[[:space:]]*模块[[:space:]]*[:：][[:space:]]*[^,[:space:]:：][^,]*')";
   }
 
   private static String missingReviewPredicate() {
@@ -298,6 +286,9 @@ final class CodeReviewIllegalRecordSqlSupport {
     String values = sql.substring(sql.indexOf("in (") + 3);
     return String.join(
         " or ",
+        sql.toString(),
+        "owner_name in " + values,
+        "reviewer_names in " + values,
         "assignee_names in " + values);
   }
 
@@ -315,11 +306,15 @@ final class CodeReviewIllegalRecordSqlSupport {
   }
 
   private static String openScanIssuePredicate() {
-    return "bug_count_result = '静态扫描问题未关闭'";
+    return "coalesce(scan_bug_count, 0) <> 0";
   }
 
   private static String commentRateNotPassPredicate() {
-    return "annotation_rate_result = '代码注释量未达标'";
+    return String.join(
+        " or ",
+        "annotation_rate_result = '代码注释量未达标'",
+        "(comment_rate is not null and lower(coalesce(source_instance, 'default')) = 'dgm' and comment_rate < 20)",
+        "(comment_rate is not null and lower(coalesce(source_instance, 'default')) <> 'dgm' and comment_rate < 15)");
   }
 
   private static String scanFailedPredicate() {
@@ -328,15 +323,6 @@ final class CodeReviewIllegalRecordSqlSupport {
 
   private static String clangResultFalsePredicate() {
     return "annotation_rate_result = '注释率分析工具Clang分析错误'";
-  }
-
-  private static String gitlabErrorPredicate() {
-    String values = "('GitLab 接口报错', 'GitLab接口报错')";
-    return String.join(
-        " or ",
-        "scan_status in " + values,
-        "target_branch in " + values,
-        "assignee_names in " + values);
   }
 
   private static SqlPredicate truePredicate() {

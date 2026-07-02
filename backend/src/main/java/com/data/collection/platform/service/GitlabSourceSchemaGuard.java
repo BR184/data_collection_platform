@@ -84,7 +84,7 @@ public class GitlabSourceSchemaGuard {
   }
 
   public void verifyIssueFactSource(String sourceInstance) {
-    verify("议题事实表", rewriteRequirements(ISSUE_FACT_SOURCE, sourceInstance));
+    verify("议题事实表", ISSUE_FACT_SOURCE);
   }
 
   public void verifyMergeRequestFactSource() {
@@ -92,7 +92,7 @@ public class GitlabSourceSchemaGuard {
   }
 
   public void verifyMergeRequestFactSource(String sourceInstance) {
-    verify("合并请求事实表", rewriteRequirements(MERGE_REQUEST_FACT_SOURCE, sourceInstance));
+    verify("合并请求事实表", MERGE_REQUEST_FACT_SOURCE);
   }
 
   private void verify(String scopeName, List<SourceTableRequirement> requirements) {
@@ -142,16 +142,6 @@ public class GitlabSourceSchemaGuard {
     Throwable cause = error.getMostSpecificCause();
     String message = cause == null ? error.getMessage() : cause.getMessage();
     return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
-  }
-
-  private List<SourceTableRequirement> rewriteRequirements(
-      List<SourceTableRequirement> requirements,
-      String sourceInstance) {
-    return requirements.stream()
-        .map(requirement -> new SourceTableRequirement(
-            GitlabSourceInstanceSupport.rewriteMirrorTableReferences(requirement.tableName(), sourceInstance),
-            requirement.requiredColumns()))
-        .toList();
   }
 
   private static SourceTableRequirement requirement(String tableName, String... requiredColumns) {

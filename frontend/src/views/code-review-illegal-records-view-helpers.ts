@@ -4,7 +4,7 @@ import type {
   StatisticBoardRuleExplanationResponse,
   StatisticFilterField,
 } from '../types/api';
-import type { RecordTableColumn } from '../types/record-table';
+import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import { buildGitlabResourceLinkCell } from '../utils/issue-record-links';
 
 const DEFAULT_SELECT_WIDTH = 180;
@@ -48,9 +48,9 @@ export const CODE_REVIEW_ILLEGAL_RECORD_COLUMNS: RecordTableColumn[] = [
   { key: 'moduleName', label: '模块名', sortable: true, minWidth: 140 },
   { key: 'targetBranch', label: '合并目标分支', sortable: true, minWidth: 180 },
   { key: 'illegalTypes', label: '非法类型', type: 'tags', minWidth: 220 },
-  { key: 'commentRate', label: '代码注释比例(%)', sortable: true, width: 160, align: 'right' },
+  { key: 'commentRate', label: '代码注释比例（%）', sortable: true, width: 160, align: 'right' },
   { key: 'defectCount', label: '缺陷数量', type: 'number', sortable: true, width: 120, align: 'right' },
-  { key: 'addedLines', label: '新增代码行数(行)', type: 'number', sortable: true, width: 150, align: 'right' },
+  { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 150, align: 'right' },
 ];
 
 export function createDefaultCodeReviewFilterOptions(): CodeReviewIllegalRecordFilterOptionsResponse {
@@ -72,8 +72,8 @@ export function createCodeReviewConditionFields(
   return [
     selectField('repositoryName', '代码库', filterOptions.repositoryNames),
     datetimeField('mergedAt', '合并时间'),
-    selectField('illegalType', '非法类型', filterOptions.illegalTypes),
-    textField('keyword', '关键字', 240),
+    selectField('illegalType', '非法类型', filterOptions.illegalTypes, DEFAULT_SELECT_WIDTH, ['contains', 'notContains']),
+    textField('keyword', '合并请求内容', 240),
     selectField('requestType', '请求类型', filterOptions.requestTypes),
     numberField('mergeRequestIid', '合并请求编号'),
     textField('owner', '被走查人'),
@@ -85,6 +85,77 @@ export function createCodeReviewConditionFields(
     numberField('defectCount', '缺陷数量'),
     numberField('addedLines', '新增代码行数'),
   ];
+}
+
+export function buildCodeReviewPrimaryFilters(
+  filterOptions: CodeReviewIllegalRecordFilterOptionsResponse,
+): RecordTableFilterField[] {
+  return [
+    { key: 'mergeRequestIid', label: '合并请求编号', type: 'input', placeholder: '输入 MR 编号' },
+    { key: 'keyword', label: '合并请求内容', type: 'input', placeholder: '输入内容关键字', width: 220 },
+    { key: 'owner', label: '被走查人', type: 'input', placeholder: '输入被走查人' },
+    {
+      key: 'mergedBy',
+      label: '合并人',
+      type: 'select',
+      options: [{ label: '全部合并人', value: '' }, ...filterOptions.mergedBys],
+    },
+    {
+      key: 'moduleName',
+      label: '模块名',
+      type: 'select',
+      options: [{ label: '全部模块', value: '' }, ...filterOptions.moduleNames],
+    },
+    {
+      key: 'targetBranch',
+      label: '合并目标分支',
+      type: 'select',
+      width: 180,
+      options: [{ label: '全部目标分支', value: '' }, ...filterOptions.targetBranches],
+    },
+    {
+      key: 'illegalType',
+      label: '非法类型',
+      type: 'select',
+      width: 220,
+      options: [{ label: '全部非法类型', value: '' }, ...filterOptions.illegalTypes],
+    },
+    {
+      key: 'repositoryName',
+      label: '代码库',
+      type: 'select',
+      width: 180,
+      options: [{ label: '全部代码库', value: '' }, ...filterOptions.repositoryNames],
+    },
+    {
+      key: 'mergedAtRange',
+      label: '合并时间',
+      type: 'daterange',
+      width: 280,
+      startPlaceholder: '开始日期',
+      endPlaceholder: '结束日期',
+    },
+  ];
+}
+
+export function buildCodeReviewQuickFilterTags(values: Record<string, unknown>): RecordTableActiveFilterTag[] {
+  const tags: RecordTableActiveFilterTag[] = [];
+  pushTag(tags, 'mergeRequestIid', '合并请求编号', values.mergeRequestIid);
+  pushTag(tags, 'keyword', '合并请求内容', values.keyword);
+  pushTag(tags, 'owner', '被走查人', values.owner);
+  pushTag(tags, 'mergedBy', '合并人', values.mergedBy);
+  pushTag(tags, 'moduleName', '模块名', values.moduleName);
+  pushTag(tags, 'targetBranch', '合并目标分支', values.targetBranch);
+  pushTag(tags, 'illegalType', '非法类型', values.illegalType);
+  pushTag(tags, 'repositoryName', '代码库', values.repositoryName);
+  if (Array.isArray(values.mergedAtRange) && values.mergedAtRange.length === 2) {
+    tags.push({
+      key: 'mergedAtRange',
+      label: '合并时间',
+      value: `${values.mergedAtRange[0]} ~ ${values.mergedAtRange[1]}`,
+    });
+  }
+  return tags;
 }
 
 export function createCodeReviewRuleExplanationFallback(
@@ -185,15 +256,23 @@ function selectField(
   label: string,
   options: { label: string; value: string }[],
   width = DEFAULT_SELECT_WIDTH,
+  operators: StatisticFilterField['operators'] = ['eq', 'ne'],
 ): StatisticFilterField {
   return {
     key,
     label,
     type: 'select',
     width,
-    operators: ['eq', 'ne'],
+    operators,
     options,
   };
+}
+
+function pushTag(tags: RecordTableActiveFilterTag[], key: string, label: string, value: unknown) {
+  const text = String(value ?? '').trim();
+  if (text) {
+    tags.push({ key, label, value: text });
+  }
 }
 
 function textField(key: string, label: string, width = DEFAULT_TEXT_WIDTH): StatisticFilterField {

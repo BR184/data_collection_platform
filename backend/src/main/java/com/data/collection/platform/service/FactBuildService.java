@@ -896,7 +896,7 @@ public class FactBuildService {
     fact.setMergeRequestId(rs.getLong("merge_request_id"));
     fact.setMergeRequestIid(rs.getLong("merge_request_iid"));
     fact.setTitle(defaultText(rs.getString("title")));
-    fact.setMergeRequestState(toLocalDateTime(rs.getTimestamp("merged_at")) == null ? "opened" : "merged");
+    fact.setMergeRequestState(mergeRequestState(rs));
     fact.setTargetBranch(defaultText(rs.getString("target_branch")));
     fact.setSourceBranch(defaultText(rs.getString("source_branch")));
     fact.setAuthorName(defaultText(rs.getString("author_name")));
@@ -1177,6 +1177,18 @@ public class FactBuildService {
     Timestamp closedAt = rs.getTimestamp("closed_at");
     Integer stateId = (Integer) rs.getObject("state_id");
     return closedAt != null || (stateId != null && stateId != 1);
+  }
+
+  private String mergeRequestState(ResultSet rs) throws SQLException {
+    Integer stateId = (Integer) rs.getObject("state_id");
+    if (stateId != null) {
+      return switch (stateId) {
+        case 3 -> "merged";
+        case 2 -> "closed";
+        default -> "opened";
+      };
+    }
+    return toLocalDateTime(rs.getTimestamp("merged_at")) == null ? "opened" : "merged";
   }
 
   private LocalDateTime toLocalDateTime(Timestamp timestamp) {

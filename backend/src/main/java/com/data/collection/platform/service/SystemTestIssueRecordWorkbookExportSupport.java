@@ -20,7 +20,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 final class SystemTestIssueRecordWorkbookExportSupport {
   private static final DateTimeFormatter LEGACY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-  private static final String SHEET_NAME = "议题数据";
+  private static final String ISSUE_SEARCH_SHEET_NAME = "多元查询结果";
+  private static final String ILLEGAL_SHEET_NAME = "议题数据";
   private static final List<String> LEGACY_ISSUE_HEADERS =
       List.of(
           "议题更新时间",
@@ -64,6 +65,7 @@ final class SystemTestIssueRecordWorkbookExportSupport {
 
   static byte[] exportRecords(List<SystemTestIssueSearchRowResponse> rows, List<String> labelGroupSnapshots) {
     return exportWorkbook(
+        ISSUE_SEARCH_SHEET_NAME,
         LEGACY_ISSUE_HEADERS,
         rows.stream().map(SystemTestIssueRecordWorkbookExportSupport::recordValues).toList(),
         labelGroupSnapshots);
@@ -71,15 +73,17 @@ final class SystemTestIssueRecordWorkbookExportSupport {
 
   static byte[] exportIllegalRecords(List<SystemTestIllegalRecordRowResponse> rows) {
     return exportWorkbook(
+        ILLEGAL_SHEET_NAME,
         LEGACY_ILLEGAL_HEADERS,
         rows.stream().map(SystemTestIssueRecordWorkbookExportSupport::illegalRecordValues).toList(),
         List.of());
   }
 
-  private static byte[] exportWorkbook(List<String> headers, List<List<String>> rows, List<String> labelGroupSnapshots) {
+  private static byte[] exportWorkbook(
+      String sheetName, List<String> headers, List<List<String>> rows, List<String> labelGroupSnapshots) {
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-      Sheet sheet = workbook.createSheet(SHEET_NAME);
+      Sheet sheet = workbook.createSheet(sheetName);
       ExportStyles styles = new ExportStyles(workbook);
       writeSnapshotSheet(workbook, styles, labelGroupSnapshots);
       writeHeader(sheet, headers, styles.header);
@@ -143,7 +147,7 @@ final class SystemTestIssueRecordWorkbookExportSupport {
         text(row.delayCause()),
         "",
         text(row.functionName()),
-        text(row.bugStatus()),
+        "",
         "",
         "",
         "",
@@ -177,7 +181,7 @@ final class SystemTestIssueRecordWorkbookExportSupport {
             "",
             "",
             text(row.functionName()),
-            text(row.bugStatus()),
+            "",
             "",
             "",
             "",

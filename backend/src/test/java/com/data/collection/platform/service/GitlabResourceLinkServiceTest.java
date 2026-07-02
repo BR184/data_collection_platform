@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.config.GitlabMirrorProperties;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -58,41 +57,21 @@ class GitlabResourceLinkServiceTest {
   }
 
   @Test
-  void shouldBuildIssueUrlFromSourceScopedMirrorTables() {
+  void shouldUseSingleMirrorTablesForRequestedSourceInstance() {
     JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
-        .thenThrow(new EmptyResultDataAccessException(1))
-        .thenReturn("source-group/source-project");
-    when(jdbcTemplate.queryForList(any(String.class), eq(String.class)))
-        .thenReturn(List.of("ods_gitlab_cc_projects"));
-    GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
-
-    assertThat(service.issueUrl(1001L, 25694))
-        .isEqualTo("http://gitlab.example.com/source-group/source-project/-/issues/25694");
-
-    ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-    verify(jdbcTemplate, org.mockito.Mockito.times(2)).queryForObject(sqlCaptor.capture(), eq(String.class), eq(1001L));
-    assertThat(sqlCaptor.getAllValues().get(1))
-        .contains("\"ods_gitlab_cc_projects\"")
-        .contains("\"ods_gitlab_cc_namespaces\"");
-  }
-
-  @Test
-  void shouldUseRequestedSourceInstanceBeforeDefaultMirrorTables() {
-    JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    when(jdbcTemplate.queryForObject(any(String.class), eq(String.class), eq(1001L)))
-        .thenReturn("cc-group/cc-project");
+        .thenReturn("group/project");
     GitlabResourceLinkService service = new GitlabResourceLinkService(jdbcTemplate, properties());
 
     assertThat(service.issueUrl("cc", 1001L, 25694))
-        .isEqualTo("http://gitlab.example.com/cc-group/cc-project/-/issues/25694");
+        .isEqualTo("http://gitlab.example.com/group/project/-/issues/25694");
 
     ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
     verify(jdbcTemplate).queryForObject(sqlCaptor.capture(), eq(String.class), eq(1001L));
     assertThat(sqlCaptor.getValue())
-        .contains("\"ods_gitlab_cc_projects\"")
-        .contains("\"ods_gitlab_cc_namespaces\"")
-        .doesNotContain("\"ods_gitlab_projects\"");
+        .contains("\"ods_gitlab_projects\"")
+        .contains("\"ods_gitlab_namespaces\"")
+        .doesNotContain("_cc_projects");
   }
 
   private GitlabMirrorProperties properties() {

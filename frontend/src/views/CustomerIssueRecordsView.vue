@@ -30,7 +30,7 @@ import { useConditionFilterGroupState } from '../composables/useConditionFilterG
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
-import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob } from '../utils/csv-download';
 import { useRoute } from 'vue-router';
 
 const currentRoute = useRoute();
@@ -504,12 +504,16 @@ async function handleExport() {
   exportLoading.value = true;
   try {
     const workbook = await api.exportCustomerIssueRecords(buildCurrentQueryParams(false));
-    downloadBlob(workbook, `${pageTitle.value}_${formatExportFileDate(new Date())}.xlsx`);
+    downloadBlob(workbook, customerIssueExportFilename());
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {
     exportLoading.value = false;
   }
+}
+
+function customerIssueExportFilename() {
+  return isDelayTopic.value ? '延期问题明细.xlsx' : 'CCProduct议题查询结果.xlsx';
 }
 
 async function handleRefreshLatestData() {

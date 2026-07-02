@@ -23,44 +23,44 @@ class IssueFactSourceInstancePipelineTest {
 
   @BeforeEach
   void setUp() {
-    createMinimalCcOdsTables();
+    createMinimalOdsTables();
     cleanTables();
     GitlabSyncConfig config = baseConfig();
-    config.setSourceInstance("cc");
+    config.setSourceInstance("default");
     configService.saveConfig(config);
   }
 
   @Test
-  void shouldBuildIssueFactsFromSourceSpecificMirrorTables() {
+  void shouldBuildIssueFactsFromSingleMirrorTables() {
     LocalDateTime now = LocalDateTime.of(2026, 5, 7, 9, 0);
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_projects(id, name, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
         100L,
         "CC_PRODUCT");
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_users(id, name, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
         501L,
         "reviewer-a");
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_users(id, name, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
         601L,
         "assignee-a");
     jdbcTemplate.update(
         """
-        insert into ods_gitlab_cc_issues(
+        insert into ods_gitlab_issues(
           id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
         ) values (?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
         """,
         9001L,
         88L,
         100L,
-        "source isolated issue",
+        "single mirror issue",
         501L,
         now.minusHours(1),
         now,
         1);
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_issue_assignees(issue_id, user_id, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_issue_assignees(issue_id, user_id, mirror_deleted) values (?, ?, false)",
         9001L,
         601L);
 
@@ -68,13 +68,10 @@ class IssueFactSourceInstancePipelineTest {
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select count(*) from issue_fact where source_instance = 'cc' and issue_id = 9001",
+        "select count(*) from issue_fact where source_instance = 'default' and issue_id = 9001",
         Integer.class)).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select count(*) from issue_fact where source_instance = 'default' and issue_id = 9001",
-        Integer.class)).isZero();
-    assertThat(jdbcTemplate.queryForObject(
-        "select assignee_name from issue_fact where source_instance = 'cc' and issue_id = 9001",
+        "select assignee_name from issue_fact where source_instance = 'default' and issue_id = 9001",
         String.class)).isEqualTo("assignee-a");
   }
 
@@ -82,16 +79,16 @@ class IssueFactSourceInstancePipelineTest {
   void shouldNormalizeModuleAndToolboxLabelsWhenBuildingIssueFacts() {
     LocalDateTime now = LocalDateTime.of(2026, 5, 7, 9, 0);
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_projects(id, name, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false)",
         101L,
         "CC_PRODUCT");
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_users(id, name, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
         502L,
         "reviewer-b");
     jdbcTemplate.update(
         """
-        insert into ods_gitlab_cc_issues(
+        insert into ods_gitlab_issues(
           id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
         ) values (?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
         """,
@@ -122,14 +119,14 @@ class IssueFactSourceInstancePipelineTest {
 
     assertThat(response.affectedRows()).isEqualTo(1);
     assertThat(jdbcTemplate.queryForObject(
-        "select module_names from issue_fact where source_instance = 'cc' and issue_id = 9002",
+        "select module_names from issue_fact where source_instance = 'default' and issue_id = 9002",
         String.class)).isEqualTo("草图");
   }
 
-  private void createMinimalCcOdsTables() {
+  private void createMinimalOdsTables() {
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_projects (
+        create table if not exists ods_gitlab_projects (
           id bigint primary key,
           name varchar(255),
           mirror_deleted boolean default false
@@ -137,7 +134,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_users (
+        create table if not exists ods_gitlab_users (
           id bigint primary key,
           name varchar(255),
           mirror_deleted boolean default false
@@ -145,7 +142,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_milestones (
+        create table if not exists ods_gitlab_milestones (
           id bigint primary key,
           title varchar(255),
           mirror_deleted boolean default false
@@ -153,7 +150,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_issues (
+        create table if not exists ods_gitlab_issues (
           id bigint primary key,
           iid bigint,
           project_id bigint,
@@ -169,7 +166,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_notes (
+        create table if not exists ods_gitlab_notes (
           id bigint primary key,
           noteable_id bigint,
           noteable_type varchar(64),
@@ -181,7 +178,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_labels (
+        create table if not exists ods_gitlab_labels (
           id bigint primary key,
           title varchar(255),
           mirror_deleted boolean default false
@@ -189,7 +186,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_label_links (
+        create table if not exists ods_gitlab_label_links (
           id bigint primary key,
           label_id bigint,
           target_id bigint,
@@ -202,7 +199,7 @@ class IssueFactSourceInstancePipelineTest {
         """);
     jdbcTemplate.execute(
         """
-        create table if not exists ods_gitlab_cc_issue_assignees (
+        create table if not exists ods_gitlab_issue_assignees (
           issue_id bigint,
           user_id bigint,
           mirror_deleted boolean default false
@@ -215,19 +212,19 @@ class IssueFactSourceInstancePipelineTest {
     jdbcTemplate.update("delete from module_dictionary");
     jdbcTemplate.update("delete from testing_phase_calendar");
     jdbcTemplate.update("delete from gitlab_sync_configs");
-    jdbcTemplate.update("delete from ods_gitlab_cc_label_links");
-    jdbcTemplate.update("delete from ods_gitlab_cc_issue_assignees");
-    jdbcTemplate.update("delete from ods_gitlab_cc_labels");
-    jdbcTemplate.update("delete from ods_gitlab_cc_notes");
-    jdbcTemplate.update("delete from ods_gitlab_cc_issues");
-    jdbcTemplate.update("delete from ods_gitlab_cc_milestones");
-    jdbcTemplate.update("delete from ods_gitlab_cc_users");
-    jdbcTemplate.update("delete from ods_gitlab_cc_projects");
+    jdbcTemplate.update("delete from ods_gitlab_label_links");
+    jdbcTemplate.update("delete from ods_gitlab_issue_assignees");
+    jdbcTemplate.update("delete from ods_gitlab_labels");
+    jdbcTemplate.update("delete from ods_gitlab_notes");
+    jdbcTemplate.update("delete from ods_gitlab_issues");
+    jdbcTemplate.update("delete from ods_gitlab_milestones");
+    jdbcTemplate.update("delete from ods_gitlab_users");
+    jdbcTemplate.update("delete from ods_gitlab_projects");
   }
 
   private void insertLabel(long id, String title) {
     jdbcTemplate.update(
-        "insert into ods_gitlab_cc_labels(id, title, mirror_deleted) values (?, ?, false)",
+        "insert into ods_gitlab_labels(id, title, mirror_deleted) values (?, ?, false)",
         id,
         title);
   }
@@ -235,7 +232,7 @@ class IssueFactSourceInstancePipelineTest {
   private void linkLabel(long labelId, long issueId) {
     jdbcTemplate.update(
         """
-        insert into ods_gitlab_cc_label_links(
+        insert into ods_gitlab_label_links(
           id, label_id, target_id, target_type, source_updated_at, updated_at, created_at, mirror_deleted
         ) values (?, ?, ?, 'Issue', current_timestamp, current_timestamp, current_timestamp, false)
         """,
@@ -246,7 +243,7 @@ class IssueFactSourceInstancePipelineTest {
 
   private GitlabSyncConfig baseConfig() {
     GitlabSyncConfig config = new GitlabSyncConfig();
-    config.setName("GitLab CC source");
+    config.setName("GitLab source");
     config.setEnabled(true);
     config.setAutoSyncEnabled(true);
     config.setSourceMode(SourceMode.DOCKER);

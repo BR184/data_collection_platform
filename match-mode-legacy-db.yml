@@ -1,0 +1,16 @@
+# 代码走查非法数据评审临时兼容配置。
+# 兼容模式-MatchMode：从老平台 MySQL/MongoDB 读取外部工具结果，写入新平台独立兼容表。
+match-mode:
+  mysql:
+    jdbc-url: jdbc:mysql://127.0.0.1:3306/spidergitdata?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: legacy_mysql_user
+    password: legacy_mysql_password
+    table-name: spider_crowncad_data
+    fetch-size: 1000
+  mongodb:
+    uri: mongodb://legacy_mongo_user:legacy_mongo_password@127.0.0.1:27017/spidergitdata?authSource=admin
+    database: spidergitdata
+    annotation-collection: annotationRateInfo
+  sync:
+    enabled: true
+    fixed-delay-ms: 3600000

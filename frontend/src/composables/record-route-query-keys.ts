@@ -26,6 +26,7 @@ export const ISSUE_RECORD_QUERY_KEYS = [
 ];
 
 export const CODE_REVIEW_RECORD_QUERY_KEYS = [
+  'keyword',
   'repositoryName',
   'mergedAtStart',
   'mergedAtEnd',
@@ -44,11 +45,14 @@ export const CODE_REVIEW_RECORD_QUERY_KEYS = [
 
 export const REVIEW_DATA_RECORD_QUERY_KEYS = [
   'sourceInstance',
+  'keyword',
+  'title',
   'reviewCategory',
   'documentCategory',
   'documentType',
   'moduleName',
   'reviewOwner',
+  'reviewType',
   'reviewExpert',
   'projectName',
   'versionName',

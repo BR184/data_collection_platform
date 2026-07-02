@@ -14,12 +14,10 @@ class GitlabSourceInstanceSupportTest {
   }
 
   @Test
-  void shouldKeepLegacyMirrorNamesForDefaultAndPrefixNamedSources() {
-    assertThat(GitlabSourceInstanceSupport.buildMirrorTableName("issues", "default"))
+  void shouldBuildSingleMirrorTableNameWithoutSourcePrefix() {
+    assertThat(GitlabSourceInstanceSupport.buildMirrorTableName("issues"))
         .isEqualTo("ods_gitlab_issues");
-    assertThat(GitlabSourceInstanceSupport.buildMirrorTableName("issues", "cc"))
-        .isEqualTo("ods_gitlab_cc_issues");
-    assertThat(GitlabSourceInstanceSupport.buildMirrorTableName("merge_requests", "DGM"))
-        .isEqualTo("ods_gitlab_dgm_merge_requests");
+    assertThat(GitlabSourceInstanceSupport.buildMirrorTableName("merge_requests"))
+        .isEqualTo("ods_gitlab_merge_requests");
   }
 }

@@ -334,12 +334,13 @@ class GitlabFactSourceSqlProvider {
         mr.title,
         p.name as project_name,
         coalesce(owner_ns.path || '/' || p.path, p.path) as repository_name,
-        coalesce(metrics.merged_at, mr.updated_at) as merged_at,
+        mr.state_id,
+        metrics.merged_at as merged_at,
         mr.created_at,
         mr.updated_at,
         coalesce(mr.updated_at, mr.created_at) as ods_updated_at,
         coalesce(author.name, '') as author_name,
-        coalesce(merge_user.name, '') as merge_user_name,
+        coalesce(assignees.assignee_names, metric_merge_user.name, merge_user.name, '') as merge_user_name,
         coalesce(
           case
             when '无需走查扫描' = any(coalesce(labels.label_titles, array[]::text[])) then '无需走查'
@@ -416,6 +417,9 @@ class GitlabFactSourceSqlProvider {
       left join ods_gitlab_users merge_user
         on merge_user.id = mr.merge_user_id
        and coalesce(merge_user.mirror_deleted, false) = false
+      left join ods_gitlab_users metric_merge_user
+        on metric_merge_user.id = metrics.merged_by_id
+       and coalesce(metric_merge_user.mirror_deleted, false) = false
       left join reviewer_names reviewers
         on reviewers.merge_request_id = mr.id
       left join assignee_names assignees

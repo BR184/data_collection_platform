@@ -30,6 +30,7 @@ export type PageKey =
   | 'label-group-settings'
   | 'testing-phase-definition'
   | 'mirror-settings'
+  | 'database-settings'
   | 'database-browser';
 
 export interface ShellPage {

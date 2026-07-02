@@ -260,6 +260,9 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   'mirror-settings': {
     persistedQueryKeys: ['projectId'],
   },
+  'database-settings': {
+    persistedQueryKeys: ['projectId'],
+  },
   'label-group-settings': {
     allowedQueryKeys: ['valueType', 'keyword', 'projectId'],
     persistedQueryKeys: ['projectId'],

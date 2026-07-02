@@ -87,21 +87,21 @@ public class ReviewDataController {
   public ResponseEntity<byte[]> exportRecords(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportReviewRecordsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "review-data-records.xlsx");
+        "AllData.xlsx");
   }
 
   @GetMapping("/problem-items/export")
   public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "review-data-problem-details.xlsx");
+        "评审问题详情导出.xlsx");
   }
 
   @GetMapping("/records/{recordId}/problem-items/export")
   public ResponseEntity<byte[]> exportRecordProblemDetails(@PathVariable Long recordId) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(recordId),
-        "review-data-problem-details-" + recordId + ".xlsx");
+        "评审问题详情导出.xlsx");
   }
 
   @GetMapping("/template")

@@ -33,6 +33,7 @@ export interface GitlabSyncConfig {
   webBaseUrl?: string | null;
   apiToken?: string;
   delayLabelWritebackEnabled?: boolean;
+  matchModeEnabled?: boolean;
   autoSyncEnabled: boolean;
   sourceMode: SourceMode;
   whitelistMode: WhitelistMode;

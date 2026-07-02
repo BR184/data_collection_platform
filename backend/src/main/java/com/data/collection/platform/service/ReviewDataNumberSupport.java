@@ -1,5 +1,8 @@
 package com.data.collection.platform.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 final class ReviewDataNumberSupport {
   private ReviewDataNumberSupport() {}
 
@@ -17,5 +20,12 @@ final class ReviewDataNumberSupport {
 
   static double nonNegativeDouble(Double value) {
     return Math.max(0D, safeDouble(value));
+  }
+
+  static double floorToTwoDecimals(double value) {
+    if (!Double.isFinite(value)) {
+      return 0D;
+    }
+    return BigDecimal.valueOf(value).setScale(2, RoundingMode.FLOOR).doubleValue();
   }
 }

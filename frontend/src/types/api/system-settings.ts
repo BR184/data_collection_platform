@@ -56,3 +56,54 @@ export interface TestingPhaseGroupSaveRequest {
   enabled: boolean;
   remark?: string | null;
 }
+
+export interface CodeReviewMatchModeDbSettingsResponse {
+  enabled: boolean;
+  syncEnabled: boolean;
+  mysqlHost: string;
+  mysqlPort: number;
+  mysqlDatabase: string;
+  mysqlUsername: string;
+  mysqlPasswordConfigured: boolean;
+  mysqlTableName: string;
+  mysqlFetchSize: number;
+  mongoDatabase?: string | null;
+  mongoAnnotationCollection: string;
+  mongoUriConfigured: boolean;
+  syncStatus: string;
+  syncMessage?: string | null;
+  syncRecordCount: number;
+  syncStartedAt?: string | null;
+  syncFinishedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface CodeReviewMatchModeDbSettingsSaveRequest {
+  enabled: boolean;
+  syncEnabled: boolean;
+  mysqlHost: string;
+  mysqlPort: number;
+  mysqlDatabase: string;
+  mysqlUsername: string;
+  mysqlPassword?: string | null;
+  mysqlTableName: string;
+  mysqlFetchSize: number;
+  mongoUri?: string | null;
+  mongoDatabase?: string | null;
+  mongoAnnotationCollection: string;
+}
+
+export interface CodeReviewMatchModeConnectionTestResponse {
+  success: boolean;
+  message: string;
+  recordCount: number;
+}
+
+export interface CodeReviewMatchModeSyncResponse {
+  accepted: boolean;
+  status: string;
+  message: string;
+  recordCount: number;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}

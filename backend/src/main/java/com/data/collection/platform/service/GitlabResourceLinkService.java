@@ -15,7 +15,6 @@ public class GitlabResourceLinkService {
   private final String gitlabWebBaseUrl;
   private final Map<ProjectPathCacheKey, Optional<String>> projectPathCache = new ConcurrentHashMap<>();
   private final Map<String, Optional<String>> sourceBaseUrlCache = new ConcurrentHashMap<>();
-  private volatile java.util.List<String> projectMirrorTables;
 
   public GitlabResourceLinkService(JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties) {
     this.jdbcTemplate = jdbcTemplate;
@@ -41,7 +40,6 @@ public class GitlabResourceLinkService {
   public void clearCache() {
     sourceBaseUrlCache.clear();
     projectPathCache.clear();
-    projectMirrorTables = null;
   }
 
   private String resourceUrl(String sourceInstance, Long projectId, Integer iid, String resourcePath) {
@@ -55,20 +53,15 @@ public class GitlabResourceLinkService {
   }
 
   private Optional<String> projectPath(String sourceInstance, Long projectId) {
-    String normalizedSourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return projectPathCache.computeIfAbsent(
-        new ProjectPathCacheKey(normalizedSourceInstance, projectId), this::loadProjectPath);
+        new ProjectPathCacheKey(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, projectId), this::loadProjectPath);
   }
 
   private String baseUrl(String sourceInstance) {
-    String normalizedSourceInstance = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     Optional<String> sourceBaseUrl =
-        sourceBaseUrlCache.computeIfAbsent(normalizedSourceInstance, this::loadSourceBaseUrl);
+        sourceBaseUrlCache.computeIfAbsent(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE, this::loadSourceBaseUrl);
     if (sourceBaseUrl.isPresent()) {
       return sourceBaseUrl.get();
-    }
-    if (!GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(normalizedSourceInstance)) {
-      return null;
     }
     return normalizeBaseUrl(gitlabWebBaseUrl);
   }
@@ -80,11 +73,10 @@ public class GitlabResourceLinkService {
               """
               select nullif(btrim(web_base_url), '')
                 from gitlab_sync_configs
-               where source_instance = ?
+               order by case when source_instance = 'default' then 0 else 1 end, id
                limit 1
               """,
-              String.class,
-              sourceInstance);
+              String.class);
       return Optional.ofNullable(normalizeBaseUrl(configured));
     } catch (DataAccessException ignored) {
       return Optional.empty();
@@ -92,23 +84,7 @@ public class GitlabResourceLinkService {
   }
 
   private Optional<String> loadProjectPath(ProjectPathCacheKey key) {
-    if (!GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(key.sourceInstance())) {
-      String projectTable = GitlabSourceInstanceSupport.buildMirrorTableName("projects", key.sourceInstance());
-      String namespaceTable = GitlabSourceInstanceSupport.buildMirrorTableName("namespaces", key.sourceInstance());
-      return loadProjectPath(key.projectId(), projectTable, namespaceTable);
-    }
-    Optional<String> legacyPath = loadProjectPath(key.projectId(), "ods_gitlab_projects", "ods_gitlab_namespaces");
-    if (legacyPath.isPresent()) {
-      return legacyPath;
-    }
-    for (String projectTable : projectMirrorTables()) {
-      String namespaceTable = namespaceTableFor(projectTable);
-      Optional<String> path = loadProjectPath(key.projectId(), projectTable, namespaceTable);
-      if (path.isPresent()) {
-        return path;
-      }
-    }
-    return Optional.empty();
+    return loadProjectPath(key.projectId(), "ods_gitlab_projects", "ods_gitlab_namespaces");
   }
 
   private Optional<String> loadProjectPath(Long projectId, String projectTable, String namespaceTable) {
@@ -174,34 +150,6 @@ public class GitlabResourceLinkService {
                 left join namespace_path np on true
               """
         .formatted(quotedProjectTable, quotedNamespaceTable, quotedNamespaceTable);
-  }
-
-  private java.util.List<String> projectMirrorTables() {
-    java.util.List<String> cached = projectMirrorTables;
-    if (cached != null) {
-      return cached;
-    }
-    try {
-      java.util.List<String> tables =
-          jdbcTemplate.queryForList(
-              """
-              select tablename
-                from pg_tables
-               where schemaname = 'public'
-                 and tablename like 'ods_gitlab\\_%\\_projects' escape '\\'
-                 and tablename <> 'ods_gitlab_projects'
-               order by tablename
-              """,
-              String.class);
-      projectMirrorTables = tables == null ? java.util.List.of() : tables;
-    } catch (DataAccessException ignored) {
-      projectMirrorTables = java.util.List.of();
-    }
-    return projectMirrorTables;
-  }
-
-  private String namespaceTableFor(String projectTable) {
-    return projectTable.replaceFirst("_projects$", "_namespaces");
   }
 
   private String quoteIdentifier(String identifier) {

@@ -1,7 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.service.GitlabResourceLinkService;
-import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,10 +73,8 @@ public class StatisticIssueLinkSupport {
   }
 
   private Map<String, String> labelColors(String sourceInstance, Long issueId) {
-    String labelLinksTable =
-        GitlabSourceInstanceSupport.rewriteMirrorTableReferences("ods_gitlab_label_links", sourceInstance);
-    String labelsTable =
-        GitlabSourceInstanceSupport.rewriteMirrorTableReferences("ods_gitlab_labels", sourceInstance);
+    String labelLinksTable = "ods_gitlab_label_links";
+    String labelsTable = "ods_gitlab_labels";
     try {
       return jdbcTemplate.query(
           """

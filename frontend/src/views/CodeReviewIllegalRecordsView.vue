@@ -28,6 +28,8 @@ import {
   CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
   CODE_REVIEW_QUERY_CLEAR_KEYS,
   CODE_REVIEW_RANGE_KEYS,
+  buildCodeReviewPrimaryFilters,
+  buildCodeReviewQuickFilterTags,
   buildCodeReviewRuleExplanationOverview,
   createCodeReviewConditionFields,
   createCodeReviewRuleExplanationFallback,
@@ -35,10 +37,9 @@ import {
   formatCodeReviewDate,
   formatCodeReviewDateTime,
   formatCodeReviewMetric,
-  formatCodeReviewPercent,
   mapCodeReviewIllegalTableRows,
 } from './code-review-illegal-records-view-helpers';
-import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob } from '../utils/csv-download';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 import { formatBeijingDateTime } from '../utils/beijing-time';
@@ -71,13 +72,16 @@ const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const matchModeEnabled = ref(true);
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const showRefreshLatestData = computed(() => canRefreshLatestData.value && !matchModeEnabled.value);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
 );
 const conditionFilterFields = computed(() => createCodeReviewConditionFields(filterOptions.value));
+const primaryFilters = computed(() => buildCodeReviewPrimaryFilters(filterOptions.value));
 
 const {
   ruleExplanation,
@@ -117,12 +121,30 @@ const {
   defaultSortBy: 'mergedAt',
   defaultSortOrder: 'desc',
   resetClearKeys: CODE_REVIEW_QUERY_CLEAR_KEYS,
-  queryClearKeys: CODE_REVIEW_QUERY_CLEAR_KEYS,
   rangeKeys: CODE_REVIEW_RANGE_KEYS,
 });
 
-const conditionActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
-  return [...conditionFilterGroupTags.value];
+const filterValues = computed<Record<string, unknown>>(() => {
+  const mergedAtStart = String(route.query.mergedAtStart ?? '');
+  const mergedAtEnd = String(route.query.mergedAtEnd ?? '');
+  return {
+    mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
+    keyword: String(route.query.keyword ?? ''),
+    owner: String(route.query.owner ?? ''),
+    mergedBy: String(route.query.mergedBy ?? ''),
+    moduleName: String(route.query.moduleName ?? ''),
+    targetBranch: String(route.query.targetBranch ?? ''),
+    illegalType: String(route.query.illegalType ?? ''),
+    repositoryName: String(route.query.repositoryName ?? ''),
+    mergedAtRange: mergedAtStart && mergedAtEnd ? [mergedAtStart, mergedAtEnd] : [],
+  };
+});
+
+const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
+  return [
+    ...conditionFilterGroupTags.value,
+    ...buildCodeReviewQuickFilterTags(filterValues.value),
+  ];
 });
 
 const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
@@ -170,6 +192,15 @@ async function loadSourceOptions() {
   sourceOptions.value = Array.isArray(options) ? options : [];
 }
 
+async function loadMatchModeStatus() {
+  if (!canRefreshLatestData.value) {
+    matchModeEnabled.value = true;
+    return;
+  }
+  const settings = await api.getCodeReviewMatchModeDbSettings();
+  matchModeEnabled.value = settings.enabled;
+}
+
 const {
   syncStatus,
   lastSyncedText,
@@ -212,7 +243,7 @@ async function handleExport() {
   exportLoading.value = true;
   try {
     const workbook = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
-    downloadBlob(workbook, `代码走查非法数据_${formatExportFileDate(new Date())}.xlsx`);
+    downloadBlob(workbook, 'CodeWalkThrough.xlsx');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {
@@ -242,20 +273,10 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function sourceDisplayLabel(value?: string | null) {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (!normalized || normalized === 'default' || normalized === 'cc') {
-    return 'CrownCAD';
-  }
-  if (normalized === 'dgm') {
-    return 'DGM';
-  }
-  return value || '-';
-}
-
 bindLoader(async () => {
   try {
     await loadSourceOptions();
+    await loadMatchModeStatus();
     const patchedSource = await sourceScope.ensureDefaultApplied();
     if (patchedSource || !sourceScopeReady.value) {
       return;
@@ -277,6 +298,18 @@ async function handleClearFilter(key: string) {
     return;
   }
   await baseHandleClearFilter(key);
+}
+
+async function handleFilterChange(payload: { key: string; value: string | string[] | null }) {
+  if (payload.key === 'mergedAtRange') {
+    const [start, end] = Array.isArray(payload.value) ? payload.value : [];
+    await patchQuery({ page: 1, mergedAtStart: start || null, mergedAtEnd: end || null });
+    return;
+  }
+  await patchQuery({
+    page: 1,
+    [payload.key]: Array.isArray(payload.value) ? payload.value.join(',') || null : payload.value,
+  });
 }
 
 async function handleOpenRuleExplanation() {
@@ -351,11 +384,14 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :page-size-options="[40, 60, 100]"
       :total="total"
       :row-actions-width="112"
-      :active-filter-tags="conditionActiveFilterTags"
+      :primary-filters="primaryFilters"
+      :filter-values="filterValues"
+      :active-filter-tags="activeFilterTags"
       :show-search="false"
       :show-refresh="false"
       :empty-description="tableEmptyDescription"
       @reset="handleReset"
+      @filter-change="handleFilterChange"
       @query="handleQuery"
       @clear-filter="handleClearFilter"
       @size-change="handleSizeChange"
@@ -394,7 +430,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             执行时长：{{ taskDurationText }}
           </span>
           <el-button
-            v-if="canRefreshLatestData"
+            v-if="showRefreshLatestData"
             plain
             :icon="RefreshRight"
             :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
@@ -475,7 +511,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
       <template v-if="selectedRow">
         <section class="record-detail-section">
-          <div class="record-detail-section-title">基础信息</div>
+          <div class="record-detail-section-title">详细内容</div>
           <el-descriptions :column="2" border size="small" class="record-detail-descriptions">
             <el-descriptions-item label="走查编号">
               <el-link
@@ -488,7 +524,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               </el-link>
               <span v-else>{{ selectedRow.mergeRequestIid }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="所属项目">{{ sourceDisplayLabel(selectedRow.sourceInstance) }}</el-descriptions-item>
+            <el-descriptions-item label="所属项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="走查时间">{{ formatCodeReviewDate(selectedRow.codeWalkthroughDate) }}</el-descriptions-item>
             <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="被走查人">{{ selectedRow.author || '-' }}</el-descriptions-item>
@@ -497,118 +533,25 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             <el-descriptions-item label="合并时间">{{ formatCodeReviewDateTime(selectedRow.mergedAt) }}</el-descriptions-item>
             <el-descriptions-item label="合并人">{{ selectedRow.mergedBy || '-' }}</el-descriptions-item>
             <el-descriptions-item label="合并目标分支">{{ selectedRow.targetBranch || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="项目名称">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="代码库">{{ selectedRow.repositoryName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="请求类型">{{ selectedRow.requestType || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="项目 ID">{{ selectedRow.projectId ?? '-' }}</el-descriptions-item>
-            <el-descriptions-item label="功能名称">{{ selectedRow.functionName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="走查状态">{{ selectedRow.reviewStatus || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="走查异常原因">{{ selectedRow.reviewExceptionReason || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="扫描状态">{{ selectedRow.scanStatus || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="编码规范扫描结果">{{ selectedRow.annotationRateResult || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="静态扫描结果">{{ selectedRow.bugCountResult || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="走查工作量（分钟）">
+              {{ formatCodeReviewMetric(selectedRow.reviewDurationMinutes) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="新增走查代码行数（LOC）">
+              {{ formatCodeReviewMetric(selectedRow.addedLines) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="缺陷数（个）">
+              {{ formatCodeReviewMetric(selectedRow.defectCount) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="代码走查速率（LOC/H）">
+              {{ formatCodeReviewMetric(selectedRow.reviewSpeedLocPerHour) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="代码走查缺陷密度">
+              {{ formatCodeReviewMetric(selectedRow.defectDensityPerKloc) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="代码走查效率">
+              {{ formatCodeReviewMetric(selectedRow.reviewEfficiencyPerHour) }}
+            </el-descriptions-item>
           </el-descriptions>
-        </section>
-
-        <section class="record-detail-section">
-          <div class="record-detail-section-title">合并请求内容</div>
-          <div class="record-detail-content">{{ selectedRow.mergeRequestContent || '-' }}</div>
-        </section>
-
-        <section class="record-detail-section">
-          <div class="record-detail-section-title">非法判定</div>
-          <div class="record-detail-tags">
-            <el-tag
-              v-for="illegalType in selectedRow.illegalTypes"
-              :key="illegalType"
-              type="warning"
-              effect="plain"
-            >
-              {{ illegalType }}
-            </el-tag>
-            <span v-if="!selectedRow.illegalTypes.length" class="record-detail-empty">-</span>
-          </div>
-          <div v-if="selectedRow.reviewExceptionReason" class="record-detail-hint">
-            老平台走查异常原始值：{{ selectedRow.reviewExceptionReason }}
-          </div>
-        </section>
-
-        <section class="record-detail-section">
-          <div class="record-detail-section-title">度量指标</div>
-          <div class="record-detail-metrics">
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">代码注释比例</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewPercent(selectedRow.commentRate) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">缺陷数（个）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.defectCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">新增走查代码行数（LOC）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.addedLines, ' 行') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">删除代码行数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.deletedLines, ' 行') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">走查工作量（分钟）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewDurationMinutes, ' 分钟') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">代码走查速率（LOC/H）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedLocPerHour, ' LOC/H') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">代码走查速率（KLOC/H）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewSpeedKlocPerHour, ' KLOC/H') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">代码走查缺陷密度（个/KLOC）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.defectDensityPerKloc, ' 个/KLOC') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">代码走查效率（个/H）</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.reviewEfficiencyPerHour, ' 个/H') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">静态扫描问题数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.scanBugCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">规范类缺陷数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.codeSpecificationCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">逻辑类缺陷数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.codeLogicSpecificationCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">性能类缺陷数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.performanceSpecificationCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">设计类缺陷数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.designSpecificationCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">其他类缺陷数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.otherSpecificationCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">提交次数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.commitCount) }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">提交频率</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.commitRate, ' 行/次') }}</strong>
-            </article>
-            <article class="record-detail-metric-card">
-              <span class="record-detail-metric-label">Clang-tidy 新增行数</span>
-              <strong class="record-detail-metric-value">{{ formatCodeReviewMetric(selectedRow.clangAddedLineCount) }}</strong>
-            </article>
-          </div>
         </section>
       </template>
     </el-drawer>
@@ -793,65 +736,4 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   color: rgba(15, 23, 42, 0.76);
 }
 
-.record-detail-content {
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  color: rgba(15, 23, 42, 0.76);
-  line-height: 1.6;
-  font-size: 13px;
-}
-
-.record-detail-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.record-detail-empty {
-  color: rgba(15, 23, 42, 0.4);
-}
-
-.record-detail-hint {
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(217, 119, 6, 0.18);
-  background: rgba(255, 251, 235, 0.72);
-  color: rgba(120, 53, 15, 0.88);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.record-detail-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.record-detail-metric-card {
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.record-detail-metric-label {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.48);
-}
-
-.record-detail-metric-value {
-  font-size: 22px;
-  line-height: 1;
-  color: rgba(15, 23, 42, 0.92);
-}
-
-@media (max-width: 960px) {
-  .record-detail-metrics {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

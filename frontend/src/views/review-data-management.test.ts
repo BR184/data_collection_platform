@@ -63,7 +63,7 @@ describe('review-data-management helpers', () => {
 
     const tableRows = buildReviewDataTableRows(rows);
     expect(tableRows[0].title).toBe('草图功能设计说明书评审');
-    expect(tableRows[0].problemDensity).toBe('0.21');
+    expect(tableRows[0].problemDensity).toBe('0.20');
     expect(tableRows[0].reviewEfficiency).toBe('2.50');
     expect(tableRows[0].reviewRate).toBe('12.00');
     expect(tableRows[0].independentReviewWorkload).toBe('1.20');
@@ -116,7 +116,7 @@ describe('review-data-management helpers', () => {
     const csv = buildReviewDataExportCsv(rows);
     expect(csv).toContain('"标题","项目","模块"');
     expect(csv).toContain('"\'=风险标题"');
-    expect(csv).toContain('"0.21"');
+    expect(csv).toContain('"0.20"');
     expect(csv).toContain('"2.50"');
     expect(csv).toContain('"样本不足"');
     expect(csv).toContain('"否"');

@@ -25,6 +25,14 @@ function formatDate(value?: string | null) {
 function formatNumber(value?: number | null, digits = 2) {
   return Number.isFinite(value) ? Number(value).toFixed(digits) : '0';
 }
+
+function formatFlooredNumber(value?: number | null, digits = 2) {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+  const factor = 10 ** digits;
+  return (Math.floor(Number(value) * factor + Number.EPSILON) / factor).toFixed(digits);
+}
 </script>
 
 <template>
@@ -64,14 +72,14 @@ function formatNumber(value?: number | null, digits = 2) {
         </header>
         <el-descriptions :column="2" border>
           <el-descriptions-item label="问题合计">{{ detailData.record.problemCount }}</el-descriptions-item>
-          <el-descriptions-item label="缺陷密度">{{ formatNumber(detailData.record.problemDensity) }}</el-descriptions-item>
+          <el-descriptions-item label="缺陷密度">{{ formatFlooredNumber(detailData.record.problemDensity) }}</el-descriptions-item>
           <el-descriptions-item label="评审类别">{{ displayText(detailData.record.reviewCategorySummary) }}</el-descriptions-item>
           <el-descriptions-item label="文档规范">{{ detailData.record.docSpecificationCount ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="完整性规范">{{ detailData.record.integrityCount ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="功能性规范">{{ detailData.record.functionalityCount ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="可行性规范">{{ detailData.record.feasibilityCount ?? 0 }}</el-descriptions-item>
-          <el-descriptions-item label="评审效率">{{ formatNumber(detailData.record.reviewEfficiency) }}</el-descriptions-item>
-          <el-descriptions-item label="评审速率">{{ formatNumber(detailData.record.reviewRate) }}</el-descriptions-item>
+          <el-descriptions-item label="评审效率">{{ formatFlooredNumber(detailData.record.reviewEfficiency) }}</el-descriptions-item>
+          <el-descriptions-item label="评审速率">{{ formatFlooredNumber(detailData.record.reviewRate) }}</el-descriptions-item>
           <el-descriptions-item label="独立评审工作量">{{ formatNumber(detailData.record.independentReviewWorkload) }}</el-descriptions-item>
           <el-descriptions-item label="有效独立问题数">{{ detailData.record.independentReviewProblemCount ?? 0 }}</el-descriptions-item>
           <el-descriptions-item label="会议评审工作量">{{ formatNumber(detailData.record.meetingReviewWorkload) }}</el-descriptions-item>

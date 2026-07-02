@@ -9,7 +9,7 @@ class GitlabFactSourceQueryExecutorTest {
   private final GitlabFactSourceQueryExecutor executor = new GitlabFactSourceQueryExecutor(null, null);
 
   @Test
-  void shouldRewriteMirrorTablesForNamedSourceInstances() {
+  void shouldKeepSingleMirrorTablesForNamedSourceInstances() {
     String sql = executor.buildSourceSql(
         "select * from ods_gitlab_issues i join ods_gitlab_merge_requests mr on mr.id = i.id",
         "DGM-InnerNet",
@@ -17,8 +17,9 @@ class GitlabFactSourceQueryExecutorTest {
         null);
 
     assertThat(sql)
-        .contains("ods_gitlab_dgm_innernet_issues")
-        .contains("ods_gitlab_dgm_innernet_merge_requests")
+        .contains("ods_gitlab_issues")
+        .contains("ods_gitlab_merge_requests")
+        .doesNotContain("dgm_innernet")
         .doesNotContain("coalesce(i.updated_at, i.created_at) > ?");
   }
 

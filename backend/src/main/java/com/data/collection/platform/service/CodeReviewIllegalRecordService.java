@@ -108,13 +108,14 @@ public class CodeReviewIllegalRecordService {
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL, CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL, CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL, CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL),
-          new OptionItemResponse(CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL, CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL),
-          new OptionItemResponse(CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL, CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL));
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL, CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL));
 
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   private final FactBuildService factBuildService;
   private final CodeReviewIllegalRecordSourceLoader sourceLoader;
+  private final CodeReviewMatchModeRecordLoader matchModeRecordLoader;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
 
@@ -123,6 +124,8 @@ public class CodeReviewIllegalRecordService {
       RealtimeIncrementalRefreshService realtimeIncrementalRefreshService,
       FactBuildService factBuildService,
       CodeReviewIllegalRecordSourceLoader sourceLoader,
+      CodeReviewMatchModeRecordLoader matchModeRecordLoader,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties) {
@@ -130,6 +133,8 @@ public class CodeReviewIllegalRecordService {
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
     this.factBuildService = factBuildService;
     this.sourceLoader = sourceLoader;
+    this.matchModeRecordLoader = matchModeRecordLoader;
+    this.matchModeSwitchService = matchModeSwitchService;
     this.issueLinkService = issueLinkService;
     this.objectMapper = objectMapper;
   }
@@ -145,7 +150,7 @@ public class CodeReviewIllegalRecordService {
         CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, safeRequest.filterGroupJson());
     if (canUseDefaultSqlPage(safeRequest)) {
       PageSlice<CodeReviewIllegalRecordSource> sourcePage =
-          sourceLoader.loadDefaultIllegalPage(
+          activeLoader().loadDefaultIllegalPage(
               new CodeReviewIllegalRecordSourcePageQuery(
                   safeRequest, filterGroup, safePage, safeSize, safeSortField, safeSortOrder));
       CodeReviewRuleConfig responseRuleConfig = null;
@@ -334,7 +339,7 @@ public class CodeReviewIllegalRecordService {
     StatisticFilterGroup filterGroup =
         CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, allQuery.filterGroupJson());
     List<CodeReviewIllegalRecordRowResponse> rows =
-        sourceLoader.loadLegacyAllExportSources(allQuery, filterGroup).stream()
+        activeLoader().loadLegacyAllExportSources(allQuery, filterGroup).stream()
             .map(this::toView)
             .map(this::toResponse)
             .toList();
@@ -485,7 +490,7 @@ public class CodeReviewIllegalRecordService {
     Long projectId = request == null ? null : request.projectId();
     String projectName = request == null ? null : request.projectName();
     List<CodeReviewIllegalRecordView> rows =
-        sourceLoader
+        activeLoader()
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
                     projectId,
@@ -503,7 +508,7 @@ public class CodeReviewIllegalRecordService {
             .filter(row -> !row.illegalTypes().isEmpty())
             .toList();
     List<CodeReviewIllegalRecordView> projectRows =
-        sourceLoader
+        activeLoader()
             .loadSources(
                 CodeReviewIllegalRecordQuerySupport.buildFactFilters(
                     null, null, null, null, null, null, null, null, null, source))
@@ -520,7 +525,7 @@ public class CodeReviewIllegalRecordService {
         toLegacyOptions(rows, CodeReviewIllegalRecordView::targetBranch),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::mergedBy),
         toLegacyOptions(rows, CodeReviewIllegalRecordView::moduleName),
-        toLegacyOptions(projectRows, CodeReviewIllegalRecordView::projectName));
+        toCodeReviewProjectNameOptions(projectRows));
   }
 
   private List<OptionItemResponse> toProjectOptions(List<CodeReviewIllegalRecordView> rows) {
@@ -548,6 +553,18 @@ public class CodeReviewIllegalRecordService {
   }
 
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
+    //兼容模式-MatchMode
+    if (matchModeSwitchService.isEnabled()) {
+      return new RealtimeWorkspaceStatusResponse(
+          WORKSPACE_KEY,
+          false,
+          "IDLE",
+          "兼容模式开启时，代码走查非法数据来自老平台兼容表，请等待每小时自动同步。",
+          false,
+          null,
+          null,
+          null);
+    }
     return realtimeWorkspaceService.requestRefreshWithResult(WORKSPACE_KEY, this::refreshMirrorForRealtimeView);
   }
 
@@ -577,7 +594,7 @@ public class CodeReviewIllegalRecordService {
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation() {
     List<CodeReviewIllegalRecordSource> sources =
-        sourceLoader.loadSources(
+        activeLoader().loadSources(
             CodeReviewIllegalRecordQuerySupport.buildFactFilters(
                 null, null, null, null, null, null, null, null, null, null));
     List<CodeReviewIllegalRecordView> views = sources.stream().map(this::toView).toList();
@@ -593,7 +610,9 @@ public class CodeReviewIllegalRecordService {
         true,
         "代码走查非法记录规则说明",
         RULE_VERSION,
-        "当前统计范围是已归一化到事实表中的 Merge Request 相关数据；页面查询条件会在这个范围上继续筛选。",
+        matchModeSwitchService.isEnabled()
+            ? "当前统计范围来自老平台兼容数据快照；页面查询条件会在这个范围上继续筛选。"
+            : "当前统计范围是已归一化到事实表中的 Merge Request 相关数据；页面查询条件会在这个范围上继续筛选。",
         "这里先说明总共有多少条非法记录，再说明它们分别是因为什么被判定为非法。",
         buildRuleFlowSteps(views, illegalViews, total, illegalTotal),
         buildMetricDefinitions(),
@@ -666,7 +685,7 @@ public class CodeReviewIllegalRecordService {
             mergeRequestIid,
             owner,
             source);
-    return sourceLoader.loadSources(factFilters).stream()
+    return activeLoader().loadSources(factFilters).stream()
         .map(this::toView)
         .filter(row -> CodeReviewIllegalRecordQuerySupport.matchesKeyword(row, keyword))
         .filter(row -> CodeReviewIllegalRecordQuerySupport.matchesRequestType(row.requestType(), requestType))
@@ -729,6 +748,63 @@ public class CodeReviewIllegalRecordService {
 
   private RealtimeWorkspaceRefreshResult refreshMirrorForRealtimeView() {
     return realtimeIncrementalRefreshService.requestIncrementalRefresh(WORKSPACE_KEY, REALTIME_REFRESH_TABLES);
+  }
+
+  //兼容模式-MatchMode
+  private CodeReviewIllegalRecordSourceAccess activeLoader() {
+    return matchModeSwitchService.isEnabled()
+        ? new CodeReviewIllegalRecordSourceAccess.MatchMode(matchModeRecordLoader)
+        : new CodeReviewIllegalRecordSourceAccess.Fact(sourceLoader);
+  }
+
+  private sealed interface CodeReviewIllegalRecordSourceAccess {
+    List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters);
+
+    PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(CodeReviewIllegalRecordSourcePageQuery query);
+
+    List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
+        CodeReviewIllegalRecordQueryRequest request,
+        StatisticFilterGroup filterGroup);
+
+    record Fact(CodeReviewIllegalRecordSourceLoader loader) implements CodeReviewIllegalRecordSourceAccess {
+      @Override
+      public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
+        return loader.loadSources(filters);
+      }
+
+      @Override
+      public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
+          CodeReviewIllegalRecordSourcePageQuery query) {
+        return loader.loadDefaultIllegalPage(query);
+      }
+
+      @Override
+      public List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
+          CodeReviewIllegalRecordQueryRequest request,
+          StatisticFilterGroup filterGroup) {
+        return loader.loadLegacyAllExportSources(request, filterGroup);
+      }
+    }
+
+    record MatchMode(CodeReviewMatchModeRecordLoader loader) implements CodeReviewIllegalRecordSourceAccess {
+      @Override
+      public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
+        return loader.loadSources(filters);
+      }
+
+      @Override
+      public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
+          CodeReviewIllegalRecordSourcePageQuery query) {
+        return loader.loadDefaultIllegalPage(query);
+      }
+
+      @Override
+      public List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
+          CodeReviewIllegalRecordQueryRequest request,
+          StatisticFilterGroup filterGroup) {
+        return loader.loadLegacyAllExportSources(request, filterGroup);
+      }
+    }
   }
 
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {
@@ -824,7 +900,7 @@ public class CodeReviewIllegalRecordService {
             "illegalTypes",
             "非法类型",
             "系统按老平台代码走查非法数据口径标记这条合并请求命中的非法类型。",
-            "非法类型 = 未标注项目名 / 未标注模块名 / 代码走查异常 / 未进行代码扫描 / 静态扫描问题未关闭 / 代码注释量未达标 / 静态扫描失败 / 注释率分析工具Clang分析错误 / GitLab 接口报错",
+            "非法类型 = 未标注项目名称 / 未标注模块名称 / 无代码走查 / 未代码扫描 / 静态扫描问题未关闭 / 代码注释量未达标 / 静态扫描失败 / 注释率分析工具Clang分析错误",
             "一条记录可以同时命中多种非法类型。"),
         new StatisticRuleMetricDefinition(
             "reviewStatus",
@@ -848,14 +924,14 @@ public class CodeReviewIllegalRecordService {
             "scanStatus",
             "代码扫描结果",
             "表示这条合并请求是否已经完成静态扫描，以及静态扫描问题是否已经清理。",
-            "未进行代码扫描 = 事实字段明确标记为未扫描；筛选入参同时兼容老平台下拉值“未代码扫描”。静态扫描问题未关闭 = 扫描问题数大于 0 或结果字段为对应老平台值",
+            "未代码扫描 = 代码扫描结果为“未进行代码扫描”；静态扫描问题未关闭 = Bug 数量不为 0。",
             "只有事实层中已经带出扫描状态时，才会命中这类非法规则。"),
         new StatisticRuleMetricDefinition(
             "commentRate",
             "代码注释比例",
             "表示本次改动中代码注释的覆盖情况。",
-            "代码注释比例 = 外部工具结果 或 MR 机器人解析结果",
-            "如果编码规范扫描结果为“代码注释量未达标”或“注释率分析工具Clang分析错误”，会命中对应非法类型。"),
+            "代码注释比例 = 外部工具结果或 MR 机器人解析结果；CC 低于 15%、DGM 低于 20% 判定为代码注释量未达标。",
+            "如果编码规范扫描结果为“代码注释量未达标”或“注释率分析工具Clang分析错误”，也会命中对应非法类型。"),
         new StatisticRuleMetricDefinition(
             "defectCount",
             "缺陷数量",
@@ -950,6 +1026,19 @@ public class CodeReviewIllegalRecordService {
       List<CodeReviewIllegalRecordView> rows,
       Function<CodeReviewIllegalRecordView, String> extractor) {
     return OptionItemResponseFactory.fromLegacyBusinessValues(rows.stream().map(extractor).toList());
+  }
+
+  private List<OptionItemResponse> toCodeReviewProjectNameOptions(List<CodeReviewIllegalRecordView> rows) {
+    return OptionItemResponseFactory.fromLegacyBusinessValues(
+        rows.stream()
+            .map(CodeReviewIllegalRecordView::projectName)
+            .filter(projectName -> !isHiddenCodeReviewProjectName(projectName))
+            .toList());
+  }
+
+  private boolean isHiddenCodeReviewProjectName(String projectName) {
+    String normalized = TextQuerySupport.trimToNull(projectName);
+    return normalized != null && "CC".equalsIgnoreCase(normalized);
   }
 
   private List<OptionItemResponse> toOptions(List<String> values) {

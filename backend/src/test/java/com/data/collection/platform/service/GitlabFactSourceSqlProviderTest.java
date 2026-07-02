@@ -31,6 +31,9 @@ class GitlabFactSourceSqlProviderTest {
         .contains("from ods_gitlab_notes n")
         .contains("n.noteable_type = 'MergeRequest'")
         .contains("## 代码走查数据")
+        .contains("mr.state_id")
+        .contains("metrics.merged_at as merged_at")
+        .doesNotContain("coalesce(metrics.merged_at, mr.updated_at) as merged_at")
         .contains("code_walkthrough_date")
         .contains("ll.target_type = 'MergeRequest'");
   }

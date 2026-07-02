@@ -14,26 +14,26 @@ function setup() {
 }
 
 describe('useReviewDataExport', () => {
-  it('downloads review record workbook with a dated filename', async () => {
+  it('downloads review record workbook with the legacy filename', async () => {
     const deps = setup();
     const exporter = useReviewDataExport(deps);
 
     await exporter.exportReviewRecords();
 
     expect(deps.exportReviewRecords).toHaveBeenCalledOnce();
-    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审数据管理_20260427080910.xlsx');
+    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), 'AllData.xlsx');
     expect(deps.notifySuccess).toHaveBeenCalledWith('已导出评审列表');
     expect(exporter.recordExportLoading.value).toBe(false);
   });
 
-  it('downloads problem detail workbook with a dated filename', async () => {
+  it('downloads problem detail workbook with the legacy filename', async () => {
     const deps = setup();
     const exporter = useReviewDataExport(deps);
 
     await exporter.exportProblemDetails();
 
     expect(deps.exportProblemDetails).toHaveBeenCalledOnce();
-    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审问题详情_20260427080910.xlsx');
+    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审问题详情导出.xlsx');
     expect(deps.notifySuccess).toHaveBeenCalledWith('已导出问题列表');
     expect(exporter.problemExportLoading.value).toBe(false);
   });

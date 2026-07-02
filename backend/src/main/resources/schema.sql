@@ -7,6 +7,7 @@ create table if not exists gitlab_sync_configs (
     web_base_url varchar(255),
     api_token varchar(255),
     delay_label_writeback_enabled boolean not null default false,
+    match_mode_enabled boolean not null default true,
     auto_sync_enabled boolean not null default true,
     source_mode varchar(32) not null default 'DOCKER',
     whitelist_mode varchar(32) not null default 'RECOMMENDED',
@@ -364,6 +365,98 @@ create table if not exists code_review_external_metrics (
     unique (project_id, merge_request_iid)
 );
 
+create table if not exists code_review_match_mode_records (
+    id bigserial primary key,
+    source_instance varchar(128) not null default 'cc',
+    project_id bigint not null default 0,
+    project_name varchar(255),
+    repository_name varchar(255),
+    merge_request_id bigint not null,
+    merge_request_iid bigint not null,
+    title varchar(512) not null default '',
+    merge_request_state varchar(64),
+    target_branch varchar(255),
+    author_name varchar(128),
+    merge_user_name varchar(128),
+    owner_name varchar(255),
+    reviewer_names varchar(512),
+    assignee_names varchar(512),
+    module_name varchar(255),
+    label_names text,
+    search_text text,
+    search_compact text,
+    search_spell text,
+    search_initials text,
+    merged_at_source timestamp,
+    code_walkthrough_date timestamp,
+    review_status varchar(128),
+    review_duration_minutes integer,
+    review_exception_reason varchar(128),
+    scan_status varchar(128),
+    scan_bug_count integer,
+    annotation_rate_result varchar(128),
+    bug_count_result varchar(128),
+    comment_rate numeric(8, 2),
+    defect_count integer,
+    added_lines integer,
+    deleted_lines integer,
+    code_specification_count integer,
+    code_logic_specification_count integer,
+    performance_specification_count integer,
+    design_specification_count integer,
+    other_specification_count integer,
+    review_speed_loc_per_hour integer,
+    review_speed_kloc_per_hour numeric(10, 2),
+    review_defect_density_per_kloc numeric(10, 2),
+    review_efficiency_per_hour numeric(10, 2),
+    commit_count integer,
+    commit_rate integer,
+    function_name varchar(255),
+    clang_added_line_count integer,
+    synced_at timestamp not null default current_timestamp,
+    unique (source_instance, project_id, merge_request_id)
+);
+
+create table if not exists code_review_match_mode_sync_state (
+    id smallint primary key default 1,
+    status varchar(32) not null default 'IDLE',
+    message text,
+    record_count bigint not null default 0,
+    started_at timestamp,
+    finished_at timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint ck_code_review_match_mode_sync_state_singleton check (id = 1)
+);
+
+create table if not exists code_review_match_mode_db_settings (
+    id smallint primary key default 1,
+    enabled boolean not null default true,
+    sync_enabled boolean not null default true,
+    mysql_host varchar(255) not null default '172.22.10.72',
+    mysql_port integer not null default 3306,
+    mysql_database varchar(255) not null default 'gitlab_spider',
+    mysql_username varchar(255) not null default 'root',
+    mysql_password varchar(255) not null default '',
+    mysql_table_name varchar(255) not null default 'spider_crowncad_data',
+    mysql_fetch_size integer not null default 1000,
+    mongo_uri text,
+    mongo_database varchar(255) default 'spider',
+    mongo_annotation_collection varchar(255) not null default 'annotationRateInfo',
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    constraint ck_code_review_match_mode_db_settings_singleton check (id = 1),
+    constraint ck_code_review_match_mode_db_settings_mysql_port check (mysql_port between 1 and 65535),
+    constraint ck_code_review_match_mode_db_settings_fetch_size check (mysql_fetch_size between 1 and 100000)
+);
+
+insert into code_review_match_mode_sync_state(id, status, message)
+values (1, 'IDLE', '兼容模式尚未同步')
+on conflict (id) do nothing;
+
+insert into code_review_match_mode_db_settings(id, enabled, sync_enabled)
+values (1, true, true)
+on conflict (id) do nothing;
+
 create table if not exists issue_fact (
     id bigserial primary key,
     source_system varchar(64) not null default 'GITLAB',
@@ -667,6 +760,7 @@ alter table gitlab_sync_configs add column if not exists source_instance varchar
 alter table gitlab_sync_configs add column if not exists web_base_url varchar(255);
 alter table gitlab_sync_configs add column if not exists api_token varchar(255);
 alter table gitlab_sync_configs add column if not exists delay_label_writeback_enabled boolean not null default false;
+alter table gitlab_sync_configs add column if not exists match_mode_enabled boolean not null default true;
 alter table gitlab_sync_configs add column if not exists source_enabled boolean not null default true;
 alter table gitlab_sync_configs add column if not exists docker_container_name varchar(255);
 alter table gitlab_sync_configs add column if not exists system_hook_enabled boolean not null default false;
@@ -806,6 +900,10 @@ create index if not exists idx_review_problem_items_record on review_problem_ite
 create index if not exists idx_review_problem_items_lower_status_record on review_problem_items(lower(coalesce(problem_status, '')), review_record_id) where deleted = false;
 create index if not exists idx_review_problem_items_reviewer on review_problem_items(reviewer_name, deleted);
 create index if not exists idx_code_review_external_metrics_context on code_review_external_metrics(project_id, merge_request_iid);
+create index if not exists idx_code_review_match_mode_records_query
+    on code_review_match_mode_records(source_instance, merged_at_source desc, merge_request_iid desc);
+create index if not exists idx_code_review_match_mode_records_project
+    on code_review_match_mode_records(project_name, target_branch, module_name);
 create index if not exists idx_issue_fact_context on issue_fact(source_system, source_instance, project_id, issue_iid);
 create index if not exists idx_issue_fact_state on issue_fact(issue_state, severity_level, priority_level);
 create index if not exists idx_issue_fact_module on issue_fact(module_name, testing_phase, bug_status);

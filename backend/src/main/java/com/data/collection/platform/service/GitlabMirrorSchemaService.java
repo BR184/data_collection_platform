@@ -55,7 +55,7 @@ public class GitlabMirrorSchemaService {
    * Control-plane schema refresh. This path may do low-frequency schema evolution work.
    */
   public PreparedMirrorTable prepareMirrorTable(GitlabSyncConfig config, TableWhitelistOption option) {
-    String expectedMirrorTableName = buildMirrorTableName(config, option.tableName());
+    String expectedMirrorTableName = buildMirrorTableName(option.tableName());
     GitlabMirrorTableRegistry registry = findRegistry(config.getId(), option.tableName());
     if (registry != null
         && Boolean.TRUE.equals(registry.getInitialized())
@@ -114,7 +114,7 @@ public class GitlabMirrorSchemaService {
    * Data-plane fast path. Never performs ALTER/type validation/auxiliary index work.
    */
   public PreparedMirrorTable getPreparedMirrorTableForSync(GitlabSyncConfig config, TableWhitelistOption option) {
-    String expectedMirrorTableName = buildMirrorTableName(config, option.tableName());
+    String expectedMirrorTableName = buildMirrorTableName(option.tableName());
     GitlabMirrorTableRegistry registry = findRegistry(config.getId(), option.tableName());
     if (registry != null
         && Boolean.TRUE.equals(registry.getInitialized())
@@ -471,10 +471,8 @@ public class GitlabMirrorSchemaService {
     return shortHash(payload);
   }
 
-  private String buildMirrorTableName(GitlabSyncConfig config, String sourceTableName) {
-    return GitlabSourceInstanceSupport.buildMirrorTableName(
-        sourceTableName,
-        GitlabSourceInstanceSupport.sourceInstanceOf(config));
+  private String buildMirrorTableName(String sourceTableName) {
+    return GitlabSourceInstanceSupport.buildMirrorTableName(sourceTableName);
   }
 
   private String shortHash(String text) {

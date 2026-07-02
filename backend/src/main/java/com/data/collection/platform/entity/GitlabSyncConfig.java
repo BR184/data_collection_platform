@@ -36,6 +36,9 @@ public class GitlabSyncConfig {
   @TableField("delay_label_writeback_enabled")
   private Boolean delayLabelWritebackEnabled;
 
+  @TableField("match_mode_enabled")
+  private Boolean matchModeEnabled;
+
   @TableField("auto_sync_enabled")
   private boolean autoSyncEnabled;
 

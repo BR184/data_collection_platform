@@ -21,7 +21,7 @@ import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspa
 import { usePageAutoRefreshPreference } from '../../composables/usePageAutoRefreshPreference';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
-import { downloadBlob, downloadCsv, formatExportFileDate } from '../../utils/csv-download';
+import { downloadBlob } from '../../utils/csv-download';
 
 const props = defineProps<IssueIllegalRecordsPageConfig>();
 const pageScopeKey = computed(() => `record-page:${props.workspaceKey}`);
@@ -310,11 +310,7 @@ async function handleExport() {
   try {
     const exported = await props.exportRecords(buildCurrentQueryParams(false));
     const filenamePrefix = props.exportFilenamePrefix || props.title;
-    if (exported instanceof Blob) {
-      downloadBlob(exported, `${filenamePrefix}_${formatExportFileDate(new Date())}.xlsx`);
-    } else {
-      downloadCsv(exported, `${filenamePrefix}_${formatExportFileDate(new Date())}.csv`);
-    }
+    downloadBlob(exported, `${filenamePrefix}.xlsx`);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {

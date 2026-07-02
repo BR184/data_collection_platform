@@ -48,10 +48,11 @@ public class ReviewDataRecordWriteRepository {
       String notReachStandardReason,
       String sourceFileName,
       Double weightedDefectDensity) {
+    String normalizedModuleName = ReviewDataModuleNameSupport.normalize(moduleName);
     KeyHolder keyHolder = new GeneratedKeyHolder();
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
-            title, projectName, moduleName, reviewOwner, reviewType, List.of());
+            title, projectName, normalizedModuleName, reviewOwner, reviewType, List.of());
     TextQuerySupport.SearchIndex titleSearchIndex = TextQuerySupport.buildSearchIndex(title);
     jdbcTemplate.update(
         connection -> {
@@ -87,7 +88,7 @@ public class ReviewDataRecordWriteRepository {
                   new String[] {"id"});
           statement.setString(1, normalizeText(projectName));
           statement.setString(2, normalizeText(title));
-          statement.setString(3, normalizeText(moduleName));
+          statement.setString(3, normalizeText(normalizedModuleName));
           statement.setString(4, normalizeText(reviewType));
           statement.setDate(5, reviewDate == null ? null : Date.valueOf(reviewDate));
           statement.setString(6, normalizeText(reviewOwner));
@@ -131,9 +132,10 @@ public class ReviewDataRecordWriteRepository {
       String notReachStandardReason,
       String sourceFileName,
       Double weightedDefectDensity) {
+    String normalizedModuleName = ReviewDataModuleNameSupport.normalize(moduleName);
     TextQuerySupport.SearchIndex searchIndex =
         ReviewDataSearchIndexSupport.buildRecordIndex(
-            title, projectName, moduleName, reviewOwner, reviewType, List.of());
+            title, projectName, normalizedModuleName, reviewOwner, reviewType, List.of());
     TextQuerySupport.SearchIndex titleSearchIndex = TextQuerySupport.buildSearchIndex(title);
     jdbcTemplate.update(
         """
@@ -165,7 +167,7 @@ public class ReviewDataRecordWriteRepository {
         """,
         normalizeText(projectName),
         normalizeText(title),
-        normalizeText(moduleName),
+        normalizeText(normalizedModuleName),
         normalizeText(reviewType),
         reviewDate == null ? null : Date.valueOf(reviewDate),
         normalizeText(reviewOwner),

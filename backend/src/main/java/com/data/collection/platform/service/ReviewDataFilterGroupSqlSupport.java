@@ -52,15 +52,9 @@ final class ReviewDataFilterGroupSqlSupport {
           "review_problem_items", "problem_status", condition);
       case "reviewScalePages" -> numberCondition("r.review_scale_pages", condition);
       case "problemCount" -> numberCondition("coalesce(problem.problem_count, 0)", condition);
-      case "problemDensity" -> numberCondition(
-          "case when r.review_scale_pages <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / r.review_scale_pages end",
-          condition);
-      case "reviewEfficiency" -> numberCondition(
-          "case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else coalesce(problem.problem_count, 0)::numeric / problem.total_workload_hours end",
-          condition);
-      case "reviewRate" -> numberCondition(
-          "case when coalesce(problem.total_workload_hours, 0) <= 0 then 0 else r.review_scale_pages::numeric / problem.total_workload_hours end",
-          condition);
+      case "problemDensity" -> numberCondition(ReviewDataMetricSqlExpressions.PROBLEM_DENSITY, condition);
+      case "reviewEfficiency" -> numberCondition(ReviewDataMetricSqlExpressions.REVIEW_EFFICIENCY, condition);
+      case "reviewRate" -> numberCondition(ReviewDataMetricSqlExpressions.REVIEW_RATE, condition);
       case "independentReviewWorkload" ->
           numberCondition("coalesce(problem.independent_review_workload, 0)", condition);
       case "independentReviewProblemCount" ->

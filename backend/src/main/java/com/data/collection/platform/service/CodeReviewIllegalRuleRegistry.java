@@ -23,6 +23,8 @@ final class CodeReviewIllegalRuleRegistry {
   static final String CLANG_RESULT_FALSE_LABEL = "注释率分析工具Clang分析错误";
   static final String GITLAB_ERROR_LABEL = "GitLab 接口报错";
   private static final Set<String> GITLAB_ERROR_VALUES = Set.of(GITLAB_ERROR_LABEL, "GitLab接口报错");
+  private static final double CC_COMMENT_RATE_THRESHOLD = 15.0;
+  private static final double DGM_COMMENT_RATE_THRESHOLD = 20.0;
   static final List<String> LEGACY_REVIEW_EXCEPTION_REASONS =
       List.of("没有合法评论", "代码走查时间或缺陷数异常", "代码走查标题异常", "代码走查记录行数异常");
 
@@ -34,15 +36,18 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "missing-project",
               MISSING_PROJECT_LABEL,
-              source -> "未标注项目名".equals(source.projectName())),
+              source -> !hasRequiredLabel(source.labelTitles(), "项目")),
           new CodeReviewIllegalRule(
               "missing-module",
               MISSING_MODULE_LABEL,
-              source -> "未标注模块名".equals(source.moduleName())),
+              source -> !hasRequiredLabel(source.labelTitles(), "模块")),
           new CodeReviewIllegalRule(
               "missing-review",
               MISSING_REVIEW_LABEL,
-              source -> isLegacyReviewException(source.assigneeNames())),
+              source -> isLegacyReviewException(source.reviewExceptionReason())
+                  || isLegacyReviewException(source.owner())
+                  || isLegacyReviewException(source.reviewerNames())
+                  || isLegacyReviewException(source.assigneeNames())),
           new CodeReviewIllegalRule(
               "not-scanned",
               NOT_SCANNED_LABEL,
@@ -53,11 +58,13 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "open-scan-issue",
               OPEN_SCAN_ISSUE_LABEL,
-              source -> OPEN_SCAN_ISSUE_LABEL.equals(source.bugCountResult())),
+              source -> source.scanBugCount() != null && source.scanBugCount() != 0),
           new CodeReviewIllegalRule(
               "comment-rate-not-pass",
               COMMENT_RATE_NOT_PASS_LABEL,
-              source -> COMMENT_RATE_NOT_PASS_LABEL.equals(source.annotationRateResult())),
+              source ->
+                  COMMENT_RATE_NOT_PASS_LABEL.equals(source.annotationRateResult())
+                      || isCommentRateBelowLegacyThreshold(source)),
           new CodeReviewIllegalRule(
               "scan-failed",
               SCAN_FAILED_LABEL,
@@ -65,21 +72,14 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "clang-result-false",
               CLANG_RESULT_FALSE_LABEL,
-              source -> CLANG_RESULT_FALSE_LABEL.equals(source.annotationRateResult())),
-          new CodeReviewIllegalRule(
-              "gitlab-error",
-              GITLAB_ERROR_LABEL,
-              source ->
-                  isGitlabError(source.scanStatus())
-                      || isGitlabError(source.targetBranch())
-                      || isGitlabError(source.assigneeNames())));
+              source -> CLANG_RESULT_FALSE_LABEL.equals(source.annotationRateResult())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =
       List.of(
           new CodeReviewIllegalRuleGroup(
               "missing-project-module-check",
               "检查项目名和模块名",
-              "如果项目名或模块名为老平台非法占位值，就会被判定为对应的未标注非法类型。",
+              "如果 GitLab 标签中缺少“项目:xxx/项目：xxx”或“模块:xxx/模块：xxx”，就会被判定为对应的未标注非法类型。",
               List.of("missing-project", "missing-module")),
           new CodeReviewIllegalRuleGroup(
               "review-check",
@@ -89,8 +89,8 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRuleGroup(
               "scan-check",
               "\u68c0\u67e5\u4ee3\u7801\u626b\u63cf\u7ed3\u679c",
-              "如果明确标记为未代码扫描、静态扫描问题未关闭、静态扫描失败或 GitLab 接口报错，就会被判定为对应非法类型。",
-              List.of("not-scanned", "open-scan-issue", "scan-failed", "gitlab-error")),
+              "如果明确标记为未代码扫描、静态扫描问题未关闭或静态扫描失败，就会被判定为对应非法类型。",
+              List.of("not-scanned", "open-scan-issue", "scan-failed")),
           new CodeReviewIllegalRuleGroup(
               "comment-rate-check",
               "检查代码注释率结果",
@@ -164,18 +164,11 @@ final class CodeReviewIllegalRuleRegistry {
   }
 
   static boolean matchesDefaultIllegalType(List<String> illegalTypes, String source) {
-    if (illegalTypes == null || illegalTypes.isEmpty()) {
-      return false;
-    }
-    if (includesClangInDefaultIllegal(source)) {
-      return true;
-    }
-    return illegalTypes.stream().anyMatch(label -> !CLANG_RESULT_FALSE_LABEL.equals(label));
+    return illegalTypes != null && !illegalTypes.isEmpty();
   }
 
   static boolean includesClangInDefaultIllegal(String source) {
-    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
-    return !("cc".equals(normalized) || GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(normalized));
+    return true;
   }
 
   static boolean isGitlabError(String value) {
@@ -186,5 +179,49 @@ final class CodeReviewIllegalRuleRegistry {
   static boolean isLegacyReviewException(String value) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized != null && LEGACY_REVIEW_EXCEPTION_REASONS.contains(normalized);
+  }
+
+  static boolean hasRequiredLabel(List<String> labels, String groupName) {
+    if (labels == null || labels.isEmpty()) {
+      return false;
+    }
+    for (String label : labels) {
+      String normalized = TextQuerySupport.trimToNull(label);
+      if (normalized == null) {
+        continue;
+      }
+      int separatorIndex = firstColonIndex(normalized);
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      String prefix = normalized.substring(0, separatorIndex).trim();
+      String value = TextQuerySupport.trimToNull(normalized.substring(separatorIndex + 1));
+      if (groupName.equals(prefix) && value != null && firstColonIndex(value) != 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static int firstColonIndex(String value) {
+    int ascii = value.indexOf(':');
+    int chinese = value.indexOf('：');
+    if (ascii < 0) {
+      return chinese;
+    }
+    if (chinese < 0) {
+      return ascii;
+    }
+    return Math.min(ascii, chinese);
+  }
+
+  static double commentRateThreshold(String source) {
+    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    return "dgm".equals(normalized) ? DGM_COMMENT_RATE_THRESHOLD : CC_COMMENT_RATE_THRESHOLD;
+  }
+
+  static boolean isCommentRateBelowLegacyThreshold(CodeReviewIllegalRecordSource source) {
+    return source.commentRate() != null
+        && source.commentRate() < commentRateThreshold(source.sourceInstance());
   }
 }

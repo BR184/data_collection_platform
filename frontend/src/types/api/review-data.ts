@@ -167,7 +167,7 @@ export interface ReviewDataProblemItemSaveRequest {
   suggestedSolution: string;
   ownerName: string;
   rejectionReason: string;
-  problemStatus: string;
+  problemStatus?: string | null;
 }
 
 export type ReviewDataLegacyExcelIssueLevel = 'ERROR' | 'WARNING';

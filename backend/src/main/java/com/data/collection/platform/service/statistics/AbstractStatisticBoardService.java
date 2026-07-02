@@ -49,12 +49,12 @@ public abstract class AbstractStatisticBoardService implements StatisticBoardWor
 
   @Override
   public String exportFilename() {
-    return boardKey() + ".xlsx";
+    return buildDefinition().title() + ".xlsx";
   }
 
   @Override
   public String exportFilename(Map<String, String> filters) {
-    return boardKey() + ".xlsx";
+    return exportFilename();
   }
 
   protected abstract StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup);

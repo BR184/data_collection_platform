@@ -156,7 +156,7 @@ public class ReviewDataLegacyExcelImportService {
     if (missingReviewDate) {
       reviewDate = LocalDate.now();
     }
-    String moduleName = firstNonBlank(row.moduleName(), FALLBACK_MODULE_NAME);
+    String moduleName = ReviewDataModuleNameSupport.normalize(firstNonBlank(row.moduleName(), FALLBACK_MODULE_NAME));
     String reviewOwner = firstNonBlank(owner, FALLBACK_REVIEW_OWNER);
     String authorName = firstNonBlank(request == null ? "" : request.defaultAuthorName(), owner, "历史导入");
     String reviewVersion = firstNonBlank(request == null ? "" : request.defaultReviewVersion(), row.projectName(), FALLBACK_REVIEW_VERSION);

@@ -53,7 +53,6 @@ class GitlabFactSourceQueryExecutor {
       String sourceInstance,
       String incrementalPredicate,
       LocalDateTime changedSince) {
-    return GitlabSourceInstanceSupport.rewriteMirrorTableReferences(baseSql, sourceInstance)
-        + (changedSince == null ? "" : " " + incrementalPredicate);
+    return baseSql + (changedSince == null ? "" : " " + incrementalPredicate);
   }
 }

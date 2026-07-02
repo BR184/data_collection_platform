@@ -46,6 +46,7 @@ public class GitlabSyncControllerResponseMapper {
     sanitized.setWebBaseUrl(source.getWebBaseUrl());
     sanitized.setApiToken("");
     sanitized.setDelayLabelWritebackEnabled(Boolean.TRUE.equals(source.getDelayLabelWritebackEnabled()));
+    sanitized.setMatchModeEnabled(source.getMatchModeEnabled() == null || Boolean.TRUE.equals(source.getMatchModeEnabled()));
     sanitized.setAutoSyncEnabled(source.isAutoSyncEnabled());
     sanitized.setSourceMode(source.getSourceMode());
     sanitized.setWhitelistMode(source.getWhitelistMode());

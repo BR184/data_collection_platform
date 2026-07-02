@@ -36,7 +36,7 @@ import { useDataScope } from '../composables/useDataScope';
 import { useStatisticBoardDataScope } from '../composables/statistic-board-data-scopes';
 import PageSettingsDialog from './PageSettingsDialog.vue';
 import { usePageSavedViews } from '../composables/usePageSavedViews';
-import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
+import { downloadBlob } from '../utils/csv-download';
 import {
   type SortDirection,
 } from './statistic-board-sorting';
@@ -500,7 +500,7 @@ async function exportCustomerIssues() {
       topic: 'cc-product',
       filterGroup: buildFilterPayload(),
     });
-    downloadBlob(workbook, `客户问题全量议题数据_${formatExportFileDate(new Date())}.xlsx`);
+    downloadBlob(workbook, 'CCProduct议题查询结果.xlsx');
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);
@@ -515,7 +515,7 @@ async function exportSystemTestIssues() {
     const workbook = await api.exportSystemTestIssueSearchRecords({
       filterGroup: buildFilterPayload(),
     });
-    downloadBlob(workbook, `系统测试议题数据_${formatExportFileDate(new Date())}.xlsx`);
+    downloadBlob(workbook, '多元查询议题结果.xlsx');
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);
@@ -530,7 +530,7 @@ async function exportSystemTestHorizontalComparison() {
     const file = await api.exportSystemTestHorizontalComparison({
       filterGroup: buildFilterPayload(),
     });
-    downloadBlob(file.blob, file.filename || `系统测试横向对比_${formatExportFileDate(new Date())}.xlsx`);
+    downloadBlob(file.blob, file.filename || '系统测试数据分析表.xlsx');
     ElMessage.success('横向对比导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);

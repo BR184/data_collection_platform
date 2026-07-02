@@ -244,9 +244,9 @@ public class SyncRunTablePlanningService {
     if (state == null) {
       state = new SyncRunTableState();
       state.setConfigId(run.getConfigId());
-      state.setSourceInstance(sourceInstance);
+      state.setSourceInstance(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
       state.setSourceTable(sourceTable);
-      state.setMirrorTable(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable, sourceInstance));
+      state.setMirrorTable(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable));
       state.setPrimaryKeyColumns(option.primaryKey());
       state.setUpdatedAtColumn(option.updatedAtColumn());
       state.setRowStrategy(rowStrategyForState(run, option));
@@ -258,7 +258,8 @@ public class SyncRunTablePlanningService {
       stateMapper.insert(state);
       return state;
     }
-    state.setMirrorTable(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable, sourceInstance));
+    state.setMirrorTable(GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable));
+    state.setSourceInstance(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
     state.setPrimaryKeyColumns(option.primaryKey());
     state.setUpdatedAtColumn(option.updatedAtColumn());
     state.setRowStrategy(rowStrategyForState(run, option));

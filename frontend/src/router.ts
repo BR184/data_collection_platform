@@ -15,6 +15,7 @@ import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } fr
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
 const LabelGroupSettingsView = () => import('./views/LabelGroupSettingsView.vue');
 const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
+const LegacyDatabaseSettingsView = () => import('./views/LegacyDatabaseSettingsView.vue');
 const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const CollectFormView = () => import('./views/CollectFormView.vue');
@@ -142,6 +143,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('mirror-settings', MirrorSettingsView),
+  },
+  {
+    ...buildShellRoute('database-settings', LegacyDatabaseSettingsView),
   },
   {
     ...buildShellRoute('database-browser', DatabaseBrowserView),

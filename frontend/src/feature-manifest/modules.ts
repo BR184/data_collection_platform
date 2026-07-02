@@ -214,6 +214,14 @@ export const modules: ShellModule[] = [
         hiddenForApproval: true,
       },
       {
+        key: 'database-settings',
+        label: '数据库设置',
+        description: '配置短期兼容使用的老平台数据库连接与同步开关。',
+        path: '/system-settings/database-settings',
+        requiresLogin: true,
+        hiddenForApproval: true,
+      },
+      {
         key: 'database-browser',
         label: '数据库查看',
         description: '快速浏览本地平台数据库中的核心业务表数据。',

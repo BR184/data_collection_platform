@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,15 +19,17 @@ public class ReviewDataMirrorOptionRepository {
   }
 
   public List<String> loadProjectNames() {
-    return queryDistinct(
-        """
-        select name
-          from ods_gitlab_projects
-         where coalesce(mirror_deleted, false) = false
-           and nullif(trim(name), '') is not null
-         order by coalesce(last_activity_at, created_at, updated_at) desc nulls last
-        """,
-        "ods_gitlab_projects");
+    return queryDistinctMirrorTable(
+        "projects",
+        tableName ->
+            """
+            select name
+              from %s
+             where coalesce(mirror_deleted, false) = false
+               and nullif(trim(name), '') is not null
+             order by coalesce(last_activity_at, created_at, updated_at) desc nulls last
+            """
+                .formatted(tableName));
   }
 
   public List<String> loadLabelProjectNames() {
@@ -36,15 +39,17 @@ public class ReviewDataMirrorOptionRepository {
   }
 
   public List<String> loadUserNames() {
-    return queryDistinct(
-        """
-        select name
-          from ods_gitlab_users
-         where coalesce(mirror_deleted, false) = false
-           and nullif(trim(name), '') is not null
-         order by coalesce(last_activity_on, created_at, updated_at) desc nulls last
-        """,
-        "ods_gitlab_users");
+    return queryDistinctMirrorTable(
+        "users",
+        tableName ->
+            """
+            select name
+              from %s
+             where coalesce(mirror_deleted, false) = false
+               and nullif(trim(name), '') is not null
+             order by coalesce(last_activity_on, created_at, updated_at) desc nulls last
+            """
+                .formatted(tableName));
   }
 
   public List<String> loadModuleNames() {
@@ -52,15 +57,37 @@ public class ReviewDataMirrorOptionRepository {
   }
 
   public List<String> loadMilestoneTitles() {
-    return queryDistinct(
-        """
-        select title
-          from ods_gitlab_milestones
-         where coalesce(mirror_deleted, false) = false
-           and nullif(trim(title), '') is not null
-         order by title
-        """,
-        "ods_gitlab_milestones");
+    return queryDistinctMirrorTable(
+        "milestones",
+        tableName ->
+            """
+            select title
+              from %s
+             where coalesce(mirror_deleted, false) = false
+               and nullif(trim(title), '') is not null
+             order by title
+            """
+                .formatted(tableName));
+  }
+
+  private List<String> queryDistinctMirrorTable(
+      String sourceTableName, Function<String, String> sqlFactory) {
+    String mirrorTableName =
+        GitlabSourceInstanceSupport.buildMirrorTableName(sourceTableName);
+    if (!mirrorTableExists(mirrorTableName)) {
+      return List.of();
+    }
+    return queryDistinct(sqlFactory.apply(quoteIdentifier(mirrorTableName)), mirrorTableName);
+  }
+
+  private boolean mirrorTableExists(String tableName) {
+    try {
+      Boolean exists = jdbcTemplate.queryForObject("select to_regclass(?) is not null", Boolean.class, tableName);
+      return Boolean.TRUE.equals(exists);
+    } catch (DataAccessException error) {
+      log.debug("Review data mirror option table {} is unavailable", tableName, error);
+      return false;
+    }
   }
 
   private List<String> queryDistinct(String sql, String sourceName) {
@@ -74,19 +101,34 @@ public class ReviewDataMirrorOptionRepository {
 
   private List<String> loadLegacyLabelValues(String groupName) {
     List<String> labelTitles =
-        queryDistinct(
-            """
-            select title
-              from ods_gitlab_labels
-             where coalesce(mirror_deleted, false) = false
-               and nullif(trim(title), '') is not null
-             order by title
-            """,
-            "ods_gitlab_labels");
+        queryDistinctMirrorTable(
+            "labels",
+            tableName ->
+                """
+                select title
+                  from %s
+                 where coalesce(mirror_deleted, false) = false
+                   and nullif(trim(title), '') is not null
+                 order by title
+                """
+                    .formatted(tableName));
     Set<String> values = new LinkedHashSet<>();
     for (String title : labelTitles) {
-      values.addAll(IssueFactNormalizationRules.parseLegacyLabelMap(List.of(title)).getOrDefault(groupName, List.of()));
+      for (String value : IssueFactNormalizationRules.parseLegacyLabelMap(List.of(title)).getOrDefault(groupName, List.of())) {
+        values.add(normalizeLabelValue(groupName, value));
+      }
     }
     return List.copyOf(values);
+  }
+
+  private String normalizeLabelValue(String groupName, String value) {
+    if ("模块".equals(groupName)) {
+      return ReviewDataModuleNameSupport.normalize(value);
+    }
+    return TextQuerySupport.normalizeDisplay(value);
+  }
+
+  private String quoteIdentifier(String identifier) {
+    return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 }

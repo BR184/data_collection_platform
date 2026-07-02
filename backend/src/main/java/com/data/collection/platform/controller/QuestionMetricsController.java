@@ -69,7 +69,7 @@ public class QuestionMetricsController {
             questionMetricsRequestAssembler.toIssueSearchQueryRequest(request));
     return ResponseEntity.ok()
         .contentType(EXCEL_MEDIA_TYPE)
-        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("系统测试问题记录.xlsx"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("多元查询议题结果.xlsx"))
         .body(workbook);
   }
 

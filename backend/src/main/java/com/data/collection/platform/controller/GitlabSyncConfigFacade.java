@@ -62,10 +62,11 @@ public class GitlabSyncConfigFacade {
     config.setEnabled(sourceEnabled);
     config.setSourceEnabled(sourceEnabled);
     config.setAutoSyncEnabled(request.autoSyncEnabled());
-    config.setSourceInstance(request.sourceInstance());
+    config.setSourceInstance("default");
     config.setWebBaseUrl(request.webBaseUrl());
     config.setApiToken(request.apiToken());
     config.setDelayLabelWritebackEnabled(request.delayLabelWritebackEnabled());
+    config.setMatchModeEnabled(request.matchModeEnabled());
     config.setSourceMode(request.sourceMode());
     config.setWhitelistMode(request.whitelistMode());
     config.setWhitelistTables(request.whitelistTables());

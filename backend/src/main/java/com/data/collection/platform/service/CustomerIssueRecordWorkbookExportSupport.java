@@ -20,7 +20,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 final class CustomerIssueRecordWorkbookExportSupport {
   private static final DateTimeFormatter LEGACY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-  private static final String SHEET_NAME = "数据";
+  private static final String RECORD_SHEET_NAME = "CCProduct议题查询结果";
+  private static final String ILLEGAL_SHEET_NAME = "议题数据";
   private static final List<String> LEGACY_RECORD_HEADERS =
       List.of(
           "议题更新时间",
@@ -61,26 +62,40 @@ final class CustomerIssueRecordWorkbookExportSupport {
           "延期原因",
           "缺陷修复人",
           "功能名称",
-          "关闭时间",
+          "修复状态",
+          "一级缺陷原因",
+          "二级缺陷原因",
+          "具体原因",
+          "修改方案",
+          "由修改其他缺陷造成的",
+          "修改该缺陷可能影响的功能",
+          "是否对可能影响的功能进行了测试",
+          "有无遗留问题或潜在的影响",
+          "是否更新了关联关系表",
+          "议题关闭时间",
           "非法类型");
 
   private CustomerIssueRecordWorkbookExportSupport() {
   }
 
   static byte[] exportRecords(List<CustomerIssueRecordRowResponse> rows) {
-    return exportWorkbook(LEGACY_RECORD_HEADERS, rows.stream().map(CustomerIssueRecordWorkbookExportSupport::recordValues).toList());
+    return exportWorkbook(
+        RECORD_SHEET_NAME,
+        LEGACY_RECORD_HEADERS,
+        rows.stream().map(CustomerIssueRecordWorkbookExportSupport::recordValues).toList());
   }
 
   static byte[] exportIllegalRecords(List<CustomerIssueIllegalRecordRowResponse> rows) {
     return exportWorkbook(
+        ILLEGAL_SHEET_NAME,
         LEGACY_ILLEGAL_HEADERS,
         rows.stream().map(CustomerIssueRecordWorkbookExportSupport::illegalRecordValues).toList());
   }
 
-  private static byte[] exportWorkbook(List<String> headers, List<List<String>> rows) {
+  private static byte[] exportWorkbook(String sheetName, List<String> headers, List<List<String>> rows) {
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-      Sheet sheet = workbook.createSheet(SHEET_NAME);
+      Sheet sheet = workbook.createSheet(sheetName);
       ExportStyles styles = new ExportStyles(workbook);
       writeHeader(sheet, headers, styles.header);
       writeRows(sheet, rows, styles.body);
@@ -151,6 +166,16 @@ final class CustomerIssueRecordWorkbookExportSupport {
         text(row.delayCause()),
         "",
         text(row.functionName()),
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
         date(row.closedAt()),
         text(row.illegalReason()));
   }

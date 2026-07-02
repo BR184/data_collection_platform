@@ -18,6 +18,7 @@ public record GitlabSyncSaveConfigRequest(
     String webBaseUrl,
     String apiToken,
     Boolean delayLabelWritebackEnabled,
+    Boolean matchModeEnabled,
     @NotNull SourceMode sourceMode,
     @NotNull WhitelistMode whitelistMode,
     List<String> whitelistTables,

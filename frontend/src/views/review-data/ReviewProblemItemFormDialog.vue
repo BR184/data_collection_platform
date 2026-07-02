@@ -9,6 +9,8 @@ import SmartSelect from '../../components/base/SmartSelect.vue';
 import type { ReviewProblemItemFormModel } from '../review-data-management';
 import { focusFirstInvalidFormField } from '../../utils/formFocus';
 
+const DEFAULT_PENDING_REVIEW_STATUS = '未评审';
+
 const props = defineProps<{
   visible: boolean;
   saving: boolean;
@@ -51,7 +53,7 @@ watch(
       suggestedSolution: value.suggestedSolution,
       ownerName: value.ownerName,
       rejectionReason: value.rejectionReason,
-      problemStatus: value.problemStatus,
+      problemStatus: normalizeEditableProblemStatus(value.problemStatus),
     });
   },
   { immediate: true, deep: true },
@@ -75,10 +77,16 @@ const reviewerOptions = computed(() => {
 });
 const reviewCategoryOptions = computed(() => props.filterOptions.reviewCategories);
 const problemCategoryOptions = computed(() => props.filterOptions.problemCategories);
-const problemStatusOptions = computed(() => props.filterOptions.problemStatuses);
+const problemStatusOptions = computed(() =>
+  props.filterOptions.problemStatuses.filter((option) => {
+    const label = String(option.label ?? '').trim();
+    const value = String(option.value ?? '').trim();
+    return label !== DEFAULT_PENDING_REVIEW_STATUS && value !== DEFAULT_PENDING_REVIEW_STATUS;
+  }),
+);
 const ownerOptions = computed(() => props.filterOptions.reviewOwners);
 
-const rules: FormRules<ReviewProblemItemFormModel> = {
+const rules = computed<FormRules<ReviewProblemItemFormModel>>(() => ({
   reviewerName: [{ required: true, message: '请选择评审专家', trigger: 'change' }],
   workloadHours: [{ required: true, message: '请输入评审工作量', trigger: 'change' }],
   reviewCategory: [{ required: true, message: '请选择评审类别', trigger: 'change' }],
@@ -86,8 +94,14 @@ const rules: FormRules<ReviewProblemItemFormModel> = {
   problemCategory: [{ required: true, message: '请选择问题类别', trigger: 'change' }],
   problemDescription: [{ required: true, message: '请输入问题描述', trigger: 'blur' }],
   ownerName: [{ required: true, message: '请选择责任人', trigger: 'change' }],
-  problemStatus: [{ required: true, message: '请选择问题状态', trigger: 'change' }],
-};
+  ...(props.editMode
+    ? { problemStatus: [{ required: true, message: '请选择问题状态', trigger: 'change' }] }
+    : {}),
+}));
+
+const problemStatusPlaceholder = computed(() =>
+  props.editMode ? '请选择问题状态' : '可不选择，系统将标注为未评审',
+);
 
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false);
@@ -112,6 +126,11 @@ async function handleSubmit() {
 
 function handleClose() {
   emit('update:visible', false);
+}
+
+function normalizeEditableProblemStatus(value: string) {
+  const normalized = String(value ?? '').trim();
+  return normalized === DEFAULT_PENDING_REVIEW_STATUS ? '' : normalized;
 }
 </script>
 
@@ -144,7 +163,12 @@ function handleClose() {
           <SmartSelect v-model="form.reviewCategory" :options="reviewCategoryOptions" compact placeholder="请选择评审类别" />
         </el-form-item>
         <el-form-item label="问题状态" prop="problemStatus">
-          <SmartSelect v-model="form.problemStatus" :options="problemStatusOptions" compact placeholder="请选择问题状态" />
+          <SmartSelect
+            v-model="form.problemStatus"
+            :options="problemStatusOptions"
+            compact
+            :placeholder="problemStatusPlaceholder"
+          />
         </el-form-item>
         <el-form-item label="在文档中的位置" prop="documentPosition" class="span-2">
           <el-input v-model="form.documentPosition" placeholder="请输入在文档中的位置" />

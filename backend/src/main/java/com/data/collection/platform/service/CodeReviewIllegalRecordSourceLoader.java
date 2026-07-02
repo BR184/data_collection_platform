@@ -18,9 +18,15 @@ import org.springframework.util.StringUtils;
 public class CodeReviewIllegalRecordSourceLoader {
   private static final String LEGACY_ILLEGAL_BASE_WHERE = """
        where deleted = false
-        and merge_request_state = 'merged'
+        and upper(coalesce(merge_request_state, '')) = 'MERGED'
         and merged_at_source > timestamp '2024-04-01 00:00:00'
         and coalesce(module_name, '') <> '无需标注'
+        and coalesce(project_name, '') <> '无需标注'
+        and coalesce(label_names, '') not like '%无需走查扫描%'
+        and (
+          lower(coalesce(project_name, '')) not in ('crowncad', 'dgm')
+          or lower(coalesce(target_branch, '')) = 'dev'
+        )
       """;
   private static final String FACT_SQL = """
       select
@@ -111,11 +117,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         function_name,
         clang_added_line_count
       from merge_request_fact
-      where deleted = false
-        and merge_request_state = 'merged'
-        and merged_at_source > timestamp '2024-04-01 00:00:00'
-        and coalesce(module_name, '') <> '无需标注'
-      """;
+      """ + LEGACY_ILLEGAL_BASE_WHERE;
   private static final Map<String, String> SORT_COLUMNS = createSortColumns();
 
   private final MergeRequestFactQueryService mergeRequestFactQueryService;
@@ -217,14 +219,13 @@ public class CodeReviewIllegalRecordSourceLoader {
         args,
         List.of("search_text", "search_compact", "search_spell", "search_initials"),
         request.keyword());
-    appendContains(where, args, "project_name", request.projectName());
+    appendEqIgnoreCase(where, args, "project_name", request.projectName());
     appendContains(where, args, "repository_name", request.repositoryName());
     appendContains(
         where,
         args,
         "target_branch",
-        CodeReviewIllegalRecordQuerySupport.legacyTargetBranch(
-            request.source(), request.targetBranch()));
+        CodeReviewIllegalRecordQuerySupport.explicitTargetBranch(request.targetBranch()));
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());
@@ -249,14 +250,13 @@ public class CodeReviewIllegalRecordSourceLoader {
         args,
         List.of("search_text", "search_compact", "search_spell", "search_initials"),
         request.keyword());
-    appendContains(where, args, "project_name", request.projectName());
+    appendEqIgnoreCase(where, args, "project_name", request.projectName());
     appendContains(where, args, "repository_name", request.repositoryName());
     appendContains(
         where,
         args,
         "target_branch",
-        CodeReviewIllegalRecordQuerySupport.legacyTargetBranch(
-            request.source(), request.targetBranch()));
+        CodeReviewIllegalRecordQuerySupport.explicitTargetBranch(request.targetBranch()));
     appendContains(where, args, "module_name", request.moduleName());
     appendContains(where, args, "author_name", request.owner());
     appendSourceInstance(where, args, request.source());

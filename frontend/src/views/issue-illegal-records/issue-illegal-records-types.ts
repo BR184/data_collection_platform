@@ -97,7 +97,7 @@ export interface IssueIllegalRecordsPageConfig<Row extends IssueIllegalRecordRow
   emptyDescription: string;
   totalTagText: (total: number) => string;
   loadRecords: (params: IssueIllegalRecordQueryParams) => Promise<IssueIllegalRecordListResponse<Row>>;
-  exportRecords?: (params: IssueIllegalRecordQueryParams) => Promise<string | Blob>;
+  exportRecords?: (params: IssueIllegalRecordQueryParams) => Promise<Blob>;
   exportFilenamePrefix?: string;
   loadFilterOptions: (projectId?: string | number | null) => Promise<IssueIllegalRecordFilterOptions>;
   loadRuleExplanation: (projectId?: string | number | null) => Promise<StatisticBoardRuleExplanationResponse>;

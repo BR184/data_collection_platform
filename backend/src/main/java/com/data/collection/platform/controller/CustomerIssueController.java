@@ -158,7 +158,7 @@ public class CustomerIssueController {
   }
 
   private String recordExportFilename(String topic) {
-    return TOPIC_DELAY.equalsIgnoreCase(topic) ? "延期问题明细.xlsx" : "CC_PRODUCT议题明细.xlsx";
+    return TOPIC_DELAY.equalsIgnoreCase(topic) ? "延期问题明细.xlsx" : "CCProduct议题查询结果.xlsx";
   }
 
   private String contentDisposition(String filename) {

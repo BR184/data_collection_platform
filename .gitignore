@@ -12,6 +12,9 @@ backend/logs/
 tmp-*.json
 tmp-*.sql
 tmp-*.log
+/data*.sql
+/data*.sql.gz
+/data*.gz
 __pycache__/
 **/__pycache__/
 

@@ -87,6 +87,7 @@ public class ReviewDataRecordCommandService {
   @Transactional
   public Long createProblemItem(Long recordId, ReviewDataProblemItemSaveRequest request) {
     persistenceSupport.assertRecordExists(recordId);
+    String problemStatus = defaultPendingStatus(request.problemStatus());
     ReviewDataProblemItemResponse pendingItem = findPendingProblemItem(recordId, request.reviewerName());
     if (pendingItem != null) {
       persistenceSupport.updateProblemItem(
@@ -101,7 +102,7 @@ public class ReviewDataRecordCommandService {
           request.suggestedSolution(),
           request.ownerName(),
           request.rejectionReason(),
-          request.problemStatus());
+          problemStatus);
       persistenceSupport.touchRecord(recordId);
       return pendingItem.id();
     }
@@ -117,7 +118,7 @@ public class ReviewDataRecordCommandService {
             request.suggestedSolution(),
             request.ownerName(),
             request.rejectionReason(),
-            request.problemStatus());
+            problemStatus);
     if (itemId == null) {
       throw new IllegalStateException("创建评审问题失败");
     }
@@ -130,6 +131,7 @@ public class ReviewDataRecordCommandService {
       Long recordId, Long itemId, ReviewDataProblemItemSaveRequest request) {
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.assertProblemItemExists(recordId, itemId);
+    String problemStatus = requireProblemStatus(request.problemStatus());
     persistenceSupport.updateProblemItem(
         recordId,
         itemId,
@@ -142,7 +144,7 @@ public class ReviewDataRecordCommandService {
         request.suggestedSolution(),
         request.ownerName(),
         request.rejectionReason(),
-        request.problemStatus());
+        problemStatus);
     persistenceSupport.touchRecord(recordId);
     return itemId;
   }
@@ -282,6 +284,26 @@ public class ReviewDataRecordCommandService {
 
   private boolean isBlank(String value) {
     return TextQuerySupport.trimToNull(value) == null;
+  }
+
+  private String defaultPendingStatus(String problemStatus) {
+    String normalized = TextQuerySupport.trimToNull(problemStatus);
+    return normalized == null ? DEFAULT_PENDING_REVIEW_STATUS : requireUserSelectableProblemStatus(normalized);
+  }
+
+  private String requireProblemStatus(String problemStatus) {
+    String normalized = TextQuerySupport.trimToNull(problemStatus);
+    if (normalized == null) {
+      throw new IllegalArgumentException("编辑评审问题时必须选择问题状态");
+    }
+    return requireUserSelectableProblemStatus(normalized);
+  }
+
+  private String requireUserSelectableProblemStatus(String problemStatus) {
+    if (DEFAULT_PENDING_REVIEW_STATUS.equals(problemStatus)) {
+      throw new IllegalArgumentException("未评审为系统默认状态，不能手动选择");
+    }
+    return problemStatus;
   }
 
   private void persistLegacyParityDetails(Long recordId, ReviewDataRecordSaveRequest request) {

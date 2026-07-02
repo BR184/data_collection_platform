@@ -83,7 +83,7 @@ public class ReviewDataExcelExportService {
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       ExportStyles styles = new ExportStyles(workbook);
-      var sheet = workbook.createSheet("评审列表");
+      var sheet = workbook.createSheet("Data");
       writeHeader(sheet.createRow(0), styles.header, RECORD_HEADERS);
       int rowIndex = 1;
       for (ReviewDataRecordRowResponse record : records) {
@@ -91,7 +91,6 @@ public class ReviewDataExcelExportService {
       }
       setColumnWidths(sheet, 50, 20, 30, 18, 14, 12, 12, 12, 12, 18, 18, 18, 18, 12, 16, 22, 18, 22, 30);
       sheet.createFreezePane(0, 1);
-      writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -125,7 +124,6 @@ public class ReviewDataExcelExportService {
       }
       setColumnWidths(sheet, 18, 30, 24, 18, 16, 12, 14, 22, 24, 24, 24, 18, 22, 18, 14, 14);
       sheet.createFreezePane(0, 1);
-      writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -214,12 +212,18 @@ public class ReviewDataExcelExportService {
     double weightedDefectDensity = value1 == 0
         ? 0D
         : (docSpecification + integrity * 1.5D + functionality * 2D + feasibility * 2D) / value1;
-    double defectEfficiency = sumCount == 0 || value1 == 0 ? 0D : (double) sumCount / value1;
-    double reviewRate = workload == 0D ? 0D : (double) value1 / workload;
+    double defectEfficiency =
+        sumCount == 0 || value1 == 0
+            ? 0D
+            : ReviewDataNumberSupport.floorToTwoDecimals((double) sumCount / value1);
+    double reviewRate =
+        workload == 0D
+            ? 0D
+            : ReviewDataNumberSupport.floorToTwoDecimals((double) value1 / workload);
 
     writeText(row, 0, record.reviewType(), style);
     writeText(row, 1, record.reviewProduct(), style);
-    writeText(row, 2, reviewCategoryListText(items), style);
+    writeText(row, 2, legacyReviewCategoryListText(items), style);
     writeText(row, 3, "", style);
     writeNumber(row, 4, defectCount, style);
     writeNumber(row, 5, value1, style);
@@ -241,7 +245,7 @@ public class ReviewDataExcelExportService {
         .count();
   }
 
-  private String reviewCategoryListText(List<ReviewDataProblemItemResponse> items) {
+  private String legacyReviewCategoryListText(List<ReviewDataProblemItemResponse> items) {
     return items.stream()
         .map(ReviewDataProblemItemResponse::reviewCategory)
         .filter(value -> value != null && !value.isBlank())

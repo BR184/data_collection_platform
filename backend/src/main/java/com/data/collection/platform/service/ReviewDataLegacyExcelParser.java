@@ -131,7 +131,9 @@ public class ReviewDataLegacyExcelParser {
       issues.add(issue(rowNumber, "problemCount", ReviewDataLegacyExcelIssueLevel.WARNING, "问题总计与分类合计不一致，将按分类明细导入"));
     }
     if (density != null && problemCount != null && reviewScalePages != null && reviewScalePages > 0) {
-      double expectedDensity = problemCount.doubleValue() / reviewScalePages.doubleValue();
+      double expectedDensity =
+          ReviewDataNumberSupport.floorToTwoDecimals(
+              problemCount.doubleValue() / reviewScalePages.doubleValue());
       if (Math.abs(expectedDensity - density) > 0.02) {
         issues.add(issue(rowNumber, "reviewDefectDensity", ReviewDataLegacyExcelIssueLevel.WARNING, "评审缺陷密度与问题总计/页数不一致"));
       }
