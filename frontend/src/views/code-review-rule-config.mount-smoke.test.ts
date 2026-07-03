@@ -27,6 +27,7 @@ describe('CodeReviewIllegalRuleConfigView mount smoke', () => {
           repositoryNames: [],
           illegalTypes: [],
           targetBranches: [],
+          owners: [],
           mergedBys: [],
           moduleNames: [],
           projectNames: [],

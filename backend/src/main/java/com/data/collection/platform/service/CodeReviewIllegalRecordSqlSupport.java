@@ -8,18 +8,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 
 final class CodeReviewIllegalRecordSqlSupport {
   private CodeReviewIllegalRecordSqlSupport() {}
 
   static Optional<SqlPredicate> toSql(StatisticFilterGroup filterGroup) {
+    return toSql(filterGroup, value -> illegalPredicate(value));
+  }
+
+  static Optional<SqlPredicate> toSql(
+      StatisticFilterGroup filterGroup, Function<String, String> illegalPredicateFactory) {
     if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
       return Optional.of(new SqlPredicate("", List.of()));
     }
     List<String> predicates = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (StatisticFilterCondition condition : filterGroup.conditions()) {
-      Optional<SqlPredicate> conditionSql = conditionToSql(condition);
+      Optional<SqlPredicate> conditionSql = conditionToSql(condition, illegalPredicateFactory);
       if (conditionSql.isEmpty()) {
         return Optional.empty();
       }
@@ -45,7 +51,8 @@ final class CodeReviewIllegalRecordSqlSupport {
           openScanIssuePredicate(),
           commentRateNotPassPredicate(),
           scanFailedPredicate(),
-          clangResultFalsePredicate()));
+          clangResultFalsePredicate(),
+          gitlabErrorPredicate()));
       return String.join(" or ", predicates);
     }
     if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)
@@ -76,17 +83,21 @@ final class CodeReviewIllegalRecordSqlSupport {
     if (CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL.equals(normalized)) {
       return clangResultFalsePredicate();
     }
+    if (CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL.equals(normalized)) {
+      return gitlabErrorPredicate();
+    }
     return "1 = 0";
   }
 
-  private static Optional<SqlPredicate> conditionToSql(StatisticFilterCondition condition) {
+  private static Optional<SqlPredicate> conditionToSql(
+      StatisticFilterCondition condition, Function<String, String> illegalPredicateFactory) {
     if (condition == null) {
       return Optional.empty();
     }
     return switch (condition.fieldKey()) {
       case "repositoryName" -> textCondition("repository_name", condition);
       case "mergedAt" -> dateTimeCondition("merged_at_source", condition);
-      case "illegalType" -> illegalTypeCondition(condition);
+      case "illegalType" -> illegalTypeCondition(condition, illegalPredicateFactory);
       case "keyword" -> keywordCondition(condition);
       case "requestType" -> requestTypeCondition(condition);
       case "mergeRequestIid" -> numberCondition("merge_request_iid", condition);
@@ -169,8 +180,9 @@ final class CodeReviewIllegalRecordSqlSupport {
     return Optional.of(new SqlPredicate(predicate, List.of("%" + lower(condition.value()) + "%")));
   }
 
-  private static Optional<SqlPredicate> illegalTypeCondition(StatisticFilterCondition condition) {
-    String predicate = illegalPredicate(condition.value());
+  private static Optional<SqlPredicate> illegalTypeCondition(
+      StatisticFilterCondition condition, Function<String, String> illegalPredicateFactory) {
+    String predicate = illegalPredicateFactory.apply(condition.value());
     return switch (condition.operator()) {
       case "contains", "eq" -> Optional.of(new SqlPredicate(predicate, List.of()));
       case "notContains", "ne" -> Optional.of(new SqlPredicate("not (" + predicate + ")", List.of()));
@@ -323,6 +335,10 @@ final class CodeReviewIllegalRecordSqlSupport {
 
   private static String clangResultFalsePredicate() {
     return "annotation_rate_result = '注释率分析工具Clang分析错误'";
+  }
+
+  private static String gitlabErrorPredicate() {
+    return "reviewer_names = 'GitLab 接口报错' or scan_status = 'GitLab 接口报错' or target_branch = 'GitLab 接口报错'";
   }
 
   private static SqlPredicate truePredicate() {

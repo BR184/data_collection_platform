@@ -43,6 +43,9 @@ import org.springframework.stereotype.Service;
 public class CodeReviewIllegalRecordService {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
   private static final String LEGACY_DEFAULT_SOURCE = "cc";
+  private static final String LEGACY_DEFAULT_REPOSITORY_NAME = "CrownCAD";
+  private static final List<String> LEGACY_EXTRA_PROJECT_NAME_OPTIONS =
+      List.of("广数CAM", "CC2025R4", "CC2026R1", "CC 2025 R4&2026 R1");
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -108,7 +111,8 @@ public class CodeReviewIllegalRecordService {
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL, CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL, CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL),
           new OptionItemResponse(CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL, CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL),
-          new OptionItemResponse(CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL, CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL));
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL, CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL),
+          new OptionItemResponse(CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL, CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL));
 
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
@@ -374,8 +378,11 @@ public class CodeReviewIllegalRecordService {
   }
 
   private boolean shouldExportAllCodeReviewSheet(CodeReviewIllegalRecordQueryRequest request) {
-    String projectName = TextQuerySupport.trimToNull(request.projectName());
-    return projectName != null && !"CrownCAD".equalsIgnoreCase(projectName);
+    if (!matchModeSwitchService.isEnabled()) {
+      return false;
+    }
+    String repositoryName = TextQuerySupport.trimToNull(withLegacyDefaultScope(request).repositoryName());
+    return repositoryName != null && !"CrownCAD".equalsIgnoreCase(repositoryName);
   }
 
   private void writeLegacySheet(
@@ -488,53 +495,38 @@ public class CodeReviewIllegalRecordService {
       CodeReviewIllegalRecordFilterOptionsRequest request) {
     String source = request == null ? null : request.source();
     Long projectId = request == null ? null : request.projectId();
+    String repositoryName = request == null ? null : request.repositoryName();
     String projectName = request == null ? null : request.projectName();
-    List<CodeReviewIllegalRecordView> rows =
+    boolean matchMode = matchModeSwitchService.isEnabled();
+    String scopedRepositoryName =
+        matchMode ? defaultLegacyRepositoryName(repositoryName) : repositoryName;
+    CodeReviewIllegalRecordFilterOptionValues options =
         activeLoader()
-            .loadSources(
-                CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    projectId,
-                    null,
-                    null,
-                    null,
-                    projectName,
-                    null,
-                    null,
-                    null,
-                    null,
-                    source))
-            .stream()
-            .map(this::toView)
-            .filter(row -> !row.illegalTypes().isEmpty())
-            .toList();
-    List<CodeReviewIllegalRecordView> projectRows =
-        activeLoader()
-            .loadSources(
-                CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                    null, null, null, null, null, null, null, null, null, source))
-            .stream()
-            .map(this::toView)
-            .filter(row -> !row.illegalTypes().isEmpty())
-            .toList();
+            .loadFilterOptions(
+                new CodeReviewIllegalRecordFilterOptionsRequest(
+                    projectId, scopedRepositoryName, projectName, source));
 
     return new CodeReviewIllegalRecordFilterOptionsResponse(
         REQUEST_TYPE_OPTIONS,
-        toProjectOptions(projectRows),
-        toOptions(rows, CodeReviewIllegalRecordView::repositoryName),
+        toProjectOptions(options.projects()),
+        toCodeReviewRepositoryNameOptions(options.repositoryNames()),
         LEGACY_ILLEGAL_TYPE_OPTIONS,
-        toLegacyOptions(rows, CodeReviewIllegalRecordView::targetBranch),
-        toLegacyOptions(rows, CodeReviewIllegalRecordView::mergedBy),
-        toLegacyOptions(rows, CodeReviewIllegalRecordView::moduleName),
-        toCodeReviewProjectNameOptions(projectRows));
+        toLegacyOptions(options.targetBranches()),
+        toLegacyOptions(options.owners()),
+        toLegacyOptions(options.mergedBys()),
+        toLegacyOptions(options.moduleNames()),
+        toCodeReviewProjectNameOptions(matchMode, options.projectNames()));
   }
 
-  private List<OptionItemResponse> toProjectOptions(List<CodeReviewIllegalRecordView> rows) {
-    return rows.stream()
-        .filter(row -> row.projectId() != null)
+  private List<OptionItemResponse> toProjectOptions(
+      List<CodeReviewIllegalRecordFilterProjectOption> projects) {
+    return projects.stream()
+        .filter(project -> project.projectId() != null)
         .collect(
             java.util.stream.Collectors.toMap(
-                CodeReviewIllegalRecordView::projectId,
-                row -> new OptionItemResponse(projectOptionLabel(row), String.valueOf(row.projectId())),
+                CodeReviewIllegalRecordFilterProjectOption::projectId,
+                project -> new OptionItemResponse(
+                    projectOptionLabel(project), String.valueOf(project.projectId())),
                 (left, right) -> left,
                 java.util.LinkedHashMap::new))
         .values()
@@ -542,9 +534,9 @@ public class CodeReviewIllegalRecordService {
         .toList();
   }
 
-  private String projectOptionLabel(CodeReviewIllegalRecordView row) {
-    String name = TextQuerySupport.trimToNull(row.projectName());
-    String projectId = String.valueOf(row.projectId());
+  private String projectOptionLabel(CodeReviewIllegalRecordFilterProjectOption project) {
+    String name = TextQuerySupport.trimToNull(project.projectName());
+    String projectId = String.valueOf(project.projectId());
     return name == null ? projectId : name + " / " + projectId;
   }
 
@@ -697,9 +689,13 @@ public class CodeReviewIllegalRecordService {
       CodeReviewIllegalRecordQueryRequest request) {
     String source = TextQuerySupport.trimToNull(request.source());
     String normalizedSource = source == null ? LEGACY_DEFAULT_SOURCE : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
+    String repositoryName =
+        matchModeSwitchService.isEnabled()
+            ? defaultLegacyRepositoryName(request.repositoryName())
+            : request.repositoryName();
     return new CodeReviewIllegalRecordQueryRequest(
         request.projectId(),
-        request.repositoryName(),
+        repositoryName,
         request.mergedAtStart(),
         request.mergedAtEnd(),
         request.keyword(),
@@ -718,6 +714,12 @@ public class CodeReviewIllegalRecordService {
         request.sortField(),
         request.sortOrder(),
         request.ruleConfigJson());
+  }
+
+  //兼容模式-MatchMode
+  private String defaultLegacyRepositoryName(String repositoryName) {
+    String normalized = TextQuerySupport.trimToNull(repositoryName);
+    return normalized == null ? LEGACY_DEFAULT_REPOSITORY_NAME : normalized;
   }
 
   private CodeReviewRuleConfig parseRuleConfig(String ruleConfigJson) {
@@ -760,6 +762,9 @@ public class CodeReviewIllegalRecordService {
   private sealed interface CodeReviewIllegalRecordSourceAccess {
     List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters);
 
+    CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
+        CodeReviewIllegalRecordFilterOptionsRequest request);
+
     PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(CodeReviewIllegalRecordSourcePageQuery query);
 
     List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
@@ -770,6 +775,12 @@ public class CodeReviewIllegalRecordService {
       @Override
       public List<CodeReviewIllegalRecordSource> loadSources(Map<String, String> filters) {
         return loader.loadSources(filters);
+      }
+
+      @Override
+      public CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
+          CodeReviewIllegalRecordFilterOptionsRequest request) {
+        return loader.loadFilterOptions(request);
       }
 
       @Override
@@ -793,6 +804,12 @@ public class CodeReviewIllegalRecordService {
       }
 
       @Override
+      public CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
+          CodeReviewIllegalRecordFilterOptionsRequest request) {
+        return loader.loadFilterOptions(request);
+      }
+
+      @Override
       public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
           CodeReviewIllegalRecordSourcePageQuery query) {
         return loader.loadDefaultIllegalPage(query);
@@ -808,7 +825,10 @@ public class CodeReviewIllegalRecordService {
   }
 
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {
-    List<String> illegalTypes = CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source);
+    List<String> illegalTypes =
+        matchModeSwitchService.isEnabled()
+            ? CodeReviewIllegalRuleRegistry.evaluateLegacyMatchModeIllegalTypes(source)
+            : CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source);
     String mergeRequestLink =
         issueLinkService.mergeRequestUrl(source.sourceInstance(), source.projectId(), source.mergeRequestIid());
     return new CodeReviewIllegalRecordView(
@@ -1028,12 +1048,22 @@ public class CodeReviewIllegalRecordService {
     return OptionItemResponseFactory.fromLegacyBusinessValues(rows.stream().map(extractor).toList());
   }
 
-  private List<OptionItemResponse> toCodeReviewProjectNameOptions(List<CodeReviewIllegalRecordView> rows) {
+  private List<OptionItemResponse> toLegacyOptions(List<String> values) {
+    return OptionItemResponseFactory.fromLegacyBusinessValues(values);
+  }
+
+  private List<OptionItemResponse> toCodeReviewProjectNameOptions(boolean matchMode, List<String> values) {
+    List<String> visibleValues = new ArrayList<>(
+        values.stream().filter(projectName -> !isHiddenCodeReviewProjectName(projectName)).toList());
+    if (matchMode) {
+      visibleValues.addAll(LEGACY_EXTRA_PROJECT_NAME_OPTIONS);
+    }
+    return OptionItemResponseFactory.fromLegacyBusinessValues(visibleValues);
+  }
+
+  private List<OptionItemResponse> toCodeReviewRepositoryNameOptions(List<String> values) {
     return OptionItemResponseFactory.fromLegacyBusinessValues(
-        rows.stream()
-            .map(CodeReviewIllegalRecordView::projectName)
-            .filter(projectName -> !isHiddenCodeReviewProjectName(projectName))
-            .toList());
+        values.stream().filter(repositoryName -> !isHiddenCodeReviewProjectName(repositoryName)).toList());
   }
 
   private boolean isHiddenCodeReviewProjectName(String projectName) {

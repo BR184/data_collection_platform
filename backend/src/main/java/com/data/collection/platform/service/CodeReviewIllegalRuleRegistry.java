@@ -74,7 +74,14 @@ final class CodeReviewIllegalRuleRegistry {
           new CodeReviewIllegalRule(
               "clang-result-false",
               CLANG_RESULT_FALSE_LABEL,
-              source -> CLANG_RESULT_FALSE_LABEL.equals(source.annotationRateResult())));
+              source -> CLANG_RESULT_FALSE_LABEL.equals(source.annotationRateResult())),
+          new CodeReviewIllegalRule(
+              "gitlab-error",
+              GITLAB_ERROR_LABEL,
+              source ->
+                  isGitlabError(source.reviewerNames())
+                      || isGitlabError(source.scanStatus())
+                      || isGitlabError(source.targetBranch())));
 
   private static final List<CodeReviewIllegalRuleGroup> EXPLANATION_GROUPS =
       List.of(
@@ -97,7 +104,12 @@ final class CodeReviewIllegalRuleRegistry {
               "comment-rate-check",
               "检查代码注释率结果",
               "如果注释率未达标或 Clang 分析错误，就会被判定为对应非法类型。",
-              List.of("comment-rate-not-pass", "clang-result-false")));
+              List.of("comment-rate-not-pass", "clang-result-false")),
+          new CodeReviewIllegalRuleGroup(
+              "gitlab-error-check",
+              "检查 GitLab 接口报错",
+              "如果代码走查、代码扫描或目标分支字段出现 GitLab 接口报错，就会被判定为对应非法类型。",
+              List.of("gitlab-error")));
 
   private CodeReviewIllegalRuleRegistry() {
   }
@@ -107,6 +119,42 @@ final class CodeReviewIllegalRuleRegistry {
         .filter(rule -> rule.matches(source))
         .map(CodeReviewIllegalRule::label)
         .toList();
+  }
+
+  //兼容模式-MatchMode
+  static List<String> evaluateLegacyMatchModeIllegalTypes(CodeReviewIllegalRecordSource source) {
+    List<String> result = new java.util.ArrayList<>();
+    if (isLegacyMissingProject(source.projectName())) {
+      result.add(MISSING_PROJECT_LABEL);
+    }
+    if (isLegacyMissingModule(source.moduleName())) {
+      result.add(MISSING_MODULE_LABEL);
+    }
+    if (isLegacyReviewException(source.reviewerNames())) {
+      result.add(MISSING_REVIEW_LABEL);
+    }
+    if (StringUtils.hasText(source.scanStatus())
+        && NOT_SCANNED_STATUSES.contains(source.scanStatus().trim().toUpperCase(Locale.ROOT))) {
+      result.add(NOT_SCANNED_LABEL);
+    }
+    if (OPEN_SCAN_ISSUE_LABEL.equals(source.bugCountResult())) {
+      result.add(OPEN_SCAN_ISSUE_LABEL);
+    }
+    if (COMMENT_RATE_NOT_PASS_LABEL.equals(source.annotationRateResult())) {
+      result.add(COMMENT_RATE_NOT_PASS_LABEL);
+    }
+    if (SCAN_FAILED_LABEL.equals(source.bugCountResult())) {
+      result.add(SCAN_FAILED_LABEL);
+    }
+    if (CLANG_RESULT_FALSE_LABEL.equals(source.annotationRateResult())) {
+      result.add(CLANG_RESULT_FALSE_LABEL);
+    }
+    if (isGitlabError(source.reviewerNames())
+        || isGitlabError(source.scanStatus())
+        || isGitlabError(source.targetBranch())) {
+      result.add(GITLAB_ERROR_LABEL);
+    }
+    return result;
   }
 
   static List<CodeReviewIllegalRuleGroup> explanationGroups() {

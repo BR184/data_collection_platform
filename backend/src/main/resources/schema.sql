@@ -440,6 +440,11 @@ create table if not exists code_review_match_mode_db_settings (
     mysql_table_name varchar(255) not null default 'spider_crowncad_data',
     selected_table_names text not null default 'spider_crowncad_data',
     mysql_fetch_size integer not null default 1000,
+    mongo_uri text default 'mongodb://172.22.10.72/?waitQueueMultiple=20',
+    mongo_database varchar(255) not null default 'spider',
+    selected_mongo_collection_names text not null default 'reviewReport,problemDetail',
+    review_report_collection_name varchar(255) not null default 'reviewReport',
+    review_problem_collection_name varchar(255) not null default 'problemDetail',
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp,
     constraint ck_code_review_match_mode_db_settings_singleton check (id = 1),
@@ -472,6 +477,24 @@ create table if not exists legacy_mysql_imported_rows (
     raw_payload jsonb not null,
     synced_at timestamp not null default current_timestamp,
     unique (table_name, row_key)
+);
+
+create table if not exists legacy_mongo_imported_collections (
+    id bigserial primary key,
+    collection_name varchar(255) not null,
+    record_count bigint not null default 0,
+    last_synced_at timestamp,
+    synced_at timestamp not null default current_timestamp,
+    unique (collection_name)
+);
+
+create table if not exists legacy_mongo_imported_documents (
+    id bigserial primary key,
+    collection_name varchar(255) not null,
+    document_key varchar(512) not null,
+    raw_payload jsonb not null,
+    synced_at timestamp not null default current_timestamp,
+    unique (collection_name, document_key)
 );
 
 create table if not exists review_data_match_mode_reports (
@@ -525,6 +548,31 @@ create table if not exists review_data_match_mode_problem_details (
     raw_payload jsonb,
     synced_at timestamp not null default current_timestamp,
     unique (legacy_id)
+);
+
+create table if not exists review_data_match_mode_edit_links (
+    id bigserial primary key,
+    match_mode_report_id bigint not null,
+    match_mode_report_legacy_id varchar(128) not null,
+    review_record_id bigint not null,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    unique (match_mode_report_id),
+    unique (match_mode_report_legacy_id),
+    unique (review_record_id)
+);
+
+create table if not exists review_data_match_mode_problem_edit_links (
+    id bigserial primary key,
+    match_mode_problem_id bigint not null,
+    match_mode_problem_legacy_id varchar(128) not null,
+    review_record_id bigint not null,
+    review_problem_item_id bigint not null,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    unique (match_mode_problem_id),
+    unique (match_mode_problem_legacy_id),
+    unique (review_problem_item_id)
 );
 
 create table if not exists issue_fact (
@@ -974,12 +1022,34 @@ create index if not exists idx_code_review_match_mode_records_query
     on code_review_match_mode_records(source_instance, merged_at_source desc, merge_request_iid desc);
 create index if not exists idx_code_review_match_mode_records_project
     on code_review_match_mode_records(project_name, target_branch, module_name);
+create index if not exists idx_code_review_match_mode_records_scope_repository_merged
+    on code_review_match_mode_records(
+        lower(coalesce(source_instance, 'default')),
+        lower(coalesce(repository_name, '')),
+        lower(coalesce(project_name, '')),
+        merged_at_source desc,
+        merge_request_iid desc)
+    where upper(coalesce(merge_request_state, '')) = 'MERGED';
+create index if not exists idx_code_review_match_mode_records_scope_fields
+    on code_review_match_mode_records(
+        lower(coalesce(source_instance, 'default')),
+        lower(coalesce(target_branch, '')),
+        lower(coalesce(module_name, '')),
+        lower(coalesce(author_name, '')),
+        lower(coalesce(merge_user_name, '')))
+    where upper(coalesce(merge_request_state, '')) = 'MERGED';
 create index if not exists idx_review_match_mode_reports_query
     on review_data_match_mode_reports(project_name, module_name, review_time desc, id desc);
 create index if not exists idx_review_match_mode_problem_legacy
     on review_data_match_mode_problem_details(legacy_id);
+create index if not exists idx_review_match_mode_edit_links_record
+    on review_data_match_mode_edit_links(review_record_id);
+create index if not exists idx_review_match_mode_problem_edit_links_record
+    on review_data_match_mode_problem_edit_links(review_record_id);
 create index if not exists idx_legacy_mysql_imported_rows_table
     on legacy_mysql_imported_rows(table_name, id);
+create index if not exists idx_legacy_mongo_imported_documents_collection
+    on legacy_mongo_imported_documents(collection_name, id);
 create index if not exists idx_issue_fact_context on issue_fact(source_system, source_instance, project_id, issue_iid);
 create index if not exists idx_issue_fact_state on issue_fact(issue_state, severity_level, priority_level);
 create index if not exists idx_issue_fact_module on issue_fact(module_name, testing_phase, bug_status);

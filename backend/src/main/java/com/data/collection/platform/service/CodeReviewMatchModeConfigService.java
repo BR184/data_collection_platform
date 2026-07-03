@@ -1,10 +1,14 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.common.exception.BizException;
+import com.data.collection.platform.entity.CodeReviewMatchModeCollectionOptionResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeConnectionTestResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsSaveRequest;
 import com.data.collection.platform.entity.CodeReviewMatchModeTableOptionResponse;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -15,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.bson.Document;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,6 +28,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class CodeReviewMatchModeConfigService {
   private static final List<String> DEFAULT_SELECTED_TABLES = List.of("spider_crowncad_data");
+  private static final List<String> DEFAULT_SELECTED_MONGO_COLLECTIONS = List.of("reviewReport", "problemDetail");
 
   private static final String SETTINGS_SQL = """
       select s.enabled,
@@ -35,6 +41,11 @@ public class CodeReviewMatchModeConfigService {
              s.mysql_table_name,
              s.selected_table_names,
              s.mysql_fetch_size,
+             s.mongo_uri,
+             s.mongo_database,
+             s.selected_mongo_collection_names,
+             s.review_report_collection_name,
+             s.review_problem_collection_name,
              s.updated_at,
              st.status as sync_status,
              st.message as sync_message,
@@ -54,7 +65,15 @@ public class CodeReviewMatchModeConfigService {
 
   //兼容模式-MatchMode
   public CodeReviewMatchModeConfig loadConfig() {
-    CodeReviewMatchModeDbSettings settings = loadSettings();
+    return toConfig(loadSettings());
+  }
+
+  //兼容模式-MatchMode
+  public CodeReviewMatchModeConfig loadConfig(CodeReviewMatchModeDbSettingsSaveRequest request) {
+    return toConfig(normalize(request, loadSettings()));
+  }
+
+  private CodeReviewMatchModeConfig toConfig(CodeReviewMatchModeDbSettings settings) {
     return new CodeReviewMatchModeConfig(
         buildMysqlJdbcUrl(settings),
         settings.mysqlUsername(),
@@ -62,6 +81,11 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlTableName(),
         settings.selectedTableNames(),
         settings.mysqlFetchSize(),
+        settings.mongoUri(),
+        settings.mongoDatabase(),
+        settings.selectedMongoCollectionNames(),
+        settings.reviewReportCollectionName(),
+        settings.reviewProblemCollectionName(),
         settings.syncEnabled());
   }
 
@@ -91,6 +115,11 @@ public class CodeReviewMatchModeConfigService {
                mysql_table_name = ?,
                selected_table_names = ?,
                mysql_fetch_size = ?,
+               mongo_uri = ?,
+               mongo_database = ?,
+               selected_mongo_collection_names = ?,
+               review_report_collection_name = ?,
+               review_problem_collection_name = ?,
                updated_at = current_timestamp
          where id = 1
         """,
@@ -103,7 +132,12 @@ public class CodeReviewMatchModeConfigService {
         normalized.mysqlPassword(),
         normalized.mysqlTableName(),
         storeTableNames(normalized.selectedTableNames()),
-        normalized.mysqlFetchSize());
+        normalized.mysqlFetchSize(),
+        normalized.mongoUri(),
+        normalized.mongoDatabase(),
+        storeMongoCollectionNames(normalized.selectedMongoCollectionNames()),
+        normalized.reviewReportCollectionName(),
+        normalized.reviewProblemCollectionName());
     return getResponse();
   }
 
@@ -119,6 +153,11 @@ public class CodeReviewMatchModeConfigService {
             settings.mysqlTableName(),
             settings.selectedTableNames(),
             settings.mysqlFetchSize(),
+            settings.mongoUri(),
+            settings.mongoDatabase(),
+            settings.selectedMongoCollectionNames(),
+            settings.reviewReportCollectionName(),
+            settings.reviewProblemCollectionName(),
             settings.syncEnabled());
     if (!StringUtils.hasText(config.mysqlJdbcUrl()) || !StringUtils.hasText(config.mysqlUsername())) {
       return new CodeReviewMatchModeConnectionTestResponse(false, "老平台 MySQL 连接配置不完整", 0);
@@ -139,7 +178,34 @@ public class CodeReviewMatchModeConfigService {
       }
       return new CodeReviewMatchModeConnectionTestResponse(true, message, total);
     } catch (SQLException | RuntimeException error) {
-      return new CodeReviewMatchModeConnectionTestResponse(false, rootMessage(error), 0);
+      return new CodeReviewMatchModeConnectionTestResponse(false, rootMessage(error, "老平台 MySQL 连接失败"), 0);
+    }
+  }
+
+  //兼容模式-MatchMode
+  public CodeReviewMatchModeConnectionTestResponse testMongoConnection(
+      CodeReviewMatchModeDbSettingsSaveRequest request) {
+    CodeReviewMatchModeDbSettings settings = normalize(request, loadSettings());
+    if (!StringUtils.hasText(settings.mongoUri()) || !StringUtils.hasText(settings.mongoDatabase())) {
+      return new CodeReviewMatchModeConnectionTestResponse(false, "老平台 MongoDB 连接配置不完整", 0);
+    }
+    try (MongoClient client = MongoClients.create(settings.mongoUri())) {
+      MongoDatabase database = client.getDatabase(settings.mongoDatabase());
+      database.runCommand(new Document("ping", 1));
+      long total = 0L;
+      List<String> countSummaries = new ArrayList<>();
+      for (String collectionName : settings.selectedMongoCollectionNames()) {
+        long count = database.getCollection(collectionName).estimatedDocumentCount();
+        total += count;
+        countSummaries.add(collectionName + " " + count + " 条");
+      }
+      String message = "老平台 MongoDB 连接成功";
+      if (!countSummaries.isEmpty()) {
+        message += "：" + String.join("，", countSummaries);
+      }
+      return new CodeReviewMatchModeConnectionTestResponse(true, message, total);
+    } catch (RuntimeException error) {
+      return new CodeReviewMatchModeConnectionTestResponse(false, rootMessage(error, "老平台 MongoDB 连接失败"), 0);
     }
   }
 
@@ -159,7 +225,31 @@ public class CodeReviewMatchModeConfigService {
           .map(tableName -> new CodeReviewMatchModeTableOptionResponse(tableName, tableName, selected.contains(tableName)))
           .toList();
     } catch (SQLException | RuntimeException error) {
-      throw new BizException(rootMessage(error));
+      throw new BizException(rootMessage(error, "老平台 MySQL 连接失败"));
+    }
+  }
+
+  //兼容模式-MatchMode
+  public List<CodeReviewMatchModeCollectionOptionResponse> discoverMongoCollectionOptions(
+      CodeReviewMatchModeDbSettingsSaveRequest request) {
+    CodeReviewMatchModeDbSettings settings = normalize(request, loadSettings());
+    if (!StringUtils.hasText(settings.mongoUri()) || !StringUtils.hasText(settings.mongoDatabase())) {
+      throw new BizException("老平台 MongoDB 连接配置不完整");
+    }
+    try (MongoClient client = MongoClients.create(settings.mongoUri())) {
+      MongoDatabase database = client.getDatabase(settings.mongoDatabase());
+      database.runCommand(new Document("ping", 1));
+      Set<String> selected = new LinkedHashSet<>(settings.selectedMongoCollectionNames());
+      List<String> collectionNames = new ArrayList<>();
+      database.listCollectionNames().into(collectionNames);
+      collectionNames.sort(String::compareToIgnoreCase);
+      return collectionNames.stream()
+          .map(collectionName ->
+              new CodeReviewMatchModeCollectionOptionResponse(
+                  collectionName, collectionName, selected.contains(collectionName)))
+          .toList();
+    } catch (RuntimeException error) {
+      throw new BizException(rootMessage(error, "老平台 MongoDB 连接失败"));
     }
   }
 
@@ -177,6 +267,11 @@ public class CodeReviewMatchModeConfigService {
               text(rs.getString("mysql_table_name")),
               parseStoredTableNames(rs.getString("selected_table_names")),
               rs.getInt("mysql_fetch_size"),
+              rs.getString("mongo_uri") == null ? "" : rs.getString("mongo_uri"),
+              text(rs.getString("mongo_database")),
+              parseStoredMongoCollectionNames(rs.getString("selected_mongo_collection_names")),
+              text(rs.getString("review_report_collection_name")),
+              text(rs.getString("review_problem_collection_name")),
               text(rs.getString("sync_status")),
               text(rs.getString("sync_message")),
               rs.getLong("sync_record_count"),
@@ -212,6 +307,18 @@ public class CodeReviewMatchModeConfigService {
     if (fetchSize < 1 || fetchSize > 100000) {
       throw new BizException("兼容模式抓取批量大小必须在 1 到 100000 之间");
     }
+    String mongoUri = defaultText(request.mongoUri(), current.mongoUri(), "mongodb://172.22.10.72/?waitQueueMultiple=20");
+    String mongoDatabase = defaultText(request.mongoDatabase(), current.mongoDatabase(), "spider");
+    validateMongoDatabaseName(mongoDatabase);
+    List<String> selectedMongoCollectionNames =
+        normalizeSelectedMongoCollectionNames(
+            request.selectedMongoCollectionNames(), current.selectedMongoCollectionNames());
+    String reviewReportCollectionName =
+        defaultText(request.reviewReportCollectionName(), current.reviewReportCollectionName(), "reviewReport");
+    String reviewProblemCollectionName =
+        defaultText(request.reviewProblemCollectionName(), current.reviewProblemCollectionName(), "problemDetail");
+    validateMongoCollectionName(reviewReportCollectionName);
+    validateMongoCollectionName(reviewProblemCollectionName);
     return new CodeReviewMatchModeDbSettings(
         enabled,
         syncEnabled,
@@ -223,6 +330,11 @@ public class CodeReviewMatchModeConfigService {
         tableName,
         selectedTableNames,
         fetchSize,
+        mongoUri,
+        mongoDatabase,
+        selectedMongoCollectionNames,
+        reviewReportCollectionName,
+        reviewProblemCollectionName,
         current.syncStatus(),
         current.syncMessage(),
         current.syncRecordCount(),
@@ -243,6 +355,11 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlTableName(),
         settings.selectedTableNames(),
         settings.mysqlFetchSize(),
+        StringUtils.hasText(settings.mongoUri()),
+        settings.mongoDatabase(),
+        settings.selectedMongoCollectionNames(),
+        settings.reviewReportCollectionName(),
+        settings.reviewProblemCollectionName(),
         settings.syncStatus() == null ? "IDLE" : settings.syncStatus(),
         settings.syncMessage(),
         settings.syncRecordCount(),
@@ -329,6 +446,42 @@ public class CodeReviewMatchModeConfigService {
     return String.join(",", normalizeSelectedTableNames(tableNames, DEFAULT_SELECTED_TABLES));
   }
 
+  private List<String> parseStoredMongoCollectionNames(String storedValue) {
+    if (storedValue == null || storedValue.isBlank()) {
+      return DEFAULT_SELECTED_MONGO_COLLECTIONS;
+    }
+    String[] parts = storedValue.split(",");
+    List<String> values = new ArrayList<>();
+    for (String part : parts) {
+      if (part != null && !part.isBlank()) {
+        values.add(part.trim());
+      }
+    }
+    return normalizeSelectedMongoCollectionNames(values, DEFAULT_SELECTED_MONGO_COLLECTIONS);
+  }
+
+  private List<String> normalizeSelectedMongoCollectionNames(
+      List<String> requestedCollectionNames,
+      List<String> currentCollectionNames) {
+    if (requestedCollectionNames == null) {
+      return currentCollectionNames == null || currentCollectionNames.isEmpty()
+          ? DEFAULT_SELECTED_MONGO_COLLECTIONS
+          : List.copyOf(currentCollectionNames);
+    }
+    Set<String> normalized = new LinkedHashSet<>();
+    for (String collectionName : requestedCollectionNames) {
+      normalized.add(validateMongoCollectionName(collectionName));
+    }
+    if (normalized.isEmpty()) {
+      throw new BizException("至少选择一个老平台 MongoDB 集合");
+    }
+    return List.copyOf(normalized);
+  }
+
+  private String storeMongoCollectionNames(List<String> collectionNames) {
+    return String.join(",", normalizeSelectedMongoCollectionNames(collectionNames, DEFAULT_SELECTED_MONGO_COLLECTIONS));
+  }
+
   private String quoteMysqlIdentifier(String tableName) {
     String normalized = TextQuerySupport.trimToNull(tableName);
     if (normalized == null) {
@@ -338,6 +491,27 @@ public class CodeReviewMatchModeConfigService {
       throw new BizException("兼容模式 MySQL 表名不合法");
     }
     return "`" + normalized.replace("`", "``") + "`";
+  }
+
+  private String validateMongoCollectionName(String collectionName) {
+    String normalized = TextQuerySupport.trimToNull(collectionName);
+    if (normalized == null) {
+      throw new BizException("兼容模式 MongoDB 集合名不能为空");
+    }
+    if (normalized.length() > 255 || normalized.indexOf('\0') >= 0) {
+      throw new BizException("兼容模式 MongoDB 集合名不合法");
+    }
+    return normalized;
+  }
+
+  private void validateMongoDatabaseName(String databaseName) {
+    String normalized = TextQuerySupport.trimToNull(databaseName);
+    if (normalized == null) {
+      throw new BizException("兼容模式 MongoDB 数据库不能为空");
+    }
+    if (normalized.length() > 255 || normalized.indexOf('\0') >= 0) {
+      throw new BizException("兼容模式 MongoDB 数据库名不合法");
+    }
   }
 
   private String defaultText(String nextValue, String currentValue, String fallback) {
@@ -370,14 +544,14 @@ public class CodeReviewMatchModeConfigService {
     return TextQuerySupport.trimToNull(value);
   }
 
-  private String rootMessage(Throwable error) {
+  private String rootMessage(Throwable error, String fallbackMessage) {
     Throwable cursor = error;
     while (cursor.getCause() != null) {
       cursor = cursor.getCause();
     }
     String message = cursor.getMessage();
     return message == null || message.isBlank()
-        ? "老平台 MySQL 连接失败"
+        ? fallbackMessage
         : message.trim().replace('\n', ' ').replace('\r', ' ');
   }
 
@@ -392,6 +566,11 @@ public class CodeReviewMatchModeConfigService {
       String mysqlTableName,
       List<String> selectedTableNames,
       int mysqlFetchSize,
+      String mongoUri,
+      String mongoDatabase,
+      List<String> selectedMongoCollectionNames,
+      String reviewReportCollectionName,
+      String reviewProblemCollectionName,
       String syncStatus,
       String syncMessage,
       long syncRecordCount,

@@ -1,4 +1,5 @@
 import type {
+  CodeReviewMatchModeCollectionOptionResponse,
   CodeReviewMatchModeConnectionTestResponse,
   CodeReviewMatchModeDbSettingsResponse,
   CodeReviewMatchModeDbSettingsSaveRequest,
@@ -34,9 +35,30 @@ export const legacyDatabaseApi = {
       timeoutMs: 30_000,
     });
   },
+  testCodeReviewMatchModeMongoConnection(payload: CodeReviewMatchModeDbSettingsSaveRequest) {
+    return request<CodeReviewMatchModeConnectionTestResponse>(`${basePath}/mongo/test-connection`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: 30_000,
+    });
+  },
+  getCodeReviewMatchModeMongoCollectionOptions(payload: CodeReviewMatchModeDbSettingsSaveRequest) {
+    return request<CodeReviewMatchModeCollectionOptionResponse[]>(`${basePath}/mongo/collection-options`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: 30_000,
+    });
+  },
   syncCodeReviewMatchModeDbNow() {
     return request<CodeReviewMatchModeSyncResponse>(`${basePath}/sync-now`, {
       method: 'POST',
+      timeoutMs: 600_000,
+    });
+  },
+  syncCodeReviewMatchModeMongoNow(payload: CodeReviewMatchModeDbSettingsSaveRequest) {
+    return request<CodeReviewMatchModeSyncResponse>(`${basePath}/mongo/sync-now`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
       timeoutMs: 600_000,
     });
   },

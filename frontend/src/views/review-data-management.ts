@@ -410,28 +410,43 @@ export function createReviewRecordFormFromRow(
   descriptions: ReviewDataDescriptionResponse[] = [],
   contents: ReviewDataContentResponse[] = [],
 ): ReviewRecordFormModel {
+  const matchMode = row.id < 0;
+  const expertNames = matchMode ? legacyEditExperts(row, experts) : [...experts];
+  const fallbackAuthor = expertNames[0] || row.reviewOwner || '未填写';
+  const fallbackReviewDate = dateInputValue(row.reviewDate) || dateInputValue(row.createdAt) || todayInputValue();
+  const primaryValues = {
+    projectName: legacyEditValue(row.projectName, '未标注项目名', matchMode),
+    title: legacyEditValue(row.title, '老平台评审记录', matchMode),
+    moduleName: legacyEditValue(row.moduleName, '未标注模块名', matchMode),
+    reviewType: legacyEditValue(row.reviewType, '其他', matchMode),
+    reviewDate: legacyEditValue(row.reviewDate, fallbackReviewDate, matchMode),
+    reviewOwner: legacyEditValue(row.reviewOwner, fallbackAuthor, matchMode),
+    reviewProduct: legacyEditValue(row.reviewProduct, row.title || '老平台评审记录', matchMode),
+    authorName: legacyEditValue(row.authorName, fallbackAuthor, matchMode),
+    reviewVersion: legacyEditValue(row.reviewVersion, 'V1', matchMode),
+  };
   const descriptionForms = descriptions.length > 0
     ? descriptions.map((description, index) => ({
-      reviewProduct: description.reviewProduct || '',
-      reviewVersion: description.reviewVersion || '',
-      authorName: description.authorName || '',
+      reviewProduct: legacyEditValue(description.reviewProduct, primaryValues.reviewProduct, matchMode),
+      reviewVersion: legacyEditValue(description.reviewVersion, primaryValues.reviewVersion, matchMode),
+      authorName: legacyEditValue(description.authorName, primaryValues.authorName, matchMode),
       reviewScalePages: description.reviewScalePages ?? 0,
       unit: description.unit || '页',
       sortOrder: description.sortOrder ?? index,
     }))
-    : [createPrimaryDescriptionForm(row)];
+    : [createPrimaryDescriptionFormFromValues(primaryValues, row.reviewScalePages ?? 0)];
   return {
-    projectName: row.projectName || '',
-    title: row.title || '',
-    moduleName: row.moduleName || '',
-    reviewType: row.reviewType || '',
-    reviewDate: row.reviewDate || '',
-    reviewOwner: row.reviewOwner || '',
-    reviewExperts: [...experts],
+    projectName: primaryValues.projectName,
+    title: primaryValues.title,
+    moduleName: primaryValues.moduleName,
+    reviewType: primaryValues.reviewType,
+    reviewDate: primaryValues.reviewDate,
+    reviewOwner: primaryValues.reviewOwner,
+    reviewExperts: expertNames,
     reviewScalePages: row.reviewScalePages ?? 0,
-    reviewProduct: row.reviewProduct || '',
-    authorName: row.authorName || '',
-    reviewVersion: row.reviewVersion || '',
+    reviewProduct: primaryValues.reviewProduct,
+    authorName: primaryValues.authorName,
+    reviewVersion: primaryValues.reviewVersion,
     notReachStandardReason: row.notReachStandardReason || '',
     sourceFileName: row.sourceFileName || '',
     weightedDefectDensity: row.weightedDefectDensity ?? null,
@@ -445,6 +460,57 @@ export function createReviewRecordFormFromRow(
       meetingProblemCount: content.meetingProblemCount ?? 0,
       sortOrder: content.sortOrder ?? index,
     })),
+  };
+}
+
+//兼容模式-MatchMode：老平台 Mongo 评审记录可能缺少新平台编辑表单必填项；兜底值只用于打开编辑弹窗，用户保存后转为正式记录。
+function legacyEditValue(value: string | null | undefined, fallback: string, matchMode: boolean) {
+  const normalized = value?.trim() ?? '';
+  if (normalized) {
+    return normalized;
+  }
+  return matchMode ? fallback : '';
+}
+
+function legacyEditExperts(row: ReviewDataRecordRowResponse, experts: string[]) {
+  const names = [...experts, ...splitLegacyExperts(row.reviewExpertsSummary)]
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  const uniqueNames = [...new Set(names)];
+  if (uniqueNames.length > 0) {
+    return uniqueNames;
+  }
+  const ownerName = row.reviewOwner?.trim();
+  return ownerName ? [ownerName] : ['未填写'];
+}
+
+function splitLegacyExperts(value?: string | null) {
+  return (value ?? '').split(/[、,，;；]/);
+}
+
+function dateInputValue(value?: string | null) {
+  const normalized = value?.trim() ?? '';
+  return /^\d{4}-\d{2}-\d{2}/.test(normalized) ? normalized.slice(0, 10) : '';
+}
+
+function todayInputValue() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function createPrimaryDescriptionFormFromValues(
+  values: Pick<ReviewRecordFormModel, 'reviewProduct' | 'reviewVersion' | 'authorName'>,
+  reviewScalePages: number,
+): ReviewRecordDescriptionFormModel {
+  return {
+    reviewProduct: values.reviewProduct,
+    reviewVersion: values.reviewVersion,
+    authorName: values.authorName,
+    reviewScalePages,
+    unit: '页',
+    sortOrder: 0,
   };
 }
 

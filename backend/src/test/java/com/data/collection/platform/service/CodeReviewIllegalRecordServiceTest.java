@@ -33,6 +33,8 @@ class CodeReviewIllegalRecordServiceTest {
   @Mock private RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;
   @Mock private FactBuildService factBuildService;
   @Mock private CodeReviewIllegalRecordSourceLoader sourceLoader;
+  @Mock private CodeReviewMatchModeRecordLoader matchModeRecordLoader;
+  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
   @Mock private GitlabResourceLinkService gitlabResourceLinkService;
 
   private CodeReviewIllegalRecordService service;
@@ -47,6 +49,8 @@ class CodeReviewIllegalRecordServiceTest {
             realtimeIncrementalRefreshService,
             factBuildService,
             sourceLoader,
+            matchModeRecordLoader,
+            matchModeSwitchService,
             gitlabResourceLinkService,
             new ObjectMapper(),
             gitlabMirrorProperties);
@@ -171,10 +175,11 @@ class CodeReviewIllegalRecordServiceTest {
                 source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
-        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, "cc"));
+        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
 
     assertThat(response.requestTypes()).hasSize(1);
     assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("repo-a", "repo-b");
+    assertThat(response.owners()).extracting(item -> item.value()).containsExactly("Author A");
     assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("Alice", "Bob");
     assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("module-a", "module-b");
   }
@@ -208,9 +213,10 @@ class CodeReviewIllegalRecordServiceTest {
                     "release")));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
-        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, "cc"));
+        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
 
     assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("工程图", "草图");
+    assertThat(response.owners()).extracting(item -> item.value()).containsExactly("Author A");
     assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("李四");
     assertThat(response.projectNames()).extracting(item -> item.value()).containsExactly("CrownCAD");
     assertThat(response.targetBranches()).extracting(item -> item.value()).containsExactly("dev", "release");

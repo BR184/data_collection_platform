@@ -305,7 +305,7 @@ public class CodeReviewMatchModeSyncService {
         walkthroughDate,
         text(rs, "status"),
         intValue(rs.getObject("code_walkthrough_duration")),
-        reviewExceptionReason(rs),
+        null,
         text(rs, "sonar_qube_result"),
         intValue(rs.getObject("bug_count")),
         text(rs, "annotation_rate_result"),
@@ -328,15 +328,6 @@ public class CodeReviewMatchModeSyncService {
         text(rs, "function_name"),
         intValue(rs.getObject("ct_code_line_count")),
         legacySourceId);
-  }
-
-  private String reviewExceptionReason(ResultSet rs) throws SQLException {
-    Integer duration = intValue(rs.getObject("code_walkthrough_duration"));
-    Integer defectCount = intValue(rs.getObject("defect_count"));
-    if (duration != null && duration > 0 && defectCount != null && defectCount >= 0) {
-      return null;
-    }
-    return CodeReviewIllegalRuleRegistry.LEGACY_REVIEW_EXCEPTION_REASONS.getFirst();
   }
 
   private String syntheticLabels(String projectName, String moduleName) {

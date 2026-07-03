@@ -91,13 +91,15 @@ class CodeReviewRequestAssemblerTest {
     CodeReviewIllegalRecordFilterOptionsWebRequest request =
         new CodeReviewIllegalRecordFilterOptionsWebRequest();
     request.setProjectId(325L);
+    request.setRepositoryName("CrownCAD");
     request.setProjectName("CC2026R3");
     request.setSource("cc");
 
     CodeReviewIllegalRecordFilterOptionsRequest queryRequest =
         new CodeReviewRequestAssembler().toIllegalRecordFilterOptionsRequest(request);
 
-    assertThat(queryRequest).isEqualTo(new CodeReviewIllegalRecordFilterOptionsRequest(325L, "CC2026R3", "cc"));
+    assertThat(queryRequest)
+        .isEqualTo(new CodeReviewIllegalRecordFilterOptionsRequest(325L, "CrownCAD", "CC2026R3", "cc"));
   }
 
   @Test

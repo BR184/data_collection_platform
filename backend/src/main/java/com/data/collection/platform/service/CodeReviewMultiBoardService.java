@@ -25,9 +25,15 @@ public class CodeReviewMultiBoardService {
         jdbcTemplate.queryForList(
             """
             select distinct source_instance
-              from merge_request_fact
-             where deleted = false
-               and source_instance is not null
+              from (
+                    select source_instance
+                      from merge_request_fact
+                     where deleted = false
+                    union all
+                    select source_instance
+                      from code_review_match_mode_records
+                   ) sources
+             where source_instance is not null
                and btrim(source_instance) <> ''
             order by source_instance
             """,

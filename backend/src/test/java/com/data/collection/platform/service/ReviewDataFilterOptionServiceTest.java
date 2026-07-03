@@ -14,11 +14,12 @@ class ReviewDataFilterOptionServiceTest {
 
   @Mock private ReviewDataMirrorOptionRepository mirrorOptionRepository;
   @Mock private ReviewDataHistoricalOptionRepository historicalOptionRepository;
+  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
+  @Mock private ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   @Test
   void shouldBuildReviewDataFilterOptionsFromHistoricalRecords() {
-    ReviewDataFilterOptionService service =
-        new ReviewDataFilterOptionService(mirrorOptionRepository, historicalOptionRepository);
+    ReviewDataFilterOptionService service = service();
     when(mirrorOptionRepository.loadProjectNames()).thenReturn(List.of());
     when(mirrorOptionRepository.loadLabelProjectNames()).thenReturn(List.of());
     when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of());
@@ -41,8 +42,7 @@ class ReviewDataFilterOptionServiceTest {
 
   @Test
   void shouldIncludeMirrorOptionsForCreatingReviewsEvenWhenRecordsDoNotReferenceThem() {
-    ReviewDataFilterOptionService service =
-        new ReviewDataFilterOptionService(mirrorOptionRepository, historicalOptionRepository);
+    ReviewDataFilterOptionService service = service();
     when(mirrorOptionRepository.loadProjectNames()).thenReturn(List.of("MirrorProject"));
     when(mirrorOptionRepository.loadLabelProjectNames()).thenReturn(List.of("LabelProject"));
     when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of("MirrorModule"));
@@ -71,5 +71,13 @@ class ReviewDataFilterOptionServiceTest {
         .containsExactly("LabelProject");
     assertThat(options.formModuleNames().stream().map(option -> option.value()).toList())
         .containsExactly("MirrorModule");
+  }
+
+  private ReviewDataFilterOptionService service() {
+    return new ReviewDataFilterOptionService(
+        mirrorOptionRepository,
+        historicalOptionRepository,
+        matchModeSwitchService,
+        matchModeRecordRepository);
   }
 }

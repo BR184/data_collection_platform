@@ -6,11 +6,17 @@ match-mode:
     username: legacy_mysql_user
     password: legacy_mysql_password
     table-name: spider_crowncad_data
+    selected-table-names:
+      - spider_crowncad_data
     fetch-size: 1000
   mongodb:
-    uri: mongodb://legacy_mongo_user:legacy_mongo_password@127.0.0.1:27017/spidergitdata?authSource=admin
-    database: spidergitdata
-    annotation-collection: annotationRateInfo
+    uri: mongodb://172.22.10.72/?waitQueueMultiple=20
+    database: spider
+    selected-collection-names:
+      - reviewReport
+      - problemDetail
+    review-report-collection-name: reviewReport
+    review-problem-collection-name: problemDetail
   sync:
     enabled: true
     fixed-delay-ms: 3600000

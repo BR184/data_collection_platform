@@ -24,6 +24,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ReviewDataRecordQueryServiceTest {
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
+  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
+  @Mock private ReviewDataMatchModeRecordRepository matchModeRecordRepository;
+  @Mock private ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
   @Test
   void shouldMatchScalarFieldAgainstLabelGroupValuesFromFilterGroup() {
@@ -180,7 +183,10 @@ class ReviewDataRecordQueryServiceTest {
         persistenceSupport,
         new ReviewDataSummaryService(),
         new JsonUtils(new ObjectMapper()),
-        labelGroupExpansionService);
+        labelGroupExpansionService,
+        matchModeSwitchService,
+        matchModeRecordRepository,
+        matchModeMaterializeService);
   }
 
   private String labelGroupFilter(String fieldKey, String operator, Long groupId) {

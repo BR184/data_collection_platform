@@ -45,6 +45,7 @@ final class CodeReviewIllegalRecordQuerySupport {
            "author",
            "owner",
            "projectName",
+           "repositoryName",
            "mergedAt",
            "mergedBy",
            "moduleName",
@@ -68,6 +69,7 @@ final class CodeReviewIllegalRecordQuerySupport {
       case "author" -> SortSupport.nullableString(CodeReviewIllegalRecordView::author);
       case "owner" -> SortSupport.nullableString(CodeReviewIllegalRecordView::owner);
       case "projectName" -> SortSupport.nullableString(CodeReviewIllegalRecordView::projectName);
+      case "repositoryName" -> SortSupport.nullableString(CodeReviewIllegalRecordView::repositoryName);
       case "mergedBy" -> SortSupport.nullableString(CodeReviewIllegalRecordView::mergedBy);
       case "moduleName" -> SortSupport.nullableString(CodeReviewIllegalRecordView::moduleName);
       case "targetBranch" -> SortSupport.nullableString(CodeReviewIllegalRecordView::targetBranch);

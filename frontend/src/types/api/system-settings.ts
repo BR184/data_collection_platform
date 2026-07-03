@@ -68,6 +68,11 @@ export interface CodeReviewMatchModeDbSettingsResponse {
   mysqlTableName: string;
   selectedTableNames: string[];
   mysqlFetchSize: number;
+  mongoUriConfigured: boolean;
+  mongoDatabase: string;
+  selectedMongoCollectionNames: string[];
+  reviewReportCollectionName: string;
+  reviewProblemCollectionName: string;
   syncStatus: string;
   syncMessage?: string | null;
   syncRecordCount: number;
@@ -87,10 +92,21 @@ export interface CodeReviewMatchModeDbSettingsSaveRequest {
   mysqlTableName: string;
   selectedTableNames: string[];
   mysqlFetchSize: number;
+  mongoUri?: string | null;
+  mongoDatabase: string;
+  selectedMongoCollectionNames: string[];
+  reviewReportCollectionName: string;
+  reviewProblemCollectionName: string;
 }
 
 export interface CodeReviewMatchModeTableOptionResponse {
   tableName: string;
+  label: string;
+  selected: boolean;
+}
+
+export interface CodeReviewMatchModeCollectionOptionResponse {
+  collectionName: string;
   label: string;
   selected: boolean;
 }

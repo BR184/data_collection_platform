@@ -15,6 +15,7 @@ const fields = buildCodeReviewRuleFields({
     { label: 'master', value: 'master' },
     { label: 'dev', value: 'dev' },
   ],
+  owners: [],
   mergedBys: [],
   moduleNames: [],
   projectNames: [],

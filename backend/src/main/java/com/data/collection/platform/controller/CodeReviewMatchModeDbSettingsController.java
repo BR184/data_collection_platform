@@ -2,6 +2,7 @@ package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
+import com.data.collection.platform.entity.CodeReviewMatchModeCollectionOptionResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeConnectionTestResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsSaveRequest;
@@ -9,6 +10,7 @@ import com.data.collection.platform.entity.CodeReviewMatchModeSyncResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeTableOptionResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
+import com.data.collection.platform.service.CodeReviewMatchModeMongoReviewSyncService;
 import com.data.collection.platform.service.CodeReviewMatchModeSyncService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,12 +26,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class CodeReviewMatchModeDbSettingsController {
   private final CodeReviewMatchModeConfigService configService;
   private final CodeReviewMatchModeSyncService syncService;
+  private final CodeReviewMatchModeMongoReviewSyncService mongoReviewSyncService;
 
   public CodeReviewMatchModeDbSettingsController(
       CodeReviewMatchModeConfigService configService,
-      CodeReviewMatchModeSyncService syncService) {
+      CodeReviewMatchModeSyncService syncService,
+      CodeReviewMatchModeMongoReviewSyncService mongoReviewSyncService) {
     this.configService = configService;
     this.syncService = syncService;
+    this.mongoReviewSyncService = mongoReviewSyncService;
   }
 
   //兼容模式-MatchMode
@@ -58,6 +63,29 @@ public class CodeReviewMatchModeDbSettingsController {
   public ApiResponse<List<CodeReviewMatchModeTableOptionResponse>> tableOptions(
       @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
     return ApiResponse.success(configService.discoverTableOptions(request));
+  }
+
+  //兼容模式-MatchMode
+  @PostMapping("/mongo/test-connection")
+  public ApiResponse<CodeReviewMatchModeConnectionTestResponse> testMongoConnection(
+      @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
+    CodeReviewMatchModeConnectionTestResponse result = configService.testMongoConnection(request);
+    return ApiResponse.success(result.message(), result);
+  }
+
+  //兼容模式-MatchMode
+  @PostMapping("/mongo/collection-options")
+  public ApiResponse<List<CodeReviewMatchModeCollectionOptionResponse>> mongoCollectionOptions(
+      @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
+    return ApiResponse.success(configService.discoverMongoCollectionOptions(request));
+  }
+
+  //兼容模式-MatchMode
+  @PostMapping("/mongo/sync-now")
+  public ApiResponse<CodeReviewMatchModeSyncResponse> syncMongoReviewNow(
+      @RequestBody(required = false) CodeReviewMatchModeDbSettingsSaveRequest request) {
+    CodeReviewMatchModeSyncResponse result = mongoReviewSyncService.syncNow(request);
+    return ApiResponse.success(result.message(), result);
   }
 
   //兼容模式-MatchMode

@@ -8,6 +8,7 @@ public record CodeReviewIllegalRecordFilterOptionsResponse(
     List<OptionItemResponse> repositoryNames,
     List<OptionItemResponse> illegalTypes,
     List<OptionItemResponse> targetBranches,
+    List<OptionItemResponse> owners,
     List<OptionItemResponse> mergedBys,
     List<OptionItemResponse> moduleNames,
     List<OptionItemResponse> projectNames) {

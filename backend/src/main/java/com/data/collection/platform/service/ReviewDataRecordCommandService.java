@@ -19,9 +19,16 @@ public class ReviewDataRecordCommandService {
   private static final String DEFAULT_PENDING_PROBLEM_DESCRIPTION = "待评审";
 
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
-  public ReviewDataRecordCommandService(ReviewDataRecordPersistenceSupport persistenceSupport) {
+  public ReviewDataRecordCommandService(
+      ReviewDataRecordPersistenceSupport persistenceSupport,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      ReviewDataMatchModeMaterializeService matchModeMaterializeService) {
     this.persistenceSupport = persistenceSupport;
+    this.matchModeSwitchService = matchModeSwitchService;
+    this.matchModeMaterializeService = matchModeMaterializeService;
   }
 
   @Transactional
@@ -56,6 +63,7 @@ public class ReviewDataRecordCommandService {
 
   @Transactional
   public Long updateRecord(Long recordId, ReviewDataRecordSaveRequest request) {
+    recordId = materializeRecordIfNeeded(recordId);
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.updateRecord(
         recordId,
@@ -81,12 +89,14 @@ public class ReviewDataRecordCommandService {
 
   @Transactional
   public void deleteRecord(Long recordId) {
+    recordId = materializeRecordIfNeeded(recordId);
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.softDeleteRecord(recordId);
   }
 
   @Transactional
   public Long createProblemItem(Long recordId, ReviewDataProblemItemSaveRequest request) {
+    recordId = materializeRecordIfNeeded(recordId);
     persistenceSupport.assertRecordExists(recordId);
     String problemStatus = defaultPendingStatus(request.problemStatus());
     ReviewDataProblemItemResponse pendingItem = findPendingProblemItem(recordId, request.reviewerName());
@@ -130,6 +140,9 @@ public class ReviewDataRecordCommandService {
   @Transactional
   public Long updateProblemItem(
       Long recordId, Long itemId, ReviewDataProblemItemSaveRequest request) {
+    boolean matchModeProblemItem = isMatchModeId(itemId);
+    recordId = materializeRecordIfNeeded(recordId);
+    itemId = matchModeProblemItem ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId) : itemId;
     persistenceSupport.assertRecordExists(recordId);
     persistenceSupport.assertProblemItemExists(recordId, itemId);
     String problemStatus = requireProblemStatus(request.problemStatus());
@@ -152,6 +165,9 @@ public class ReviewDataRecordCommandService {
 
   @Transactional
   public void deleteProblemItem(Long recordId, Long itemId) {
+    boolean matchModeProblemItem = isMatchModeId(itemId);
+    recordId = materializeRecordIfNeeded(recordId);
+    itemId = matchModeProblemItem ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId) : itemId;
     persistenceSupport.assertRecordExists(recordId);
     ReviewDataProblemItemResponse deletedItem = persistenceSupport.getProblemItemOrThrow(recordId, itemId);
     persistenceSupport.softDeleteProblemItem(recordId, itemId);
@@ -367,5 +383,16 @@ public class ReviewDataRecordCommandService {
         .filter(item -> DEFAULT_PENDING_REVIEW_STATUS.equals(item.problemStatus()))
         .findFirst()
         .orElse(null);
+  }
+
+  private Long materializeRecordIfNeeded(Long recordId) {
+    if (!matchModeSwitchService.isEnabled() || !isMatchModeId(recordId)) {
+      return recordId;
+    }
+    return matchModeMaterializeService.materializeRecord(recordId);
+  }
+
+  private boolean isMatchModeId(Long id) {
+    return id != null && id < 0;
   }
 }

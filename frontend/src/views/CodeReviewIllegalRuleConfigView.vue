@@ -30,6 +30,7 @@ const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>({
   repositoryNames: [],
   illegalTypes: [],
   targetBranches: [],
+  owners: [],
   mergedBys: [],
   moduleNames: [],
   projectNames: [],

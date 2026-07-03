@@ -130,6 +130,7 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 | Postgres CLI | `D:\projects\data_collection_platform\tools\postgresql-17.9\pgsql\bin`（`psql.exe` 等）。 |
 | 本地 DB | `jdbc:postgresql://localhost:15432/qaflex`，需要环境变量 `DATASOURCE_PASSWORD`。 |
 | 本地 DB 密码 | `DATASOURCE_PASSWORD=change_this_password`。 |
+| GitLab 大数据源库 | `gitlabhq_production`。这是之前导入了大量项目、议题和 MR 数据的 GitLab PostgreSQL 源数据库；后续涉及 GitLab 直连镜像、表白名单、议题/MR 事实构建和大数据量联调时默认使用这个库名。不要与平台库 `qaflex` 或老平台 MySQL 库 `gitlab_spider` 混淆。 |
 | 后端端口 | `18080` |
 | 前端端口 | `18181`（vite proxy → `http://localhost:18080`） |
 | 行尾 | LF，强制（见 `.gitattributes` 和 `.editorconfig`）。**不要**写 CRLF。 |
@@ -169,6 +170,25 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
    - 日志里出现 GitLab 镜像库、`15434 refused`、某个同步表不存在：这通常是外部同步/刷新任务失败，不等于 Web 后端本身没拉起。
 6. **每次改完代码都拉最新后端**：不要拿旧进程继续测新代码，也不要把旧日志当成这次启动结果。
 7. **本地启动脚本必须跳过测试源码编译**：`backend/run-backend.ps1` 使用 `mvn -Dmaven.test.skip=true spring-boot:run`。原因是 `spring-boot:run` 默认会执行到 `testCompile`，一旦测试源码里残留已删除服务或旧接口引用，Web 后端会在启动前失败，导致 18080 永远不监听。日常代码正确性仍按 §0.1 单独跑 `mvn -DskipTests compile`，不要把启动和测试混在一起。
+
+### 1.3 本地兼容模式 MR 导入测试容器（固定）
+
+这组容器专门用于测试老平台 MySQL `gitlab_spider.spider_crowncad_data` 只导入 MR/代码走查表，并验证“代码走查非法数据”兼容模式。后续开发继续复用这组名字，不要误删或换名。
+
+| 项 | 固定值 |
+|---|---|
+| Docker 网络 | `qaflex-matchmode-mr-net` |
+| PostgreSQL 容器 | `qaflex-matchmode-mr-postgres` |
+| 后端容器 | `qaflex-matchmode-mr-backend` |
+| 前端容器 | `qaflex-matchmode-mr-frontend` |
+| PostgreSQL volume | `qaflex_matchmode_mr_pgdata` |
+| 后端日志 volume | `qaflex_matchmode_mr_backend_logs` |
+| 前端访问地址 | `http://127.0.0.1:30181` |
+| 后端访问地址 | `http://127.0.0.1:30080` |
+| PostgreSQL 端口 | `127.0.0.1:30432` |
+| 老平台 MySQL 源容器 | `spidergitdata-mysql`，接入同一网络别名 `legacy-mysql` |
+| 老平台 MySQL 数据 | 库 `gitlab_spider`，表 `spider_crowncad_data` |
+| 平台测试账号 | `admin` / `admin123` |
 
 ## 2. 默认 PATH 的坑
 

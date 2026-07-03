@@ -32,6 +32,7 @@ public class ReviewDataRecordQueryService {
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
+  private final ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
   public ReviewDataRecordQueryService(
       ReviewDataRecordPersistenceSupport persistenceSupport,
@@ -39,13 +40,15 @@ public class ReviewDataRecordQueryService {
       JsonUtils jsonUtils,
       LabelGroupExpansionService labelGroupExpansionService,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
-      ReviewDataMatchModeRecordRepository matchModeRecordRepository) {
+      ReviewDataMatchModeRecordRepository matchModeRecordRepository,
+      ReviewDataMatchModeMaterializeService matchModeMaterializeService) {
     this.persistenceSupport = persistenceSupport;
     this.summaryService = summaryService;
     this.jsonUtils = jsonUtils;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeRecordRepository = matchModeRecordRepository;
+    this.matchModeMaterializeService = matchModeMaterializeService;
   }
 
   public ReviewDataRecordListResponse listRecords(ReviewDataRecordQueryRequest request) {
@@ -125,7 +128,7 @@ public class ReviewDataRecordQueryService {
       String safeSortField,
       String safeSortOrder) {
     List<ReviewDataRecordRowResponse> baseRows =
-        matchModeRecordRepository.loadRecords().stream()
+        combinedMatchModeRows().stream()
             .filter(row -> containsText(row.title(), request.title()))
             .filter(row -> equalsText(row.projectName(), request.projectName()))
             .filter(row -> equalsText(row.moduleName(), request.moduleName()))
@@ -136,7 +139,7 @@ public class ReviewDataRecordQueryService {
             .toList();
     Map<Long, List<String>> problemStatusesByRecordId =
         needsProblemStatuses(filterGroup, request.problemStatus())
-            ? matchModeRecordRepository.loadProblemStatusesByRecordIds(baseRows)
+            ? loadCombinedProblemStatusesByRecordIds(baseRows)
             : Map.of();
     List<ReviewDataRecordRowResponse> filtered =
         baseRows.stream()
@@ -208,6 +211,10 @@ public class ReviewDataRecordQueryService {
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {
     //兼容模式-MatchMode
     if (matchModeSwitchService.isEnabled()) {
+      Long materializedRecordId = materializedRecordId(recordId);
+      if (materializedRecordId != null) {
+        return formalRecordDetail(materializedRecordId);
+      }
       ReviewDataRecordRowResponse record = matchModeRecordRepository.getRecordOrThrow(recordId);
       return new ReviewDataRecordDetailResponse(
           record,
@@ -217,17 +224,16 @@ public class ReviewDataRecordQueryService {
           List.of());
     }
     ReviewDataRecordRowResponse record = persistenceSupport.getRecordOrThrow(recordId);
-    return new ReviewDataRecordDetailResponse(
-        record,
-        persistenceSupport.listRecordExperts(recordId),
-        persistenceSupport.listProblemItems(recordId),
-        persistenceSupport.listDescriptions(recordId),
-        persistenceSupport.listContents(recordId));
+    return formalRecordDetail(recordId);
   }
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
     //兼容模式-MatchMode
     if (matchModeSwitchService.isEnabled()) {
+      Long materializedRecordId = materializedRecordId(recordId);
+      if (materializedRecordId != null) {
+        return persistenceSupport.listProblemItems(materializedRecordId);
+      }
       matchModeRecordRepository.getRecordOrThrow(recordId);
       return matchModeRecordRepository.listProblemItems(recordId);
     }
@@ -257,6 +263,13 @@ public class ReviewDataRecordQueryService {
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
     //兼容模式-MatchMode
     if (matchModeSwitchService.isEnabled()) {
+      Long materializedRecordId = materializedRecordId(recordId);
+      if (materializedRecordId != null) {
+        Long materializedItemId = itemId != null && itemId < 0
+            ? matchModeMaterializeService.materializedProblemItemIdOrThrow(itemId)
+            : itemId;
+        return persistenceSupport.getProblemItemOrThrow(materializedRecordId, materializedItemId);
+      }
       return matchModeRecordRepository.listProblemItems(recordId).stream()
           .filter(item -> java.util.Objects.equals(item.id(), itemId))
           .findFirst()
@@ -356,6 +369,40 @@ public class ReviewDataRecordQueryService {
       throw new BizException("当前页面不支持该标签组筛选字段");
     }
     return normalized;
+  }
+
+  private List<ReviewDataRecordRowResponse> combinedMatchModeRows() {
+    List<ReviewDataRecordRowResponse> formalRows =
+        persistenceSupport.loadRecords(null, null, null, null, null, null, null, null);
+    List<ReviewDataRecordRowResponse> matchRows = matchModeRecordRepository.loadRecords();
+    return java.util.stream.Stream.concat(formalRows.stream(), matchRows.stream()).toList();
+  }
+
+  private Map<Long, List<String>> loadCombinedProblemStatusesByRecordIds(
+      List<ReviewDataRecordRowResponse> rows) {
+    List<ReviewDataRecordRowResponse> formalRows = rows.stream().filter(row -> row.id() != null && row.id() >= 0).toList();
+    List<ReviewDataRecordRowResponse> matchRows = rows.stream().filter(row -> row.id() != null && row.id() < 0).toList();
+    java.util.Map<Long, List<String>> result = new java.util.HashMap<>();
+    result.putAll(persistenceSupport.loadProblemStatusesByRecordIds(formalRows));
+    result.putAll(matchModeRecordRepository.loadProblemStatusesByRecordIds(matchRows));
+    return result;
+  }
+
+  private Long materializedRecordId(Long recordId) {
+    if (recordId == null || recordId >= 0) {
+      return recordId;
+    }
+    return matchModeRecordRepository.findMaterializedRecordId(recordId);
+  }
+
+  private ReviewDataRecordDetailResponse formalRecordDetail(Long recordId) {
+    ReviewDataRecordRowResponse record = persistenceSupport.getRecordOrThrow(recordId);
+    return new ReviewDataRecordDetailResponse(
+        record,
+        persistenceSupport.listRecordExperts(recordId),
+        persistenceSupport.listProblemItems(recordId),
+        persistenceSupport.listDescriptions(recordId),
+        persistenceSupport.listContents(recordId));
   }
 
 }

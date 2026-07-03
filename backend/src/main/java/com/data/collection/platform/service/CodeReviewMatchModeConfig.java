@@ -9,5 +9,10 @@ record CodeReviewMatchModeConfig(
     String mysqlTableName,
     List<String> selectedTableNames,
     int mysqlFetchSize,
+    String mongoUri,
+    String mongoDatabase,
+    List<String> selectedMongoCollectionNames,
+    String reviewReportCollectionName,
+    String reviewProblemCollectionName,
     boolean syncEnabled) {
 }

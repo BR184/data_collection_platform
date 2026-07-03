@@ -12,5 +12,10 @@ public record CodeReviewMatchModeDbSettingsSaveRequest(
     String mysqlPassword,
     String mysqlTableName,
     List<String> selectedTableNames,
-    Integer mysqlFetchSize) {
+    Integer mysqlFetchSize,
+    String mongoUri,
+    String mongoDatabase,
+    List<String> selectedMongoCollectionNames,
+    String reviewReportCollectionName,
+    String reviewProblemCollectionName) {
 }

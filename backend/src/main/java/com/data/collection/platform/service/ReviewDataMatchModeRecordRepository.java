@@ -34,7 +34,119 @@ public class ReviewDataMatchModeRecordRepository {
 
   //兼容模式-MatchMode
   public List<ReviewDataRecordRowResponse> loadRecords() {
-    return buildRows().records();
+    return buildRows(loadMaterializedLegacyIds()).records();
+  }
+
+  //兼容模式-MatchMode
+  public Long findMaterializedRecordId(Long matchModeRecordId) {
+    Long recordId = jdbcTemplate.query(
+        """
+        select review_record_id
+          from review_data_match_mode_edit_links
+         where match_mode_report_id = ?
+        """,
+        rs -> rs.next() ? rs.getLong("review_record_id") : null,
+        storageId(matchModeRecordId));
+    if (recordId != null) {
+      return recordId;
+    }
+    String legacyId = findReportLegacyId(matchModeRecordId);
+    if (legacyId == null) {
+      return null;
+    }
+    return jdbcTemplate.query(
+        """
+        select review_record_id
+          from review_data_match_mode_edit_links
+         where match_mode_report_legacy_id = ?
+        """,
+        rs -> rs.next() ? rs.getLong("review_record_id") : null,
+        legacyId);
+  }
+
+  //兼容模式-MatchMode
+  public MatchModeRecordSource getRecordSourceOrThrow(Long matchModeRecordId) {
+    ReportRow row = loadReportRows().stream()
+        .filter(report -> Objects.equals(report.id(), storageId(matchModeRecordId)))
+        .findFirst()
+        .orElseThrow(() -> new EmptyResultDataAccessException("兼容模式评审记录不存在: " + matchModeRecordId, 1));
+    List<ProblemRow> problems = loadProblemRows().stream()
+        .filter(problem -> row.problemDetailIds().contains(problem.legacyId()))
+        .toList();
+    return new MatchModeRecordSource(row, problems);
+  }
+
+  //兼容模式-MatchMode
+  public void linkMaterializedRecord(Long matchModeRecordId, String legacyId, Long reviewRecordId) {
+    int updated =
+        jdbcTemplate.update("""
+            update review_data_match_mode_edit_links
+               set match_mode_report_id = ?,
+                   match_mode_report_legacy_id = ?,
+                   review_record_id = ?,
+                   updated_at = current_timestamp
+             where match_mode_report_id = ?
+                or match_mode_report_legacy_id = ?
+            """,
+            storageId(matchModeRecordId),
+            legacyId,
+            reviewRecordId,
+            storageId(matchModeRecordId),
+            legacyId);
+    if (updated > 0) {
+      return;
+    }
+    jdbcTemplate.update("""
+          insert into review_data_match_mode_edit_links(
+            match_mode_report_id, match_mode_report_legacy_id, review_record_id, created_at, updated_at
+          ) values (
+            ?, ?, ?, current_timestamp, current_timestamp
+          )
+          on conflict (match_mode_report_legacy_id) do update
+             set match_mode_report_id = excluded.match_mode_report_id,
+                 review_record_id = excluded.review_record_id,
+                 updated_at = current_timestamp
+          """,
+        storageId(matchModeRecordId),
+        legacyId,
+        reviewRecordId);
+  }
+
+  //兼容模式-MatchMode
+  public void linkMaterializedProblem(
+      Long matchModeProblemId,
+      String legacyId,
+      Long reviewRecordId,
+      Long reviewProblemItemId) {
+    jdbcTemplate.update("""
+        insert into review_data_match_mode_problem_edit_links(
+          match_mode_problem_id, match_mode_problem_legacy_id, review_record_id, review_problem_item_id,
+          created_at, updated_at
+        ) values (
+          ?, ?, ?, ?, current_timestamp, current_timestamp
+        )
+        on conflict (match_mode_problem_id) do update
+           set review_record_id = excluded.review_record_id,
+               review_problem_item_id = excluded.review_problem_item_id,
+               match_mode_problem_legacy_id = excluded.match_mode_problem_legacy_id,
+               updated_at = current_timestamp
+        """,
+        storageId(matchModeProblemId),
+        legacyId,
+        reviewRecordId,
+        reviewProblemItemId);
+  }
+
+  //兼容模式-MatchMode
+  public Long findMaterializedProblemItemId(Long matchModeProblemItemId) {
+    return jdbcTemplate.query(
+        """
+        select review_problem_item_id
+          from review_data_match_mode_problem_edit_links
+         where match_mode_problem_id = ?
+        """,
+        rs -> rs.next() ? rs.getLong("review_problem_item_id") : null,
+        storageId(matchModeProblemItemId));
   }
 
   //兼容模式-MatchMode
@@ -99,6 +211,10 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private MatchModeRows buildRows() {
+    return buildRows(Set.of());
+  }
+
+  private MatchModeRows buildRows(Set<String> excludedLegacyIds) {
     List<ProblemRow> problems = loadProblemRows();
     Map<String, ProblemRow> problemByLegacyId = new LinkedHashMap<>();
     for (ProblemRow problem : problems) {
@@ -109,6 +225,9 @@ public class ReviewDataMatchModeRecordRepository {
     Map<Long, List<ReviewDataProblemItemResponse>> problemItemsByRecordId = new LinkedHashMap<>();
     Map<Long, List<String>> expertsByRecordId = new LinkedHashMap<>();
     for (ReportRow report : loadReportRows()) {
+      if (excludedLegacyIds.contains(report.legacyId())) {
+        continue;
+      }
       Long publicRecordId = publicRecordId(report.id());
       List<ProblemRow> reportProblems =
           report.problemDetailIds().stream()
@@ -403,12 +522,37 @@ public class ReviewDataMatchModeRecordRepository {
     return publicId == null ? null : Math.abs(publicId);
   }
 
+  private Set<String> loadMaterializedLegacyIds() {
+    return new LinkedHashSet<>(
+        jdbcTemplate.query(
+            """
+            select match_mode_report_legacy_id
+              from review_data_match_mode_edit_links
+            """,
+            (rs, rowNum) -> rs.getString("match_mode_report_legacy_id")));
+  }
+
+  private String findReportLegacyId(Long matchModeRecordId) {
+    return jdbcTemplate.query(
+        """
+        select legacy_id
+          from review_data_match_mode_reports
+         where id = ?
+        """,
+        rs -> rs.next() ? rs.getString("legacy_id") : null,
+        storageId(matchModeRecordId));
+  }
+
   private record MatchModeRows(
       List<ReviewDataRecordRowResponse> records,
       Map<Long, List<ReviewDataProblemItemResponse>> problemItemsByRecordId,
       Map<Long, List<String>> expertsByRecordId) {}
 
-  private record ReportRow(
+  public record MatchModeRecordSource(
+      ReportRow record,
+      List<ProblemRow> problems) {}
+
+  public record ReportRow(
       Long id,
       String legacyId,
       String projectName,
@@ -434,7 +578,7 @@ public class ReviewDataMatchModeRecordRepository {
       List<String> problemDetailIds,
       LocalDateTime createTime) {}
 
-  private record ProblemRow(
+  public record ProblemRow(
       Long id,
       String legacyId,
       String reviewer,

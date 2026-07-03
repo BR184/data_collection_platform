@@ -53,6 +53,15 @@ export const CODE_REVIEW_ILLEGAL_RECORD_COLUMNS: RecordTableColumn[] = [
   { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 150, align: 'right' },
 ];
 
+export function buildCodeReviewIllegalRecordColumns(legacyMode = false): RecordTableColumn[] {
+  if (!legacyMode) {
+    return CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
+  }
+  return CODE_REVIEW_ILLEGAL_RECORD_COLUMNS.map((column) =>
+    column.key === 'projectName' ? { ...column, key: 'repositoryName' } : column,
+  );
+}
+
 export function createDefaultCodeReviewFilterOptions(): CodeReviewIllegalRecordFilterOptionsResponse {
   return {
     requestTypes: [{ label: '合并请求', value: 'merge_request' }],
@@ -60,6 +69,7 @@ export function createDefaultCodeReviewFilterOptions(): CodeReviewIllegalRecordF
     repositoryNames: [],
     illegalTypes: [],
     targetBranches: [],
+    owners: [],
     mergedBys: [],
     moduleNames: [],
     projectNames: [],
@@ -68,15 +78,18 @@ export function createDefaultCodeReviewFilterOptions(): CodeReviewIllegalRecordF
 
 export function createCodeReviewConditionFields(
   filterOptions: CodeReviewIllegalRecordFilterOptionsResponse,
+  legacyMode = false,
 ): StatisticFilterField[] {
   return [
-    selectField('repositoryName', '代码库', filterOptions.repositoryNames),
+    selectField('repositoryName', legacyMode ? '所属项目' : '代码库', filterOptions.repositoryNames),
     datetimeField('mergedAt', '合并时间'),
     selectField('illegalType', '非法类型', filterOptions.illegalTypes, DEFAULT_SELECT_WIDTH, ['contains', 'notContains']),
     textField('keyword', '合并请求内容', 240),
     selectField('requestType', '请求类型', filterOptions.requestTypes),
     numberField('mergeRequestIid', '合并请求编号'),
-    textField('owner', '被走查人'),
+    legacyMode
+      ? selectField('owner', '被走查人', filterOptions.owners)
+      : textField('owner', '被走查人'),
     selectField('targetBranch', '目标分支', filterOptions.targetBranches),
     selectField('mergedBy', '合并人', filterOptions.mergedBys),
     selectField('moduleName', '模块名称', filterOptions.moduleNames),
@@ -89,11 +102,19 @@ export function createCodeReviewConditionFields(
 
 export function buildCodeReviewPrimaryFilters(
   filterOptions: CodeReviewIllegalRecordFilterOptionsResponse,
+  legacyMode = false,
 ): RecordTableFilterField[] {
-  return [
+  const filters: RecordTableFilterField[] = [
     { key: 'mergeRequestIid', label: '合并请求编号', type: 'input', placeholder: '输入 MR 编号' },
     { key: 'keyword', label: '合并请求内容', type: 'input', placeholder: '输入内容关键字', width: 220 },
-    { key: 'owner', label: '被走查人', type: 'input', placeholder: '输入被走查人' },
+    legacyMode
+      ? {
+          key: 'owner',
+          label: '被走查人',
+          type: 'select',
+          options: [{ label: '全部被走查人', value: '' }, ...filterOptions.owners],
+        }
+      : { key: 'owner', label: '被走查人', type: 'input', placeholder: '输入被走查人' },
     {
       key: 'mergedBy',
       label: '合并人',
@@ -120,13 +141,25 @@ export function buildCodeReviewPrimaryFilters(
       width: 220,
       options: [{ label: '全部非法类型', value: '' }, ...filterOptions.illegalTypes],
     },
-    {
+  ];
+  if (legacyMode) {
+    filters.push({
+      key: 'projectName',
+      label: '项目名称',
+      type: 'select',
+      width: 180,
+      options: [{ label: '全部项目名称', value: '' }, ...filterOptions.projectNames],
+    });
+  } else {
+    filters.push({
       key: 'repositoryName',
       label: '代码库',
       type: 'select',
       width: 180,
       options: [{ label: '全部代码库', value: '' }, ...filterOptions.repositoryNames],
-    },
+    });
+  }
+  filters.push(
     {
       key: 'mergedAtRange',
       label: '合并时间',
@@ -135,10 +168,14 @@ export function buildCodeReviewPrimaryFilters(
       startPlaceholder: '开始日期',
       endPlaceholder: '结束日期',
     },
-  ];
+  );
+  return filters;
 }
 
-export function buildCodeReviewQuickFilterTags(values: Record<string, unknown>): RecordTableActiveFilterTag[] {
+export function buildCodeReviewQuickFilterTags(
+  values: Record<string, unknown>,
+  legacyMode = false,
+): RecordTableActiveFilterTag[] {
   const tags: RecordTableActiveFilterTag[] = [];
   pushTag(tags, 'mergeRequestIid', '合并请求编号', values.mergeRequestIid);
   pushTag(tags, 'keyword', '合并请求内容', values.keyword);
@@ -147,7 +184,8 @@ export function buildCodeReviewQuickFilterTags(values: Record<string, unknown>):
   pushTag(tags, 'moduleName', '模块名', values.moduleName);
   pushTag(tags, 'targetBranch', '合并目标分支', values.targetBranch);
   pushTag(tags, 'illegalType', '非法类型', values.illegalType);
-  pushTag(tags, 'repositoryName', '代码库', values.repositoryName);
+  pushTag(tags, 'projectName', '项目名称', values.projectName);
+  pushTag(tags, 'repositoryName', legacyMode ? '所属项目' : '代码库', values.repositoryName);
   if (Array.isArray(values.mergedAtRange) && values.mergedAtRange.length === 2) {
     tags.push({
       key: 'mergedAtRange',
@@ -218,6 +256,7 @@ export function mapCodeReviewIllegalTableRows(
     mergeRequestContent: row.mergeRequestContent,
     author: row.author || '-',
     projectName: row.projectName || '-',
+    repositoryName: row.repositoryName || '-',
     mergedAt: formatCodeReviewDateTime(row.mergedAt),
     mergedBy: row.mergedBy || '-',
     moduleName: row.moduleName || '-',

@@ -42,6 +42,17 @@ class CodeReviewMultiBoardServiceTest {
   }
 
   @Test
+  void shouldIncludeMatchModeRecordSourcesWhenFactTableIsEmpty() {
+    when(jdbcTemplate.queryForList(contains("code_review_match_mode_records"), eq(String.class)))
+        .thenReturn(List.of("cc"));
+
+    List<OptionItemResponse> options = service.listSourceOptions();
+
+    assertThat(options).extracting(OptionItemResponse::value).containsExactly("cc");
+    assertThat(options).extracting(OptionItemResponse::label).containsExactly("CC");
+  }
+
+  @Test
   void shouldBuildOverviewForRequestedSource() {
     when(jdbcTemplate.queryForList(anyString(), eq(String.class)))
         .thenReturn(List.of("cc", "dgm"));

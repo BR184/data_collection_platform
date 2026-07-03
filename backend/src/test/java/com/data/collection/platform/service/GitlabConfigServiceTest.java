@@ -268,34 +268,29 @@ class GitlabConfigServiceTest {
   }
 
   @Test
-  void shouldRejectChangingConfigToExistingSourceInstance() {
-    GitlabSyncConfig current = persistedConfig();
-    current.setId(1L);
-    current.setSourceInstance("cc");
-    GitlabSyncConfig existing = persistedConfig();
-    existing.setId(2L);
-    existing.setSourceInstance("dgm");
-    when(configMapper.selectById(1L)).thenReturn(current);
-    when(configMapper.selectOne(any())).thenReturn(existing);
+  void shouldNormalizeSubmittedSourceInstanceToDefault() {
+    when(configMapper.selectOne(any())).thenReturn(null);
 
     GitlabSyncConfig input = baseInput();
-    input.setId(1L);
     input.setSourceInstance("DGM");
 
-    assertThatThrownBy(() -> configService.saveConfig(input))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("dgm");
-    verify(configMapper, never()).updateById(any(GitlabSyncConfig.class));
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(config.getSourceInstance())));
   }
 
   @Test
-  void shouldRejectTooLongSourceInstanceBeforeSaving() {
-    GitlabSyncConfig input = baseInput();
-    input.setSourceInstance("a".repeat(GitlabSourceInstanceSupport.MAX_SOURCE_INSTANCE_LENGTH + 1));
+  void shouldIgnoreTooLongSubmittedSourceInstanceBeforeSaving() {
+    when(configMapper.selectOne(any())).thenReturn(null);
 
-    assertThatThrownBy(() -> configService.saveConfig(input)).isInstanceOf(BizException.class);
-    verify(configMapper, never()).insert(any(GitlabSyncConfig.class));
-    verify(configMapper, never()).updateById(any(GitlabSyncConfig.class));
+    GitlabSyncConfig input = baseInput();
+    input.setSourceInstance("a".repeat(512));
+
+    configService.saveConfig(input);
+
+    verify(configMapper).insert(argThat((GitlabSyncConfig config) ->
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE.equals(config.getSourceInstance())));
   }
 
   @Test

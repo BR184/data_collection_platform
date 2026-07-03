@@ -17,10 +17,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ReviewDataRecordCommandServiceTest {
   @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
+  @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
+  @Mock private ReviewDataMatchModeMaterializeService matchModeMaterializeService;
 
   @Test
   void shouldUpdatePendingProblemItemForSameReviewerWhenCreatingProblemItem() {
-    ReviewDataRecordCommandService service = new ReviewDataRecordCommandService(persistenceSupport);
+    ReviewDataRecordCommandService service = service();
     ReviewDataProblemItemSaveRequest request = problemRequest("专家A", "新提交");
     when(persistenceSupport.listProblemItems(7L))
         .thenReturn(
@@ -76,7 +78,7 @@ class ReviewDataRecordCommandServiceTest {
 
   @Test
   void shouldInsertProblemItemWhenNoPendingItemMatchesReviewer() {
-    ReviewDataRecordCommandService service = new ReviewDataRecordCommandService(persistenceSupport);
+    ReviewDataRecordCommandService service = service();
     ReviewDataProblemItemSaveRequest request = problemRequest("专家B", "新提交");
     when(persistenceSupport.listProblemItems(7L)).thenReturn(List.of());
     when(persistenceSupport.insertProblemItem(
@@ -125,6 +127,11 @@ class ReviewDataRecordCommandServiceTest {
             org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.any());
     verify(persistenceSupport).touchRecord(7L);
+  }
+
+  private ReviewDataRecordCommandService service() {
+    return new ReviewDataRecordCommandService(
+        persistenceSupport, matchModeSwitchService, matchModeMaterializeService);
   }
 
   private ReviewDataProblemItemSaveRequest problemRequest(String reviewerName, String problemStatus) {

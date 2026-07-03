@@ -24,7 +24,7 @@ public class CodeReviewIllegalRecordSourceLoader {
         and coalesce(project_name, '') <> '无需标注'
         and coalesce(label_names, '') not like '%无需走查扫描%'
         and (
-          lower(coalesce(project_name, '')) not in ('crowncad', 'dgm')
+          lower(coalesce(repository_name, '')) not in ('crowncad', 'dgm')
           or lower(coalesce(target_branch, '')) = 'dev'
         )
       """;
@@ -140,6 +140,33 @@ public class CodeReviewIllegalRecordSourceLoader {
     return List.of();
   }
 
+  public CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
+      CodeReviewIllegalRecordFilterOptionsRequest request) {
+    CodeReviewIllegalRecordFilterOptionsRequest safeRequest =
+        request == null
+            ? new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, null)
+            : request;
+    QueryParts projectParts = buildFilterOptionQuery(null, null, null, safeRequest.source());
+    QueryParts scopedParts =
+        buildFilterOptionQuery(
+            safeRequest.projectId(),
+            safeRequest.repositoryName(),
+            safeRequest.projectName(),
+            safeRequest.source());
+    Map<String, List<String>> projectValues =
+        queryOptionValues(projectParts, Map.of("repositoryNames", "repository_name", "projectNames", "project_name"));
+    Map<String, List<String>> scopedValues =
+        queryOptionValues(scopedParts, scopedOptionColumns());
+    return new CodeReviewIllegalRecordFilterOptionValues(
+        queryProjectOptions(projectParts),
+        projectValues.getOrDefault("repositoryNames", List.of()),
+        scopedValues.getOrDefault("targetBranches", List.of()),
+        scopedValues.getOrDefault("owners", List.of()),
+        scopedValues.getOrDefault("mergedBys", List.of()),
+        scopedValues.getOrDefault("moduleNames", List.of()),
+        projectValues.getOrDefault("projectNames", List.of()));
+  }
+
   public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
       CodeReviewIllegalRecordSourcePageQuery query) {
     if (!matchesRequestType(query.request().requestType())) {
@@ -236,6 +263,77 @@ public class CodeReviewIllegalRecordSourceLoader {
     appendIllegalPredicate(where, request.illegalType(), request.source());
     appendFilterGroup(where, args, query.filterGroup());
     return new QueryParts(where.toString(), args);
+  }
+
+  private QueryParts buildFilterOptionQuery(
+      Long projectId, String repositoryName, String projectName, String source) {
+    StringBuilder where = new StringBuilder(LEGACY_ILLEGAL_BASE_WHERE);
+    List<Object> args = new ArrayList<>();
+    appendEq(where, args, "project_id", projectId);
+    appendContains(where, args, "repository_name", repositoryName);
+    appendContains(where, args, "project_name", projectName);
+    appendSourceInstance(where, args, source);
+    appendIllegalPredicate(where, null, source);
+    return new QueryParts(where.toString(), args);
+  }
+
+  private List<CodeReviewIllegalRecordFilterProjectOption> queryProjectOptions(QueryParts parts) {
+    return mergeRequestFactQueryService.query(
+        "select project_id, project_name from merge_request_fact "
+            + parts.where()
+            + """
+               and project_id is not null
+             group by project_id, project_name
+             order by lower(coalesce(project_name, '')), project_id
+            """,
+        parts.args(),
+        (rs, rowNum) ->
+            new CodeReviewIllegalRecordFilterProjectOption(
+                rs.getLong("project_id"), rs.getString("project_name")));
+  }
+
+  private Map<String, List<String>> queryOptionValues(
+      QueryParts parts, Map<String, String> optionColumns) {
+    if (optionColumns.isEmpty()) {
+      return Map.of();
+    }
+    String selectColumns =
+        optionColumns.values().stream().distinct().reduce((left, right) -> left + ", " + right).orElse("");
+    String unionSql =
+        optionColumns.entrySet().stream()
+            .map(entry -> "select '" + entry.getKey() + "' as option_group, " + entry.getValue() + " as option_value from scoped")
+            .reduce((left, right) -> left + "\nunion all\n" + right)
+            .orElse("");
+    List<OptionGroupValue> rows =
+        mergeRequestFactQueryService.query(
+            "with scoped as (select "
+                + selectColumns
+                + " from merge_request_fact "
+                + parts.where()
+                + ") select option_group, option_value from ("
+                + unionSql
+                + """
+                  ) option_values
+                 where nullif(btrim(coalesce(option_value, '')), '') is not null
+                 group by option_group, option_value
+                 order by option_group, lower(option_value)
+                """,
+            parts.args(),
+            (rs, rowNum) -> new OptionGroupValue(rs.getString("option_group"), rs.getString("option_value")));
+    Map<String, List<String>> result = new LinkedHashMap<>();
+    for (OptionGroupValue row : rows) {
+      result.computeIfAbsent(row.group(), ignored -> new ArrayList<>()).add(row.value());
+    }
+    return result;
+  }
+
+  private Map<String, String> scopedOptionColumns() {
+    Map<String, String> columns = new LinkedHashMap<>();
+    columns.put("targetBranches", "target_branch");
+    columns.put("owners", "author_name");
+    columns.put("mergedBys", "merge_user_name");
+    columns.put("moduleNames", "module_name");
+    return columns;
   }
 
   private QueryParts buildAllExportQuery(
@@ -468,6 +566,7 @@ public class CodeReviewIllegalRecordSourceLoader {
     columns.put("author", "lower(coalesce(author_name, ''))");
     columns.put("owner", "lower(coalesce(owner_name, ''))");
     columns.put("projectName", "lower(coalesce(project_name, ''))");
+    columns.put("repositoryName", "lower(coalesce(repository_name, ''))");
     columns.put("mergedAt", "merged_at_source");
     columns.put("mergedBy", "lower(coalesce(merge_user_name, ''))");
     columns.put("moduleName", "lower(coalesce(module_name, ''))");
@@ -488,4 +587,6 @@ public class CodeReviewIllegalRecordSourceLoader {
       return where.substring(baseWhere.length());
     }
   }
+
+  private record OptionGroupValue(String group, String value) {}
 }

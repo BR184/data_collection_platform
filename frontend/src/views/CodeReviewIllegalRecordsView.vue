@@ -25,10 +25,10 @@ import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshP
 import { useRecordPageController } from '../composables/useRecordPageController';
 import type { RecordTableActiveFilterTag } from '../types/record-table';
 import {
-  CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
   CODE_REVIEW_QUERY_CLEAR_KEYS,
   CODE_REVIEW_RANGE_KEYS,
   buildCodeReviewPrimaryFilters,
+  buildCodeReviewIllegalRecordColumns,
   buildCodeReviewQuickFilterTags,
   buildCodeReviewRuleExplanationOverview,
   createCodeReviewConditionFields,
@@ -80,8 +80,12 @@ const showRefreshLatestData = computed(() => canRefreshLatestData.value && !matc
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
 );
-const conditionFilterFields = computed(() => createCodeReviewConditionFields(filterOptions.value));
-const primaryFilters = computed(() => buildCodeReviewPrimaryFilters(filterOptions.value));
+const conditionFilterFields = computed(() =>
+  createCodeReviewConditionFields(filterOptions.value, matchModeEnabled.value),
+);
+const primaryFilters = computed(() =>
+  buildCodeReviewPrimaryFilters(filterOptions.value, matchModeEnabled.value),
+);
 
 const {
   ruleExplanation,
@@ -135,6 +139,7 @@ const filterValues = computed<Record<string, unknown>>(() => {
     moduleName: String(route.query.moduleName ?? ''),
     targetBranch: String(route.query.targetBranch ?? ''),
     illegalType: String(route.query.illegalType ?? ''),
+    projectName: String(route.query.projectName ?? ''),
     repositoryName: String(route.query.repositoryName ?? ''),
     mergedAtRange: mergedAtStart && mergedAtEnd ? [mergedAtStart, mergedAtEnd] : [],
   };
@@ -143,27 +148,54 @@ const filterValues = computed<Record<string, unknown>>(() => {
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   return [
     ...conditionFilterGroupTags.value,
-    ...buildCodeReviewQuickFilterTags(filterValues.value),
+    ...buildCodeReviewQuickFilterTags(filterValues.value, matchModeEnabled.value),
   ];
 });
 
-const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
-const projectScopeValue = computed(() => String(route.query.projectName ?? ''));
-const projectScopeOptions = computed(() => filterOptions.value.projectNames ?? []);
+const columns = computed(() => buildCodeReviewIllegalRecordColumns(matchModeEnabled.value));
+const projectScopeUsesRepository = computed(() => matchModeEnabled.value);
+const sourceScopeProvider = computed(() => ({
+  ...CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
+  defaultStrategy: 'empty' as const,
+}));
+const effectiveSourceValue = computed(() =>
+  sourceScope.value.value || sourceOptions.value[0]?.value || (matchModeEnabled.value ? 'cc' : ''),
+);
+const effectiveRepositoryName = computed(() =>
+  String(route.query.repositoryName ?? '') || (matchModeEnabled.value ? 'CrownCAD' : ''),
+);
+const projectScopeValue = computed(() =>
+  projectScopeUsesRepository.value
+    ? effectiveRepositoryName.value
+    : String(route.query.projectName ?? ''),
+);
+const projectScopeOptions = computed(() =>
+  projectScopeUsesRepository.value
+    ? filterOptions.value.repositoryNames ?? []
+    : filterOptions.value.projectNames ?? [],
+);
+const projectScopeLabel = computed(() => (projectScopeUsesRepository.value ? '所属项目' : '项目'));
+const projectScopePlaceholder = computed(() =>
+  projectScopeUsesRepository.value ? '全部所属项目' : '全部项目',
+);
 const sourceScope = useDataScope({
-  provider: CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
+  provider: sourceScopeProvider,
   options: computed(() => buildScopeOptions(sourceOptions.value)),
-  clearQueryKeysOnChange: ['projectId', 'projectName'],
+  clearQueryKeysOnChange: ['projectId', 'projectName', 'repositoryName'],
   mountToShell: true,
   loading: isTableLoading,
 });
-const sourceScopeReady = computed(() => sourceScope.defaultReady.value);
 
 const tableEmptyDescription = computed(() =>
   '当前筛选条件下没有查询到非法记录。',
 );
 
 const tableRows = computed<Record<string, unknown>[]>(() => mapCodeReviewIllegalTableRows(rows.value));
+const selectedScopeName = computed(() =>
+  matchModeEnabled.value
+    ? selectedRow.value?.repositoryName || '-'
+    : selectedRow.value?.projectName || '-',
+);
 
 const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps || []);
 const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions || []);
@@ -182,8 +214,9 @@ function openDetailDrawer(row: Record<string, unknown>) {
 async function loadFilterOptions() {
   filterOptions.value = await api.getCodeReviewIllegalRecordFilterOptions(
     undefined,
-    sourceScope.value.value || undefined,
+    effectiveSourceValue.value || undefined,
     String(route.query.projectName ?? ''),
+    matchModeEnabled.value ? effectiveRepositoryName.value : undefined,
   );
 }
 
@@ -199,6 +232,27 @@ async function loadMatchModeStatus() {
   }
   const settings = await api.getCodeReviewMatchModeDbSettings();
   matchModeEnabled.value = settings.enabled;
+}
+
+function syncCodeReviewRouteDefaults() {
+  const patch: Record<string, string | number | null> = {};
+  if (!String(route.query.source ?? '').trim() && effectiveSourceValue.value) {
+    patch.source = effectiveSourceValue.value;
+  }
+  if (matchModeEnabled.value && !String(route.query.repositoryName ?? '').trim()) {
+    patch.repositoryName = 'CrownCAD';
+    patch.projectName = null;
+    patch.targetBranch = null;
+  }
+  if (!Object.keys(patch).length) {
+    return;
+  }
+  void patchQuery({
+    ...patch,
+    page: 1,
+  }).catch(() => {
+    // The table uses effective defaults for the current load; a failed URL sync should not blank the page.
+  });
 }
 
 const {
@@ -219,7 +273,7 @@ async function loadTableData() {
 function buildCurrentQueryParams(includePagination: boolean) {
   return {
     projectId: undefined,
-    repositoryName: String(route.query.repositoryName ?? ''),
+    repositoryName: effectiveRepositoryName.value,
     mergedAtStart: String(route.query.mergedAtStart ?? ''),
     mergedAtEnd: String(route.query.mergedAtEnd ?? ''),
     keyword: String(route.query.keyword ?? ''),
@@ -231,7 +285,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
     illegalType: String(route.query.illegalType ?? ''),
     mergeRequestIid: String(route.query.mergeRequestIid ?? ''),
     owner: String(route.query.owner ?? ''),
-    source: sourceScope.value.value || undefined,
+    source: effectiveSourceValue.value || undefined,
     filterGroup: buildFilterPayload(),
     ...(includePagination ? { page: page.value, size: pageSize.value } : {}),
     sortBy: sortBy.value || 'mergedAt',
@@ -277,10 +331,7 @@ bindLoader(async () => {
   try {
     await loadSourceOptions();
     await loadMatchModeStatus();
-    const patchedSource = await sourceScope.ensureDefaultApplied();
-    if (patchedSource || !sourceScopeReady.value) {
-      return;
-    }
+    syncCodeReviewRouteDefaults();
     await loadFilterOptions();
     initializeFromQuery(route.query);
     await loadTableData();
@@ -334,7 +385,27 @@ async function handleConditionFilterReset() {
 
 async function handleProjectScopeChange(value: string | string[]) {
   const nextValue = String(Array.isArray(value) ? value[0] ?? '' : value ?? '');
-  await patchQuery({ projectName: nextValue || null, projectId: null, page: 1 });
+  await patchQuery(
+    projectScopeUsesRepository.value
+      ? {
+          repositoryName: nextValue || null,
+          projectName: null,
+          projectId: null,
+          mergedAtStart: null,
+          mergedAtEnd: null,
+          mergeRequestIid: null,
+          owner: null,
+          targetBranch: null,
+          mergedBy: null,
+          moduleName: null,
+          illegalType: null,
+          keyword: null,
+          filterGroup: null,
+          filterLogic: null,
+          page: 1,
+        }
+      : { projectName: nextValue || null, repositoryName: null, projectId: null, page: 1 },
+  );
 }
 
 const taskStartedText = computed(() =>
@@ -412,11 +483,11 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       <template #primary-actions>
         <div class="code-review-illegal-toolbar-actions">
           <div class="code-review-project-scope">
-            <span class="code-review-illegal-toolbar-label">项目</span>
+            <span class="code-review-illegal-toolbar-label">{{ projectScopeLabel }}</span>
             <SmartSelect
               :model-value="projectScopeValue"
               :options="projectScopeOptions"
-              placeholder="全部项目"
+              :placeholder="projectScopePlaceholder"
               class="code-review-project-select"
               popper-class-extra="code-review-project-select-dropdown"
               @change="handleProjectScopeChange"
@@ -487,7 +558,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             <div class="record-detail-header-kicker">代码走查详情</div>
             <div class="record-detail-header-title">MR #{{ selectedRow.mergeRequestIid }}</div>
             <div class="record-detail-header-meta">
-              <span class="record-detail-meta-item">{{ selectedRow.projectName || '-' }}</span>
+              <span class="record-detail-meta-item">{{ selectedScopeName }}</span>
               <span class="record-detail-meta-dot" />
               <span class="record-detail-meta-item">{{ selectedRow.targetBranch || '-' }}</span>
               <span class="record-detail-meta-dot" />
@@ -524,7 +595,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               </el-link>
               <span v-else>{{ selectedRow.mergeRequestIid }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="所属项目">{{ selectedRow.projectName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="所属项目">{{ selectedScopeName }}</el-descriptions-item>
             <el-descriptions-item label="走查时间">{{ formatCodeReviewDate(selectedRow.codeWalkthroughDate) }}</el-descriptions-item>
             <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="被走查人">{{ selectedRow.author || '-' }}</el-descriptions-item>

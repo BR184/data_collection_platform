@@ -62,6 +62,7 @@ export interface CodeReviewIllegalRecordFilterOptionsResponse {
   repositoryNames: OptionItemResponse[];
   illegalTypes: OptionItemResponse[];
   targetBranches: OptionItemResponse[];
+  owners: OptionItemResponse[];
   mergedBys: OptionItemResponse[];
   moduleNames: OptionItemResponse[];
   projectNames: OptionItemResponse[];

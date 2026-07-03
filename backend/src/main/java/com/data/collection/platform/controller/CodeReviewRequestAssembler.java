@@ -42,7 +42,7 @@ public class CodeReviewRequestAssembler {
   public CodeReviewIllegalRecordFilterOptionsRequest toIllegalRecordFilterOptionsRequest(
       CodeReviewIllegalRecordFilterOptionsWebRequest request) {
     return new CodeReviewIllegalRecordFilterOptionsRequest(
-        request.getProjectId(), request.getProjectName(), request.getSource());
+        request.getProjectId(), request.getRepositoryName(), request.getProjectName(), request.getSource());
   }
 
   public CodeReviewRulePreviewRequest toRulePreviewRequest(CodeReviewRulePreviewWebRequest request) {

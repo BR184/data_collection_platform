@@ -75,10 +75,12 @@ export const codeReviewApi = {
     projectId?: string | number | null,
     source?: string | null,
     projectName?: string | null,
+    repositoryName?: string | null,
   ) {
     const query = new URLSearchParams(
       {
         ...(projectId != null && projectId !== '' ? { projectId: String(projectId) } : {}),
+        ...(repositoryName ? { repositoryName } : {}),
         ...(projectName ? { projectName } : {}),
         ...(source ? { source } : {}),
       },

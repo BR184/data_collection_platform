@@ -53,7 +53,7 @@ public final class OptionItemResponseFactory {
       if (text == null) {
         continue;
       }
-      for (String part : text.split("\\s*&\\s*")) {
+      for (String part : text.split("\\s+&\\s+")) {
         String candidate = TextQuerySupport.trimToNull(part);
         if (candidate != null && !isLegacyPlaceholder(candidate)) {
           normalized.add(candidate);

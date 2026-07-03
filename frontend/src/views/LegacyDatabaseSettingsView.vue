@@ -6,6 +6,7 @@ import { api } from '../api';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import type {
+  CodeReviewMatchModeCollectionOptionResponse,
   CodeReviewMatchModeDbSettingsResponse,
   CodeReviewMatchModeDbSettingsSaveRequest,
   CodeReviewMatchModeTableOptionResponse,
@@ -15,15 +16,21 @@ import { formatBeijingDateTime } from '../utils/beijing-time';
 
 // 兼容模式-MatchMode：该页面只维护短期老平台数据库连接，不属于 GitLab 镜像设置。
 const defaultSelectedTableNames = ['spider_crowncad_data'];
+const defaultSelectedMongoCollectionNames = ['reviewReport', 'problemDetail'];
 
 const initialized = ref(false);
 const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
+const mongoTesting = ref(false);
 const syncing = ref(false);
+const mongoSyncing = ref(false);
 const tableOptionsLoading = ref(false);
 const tableOptionsLoaded = ref(false);
 const tableOptions = ref<CodeReviewMatchModeTableOptionResponse[]>([]);
+const mongoCollectionOptionsLoading = ref(false);
+const mongoCollectionOptionsLoaded = ref(false);
+const mongoCollectionOptions = ref<CodeReviewMatchModeCollectionOptionResponse[]>([]);
 const settings = ref<CodeReviewMatchModeDbSettingsResponse | null>(null);
 
 const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
@@ -37,6 +44,11 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   mysqlTableName: 'spider_crowncad_data',
   selectedTableNames: [...defaultSelectedTableNames],
   mysqlFetchSize: 1000,
+  mongoUri: '',
+  mongoDatabase: 'spider',
+  selectedMongoCollectionNames: [...defaultSelectedMongoCollectionNames],
+  reviewReportCollectionName: 'reviewReport',
+  reviewProblemCollectionName: 'problemDetail',
 });
 
 const statusTagType = computed(() => {
@@ -68,9 +80,16 @@ const statusText = computed(() => {
 
 const lastSyncTime = computed(() => formatDateTime(settings.value?.syncFinishedAt || settings.value?.syncStartedAt));
 const updatedTime = computed(() => formatDateTime(settings.value?.updatedAt));
-const selectedImportTableText = computed(() =>
-  form.selectedTableNames.length > 0 ? form.selectedTableNames.join('、') : '未选择',
-);
+const selectedImportScopeText = computed(() => {
+  const scopes: string[] = [];
+  if (form.selectedTableNames.length > 0) {
+    scopes.push(`MySQL：${form.selectedTableNames.join('、')}`);
+  }
+  if (form.selectedMongoCollectionNames.length > 0) {
+    scopes.push(`MongoDB：${form.selectedMongoCollectionNames.join('、')}`);
+  }
+  return scopes.length > 0 ? scopes.join('；') : '未选择';
+});
 const tableSelectOptions = computed<RecordTableFilterOption[]>(() => {
   const known = new Set<string>();
   const options = tableOptions.value.map((option) => {
@@ -83,6 +102,22 @@ const tableSelectOptions = computed<RecordTableFilterOption[]>(() => {
   for (const tableName of form.selectedTableNames) {
     if (!known.has(tableName)) {
       options.push({ label: tableName, value: tableName });
+    }
+  }
+  return options;
+});
+const mongoCollectionSelectOptions = computed<RecordTableFilterOption[]>(() => {
+  const known = new Set<string>();
+  const options = mongoCollectionOptions.value.map((option) => {
+    known.add(option.collectionName);
+    return {
+      label: option.label || option.collectionName,
+      value: option.collectionName,
+    };
+  });
+  for (const collectionName of form.selectedMongoCollectionNames) {
+    if (!known.has(collectionName)) {
+      options.push({ label: collectionName, value: collectionName });
     }
   }
   return options;
@@ -126,22 +161,51 @@ async function testConnection() {
       ElMessage.warning(result.message || '老平台 MySQL 连接失败');
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '测试连接失败');
+    ElMessage.error(error instanceof Error ? error.message : '测试 MySQL 连接失败');
   } finally {
     testing.value = false;
   }
 }
 
-async function syncNow() {
+async function testMongoConnection() {
+  mongoTesting.value = true;
+  try {
+    const result = await api.testCodeReviewMatchModeMongoConnection(buildPayload());
+    if (result.success) {
+      ElMessage.success(result.message);
+    } else {
+      ElMessage.warning(result.message || '老平台 MongoDB 连接失败');
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '测试 MongoDB 连接失败');
+  } finally {
+    mongoTesting.value = false;
+  }
+}
+
+async function syncMysqlNow() {
   syncing.value = true;
   try {
     const result = await api.syncCodeReviewMatchModeDbNow();
-    ElMessage.success(result.message || '兼容模式同步完成');
+    ElMessage.success(result.message || '兼容模式代码走查数据导入完成');
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '立即同步失败');
+    ElMessage.error(error instanceof Error ? error.message : '导入代码走查数据失败');
   } finally {
     syncing.value = false;
+  }
+}
+
+async function syncMongoReviewNow() {
+  mongoSyncing.value = true;
+  try {
+    const result = await api.syncCodeReviewMatchModeMongoNow(buildPayload());
+    ElMessage.success(result.message || '兼容模式评审数据导入完成');
+    applySettings(await api.getCodeReviewMatchModeDbSettings());
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导入评审数据失败');
+  } finally {
+    mongoSyncing.value = false;
   }
 }
 
@@ -163,9 +227,33 @@ async function ensureTableOptions(force = false) {
   }
 }
 
+async function ensureMongoCollectionOptions(force = false) {
+  if (mongoCollectionOptionsLoading.value) {
+    return;
+  }
+  if (!force && mongoCollectionOptionsLoaded.value) {
+    return;
+  }
+  mongoCollectionOptionsLoading.value = true;
+  try {
+    mongoCollectionOptions.value = await api.getCodeReviewMatchModeMongoCollectionOptions(buildPayload());
+    mongoCollectionOptionsLoaded.value = true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载老平台 MongoDB 集合列表失败');
+  } finally {
+    mongoCollectionOptionsLoading.value = false;
+  }
+}
+
 function handleTableSelectVisibleChange(visible: boolean) {
   if (visible) {
     void ensureTableOptions();
+  }
+}
+
+function handleMongoCollectionSelectVisibleChange(visible: boolean) {
+  if (visible) {
+    void ensureMongoCollectionOptions();
   }
 }
 
@@ -181,6 +269,13 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   form.mysqlTableName = nextSettings.mysqlTableName || 'spider_crowncad_data';
   form.selectedTableNames = normalizeSelectedTableNames(nextSettings.selectedTableNames);
   form.mysqlFetchSize = nextSettings.mysqlFetchSize || 1000;
+  form.mongoUri = '';
+  form.mongoDatabase = nextSettings.mongoDatabase || 'spider';
+  form.selectedMongoCollectionNames = normalizeSelectedMongoCollectionNames(
+    nextSettings.selectedMongoCollectionNames,
+  );
+  form.reviewReportCollectionName = nextSettings.reviewReportCollectionName || 'reviewReport';
+  form.reviewProblemCollectionName = nextSettings.reviewProblemCollectionName || 'problemDetail';
 }
 
 function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
@@ -195,6 +290,11 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     mysqlTableName: form.mysqlTableName.trim() || 'spider_crowncad_data',
     selectedTableNames: normalizeSelectedTableNames(form.selectedTableNames),
     mysqlFetchSize: Number(form.mysqlFetchSize || 1000),
+    mongoUri: form.mongoUri?.trim() || null,
+    mongoDatabase: form.mongoDatabase.trim() || 'spider',
+    selectedMongoCollectionNames: normalizeSelectedMongoCollectionNames(form.selectedMongoCollectionNames),
+    reviewReportCollectionName: form.reviewReportCollectionName.trim() || 'reviewReport',
+    reviewProblemCollectionName: form.reviewProblemCollectionName.trim() || 'problemDetail',
   };
 }
 
@@ -203,6 +303,13 @@ function normalizeSelectedTableNames(tableNames?: string[] | null) {
     new Set((tableNames ?? []).map((tableName) => tableName.trim()).filter(Boolean)),
   );
   return normalized.length > 0 ? normalized : [...defaultSelectedTableNames];
+}
+
+function normalizeSelectedMongoCollectionNames(collectionNames?: string[] | null) {
+  const normalized = Array.from(
+    new Set((collectionNames ?? []).map((collectionName) => collectionName.trim()).filter(Boolean)),
+  );
+  return normalized.length > 0 ? normalized : [...defaultSelectedMongoCollectionNames];
 }
 
 function formatDateTime(value?: string | null) {
@@ -236,7 +343,7 @@ function formatDateTime(value?: string | null) {
           </div>
           <div class="legacy-db-status-item">
             <span>导入范围</span>
-            <strong>{{ selectedImportTableText }}</strong>
+            <strong>{{ selectedImportScopeText }}</strong>
           </div>
           <div class="legacy-db-status-item">
             <span>最近同步</span>
@@ -261,7 +368,7 @@ function formatDateTime(value?: string | null) {
       <el-card shadow="never" class="panel-card">
         <template #header>
           <div class="legacy-db-card-header">
-            <div class="legacy-db-card-title">代码走查兼容数据源</div>
+            <div class="legacy-db-card-title">兼容模式数据源</div>
             <el-button :icon="Refresh" :loading="loading" @click="loadSettings">刷新</el-button>
           </div>
         </template>
@@ -334,16 +441,77 @@ function formatDateTime(value?: string | null) {
             </el-form-item>
           </div>
 
+          <el-divider>MongoDB</el-divider>
+
+          <el-form-item label="导入集合白名单">
+            <div class="legacy-db-table-select">
+              <SmartSelect
+                v-model="form.selectedMongoCollectionNames"
+                multiple
+                style="width: 100%"
+                placeholder="选择老平台 MongoDB 集合"
+                :loading="mongoCollectionOptionsLoading"
+                :options="mongoCollectionSelectOptions"
+                @visible-change="handleMongoCollectionSelectVisibleChange"
+              />
+              <el-button
+                :icon="Refresh"
+                :loading="mongoCollectionOptionsLoading"
+                @click="ensureMongoCollectionOptions(true)"
+              >
+                刷新集合列表
+              </el-button>
+            </div>
+            <div class="form-help-text">
+              {{
+                mongoCollectionOptionsLoaded
+                  ? `已加载 ${mongoCollectionOptions.length} 个可选集合，已选择 ${form.selectedMongoCollectionNames.length} 个。`
+                  : '打开下拉菜单后加载当前 MongoDB 数据库中的集合。'
+              }}
+            </div>
+          </el-form-item>
+
+          <div class="legacy-db-form-grid">
+            <el-form-item label="Mongo URI">
+              <el-input
+                v-model="form.mongoUri"
+                type="password"
+                show-password
+                :placeholder="settings?.mongoUriConfigured ? '已配置，留空不修改' : 'mongodb://172.22.10.72/?waitQueueMultiple=20'"
+              />
+            </el-form-item>
+            <el-form-item label="Mongo 数据库">
+              <el-input v-model="form.mongoDatabase" placeholder="spider" />
+            </el-form-item>
+            <el-form-item label="评审数据集合">
+              <el-input v-model="form.reviewReportCollectionName" placeholder="reviewReport" />
+            </el-form-item>
+            <el-form-item label="评审问题集合">
+              <el-input v-model="form.reviewProblemCollectionName" placeholder="problemDetail" />
+            </el-form-item>
+          </div>
+
           <div class="legacy-db-actions">
             <el-button type="primary" :icon="Check" :loading="saving" @click="saveSettings">保存设置</el-button>
-            <el-button :icon="Connection" :loading="testing" @click="testConnection">测试连接</el-button>
+            <el-button :icon="Connection" :loading="testing" @click="testConnection">测试 MySQL 连接</el-button>
+            <el-button :icon="Connection" :loading="mongoTesting" @click="testMongoConnection">
+              测试 MongoDB 连接
+            </el-button>
             <el-button
               :icon="Refresh"
               :loading="syncing"
               :disabled="!form.enabled || !form.syncEnabled"
-              @click="syncNow"
+              @click="syncMysqlNow"
             >
-              立即导入
+              导入代码走查数据
+            </el-button>
+            <el-button
+              :icon="Refresh"
+              :loading="mongoSyncing"
+              :disabled="!form.enabled"
+              @click="syncMongoReviewNow"
+            >
+              导入评审数据
             </el-button>
           </div>
         </el-form>

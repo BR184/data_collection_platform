@@ -632,7 +632,6 @@ public class SystemTestHorizontalComparisonExportService {
     columns.add(column("P3", "P3级别缺陷", row -> count(row.priorityCount("P3"))));
     columns.add(column("P3", "P3缺陷修复率(%)", row -> rate(row.priorityFixed("P3"), row.priorityCount("P3"))));
     columns.add(column("模块总缺陷数(个)", row -> count(row.total())));
-    columns.add(column("系统测试缺陷密度\n（个/千行）", HorizontalRow::systemTestDefectDensity));
     columns.add(column("缺陷占比(%)", row -> rate(row.total(), row.issueOverallCount())));
     columns.add(column("延期缺陷占比(%)", row -> rate(row.delayIssueCount(), row.total())));
     columns.add(column("已修复/未更新", row -> count(row.fixed())));
@@ -665,13 +664,6 @@ public class SystemTestHorizontalComparisonExportService {
     columns.add(column(group, "完整性", row -> count(metricGetter.apply(row).integrity())));
     columns.add(column(group, "功能性", row -> count(metricGetter.apply(row).functionality())));
     columns.add(column(group, "可行性", row -> count(metricGetter.apply(row).feasibility())));
-    columns.add(column(group, "规范类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).docSpecification())));
-    columns.add(column(group, "完整性占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).integrity())));
-    columns.add(column(group, "功能性占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).functionality())));
-    columns.add(column(group, "可行性占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).feasibility())));
-    columns.add(column(group, "评审工作量", row -> decimal(metricGetter.apply(row).workloadHours())));
-    columns.add(column(group, "评审效率\n（个/小时）", row -> metricGetter.apply(row).efficiency()));
-    columns.add(column(group, "评审速率\n（页/小时）", row -> metricGetter.apply(row).speed()));
   }
 
   private static void addCodeReviewColumns(
@@ -686,14 +678,6 @@ public class SystemTestHorizontalComparisonExportService {
     columns.add(column("代码走查", sourceGroup, "设计类缺陷数(个)", row -> count(metricGetter.apply(row).designSpecification())));
     columns.add(column("代码走查", sourceGroup, "性能类缺陷数(个)", row -> count(metricGetter.apply(row).performanceSpecification())));
     columns.add(column("代码走查", sourceGroup, "其他类缺陷数(个)", row -> count(metricGetter.apply(row).otherSpecification())));
-    columns.add(column("代码走查", sourceGroup, "规范类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).codeSpecification())));
-    columns.add(column("代码走查", sourceGroup, "逻辑类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).codeLogicSpecification())));
-    columns.add(column("代码走查", sourceGroup, "设计类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).designSpecification())));
-    columns.add(column("代码走查", sourceGroup, "性能类占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).performanceSpecification())));
-    columns.add(column("代码走查", sourceGroup, "其他占比", row -> metricGetter.apply(row).categoryRate(metricGetter.apply(row).otherSpecification())));
-    columns.add(column("代码走查", sourceGroup, "代码走查工作量", row -> metricGetter.apply(row).workloadHours()));
-    columns.add(column("代码走查", sourceGroup, "代码走查效率（个/小时）", row -> metricGetter.apply(row).efficiency()));
-    columns.add(column("代码走查", sourceGroup, "代码走查速率\n（行/小时）", row -> metricGetter.apply(row).speed()));
   }
 
   private static void addCauseGroupColumns(List<ExportColumn> columns, String groupLabel) {

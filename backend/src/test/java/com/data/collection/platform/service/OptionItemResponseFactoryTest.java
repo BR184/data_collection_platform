@@ -18,8 +18,9 @@ class OptionItemResponseFactoryTest {
             "无需标注",
             "GitLab接口报错",
             "",
-            "张三")))
+            "张三",
+            "CC 2025 R4&2026 R1")))
         .extracting(item -> item.value())
-        .containsExactly("工程图", "张三", "草图");
+        .containsExactly("CC 2025 R4&2026 R1", "工程图", "张三", "草图");
   }
 }

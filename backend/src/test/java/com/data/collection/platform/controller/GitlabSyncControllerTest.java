@@ -230,6 +230,7 @@ class GitlabSyncControllerTest {
             "http://gitlab.example.com",
             "",
             false,
+            false,
             SourceMode.DIRECT,
             WhitelistMode.RECOMMENDED,
             List.of(),

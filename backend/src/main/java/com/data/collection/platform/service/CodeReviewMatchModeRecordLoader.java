@@ -24,7 +24,7 @@ public class CodeReviewMatchModeRecordLoader {
         and coalesce(project_name, '') <> '无需标注'
         and coalesce(label_names, '') not like '%无需走查扫描%'
         and (
-          lower(coalesce(project_name, '')) not in ('crowncad', 'dgm')
+          lower(coalesce(repository_name, '')) not in ('crowncad', 'dgm')
           or lower(coalesce(target_branch, '')) = 'dev'
         )
       """;
@@ -88,6 +88,34 @@ public class CodeReviewMatchModeRecordLoader {
   }
 
   //兼容模式-MatchMode
+  public CodeReviewIllegalRecordFilterOptionValues loadFilterOptions(
+      CodeReviewIllegalRecordFilterOptionsRequest request) {
+    CodeReviewIllegalRecordFilterOptionsRequest safeRequest =
+        request == null
+            ? new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, null)
+            : request;
+    QueryParts projectParts = buildFilterOptionQuery(null, null, null, safeRequest.source());
+    QueryParts scopedParts =
+        buildFilterOptionQuery(
+            safeRequest.projectId(),
+            safeRequest.repositoryName(),
+            safeRequest.projectName(),
+            safeRequest.source());
+    Map<String, List<String>> projectValues =
+        queryOptionValues(projectParts, Map.of("repositoryNames", "repository_name"));
+    Map<String, List<String>> scopedValues =
+        queryOptionValues(scopedParts, scopedOptionColumns());
+    return new CodeReviewIllegalRecordFilterOptionValues(
+        queryProjectOptions(projectParts),
+        projectValues.getOrDefault("repositoryNames", List.of()),
+        scopedValues.getOrDefault("targetBranches", List.of()),
+        scopedValues.getOrDefault("owners", List.of()),
+        scopedValues.getOrDefault("mergedBys", List.of()),
+        scopedValues.getOrDefault("moduleNames", List.of()),
+        scopedValues.getOrDefault("projectNames", List.of()));
+  }
+
+  //兼容模式-MatchMode
   public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(CodeReviewIllegalRecordSourcePageQuery query) {
     if (!matchesRequestType(query.request().requestType())) {
       return new PageSlice<>(List.of(), 0, query.page(), query.size());
@@ -136,11 +164,12 @@ public class CodeReviewMatchModeRecordLoader {
     List<Object> args = new ArrayList<>();
     appendEq(where, args, "project_id", parseLong(filters.get("projectId")));
     appendEqIgnoreCase(where, args, "project_name", filters.get("projectName"));
-    appendContains(where, args, "repository_name", filters.get("repositoryName"));
-    appendContains(where, args, "target_branch", filters.get("targetBranch"));
-    appendContains(where, args, "module_name", filters.get("moduleName"));
-    appendContains(where, args, "author_name", filters.get("author"));
-    appendEq(where, args, "merge_request_iid", parseLong(filters.get("mergeRequestIid")));
+    appendEqIgnoreCase(where, args, "repository_name", filters.get("repositoryName"));
+    appendSourceInstance(where, args, filters.get("sourceInstance"));
+    appendEqIgnoreCase(where, args, "target_branch", filters.get("targetBranch"));
+    appendEqIgnoreCase(where, args, "module_name", filters.get("moduleName"));
+    appendEqIgnoreCase(where, args, "author_name", filters.get("author"));
+    appendMergeRequestIidLike(where, args, filters.get("mergeRequestIid"));
     appendDateFrom(where, args, "merged_at_source", filters.get("mergedAtStart"));
     appendDateTo(where, args, "merged_at_source", filters.get("mergedAtEnd"));
     return new QueryParts(where.toString(), args);
@@ -155,27 +184,99 @@ public class CodeReviewMatchModeRecordLoader {
     appendEq(where, args, "project_id", request.projectId());
     appendIndexedSearch(where, args, request.keyword());
     appendEqIgnoreCase(where, args, "project_name", request.projectName());
-    appendContains(where, args, "repository_name", request.repositoryName());
-    appendContains(
+    appendEqIgnoreCase(where, args, "repository_name", request.repositoryName());
+    appendSourceInstance(where, args, request.source());
+    appendEqIgnoreCase(
         where,
         args,
         "target_branch",
         CodeReviewIllegalRecordQuerySupport.explicitTargetBranch(request.targetBranch()));
-    appendContains(where, args, "module_name", request.moduleName());
-    appendContains(where, args, "author_name", request.owner());
-    appendEq(where, args, "merge_request_iid", parseLong(request.mergeRequestIid()));
+    appendEqIgnoreCase(where, args, "module_name", request.moduleName());
+    appendEqIgnoreCase(where, args, "author_name", request.owner());
+    appendMergeRequestIidLike(where, args, request.mergeRequestIid());
     appendDateFrom(where, args, "merged_at_source", request.mergedAtStart());
     appendDateTo(where, args, "merged_at_source", request.mergedAtEnd());
     appendEqIgnoreCase(where, args, "merge_user_name", request.mergedBy());
     if (appendIllegalPredicate) {
-      where.append(" and (").append(CodeReviewIllegalRecordSqlSupport.illegalPredicate(request.illegalType(), request.source())).append(")");
+      where.append(" and (").append(legacyIllegalPredicate(request.illegalType())).append(")");
     }
     appendFilterGroup(where, args, filterGroup);
     return new QueryParts(where.toString(), args);
   }
 
+  private QueryParts buildFilterOptionQuery(
+      Long projectId, String repositoryName, String projectName, String source) {
+    StringBuilder where = new StringBuilder(BASE_WHERE);
+    List<Object> args = new ArrayList<>();
+    appendEq(where, args, "project_id", projectId);
+    appendEqIgnoreCase(where, args, "repository_name", repositoryName);
+    appendEqIgnoreCase(where, args, "project_name", projectName);
+    appendSourceInstance(where, args, source);
+    return new QueryParts(where.toString(), args);
+  }
+
+  private List<CodeReviewIllegalRecordFilterProjectOption> queryProjectOptions(QueryParts parts) {
+    return jdbcTemplate.query(
+        "select project_id, project_name from code_review_match_mode_records "
+            + parts.where()
+            + """
+               and project_id is not null
+             group by project_id, project_name
+             order by lower(coalesce(project_name, '')), project_id
+            """,
+        (rs, rowNum) ->
+            new CodeReviewIllegalRecordFilterProjectOption(
+                rs.getLong("project_id"), rs.getString("project_name")),
+        parts.args().toArray());
+  }
+
+  private Map<String, List<String>> queryOptionValues(
+      QueryParts parts, Map<String, String> optionColumns) {
+    if (optionColumns.isEmpty()) {
+      return Map.of();
+    }
+    String selectColumns =
+        optionColumns.values().stream().distinct().reduce((left, right) -> left + ", " + right).orElse("");
+    String unionSql =
+        optionColumns.entrySet().stream()
+            .map(entry -> "select '" + entry.getKey() + "' as option_group, " + entry.getValue() + " as option_value from scoped")
+            .reduce((left, right) -> left + "\nunion all\n" + right)
+            .orElse("");
+    List<OptionGroupValue> rows =
+        jdbcTemplate.query(
+            "with scoped as (select "
+                + selectColumns
+                + " from code_review_match_mode_records "
+                + parts.where()
+                + ") select option_group, option_value from ("
+                + unionSql
+                + """
+                  ) option_values
+                 where nullif(btrim(coalesce(option_value, '')), '') is not null
+                 group by option_group, option_value
+                 order by option_group, lower(option_value)
+                """,
+            (rs, rowNum) -> new OptionGroupValue(rs.getString("option_group"), rs.getString("option_value")),
+            parts.args().toArray());
+    Map<String, List<String>> result = new LinkedHashMap<>();
+    for (OptionGroupValue row : rows) {
+      result.computeIfAbsent(row.group(), ignored -> new ArrayList<>()).add(row.value());
+    }
+    return result;
+  }
+
+  private Map<String, String> scopedOptionColumns() {
+    Map<String, String> columns = new LinkedHashMap<>();
+    columns.put("targetBranches", "target_branch");
+    columns.put("owners", "author_name");
+    columns.put("mergedBys", "merge_user_name");
+    columns.put("moduleNames", "module_name");
+    columns.put("projectNames", "project_name");
+    return columns;
+  }
+
   private void appendFilterGroup(StringBuilder where, List<Object> args, StatisticFilterGroup filterGroup) {
-    CodeReviewIllegalRecordSqlSupport.toSql(filterGroup)
+    CodeReviewIllegalRecordSqlSupport.toSql(filterGroup, this::legacyIllegalPredicate)
         .filter(filter -> TextQuerySupport.trimToNull(filter.predicate()) != null)
         .ifPresent(
             filter -> {
@@ -189,12 +290,116 @@ public class CodeReviewMatchModeRecordLoader {
     return normalized == null || "merge_request".equals(normalized);
   }
 
+  //兼容模式-MatchMode
+  private String legacyIllegalPredicate(String illegalType) {
+    String normalized = TextQuerySupport.trimToNull(illegalType);
+    if (normalized == null) {
+      return String.join(
+          " or ",
+          legacyMissingProjectPredicate(),
+          legacyMissingModulePredicate(),
+          legacyMissingReviewPredicate(),
+          legacyNotScannedPredicate(),
+          legacyOpenScanIssuePredicate(),
+          legacyCommentRateNotPassPredicate(),
+          legacyScanFailedPredicate(),
+          legacyClangResultFalsePredicate(),
+          legacyGitlabErrorPredicate());
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_PROJECT_FILTER_LABEL.equals(normalized)) {
+      return legacyMissingProjectPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_MODULE_FILTER_LABEL.equals(normalized)) {
+      return legacyMissingModulePredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_MISSING_REVIEW_FILTER_LABEL.equals(normalized)) {
+      return legacyMissingReviewPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL.equals(normalized)
+        || CodeReviewIllegalRuleRegistry.LEGACY_NOT_SCANNED_FILTER_LABEL.equals(normalized)) {
+      return legacyNotScannedPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.OPEN_SCAN_ISSUE_LABEL.equals(normalized)) {
+      return legacyOpenScanIssuePredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.COMMENT_RATE_NOT_PASS_LABEL.equals(normalized)) {
+      return legacyCommentRateNotPassPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.SCAN_FAILED_LABEL.equals(normalized)) {
+      return legacyScanFailedPredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.CLANG_RESULT_FALSE_LABEL.equals(normalized)) {
+      return legacyClangResultFalsePredicate();
+    }
+    if (CodeReviewIllegalRuleRegistry.GITLAB_ERROR_LABEL.equals(normalized)) {
+      return legacyGitlabErrorPredicate();
+    }
+    return "1 = 0";
+  }
+
+  private String legacyMissingProjectPredicate() {
+    return "project_name = '未标注项目名'";
+  }
+
+  private String legacyMissingModulePredicate() {
+    return "module_name = '未标注模块名'";
+  }
+
+  private String legacyMissingReviewPredicate() {
+    StringBuilder sql = new StringBuilder("reviewer_names in (");
+    List<String> reasons = CodeReviewIllegalRuleRegistry.LEGACY_REVIEW_EXCEPTION_REASONS;
+    for (int index = 0; index < reasons.size(); index++) {
+      if (index > 0) {
+        sql.append(", ");
+      }
+      sql.append("'").append(reasons.get(index).replace("'", "''")).append("'");
+    }
+    sql.append(")");
+    return sql.toString();
+  }
+
+  private String legacyNotScannedPredicate() {
+    return "scan_status = '未进行代码扫描'";
+  }
+
+  private String legacyOpenScanIssuePredicate() {
+    return "bug_count_result = '静态扫描问题未关闭'";
+  }
+
+  private String legacyCommentRateNotPassPredicate() {
+    return "annotation_rate_result = '代码注释量未达标'";
+  }
+
+  private String legacyScanFailedPredicate() {
+    return "bug_count_result = '静态扫描失败'";
+  }
+
+  private String legacyClangResultFalsePredicate() {
+    return "annotation_rate_result = '注释率分析工具Clang分析错误'";
+  }
+
+  private String legacyGitlabErrorPredicate() {
+    return "reviewer_names = 'GitLab 接口报错' or scan_status = 'GitLab 接口报错' or target_branch = 'GitLab 接口报错'";
+  }
+
   private void appendEq(StringBuilder where, List<Object> args, String column, Long value) {
     if (value == null) {
       return;
     }
     where.append(" and ").append(column).append(" = ?");
     args.add(value);
+  }
+
+  private void appendMergeRequestIidLike(StringBuilder where, List<Object> args, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    where.append(" and cast(merge_request_iid as text) like ?");
+    args.add("%" + normalized + "%");
   }
 
   private void appendContains(StringBuilder where, List<Object> args, String column, String value) {
@@ -233,6 +438,20 @@ public class CodeReviewMatchModeRecordLoader {
     }
     where.append(" and lower(coalesce(").append(column).append(", '')) = ?");
     args.add(normalized.toLowerCase(Locale.ROOT));
+  }
+
+  private void appendSourceInstance(StringBuilder where, List<Object> args, String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return;
+    }
+    String source = GitlabSourceInstanceSupport.normalizeSourceInstance(normalized);
+    if ("cc".equals(source) || "default".equals(source)) {
+      where.append(" and lower(coalesce(source_instance, 'default')) in ('cc', 'default')");
+      return;
+    }
+    where.append(" and lower(coalesce(source_instance, 'default')) = ?");
+    args.add(source);
   }
 
   private void appendDateFrom(StringBuilder where, List<Object> args, String column, String rawValue) {
@@ -351,6 +570,7 @@ public class CodeReviewMatchModeRecordLoader {
     columns.put("author", "lower(coalesce(author_name, ''))");
     columns.put("owner", "lower(coalesce(owner_name, ''))");
     columns.put("projectName", "lower(coalesce(project_name, ''))");
+    columns.put("repositoryName", "lower(coalesce(repository_name, ''))");
     columns.put("mergedAt", "merged_at_source");
     columns.put("mergedBy", "lower(coalesce(merge_user_name, ''))");
     columns.put("moduleName", "lower(coalesce(module_name, ''))");
@@ -366,4 +586,6 @@ public class CodeReviewMatchModeRecordLoader {
       return where.substring(BASE_WHERE.length());
     }
   }
+
+  private record OptionGroupValue(String group, String value) {}
 }
