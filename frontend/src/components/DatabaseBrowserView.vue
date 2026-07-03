@@ -425,9 +425,10 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="db-toolbar-actions">
-          <el-button type="primary" @click="handleSearch">搜索</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" class="app-action-button app-action-button--query" @click="handleSearch">搜索</el-button>
+          <el-button class="app-action-button app-action-button--reset" @click="handleReset">重置</el-button>
           <el-button
+            class="app-action-button app-action-button--refresh"
             :icon="Refresh"
             :loading="refreshingTable"
             :disabled="!currentTableRefreshable"

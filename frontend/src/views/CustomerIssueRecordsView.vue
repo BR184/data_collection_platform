@@ -713,6 +713,7 @@ async function handleConditionFilterReset() {
             <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
             <el-button
               v-if="canRefreshLatestData"
+              class="app-action-button app-action-button--refresh"
               plain
               :icon="RefreshRight"
               :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
@@ -720,8 +721,9 @@ async function handleConditionFilterReset() {
             >
               刷新最新数据
             </el-button>
-            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button class="app-action-button app-action-button--refresh" plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
+              class="app-action-button app-action-button--rule"
               plain
               :icon="InfoFilled"
               :loading="ruleExplanationLoading"
@@ -729,7 +731,13 @@ async function handleConditionFilterReset() {
             >
               规则说明
             </el-button>
-            <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
+            <el-button
+              class="app-action-button app-action-button--export"
+              plain
+              :icon="Download"
+              :loading="exportLoading"
+              @click="handleExport"
+            >
               {{ isDelayTopic ? '导出' : '下载查询数据' }}
             </el-button>
             <PageSettingsButton :scope-key="pageScopeKey" />

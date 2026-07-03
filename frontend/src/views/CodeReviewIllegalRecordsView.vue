@@ -540,6 +540,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           <template #summary-actions-extra>
             <el-button
               v-if="quickFilterToggleVisible"
+              class="app-action-button app-action-button--filter"
               plain
               :icon="quickFilterToggleIcon"
               @click="toggleQuickFilter()"
@@ -596,6 +597,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           </el-tag>
           <el-button
             v-if="showRefreshLatestData"
+            class="app-action-button app-action-button--refresh"
             plain
             :icon="RefreshRight"
             :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
@@ -604,6 +606,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             刷新最新数据
           </el-button>
           <el-button
+            class="app-action-button app-action-button--rule"
             plain
             :icon="InfoFilled"
             :loading="ruleExplanationLoading"
@@ -611,7 +614,13 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           >
             规则说明
           </el-button>
-          <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
+          <el-button
+            class="app-action-button app-action-button--export"
+            plain
+            :icon="Download"
+            :loading="exportLoading"
+            @click="handleExport"
+          >
             下载代码走查非法数据
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />

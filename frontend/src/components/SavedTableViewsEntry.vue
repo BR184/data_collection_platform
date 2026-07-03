@@ -50,7 +50,13 @@ function openDialog() {
 </script>
 
 <template>
-  <el-button v-if="showTrigger" plain :icon="Star" @click="openDialog">
+  <el-button
+    v-if="showTrigger"
+    class="app-action-button app-action-button--settings"
+    plain
+    :icon="Star"
+    @click="openDialog"
+  >
     {{ buttonText }}
   </el-button>
 

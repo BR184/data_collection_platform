@@ -37,7 +37,14 @@ function openSettings() {
 </script>
 
 <template>
-  <el-button plain :icon="Setting" @click="openSettings">设置</el-button>
+  <el-button
+    class="app-action-button app-action-button--settings"
+    plain
+    :icon="Setting"
+    @click="openSettings"
+  >
+    设置
+  </el-button>
   <PageSettingsDialog
     v-model="settingsVisible"
     :title="title"

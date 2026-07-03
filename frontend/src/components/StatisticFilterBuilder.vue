@@ -484,8 +484,20 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
         </div>
       </div>
       <div class="stat-filter-summary-actions">
-        <el-button plain :icon="Plus" @click="addFilterCondition">{{ addButtonText }}</el-button>
-        <el-button plain :icon="conditionsExpanded ? ArrowUp : ArrowDown" @click="conditionsExpanded = !conditionsExpanded">
+        <el-button
+          class="app-action-button app-action-button--filter"
+          plain
+          :icon="Plus"
+          @click="addFilterCondition"
+        >
+          {{ addButtonText }}
+        </el-button>
+        <el-button
+          class="app-action-button app-action-button--filter"
+          plain
+          :icon="conditionsExpanded ? ArrowUp : ArrowDown"
+          @click="conditionsExpanded = !conditionsExpanded"
+        >
           {{ conditionsExpanded ? '收起筛选' : '展开筛选' }}
         </el-button>
         <slot name="summary-actions-extra" />
@@ -500,7 +512,13 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           class="stat-filter-logic"
           @update:model-value="modelValue.logic = $event === 'OR' ? 'OR' : 'AND'"
         />
-        <el-button plain class="stat-filter-add" @click="addFilterCondition">{{ addButtonText }}</el-button>
+        <el-button
+          plain
+          class="stat-filter-add app-action-button app-action-button--filter"
+          @click="addFilterCondition"
+        >
+          {{ addButtonText }}
+        </el-button>
       </div>
 
       <div v-if="conditionsExpanded && modelValue.conditions.length" class="stat-filter-list">
@@ -609,8 +627,8 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           </template>
         </div>
         <div v-if="showApplyActions" class="stat-filter-apply-actions">
-          <el-button type="primary" @click="emit('apply')">查询</el-button>
-          <el-button @click="emit('reset')">重置</el-button>
+          <el-button type="primary" class="app-action-button app-action-button--query" @click="emit('apply')">查询</el-button>
+          <el-button class="app-action-button app-action-button--reset" @click="emit('reset')">重置</el-button>
         </div>
       </div>
     </div>

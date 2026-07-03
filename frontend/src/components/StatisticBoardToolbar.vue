@@ -207,8 +207,16 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
       </div>
 
       <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
-        <el-button v-if="canRefreshRealtime" :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
         <el-button
+          v-if="canRefreshRealtime"
+          class="app-action-button app-action-button--refresh"
+          :icon="RefreshRight"
+          @click="emit('refreshBoard')"
+        >
+          刷新最新数据
+        </el-button>
+        <el-button
+          class="app-action-button app-action-button--rule"
           plain
           :icon="InfoFilled"
           :loading="ruleExplanationLoading"
@@ -219,6 +227,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         <el-button
           v-for="action in extraActions"
           :key="action.key"
+          :class="['app-action-button', action.actionClass || 'app-action-button--neutral']"
           :plain="action.plain ?? true"
           :icon="action.icon"
           :loading="action.loading"
@@ -227,9 +236,17 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         >
           {{ action.label }}
         </el-button>
-        <el-button v-if="showExport" plain :icon="Download" @click="emit('exportBoard')">{{ exportLabel }}</el-button>
+        <el-button
+          v-if="showExport"
+          class="app-action-button app-action-button--export"
+          plain
+          :icon="Download"
+          @click="emit('exportBoard')"
+        >
+          {{ exportLabel }}
+        </el-button>
         <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
-          <el-button class="view-settings-trigger">
+          <el-button class="view-settings-trigger app-action-button app-action-button--settings">
             <span class="hamburger-icon" aria-hidden="true">
               <span></span>
               <span></span>

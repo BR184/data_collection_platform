@@ -184,7 +184,14 @@ watch(
           <h2>研发质量一屏概览</h2>
           <p>把评审、代码走查和系统测试里最有判断力的信号拉到同一页，不再要求用户自己在多张表之间来回拼。</p>
         </div>
-        <el-button :icon="Refresh" :loading="loading" @click="handleRefresh">刷新</el-button>
+        <el-button
+          class="app-action-button app-action-button--refresh"
+          :icon="Refresh"
+          :loading="loading"
+          @click="handleRefresh"
+        >
+          刷新
+        </el-button>
       </section>
 
       <section class="quality-board-rd__summary">

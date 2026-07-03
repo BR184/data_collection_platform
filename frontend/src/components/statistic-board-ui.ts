@@ -4,6 +4,7 @@ export interface StatisticBoardToolbarAction {
   key: string;
   label: string;
   icon?: Component;
+  actionClass?: string;
   loading?: boolean;
   plain?: boolean;
   disabled?: boolean;

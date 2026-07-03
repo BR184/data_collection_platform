@@ -412,20 +412,25 @@ function handleStandaloneKeywordClear() {
           <div v-if="shouldShowPrimaryQueryActions && hasPrimaryQueryActionButtons" class="record-filter-primary-actions">
             <el-button
               v-if="shouldShowPrimaryFilterToggleInPrimaryActions"
+              class="app-action-button app-action-button--filter"
               plain
               :icon="primaryFilterToggleIcon"
               @click="togglePrimaryFilters"
             >
               {{ primaryFilterToggleText }}
             </el-button>
-            <el-button v-if="hasAdvancedFilters" @click="toggleAdvancedVisible">
+            <el-button
+              v-if="hasAdvancedFilters"
+              class="app-action-button app-action-button--filter"
+              @click="toggleAdvancedVisible"
+            >
               {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
             </el-button>
             <template v-if="shouldShowPrimaryQueryButtons">
-              <el-button type="primary" @click="handleQueryClick">
+              <el-button type="primary" class="app-action-button app-action-button--query" @click="handleQueryClick">
                 {{ queryButtonText }}
               </el-button>
-              <el-button @click="handleReset">重置</el-button>
+              <el-button class="app-action-button app-action-button--reset" @click="handleReset">重置</el-button>
             </template>
           </div>
         </div>
@@ -458,7 +463,14 @@ function handleStandaloneKeywordClear() {
       <div class="record-table-toolbar-actions">
         <slot name="primary-actions" />
         <slot name="toolbar-actions" />
-        <el-button v-if="showRefresh" :icon="Refresh" @click="emit('refresh')">刷新</el-button>
+        <el-button
+          v-if="showRefresh"
+          class="app-action-button app-action-button--refresh"
+          :icon="Refresh"
+          @click="emit('refresh')"
+        >
+          刷新
+        </el-button>
       </div>
     </div>
 

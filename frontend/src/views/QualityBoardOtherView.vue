@@ -81,7 +81,14 @@ void loadPage().catch((error) => {
           <h2>专题辅助视图</h2>
           <p>这里放跨域的辅助分析，不再和首页 KPI 混排。目标是让每张图都有清晰问题指向，而不是把能画的都画出来。</p>
         </div>
-        <el-button :icon="Refresh" :loading="loading" @click="handleRefresh">刷新</el-button>
+        <el-button
+          class="app-action-button app-action-button--refresh"
+          :icon="Refresh"
+          :loading="loading"
+          @click="handleRefresh"
+        >
+          刷新
+        </el-button>
       </section>
 
       <section class="quality-board-other__grid">

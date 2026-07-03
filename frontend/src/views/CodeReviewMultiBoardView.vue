@@ -163,13 +163,21 @@ void initializePage();
           <SyncMetaBadge :value="lastSyncedText" />
           <el-button
             v-if="canRefreshLatestData"
+            class="app-action-button app-action-button--refresh"
             :icon="RefreshRight"
             :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
             @click="refreshLatestData"
           >
             刷新最新数据
           </el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="refreshPage">刷新</el-button>
+          <el-button
+            class="app-action-button app-action-button--refresh"
+            :icon="Refresh"
+            :loading="loading"
+            @click="refreshPage"
+          >
+            刷新
+          </el-button>
         </div>
       </section>
 

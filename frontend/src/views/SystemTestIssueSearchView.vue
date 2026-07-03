@@ -529,6 +529,7 @@ async function handleRefresh() {
           <template #summary-actions-extra>
             <el-button
               v-if="quickFilterToggleVisible"
+              class="app-action-button app-action-button--filter"
               plain
               :icon="quickFilterToggleIcon"
               @click="toggleQuickFilter()"
@@ -543,6 +544,7 @@ async function handleRefresh() {
         <SyncMetaBadge :value="lastSyncedText" />
         <el-button
           v-if="canRefreshLatestData"
+          class="app-action-button app-action-button--refresh"
           plain
           :icon="RefreshRight"
           :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
@@ -550,7 +552,13 @@ async function handleRefresh() {
         >
           刷新最新数据
         </el-button>
-        <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
+        <el-button
+          class="app-action-button app-action-button--export"
+          plain
+          :icon="Download"
+          :loading="exportLoading"
+          @click="handleExport"
+        >
           下载查询数据
         </el-button>
         <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />

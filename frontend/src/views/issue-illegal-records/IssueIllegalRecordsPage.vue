@@ -502,6 +502,7 @@ async function handleConditionFilterReset() {
             <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
             <el-button
               v-if="canRefreshLatestData"
+              class="app-action-button app-action-button--refresh"
               plain
               :icon="RefreshRight"
               :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
@@ -509,8 +510,9 @@ async function handleConditionFilterReset() {
             >
               刷新最新数据
             </el-button>
-            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+            <el-button class="app-action-button app-action-button--refresh" plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
+              class="app-action-button app-action-button--rule"
               plain
               :icon="InfoFilled"
               :loading="ruleExplanationLoading"
@@ -520,6 +522,7 @@ async function handleConditionFilterReset() {
             </el-button>
             <el-button
               v-if="exportRecords"
+              class="app-action-button app-action-button--export"
               plain
               :icon="Download"
               :loading="exportLoading"

@@ -429,6 +429,7 @@ const {
           <template #summary-actions-extra>
             <el-button
               v-if="quickFilterToggleVisible"
+              class="app-action-button app-action-button--filter"
               plain
               :icon="quickFilterToggleIcon"
               @click="toggleQuickFilter()"
@@ -442,8 +443,9 @@ const {
       <template #primary-actions>
         <div class="review-data-toolbar-actions">
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
-          <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
+          <el-button class="app-action-button app-action-button--refresh" plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
           <el-button
+            class="app-action-button app-action-button--rule"
             plain
             :icon="InfoFilled"
             data-testid="review-rule-explanation-trigger"
@@ -452,6 +454,7 @@ const {
             规则说明
           </el-button>
           <el-button
+            class="app-action-button app-action-button--template"
             plain
             :icon="Document"
             :loading="templateDownloadLoading"
@@ -461,6 +464,7 @@ const {
           </el-button>
           <el-dropdown @command="handleExportCommand">
             <el-button
+              class="app-action-button app-action-button--export"
               plain
               :icon="Download"
               :loading="recordExportLoading || problemExportLoading"
@@ -475,11 +479,25 @@ const {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button v-if="canImportReviewData" plain :icon="Upload" @click="legacyImportVisible = true">
+          <el-button
+            v-if="canImportReviewData"
+            class="app-action-button app-action-button--import"
+            plain
+            :icon="Upload"
+            @click="legacyImportVisible = true"
+          >
             导入
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
-          <el-button v-if="canEditReviewData" type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
+          <el-button
+            v-if="canEditReviewData"
+            type="primary"
+            class="app-action-button app-action-button--create"
+            :icon="Plus"
+            @click="handleCreateRecord"
+          >
+            新增评审
+          </el-button>
         </div>
       </template>
 

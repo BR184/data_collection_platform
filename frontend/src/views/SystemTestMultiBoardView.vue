@@ -180,6 +180,7 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           <SyncMetaBadge :value="lastSyncedText" />
           <el-button
             v-if="canRefreshLatestData"
+            class="app-action-button app-action-button--refresh"
             :icon="RefreshRight"
             :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
             @click="handleRefreshLatestData"
@@ -194,7 +195,14 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
             :options="projectOptions"
             @change="handleProjectChange"
           />
-          <el-button :icon="Refresh" :loading="loading" @click="handleRefresh">刷新</el-button>
+          <el-button
+            class="app-action-button app-action-button--refresh"
+            :icon="Refresh"
+            :loading="loading"
+            @click="handleRefresh"
+          >
+            刷新
+          </el-button>
         </div>
       </section>
 
