@@ -322,13 +322,13 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             new StatisticRuleMetricDefinition(
                 "response_cycle_hours",
                 "响应周期（小时）",
-                "只统计 research_template_time 非空的议题。",
+                "只统计已经按缺陷调研模板回复过的议题。",
                 "响应周期 = avg(第一条调研模板回复时间 - 议题创建时间)，单位小时，四舍五入取整",
                 null),
             new StatisticRuleMetricDefinition(
                 "resolution_cycle_days",
                 "解决周期（天）",
-                "只统计 bug_status 包含“已修复/完成”且 fixed_label_time 非空的议题。",
+                "只统计已标记为“已修复/完成”并能识别修复时间的议题。",
                 "解决周期 = avg(已修复标签时间 - 议题创建时间)，单位天，保留 1 位小数",
                 null)),
         null);
@@ -359,21 +359,21 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             StatisticRuleFlowSupport.step(
                 "source-load",
                 "加载议题事实",
-                "从 issue_fact 读取已归一化的客户问题事实和响应效率时间字段。",
+                "加载已同步到平台的客户问题议题数据，并使用整理后的模块、里程碑、响应时间和解决时间。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "复用 CustomerIssueScopeProfile 收口 CC_Product、自 2026-01-01 以来创建且携带里程碑的客户问题。",
+                "限定为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "按客户问题公共排除规则剔除 issue_fact.is_excluded = true 的议题。",
+                "按客户问题公共排除规则剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample),

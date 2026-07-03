@@ -1,0 +1,51 @@
+/**
+ * QA Flex Platform - Power BI 风格配色系统
+ * 设计参考：Microsoft Power BI / Fluent Design
+ * 特点：现代、专业、数据驱动的视觉风格
+ */
+
+:root {
+  /* ========== 品牌主色（Power BI 蓝） ========== */
+  --brand-primary: #0078d4;
+  --brand-primary-hover: #106ebe;
+  --brand-primary-active: #005a9e;
+
+  /* ========== 功能色 ========== */
+  --color-success: #107c10;
+  --color-warning: #ffb900;
+  --color-danger: #d13438;
+  --color-info: #0078d4;
+
+  /* ========== 中性色（Fluent Design） ========== */
+  --text-primary: #323130;
+  --text-secondary: #605e5c;
+  --text-tertiary: #8a8886;
+  --text-disabled: #c8c6c4;
+
+  --bg-canvas: #faf9f8;
+  --bg-white: #ffffff;
+  --bg-hover: #f3f2f1;
+  --bg-active: #edebe9;
+
+  --border-base: #edebe9;
+  --border-light: #f3f2f1;
+
+  /* ========== 阴影 ========== */
+  --shadow-card: 0 1.6px 3.6px 0 rgba(0,0,0,.132), 0 0.3px 0.9px 0 rgba(0,0,0,.108);
+  --shadow-elevated: 0 6.4px 14.4px 0 rgba(0,0,0,.132), 0 1.2px 3.6px 0 rgba(0,0,0,.108);
+
+  /* ========== 圆角 ========== */
+  --radius-sm: 2px;
+  --radius-base: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* ========== Element Plus 主题变量 ========== */
+:root {
+  --el-color-primary: #0078d4;
+  --el-color-success: #107c10;
+  --el-color-warning: #ffb900;
+  --el-color-danger: #d13438;
+  --el-bg-color-page: #faf9f8;
+}

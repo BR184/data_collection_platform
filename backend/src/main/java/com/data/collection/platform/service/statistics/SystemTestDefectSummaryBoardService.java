@@ -100,7 +100,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> phaseOptions) {
     return new StatisticBoardDefinition(
-        BOARD_KEY, "系统测试缺陷汇总", "基于 issue_fact 的模块维度系统测试汇总。", "", "", "模块名",
+        BOARD_KEY, "系统测试缺陷汇总", "按模块汇总系统测试范围内的缺陷数量、修复情况、关闭情况和延期情况。", "", "", "模块名",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
             StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions),
@@ -291,7 +291,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         .sorted(buildDetailComparator(request.sortField(), request.sortOrder())).toList();
     PageSlice<IssueSource> pageSlice =
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
-    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的 issue_fact 明细。", buildDefinition(loadPhaseOptions()).detailColumns(),
+    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的议题明细。", buildDefinition(loadPhaseOptions()).detailColumns(),
         pageSlice.records().stream().map(this::toDetailRecord).toList(), pageSlice.total(), pageSlice.page(), pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
         "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");

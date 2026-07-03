@@ -31,13 +31,22 @@ public class PageRecordSnapshotService {
       SnapshotRequest request,
       Class<T> responseType,
       Supplier<T> responseSupplier) {
-    Optional<T> snapshot = findReady(request, responseType);
+    Optional<T> snapshot = findReadyOrInvalidate(request, responseType);
     if (snapshot.isPresent()) {
       return snapshot.get();
     }
     T response = responseSupplier.get();
     save(request, response);
     return response;
+  }
+
+  private <T> Optional<T> findReadyOrInvalidate(SnapshotRequest request, Class<T> responseType) {
+    try {
+      return findReady(request, responseType);
+    } catch (IllegalStateException e) {
+      invalidateSnapshot(request);
+      return Optional.empty();
+    }
   }
 
   public <T> Optional<T> findReady(SnapshotRequest request, Class<T> responseType) {
@@ -112,6 +121,27 @@ public class PageRecordSnapshotService {
         pageKey);
   }
 
+  private void invalidateSnapshot(SnapshotRequest request) {
+    jdbcTemplate.update(
+        """
+        update page_record_snapshots
+           set status = 'STALE',
+               error_message = 'Cached payload could not be parsed; refresh on next read',
+               updated_at = current_timestamp
+         where page_key = ?
+           and snapshot_type = ?
+           and scope_key = ?
+           and rule_version = ?
+           and request_hash = ?
+           and status = 'READY'
+        """,
+        request.pageKey(),
+        request.snapshotType(),
+        request.scopeKey(),
+        request.ruleVersion(),
+        requestHash(request.requestPayload()));
+  }
+
   public String issueFactSourceVersion() {
     return factSourceVersion(FACT_TYPE_ISSUE) + "|" + labelGroupSourceVersion();
   }
@@ -124,11 +154,13 @@ public class PageRecordSnapshotService {
     String matchModeVersion =
         jdbcTemplate.queryForObject(
             """
+            -- 兼容模式-MatchMode：老平台 spider_crowncad_data 没有 updated_at。
+            -- 这里使用新平台落地表的 synced_at 作为缓存失效版本，避免连接真实老平台 MySQL 时误依赖源表更新时间列。
             select concat(
                      'match:',
                      count(*),
                      ':',
-                     coalesce(to_char(max(updated_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
+                     coalesce(to_char(max(synced_at), 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'empty')
                    )
               from code_review_match_mode_records
             """,

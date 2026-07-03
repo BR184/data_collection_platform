@@ -206,7 +206,7 @@ public class CodeReviewMatchModeSyncService {
           source_instance, project_id, project_name, repository_name, merge_request_id, merge_request_iid,
           title, merge_request_state, target_branch, author_name, merge_user_name, owner_name,
           reviewer_names, assignee_names, module_name, label_names, search_text, search_compact,
-          search_spell, search_initials, merged_at_source, code_walkthrough_date, review_status,
+          search_spell, search_initials, merged_at_source, legacy_merged_time_source, code_walkthrough_date, review_status,
           review_duration_minutes, review_exception_reason, scan_status, scan_bug_count,
           annotation_rate_result, bug_count_result, comment_rate, defect_count, added_lines,
           deleted_lines, code_specification_count, code_logic_specification_count,
@@ -215,7 +215,7 @@ public class CodeReviewMatchModeSyncService {
           review_efficiency_per_hour, commit_count, commit_rate, function_name, clang_added_line_count,
           legacy_source_id, synced_at
         ) values (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp
         )
         """.formatted(CODE_REVIEW_TEMP_TABLE);
     int count = 0;
@@ -306,6 +306,7 @@ public class CodeReviewMatchModeSyncService {
     if (mergedAt == null) {
       mergedAt = parseDateTime(text(rs, "merged_time"));
     }
+    LocalDateTime legacyMergedTime = parseDateTime(text(rs, "merged_time"));
     LocalDateTime walkthroughDate = localDateTime(rs.getObject("code_walkthrough_date"));
     Double annotationRate = doubleValue(rs.getObject("annotation_rate"));
     Integer bugCount = intValue(rs.getObject("bug_count"));
@@ -333,6 +334,7 @@ public class CodeReviewMatchModeSyncService {
         searchIndex.spell(),
         searchIndex.initials(),
         mergedAt,
+        legacyMergedTime,
         walkthroughDate,
         text(rs, "status"),
         intValue(rs.getObject("code_walkthrough_duration")),
@@ -751,6 +753,7 @@ public class CodeReviewMatchModeSyncService {
       String searchSpell,
       String searchInitials,
       LocalDateTime mergedAtSource,
+      LocalDateTime legacyMergedTimeSource,
       LocalDateTime codeWalkthroughDate,
       String reviewStatus,
       Integer reviewDurationMinutes,
@@ -782,7 +785,7 @@ public class CodeReviewMatchModeSyncService {
           sourceInstance, projectId, projectName, repositoryName, mergeRequestId, mergeRequestIid, title,
           mergeRequestState, targetBranch, authorName, mergeUserName, ownerName, reviewerNames, assigneeNames,
           moduleName, labelNames, searchText, searchCompact, searchSpell, searchInitials, mergedAtSource,
-          codeWalkthroughDate, reviewStatus, reviewDurationMinutes, reviewExceptionReason, scanStatus,
+          legacyMergedTimeSource, codeWalkthroughDate, reviewStatus, reviewDurationMinutes, reviewExceptionReason, scanStatus,
           scanBugCount, annotationRateResult, bugCountResult, commentRate, defectCount, addedLines,
           deletedLines, codeSpecificationCount, codeLogicSpecificationCount, performanceSpecificationCount,
           designSpecificationCount, otherSpecificationCount, reviewSpeedLocPerHour, reviewSpeedKlocPerHour,

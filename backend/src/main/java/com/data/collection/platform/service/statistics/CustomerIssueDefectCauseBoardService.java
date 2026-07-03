@@ -151,7 +151,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷原因分析",
-        "基于 issue_fact 的模块维度客户问题缺陷原因分析，按老平台原因模板字段统计。",
+        "按模块分析客户问题缺陷的原因分类。",
         "",
         "",
         "模块",
@@ -318,7 +318,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "客户问题缺陷原因分析明细",
-        "展示当前模块与缺陷原因命中的 issue_fact 明细。",
+        "展示当前模块与缺陷原因命中的客户问题议题明细。",
         DETAIL_COLUMNS,
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),
@@ -356,14 +356,14 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         true,
         "客户问题缺陷原因分析规则说明",
         RULE_VERSION,
-        "当前统计使用 issue_fact.reason_category 已解析事实字段，对齐老平台 spider_issue_data.cause 口径。",
+        "当前统计使用老平台缺陷原因说明口径，从客户问题回复中的缺陷原因段落识别需求问题、设计问题、编码规范等原因分类。",
         "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题；同一议题关联多个模块或多个缺陷原因时会分别计数。",
         java.util.stream.Stream.concat(
                 snapshot.flowSteps().stream(),
                 java.util.stream.Stream.of(StatisticRuleFlowSupport.step(
                 "group-by-module",
                 "按模块聚合",
-                "先用当前客户问题范围内的模块全集生成行，再将命中缺陷原因的议题按 module_names 展开并归类聚合。",
+                "先用当前客户问题范围内的模块全集生成行，再将命中缺陷原因的议题按模块展开并归类聚合。",
                 snapshot.reasonSources().size(),
                 moduleCount,
                 snapshot.reasonSources(),
@@ -374,8 +374,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .map(metric -> new StatisticRuleMetricDefinition(
                 metric.key(),
                 metric.label(),
-                "按老平台缺陷原因模板字段匹配：" + String.join(" / ", metric.tokens()),
-                metric.label() + "数量 = 当前模块内命中该字段映射的缺陷原因个数",
+                "按老平台缺陷原因说明识别：" + String.join(" / ", metric.tokens()),
+                metric.label() + "数量 = 当前模块内命中该原因分类的缺陷数量",
                 null))
             .toList(),
         null);
@@ -508,7 +508,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "source-load",
                 "加载议题事实",
-                "从 issue_fact 读取已经归一化的议题事实。",
+                "加载已同步到平台的客户问题议题数据，并使用整理后的模块、里程碑和缺陷原因说明。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample
@@ -516,7 +516,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "按客户问题 scope profile 收口 issue_fact：限定 CC_Product、自 2026-01-01 以来创建且携带里程碑。",
+                "限定为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample

@@ -140,7 +140,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "缺陷原因分析",
-        "基于 issue_fact 的模块维度缺陷原因分析。",
+        "按模块分析系统测试缺陷的原因分类。",
         "",
         "",
         "模块",
@@ -291,7 +291,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "缺陷原因分析明细",
-        "展示当前模块与缺陷原因命中的 issue_fact 明细。",
+        "展示当前模块与缺陷原因命中的议题明细。",
         DETAIL_COLUMNS,
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),
@@ -355,8 +355,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             .map(metric -> new StatisticRuleMetricDefinition(
                 metric.key(),
                 metric.label(),
-                "按老平台缺陷原因模板字段匹配：" + String.join(" / ", metric.tokens()),
-                metric.label() + "数量 = 当前模块内命中该字段映射的缺陷原因个数",
+                "按老平台缺陷原因说明识别：" + String.join(" / ", metric.tokens()),
+                metric.label() + "数量 = 当前模块内命中该原因分类的缺陷数量",
                 null))
             .toList(),
         null);
@@ -430,7 +430,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
             StatisticRuleFlowSupport.step(
                 "reason-category-filter",
                 "保留已识别原因",
-                "只保留评论文本中命中老平台缺陷原因字段的议题，原因个数按字段命中数计算。",
+                "只保留评论文本中能识别出老平台缺陷原因分类的议题，原因个数按命中的原因分类计算。",
                 phaseFiltered.size(),
                 withReason,
                 this::toRuleFlowSample

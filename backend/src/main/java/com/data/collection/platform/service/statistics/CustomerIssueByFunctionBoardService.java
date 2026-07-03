@@ -146,7 +146,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题按功能展示缺陷数量",
-        "基于 issue_fact.function_name 的客户问题模块/功能维度缺陷数量统计。",
+        "按模块和功能展示客户问题缺陷数量。",
         "",
         "",
         "序号",
@@ -248,7 +248,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "客户问题功能缺陷明细",
-        "展示当前模块/功能与指标命中的 issue_fact 明细。",
+        "展示当前模块/功能与指标命中的客户问题议题明细。",
         DETAIL_COLUMNS,
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),
@@ -269,12 +269,12 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         true,
         "客户问题按功能展示缺陷数量规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact，先使用 CustomerIssueScopeProfile 限定客户问题范围，再保留已识别出功能名的议题。",
+        "当前统计先限定客户问题范围，再保留标题中能识别出功能名的议题。",
         "功能名来自 issue 标题开头的全角书名号片段，例如【草图约束】；同一条议题如属于多个模块，会分别计入对应模块/功能行，总计行按议题本身统计。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
-                "legacy-pivot", "模块功能列", "主表按老平台 IssueShowByFunction.vue 展示：每个模块是一个列组，下面固定“功能”和“问题数量”两列。", "问题数量 = count(CC_Product issue_fact where module_name and function_name match)", null)),
+                "legacy-pivot", "模块功能列", "主表按老平台按功能展示缺陷数量页面展示：每个模块是一个列组，下面固定“功能”和“问题数量”两列。", "问题数量 = 当前客户问题范围内同时命中模块和功能的议题数量", null)),
         null);
   }
 
@@ -356,7 +356,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "source-load",
                 "加载议题事实",
-                "从 issue_fact 读取已归一化的议题事实。",
+                "加载已同步到平台的客户问题议题数据，并使用整理后的模块、里程碑和功能名称。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample
@@ -364,7 +364,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "复用 CustomerIssueScopeProfile 收口客户问题范围。",
+                "限定为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample
@@ -372,7 +372,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "按客户问题公共排除规则剔除 issue_fact.is_excluded = true 的议题。",
+                "按客户问题公共排除规则剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample
@@ -388,7 +388,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "function-filter",
                 "保留已识别功能",
-                "只保留 issue_fact.function_name 非空的议题。",
+                "只保留标题中能识别出功能名的议题。",
                 phaseFiltered.size(),
                 withFunction,
                 this::toRuleFlowSample
@@ -396,7 +396,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "module-function-expand",
                 "按模块/功能展开",
-                "将客户问题议题展开到 module_names + function_name 组合；未设定模块的议题归入“未设定模块”。",
+                "将客户问题议题按模块和功能组合展开；未设定模块的议题归入“未设定模块”。",
                 withFunction.size(),
                 withFunction.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
                 withFunction,

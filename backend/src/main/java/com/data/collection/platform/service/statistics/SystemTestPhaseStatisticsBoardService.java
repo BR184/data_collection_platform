@@ -144,7 +144,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "议题阶段统计",
-        "基于 issue_fact 的系统测试轮次维度缺陷统计。",
+        "按系统测试轮次统计各严重程度缺陷数量。",
         "",
         "",
         "轮次",
@@ -268,7 +268,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "议题阶段统计明细",
-        "展示当前轮次与指标命中的 issue_fact 明细。",
+        "展示当前轮次与指标命中的议题明细。",
         DETAIL_COLUMNS,
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),

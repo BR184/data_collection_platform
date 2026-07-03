@@ -1,0 +1,63 @@
+/**
+ * 按钮样式（Power BI 风格）
+ * 特点：扁平、现代、Fluent Design
+ */
+
+/* ========== 主操作按钮（Power BI 蓝）========== */
+.el-button--primary {
+  background-color: #0078d4;
+  border-color: #0078d4;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background-color: #106ebe;
+  border-color: #106ebe;
+}
+
+.el-button--primary:active {
+  background-color: #005a9e;
+  border-color: #005a9e;
+}
+
+/* ========== 灰色功能按钮（用于规则说明、刷新、设置等）========== */
+.el-button.btn-gray {
+  background-color: #faf9f8;
+  border-color: #edebe9;
+  color: #605e5c;
+  font-weight: 400;
+}
+
+.el-button.btn-gray:hover {
+  background-color: #f3f2f1;
+  border-color: #e1dfdd;
+  color: #323130;
+}
+
+.el-button.btn-gray:active {
+  background-color: #edebe9;
+  border-color: #d2d0ce;
+  color: #323130;
+}
+
+/* ========== 别名 class ========== */
+.el-button.btn-secondary,
+.el-button.btn-refresh,
+.el-button.btn-settings,
+.el-button.btn-help {
+  background-color: #faf9f8;
+  border-color: #edebe9;
+  color: #605e5c;
+  font-weight: 400;
+}
+
+.el-button.btn-secondary:hover,
+.el-button.btn-refresh:hover,
+.el-button.btn-settings:hover,
+.el-button.btn-help:hover {
+  background-color: #f3f2f1;
+  border-color: #e1dfdd;
+  color: #323130;
+}

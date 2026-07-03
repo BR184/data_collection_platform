@@ -388,6 +388,7 @@ create table if not exists code_review_match_mode_records (
     search_spell text,
     search_initials text,
     merged_at_source timestamp,
+    legacy_merged_time_source timestamp,
     code_walkthrough_date timestamp,
     review_status varchar(128),
     review_duration_minutes integer,

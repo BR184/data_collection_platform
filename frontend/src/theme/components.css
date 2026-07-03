@@ -1,0 +1,110 @@
+/**
+ * 组件样式（Power BI 风格）
+ * 特点：卡片式设计、浅色背景、清晰的层次
+ */
+
+/* ========== 全局背景 ========== */
+body {
+  background-color: #faf9f8;
+}
+
+/* ========== 卡片样式 ========== */
+.el-card {
+  background-color: #ffffff;
+  border: 1px solid #edebe9;
+  border-radius: 8px;
+  box-shadow: 0 1.6px 3.6px 0 rgba(0,0,0,.132), 0 0.3px 0.9px 0 rgba(0,0,0,.108);
+}
+
+.el-card:hover {
+  box-shadow: 0 6.4px 14.4px 0 rgba(0,0,0,.132), 0 1.2px 3.6px 0 rgba(0,0,0,.108);
+}
+
+/* ========== 表格样式 ========== */
+.el-table {
+  background-color: #ffffff;
+}
+
+.el-table th.el-table__cell {
+  background-color: #faf9f8;
+  color: #323130;
+  font-weight: 600;
+  border-bottom: 1px solid #edebe9;
+}
+
+.el-table td.el-table__cell {
+  border-bottom: 1px solid #f3f2f1;
+}
+
+.el-table tbody tr:hover > td {
+  background-color: #faf9f8 !important;
+}
+
+/* ========== 输入框样式 ========== */
+.el-input__wrapper {
+  background-color: #ffffff;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+}
+
+.el-input__wrapper:hover {
+  border-color: #e1dfdd;
+}
+
+.el-input__wrapper.is-focus {
+  border-color: #0078d4;
+  box-shadow: 0 0 0 1px #0078d4;
+}
+
+/* ========== 下拉菜单样式 ========== */
+.el-select-dropdown {
+  background-color: #ffffff;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  box-shadow: 0 6.4px 14.4px 0 rgba(0,0,0,.132), 0 1.2px 3.6px 0 rgba(0,0,0,.108);
+}
+
+.el-select-dropdown__item:hover {
+  background-color: #f3f2f1;
+}
+
+.el-select-dropdown__item.is-selected {
+  background-color: #f3f2f1;
+  color: #0078d4;
+  font-weight: 600;
+}
+
+/* ========== 分页器样式 ========== */
+.el-pagination {
+  font-weight: 400;
+}
+
+.el-pagination button {
+  background-color: #ffffff;
+  border: 1px solid #edebe9;
+  color: #605e5c;
+}
+
+.el-pagination button:hover:not(:disabled) {
+  border-color: #0078d4;
+  color: #0078d4;
+}
+
+.el-pager li {
+  background-color: #ffffff;
+  border: 1px solid #edebe9;
+  color: #605e5c;
+  font-weight: 400;
+}
+
+.el-pager li:hover {
+  border-color: #0078d4;
+  color: #0078d4;
+}
+
+.el-pager li.is-active {
+  background-color: #0078d4;
+  border-color: #0078d4;
+  color: #ffffff;
+  font-weight: 600;
+}

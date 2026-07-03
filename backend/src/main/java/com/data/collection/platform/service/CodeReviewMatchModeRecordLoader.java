@@ -19,10 +19,8 @@ import org.springframework.util.StringUtils;
 public class CodeReviewMatchModeRecordLoader {
   private static final String BASE_WHERE = """
        where upper(coalesce(merge_request_state, '')) = 'MERGED'
-        and merged_at_source > timestamp '2024-04-01 00:00:00'
+        and coalesce(legacy_merged_time_source, merged_at_source) > timestamp '2024-04-01 00:00:00'
         and coalesce(module_name, '') <> '无需标注'
-        and coalesce(project_name, '') <> '无需标注'
-        and coalesce(label_names, '') not like '%无需走查扫描%'
         and (
           lower(coalesce(repository_name, '')) not in ('crowncad', 'dgm')
           or lower(coalesce(target_branch, '')) = 'dev'

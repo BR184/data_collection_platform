@@ -564,7 +564,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
 
   private String topicFilterDescription(String topic) {
     if (TOPIC_DELAY.equals(topic)) {
-      return "保留 delay_issue、is_response_delayed 或 is_resolve_delayed 命中的客户问题议题。";
+      return "保留已申请延期、响应延期或解决延期的客户问题议题。";
     }
     return "对齐老平台 CC_PRODUCT 议题记录页，不默认选择里程碑，保留客户问题范围内除已拒绝状态外的议题。";
   }
@@ -593,7 +593,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
           true,
           IssueFactRecordPageQuery.Scope.CUSTOMER_PROJECT,
           CustomerIssueRecordScope.CUSTOMER_PROJECT,
-          "CC_PRODUCT 议题对齐老平台 ProjectIssueInfoQueryBuilder，默认全里程碑，查询 CC_Product 项目全量历史记录，排除 bug_status 包含“已拒绝”的记录，不套用客户问题统计页公共排除或 2026-01-01 运营统计起始日期。");
+          "CC_PRODUCT 议题对齐老平台 CC_PRODUCT 议题记录页，默认全里程碑，查询 CC_Product 项目全量历史记录，排除处理状态包含“已拒绝”的记录，不套用客户问题统计页公共排除或 2026-01-01 运营统计起始日期。");
     }
 
     private static CustomerIssueRecordProfile customerOperationsProfile() {

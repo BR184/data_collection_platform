@@ -131,7 +131,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷汇总",
-        "基于 issue_fact 的模块维度客户问题缺陷汇总。",
+        "按模块汇总客户问题范围内的缺陷数量、优先级、修复情况、关闭情况和延期情况。",
         "",
         "",
         "模块名",
@@ -363,7 +363,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
     return new StatisticDetailResponse(
         "客户问题缺陷明细",
-        "展示当前模块与指标命中的 issue_fact 明细。",
+        "展示当前模块与指标命中的客户问题议题明细。",
         buildDefinition().detailColumns(),
         pageSlice.records().stream().map(this::toDetailRecord).toList(),
         pageSlice.total(),
