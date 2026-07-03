@@ -270,8 +270,8 @@ async function applyPrimaryFilterDefaults() {
 async function loadCurrentPage() {
   initializeFromQuery(route.query);
   await loadTableData();
-  await loadRealtimeStatus();
   pageInitialized.value = true;
+  void loadRealtimeStatus();
 }
 
 function buildCurrentQueryParams(includePagination: boolean) {

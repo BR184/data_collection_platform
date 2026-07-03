@@ -342,11 +342,10 @@ async function handleExpandChange() {
   overflow-y: hidden;
   pointer-events: auto;
   opacity: 1;
-  scrollbar-width: thin;
-  scrollbar-color: var(--el-color-primary-light-3) transparent;
+  scrollbar-width: auto;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--el-fill-color-blank) 92%, transparent);
-  box-shadow: var(--el-box-shadow-light);
+  background: transparent;
+  box-shadow: none;
 }
 
 .stat-detail-floating-horizontal::-webkit-scrollbar {
@@ -359,7 +358,11 @@ async function handleExpandChange() {
 
 .stat-detail-floating-horizontal::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: var(--el-color-primary-light-3);
+  background: rgba(96, 98, 102, 0.55);
+}
+
+.stat-detail-floating-horizontal:hover::-webkit-scrollbar-thumb {
+  background: rgba(96, 98, 102, 0.72);
 }
 
 .stat-detail-floating-horizontal-spacer {

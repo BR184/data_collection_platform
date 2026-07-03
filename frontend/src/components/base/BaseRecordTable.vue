@@ -603,10 +603,11 @@ function handleStandaloneKeywordClear() {
   width: 100%;
   min-width: 0;
   padding: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(203, 213, 225, 0.76);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
 }
 
 .record-filter-panel {
@@ -789,7 +790,7 @@ function handleStandaloneKeywordClear() {
   overflow-x: auto;
   overflow-y: hidden;
   border-radius: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(203, 213, 225, 0.78);
   background: #fff;
   outline: none;
   scrollbar-gutter: stable;
@@ -831,11 +832,10 @@ function handleStandaloneKeywordClear() {
   overflow-y: hidden;
   pointer-events: auto;
   opacity: 1;
-  scrollbar-width: thin;
-  scrollbar-color: var(--el-color-primary-light-3) transparent;
+  scrollbar-width: auto;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--el-fill-color-blank) 92%, transparent);
-  box-shadow: var(--el-box-shadow-light);
+  background: transparent;
+  box-shadow: none;
 }
 
 .record-table-floating-horizontal::-webkit-scrollbar {
@@ -848,7 +848,11 @@ function handleStandaloneKeywordClear() {
 
 .record-table-floating-horizontal::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: var(--el-color-primary-light-3);
+  background: rgba(96, 98, 102, 0.55);
+}
+
+.record-table-floating-horizontal:hover::-webkit-scrollbar-thumb {
+  background: rgba(96, 98, 102, 0.72);
 }
 
 .record-table-floating-horizontal-spacer {

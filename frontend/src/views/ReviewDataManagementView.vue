@@ -166,6 +166,20 @@ const reviewDataSourceInstance = computed(() => String(route.query.sourceInstanc
 const canEditReviewData = computed(() => true);
 const canImportReviewData = computed(() => authState.currentUser.role === 'ADMIN');
 const canDeleteReviewRecord = computed(() => authState.currentUser.role === 'ADMIN');
+const exportDropdownLoading = computed(() => recordExportLoading.value || problemExportLoading.value);
+const exportDropdownButtonRef = ref<{ $el?: HTMLElement } | HTMLElement | null>(null);
+
+function blurExportDropdownButton() {
+  const buttonRef = exportDropdownButtonRef.value;
+  const element = buttonRef instanceof HTMLElement ? buttonRef : buttonRef?.$el;
+  element?.blur();
+}
+
+function handleExportDropdownVisibleChange(visible: boolean) {
+  if (!visible) {
+    window.requestAnimationFrame(blurExportDropdownButton);
+  }
+}
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 const {
@@ -460,13 +474,21 @@ const {
           >
             模板
           </el-button>
-          <el-dropdown @command="handleExportCommand">
+          <el-dropdown
+            trigger="click"
+            :disabled="exportDropdownLoading"
+            @command="handleExportCommand"
+            @visible-change="handleExportDropdownVisibleChange"
+          >
             <el-button
+              ref="exportDropdownButtonRef"
               class="app-action-button app-action-button--export"
+              plain
               :icon="Download"
-              :loading="recordExportLoading || problemExportLoading"
+              :loading="exportDropdownLoading"
+              :disabled="exportDropdownLoading"
             >
-              导出评审列表
+              导出...
               <el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-button>
             <template #dropdown>

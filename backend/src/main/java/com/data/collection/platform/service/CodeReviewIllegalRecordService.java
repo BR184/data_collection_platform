@@ -47,7 +47,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private static final String LEGACY_DGM_REPOSITORY_NAME = "DGM";
   private static final List<String> LEGACY_EXTRA_PROJECT_NAME_OPTIONS =
       List.of("广数CAM", "CC2025R4", "CC2026R1", "CC 2025 R4&2026 R1");
-  private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
+  private static final String RULE_VERSION = "code-review-illegal-records@2026-07-03-v6";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -683,18 +683,6 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation() {
-    List<CodeReviewIllegalRecordSource> sources =
-        activeLoader().loadSources(
-            CodeReviewIllegalRecordQuerySupport.buildFactFilters(
-                null, null, null, null, null, null, null, null, null, null));
-    List<CodeReviewIllegalRecordView> views = sources.stream().map(this::toView).toList();
-    List<CodeReviewIllegalRecordView> illegalViews =
-        views.stream()
-            .filter(row -> CodeReviewIllegalRuleRegistry.matchesDefaultIllegalType(row.illegalTypes(), row.sourceInstance()))
-            .toList();
-    long total = views.size();
-    long illegalTotal = illegalViews.size();
-
     return new StatisticBoardRuleExplanationResponse(
         WORKSPACE_KEY,
         true,
@@ -703,8 +691,8 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         matchModeSwitchService.isEnabled()
             ? "当前统计范围来自老平台兼容数据；页面查询条件会在这个范围上继续筛选。"
             : "当前统计范围来自已同步到平台的代码合并请求数据；页面查询条件会在这个范围上继续筛选。",
-        "这里先说明总共有多少条非法记录，再说明它们分别是因为什么被判定为非法。",
-        buildRuleFlowSteps(views, illegalViews, total, illegalTotal),
+        "规则说明只展示判定口径，不在打开说明时扫描全量记录；实际数量以当前列表、筛选和导出结果为准。",
+        List.of(),
         buildMetricDefinitions(),
         null);
   }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
+import { ArrowDown, Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
@@ -45,6 +45,22 @@ const emit = defineEmits<{
   (event: 'settingsCommand', command: string): void;
   (event: 'toggleAutoRefresh', enabled: boolean): void;
 }>();
+
+const PRIMARY_EXPORT_COMMAND = '__primary_export__';
+
+const exportExtraActions = computed(() => props.extraActions.filter(isExportAction));
+const nonExportExtraActions = computed(() => props.extraActions.filter((action) => !isExportAction(action)));
+const exportMenuItems = computed(() => [
+  ...(props.showExport ? [{ key: PRIMARY_EXPORT_COMMAND, label: props.exportLabel, disabled: false }] : []),
+  ...exportExtraActions.value.map((action) => ({
+    key: action.key,
+    label: action.label,
+    disabled: action.disabled ?? false,
+  })),
+]);
+const useExportDropdown = computed(() => exportMenuItems.value.length >= 2);
+const inlineExtraActions = computed(() => (useExportDropdown.value ? nonExportExtraActions.value : props.extraActions));
+const exportDropdownLoading = computed(() => exportExtraActions.value.some((action) => Boolean(action.loading)));
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
 const failureStatuses = new Set(['FAILED', 'TIMEOUT', 'CANCELLED']);
@@ -176,6 +192,19 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
   }
   return `${minutes} 分 ${seconds} 秒`;
 }
+
+function isExportAction(action: StatisticBoardToolbarAction) {
+  return action.key.startsWith('export-') || action.actionClass?.split(/\s+/).includes('app-action-button--export');
+}
+
+function handleExportDropdownCommand(command: string | number | object) {
+  const actionKey = String(command);
+  if (actionKey === PRIMARY_EXPORT_COMMAND) {
+    emit('exportBoard');
+    return;
+  }
+  emit('extraAction', actionKey);
+}
 </script>
 
 <template>
@@ -225,7 +254,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
           规则说明
         </el-button>
         <el-button
-          v-for="action in extraActions"
+          v-for="action in inlineExtraActions"
           :key="action.key"
           :class="['app-action-button', action.actionClass || 'app-action-button--neutral']"
           :plain="action.plain ?? true"
@@ -236,8 +265,35 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         >
           {{ action.label }}
         </el-button>
+        <el-dropdown
+          v-if="useExportDropdown"
+          trigger="click"
+          @command="handleExportDropdownCommand"
+        >
+          <el-button
+            class="app-action-button app-action-button--export"
+            plain
+            :icon="Download"
+            :loading="exportDropdownLoading"
+          >
+            导出...
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="item in exportMenuItems"
+                :key="item.key"
+                :command="item.key"
+                :disabled="item.disabled"
+              >
+                {{ item.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button
-          v-if="showExport"
+          v-else-if="showExport"
           class="app-action-button app-action-button--export"
           plain
           :icon="Download"

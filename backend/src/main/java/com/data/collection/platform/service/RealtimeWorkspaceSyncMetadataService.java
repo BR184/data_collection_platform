@@ -11,12 +11,15 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Sorts;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ public class RealtimeWorkspaceSyncMetadataService {
   private static final ZoneId BEIJING = ZoneId.of("Asia/Shanghai");
   private static final List<String> SCHEDULED_TIME_COLLECTIONS =
       List.of("scheduledTimeRecord", "ScheduledTimeRecord");
+  private static final int SCHEDULED_TIME_MONGO_TIMEOUT_MS = 1200;
 
   private final GitlabConfigService configService;
   private final CodeReviewMatchModeConfigService matchModeConfigService;
@@ -102,7 +106,7 @@ public class RealtimeWorkspaceSyncMetadataService {
     if (!StringUtils.hasText(config.mongoUri()) || !StringUtils.hasText(config.mongoDatabase())) {
       return null;
     }
-    try (MongoClient client = MongoClients.create(config.mongoUri())) {
+    try (MongoClient client = MongoClients.create(scheduledTimeMongoSettings(config.mongoUri()))) {
       MongoDatabase database = client.getDatabase(config.mongoDatabase());
       for (String collectionName : SCHEDULED_TIME_COLLECTIONS) {
         MongoCollection<Document> collection = database.getCollection(collectionName);
@@ -127,6 +131,17 @@ public class RealtimeWorkspaceSyncMetadataService {
       return null;
     }
     return null;
+  }
+
+  private MongoClientSettings scheduledTimeMongoSettings(String mongoUri) {
+    return MongoClientSettings.builder()
+        .applyConnectionString(new ConnectionString(mongoUri))
+        .applyToClusterSettings(builder ->
+            builder.serverSelectionTimeout(SCHEDULED_TIME_MONGO_TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        .applyToSocketSettings(builder -> builder
+            .connectTimeout(SCHEDULED_TIME_MONGO_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(SCHEDULED_TIME_MONGO_TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        .build();
   }
 
   private Long usedMinutes(Object value) {
