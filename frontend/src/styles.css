@@ -440,6 +440,7 @@ button {
   min-height: calc(100vh - 64px);
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
+  min-width: 0;
   transition: grid-template-columns 0.18s ease;
 }
 
@@ -564,6 +565,7 @@ button {
 
 .shell-content {
   position: relative;
+  min-width: 0;
   padding: 12px 16px 16px;
   min-height: calc(100vh - 64px);
   background: #f5f7fa;

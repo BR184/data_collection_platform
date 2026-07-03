@@ -179,7 +179,7 @@ function handleClose() {
     />
     <div v-if="tipText" class="review-form-tip-note">{{ tipText }}</div>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="112px" class="review-form" @submit.prevent="handleSubmit">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="136px" class="review-form" @submit.prevent="handleSubmit">
       <div class="review-form-grid">
         <el-form-item label="项目名称" prop="projectName">
           <SmartSelect v-model="form.projectName" :options="projectOptions" compact placeholder="请选择项目名称" />
@@ -253,6 +253,7 @@ function handleClose() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 16px;
+  min-width: 0;
 }
 
 .review-form-tip {
@@ -285,5 +286,35 @@ function handleClose() {
 
 :deep(.el-input-number .el-input__wrapper) {
   width: 100%;
+}
+
+:deep(.el-form-item) {
+  min-width: 0;
+}
+
+:deep(.el-form-item__label) {
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+:deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  :deep(.el-dialog) {
+    width: calc(100vw - 32px) !important;
+  }
+
+  .review-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-form-wide {
+    grid-column: 1;
+  }
 }
 </style>

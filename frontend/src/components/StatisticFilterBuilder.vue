@@ -488,6 +488,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
         <el-button plain :icon="conditionsExpanded ? ArrowUp : ArrowDown" @click="conditionsExpanded = !conditionsExpanded">
           {{ conditionsExpanded ? '收起筛选' : '展开筛选' }}
         </el-button>
+        <slot name="summary-actions-extra" />
       </div>
     </div>
 

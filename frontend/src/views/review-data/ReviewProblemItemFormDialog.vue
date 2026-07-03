@@ -151,7 +151,7 @@ function normalizeEditableProblemStatus(value: string) {
     />
     <div v-if="tipText" class="problem-form-tip-note">{{ tipText }}</div>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="108px" @submit.prevent="handleSubmit">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="136px" class="problem-form" @submit.prevent="handleSubmit">
       <div class="problem-form-grid">
         <el-form-item label="评审专家" prop="reviewerName">
           <SmartSelect v-model="form.reviewerName" :options="reviewerOptions" compact placeholder="请选择评审专家" />
@@ -205,6 +205,7 @@ function normalizeEditableProblemStatus(value: string) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 16px;
+  min-width: 0;
 }
 
 .problem-form-tip {
@@ -237,5 +238,35 @@ function normalizeEditableProblemStatus(value: string) {
 
 :deep(.el-input-number .el-input__wrapper) {
   width: 100%;
+}
+
+:deep(.el-form-item) {
+  min-width: 0;
+}
+
+:deep(.el-form-item__label) {
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+:deep(.el-form-item__content) {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  :deep(.el-dialog) {
+    width: calc(100vw - 32px) !important;
+  }
+
+  .problem-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .span-2 {
+    grid-column: 1;
+  }
 }
 </style>

@@ -93,34 +93,6 @@ function formatFlooredNumber(value?: number | null, digits = 2) {
           <el-descriptions-item label="加权密度">{{ formatNumber(detailData.record.weightedDefectDensity) }}</el-descriptions-item>
         </el-descriptions>
       </section>
-
-      <section class="detail-section">
-        <header class="detail-section-head">
-          <span>工作产品描述</span>
-        </header>
-        <el-table :data="detailData.descriptions" border size="small" empty-text="暂无工作产品描述">
-          <el-table-column prop="reviewProduct" label="评审的工作产品" min-width="150" />
-          <el-table-column prop="reviewVersion" label="版本" width="100" />
-          <el-table-column prop="authorName" label="作者" width="100" />
-          <el-table-column label="规模" width="90" align="right">
-            <template #default="{ row }">{{ row.reviewScalePages }}{{ row.unit || '页' }}</template>
-          </el-table-column>
-        </el-table>
-      </section>
-
-      <section class="detail-section">
-        <header class="detail-section-head">
-          <span>评审分工内容</span>
-        </header>
-        <el-table :data="detailData.contents" border size="small" empty-text="暂无评审分工内容">
-          <el-table-column prop="reviewerName" label="评审人" width="100" />
-          <el-table-column prop="assignmentContent" label="内容" min-width="180" />
-          <el-table-column prop="independentWorkloadHours" label="独立工作量" width="100" align="right" />
-          <el-table-column prop="independentProblemCount" label="独立问题" width="90" align="right" />
-          <el-table-column prop="meetingWorkloadHours" label="会议工作量" width="100" align="right" />
-          <el-table-column prop="meetingProblemCount" label="会议问题" width="90" align="right" />
-        </el-table>
-      </section>
     </template>
   </el-drawer>
 </template>

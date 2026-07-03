@@ -499,6 +499,7 @@ async function handleRefresh() {
       :active-filter-tags="activeFilterTags"
       :show-search="false"
       quick-filter-mode
+      quick-filter-toggle-placement="filter-builder"
       empty-description="当前筛选条件下没有查到系统测试议题。"
       @filter-change="handleFilterChange"
       @reset="handleReset"
@@ -509,7 +510,14 @@ async function handleRefresh() {
       @sort-change="handleSortChange"
       @refresh="handleRefresh"
     >
-      <template #filter-builder>
+      <template
+        #filter-builder="{
+          quickFilterToggleVisible,
+          quickFilterToggleText,
+          quickFilterToggleIcon,
+          toggleQuickFilter,
+        }"
+      >
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="conditionFilterFields"
@@ -517,7 +525,18 @@ async function handleRefresh() {
           show-apply-actions
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
-        />
+        >
+          <template #summary-actions-extra>
+            <el-button
+              v-if="quickFilterToggleVisible"
+              plain
+              :icon="quickFilterToggleIcon"
+              @click="toggleQuickFilter()"
+            >
+              {{ quickFilterToggleText }}
+            </el-button>
+          </template>
+        </StatisticFilterBuilder>
       </template>
 
       <template #toolbar-actions>

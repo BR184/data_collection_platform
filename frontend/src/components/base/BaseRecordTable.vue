@@ -42,6 +42,7 @@ const props = withDefaults(
     keywordAutoSearch?: boolean;
     keywordAutoSearchDelay?: number;
     quickFilterMode?: boolean;
+    quickFilterTogglePlacement?: 'primary-actions' | 'filter-builder';
   }>(),
   {
     loading: false,
@@ -65,6 +66,7 @@ const props = withDefaults(
     keywordAutoSearch: false,
     keywordAutoSearchDelay: 600,
     quickFilterMode: false,
+    quickFilterTogglePlacement: 'primary-actions',
   },
 );
 
@@ -161,6 +163,16 @@ const shouldShowPrimaryFilterToggle = computed(() =>
   props.quickFilterMode ? hasPrimaryFilters.value : props.primaryFilters.length > collapsedPrimaryFilterLimit,
 );
 const shouldShowPrimaryQueryButtons = computed(() => !props.quickFilterMode || primaryFiltersExpanded.value);
+const shouldShowPrimaryFilterToggleInFilterBuilder = computed(() =>
+  shouldShowPrimaryFilterToggle.value && props.quickFilterTogglePlacement === 'filter-builder' && hasFilterBuilder.value,
+);
+const shouldShowPrimaryFilterToggleInPrimaryActions = computed(() =>
+  shouldShowPrimaryFilterToggle.value && !shouldShowPrimaryFilterToggleInFilterBuilder.value,
+);
+const hasPrimaryQueryActionButtons = computed(() =>
+  shouldShowPrimaryFilterToggleInPrimaryActions.value || hasAdvancedFilters.value || shouldShowPrimaryQueryButtons.value,
+);
+const primaryFilterToggleIcon = computed(() => (primaryFiltersExpanded.value ? ArrowUp : ArrowDown));
 const primaryFilterToggleText = computed(() => {
   if (props.quickFilterMode) {
     return primaryFiltersExpanded.value
@@ -171,6 +183,10 @@ const primaryFilterToggleText = computed(() => {
     ? '收起筛选'
     : `展开筛选${hiddenPrimaryFilterCount.value ? `（${hiddenPrimaryFilterCount.value}）` : ''}`;
 });
+
+function togglePrimaryFilters() {
+  primaryFiltersExpanded.value = !primaryFiltersExpanded.value;
+}
 
 function handleSearch() {
   const normalizedKeyword = keywordDraft.value.trim();
@@ -314,7 +330,13 @@ function handleStandaloneKeywordClear() {
 
     <section v-if="hasFilterBuilder || hasPrimaryActions || hasPrimaryFilters || hasAdvancedFilters || showSearch" class="record-filter-panel">
       <div v-if="hasFilterBuilder" class="record-condition-panel">
-        <slot name="filter-builder" />
+        <slot
+          name="filter-builder"
+          :quick-filter-toggle-visible="shouldShowPrimaryFilterToggleInFilterBuilder"
+          :quick-filter-toggle-text="primaryFilterToggleText"
+          :quick-filter-toggle-icon="primaryFilterToggleIcon"
+          :toggle-quick-filter="togglePrimaryFilters"
+        />
       </div>
 
       <div class="record-filter-primary">
@@ -369,12 +391,12 @@ function handleStandaloneKeywordClear() {
             </el-collapse-transition>
           </div>
 
-          <div v-if="shouldShowPrimaryQueryActions" class="record-filter-primary-actions">
+          <div v-if="shouldShowPrimaryQueryActions && hasPrimaryQueryActionButtons" class="record-filter-primary-actions">
             <el-button
-              v-if="shouldShowPrimaryFilterToggle"
+              v-if="shouldShowPrimaryFilterToggleInPrimaryActions"
               plain
-              :icon="primaryFiltersExpanded ? ArrowUp : ArrowDown"
-              @click="primaryFiltersExpanded = !primaryFiltersExpanded"
+              :icon="primaryFilterToggleIcon"
+              @click="togglePrimaryFilters"
             >
               {{ primaryFilterToggleText }}
             </el-button>
@@ -548,13 +570,13 @@ function handleStandaloneKeywordClear() {
 .record-table-workspace {
   display: grid;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
   padding: 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 12px 28px rgba(15, 23, 42, 0.04);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .record-filter-panel {
@@ -743,9 +765,12 @@ function handleStandaloneKeywordClear() {
 
 .record-table-frame {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(15, 23, 42, 0.06);
   background: #fff;
   outline: none;
@@ -755,6 +780,15 @@ function handleStandaloneKeywordClear() {
 .record-table {
   width: max-content;
   min-width: 100%;
+}
+
+.record-table :deep(.cell) {
+  min-width: 0;
+}
+
+.record-table :deep(.el-table__expanded-cell) {
+  padding: 0 !important;
+  background: #fff;
 }
 
 .record-table-frame :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {

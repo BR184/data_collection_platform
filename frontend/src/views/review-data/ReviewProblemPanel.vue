@@ -34,13 +34,14 @@ function isPendingReview(row: Record<string, unknown>) {
 
     <div class="problem-subtable-frame">
       <el-table
-      v-loading="loading"
-      :data="rows"
-      class="problem-subtable"
-      border
-      stripe
-      empty-text="当前评审下还没有录入问题清单。"
-    >
+        v-loading="loading"
+        :data="rows"
+        class="problem-subtable"
+        border
+        stripe
+        empty-text="当前评审下还没有录入问题清单。"
+        style="width: max-content; min-width: 100%"
+      >
       <el-table-column
         v-for="column in columns"
         :key="column.key"
@@ -107,7 +108,9 @@ function isPendingReview(row: Record<string, unknown>) {
 .problem-panel {
   display: grid;
   gap: 12px;
-  width: min(100%, calc(100vw - 304px));
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 12px 16px 14px;
   background: rgba(248, 250, 252, 0.72);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
@@ -122,6 +125,8 @@ function isPendingReview(row: Record<string, unknown>) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .problem-panel-title {
@@ -135,15 +140,20 @@ function isPendingReview(row: Record<string, unknown>) {
 .problem-subtable-frame {
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-gutter: stable;
 }
 
 .problem-subtable {
-  min-width: 1280px;
-  border-radius: 12px;
+  min-width: 1320px;
+  border-radius: 8px;
   overflow: hidden;
+}
+
+:deep(.problem-subtable .cell) {
+  min-width: 0;
 }
 
 .problem-actions {

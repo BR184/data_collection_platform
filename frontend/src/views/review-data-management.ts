@@ -54,20 +54,20 @@ export interface ReviewProblemItemFormModel {
 
 export function reviewDataColumns(): RecordTableColumn[] {
   return [
-    { key: 'title', label: '标题', sortable: true, width: 300, fixed: 'left' },
+    { key: 'title', label: '标题', sortable: true, width: 320, fixed: 'left', align: 'left', headerAlign: 'center' },
     { key: 'projectName', label: '项目', sortable: true, width: 120 },
     { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 110, align: 'right' },
     { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 110, align: 'right' },
-    { key: 'problemDensity', label: '评审缺陷密度(个/页)', sortable: true, width: 110, align: 'right' },
-    { key: 'reviewEfficiency', label: '评审效率(个/小时)', sortable: true, width: 130, align: 'right' },
-    { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 120, align: 'right' },
+    { key: 'problemDensity', label: '评审缺陷密度(个/页)', sortable: true, width: 146, align: 'right' },
+    { key: 'reviewEfficiency', label: '评审效率(个/小时)', sortable: true, width: 142, align: 'right' },
+    { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 136, align: 'right' },
     { key: 'moduleName', label: '模块', sortable: true, width: 80 },
     { key: 'reviewOwner', label: '负责人', sortable: true, width: 80 },
     { key: 'createdAt', label: '上传时间', sortable: true, width: 160 },
-    { key: 'independentReviewWorkload', label: '独立评审工作量合计(小时)', sortable: true, width: 150, align: 'right' },
-    { key: 'independentReviewProblemCount', label: '有效的独立评审问题数合计(个)', sortable: true, width: 200, align: 'right' },
-    { key: 'meetingReviewWorkload', label: '会议评审工作量(小时）', sortable: true, width: 120, align: 'right' },
-    { key: 'meetingReviewProblemCount', label: '有效的会议评审问题数合计(个)', sortable: true, width: 150, align: 'right' },
+    { key: 'independentReviewWorkload', label: '独立评审工作量合计(小时)', sortable: true, width: 178, align: 'right' },
+    { key: 'independentReviewProblemCount', label: '有效的独立评审问题数合计(个)', sortable: true, width: 226, align: 'right' },
+    { key: 'meetingReviewWorkload', label: '会议评审工作量(小时）', sortable: true, width: 154, align: 'right' },
+    { key: 'meetingReviewProblemCount', label: '有效的会议评审问题数合计(个)', sortable: true, width: 206, align: 'right' },
     { key: 'notReachStandardReason', label: '不达标说明', width: 150 },
     {
       key: 'reachStandard',
@@ -85,9 +85,9 @@ export function reviewDataColumns(): RecordTableColumn[] {
 export function reviewProblemItemColumns(): RecordTableColumn[] {
   return [
     { key: 'reviewerName', label: '评审专家', minWidth: 110 },
-    { key: 'workloadHours', label: '评审工作量', width: 110, align: 'right' },
+    { key: 'workloadHours', label: '评审工作量', width: 112, align: 'right' },
     { key: 'reviewCategory', label: '评审类别', minWidth: 110 },
-    { key: 'documentPosition', label: '在文档中的位置', minWidth: 150 },
+    { key: 'documentPosition', label: '在文档中的位置', minWidth: 168 },
     { key: 'problemCategory', label: '问题类别', minWidth: 110 },
     { key: 'problemDescription', label: '问题描述', minWidth: 220 },
     { key: 'suggestedSolution', label: '建议解决方案', minWidth: 220 },

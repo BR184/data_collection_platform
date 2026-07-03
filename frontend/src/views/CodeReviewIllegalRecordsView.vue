@@ -511,6 +511,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :show-search="false"
       :show-refresh="false"
       quick-filter-mode
+      quick-filter-toggle-placement="filter-builder"
       :empty-description="tableEmptyDescription"
       @reset="handleReset"
       @filter-change="handleFilterChange"
@@ -520,7 +521,14 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       @current-change="handleCurrentChange"
       @sort-change="handleSortChange"
     >
-      <template #filter-builder>
+      <template
+        #filter-builder="{
+          quickFilterToggleVisible,
+          quickFilterToggleText,
+          quickFilterToggleIcon,
+          toggleQuickFilter,
+        }"
+      >
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="conditionFilterFields"
@@ -528,7 +536,18 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           show-apply-actions
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
-        />
+        >
+          <template #summary-actions-extra>
+            <el-button
+              v-if="quickFilterToggleVisible"
+              plain
+              :icon="quickFilterToggleIcon"
+              @click="toggleQuickFilter()"
+            >
+              {{ quickFilterToggleText }}
+            </el-button>
+          </template>
+        </StatisticFilterBuilder>
       </template>
 
       <template #primary-actions>

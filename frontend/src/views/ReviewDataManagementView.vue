@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref } from 'vue';
 // 评审数据页是记录、问题项、详情抽屉和导出的组合入口。
 // 复杂状态拆到 review-data composable 中，本页只编排跨区块刷新和用户动作。
@@ -396,6 +396,7 @@ const {
       :row-actions-width="188"
       :show-refresh="false"
       quick-filter-mode
+      quick-filter-toggle-placement="filter-builder"
       query-button-text="查询"
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
@@ -408,14 +409,32 @@ const {
       @size-change="handleSizeChange"
       @expand-change="handleExpandChange"
     >
-      <template #filter-builder>
+      <template
+        #filter-builder="{
+          quickFilterToggleVisible,
+          quickFilterToggleText,
+          quickFilterToggleIcon,
+          toggleQuickFilter,
+        }"
+      >
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="reviewFilterFields"
           show-apply-actions
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
-        />
+        >
+          <template #summary-actions-extra>
+            <el-button
+              v-if="quickFilterToggleVisible"
+              plain
+              :icon="quickFilterToggleIcon"
+              @click="toggleQuickFilter()"
+            >
+              {{ quickFilterToggleText }}
+            </el-button>
+          </template>
+        </StatisticFilterBuilder>
       </template>
 
       <template #primary-actions>
@@ -540,12 +559,15 @@ const {
 .review-data-page {
   display: grid;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
 }
 
 .review-data-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
+  min-width: 0;
 }
 
 .summary-card {
@@ -554,9 +576,10 @@ const {
   min-height: 72px;
   padding: 12px 16px;
   border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.03);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  min-width: 0;
 }
 
 .summary-card-label {
@@ -575,16 +598,24 @@ const {
 .title-cell {
   display: grid;
   gap: 4px;
+  min-width: 0;
+  text-align: left;
 }
 
 .title-main {
   color: rgba(15, 23, 42, 0.88);
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .title-sub {
   font-size: 12px;
   color: rgba(15, 23, 42, 0.48);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-data-toolbar-actions {
@@ -592,6 +623,15 @@ const {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.review-data-page :deep(.record-table-workspace) {
+  min-width: 0;
+}
+
+.review-data-page :deep(.record-table .el-table__expanded-cell) {
+  padding: 0 !important;
 }
 
 </style>
