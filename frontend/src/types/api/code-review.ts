@@ -1,6 +1,10 @@
 import type { CodeReviewRuleConfig } from '../code-review-rule-config';
 import type { OptionItemResponse } from './common';
 
+export interface CodeReviewMatchModeStatusResponse {
+  enabled: boolean;
+}
+
 export interface CodeReviewIllegalRecordRowResponse {
   requestType: string;
   sourceInstance: string;

@@ -764,14 +764,14 @@ button {
 .stat-matrix-table {
   border-radius: 0;
   overflow: visible;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
   border-top: 0 !important;
 }
 
 .stat-matrix-table .el-table__header-wrapper,
 .stat-matrix-table .el-table__body-wrapper {
-  width: auto;
+  width: 100%;
   min-width: 100%;
 }
 

@@ -237,7 +237,7 @@ void initializePage();
               stripe
               border
               empty-text="当前暂无模块统计"
-              style="width: max-content; min-width: 100%"
+              style="width: 100%; min-width: 990px"
             >
               <el-table-column prop="rowLabel" label="模块" min-width="180" />
               <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
@@ -273,7 +273,7 @@ void initializePage();
               stripe
               border
               empty-text="当前暂无责任人统计"
-              style="width: max-content; min-width: 100%"
+              style="width: 100%; min-width: 880px"
             >
               <el-table-column prop="rowLabel" label="责任人" min-width="160" />
               <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />

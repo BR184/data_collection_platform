@@ -4,6 +4,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
 import { ElMessage } from './element-plus-services';
+import { api } from './api';
 import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import {
@@ -14,6 +15,7 @@ import {
   pageByKey,
   type ModuleKey,
   type PageKey,
+  type ShellModule,
 } from './feature-manifest';
 import { shellDataScopeState } from './composables/shell-data-scope';
 import { authState, loadCurrentUser, login, logout } from './composables/auth-state';
@@ -34,7 +36,15 @@ const usernameInputRef = ref<InputFocusTarget>();
 const passwordInputRef = ref<InputFocusTarget>();
 
 const currentUser = computed(() => authState.currentUser);
-const visibleModules = computed(() => getVisibleModules(currentUser.value));
+const matchModeEnabled = ref(true);
+const matchModeStatusLoaded = ref(false);
+let matchModeStatusRequestId = 0;
+const hideCodeReviewMultiBoard = computed(() => !matchModeStatusLoaded.value || matchModeEnabled.value);
+const visibleModules = computed(() =>
+  getVisibleModules(currentUser.value)
+    .map(filterModulePagesForRuntime)
+    .filter((module): module is ShellModule => module !== null),
+);
 
 const activeModule = computed(
   () => {
@@ -66,6 +76,14 @@ const authModeTagType = computed(() => {
 });
 const sidebarCollapsed = ref(readSidebarCollapsedPreference());
 
+function filterModulePagesForRuntime(module: ShellModule): ShellModule | null {
+  if (module.key !== 'code-review' || !hideCodeReviewMultiBoard.value) {
+    return module;
+  }
+  const pages = module.pages.filter((page) => page.key !== 'code-review-multi-board');
+  return pages.length ? { ...module, pages } : null;
+}
+
 function readSidebarCollapsedPreference() {
   try {
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true';
@@ -84,7 +102,7 @@ function toggleSidebarCollapsed() {
 }
 
 function openModule(moduleKey: string) {
-  const targetModule = moduleByKey.get(moduleKey as never);
+  const targetModule = visibleModules.value.find((module) => module.key === moduleKey);
   if (!targetModule?.pages.length) {
     return;
   }
@@ -100,10 +118,34 @@ function ensureRouteAccess() {
     return;
   }
   const pageKey = route.meta.pageKey as PageKey | undefined;
+  if (matchModeStatusLoaded.value && matchModeEnabled.value && pageKey === 'code-review-multi-board') {
+    void router.replace('/code-review/illegal-records');
+    return;
+  }
   if (!pageKey || !pageByKey.has(pageKey) || canAccessPageKey(pageKey, currentUser.value)) {
     return;
   }
   void router.replace(getFirstAccessiblePagePath(currentUser.value));
+}
+
+async function loadMatchModeMenuState() {
+  const requestId = ++matchModeStatusRequestId;
+  matchModeStatusLoaded.value = false;
+  try {
+    const status = await api.getCodeReviewMatchModeStatus();
+    if (requestId === matchModeStatusRequestId) {
+      matchModeEnabled.value = status.enabled;
+    }
+  } catch {
+    if (requestId === matchModeStatusRequestId) {
+      matchModeEnabled.value = true;
+    }
+  } finally {
+    if (requestId === matchModeStatusRequestId) {
+      matchModeStatusLoaded.value = true;
+      ensureRouteAccess();
+    }
+  }
 }
 
 async function focusUsernameInput() {
@@ -158,7 +200,21 @@ onMounted(async () => {
 });
 
 watch(
-  () => [currentUser.value.role, currentUser.value.authenticated] as const,
+  () => route.path,
+  () => {
+    void loadMatchModeMenuState();
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    currentUser.value.role,
+    currentUser.value.authenticated,
+    route.meta.pageKey,
+    matchModeStatusLoaded.value,
+    matchModeEnabled.value,
+  ] as const,
   () => ensureRouteAccess(),
 );
 </script>

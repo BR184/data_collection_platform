@@ -6,6 +6,7 @@ import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordListResponse;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordRowResponse;
+import com.data.collection.platform.entity.CodeReviewMatchModeStatusResponse;
 import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.CodeReviewRulePreviewResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
@@ -13,6 +14,7 @@ import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanat
 import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
+import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import com.data.collection.platform.service.MergeRequestFactRealtimeRefreshService;
 import org.springframework.http.HttpHeaders;
@@ -34,19 +36,28 @@ public class CodeReviewController {
   private static final String MULTI_BOARD_WORKSPACE_KEY = "code-review-multi-board";
 
   private final CodeReviewIllegalRecordService codeReviewIllegalRecordService;
+  private final CodeReviewMatchModeConfigService codeReviewMatchModeConfigService;
   private final CodeReviewMultiBoardService codeReviewMultiBoardService;
   private final CodeReviewRequestAssembler codeReviewRequestAssembler;
   private final MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService;
 
   public CodeReviewController(
       CodeReviewIllegalRecordService codeReviewIllegalRecordService,
+      CodeReviewMatchModeConfigService codeReviewMatchModeConfigService,
       CodeReviewMultiBoardService codeReviewMultiBoardService,
       CodeReviewRequestAssembler codeReviewRequestAssembler,
       MergeRequestFactRealtimeRefreshService multiBoardRealtimeRefreshService) {
     this.codeReviewIllegalRecordService = codeReviewIllegalRecordService;
+    this.codeReviewMatchModeConfigService = codeReviewMatchModeConfigService;
     this.codeReviewMultiBoardService = codeReviewMultiBoardService;
     this.codeReviewRequestAssembler = codeReviewRequestAssembler;
     this.multiBoardRealtimeRefreshService = multiBoardRealtimeRefreshService;
+  }
+
+  @GetMapping("/match-mode/status")
+  public ApiResponse<CodeReviewMatchModeStatusResponse> getMatchModeStatus() {
+    return ApiResponse.success(new CodeReviewMatchModeStatusResponse(
+        codeReviewMatchModeConfigService.isMatchModeEnabled()));
   }
 
   @GetMapping("/illegal-records")

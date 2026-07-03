@@ -169,7 +169,7 @@ async function handleExpandChange() {
           border
           stripe
           size="small"
-          :fit="false"
+          :fit="true"
           class="stat-detail-table"
           :class="detailTableClass"
           @sort-change="onSortChange"
@@ -278,12 +278,15 @@ async function handleExpandChange() {
 }
 
 .stat-detail-expand-panel {
-  padding: 10px 16px 12px 42px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px 12px 42px;
   background: #fafcff;
 }
 
 .stat-detail-expand-descriptions {
   width: 100%;
+  table-layout: fixed;
 }
 
 .stat-detail-expand-descriptions :deep(.el-descriptions__label.stat-detail-expand-label) {
@@ -311,7 +314,16 @@ async function handleExpandChange() {
 }
 
 .stat-detail-table {
+  min-width: 100%;
   width: max(100%, var(--stat-detail-table-content-width, 960px));
+}
+
+.stat-detail-table :deep(.el-table__inner-wrapper),
+.stat-detail-table :deep(.el-table__header-wrapper),
+.stat-detail-table :deep(.el-table__body-wrapper),
+.stat-detail-table :deep(.el-table__header),
+.stat-detail-table :deep(.el-table__body) {
+  width: 100% !important;
 }
 
 .stat-detail-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
@@ -371,7 +383,12 @@ async function handleExpandChange() {
 .stat-detail-table :deep(.el-table__expanded-cell .cell) {
   display: block;
   min-height: 0;
+  width: 100%;
   overflow: visible;
+}
+
+.stat-detail-table :deep(td.el-table__expanded-cell) {
+  padding: 0 !important;
 }
 
 .detail-pagination {

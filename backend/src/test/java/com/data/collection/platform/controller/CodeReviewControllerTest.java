@@ -24,6 +24,7 @@ import com.data.collection.platform.service.CodeReviewIllegalRecordFilterOptions
 import com.data.collection.platform.service.CodeReviewIllegalRecordQueryRequest;
 import com.data.collection.platform.service.CodeReviewMultiBoardOverviewRequest;
 import com.data.collection.platform.service.CodeReviewIllegalRecordService;
+import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
 import com.data.collection.platform.service.CodeReviewMultiBoardService;
 import com.data.collection.platform.service.MergeRequestFactRealtimeRefreshService;
 import java.time.LocalDateTime;
@@ -43,6 +44,9 @@ class CodeReviewControllerTest {
   private CodeReviewIllegalRecordService codeReviewIllegalRecordService;
 
   @Mock
+  private CodeReviewMatchModeConfigService codeReviewMatchModeConfigService;
+
+  @Mock
   private CodeReviewMultiBoardService codeReviewMultiBoardService;
 
   @Mock
@@ -56,6 +60,7 @@ class CodeReviewControllerTest {
         MockMvcBuilders.standaloneSetup(
                 new CodeReviewController(
                     codeReviewIllegalRecordService,
+                    codeReviewMatchModeConfigService,
                     codeReviewMultiBoardService,
                     new CodeReviewRequestAssembler(),
                     multiBoardRealtimeRefreshService))

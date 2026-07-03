@@ -77,7 +77,7 @@ describe('StatisticBoardDetailDialog', () => {
   it('renders detail title, columns and formatted cell values', () => {
     const wrapper = mountDialog();
 
-    expect(wrapper.findComponent({ name: 'ElTable' }).props('fit')).toBe(false);
+    expect(wrapper.findComponent({ name: 'ElTable' }).props('fit')).toBe(true);
     expect(wrapper.text()).toContain('Issue detail');
     expect(wrapper.text()).toContain('IID');
     expect(wrapper.text()).toContain('Title');

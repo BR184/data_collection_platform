@@ -1,6 +1,7 @@
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordListResponse,
+  CodeReviewMatchModeStatusResponse,
   CodeReviewMultiBoardOverviewResponse,
   CodeReviewRulePreviewRequest,
   OptionItemResponse,
@@ -60,6 +61,9 @@ function buildIllegalRecordQuery(params: CodeReviewIllegalRecordQueryParams, inc
 }
 
 export const codeReviewApi = {
+  getCodeReviewMatchModeStatus() {
+    return request<CodeReviewMatchModeStatusResponse>('/api/code-review/match-mode/status');
+  },
   getCodeReviewIllegalRecords(params: CodeReviewIllegalRecordQueryParams) {
     const query = buildIllegalRecordQuery(params);
     return request<CodeReviewIllegalRecordListResponse>(`/api/code-review/illegal-records?${query.toString()}`);

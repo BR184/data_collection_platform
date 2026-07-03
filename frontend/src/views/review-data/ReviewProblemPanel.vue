@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { EditPen, Plus, WarningFilled } from '@element-plus/icons-vue';
 // 问题项面板挂在评审记录行下方，用于展示专家问题列表和行内新增入口。
 // 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
 import type { ReviewDataProblemItemResponse, ReviewDataRecordRowResponse } from '../../types/api';
 import type { RecordTableColumn } from '../../types/record-table';
 
-defineProps<{
+const props = defineProps<{
   record: ReviewDataRecordRowResponse;
   loading: boolean;
   rows: Record<string, unknown>[];
@@ -15,6 +16,15 @@ defineProps<{
   onDeleteProblemItem: (recordId: number, itemId: number) => void | Promise<void>;
   canManage?: boolean;
 }>();
+
+const problemTableStyle = computed(() => {
+  const dataColumnsWidth = props.columns.reduce((total, column) => total + (column.width ?? column.minWidth ?? 140), 0);
+  const actionWidth = props.canManage ? 136 : 0;
+  return {
+    width: `${dataColumnsWidth + actionWidth + 2}px`,
+    minWidth: '100%',
+  };
+});
 
 function isPendingReview(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataProblemItemResponse | undefined;
@@ -40,7 +50,7 @@ function isPendingReview(row: Record<string, unknown>) {
         border
         stripe
         empty-text="当前评审下还没有录入问题清单。"
-        style="width: max-content; min-width: 100%"
+        :style="problemTableStyle"
       >
       <el-table-column
         v-for="column in columns"
@@ -113,7 +123,6 @@ function isPendingReview(row: Record<string, unknown>) {
   min-width: 0;
   padding: 12px 16px 14px;
   background: rgba(248, 250, 252, 0.72);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
   overflow: hidden;
   transform-origin: top center;
   animation: problem-panel-drawer-in 340ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -147,9 +156,19 @@ function isPendingReview(row: Record<string, unknown>) {
 }
 
 .problem-subtable {
-  min-width: 1320px;
+  width: 100%;
+  min-width: 100%;
   border-radius: 8px;
   overflow: hidden;
+}
+
+.problem-subtable :deep(.el-table__inner-wrapper),
+.problem-subtable :deep(.el-table__header-wrapper),
+.problem-subtable :deep(.el-table__body-wrapper),
+.problem-subtable :deep(.el-table__header),
+.problem-subtable :deep(.el-table__body) {
+  width: 100% !important;
+  min-width: 100%;
 }
 
 :deep(.problem-subtable .cell) {
@@ -238,7 +257,6 @@ function isPendingReview(row: Record<string, unknown>) {
     max-height: 960px;
     opacity: 1;
     transform: translateY(0) scaleY(1);
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
   }
 }
 

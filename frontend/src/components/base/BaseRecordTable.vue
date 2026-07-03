@@ -173,6 +173,16 @@ const hasPrimaryQueryActionButtons = computed(() =>
   shouldShowPrimaryFilterToggleInPrimaryActions.value || hasAdvancedFilters.value || shouldShowPrimaryQueryButtons.value,
 );
 const primaryFilterToggleIcon = computed(() => (primaryFiltersExpanded.value ? ArrowUp : ArrowDown));
+const tableContentWidth = computed(() => {
+  const expandWidth = hasExpand.value ? (props.expandColumnVisible ? 42 : 1) : 0;
+  const rowActionsWidth = hasRowActions.value ? props.rowActionsWidth : 0;
+  const dataColumnsWidth = props.columns.reduce((total, column) => total + (column.width ?? column.minWidth ?? 140), 0);
+  return expandWidth + rowActionsWidth + dataColumnsWidth + 2;
+});
+const recordTableStyle = computed(() => ({
+  width: `${tableContentWidth.value}px`,
+  minWidth: '100%',
+}));
 const primaryFilterToggleText = computed(() => {
   if (props.quickFilterMode) {
     return primaryFiltersExpanded.value
@@ -478,8 +488,9 @@ function handleStandaloneKeywordClear() {
         :expand-row-keys="expandedRowKeys"
         border
         stripe
+        :fit="true"
         class="record-table"
-        style="width: max-content; min-width: 100%"
+        :style="recordTableStyle"
         @sort-change="emit('sort-change', $event)"
         @expand-change="handleExpandChange"
       >
@@ -700,7 +711,7 @@ function handleStandaloneKeywordClear() {
   margin-top: 12px;
   padding: 12px;
   border-top: 1px dashed rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
+  border-radius: 8px;
   background: rgba(248, 250, 252, 0.88);
 }
 
@@ -778,7 +789,16 @@ function handleStandaloneKeywordClear() {
 }
 
 .record-table {
-  width: max-content;
+  width: 100%;
+  min-width: 100%;
+}
+
+.record-table :deep(.el-table__inner-wrapper),
+.record-table :deep(.el-table__header-wrapper),
+.record-table :deep(.el-table__body-wrapper),
+.record-table :deep(.el-table__header),
+.record-table :deep(.el-table__body) {
+  width: 100% !important;
   min-width: 100%;
 }
 

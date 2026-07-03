@@ -252,12 +252,22 @@ async function handleExpandChange() {
 
 .sync-log-table-shell {
   position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
   outline: none;
   scrollbar-gutter: stable;
 }
 
 .sync-log-table {
   width: 100%;
+}
+
+.sync-log-table :deep(.el-table__inner-wrapper),
+.sync-log-table :deep(.el-table__header-wrapper),
+.sync-log-table :deep(.el-table__body-wrapper),
+.sync-log-table :deep(.el-table__header),
+.sync-log-table :deep(.el-table__body) {
+  min-width: 100%;
 }
 
 .sync-log-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { Component } from 'vue';
 // 基础统计表负责把统计行按列组展示成稳定表格，供多个看板的明细摘要复用。
 // 这里不做字段推导，列组和格式化规则都由上层统计配置决定。
@@ -77,6 +77,16 @@ const props = withDefaults(
 );
 
 const tableShellRef = ref<HTMLElement>();
+const tableContentWidth = computed(() => {
+  const dataColumnsWidth = props.orderedColumnGroups.reduce((total, group) => {
+    return total + flattenStatisticColumnLeavesFromGroup(group).reduce((sum, column) => sum + props.columnMinWidth(column), 0);
+  }, 0);
+  return props.firstColumnWidth + dataColumnsWidth + 2;
+});
+const statMatrixStyle = computed(() => ({
+  width: `${tableContentWidth.value}px`,
+  minWidth: '100%',
+}));
 const {
   floatingScrollbarRef,
   scrollbarAwake,
@@ -128,7 +138,7 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
       fit
       class="base-stat-table stat-matrix-table"
       :class="props.uiHooks.tableClass"
-      style="width: max-content; min-width: 100%"
+      :style="statMatrixStyle"
     >
       <el-table-column
         prop="rowLabel"
@@ -325,7 +335,16 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
 }
 
 .stat-matrix-table {
-  width: max-content;
+  width: 100%;
+  min-width: 100%;
+}
+
+.stat-matrix-table :deep(.el-table__inner-wrapper),
+.stat-matrix-table :deep(.el-table__header-wrapper),
+.stat-matrix-table :deep(.el-table__body-wrapper),
+.stat-matrix-table :deep(.el-table__header),
+.stat-matrix-table :deep(.el-table__body) {
+  width: 100% !important;
   min-width: 100%;
 }
 
