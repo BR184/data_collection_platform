@@ -95,7 +95,9 @@ const {
   floatingScrollbarRef,
   scrollbarAwake,
   hasHorizontalOverflow,
+  isFloatingScrollbarVisible,
   horizontalSpacerWidth,
+  floatingScrollbarStyle,
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
   handleFloatingHorizontalScroll,
@@ -413,7 +415,6 @@ function handleStandaloneKeywordClear() {
             <el-button
               v-if="shouldShowPrimaryFilterToggleInPrimaryActions"
               class="app-action-button app-action-button--filter"
-              plain
               :icon="primaryFilterToggleIcon"
               @click="togglePrimaryFilters"
             >
@@ -427,7 +428,7 @@ function handleStandaloneKeywordClear() {
               {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
             </el-button>
             <template v-if="shouldShowPrimaryQueryButtons">
-              <el-button type="primary" class="app-action-button app-action-button--query" @click="handleQueryClick">
+              <el-button class="app-action-button app-action-button--query" @click="handleQueryClick">
                 {{ queryButtonText }}
               </el-button>
               <el-button class="app-action-button app-action-button--reset" @click="handleReset">重置</el-button>
@@ -465,7 +466,7 @@ function handleStandaloneKeywordClear() {
         <slot name="toolbar-actions" />
         <el-button
           v-if="showRefresh"
-          class="app-action-button app-action-button--refresh"
+          class="app-action-button app-action-button--refresh btn-gray"
           :icon="Refresh"
           @click="emit('refresh')"
         >
@@ -568,9 +569,10 @@ function handleStandaloneKeywordClear() {
         </template>
       </el-table>
       <div
-        v-show="hasHorizontalOverflow"
+        v-show="isFloatingScrollbarVisible"
         ref="floatingScrollbarRef"
         class="record-table-floating-horizontal"
+        :style="floatingScrollbarStyle"
         aria-hidden="true"
         @mouseenter="wakeHorizontalScrollbar"
         @scroll="handleFloatingHorizontalScroll"
@@ -821,18 +823,19 @@ function handleStandaloneKeywordClear() {
 }
 
 .record-table-floating-horizontal {
-  position: sticky;
-  right: 14px;
-  bottom: 2px;
-  left: 0;
-  z-index: 6;
-  height: 14px;
+  position: fixed;
+  z-index: 1200;
+  height: 16px;
+  padding: 3px 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
   pointer-events: auto;
   opacity: 1;
   scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 76%) transparent;
+  scrollbar-color: var(--el-color-primary-light-3) transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 92%, transparent);
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .record-table-floating-horizontal::-webkit-scrollbar {
@@ -845,7 +848,7 @@ function handleStandaloneKeywordClear() {
 
 .record-table-floating-horizontal::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgb(148 163 184 / 76%);
+  background: var(--el-color-primary-light-3);
 }
 
 .record-table-floating-horizontal-spacer {

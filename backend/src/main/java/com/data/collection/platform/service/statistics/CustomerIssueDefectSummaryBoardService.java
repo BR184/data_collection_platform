@@ -409,7 +409,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         true,
         "客户问题缺陷汇总规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先排除系统测试或回归测试范围，再按模块展开。",
+        "当前统计限定为客户问题范围，按模块展示缺陷数量、优先级、修复情况、关闭情况和延期情况。",
         "同一条议题如果关联多个模块，会分别计入对应模块；总计行仍按议题本身统计。",
         snapshot.flowSteps(),
         buildMetricDefinitions(),
@@ -431,8 +431,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
-                "加载议题事实",
-                "从 issue_fact 读取已经归一化的议题事实。",
+                "加载议题数据",
+                "加载已同步到平台的客户问题议题数据，并使用整理后的里程碑、模块、优先级和处理状态。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample
@@ -440,7 +440,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             StatisticRuleFlowSupport.step(
                 "scope-filter",
                 "限定客户问题范围",
-                "按客户问题 scope profile 收口 issue_fact：限定 project_id=325、创建时间边界和 CC_Product 里程碑。",
+                "限定为 CC_Product 客户问题范围，并按客户问题统计要求应用创建时间和里程碑范围。",
                 initial.size(),
                 scoped,
                 this::toRuleFlowSample
@@ -448,7 +448,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             StatisticRuleFlowSupport.step(
                 "exclude-invalid-issues",
                 "排除无效数据",
-                "剔除 issue_fact.is_excluded = true 的议题，避免异常样本干扰汇总结果。",
+                "剔除已按公共规则排除的无效议题，避免异常样本干扰汇总结果。",
                 scoped.size(),
                 valid,
                 this::toRuleFlowSample
@@ -603,8 +603,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   private List<StatisticRuleMetricDefinition> buildMetricDefinitions() {
     return List.of(
-        new StatisticRuleMetricDefinition("level1", "一级缺陷", "一级缺陷基于 severity_level = LEVEL1，再拆分回退、挂机、其他一级。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),
-        new StatisticRuleMetricDefinition("priority-summary", "缺陷级别汇总", "P1/P2/P3 与一级/二级/三级缺陷是两套独立统计体系，直接按 priority_level 聚合。", "Pn 修复率 = 已修复 Pn 数量 / Pn 总数；Pn 关闭率 = 已关闭 Pn 数量 / Pn 总数", null),
+        new StatisticRuleMetricDefinition("level1", "一级缺陷", "严重程度为一级缺陷的议题会进入一级缺陷统计，并继续拆分为回退、挂机和其他一级缺陷。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),
+        new StatisticRuleMetricDefinition("priority-summary", "缺陷级别汇总", "P1/P2/P3 是优先级统计，一级/二级/三级是严重程度统计，两套口径不能混用。", "某优先级修复率 = 已修复数量 / 该优先级总数；某优先级关闭率 = 已关闭数量 / 该优先级总数", null),
         new StatisticRuleMetricDefinition("summary", "综合汇总", "综合区展示模块总缺陷、缺陷占比、延期占比、已修复/未更新、修复率、关闭率、未关闭数量、申请延期和复测未通过。", "修复率 = 已修复/未更新数量 / 模块总缺陷数；缺陷占比 = 当前模块缺陷数 / 当前范围全部缺陷数", null),
         new StatisticRuleMetricDefinition("new-issue", "新发议题", "新发议题按“排除历史遗留”后的议题统计。", "新发议题修复率 = 已修复/未更新的新发议题数量 / 新发议题总数", null),
         new StatisticRuleMetricDefinition("legacy", "遗留率", "严格按老平台 ModuleTableRow 的遗留率公式计算。", "一级缺陷遗留率 = (一级缺陷总数 - 一级缺陷已修复数量) / 一级缺陷总数；二级/三级缺陷遗留数量使用未修复口径；二三级缺陷遗留率 = 已修复的二三级缺陷数 / 模块总缺陷数", null));

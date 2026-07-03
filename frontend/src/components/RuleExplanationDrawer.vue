@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { StatisticRuleFlowStep, StatisticRuleMetricDefinition } from '../types/api';
 import {
   metricFormulaSummary,
@@ -6,6 +7,7 @@ import {
   ruleStepRetainedRate,
   ruleStepSummary,
 } from './statistic-board-rule-explanation';
+import { businessRuleCopy, businessRuleMetric, businessRuleStep } from '../utils/rule-explanation-copy';
 
 interface OverviewCard {
   label: string;
@@ -79,12 +81,43 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
 }>();
+
+const readableTitle = computed(() => businessRuleCopy(props.title) || '规则说明');
+const readableUnsupportedReason = computed(() => businessRuleCopy(props.unsupportedReason) || '当前暂不支持规则说明。');
+const readableSummaryMain = computed(() => businessRuleCopy(props.summaryMain) || '');
+const readableSummary = computed(() => businessRuleCopy(props.summary) || '');
+const readableInfoItems = computed(() =>
+  props.infoItems.map((item) => ({
+    ...item,
+    value: businessRuleCopy(item.value) ?? item.value,
+  })),
+);
+const readableGuidanceCards = computed(() =>
+  props.guidanceCards.map((card) => ({
+    ...card,
+    title: businessRuleCopy(card.title) || card.title,
+    description: businessRuleCopy(card.description) ?? card.description,
+    guidance: businessRuleCopy(card.guidance) ?? card.guidance,
+    note: businessRuleCopy(card.note) ?? card.note,
+    badge: businessRuleCopy(card.badge) ?? card.badge,
+  })),
+);
+const readableExclusionSteps = computed(() => props.exclusionSteps.map(businessRuleStep));
+const readableProcessSteps = computed(() => props.processSteps.map(businessRuleStep));
+const readableMetrics = computed(() => props.metrics.map(businessRuleMetric));
+const readableQuestions = computed(() =>
+  props.questions.map((question) => ({
+    ...question,
+    title: businessRuleCopy(question.title) || question.title,
+    description: businessRuleCopy(question.description) || question.description,
+  })),
+);
 </script>
 
 <template>
   <el-drawer
     :model-value="modelValue"
-    :title="title || '规则说明'"
+    :title="readableTitle"
     size="44%"
     append-to-body
     destroy-on-close
@@ -94,15 +127,15 @@ const emit = defineEmits<{
     <div v-loading="loading" class="rule-explanation-panel">
       <el-empty
         v-if="!supported"
-        :description="unsupportedReason || '当前暂不支持规则说明。'"
+        :description="readableUnsupportedReason"
       />
 
       <template v-else>
-        <section v-if="summaryMain || summary || overviewCards.length" class="rule-explanation-section">
+        <section v-if="readableSummaryMain || readableSummary || overviewCards.length" class="rule-explanation-section">
           <div class="rule-explanation-section-title">先看结论</div>
-          <div v-if="summaryMain || summary" class="rule-explanation-summary-card">
-            <div v-if="summaryMain" class="rule-explanation-summary-main">{{ summaryMain }}</div>
-            <div v-if="summary" class="rule-explanation-summary-sub">{{ summary }}</div>
+          <div v-if="readableSummaryMain || readableSummary" class="rule-explanation-summary-card">
+            <div v-if="readableSummaryMain" class="rule-explanation-summary-main">{{ readableSummaryMain }}</div>
+            <div v-if="readableSummary" class="rule-explanation-summary-sub">{{ readableSummary }}</div>
           </div>
           <div v-if="overviewCards.length" class="rule-explanation-overview-grid">
             <article v-for="card in overviewCards" :key="card.label" class="rule-overview-card">
@@ -112,16 +145,16 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <el-descriptions v-if="infoItems.length" border :column="1" class="rule-explanation-meta">
-          <el-descriptions-item v-for="item in infoItems" :key="item.label" :label="item.label">
+        <el-descriptions v-if="readableInfoItems.length" border :column="1" class="rule-explanation-meta">
+          <el-descriptions-item v-for="item in readableInfoItems" :key="item.label" :label="item.label">
             {{ item.value || '-' }}
           </el-descriptions-item>
         </el-descriptions>
 
-        <section v-if="guidanceCards.length" class="rule-explanation-section">
+        <section v-if="readableGuidanceCards.length" class="rule-explanation-section">
           <div class="rule-explanation-section-title">{{ guidanceTitle }}</div>
           <div class="rule-card-grid">
-            <article v-for="card in guidanceCards" :key="card.key" class="rule-card">
+            <article v-for="card in readableGuidanceCards" :key="card.key" class="rule-card">
               <div class="rule-card-head">
                 <strong class="rule-card-title">{{ card.title }}</strong>
                 <el-tag v-if="card.badge" effect="plain" type="info">{{ card.badge }}</el-tag>
@@ -136,10 +169,10 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <section v-if="exclusionSteps.length" class="rule-explanation-section">
+        <section v-if="readableExclusionSteps.length" class="rule-explanation-section">
           <div class="rule-explanation-section-title">{{ exclusionTitle }}</div>
           <div class="rule-card-grid">
-            <article v-for="(step, index) in exclusionSteps" :key="step.key" class="rule-card">
+            <article v-for="(step, index) in readableExclusionSteps" :key="step.key" class="rule-card">
               <div class="rule-card-title">规则 {{ index + 1 }}：{{ step.title }}</div>
               <div class="rule-card-description">{{ step.description }}</div>
               <div class="rule-card-summary">{{ ruleStepSummary(step, index + 1) }}</div>
@@ -153,10 +186,10 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <section v-if="processSteps.length" class="rule-explanation-section">
+        <section v-if="readableProcessSteps.length" class="rule-explanation-section">
           <div class="rule-explanation-section-title">{{ processTitle }}</div>
           <div class="rule-process-chain">
-            <article v-for="(step, index) in processSteps" :key="`${step.key}-process`" class="rule-process-card">
+            <article v-for="(step, index) in readableProcessSteps" :key="`${step.key}-process`" class="rule-process-card">
               <div class="rule-process-step">第 {{ index + 1 }} 步</div>
               <div class="rule-process-title">{{ step.title }}</div>
               <div class="rule-process-value">{{ step.outputCount }} 条</div>
@@ -167,10 +200,10 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <section v-if="metrics.length" class="rule-explanation-section">
+        <section v-if="readableMetrics.length" class="rule-explanation-section">
           <div class="rule-explanation-section-title">{{ metricsTitle }}</div>
           <div class="rule-card-grid">
-            <article v-for="metric in metrics" :key="metric.key" class="rule-card">
+            <article v-for="metric in readableMetrics" :key="metric.key" class="rule-card">
               <div class="rule-card-title">{{ metric.label }}</div>
               <div class="rule-card-description">{{ metricFormulaSummary(metric) }}</div>
               <div class="rule-card-formula">{{ metric.formula }}</div>
@@ -179,10 +212,10 @@ const emit = defineEmits<{
           </div>
         </section>
 
-        <section v-if="questions.length" class="rule-explanation-section">
+        <section v-if="readableQuestions.length" class="rule-explanation-section">
           <div class="rule-explanation-section-title">{{ questionsTitle }}</div>
           <div class="rule-card-grid">
-            <article v-for="question in questions" :key="question.key" class="rule-card">
+            <article v-for="question in readableQuestions" :key="question.key" class="rule-card">
               <div class="rule-card-title">{{ question.title }}</div>
               <div class="rule-card-description">{{ question.description }}</div>
             </article>

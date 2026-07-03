@@ -24,7 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordListService {
+public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordListService
+    implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "customer-issue-illegal-records";
   private static final String PAGE_KEY = "customer-issues-illegal-records";
   private static final String RULE_VERSION = "customer-issue-illegal-records@2026-04-22-v1";
@@ -48,6 +49,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final FactBuildService factBuildService;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
+  private final PageRecordSnapshotService pageRecordSnapshotService;
 
   @Autowired
   public CustomerIssueIllegalRecordService(
@@ -57,13 +59,15 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
       GitlabResourceLinkService issueLinkService,
       LabelGroupExpansionService labelGroupExpansionService,
       FactBuildService factBuildService,
-      CustomerIssueMilestoneCatalogService milestoneCatalogService) {
+      CustomerIssueMilestoneCatalogService milestoneCatalogService,
+      PageRecordSnapshotService pageRecordSnapshotService) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.factBuildService = factBuildService;
     this.milestoneCatalogService = milestoneCatalogService;
+    this.pageRecordSnapshotService = pageRecordSnapshotService;
   }
 
   public CustomerIssueIllegalRecordService(
@@ -80,10 +84,26 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         issueLinkService,
         labelGroupExpansionService,
         factBuildService,
+        null,
         null);
   }
 
   public CustomerIssueIllegalRecordListResponse listRecords(
+      CustomerIssueIllegalRecordQueryRequest request) {
+    CustomerIssueIllegalRecordQueryRequest safeRequest = withSnapshotDefaults(request);
+    if (pageRecordSnapshotService == null) {
+      return loadRecords(safeRequest);
+    }
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
+            "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
+            safeRequest),
+        CustomerIssueIllegalRecordListResponse.class,
+        () -> loadRecords(safeRequest));
+  }
+
+  private CustomerIssueIllegalRecordListResponse loadRecords(
       CustomerIssueIllegalRecordQueryRequest request) {
     IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
@@ -251,35 +271,60 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   }
 
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
-    List<IssueFactRecord> rows =
-        loadScopedViews(defaultProjectId(projectId)).stream()
-            .filter(IssueFactRecord::illegal)
-            .filter(this::hasSupportedCustomerIllegalReason)
-            .toList();
+    Map<String, Object> requestPayload = Map.of("projectId", LEGACY_CC_PRODUCT_PROJECT_ID);
+    if (pageRecordSnapshotService == null) {
+      return loadFilterOptions();
+    }
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
+            "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
+            requestPayload),
+        CustomerIssueIllegalRecordFilterOptionsResponse.class,
+        this::loadFilterOptions);
+  }
+
+  private CustomerIssueIllegalRecordFilterOptionsResponse loadFilterOptions() {
+    IssueFactRecordRepository.CustomerIssueFilterValues values =
+        issueFactRecordRepository.findCustomerIssueIllegalFilterValues(null);
     List<String> illegalReasons = new ArrayList<>(CustomerIssueIllegalReasonSupport.SUPPORTED_REASONS);
-    rows.stream()
-        .flatMap(view -> displayIllegalReasons(view).stream())
+    values.illegalReasons().stream()
         .map(CustomerIssueIllegalReasonSupport::normalize)
         .filter(StringUtils::hasText)
         .filter(reason -> !illegalReasons.contains(reason))
         .forEach(illegalReasons::add);
     return new CustomerIssueIllegalRecordFilterOptionsResponse(
-        toLegacyOptions(rows, IssueFactRecord::projectName),
-        toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
-        toLegacyOptions(rows, IssueFactRecord::functionName),
+        toLegacyOptions(values.projectNames()),
+        toLegacyOptions(values.moduleNames()),
+        toLegacyOptions(values.functionNames()),
         toOptions(illegalReasons),
-        toSeverityOptions(rows, IssueFactRecord::severityLevel),
-        toOptions(rows, IssueFactRecord::priorityLevel),
-        toOptions(rows, IssueFactRecord::issueState),
-        toOptions(rows, IssueFactRecord::bugStatus),
-        toOptions(rows, IssueFactRecord::category),
-        toOptions(customerIssueMilestones(rows)));
+        OptionItemResponseFactory.fromValues(
+            values.severityLevels(),
+            TextQuerySupport::trimToNull,
+            IssueDisplayValueSupport::displaySeverityLevel),
+        toOptions(values.priorityLevels()),
+        toOptions(values.issueStates()),
+        toOptions(values.bugStatuses()),
+        toOptions(values.categories()),
+        toOptions(customerIssueMilestones(values.milestoneTitles())));
+  }
+
+  @Override
+  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues() || pageRecordSnapshotService == null) {
+      return;
+    }
+    getFilterOptions(LEGACY_CC_PRODUCT_PROJECT_ID);
+    listRecords(defaultRequest());
   }
 
   public CustomerIssueIllegalRecordRowResponse refreshSingleRecord(
       String sourceInstance, Long projectId, Long issueIid) {
     Long safeProjectId = defaultProjectId(projectId);
     factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
+    if (pageRecordSnapshotService != null) {
+      pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
+    }
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return loadScopedViews(safeProjectId).stream()
         .filter(IssueFactRecord::illegal)
@@ -302,31 +347,31 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         true,
         "客户问题缺陷非法数据规则说明",
         RULE_VERSION,
-        "当前页面基于 issue_fact 事实层，先用 CustomerIssueScopeProfile 限定客户问题范围，再展示已被事实构建链路判定为非法的缺陷。",
-        "非法类型来自 issue_fact.illegal_reasons / illegal_reason，按老平台 illegal_list 多值口径展示和筛选。客户问题非法数据复用系统测试非法规则，并追加缺陷调研模板完整性、计划解决时间和一级缺陷负责人签字规则。",
+        "当前页面展示客户问题范围内命中非法规则的缺陷。平台会先限定客户问题范围，再剔除不应参与统计的无效议题。",
+        "客户问题非法数据复用系统测试非法规则，并追加客户问题专用要求：缺陷调研模板填写完整、计划解决时间合法、一级缺陷需要负责人签字确认。",
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
-            step("scope-filter", "限定客户问题范围", "复用客户问题 scope profile，避免和系统测试口径混在一起。", scoped, loaded.size()),
+            step("source-load", "加载议题数据", "加载已同步到平台的客户问题议题数据，并使用整理后的里程碑、模块、严重程度和非法类型。", loaded, loaded.size()),
+            step("scope-filter", "限定客户问题范围", "保留 CC_Product 客户问题范围内的议题，避免和系统测试口径混在一起。", scoped, loaded.size()),
             step("exclude-filter", "剔除排除数据", "按老平台 CC_Product 记录页查询口径，排除已关闭的申请否决、需求如此和设计如此类数据。", visible, scoped.size()),
-            step("illegal-filter", "筛出非法数据", "保留 issue_fact.is_illegal = true 的客户问题缺陷。", illegal, visible.size())),
+            step("illegal-filter", "筛出非法数据", "保留命中客户问题非法判定规则的缺陷。", illegal, visible.size())),
         List.of(
             new StatisticRuleMetricDefinition(
                 "illegal-total",
                 "非法数据总数",
-                "客户问题范围内 is_illegal = true 的议题数量。",
-                "非法数据总数 = count(issue_fact where customer scope and is_illegal = true)",
+                "客户问题范围内命中任意非法规则的议题数量。",
+                "非法数据总数 = 客户问题范围内命中任意非法规则的议题数量",
                 null),
             new StatisticRuleMetricDefinition(
                 "base-illegal",
                 "基础非法类型",
                 "复用系统测试非法数据规则：未设定严重程度、未设定模块、已修复但未按模板回复、缺陷原因不唯一。",
-                "基础非法类型 = issue_fact.illegal_reasons 中命中系统测试非法规则的类型",
+                "基础非法类型 = 命中系统测试非法规则的非法类型",
                 null),
             new StatisticRuleMetricDefinition(
                 "research-template",
                 "缺陷调研模板",
                 "客户问题必须按要求填写缺陷调研模板；除计划解决时间和一级缺陷负责人签字项外，其余问题需要有回复内容。",
-                "未按照要求填写缺陷调研模板 = issue_fact.illegal_reasons contains 未按照要求填写缺陷调研模板",
+                "未按照要求填写缺陷调研模板 = 调研模板必填项缺失或回复内容不完整",
                 null),
             new StatisticRuleMetricDefinition(
                 "plan-solution-time",
@@ -351,13 +396,12 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     return LEGACY_CC_PRODUCT_PROJECT_ID;
   }
 
-  private List<String> customerIssueMilestones(List<IssueFactRecord> rows) {
+  private List<String> customerIssueMilestones(List<String> values) {
     Set<String> milestones = new LinkedHashSet<>();
     if (milestoneCatalogService != null) {
       milestones.addAll(milestoneCatalogService.listMilestones());
     }
-    rows.stream()
-        .map(IssueFactRecord::milestoneTitle)
+    values.stream()
         .map(TextQuerySupport::trimToNull)
         .filter(value -> value != null)
         .forEach(milestones::add);
@@ -389,6 +433,57 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         request.size(),
         request.sortField(),
         request.sortOrder());
+  }
+
+  private CustomerIssueIllegalRecordQueryRequest withSnapshotDefaults(
+      CustomerIssueIllegalRecordQueryRequest request) {
+    return new CustomerIssueIllegalRecordQueryRequest(
+        withLegacyDefaultProject(request.listRequest()),
+        request.illegalReason(),
+        request.testingPhase(),
+        request.filterGroupJson());
+  }
+
+  private CustomerIssueIllegalRecordQueryRequest defaultRequest() {
+    return new CustomerIssueIllegalRecordQueryRequest(
+        new IssueFactRecordListRequest(
+            LEGACY_CC_PRODUCT_PROJECT_ID,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            20,
+            DEFAULT_SORT_FIELD,
+            "descending"),
+        null,
+        null,
+        null);
+  }
+
+  private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
+      String snapshotType, String scopeKey, Object requestPayload) {
+    return new PageRecordSnapshotService.SnapshotRequest(
+        WORKSPACE_KEY,
+        snapshotType,
+        scopeKey,
+        RULE_VERSION,
+        pageRecordSnapshotService.issueFactSourceVersion(),
+        requestPayload);
   }
 
   private List<IssueFactRecord> scopeCustomerIssues(List<IssueFactRecord> rows) {

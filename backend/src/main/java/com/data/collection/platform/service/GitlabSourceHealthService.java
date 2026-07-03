@@ -15,9 +15,6 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class GitlabSourceHealthService {
-  private static final List<String> CODE_REVIEW_REQUIRED_TABLES =
-      List.of("merge_requests", "merge_request_metrics", "projects", "namespaces", "users");
-
   private final GitlabConfigService configService;
   private final JdbcTemplate jdbcTemplate;
 
@@ -72,9 +69,11 @@ public class GitlabSourceHealthService {
     List<String> registeredMirrorTables = registeredMirrorTables(config.getId());
     int existingMirrorTables = countExistingTables(registeredMirrorTables);
     LocalDateTime latestMergeRequestFactUpdatedAt = latestFactUpdatedAt("merge_request_fact", sourceInstance);
+    LocalDateTime latestIssueFactUpdatedAt = latestFactUpdatedAt("issue_fact", sourceInstance);
     boolean mergeRequestFactLagging =
         isFactLayerLagging(latestSync, latestMergeRequestFactUpdatedAt, existingMirrorTables);
-    boolean issueFactLagging = false;
+    boolean issueFactLagging =
+        isFactLayerLagging(latestSync, latestIssueFactUpdatedAt, existingMirrorTables);
     boolean factLayerLagging =
         activeSync.factRefreshActive() || mergeRequestFactLagging || issueFactLagging;
     List<String> missingRequiredMirrorTables = missingRequiredMirrorTables(sourceInstance);
@@ -104,7 +103,7 @@ public class GitlabSourceHealthService {
         factLayerLagging
             ? factLayerMessage(activeSync.factRefreshActive(), mergeRequestFactLagging, issueFactLagging)
             : "",
-        latestMergeRequestFactUpdatedAt,
+        max(latestMergeRequestFactUpdatedAt, latestIssueFactUpdatedAt),
         mergeRequestFactLagging,
         issueFactLagging,
         countFacts("merge_request_fact", sourceInstance),
@@ -253,7 +252,7 @@ public class GitlabSourceHealthService {
 
   private List<String> missingRequiredMirrorTables(String sourceInstance) {
     List<String> missing = new ArrayList<>();
-    for (String sourceTable : CODE_REVIEW_REQUIRED_TABLES) {
+    for (String sourceTable : GitlabFactRefreshRequirements.allRequiredTables()) {
       String mirrorTable = GitlabSourceInstanceSupport.buildMirrorTableName(sourceTable);
       if (!tableExists(mirrorTable)) {
         missing.add(mirrorTable);

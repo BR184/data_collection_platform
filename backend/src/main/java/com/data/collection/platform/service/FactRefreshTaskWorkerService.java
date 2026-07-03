@@ -23,6 +23,7 @@ public class FactRefreshTaskWorkerService {
   private final FactRefreshImpactScopeService impactScopeService;
   private final GitlabMirrorProperties properties;
   private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
+  private final PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
 
   public FactRefreshTaskWorkerService(
       FactBuildTaskService taskService,
@@ -30,13 +31,15 @@ public class FactRefreshTaskWorkerService {
       FactBuildService factBuildService,
       FactRefreshImpactScopeService impactScopeService,
       GitlabMirrorProperties properties,
-      StatisticBoardSnapshotRefreshService snapshotRefreshService) {
+      StatisticBoardSnapshotRefreshService snapshotRefreshService,
+      PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService) {
     this.taskService = taskService;
     this.configService = configService;
     this.factBuildService = factBuildService;
     this.impactScopeService = impactScopeService;
     this.properties = properties;
     this.snapshotRefreshService = snapshotRefreshService;
+    this.pageRecordSnapshotRefreshService = pageRecordSnapshotRefreshService;
   }
 
   @Scheduled(fixedDelayString = "${platform.gitlab-mirror.fact-worker-delay-ms:5000}")
@@ -64,6 +67,7 @@ public class FactRefreshTaskWorkerService {
       };
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
       snapshotRefreshService.refreshAfterFactBuild(factType, task.full());
+      pageRecordSnapshotRefreshService.refreshAfterFactBuild(factType, task.full());
       return response;
     } catch (Exception e) {
       taskService.finishQueuedTask(task.id(), "FAILED", 0, "事实数据刷新失败", e.getMessage());

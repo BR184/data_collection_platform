@@ -227,6 +227,131 @@ public class IssueFactRecordRepository {
     }
   }
 
+  public CustomerIssueFilterValues findCustomerIssueRecordFilterValues(
+      boolean customerOperationsScope,
+      boolean delayOnly,
+      boolean excludeExcluded,
+      boolean excludeRejectedBugStatus,
+      String sourceInstance) {
+    List<Object> args = new ArrayList<>();
+    StringBuilder predicate = new StringBuilder("deleted = false and project_id = ?");
+    args.add(LEGACY_CC_PRODUCT_PROJECT_ID);
+    appendCustomerSourceInstancePredicate(predicate, args, sourceInstance);
+    if (customerOperationsScope) {
+      predicate.append(" and (created_at_source is null or created_at_source >= ?)");
+      args.add(CUSTOMER_ISSUE_START_DATE.atStartOfDay());
+    }
+    if (excludeExcluded) {
+      predicate.append(" and is_excluded = false");
+    }
+    if (excludeRejectedBugStatus) {
+      predicate.append(" and lower(coalesce(bug_status, '')) not like ?");
+      args.add("%已拒绝%");
+    }
+    if (delayOnly) {
+      predicate.append(" and (delay_issue = true or is_response_delayed = true or is_resolve_delayed = true)");
+    }
+    return findCustomerIssueFilterValues(predicate.toString(), args);
+  }
+
+  public CustomerIssueFilterValues findCustomerIssueIllegalFilterValues(String sourceInstance) {
+    List<Object> args = new ArrayList<>();
+    StringBuilder predicate = new StringBuilder(
+        "deleted = false and project_id = ? and (created_at_source is null or created_at_source >= ?)"
+            + " and is_excluded = false and is_illegal = true");
+    args.add(LEGACY_CC_PRODUCT_PROJECT_ID);
+    args.add(CUSTOMER_ISSUE_START_DATE.atStartOfDay());
+    appendCustomerSourceInstancePredicate(predicate, args, sourceInstance);
+    appendIllegalReasonsContainsAny(
+        predicate,
+        args,
+        CustomerIssueIllegalReasonSupport.SUPPORTED_REASONS);
+    return findCustomerIssueFilterValues(predicate.toString(), args);
+  }
+
+  private CustomerIssueFilterValues findCustomerIssueFilterValues(String predicate, List<Object> args) {
+    String sql =
+        """
+        with base as (
+          select coalesce(project_name, '') as project_name,
+                 coalesce(module_names, '') as module_names,
+                 coalesce(function_name, '') as function_name,
+                 coalesce(reason_category, '') as reason_category,
+                 coalesce(severity_level, '') as severity_level,
+                 coalesce(priority_level, '') as priority_level,
+                 coalesce(issue_state, '') as issue_state,
+                 coalesce(bug_status, '') as bug_status,
+                 coalesce(category, '') as category,
+                 coalesce(author_name, '') as author_name,
+                 coalesce(assignee_name, '') as assignee_name,
+                 coalesce(milestone_title, '') as milestone_title,
+                 coalesce(illegal_reason, '') as illegal_reason,
+                 coalesce(illegal_reasons, '') as illegal_reasons
+            from issue_fact
+           where
+        """
+            + predicate
+            + """
+        )
+        select
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(project_name), '') as value from base) t where value is not null) as project_names,
+          (select string_agg(value, E'\n') from (
+             select distinct nullif(btrim(module_name), '') as value
+               from base
+               cross join lateral regexp_split_to_table(coalesce(module_names, ''), ',') as modules(module_name)
+           ) t where value is not null) as module_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(function_name), '') as value from base) t where value is not null) as function_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(reason_category), '') as value from base) t where value is not null) as reason_categories,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(severity_level), '') as value from base) t where value is not null) as severity_levels,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(priority_level), '') as value from base) t where value is not null) as priority_levels,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(issue_state), '') as value from base) t where value is not null) as issue_states,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(bug_status), '') as value from base) t where value is not null) as bug_statuses,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(category), '') as value from base) t where value is not null) as categories,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(author_name), '') as value from base) t where value is not null) as author_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(assignee_name), '') as value from base) t where value is not null) as assignee_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles,
+          (select string_agg(value, E'\n') from (
+             select distinct nullif(btrim(reason), '') as value
+               from base
+               cross join lateral regexp_split_to_table(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''), ',') as reasons(reason)
+           ) t where value is not null) as illegal_reasons
+        """;
+    try {
+      List<CustomerIssueFilterValues> rows =
+          issueFactQueryService.query(
+              sql,
+              args,
+              (rs, rowNum) ->
+                  new CustomerIssueFilterValues(
+                      splitAggregatedValues(rs.getString("project_names")),
+                      splitAggregatedValues(rs.getString("module_names")),
+                      splitAggregatedValues(rs.getString("function_names")),
+                      splitAggregatedValues(rs.getString("reason_categories")),
+                      splitAggregatedValues(rs.getString("severity_levels")),
+                      splitAggregatedValues(rs.getString("priority_levels")),
+                      splitAggregatedValues(rs.getString("issue_states")),
+                      splitAggregatedValues(rs.getString("bug_statuses")),
+                      splitAggregatedValues(rs.getString("categories")),
+                      splitAggregatedValues(rs.getString("author_names")),
+                      splitAggregatedValues(rs.getString("assignee_names")),
+                      splitAggregatedValues(rs.getString("milestone_titles")),
+                      splitAggregatedValues(rs.getString("illegal_reasons"))));
+      return rows.isEmpty() ? CustomerIssueFilterValues.empty() : rows.get(0);
+    } catch (DataAccessException error) {
+      return CustomerIssueFilterValues.empty();
+    }
+  }
+
+  private void appendCustomerSourceInstancePredicate(
+      StringBuilder predicate, List<Object> args, String sourceInstance) {
+    String normalized = TextQuerySupport.trimToNull(sourceInstance);
+    if (normalized == null) {
+      return;
+    }
+    predicate.append(" and lower(coalesce(source_instance, 'default')) = ?");
+    args.add(GitlabSourceInstanceSupport.normalizeSourceInstance(normalized));
+  }
+
   public PageSlice<IssueFactRecord> findPage(IssueFactRecordPageQuery query) {
     QueryParts parts = buildPageQuery(query);
     try {
@@ -824,6 +949,38 @@ public class IssueFactRecordRepository {
       List<String> milestoneTitles) {
     static SystemTestIllegalFilterValues empty() {
       return new SystemTestIllegalFilterValues(
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of());
+      }
+  }
+
+  public record CustomerIssueFilterValues(
+      List<String> projectNames,
+      List<String> moduleNames,
+      List<String> functionNames,
+      List<String> reasonCategories,
+      List<String> severityLevels,
+      List<String> priorityLevels,
+      List<String> issueStates,
+      List<String> bugStatuses,
+      List<String> categories,
+      List<String> authorNames,
+      List<String> assigneeNames,
+      List<String> milestoneTitles,
+      List<String> illegalReasons) {
+    static CustomerIssueFilterValues empty() {
+      return new CustomerIssueFilterValues(
+          List.of(),
+          List.of(),
           List.of(),
           List.of(),
           List.of(),

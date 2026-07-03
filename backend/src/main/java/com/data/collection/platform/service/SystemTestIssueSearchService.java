@@ -20,9 +20,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-public class SystemTestIssueSearchService extends AbstractIssueFactRecordListService {
+public class SystemTestIssueSearchService extends AbstractIssueFactRecordListService
+    implements PageRecordSnapshotRefresher {
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final String PAGE_KEY = "question-metrics-issue-search";
+  private static final String RULE_VERSION = "system-test-issue-search@2026-04-22-v1";
   private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;
@@ -55,6 +57,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final PageRecordSnapshotService pageRecordSnapshotService;
 
   public SystemTestIssueSearchService(
       IssueFactRecordRepository issueFactRecordRepository,
@@ -62,15 +65,28 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
       ObjectMapper objectMapper,
       LabelGroupExpansionService labelGroupExpansionService,
       SystemTestPhaseScopeResolver phaseScopeResolver,
-      SystemTestPhaseCatalogService phaseCatalogService) {
+      SystemTestPhaseCatalogService phaseCatalogService,
+      PageRecordSnapshotService pageRecordSnapshotService) {
     super(issueFactRecordRepository, issueLinkService);
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.phaseScopeResolver = phaseScopeResolver;
     this.phaseCatalogService = phaseCatalogService;
+    this.pageRecordSnapshotService = pageRecordSnapshotService;
   }
 
   public SystemTestIssueSearchListResponse listRecords(SystemTestIssueSearchQueryRequest request) {
+    SystemTestIssueSearchQueryRequest safeRequest = withSnapshotDefaults(request);
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
+            "project:" + LEGACY_CROWN_CAD_PROJECT_ID,
+            safeRequest),
+        SystemTestIssueSearchListResponse.class,
+        () -> loadRecords(safeRequest));
+  }
+
+  private SystemTestIssueSearchListResponse loadRecords(SystemTestIssueSearchQueryRequest request) {
     IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
@@ -188,6 +204,22 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
   }
 
   public SystemTestIssueSearchFilterOptionsResponse getFilterOptions(Long projectId, String sourceInstance) {
+    Map<String, Object> requestPayload = new LinkedHashMap<>();
+    requestPayload.put("projectId", projectId == null ? LEGACY_CROWN_CAD_PROJECT_ID : projectId);
+    String normalizedSource = TextQuerySupport.trimToNull(sourceInstance);
+    if (normalizedSource != null) {
+      requestPayload.put("sourceInstance", normalizedSource);
+    }
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
+            "project:" + requestPayload.get("projectId"),
+            requestPayload),
+        SystemTestIssueSearchFilterOptionsResponse.class,
+        () -> loadFilterOptions(projectId, sourceInstance));
+  }
+
+  private SystemTestIssueSearchFilterOptionsResponse loadFilterOptions(Long projectId, String sourceInstance) {
     List<IssueFactRecord> scopedViews = loadIssueSearchOptionFacts(projectId, sourceInstance);
     return new SystemTestIssueSearchFilterOptionsResponse(
         toLegacyOptions(scopedViews, IssueFactRecord::projectName),
@@ -204,6 +236,15 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         toOptions(scopedViews, IssueFactRecord::bugStatus),
         toOptions(scopedViews, IssueFactRecord::category),
         toLegacyOptions(scopedViews, IssueFactRecord::milestoneTitle));
+  }
+
+  @Override
+  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    getFilterOptions(LEGACY_CROWN_CAD_PROJECT_ID);
+    listRecords(defaultRequest());
   }
 
   private List<IssueFactRecord> loadIssueSearchOptionFacts(Long projectId, String sourceInstance) {
@@ -232,6 +273,58 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             20,
             "updatedAt",
             "desc"));
+  }
+
+  private SystemTestIssueSearchQueryRequest withSnapshotDefaults(SystemTestIssueSearchQueryRequest request) {
+    return new SystemTestIssueSearchQueryRequest(
+        withLegacyDefaultProject(request.listRequest()),
+        request.testingPhase(),
+        request.authorName(),
+        request.assigneeName(),
+        request.filterGroupJson());
+  }
+
+  private SystemTestIssueSearchQueryRequest defaultRequest() {
+    return new SystemTestIssueSearchQueryRequest(
+        new IssueFactRecordListRequest(
+            LEGACY_CROWN_CAD_PROJECT_ID,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            20,
+            DEFAULT_SORT_FIELD,
+            "descending"),
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
+      String snapshotType, String scopeKey, Object requestPayload) {
+    return new PageRecordSnapshotService.SnapshotRequest(
+        PAGE_KEY,
+        snapshotType,
+        scopeKey,
+        RULE_VERSION,
+        pageRecordSnapshotService.issueFactSourceVersion(),
+        requestPayload);
   }
 
   private StatisticFilterGroup expandLabelGroupConditions(

@@ -11,6 +11,7 @@ import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
+import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
 import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import com.data.collection.platform.security.RequireRole;
 import java.util.Locale;
@@ -29,6 +30,7 @@ public class FactBuildController {
   private final IssueFactDiagnosticsService issueFactDiagnosticsService;
   private final IssueSourceReadinessService issueSourceReadinessService;
   private final StatisticBoardSnapshotRefreshService snapshotRefreshService;
+  private final PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
 
   public FactBuildController(
       FactBuildService factBuildService,
@@ -36,13 +38,15 @@ public class FactBuildController {
       FactBuildTaskService factBuildTaskService,
       IssueFactDiagnosticsService issueFactDiagnosticsService,
       IssueSourceReadinessService issueSourceReadinessService,
-      StatisticBoardSnapshotRefreshService snapshotRefreshService) {
+      StatisticBoardSnapshotRefreshService snapshotRefreshService,
+      PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService) {
     this.factBuildService = factBuildService;
     this.factBuildOperationGuard = factBuildOperationGuard;
     this.factBuildTaskService = factBuildTaskService;
     this.issueFactDiagnosticsService = issueFactDiagnosticsService;
     this.issueSourceReadinessService = issueSourceReadinessService;
     this.snapshotRefreshService = snapshotRefreshService;
+    this.pageRecordSnapshotRefreshService = pageRecordSnapshotRefreshService;
   }
 
   @PostMapping("/rebuild")
@@ -65,6 +69,7 @@ public class FactBuildController {
                   : factBuildService.rebuildAllFacts(full, configId);
             });
     snapshotRefreshService.refreshAfterFactBuild(snapshotFactType(scope), full);
+    pageRecordSnapshotRefreshService.refreshAfterFactBuild(snapshotFactType(scope), full);
     return ApiResponse.success(response.message(), response);
   }
 

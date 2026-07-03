@@ -40,7 +40,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 // 代码走查非法记录服务承接规则配置、实时刷新、记录查询、导出和规则说明。
 // 默认规则尽量下沉到 SQL 查询；用户自定义规则则通过规则配置和源数据加载器组合执行。
-public class CodeReviewIllegalRecordService {
+public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresher {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
   private static final String LEGACY_DEFAULT_SOURCE = "cc";
   private static final String LEGACY_DEFAULT_REPOSITORY_NAME = "CrownCAD";
@@ -123,6 +123,7 @@ public class CodeReviewIllegalRecordService {
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
+  private final PageRecordSnapshotService pageRecordSnapshotService;
 
   public CodeReviewIllegalRecordService(
       RealtimeWorkspaceService realtimeWorkspaceService,
@@ -133,7 +134,8 @@ public class CodeReviewIllegalRecordService {
       CodeReviewMatchModeSwitchService matchModeSwitchService,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
-      GitlabMirrorProperties gitlabMirrorProperties) {
+      GitlabMirrorProperties gitlabMirrorProperties,
+      PageRecordSnapshotService pageRecordSnapshotService) {
     this.realtimeWorkspaceService = realtimeWorkspaceService;
     this.realtimeIncrementalRefreshService = realtimeIncrementalRefreshService;
     this.factBuildService = factBuildService;
@@ -142,9 +144,21 @@ public class CodeReviewIllegalRecordService {
     this.matchModeSwitchService = matchModeSwitchService;
     this.issueLinkService = issueLinkService;
     this.objectMapper = objectMapper;
+    this.pageRecordSnapshotService = pageRecordSnapshotService;
   }
 
   public CodeReviewIllegalRecordListResponse listRecords(CodeReviewIllegalRecordQueryRequest request) {
+    CodeReviewIllegalRecordQueryRequest safeRequest = withLegacyDefaultScope(request);
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
+            codeReviewScopeKey(safeRequest),
+            safeRequest),
+        CodeReviewIllegalRecordListResponse.class,
+        () -> loadRecords(safeRequest));
+  }
+
+  private CodeReviewIllegalRecordListResponse loadRecords(CodeReviewIllegalRecordQueryRequest request) {
     CodeReviewIllegalRecordQueryRequest safeRequest = withLegacyDefaultScope(request);
     int safePage = request.page() <= 0 ? 1 : request.page();
     int safeSize = request.size() <= 0 ? 20 : Math.min(request.size(), 100);
@@ -378,6 +392,57 @@ public class CodeReviewIllegalRecordService {
         safeRequest.ruleConfigJson());
   }
 
+  private CodeReviewIllegalRecordQueryRequest defaultRequest(String source, String repositoryName) {
+    return new CodeReviewIllegalRecordQueryRequest(
+        null,
+        repositoryName,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        source,
+        null,
+        1,
+        20,
+        "mergedAt",
+        "descending",
+        null);
+  }
+
+  private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
+      String snapshotType, String scopeKey, Object requestPayload) {
+    return new PageRecordSnapshotService.SnapshotRequest(
+        WORKSPACE_KEY,
+        snapshotType,
+        scopeKey,
+        RULE_VERSION,
+        pageRecordSnapshotService.codeReviewSourceVersion(),
+        requestPayload);
+  }
+
+  private String codeReviewScopeKey(CodeReviewIllegalRecordQueryRequest request) {
+    String source = TextQuerySupport.trimToNull(request.source());
+    String repositoryName = TextQuerySupport.trimToNull(request.repositoryName());
+    return "source:" + (source == null ? "default" : source)
+        + "|repository:" + (repositoryName == null ? "all" : repositoryName);
+  }
+
+  private String codeReviewScopeKey(CodeReviewIllegalRecordFilterOptionsRequest request) {
+    String source = TextQuerySupport.trimToNull(request.source());
+    String repositoryName = TextQuerySupport.trimToNull(request.repositoryName());
+    String projectName = TextQuerySupport.trimToNull(request.projectName());
+    return "source:" + (source == null ? "default" : source)
+        + "|repository:" + (repositoryName == null ? "all" : repositoryName)
+        + "|project:" + (projectName == null ? "all" : projectName);
+  }
+
   private boolean shouldExportAllCodeReviewSheet(CodeReviewIllegalRecordQueryRequest request) {
     if (!matchModeSwitchService.isEnabled()) {
       return false;
@@ -494,6 +559,19 @@ public class CodeReviewIllegalRecordService {
 
   public CodeReviewIllegalRecordFilterOptionsResponse getFilterOptions(
       CodeReviewIllegalRecordFilterOptionsRequest request) {
+    CodeReviewIllegalRecordFilterOptionsRequest safeRequest =
+        request == null ? new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, null) : request;
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
+            codeReviewScopeKey(safeRequest),
+            safeRequest),
+        CodeReviewIllegalRecordFilterOptionsResponse.class,
+        () -> loadFilterOptions(safeRequest));
+  }
+
+  private CodeReviewIllegalRecordFilterOptionsResponse loadFilterOptions(
+      CodeReviewIllegalRecordFilterOptionsRequest request) {
     String source = request == null ? null : request.source();
     Long projectId = request == null ? null : request.projectId();
     String repositoryName = request == null ? null : request.repositoryName();
@@ -517,6 +595,17 @@ public class CodeReviewIllegalRecordService {
         toLegacyOptions(options.mergedBys()),
         toLegacyOptions(options.moduleNames()),
         toCodeReviewProjectNameOptions(matchMode, options.projectNames()));
+  }
+
+  @Override
+  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsMergeRequests()) {
+      return;
+    }
+    getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, LEGACY_DEFAULT_REPOSITORY_NAME, null, "cc"));
+    listRecords(defaultRequest("cc", LEGACY_DEFAULT_REPOSITORY_NAME));
+    getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, LEGACY_DGM_REPOSITORY_NAME, null, "dgm"));
+    listRecords(defaultRequest("dgm", LEGACY_DGM_REPOSITORY_NAME));
   }
 
   private List<OptionItemResponse> toProjectOptions(
@@ -571,6 +660,7 @@ public class CodeReviewIllegalRecordService {
   public CodeReviewIllegalRecordRowResponse refreshSingleRecord(
       String source, Long projectId, Long mergeRequestIid) {
     factBuildService.rebuildMergeRequestFactByIid(source, projectId, mergeRequestIid);
+    pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
     List<CodeReviewIllegalRecordView> rows =
         loadScopedViews(
             projectId,
@@ -611,8 +701,8 @@ public class CodeReviewIllegalRecordService {
         "代码走查非法记录规则说明",
         RULE_VERSION,
         matchModeSwitchService.isEnabled()
-            ? "当前统计范围来自老平台兼容数据快照；页面查询条件会在这个范围上继续筛选。"
-            : "当前统计范围是已归一化到事实表中的 Merge Request 相关数据；页面查询条件会在这个范围上继续筛选。",
+            ? "当前统计范围来自老平台兼容数据；页面查询条件会在这个范围上继续筛选。"
+            : "当前统计范围来自已同步到平台的代码合并请求数据；页面查询条件会在这个范围上继续筛选。",
         "这里先说明总共有多少条非法记录，再说明它们分别是因为什么被判定为非法。",
         buildRuleFlowSteps(views, illegalViews, total, illegalTotal),
         buildMetricDefinitions(),
@@ -899,8 +989,8 @@ public class CodeReviewIllegalRecordService {
     steps.add(
         new StatisticRuleFlowStep(
             "source-load",
-            "加载合并请求事实",
-            "从 merge_request_fact 读取已经归一化的合并请求、责任人、模块和指标数据。",
+            "加载合并请求数据",
+            "加载已同步到平台的合并请求数据，并使用整理后的责任人、模块、目标分支和代码走查指标。",
             total,
             total,
             sampleIllegalRecords(views)));

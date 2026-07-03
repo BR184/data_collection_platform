@@ -324,7 +324,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         true,
         "申请延期缺陷分析规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，先限定系统测试/回归测试范围，再按老平台 DelayEnum 固定延期原因统计。",
+        "当前统计先限定系统测试和回归测试范围，再按老平台固定延期原因分类统计。",
         "同一条议题只会归入一个老平台固定延期原因；没有命中数据的延期原因仍显示为 0。",
         List.of(
             snapshot.flowSteps().get(0),
@@ -341,10 +341,10 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
                 this::toRuleFlowSample
             )),
         List.of(
-            new StatisticRuleMetricDefinition("level1", "一级缺陷", "按 issue_fact.severity_level = LEVEL1 统计。", "一级缺陷数 = 当前延期原因下 LEVEL1 议题数", null),
-            new StatisticRuleMetricDefinition("level2", "二级缺陷", "按 issue_fact.severity_level = LEVEL2 统计。", "二级缺陷数 = 当前延期原因下 LEVEL2 议题数", null),
-            new StatisticRuleMetricDefinition("level3", "三级缺陷", "按 issue_fact.severity_level = LEVEL3 统计。", "三级缺陷数 = 当前延期原因下 LEVEL3 议题数", null),
-            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "按老平台 category like 建议 口径统计，兼容 severity_level = SUGGESTION。", "建议类缺陷数 = 当前延期原因下 category 含建议或 SUGGESTION 的议题数", null),
+            new StatisticRuleMetricDefinition("level1", "一级缺陷", "统计当前延期原因下严重程度为一级缺陷的议题。", "一级缺陷数 = 当前延期原因下一级缺陷议题数", null),
+            new StatisticRuleMetricDefinition("level2", "二级缺陷", "统计当前延期原因下严重程度为二级缺陷的议题。", "二级缺陷数 = 当前延期原因下二级缺陷议题数", null),
+            new StatisticRuleMetricDefinition("level3", "三级缺陷", "统计当前延期原因下严重程度为三级缺陷的议题。", "三级缺陷数 = 当前延期原因下三级缺陷议题数", null),
+            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "按老平台建议类口径统计，兼容历史建议类标签。", "建议类缺陷数 = 当前延期原因下建议类议题数", null),
             new StatisticRuleMetricDefinition("total", "总计", "统计当前延期原因下一级、二级、三级和建议类缺陷。", "总计 = 一级缺陷 + 二级缺陷 + 三级缺陷 + 建议类缺陷", null)),
         null);
   }
@@ -369,8 +369,8 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
-                "加载议题事实",
-                "从 issue_fact 读取已经归一化的议题事实。",
+                "加载议题数据",
+                "加载已同步到平台的议题数据，并使用整理后的测试阶段、延期原因和严重程度。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample
@@ -386,7 +386,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "delay-cause-filter",
                 "保留延期议题",
-                "只保留 issue_fact.delay_cause 命中老平台固定延期原因且未被排除的延期议题。",
+                "只保留命中老平台固定延期原因且未被排除的延期议题。",
                 scoped.size(),
                 delayed,
                 this::toRuleFlowSample

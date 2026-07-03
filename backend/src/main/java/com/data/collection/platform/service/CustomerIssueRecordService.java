@@ -22,7 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
-public class CustomerIssueRecordService extends AbstractIssueFactRecordListService {
+public class CustomerIssueRecordService extends AbstractIssueFactRecordListService
+    implements PageRecordSnapshotRefresher {
   private static final String TOPIC_CC_PRODUCT = "cc-product";
   private static final String TOPIC_DELAY = "delay";
   private static final String PAGE_KEY = "customer-issues-cc-product-issues";
@@ -48,6 +49,7 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
   private final ObjectMapper objectMapper;
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
+  private final PageRecordSnapshotService pageRecordSnapshotService;
 
   @Autowired
   public CustomerIssueRecordService(
@@ -56,12 +58,14 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
       ObjectMapper objectMapper,
       GitlabResourceLinkService issueLinkService,
       LabelGroupExpansionService labelGroupExpansionService,
-      CustomerIssueMilestoneCatalogService milestoneCatalogService) {
+      CustomerIssueMilestoneCatalogService milestoneCatalogService,
+      PageRecordSnapshotService pageRecordSnapshotService) {
     super(issueFactRecordRepository, issueLinkService);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.objectMapper = objectMapper;
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.milestoneCatalogService = milestoneCatalogService;
+    this.pageRecordSnapshotService = pageRecordSnapshotService;
   }
 
   public CustomerIssueRecordService(
@@ -76,10 +80,25 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         objectMapper,
         issueLinkService,
         labelGroupExpansionService,
+        null,
         null);
   }
 
   public CustomerIssueRecordListResponse listRecords(CustomerIssueRecordQueryRequest request) {
+    CustomerIssueRecordQueryRequest safeRequest = withSnapshotDefaults(request);
+    if (pageRecordSnapshotService == null) {
+      return loadRecords(safeRequest);
+    }
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
+            "topic:" + normalizeTopic(safeRequest.topic()),
+            safeRequest),
+        CustomerIssueRecordListResponse.class,
+        () -> loadRecords(safeRequest));
+  }
+
+  private CustomerIssueRecordListResponse loadRecords(CustomerIssueRecordQueryRequest request) {
     IssueFactRecordListRequest listRequest = withCustomerProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
@@ -259,23 +278,63 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
 
   public CustomerIssueRecordFilterOptionsResponse getFilterOptions(
       String topic, Long projectId, String sourceInstance) {
-    List<IssueFactRecord> rows =
-        loadTopicScopedViews(CustomerIssueRecordProfile.forTopic(normalizeTopic(topic)), LEGACY_CC_PRODUCT_PROJECT_ID).stream()
-            .filter(view -> matchesSourceInstance(view, sourceInstance))
-            .toList();
+    String safeTopic = normalizeTopic(topic);
+    Map<String, Object> requestPayload =
+        new LinkedHashMap<>(
+            Map.of(
+                "topic", safeTopic,
+                "projectId", LEGACY_CC_PRODUCT_PROJECT_ID));
+    if (TextQuerySupport.trimToNull(sourceInstance) != null) {
+      requestPayload.put("sourceInstance", TextQuerySupport.trimToNull(sourceInstance));
+    }
+    if (pageRecordSnapshotService == null) {
+      return loadFilterOptions(safeTopic, sourceInstance);
+    }
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
+            "topic:" + safeTopic,
+            requestPayload),
+        CustomerIssueRecordFilterOptionsResponse.class,
+        () -> loadFilterOptions(safeTopic, sourceInstance));
+  }
+
+  private CustomerIssueRecordFilterOptionsResponse loadFilterOptions(String topic, String sourceInstance) {
+    CustomerIssueRecordProfile profile = CustomerIssueRecordProfile.forTopic(normalizeTopic(topic));
+    IssueFactRecordRepository.CustomerIssueFilterValues values =
+        issueFactRecordRepository.findCustomerIssueRecordFilterValues(
+            profile.scope() == CustomerIssueRecordScope.CUSTOMER_OPERATIONS,
+            profile.delayOnly(),
+            profile.excludeExcluded(),
+            profile.excludeRejectedBugStatus(),
+            sourceInstance);
     return new CustomerIssueRecordFilterOptionsResponse(
-        toLegacyOptions(rows, IssueFactRecord::projectName),
-        toLegacyOptions(rows.stream().flatMap(view -> view.moduleNames().stream()).toList()),
-        toLegacyOptions(rows, IssueFactRecord::functionName),
-        toOptions(rows, IssueFactRecord::reasonCategory),
-        toSeverityOptions(rows, IssueFactRecord::severityLevel),
-        toOptions(rows, IssueFactRecord::priorityLevel),
-        toOptions(rows, IssueFactRecord::issueState),
-        toOptions(rows, IssueFactRecord::bugStatus),
-        toOptions(rows, IssueFactRecord::category),
-        toLegacyOptions(rows, IssueFactRecord::authorName),
-        toLegacyOptions(rows, IssueFactRecord::assigneeName),
-        toOptions(customerIssueMilestones(rows)));
+        toLegacyOptions(values.projectNames()),
+        toLegacyOptions(values.moduleNames()),
+        toLegacyOptions(values.functionNames()),
+        toOptions(values.reasonCategories()),
+        OptionItemResponseFactory.fromValues(
+            values.severityLevels(),
+            TextQuerySupport::trimToNull,
+            IssueDisplayValueSupport::displaySeverityLevel),
+        toOptions(values.priorityLevels()),
+        toOptions(values.issueStates()),
+        toOptions(values.bugStatuses()),
+        toOptions(values.categories()),
+        toLegacyOptions(values.authorNames()),
+        toLegacyOptions(values.assigneeNames()),
+        toOptions(customerIssueMilestones(values.milestoneTitles())));
+  }
+
+  @Override
+  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues() || pageRecordSnapshotService == null) {
+      return;
+    }
+    for (String topic : List.of(TOPIC_CC_PRODUCT, TOPIC_DELAY)) {
+      getFilterOptions(topic, LEGACY_CC_PRODUCT_PROJECT_ID);
+      listRecords(defaultRequest(topic));
+    }
   }
 
   public StatisticBoardRuleExplanationResponse getRuleExplanation(String topic, Long projectId) {
@@ -290,11 +349,11 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         true,
         topicTitle(safeTopic) + "规则说明",
         RULE_VERSION,
-        "当前页面基于 issue_fact 事实层，先用 CustomerIssueScopeProfile 限定客户问题范围，再按页面专题继续收敛。",
+        "当前页面展示客户问题范围内的议题记录，并按当前专题继续收敛范围。",
         topicSummary(safeTopic),
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
-            step("scope-filter", "限定客户问题范围", "复用客户问题 scope profile，避免和系统测试口径混在一起。", scoped, loaded.size()),
+            step("source-load", "加载议题数据", "加载已同步到平台的客户问题议题数据，并使用整理后的里程碑、模块、负责人和处理状态。", loaded, loaded.size()),
+            step("scope-filter", "限定客户问题范围", "保留 CC_Product 客户问题范围内的议题，避免和系统测试口径混在一起。", scoped, loaded.size()),
             step("exclude-filter", "剔除排除数据", recordProfile.explanation(), visible, scoped.size()),
             step("topic-filter", topicTitle(safeTopic), topicFilterDescription(safeTopic), topicScoped, visible.size())),
         List.of(
@@ -302,13 +361,13 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
                 "total",
                 "记录总数",
                 "当前专题范围内的客户问题议题数量。",
-                "记录总数 = count(issue_fact where customer scope and topic filter)",
+                "记录总数 = 当前客户问题专题范围内的议题数量",
                 null),
             new StatisticRuleMetricDefinition(
                 "delay",
                 "延期标记",
-                "延期问题专题保留 delay_issue、响应延期或解决延期命中的记录。",
-                "延期记录 = delay_issue = true or is_response_delayed = true or is_resolve_delayed = true",
+                "延期问题专题保留已标记为延期、响应延期或解决延期的记录。",
+                "延期记录 = 已标记延期，或响应超过期限，或解决超过期限",
                 null)),
         null);
   }
@@ -317,13 +376,12 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
     return applyTopic(applyRecordProfile(scopeCustomerIssues(loadFacts(LEGACY_CC_PRODUCT_PROJECT_ID), profile), profile), profile);
   }
 
-  private List<String> customerIssueMilestones(List<IssueFactRecord> rows) {
+  private List<String> customerIssueMilestones(List<String> values) {
     Set<String> milestones = new LinkedHashSet<>();
     if (milestoneCatalogService != null) {
       milestones.addAll(milestoneCatalogService.listMilestones());
     }
-    rows.stream()
-        .map(IssueFactRecord::milestoneTitle)
+    values.stream()
         .map(TextQuerySupport::trimToNull)
         .filter(value -> value != null)
         .forEach(milestones::add);
@@ -355,6 +413,60 @@ public class CustomerIssueRecordService extends AbstractIssueFactRecordListServi
         request.size(),
         request.sortField(),
         request.sortOrder());
+  }
+
+  private CustomerIssueRecordQueryRequest withSnapshotDefaults(CustomerIssueRecordQueryRequest request) {
+    return new CustomerIssueRecordQueryRequest(
+        normalizeTopic(request.topic()),
+        withCustomerProject(request.listRequest()),
+        request.reasonCategory(),
+        request.authorName(),
+        request.assigneeName(),
+        request.filterGroupJson());
+  }
+
+  private CustomerIssueRecordQueryRequest defaultRequest(String topic) {
+    return new CustomerIssueRecordQueryRequest(
+        topic,
+        new IssueFactRecordListRequest(
+            LEGACY_CC_PRODUCT_PROJECT_ID,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            1,
+            20,
+            DEFAULT_SORT_FIELD,
+            "descending"),
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
+      String snapshotType, String scopeKey, Object requestPayload) {
+    return new PageRecordSnapshotService.SnapshotRequest(
+        "customer-issue-records",
+        snapshotType,
+        scopeKey,
+        RULE_VERSION,
+        pageRecordSnapshotService.issueFactSourceVersion(),
+        requestPayload);
   }
 
   private List<IssueFactRecord> applyTopic(List<IssueFactRecord> rows, CustomerIssueRecordProfile profile) {

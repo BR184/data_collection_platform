@@ -80,8 +80,15 @@ public class FactBuildTaskService {
       return 0;
     }
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
-    return enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, syncRunId)
-        + enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId);
+    int queued = 0;
+    List<String> supportedFactTypes = GitlabFactRefreshRequirements.supportedFactTypes(config);
+    if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_ISSUE)) {
+      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "ISSUE", full, syncRunId);
+    }
+    if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_MERGE_REQUEST)) {
+      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId);
+    }
+    return queued;
   }
 
   public int recoverTimedOutQueuedTasks() {

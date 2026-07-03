@@ -56,7 +56,9 @@ const {
   floatingScrollbarRef,
   scrollbarAwake,
   hasHorizontalOverflow,
+  isFloatingScrollbarVisible,
   horizontalSpacerWidth,
+  floatingScrollbarStyle,
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
   handleFloatingHorizontalScroll,
@@ -226,9 +228,10 @@ async function handleExpandChange() {
         </el-table-column>
       </el-table>
       <div
-        v-show="hasHorizontalOverflow"
+        v-show="isFloatingScrollbarVisible"
         ref="floatingScrollbarRef"
         class="sync-log-floating-horizontal"
+        :style="floatingScrollbarStyle"
         aria-hidden="true"
         @mouseenter="wakeHorizontalScrollbar"
         @scroll="handleFloatingHorizontalScroll"
@@ -275,26 +278,19 @@ async function handleExpandChange() {
 }
 
 .sync-log-floating-horizontal {
-  position: sticky;
-  right: 14px;
-  bottom: 2px;
-  left: 0;
-  z-index: 3;
-  height: 12px;
+  position: fixed;
+  z-index: 1200;
+  height: 16px;
+  padding: 3px 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
-  pointer-events: none;
-  opacity: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 72%) transparent;
-  transition: opacity 0.14s ease;
-}
-
-.sync-log-table-shell:hover .sync-log-floating-horizontal,
-.sync-log-table-shell:focus-within .sync-log-floating-horizontal,
-.sync-log-table-shell.is-scrollbar-awake .sync-log-floating-horizontal {
   pointer-events: auto;
   opacity: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--el-color-primary-light-3) transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 92%, transparent);
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .sync-log-floating-horizontal::-webkit-scrollbar {
@@ -307,7 +303,7 @@ async function handleExpandChange() {
 
 .sync-log-floating-horizontal::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgb(148 163 184 / 72%);
+  background: var(--el-color-primary-light-3);
 }
 
 .sync-log-floating-horizontal-spacer {

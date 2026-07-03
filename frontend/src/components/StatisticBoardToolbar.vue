@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Download, InfoFilled, RefreshRight } from '@element-plus/icons-vue';
+import { Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
@@ -246,13 +246,11 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
           {{ exportLabel }}
         </el-button>
         <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
-          <el-button class="view-settings-trigger app-action-button app-action-button--settings">
-            <span class="hamburger-icon" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </span>
-            <span>设置</span>
+          <el-button
+            class="view-settings-trigger app-action-button app-action-button--settings"
+            :icon="Setting"
+          >
+            设置
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>

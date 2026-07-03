@@ -17,7 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListService {
+public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListService
+    implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "system-test-illegal-records";
   private static final String RULE_VERSION = "system-test-illegal-records@2026-04-27-v1";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
@@ -31,6 +32,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   private final FactBuildService factBuildService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
   private final SystemTestPhaseCatalogService phaseCatalogService;
+  private final PageRecordSnapshotService pageRecordSnapshotService;
 
   public SystemTestIllegalRecordService(
       IssueFactRecordRepository issueFactRecordRepository,
@@ -39,16 +41,29 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
       GitlabResourceLinkService issueLinkService,
       FactBuildService factBuildService,
       SystemTestPhaseScopeResolver phaseScopeResolver,
-      SystemTestPhaseCatalogService phaseCatalogService) {
+      SystemTestPhaseCatalogService phaseCatalogService,
+      PageRecordSnapshotService pageRecordSnapshotService) {
     super(issueFactRecordRepository, issueLinkService);
     this.systemTestScopeProfile = systemTestScopeProfile;
     this.objectMapper = objectMapper;
     this.factBuildService = factBuildService;
     this.phaseScopeResolver = phaseScopeResolver;
     this.phaseCatalogService = phaseCatalogService;
+    this.pageRecordSnapshotService = pageRecordSnapshotService;
   }
 
   public SystemTestIllegalRecordListResponse listRecords(SystemTestIllegalRecordQueryRequest request) {
+    SystemTestIllegalRecordQueryRequest safeRequest = withSnapshotDefaults(request);
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
+            "project:" + defaultProjectId(safeRequest.listRequest().projectId()),
+            safeRequest),
+        SystemTestIllegalRecordListResponse.class,
+        () -> loadRecords(safeRequest));
+  }
+
+  private SystemTestIllegalRecordListResponse loadRecords(SystemTestIllegalRecordQueryRequest request) {
     IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
     int safePage = normalizePage(listRequest.page());
     int safeSize = normalizeSize(listRequest.size());
@@ -169,8 +184,20 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
+    Long safeProjectId = defaultProjectId(projectId);
+    Map<String, Object> requestPayload = Map.of("projectId", safeProjectId);
+    return pageRecordSnapshotService.readOrRefresh(
+        snapshotRequest(
+            PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
+            "project:" + safeProjectId,
+            requestPayload),
+        SystemTestIllegalRecordFilterOptionsResponse.class,
+        () -> loadFilterOptions(safeProjectId));
+  }
+
+  private SystemTestIllegalRecordFilterOptionsResponse loadFilterOptions(Long projectId) {
     IssueFactRecordRepository.SystemTestIllegalFilterValues values =
-        issueFactRecordRepository.findSystemTestIllegalFilterValues(defaultProjectId(projectId));
+        issueFactRecordRepository.findSystemTestIllegalFilterValues(projectId);
     return new SystemTestIllegalRecordFilterOptionsResponse(
         toLegacyOptions(values.projectNames()),
         toLegacyOptions(values.moduleNames()),
@@ -188,10 +215,50 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         toLegacyOptions(values.milestoneTitles()));
   }
 
+  @Override
+  public void refreshRecordSnapshots(PageRecordSnapshotRefresher.RefreshContext context) {
+    if (!context.affectsIssues()) {
+      return;
+    }
+    getFilterOptions(LEGACY_CROWN_CAD_PROJECT_ID);
+    listRecords(
+        new SystemTestIllegalRecordQueryRequest(
+            new IssueFactRecordListRequest(
+                LEGACY_CROWN_CAD_PROJECT_ID,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                20,
+                DEFAULT_SORT_FIELD,
+                "descending"),
+            firstPhaseOption(),
+            null,
+            null,
+            null,
+            null));
+  }
+
   public SystemTestIllegalRecordRowResponse refreshSingleRecord(
       String sourceInstance, Long projectId, Long issueIid) {
     Long safeProjectId = defaultProjectId(projectId);
     factBuildService.rebuildIssueFactByIid(sourceInstance, safeProjectId, issueIid);
+    pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
     return loadScopedIllegalViews(safeProjectId).stream()
         .filter(row -> row.issueIid() != null && row.issueIid().longValue() == issueIid)
@@ -211,37 +278,37 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         true,
         "系统测试非法数据规则说明",
         RULE_VERSION,
-        "当前页面基于 issue_fact 事实层，先用 SystemTestScopeProfile 限定系统测试/回归测试范围，再剔除排除标签数据。",
-        "非法类型来自 issue_fact.illegal_reasons，按老平台 illegal_list 多值口径展示和筛选。",
+        "当前页面展示系统测试和回归测试范围内命中非法规则的议题。平台会先限定系统测试范围，再剔除不应参与统计的无效议题。",
+        "非法类型按老平台非法数据列表口径展示；同一个议题可能同时命中多个非法类型，页面筛选和导出都会保留这些类型。",
         List.of(
-            step("source-load", "加载议题事实", "从 issue_fact 读取已归一化的议题事实。", loaded, loaded.size()),
-            step("scope-filter", "限定系统测试范围", "复用系统测试 scope profile，保留系统测试和回归测试议题。", scoped, loaded.size()),
+            step("source-load", "加载议题数据", "加载已同步到平台的议题数据，并使用整理后的测试阶段、模块、严重程度和非法类型。", loaded, loaded.size()),
+            step("scope-filter", "限定系统测试范围", "保留系统测试和回归测试相关议题，避免与客户问题等其它范围混在一起。", scoped, loaded.size()),
             step("exclude-filter", "剔除排除数据", "排除功能屏蔽、已拒绝、建议、申请否决关闭、需求如此关闭等数据。", valid, scoped.size()),
-            step("illegal-filter", "筛出非法数据", "保留 issue_fact.is_illegal = true 的系统测试议题；非法类型按老平台 illegal_list 多值口径展示。", illegal, valid.size())),
+            step("illegal-filter", "筛出非法数据", "保留命中非法判定规则的系统测试议题；非法类型按老平台多值口径展示。", illegal, valid.size())),
         List.of(
             new StatisticRuleMetricDefinition(
                 "missing-severity",
                 SystemTestIllegalReasonSupport.MISSING_SEVERITY,
                 "严重程度未命中一级缺陷、二级缺陷或三级缺陷。",
-                "未设定严重程度 = count(system-test issue_fact where illegal_reason in [缺失严重程度, 未设定严重程度])",
+                "未设定严重程度 = 系统测试范围内缺少一级/二级/三级缺陷标签的议题数量",
                 null),
             new StatisticRuleMetricDefinition(
                 "missing-module",
                 SystemTestIllegalReasonSupport.MISSING_MODULE,
                 "议题没有模块标签。",
-                "未设定模块 = count(system-test issue_fact where illegal_reason in [缺失模块, 未设定模块])",
+                "未设定模块 = 系统测试范围内缺少有效模块标签的议题数量",
                 null),
             new StatisticRuleMetricDefinition(
                 "template-not-followed",
                 SystemTestIllegalReasonSupport.TEMPLATE_NOT_FOLLOWED,
                 "议题带已修复/完成标签，但未按缺陷调研模板回复。",
-                "未按照模板回复 = count(system-test issue_fact where illegal_reason = 未按照模板回复)",
+                "未按照模板回复 = 已修复或已完成，但没有按要求填写缺陷调研模板的议题数量",
                 null),
             new StatisticRuleMetricDefinition(
                 "non-unique-reason",
                 SystemTestIllegalReasonSupport.NON_UNIQUE_REASON,
                 "议题带已修复/完成标签，但缺陷原因数量不是 1 个。",
-                "缺陷原因不唯一 = count(system-test issue_fact where illegal_reason = 缺陷原因不唯一)",
+                "缺陷原因不唯一 = 已修复或已完成，但缺陷原因不是唯一一个的议题数量",
                 null)),
         null);
   }
@@ -421,6 +488,32 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         request.size(),
         request.sortField(),
         request.sortOrder());
+  }
+
+  private SystemTestIllegalRecordQueryRequest withSnapshotDefaults(SystemTestIllegalRecordQueryRequest request) {
+    IssueFactRecordListRequest listRequest = withLegacyDefaultProject(request.listRequest());
+    return new SystemTestIllegalRecordQueryRequest(
+        listRequest,
+        request.testingPhase(),
+        request.illegalReason(),
+        request.authorName(),
+        request.assigneeName(),
+        request.filterGroupJson());
+  }
+
+  private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
+      String snapshotType, String scopeKey, Object requestPayload) {
+    return new PageRecordSnapshotService.SnapshotRequest(
+        WORKSPACE_KEY,
+        snapshotType,
+        scopeKey,
+        RULE_VERSION,
+        pageRecordSnapshotService.issueFactSourceVersion(),
+        requestPayload);
+  }
+
+  private String firstPhaseOption() {
+    return phaseScopeOptions().stream().findFirst().orElse(null);
   }
 
   @Override

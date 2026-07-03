@@ -445,8 +445,7 @@ const {
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
           <el-button class="app-action-button app-action-button--refresh" plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
           <el-button
-            class="app-action-button app-action-button--rule"
-            plain
+            class="app-action-button app-action-button--rule btn-gray"
             :icon="InfoFilled"
             data-testid="review-rule-explanation-trigger"
             @click="openRuleExplanation"
@@ -454,8 +453,7 @@ const {
             规则说明
           </el-button>
           <el-button
-            class="app-action-button app-action-button--template"
-            plain
+            class="app-action-button app-action-button--template btn-gray"
             :icon="Document"
             :loading="templateDownloadLoading"
             @click="handleDownloadTemplate"
@@ -465,7 +463,6 @@ const {
           <el-dropdown @command="handleExportCommand">
             <el-button
               class="app-action-button app-action-button--export"
-              plain
               :icon="Download"
               :loading="recordExportLoading || problemExportLoading"
             >
@@ -482,7 +479,6 @@ const {
           <el-button
             v-if="canImportReviewData"
             class="app-action-button app-action-button--import"
-            plain
             :icon="Upload"
             @click="legacyImportVisible = true"
           >

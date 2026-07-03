@@ -313,7 +313,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         true,
         "议题阶段统计规则说明",
         RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，按系统测试阶段定义中的轮次聚合。",
+        "当前统计按系统测试阶段定义中的轮次聚合，展示每个轮次下不同严重程度的缺陷数量。",
         "默认项目为老平台 CrownCAD 项目 9；未选择测试阶段时按阶段定义选项第一项作为默认阶段。总计只统计一级、二级、三级缺陷。",
         List.of(
             snapshot.flowSteps().get(0),
@@ -330,9 +330,9 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
                 this::toRuleFlowSample
             )),
         List.of(
-            new StatisticRuleMetricDefinition("level1", "一级缺陷", "按 issue_fact.severity_level = LEVEL1 统计。", "一级缺陷数 = 当前轮次内 LEVEL1 议题数", null),
-            new StatisticRuleMetricDefinition("level2", "二级缺陷", "按 issue_fact.severity_level = LEVEL2 统计。", "二级缺陷数 = 当前轮次内 LEVEL2 议题数", null),
-            new StatisticRuleMetricDefinition("level3", "三级缺陷", "按 issue_fact.severity_level = LEVEL3 统计。", "三级缺陷数 = 当前轮次内 LEVEL3 议题数", null),
+            new StatisticRuleMetricDefinition("level1", "一级缺陷", "统计当前轮次内严重程度为一级缺陷的议题。", "一级缺陷数 = 当前轮次内一级缺陷议题数", null),
+            new StatisticRuleMetricDefinition("level2", "二级缺陷", "统计当前轮次内严重程度为二级缺陷的议题。", "二级缺陷数 = 当前轮次内二级缺陷议题数", null),
+            new StatisticRuleMetricDefinition("level3", "三级缺陷", "统计当前轮次内严重程度为三级缺陷的议题。", "三级缺陷数 = 当前轮次内三级缺陷议题数", null),
             new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "保留老平台表头；系统测试公共排除规则和 4.7 统计范围会剔除建议类数据。", "建议类缺陷数 = 0（保留老平台可见列）", null),
             new StatisticRuleMetricDefinition("total", "总计", "总计遵从规则汇总 4.7，只统计一级、二级、三级缺陷。", "总计 = 一级缺陷 + 二级缺陷 + 三级缺陷", null)),
         null);
@@ -365,8 +365,8 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         List.of(
             StatisticRuleFlowSupport.step(
                 "source-load",
-                "加载议题事实",
-                "从 issue_fact 读取已经归一化的议题事实。",
+                "加载议题数据",
+                "加载已同步到平台的议题数据，并使用整理后的测试阶段和严重程度。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample

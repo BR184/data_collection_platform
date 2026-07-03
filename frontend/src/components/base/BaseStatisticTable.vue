@@ -91,7 +91,9 @@ const {
   floatingScrollbarRef,
   scrollbarAwake,
   hasHorizontalOverflow,
+  isFloatingScrollbarVisible,
   horizontalSpacerWidth,
+  floatingScrollbarStyle,
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
   handleFloatingHorizontalScroll,
@@ -203,9 +205,10 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
       />
     </el-table>
     <div
-      v-show="hasHorizontalOverflow"
+      v-show="isFloatingScrollbarVisible"
       ref="floatingScrollbarRef"
       class="stat-matrix-floating-horizontal"
+      :style="floatingScrollbarStyle"
       aria-hidden="true"
       @mouseenter="wakeHorizontalScrollbar"
       @scroll="handleFloatingHorizontalScroll"
@@ -353,18 +356,19 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
 }
 
 .stat-matrix-floating-horizontal {
-  position: sticky;
-  right: 14px;
-  bottom: 2px;
-  left: 0;
-  z-index: 6;
-  height: 14px;
+  position: fixed;
+  z-index: 1200;
+  height: 16px;
+  padding: 3px 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
   pointer-events: auto;
   opacity: 1;
   scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 76%) transparent;
+  scrollbar-color: var(--el-color-primary-light-3) transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 92%, transparent);
+  box-shadow: var(--el-box-shadow-light);
 }
 
 .stat-matrix-floating-horizontal::-webkit-scrollbar {
@@ -377,7 +381,7 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
 
 .stat-matrix-floating-horizontal::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgb(148 163 184 / 76%);
+  background: var(--el-color-primary-light-3);
 }
 
 .stat-matrix-floating-horizontal-spacer {

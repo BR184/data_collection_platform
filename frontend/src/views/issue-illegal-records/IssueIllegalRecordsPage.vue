@@ -512,8 +512,7 @@ async function handleConditionFilterReset() {
             </el-button>
             <el-button class="app-action-button app-action-button--refresh" plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
-              class="app-action-button app-action-button--rule"
-              plain
+              class="app-action-button app-action-button--rule btn-gray"
               :icon="InfoFilled"
               :loading="ruleExplanationLoading"
               @click="openRuleExplanation"
@@ -523,7 +522,6 @@ async function handleConditionFilterReset() {
             <el-button
               v-if="exportRecords"
               class="app-action-button app-action-button--export"
-              plain
               :icon="Download"
               :loading="exportLoading"
               @click="handleExport"

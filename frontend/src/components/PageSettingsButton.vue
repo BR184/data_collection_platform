@@ -38,8 +38,7 @@ function openSettings() {
 
 <template>
   <el-button
-    class="app-action-button app-action-button--settings"
-    plain
+    class="app-action-button app-action-button--settings btn-gray"
     :icon="Setting"
     @click="openSettings"
   >

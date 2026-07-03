@@ -319,8 +319,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY, true, "系统测试缺陷汇总规则说明", RULE_VERSION,
-        "当前统计基于 issue_fact 的归一化事实字段，默认限定 CrownCAD 老平台项目 9，并按测试阶段定义展开后的 testing_phase 匹配。",
-        "父表格和下钻明细复用同一套模块成员与指标匹配口径，单元格数字与下钻明细 total 保持一致。", s.flowSteps(), buildMetricDefinitions(), null);
+        "当前统计限定为 CrownCAD 系统测试范围。选择一个测试阶段后，平台会按阶段定义展开对应轮次，再统计这些议题在各模块下的缺陷数量、修复情况、关闭情况、延期情况和遗留情况。",
+        "主表数字和下钻明细使用同一套筛选条件、模块归属和指标判定规则；点击数字后看到的明细数量应与主表单元格保持一致。", s.flowSteps(), buildMetricDefinitions(), null);
   }
 
   private List<IssueSource> loadBoardScopedSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {
@@ -343,8 +343,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     return new RuleFlowSnapshot(scoped, valid, List.of(
         StatisticRuleFlowSupport.step(
             "source-load",
-            "加载议题事实",
-            "从 issue_fact 读取已经归一化的议题事实。",
+            "加载议题数据",
+            "加载已同步到平台的议题数据，并使用平台按老平台规则整理后的项目、阶段、模块、严重程度和处理状态。",
             initial.size(),
             initial,
             this::toRuleFlowSample
@@ -376,7 +376,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "module-expand",
             "按模块展开",
-            "按事实层模块成员展开模块行；父表格单元格与下钻明细使用同一套模块成员和指标匹配口径。",
+            "一个议题如果属于多个模块，会分别计入命中的模块；主表单元格与下钻明细使用同一套模块归属和指标判定规则。",
             valid.size(),
             valid.stream().mapToLong(i -> i.moduleNames().size()).sum(),
             valid,
@@ -559,11 +559,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private List<StatisticRuleMetricDefinition> buildMetricDefinitions() {
     return List.of(
-        new StatisticRuleMetricDefinition("level1", "一级缺陷", "一级缺陷基于 severity_level = LEVEL1，再拆分回退、挂机、其他一级。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),
-        new StatisticRuleMetricDefinition("priority-summary", "P1/P2/P3", "P1/P2/P3 与一级/二级/三级缺陷是两套独立统计体系，按老平台 urgency 口径映射到 priority_level。", "Pn 修复率 = bug_status 含已修复/完成或未复现或议题已关闭的 Pn 数量 / Pn 总数；老平台缺陷汇总字段只展示 P1 关闭率", null),
-        new StatisticRuleMetricDefinition("summary", "综合汇总", "综合区展示模块总缺陷、缺陷占比、延期占比、已修复/未更新、修复率、关闭率、未关闭数量、申请延期和复测未通过。", "修复率 = bug_status 含已修复、待合并或未更新的数量 / 模块总缺陷数；复测未通过 = bug_status 含未修复", null),
-        new StatisticRuleMetricDefinition("new-issue", "新发议题", "新发议题按 bug_status 不含“历史遗留”统计。", "新发议题修复率 = 新发议题中 bug_status 含已修复、待合并或未更新的数量 / 新发议题总数；关闭率还要求关闭且 bug_status 含已修复/完成或未复现", null),
-        new StatisticRuleMetricDefinition("legacy", "遗留率", "遗留区沿用老平台 ModuleTableRow 写死口径，而不是 issue_fact.is_legacy。", "一级缺陷遗留率 = (一级缺陷总数 - 一级 setFixQuery 命中数) / 一级缺陷总数；二/三级遗留数量 = 对应严重程度下 bug_status 不含已修复、待合并、未更新；二三级遗留率 = 二三级 setFixQuery 命中数 / 模块总缺陷数", null));
+        new StatisticRuleMetricDefinition("level1", "一级缺陷", "严重程度为一级缺陷的议题会进入一级缺陷统计，并继续拆分为回退、挂机和其他一级缺陷。", "一级缺陷修复率 = 一级缺陷已修复数量 / 一级缺陷总数", null),
+        new StatisticRuleMetricDefinition("priority-summary", "P1/P2/P3", "P1/P2/P3 是优先级统计，一级/二级/三级是严重程度统计，两套口径不能混用。", "某优先级修复率 = 该优先级已修复、已完成、未复现或已关闭数量 / 该优先级总数；缺陷汇总表按老平台口径只展示 P1 关闭率", null),
+        new StatisticRuleMetricDefinition("summary", "综合汇总", "综合区展示模块总缺陷数、缺陷占比、延期占比、已修复或未更新、修复率、关闭率、未关闭数量、申请延期和复测未通过。", "修复率 = 已修复、待合并或未更新数量 / 模块总缺陷数；复测未通过按处理状态包含未修复统计", null),
+        new StatisticRuleMetricDefinition("new-issue", "新发议题", "新发议题不包含标记为历史遗留的议题。", "新发议题修复率 = 新发议题中已修复、待合并或未更新数量 / 新发议题总数；关闭率还要求议题已关闭且状态为已修复、已完成或未复现", null),
+        new StatisticRuleMetricDefinition("legacy", "遗留率", "遗留率沿用老平台系统测试缺陷汇总的历史遗留判定口径。", "一级缺陷遗留率 = 一级缺陷未按已修复口径命中的数量 / 一级缺陷总数；二级、三级遗留按对应严重程度中未修复、未待合并、未更新的数据统计", null));
   }
 
   private List<IssueSource> loadSources(Map<String, String> filters, EffectiveFilterGroup effectiveFilterGroup) {
