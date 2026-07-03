@@ -710,6 +710,7 @@ async function handleConditionFilterReset() {
         <template #toolbar-actions>
           <div class="customer-record-toolbar-actions">
             <SyncMetaBadge :value="lastSyncedText" />
+            <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
             <el-button
               v-if="canRefreshLatestData"
               plain
@@ -719,7 +720,7 @@ async function handleConditionFilterReset() {
             >
               刷新最新数据
             </el-button>
-            <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>
+            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
               plain
               :icon="InfoFilled"
@@ -728,7 +729,6 @@ async function handleConditionFilterReset() {
             >
               规则说明
             </el-button>
-            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
               {{ isDelayTopic ? '导出' : '下载查询数据' }}
             </el-button>

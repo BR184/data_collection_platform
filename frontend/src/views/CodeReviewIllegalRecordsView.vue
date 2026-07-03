@@ -589,6 +589,11 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           <span v-if="taskDurationText" class="code-review-illegal-batch-meta">
             执行时长：{{ taskDurationText }}
           </span>
+          <span class="code-review-illegal-toolbar-divider" />
+          <span class="code-review-illegal-toolbar-label">当前排序</span>
+          <el-tag effect="plain" type="info" class="record-page-sort-tag">
+            {{ sortBy || 'mergedAt' }} / {{ sortOrder || 'desc' }}
+          </el-tag>
           <el-button
             v-if="showRefreshLatestData"
             plain
@@ -610,11 +615,6 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             下载代码走查非法数据
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
-          <span class="code-review-illegal-toolbar-divider" />
-          <span class="code-review-illegal-toolbar-label">当前排序</span>
-          <el-tag effect="plain" type="info" class="record-page-sort-tag">
-            {{ sortBy || 'mergedAt' }} / {{ sortOrder || 'desc' }}
-          </el-tag>
         </div>
       </template>
 

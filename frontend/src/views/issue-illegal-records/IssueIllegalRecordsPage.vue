@@ -499,6 +499,7 @@ async function handleConditionFilterReset() {
         <template #primary-actions>
           <div class="issue-illegal-toolbar-actions customer-illegal-toolbar-actions">
             <SyncMetaBadge v-if="props.loadRealtimeStatus" :value="lastSyncedText" />
+            <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
             <el-button
               v-if="canRefreshLatestData"
               plain
@@ -508,7 +509,7 @@ async function handleConditionFilterReset() {
             >
               刷新最新数据
             </el-button>
-            <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
+            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
               plain
               :icon="InfoFilled"
@@ -517,7 +518,6 @@ async function handleConditionFilterReset() {
             >
               规则说明
             </el-button>
-            <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button
               v-if="exportRecords"
               plain

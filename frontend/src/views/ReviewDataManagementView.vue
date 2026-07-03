@@ -442,6 +442,7 @@ const {
       <template #primary-actions>
         <div class="review-data-toolbar-actions">
           <el-tag effect="plain" type="primary">当前 {{ total }} 条</el-tag>
+          <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
           <el-button
             plain
             :icon="InfoFilled"
@@ -450,7 +451,6 @@ const {
           >
             规则说明
           </el-button>
-          <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
           <el-button
             plain
             :icon="Document"

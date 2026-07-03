@@ -180,6 +180,18 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
 
 <template>
   <div class="stat-board-toolbar" :class="props.uiHooks.toolbarClass">
+    <div class="stat-board-toolbar-filter-row">
+      <div class="stat-board-toolbar-main" :class="props.uiHooks.toolbarMainClass">
+        <StatisticFilterBuilder
+          :model-value="filterDraft"
+          :fields="activeFilterFields"
+          show-apply-actions
+          @apply="emit('applyFilters')"
+          @reset="emit('resetFilters')"
+        />
+      </div>
+    </div>
+
     <div class="stat-board-toolbar-status-row">
       <div class="stat-board-toolbar-status">
         <slot name="scope" />
@@ -197,6 +209,14 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
       <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
         <el-button v-if="canRefreshRealtime" :icon="RefreshRight" @click="emit('refreshBoard')">刷新最新数据</el-button>
         <el-button
+          plain
+          :icon="InfoFilled"
+          :loading="ruleExplanationLoading"
+          @click="emit('openRuleExplanation')"
+        >
+          规则说明
+        </el-button>
+        <el-button
           v-for="action in extraActions"
           :key="action.key"
           :plain="action.plain ?? true"
@@ -206,14 +226,6 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
           @click="emit('extraAction', action.key)"
         >
           {{ action.label }}
-        </el-button>
-        <el-button
-          plain
-          :icon="InfoFilled"
-          :loading="ruleExplanationLoading"
-          @click="emit('openRuleExplanation')"
-        >
-          规则说明
         </el-button>
         <el-button v-if="showExport" plain :icon="Download" @click="emit('exportBoard')">{{ exportLabel }}</el-button>
         <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
@@ -247,25 +259,13 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         </el-dropdown>
       </div>
     </div>
-
-    <div class="stat-board-toolbar-filter-row">
-      <div class="stat-board-toolbar-main" :class="props.uiHooks.toolbarMainClass">
-        <StatisticFilterBuilder
-          :model-value="filterDraft"
-          :fields="activeFilterFields"
-          show-apply-actions
-          @apply="emit('applyFilters')"
-          @reset="emit('resetFilters')"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .stat-board-toolbar {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
 }
@@ -283,6 +283,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
 }
 
 .stat-board-toolbar-main {
+  display: grid;
   min-width: 0;
 }
 
@@ -302,6 +303,13 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
 
 .stat-board-toolbar-actions {
   justify-content: flex-end;
+}
+
+.stat-board-toolbar-actions :deep(.el-button + .el-button),
+.stat-board-toolbar-actions :deep(.el-dropdown + .el-button),
+.stat-board-toolbar-actions :deep(.el-button + .el-dropdown),
+.stat-board-toolbar-actions :deep(.el-dropdown + .el-dropdown) {
+  margin-left: 0;
 }
 
 .view-settings-switch-item {

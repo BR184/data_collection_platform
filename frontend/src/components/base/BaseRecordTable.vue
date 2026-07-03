@@ -338,7 +338,7 @@ function handleStandaloneKeywordClear() {
       <slot name="context-prefix" />
     </section>
 
-    <section v-if="hasFilterBuilder || hasPrimaryActions || hasPrimaryFilters || hasAdvancedFilters || showSearch" class="record-filter-panel">
+    <section v-if="hasFilterBuilder || hasPrimaryFilters || hasAdvancedFilters || showSearch" class="record-filter-panel">
       <div v-if="hasFilterBuilder" class="record-condition-panel">
         <slot
           name="filter-builder"
@@ -421,10 +421,6 @@ function handleStandaloneKeywordClear() {
             </template>
           </div>
         </div>
-
-        <div v-if="hasPrimaryActions" class="record-filter-slot-actions">
-          <slot name="primary-actions" />
-        </div>
       </div>
 
       <el-collapse-transition>
@@ -446,6 +442,18 @@ function handleStandaloneKeywordClear() {
       </el-collapse-transition>
     </section>
 
+    <div v-if="hasToolbarPrefix || hasPrimaryActions || hasToolbarActions || showRefresh" class="record-table-toolbar">
+      <div class="record-table-toolbar-main">
+        <slot name="toolbar-prefix" />
+      </div>
+
+      <div class="record-table-toolbar-actions">
+        <slot name="primary-actions" />
+        <slot name="toolbar-actions" />
+        <el-button v-if="showRefresh" :icon="Refresh" @click="emit('refresh')">刷新</el-button>
+      </div>
+    </div>
+
     <section v-if="hasActiveFilterTags" class="record-filter-tags">
       <span class="record-filter-tags-label">已选条件</span>
       <el-tag
@@ -459,17 +467,6 @@ function handleStandaloneKeywordClear() {
         {{ tag.label }}：{{ tag.value }}
       </el-tag>
     </section>
-
-    <div v-if="hasToolbarPrefix || hasToolbarActions || showRefresh" class="record-table-toolbar">
-      <div class="record-table-toolbar-main">
-        <slot name="toolbar-prefix" />
-      </div>
-
-      <div class="record-table-toolbar-actions">
-        <slot name="toolbar-actions" />
-        <el-button v-if="showRefresh" :icon="Refresh" @click="emit('refresh')">刷新</el-button>
-      </div>
-    </div>
 
     <div
       ref="tableShellRef"
@@ -606,18 +603,9 @@ function handleStandaloneKeywordClear() {
 
 .record-filter-primary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 8px;
-}
-
-.record-table-workspace--quick-filters-expanded .record-filter-primary {
-  grid-template-columns: 1fr;
-}
-
-.record-table-workspace--quick-filters-expanded .record-filter-slot-actions {
-  justify-self: stretch;
-  justify-content: flex-end;
 }
 
 .record-condition-panel {
@@ -671,19 +659,6 @@ function handleStandaloneKeywordClear() {
   justify-content: flex-end;
 }
 
-.record-filter-slot-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.record-filter-slot-actions {
-  justify-self: end;
-}
-
 @media (max-width: 1180px) {
   .record-filter-primary {
     grid-template-columns: 1fr;
@@ -691,11 +666,6 @@ function handleStandaloneKeywordClear() {
 
   .record-filter-query-strip {
     grid-template-columns: 1fr;
-  }
-
-  .record-filter-slot-actions {
-    justify-self: start;
-    justify-content: flex-start;
   }
 
   .record-filter-primary-actions {
@@ -772,6 +742,20 @@ function handleStandaloneKeywordClear() {
   gap: 8px;
   flex-wrap: wrap;
   max-width: 100%;
+}
+
+.record-table-toolbar-actions :deep(.review-data-toolbar-actions),
+.record-table-toolbar-actions :deep(.code-review-illegal-toolbar-actions),
+.record-table-toolbar-actions :deep(.issue-illegal-toolbar-actions),
+.record-table-toolbar-actions :deep(.customer-record-toolbar-actions) {
+  justify-content: flex-end;
+}
+
+.record-table-toolbar-actions :deep(.el-button + .el-button),
+.record-table-toolbar-actions :deep(.el-dropdown + .el-button),
+.record-table-toolbar-actions :deep(.el-button + .el-dropdown),
+.record-table-toolbar-actions :deep(.el-dropdown + .el-dropdown) {
+  margin-left: 0;
 }
 
 .record-table-frame {
@@ -903,11 +887,6 @@ function handleStandaloneKeywordClear() {
 @media (max-width: 960px) {
   .record-filter-primary {
     grid-template-columns: 1fr;
-  }
-
-  .record-filter-slot-actions {
-    justify-content: flex-start;
-    min-width: 0;
   }
 
   .record-table-toolbar {

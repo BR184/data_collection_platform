@@ -368,7 +368,7 @@ async function handleExpandChange() {
   min-height: 24px;
   width: 100%;
   line-height: 1.35 !important;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .stat-detail-table :deep(td.el-table__cell) {
@@ -377,7 +377,7 @@ async function handleExpandChange() {
 }
 
 .stat-detail-table :deep(.el-table__row) {
-  height: 36px;
+  min-height: 36px;
 }
 
 .stat-detail-table :deep(.el-table__expanded-cell .cell) {

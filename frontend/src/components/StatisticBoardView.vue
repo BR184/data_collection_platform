@@ -106,10 +106,7 @@ const currentDataScopeSummary = computed(() =>
   dataScope.summary.value ? `${dataScope.summary.value.label}：${dataScope.summary.value.value}` : '',
 );
 const currentDataScopeLoading = computed(() => dataScopeConfig.value?.loading.value ?? false);
-const compactDataScopeHeader = computed(() => props.boardKey === 'system-test-defect-summary');
-const toolbarBoardTitle = computed(() =>
-  compactDataScopeHeader.value ? '' : board.value?.definition.title,
-);
+const toolbarBoardTitle = computed(() => '');
 const routeScopeReady = computed(() => {
   const provider = dataScopeConfig.value?.provider;
   if (!provider || provider.defaultStrategy !== 'first-available') {
@@ -694,8 +691,8 @@ function autoRefreshMarkerKey() {
               :model-value="currentDataScopeValue"
               :summary="currentDataScopeSummary"
               :loading="currentDataScopeLoading"
-              :show-label="!compactDataScopeHeader"
-              :show-summary="!compactDataScopeHeader"
+              :show-label="false"
+              :show-summary="false"
               class="stat-board-scope-bar"
               @change="dataScope.setValue"
             />

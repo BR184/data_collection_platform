@@ -63,6 +63,10 @@ function isGitlabMultiLabelColumn(column: StatisticDetailColumn) {
   return column.type === 'tags' || LABEL_LIKE_MULTI_COLUMN_KEYS.has(column.key);
 }
 
+function shouldRenderAsTagList(column: StatisticDetailColumn, cell: DetailDisplayCell | undefined) {
+  return isGitlabMultiLabelColumn(column) || (isGitlabLabelColumn(column) && (cell?.tags?.length ?? 0) > 1);
+}
+
 function gitlabLabelStyle(label: string, labelColors: Record<string, string> = {}) {
   const backgroundColor = gitlabLabelColor(label, labelColors);
   return {
@@ -126,46 +130,75 @@ function rgbToHex(red: number, green: number, blue: number) {
 
 <template>
   <div
-    v-if="isGitlabMultiLabelColumn(column)"
-    class="detail-cell-tags detail-cell-gitlab-labels"
-    :class="{ 'detail-cell-tags--multiline': multiline }"
-    :title="cell?.label"
+    class="detail-display-cell"
+    :class="{
+      'detail-display-cell--tag-list': shouldRenderAsTagList(column, cell),
+      'detail-display-cell--single-tag': !shouldRenderAsTagList(column, cell) && isGitlabLabelColumn(column),
+      'detail-display-cell--multiline': multiline,
+    }"
   >
-    <span
-      v-for="tag in cell?.tags ?? []"
-      :key="`${column.key}-${tag}`"
-      class="detail-gitlab-label"
-      :style="gitlabLabelStyle(tag, cell?.labelColors)"
-      :title="tag"
+    <div
+      v-if="shouldRenderAsTagList(column, cell)"
+      class="detail-cell-tags detail-cell-gitlab-labels"
+      :class="{ 'detail-cell-tags--multiline': multiline }"
+      :title="cell?.label"
     >
-      {{ tag }}
+      <span
+        v-for="tag in cell?.tags ?? []"
+        :key="`${column.key}-${tag}`"
+        class="detail-gitlab-label"
+        :style="gitlabLabelStyle(tag, cell?.labelColors)"
+        :title="tag"
+      >
+        {{ tag }}
+      </span>
+      <span v-if="!(cell?.tags ?? []).length" class="detail-cell-empty">-</span>
+    </div>
+    <span
+      v-else-if="isGitlabLabelColumn(column) && cell?.label && cell.label !== '-'"
+      class="detail-gitlab-label"
+      :style="gitlabLabelStyle(cell.label, cell.labelColors)"
+      :title="cell.label"
+    >
+      {{ cell.label }}
     </span>
-    <span v-if="!(cell?.tags ?? []).length" class="detail-cell-empty">-</span>
+    <span v-else-if="isGitlabLabelColumn(column)" class="detail-cell-empty">-</span>
+    <a
+      v-else-if="cell?.href"
+      class="detail-cell-link"
+      :href="cell.href || undefined"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {{ cell.label }}
+    </a>
+    <span v-else class="detail-cell-text" :class="{ 'detail-cell-text--multiline': multiline }" :title="cell?.label">
+      {{ cell?.label }}
+    </span>
   </div>
-  <span
-    v-else-if="isGitlabLabelColumn(column) && cell?.label && cell.label !== '-'"
-    class="detail-gitlab-label"
-    :style="gitlabLabelStyle(cell.label, cell.labelColors)"
-    :title="cell.label"
-  >
-    {{ cell.label }}
-  </span>
-  <span v-else-if="isGitlabLabelColumn(column)" class="detail-cell-empty">-</span>
-  <a
-    v-else-if="cell?.href"
-    class="detail-cell-link"
-    :href="cell.href || undefined"
-    target="_blank"
-    rel="noopener noreferrer"
-  >
-    {{ cell.label }}
-  </a>
-  <span v-else class="detail-cell-text" :class="{ 'detail-cell-text--multiline': multiline }" :title="cell?.label">
-    {{ cell?.label }}
-  </span>
 </template>
 
 <style scoped>
+.detail-display-cell {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.detail-display-cell--tag-list {
+  align-items: flex-start;
+}
+
+.detail-display-cell--single-tag {
+  min-width: 0;
+}
+
+.detail-display-cell--multiline {
+  align-items: flex-start;
+}
+
 .detail-cell-link {
   display: inline-flex;
   align-items: center;
@@ -205,12 +238,15 @@ function rgbToHex(red: number, green: number, blue: number) {
 
 .detail-cell-tags {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  align-content: flex-start;
   gap: 4px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   min-height: 20px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .detail-cell-tags--multiline {
