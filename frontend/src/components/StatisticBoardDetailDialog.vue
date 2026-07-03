@@ -241,26 +241,40 @@ async function handleExpandChange() {
 :global(.stat-detail-dialog) {
   display: flex;
   flex-direction: column;
-  width: fit-content;
-  min-width: min(720px, calc(100vw - 32px));
-  max-width: calc(100vw - 96px);
-  max-height: calc(100vh - 64px);
+  width: min(1680px, calc(100vw - 40px));
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 48px);
+  border-radius: 8px;
+}
+
+:global(.stat-detail-dialog .el-dialog__header) {
+  padding: 16px 20px 12px;
+  margin-right: 0;
+  border-bottom: 1px solid #eef1f5;
+}
+
+:global(.stat-detail-dialog .el-dialog__title) {
+  color: #1f2329;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 :global(.stat-detail-dialog .el-dialog__body) {
   flex: 1 1 auto;
   min-height: 0;
-  width: min(var(--stat-detail-table-content-width, 960px), calc(100vw - 160px));
+  width: 100%;
   overflow: hidden;
-  padding-bottom: 16px;
+  padding: 12px 16px 14px;
+  box-sizing: border-box;
 }
 
 .stat-detail-shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  width: 100%;
   min-height: 0;
-  max-height: calc(100vh - 176px);
+  max-height: calc(100vh - 132px);
 }
 
 .stat-detail-expand-panel {
@@ -286,18 +300,18 @@ async function handleExpandChange() {
 
 .stat-detail-table-shell {
   position: relative;
-  width: min(var(--stat-detail-table-content-width, 960px), 100%);
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   flex: 1 1 auto;
-  max-height: min(64vh, calc(100vh - 250px));
+  max-height: min(70vh, calc(100vh - 206px));
   overflow: auto;
   outline: none;
   scrollbar-gutter: stable;
 }
 
 .stat-detail-table {
-  width: var(--stat-detail-table-content-width, 960px);
+  width: max(100%, var(--stat-detail-table-content-width, 960px));
 }
 
 .stat-detail-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
@@ -306,11 +320,11 @@ async function handleExpandChange() {
 
 .stat-detail-floating-horizontal {
   position: sticky;
-  right: 14px;
-  bottom: 2px;
+  right: 0;
+  bottom: 0;
   left: 0;
   z-index: 6;
-  height: 14px;
+  height: 12px;
   overflow-x: auto;
   overflow-y: hidden;
   pointer-events: auto;
@@ -320,7 +334,7 @@ async function handleExpandChange() {
 }
 
 .stat-detail-floating-horizontal::-webkit-scrollbar {
-  height: 9px;
+  height: 8px;
 }
 
 .stat-detail-floating-horizontal::-webkit-scrollbar-track {
@@ -364,6 +378,22 @@ async function handleExpandChange() {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
+  padding-top: 2px;
+}
+
+@media (max-width: 960px) {
+  :global(.stat-detail-dialog) {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+
+  :global(.stat-detail-dialog .el-dialog__header) {
+    padding: 14px 14px 10px;
+  }
+
+  :global(.stat-detail-dialog .el-dialog__body) {
+    padding: 10px 10px 12px;
+  }
 }
 
 </style>

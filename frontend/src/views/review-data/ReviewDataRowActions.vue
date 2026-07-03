@@ -11,6 +11,7 @@ defineProps<{
   onExportProblemDetails: (row: Record<string, unknown>) => void | Promise<void>;
   onDeleteRecord: (row: Record<string, unknown>) => void | Promise<void>;
   canManage?: boolean;
+  canDeleteRecord?: boolean;
 }>();
 </script>
 
@@ -39,7 +40,7 @@ defineProps<{
           <el-dropdown-item v-if="canManage" @click="onEditRecord(row)">编辑评审</el-dropdown-item>
           <el-dropdown-item v-if="canManage" @click="onCreateProblemItem(row)">新增问题</el-dropdown-item>
           <el-dropdown-item @click="onExportProblemDetails(row)">导出问题详情</el-dropdown-item>
-          <el-dropdown-item v-if="canManage" divided @click="onDeleteRecord(row)">删除评审</el-dropdown-item>
+          <el-dropdown-item v-if="canDeleteRecord" divided @click="onDeleteRecord(row)">删除评审</el-dropdown-item>
         </el-dropdown-menu>
       </template>
     </el-dropdown>

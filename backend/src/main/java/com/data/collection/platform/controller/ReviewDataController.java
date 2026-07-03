@@ -114,14 +114,12 @@ public class ReviewDataController {
   }
 
   @PostMapping("/records")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataRecordDetailResponse> createRecord(
       @Valid @RequestBody ReviewDataRecordSaveRequest request) {
     return ApiResponse.success("新增评审成功", reviewDataRecordService.createRecord(request));
   }
 
   @PutMapping("/records/{recordId}")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataRecordDetailResponse> updateRecord(
       @PathVariable Long recordId, @Valid @RequestBody ReviewDataRecordSaveRequest request) {
     return ApiResponse.success("编辑评审成功", reviewDataRecordService.updateRecord(recordId, request));
@@ -209,14 +207,12 @@ public class ReviewDataController {
   }
 
   @PostMapping("/records/{recordId}/problem-items")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataProblemItemResponse> createProblemItem(
       @PathVariable Long recordId, @Valid @RequestBody ReviewDataProblemItemSaveRequest request) {
     return ApiResponse.success("新增评审问题成功", reviewDataRecordService.createProblemItem(recordId, request));
   }
 
   @PutMapping("/records/{recordId}/problem-items/{itemId}")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<ReviewDataProblemItemResponse> updateProblemItem(
       @PathVariable Long recordId,
       @PathVariable Long itemId,
@@ -227,7 +223,6 @@ public class ReviewDataController {
   }
 
   @DeleteMapping("/records/{recordId}/problem-items/{itemId}")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Void> deleteProblemItem(@PathVariable Long recordId, @PathVariable Long itemId) {
     reviewDataRecordService.deleteProblemItem(recordId, itemId);
     return ApiResponse.success("删除评审问题成功", null);

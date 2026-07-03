@@ -59,6 +59,11 @@ public class PlatformSecurityConfiguration {
             .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
             .requestMatchers(HttpMethod.GET, SYSTEM_SETTINGS_API_PATHS).authenticated()
             .requestMatchers(HttpMethod.HEAD, SYSTEM_SETTINGS_API_PATHS).authenticated()
+            .requestMatchers(HttpMethod.POST, "/api/review-data/records").permitAll()
+            .requestMatchers(HttpMethod.PUT, "/api/review-data/records/*").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/review-data/records/*/problem-items").permitAll()
+            .requestMatchers(HttpMethod.PUT, "/api/review-data/records/*/problem-items/*").permitAll()
+            .requestMatchers(HttpMethod.DELETE, "/api/review-data/records/*/problem-items/*").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
             .requestMatchers(HttpMethod.HEAD, "/api/**").permitAll()
             .anyRequest().authenticated());

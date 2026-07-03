@@ -14,11 +14,15 @@ const props = withDefaults(
     loading?: boolean;
     disabled?: boolean;
     summary?: string;
+    showLabel?: boolean;
+    showSummary?: boolean;
   }>(),
   {
     loading: false,
     disabled: false,
     summary: '',
+    showLabel: true,
+    showSummary: true,
   },
 );
 
@@ -70,7 +74,7 @@ function findOptionPath(options: DataScopeOption[], targetValue: string): string
 <template>
   <div class="data-scope-bar">
     <div class="data-scope-bar__main">
-      <span class="data-scope-bar__label">{{ provider.label }}</span>
+      <span v-if="showLabel" class="data-scope-bar__label">{{ provider.label }}</span>
 
       <SmartSelect
         v-if="provider.mode === 'single-select'"
@@ -128,7 +132,7 @@ function findOptionPath(options: DataScopeOption[], targetValue: string): string
       />
     </div>
 
-    <span v-if="summary" class="data-scope-bar__summary">{{ summary }}</span>
+    <span v-if="showSummary && summary" class="data-scope-bar__summary">{{ summary }}</span>
   </div>
 </template>
 

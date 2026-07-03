@@ -106,6 +106,10 @@ const currentDataScopeSummary = computed(() =>
   dataScope.summary.value ? `${dataScope.summary.value.label}：${dataScope.summary.value.value}` : '',
 );
 const currentDataScopeLoading = computed(() => dataScopeConfig.value?.loading.value ?? false);
+const compactDataScopeHeader = computed(() => props.boardKey === 'system-test-defect-summary');
+const toolbarBoardTitle = computed(() =>
+  compactDataScopeHeader.value ? '' : board.value?.definition.title,
+);
 const routeScopeReady = computed(() => {
   const provider = dataScopeConfig.value?.provider;
   if (!provider || provider.defaultStrategy !== 'first-available') {
@@ -664,7 +668,7 @@ function autoRefreshMarkerKey() {
         <StatisticBoardToolbar
           :filter-draft="filterDraft"
           :active-filter-fields="activeFilterFields"
-          :board-title="board?.definition.title"
+          :board-title="toolbarBoardTitle"
           :last-synced-text="lastSyncedText"
           :rule-explanation-loading="ruleExplanationLoading"
           :realtime-status="syncStatus"
@@ -690,6 +694,8 @@ function autoRefreshMarkerKey() {
               :model-value="currentDataScopeValue"
               :summary="currentDataScopeSummary"
               :loading="currentDataScopeLoading"
+              :show-label="!compactDataScopeHeader"
+              :show-summary="!compactDataScopeHeader"
               class="stat-board-scope-bar"
               @change="dataScope.setValue"
             />
