@@ -13,6 +13,7 @@ defineProps<{
   onCreateProblemItem: (recordId: number) => void | Promise<void>;
   onEditProblemItem: (recordId: number, item: ReviewDataProblemItemResponse) => void | Promise<void>;
   onDeleteProblemItem: (recordId: number, itemId: number) => void | Promise<void>;
+  canManage?: boolean;
 }>();
 
 function isPendingReview(row: Record<string, unknown>) {
@@ -28,7 +29,7 @@ function isPendingReview(row: Record<string, unknown>) {
         <span>评审问题清单</span>
         <el-tag size="small" effect="plain">共 {{ record.problemCount }} 条</el-tag>
       </div>
-      <el-button type="primary" text :icon="Plus" @click="onCreateProblemItem(record.id)">新增问题</el-button>
+      <el-button v-if="canManage" type="primary" text :icon="Plus" @click="onCreateProblemItem(record.id)">新增问题</el-button>
     </div>
 
     <div class="problem-subtable-frame">
@@ -72,7 +73,7 @@ function isPendingReview(row: Record<string, unknown>) {
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="136" fixed="right" align="center">
+      <el-table-column v-if="canManage" label="操作" width="136" fixed="right" align="center">
         <template #default="{ row }">
           <div class="problem-actions">
             <el-button

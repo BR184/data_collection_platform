@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 // 看板定义、明细下钻、实时刷新和规则说明都由服务能力声明，控制器只做统一 HTTP 外壳。
 public class StatisticBoardController {
   private static final String SYSTEM_TEST_DEFECT_SUMMARY_BOARD_KEY = "system-test-defect-summary";
+  private static final String SYSTEM_TEST_PHASE_STATISTICS_BOARD_KEY = "system-test-phase-statistics";
   private final StatisticBoardRegistry registry;
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final SystemTestHorizontalComparisonExportService systemTestHorizontalComparisonExportService;
@@ -96,6 +97,9 @@ public class StatisticBoardController {
       @PathVariable @NotBlank String boardKey,
       @RequestParam Map<String, String> filters) {
     var service = registry.getRequired(boardKey);
+    if (SYSTEM_TEST_PHASE_STATISTICS_BOARD_KEY.equals(boardKey)) {
+      throw new IllegalArgumentException("当前统计表不支持导出: " + boardKey);
+    }
     if (service instanceof StatisticBoardWorkbookExportSupport workbookExportSupport) {
       byte[] workbook = workbookExportSupport.exportBoardWorkbook(filters);
       String filename = workbookExportSupport.exportFilename(filters);
@@ -148,12 +152,13 @@ public class StatisticBoardController {
 
   @GetMapping("/{boardKey}/status")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getBoardRealtimeStatus(
-      @PathVariable @NotBlank String boardKey) {
+      @PathVariable @NotBlank String boardKey,
+      @RequestParam Map<String, String> filters) {
     var service = registry.getRequired(boardKey);
     if (service instanceof RealtimeStatisticBoardSupport realtimeSupport) {
-      return ApiResponse.success(realtimeSupport.getRealtimeStatus());
+      return ApiResponse.success(realtimeSupport.getRealtimeStatus(filters));
     }
-    return ApiResponse.success(realtimeWorkspaceService.getStatus(boardKey));
+    return ApiResponse.success(realtimeWorkspaceService.getStatus(boardKey, filters));
   }
 
   @PostMapping("/{boardKey}/refresh")

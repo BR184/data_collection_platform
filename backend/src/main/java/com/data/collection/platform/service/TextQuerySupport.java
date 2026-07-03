@@ -22,6 +22,10 @@ public final class TextQuerySupport {
     return StringUtils.hasText(value) ? value.trim() : null;
   }
 
+  public static boolean hasText(String value) {
+    return StringUtils.hasText(value);
+  }
+
   public static String normalizeForMatch(String value) {
     String normalized = trimToNull(value);
     return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);

@@ -7,6 +7,7 @@ import BaseSearchInput from './BaseSearchInput.vue';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';
 import RecordTableFilterFields from './RecordTableFilterFields.vue';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
+import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
 import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
@@ -84,9 +85,27 @@ const emit = defineEmits<{
 const keywordDraft = ref(props.keyword);
 const inputFilterDrafts = ref<Record<string, string>>({});
 const primaryFiltersExpanded = ref(false);
+const tableShellRef = ref<HTMLElement>();
 const allFilters = computed(() => [...props.primaryFilters, ...props.advancedFilters]);
 const { displayedLoading } = useDelayedLoading(toRef(props, 'loading'), computed(() => props.loadingDelay ?? 0));
 const keywordAutoSearchTask = useDebouncedTask(toRef(props, 'keywordAutoSearchDelay'));
+const {
+  floatingScrollbarRef,
+  scrollbarAwake,
+  hasHorizontalOverflow,
+  horizontalSpacerWidth,
+  wakeHorizontalScrollbar,
+  handleHorizontalWheel,
+  handleFloatingHorizontalScroll,
+  scheduleHorizontalScrollbarUpdate,
+} = useFloatingHorizontalScrollbar({
+  tableShellRef,
+  watchedSources: [
+    () => props.rows,
+    () => props.columns,
+    () => props.expandedRowKeys,
+  ],
+});
 
 watch(
   () => props.keyword,
@@ -176,6 +195,8 @@ function handleFilterChange(key: string, value: string | string[] | null) {
 
 function handleExpandChange(row: Record<string, unknown>, expandedRows: Record<string, unknown>[]) {
   emit('expand-change', row, expandedRows);
+  void scheduleHorizontalScrollbarUpdate();
+  wakeHorizontalScrollbar();
 }
 
 function toggleAdvancedVisible() {
@@ -418,7 +439,16 @@ function handleStandaloneKeywordClear() {
       </div>
     </div>
 
-    <div class="record-table-frame">
+    <div
+      ref="tableShellRef"
+      class="record-table-frame"
+      :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
+      tabindex="0"
+      @mouseenter="wakeHorizontalScrollbar"
+      @mousemove="wakeHorizontalScrollbar"
+      @focusin="wakeHorizontalScrollbar"
+      @wheel="handleHorizontalWheel"
+    >
       <el-table
         v-loading="displayedLoading"
         :data="rows"
@@ -487,6 +517,16 @@ function handleStandaloneKeywordClear() {
           <el-empty :description="emptyDescription" />
         </template>
       </el-table>
+      <div
+        v-show="hasHorizontalOverflow"
+        ref="floatingScrollbarRef"
+        class="record-table-floating-horizontal"
+        aria-hidden="true"
+        @mouseenter="wakeHorizontalScrollbar"
+        @scroll="handleFloatingHorizontalScroll"
+      >
+        <div class="record-table-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+      </div>
     </div>
 
     <div class="record-table-pagination">
@@ -702,16 +742,55 @@ function handleStandaloneKeywordClear() {
 }
 
 .record-table-frame {
+  position: relative;
   overflow-x: auto;
   overflow-y: hidden;
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.06);
   background: #fff;
+  outline: none;
+  scrollbar-gutter: stable;
 }
 
 .record-table {
   width: max-content;
   min-width: 100%;
+}
+
+.record-table-frame :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  display: none !important;
+}
+
+.record-table-floating-horizontal {
+  position: sticky;
+  right: 14px;
+  bottom: 2px;
+  left: 0;
+  z-index: 6;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: auto;
+  opacity: 1;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 76%) transparent;
+}
+
+.record-table-floating-horizontal::-webkit-scrollbar {
+  height: 9px;
+}
+
+.record-table-floating-horizontal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.record-table-floating-horizontal::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(148 163 184 / 76%);
+}
+
+.record-table-floating-horizontal-spacer {
+  height: 1px;
 }
 
 .record-table-pagination {

@@ -53,13 +53,18 @@ export const CODE_REVIEW_ILLEGAL_RECORD_COLUMNS: RecordTableColumn[] = [
   { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 150, align: 'right' },
 ];
 
-export function buildCodeReviewIllegalRecordColumns(legacyMode = false): RecordTableColumn[] {
+export function buildCodeReviewIllegalRecordColumns(
+  legacyMode = false,
+  dgmLegacyMode = false,
+): RecordTableColumn[] {
   if (!legacyMode) {
     return CODE_REVIEW_ILLEGAL_RECORD_COLUMNS;
   }
-  return CODE_REVIEW_ILLEGAL_RECORD_COLUMNS.map((column) =>
+  const columns = CODE_REVIEW_ILLEGAL_RECORD_COLUMNS.map((column) =>
     column.key === 'projectName' ? { ...column, key: 'repositoryName' } : column,
   );
+  //兼容模式-MatchMode：老平台 DGM 页签固定 name=DGM，不展示 CC 页签的“所属项目/nameSearch”列。
+  return dgmLegacyMode ? columns.filter((column) => column.key !== 'repositoryName') : columns;
 }
 
 export function createDefaultCodeReviewFilterOptions(): CodeReviewIllegalRecordFilterOptionsResponse {

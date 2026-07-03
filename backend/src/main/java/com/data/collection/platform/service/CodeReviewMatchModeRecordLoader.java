@@ -95,11 +95,13 @@ public class CodeReviewMatchModeRecordLoader {
             ? new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, null)
             : request;
     QueryParts projectParts = buildFilterOptionQuery(null, null, null, safeRequest.source());
+    //兼容模式-MatchMode：老平台下拉候选按当前 CC/DGM 与 name/nameSearch 取数，
+    //不被已选 projectName 反向缩窄，否则项目名称下拉会只剩当前值，切源后也容易残留旧条件。
     QueryParts scopedParts =
         buildFilterOptionQuery(
             safeRequest.projectId(),
             safeRequest.repositoryName(),
-            safeRequest.projectName(),
+            null,
             safeRequest.source());
     Map<String, List<String>> projectValues =
         queryOptionValues(projectParts, Map.of("repositoryNames", "repository_name"));

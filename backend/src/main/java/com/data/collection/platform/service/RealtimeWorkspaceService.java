@@ -1,6 +1,5 @@
 package com.data.collection.platform.service;
 
-import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import java.time.Duration;
@@ -19,32 +18,36 @@ import org.springframework.stereotype.Service;
 public class RealtimeWorkspaceService {
   private static final Duration REFRESH_COOLDOWN = Duration.ofSeconds(15);
 
-  private final GitlabConfigService configService;
+  private final RealtimeWorkspaceSyncMetadataService syncMetadataService;
   private final RealtimeWorkspaceService self;
   private final Map<String, WorkspaceRefreshState> states = new ConcurrentHashMap<>();
 
   public RealtimeWorkspaceService(
-      GitlabConfigService configService,
+      RealtimeWorkspaceSyncMetadataService syncMetadataService,
       @Lazy RealtimeWorkspaceService self) {
-    this.configService = configService;
+    this.syncMetadataService = syncMetadataService;
     this.self = self == null ? this : self;
   }
 
   public RealtimeWorkspaceStatusResponse getStatus(String workspaceKey) {
+    return getStatus(workspaceKey, Map.of());
+  }
+
+  public RealtimeWorkspaceStatusResponse getStatus(String workspaceKey, Map<String, String> filters) {
     WorkspaceRefreshState state = states.get(workspaceKey);
-    LocalDateTime lastSyncedAt = resolveLastSyncedAt();
+    RealtimeWorkspaceSyncMetadata metadata = syncMetadataService.resolve(workspaceKey, filters);
     if (state == null) {
       return new RealtimeWorkspaceStatusResponse(
           workspaceKey,
           true,
-          lastSyncedAt == null ? "IDLE" : "READY",
-          lastSyncedAt == null ? "暂无已完成的镜像同步时间" : "已展示当前可用数据",
+          metadata.lastSyncedAt() == null ? "IDLE" : "READY",
+          metadata.lastSyncedAt() == null ? "暂无已完成的同步时间" : "已展示当前可用数据",
           false,
-          lastSyncedAt,
-          null,
-          null);
+          metadata.lastSyncedAt(),
+          metadata.taskStartedAt(),
+          metadata.taskFinishedAt());
     }
-    return toResponse(workspaceKey, state, lastSyncedAt);
+    return toResponse(workspaceKey, state, metadata);
   }
 
   public synchronized RealtimeWorkspaceStatusResponse requestRefresh(
@@ -65,7 +68,7 @@ public class RealtimeWorkspaceService {
     WorkspaceRefreshState state = states.computeIfAbsent(workspaceKey, key -> new WorkspaceRefreshState());
     LocalDateTime now = LocalDateTime.now();
     if (state.refreshing || isCoolingDown(state, now)) {
-      return toResponse(workspaceKey, state, resolveLastSyncedAt());
+      return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()));
     }
     state.refreshing = true;
     state.status = "REFRESHING";
@@ -81,7 +84,7 @@ public class RealtimeWorkspaceService {
     state.mirrorStatus = "REFRESHING";
     state.factStatus = null;
     self.executeRefreshWithResultAsync(workspaceKey, refreshAction);
-    return toResponse(workspaceKey, state, resolveLastSyncedAt());
+    return toResponse(workspaceKey, state, syncMetadataService.resolve(workspaceKey, Map.of()));
   }
 
   @Async
@@ -146,16 +149,22 @@ public class RealtimeWorkspaceService {
   private RealtimeWorkspaceStatusResponse toResponse(
       String workspaceKey,
       WorkspaceRefreshState state,
-      LocalDateTime lastSyncedAt) {
+      RealtimeWorkspaceSyncMetadata metadata) {
+    LocalDateTime taskStartedAt = state.lastRefreshStartedAt != null
+        ? state.lastRefreshStartedAt
+        : metadata.taskStartedAt();
+    LocalDateTime taskFinishedAt = state.lastRefreshFinishedAt != null
+        ? state.lastRefreshFinishedAt
+        : metadata.taskFinishedAt();
     return new RealtimeWorkspaceStatusResponse(
         workspaceKey,
         true,
         state.status,
         state.message,
         state.refreshing,
-        lastSyncedAt,
-        state.lastRefreshStartedAt,
-        state.lastRefreshFinishedAt,
+        metadata.lastSyncedAt(),
+        taskStartedAt,
+        taskFinishedAt,
         state.jobId,
         state.sourceTables,
         state.plannedTasks,
@@ -163,22 +172,6 @@ public class RealtimeWorkspaceService {
         state.factRefreshPlanned,
         state.mirrorStatus,
         state.factStatus);
-  }
-
-  private LocalDateTime resolveLastSyncedAt() {
-    GitlabSyncConfig config = configService.getConfig();
-    if (config == null) {
-      return null;
-    }
-    LocalDateTime incremental = config.getLastIncrementalSyncAt();
-    LocalDateTime full = config.getLastFullSyncAt();
-    if (incremental == null) {
-      return full;
-    }
-    if (full == null) {
-      return incremental;
-    }
-    return incremental.isAfter(full) ? incremental : full;
   }
 
   private boolean isCoolingDown(WorkspaceRefreshState state, LocalDateTime now) {

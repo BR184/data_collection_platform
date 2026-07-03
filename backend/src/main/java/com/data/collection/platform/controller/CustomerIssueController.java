@@ -14,6 +14,7 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordService;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
+import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -86,8 +87,9 @@ public class CustomerIssueController {
 
   @GetMapping("/records/status")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getRecordRealtimeStatus(
-      @RequestParam(required = false) String topic) {
-    return ApiResponse.success(realtimeRefreshService.getStatus(recordWorkspaceKey(topic)));
+      @RequestParam(required = false) String topic,
+      @RequestParam Map<String, String> filters) {
+    return ApiResponse.success(realtimeRefreshService.getStatus(recordWorkspaceKey(topic), filters));
   }
 
   @PostMapping("/records/refresh")
@@ -131,8 +133,9 @@ public class CustomerIssueController {
   }
 
   @GetMapping("/illegal-records/status")
-  public ApiResponse<RealtimeWorkspaceStatusResponse> getIllegalRecordRealtimeStatus() {
-    return ApiResponse.success(realtimeRefreshService.getStatus(ILLEGAL_RECORDS_WORKSPACE_KEY));
+  public ApiResponse<RealtimeWorkspaceStatusResponse> getIllegalRecordRealtimeStatus(
+      @RequestParam Map<String, String> filters) {
+    return ApiResponse.success(realtimeRefreshService.getStatus(ILLEGAL_RECORDS_WORKSPACE_KEY, filters));
   }
 
   @PostMapping("/illegal-records/refresh")

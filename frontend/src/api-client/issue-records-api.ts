@@ -246,8 +246,11 @@ export const issueRecordsApi = {
       `/api/question-metrics/issues/filter-options${query.toString() ? `?${query.toString()}` : ''}`,
     );
   },
-  getSystemTestIssueSearchRealtimeStatus() {
-    return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/issues/status');
+  getSystemTestIssueSearchRealtimeStatus(params?: SystemTestIssueSearchQueryParams) {
+    const query = params ? buildSystemTestIssueSearchQuery(params, false) : new URLSearchParams();
+    return request<RealtimeWorkspaceStatusResponse>(
+      `/api/question-metrics/issues/status${query.toString() ? `?${query.toString()}` : ''}`,
+    );
   },
   refreshSystemTestIssueSearchRealtime() {
     return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/issues/refresh', {
@@ -278,8 +281,11 @@ export const issueRecordsApi = {
       `/api/question-metrics/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
     );
   },
-  getSystemTestIllegalRecordRealtimeStatus() {
-    return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/illegal-records/status');
+  getSystemTestIllegalRecordRealtimeStatus(params?: SystemTestIllegalRecordQueryParams) {
+    const query = params ? buildSystemTestIllegalRecordQuery(params, false) : new URLSearchParams();
+    return request<RealtimeWorkspaceStatusResponse>(
+      `/api/question-metrics/illegal-records/status${query.toString() ? `?${query.toString()}` : ''}`,
+    );
   },
   refreshSystemTestIllegalRecordRealtime() {
     return request<RealtimeWorkspaceStatusResponse>('/api/question-metrics/illegal-records/refresh', {
@@ -371,8 +377,11 @@ export const issueRecordsApi = {
       `/api/customer-issues/illegal-records/rule-explanation${query.toString() ? `?${query.toString()}` : ''}`,
     );
   },
-  getCustomerIssueIllegalRecordRealtimeStatus() {
-    return request<RealtimeWorkspaceStatusResponse>('/api/customer-issues/illegal-records/status');
+  getCustomerIssueIllegalRecordRealtimeStatus(params?: Parameters<typeof buildCustomerIssueIllegalRecordQuery>[0]) {
+    const query = params ? buildCustomerIssueIllegalRecordQuery(params, false) : new URLSearchParams();
+    return request<RealtimeWorkspaceStatusResponse>(
+      `/api/customer-issues/illegal-records/status${query.toString() ? `?${query.toString()}` : ''}`,
+    );
   },
   refreshCustomerIssueIllegalRecordRealtime() {
     return request<RealtimeWorkspaceStatusResponse>('/api/customer-issues/illegal-records/refresh', {
@@ -418,8 +427,11 @@ export const issueRecordsApi = {
       `/api/customer-issues/records/rule-explanation?${query.toString()}`,
     );
   },
-  getCustomerIssueRecordRealtimeStatus(topic: CustomerIssueRecordTopic) {
-    const query = new URLSearchParams({ topic });
+  getCustomerIssueRecordRealtimeStatus(
+    topic: CustomerIssueRecordTopic,
+    params?: Partial<Parameters<typeof buildCustomerIssueRecordQuery>[0]>,
+  ) {
+    const query = buildCustomerIssueRecordQuery({ ...params, topic }, false);
     return request<RealtimeWorkspaceStatusResponse>(`/api/customer-issues/records/status?${query.toString()}`);
   },
   refreshCustomerIssueRecordRealtime(topic: CustomerIssueRecordTopic) {

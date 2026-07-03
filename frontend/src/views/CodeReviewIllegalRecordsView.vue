@@ -152,17 +152,22 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   ];
 });
 
-const columns = computed(() => buildCodeReviewIllegalRecordColumns(matchModeEnabled.value));
 const sourceSwitchOptions = computed(() => buildScopeOptions(sourceOptions.value));
-const projectScopeUsesRepository = computed(
-  () => matchModeEnabled.value && effectiveSourceValue.value !== 'dgm',
-);
 const sourceScopeProvider = computed(() => ({
   ...CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
   defaultStrategy: 'empty' as const,
 }));
 const effectiveSourceValue = computed(() =>
   sourceScope.value.value || sourceOptions.value[0]?.value || (matchModeEnabled.value ? 'cc' : ''),
+);
+const activeSourceIsDgm = computed(
+  () => matchModeEnabled.value && effectiveSourceValue.value === 'dgm',
+);
+const columns = computed(() =>
+  buildCodeReviewIllegalRecordColumns(matchModeEnabled.value, activeSourceIsDgm.value),
+);
+const projectScopeUsesRepository = computed(
+  () => matchModeEnabled.value && !activeSourceIsDgm.value,
 );
 const effectiveRepositoryName = computed(() =>
   String(route.query.repositoryName ?? '') || (matchModeEnabled.value ? defaultRepositoryNameForSource(effectiveSourceValue.value) : ''),
@@ -177,15 +182,21 @@ const projectScopeOptions = computed(() =>
     ? filterOptions.value.repositoryNames ?? []
     : filterOptions.value.projectNames ?? [],
 );
-const projectScopeLabel = computed(() => (projectScopeUsesRepository.value ? '所属项目' : '项目'));
+const projectScopeLabel = computed(() =>
+  projectScopeUsesRepository.value ? '所属项目' : (matchModeEnabled.value ? '项目名称' : '项目'),
+);
 const projectScopePlaceholder = computed(() =>
-  projectScopeUsesRepository.value ? '全部所属项目' : '全部项目',
+  projectScopeUsesRepository.value ? '全部所属项目' : (matchModeEnabled.value ? '全部项目名称' : '全部项目'),
 );
 const sourceScope = useDataScope({
   provider: sourceScopeProvider,
   options: computed(() => buildScopeOptions(sourceOptions.value)),
-  clearQueryKeysOnChange: ['projectId', 'projectName', 'repositoryName'],
-  mountToShell: true,
+  clearQueryKeysOnChange: [
+    ...CODE_REVIEW_QUERY_CLEAR_KEYS,
+    'projectId',
+    'filterGroup',
+    'filterLogic',
+  ],
   loading: isTableLoading,
 });
 
@@ -199,6 +210,7 @@ const selectedScopeName = computed(() =>
     ? selectedRow.value?.repositoryName || '-'
     : selectedRow.value?.projectName || '-',
 );
+const showSelectedScope = computed(() => !activeSourceIsDgm.value);
 
 const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps || []);
 const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions || []);
@@ -237,24 +249,20 @@ async function loadMatchModeStatus() {
   matchModeEnabled.value = settings.enabled;
 }
 
-function syncCodeReviewRouteDefaults() {
+async function syncCodeReviewRouteDefaults() {
   const patch: Record<string, string | number | null> = {};
   if (!String(route.query.source ?? '').trim() && effectiveSourceValue.value) {
     patch.source = effectiveSourceValue.value;
   }
-  if (matchModeEnabled.value && !String(route.query.repositoryName ?? '').trim()) {
-    patch.repositoryName = defaultRepositoryNameForSource(effectiveSourceValue.value);
-    patch.projectName = null;
-    patch.targetBranch = null;
+  if (activeSourceIsDgm.value && String(route.query.repositoryName ?? '').trim()) {
+    patch.repositoryName = null;
   }
   if (!Object.keys(patch).length) {
     return;
   }
-  void patchQuery({
+  await patchQuery({
     ...patch,
     page: 1,
-  }).catch(() => {
-    // The table uses effective defaults for the current load; a failed URL sync should not blank the page.
   });
 }
 
@@ -263,7 +271,7 @@ const {
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
-  loadStatus: () => api.getCodeReviewIllegalRecordRealtimeStatus(),
+  loadStatus: () => api.getCodeReviewIllegalRecordRealtimeStatus(effectiveSourceValue.value || undefined),
   emptyText: '-',
 });
 
@@ -347,7 +355,8 @@ async function handleRefreshLatestData() {
       status = (await loadSyncStatus()) ?? status;
     }
     await loadTableData();
-    await loadSyncStatus();
+    //兼容模式-MatchMode：老平台同步时间可能依赖外部库，不能阻塞已返回的列表数据和页面操作。
+    void loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
@@ -363,11 +372,12 @@ bindLoader(async () => {
   try {
     await loadSourceOptions();
     await loadMatchModeStatus();
-    syncCodeReviewRouteDefaults();
+    await syncCodeReviewRouteDefaults();
     await loadFilterOptions();
     initializeFromQuery(route.query);
     await loadTableData();
-    await loadSyncStatus();
+    //兼容模式-MatchMode：老平台同步时间可能依赖外部库，不能阻塞已返回的列表数据和页面操作。
+    void loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '非法记录数据加载失败');
     rows.value = [];
@@ -618,8 +628,10 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             <div class="record-detail-header-kicker">代码走查详情</div>
             <div class="record-detail-header-title">MR #{{ selectedRow.mergeRequestIid }}</div>
             <div class="record-detail-header-meta">
-              <span class="record-detail-meta-item">{{ selectedScopeName }}</span>
-              <span class="record-detail-meta-dot" />
+              <template v-if="showSelectedScope">
+                <span class="record-detail-meta-item">{{ selectedScopeName }}</span>
+                <span class="record-detail-meta-dot" />
+              </template>
               <span class="record-detail-meta-item">{{ selectedRow.targetBranch || '-' }}</span>
               <span class="record-detail-meta-dot" />
               <span class="record-detail-meta-item">{{ selectedRow.mergedBy || '-' }}</span>
@@ -655,7 +667,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               </el-link>
               <span v-else>{{ selectedRow.mergeRequestIid }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="所属项目">{{ selectedScopeName }}</el-descriptions-item>
+            <el-descriptions-item v-if="showSelectedScope" label="所属项目">{{ selectedScopeName }}</el-descriptions-item>
             <el-descriptions-item label="走查时间">{{ formatCodeReviewDate(selectedRow.codeWalkthroughDate) }}</el-descriptions-item>
             <el-descriptions-item label="模块名">{{ selectedRow.moduleName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="被走查人">{{ selectedRow.author || '-' }}</el-descriptions-item>

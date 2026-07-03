@@ -42,8 +42,17 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
   }
 
   function getTableScrollWrap() {
-    return options.tableShellRef.value?.querySelector<HTMLElement>('.el-table__body-wrapper .el-scrollbar__wrap')
-      ?? options.tableShellRef.value?.querySelector<HTMLElement>('.el-scrollbar__wrap');
+    const tableShell = options.tableShellRef.value;
+    if (!tableShell) {
+      return undefined;
+    }
+    const candidates = [
+      ...Array.from(tableShell.querySelectorAll<HTMLElement>('.el-table__body-wrapper .el-scrollbar__wrap')),
+      ...Array.from(tableShell.querySelectorAll<HTMLElement>('.el-scrollbar__wrap')),
+      tableShell,
+    ];
+    return candidates.find((candidate) => candidate.scrollWidth - candidate.clientWidth > 0.25)
+      ?? candidates[0];
   }
 
   function updateHorizontalScrollbar() {

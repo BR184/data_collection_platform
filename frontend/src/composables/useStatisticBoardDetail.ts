@@ -63,6 +63,22 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     activeCell.value = null;
   }
 
+  function canOpenDetailCell(cell: StatisticCellData | null | undefined) {
+    return Boolean(cell?.drilldown && Number(cell.numericValue) > 0);
+  }
+
+  function clearDetailRouteQuery() {
+    return deps.replaceRouteQuery({
+      detailVisible: '',
+      detailRowKey: '',
+      detailColumnKey: '',
+      detailPage: '',
+      detailPageSize: '',
+      detailSortBy: '',
+      detailSortOrder: '',
+    });
+  }
+
   function isStructuredCellValue(value: unknown): value is StatisticDetailLinkValue {
     return value != null && typeof value === 'object' && 'label' in value;
   }
@@ -128,7 +144,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
   }
 
   async function openDetail(row: StatisticRowData, cell: StatisticCellData, defaultPageSize: number) {
-    if (!cell.drilldown) {
+    if (!canOpenDetailCell(cell)) {
       return;
     }
     activeRow.value = row;
@@ -178,15 +194,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     }
     detailVisible.value = false;
     clearDetailState();
-    void deps.replaceRouteQuery({
-      detailVisible: '',
-      detailRowKey: '',
-      detailColumnKey: '',
-      detailPage: '',
-      detailPageSize: '',
-      detailSortBy: '',
-      detailSortOrder: '',
-    });
+    void clearDetailRouteQuery();
   }
 
   async function syncFromRoute(query: DetailRouteQuery, rows: StatisticRowData[], defaultPageSize: number) {
@@ -199,11 +207,13 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     activeRow.value = rows.find((row) => row.rowKey === String(query.detailRowKey ?? '')) ?? null;
     activeCell.value =
       activeRow.value?.cells.find((cell) => cell.columnKey === String(query.detailColumnKey ?? '')) ?? null;
-    if (activeRow.value && activeCell.value) {
+    if (activeRow.value && canOpenDetailCell(activeCell.value)) {
       await loadDetail();
       return;
     }
-    detail.value = null;
+    detailVisible.value = false;
+    clearDetailState();
+    await clearDetailRouteQuery();
   }
 
   return {

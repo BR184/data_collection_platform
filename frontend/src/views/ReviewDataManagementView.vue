@@ -24,6 +24,7 @@ import { useReviewProblemItemDialog } from './review-data/useReviewProblemItemDi
 import { useReviewProblemItems } from './review-data/useReviewProblemItems';
 import { useReviewRecordDialog } from './review-data/useReviewRecordDialog';
 import { api } from '../api';
+import { authState } from '../composables/auth-state';
 import { downloadBlob } from '../utils/csv-download';
 import type { ReviewDataRecordRowResponse } from '../types/api';
 import type {
@@ -162,6 +163,7 @@ const columns = reviewDataColumns();
 const problemColumns = reviewProblemItemColumns();
 const legacyImportVisible = ref(false);
 const reviewDataSourceInstance = computed(() => String(route.query.sourceInstance ?? ''));
+const canManageReviewData = computed(() => authState.currentUser.role === 'ADMIN');
 
 const reviewFilterFields = computed(() => buildReviewDataFilterFields(filterOptions.value));
 const {
@@ -452,11 +454,11 @@ const {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-button plain :icon="Upload" @click="legacyImportVisible = true">
+          <el-button v-if="canManageReviewData" plain :icon="Upload" @click="legacyImportVisible = true">
             导入
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
-          <el-button type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
+          <el-button v-if="canManageReviewData" type="primary" :icon="Plus" @click="handleCreateRecord">新增评审</el-button>
         </div>
       </template>
 
@@ -476,6 +478,7 @@ const {
           :on-create-problem-item="handleCreateProblemItem"
           :on-edit-problem-item="handleEditProblemItem"
           :on-delete-problem-item="handleDeleteProblemItem"
+          :can-manage="canManageReviewData"
         />
       </template>
 
@@ -489,6 +492,7 @@ const {
           :on-create-problem-item="handleCreateProblemItemByRow"
           :on-export-problem-details="handleExportRecordProblemDetails"
           :on-delete-record="handleDeleteRecord"
+          :can-manage="canManageReviewData"
         />
       </template>
     </BaseRecordTable>

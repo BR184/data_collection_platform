@@ -169,19 +169,23 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
-    List<IssueFactRecord> rows = loadScopedIllegalViews(defaultProjectId(projectId));
+    IssueFactRecordRepository.SystemTestIllegalFilterValues values =
+        issueFactRecordRepository.findSystemTestIllegalFilterValues(defaultProjectId(projectId));
     return new SystemTestIllegalRecordFilterOptionsResponse(
-        toLegacyOptions(rows, IssueFactRecord::projectName),
-        toLegacyOptions(rows.stream().flatMap(view -> displayModuleNames(view).stream()).toList()),
+        toLegacyOptions(values.projectNames()),
+        toLegacyOptions(values.moduleNames()),
         toOptionsPreservingOrder(phaseScopeOptions()),
-        toOptions(rows.stream().flatMap(row -> displayIllegalReasons(row).stream()).toList()),
-        toLegacyOptions(rows, IssueFactRecord::authorName),
-        toLegacyOptions(rows, IssueFactRecord::assigneeName),
-        toOptions(rows, IssueFactRecord::issueState),
-        toSeverityOptions(rows, IssueFactRecord::severityLevel),
-        toOptions(rows, IssueFactRecord::bugStatus),
-        toOptions(rows, IssueFactRecord::category),
-        toLegacyOptions(rows, IssueFactRecord::milestoneTitle));
+        toOptionsPreservingOrder(normalizedExistingIllegalReasons(values.illegalReasons())),
+        toLegacyOptions(values.authorNames()),
+        toLegacyOptions(values.assigneeNames()),
+        toOptions(values.issueStates()),
+        OptionItemResponseFactory.fromValues(
+            values.severityLevels(),
+            TextQuerySupport::trimToNull,
+            IssueDisplayValueSupport::displaySeverityLevel),
+        toOptions(values.bugStatuses()),
+        toOptions(values.categories()),
+        toLegacyOptions(values.milestoneTitles()));
   }
 
   public SystemTestIllegalRecordRowResponse refreshSingleRecord(
@@ -378,6 +382,18 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
 
   private List<String> phaseScopeOptions() {
     return phaseCatalogService.listParentNames(LEGACY_CROWN_CAD_PROJECT_ID);
+  }
+
+  private List<String> normalizedExistingIllegalReasons(List<String> rawReasons) {
+    List<String> normalized =
+        rawReasons.stream()
+            .map(SystemTestIllegalReasonSupport::normalize)
+            .filter(StringUtils::hasText)
+            .distinct()
+            .toList();
+    return SystemTestIllegalReasonSupport.SUPPORTED_REASONS.stream()
+        .filter(normalized::contains)
+        .toList();
   }
 
   private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {

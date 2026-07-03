@@ -62,8 +62,6 @@ const codeReviewDensityChartOption = computed(() =>
 const systemTestRepairChartOption = computed(() => buildSystemTestRepairChartOption(systemTestSummaryBoard.value));
 
 const pageReady = computed(() => initialized.value);
-const isAdmin = computed(() => authState.currentUser.role === 'ADMIN');
-const isAuthenticated = computed(() => Boolean(authState.currentUser.authenticated));
 
 function clearReviewSummaries() {
   reviewFilters.value = null;
@@ -130,14 +128,6 @@ async function loadSystemTestSummary() {
 }
 
 async function loadPage() {
-  if (!isAuthenticated.value) {
-    clearReviewSummaries();
-    clearCodeReviewSummaries();
-    clearSystemTestSummary();
-    initialized.value = true;
-    loading.value = false;
-    return true;
-  }
   loading.value = true;
   try {
     const results = await Promise.all([
@@ -153,10 +143,6 @@ async function loadPage() {
 }
 
 async function handleRefresh() {
-  if (!isAuthenticated.value) {
-    ElMessage.info('登录后查看研发质量看板数据');
-    return;
-  }
   const success = await loadPage();
   if (success) {
     ElMessage.success('研发质量看板已刷新');
@@ -170,7 +156,7 @@ function goTo(path: string) {
 }
 
 void loadPage().then((success) => {
-  if (isAuthenticated.value && !success) {
+  if (!success) {
     ElMessage.warning('部分看板加载失败，已展示可用数据');
   }
 });
@@ -208,19 +194,14 @@ watch(
         </article>
       </section>
 
-      <section v-if="!isAuthenticated" class="quality-board-rd__guest-empty">
-        <h3>登录后查看研发质量看板数据</h3>
-        <p>游客模式仅保留导航入口，不请求受权限保护的评审、代码走查和系统测试摘要。</p>
-      </section>
-
-      <section v-else class="quality-board-rd__grid">
+      <section class="quality-board-rd__grid">
         <article class="quality-board-rd__panel">
           <div class="quality-board-rd__panel-head">
             <div>
               <h3>评审密度对比</h3>
               <p>先看需求评审和设计评审的密度区间是否失衡。</p>
             </div>
-            <el-link v-if="isAdmin" underline="never" type="primary" @click="goTo('/review-data/home')">评审数据管理</el-link>
+            <el-link underline="never" type="primary" @click="goTo('/review-data/home')">评审数据管理</el-link>
           </div>
           <EChartPanel :option="reviewDensityChartOption" :loading="loading" :height="320" />
         </article>
@@ -231,7 +212,7 @@ watch(
               <h3>代码走查密度</h3>
               <p>用统一量纲比较 CC 与 DGM 两类代码源的整体风险密度。</p>
             </div>
-            <el-link v-if="isAdmin" underline="never" type="primary" @click="goTo('/code-review/multi-board')">代码走查看板</el-link>
+            <el-link underline="never" type="primary" @click="goTo('/code-review/multi-board')">代码走查看板</el-link>
           </div>
           <EChartPanel :option="codeReviewDensityChartOption" :loading="loading" :height="320" />
         </article>
@@ -330,25 +311,6 @@ watch(
 
 .quality-board-rd__summary-card[data-tone='danger'] strong {
   color: #d92d20;
-}
-
-.quality-board-rd__guest-empty {
-  padding: 28px 24px;
-  border: 1px dashed #d0d5dd;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.quality-board-rd__guest-empty h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #111827;
-}
-
-.quality-board-rd__guest-empty p {
-  margin: 8px 0 0;
-  color: #667085;
-  line-height: 1.7;
 }
 
 .quality-board-rd__grid {

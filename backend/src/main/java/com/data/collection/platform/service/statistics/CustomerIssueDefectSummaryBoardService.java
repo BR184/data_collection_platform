@@ -379,6 +379,11 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   @Override
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(Map<String, String> filters) {
+    return runtimeSupport.getRealtimeStatus(BOARD_KEY, filters);
+  }
+
+  @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     return runtimeSupport.requestRealtimeRefresh(BOARD_KEY, REALTIME_REFRESH_TABLES);
   }

@@ -2334,6 +2334,17 @@ a:hover {
   padding: 32px 0 !important;
 }
 
+.el-table__body-wrapper .el-scrollbar__bar.is-horizontal {
+  position: sticky !important;
+  bottom: 2px !important;
+  z-index: 4 !important;
+  opacity: 1 !important;
+}
+
+.el-table__body-wrapper .el-scrollbar__bar.is-horizontal .el-scrollbar__thumb {
+  background-color: rgb(148 163 184 / 76%) !important;
+}
+
 .el-empty {
   padding: 32px 0 !important;
 }

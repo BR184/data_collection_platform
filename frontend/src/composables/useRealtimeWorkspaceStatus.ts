@@ -13,16 +13,23 @@ export function formatRealtimeLastSyncedText(lastSyncedAt: string | null | undef
 
 export function useRealtimeWorkspaceStatus(options: UseRealtimeWorkspaceStatusOptions) {
   const syncStatus = ref<RealtimeWorkspaceStatusResponse | null>(null);
+  let loadRunId = 0;
   const lastSyncedText = computed(() =>
     formatRealtimeLastSyncedText(syncStatus.value?.lastSyncedAt, options.emptyText),
   );
 
   async function loadRealtimeStatus() {
+    const runId = ++loadRunId;
     try {
-      syncStatus.value = await options.loadStatus();
+      const nextStatus = await options.loadStatus();
+      if (runId === loadRunId) {
+        syncStatus.value = nextStatus;
+      }
       return syncStatus.value;
     } catch {
-      syncStatus.value = null;
+      if (runId === loadRunId) {
+        syncStatus.value = null;
+      }
       return null;
     }
   }

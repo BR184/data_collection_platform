@@ -15,12 +15,22 @@ import org.springframework.util.StringUtils;
 public class CodeReviewMultiBoardService {
   private static final List<String> PREFERRED_SOURCE_ORDER = List.of("cc", "dgm");
   private final JdbcTemplate jdbcTemplate;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
 
-  public CodeReviewMultiBoardService(JdbcTemplate jdbcTemplate) {
+  public CodeReviewMultiBoardService(
+      JdbcTemplate jdbcTemplate,
+      CodeReviewMatchModeSwitchService matchModeSwitchService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.matchModeSwitchService = matchModeSwitchService;
   }
 
   public List<OptionItemResponse> listSourceOptions() {
+    //兼容模式-MatchMode：老平台页面固定有 CC/DGM 两个代码库页签，不能依赖当前兼容表是否已经导入出 DGM 记录。
+    if (matchModeSwitchService.isEnabled()) {
+      return PREFERRED_SOURCE_ORDER.stream()
+          .map(value -> new OptionItemResponse(sourceLabel(value), value))
+          .toList();
+    }
     List<String> sourceInstances =
         jdbcTemplate.queryForList(
             """

@@ -177,10 +177,10 @@ describe('router query normalization', () => {
 });
 
 describe('router access guard', () => {
-  it('redirects guests away from login-only pages before the page component loads', () => {
+  it('allows guests to visit non-system pages before the page component loads', () => {
     const to = router.resolve('/review-data/home');
 
-    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBe('/quality-board/rd-quality-board');
+    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBeNull();
   });
 
   it('allows guests to visit public pages', () => {
@@ -193,5 +193,11 @@ describe('router access guard', () => {
     const to = router.resolve('/system-settings/mirror-settings');
 
     expect(routeAccessRedirect(to, { role: 'APPROVAL', authenticated: true })).toBe('/quality-board/rd-quality-board');
+  });
+
+  it('redirects guests away from system settings', () => {
+    const to = router.resolve('/system-settings/mirror-settings');
+
+    expect(routeAccessRedirect(to, { role: 'GUEST', authenticated: false })).toBe('/quality-board/rd-quality-board');
   });
 });

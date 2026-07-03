@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -39,6 +40,14 @@ public class GlobalExceptionHandler {
   public ApiResponse<Void> handleNotFound(Exception e) {
     log.warn("Resource not found: {}", e.getMessage());
     return ApiResponse.fail(ResultCode.NOT_FOUND, "请求资源不存在");
+  }
+
+  @ResponseBody
+  @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ApiResponse<Void> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+    log.warn("HTTP method not supported: {}", e.getMessage());
+    return ApiResponse.fail(ResultCode.BAD_REQUEST, "请求方法不支持");
   }
 
   @ResponseBody

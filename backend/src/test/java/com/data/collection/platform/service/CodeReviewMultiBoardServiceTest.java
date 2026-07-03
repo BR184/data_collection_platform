@@ -23,11 +23,14 @@ class CodeReviewMultiBoardServiceTest {
   @Mock
   private JdbcTemplate jdbcTemplate;
 
+  @Mock
+  private CodeReviewMatchModeSwitchService matchModeSwitchService;
+
   private CodeReviewMultiBoardService service;
 
   @BeforeEach
   void setUp() {
-    service = new CodeReviewMultiBoardService(jdbcTemplate);
+    service = new CodeReviewMultiBoardService(jdbcTemplate, matchModeSwitchService);
   }
 
   @Test

@@ -282,8 +282,18 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   }
 
   @Override
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(Map<String, String> filters) {
+    return realtimeWorkspaceService.getStatus(BOARD_KEY, filters);
+  }
+
+  @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     return realtimeWorkspaceService.requestRefreshWithResult(BOARD_KEY, this::refreshMirrorForRealtimeView);
+  }
+
+  @Override
+  public byte[] exportBoardWorkbook(Map<String, String> filters) {
+    return SystemTestLegacyWorkbookExportSupport.exportDelayAnalysis(loadBoard(filters));
   }
 
   @Override

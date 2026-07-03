@@ -6,11 +6,12 @@ const admin: AccessUser = { role: 'ADMIN', authenticated: true };
 const approval: AccessUser = { role: 'APPROVAL', authenticated: true };
 
 describe('feature manifest access rules', () => {
-  it('keeps guest users on query-oriented pages and hides login-only pages', () => {
-    expect(canAccessPageKey('quality-board-rd-quality-board', guest)).toBe(true);
-    expect(canAccessPageKey('question-metrics-illegal-records', guest)).toBe(true);
-    expect(canAccessPageKey('review-data-home', guest)).toBe(false);
-    expect(canAccessPageKey('quality-board-other-board', guest)).toBe(false);
+  it('lets guest users view every page outside system settings', () => {
+    for (const module of getVisibleModules(admin).filter((item) => item.key !== 'system-settings')) {
+      for (const page of module.pages) {
+        expect(canAccessPageKey(page.key, guest)).toBe(true);
+      }
+    }
     expect(canAccessPageKey('database-browser', guest)).toBe(false);
   });
 
@@ -34,6 +35,11 @@ describe('feature manifest access rules', () => {
     const visibleKeys = getVisibleModules(approval).map((module) => module.key);
     expect(visibleKeys).not.toContain('system-settings');
     expect(visibleKeys).toContain('quality-board');
+  });
+
+  it('hides system settings from guest users', () => {
+    const visibleKeys = getVisibleModules(guest).map((module) => module.key);
+    expect(visibleKeys).not.toContain('system-settings');
   });
 
   it('does not expose the removed integration test module', () => {

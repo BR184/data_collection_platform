@@ -90,8 +90,10 @@ export const statisticBoardsApi = {
       },
     );
   },
-  getStatisticBoardRealtimeStatus(boardKey: string) {
-    return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/status`);
+  getStatisticBoardRealtimeStatus(boardKey: string, params?: StatisticBoardQueryParams) {
+    return request<RealtimeWorkspaceStatusResponse>(
+      `/api/statistic-boards/${boardKey}/status${buildStatisticBoardQuery(params)}`,
+    );
   },
   refreshStatisticBoardRealtime(boardKey: string) {
     return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/refresh`, {

@@ -143,6 +143,90 @@ public class IssueFactRecordRepository {
     }
   }
 
+  public SystemTestIllegalFilterValues findSystemTestIllegalFilterValues(Long projectId) {
+    List<Object> args = new ArrayList<>();
+    Long safeProjectId = projectId == null ? 9L : projectId;
+    args.add(safeProjectId);
+    args.add("%系统测试%");
+    args.add("%回归测试%");
+    StringBuilder supportedReasonPredicate = new StringBuilder("1 = 1");
+    appendIllegalReasonsContainsAny(
+        supportedReasonPredicate,
+        args,
+        SystemTestIllegalReasonSupport.supportedRawReasons());
+    String sql =
+        """
+        with base as (
+          select coalesce(project_name, '') as project_name,
+                 coalesce(module_names, '') as module_names,
+                 coalesce(testing_phase, '') as testing_phase,
+                 coalesce(illegal_reason, '') as illegal_reason,
+                 coalesce(illegal_reasons, '') as illegal_reasons,
+                 coalesce(author_name, '') as author_name,
+                 coalesce(assignee_name, '') as assignee_name,
+                 coalesce(issue_state, '') as issue_state,
+                 coalesce(severity_level, '') as severity_level,
+                 coalesce(bug_status, '') as bug_status,
+                 coalesce(category, '') as category,
+                 coalesce(milestone_title, '') as milestone_title
+            from issue_fact
+           where deleted = false
+             and project_id = ?
+             and is_illegal = true
+             and is_excluded = false
+             and (lower(coalesce(testing_phase, '')) like ? or lower(coalesce(testing_phase, '')) like ?)
+        """
+            + "     and "
+            + supportedReasonPredicate
+            + """
+        )
+        select
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(project_name), '') as value from base) t where value is not null) as project_names,
+          (select string_agg(value, E'\n') from (
+             select distinct nullif(btrim(module_name), '') as value
+               from base
+               cross join lateral regexp_split_to_table(coalesce(module_names, ''), ',') as modules(module_name)
+             union
+             select '未设定模块' where exists (select 1 from base where nullif(btrim(module_names), '') is null)
+           ) t where value is not null) as module_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(testing_phase), '') as value from base) t where value is not null) as testing_phases,
+          (select string_agg(value, E'\n') from (
+             select distinct nullif(btrim(reason), '') as value
+               from base
+               cross join lateral regexp_split_to_table(coalesce(nullif(illegal_reasons, ''), illegal_reason, ''), ',') as reasons(reason)
+           ) t where value is not null) as illegal_reasons,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(author_name), '') as value from base) t where value is not null) as author_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(assignee_name), '') as value from base) t where value is not null) as assignee_names,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(issue_state), '') as value from base) t where value is not null) as issue_states,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(severity_level), '') as value from base) t where value is not null) as severity_levels,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(bug_status), '') as value from base) t where value is not null) as bug_statuses,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(category), '') as value from base) t where value is not null) as categories,
+          (select string_agg(value, E'\n') from (select distinct nullif(btrim(milestone_title), '') as value from base) t where value is not null) as milestone_titles
+        """;
+    try {
+      List<SystemTestIllegalFilterValues> rows =
+          issueFactQueryService.query(
+              sql,
+              args,
+              (rs, rowNum) ->
+                  new SystemTestIllegalFilterValues(
+                      splitAggregatedValues(rs.getString("project_names")),
+                      splitAggregatedValues(rs.getString("module_names")),
+                      splitAggregatedValues(rs.getString("testing_phases")),
+                      splitAggregatedValues(rs.getString("illegal_reasons")),
+                      splitAggregatedValues(rs.getString("author_names")),
+                      splitAggregatedValues(rs.getString("assignee_names")),
+                      splitAggregatedValues(rs.getString("issue_states")),
+                      splitAggregatedValues(rs.getString("severity_levels")),
+                      splitAggregatedValues(rs.getString("bug_statuses")),
+                      splitAggregatedValues(rs.getString("categories")),
+                      splitAggregatedValues(rs.getString("milestone_titles"))));
+      return rows.isEmpty() ? SystemTestIllegalFilterValues.empty() : rows.get(0);
+    } catch (DataAccessException error) {
+      return SystemTestIllegalFilterValues.empty();
+    }
+  }
+
   public PageSlice<IssueFactRecord> findPage(IssueFactRecordPageQuery query) {
     QueryParts parts = buildPageQuery(query);
     try {
@@ -635,6 +719,17 @@ public class IssueFactRecordRepository {
     where.append(")");
   }
 
+  private static List<String> splitAggregatedValues(String value) {
+    if (value == null || value.isBlank()) {
+      return List.of();
+    }
+    return java.util.Arrays.stream(value.split("\\R"))
+        .map(TextQuerySupport::trimToNull)
+        .filter(item -> item != null)
+        .distinct()
+        .toList();
+  }
+
   private String sortColumn(String sortField) {
     return SORT_COLUMNS.getOrDefault(sortField, "updated_at_source");
   }
@@ -714,4 +809,32 @@ public class IssueFactRecordRepository {
   }
 
   private record QueryParts(String where, List<Object> args) {}
+
+  public record SystemTestIllegalFilterValues(
+      List<String> projectNames,
+      List<String> moduleNames,
+      List<String> testingPhases,
+      List<String> illegalReasons,
+      List<String> authorNames,
+      List<String> assigneeNames,
+      List<String> issueStates,
+      List<String> severityLevels,
+      List<String> bugStatuses,
+      List<String> categories,
+      List<String> milestoneTitles) {
+    static SystemTestIllegalFilterValues empty() {
+      return new SystemTestIllegalFilterValues(
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of(),
+          List.of());
+    }
+  }
 }

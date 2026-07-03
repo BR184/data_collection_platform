@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.RealtimeWorkspaceRefreshResult;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,6 +23,10 @@ public class IssueFactRealtimeRefreshService {
 
   public RealtimeWorkspaceStatusResponse getStatus(String workspaceKey) {
     return realtimeWorkspaceService.getStatus(workspaceKey);
+  }
+
+  public RealtimeWorkspaceStatusResponse getStatus(String workspaceKey, Map<String, String> filters) {
+    return realtimeWorkspaceService.getStatus(workspaceKey, filters);
   }
 
   public RealtimeWorkspaceStatusResponse requestRefresh(String workspaceKey) {

@@ -207,6 +207,8 @@ const primaryExportLabel = computed(() => {
   return labels[props.boardKey] ?? '导出';
 });
 
+const showPrimaryExport = computed(() => props.boardKey !== 'system-test-phase-statistics');
+
 const {
   currentSortColumn,
   currentSortSummary,
@@ -360,7 +362,9 @@ const {
   lastSyncedText,
   loadRealtimeStatus,
 } = useRealtimeWorkspaceStatus({
-  loadStatus: () => api.getStatisticBoardRealtimeStatus(props.boardKey),
+  loadStatus: () => api.getStatisticBoardRealtimeStatus(props.boardKey, {
+    filterGroup: buildFilterPayload(),
+  }),
   emptyText: '暂无同步记录',
 });
 
@@ -667,6 +671,7 @@ function autoRefreshMarkerKey() {
           :can-refresh-realtime="canRefreshRealtime"
           :auto-refresh-on-enter="autoRefreshOnEnter"
           :export-label="primaryExportLabel"
+          :show-export="showPrimaryExport"
           :extra-actions="extraToolbarActions"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"

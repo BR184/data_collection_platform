@@ -46,6 +46,10 @@ public class IssueFactBoardRuntimeSupport {
     return realtimeWorkspaceService.getStatus(boardKey);
   }
 
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(String boardKey, Map<String, String> filters) {
+    return realtimeWorkspaceService.getStatus(boardKey, filters);
+  }
+
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh(
       String boardKey, List<String> realtimeRefreshTables) {
     return realtimeWorkspaceService.requestRefreshWithResult(

@@ -545,6 +545,13 @@ public class CodeReviewIllegalRecordService {
     return realtimeWorkspaceService.getStatus(WORKSPACE_KEY);
   }
 
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(String source) {
+    String normalizedSource = TextQuerySupport.trimToNull(source);
+    return realtimeWorkspaceService.getStatus(
+        WORKSPACE_KEY,
+        normalizedSource == null ? Map.of() : Map.of("source", normalizedSource));
+  }
+
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     //兼容模式-MatchMode
     if (matchModeSwitchService.isEnabled()) {

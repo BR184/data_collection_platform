@@ -108,7 +108,7 @@ const {
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
-  loadStatus: () => api.getCustomerIssueRecordRealtimeStatus(topic.value),
+  loadStatus: () => api.getCustomerIssueRecordRealtimeStatus(topic.value, buildCurrentQueryParams(false)),
   emptyText: '-',
 });
 

@@ -94,7 +94,9 @@ const {
   lastSyncedText,
   loadRealtimeStatus,
 } = useRealtimeWorkspaceStatus({
-  loadStatus: () => props.loadRealtimeStatus?.() ?? Promise.reject(new Error('Realtime status is not configured')),
+  loadStatus: () =>
+    props.loadRealtimeStatus?.(buildCurrentQueryParams(false))
+      ?? Promise.reject(new Error('Realtime status is not configured')),
   emptyText: '-',
 });
 

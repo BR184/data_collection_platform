@@ -28,8 +28,6 @@ import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseFilterGroupExpander;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
@@ -45,16 +43,6 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.BorderStyle;
-import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.IndexedColors;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -319,6 +307,11 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   }
 
   @Override
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(Map<String, String> filters) {
+    return realtimeWorkspaceService.getStatus(BOARD_KEY, filters);
+  }
+
+  @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     return realtimeWorkspaceService.requestRefreshWithResult(BOARD_KEY, this::refreshMirrorForRealtimeView);
   }
@@ -371,23 +364,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
   @Override
   public byte[] exportBoardWorkbook(Map<String, String> filters) {
-    StatisticBoardResponse response = loadBoard(filters);
-    try (Workbook workbook = new XSSFWorkbook();
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-      var sheet = workbook.createSheet("缺陷原因统计表");
-      ExportStyles styles = new ExportStyles(workbook);
-      writeWorkbookHeader(sheet, styles);
-      writeWorkbookRows(sheet, response.rows(), styles);
-      sheet.createFreezePane(1, 2);
-      sheet.setColumnWidth(0, 22 * 256);
-      for (int index = 1; index <= CAUSE_METRICS.size(); index++) {
-        sheet.setColumnWidth(index, 18 * 256);
-      }
-      workbook.write(outputStream);
-      return outputStream.toByteArray();
-    } catch (IOException e) {
-      throw new IllegalStateException("缺陷原因统计表导出失败", e);
-    }
+    return SystemTestLegacyWorkbookExportSupport.exportDefectCause(loadBoard(filters));
   }
 
   @Override
@@ -403,78 +380,6 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
       return phase + "-缺陷原因统计表.xlsx";
     }
     return exportFilename();
-  }
-
-  private void writeWorkbookHeader(org.apache.poi.ss.usermodel.Sheet sheet, ExportStyles styles) {
-    Row groupRow = sheet.createRow(0);
-    Row leafRow = sheet.createRow(1);
-    createCell(groupRow, 0, "模块", styles.header);
-    createCell(leafRow, 0, "模块", styles.header);
-    sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 0));
-
-    int columnIndex = 1;
-    String currentGroup = "";
-    int groupStart = 1;
-    for (int index = 0; index < CAUSE_METRICS.size(); index++) {
-      DefectCauseMetricCatalog.Metric metric = CAUSE_METRICS.get(index);
-      if (!metric.groupLabel().equals(currentGroup)) {
-        if (StringUtils.hasText(currentGroup)) {
-          mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
-        }
-        currentGroup = metric.groupLabel();
-        groupStart = columnIndex;
-      }
-      createCell(leafRow, columnIndex, metric.label(), styles.header);
-      columnIndex++;
-    }
-    if (StringUtils.hasText(currentGroup)) {
-      mergeHeaderGroup(sheet, groupRow, groupStart, columnIndex - 1, currentGroup, styles.header);
-    }
-  }
-
-  private void mergeHeaderGroup(
-      org.apache.poi.ss.usermodel.Sheet sheet,
-      Row groupRow,
-      int start,
-      int end,
-      String label,
-      CellStyle style) {
-    createCell(groupRow, start, label, style);
-    for (int column = start + 1; column <= end; column++) {
-      createCell(groupRow, column, "", style);
-    }
-    if (end > start) {
-      sheet.addMergedRegion(new CellRangeAddress(0, 0, start, end));
-    }
-  }
-
-  private void writeWorkbookRows(
-      org.apache.poi.ss.usermodel.Sheet sheet,
-      List<StatisticRowData> rows,
-      ExportStyles styles) {
-    int rowIndex = 2;
-    for (StatisticRowData rowData : rows) {
-      Row row = sheet.createRow(rowIndex++);
-      CellStyle style = "__total__".equals(rowData.rowKey()) || "__ratio__".equals(rowData.rowKey())
-          ? styles.summary
-          : styles.body;
-      createCell(row, 0, rowData.rowLabel(), style);
-      Map<String, StatisticCellData> cells = new LinkedHashMap<>();
-      for (StatisticCellData cell : rowData.cells()) {
-        cells.put(cell.columnKey(), cell);
-      }
-      int columnIndex = 1;
-      for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
-        StatisticCellData cell = cells.get(metric.key());
-        createCell(row, columnIndex++, cell == null ? "" : cell.displayValue(), style);
-      }
-    }
-  }
-
-  private void createCell(Row row, int column, String value, CellStyle style) {
-    var cell = row.createCell(column);
-    cell.setCellValue(value == null ? "" : value);
-    cell.setCellStyle(style);
   }
 
   private RuleFlowSnapshot buildRuleFlowSnapshot(
@@ -1169,37 +1074,4 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return StringUtils.hasText(text) && StringUtils.hasText(keyword) && text.contains(keyword);
   }
 
-  private static final class ExportStyles {
-    private final CellStyle header;
-    private final CellStyle body;
-    private final CellStyle summary;
-
-    private ExportStyles(Workbook workbook) {
-      header = workbook.createCellStyle();
-      header.setAlignment(HorizontalAlignment.CENTER);
-      header.setVerticalAlignment(VerticalAlignment.CENTER);
-      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      setBorders(header);
-
-      body = workbook.createCellStyle();
-      body.setAlignment(HorizontalAlignment.CENTER);
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      setBorders(body);
-
-      summary = workbook.createCellStyle();
-      summary.setAlignment(HorizontalAlignment.CENTER);
-      summary.setVerticalAlignment(VerticalAlignment.CENTER);
-      summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
-      summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      setBorders(summary);
-    }
-
-    private void setBorders(CellStyle style) {
-      style.setBorderTop(BorderStyle.THIN);
-      style.setBorderBottom(BorderStyle.THIN);
-      style.setBorderLeft(BorderStyle.THIN);
-      style.setBorderRight(BorderStyle.THIN);
-    }
-  }
 }

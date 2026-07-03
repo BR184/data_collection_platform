@@ -284,6 +284,11 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
   }
 
   @Override
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(Map<String, String> filters) {
+    return realtimeWorkspaceService.getStatus(BOARD_KEY, filters);
+  }
+
+  @Override
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     return realtimeWorkspaceService.requestRefreshWithResult(BOARD_KEY, this::refreshMirrorForRealtimeView);
   }

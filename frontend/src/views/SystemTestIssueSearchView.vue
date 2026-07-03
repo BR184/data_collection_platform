@@ -82,7 +82,7 @@ const {
   lastSyncedText,
   loadRealtimeStatus: loadSyncStatus,
 } = useRealtimeWorkspaceStatus({
-  loadStatus: () => api.getSystemTestIssueSearchRealtimeStatus(),
+  loadStatus: () => api.getSystemTestIssueSearchRealtimeStatus(buildCurrentQueryParams(false)),
   emptyText: '-',
 });
 

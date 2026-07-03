@@ -98,8 +98,11 @@ export const codeReviewApi = {
       body: JSON.stringify(payload),
     });
   },
-  getCodeReviewIllegalRecordRealtimeStatus() {
-    return request<RealtimeWorkspaceStatusResponse>('/api/code-review/illegal-records/status');
+  getCodeReviewIllegalRecordRealtimeStatus(source?: string | null) {
+    const query = new URLSearchParams(source ? { source } : {});
+    return request<RealtimeWorkspaceStatusResponse>(
+      `/api/code-review/illegal-records/status${query.toString() ? `?${query.toString()}` : ''}`,
+    );
   },
   refreshCodeReviewIllegalRecord(payload: {
     source?: string;

@@ -24,6 +24,10 @@ defineProps<{
   onColumnDrop: (groupKey: string, columnKey: string) => void;
   clearDragState: () => void;
 }>();
+
+function canOpenDetail(cell: StatisticCellData | undefined) {
+  return Boolean(cell?.drilldown && Number(cell.numericValue) > 0);
+}
 </script>
 
 <template>
@@ -131,7 +135,7 @@ defineProps<{
 
       <template #default="{ row }">
         <button
-          v-if="cellForColumn(row, column.key)?.drilldown"
+          v-if="canOpenDetail(cellForColumn(row, column.key))"
           class="stat-cell drilldown"
           @click="openDetail(row, cellForColumn(row, column.key)!)"
         >

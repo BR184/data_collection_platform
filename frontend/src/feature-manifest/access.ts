@@ -1,10 +1,11 @@
 import { modules } from './modules';
-import { pageByKey } from './lookups';
+import { pageByKey, pageModuleKeyByPageKey } from './lookups';
 import type { AccessUser, PageKey, ShellModule, ShellPage } from './types';
 
 export function canAccessPage(page: ShellPage, user: AccessUser) {
-  if (page.requiresLogin && !user.authenticated) {
-    return false;
+  const moduleKey = pageModuleKeyByPageKey.get(page.key);
+  if (moduleKey === 'system-settings') {
+    return user.authenticated && user.role === 'ADMIN';
   }
   if (page.hiddenForApproval && user.role === 'APPROVAL') {
     return false;

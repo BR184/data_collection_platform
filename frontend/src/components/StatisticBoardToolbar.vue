@@ -18,6 +18,7 @@ const props = withDefaults(
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
     canRefreshRealtime?: boolean;
     autoRefreshOnEnter?: boolean;
+    showExport?: boolean;
     exportLabel?: string;
     extraActions?: StatisticBoardToolbarAction[];
     uiHooks?: StatisticBoardUiHooks;
@@ -27,6 +28,7 @@ const props = withDefaults(
     realtimeStatus: null,
     canRefreshRealtime: true,
     autoRefreshOnEnter: true,
+    showExport: true,
     exportLabel: '导出',
     extraActions: () => [],
     uiHooks: () => ({}),
@@ -89,6 +91,17 @@ const workspaceStatusTagType = computed(() => {
 
 const mirrorStatusText = computed(() => formatStageStatus('镜像', props.realtimeStatus?.mirrorStatus));
 const factStatusText = computed(() => formatStageStatus('事实', props.realtimeStatus?.factStatus));
+const showStageStatusDetails = computed(() => {
+  const status = props.realtimeStatus;
+  if (!status) {
+    return false;
+  }
+  return Boolean(status.refreshing)
+    || failureStatuses.has(status.mirrorStatus || '')
+    || failureStatuses.has(status.factStatus || '')
+    || partialStatuses.has(status.mirrorStatus || '')
+    || partialStatuses.has(status.factStatus || '');
+});
 const taskStartedText = computed(() => formatDateTime(props.realtimeStatus?.lastRefreshStartedAt));
 const taskDurationText = computed(() =>
   formatDuration(
@@ -174,8 +187,8 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         <SyncMetaBadge :value="lastSyncedText" />
         <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
           <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
-          <span>{{ mirrorStatusText }}</span>
-          <span>{{ factStatusText }}</span>
+          <span v-if="showStageStatusDetails">{{ mirrorStatusText }}</span>
+          <span v-if="showStageStatusDetails">{{ factStatusText }}</span>
           <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
           <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
         </div>
@@ -202,7 +215,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         >
           规则说明
         </el-button>
-        <el-button plain :icon="Download" @click="emit('exportBoard')">{{ exportLabel }}</el-button>
+        <el-button v-if="showExport" plain :icon="Download" @click="emit('exportBoard')">{{ exportLabel }}</el-button>
         <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
           <el-button class="view-settings-trigger">
             <span class="hamburger-icon" aria-hidden="true">

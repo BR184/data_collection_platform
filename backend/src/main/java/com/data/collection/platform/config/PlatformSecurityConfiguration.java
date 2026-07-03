@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -21,6 +22,11 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @Configuration
 public class PlatformSecurityConfiguration {
   private static final String SYSTEM_HOOK_PATH = "/api/gitlab-sync/system-hook";
+  private static final String[] SYSTEM_SETTINGS_API_PATHS = {
+      "/api/code-review/match-mode-db-settings/**",
+      "/api/database-browser/**",
+      "/api/gitlab-sync/**"
+  };
 
   @Bean
   public SecurityFilterChain platformSecurityFilterChain(
@@ -51,6 +57,10 @@ public class PlatformSecurityConfiguration {
             .requestMatchers("/api/auth/**").permitAll()
             .requestMatchers(SYSTEM_HOOK_PATH).permitAll()
             .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+            .requestMatchers(HttpMethod.GET, SYSTEM_SETTINGS_API_PATHS).authenticated()
+            .requestMatchers(HttpMethod.HEAD, SYSTEM_SETTINGS_API_PATHS).authenticated()
+            .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
+            .requestMatchers(HttpMethod.HEAD, "/api/**").permitAll()
             .anyRequest().authenticated());
     return http.build();
   }

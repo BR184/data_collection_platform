@@ -219,6 +219,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   @Override
+  public byte[] exportBoardWorkbook(Map<String, String> filters) {
+    return SystemTestLegacyWorkbookExportSupport.exportDefectSummary(loadBoard(filters));
+  }
+
+  @Override
   public String exportFilename(Map<String, String> filters) {
     String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition(loadPhaseOptions())));
     if (StringUtils.hasText(phase)) {
@@ -295,6 +300,11 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   @Override
   public RealtimeWorkspaceStatusResponse getRealtimeStatus() {
     return runtimeSupport.getRealtimeStatus(BOARD_KEY);
+  }
+
+  @Override
+  public RealtimeWorkspaceStatusResponse getRealtimeStatus(Map<String, String> filters) {
+    return runtimeSupport.getRealtimeStatus(BOARD_KEY, filters);
   }
 
   @Override

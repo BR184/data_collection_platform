@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { Component } from 'vue';
 // 基础统计表负责把统计行按列组展示成稳定表格，供多个看板的明细摘要复用。
 // 这里不做字段推导，列组和格式化规则都由上层统计配置决定。
 import { ArrowRight } from '@element-plus/icons-vue';
 import StatisticTableColumnGroup from './StatisticTableColumnGroup.vue';
+import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
 import type {
   StatisticBoardResponse,
   StatisticCellData,
@@ -73,6 +75,32 @@ const props = withDefaults(
     pageSizeOptions: () => [20, 50, 100, 200],
   },
 );
+
+const tableShellRef = ref<HTMLElement>();
+const {
+  floatingScrollbarRef,
+  scrollbarAwake,
+  hasHorizontalOverflow,
+  horizontalSpacerWidth,
+  wakeHorizontalScrollbar,
+  handleHorizontalWheel,
+  handleFloatingHorizontalScroll,
+  scheduleHorizontalScrollbarUpdate,
+} = useFloatingHorizontalScrollbar({
+  tableShellRef,
+  watchedSources: [
+    () => props.tableRenderKey,
+    () => props.paginatedRows,
+    () => props.orderedColumnGroups,
+    () => props.widthStrategy,
+  ],
+});
+
+async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) {
+  await props.openDetail(row, cell);
+  await scheduleHorizontalScrollbarUpdate();
+  wakeHorizontalScrollbar();
+}
 </script>
 
 <template>
@@ -81,7 +109,17 @@ const props = withDefaults(
     <el-tag size="small" type="primary" effect="plain">{{ currentSortSummary }}</el-tag>
   </div>
 
-  <div v-if="board" class="stat-matrix-wrapper">
+  <div
+    v-if="board"
+    ref="tableShellRef"
+    class="stat-matrix-wrapper"
+    :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
+    tabindex="0"
+    @mouseenter="wakeHorizontalScrollbar"
+    @mousemove="wakeHorizontalScrollbar"
+    @focusin="wakeHorizontalScrollbar"
+    @wheel="handleHorizontalWheel"
+  >
     <el-table
       :key="tableRenderKey"
       :data="paginatedRows"
@@ -145,7 +183,7 @@ const props = withDefaults(
         :sort-icon-for-direction="sortIconForDirection"
         :toggle-column-sort="toggleColumnSort"
         :cell-for-column="cellForColumn"
-        :open-detail="openDetail"
+        :open-detail="handleDetailOpen"
         :column-min-width="columnMinWidth"
         :column-resizable="columnResizable"
         :is-column-dragging="isColumnDragging"
@@ -154,6 +192,16 @@ const props = withDefaults(
         :clear-drag-state="clearDragState"
       />
     </el-table>
+    <div
+      v-show="hasHorizontalOverflow"
+      ref="floatingScrollbarRef"
+      class="stat-matrix-floating-horizontal"
+      aria-hidden="true"
+      @mouseenter="wakeHorizontalScrollbar"
+      @scroll="handleFloatingHorizontalScroll"
+    >
+      <div class="stat-matrix-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+    </div>
   </div>
 
   <div v-if="board && sortedRowsLength" class="stat-board-pagination">
@@ -269,12 +317,51 @@ const props = withDefaults(
 
 <style scoped>
 .stat-matrix-wrapper {
+  position: relative;
   overflow-x: auto;
   overflow-y: hidden;
+  outline: none;
+  scrollbar-gutter: stable;
 }
 
 .stat-matrix-table {
   width: max-content;
   min-width: 100%;
+}
+
+.stat-matrix-wrapper :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  display: none !important;
+}
+
+.stat-matrix-floating-horizontal {
+  position: sticky;
+  right: 14px;
+  bottom: 2px;
+  left: 0;
+  z-index: 6;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: auto;
+  opacity: 1;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 76%) transparent;
+}
+
+.stat-matrix-floating-horizontal::-webkit-scrollbar {
+  height: 9px;
+}
+
+.stat-matrix-floating-horizontal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stat-matrix-floating-horizontal::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(148 163 184 / 76%);
+}
+
+.stat-matrix-floating-horizontal-spacer {
+  height: 1px;
 }
 </style>

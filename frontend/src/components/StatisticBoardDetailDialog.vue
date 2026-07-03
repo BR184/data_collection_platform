@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import StatisticBoardDetailCell from './StatisticBoardDetailCell.vue';
+import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
 import type {
   StatisticDetailCellValue,
   StatisticDetailColumn,
@@ -28,6 +29,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
 }>();
+
+const tableShellRef = ref<HTMLElement>();
 
 interface DetailDisplayCell {
   label: string;
@@ -72,6 +75,25 @@ const dialogStyle = computed(() => ({
   '--stat-detail-table-content-width': `${tableContentWidth.value}px`,
 }));
 
+const {
+  floatingScrollbarRef,
+  scrollbarAwake,
+  hasHorizontalOverflow,
+  horizontalSpacerWidth,
+  wakeHorizontalScrollbar,
+  handleHorizontalWheel,
+  handleFloatingHorizontalScroll,
+  scheduleHorizontalScrollbarUpdate,
+} = useFloatingHorizontalScrollbar({
+  tableShellRef,
+  watchedSources: [
+    detailRows,
+    mainTableColumns,
+    expandColumns,
+    () => props.modelValue,
+  ],
+});
+
 function isStructuredCellValue(value: StatisticDetailCellValue): value is StatisticDetailLinkValue {
   return value != null && typeof value === 'object' && 'label' in value;
 }
@@ -110,6 +132,11 @@ function splitTags(value: unknown) {
     .map((value) => value.trim())
     .filter(Boolean);
 }
+
+async function handleExpandChange() {
+  await scheduleHorizontalScrollbarUpdate();
+  wakeHorizontalScrollbar();
+}
 </script>
 
 <template>
@@ -127,9 +154,15 @@ function splitTags(value: unknown) {
     <div class="stat-detail-shell" v-loading="loading">
       <div
         v-if="detail"
+        ref="tableShellRef"
         class="stat-detail-table-shell"
+        :class="{ 'is-scrollbar-awake': scrollbarAwake, 'has-horizontal-overflow': hasHorizontalOverflow }"
         :style="tableShellStyle"
         tabindex="0"
+        @mouseenter="wakeHorizontalScrollbar"
+        @mousemove="wakeHorizontalScrollbar"
+        @focusin="wakeHorizontalScrollbar"
+        @wheel="handleHorizontalWheel"
       >
         <el-table
           :data="detailRows"
@@ -140,6 +173,7 @@ function splitTags(value: unknown) {
           class="stat-detail-table"
           :class="detailTableClass"
           @sort-change="onSortChange"
+          @expand-change="handleExpandChange"
         >
           <el-table-column v-if="hasExpandColumns" type="expand" width="42">
             <template #default="{ row }: { row: DetailDisplayRow }">
@@ -174,6 +208,16 @@ function splitTags(value: unknown) {
             </template>
           </el-table-column>
         </el-table>
+        <div
+          v-show="hasHorizontalOverflow"
+          ref="floatingScrollbarRef"
+          class="stat-detail-floating-horizontal"
+          aria-hidden="true"
+          @mouseenter="wakeHorizontalScrollbar"
+          @scroll="handleFloatingHorizontalScroll"
+        >
+          <div class="stat-detail-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+        </div>
       </div>
 
       <div class="detail-pagination">
@@ -195,13 +239,28 @@ function splitTags(value: unknown) {
 
 <style scoped>
 :global(.stat-detail-dialog) {
+  display: flex;
+  flex-direction: column;
   width: fit-content;
   min-width: min(720px, calc(100vw - 32px));
   max-width: calc(100vw - 96px);
+  max-height: calc(100vh - 64px);
 }
 
 :global(.stat-detail-dialog .el-dialog__body) {
+  flex: 1 1 auto;
+  min-height: 0;
   width: min(var(--stat-detail-table-content-width, 960px), calc(100vw - 160px));
+  overflow: hidden;
+  padding-bottom: 16px;
+}
+
+.stat-detail-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  max-height: calc(100vh - 176px);
 }
 
 .stat-detail-expand-panel {
@@ -230,12 +289,51 @@ function splitTags(value: unknown) {
   width: min(var(--stat-detail-table-content-width, 960px), 100%);
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  flex: 1 1 auto;
+  max-height: min(64vh, calc(100vh - 250px));
+  overflow: auto;
   outline: none;
+  scrollbar-gutter: stable;
 }
 
 .stat-detail-table {
   width: var(--stat-detail-table-content-width, 960px);
+}
+
+.stat-detail-table-shell :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  display: none !important;
+}
+
+.stat-detail-floating-horizontal {
+  position: sticky;
+  right: 14px;
+  bottom: 2px;
+  left: 0;
+  z-index: 6;
+  height: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  pointer-events: auto;
+  opacity: 1;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(148 163 184 / 76%) transparent;
+}
+
+.stat-detail-floating-horizontal::-webkit-scrollbar {
+  height: 9px;
+}
+
+.stat-detail-floating-horizontal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.stat-detail-floating-horizontal::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(148 163 184 / 76%);
+}
+
+.stat-detail-floating-horizontal-spacer {
+  height: 1px;
 }
 
 .stat-detail-table :deep(td .cell) {
@@ -260,6 +358,12 @@ function splitTags(value: unknown) {
   display: block;
   min-height: 0;
   overflow: visible;
+}
+
+.detail-pagination {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
 }
 
 </style>
