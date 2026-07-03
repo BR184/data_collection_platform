@@ -172,6 +172,14 @@ const shouldShowPrimaryFilterToggleInPrimaryActions = computed(() =>
 const hasPrimaryQueryActionButtons = computed(() =>
   shouldShowPrimaryFilterToggleInPrimaryActions.value || hasAdvancedFilters.value || shouldShowPrimaryQueryButtons.value,
 );
+const hasVisiblePrimaryFilterControls = computed(() =>
+  compactPrimaryFilters.value.length > 0
+    || (hasStandaloneSearch.value && quickFilterContentVisible.value)
+    || (primaryFiltersExpanded.value && extraPrimaryFilters.value.length > 0),
+);
+const shouldShowPrimaryFilterRow = computed(() =>
+  hasVisiblePrimaryFilterControls.value || (shouldShowPrimaryQueryActions.value && hasPrimaryQueryActionButtons.value),
+);
 const primaryFilterToggleIcon = computed(() => (primaryFiltersExpanded.value ? ArrowUp : ArrowDown));
 const tableContentWidth = computed(() => {
   const expandWidth = hasExpand.value ? (props.expandColumnVisible ? 42 : 1) : 0;
@@ -349,7 +357,7 @@ function handleStandaloneKeywordClear() {
         />
       </div>
 
-      <div class="record-filter-primary">
+      <div v-if="shouldShowPrimaryFilterRow" class="record-filter-primary">
         <div class="record-filter-query-strip">
           <div class="record-filter-fields-stack">
             <div class="record-filter-fields-cluster">
@@ -590,10 +598,11 @@ function handleStandaloneKeywordClear() {
 .record-filter-panel {
   display: grid;
   gap: 10px;
-  padding: 8px 10px 10px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 10px;
-  background: rgba(248, 250, 252, 0.7);
+  min-width: 0;
+  padding: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .record-context-panel {
@@ -610,10 +619,10 @@ function handleStandaloneKeywordClear() {
 
 .record-condition-panel {
   min-width: 0;
-  padding: 7px 9px;
-  border: 1px dashed rgba(15, 23, 42, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .record-condition-panel > :slotted(.stat-filter-builder) {
