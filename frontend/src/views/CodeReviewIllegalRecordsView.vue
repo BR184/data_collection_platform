@@ -153,7 +153,10 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
 });
 
 const columns = computed(() => buildCodeReviewIllegalRecordColumns(matchModeEnabled.value));
-const projectScopeUsesRepository = computed(() => matchModeEnabled.value);
+const sourceSwitchOptions = computed(() => buildScopeOptions(sourceOptions.value));
+const projectScopeUsesRepository = computed(
+  () => matchModeEnabled.value && effectiveSourceValue.value !== 'dgm',
+);
 const sourceScopeProvider = computed(() => ({
   ...CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
   defaultStrategy: 'empty' as const,
@@ -162,7 +165,7 @@ const effectiveSourceValue = computed(() =>
   sourceScope.value.value || sourceOptions.value[0]?.value || (matchModeEnabled.value ? 'cc' : ''),
 );
 const effectiveRepositoryName = computed(() =>
-  String(route.query.repositoryName ?? '') || (matchModeEnabled.value ? 'CrownCAD' : ''),
+  String(route.query.repositoryName ?? '') || (matchModeEnabled.value ? defaultRepositoryNameForSource(effectiveSourceValue.value) : ''),
 );
 const projectScopeValue = computed(() =>
   projectScopeUsesRepository.value
@@ -240,7 +243,7 @@ function syncCodeReviewRouteDefaults() {
     patch.source = effectiveSourceValue.value;
   }
   if (matchModeEnabled.value && !String(route.query.repositoryName ?? '').trim()) {
-    patch.repositoryName = 'CrownCAD';
+    patch.repositoryName = defaultRepositoryNameForSource(effectiveSourceValue.value);
     patch.projectName = null;
     patch.targetBranch = null;
   }
@@ -293,16 +296,45 @@ function buildCurrentQueryParams(includePagination: boolean) {
   };
 }
 
+function defaultRepositoryNameForSource(source: string) {
+  return source === 'dgm' ? 'DGM' : 'CrownCAD';
+}
+
 async function handleExport() {
   exportLoading.value = true;
   try {
     const workbook = await api.exportCodeReviewIllegalRecords(buildCurrentQueryParams(false));
-    downloadBlob(workbook, 'CodeWalkThrough.xlsx');
+    downloadBlob(workbook, codeReviewIllegalExportFilename());
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {
     exportLoading.value = false;
   }
+}
+
+function codeReviewIllegalExportFilename() {
+  const isDgm = effectiveSourceValue.value === 'dgm';
+  const params = [
+    String(route.query.projectName ?? ''),
+    String(route.query.illegalType ?? ''),
+    String(route.query.moduleName ?? ''),
+    String(route.query.targetBranch ?? ''),
+    String(route.query.owner ?? ''),
+    String(route.query.mergeRequestIid ?? ''),
+    ...(isDgm ? [] : [effectiveRepositoryName.value]),
+    mergedAtRangeFilenamePart(),
+  ].map((value) => value.trim()).filter(Boolean);
+  const prefix = params.length > 0 ? params.join('_') : '';
+  if (isDgm) {
+    return `${prefix}${new Date().toLocaleString()}_内核代码走查非法数据.xlsx`;
+  }
+  return `${prefix}代码走查非法数据.xlsx`;
+}
+
+function mergedAtRangeFilenamePart() {
+  const start = String(route.query.mergedAtStart ?? '').trim();
+  const end = String(route.query.mergedAtEnd ?? '').trim();
+  return start && end ? `${start}-${end}` : '';
 }
 
 async function handleRefreshLatestData() {
@@ -408,6 +440,14 @@ async function handleProjectScopeChange(value: string | string[]) {
   );
 }
 
+async function handleSourceScopeChange(value: string | number | boolean | undefined) {
+  const nextSource = String(value ?? '');
+  if (!nextSource || nextSource === effectiveSourceValue.value) {
+    return;
+  }
+  await sourceScope.setValue(nextSource);
+}
+
 const taskStartedText = computed(() =>
   syncStatus.value?.lastRefreshStartedAt
     ? formatBeijingDateTime(syncStatus.value.lastRefreshStartedAt, '')
@@ -460,6 +500,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :active-filter-tags="activeFilterTags"
       :show-search="false"
       :show-refresh="false"
+      quick-filter-mode
       :empty-description="tableEmptyDescription"
       @reset="handleReset"
       @filter-change="handleFilterChange"
@@ -482,6 +523,25 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
       <template #primary-actions>
         <div class="code-review-illegal-toolbar-actions">
+          <div
+            v-if="matchModeEnabled && sourceSwitchOptions.length > 1"
+            class="code-review-source-switch"
+          >
+            <span class="code-review-illegal-toolbar-label">数据源</span>
+            <el-radio-group
+              :model-value="effectiveSourceValue"
+              size="small"
+              @change="handleSourceScopeChange"
+            >
+              <el-radio-button
+                v-for="option in sourceSwitchOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </el-radio-button>
+            </el-radio-group>
+          </div>
           <div class="code-review-project-scope">
             <span class="code-review-illegal-toolbar-label">{{ projectScopeLabel }}</span>
             <SmartSelect
@@ -518,7 +578,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             规则说明
           </el-button>
           <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
-            导出
+            下载代码走查非法数据
           </el-button>
           <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
           <span class="code-review-illegal-toolbar-divider" />
@@ -679,6 +739,17 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+
+.code-review-source-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.code-review-source-switch :deep(.el-radio-button__inner) {
+  min-width: 64px;
 }
 
 .code-review-project-select {

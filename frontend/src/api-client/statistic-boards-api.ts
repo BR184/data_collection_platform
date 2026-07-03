@@ -81,6 +81,15 @@ export const statisticBoardsApi = {
       },
     );
   },
+  async exportSystemTestDefectSummaryIssues(params?: StatisticBoardQueryParams) {
+    return requestBlobResponse(
+      `/api/statistic-boards/system-test-defect-summary/issues/export${buildStatisticBoardQuery(params)}`,
+      {
+        errorPrefix: '议题数据导出失败',
+        timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+      },
+    );
+  },
   getStatisticBoardRealtimeStatus(boardKey: string) {
     return request<RealtimeWorkspaceStatusResponse>(`/api/statistic-boards/${boardKey}/status`);
   },

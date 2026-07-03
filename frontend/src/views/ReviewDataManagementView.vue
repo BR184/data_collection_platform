@@ -317,7 +317,7 @@ async function handleExportRecordProblemDetails(row: Record<string, unknown>) {
   }
   try {
     const blob = await api.exportReviewDataRecordProblemDetailsWorkbook(raw.id);
-    downloadBlob(blob, '评审问题详情导出.xlsx');
+    downloadBlob(blob, '问题详情.xlsx');
     ElMessage.success('已导出当前评审的问题详情');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '评审问题详情导出失败');
@@ -393,6 +393,7 @@ const {
       :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
+      quick-filter-mode
       query-button-text="查询"
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
@@ -441,7 +442,7 @@ const {
               :icon="Download"
               :loading="recordExportLoading || problemExportLoading"
             >
-              导出
+              导出评审列表
               <el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-button>
             <template #dropdown>

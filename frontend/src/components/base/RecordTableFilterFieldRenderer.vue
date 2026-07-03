@@ -47,7 +47,15 @@ function selectValue(value: unknown) {
 }
 
 function dateRangeValue(value: unknown) {
-  return Array.isArray(value) ? value : [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const [start, end] = value.map((item) => String(item ?? '').trim());
+  return start && end ? [start, end] : [];
+}
+
+function emitDateRangeChange(value: unknown) {
+  emit('filter-change', props.filter.key, dateRangeValue(value));
 }
 </script>
 
@@ -87,7 +95,7 @@ function dateRangeValue(value: unknown) {
     :start-placeholder="filter.startPlaceholder || '开始日期'"
     :end-placeholder="filter.endPlaceholder || '结束日期'"
     value-format="YYYY-MM-DD"
-    @change="emit('filter-change', filter.key, Array.isArray($event) ? $event : null)"
+    @update:model-value="emitDateRangeChange"
   />
 </template>
 

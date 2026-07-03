@@ -334,6 +334,17 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         null);
   }
 
+  @Override
+  public String exportFilename(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+    String milestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
+    if (StringUtils.hasText(milestone)) {
+      return milestone + "-客户问题缺陷响应效率.xlsx";
+    }
+    return "客户问题缺陷响应效率.xlsx";
+  }
+
   private RuleFlowSnapshot buildRuleFlowSnapshot(List<IssueSource> loaded, StatisticFilterGroup filterGroup) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =

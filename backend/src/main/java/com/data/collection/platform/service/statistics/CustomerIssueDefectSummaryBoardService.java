@@ -384,6 +384,17 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   @Override
+  public String exportFilename(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+    String milestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
+    if (StringUtils.hasText(milestone)) {
+      return milestone + "-客户问题缺陷汇总统计.xlsx";
+    }
+    return "客户问题缺陷汇总统计.xlsx";
+  }
+
+  @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);

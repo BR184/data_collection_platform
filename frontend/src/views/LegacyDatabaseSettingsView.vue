@@ -39,6 +39,7 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   mysqlHost: '172.22.10.72',
   mysqlPort: 3306,
   mysqlDatabase: 'gitlab_spider',
+  dgmMysqlDatabase: 'gitlab_spider_dgm',
   mysqlUsername: 'root',
   mysqlPassword: '',
   mysqlTableName: 'spider_crowncad_data',
@@ -264,6 +265,7 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   form.mysqlHost = nextSettings.mysqlHost || '172.22.10.72';
   form.mysqlPort = nextSettings.mysqlPort || 3306;
   form.mysqlDatabase = nextSettings.mysqlDatabase || '';
+  form.dgmMysqlDatabase = nextSettings.dgmMysqlDatabase || 'gitlab_spider_dgm';
   form.mysqlUsername = nextSettings.mysqlUsername || '';
   form.mysqlPassword = '';
   form.mysqlTableName = nextSettings.mysqlTableName || 'spider_crowncad_data';
@@ -285,6 +287,7 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     mysqlHost: form.mysqlHost.trim(),
     mysqlPort: Number(form.mysqlPort || 3306),
     mysqlDatabase: form.mysqlDatabase.trim(),
+    dgmMysqlDatabase: form.dgmMysqlDatabase.trim() || 'gitlab_spider_dgm',
     mysqlUsername: form.mysqlUsername.trim(),
     mysqlPassword: form.mysqlPassword?.trim() || null,
     mysqlTableName: form.mysqlTableName.trim() || 'spider_crowncad_data',
@@ -416,6 +419,9 @@ function formatDateTime(value?: string | null) {
             </el-form-item>
             <el-form-item label="数据库">
               <el-input v-model="form.mysqlDatabase" />
+            </el-form-item>
+            <el-form-item label="DGM 数据库">
+              <el-input v-model="form.dgmMysqlDatabase" placeholder="gitlab_spider_dgm" />
             </el-form-item>
             <el-form-item label="用户名">
               <el-input v-model="form.mysqlUsername" />

@@ -435,6 +435,7 @@ create table if not exists code_review_match_mode_db_settings (
     mysql_host varchar(255) not null default '172.22.10.72',
     mysql_port integer not null default 3306,
     mysql_database varchar(255) not null default 'gitlab_spider',
+    dgm_mysql_database varchar(255) not null default 'gitlab_spider_dgm',
     mysql_username varchar(255) not null default 'root',
     mysql_password varchar(255) not null default '',
     mysql_table_name varchar(255) not null default 'spider_crowncad_data',

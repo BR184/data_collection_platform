@@ -21,7 +21,7 @@ describe('useReviewDataExport', () => {
     await exporter.exportReviewRecords();
 
     expect(deps.exportReviewRecords).toHaveBeenCalledOnce();
-    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), 'AllData.xlsx');
+    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), expect.stringMatching(/^评审数据.*\.xlsx$/));
     expect(deps.notifySuccess).toHaveBeenCalledWith('已导出评审列表');
     expect(exporter.recordExportLoading.value).toBe(false);
   });
@@ -33,7 +33,7 @@ describe('useReviewDataExport', () => {
     await exporter.exportProblemDetails();
 
     expect(deps.exportProblemDetails).toHaveBeenCalledOnce();
-    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审问题详情导出.xlsx');
+    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审问题详情.xls');
     expect(deps.notifySuccess).toHaveBeenCalledWith('已导出问题列表');
     expect(exporter.problemExportLoading.value).toBe(false);
   });

@@ -1,5 +1,6 @@
 package com.data.collection.platform.controller;
 
+import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CodeReviewIllegalRecordFilterOptionsResponse;
@@ -65,8 +66,15 @@ public class CodeReviewController {
         .contentType(
             MediaType.parseMediaType(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"CodeWalkThrough.xlsx\"")
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(codeReviewIllegalExportFilename(request)))
         .body(workbook);
+  }
+
+  private String codeReviewIllegalExportFilename(CodeReviewIllegalRecordListWebRequest request) {
+    if ("dgm".equalsIgnoreCase(request.getSource())) {
+      return "内核代码走查非法数据.xlsx";
+    }
+    return "代码走查非法数据.xlsx";
   }
 
   @GetMapping("/illegal-records/filter-options")

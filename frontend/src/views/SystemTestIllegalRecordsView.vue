@@ -120,7 +120,7 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     :total-tag-text="(total) => `当前 ${total} 条`"
     :load-records="loadRecords"
     :export-records="api.exportSystemTestIllegalRecords"
-    export-filename-prefix="系统测试非法数据"
+    export-filename-prefix="多元议题查询结果"
     :load-filter-options="api.getSystemTestIllegalRecordFilterOptions"
     :load-rule-explanation="api.getSystemTestIllegalRecordRuleExplanation"
     :load-realtime-status="api.getSystemTestIllegalRecordRealtimeStatus"

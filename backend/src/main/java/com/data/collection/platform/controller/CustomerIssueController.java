@@ -1,5 +1,6 @@
 package com.data.collection.platform.controller;
 
+import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
@@ -13,11 +14,9 @@ import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CustomerIssueIllegalRecordService;
 import com.data.collection.platform.service.CustomerIssueRecordService;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,7 +66,7 @@ public class CustomerIssueController {
             customerIssueRequestAssembler.toRecordQueryRequest(request));
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(recordExportFilename(request.getTopic())))
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(recordExportFilename(request.getTopic())))
         .body(workbook);
   }
 
@@ -115,7 +114,7 @@ public class CustomerIssueController {
             customerIssueRequestAssembler.toIllegalRecordQueryRequest(request));
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("客户问题非法数据.xlsx"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("多元议题查询结果.xlsx"))
         .body(workbook);
   }
 
@@ -158,12 +157,7 @@ public class CustomerIssueController {
   }
 
   private String recordExportFilename(String topic) {
-    return TOPIC_DELAY.equalsIgnoreCase(topic) ? "延期问题明细.xlsx" : "CCProduct议题查询结果.xlsx";
+    return TOPIC_DELAY.equalsIgnoreCase(topic) ? "延期问题明细.xlsx" : "（全量）CCProduct议题查询结果.xlsx";
   }
 
-  private String contentDisposition(String filename) {
-    String fallback = filename.replace("\"", "");
-    String encoded = UriUtils.encode(filename, StandardCharsets.UTF_8);
-    return "attachment; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded;
-  }
 }

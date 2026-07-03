@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
@@ -23,6 +24,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinit
 import com.data.collection.platform.service.PageSlice;
 import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestIssueRecordWorkbookExportSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.labelgroup.LabelGroupDefaultFilterService;
@@ -195,6 +197,34 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
+  }
+
+  public byte[] exportIssueRecordsWorkbook(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
+    EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
+    List<SystemTestIssueSearchRowResponse> rows =
+        loadBoardScopedSources(filters, effectiveFilterGroup).stream()
+            .sorted(buildDetailComparator("updatedAt", "descending"))
+            .map(this::toIssueExportRecord)
+            .toList();
+    return SystemTestIssueRecordWorkbookExportSupport.exportIssueDataRecords(rows);
+  }
+
+  public String exportIssueRecordsFilename(Map<String, String> filters) {
+    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition(loadPhaseOptions())));
+    if (StringUtils.hasText(phase)) {
+      return phase + "-全量议题数据.xlsx";
+    }
+    return "全量议题数据.xlsx";
+  }
+
+  @Override
+  public String exportFilename(Map<String, String> filters) {
+    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition(loadPhaseOptions())));
+    if (StringUtils.hasText(phase)) {
+      return phase + "-系统测试缺陷汇总统计.xlsx";
+    }
+    return "系统测试缺陷汇总统计.xlsx";
   }
 
   @Override
@@ -842,6 +872,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         source.bugStatus(),
         source.category(),
         source.delayCause(),
+        source.milestoneTitle(),
         source.excluded(),
         "",
         source.fixed(),
@@ -872,6 +903,33 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     r.put("labels", String.join(", ", i.labels()));
     r.put("updatedAt", i.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(i.updatedAt()));
     return r;
+  }
+
+  private SystemTestIssueSearchRowResponse toIssueExportRecord(IssueSource i) {
+    return new SystemTestIssueSearchRowResponse(
+        i.id(),
+        i.iid(),
+        null,
+        i.sourceInstance(),
+        i.projectId(),
+        i.projectName(),
+        i.title(),
+        i.issueState(),
+        i.testingPhase(),
+        i.displaySeverityLevel(),
+        i.priorityLevel(),
+        i.bugStatus(),
+        i.category(),
+        i.milestoneTitle(),
+        i.delayCause(),
+        i.authorName(),
+        i.assigneeName(),
+        String.join(" & ", i.moduleNames()),
+        "",
+        i.createdAt(),
+        i.updatedAt(),
+        i.closedAt(),
+        i.labels());
   }
 
   private Predicate<IssueSource> matchesMetric(String key) {
@@ -1066,7 +1124,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
   }
 
-  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, List<String> moduleNames, List<String> labels) {
+  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, String milestoneTitle, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, List<String> moduleNames, List<String> labels) {
     boolean isClosed() { return closedAt != null || "closed".equalsIgnoreCase(issueState); }
     boolean isPriority(String priority) { return priority.equalsIgnoreCase(priorityLevel); }
     boolean isSeverity(String severity) { return severity.equalsIgnoreCase(severityLevel); }

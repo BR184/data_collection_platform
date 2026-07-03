@@ -1,5 +1,6 @@
 package com.data.collection.platform.controller;
 
+import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.AuthRole;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
@@ -14,11 +15,9 @@ import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.util.UriUtils;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -69,7 +68,7 @@ public class QuestionMetricsController {
             questionMetricsRequestAssembler.toIssueSearchQueryRequest(request));
     return ResponseEntity.ok()
         .contentType(EXCEL_MEDIA_TYPE)
-        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("多元查询议题结果.xlsx"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("多元议题查询结果.xlsx"))
         .body(workbook);
   }
 
@@ -110,14 +109,8 @@ public class QuestionMetricsController {
             questionMetricsRequestAssembler.toIllegalRecordQueryRequest(request));
     return ResponseEntity.ok()
         .contentType(EXCEL_MEDIA_TYPE)
-        .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition("系统测试非法数据.xlsx"))
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("多元议题查询结果.xlsx"))
         .body(workbook);
-  }
-
-  private String contentDisposition(String filename) {
-    String fallback = filename.replace("\"", "");
-    String encoded = UriUtils.encode(filename, StandardCharsets.UTF_8);
-    return "attachment; filename=\"" + fallback + "\"; filename*=UTF-8''" + encoded;
   }
 
   @GetMapping("/illegal-records/filter-options")

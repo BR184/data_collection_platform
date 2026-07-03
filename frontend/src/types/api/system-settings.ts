@@ -63,6 +63,7 @@ export interface CodeReviewMatchModeDbSettingsResponse {
   mysqlHost: string;
   mysqlPort: number;
   mysqlDatabase: string;
+  dgmMysqlDatabase: string;
   mysqlUsername: string;
   mysqlPasswordConfigured: boolean;
   mysqlTableName: string;
@@ -87,6 +88,7 @@ export interface CodeReviewMatchModeDbSettingsSaveRequest {
   mysqlHost: string;
   mysqlPort: number;
   mysqlDatabase: string;
+  dgmMysqlDatabase: string;
   mysqlUsername: string;
   mysqlPassword?: string | null;
   mysqlTableName: string;

@@ -1,5 +1,6 @@
 package com.data.collection.platform.controller;
 
+import com.data.collection.platform.common.DownloadResponseHeaders;
 import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.config.ReviewDataProperties;
@@ -87,27 +88,27 @@ public class ReviewDataController {
   public ResponseEntity<byte[]> exportRecords(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportReviewRecordsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "AllData.xlsx");
+        "评审数据" + java.time.LocalDateTime.now() + ".xlsx");
   }
 
   @GetMapping("/problem-items/export")
   public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "评审问题详情导出.xlsx");
+        "评审问题详情.xls");
   }
 
   @GetMapping("/records/{recordId}/problem-items/export")
   public ResponseEntity<byte[]> exportRecordProblemDetails(@PathVariable Long recordId) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(recordId),
-        "评审问题详情导出.xlsx");
+        "问题详情.xlsx");
   }
 
   @GetMapping("/template")
   public ResponseEntity<byte[]> downloadTemplate() {
     return ResponseEntity.ok()
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"review-data-template.xls\"")
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment("模板文件.xls"))
         .contentType(MediaType.parseMediaType("application/vnd.ms-excel"))
         .body(templateWorkbookService.buildTemplateWorkbook());
   }
@@ -193,7 +194,7 @@ public class ReviewDataController {
 
   private ResponseEntity<byte[]> excelResponse(byte[] workbook, String filename) {
     return ResponseEntity.ok()
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(filename))
         .contentType(
             MediaType.parseMediaType(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))

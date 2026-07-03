@@ -91,29 +91,55 @@ public class CodeReviewMatchModeSyncService {
     boolean refreshCodeReviewRecords = selectedTableNames.contains(config.mysqlTableName());
     createTempTables(refreshCodeReviewRecords);
     ImportSummary summary = new ImportSummary();
-    try (Connection connection =
-        DriverManager.getConnection(config.mysqlJdbcUrl(), config.mysqlUsername(), config.mysqlPassword())) {
-      connection.setReadOnly(true);
-      for (String tableName : selectedTableNames) {
-        TableLoadResult result = loadRawRows(connection, config, tableName);
-        summary.add(tableName, result.count(), result.columnNames());
-      }
-      if (refreshCodeReviewRecords) {
-        summary.setCodeReviewRecordCount(loadCodeReviewRows(connection, config));
+    try {
+      for (LegacyMysqlSource source : legacyMysqlSources(config)) {
+        try (Connection connection =
+            DriverManager.getConnection(source.jdbcUrl(), config.mysqlUsername(), config.mysqlPassword())) {
+          connection.setReadOnly(true);
+          loadSourceTables(connection, config, source, selectedTableNames, refreshCodeReviewRecords, summary);
+        }
       }
     } catch (RuntimeException | SQLException error) {
       dropTempTables(refreshCodeReviewRecords);
       throw error;
     }
-    replaceSnapshots(selectedTableNames, refreshCodeReviewRecords, summary);
+    replaceSnapshots(refreshCodeReviewRecords, summary);
     return summary;
   }
 
-  private int loadCodeReviewRows(Connection connection, CodeReviewMatchModeConfig config) throws SQLException {
+  private void loadSourceTables(
+      Connection connection,
+      CodeReviewMatchModeConfig config,
+      LegacyMysqlSource source,
+      List<String> selectedTableNames,
+      boolean refreshCodeReviewRecords,
+      ImportSummary summary) throws SQLException {
+    for (String tableName : selectedTableNames) {
+      String snapshotTableName = source.snapshotTableName(tableName);
+      TableLoadResult result = loadRawRows(connection, config, snapshotTableName, tableName);
+      summary.add(snapshotTableName, result.count(), result.columnNames());
+    }
+    if (refreshCodeReviewRecords) {
+      summary.addCodeReviewRecordCount(loadCodeReviewRows(connection, config, source));
+    }
+  }
+
+  private List<LegacyMysqlSource> legacyMysqlSources(CodeReviewMatchModeConfig config) {
+    List<LegacyMysqlSource> sources = new ArrayList<>();
+    sources.add(new LegacyMysqlSource("cc", config.mysqlJdbcUrl()));
+    if (StringUtils.hasText(config.dgmMysqlJdbcUrl())
+        && !config.dgmMysqlJdbcUrl().equalsIgnoreCase(config.mysqlJdbcUrl())) {
+      sources.add(new LegacyMysqlSource("dgm", config.dgmMysqlJdbcUrl()));
+    }
+    return sources;
+  }
+
+  private int loadCodeReviewRows(
+      Connection connection, CodeReviewMatchModeConfig config, LegacyMysqlSource source) throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(selectSql(config.mysqlTableName()))) {
       statement.setFetchSize(Math.max(1, config.mysqlFetchSize()));
       try (ResultSet rs = statement.executeQuery()) {
-        return insertCodeReviewRows(config, rs);
+        return insertCodeReviewRows(config, source, rs);
       }
     }
   }
@@ -173,7 +199,8 @@ public class CodeReviewMatchModeSyncService {
     return "`" + normalized.replace("`", "``") + "`";
   }
 
-  private int insertCodeReviewRows(CodeReviewMatchModeConfig config, ResultSet rs) throws SQLException {
+  private int insertCodeReviewRows(
+      CodeReviewMatchModeConfig config, LegacyMysqlSource source, ResultSet rs) throws SQLException {
     String sql = """
         insert into %s (
           source_instance, project_id, project_name, repository_name, merge_request_id, merge_request_iid,
@@ -194,7 +221,7 @@ public class CodeReviewMatchModeSyncService {
     int count = 0;
     List<Object[]> batch = new ArrayList<>();
     while (rs.next()) {
-      LegacyRow row = mapLegacyRow(rs);
+      LegacyRow row = mapLegacyRow(rs, source.sourceInstance());
       batch.add(row.toArgs());
       if (batch.size() >= 500) {
         jdbcTemplate.batchUpdate(sql, batch);
@@ -210,11 +237,14 @@ public class CodeReviewMatchModeSyncService {
   }
 
   private TableLoadResult loadRawRows(
-      Connection connection, CodeReviewMatchModeConfig config, String tableName) throws SQLException {
-    try (PreparedStatement statement = connection.prepareStatement(selectAllSql(tableName))) {
+      Connection connection,
+      CodeReviewMatchModeConfig config,
+      String snapshotTableName,
+      String sourceTableName) throws SQLException {
+    try (PreparedStatement statement = connection.prepareStatement(selectAllSql(sourceTableName))) {
       statement.setFetchSize(Math.max(1, config.mysqlFetchSize()));
       try (ResultSet rs = statement.executeQuery()) {
-        return insertRawRows(tableName, rs);
+        return insertRawRows(snapshotTableName, rs);
       }
     }
   }
@@ -257,7 +287,7 @@ public class CodeReviewMatchModeSyncService {
     return new TableLoadResult(count, List.copyOf(columnNames));
   }
 
-  private LegacyRow mapLegacyRow(ResultSet rs) throws SQLException {
+  private LegacyRow mapLegacyRow(ResultSet rs, String fallbackSourceInstance) throws SQLException {
     String repositoryName = text(rs, "name");
     String legacySourceId = rs.getObject("id") == null ? null : String.valueOf(rs.getObject("id"));
     Long mergeRequestId = longValue(rs.getObject("id"));
@@ -278,10 +308,11 @@ public class CodeReviewMatchModeSyncService {
     }
     LocalDateTime walkthroughDate = localDateTime(rs.getObject("code_walkthrough_date"));
     Double annotationRate = doubleValue(rs.getObject("annotation_rate"));
+    Integer bugCount = intValue(rs.getObject("bug_count"));
     TextQuerySupport.SearchIndex searchIndex =
         TextQuerySupport.buildSearchIndex(String.join(" ", safe(title), safe(author), safe(projectName), safe(repositoryName), safe(moduleName), safe(targetBranch), safe(mergedBy)));
     return new LegacyRow(
-        "cc",
+        legacySourceInstance(repositoryName, fallbackSourceInstance),
         0L,
         projectName,
         repositoryName,
@@ -307,11 +338,13 @@ public class CodeReviewMatchModeSyncService {
         intValue(rs.getObject("code_walkthrough_duration")),
         null,
         text(rs, "sonar_qube_result"),
-        intValue(rs.getObject("bug_count")),
+        bugCount,
         text(rs, "annotation_rate_result"),
         text(rs, "bug_count_result"),
         annotationRate,
-        intValue(rs.getObject("defect_count")),
+        //兼容模式-MatchMode：老平台非法数据页“缺陷数量”展示的是 MR 级 SonarQube bug_count，
+        //同一 MR 被多条代码走查评论拆成多行时，数量字段必须保持一致。
+        bugCount,
         intValue(rs.getObject("added_line")),
         intValue(rs.getObject("deleted_line")),
         intValue(rs.getObject("code_specification_count")),
@@ -328,6 +361,14 @@ public class CodeReviewMatchModeSyncService {
         text(rs, "function_name"),
         intValue(rs.getObject("ct_code_line_count")),
         legacySourceId);
+  }
+
+  private String legacySourceInstance(String repositoryName, String fallbackSourceInstance) {
+    //兼容模式-MatchMode：老平台 spider_crowncad_data.name=DGM 表示 DGM 代码库，其余 name 仍按 CC 侧所属项目处理。
+    if ("DGM".equalsIgnoreCase(TextQuerySupport.trimToNull(repositoryName))) {
+      return "dgm";
+    }
+    return GitlabSourceInstanceSupport.normalizeSourceInstance(fallbackSourceInstance == null ? "cc" : fallbackSourceInstance);
   }
 
   private String syntheticLabels(String projectName, String moduleName) {
@@ -362,11 +403,10 @@ public class CodeReviewMatchModeSyncService {
 
   @Transactional
   protected void replaceSnapshots(
-      List<String> selectedTableNames,
       boolean refreshCodeReviewRecords,
       ImportSummary summary) {
-    for (String tableName : selectedTableNames) {
-      jdbcTemplate.update("delete from " + RAW_TARGET_TABLE + " where table_name = ?", tableName);
+    for (TableSummary tableSummary : summary.tableSummaries()) {
+      jdbcTemplate.update("delete from " + RAW_TARGET_TABLE + " where table_name = ?", tableSummary.tableName());
     }
     jdbcTemplate.execute(
         "insert into "
@@ -646,8 +686,8 @@ public class CodeReviewMatchModeSyncService {
       tables.put(tableName, new TableSummary(tableName, count, columnNames));
     }
 
-    void setCodeReviewRecordCount(int count) {
-      codeReviewRecordCount = count;
+    void addCodeReviewRecordCount(int count) {
+      codeReviewRecordCount += count;
     }
 
     List<TableSummary> tableSummaries() {
@@ -681,6 +721,12 @@ public class CodeReviewMatchModeSyncService {
   }
 
   private record TableSummary(String tableName, int count, List<String> columnNames) {
+  }
+
+  private record LegacyMysqlSource(String sourceInstance, String jdbcUrl) {
+    String snapshotTableName(String tableName) {
+      return sourceInstance + "." + tableName;
+    }
   }
 
   private record LegacyRow(

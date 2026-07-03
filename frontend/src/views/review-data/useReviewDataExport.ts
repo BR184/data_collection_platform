@@ -19,7 +19,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
     recordExportLoading.value = true;
     try {
       const blob = await deps.exportReviewRecords();
-      deps.downloadWorkbook(blob, 'AllData.xlsx');
+      deps.downloadWorkbook(blob, `评审数据${(deps.now?.() ?? new Date()).toLocaleString()}.xlsx`);
       deps.notifySuccess('已导出评审列表');
     } catch (error) {
       deps.notifyError(error instanceof Error ? error.message : '评审列表导出失败');
@@ -32,7 +32,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
     problemExportLoading.value = true;
     try {
       const blob = await deps.exportProblemDetails();
-      deps.downloadWorkbook(blob, '评审问题详情导出.xlsx');
+      deps.downloadWorkbook(blob, '评审问题详情.xls');
       deps.notifySuccess('已导出问题列表');
     } catch (error) {
       deps.notifyError(error instanceof Error ? error.message : '评审问题详情导出失败');

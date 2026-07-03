@@ -8,6 +8,7 @@ public record CodeReviewMatchModeDbSettingsSaveRequest(
     String mysqlHost,
     Integer mysqlPort,
     String mysqlDatabase,
+    String dgmMysqlDatabase,
     String mysqlUsername,
     String mysqlPassword,
     String mysqlTableName,

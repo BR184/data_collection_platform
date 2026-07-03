@@ -523,7 +523,7 @@ async function handleConditionFilterReset() {
               :loading="exportLoading"
               @click="handleExport"
             >
-              导出
+              下载查询数据
             </el-button>
             <PageSettingsButton :scope-key="pageScopeKey" />
           </div>

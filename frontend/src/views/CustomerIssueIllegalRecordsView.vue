@@ -128,7 +128,7 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     :total-tag-text="(total) => `当前 ${total} 条`"
     :load-records="loadRecords"
     :export-records="api.exportCustomerIssueIllegalRecords"
-    export-filename-prefix="客户问题非法数据"
+    export-filename-prefix="多元议题查询结果"
     :load-filter-options="loadFilterOptions"
     :load-rule-explanation="api.getCustomerIssueIllegalRecordRuleExplanation"
     :load-realtime-status="api.getCustomerIssueIllegalRecordRealtimeStatus"

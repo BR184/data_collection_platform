@@ -287,6 +287,18 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   }
 
   @Override
+  public String exportFilename(Map<String, String> filters) {
+    List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultTestingPhase(filterGroup, phaseOptions);
+    String phase = SystemTestPhaseFilterSupport.selectedTestingPhase(effectiveFilterGroup);
+    if (StringUtils.hasText(phase)) {
+      return phase + "申请延期缺陷原因分析.xlsx";
+    }
+    return "申请延期缺陷原因分析.xlsx";
+  }
+
+  @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
     List<StatisticFilterOption> phaseOptions = loadPhaseOptions();
     StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(phaseOptions));

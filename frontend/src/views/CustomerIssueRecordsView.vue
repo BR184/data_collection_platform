@@ -513,7 +513,7 @@ async function handleExport() {
 }
 
 function customerIssueExportFilename() {
-  return isDelayTopic.value ? '延期问题明细.xlsx' : 'CCProduct议题查询结果.xlsx';
+  return isDelayTopic.value ? '延期问题明细.xlsx' : '（全量）CCProduct议题查询结果.xlsx';
 }
 
 async function handleRefreshLatestData() {
@@ -730,7 +730,7 @@ async function handleConditionFilterReset() {
             </el-button>
             <el-button plain :icon="Refresh" @click="handleRefresh">刷新</el-button>
             <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
-              导出
+              {{ isDelayTopic ? '导出' : '下载查询数据' }}
             </el-button>
             <PageSettingsButton :scope-key="pageScopeKey" />
           </div>

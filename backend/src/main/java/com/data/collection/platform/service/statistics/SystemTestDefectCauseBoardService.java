@@ -395,6 +395,16 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     return "缺陷原因统计表.xlsx";
   }
 
+  @Override
+  public String exportFilename(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
+    String phase = SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup);
+    if (StringUtils.hasText(phase)) {
+      return phase + "-缺陷原因统计表.xlsx";
+    }
+    return exportFilename();
+  }
+
   private void writeWorkbookHeader(org.apache.poi.ss.usermodel.Sheet sheet, ExportStyles styles) {
     Row groupRow = sheet.createRow(0);
     Row leafRow = sheet.createRow(1);

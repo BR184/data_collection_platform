@@ -44,6 +44,7 @@ public class CodeReviewIllegalRecordService {
   public static final String WORKSPACE_KEY = "code-review-illegal-records";
   private static final String LEGACY_DEFAULT_SOURCE = "cc";
   private static final String LEGACY_DEFAULT_REPOSITORY_NAME = "CrownCAD";
+  private static final String LEGACY_DGM_REPOSITORY_NAME = "DGM";
   private static final List<String> LEGACY_EXTRA_PROJECT_NAME_OPTIONS =
       List.of("广数CAM", "CC2025R4", "CC2026R1", "CC 2025 R4&2026 R1");
   private static final String RULE_VERSION = "code-review-illegal-records@2026-04-10-v5";
@@ -499,7 +500,7 @@ public class CodeReviewIllegalRecordService {
     String projectName = request == null ? null : request.projectName();
     boolean matchMode = matchModeSwitchService.isEnabled();
     String scopedRepositoryName =
-        matchMode ? defaultLegacyRepositoryName(repositoryName) : repositoryName;
+        matchMode ? defaultLegacyRepositoryName(repositoryName, source) : repositoryName;
     CodeReviewIllegalRecordFilterOptionValues options =
         activeLoader()
             .loadFilterOptions(
@@ -691,7 +692,7 @@ public class CodeReviewIllegalRecordService {
     String normalizedSource = source == null ? LEGACY_DEFAULT_SOURCE : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
     String repositoryName =
         matchModeSwitchService.isEnabled()
-            ? defaultLegacyRepositoryName(request.repositoryName())
+            ? defaultLegacyRepositoryName(request.repositoryName(), normalizedSource)
             : request.repositoryName();
     return new CodeReviewIllegalRecordQueryRequest(
         request.projectId(),
@@ -717,9 +718,14 @@ public class CodeReviewIllegalRecordService {
   }
 
   //兼容模式-MatchMode
-  private String defaultLegacyRepositoryName(String repositoryName) {
+  private String defaultLegacyRepositoryName(String repositoryName, String source) {
     String normalized = TextQuerySupport.trimToNull(repositoryName);
-    return normalized == null ? LEGACY_DEFAULT_REPOSITORY_NAME : normalized;
+    if (normalized != null) {
+      return normalized;
+    }
+    String normalizedSource =
+        GitlabSourceInstanceSupport.normalizeSourceInstance(source == null ? LEGACY_DEFAULT_SOURCE : source);
+    return "dgm".equals(normalizedSource) ? LEGACY_DGM_REPOSITORY_NAME : LEGACY_DEFAULT_REPOSITORY_NAME;
   }
 
   private CodeReviewRuleConfig parseRuleConfig(String ruleConfigJson) {

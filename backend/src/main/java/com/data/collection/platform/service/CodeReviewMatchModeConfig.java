@@ -4,6 +4,7 @@ import java.util.List;
 
 record CodeReviewMatchModeConfig(
     String mysqlJdbcUrl,
+    String dgmMysqlJdbcUrl,
     String mysqlUsername,
     String mysqlPassword,
     String mysqlTableName,

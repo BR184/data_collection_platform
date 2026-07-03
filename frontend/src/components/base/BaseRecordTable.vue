@@ -40,6 +40,7 @@ const props = withDefaults(
     queryButtonText?: string;
     keywordAutoSearch?: boolean;
     keywordAutoSearchDelay?: number;
+    quickFilterMode?: boolean;
   }>(),
   {
     loading: false,
@@ -62,6 +63,7 @@ const props = withDefaults(
     queryButtonText: '查询',
     keywordAutoSearch: false,
     keywordAutoSearchDelay: 600,
+    quickFilterMode: false,
   },
 );
 
@@ -123,12 +125,33 @@ const hasStandaloneSearch = computed(() => props.showSearch && !props.primaryFil
 const hasRecordFieldFilters = computed(() => hasPrimaryFilters.value || hasAdvancedFilters.value);
 const shouldShowPrimaryQueryActions = computed(() => hasRecordFieldFilters.value || !hasFilterBuilder.value);
 const collapsedPrimaryFilterLimit = 5;
-const compactPrimaryFilters = computed(() => props.primaryFilters.slice(0, collapsedPrimaryFilterLimit));
-const extraPrimaryFilters = computed(() => props.primaryFilters.slice(collapsedPrimaryFilterLimit));
-const hiddenPrimaryFilterCount = computed(() =>
-  primaryFiltersExpanded.value ? 0 : extraPrimaryFilters.value.length,
+const quickFilterContentVisible = computed(() => !props.quickFilterMode || primaryFiltersExpanded.value);
+const compactPrimaryFilters = computed(() =>
+  props.quickFilterMode
+    ? (primaryFiltersExpanded.value ? props.primaryFilters : [])
+    : props.primaryFilters.slice(0, collapsedPrimaryFilterLimit),
 );
-const shouldShowPrimaryFilterToggle = computed(() => props.primaryFilters.length > collapsedPrimaryFilterLimit);
+const extraPrimaryFilters = computed(() =>
+  props.quickFilterMode ? [] : props.primaryFilters.slice(collapsedPrimaryFilterLimit),
+);
+const quickFilterControlCount = computed(() => props.primaryFilters.length + (hasStandaloneSearch.value ? 1 : 0));
+const hiddenPrimaryFilterCount = computed(() =>
+  primaryFiltersExpanded.value ? 0 : (props.quickFilterMode ? quickFilterControlCount.value : extraPrimaryFilters.value.length),
+);
+const shouldShowPrimaryFilterToggle = computed(() =>
+  props.quickFilterMode ? hasPrimaryFilters.value : props.primaryFilters.length > collapsedPrimaryFilterLimit,
+);
+const shouldShowPrimaryQueryButtons = computed(() => !props.quickFilterMode || primaryFiltersExpanded.value);
+const primaryFilterToggleText = computed(() => {
+  if (props.quickFilterMode) {
+    return primaryFiltersExpanded.value
+      ? '收起快速筛选'
+      : `快速筛选${hiddenPrimaryFilterCount.value ? `（${hiddenPrimaryFilterCount.value}）` : ''}`;
+  }
+  return primaryFiltersExpanded.value
+    ? '收起筛选'
+    : `展开筛选${hiddenPrimaryFilterCount.value ? `（${hiddenPrimaryFilterCount.value}）` : ''}`;
+});
 
 function handleSearch() {
   const normalizedKeyword = keywordDraft.value.trim();
@@ -257,7 +280,13 @@ function handleStandaloneKeywordClear() {
 </script>
 
 <template>
-  <div class="record-table-workspace">
+  <div
+    class="record-table-workspace"
+    :class="{
+      'record-table-workspace--quick-filters': quickFilterMode,
+      'record-table-workspace--quick-filters-expanded': quickFilterMode && primaryFiltersExpanded,
+    }"
+  >
     <section v-if="hasContextPrefix" class="record-context-panel">
       <slot name="context-prefix" />
     </section>
@@ -287,7 +316,7 @@ function handleStandaloneKeywordClear() {
               />
 
               <BaseSearchInput
-                v-if="hasStandaloneSearch"
+                v-if="hasStandaloneSearch && quickFilterContentVisible"
                 :model-value="keywordDraft"
                 class="record-table-search"
                 :placeholder="searchPlaceholder"
@@ -326,15 +355,17 @@ function handleStandaloneKeywordClear() {
               :icon="primaryFiltersExpanded ? ArrowUp : ArrowDown"
               @click="primaryFiltersExpanded = !primaryFiltersExpanded"
             >
-              {{ primaryFiltersExpanded ? '收起筛选' : `展开筛选${hiddenPrimaryFilterCount ? `（${hiddenPrimaryFilterCount}）` : ''}` }}
+              {{ primaryFilterToggleText }}
             </el-button>
             <el-button v-if="hasAdvancedFilters" @click="toggleAdvancedVisible">
               {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
             </el-button>
-            <el-button type="primary" @click="handleQueryClick">
-              {{ queryButtonText }}
-            </el-button>
-            <el-button @click="handleReset">重置</el-button>
+            <template v-if="shouldShowPrimaryQueryButtons">
+              <el-button type="primary" @click="handleQueryClick">
+                {{ queryButtonText }}
+              </el-button>
+              <el-button @click="handleReset">重置</el-button>
+            </template>
           </div>
         </div>
 
@@ -505,6 +536,15 @@ function handleStandaloneKeywordClear() {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px;
+}
+
+.record-table-workspace--quick-filters-expanded .record-filter-primary {
+  grid-template-columns: 1fr;
+}
+
+.record-table-workspace--quick-filters-expanded .record-filter-slot-actions {
+  justify-self: stretch;
+  justify-content: flex-end;
 }
 
 .record-condition-panel {

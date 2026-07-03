@@ -18,6 +18,7 @@ const props = withDefaults(
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
     canRefreshRealtime?: boolean;
     autoRefreshOnEnter?: boolean;
+    exportLabel?: string;
     extraActions?: StatisticBoardToolbarAction[];
     uiHooks?: StatisticBoardUiHooks;
   }>(),
@@ -26,6 +27,7 @@ const props = withDefaults(
     realtimeStatus: null,
     canRefreshRealtime: true,
     autoRefreshOnEnter: true,
+    exportLabel: '导出',
     extraActions: () => [],
     uiHooks: () => ({}),
   },
@@ -200,7 +202,7 @@ function formatDuration(startedAt?: string | null, finishedAt?: string | null, r
         >
           规则说明
         </el-button>
-        <el-button plain :icon="Download" @click="emit('exportBoard')">导出</el-button>
+        <el-button plain :icon="Download" @click="emit('exportBoard')">{{ exportLabel }}</el-button>
         <el-dropdown trigger="click" @command="(command: string) => emit('settingsCommand', command)">
           <el-button class="view-settings-trigger">
             <span class="hamburger-icon" aria-hidden="true">

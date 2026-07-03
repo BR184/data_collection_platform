@@ -354,7 +354,7 @@ async function handleExport() {
   exportLoading.value = true;
   try {
     const workbook = await api.exportSystemTestIssueSearchRecords(buildCurrentQueryParams(false));
-    downloadBlob(workbook, '多元查询议题结果.xlsx');
+    downloadBlob(workbook, '多元议题查询结果.xlsx');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '导出失败');
   } finally {
@@ -498,6 +498,7 @@ async function handleRefresh() {
       :filter-values="filterValues"
       :active-filter-tags="activeFilterTags"
       :show-search="false"
+      quick-filter-mode
       empty-description="当前筛选条件下没有查到系统测试议题。"
       @filter-change="handleFilterChange"
       @reset="handleReset"
@@ -531,7 +532,7 @@ async function handleRefresh() {
           刷新最新数据
         </el-button>
         <el-button plain :icon="Download" :loading="exportLoading" @click="handleExport">
-          导出
+          下载查询数据
         </el-button>
         <PageSettingsButton :scope-key="PAGE_SCOPE_KEY" />
       </template>

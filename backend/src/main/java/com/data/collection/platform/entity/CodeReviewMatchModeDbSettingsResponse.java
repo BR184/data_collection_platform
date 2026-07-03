@@ -9,6 +9,7 @@ public record CodeReviewMatchModeDbSettingsResponse(
     String mysqlHost,
     int mysqlPort,
     String mysqlDatabase,
+    String dgmMysqlDatabase,
     String mysqlUsername,
     boolean mysqlPasswordConfigured,
     String mysqlTableName,

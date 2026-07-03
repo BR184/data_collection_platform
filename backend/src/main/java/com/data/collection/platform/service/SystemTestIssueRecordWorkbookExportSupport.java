@@ -18,7 +18,7 @@ import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-final class SystemTestIssueRecordWorkbookExportSupport {
+public final class SystemTestIssueRecordWorkbookExportSupport {
   private static final DateTimeFormatter LEGACY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
   private static final String ISSUE_SEARCH_SHEET_NAME = "多元查询结果";
   private static final String ILLEGAL_SHEET_NAME = "议题数据";
@@ -59,16 +59,24 @@ final class SystemTestIssueRecordWorkbookExportSupport {
   private SystemTestIssueRecordWorkbookExportSupport() {
   }
 
-  static byte[] exportRecords(List<SystemTestIssueSearchRowResponse> rows) {
+  public static byte[] exportRecords(List<SystemTestIssueSearchRowResponse> rows) {
     return exportRecords(rows, List.of());
   }
 
-  static byte[] exportRecords(List<SystemTestIssueSearchRowResponse> rows, List<String> labelGroupSnapshots) {
+  public static byte[] exportRecords(List<SystemTestIssueSearchRowResponse> rows, List<String> labelGroupSnapshots) {
     return exportWorkbook(
         ISSUE_SEARCH_SHEET_NAME,
         LEGACY_ISSUE_HEADERS,
         rows.stream().map(SystemTestIssueRecordWorkbookExportSupport::recordValues).toList(),
         labelGroupSnapshots);
+  }
+
+  public static byte[] exportIssueDataRecords(List<SystemTestIssueSearchRowResponse> rows) {
+    return exportWorkbook(
+        ILLEGAL_SHEET_NAME,
+        LEGACY_ISSUE_HEADERS,
+        rows.stream().map(SystemTestIssueRecordWorkbookExportSupport::recordValues).toList(),
+        List.of());
   }
 
   static byte[] exportIllegalRecords(List<SystemTestIllegalRecordRowResponse> rows) {

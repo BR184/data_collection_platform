@@ -188,12 +188,23 @@ const extraToolbarActions = computed<StatisticBoardToolbarAction[]>(() => {
     },
     {
       key: 'export-system-test-horizontal-comparison',
-      label: '横向对比导出',
+      label: '系统测试横向对比excel下载',
       icon: Download,
       loading: horizontalComparisonExportLoading.value,
       plain: true,
     },
   ];
+});
+
+const primaryExportLabel = computed(() => {
+  const labels: Record<string, string> = {
+    'system-test-defect-summary': '下载当前',
+    'system-test-defect-cause': '下载',
+    'system-test-delay-analysis': '导出数据',
+    'customer-issue-defect-summary': '下载当前',
+    'customer-issue-defect-cause': '下载',
+  };
+  return labels[props.boardKey] ?? '导出';
 });
 
 const {
@@ -500,7 +511,7 @@ async function exportCustomerIssues() {
       topic: 'cc-product',
       filterGroup: buildFilterPayload(),
     });
-    downloadBlob(workbook, 'CCProduct议题查询结果.xlsx');
+    downloadBlob(workbook, customerIssueSummaryIssueExportFilename());
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);
@@ -509,13 +520,18 @@ async function exportCustomerIssues() {
   }
 }
 
+function customerIssueSummaryIssueExportFilename() {
+  const milestone = String(route.query.milestoneTitle ?? '').trim();
+  return milestone ? `${milestone}-客户问题全量议题数据.xlsx` : '客户问题全量议题数据.xlsx';
+}
+
 async function exportSystemTestIssues() {
   issueExportLoading.value = true;
   try {
-    const workbook = await api.exportSystemTestIssueSearchRecords({
+    const file = await api.exportSystemTestDefectSummaryIssues({
       filterGroup: buildFilterPayload(),
     });
-    downloadBlob(workbook, '多元查询议题结果.xlsx');
+    downloadBlob(file.blob, file.filename || '议题数据.xlsx');
     ElMessage.success('议题数据导出成功');
   } catch (error) {
     ElMessage.error((error as Error).message);
@@ -650,6 +666,7 @@ function autoRefreshMarkerKey() {
           :realtime-status="syncStatus"
           :can-refresh-realtime="canRefreshRealtime"
           :auto-refresh-on-enter="autoRefreshOnEnter"
+          :export-label="primaryExportLabel"
           :extra-actions="extraToolbarActions"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"

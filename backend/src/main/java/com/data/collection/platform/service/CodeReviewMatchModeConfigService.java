@@ -36,6 +36,7 @@ public class CodeReviewMatchModeConfigService {
              s.mysql_host,
              s.mysql_port,
              s.mysql_database,
+             s.dgm_mysql_database,
              s.mysql_username,
              s.mysql_password,
              s.mysql_table_name,
@@ -76,6 +77,7 @@ public class CodeReviewMatchModeConfigService {
   private CodeReviewMatchModeConfig toConfig(CodeReviewMatchModeDbSettings settings) {
     return new CodeReviewMatchModeConfig(
         buildMysqlJdbcUrl(settings),
+        buildDgmMysqlJdbcUrl(settings),
         settings.mysqlUsername(),
         settings.mysqlPassword(),
         settings.mysqlTableName(),
@@ -110,6 +112,7 @@ public class CodeReviewMatchModeConfigService {
                mysql_host = ?,
                mysql_port = ?,
                mysql_database = ?,
+               dgm_mysql_database = ?,
                mysql_username = ?,
                mysql_password = ?,
                mysql_table_name = ?,
@@ -128,6 +131,7 @@ public class CodeReviewMatchModeConfigService {
         normalized.mysqlHost(),
         normalized.mysqlPort(),
         normalized.mysqlDatabase(),
+        normalized.dgmMysqlDatabase(),
         normalized.mysqlUsername(),
         normalized.mysqlPassword(),
         normalized.mysqlTableName(),
@@ -148,6 +152,7 @@ public class CodeReviewMatchModeConfigService {
     CodeReviewMatchModeConfig config =
         new CodeReviewMatchModeConfig(
             buildMysqlJdbcUrl(settings),
+            buildDgmMysqlJdbcUrl(settings),
             settings.mysqlUsername(),
             settings.mysqlPassword(),
             settings.mysqlTableName(),
@@ -162,15 +167,13 @@ public class CodeReviewMatchModeConfigService {
     if (!StringUtils.hasText(config.mysqlJdbcUrl()) || !StringUtils.hasText(config.mysqlUsername())) {
       return new CodeReviewMatchModeConnectionTestResponse(false, "老平台 MySQL 连接配置不完整", 0);
     }
-    try (Connection connection =
-        DriverManager.getConnection(config.mysqlJdbcUrl(), config.mysqlUsername(), config.mysqlPassword())) {
-      connection.setReadOnly(true);
+    try {
       long total = 0L;
       List<String> countSummaries = new ArrayList<>();
-      for (String tableName : config.selectedTableNames()) {
-        long count = countRows(connection, tableName);
-        total += count;
-        countSummaries.add(tableName + " " + count + " 条");
+      total += countRows(config.mysqlJdbcUrl(), "CC", config, countSummaries);
+      if (StringUtils.hasText(config.dgmMysqlJdbcUrl())
+          && !config.dgmMysqlJdbcUrl().equalsIgnoreCase(config.mysqlJdbcUrl())) {
+        total += countRows(config.dgmMysqlJdbcUrl(), "DGM", config, countSummaries);
       }
       String message = "老平台 MySQL 连接成功";
       if (!countSummaries.isEmpty()) {
@@ -180,6 +183,24 @@ public class CodeReviewMatchModeConfigService {
     } catch (SQLException | RuntimeException error) {
       return new CodeReviewMatchModeConnectionTestResponse(false, rootMessage(error, "老平台 MySQL 连接失败"), 0);
     }
+  }
+
+  private long countRows(
+      String jdbcUrl,
+      String sourceLabel,
+      CodeReviewMatchModeConfig config,
+      List<String> countSummaries) throws SQLException {
+    long total = 0L;
+    try (Connection connection =
+        DriverManager.getConnection(jdbcUrl, config.mysqlUsername(), config.mysqlPassword())) {
+      connection.setReadOnly(true);
+      for (String tableName : config.selectedTableNames()) {
+        long count = countRows(connection, tableName);
+        total += count;
+        countSummaries.add(sourceLabel + "." + tableName + " " + count + " 条");
+      }
+    }
+    return total;
   }
 
   //兼容模式-MatchMode
@@ -259,10 +280,11 @@ public class CodeReviewMatchModeConfigService {
           new CodeReviewMatchModeDbSettings(
               rs.getBoolean("enabled"),
               rs.getBoolean("sync_enabled"),
-              text(rs.getString("mysql_host")),
-              rs.getInt("mysql_port"),
-              text(rs.getString("mysql_database")),
-              text(rs.getString("mysql_username")),
+             text(rs.getString("mysql_host")),
+             rs.getInt("mysql_port"),
+             text(rs.getString("mysql_database")),
+              text(rs.getString("dgm_mysql_database")),
+             text(rs.getString("mysql_username")),
               rs.getString("mysql_password") == null ? "" : rs.getString("mysql_password"),
               text(rs.getString("mysql_table_name")),
               parseStoredTableNames(rs.getString("selected_table_names")),
@@ -297,6 +319,9 @@ public class CodeReviewMatchModeConfigService {
       throw new BizException("老平台 MySQL 端口必须在 1 到 65535 之间");
     }
     String database = optionalText(request.mysqlDatabase(), current.mysqlDatabase());
+    String dgmDatabase =
+        defaultText(request.dgmMysqlDatabase(), current.dgmMysqlDatabase(), "gitlab_spider_dgm");
+    validateMysqlDatabaseName(dgmDatabase);
     String username = optionalText(request.mysqlUsername(), current.mysqlUsername());
     String password = resolveSecret(request.mysqlPassword(), current.mysqlPassword());
     String tableName = defaultText(request.mysqlTableName(), current.mysqlTableName(), "spider_crowncad_data");
@@ -325,6 +350,7 @@ public class CodeReviewMatchModeConfigService {
         host,
         port,
         database,
+        dgmDatabase,
         username,
         password,
         tableName,
@@ -350,6 +376,7 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlHost(),
         settings.mysqlPort(),
         settings.mysqlDatabase(),
+        settings.dgmMysqlDatabase(),
         settings.mysqlUsername(),
         StringUtils.hasText(settings.mysqlPassword()),
         settings.mysqlTableName(),
@@ -369,7 +396,15 @@ public class CodeReviewMatchModeConfigService {
   }
 
   private String buildMysqlJdbcUrl(CodeReviewMatchModeDbSettings settings) {
-    if (!StringUtils.hasText(settings.mysqlHost()) || !StringUtils.hasText(settings.mysqlDatabase())) {
+    return buildMysqlJdbcUrl(settings, settings.mysqlDatabase());
+  }
+
+  private String buildDgmMysqlJdbcUrl(CodeReviewMatchModeDbSettings settings) {
+    return buildMysqlJdbcUrl(settings, settings.dgmMysqlDatabase());
+  }
+
+  private String buildMysqlJdbcUrl(CodeReviewMatchModeDbSettings settings, String databaseName) {
+    if (!StringUtils.hasText(settings.mysqlHost()) || !StringUtils.hasText(databaseName)) {
       return null;
     }
     return "jdbc:mysql://"
@@ -377,7 +412,7 @@ public class CodeReviewMatchModeConfigService {
         + ":"
         + settings.mysqlPort()
         + "/"
-        + settings.mysqlDatabase().trim()
+        + databaseName.trim()
         + "?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true";
   }
 
@@ -514,6 +549,16 @@ public class CodeReviewMatchModeConfigService {
     }
   }
 
+  private void validateMysqlDatabaseName(String databaseName) {
+    String normalized = TextQuerySupport.trimToNull(databaseName);
+    if (normalized == null) {
+      throw new BizException("兼容模式 MySQL 数据库不能为空");
+    }
+    if (normalized.length() > 255 || normalized.indexOf('\0') >= 0) {
+      throw new BizException("兼容模式 MySQL 数据库名不合法");
+    }
+  }
+
   private String defaultText(String nextValue, String currentValue, String fallback) {
     String normalized = TextQuerySupport.trimToNull(nextValue);
     if (normalized != null) {
@@ -561,6 +606,7 @@ public class CodeReviewMatchModeConfigService {
       String mysqlHost,
       int mysqlPort,
       String mysqlDatabase,
+      String dgmMysqlDatabase,
       String mysqlUsername,
       String mysqlPassword,
       String mysqlTableName,

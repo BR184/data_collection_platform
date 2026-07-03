@@ -278,6 +278,17 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         null);
   }
 
+  @Override
+  public String exportFilename(Map<String, String> filters) {
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
+    StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+    String milestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(effectiveFilterGroup);
+    if (StringUtils.hasText(milestone)) {
+      return milestone + "-各个功能下缺陷数量.xlsx";
+    }
+    return "各个功能下缺陷数量.xlsx";
+  }
+
   private StatisticBoardDefinition buildDefinition(List<String> moduleNames) {
     List<StatisticColumnGroup> columnGroups = moduleNames.stream()
         .map(moduleName -> new StatisticColumnGroup(
