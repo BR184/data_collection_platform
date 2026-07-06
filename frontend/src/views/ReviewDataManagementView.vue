@@ -411,6 +411,10 @@ const {
       :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
+      :sort-by="sortBy"
+      :sort-order="sortOrder"
+      default-sort-by="updatedAt"
+      default-sort-order="desc"
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
       query-button-text="查询"

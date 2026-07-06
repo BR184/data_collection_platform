@@ -181,7 +181,7 @@ const {
 const tableRows = computed<Record<string, unknown>[]>(() => rows.value.map((row) => props.mapRow(row)));
 const activeFilterTags = computed(() => [
   ...conditionActiveFilterTags.value,
-  ...primaryFilters.value.flatMap((field) => {
+  ...tablePrimaryFilters.value.flatMap((field) => {
     const value = primaryFilterValues.value[field.key];
     const normalizedValue = Array.isArray(value)
       ? value.map((item) => String(item)).filter(Boolean).join('、')
@@ -430,34 +430,6 @@ async function handleConditionFilterReset() {
     </template>
 
     <section class="issue-illegal-page">
-      <section v-if="nativePrimaryFilters.length" class="issue-illegal-native-filters">
-        <el-form inline class="issue-illegal-native-filter-form">
-          <el-form-item
-            v-for="field in nativePrimaryFilters"
-            :key="field.key"
-            :label="field.label"
-          >
-            <el-select
-              :model-value="String(primaryFilterValues[field.key] ?? '')"
-              :placeholder="field.placeholder || field.label"
-              :clearable="field.clearable ?? true"
-              filterable
-              class="issue-illegal-native-select"
-              :style="{ width: `${field.width ?? 240}px` }"
-              @change="handlePrimaryFilterChange({ key: field.key, value: String($event ?? '') })"
-              @clear="handlePrimaryFilterChange({ key: field.key, value: '' })"
-            >
-              <el-option
-                v-for="option in field.options ?? []"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-          </el-form-item>
-        </el-form>
-      </section>
-
       <BaseRecordTable
         :columns="columns"
         :rows="tableRows"
@@ -470,10 +442,17 @@ async function handleConditionFilterReset() {
         :filter-values="primaryFilterValues"
         :active-filter-tags="activeFilterTags"
         :keyword="String(route.query.keyword ?? '')"
-        search-placeholder="输入关键字快速搜索"
+        search-placeholder="输入任意关键字搜索"
         :show-search="true"
         :show-refresh="false"
+        :sort-by="sortBy"
+        :sort-order="sortOrder"
+        :default-sort-by="props.defaultSortBy ?? 'updatedAt'"
+        :default-sort-order="props.defaultSortOrder ?? 'desc'"
         :empty-description="emptyDescription"
+        quick-filter-mode
+        quick-filter-toggle-placement="filter-builder"
+        query-button-text="查询"
         @reset="handleReset"
         @search="handleKeywordSearch"
         @query="handleQuery"
@@ -483,7 +462,14 @@ async function handleConditionFilterReset() {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
-        <template #filter-builder>
+        <template
+          #filter-builder="{
+            quickFilterToggleVisible,
+            quickFilterToggleText,
+            quickFilterToggleIcon,
+            toggleQuickFilter,
+          }"
+        >
           <div class="issue-illegal-filter-stack">
             <StatisticFilterBuilder
               :model-value="filterDraft"
@@ -492,13 +478,60 @@ async function handleConditionFilterReset() {
               show-apply-actions
               @apply="handleConditionFilterApply"
               @reset="handleConditionFilterReset"
-            />
+            >
+              <template #summary-actions-extra>
+                <el-button
+                  v-if="quickFilterToggleVisible"
+                  class="app-action-button app-action-button--filter"
+                  plain
+                  :icon="quickFilterToggleIcon"
+                  @click="toggleQuickFilter()"
+                >
+                  {{ quickFilterToggleText }}
+                </el-button>
+              </template>
+            </StatisticFilterBuilder>
+          </div>
+        </template>
+
+        <template #toolbar-prefix>
+          <div v-if="nativePrimaryFilters.length" class="issue-illegal-range-toolbar">
+            <el-select
+              v-for="field in nativePrimaryFilters"
+              :key="field.key"
+              :model-value="String(primaryFilterValues[field.key] ?? '')"
+              :placeholder="field.placeholder || field.label"
+              :clearable="field.clearable ?? true"
+              filterable
+              class="issue-illegal-range-select"
+              :style="{ width: `${field.width ?? 240}px` }"
+              @change="handlePrimaryFilterChange({ key: field.key, value: String($event ?? '') })"
+              @clear="handlePrimaryFilterChange({ key: field.key, value: '' })"
+            >
+              <el-option
+                v-for="option in field.options ?? []"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <template v-if="props.loadRealtimeStatus">
+              <SyncMetaBadge :value="lastSyncedText" />
+              <el-tag
+                effect="plain"
+                size="small"
+                :type="syncStatus?.refreshing ? 'warning' : 'success'"
+                class="issue-illegal-range-sync-tag"
+              >
+                {{ syncStatus?.refreshing ? '同步中' : '已是最新' }}
+              </el-tag>
+            </template>
           </div>
         </template>
 
         <template #primary-actions>
           <div class="issue-illegal-toolbar-actions customer-illegal-toolbar-actions">
-            <SyncMetaBadge v-if="props.loadRealtimeStatus" :value="lastSyncedText" />
+            <SyncMetaBadge v-if="props.loadRealtimeStatus && !nativePrimaryFilters.length" :value="lastSyncedText" />
             <el-tag effect="plain" type="warning">{{ totalTagText(total) }}</el-tag>
             <el-button
               v-if="canRefreshLatestData"
@@ -652,25 +685,22 @@ async function handleConditionFilterReset() {
   gap: 12px;
 }
 
-.issue-illegal-native-filters {
+.issue-illegal-range-toolbar {
   display: flex;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
-.issue-illegal-native-filter-form {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-}
-
-.issue-illegal-native-filter-form :deep(.el-form-item) {
-  margin: 0;
-}
-
-.issue-illegal-native-select {
+.issue-illegal-range-select {
   max-width: min(100%, 360px);
+}
+
+.issue-illegal-range-sync-tag {
+  height: 32px;
+  border-radius: 999px;
+  padding: 0 12px;
 }
 
 .issue-illegal-toolbar-actions,

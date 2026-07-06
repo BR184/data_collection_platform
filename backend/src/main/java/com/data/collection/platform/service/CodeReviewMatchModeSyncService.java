@@ -139,9 +139,56 @@ public class CodeReviewMatchModeSyncService {
     try (PreparedStatement statement = connection.prepareStatement(selectSql(config.mysqlTableName()))) {
       statement.setFetchSize(Math.max(1, config.mysqlFetchSize()));
       try (ResultSet rs = statement.executeQuery()) {
-        return insertCodeReviewRows(config, source, rs);
+        return insertCodeReviewRows(CODE_REVIEW_TEMP_TABLE, source, rs);
       }
     }
+  }
+
+  //兼容模式-MatchMode
+  public int syncSingleMergeRequest(String source, Long mergeRequestIid) {
+    if (!switchService.isEnabled()) {
+      throw new IllegalStateException("兼容模式未开启");
+    }
+    if (mergeRequestIid == null || mergeRequestIid <= 0) {
+      throw new IllegalArgumentException("合并请求编号不能为空");
+    }
+    CodeReviewMatchModeConfig config = configService.loadConfig();
+    LegacyMysqlSource legacySource = legacySource(config, source);
+    if (!StringUtils.hasText(legacySource.jdbcUrl()) || !StringUtils.hasText(config.mysqlUsername())) {
+      throw new IllegalStateException("兼容模式老平台 MySQL 配置缺失");
+    }
+    try (Connection connection =
+        DriverManager.getConnection(legacySource.jdbcUrl(), config.mysqlUsername(), config.mysqlPassword())) {
+      connection.setReadOnly(true);
+      try (PreparedStatement statement =
+          connection.prepareStatement(selectSql(config.mysqlTableName()) + " where issuable_reference = ?")) {
+        statement.setString(1, String.valueOf(mergeRequestIid));
+        try (ResultSet rs = statement.executeQuery()) {
+          return replaceSingleMergeRequestRows(legacySource, mergeRequestIid, rs);
+        }
+      }
+    } catch (SQLException error) {
+      throw new IllegalStateException("兼容模式单条代码走查数据同步失败: " + error.getMessage(), error);
+    }
+  }
+
+  private LegacyMysqlSource legacySource(CodeReviewMatchModeConfig config, String source) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(source == null ? "cc" : source);
+    if ("dgm".equalsIgnoreCase(normalizedSource)
+        && StringUtils.hasText(config.dgmMysqlJdbcUrl())) {
+      return new LegacyMysqlSource("dgm", config.dgmMysqlJdbcUrl());
+    }
+    return new LegacyMysqlSource("cc", config.mysqlJdbcUrl());
+  }
+
+  @Transactional
+  protected int replaceSingleMergeRequestRows(
+      LegacyMysqlSource source, Long mergeRequestIid, ResultSet rs) throws SQLException {
+    jdbcTemplate.update(
+        "delete from " + CODE_REVIEW_TARGET_TABLE + " where source_instance = ? and merge_request_iid = ?",
+        source.sourceInstance(),
+        mergeRequestIid);
+    return insertCodeReviewRows(CODE_REVIEW_TARGET_TABLE, source, rs);
   }
 
   private String selectSql(String tableName) {
@@ -200,7 +247,7 @@ public class CodeReviewMatchModeSyncService {
   }
 
   private int insertCodeReviewRows(
-      CodeReviewMatchModeConfig config, LegacyMysqlSource source, ResultSet rs) throws SQLException {
+      String targetTable, LegacyMysqlSource source, ResultSet rs) throws SQLException {
     String sql = """
         insert into %s (
           source_instance, project_id, project_name, repository_name, merge_request_id, merge_request_iid,
@@ -217,7 +264,7 @@ public class CodeReviewMatchModeSyncService {
         ) values (
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp
         )
-        """.formatted(CODE_REVIEW_TEMP_TABLE);
+        """.formatted(targetTable);
     int count = 0;
     List<Object[]> batch = new ArrayList<>();
     while (rs.next()) {

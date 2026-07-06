@@ -43,6 +43,8 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   mysqlUsername: 'root',
   mysqlPassword: '',
   mysqlTableName: 'spider_crowncad_data',
+  legacyApiBaseUrl: 'http://172.22.10.72:8091',
+  dgmLegacyApiBaseUrl: '',
   selectedTableNames: [...defaultSelectedTableNames],
   mysqlFetchSize: 1000,
   mongoUri: '',
@@ -269,6 +271,8 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   form.mysqlUsername = nextSettings.mysqlUsername || '';
   form.mysqlPassword = '';
   form.mysqlTableName = nextSettings.mysqlTableName || 'spider_crowncad_data';
+  form.legacyApiBaseUrl = nextSettings.legacyApiBaseUrl || legacyApiDefaultBaseUrl();
+  form.dgmLegacyApiBaseUrl = nextSettings.dgmLegacyApiBaseUrl || '';
   form.selectedTableNames = normalizeSelectedTableNames(nextSettings.selectedTableNames);
   form.mysqlFetchSize = nextSettings.mysqlFetchSize || 1000;
   form.mongoUri = '';
@@ -291,6 +295,8 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     mysqlUsername: form.mysqlUsername.trim(),
     mysqlPassword: form.mysqlPassword?.trim() || null,
     mysqlTableName: form.mysqlTableName.trim() || 'spider_crowncad_data',
+    legacyApiBaseUrl: form.legacyApiBaseUrl.trim() || legacyApiDefaultBaseUrl(),
+    dgmLegacyApiBaseUrl: form.dgmLegacyApiBaseUrl.trim(),
     selectedTableNames: normalizeSelectedTableNames(form.selectedTableNames),
     mysqlFetchSize: Number(form.mysqlFetchSize || 1000),
     mongoUri: form.mongoUri?.trim() || null,
@@ -317,6 +323,10 @@ function normalizeSelectedMongoCollectionNames(collectionNames?: string[] | null
 
 function formatDateTime(value?: string | null) {
   return value ? formatBeijingDateTime(value, '-') : '-';
+}
+
+function legacyApiDefaultBaseUrl() {
+  return `http://${form.mysqlHost || '172.22.10.72'}:8091`;
 }
 </script>
 
@@ -436,6 +446,12 @@ function formatDateTime(value?: string | null) {
             </el-form-item>
             <el-form-item label="代码走查兼容表">
               <el-input v-model="form.mysqlTableName" />
+            </el-form-item>
+            <el-form-item label="老平台接口地址">
+              <el-input v-model="form.legacyApiBaseUrl" placeholder="http://172.22.10.72:8091" />
+            </el-form-item>
+            <el-form-item label="DGM 接口地址">
+              <el-input v-model="form.dgmLegacyApiBaseUrl" placeholder="留空时使用老平台接口地址" />
             </el-form-item>
             <el-form-item label="抓取批量">
               <el-input-number

@@ -98,6 +98,8 @@ const {
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
   handleFloatingHorizontalScroll,
+  handleFloatingScrollbarPointerDown,
+  handleFloatingScrollbarPointerUp,
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
   tableShellRef,
@@ -150,6 +152,8 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
         :width="firstColumnWidth"
         :min-width="firstColumnMinWidth"
         :resizable="true"
+        align="center"
+        header-align="center"
       >
         <template #header>
           <div
@@ -157,7 +161,7 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
             :class="{ sorting: sortDirectionForColumn(ROW_LABEL_SORT_KEY) !== 'default' }"
           >
             <span class="stat-column-header-label">
-              <SmartTableHeader :label="rowHeaderLabel" align="left" />
+              <SmartTableHeader :label="rowHeaderLabel" align="center" />
             </span>
             <span class="stat-header-zone stat-header-zone-right">
               <button
@@ -214,6 +218,8 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
       :style="floatingScrollbarStyle"
       aria-hidden="true"
       @mouseenter="wakeHorizontalScrollbar"
+      @pointerdown="handleFloatingScrollbarPointerDown"
+      @pointerup="handleFloatingScrollbarPointerUp"
       @scroll="handleFloatingHorizontalScroll"
     >
       <div class="stat-matrix-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />

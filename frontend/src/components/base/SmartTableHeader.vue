@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { QuestionFilled } from '@element-plus/icons-vue';
-import { compactTableHeaderLines, normalizeTableHeaderLines } from './table-header-layout';
+import { compactTableHeaderLines, normalizeTableHeaderLines, visualTextUnits } from './table-header-layout';
 
 const props = defineProps<{
   label: string;
   lines?: readonly string[];
   tooltip?: string;
   align?: 'left' | 'center' | 'right';
+  preferStacked?: boolean;
 }>();
+
+// 表头智能展示规则：
+// 1. 默认按语义短语拆成最多两行，避免“一级缺陷数量(个)”变成“一级缺陷数量/(个)”这类低效换行。
+// 2. 第一行承载核心对象，不能主动显示省略号；第二行只有在极窄宽度下才允许省略。
+// 3. 表格正文优先使用可用空间，真正溢出时才省略；不能出现单元格右侧空着但文字已经被截断。
+// 4. 人名类列只保留三字左右空间，长姓名允许截断；标签类列应尽量展示多个标签。
+// 5. 平台普通表、统计表、下钻表和子表都应复用本组件，表头与正文默认居中对齐。
 
 const rootRef = ref<HTMLElement>();
 const measureRef = ref<HTMLElement>();
@@ -20,8 +28,12 @@ const stacked = ref(lines.value.length > 1);
 const compacted = ref(false);
 const displayedLines = computed(() => (compacted.value ? compactLines.value : lines.value));
 const hasStackedCandidate = computed(() => lines.value.length > 1);
+const shortSingleLine = computed(() => {
+  const characters = Array.from(String(props.label ?? '').trim()).length;
+  return !stacked.value && (characters <= 4 || visualTextUnits(props.label) <= 8);
+});
 let resizeObserver: ResizeObserver | undefined;
-const compactTolerancePx = 8;
+const layoutTolerancePx = 8;
 
 function updateLayout() {
   const root = rootRef.value;
@@ -30,15 +42,24 @@ function updateLayout() {
     compacted.value = false;
     return;
   }
+  const styles = window.getComputedStyle(root);
+  const horizontalPadding = Number.parseFloat(styles.paddingLeft || '0') + Number.parseFloat(styles.paddingRight || '0');
+  const availableWidth = root.clientWidth - horizontalPadding - (props.tooltip ? 18 : 0);
+  const fullLabelWidth = measureRef.value?.scrollWidth ?? 0;
+  const stackedComfortReserve = props.preferStacked ? 48 : 0;
+  if (availableWidth > 0 && fullLabelWidth + stackedComfortReserve <= availableWidth + layoutTolerancePx) {
+    stacked.value = false;
+    compacted.value = false;
+    return;
+  }
   stacked.value = true;
-  const availableWidth = root.clientWidth - (props.tooltip ? 18 : 0);
   const firstLineWidth = firstLineMeasureRef.value?.scrollWidth ?? 0;
   const compactFirstLineWidth = compactFirstLineMeasureRef.value?.scrollWidth ?? 0;
   compacted.value =
     compactLines.value[0] !== lines.value[0]
     && availableWidth > 0
-    && firstLineWidth > availableWidth + compactTolerancePx
-    && compactFirstLineWidth <= availableWidth + compactTolerancePx;
+    && firstLineWidth > availableWidth + layoutTolerancePx
+    && compactFirstLineWidth <= availableWidth + layoutTolerancePx;
 }
 
 onMounted(() => {
@@ -65,7 +86,7 @@ watch(
     class="smart-table-header"
     :class="[
       `smart-table-header--${align ?? 'center'}`,
-      { 'is-stacked': stacked },
+      { 'is-stacked': stacked, 'is-short-single': shortSingleLine },
     ]"
     :title="label"
   >
@@ -112,7 +133,7 @@ watch(
 }
 
 .smart-table-header--left {
-  text-align: left;
+  text-align: center;
 }
 
 .smart-table-header--center {
@@ -125,7 +146,7 @@ watch(
 
 .smart-table-header--left .smart-table-header__single,
 .smart-table-header--left .smart-table-header__line {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .smart-table-header__single,
@@ -176,6 +197,12 @@ watch(
 
 .smart-table-header__line--primary .smart-table-header__text {
   min-width: max-content;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.smart-table-header.is-short-single .smart-table-header__single,
+.smart-table-header.is-short-single .smart-table-header__text {
   overflow: visible;
   text-overflow: clip;
 }

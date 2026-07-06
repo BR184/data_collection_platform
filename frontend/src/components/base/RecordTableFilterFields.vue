@@ -37,7 +37,9 @@ function inputValue(filter: RecordTableFilterField) {
 }
 
 function inputClass(filter: RecordTableFilterField) {
-  return props.keywordFieldVisible && filter.key === 'keyword' ? { 'record-filter-main-keyword': true } : '';
+  return props.keywordFieldVisible && filter.key === 'keyword'
+    ? { 'record-filter-main-keyword': true, 'record-filter-main-keyword--highlight': true }
+    : '';
 }
 
 function inputWidth(filter: RecordTableFilterField) {

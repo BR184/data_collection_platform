@@ -128,7 +128,7 @@ public class CodeReviewController {
   public ApiResponse<CodeReviewIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody CodeReviewSingleRecordRefreshWebRequest request) {
     return ApiResponse.success(
-        "已刷新本条合并请求事实数据",
+        "已刷新本条合并请求数据",
         codeReviewIllegalRecordService.refreshSingleRecord(
             request.getSource(), request.getProjectId(), request.getMergeRequestIid()));
   }

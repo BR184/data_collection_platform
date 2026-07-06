@@ -105,6 +105,68 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
       width: 240,
       options: options.testingPhases ?? [],
     },
+    {
+      key: 'moduleName',
+      label: '模块名',
+      type: 'select',
+      placeholder: '全部模块',
+      width: 168,
+      options: options.moduleNames ?? [],
+    },
+    {
+      key: 'illegalReason',
+      label: '非法类型',
+      type: 'select',
+      placeholder: '全部非法类型',
+      width: 184,
+      options: options.illegalReasons ?? [],
+    },
+    {
+      key: 'issueIid',
+      label: '议题编号',
+      type: 'input',
+      placeholder: '输入议题编号',
+      width: 136,
+    },
+    {
+      key: 'title',
+      label: '议题标题',
+      type: 'input',
+      placeholder: '输入标题关键字',
+      width: 184,
+    },
+    {
+      key: 'assigneeName',
+      label: '议题处理人',
+      type: 'select',
+      placeholder: '全部处理人',
+      width: 156,
+      options: options.assigneeNames ?? [],
+    },
+    {
+      key: 'severityLevel',
+      label: '严重程度',
+      type: 'select',
+      placeholder: '全部严重程度',
+      width: 156,
+      options: options.severityLevels ?? [],
+    },
+    {
+      key: 'issueState',
+      label: '议题状态',
+      type: 'select',
+      placeholder: '全部状态',
+      width: 144,
+      options: options.issueStates ?? [],
+    },
+    {
+      key: 'bugStatus',
+      label: '测试状态',
+      type: 'select',
+      placeholder: '全部测试状态',
+      width: 240,
+      options: options.bugStatuses ?? [],
+    },
   ];
 }
 </script>
@@ -128,6 +190,7 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     :initial-filter-options="initialFilterOptions"
     :build-condition-fields="buildConditionFields"
     :build-primary-filters="buildPrimaryFilters"
+    :native-primary-select-keys="['testingPhase']"
     :columns="columns"
     :map-row="mapRow"
     created-at-detail-label="议题提交时间"

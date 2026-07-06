@@ -9,7 +9,9 @@ let activeTable: HTMLElement | undefined;
 let mutationObserver: MutationObserver | undefined;
 let resizeObserver: ResizeObserver | undefined;
 let updateFrame: number | undefined;
-let syncing = false;
+let syncingFromTable = false;
+let syncingFromFloating = false;
+let draggingScrollbar = false;
 
 export function installFloatingTableScrollbars() {
   if (typeof window === 'undefined') {
@@ -34,6 +36,10 @@ function ensureFloatingScrollbar() {
   floatingSpacer.className = spacerClass;
   floatingScrollbar.appendChild(floatingSpacer);
   floatingScrollbar.addEventListener('scroll', handleFloatingScroll, { passive: true });
+  floatingScrollbar.addEventListener('pointerdown', handleFloatingPointerDown, { passive: true });
+  floatingScrollbar.addEventListener('pointerup', handleFloatingPointerUp, { passive: true });
+  window.addEventListener('pointerup', handleFloatingPointerUp, { passive: true });
+  window.addEventListener('blur', handleFloatingPointerUp);
   document.body.appendChild(floatingScrollbar);
 }
 
@@ -131,25 +137,42 @@ function hideFloatingScrollbar() {
 }
 
 function syncFloatingFromTable() {
-  if (syncing || !floatingScrollbar || !activeScrollWrap) {
+  if (syncingFromFloating || !floatingScrollbar || !activeScrollWrap) {
     return;
   }
-  syncing = true;
+  syncingFromTable = true;
   floatingScrollbar.scrollLeft = activeScrollWrap.scrollLeft;
   window.requestAnimationFrame(() => {
-    syncing = false;
+    syncingFromTable = false;
   });
 }
 
 function handleFloatingScroll() {
-  if (syncing || !floatingScrollbar || !activeScrollWrap) {
+  if (syncingFromTable || !floatingScrollbar || !activeScrollWrap) {
     return;
   }
-  syncing = true;
+  syncingFromFloating = true;
   activeScrollWrap.scrollLeft = floatingScrollbar.scrollLeft;
   window.requestAnimationFrame(() => {
-    syncing = false;
+    syncingFromFloating = false;
   });
+}
+
+function handleFloatingPointerDown() {
+  setDraggingScrollbar(true);
+}
+
+function handleFloatingPointerUp() {
+  if (!draggingScrollbar) {
+    return;
+  }
+  setDraggingScrollbar(false);
+  requestUpdate();
+}
+
+function setDraggingScrollbar(active: boolean) {
+  draggingScrollbar = active;
+  document.body.classList.toggle('platform-floating-scrollbar-dragging', active);
 }
 
 function handleTableWheel(event: WheelEvent) {

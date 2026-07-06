@@ -72,6 +72,7 @@ const detailVisible = ref(false);
 const selectedRow = ref<CodeReviewIllegalRecordRowResponse | null>(null);
 const exportLoading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const rowRefreshLoadingKey = ref('');
 const matchModeEnabled = ref(true);
 const sourceOptions = ref<OptionItemResponse[]>([]);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
@@ -224,6 +225,33 @@ const ruleExclusionSteps = computed(() => ruleExplanationSteps.value.slice(1));
 function openDetailDrawer(row: Record<string, unknown>) {
   selectedRow.value = (row.__raw as CodeReviewIllegalRecordRowResponse) ?? null;
   detailVisible.value = true;
+}
+
+function rowActionKey(row: Record<string, unknown>) {
+  return String(row.id ?? '');
+}
+
+async function handleRefreshMatchModeRow(row: Record<string, unknown>) {
+  const raw = row.__raw as CodeReviewIllegalRecordRowResponse | undefined;
+  if (!raw?.mergeRequestIid) {
+    ElMessage.warning('当前记录缺少合并请求编号，无法刷新');
+    return;
+  }
+  rowRefreshLoadingKey.value = rowActionKey(row);
+  try {
+    await api.refreshCodeReviewIllegalRecord({
+      source: effectiveSourceValue.value || raw.sourceInstance,
+      projectId: raw.projectId || 0,
+      mergeRequestIid: raw.mergeRequestIid,
+    });
+    ElMessage.success('已刷新本条合并请求数据');
+    await loadTableData();
+    void loadSyncStatus();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '刷新本条数据失败');
+  } finally {
+    rowRefreshLoadingKey.value = '';
+  }
 }
 
 async function loadFilterOptions() {
@@ -513,6 +541,10 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
       :empty-description="tableEmptyDescription"
+      :sort-by="sortBy"
+      :sort-order="sortOrder"
+      default-sort-by="mergedAt"
+      default-sort-order="desc"
       @reset="handleReset"
       @filter-change="handleFilterChange"
       @query="handleQuery"
@@ -590,11 +622,6 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           <span v-if="taskDurationText" class="code-review-illegal-batch-meta">
             执行时长：{{ taskDurationText }}
           </span>
-          <span class="code-review-illegal-toolbar-divider" />
-          <span class="code-review-illegal-toolbar-label">当前排序</span>
-          <el-tag effect="plain" type="info" class="record-page-sort-tag">
-            {{ sortBy || 'mergedAt' }} / {{ sortOrder || 'desc' }}
-          </el-tag>
           <el-button
             v-if="showRefreshLatestData"
             class="app-action-button app-action-button--refresh"
@@ -629,6 +656,18 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
       <template #row-actions="{ row }">
         <div class="code-review-row-actions">
+          <el-tooltip v-if="matchModeEnabled" content="更新本条数据并刷新页面" placement="top">
+            <el-button
+              class="code-review-row-action-button"
+              :icon="RefreshRight"
+              size="small"
+              plain
+              :loading="rowRefreshLoadingKey === rowActionKey(row)"
+              @click="handleRefreshMatchModeRow(row)"
+            >
+              刷新
+            </el-button>
+          </el-tooltip>
           <el-tooltip content="查看代码走查详情" placement="top">
             <el-button
               class="code-review-row-action-button"

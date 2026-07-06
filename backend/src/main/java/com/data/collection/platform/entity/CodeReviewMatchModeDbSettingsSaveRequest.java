@@ -12,6 +12,8 @@ public record CodeReviewMatchModeDbSettingsSaveRequest(
     String mysqlUsername,
     String mysqlPassword,
     String mysqlTableName,
+    String legacyApiBaseUrl,
+    String dgmLegacyApiBaseUrl,
     List<String> selectedTableNames,
     Integer mysqlFetchSize,
     String mongoUri,

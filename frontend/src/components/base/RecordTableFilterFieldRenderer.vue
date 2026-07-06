@@ -114,6 +114,26 @@ function emitDateRangeChange(value: unknown) {
   min-width: 220px;
 }
 
+.record-filter-main-keyword--highlight :deep(.el-input__wrapper) {
+  border: 0;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--el-color-warning-light-5) inset !important;
+}
+
+.record-filter-main-keyword--highlight :deep(.el-input__wrapper:hover),
+.record-filter-main-keyword--highlight :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--el-color-warning) inset !important;
+}
+
+.record-filter-main-keyword--highlight :deep(.el-input__inner) {
+  color: var(--el-text-color-regular);
+}
+
+.record-filter-main-keyword--highlight :deep(.el-input__prefix),
+.record-filter-main-keyword--highlight :deep(.el-input__inner::placeholder) {
+  color: var(--el-color-warning-light-5);
+}
+
 .record-filter-main-date {
   min-width: 260px;
 }

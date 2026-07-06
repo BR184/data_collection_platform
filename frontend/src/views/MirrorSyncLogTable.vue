@@ -62,6 +62,8 @@ const {
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
   handleFloatingHorizontalScroll,
+  handleFloatingScrollbarPointerDown,
+  handleFloatingScrollbarPointerUp,
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
   tableShellRef,
@@ -234,6 +236,8 @@ async function handleExpandChange() {
         :style="floatingScrollbarStyle"
         aria-hidden="true"
         @mouseenter="wakeHorizontalScrollbar"
+        @pointerdown="handleFloatingScrollbarPointerDown"
+        @pointerup="handleFloatingScrollbarPointerUp"
         @scroll="handleFloatingHorizontalScroll"
       >
         <div class="sync-log-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />

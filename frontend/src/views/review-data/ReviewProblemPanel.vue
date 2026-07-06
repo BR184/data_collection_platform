@@ -58,12 +58,12 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
         :label="column.label"
         :width="column.width"
         :min-width="effectiveColumnMinWidth(column)"
-        :align="column.align ?? 'left'"
-        :header-align="column.headerAlign ?? 'center'"
+        align="center"
+        header-align="center"
         :show-overflow-tooltip="column.showOverflowTooltip ?? true"
       >
         <template #header>
-          <SmartTableHeader :label="column.label" :lines="column.headerLines" :align="column.headerAlign ?? 'center'" />
+          <SmartTableHeader :label="column.label" :lines="column.headerLines" align="center" />
         </template>
         <template #default="{ row }">
           <template v-if="column.type === 'tag'">
@@ -87,7 +87,7 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
         </template>
       </el-table-column>
 
-      <el-table-column v-if="canManage" label="操作" width="136" fixed="right" align="center">
+      <el-table-column v-if="canManage" label="操作" width="136" fixed="right" align="center" header-align="center">
         <template #default="{ row }">
           <div class="problem-actions">
             <el-button
@@ -231,6 +231,7 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
   align-items: center;
   justify-content: center;
   min-width: 0;
+  width: 100%;
 }
 
 .problem-reviewer-warning {

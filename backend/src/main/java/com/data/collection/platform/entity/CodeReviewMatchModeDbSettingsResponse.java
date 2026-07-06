@@ -13,6 +13,8 @@ public record CodeReviewMatchModeDbSettingsResponse(
     String mysqlUsername,
     boolean mysqlPasswordConfigured,
     String mysqlTableName,
+    String legacyApiBaseUrl,
+    String dgmLegacyApiBaseUrl,
     List<String> selectedTableNames,
     int mysqlFetchSize,
     boolean mongoUriConfigured,

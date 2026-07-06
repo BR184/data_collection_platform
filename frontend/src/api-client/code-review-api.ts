@@ -118,6 +118,7 @@ export const codeReviewApi = {
       {
         method: 'POST',
         body: JSON.stringify(payload),
+        timeoutMs: 120_000,
       },
     );
   },

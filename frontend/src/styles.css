@@ -820,7 +820,7 @@ button {
 
 .stat-group-header,
 .stat-column-header {
-  min-height: 40px;
+  min-height: 44px;
   position: relative;
   display: flex;
   align-items: center;
@@ -831,7 +831,7 @@ button {
 }
 
 .stat-group-header {
-  padding: 4px 10px;
+  padding: 4px 14px;
   cursor: grab;
 }
 
@@ -841,8 +841,8 @@ button {
 }
 
 .stat-column-header.first-column {
-  justify-content: flex-start;
-  padding: 4px 16px 4px 8px;
+  justify-content: center;
+  padding: 4px 12px;
 }
 
 .stat-group-header:hover,
@@ -865,7 +865,9 @@ button {
 
 .stat-group-header-label,
 .stat-column-header-label {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   font-weight: 600;
   overflow: visible;
@@ -887,7 +889,7 @@ button {
 }
 
 .stat-column-header.first-column .stat-column-header-label {
-  text-align: left;
+  text-align: center;
 }
 
 .stat-header-zone {
@@ -897,17 +899,17 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 9px;
+  width: 13px;
   min-width: 0;
 }
 
 .stat-header-zone-left {
-  left: 0;
+  left: 1px;
   pointer-events: none;
 }
 
 .stat-header-zone-right {
-  right: 0;
+  right: 1px;
 }
 
 .stat-header-zone-placeholder {
@@ -919,7 +921,7 @@ button {
 }
 
 .drag-handle {
-  width: 8px;
+  width: 7px;
   height: 14px;
   display: inline-grid;
   grid-template-columns: repeat(2, 1fr);
@@ -933,14 +935,14 @@ button {
 }
 
 .drag-handle span {
-  width: 2.5px;
-  height: 2.5px;
+  width: 2px;
+  height: 2px;
   border-radius: 999px;
   background: currentColor;
 }
 
 .drag-handle.subtle {
-  width: 8px;
+  width: 7px;
 }
 
 .stat-group-header:hover .drag-handle,
@@ -971,8 +973,8 @@ button {
 }
 
 .sort-trigger {
-  min-width: 13px;
-  width: 13px;
+  min-width: 12px;
+  width: 12px;
   height: 20px;
   border: 0;
   border-radius: 4px;
@@ -996,7 +998,7 @@ button {
 }
 
 .sort-trigger-icon {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
 }
 
@@ -1078,11 +1080,11 @@ button {
 }
 
 .customer-issue-function-table .stat-cell:not(.drilldown) {
-  justify-content: flex-start;
+  justify-content: center;
   width: 100%;
   color: #263b52;
   font-weight: 500;
-  text-align: left;
+  text-align: center;
 }
 
 .customer-issue-function-table .stat-cell.drilldown {
@@ -2467,19 +2469,25 @@ a:hover {
 .el-table th.el-table__cell .cell:has(.smart-table-header) .smart-table-header {
   flex: 1 1 auto;
   width: 100%;
-  padding: 0 6px;
+  padding: 0 14px 0 6px;
   box-sizing: border-box;
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header) .smart-table-header.is-short-single,
+.el-table th.el-table__cell .cell:has(.smart-table-header) .smart-table-header.is-short-single {
+  padding-right: 10px;
+  padding-left: 2px;
 }
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper,
 .el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper {
   position: absolute;
   top: 50%;
-  right: 3px;
+  right: 4px;
   z-index: 1;
   flex: 0 0 auto;
-  width: 8px;
-  height: 14px;
+  width: 10px;
+  height: 19px;
   margin-left: 0;
   overflow: visible;
   transform: translateY(-50%);
@@ -2487,18 +2495,18 @@ a:hover {
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper .sort-caret,
 .el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper .sort-caret {
-  left: 1px;
+  left: 2px;
   border-width: 3px;
 }
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper .sort-caret.ascending,
 .el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper .sort-caret.ascending {
-  top: 1px;
+  top: 2px;
 }
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper .sort-caret.descending,
 .el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper .sort-caret.descending {
-  bottom: 1px;
+  bottom: 2px;
 }
 
 .stat-matrix-table .el-table__header-wrapper .cell,
@@ -2511,11 +2519,31 @@ a:hover {
 
 .stat-matrix-table .el-table__header-wrapper .cell:has(.smart-table-header) .smart-table-header,
 .stat-matrix-table th.el-table__cell .cell:has(.smart-table-header) .smart-table-header {
-  padding: 0 2px;
+  padding: 0 8px;
+}
+
+.stat-matrix-table .stat-group-header-label .smart-table-header,
+.stat-matrix-table .stat-column-header-label .smart-table-header {
+  padding: 0;
+}
+
+.stat-matrix-table .stat-group-header-label .smart-table-header__single,
+.stat-matrix-table .stat-column-header-label .smart-table-header__single,
+.stat-matrix-table .stat-group-header-label .smart-table-header__line,
+.stat-matrix-table .stat-column-header-label .smart-table-header__line {
+  width: 100%;
+  justify-content: center;
 }
 
 .el-table .cell {
   line-height: 1.5 !important;
+  text-align: center !important;
+}
+
+.el-table td.el-table__cell .cell,
+.el-table th.el-table__cell .cell {
+  justify-content: center;
+  text-align: center !important;
 }
 
 .el-table--small .el-table__cell {
@@ -2574,6 +2602,84 @@ a:hover {
 
 .platform-table-floating-horizontal-spacer {
   height: 1px;
+}
+
+.platform-table-floating-horizontal,
+.record-table-floating-horizontal,
+.stat-matrix-floating-horizontal,
+.stat-detail-floating-horizontal,
+.sync-log-floating-horizontal {
+  height: 22px !important;
+  padding: 5px 0 4px !important;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  cursor: grab;
+  scrollbar-color: rgba(71, 85, 105, 0.68) transparent;
+}
+
+.platform-table-floating-horizontal:active,
+.record-table-floating-horizontal:active,
+.stat-matrix-floating-horizontal:active,
+.stat-detail-floating-horizontal:active,
+.sync-log-floating-horizontal:active,
+.platform-floating-scrollbar-dragging .platform-table-floating-horizontal,
+.platform-floating-scrollbar-dragging .record-table-floating-horizontal,
+.platform-floating-scrollbar-dragging .stat-matrix-floating-horizontal,
+.platform-floating-scrollbar-dragging .stat-detail-floating-horizontal,
+.platform-floating-scrollbar-dragging .sync-log-floating-horizontal {
+  cursor: grabbing;
+}
+
+.platform-table-floating-horizontal::-webkit-scrollbar,
+.record-table-floating-horizontal::-webkit-scrollbar,
+.stat-matrix-floating-horizontal::-webkit-scrollbar,
+.stat-detail-floating-horizontal::-webkit-scrollbar,
+.sync-log-floating-horizontal::-webkit-scrollbar {
+  height: 12px !important;
+}
+
+.platform-table-floating-horizontal::-webkit-scrollbar-thumb,
+.record-table-floating-horizontal::-webkit-scrollbar-thumb,
+.stat-matrix-floating-horizontal::-webkit-scrollbar-thumb,
+.stat-detail-floating-horizontal::-webkit-scrollbar-thumb,
+.sync-log-floating-horizontal::-webkit-scrollbar-thumb {
+  min-width: 44px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(71, 85, 105, 0.68);
+  background-clip: content-box;
+}
+
+.platform-table-floating-horizontal:hover::-webkit-scrollbar-thumb,
+.record-table-floating-horizontal:hover::-webkit-scrollbar-thumb,
+.stat-matrix-floating-horizontal:hover::-webkit-scrollbar-thumb,
+.stat-detail-floating-horizontal:hover::-webkit-scrollbar-thumb,
+.sync-log-floating-horizontal:hover::-webkit-scrollbar-thumb,
+.platform-floating-scrollbar-dragging .platform-table-floating-horizontal::-webkit-scrollbar-thumb,
+.platform-floating-scrollbar-dragging .record-table-floating-horizontal::-webkit-scrollbar-thumb,
+.platform-floating-scrollbar-dragging .stat-matrix-floating-horizontal::-webkit-scrollbar-thumb,
+.platform-floating-scrollbar-dragging .stat-detail-floating-horizontal::-webkit-scrollbar-thumb,
+.platform-floating-scrollbar-dragging .sync-log-floating-horizontal::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.86);
+  background-clip: content-box;
+}
+
+.platform-table-floating-horizontal-spacer,
+.record-table-floating-horizontal-spacer,
+.stat-matrix-floating-horizontal-spacer,
+.stat-detail-floating-horizontal-spacer,
+.sync-log-floating-horizontal-spacer {
+  height: 1px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.platform-floating-scrollbar-dragging,
+body.platform-floating-scrollbar-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .el-empty {

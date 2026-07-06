@@ -440,6 +440,8 @@ create table if not exists code_review_match_mode_db_settings (
     mysql_username varchar(255) not null default 'root',
     mysql_password varchar(255) not null default '',
     mysql_table_name varchar(255) not null default 'spider_crowncad_data',
+    legacy_api_base_url varchar(512) not null default 'http://172.22.10.72:8091',
+    dgm_legacy_api_base_url varchar(512) not null default '',
     selected_table_names text not null default 'spider_crowncad_data',
     mysql_fetch_size integer not null default 1000,
     mongo_uri text default 'mongodb://172.22.10.72/?waitQueueMultiple=20',

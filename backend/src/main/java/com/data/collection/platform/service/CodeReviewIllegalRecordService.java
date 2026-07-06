@@ -121,6 +121,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private final CodeReviewIllegalRecordSourceLoader sourceLoader;
   private final CodeReviewMatchModeRecordLoader matchModeRecordLoader;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService;
   private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
   private final PageRecordSnapshotService pageRecordSnapshotService;
@@ -132,6 +133,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       CodeReviewIllegalRecordSourceLoader sourceLoader,
       CodeReviewMatchModeRecordLoader matchModeRecordLoader,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
+      CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties,
@@ -142,6 +144,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     this.sourceLoader = sourceLoader;
     this.matchModeRecordLoader = matchModeRecordLoader;
     this.matchModeSwitchService = matchModeSwitchService;
+    this.matchModeLegacyRefreshService = matchModeLegacyRefreshService;
     this.issueLinkService = issueLinkService;
     this.objectMapper = objectMapper;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
@@ -659,6 +662,30 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
   public CodeReviewIllegalRecordRowResponse refreshSingleRecord(
       String source, Long projectId, Long mergeRequestIid) {
+    //兼容模式-MatchMode：对齐老平台行级刷新，先调用老平台后端接口，再同步这一条 MR 的全部拆分行。
+    if (matchModeSwitchService.isEnabled()) {
+      matchModeLegacyRefreshService.refreshOne(source, mergeRequestIid);
+      pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
+      List<CodeReviewIllegalRecordView> rows =
+          loadScopedViews(
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              String.valueOf(mergeRequestIid),
+              null,
+              source);
+      return rows.stream()
+          .map(this::toResponse)
+          .findFirst()
+          .orElse(null);
+    }
     factBuildService.rebuildMergeRequestFactByIid(source, projectId, mergeRequestIid);
     pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
     List<CodeReviewIllegalRecordView> rows =

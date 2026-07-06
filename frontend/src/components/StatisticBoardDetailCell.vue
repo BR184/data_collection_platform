@@ -12,6 +12,7 @@ defineProps<{
   column: StatisticDetailColumn;
   cell: DetailDisplayCell | undefined;
   multiline?: boolean;
+  align?: 'left' | 'center' | 'right';
 }>();
 
 const LABEL_LIKE_SINGLE_COLUMN_KEYS = new Set([
@@ -131,11 +132,14 @@ function rgbToHex(red: number, green: number, blue: number) {
 <template>
   <div
     class="detail-display-cell"
-    :class="{
-      'detail-display-cell--tag-list': shouldRenderAsTagList(column, cell),
-      'detail-display-cell--single-tag': !shouldRenderAsTagList(column, cell) && isGitlabLabelColumn(column),
-      'detail-display-cell--multiline': multiline,
-    }"
+    :class="[
+      `detail-display-cell--${align ?? 'center'}`,
+      {
+        'detail-display-cell--tag-list': shouldRenderAsTagList(column, cell),
+        'detail-display-cell--single-tag': !shouldRenderAsTagList(column, cell) && isGitlabLabelColumn(column),
+        'detail-display-cell--multiline': multiline,
+      },
+    ]"
   >
     <div
       v-if="shouldRenderAsTagList(column, cell)"
@@ -182,13 +186,14 @@ function rgbToHex(red: number, green: number, blue: number) {
 .detail-display-cell {
   display: flex;
   align-items: center;
+  justify-content: center;
   width: 100%;
   min-width: 0;
   max-width: 100%;
 }
 
 .detail-display-cell--tag-list {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .detail-display-cell--single-tag {
@@ -196,21 +201,41 @@ function rgbToHex(red: number, green: number, blue: number) {
 }
 
 .detail-display-cell--multiline {
-  align-items: flex-start;
+  align-items: center;
+}
+
+.detail-display-cell--left {
+  justify-content: flex-start;
+}
+
+.detail-display-cell--right {
+  justify-content: flex-end;
 }
 
 .detail-cell-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   max-width: 100%;
   padding: 0 3px;
   border-radius: 3px;
   color: inherit !important;
   font-weight: inherit;
   text-decoration: none !important;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-display-cell--left .detail-cell-link {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.detail-display-cell--right .detail-cell-link {
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .detail-cell-link:hover {
@@ -219,9 +244,11 @@ function rgbToHex(red: number, green: number, blue: number) {
 }
 
 .detail-cell-text {
-  display: inline-block;
+  display: block;
+  width: 100%;
   max-width: 100%;
   color: #1f2329;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -229,7 +256,16 @@ function rgbToHex(red: number, green: number, blue: number) {
 
 .detail-cell-text--multiline {
   white-space: normal;
+  text-align: center;
   overflow-wrap: anywhere;
+}
+
+.detail-display-cell--left .detail-cell-text {
+  text-align: left;
+}
+
+.detail-display-cell--right .detail-cell-text {
+  text-align: right;
 }
 
 .detail-cell-empty {
@@ -238,8 +274,9 @@ function rgbToHex(red: number, green: number, blue: number) {
 
 .detail-cell-tags {
   display: flex;
-  align-items: flex-start;
-  align-content: flex-start;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
   gap: 4px;
   flex-wrap: wrap;
   width: 100%;
@@ -255,7 +292,7 @@ function rgbToHex(red: number, green: number, blue: number) {
 }
 
 .detail-cell-gitlab-labels {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .detail-gitlab-label {
@@ -272,6 +309,6 @@ function rgbToHex(red: number, green: number, blue: number) {
   font-weight: 600;
   line-height: 14px;
   white-space: nowrap;
-  text-align: left;
+  text-align: center;
 }
 </style>

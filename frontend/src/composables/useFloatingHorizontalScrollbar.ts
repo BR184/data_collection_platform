@@ -17,7 +17,14 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
   let observedTableScrollWrap: HTMLElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
   let updateFrame: number | undefined;
-  let syncingHorizontalScroll = false;
+  let syncingFromTable = false;
+  let syncingFromFloating = false;
+  let draggingScrollbar = false;
+
+  function setScrollbarDragging(active: boolean) {
+    draggingScrollbar = active;
+    document.body.classList.toggle('platform-floating-scrollbar-dragging', active);
+  }
 
   function wakeHorizontalScrollbar() {
     updateHorizontalScrollbar();
@@ -129,7 +136,7 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
   }
 
   function syncFloatingScrollbarFromTable() {
-    if (syncingHorizontalScroll) {
+    if (syncingFromFloating) {
       return;
     }
     const tableBody = getTableScrollWrap();
@@ -137,15 +144,15 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     if (!tableBody || !horizontalScrollbar) {
       return;
     }
-    syncingHorizontalScroll = true;
+    syncingFromTable = true;
     horizontalScrollbar.scrollLeft = tableBody.scrollLeft;
     window.requestAnimationFrame(() => {
-      syncingHorizontalScroll = false;
+      syncingFromTable = false;
     });
   }
 
   function handleFloatingHorizontalScroll() {
-    if (syncingHorizontalScroll) {
+    if (syncingFromTable) {
       return;
     }
     const tableBody = getTableScrollWrap();
@@ -153,11 +160,24 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     if (!tableBody || !horizontalScrollbar) {
       return;
     }
-    syncingHorizontalScroll = true;
+    syncingFromFloating = true;
     tableBody.scrollLeft = horizontalScrollbar.scrollLeft;
     window.requestAnimationFrame(() => {
-      syncingHorizontalScroll = false;
+      syncingFromFloating = false;
     });
+    wakeHorizontalScrollbar();
+  }
+
+  function handleFloatingScrollbarPointerDown() {
+    setScrollbarDragging(true);
+    wakeHorizontalScrollbar();
+  }
+
+  function handleFloatingScrollbarPointerUp() {
+    if (!draggingScrollbar) {
+      return;
+    }
+    setScrollbarDragging(false);
     wakeHorizontalScrollbar();
   }
 
@@ -186,6 +206,8 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     observeTableShell();
     window.addEventListener('resize', requestHorizontalScrollbarUpdate, { passive: true });
     window.addEventListener('scroll', requestHorizontalScrollbarUpdate, { passive: true, capture: true });
+    window.addEventListener('pointerup', handleFloatingScrollbarPointerUp, { passive: true });
+    window.addEventListener('blur', handleFloatingScrollbarPointerUp);
   });
 
   watch(
@@ -205,8 +227,13 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     }
     window.removeEventListener('resize', requestHorizontalScrollbarUpdate);
     window.removeEventListener('scroll', requestHorizontalScrollbarUpdate, { capture: true });
+    window.removeEventListener('pointerup', handleFloatingScrollbarPointerUp);
+    window.removeEventListener('blur', handleFloatingScrollbarPointerUp);
     observedTableScrollWrap?.removeEventListener('scroll', syncFloatingScrollbarFromTable);
     resizeObserver?.disconnect();
+    if (draggingScrollbar) {
+      setScrollbarDragging(false);
+    }
   });
 
   return {
@@ -219,6 +246,8 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     wakeHorizontalScrollbar,
     handleHorizontalWheel,
     handleFloatingHorizontalScroll,
+    handleFloatingScrollbarPointerDown,
+    handleFloatingScrollbarPointerUp,
     scheduleHorizontalScrollbarUpdate,
     updateHorizontalScrollbar,
   };

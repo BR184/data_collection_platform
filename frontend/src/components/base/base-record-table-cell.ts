@@ -8,10 +8,8 @@ export interface RecordTableCellDisplay {
 }
 
 export function normalizeRecordTableTagList(value: unknown): RecordTableTagValue[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
+  const rawItems = Array.isArray(value) ? value : splitTagText(value);
+  return rawItems
     .map((item) => {
       if (!item) {
         return null;
@@ -29,6 +27,16 @@ export function normalizeRecordTableTagList(value: unknown): RecordTableTagValue
       return null;
     })
     .filter((item): item is RecordTableTagValue => Boolean(item?.label));
+}
+
+function splitTagText(value: unknown) {
+  if (typeof value !== 'string') {
+    return [];
+  }
+  return value
+    .split(/[、,，;；]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export function normalizeRecordTableLink(value: unknown): RecordTableLinkValue | null {

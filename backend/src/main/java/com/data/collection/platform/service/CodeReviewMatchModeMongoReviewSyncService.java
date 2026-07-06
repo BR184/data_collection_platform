@@ -7,6 +7,7 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,8 +19,10 @@ import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
@@ -120,12 +123,73 @@ public class CodeReviewMatchModeMongoReviewSyncService {
       MongoDatabase database = client.getDatabase(config.mongoDatabase());
       database.runCommand(new Document("ping", 1));
       for (String collectionName : config.selectedMongoCollectionNames()) {
+        if (REVIEW_DESCRIPTION_COLLECTION.equals(collectionName)) {
+          continue;
+        }
         MongoCollection<Document> collection = database.getCollection(collectionName);
         List<Document> documents = collection.find().batchSize(Math.max(1, config.mysqlFetchSize())).into(new ArrayList<>());
         summary.add(collectionName, documents);
       }
+      List<Document> reviewReports = summary.documentsByCollection().get(config.reviewReportCollectionName());
+      summary.add(
+          REVIEW_DESCRIPTION_COLLECTION,
+          loadReviewDescriptions(database, reviewReports, Math.max(1, config.mysqlFetchSize())));
     }
     return summary;
+  }
+
+  private List<Document> loadReviewDescriptions(
+      MongoDatabase database,
+      List<Document> reviewReports,
+      int batchSize) {
+    List<String> descriptionIds = collectDescriptionIds(reviewReports);
+    MongoCollection<Document> collection = database.getCollection(REVIEW_DESCRIPTION_COLLECTION);
+    if (descriptionIds.isEmpty()) {
+      return collection.find().batchSize(batchSize).into(new ArrayList<>());
+    }
+    List<Object> idCandidates = new ArrayList<>();
+    for (String descriptionId : descriptionIds) {
+      idCandidates.add(descriptionId);
+      if (ObjectId.isValid(descriptionId)) {
+        idCandidates.add(new ObjectId(descriptionId));
+      }
+    }
+    List<Document> documents =
+        collection.find(Filters.in("_id", idCandidates)).batchSize(batchSize).into(new ArrayList<>());
+    return orderDocumentsByIds(descriptionIds, documents);
+  }
+
+  private List<String> collectDescriptionIds(List<Document> reviewReports) {
+    if (reviewReports == null || reviewReports.isEmpty()) {
+      return List.of();
+    }
+    Set<String> descriptionIds = new LinkedHashSet<>();
+    for (Document reviewReport : reviewReports) {
+      descriptionIds.addAll(listValues(reviewReport.get("descriptionIds")));
+    }
+    return List.copyOf(descriptionIds);
+  }
+
+  private List<Document> orderDocumentsByIds(List<String> descriptionIds, List<Document> documents) {
+    if (descriptionIds.isEmpty() || documents.isEmpty()) {
+      return documents;
+    }
+    Map<String, Document> documentsById = new LinkedHashMap<>();
+    for (Document document : documents) {
+      String documentId = objectIdText(document.get("_id"));
+      if (documentId != null) {
+        documentsById.put(documentId, document);
+      }
+    }
+    List<Document> ordered = new ArrayList<>();
+    for (String descriptionId : descriptionIds) {
+      Document document = documentsById.remove(descriptionId);
+      if (document != null) {
+        ordered.add(document);
+      }
+    }
+    ordered.addAll(documentsById.values());
+    return ordered;
   }
 
   private void replaceSnapshots(CodeReviewMatchModeConfig config, ImportSummary summary) {
@@ -372,7 +436,11 @@ public class CodeReviewMatchModeMongoReviewSyncService {
   }
 
   private String listText(Document document, String fieldName) {
-    Object value = document.get(fieldName);
+    List<String> values = listValues(document.get(fieldName));
+    return values.isEmpty() ? null : jsonUtils.toJson(values);
+  }
+
+  private List<String> listValues(Object value) {
     if (value instanceof Iterable<?> iterable) {
       List<String> values = new ArrayList<>();
       for (Object item : iterable) {
@@ -381,9 +449,39 @@ public class CodeReviewMatchModeMongoReviewSyncService {
           values.add(normalized);
         }
       }
-      return values.isEmpty() ? null : jsonUtils.toJson(values);
+      return values;
     }
-    return textValue(value);
+    String text = textValue(value);
+    if (text == null) {
+      return List.of();
+    }
+    if (text.startsWith("[") && text.endsWith("]")) {
+      text = text.substring(1, text.length() - 1);
+    }
+    if (!text.contains(",")) {
+      String normalized = unquoteListValue(text);
+      return normalized == null ? List.of() : List.of(normalized);
+    }
+    List<String> values = new ArrayList<>();
+    for (String part : text.split(",")) {
+      String normalized = unquoteListValue(part);
+      if (normalized != null) {
+        values.add(normalized);
+      }
+    }
+    return values;
+  }
+
+  private String unquoteListValue(String value) {
+    String normalized = TextQuerySupport.trimToNull(value);
+    if (normalized == null) {
+      return null;
+    }
+    while ((normalized.startsWith("\"") && normalized.endsWith("\""))
+        || (normalized.startsWith("'") && normalized.endsWith("'"))) {
+      normalized = normalized.substring(1, normalized.length() - 1).trim();
+    }
+    return TextQuerySupport.trimToNull(normalized);
   }
 
   private String text(Document document, String fieldName) {

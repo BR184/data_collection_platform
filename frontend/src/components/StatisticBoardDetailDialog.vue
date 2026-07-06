@@ -20,6 +20,8 @@ const props = defineProps<{
   pagination: {
     page: number;
     size: number;
+    sortField?: string;
+    sortOrder?: string;
   };
   detailTableClass?: string;
   detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => StatisticDetailCellValue;
@@ -60,6 +62,16 @@ const mainTableColumns = computed(() => (props.detail?.columns ?? []).filter((co
 const expandColumns = computed(() => (props.detail?.columns ?? []).filter((column) => column.expandOnly));
 
 const hasExpandColumns = computed(() => expandColumns.value.length > 0);
+const currentSortSummary = computed(() => {
+  const fieldKey = String(props.pagination.sortField ?? '').trim();
+  const direction = String(props.pagination.sortOrder ?? '').trim();
+  if (!fieldKey || !direction) {
+    return '';
+  }
+  const fieldLabel = (props.detail?.columns ?? []).find((column) => column.key === fieldKey)?.label
+    ?? readableDetailSortFieldLabel(fieldKey);
+  return `${fieldLabel} / ${readableDetailSortDirection(direction)}`;
+});
 
 const tableContentWidth = computed(() => {
   const expandColumnWidth = hasExpandColumns.value ? 42 : 0;
@@ -87,6 +99,8 @@ const {
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
   handleFloatingHorizontalScroll,
+  handleFloatingScrollbarPointerDown,
+  handleFloatingScrollbarPointerUp,
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
   tableShellRef,
@@ -145,6 +159,54 @@ async function handleExpandChange() {
 function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
   return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, column.sortable ? 24 : 8), 78);
 }
+
+function isDetailTagColumn(column: StatisticDetailColumn) {
+  return column.type === 'tag' || column.type === 'tags' || ['labels', 'moduleNames'].includes(column.key);
+}
+
+function detailBodyAlign(column: StatisticDetailColumn) {
+  return isDetailLeftAlignedTextColumn(column) ? 'left' : 'center';
+}
+
+function detailColumnClassName(column: StatisticDetailColumn) {
+  return isDetailLeftAlignedTextColumn(column) ? 'stat-detail-cell--left' : undefined;
+}
+
+function isDetailLeftAlignedTextColumn(column: StatisticDetailColumn) {
+  if (column.type === 'number' || column.type === 'tag' || column.type === 'tags') {
+    return false;
+  }
+  return /标题|合并请求内容|内容|描述|说明|方案|备注|详情|消息/.test(column.label)
+    || /(title|content|description|solution|remark|note|message|summary|detail)$/i.test(column.key)
+    || /mergeRequestContent/i.test(column.key);
+}
+
+function readableDetailSortFieldLabel(fieldKey: string) {
+  const fallbackLabels: Record<string, string> = {
+    syncedAt: '同步时间',
+    updatedAt: '更新时间',
+    createdAt: '创建时间',
+    submittedAt: '提交时间',
+    mergedAt: '合并时间',
+    iid: '编号',
+    issueIid: '议题编号',
+    title: '标题',
+    moduleNames: '模块名',
+    severity: '严重程度',
+    status: '状态',
+  };
+  return fallbackLabels[fieldKey] ?? '当前字段';
+}
+
+function readableDetailSortDirection(direction: string) {
+  if (direction === 'asc' || direction === 'ascending') {
+    return '升序';
+  }
+  if (direction === 'desc' || direction === 'descending') {
+    return '降序';
+  }
+  return '默认顺序';
+}
 </script>
 
 <template>
@@ -160,6 +222,10 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="stat-detail-shell" v-loading="loading">
+      <div v-if="currentSortSummary" class="stat-detail-sortbar">
+        <span class="stat-detail-sortbar-label">当前排序</span>
+        <el-tag effect="plain" type="info" size="small">{{ currentSortSummary }}</el-tag>
+      </div>
       <div
         v-if="detail"
         ref="tableShellRef"
@@ -177,13 +243,13 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
           border
           stripe
           size="small"
-          :fit="true"
+          :fit="false"
           class="stat-detail-table"
           :class="detailTableClass"
           @sort-change="onSortChange"
           @expand-change="handleExpandChange"
         >
-          <el-table-column v-if="hasExpandColumns" type="expand" width="42">
+          <el-table-column v-if="hasExpandColumns" type="expand" width="42" align="center" header-align="center">
             <template #default="{ row }: { row: DetailDisplayRow }">
               <div class="stat-detail-expand-panel">
                 <el-descriptions :column="2" border size="small" class="stat-detail-expand-descriptions">
@@ -194,7 +260,12 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
                     label-class-name="stat-detail-expand-label"
                     class-name="stat-detail-expand-content"
                   >
-                    <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" multiline />
+                    <StatisticBoardDetailCell
+                      :column="column"
+                      :cell="row.cells[column.key]"
+                      :align="detailBodyAlign(column)"
+                      multiline
+                    />
                   </el-descriptions-item>
                 </el-descriptions>
               </div>
@@ -209,13 +280,20 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
             :width="column.width || undefined"
             :min-width="effectiveDetailColumnMinWidth(column)"
             :sortable="column.sortable ? 'custom' : false"
-            show-overflow-tooltip
+            :align="detailBodyAlign(column)"
+            header-align="center"
+            :class-name="detailColumnClassName(column)"
+            :show-overflow-tooltip="!isDetailTagColumn(column)"
           >
             <template #header>
               <SmartTableHeader :label="column.label" />
             </template>
             <template #default="{ row }: { row: DetailDisplayRow }">
-              <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" />
+              <StatisticBoardDetailCell
+                :column="column"
+                :cell="row.cells[column.key]"
+                :align="detailBodyAlign(column)"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -223,11 +301,13 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
           v-show="isFloatingScrollbarVisible"
           ref="floatingScrollbarRef"
           class="stat-detail-floating-horizontal"
-          :style="floatingScrollbarStyle"
-          aria-hidden="true"
-          @mouseenter="wakeHorizontalScrollbar"
-          @scroll="handleFloatingHorizontalScroll"
-        >
+            :style="floatingScrollbarStyle"
+            aria-hidden="true"
+            @mouseenter="wakeHorizontalScrollbar"
+            @pointerdown="handleFloatingScrollbarPointerDown"
+            @pointerup="handleFloatingScrollbarPointerUp"
+            @scroll="handleFloatingHorizontalScroll"
+          >
           <div class="stat-detail-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
         </div>
       </div>
@@ -289,6 +369,21 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
   max-height: calc(100vh - 132px);
 }
 
+.stat-detail-sortbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.stat-detail-sortbar-label {
+  color: #5f7388;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .stat-detail-expand-panel {
   width: 100%;
   box-sizing: border-box;
@@ -306,11 +401,15 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
   color: #536274;
   font-weight: 600;
   background: #f4f7fb;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .stat-detail-expand-descriptions :deep(.el-descriptions__content.stat-detail-expand-content) {
   min-width: 180px;
   color: #1f2329;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .stat-detail-table-shell {
@@ -381,10 +480,47 @@ function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
 .stat-detail-table :deep(td .cell) {
   display: flex;
   align-items: center;
+  justify-content: center;
   min-height: 24px;
   width: 100%;
+  min-width: 0;
+  text-align: center;
   line-height: 1.35 !important;
   overflow: visible;
+}
+
+.stat-detail-table :deep(td .cell > .el-tooltip) {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
+.stat-detail-table :deep(td .cell:has(.detail-cell-tags)),
+.stat-detail-table :deep(td .cell:has(.detail-gitlab-label)) {
+  overflow: visible;
+  white-space: normal;
+}
+
+.stat-detail-table :deep(td.stat-detail-cell--left .cell) {
+  justify-content: flex-start;
+  text-align: left !important;
+}
+
+.stat-detail-table :deep(td.stat-detail-cell--left .cell > .el-tooltip) {
+  justify-content: flex-start;
+  text-align: left !important;
+}
+
+.stat-detail-table :deep(th .cell) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+  text-align: center;
 }
 
 .stat-detail-table :deep(td.el-table__cell) {

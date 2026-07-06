@@ -40,17 +40,17 @@ export const CODE_REVIEW_RANGE_KEYS = {
 
 export const CODE_REVIEW_ILLEGAL_RECORD_COLUMNS: RecordTableColumn[] = [
   { key: 'mergeRequestIid', label: '合并请求编号', type: 'link', sortable: true, width: 108, fixed: 'left' },
-  { key: 'mergeRequestContent', label: '合并请求内容', sortable: true, minWidth: 420, align: 'left', headerAlign: 'center' },
+  { key: 'mergeRequestContent', label: '合并请求内容', sortable: true, minWidth: 360 },
   { key: 'author', label: '被走查人', sortable: true, width: 112 },
   { key: 'projectName', label: '所属项目', sortable: true, width: 112 },
   { key: 'mergedAt', label: '合并时间', type: 'datetime', sortable: true, width: 156 },
   { key: 'mergedBy', label: '合并人', sortable: true, width: 104 },
   { key: 'moduleName', label: '模块名', sortable: true, width: 112 },
   { key: 'targetBranch', label: '合并目标分支', sortable: true, width: 122 },
-  { key: 'illegalTypes', label: '非法类型', type: 'tags', minWidth: 320, align: 'left', headerAlign: 'center' },
-  { key: 'commentRate', label: '代码注释比例（%）', sortable: true, width: 132, align: 'right' },
-  { key: 'defectCount', label: '缺陷数量', type: 'number', sortable: true, width: 104, align: 'right' },
-  { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 132, align: 'right' },
+  { key: 'illegalTypes', label: '非法类型', type: 'tags', minWidth: 320 },
+  { key: 'commentRate', label: '代码注释比例（%）', sortable: true, width: 132 },
+  { key: 'defectCount', label: '缺陷数量', type: 'number', sortable: true, width: 104 },
+  { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 132 },
 ];
 
 export function buildCodeReviewIllegalRecordColumns(
@@ -276,7 +276,7 @@ export function mapCodeReviewIllegalTableRows(
     mergedBy: row.mergedBy || '-',
     moduleName: row.moduleName || '-',
     targetBranch: row.targetBranch || '-',
-    illegalTypes: row.illegalTypes.map((label) => ({ label, type: 'warning' as const })),
+    illegalTypes: normalizeIllegalTypeLabels(row.illegalTypes).map((label) => ({ label, type: 'warning' as const })),
     commentRate: formatCodeReviewPercent(row.commentRate),
     defectCount: row.defectCount,
     addedLines: row.addedLines,
@@ -303,6 +303,17 @@ export function formatCodeReviewPercent(value?: number | null) {
     return '-';
   }
   return `${value.toFixed(2)}%`;
+}
+
+function normalizeIllegalTypeLabels(values: string[] = []) {
+  return [
+    ...new Set(
+      values
+        .flatMap((value) => String(value ?? '').split(/[、,，;；]/))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function selectField(

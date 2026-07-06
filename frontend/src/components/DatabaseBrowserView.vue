@@ -50,6 +50,13 @@ const selectedTable = computed(() => String(route.query.table ?? ''));
 const columns = computed(() => rowsResponse.value?.columns ?? []);
 const rows = computed(() => rowsResponse.value?.rows ?? []);
 const total = computed(() => rowsResponse.value?.total ?? 0);
+const currentSortSummary = computed(() => {
+  if (!sortBy.value || !sortOrder.value) {
+    return '';
+  }
+  const fieldLabel = columns.value.find((column) => column.key === sortBy.value)?.label ?? '当前字段';
+  return `${fieldLabel} / ${sortOrder.value === 'asc' ? '升序' : '降序'}`;
+});
 const selectedOption = computed(() => tableOptions.value.find((option) => option.tableName === selectedTable.value) ?? null);
 const tableKind = computed(() => rowsResponse.value?.tableKind ?? selectedOption.value?.tableKind ?? 'LOCAL');
 const currentTableRefreshable = computed(() => rowsResponse.value?.refreshable ?? selectedOption.value?.refreshable ?? false);
@@ -455,6 +462,10 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="db-table-meta">
+              <template v-if="currentSortSummary">
+                <span class="db-sort-label">当前排序</span>
+                <el-tag effect="plain" type="info" round>{{ currentSortSummary }}</el-tag>
+              </template>
               <el-tag :type="syncStatusTagType" round>{{ syncStatusText() }}</el-tag>
               <SyncMetaBadge :value="formatTime(rowsResponse?.lastSyncTime || selectedOption?.lastSyncTime)" />
               <span class="db-table-meta-text">总数：{{ total }}</span>
@@ -671,6 +682,13 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.db-sort-label {
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .db-table-meta-text {

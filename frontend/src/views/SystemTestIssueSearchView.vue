@@ -498,6 +498,10 @@ async function handleRefresh() {
       :filter-values="filterValues"
       :active-filter-tags="activeFilterTags"
       :show-search="false"
+      :sort-by="sortBy"
+      :sort-order="sortOrder"
+      default-sort-by="updatedAt"
+      default-sort-order="desc"
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
       empty-description="当前筛选条件下没有查到系统测试议题。"

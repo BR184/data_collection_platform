@@ -14,6 +14,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -41,6 +43,8 @@ public class CodeReviewMatchModeConfigService {
              s.mysql_username,
              s.mysql_password,
              s.mysql_table_name,
+             s.legacy_api_base_url,
+             s.dgm_legacy_api_base_url,
              s.selected_table_names,
              s.mysql_fetch_size,
              s.mongo_uri,
@@ -82,6 +86,8 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlUsername(),
         settings.mysqlPassword(),
         settings.mysqlTableName(),
+        settings.legacyApiBaseUrl(),
+        settings.dgmLegacyApiBaseUrl(),
         settings.selectedTableNames(),
         settings.mysqlFetchSize(),
         settings.mongoUri(),
@@ -117,6 +123,8 @@ public class CodeReviewMatchModeConfigService {
                mysql_username = ?,
                mysql_password = ?,
                mysql_table_name = ?,
+               legacy_api_base_url = ?,
+               dgm_legacy_api_base_url = ?,
                selected_table_names = ?,
                mysql_fetch_size = ?,
                mongo_uri = ?,
@@ -136,6 +144,8 @@ public class CodeReviewMatchModeConfigService {
         normalized.mysqlUsername(),
         normalized.mysqlPassword(),
         normalized.mysqlTableName(),
+        normalized.legacyApiBaseUrl(),
+        normalized.dgmLegacyApiBaseUrl(),
         storeTableNames(normalized.selectedTableNames()),
         normalized.mysqlFetchSize(),
         normalized.mongoUri(),
@@ -157,6 +167,8 @@ public class CodeReviewMatchModeConfigService {
             settings.mysqlUsername(),
             settings.mysqlPassword(),
             settings.mysqlTableName(),
+            settings.legacyApiBaseUrl(),
+            settings.dgmLegacyApiBaseUrl(),
             settings.selectedTableNames(),
             settings.mysqlFetchSize(),
             settings.mongoUri(),
@@ -288,6 +300,8 @@ public class CodeReviewMatchModeConfigService {
              text(rs.getString("mysql_username")),
               rs.getString("mysql_password") == null ? "" : rs.getString("mysql_password"),
               text(rs.getString("mysql_table_name")),
+              text(rs.getString("legacy_api_base_url")),
+              text(rs.getString("dgm_legacy_api_base_url")),
               parseStoredTableNames(rs.getString("selected_table_names")),
               rs.getInt("mysql_fetch_size"),
               rs.getString("mongo_uri") == null ? "" : rs.getString("mongo_uri"),
@@ -327,6 +341,10 @@ public class CodeReviewMatchModeConfigService {
     String password = resolveSecret(request.mysqlPassword(), current.mysqlPassword());
     String tableName = defaultText(request.mysqlTableName(), current.mysqlTableName(), "spider_crowncad_data");
     quoteMysqlIdentifier(tableName);
+    String legacyApiBaseUrl =
+        normalizeBaseUrl(defaultText(request.legacyApiBaseUrl(), current.legacyApiBaseUrl(), defaultLegacyApiBaseUrl(host)));
+    String dgmLegacyApiBaseUrl =
+        normalizeOptionalBaseUrl(optionalText(request.dgmLegacyApiBaseUrl(), current.dgmLegacyApiBaseUrl()));
     List<String> selectedTableNames =
         normalizeSelectedTableNames(request.selectedTableNames(), current.selectedTableNames());
     int fetchSize = request.mysqlFetchSize() == null ? current.mysqlFetchSize() : request.mysqlFetchSize();
@@ -355,6 +373,8 @@ public class CodeReviewMatchModeConfigService {
         username,
         password,
         tableName,
+        legacyApiBaseUrl,
+        dgmLegacyApiBaseUrl,
         selectedTableNames,
         fetchSize,
         mongoUri,
@@ -381,6 +401,8 @@ public class CodeReviewMatchModeConfigService {
         settings.mysqlUsername(),
         StringUtils.hasText(settings.mysqlPassword()),
         settings.mysqlTableName(),
+        settings.legacyApiBaseUrl(),
+        settings.dgmLegacyApiBaseUrl(),
         settings.selectedTableNames(),
         settings.mysqlFetchSize(),
         StringUtils.hasText(settings.mongoUri()),
@@ -415,6 +437,45 @@ public class CodeReviewMatchModeConfigService {
         + "/"
         + databaseName.trim()
         + "?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true";
+  }
+
+  private String defaultLegacyApiBaseUrl(String mysqlHost) {
+    String host = StringUtils.hasText(mysqlHost) ? mysqlHost.trim() : "172.22.10.72";
+    return "http://" + host + ":8091";
+  }
+
+  private String normalizeOptionalBaseUrl(String baseUrl) {
+    return StringUtils.hasText(baseUrl) ? normalizeBaseUrl(baseUrl) : "";
+  }
+
+  private String normalizeBaseUrl(String baseUrl) {
+    if (!StringUtils.hasText(baseUrl)) {
+      throw new BizException("老平台接口地址不能为空");
+    }
+    String normalized = baseUrl.trim();
+    while (normalized.endsWith("/")) {
+      normalized = normalized.substring(0, normalized.length() - 1);
+    }
+    try {
+      URI uri = new URI(normalized);
+      if (!StringUtils.hasText(uri.getScheme()) || !StringUtils.hasText(uri.getHost())) {
+        throw new BizException("老平台接口地址必须包含协议和主机");
+      }
+      if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+        throw new BizException("老平台接口地址只支持 http 或 https");
+      }
+    } catch (URISyntaxException error) {
+      throw new BizException("老平台接口地址格式不正确");
+    }
+    return normalized;
+  }
+
+  String legacyApiBaseUrlForSource(CodeReviewMatchModeConfig config, String source) {
+    if ("dgm".equalsIgnoreCase(TextQuerySupport.trimToNull(source))
+        && StringUtils.hasText(config.dgmLegacyApiBaseUrl())) {
+      return config.dgmLegacyApiBaseUrl();
+    }
+    return config.legacyApiBaseUrl();
   }
 
   private long countRows(Connection connection, String tableName) throws SQLException {
@@ -616,6 +677,8 @@ public class CodeReviewMatchModeConfigService {
       String mysqlUsername,
       String mysqlPassword,
       String mysqlTableName,
+      String legacyApiBaseUrl,
+      String dgmLegacyApiBaseUrl,
       List<String> selectedTableNames,
       int mysqlFetchSize,
       String mongoUri,

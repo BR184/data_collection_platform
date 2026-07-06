@@ -67,6 +67,8 @@ export interface CodeReviewMatchModeDbSettingsResponse {
   mysqlUsername: string;
   mysqlPasswordConfigured: boolean;
   mysqlTableName: string;
+  legacyApiBaseUrl: string;
+  dgmLegacyApiBaseUrl: string;
   selectedTableNames: string[];
   mysqlFetchSize: number;
   mongoUriConfigured: boolean;
@@ -92,6 +94,8 @@ export interface CodeReviewMatchModeDbSettingsSaveRequest {
   mysqlUsername: string;
   mysqlPassword?: string | null;
   mysqlTableName: string;
+  legacyApiBaseUrl: string;
+  dgmLegacyApiBaseUrl: string;
   selectedTableNames: string[];
   mysqlFetchSize: number;
   mongoUri?: string | null;
