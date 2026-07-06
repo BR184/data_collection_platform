@@ -5,6 +5,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
+import SmartTableHeader from '../components/base/SmartTableHeader.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
@@ -248,7 +249,11 @@ void initializePage();
               style="width: 100%; min-width: 990px"
             >
               <el-table-column prop="rowLabel" label="模块" min-width="180" />
-              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
+              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right">
+                <template #header>
+                  <SmartTableHeader label="合并请求数" align="right" />
+                </template>
+              </el-table-column>
               <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
               <el-table-column label="完成率" width="110" align="right">
                 <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
@@ -261,6 +266,9 @@ void initializePage();
               </el-table-column>
               <el-table-column prop="totalDefectCount" label="缺陷数" width="100" align="right" />
               <el-table-column label="总新增代码" width="120" align="right">
+                <template #header>
+                  <SmartTableHeader label="总新增代码" align="right" />
+                </template>
                 <template #default="{ row }">{{ row.totalAddedLines }}</template>
               </el-table-column>
             </el-table>
@@ -284,7 +292,11 @@ void initializePage();
               style="width: 100%; min-width: 880px"
             >
               <el-table-column prop="rowLabel" label="责任人" min-width="160" />
-              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right" />
+              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right">
+                <template #header>
+                  <SmartTableHeader label="合并请求数" align="right" />
+                </template>
+              </el-table-column>
               <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
               <el-table-column label="完成率" width="110" align="right">
                 <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
@@ -293,9 +305,15 @@ void initializePage();
                 <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
               </el-table-column>
               <el-table-column label="平均走查时长" width="140" align="right">
+                <template #header>
+                  <SmartTableHeader label="平均走查时长" align="right" />
+                </template>
                 <template #default="{ row }">{{ formatMinutes(row.averageReviewDurationMinutes) }}</template>
               </el-table-column>
               <el-table-column label="平均新增代码" width="130" align="right">
+                <template #header>
+                  <SmartTableHeader label="平均新增代码" align="right" />
+                </template>
                 <template #default="{ row }">{{ formatLines(row.averageAddedLines) }}</template>
               </el-table-column>
             </el-table>

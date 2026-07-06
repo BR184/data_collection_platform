@@ -2,10 +2,12 @@
 import { computed, ref, toRef, useSlots, watch } from 'vue';
 // 通用记录表封装分页、排序、关键词和条件筛选，是多个正式记录页的交互底座。
 // 表格不理解业务字段含义，只根据列配置和事件把用户意图传回页面层。
-import { ArrowDown, ArrowUp, QuestionFilled, Refresh } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Refresh } from '@element-plus/icons-vue';
 import BaseSearchInput from './BaseSearchInput.vue';
 import BaseRecordTableCell from './BaseRecordTableCell.vue';
 import RecordTableFilterFields from './RecordTableFilterFields.vue';
+import SmartTableHeader from './SmartTableHeader.vue';
+import { tableHeaderMinimumWidth } from './table-header-layout';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
 import type {
@@ -186,7 +188,7 @@ const primaryFilterToggleIcon = computed(() => (primaryFiltersExpanded.value ? A
 const tableContentWidth = computed(() => {
   const expandWidth = hasExpand.value ? (props.expandColumnVisible ? 42 : 1) : 0;
   const rowActionsWidth = hasRowActions.value ? props.rowActionsWidth : 0;
-  const dataColumnsWidth = props.columns.reduce((total, column) => total + (column.width ?? column.minWidth ?? 140), 0);
+  const dataColumnsWidth = props.columns.reduce((total, column) => total + (column.width ?? effectiveColumnMinWidth(column)), 0);
   return expandWidth + rowActionsWidth + dataColumnsWidth + 2;
 });
 const recordTableStyle = computed(() => ({
@@ -305,6 +307,12 @@ function handleInputFilterClear(key: string) {
 
 function emitStandaloneKeywordSearch(value = keywordDraft.value) {
   emit('search', String(value ?? '').trim());
+}
+
+function effectiveColumnMinWidth(column: RecordTableColumn) {
+  const reservePx = (column.sortable ? 36 : 16) + (column.headerTooltip ? 18 : 0);
+  const minimumFloor = column.type === 'number' ? 68 : 92;
+  return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, reservePx, column.headerLines), minimumFloor);
 }
 
 function handleStandaloneKeywordUpdate(value: string) {
@@ -531,21 +539,19 @@ function handleStandaloneKeywordClear() {
           :label="column.label"
           :sortable="column.sortable ? 'custom' : false"
           :width="column.width"
-          :min-width="column.minWidth"
+          :min-width="effectiveColumnMinWidth(column)"
           :fixed="column.fixed"
           :align="column.align ?? 'center'"
           :header-align="column.headerAlign ?? 'center'"
           :show-overflow-tooltip="column.showOverflowTooltip ?? true"
         >
-          <template v-if="column.headerTooltip" #header>
-            <span class="record-table-header-help">
-              <span>{{ column.label }}</span>
-              <el-tooltip :content="column.headerTooltip" placement="top">
-                <el-icon class="record-table-header-help-icon">
-                  <QuestionFilled />
-                </el-icon>
-              </el-tooltip>
-            </span>
+          <template #header>
+            <SmartTableHeader
+              :label="column.label"
+              :lines="column.headerLines"
+              :tooltip="column.headerTooltip"
+              :align="column.headerAlign ?? 'center'"
+            />
           </template>
           <template #default="{ row }">
             <slot

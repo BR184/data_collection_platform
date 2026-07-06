@@ -5,6 +5,11 @@ import type {
 } from '../types/api';
 import { flattenStatisticColumnLeavesFromGroup } from '../types/api';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
+import {
+  tableHeaderLongestLineUnits,
+  tableHeaderMinimumWidth,
+  visualTextUnits as sharedVisualTextUnits,
+} from './base/table-header-layout';
 
 export function applyOrderedColumnsToGroup(group: StatisticColumnGroup, orderedLeafColumns: StatisticColumnLeaf[]): StatisticColumnGroup | null {
   return applyOrderedColumnsToGroupWithPrefs(group, orderedLeafColumns, {});
@@ -59,11 +64,11 @@ export function resolveOrderedColumnGroups(columnGroups: StatisticColumnGroup[],
 }
 
 export function visualTextUnits(text: string) {
-  return Array.from(text).reduce((total, character) => total + (/[\u0000-\u00ff]/.test(character) ? 1 : 2), 0);
+  return sharedVisualTextUnits(text);
 }
 
 export function headerLabelMinimumWidth(label: string, reservePx: number) {
-  return Math.max(84, visualTextUnits(label) * 6 + reservePx);
+  return Math.max(84, tableHeaderMinimumWidth(label, reservePx));
 }
 
 export function computeFirstColumnWidth(rows: StatisticRowData[], widthStrategy: StatisticBoardViewPrefs['widthStrategy']) {
@@ -120,11 +125,11 @@ function compactColumnWidth(column: StatisticColumnLeaf) {
   if (column.metricType.includes('time') || column.metricType.includes('date')) {
     return 124;
   }
-  return Math.min(124, Math.max(80, column.label.length * 10 + 18));
+  return Math.min(124, Math.max(80, tableHeaderLongestLineUnits(column.label) * 6 + 18));
 }
 
 function headerBasedWidth(column: StatisticColumnLeaf) {
-  return Math.min(176, Math.max(104, column.label.length * 14 + 28));
+  return Math.min(176, Math.max(104, tableHeaderLongestLineUnits(column.label) * 7 + 28));
 }
 
 function contentBasedWidth(column: StatisticColumnLeaf, rows: StatisticRowData[]) {

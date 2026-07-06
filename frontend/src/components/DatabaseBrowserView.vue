@@ -7,6 +7,7 @@ import type { DatabaseTableOption, DatabaseTableRowsResponse } from '../types/ap
 import type { DatabaseTableRefreshResponse } from '../api-client/database-browser-api';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import SmartSelect from './base/SmartSelect.vue';
+import SmartTableHeader from './base/SmartTableHeader.vue';
 import BaseSearchInput from './base/BaseSearchInput.vue';
 import PageStateShell from './base/PageStateShell.vue';
 import { useRouteTableState } from '../composables/useRouteTableState';
@@ -503,6 +504,9 @@ onBeforeUnmount(() => {
               min-width="150"
               show-overflow-tooltip
             >
+              <template #header>
+                <SmartTableHeader :label="column.label" />
+              </template>
               <template #default="{ row }">
                 <span class="db-cell-text">{{ formatCellValue(row[column.key]) }}</span>
               </template>

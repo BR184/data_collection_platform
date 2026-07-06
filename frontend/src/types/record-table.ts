@@ -46,6 +46,7 @@ export interface RecordTableActiveFilterTag {
 export interface RecordTableColumn {
   key: string;
   label: string;
+  headerLines?: readonly string[];
   headerTooltip?: string;
   type?: RecordTableColumnType;
   sortable?: boolean;

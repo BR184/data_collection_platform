@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
+import SmartTableHeader from './SmartTableHeader.vue';
 import type { StatisticCellData, StatisticColumnGroup, StatisticColumnLeaf, StatisticRowData } from '../../types/api';
 import type { SortDirection } from '../statistic-board-sorting';
 
@@ -53,10 +54,14 @@ function canOpenDetail(cell: StatisticCellData | undefined) {
             <span></span>
           </span>
         </span>
-        <span class="stat-group-header-label" :title="group.label">{{ group.label }}</span>
+        <span class="stat-group-header-label">
+          <SmartTableHeader :label="group.label" />
+        </span>
         <span class="stat-header-zone stat-header-zone-right stat-header-zone-placeholder" aria-hidden="true"></span>
       </div>
-      <span v-else class="stat-group-header-label" :title="group.label">{{ group.label }}</span>
+      <span v-else class="stat-group-header-label">
+        <SmartTableHeader :label="group.label" />
+      </span>
     </template>
 
     <StatisticTableColumnGroup
@@ -113,7 +118,9 @@ function canOpenDetail(cell: StatisticCellData | undefined) {
               <span></span>
             </span>
           </span>
-          <span class="stat-column-header-label" :title="column.label">{{ column.label }}</span>
+          <span class="stat-column-header-label">
+            <SmartTableHeader :label="column.label" />
+          </span>
           <span class="stat-header-zone stat-header-zone-right">
             <button
               class="sort-trigger"

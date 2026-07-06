@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import StatisticBoardDetailCell from './StatisticBoardDetailCell.vue';
+import SmartTableHeader from './base/SmartTableHeader.vue';
+import { tableHeaderMinimumWidth } from './base/table-header-layout';
 import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
 import type {
   StatisticDetailCellValue,
@@ -62,7 +64,7 @@ const hasExpandColumns = computed(() => expandColumns.value.length > 0);
 const tableContentWidth = computed(() => {
   const expandColumnWidth = hasExpandColumns.value ? 42 : 0;
   const dataColumnWidth = mainTableColumns.value.reduce((total, column) => {
-    return total + (column.width ?? column.minWidth ?? 140);
+    return total + (column.width ?? effectiveDetailColumnMinWidth(column));
   }, 0);
   return expandColumnWidth + dataColumnWidth + 2;
 });
@@ -139,6 +141,10 @@ async function handleExpandChange() {
   await scheduleHorizontalScrollbarUpdate();
   wakeHorizontalScrollbar();
 }
+
+function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
+  return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, column.sortable ? 38 : 16), 92);
+}
 </script>
 
 <template>
@@ -201,10 +207,13 @@ async function handleExpandChange() {
             :prop="column.key"
             :label="column.label"
             :width="column.width || undefined"
-            :min-width="column.minWidth || 140"
+            :min-width="effectiveDetailColumnMinWidth(column)"
             :sortable="column.sortable ? 'custom' : false"
             show-overflow-tooltip
           >
+            <template #header>
+              <SmartTableHeader :label="column.label" />
+            </template>
             <template #default="{ row }: { row: DetailDisplayRow }">
               <StatisticBoardDetailCell :column="column" :cell="row.cells[column.key]" />
             </template>

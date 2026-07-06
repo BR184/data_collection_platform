@@ -5,6 +5,7 @@ import type { Component } from 'vue';
 // 这里不做字段推导，列组和格式化规则都由上层统计配置决定。
 import { ArrowRight } from '@element-plus/icons-vue';
 import StatisticTableColumnGroup from './StatisticTableColumnGroup.vue';
+import SmartTableHeader from './SmartTableHeader.vue';
 import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
 import type {
   StatisticBoardResponse,
@@ -155,7 +156,9 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
             class="stat-column-header first-column"
             :class="{ sorting: sortDirectionForColumn(ROW_LABEL_SORT_KEY) !== 'default' }"
           >
-            <span class="stat-column-header-label" :title="rowHeaderLabel">{{ rowHeaderLabel }}</span>
+            <span class="stat-column-header-label">
+              <SmartTableHeader :label="rowHeaderLabel" align="left" />
+            </span>
             <span class="stat-header-zone stat-header-zone-right">
               <button
                 class="sort-trigger"

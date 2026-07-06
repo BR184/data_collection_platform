@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ArrowDown, ArrowRight, ArrowUp, Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
+import SmartTableHeader from '../components/base/SmartTableHeader.vue';
 import type {
   TestingPhaseDefinitionResponse,
   TestingPhaseDefinitionSaveRequest,
@@ -530,7 +531,11 @@ function nextChildSortOrder() {
         </template>
         <el-table v-if="selectedGroup" v-loading="loading" :data="childRows" row-key="id" border>
           <el-table-column prop="childSortOrder" label="排序" width="74" />
-          <el-table-column prop="testingPhase" label="测试阶段名称" min-width="220" />
+          <el-table-column prop="testingPhase" label="测试阶段名称" min-width="220">
+            <template #header>
+              <SmartTableHeader label="测试阶段名称" />
+            </template>
+          </el-table-column>
           <el-table-column prop="legacySourceId" label="老平台ID" min-width="166" />
           <el-table-column prop="issueCount" label="议题数" width="82" />
           <el-table-column label="状态" width="82">

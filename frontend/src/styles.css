@@ -870,12 +870,12 @@ button {
 .stat-group-header-label,
 .stat-column-header-label {
   display: block;
-  white-space: normal;
   font-weight: 600;
-  overflow: visible;
-  text-overflow: clip;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.2;
-  word-break: break-word;
+  white-space: nowrap;
+  word-break: keep-all;
   min-width: 0;
 }
 
@@ -2416,12 +2416,12 @@ a:hover {
 
 .el-table__header-wrapper th,
 .el-table .el-table__header-wrapper th.el-table__cell {
-  padding: 0 0 4px !important;
+  padding: 0 !important;
 }
 
 .stat-matrix-table .el-table__header-wrapper th,
 .stat-matrix-table .el-table__header-wrapper th.el-table__cell {
-  padding: 2px 0 6px !important;
+  padding: 0 !important;
 }
 
 .el-table .el-table__cell {
@@ -2433,6 +2433,30 @@ a:hover {
   line-height: 20px !important;
   font-size: 13px !important;
   white-space: nowrap !important;
+  word-break: keep-all !important;
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header),
+.el-table th.el-table__cell .cell:has(.smart-table-header) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 34px;
+  overflow: hidden;
+  text-align: center !important;
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header) .smart-table-header,
+.el-table th.el-table__cell .cell:has(.smart-table-header) .smart-table-header {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper,
+.el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper {
+  flex: 0 0 auto;
+  margin-left: 0;
 }
 
 .stat-matrix-table .el-table__header-wrapper .cell,

@@ -117,7 +117,10 @@ function Copy-Directory([string]$Source, [string]$Destination) {
     Remove-Item -LiteralPath $Destination -Recurse -Force
   }
   New-Item -ItemType Directory -Path $Destination | Out-Null
-  Copy-Item -LiteralPath (Join-Path $Source '*') -Destination $Destination -Recurse -Force
+  Get-ChildItem -LiteralPath $Source -Force |
+    ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse -Force
+    }
 }
 
 function Get-GitValue([string[]]$GitArgs) {
