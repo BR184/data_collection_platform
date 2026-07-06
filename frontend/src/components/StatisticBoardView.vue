@@ -623,10 +623,13 @@ onMounted(() => {
 });
 
 async function autoRefreshPageData() {
-  if (!autoRefreshOnEnter.value) {
+  if (!autoRefreshOnEnter.value || !canRefreshRealtime.value) {
     return;
   }
   await waitForInitialBoardLoad();
+  if (!canRefreshRealtime.value) {
+    return;
+  }
   const markerKey = autoRefreshMarkerKey();
   if (window.sessionStorage.getItem(markerKey) === 'true') {
     return;
