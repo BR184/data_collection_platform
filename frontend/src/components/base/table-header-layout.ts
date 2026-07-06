@@ -40,6 +40,16 @@ const MANUAL_HEADER_LINES: Record<string, TableHeaderLines> = {
   '评审工作量(小时)': ['评审工作量', '(小时)'],
   '评审工作量（小时）': ['评审工作量', '（小时）'],
   '在文档中的位置': ['在文档中的', '位置'],
+  '是否达标': ['是否', '达标'],
+};
+
+const COMPACT_HEADER_LINES: Record<string, TableHeaderLines> = {
+  '评审缺陷密度(个/页)': ['评审', '密度(个/页)'],
+  '评审缺陷密度（个/页）': ['评审', '密度（个/页）'],
+  '问题合计(个)': ['问题', '合计(个)'],
+  '问题合计（个）': ['问题', '合计（个）'],
+  '缺陷密度(个/页)': ['缺陷', '(个/页)'],
+  '缺陷密度（个/页）': ['缺陷', '（个/页）'],
 };
 
 const PHRASE_BOUNDARIES = [
@@ -113,6 +123,18 @@ export function normalizeTableHeaderLines(label: string, explicitLines?: readonl
   return [normalizedLabel];
 }
 
+export function compactTableHeaderLines(label: string, explicitLines?: readonly string[] | null): TableHeaderLines {
+  const normalizedLabel = normalizeLabel(label);
+  if (COMPACT_HEADER_LINES[normalizedLabel]) {
+    return COMPACT_HEADER_LINES[normalizedLabel];
+  }
+  const lines = normalizeTableHeaderLines(label, explicitLines);
+  if (lines.length === 1) {
+    return lines;
+  }
+  return [compactLeadingLine(lines[0]), lines[1]];
+}
+
 export function tableHeaderLongestLineUnits(label: string, explicitLines?: readonly string[] | null) {
   return Math.max(...normalizeTableHeaderLines(label, explicitLines).map(visualTextUnits));
 }
@@ -137,6 +159,16 @@ function normalizeExplicitLines(explicitLines?: readonly string[] | null): Table
     return [lines[0]];
   }
   return [lines[0], lines.slice(1).join(' ')];
+}
+
+function compactLeadingLine(line: string) {
+  const trailingWords = ['缺陷', '问题', '数量', '合计', '工作量', '数据', '内容'];
+  for (const word of trailingWords) {
+    if (line.endsWith(word) && visualTextUnits(line.slice(0, -word.length)) >= 4) {
+      return line.slice(0, -word.length);
+    }
+  }
+  return line;
 }
 
 function splitUnitSuffix(label: string): TableHeaderLines | null {
