@@ -39,7 +39,20 @@ public class SyncRunTableWorkerService {
     if (workers == 1) {
       return drainRunTasksSerial(runId, "table-worker");
     }
-    return drainRunTasksParallel(runId, workers);
+    int processed = 0;
+    while (!isRunCancellationRequested(runId)) {
+      int roundProcessed = drainRunTasksParallelRound(runId, workers);
+      processed += roundProcessed;
+      RunTableTaskSummary summary = summarizeRun(runId);
+      if (summary.pendingTasks() <= 0) {
+        break;
+      }
+      if (roundProcessed <= 0) {
+        break;
+      }
+      log.info("Continuing sync table drain for runId={}, pendingTasks={}", runId, summary.pendingTasks());
+    }
+    return processed;
   }
 
   private int drainRunTasksSerial(Long runId, String owner) {
@@ -60,7 +73,7 @@ public class SyncRunTableWorkerService {
     return processed;
   }
 
-  private int drainRunTasksParallel(Long runId, int workerCount) {
+  private int drainRunTasksParallelRound(Long runId, int workerCount) {
     AtomicInteger processed = new AtomicInteger();
     ExecutorService executor = Executors.newFixedThreadPool(workerCount, new TableWorkerThreadFactory());
     List<Future<?>> futures = new ArrayList<>(workerCount);

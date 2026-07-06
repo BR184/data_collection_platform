@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { EditPen, Plus, WarningFilled } from '@element-plus/icons-vue';
 // 问题项面板挂在评审记录行下方，用于展示专家问题列表和行内新增入口。
 // 它只接收父级传入的问题数据，实际加载与保存流程交给 review-data composable。
@@ -19,23 +18,15 @@ const props = defineProps<{
   canManage?: boolean;
 }>();
 
-const problemTableStyle = computed(() => {
-  const dataColumnsWidth = props.columns.reduce((total, column) => total + (column.width ?? effectiveColumnMinWidth(column)), 0);
-  const actionWidth = props.canManage ? 136 : 0;
-  return {
-    width: `${dataColumnsWidth + actionWidth + 2}px`,
-    minWidth: '100%',
-  };
-});
-
 function isPendingReview(row: Record<string, unknown>) {
   const raw = row.__raw as ReviewDataProblemItemResponse | undefined;
   return String(raw?.problemStatus ?? '').trim() === '未评审';
 }
 
 function effectiveColumnMinWidth(column: RecordTableColumn) {
-  const minimumFloor = column.type === 'number' ? 68 : 92;
-  return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, 16, column.headerLines), minimumFloor);
+  const reservePx = column.sortable ? 20 : 8;
+  const minimumFloor = column.type === 'number' ? 56 : column.type === 'tag' ? 72 : 78;
+  return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, reservePx, column.headerLines), minimumFloor);
 }
 </script>
 
@@ -57,7 +48,8 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
         border
         stripe
         empty-text="当前评审下还没有录入问题清单。"
-        :style="problemTableStyle"
+        fit
+        style="width: 100%; min-width: 100%;"
       >
       <el-table-column
         v-for="column in columns"
@@ -67,10 +59,11 @@ function effectiveColumnMinWidth(column: RecordTableColumn) {
         :width="column.width"
         :min-width="effectiveColumnMinWidth(column)"
         :align="column.align ?? 'left'"
+        :header-align="column.headerAlign ?? 'center'"
         :show-overflow-tooltip="column.showOverflowTooltip ?? true"
       >
         <template #header>
-          <SmartTableHeader :label="column.label" :lines="column.headerLines" />
+          <SmartTableHeader :label="column.label" :lines="column.headerLines" :align="column.headerAlign ?? 'center'" />
         </template>
         <template #default="{ row }">
           <template v-if="column.type === 'tag'">

@@ -66,8 +66,8 @@ public class FactRefreshTaskWorkerService {
         default -> throw new IllegalArgumentException("Unsupported fact refresh type: " + task.factType());
       };
       taskService.finishQueuedTask(task.id(), "SUCCESS", response.affectedRows(), response.message(), null);
-      snapshotRefreshService.refreshAfterFactBuild(factType, task.full());
-      pageRecordSnapshotRefreshService.refreshAfterFactBuild(factType, task.full());
+      snapshotRefreshService.refreshAfterFactBuild(factType, response.full());
+      pageRecordSnapshotRefreshService.refreshAfterFactBuild(factType, response.full());
       return response;
     } catch (Exception e) {
       taskService.finishQueuedTask(task.id(), "FAILED", 0, "事实数据刷新失败", e.getMessage());
@@ -84,6 +84,10 @@ public class FactRefreshTaskWorkerService {
     if (task.full()) {
       return factBuildService.rebuildIssueFactsForQueuedTask(config, true);
     }
+    if (!taskService.hasSuccessfulFullBuild(task.sourceInstance(), factType)) {
+      taskService.markQueuedTaskFullBuild(task.id());
+      return factBuildService.rebuildIssueFactsForQueuedTask(config, true);
+    }
     FactRefreshImpactScopeService.ImpactScope scope =
         impactScopeService.resolve(task.mirrorRunId(), task.sourceInstance(), factType);
     if (scope.fallbackRequired()) {
@@ -94,6 +98,10 @@ public class FactRefreshTaskWorkerService {
 
   private FactBuildResponse rebuildMergeRequestFacts(QueuedFactBuildTask task, GitlabSyncConfig config, String factType) {
     if (task.full()) {
+      return factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true);
+    }
+    if (!taskService.hasSuccessfulFullBuild(task.sourceInstance(), factType)) {
+      taskService.markQueuedTaskFullBuild(task.id());
       return factBuildService.rebuildMergeRequestFactsForQueuedTask(config, true);
     }
     FactRefreshImpactScopeService.ImpactScope scope =

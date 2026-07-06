@@ -78,6 +78,7 @@ public class CollectFormController {
   }
 
   @PostMapping("/delete")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Boolean> delete(
       @Valid @RequestBody DeleteRequest request,
       HttpServletRequest servletRequest) {

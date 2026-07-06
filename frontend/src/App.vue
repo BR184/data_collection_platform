@@ -3,9 +3,9 @@ import { Expand, Fold, Lock, Loading, User } from '@element-plus/icons-vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
-import { ElMessage } from './element-plus-services';
+import { ElMessage, ElMessageBox } from './element-plus-services';
 import { api } from './api';
-import { computed, defineAsyncComponent, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import {
   canAccessPageKey,
@@ -18,8 +18,9 @@ import {
   type ShellModule,
 } from './feature-manifest';
 import { shellDataScopeState } from './composables/shell-data-scope';
-import { authState, loadCurrentUser, login, logout } from './composables/auth-state';
+import { authState, loadCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
 import { routerState } from './router-state';
+import { AUTH_REQUIRED_EVENT } from './api-client/request';
 
 const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/DataScopeBar.vue'));
 
@@ -27,6 +28,8 @@ const route = useRoute();
 const router = useRouter();
 const loginDialogVisible = ref(false);
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'platform-shell-sidebar-collapsed';
+const SESSION_IDLE_CONFIRM_MS = resolveSessionIdleConfirmMs();
+const AUTH_REQUIRED_EVENT_NAME = AUTH_REQUIRED_EVENT;
 const loginForm = reactive({
   username: '',
   password: '',
@@ -34,6 +37,8 @@ const loginForm = reactive({
 type InputFocusTarget = { focus: () => void };
 const usernameInputRef = ref<InputFocusTarget>();
 const passwordInputRef = ref<InputFocusTarget>();
+const sessionConfirmVisible = ref(false);
+let sessionIdleTimer: ReturnType<typeof window.setTimeout> | undefined;
 
 const currentUser = computed(() => authState.currentUser);
 const matchModeEnabled = ref(true);
@@ -76,6 +81,11 @@ const authModeTagType = computed(() => {
 });
 const sidebarCollapsed = ref(readSidebarCollapsedPreference());
 
+function resolveSessionIdleConfirmMs() {
+  const configured = Number(import.meta.env.VITE_AUTH_IDLE_CONFIRM_MS);
+  return Number.isFinite(configured) && configured > 0 ? configured : 25 * 60 * 1000;
+}
+
 function filterModulePagesForRuntime(module: ShellModule): ShellModule | null {
   if (module.key !== 'code-review' || !hideCodeReviewMultiBoard.value) {
     return module;
@@ -99,6 +109,74 @@ function toggleSidebarCollapsed() {
   } catch {
     // Browser privacy modes can reject localStorage writes; the in-memory state still works.
   }
+}
+
+function clearSessionIdleTimer() {
+  if (sessionIdleTimer !== undefined) {
+    window.clearTimeout(sessionIdleTimer);
+    sessionIdleTimer = undefined;
+  }
+}
+
+function scheduleSessionIdleConfirm() {
+  clearSessionIdleTimer();
+  if (!currentUser.value.authenticated || SESSION_IDLE_CONFIRM_MS <= 0) {
+    return;
+  }
+  sessionIdleTimer = window.setTimeout(() => {
+    void confirmSessionStatus();
+  }, SESSION_IDLE_CONFIRM_MS);
+}
+
+function recordUserActivity() {
+  if (!sessionConfirmVisible.value) {
+    scheduleSessionIdleConfirm();
+  }
+}
+
+async function confirmSessionStatus() {
+  if (!currentUser.value.authenticated || sessionConfirmVisible.value) {
+    return;
+  }
+  sessionConfirmVisible.value = true;
+  try {
+    await ElMessageBox.confirm(
+      '当前登录状态长时间未活动。为保护数据安全，请确认是否继续保持登录。',
+      '登录状态确认',
+      {
+        confirmButtonText: '保持登录',
+        cancelButtonText: '退出登录',
+        type: 'warning',
+        closeOnClickModal: false,
+        closeOnPressEscape: false,
+      },
+    );
+    await loadCurrentUser();
+    if (authState.currentUser.authenticated) {
+      ElMessage.success('已保持登录状态');
+      scheduleSessionIdleConfirm();
+    } else {
+      loginDialogVisible.value = true;
+      ElMessage.warning('登录状态已过期，请重新登录');
+    }
+  } catch {
+    await handleLogout();
+  } finally {
+    sessionConfirmVisible.value = false;
+  }
+}
+
+async function handleAuthRequired(event: Event) {
+  const message = event instanceof CustomEvent && typeof event.detail?.message === 'string'
+    ? event.detail.message
+    : '登录状态已过期，请重新登录';
+  clearSessionIdleTimer();
+  setGuestUser(message);
+  loginDialogVisible.value = true;
+  ElMessage.warning(message.includes('登录') ? message : '登录状态已过期，请重新登录');
+  ensureRouteAccess();
+  await nextTick();
+  await focusUsernameInput();
 }
 
 function openModule(moduleKey: string) {
@@ -181,6 +259,7 @@ async function handleLogin() {
     loginDialogVisible.value = false;
     loginForm.password = '';
     ElMessage.success('登录成功');
+    scheduleSessionIdleConfirm();
     ensureRouteAccess();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '登录失败');
@@ -188,6 +267,7 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
+  clearSessionIdleTimer();
   await logout();
   ElMessage.success('已退出登录');
   ensureRouteAccess();
@@ -197,6 +277,17 @@ onMounted(async () => {
   if (!authState.initialized) {
     await loadCurrentUser();
   }
+  window.addEventListener(AUTH_REQUIRED_EVENT_NAME, handleAuthRequired);
+  window.addEventListener('pointerdown', recordUserActivity, { passive: true });
+  window.addEventListener('keydown', recordUserActivity);
+  scheduleSessionIdleConfirm();
+});
+
+onBeforeUnmount(() => {
+  clearSessionIdleTimer();
+  window.removeEventListener(AUTH_REQUIRED_EVENT_NAME, handleAuthRequired);
+  window.removeEventListener('pointerdown', recordUserActivity);
+  window.removeEventListener('keydown', recordUserActivity);
 });
 
 watch(
@@ -215,7 +306,10 @@ watch(
     matchModeStatusLoaded.value,
     matchModeEnabled.value,
   ] as const,
-  () => ensureRouteAccess(),
+  () => {
+    ensureRouteAccess();
+    scheduleSessionIdleConfirm();
+  },
 );
 </script>
 

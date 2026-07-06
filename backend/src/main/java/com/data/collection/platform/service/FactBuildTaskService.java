@@ -107,6 +107,13 @@ public class FactBuildTaskService {
            and status = ?
            and lease_until < current_timestamp
            and retry_count < max_retry_count
+           and not exists (
+             select 1
+               from sync_runs run
+              where run.id::text = fact_build_tasks.run_id
+                and run.run_type = 'FACT_REFRESH'
+                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+           )
         """,
         STATUS_PENDING,
         TRIGGER_MIRROR_SYNC,
@@ -122,6 +129,13 @@ public class FactBuildTaskService {
            and status = ?
            and lease_until < current_timestamp
            and retry_count >= max_retry_count
+           and not exists (
+             select 1
+               from sync_runs run
+              where run.id::text = fact_build_tasks.run_id
+                and run.run_type = 'FACT_REFRESH'
+                and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+           )
         """,
         STATUS_TIMEOUT,
         TRIGGER_MIRROR_SYNC,
@@ -145,6 +159,13 @@ public class FactBuildTaskService {
             where status = ?
               and trigger_type = ?
               and run_after <= current_timestamp
+              and not exists (
+                select 1
+                  from sync_runs run
+                 where run.id::text = fact_build_tasks.run_id
+                   and run.run_type = 'FACT_REFRESH'
+                   and run.status in ('SUBMITTED', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING')
+              )
             order by created_at asc, id asc
             for update skip locked
             limit 1
@@ -200,6 +221,20 @@ public class FactBuildTaskService {
     finishTask(taskId, status, affectedRows, message, errorMessage);
   }
 
+  public void markQueuedTaskFullBuild(Long taskId) {
+    if (taskId == null) {
+      return;
+    }
+    jdbcTemplate.update(
+        """
+        update fact_build_tasks
+           set full_build = true,
+               updated_at = current_timestamp
+         where id = ?
+        """,
+        taskId);
+  }
+
   public FactBuildTaskResponse latest(String scope) {
     String safeScope = TextQuerySupport.trimToNull(scope);
     List<FactBuildTaskResponse> rows =
@@ -223,6 +258,33 @@ public class FactBuildTaskService {
                 (rs, rowNum) -> mapTask(rs),
                 normalizeScope(safeScope));
     return rows.isEmpty() ? null : rows.getFirst();
+  }
+
+  public boolean hasSuccessfulFullBuild(String sourceInstance, String factType) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
+    String normalizedFactType = factType == null ? "" : factType.trim().toUpperCase(Locale.ROOT);
+    String normalizedScope = factScope(normalizedFactType, normalizedSource);
+    String normalizedAllScope = factScope("all", normalizedSource);
+    Long count =
+        jdbcTemplate.queryForObject(
+            """
+            select count(*)
+              from fact_build_tasks
+             where status = ?
+               and full_build = true
+               and (
+                    (source_instance = ? and upper(coalesce(fact_type, '')) = ?)
+                 or lower(coalesce(scope, '')) = ?
+                 or lower(coalesce(scope, '')) = ?
+               )
+            """,
+            Long.class,
+            STATUS_SUCCESS,
+            normalizedSource,
+            normalizedFactType,
+            normalizedScope,
+            normalizedAllScope);
+    return count != null && count > 0;
   }
 
   private Long startTask(String scope, boolean full) {

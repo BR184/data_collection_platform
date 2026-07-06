@@ -1,6 +1,7 @@
 const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const CSRF_HEADER_NAME = 'X-XSRF-TOKEN';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+export const AUTH_REQUIRED_EVENT = 'platform-auth-required';
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const EXPORT_REQUEST_TIMEOUT_MS = 180_000;
 
@@ -64,6 +65,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   const payload: any = parseJsonPayload(rawText);
 
   if (!response.ok) {
+    notifyAuthRequired(response.status, payload?.message || rawText);
     throw new Error(payload?.message || rawText || `请求失败，状态码：${response.status}`);
   }
 
@@ -150,9 +152,22 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
   }
 
   if (!response.ok) {
-    throw new Error(await parseErrorMessage(response, errorPrefix));
+    const message = await parseErrorMessage(response, errorPrefix);
+    notifyAuthRequired(response.status, message);
+    throw new Error(message);
   }
   return response;
+}
+
+function notifyAuthRequired(status: number, message?: string) {
+  if (status !== 401 || typeof window === 'undefined') {
+    return;
+  }
+  window.dispatchEvent(new CustomEvent(AUTH_REQUIRED_EVENT, {
+    detail: {
+      message: message || '登录状态已过期，请重新登录',
+    },
+  }));
 }
 
 function parseContentDispositionFilename(contentDisposition: string | null): string | undefined {

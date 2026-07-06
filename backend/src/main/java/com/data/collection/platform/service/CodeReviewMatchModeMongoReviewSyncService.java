@@ -36,6 +36,8 @@ public class CodeReviewMatchModeMongoReviewSyncService {
   private static final String RAW_TARGET_TABLE = "legacy_mongo_imported_documents";
   private static final String REVIEW_REPORT_TABLE = "review_data_match_mode_reports";
   private static final String REVIEW_PROBLEM_TABLE = "review_data_match_mode_problem_details";
+  private static final String REVIEW_DESCRIPTION_TABLE = "review_data_match_mode_descriptions";
+  private static final String REVIEW_DESCRIPTION_COLLECTION = "description";
   private static final DateTimeFormatter LEGACY_DATE_TIME =
       new DateTimeFormatterBuilder()
           .appendPattern("d/M/yyyy H:mm:ss")
@@ -136,6 +138,10 @@ public class CodeReviewMatchModeMongoReviewSyncService {
       }
       if (summary.documentsByCollection().containsKey(config.reviewProblemCollectionName())) {
         replaceReviewProblems(summary.documentsByCollection().get(config.reviewProblemCollectionName()));
+      }
+      if (summary.documentsByCollection().containsKey(REVIEW_DESCRIPTION_COLLECTION)) {
+        replaceReviewDescriptions(summary.documentsByCollection().get(REVIEW_DESCRIPTION_COLLECTION));
+        refreshMaterializedReviewDescriptions();
       }
     });
   }
@@ -270,6 +276,99 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     if (!batch.isEmpty()) {
       jdbcTemplate.batchUpdate(sql, batch);
     }
+  }
+
+  private void replaceReviewDescriptions(List<Document> documents) {
+    jdbcTemplate.execute("truncate table " + REVIEW_DESCRIPTION_TABLE);
+    String sql = """
+        insert into review_data_match_mode_descriptions (
+          legacy_id, review_product, version, author, review_scale_pages, unit, raw_payload, synced_at
+        ) values (
+          ?, ?, ?, ?, ?, ?, ?::jsonb, current_timestamp
+        )
+        """;
+    List<Object[]> batch = new ArrayList<>();
+    for (int index = 0; index < documents.size(); index++) {
+      Document document = documents.get(index);
+      batch.add(new Object[] {
+          documentKey(REVIEW_DESCRIPTION_COLLECTION, document, index + 1),
+          text(document, "reviewProduct"),
+          text(document, "version"),
+          text(document, "author"),
+          intValue(document.get("count")),
+          text(document, "unit"),
+          document.toJson()
+      });
+      if (batch.size() >= 500) {
+        jdbcTemplate.batchUpdate(sql, batch);
+        batch.clear();
+      }
+    }
+    if (!batch.isEmpty()) {
+      jdbcTemplate.batchUpdate(sql, batch);
+    }
+  }
+
+  private void refreshMaterializedReviewDescriptions() {
+    jdbcTemplate.update("""
+        with source_pages as (
+          select
+            link.review_record_id,
+            sum(greatest(coalesce(description.review_scale_pages, 0), 0))::integer as review_scale_pages,
+            (array_agg(nullif(description.review_product, '') order by description.id))[1] as review_product,
+            (array_agg(nullif(description.version, '') order by description.id))[1] as review_version,
+            (array_agg(nullif(description.author, '') order by description.id))[1] as author_name
+          from review_data_match_mode_edit_links link
+          join review_data_match_mode_reports report
+            on report.legacy_id = link.match_mode_report_legacy_id
+          join review_data_match_mode_descriptions description
+            on report.description_ids like '%' || description.legacy_id || '%'
+          group by link.review_record_id
+        )
+        update review_records record
+           set review_scale_pages = source_pages.review_scale_pages,
+               review_product = coalesce(source_pages.review_product, record.review_product),
+               review_version = coalesce(source_pages.review_version, record.review_version),
+               author_name = coalesce(source_pages.author_name, record.author_name),
+               updated_at = current_timestamp
+          from source_pages
+         where record.id = source_pages.review_record_id
+           and source_pages.review_scale_pages > 0
+        """);
+    jdbcTemplate.update("""
+        with source_pages as (
+          select
+            link.review_record_id,
+            sum(greatest(coalesce(description.review_scale_pages, 0), 0))::integer as review_scale_pages,
+            (array_agg(nullif(description.review_product, '') order by description.id))[1] as review_product,
+            (array_agg(nullif(description.version, '') order by description.id))[1] as review_version,
+            (array_agg(nullif(description.author, '') order by description.id))[1] as author_name
+          from review_data_match_mode_edit_links link
+          join review_data_match_mode_reports report
+            on report.legacy_id = link.match_mode_report_legacy_id
+          join review_data_match_mode_descriptions description
+            on report.description_ids like '%' || description.legacy_id || '%'
+          group by link.review_record_id
+        ),
+        primary_descriptions as (
+          select distinct on (review_record_id)
+                 id,
+                 review_record_id
+            from review_record_descriptions
+           where deleted = false
+           order by review_record_id, sort_order asc, id asc
+        )
+        update review_record_descriptions description
+           set review_scale_pages = source_pages.review_scale_pages,
+               review_product = coalesce(source_pages.review_product, description.review_product),
+               review_version = coalesce(source_pages.review_version, description.review_version),
+               author_name = coalesce(source_pages.author_name, description.author_name),
+               updated_at = current_timestamp
+          from primary_descriptions primary_description
+          join source_pages on source_pages.review_record_id = primary_description.review_record_id
+         where description.id = primary_description.id
+           and source_pages.review_scale_pages > 0
+        """);
   }
 
   private String listText(Document document, String fieldName) {

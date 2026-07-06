@@ -12,7 +12,11 @@ const cell = computed(() => resolveRecordTableCellDisplay(props.value));
 </script>
 
 <template>
-  <div v-if="column.type === 'tags'" class="record-table-tags">
+  <div
+    v-if="column.type === 'tags'"
+    class="record-table-tags"
+    :class="`record-table-tags--${column.align ?? 'center'}`"
+  >
     <el-tag
       v-for="tag in cell.tags"
       :key="`${column.key}-${tag.label}`"
@@ -57,6 +61,14 @@ const cell = computed(() => resolveRecordTableCellDisplay(props.value));
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.record-table-tags--left {
+  justify-content: flex-start;
+}
+
+.record-table-tags--right {
+  justify-content: flex-end;
 }
 
 .record-table-link {

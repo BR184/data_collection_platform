@@ -552,6 +552,19 @@ create table if not exists review_data_match_mode_problem_details (
     unique (legacy_id)
 );
 
+create table if not exists review_data_match_mode_descriptions (
+    id bigserial primary key,
+    legacy_id varchar(128) not null,
+    review_product varchar(512),
+    version varchar(128),
+    author varchar(128),
+    review_scale_pages integer,
+    unit varchar(64),
+    raw_payload jsonb,
+    synced_at timestamp not null default current_timestamp,
+    unique (legacy_id)
+);
+
 create table if not exists review_data_match_mode_edit_links (
     id bigserial primary key,
     match_mode_report_id bigint not null,
@@ -593,7 +606,7 @@ create table if not exists issue_fact (
     issue_type varchar(128),
     milestone_title varchar(255),
     author_name varchar(128),
-    assignee_name varchar(128),
+    assignee_name text,
     created_at_source timestamp,
     updated_at_source timestamp,
     ods_updated_at timestamp,
@@ -609,7 +622,7 @@ create table if not exists issue_fact (
     urgency varchar(64),
     bug_status varchar(128),
     category varchar(255),
-    reason_category varchar(255),
+    reason_category text,
     system_test_label varchar(255),
     label_names text,
     primary_phase_label varchar(255),
@@ -938,7 +951,7 @@ alter table issue_fact add column if not exists function_name varchar(255);
 alter table merge_request_fact add column if not exists ods_updated_at timestamp;
 alter table issue_fact add column if not exists severity_alias varchar(128);
 alter table issue_fact add column if not exists priority_level varchar(64);
-alter table issue_fact add column if not exists reason_category varchar(255);
+alter table issue_fact add column if not exists reason_category text;
 alter table issue_fact add column if not exists is_excluded boolean not null default false;
 alter table issue_fact add column if not exists exclusion_reason varchar(255);
 alter table issue_fact add column if not exists is_fixed boolean not null default false;
@@ -1064,6 +1077,8 @@ create index if not exists idx_review_match_mode_reports_query
     on review_data_match_mode_reports(project_name, module_name, review_time desc, id desc);
 create index if not exists idx_review_match_mode_problem_legacy
     on review_data_match_mode_problem_details(legacy_id);
+create index if not exists idx_review_match_mode_description_legacy
+    on review_data_match_mode_descriptions(legacy_id);
 create index if not exists idx_review_match_mode_edit_links_record
     on review_data_match_mode_edit_links(review_record_id);
 create index if not exists idx_review_match_mode_problem_edit_links_record

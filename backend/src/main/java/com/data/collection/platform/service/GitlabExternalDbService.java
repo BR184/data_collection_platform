@@ -344,7 +344,7 @@ public class GitlabExternalDbService implements DisposableBean {
       return localDateTime;
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+      return timestamp.toLocalDateTime();
     }
     if (value instanceof java.util.Date date) {
       return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);
@@ -483,7 +483,7 @@ public class GitlabExternalDbService implements DisposableBean {
       return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+      return timestamp.toLocalDateTime();
     }
     if (value instanceof java.util.Date date) {
       return LocalDateTime.ofInstant(date.toInstant(), ZoneOffset.UTC);

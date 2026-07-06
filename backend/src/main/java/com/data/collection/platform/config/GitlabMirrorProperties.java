@@ -36,6 +36,9 @@ public class GitlabMirrorProperties {
   private int largeTableShardKeyLength = 1;
   private long largeTableShardMinRows = 50000L;
   private int customerIssueDelayCheckDelayMs = 3600000;
+  private boolean customerIssueDelayPreWritebackSyncEnabled = true;
+  private int customerIssueDelayPreWritebackSyncTimeoutSeconds = 180;
+  private String customerIssueDelayPreWritebackSyncTables = "issues,notes,label_links,labels";
 
   public boolean isSchedulerEnabled() {
     return schedulerEnabled;
@@ -291,5 +294,29 @@ public class GitlabMirrorProperties {
 
   public void setCustomerIssueDelayCheckDelayMs(int customerIssueDelayCheckDelayMs) {
     this.customerIssueDelayCheckDelayMs = customerIssueDelayCheckDelayMs;
+  }
+
+  public boolean isCustomerIssueDelayPreWritebackSyncEnabled() {
+    return customerIssueDelayPreWritebackSyncEnabled;
+  }
+
+  public void setCustomerIssueDelayPreWritebackSyncEnabled(boolean customerIssueDelayPreWritebackSyncEnabled) {
+    this.customerIssueDelayPreWritebackSyncEnabled = customerIssueDelayPreWritebackSyncEnabled;
+  }
+
+  public int getCustomerIssueDelayPreWritebackSyncTimeoutSeconds() {
+    return customerIssueDelayPreWritebackSyncTimeoutSeconds;
+  }
+
+  public void setCustomerIssueDelayPreWritebackSyncTimeoutSeconds(int customerIssueDelayPreWritebackSyncTimeoutSeconds) {
+    this.customerIssueDelayPreWritebackSyncTimeoutSeconds = customerIssueDelayPreWritebackSyncTimeoutSeconds;
+  }
+
+  public String getCustomerIssueDelayPreWritebackSyncTables() {
+    return customerIssueDelayPreWritebackSyncTables;
+  }
+
+  public void setCustomerIssueDelayPreWritebackSyncTables(String customerIssueDelayPreWritebackSyncTables) {
+    this.customerIssueDelayPreWritebackSyncTables = customerIssueDelayPreWritebackSyncTables;
   }
 }

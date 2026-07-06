@@ -541,7 +541,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
         SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
     String sql = """
-        select btrim(module_name) as module_name
+        select btrim(modules.module_name) as module_name
           from issue_fact
           cross join lateral regexp_split_to_table(coalesce(module_names,''), ',') as modules(module_name)
          where deleted = false
@@ -554,7 +554,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
               queryFilters,
               phasePredicate.sql(),
               phasePredicate.args(),
-              "group by btrim(module_name) having btrim(module_name) <> ''",
+              "group by btrim(modules.module_name) having btrim(modules.module_name) <> ''",
               (rs, rowNum) -> StatisticSourceValueSupport.text(rs.getString("module_name"), ""))
           .stream()
           .filter(StringUtils::hasText)
@@ -582,7 +582,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
               queryFilters,
               phasePredicate.sql(),
               phasePredicate.args(),
-              "group by btrim(module_name) having btrim(module_name) <> ''",
+              "group by btrim(modules.module_name) having btrim(modules.module_name) <> ''",
               this::mapAggregateCounts)
           .stream()
           .collect(
@@ -624,7 +624,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private String buildBoardAggregateSql() {
     StringBuilder sql = new StringBuilder(
         """
-        select btrim(module_name) as module_name
+        select btrim(modules.module_name) as module_name
         """);
     for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
       String matched = metricMatchedSql(metric);

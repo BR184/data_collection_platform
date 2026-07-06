@@ -822,31 +822,27 @@ button {
 .stat-column-header {
   min-height: 40px;
   position: relative;
-  display: grid;
+  display: flex;
   align-items: center;
+  justify-content: center;
   width: 100%;
   color: #27415d;
   transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
 .stat-group-header {
-  grid-template-columns: 16px minmax(0, 1fr) 16px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   cursor: grab;
-  gap: 4px;
 }
 
 .stat-column-header {
-  grid-template-columns: 16px minmax(0, 1fr) 18px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   cursor: grab;
-  gap: 4px;
 }
 
 .stat-column-header.first-column {
-  grid-template-columns: minmax(0, 1fr) 18px;
-  padding: 4px 8px 4px 12px;
-  gap: 6px;
+  justify-content: flex-start;
+  padding: 4px 16px 4px 8px;
 }
 
 .stat-group-header:hover,
@@ -870,11 +866,12 @@ button {
 .stat-group-header-label,
 .stat-column-header-label {
   display: block;
+  width: 100%;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: normal;
   word-break: keep-all;
   min-width: 0;
 }
@@ -894,11 +891,23 @@ button {
 }
 
 .stat-header-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: 9px;
   min-width: 0;
+}
+
+.stat-header-zone-left {
+  left: 0;
+  pointer-events: none;
+}
+
+.stat-header-zone-right {
+  right: 0;
 }
 
 .stat-header-zone-placeholder {
@@ -910,7 +919,7 @@ button {
 }
 
 .drag-handle {
-  width: 10px;
+  width: 8px;
   height: 14px;
   display: inline-grid;
   grid-template-columns: repeat(2, 1fr);
@@ -924,14 +933,14 @@ button {
 }
 
 .drag-handle span {
-  width: 3px;
-  height: 3px;
+  width: 2.5px;
+  height: 2.5px;
   border-radius: 999px;
   background: currentColor;
 }
 
 .drag-handle.subtle {
-  width: 10px;
+  width: 8px;
 }
 
 .stat-group-header:hover .drag-handle,
@@ -962,11 +971,11 @@ button {
 }
 
 .sort-trigger {
-  min-width: 20px;
-  width: 20px;
+  min-width: 13px;
+  width: 13px;
   height: 20px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   padding: 0;
   display: inline-flex;
@@ -987,7 +996,7 @@ button {
 }
 
 .sort-trigger-icon {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
 }
 
@@ -2438,36 +2447,58 @@ a:hover {
 
 .el-table__header-wrapper .cell:has(.smart-table-header),
 .el-table th.el-table__cell .cell:has(.smart-table-header) {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
   min-height: 34px;
-  padding: 0 4px !important;
+  padding: 0 2px !important;
   overflow: hidden;
   text-align: center !important;
 }
 
 .el-table__header-wrapper th.is-sortable .cell:has(.smart-table-header),
 .el-table th.is-sortable.el-table__cell .cell:has(.smart-table-header) {
-  padding-right: 2px !important;
+  padding-right: 0 !important;
 }
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .smart-table-header,
 .el-table th.el-table__cell .cell:has(.smart-table-header) .smart-table-header {
   flex: 1 1 auto;
-  width: auto;
+  width: 100%;
+  padding: 0 6px;
+  box-sizing: border-box;
 }
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper,
 .el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper {
-  flex: 0 0 16px;
-  width: 16px;
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  z-index: 1;
+  flex: 0 0 auto;
+  width: 8px;
   height: 14px;
-  margin-left: -1px;
+  margin-left: 0;
   overflow: visible;
-  transform: scale(0.82);
-  transform-origin: center center;
+  transform: translateY(-50%);
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper .sort-caret,
+.el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper .sort-caret {
+  left: 1px;
+  border-width: 3px;
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper .sort-caret.ascending,
+.el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper .sort-caret.ascending {
+  top: 1px;
+}
+
+.el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper .sort-caret.descending,
+.el-table th.el-table__cell .cell:has(.smart-table-header) .caret-wrapper .sort-caret.descending {
+  bottom: 1px;
 }
 
 .stat-matrix-table .el-table__header-wrapper .cell,
@@ -2476,6 +2507,11 @@ a:hover {
   white-space: normal !important;
   overflow: visible !important;
   text-overflow: clip !important;
+}
+
+.stat-matrix-table .el-table__header-wrapper .cell:has(.smart-table-header) .smart-table-header,
+.stat-matrix-table th.el-table__cell .cell:has(.smart-table-header) .smart-table-header {
+  padding: 0 2px;
 }
 
 .el-table .cell {

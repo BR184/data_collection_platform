@@ -143,7 +143,7 @@ async function handleExpandChange() {
 }
 
 function effectiveDetailColumnMinWidth(column: StatisticDetailColumn) {
-  return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, column.sortable ? 38 : 16), 92);
+  return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, column.sortable ? 24 : 8), 78);
 }
 </script>
 

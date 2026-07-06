@@ -16,7 +16,7 @@ class GitlabJdbcValueNormalizer {
       return odt.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+      return timestamp.toLocalDateTime();
     }
     if (value instanceof java.sql.SQLXML sqlXml) {
       try {

@@ -14,35 +14,30 @@ const rootRef = ref<HTMLElement>();
 const measureRef = ref<HTMLElement>();
 const firstLineMeasureRef = ref<HTMLElement>();
 const compactFirstLineMeasureRef = ref<HTMLElement>();
-const stacked = ref(false);
-const compacted = ref(false);
 const lines = computed(() => normalizeTableHeaderLines(props.label, props.lines));
 const compactLines = computed(() => compactTableHeaderLines(props.label, props.lines));
+const stacked = ref(lines.value.length > 1);
+const compacted = ref(false);
 const displayedLines = computed(() => (compacted.value ? compactLines.value : lines.value));
 const hasStackedCandidate = computed(() => lines.value.length > 1);
 let resizeObserver: ResizeObserver | undefined;
-const singleLineUnlockPx = 52;
 const compactTolerancePx = 8;
 
 function updateLayout() {
   const root = rootRef.value;
-  const measure = measureRef.value;
-  if (!root || !measure || !hasStackedCandidate.value) {
+  if (!root || !hasStackedCandidate.value) {
     stacked.value = false;
     compacted.value = false;
     return;
   }
+  stacked.value = true;
   const availableWidth = root.clientWidth - (props.tooltip ? 18 : 0);
-  stacked.value = availableWidth > 0 && availableWidth < measure.scrollWidth + singleLineUnlockPx;
-  if (!stacked.value) {
-    compacted.value = false;
-    return;
-  }
   const firstLineWidth = firstLineMeasureRef.value?.scrollWidth ?? 0;
   const compactFirstLineWidth = compactFirstLineMeasureRef.value?.scrollWidth ?? 0;
   compacted.value =
     compactLines.value[0] !== lines.value[0]
-    && firstLineWidth > availableWidth
+    && availableWidth > 0
+    && firstLineWidth > availableWidth + compactTolerancePx
     && compactFirstLineWidth <= availableWidth + compactTolerancePx;
 }
 
@@ -86,7 +81,12 @@ watch(
       </el-tooltip>
     </span>
     <span v-else class="smart-table-header__stack">
-      <span v-for="(line, index) in displayedLines" :key="`${line}-${index}`" class="smart-table-header__line">
+      <span
+        v-for="(line, index) in displayedLines"
+        :key="`${line}-${index}`"
+        class="smart-table-header__line"
+        :class="{ 'smart-table-header__line--primary': index === 0 }"
+      >
         <span class="smart-table-header__text">{{ line }}</span>
         <el-tooltip v-if="tooltip && index === displayedLines.length - 1" :content="tooltip" placement="top">
           <el-icon class="smart-table-header__help">
@@ -148,6 +148,7 @@ watch(
   justify-items: center;
   gap: 1px;
   line-height: 1.16;
+  overflow: visible;
 }
 
 .smart-table-header__line {
@@ -161,12 +162,22 @@ watch(
   white-space: nowrap;
 }
 
+.smart-table-header__line--primary {
+  overflow: visible;
+}
+
 .smart-table-header__text {
   display: block;
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.smart-table-header__line--primary .smart-table-header__text {
+  min-width: max-content;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .smart-table-header__measure {

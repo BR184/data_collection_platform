@@ -73,7 +73,10 @@ public class ReviewDataMatchModeRecordRepository {
     List<ProblemRow> problems = loadProblemRows().stream()
         .filter(problem -> row.problemDetailIds().contains(problem.legacyId()))
         .toList();
-    return new MatchModeRecordSource(row, problems);
+    List<DescriptionRow> descriptions = loadDescriptionRows().stream()
+        .filter(description -> row.descriptionIds().contains(description.legacyId()))
+        .toList();
+    return new MatchModeRecordSource(row, problems, descriptions);
   }
 
   //兼容模式-MatchMode
@@ -220,6 +223,10 @@ public class ReviewDataMatchModeRecordRepository {
     for (ProblemRow problem : problems) {
       problemByLegacyId.put(problem.legacyId(), problem);
     }
+    Map<String, DescriptionRow> descriptionByLegacyId = new LinkedHashMap<>();
+    for (DescriptionRow description : loadDescriptionRows()) {
+      descriptionByLegacyId.put(description.legacyId(), description);
+    }
 
     List<ReviewDataRecordRowResponse> records = new ArrayList<>();
     Map<Long, List<ReviewDataProblemItemResponse>> problemItemsByRecordId = new LinkedHashMap<>();
@@ -234,7 +241,12 @@ public class ReviewDataMatchModeRecordRepository {
               .map(problemByLegacyId::get)
               .filter(Objects::nonNull)
               .toList();
-      RecordMetrics metrics = metrics(report, reportProblems);
+      List<DescriptionRow> reportDescriptions =
+          report.descriptionIds().stream()
+              .map(descriptionByLegacyId::get)
+              .filter(Objects::nonNull)
+              .toList();
+      RecordMetrics metrics = metrics(report, reportProblems, reportDescriptions);
       String expertsSummary = String.join("、", report.reviewExperts());
       records.add(
           new ReviewDataRecordRowResponse(
@@ -246,10 +258,10 @@ public class ReviewDataMatchModeRecordRepository {
               report.reviewTime() == null ? null : report.reviewTime().toLocalDate(),
               TextQuerySupport.normalizeDisplay(report.reviewCharger()),
               expertsSummary,
-              report.defectValue(),
-              null,
-              null,
-              null,
+              metrics.reviewScalePages(),
+              firstDescriptionText(reportDescriptions, DescriptionRow::reviewProduct),
+              firstDescriptionText(reportDescriptions, DescriptionRow::author),
+              firstDescriptionText(reportDescriptions, DescriptionRow::version),
               metrics.problemCount(),
               metrics.problemDensity(),
               metrics.reviewEfficiency(),
@@ -281,14 +293,14 @@ public class ReviewDataMatchModeRecordRepository {
     return new MatchModeRows(records, problemItemsByRecordId, expertsByRecordId);
   }
 
-  private RecordMetrics metrics(ReportRow report, List<ProblemRow> problems) {
+  private RecordMetrics metrics(ReportRow report, List<ProblemRow> problems, List<DescriptionRow> descriptions) {
     int effectiveProblemCount =
         problems.isEmpty() && report.defectCountSum() != null
             ? Math.max(0, report.defectCountSum())
             : (int) problems.stream().filter(this::isEffectiveProblem).count();
     double totalWorkload =
         problems.stream().map(ProblemRow::workload).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
-    int reviewScalePages = report.defectValue() == null ? 0 : Math.max(0, report.defectValue());
+    int reviewScalePages = reviewScalePages(report, problems, descriptions);
     double problemDensity =
         reviewScalePages <= 0
             ? 0D
@@ -302,6 +314,7 @@ public class ReviewDataMatchModeRecordRepository {
             ? decimalToDouble(report.reviewRate())
             : ReviewDataNumberSupport.floorToTwoDecimals(reviewScalePages / totalWorkload);
     return new RecordMetrics(
+        reviewScalePages,
         effectiveProblemCount,
         problemDensity,
         reviewEfficiency,
@@ -315,6 +328,35 @@ public class ReviewDataMatchModeRecordRepository {
         problemCountByReviewType(problems, "独立评审"),
         workloadByReviewType(problems, "会议评审"),
         problemCountByReviewType(problems, "会议评审"));
+  }
+
+  private int reviewScalePages(ReportRow report, List<ProblemRow> problems, List<DescriptionRow> descriptions) {
+    int descriptionPages =
+        descriptions.stream()
+            .map(DescriptionRow::reviewScalePages)
+            .filter(Objects::nonNull)
+            .mapToInt(value -> Math.max(0, value))
+            .sum();
+    if (descriptionPages > 0) {
+      return descriptionPages;
+    }
+    double totalWorkload =
+        problems.stream().map(ProblemRow::workload).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
+    if (totalWorkload > 0D && report.reviewRate() != null && report.reviewRate().doubleValue() > 0D) {
+      return Math.max(0, (int) Math.round(report.reviewRate().doubleValue() * totalWorkload));
+    }
+    return 0;
+  }
+
+  private String firstDescriptionText(
+      List<DescriptionRow> descriptions, java.util.function.Function<DescriptionRow, String> mapper) {
+    for (DescriptionRow description : descriptions) {
+      String normalized = TextQuerySupport.normalizeDisplay(mapper.apply(description));
+      if (!normalized.isBlank()) {
+        return normalized;
+      }
+    }
+    return null;
   }
 
   private boolean isEffectiveProblem(ProblemRow problem) {
@@ -381,7 +423,7 @@ public class ReviewDataMatchModeRecordRepository {
                review_time, review_charger, review_experts, defect_value, defect_count_sum,
                review_defect_density, weighted_defect_density, review_efficiency, review_rate,
                doc_specification, integrity, functionality, feasibility, not_reach_stand_cause,
-               problem_detail_ids, create_time
+               problem_detail_ids, description_ids, create_time
           from review_data_match_mode_reports
          order by review_time desc nulls last, id desc
         """,
@@ -397,6 +439,16 @@ public class ReviewDataMatchModeRecordRepository {
          order by id asc
         """,
         this::mapProblemRow);
+  }
+
+  private List<DescriptionRow> loadDescriptionRows() {
+    return jdbcTemplate.query(
+        """
+        select id, legacy_id, review_product, version, author, review_scale_pages, unit
+          from review_data_match_mode_descriptions
+         order by id asc
+        """,
+        this::mapDescriptionRow);
   }
 
   private ReportRow mapReportRow(ResultSet rs, int rowNum) throws SQLException {
@@ -424,6 +476,7 @@ public class ReviewDataMatchModeRecordRepository {
         (Integer) rs.getObject("feasibility"),
         rs.getString("not_reach_stand_cause"),
         splitLooseList(rs.getString("problem_detail_ids")),
+        splitLooseList(rs.getString("description_ids")),
         rs.getTimestamp("create_time") == null ? null : rs.getTimestamp("create_time").toLocalDateTime());
   }
 
@@ -444,6 +497,17 @@ public class ReviewDataMatchModeRecordRepository {
         rs.getString("problem_status"),
         rs.getTimestamp("create_time") == null ? null : rs.getTimestamp("create_time").toLocalDateTime(),
         rs.getDate("update_time") == null ? null : rs.getDate("update_time").toLocalDate());
+  }
+
+  private DescriptionRow mapDescriptionRow(ResultSet rs, int rowNum) throws SQLException {
+    return new DescriptionRow(
+        rs.getLong("id"),
+        rs.getString("legacy_id"),
+        rs.getString("review_product"),
+        rs.getString("version"),
+        rs.getString("author"),
+        (Integer) rs.getObject("review_scale_pages"),
+        rs.getString("unit"));
   }
 
   private List<String> splitLooseList(String rawValue) {
@@ -550,7 +614,30 @@ public class ReviewDataMatchModeRecordRepository {
 
   public record MatchModeRecordSource(
       ReportRow record,
-      List<ProblemRow> problems) {}
+      List<ProblemRow> problems,
+      List<DescriptionRow> descriptions) {
+    public int reviewScalePages() {
+      int descriptionPages =
+          descriptions.stream()
+              .map(DescriptionRow::reviewScalePages)
+              .filter(Objects::nonNull)
+              .mapToInt(value -> Math.max(0, value))
+              .sum();
+      if (descriptionPages > 0) {
+        return descriptionPages;
+      }
+      double totalWorkload =
+          problems.stream().map(ProblemRow::workload).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
+      if (totalWorkload > 0D && record.reviewRate() != null && record.reviewRate().doubleValue() > 0D) {
+        return Math.max(0, (int) Math.round(record.reviewRate().doubleValue() * totalWorkload));
+      }
+      return 0;
+    }
+
+    public DescriptionRow primaryDescription() {
+      return descriptions.isEmpty() ? null : descriptions.get(0);
+    }
+  }
 
   public record ReportRow(
       Long id,
@@ -576,6 +663,7 @@ public class ReviewDataMatchModeRecordRepository {
       Integer feasibility,
       String notReachStandCause,
       List<String> problemDetailIds,
+      List<String> descriptionIds,
       LocalDateTime createTime) {}
 
   public record ProblemRow(
@@ -594,7 +682,17 @@ public class ReviewDataMatchModeRecordRepository {
       LocalDateTime createTime,
       LocalDate updateTime) {}
 
+  public record DescriptionRow(
+      Long id,
+      String legacyId,
+      String reviewProduct,
+      String version,
+      String author,
+      Integer reviewScalePages,
+      String unit) {}
+
   private record RecordMetrics(
+      Integer reviewScalePages,
       Integer problemCount,
       Double problemDensity,
       Double reviewEfficiency,

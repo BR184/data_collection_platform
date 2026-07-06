@@ -68,7 +68,7 @@ export function visualTextUnits(text: string) {
 }
 
 export function headerLabelMinimumWidth(label: string, reservePx: number) {
-  return Math.max(84, tableHeaderMinimumWidth(label, reservePx));
+  return Math.max(76, tableHeaderMinimumWidth(label, reservePx));
 }
 
 export function computeFirstColumnWidth(rows: StatisticRowData[], widthStrategy: StatisticBoardViewPrefs['widthStrategy']) {
@@ -89,7 +89,7 @@ export function computeFirstColumnMinWidth(rowHeaderLabel: string, widthStrategy
       : widthStrategy === 'header'
         ? 114
         : 126;
-  return Math.max(baseWidth, headerLabelMinimumWidth(rowHeaderLabel, 72));
+  return Math.max(baseWidth, headerLabelMinimumWidth(rowHeaderLabel, 42));
 }
 
 export function columnWidth(
@@ -98,7 +98,7 @@ export function columnWidth(
   rows: StatisticRowData[],
 ) {
   if (column.metricType.includes('count') || column.metricType.includes('ratio') || column.metricType.includes('number')) {
-    return widthStrategy === 'compact' ? 88 : widthStrategy === 'header' ? 116 : 148;
+    return widthStrategy === 'compact' ? 88 : widthStrategy === 'header' ? 116 : 140;
   }
   if (widthStrategy === 'compact') {
     return compactColumnWidth(column);
@@ -114,7 +114,7 @@ export function columnMinWidth(
   widthStrategy: StatisticBoardViewPrefs['widthStrategy'],
   rows: StatisticRowData[],
 ) {
-  return Math.max(columnWidth(column, widthStrategy, rows), headerLabelMinimumWidth(column.label, 74));
+  return Math.max(columnWidth(column, widthStrategy, rows), headerLabelMinimumWidth(column.label, 42));
 }
 
 export function columnResizable(column: StatisticColumnLeaf) {
@@ -125,11 +125,11 @@ function compactColumnWidth(column: StatisticColumnLeaf) {
   if (column.metricType.includes('time') || column.metricType.includes('date')) {
     return 124;
   }
-  return Math.min(124, Math.max(80, tableHeaderLongestLineUnits(column.label) * 6 + 18));
+  return Math.min(128, Math.max(84, tableHeaderLongestLineUnits(column.label) * 6.4 + 18));
 }
 
 function headerBasedWidth(column: StatisticColumnLeaf) {
-  return Math.min(176, Math.max(104, tableHeaderLongestLineUnits(column.label) * 7 + 28));
+  return Math.min(176, Math.max(100, tableHeaderLongestLineUnits(column.label) * 7 + 24));
 }
 
 function contentBasedWidth(column: StatisticColumnLeaf, rows: StatisticRowData[]) {

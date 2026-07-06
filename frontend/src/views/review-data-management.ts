@@ -56,8 +56,8 @@ export function reviewDataColumns(): RecordTableColumn[] {
   return [
     { key: 'title', label: '标题', sortable: true, width: 320, fixed: 'left', align: 'left', headerAlign: 'center' },
     { key: 'projectName', label: '项目', sortable: true, width: 120 },
-    { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 88, align: 'right' },
-    { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 76, align: 'right' },
+    { key: 'problemCount', label: '问题合计(个)', type: 'number', sortable: true, width: 82, align: 'right' },
+    { key: 'reviewScalePages', label: '页数', type: 'number', sortable: true, width: 64, align: 'right' },
     { key: 'problemDensity', label: '评审缺陷密度(个/页)', sortable: true, width: 118, align: 'right' },
     { key: 'reviewEfficiency', label: '评审效率(个/小时)', sortable: true, width: 112, align: 'right' },
     { key: 'reviewRate', label: '评审速率(页/小时)', sortable: true, width: 112, align: 'right' },
@@ -75,7 +75,7 @@ export function reviewDataColumns(): RecordTableColumn[] {
       headerTooltip: '达标判断：评审缺陷密度介于[0.2~0.6]',
       type: 'tag',
       sortable: true,
-      width: 110,
+      width: 78,
       align: 'center',
       fixed: 'right',
     },
@@ -84,17 +84,17 @@ export function reviewDataColumns(): RecordTableColumn[] {
 
 export function reviewProblemItemColumns(): RecordTableColumn[] {
   return [
-    { key: 'reviewerName', label: '评审专家', minWidth: 110 },
-    { key: 'workloadHours', label: '评审工作量', width: 112, align: 'right' },
-    { key: 'reviewCategory', label: '评审类别', minWidth: 110 },
-    { key: 'documentPosition', label: '在文档中的位置', minWidth: 168 },
-    { key: 'problemCategory', label: '问题类别', minWidth: 110 },
-    { key: 'problemDescription', label: '问题描述', minWidth: 220 },
-    { key: 'suggestedSolution', label: '建议解决方案', minWidth: 220 },
-    { key: 'ownerName', label: '责任人', minWidth: 110 },
-    { key: 'rejectionReason', label: '不接受理由', minWidth: 140 },
-    { key: 'problemStatus', label: '问题状态', type: 'tag', width: 110, align: 'center' },
-    { key: 'updatedAt', label: '更新日期', minWidth: 160 },
+    { key: 'reviewerName', label: '评审专家', minWidth: 96 },
+    { key: 'workloadHours', label: '评审工作量', width: 84, align: 'right' },
+    { key: 'reviewCategory', label: '评审类别', minWidth: 94 },
+    { key: 'documentPosition', label: '在文档中的位置', minWidth: 136 },
+    { key: 'problemCategory', label: '问题类别', minWidth: 94 },
+    { key: 'problemDescription', label: '问题描述', minWidth: 176 },
+    { key: 'suggestedSolution', label: '建议解决方案', minWidth: 176 },
+    { key: 'ownerName', label: '责任人', minWidth: 84 },
+    { key: 'rejectionReason', label: '不接受理由', minWidth: 112 },
+    { key: 'problemStatus', label: '问题状态', type: 'tag', width: 94, align: 'center' },
+    { key: 'updatedAt', label: '更新日期', minWidth: 130 },
   ];
 }
 

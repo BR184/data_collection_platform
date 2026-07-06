@@ -25,6 +25,14 @@ public class ReviewDataMatchModeMaterializeService {
     ReviewDataMatchModeRecordRepository.MatchModeRecordSource source =
         matchModeRecordRepository.getRecordSourceOrThrow(matchModeRecordId);
     ReviewDataMatchModeRecordRepository.ReportRow report = source.record();
+    ReviewDataMatchModeRecordRepository.DescriptionRow primaryDescription = source.primaryDescription();
+    Integer reviewScalePages = source.reviewScalePages();
+    String reviewProduct =
+        valueOrDefault(primaryDescription == null ? null : primaryDescription.reviewProduct(), report.title());
+    String reviewVersion =
+        valueOrDefault(primaryDescription == null ? null : primaryDescription.version(), "V1");
+    String authorName =
+        valueOrDefault(primaryDescription == null ? null : primaryDescription.author(), "未填写");
     Long recordId =
         persistenceSupport.insertRecord(
             valueOrDefault(report.projectName(), "未标注项目名"),
@@ -33,10 +41,10 @@ public class ReviewDataMatchModeMaterializeService {
             valueOrDefault(firstText(report.reviewTypeStr(), report.docType(), report.sourceType()), "其他"),
             report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
             valueOrDefault(report.reviewCharger(), "未填写"),
-            report.defectValue() == null ? 0 : Math.max(0, report.defectValue()),
-            valueOrDefault(report.title(), "老平台评审记录"),
-            "未填写",
-            "V1",
+            reviewScalePages,
+            reviewProduct,
+            authorName,
+            reviewVersion,
             report.notReachStandCause(),
             "match-mode-mongo",
             report.weightedDefectDensity() == null ? null : report.weightedDefectDensity().doubleValue());
@@ -46,10 +54,10 @@ public class ReviewDataMatchModeMaterializeService {
     persistenceSupport.replaceExperts(recordId, report.reviewExperts());
     persistenceSupport.ensurePrimaryDescription(
         recordId,
-        valueOrDefault(report.title(), "老平台评审记录"),
-        "V1",
-        "未填写",
-        report.defectValue() == null ? 0 : Math.max(0, report.defectValue()));
+        reviewProduct,
+        reviewVersion,
+        authorName,
+        reviewScalePages);
     for (ReviewDataMatchModeRecordRepository.ProblemRow problem : source.problems()) {
       Long problemItemId =
           persistenceSupport.insertProblemItem(

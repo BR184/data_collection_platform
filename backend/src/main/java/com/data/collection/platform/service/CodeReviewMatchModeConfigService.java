@@ -28,7 +28,8 @@ import org.springframework.util.StringUtils;
 @Service
 public class CodeReviewMatchModeConfigService {
   private static final List<String> DEFAULT_SELECTED_TABLES = List.of("spider_crowncad_data");
-  private static final List<String> DEFAULT_SELECTED_MONGO_COLLECTIONS = List.of("reviewReport", "problemDetail");
+  private static final List<String> DEFAULT_SELECTED_MONGO_COLLECTIONS =
+      List.of("reviewReport", "problemDetail", "description");
 
   private static final String SETTINGS_SQL = """
       select s.enabled,
@@ -498,13 +499,18 @@ public class CodeReviewMatchModeConfigService {
   private List<String> normalizeSelectedMongoCollectionNames(
       List<String> requestedCollectionNames,
       List<String> currentCollectionNames) {
-    if (requestedCollectionNames == null) {
-      return currentCollectionNames == null || currentCollectionNames.isEmpty()
-          ? DEFAULT_SELECTED_MONGO_COLLECTIONS
-          : List.copyOf(currentCollectionNames);
+    List<String> sourceCollectionNames = requestedCollectionNames;
+    if (sourceCollectionNames == null) {
+      sourceCollectionNames =
+          currentCollectionNames == null || currentCollectionNames.isEmpty()
+              ? DEFAULT_SELECTED_MONGO_COLLECTIONS
+              : currentCollectionNames;
     }
     Set<String> normalized = new LinkedHashSet<>();
-    for (String collectionName : requestedCollectionNames) {
+    for (String collectionName : sourceCollectionNames) {
+      normalized.add(validateMongoCollectionName(collectionName));
+    }
+    for (String collectionName : DEFAULT_SELECTED_MONGO_COLLECTIONS) {
       normalized.add(validateMongoCollectionName(collectionName));
     }
     if (normalized.isEmpty()) {

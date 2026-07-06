@@ -310,8 +310,16 @@ function emitStandaloneKeywordSearch(value = keywordDraft.value) {
 }
 
 function effectiveColumnMinWidth(column: RecordTableColumn) {
-  const reservePx = (column.sortable ? 36 : 16) + (column.headerTooltip ? 18 : 0);
-  const minimumFloor = column.type === 'number' ? 68 : 92;
+  const reservePx = (column.sortable ? 18 : 8) + (column.headerTooltip ? 16 : 0);
+  const minimumFloor = column.type === 'number'
+    ? 54
+    : column.type === 'datetime'
+      ? 132
+      : column.type === 'tags'
+        ? 112
+      : column.type === 'link'
+        ? 84
+        : 68;
   return Math.max(column.minWidth ?? 0, tableHeaderMinimumWidth(column.label, reservePx, column.headerLines), minimumFloor);
 }
 

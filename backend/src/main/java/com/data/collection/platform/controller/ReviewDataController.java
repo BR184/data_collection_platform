@@ -223,6 +223,7 @@ public class ReviewDataController {
   }
 
   @DeleteMapping("/records/{recordId}/problem-items/{itemId}")
+  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<Void> deleteProblemItem(@PathVariable Long recordId, @PathVariable Long itemId) {
     reviewDataRecordService.deleteProblemItem(recordId, itemId);
     return ApiResponse.success("删除评审问题成功", null);

@@ -13,6 +13,12 @@ function setCurrentUser(user: AuthUserResponse) {
   authState.error = '';
 }
 
+export function setGuestUser(message = '') {
+  setCurrentUser({ ...guestUser });
+  authState.initialized = true;
+  authState.error = message;
+}
+
 export async function loadCurrentUser() {
   authState.loading = true;
   try {

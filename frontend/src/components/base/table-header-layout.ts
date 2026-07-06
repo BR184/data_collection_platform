@@ -34,6 +34,8 @@ const MANUAL_HEADER_LINES: Record<string, TableHeaderLines> = {
   '新增代码行数（行）': ['新增代码行数', '（行）'],
   '代码注释比例（%）': ['代码注释比例', '（%）'],
   '代码走查速率（LOC/H）': ['代码走查速率', '（LOC/H）'],
+  '所属项目': ['所属', '项目'],
+  '非法类型': ['非法', '类型'],
   '静态扫描问题未关闭': ['静态扫描问题', '未关闭'],
   '注释率分析工具 Clang 分析错误': ['注释率分析工具', 'Clang 分析错误'],
   '测试阶段名称': ['测试阶段', '名称'],
@@ -41,6 +43,15 @@ const MANUAL_HEADER_LINES: Record<string, TableHeaderLines> = {
   '评审工作量（小时）': ['评审工作量', '（小时）'],
   '在文档中的位置': ['在文档中的', '位置'],
   '是否达标': ['是否', '达标'],
+  '是否达标?': ['是否', '达标?'],
+  '是否达标？': ['是否', '达标？'],
+  '已修复/未更新': ['已修复', '未更新'],
+  '模块总缺陷数(个)': ['模块总', '缺陷数(个)'],
+  '模块总缺陷数（个）': ['模块总', '缺陷数(个)'],
+  '未关闭缺陷数(个)': ['未关闭', '缺陷数(个)'],
+  '未关闭缺陷数（个）': ['未关闭', '缺陷数(个)'],
+  '复测未通过缺陷数(个)': ['复测未通过', '缺陷数(个)'],
+  '复测未通过缺陷数（个）': ['复测未通过', '缺陷数(个)'],
 };
 
 const COMPACT_HEADER_LINES: Record<string, TableHeaderLines> = {
@@ -73,6 +84,18 @@ const PHRASE_BOUNDARIES = [
 ];
 
 const SUFFIX_BOUNDARIES = [
+  '未关闭数量',
+  '复测未通过数量',
+  '申请延期数量',
+  '新发议题数量',
+  '遗留缺陷数量',
+  '已修复数量',
+  '修复数量',
+  '关闭率',
+  '修复率',
+  '遗留率',
+  '延期占比',
+  '未关闭占比',
   '密度',
   '占比',
   '比例',
@@ -92,6 +115,36 @@ const SUFFIX_BOUNDARIES = [
   '合计',
 ];
 
+const METRIC_TAILS = [
+  '复测未通过缺陷数',
+  '未关闭缺陷数',
+  '模块总缺陷数',
+  '代码走查缺陷合计',
+  '建议类缺陷',
+  '复测未通过数量',
+  '申请延期数量',
+  '新发议题数量',
+  '遗留缺陷数量',
+  '已修复数量',
+  '修复数量',
+  '缺陷数量',
+  '缺陷合计',
+  '缺陷数',
+  '总缺陷数',
+  '延期占比',
+  '未关闭占比',
+  '修复率',
+  '关闭率',
+  '遗留率',
+  '密度',
+  '占比',
+  '比例',
+  '效率',
+  '速率',
+  '数量',
+  '缺陷',
+];
+
 export function visualTextUnits(text: string) {
   return Array.from(text).reduce((total, character) => total + (/[\u0000-\u00ff]/.test(character) ? 1 : 2), 0);
 }
@@ -107,6 +160,10 @@ export function normalizeTableHeaderLines(label: string, explicitLines?: readonl
   }
   if (MANUAL_HEADER_LINES[normalizedLabel]) {
     return MANUAL_HEADER_LINES[normalizedLabel];
+  }
+  const metricLines = splitByMetricTail(normalizedLabel);
+  if (metricLines) {
+    return metricLines;
   }
   const unitLines = splitUnitSuffix(normalizedLabel);
   if (unitLines) {
@@ -140,7 +197,9 @@ export function tableHeaderLongestLineUnits(label: string, explicitLines?: reado
 }
 
 export function tableHeaderMinimumWidth(label: string, reservePx: number, explicitLines?: readonly string[] | null) {
-  return Math.max(76, tableHeaderLongestLineUnits(label, explicitLines) * 7 + reservePx);
+  const units = tableHeaderLongestLineUnits(label, explicitLines);
+  const floor = units <= 4 ? 60 : units <= 6 ? 68 : units <= 10 ? 78 : 88;
+  return Math.ceil(Math.max(floor, units * 7.2 + reservePx));
 }
 
 function normalizeLabel(label: string) {
@@ -172,18 +231,96 @@ function compactLeadingLine(line: string) {
 }
 
 function splitUnitSuffix(label: string): TableHeaderLines | null {
-  if (visualTextUnits(label) <= 14) {
-    return null;
-  }
   const match = label.match(/^(.+?)([（(][^（）()]+[）)])$/);
   if (!match) {
     return null;
   }
   const [, prefix, suffix] = match;
+  const normalizedSuffix = normalizeUnitSuffix(suffix);
+  const metricLines = splitByMetricTail(prefix, normalizedSuffix);
+  if (metricLines) {
+    return metricLines;
+  }
+  const suffixLines = splitBySuffixBoundary(prefix);
+  if (suffixLines) {
+    return [suffixLines[0], `${suffixLines[1]}${normalizedSuffix}`];
+  }
   if (visualTextUnits(prefix) < 8 || visualTextUnits(suffix) > visualTextUnits(prefix) + 6) {
     return null;
   }
-  return [prefix, suffix];
+  return [prefix, normalizedSuffix];
+}
+
+function splitByMetricTail(label: string, unitSuffix = ''): TableHeaderLines | null {
+  const normalizedLabel = normalizeLabel(label);
+  if (!normalizedLabel) {
+    return null;
+  }
+  const standaloneLines = splitStandaloneMetric(normalizedLabel, unitSuffix);
+  if (standaloneLines) {
+    return standaloneLines;
+  }
+  for (const tail of METRIC_TAILS) {
+    if (!normalizedLabel.endsWith(tail) || normalizedLabel.length <= tail.length) {
+      continue;
+    }
+    const subject = normalizedLabel.slice(0, -tail.length);
+    if (!isGoodMetricSubject(subject, tail)) {
+      continue;
+    }
+    const line2 = `${tail}${unitSuffix}`;
+    if (tail === '缺陷' && /^[一二三]级$/.test(subject)) {
+      return [subject, line2];
+    }
+    return [subject, line2];
+  }
+  return null;
+}
+
+function isGoodMetricSubject(subject: string, tail: string) {
+  if (visualTextUnits(subject) < 3 || visualTextUnits(subject) > 18) {
+    return false;
+  }
+  if (tail === '缺陷') {
+    return /^[一二三]级$/.test(subject) || /^P[123](级别)?$/.test(subject) || subject.endsWith('类');
+  }
+  return (
+    /缺陷$/.test(subject)
+    || /^P[123](级别)?$/.test(subject)
+    || /^P[123](级别)?缺陷$/.test(subject)
+    || /议题$/.test(subject)
+    || /测试$/.test(subject)
+    || /评审$/.test(subject)
+  );
+}
+
+function splitStandaloneMetric(label: string, unitSuffix: string): TableHeaderLines | null {
+  const suffix = unitSuffix || '';
+  const standalonePatterns: Array<[RegExp, (match: RegExpMatchArray) => TableHeaderLines]> = [
+    [/^(模块总)(缺陷数)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+    [/^(未关闭)(缺陷数)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+    [/^(复测未通过)(缺陷数)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+    [/^(申请延期)$/, (match) => [match[1], suffix || match[1]]],
+    [/^(建议类)(缺陷)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+    [/^(规范类|逻辑类|设计类|性能类|其他类)(缺陷数)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+    [/^(代码走查)(缺陷合计)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+    [/^(代码走查)(行数)$/, (match) => [match[1], `${match[2]}${suffix}`]],
+  ];
+  for (const [pattern, build] of standalonePatterns) {
+    const match = label.match(pattern);
+    if (match) {
+      const lines = build(match);
+      if (lines[0] === lines[1]) {
+        return [lines[0]];
+      }
+      return lines;
+    }
+  }
+  return null;
+}
+
+function normalizeUnitSuffix(suffix: string) {
+  return suffix.replace(/^（/, '(').replace(/）$/, ')');
 }
 
 function splitByPhraseBoundary(label: string): TableHeaderLines | null {

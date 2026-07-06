@@ -39,18 +39,18 @@ export const CODE_REVIEW_RANGE_KEYS = {
 };
 
 export const CODE_REVIEW_ILLEGAL_RECORD_COLUMNS: RecordTableColumn[] = [
-  { key: 'mergeRequestIid', label: '合并请求编号', type: 'link', sortable: true, width: 128, fixed: 'left' },
-  { key: 'mergeRequestContent', label: '合并请求内容', sortable: true, minWidth: 260 },
-  { key: 'author', label: '被走查人', sortable: true, minWidth: 140 },
-  { key: 'projectName', label: '所属项目', sortable: true, minWidth: 160 },
-  { key: 'mergedAt', label: '合并时间', type: 'datetime', sortable: true, minWidth: 180 },
-  { key: 'mergedBy', label: '合并人', sortable: true, minWidth: 140 },
-  { key: 'moduleName', label: '模块名', sortable: true, minWidth: 140 },
-  { key: 'targetBranch', label: '合并目标分支', sortable: true, minWidth: 180 },
-  { key: 'illegalTypes', label: '非法类型', type: 'tags', minWidth: 220 },
-  { key: 'commentRate', label: '代码注释比例（%）', sortable: true, width: 160, align: 'right' },
-  { key: 'defectCount', label: '缺陷数量', type: 'number', sortable: true, width: 120, align: 'right' },
-  { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 150, align: 'right' },
+  { key: 'mergeRequestIid', label: '合并请求编号', type: 'link', sortable: true, width: 108, fixed: 'left' },
+  { key: 'mergeRequestContent', label: '合并请求内容', sortable: true, minWidth: 420, align: 'left', headerAlign: 'center' },
+  { key: 'author', label: '被走查人', sortable: true, width: 112 },
+  { key: 'projectName', label: '所属项目', sortable: true, width: 112 },
+  { key: 'mergedAt', label: '合并时间', type: 'datetime', sortable: true, width: 156 },
+  { key: 'mergedBy', label: '合并人', sortable: true, width: 104 },
+  { key: 'moduleName', label: '模块名', sortable: true, width: 112 },
+  { key: 'targetBranch', label: '合并目标分支', sortable: true, width: 122 },
+  { key: 'illegalTypes', label: '非法类型', type: 'tags', minWidth: 320, align: 'left', headerAlign: 'center' },
+  { key: 'commentRate', label: '代码注释比例（%）', sortable: true, width: 132, align: 'right' },
+  { key: 'defectCount', label: '缺陷数量', type: 'number', sortable: true, width: 104, align: 'right' },
+  { key: 'addedLines', label: '新增代码行数（行）', type: 'number', sortable: true, width: 132, align: 'right' },
 ];
 
 export function buildCodeReviewIllegalRecordColumns(

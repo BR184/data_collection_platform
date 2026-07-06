@@ -242,6 +242,7 @@ public class PageRecordSnapshotService {
                    select concat(id, ':', coalesce(to_char(finished_at, 'YYYY-MM-DD"T"HH24:MI:SS.US'), 'running'))
                      from fact_build_tasks
                     where status = 'SUCCESS'
+                      and (coalesce(affected_rows, 0) > 0 or full_build = true)
                       and (
                         upper(coalesce(fact_type, '')) = ?
                         or lower(coalesce(scope, '')) = ?

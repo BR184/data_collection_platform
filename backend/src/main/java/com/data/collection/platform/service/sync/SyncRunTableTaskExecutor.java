@@ -387,7 +387,7 @@ public class SyncRunTableTaskExecutor {
       return localDateTime;
     }
     if (value instanceof Timestamp timestamp) {
-      return timestamp.toInstant().atOffset(ZoneOffset.UTC).toLocalDateTime();
+      return timestamp.toLocalDateTime();
     }
     if (value instanceof OffsetDateTime offsetDateTime) {
       return offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();

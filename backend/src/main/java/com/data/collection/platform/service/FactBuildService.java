@@ -15,6 +15,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -183,7 +184,7 @@ public class FactBuildService {
     String sourceInstance = GitlabSourceInstanceSupport.sourceInstanceOf(config);
     List<IssueFact> facts = loadOpenCustomerIssueFacts(sourceInstance);
     List<IssueFact> changedFacts = new ArrayList<>();
-    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime now = currentGitlabSourceTime();
     for (IssueFact fact : facts) {
       boolean nextResponseDelayed =
           IssueFactNormalizationRules.isResponseDelayed(
@@ -210,7 +211,7 @@ public class FactBuildService {
       changedFacts.add(fact);
     }
     batchUpsertIssueFacts(changedFacts);
-    syncCustomerIssueDelayLabels(sourceInstance, changedFacts);
+    syncCustomerIssueDelayLabels(sourceInstance, facts);
     return new FactBuildResponse(
         factScope("customer-issue-delay", sourceInstance),
         false,
@@ -630,14 +631,29 @@ public class FactBuildService {
   private List<IssueFact> loadOpenCustomerIssueFacts(String sourceInstance) {
     return jdbcTemplate.query(
         """
-            select *
-              from issue_fact
-             where source_system = ?
-               and source_instance = ?
-               and deleted = false
-               and project_id = ?
-               and coalesce(issue_state, '') <> 'closed'
-               and created_at_source >= ?
+            select f.*,
+                   coalesce(current_labels.label_names, f.label_names, '') as current_label_names
+              from issue_fact f
+              left join ods_gitlab_issues source_issue
+                on source_issue.project_id = f.project_id
+               and source_issue.iid = f.issue_iid
+               and coalesce(source_issue.mirror_deleted, false) = false
+              left join lateral (
+                select string_agg(label.title, ', ' order by label.title) as label_names
+                  from ods_gitlab_label_links label_link
+                  join ods_gitlab_labels label
+                    on label.id = label_link.label_id
+                   and coalesce(label.mirror_deleted, false) = false
+                 where coalesce(label_link.mirror_deleted, false) = false
+                   and label_link.target_type = 'Issue'
+                   and label_link.target_id = coalesce(source_issue.id, f.issue_id)
+              ) current_labels on true
+             where f.source_system = ?
+               and f.source_instance = ?
+               and f.deleted = false
+               and f.project_id = ?
+               and coalesce(f.issue_state, '') <> 'closed'
+               and f.created_at_source >= ?
             """,
         (rs, rowNum) -> {
           IssueFact fact = new IssueFact();
@@ -673,7 +689,7 @@ public class FactBuildService {
           fact.setCategory(defaultText(rs.getString("category")));
           fact.setReasonCategory(defaultText(rs.getString("reason_category")));
           fact.setSystemTestLabel(defaultText(rs.getString("system_test_label")));
-          fact.setLabelNames(defaultText(rs.getString("label_names")));
+          fact.setLabelNames(defaultText(rs.getString("current_label_names")));
           fact.setExcluded(rs.getBoolean("is_excluded"));
           fact.setExclusionReason(defaultText(rs.getString("exclusion_reason")));
           fact.setFixed(rs.getBoolean("is_fixed"));
@@ -746,7 +762,7 @@ public class FactBuildService {
     PhaseCalendarEntry phaseCalendar = calendar.get(new PhaseCalendarKey(rs.getLong("project_id"), normalizeKey(testingPhase)));
     boolean customerIssue = isCustomerIssueIssueFact(labels, rs.getLong("project_id"), rs.getString("project_name"), createdAt);
     boolean openCustomerIssue = customerIssue && !closed;
-    LocalDateTime now = LocalDateTime.now();
+    LocalDateTime now = currentGitlabSourceTime();
 
     IssueFact fact = new IssueFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
@@ -838,6 +854,10 @@ public class FactBuildService {
   private boolean isCustomerIssueIssueFact(List<String> labels, Long projectId, String projectName, LocalDateTime createdAt) {
     boolean inCustomerDateRange = CustomerIssueScopeRules.isInCustomerIssueDateRange(createdAt);
     return inCustomerDateRange && CustomerIssueScopeRules.isCustomerProject(projectId, projectName);
+  }
+
+  private LocalDateTime currentGitlabSourceTime() {
+    return LocalDateTime.now(ZoneOffset.UTC);
   }
 
   private List<FactRefreshImpactScopeService.Target> distinctTargets(
