@@ -20,10 +20,12 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
@@ -49,6 +51,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final TransactionTemplate transactionTemplate;
+  private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
   public CodeReviewMatchModeMongoReviewSyncService(
       CodeReviewMatchModeConfigService configService,
@@ -62,14 +65,40 @@ public class CodeReviewMatchModeMongoReviewSyncService {
   }
 
   //兼容模式-MatchMode
-  public CodeReviewMatchModeSyncResponse syncNow(CodeReviewMatchModeDbSettingsSaveRequest request) {
-    CodeReviewMatchModeConfig config = configService.loadConfig(request);
-    if (!StringUtils.hasText(config.mongoUri()) || !StringUtils.hasText(config.mongoDatabase())) {
-      markFailed("兼容模式老平台 MongoDB 配置缺失");
-      return currentState(false, "兼容模式老平台 MongoDB 配置缺失");
+  @Scheduled(fixedDelayString = "${platform.code-review.match-mode.mongo-sync-delay-ms:3600000}", initialDelayString = "${platform.code-review.match-mode.mongo-initial-delay-ms:45000}")
+  public void syncScheduled() {
+    if (!configService.isMatchModeEnabled()) {
+      return;
     }
-    markRunning();
+    CodeReviewMatchModeConfig config = configService.loadConfig();
+    if (!config.syncEnabled()) {
+      return;
+    }
+    if (!StringUtils.hasText(config.mongoUri()) || !StringUtils.hasText(config.mongoDatabase())) {
+      log.info("Skipped code review match mode Mongo review sync, reason=MongoDB config missing");
+      return;
+    }
+    syncNow(config);
+  }
+
+  //兼容模式-MatchMode
+  public CodeReviewMatchModeSyncResponse syncNow(CodeReviewMatchModeDbSettingsSaveRequest request) {
+    if (!configService.isMatchModeEnabled()) {
+      return currentState(false, "兼容模式未开启，未导入老平台 MongoDB 评审数据");
+    }
+    return syncNow(configService.loadConfig(request));
+  }
+
+  private CodeReviewMatchModeSyncResponse syncNow(CodeReviewMatchModeConfig config) {
+    if (!syncRunning.compareAndSet(false, true)) {
+      return currentState(false, "兼容模式老平台 MongoDB 评审数据正在导入，请稍后再试");
+    }
     try {
+      if (!StringUtils.hasText(config.mongoUri()) || !StringUtils.hasText(config.mongoDatabase())) {
+        markFailed("兼容模式老平台 MongoDB 配置缺失");
+        return currentState(false, "兼容模式老平台 MongoDB 配置缺失");
+      }
+      markRunning();
       ImportSummary summary = loadMongo(config);
       replaceSnapshots(config, summary);
       markSuccess(summary);
@@ -78,6 +107,8 @@ public class CodeReviewMatchModeMongoReviewSyncService {
       log.warn("Code review match mode Mongo review sync failed", error);
       markFailed(rootMessage(error, "兼容模式老平台 MongoDB 评审数据导入失败"));
       return currentState(false, rootMessage(error, "兼容模式老平台 MongoDB 评审数据导入失败"));
+    } finally {
+      syncRunning.set(false);
     }
   }
 

@@ -312,6 +312,8 @@ public class CodeReviewMatchModeSyncService {
     Integer bugCount = intValue(rs.getObject("bug_count"));
     TextQuerySupport.SearchIndex searchIndex =
         TextQuerySupport.buildSearchIndex(String.join(" ", safe(title), safe(author), safe(projectName), safe(repositoryName), safe(moduleName), safe(targetBranch), safe(mergedBy)));
+    Integer addedLine = intValue(rs.getObject("added_line"));
+    Integer commitCount = intValue(rs.getObject("commit_count"));
     return new LegacyRow(
         legacySourceInstance(repositoryName, fallbackSourceInstance),
         0L,
@@ -347,7 +349,7 @@ public class CodeReviewMatchModeSyncService {
         //兼容模式-MatchMode：老平台非法数据页“缺陷数量”展示的是 MR 级 SonarQube bug_count，
         //同一 MR 被多条代码走查评论拆成多行时，数量字段必须保持一致。
         bugCount,
-        intValue(rs.getObject("added_line")),
+        addedLine,
         intValue(rs.getObject("deleted_line")),
         intValue(rs.getObject("code_specification_count")),
         intValue(rs.getObject("code_logic_specification_count")),
@@ -358,11 +360,18 @@ public class CodeReviewMatchModeSyncService {
         decimal(rs.getObject("code_walkthrough_speed_kloc")),
         decimal(rs.getObject("code_walkthrough_defect_density")),
         decimal(rs.getObject("code_walkthrough_efficiency")),
-        intValue(rs.getObject("commit_count")),
-        intValue(rs.getObject("commit_rate")),
+        commitCount,
+        legacyCommitRate(addedLine, commitCount),
         text(rs, "function_name"),
         intValue(rs.getObject("ct_code_line_count")),
         legacySourceId);
+  }
+
+  private Integer legacyCommitRate(Integer addedLine, Integer commitCount) {
+    if (addedLine == null || commitCount == null || addedLine <= 0 || commitCount <= 0) {
+      return 0;
+    }
+    return addedLine / commitCount;
   }
 
   private String legacySourceInstance(String repositoryName, String fallbackSourceInstance) {

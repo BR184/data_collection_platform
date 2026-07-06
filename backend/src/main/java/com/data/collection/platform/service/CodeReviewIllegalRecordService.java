@@ -47,7 +47,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private static final String LEGACY_DGM_REPOSITORY_NAME = "DGM";
   private static final List<String> LEGACY_EXTRA_PROJECT_NAME_OPTIONS =
       List.of("广数CAM", "CC2025R4", "CC2026R1", "CC 2025 R4&2026 R1");
-  private static final String RULE_VERSION = "code-review-illegal-records@2026-07-03-v6";
+  private static final String RULE_VERSION = "code-review-illegal-records@2026-07-06-v7";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -963,9 +963,23 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         source.reviewDefectDensityPerKloc(),
         source.reviewEfficiencyPerHour(),
         source.commitCount(),
-        source.commitRate(),
+        displayCommitRate(source),
         TextQuerySupport.normalizeDisplay(source.functionName()),
         source.clangAddedLineCount());
+  }
+
+  private Integer displayCommitRate(CodeReviewIllegalRecordSource source) {
+    if (!matchModeSwitchService.isEnabled()) {
+      return source.commitRate();
+    }
+    return legacyCommitRate(source.addedLines(), source.commitCount());
+  }
+
+  private Integer legacyCommitRate(Integer addedLines, Integer commitCount) {
+    if (addedLines == null || commitCount == null || addedLines <= 0 || commitCount <= 0) {
+      return 0;
+    }
+    return addedLines / commitCount;
   }
 
   private List<StatisticRuleFlowStep> buildRuleFlowSteps(

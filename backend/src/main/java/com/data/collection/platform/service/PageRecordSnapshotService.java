@@ -191,7 +191,29 @@ public class PageRecordSnapshotService {
                    )
             """,
             String.class);
-    return reviewVersion + "|" + issueFactSourceVersion();
+    String matchModeReviewVersion =
+        jdbcTemplate.queryForObject(
+            """
+            select concat(
+                     'match-review:',
+                     coalesce((select count(*) from review_data_match_mode_reports), 0),
+                     ':',
+                     coalesce((select count(*) from review_data_match_mode_problem_details), 0),
+                     ':',
+                     coalesce(
+                       to_char(
+                         greatest(
+                           coalesce((select max(synced_at) from review_data_match_mode_reports), timestamp 'epoch'),
+                           coalesce((select max(synced_at) from review_data_match_mode_problem_details), timestamp 'epoch')
+                         ),
+                         'YYYY-MM-DD"T"HH24:MI:SS.US'
+                       ),
+                       'empty'
+                     )
+                   )
+            """,
+            String.class);
+    return reviewVersion + "|" + matchModeReviewVersion + "|" + issueFactSourceVersion();
   }
 
   private String labelGroupSourceVersion() {
