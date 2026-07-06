@@ -52,7 +52,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$invocationPathProperty = $MyInvocation.MyCommand.PSObject.Properties['Path']
+$invocationPath = if ($invocationPathProperty) { $invocationPathProperty.Value } else { '' }
+$scriptRoot = if ($invocationPath) {
+  Split-Path -Parent $invocationPath
+} elseif ($PSScriptRoot) {
+  $PSScriptRoot
+} else {
+  Join-Path (Get-Location).Path 'scripts'
+}
 $repoRoot = (Resolve-Path (Join-Path $scriptRoot '..')).Path
 
 $javaHome = Join-Path $repoRoot 'tools\jdk\jdk-21.0.10+7'
@@ -112,12 +120,15 @@ function Copy-Directory([string]$Source, [string]$Destination) {
   Copy-Item -LiteralPath (Join-Path $Source '*') -Destination $Destination -Recurse -Force
 }
 
-function Get-GitValue([string[]]$Args) {
-  $output = & git @Args 2>$null
+function Get-GitValue([string[]]$GitArgs) {
+  $output = & git -C $repoRoot @GitArgs 2>$null
   if ($LASTEXITCODE -ne 0) {
     return ''
   }
-  return (($output | Out-String).Trim())
+  if ($null -eq $output) {
+    return ''
+  }
+  return (($output -join "`n").Trim())
 }
 
 function Get-DirtySuffix {
@@ -162,7 +173,7 @@ function Read-ComposeImageTag([string]$ComposePath, [string]$ImageName) {
 }
 
 function New-EnvContent {
-  return @'
+  $content = @'
 # Platform URL reachable by users and GitLab system hook.
 PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:18181
 
@@ -197,6 +208,7 @@ PLATFORM_SLOW_QUERY_THRESHOLD_MS=1000
 REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED=false
 CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 '@
+  return $content
 }
 
 function New-ComposeContent([string]$BackendTag, [string]$FrontendTag) {
@@ -283,7 +295,7 @@ volumes:
 }
 
 function New-BackendDockerfile {
-  return @'
+  $content = @'
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY app.jar /app/app.jar
@@ -291,19 +303,21 @@ ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8 -Duser.timezone=A
 EXPOSE 18080
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
 '@
+  return $content
 }
 
 function New-FrontendDockerfile {
-  return @'
+  $content = @'
 FROM nginx:1.27-alpine
 COPY nginx-default.conf /etc/nginx/conf.d/default.conf
 COPY dist/ /usr/share/nginx/html/
 EXPOSE 80
 '@
+  return $content
 }
 
 function New-NginxConfig {
-  return @'
+  $content = @'
 server {
     listen 80;
     server_name _;
@@ -328,10 +342,11 @@ server {
     }
 }
 '@
+  return $content
 }
 
 function New-DockerIgnore {
-  return @'
+  $content = @'
 backend/target/
 frontend/node_modules/
 frontend/dist/
@@ -340,6 +355,7 @@ frontend/dist/
 .tmp-logs/
 logs/
 '@
+  return $content
 }
 
 function Invoke-ProductBuild {
@@ -414,7 +430,7 @@ function Copy-OffLineDebs([string]$PackageDir, [string]$TemplateDir) {
 }
 
 function New-FreshReadme([string]$PackageName, [string]$ImageTag) {
-  return @"
+  $content = @'
 # QA Flex Platform 内网离线部署包
 
 本包是 **全新空数据部署包**，适用于 Ubuntu 24.04 amd64 无公网服务器。
@@ -431,8 +447,8 @@ function New-FreshReadme([string]$PackageName, [string]$ImageTag) {
 ## 1. 解压
 
 ````bash
-tar -xzf ${PackageName}-ubuntu2404-offline.tar.gz
-cd ${PackageName}
+tar -xzf __PACKAGE_NAME__-ubuntu2404-offline.tar.gz
+cd __PACKAGE_NAME__
 ````
 
 ## 2. 安装离线 Docker 依赖
@@ -450,8 +466,8 @@ sudo docker compose version
 
 ````bash
 sudo docker load -i docker-images/postgres_16-alpine.tar
-sudo docker load -i docker-images/qa-flex-platform-backend_${ImageTag}.tar
-sudo docker load -i docker-images/qa-flex-platform-frontend_${ImageTag}.tar
+sudo docker load -i docker-images/qa-flex-platform-backend___IMAGE_TAG__.tar
+sudo docker load -i docker-images/qa-flex-platform-frontend___IMAGE_TAG__.tar
 ````
 
 ## 4. 准备环境变量
@@ -511,50 +527,52 @@ sudo docker compose --env-file .env logs --tail=120 frontend
 sha256sum -c SHA256SUMS.txt
 sudo docker compose --env-file .env config
 ````
-"@
+'@
+  return $content.Replace('__PACKAGE_NAME__', $PackageName).Replace('__IMAGE_TAG__', $ImageTag)
 }
 
 function New-IncrementalReadme([string]$PackageName, [string]$BackendTag, [string]$FrontendTag, [string]$BaselineName) {
   $factSection = if ($RequireFactRebuild) {
-    @"
-
-## 4. 事实层重建
-
-本更新包标记为需要事实层重建。该步骤只基于现有镜像表重建事实层和统计快照，不重新全量同步 GitLab，不删除平台数据。
-
-登录并保存 Cookie：
-
-````bash
-curl -c /tmp/qaflex-cookie.txt \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}' \
-  http://127.0.0.1:18181/api/auth/login
-````
-
-触发事实层重建：
-
-````bash
-curl -b /tmp/qaflex-cookie.txt -X POST \
-  'http://127.0.0.1:18181/api/facts/rebuild?scope=${FactRebuildScope}&full=true'
-````
-
-查询任务状态：
-
-````bash
-curl -b /tmp/qaflex-cookie.txt \
-  'http://127.0.0.1:18181/api/facts/build-tasks/latest?scope=${FactRebuildScope}'
-````
-"@
+    @(
+      ''
+      '## 4. 事实层重建'
+      ''
+      '本更新包标记为需要事实层重建。该步骤只基于现有镜像表重建事实层和统计快照，不重新全量同步 GitLab，不删除平台数据。'
+      ''
+      '登录并保存 Cookie：'
+      ''
+      '````bash'
+      'curl -c /tmp/qaflex-cookie.txt \'
+      "  -H 'Content-Type: application/json' \"
+      "  -d '{""username"":""admin"",""password"":""admin123""}' \"
+      '  http://127.0.0.1:18181/api/auth/login'
+      '````'
+      ''
+      '触发事实层重建：'
+      ''
+      '````bash'
+      'curl -b /tmp/qaflex-cookie.txt -X POST \'
+      "  'http://127.0.0.1:18181/api/facts/rebuild?scope=${FactRebuildScope}&full=true'"
+      '````'
+      ''
+      '查询任务状态：'
+      ''
+      '````bash'
+      'curl -b /tmp/qaflex-cookie.txt \'
+      "  'http://127.0.0.1:18181/api/facts/build-tasks/latest?scope=${FactRebuildScope}'"
+      '````'
+    ) -join "`n"
   } else {
-    @'
-
-## 4. 不执行事实层重建
-
-本更新包只替换后端和前端业务镜像，不改变事实表、统计口径或历史聚合结果。部署后不要主动触发事实重建、全量同步或清空快照。
-'@
+    @(
+      ''
+      '## 4. 不执行事实层重建'
+      ''
+      '本更新包只替换后端和前端业务镜像，不改变事实表、统计口径或历史聚合结果。部署后不要主动触发事实重建、全量同步或清空快照。'
+      ''
+    ) -join "`n"
   }
 
-  return @"
+  $content = @'
 # QA Flex Platform 前后端同容器更新包
 
 本包用于既有内网实例的同容器增量更新，只替换后端和前端业务镜像。
@@ -562,7 +580,7 @@ curl -b /tmp/qaflex-cookie.txt \
 目标基线部署目录：
 
 ````text
-${BaselineName}
+__BASELINE_NAME__
 ````
 
 ## 禁止操作
@@ -579,7 +597,7 @@ ${BaselineName}
 将本包放到既有部署目录旁边并解压：
 
 ````bash
-tar -xzf ${PackageName}-ubuntu2404-offline.tar.gz
+tar -xzf __PACKAGE_NAME__-ubuntu2404-offline.tar.gz
 ````
 
 ## 2. 加载前后端业务镜像
@@ -587,16 +605,16 @@ tar -xzf ${PackageName}-ubuntu2404-offline.tar.gz
 进入既有部署目录：
 
 ````bash
-cd ${BaselineName}
+cd __BASELINE_NAME__
 
-sudo docker load -i ../${PackageName}/docker-images/qa-flex-platform-backend_${BackendTag}.tar
-sudo docker load -i ../${PackageName}/docker-images/qa-flex-platform-frontend_${FrontendTag}.tar
+sudo docker load -i ../__PACKAGE_NAME__/docker-images/qa-flex-platform-backend___BACKEND_TAG__.tar
+sudo docker load -i ../__PACKAGE_NAME__/docker-images/qa-flex-platform-frontend___FRONTEND_TAG__.tar
 ````
 
 本包镜像 tag 复用既有 compose 中的 tag，避免现场修改 docker-compose.yml：
 
-- `qa-flex-platform-backend:${BackendTag}`
-- `qa-flex-platform-frontend:${FrontendTag}`
+- `qa-flex-platform-backend:__BACKEND_TAG__`
+- `qa-flex-platform-frontend:__FRONTEND_TAG__`
 
 ## 3. 只重建后端和前端容器
 
@@ -605,7 +623,7 @@ sudo docker compose --env-file .env up -d --no-deps --force-recreate backend fro
 sudo docker compose --env-file .env ps
 curl -fsS http://127.0.0.1:18080/actuator/health
 ````
-${factSection}
+__FACT_SECTION__
 
 ## 5. 冒烟检查
 
@@ -619,31 +637,37 @@ sudo docker compose --env-file .env logs --tail=120 frontend
 ## 6. 包完整性校验
 
 ````bash
-sha256sum -c ../${PackageName}/SHA256SUMS.txt
+sha256sum -c ../__PACKAGE_NAME__/SHA256SUMS.txt
 ````
-"@
+'@
+  return $content.
+      Replace('__PACKAGE_NAME__', $PackageName).
+      Replace('__BACKEND_TAG__', $BackendTag).
+      Replace('__FRONTEND_TAG__', $FrontendTag).
+      Replace('__BASELINE_NAME__', $BaselineName).
+      Replace('__FACT_SECTION__', $factSection)
 }
 
 function New-DeployHelper([string]$PackageName, [string]$BackendTag, [string]$FrontendTag, [bool]$NeedsFactRebuild, [string]$FactScope) {
   $factBlock = if ($NeedsFactRebuild) {
-    @"
-echo "[deploy] fact rebuild is required. Login and trigger it manually after health check:"
-echo "curl -c /tmp/qaflex-cookie.txt -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"admin123\"}' http://127.0.0.1:18181/api/auth/login"
-echo "curl -b /tmp/qaflex-cookie.txt -X POST 'http://127.0.0.1:18181/api/facts/rebuild?scope=${FactScope}&full=true'"
-"@
+    @(
+      'echo "[deploy] fact rebuild is required. Login and trigger it manually after health check:"'
+      'echo "curl -c /tmp/qaflex-cookie.txt -H ''Content-Type: application/json'' -d ''{\"username\":\"admin\",\"password\":\"admin123\"}'' http://127.0.0.1:18181/api/auth/login"'
+      "echo ""curl -b /tmp/qaflex-cookie.txt -X POST 'http://127.0.0.1:18181/api/facts/rebuild?scope=${FactScope}&full=true'"""
+    ) -join "`n"
   } else {
     'echo "[deploy] fact rebuild is not required for this package."'
   }
 
-  return @"
+  $content = @'
 #!/usr/bin/env bash
 set -euo pipefail
 
-PACKAGE_DIR="${PackageName}"
+PACKAGE_DIR="__PACKAGE_NAME__"
 
-echo "[deploy] loading backend/frontend images from ../`${PACKAGE_DIR}"
-sudo docker load -i "../`${PACKAGE_DIR}/docker-images/qa-flex-platform-backend_${BackendTag}.tar"
-sudo docker load -i "../`${PACKAGE_DIR}/docker-images/qa-flex-platform-frontend_${FrontendTag}.tar"
+echo "[deploy] loading backend/frontend images from ../${PACKAGE_DIR}"
+sudo docker load -i "../${PACKAGE_DIR}/docker-images/qa-flex-platform-backend___BACKEND_TAG__.tar"
+sudo docker load -i "../${PACKAGE_DIR}/docker-images/qa-flex-platform-frontend___FRONTEND_TAG__.tar"
 
 echo "[deploy] recreating backend/frontend only"
 sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
@@ -652,8 +676,13 @@ sudo docker compose --env-file .env ps
 echo "[deploy] backend health"
 curl -fsS http://127.0.0.1:18080/actuator/health
 
-${factBlock}
-"@
+__FACT_BLOCK__
+'@
+  return $content.
+      Replace('__PACKAGE_NAME__', $PackageName).
+      Replace('__BACKEND_TAG__', $BackendTag).
+      Replace('__FRONTEND_TAG__', $FrontendTag).
+      Replace('__FACT_BLOCK__', $factBlock)
 }
 
 function Write-Sha256Sums([string]$PackageDir) {

@@ -920,8 +920,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         matchModeSwitchService.isEnabled()
             ? CodeReviewIllegalRuleRegistry.evaluateLegacyMatchModeIllegalTypes(source)
             : CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source);
-    String mergeRequestLink =
-        issueLinkService.mergeRequestUrl(source.sourceInstance(), source.projectId(), source.mergeRequestIid());
+    String mergeRequestLink = mergeRequestLink(source);
     return new CodeReviewIllegalRecordView(
         "merge_request",
         source.sourceInstance(),
@@ -966,6 +965,18 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         displayCommitRate(source),
         TextQuerySupport.normalizeDisplay(source.functionName()),
         source.clangAddedLineCount());
+  }
+
+  private String mergeRequestLink(CodeReviewIllegalRecordSource source) {
+    String link =
+        issueLinkService.mergeRequestUrl(source.sourceInstance(), source.projectId(), source.mergeRequestIid());
+    if (link != null || !matchModeSwitchService.isEnabled()) {
+      return link;
+    }
+    //兼容模式-MatchMode：老平台代码走查表来自 MySQL 兼容表，project_id 可能为 0，
+    //无法走 GitLab ODS 项目路径，需要按老平台代码走查页面的 MR 链接规则生成。
+    return issueLinkService.legacyCodeReviewMergeRequestUrl(
+        source.sourceInstance(), source.repositoryName(), source.mergeRequestIid());
   }
 
   private Integer displayCommitRate(CodeReviewIllegalRecordSource source) {

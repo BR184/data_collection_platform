@@ -11,10 +11,18 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class GitlabResourceLinkService {
+  private static final String LEGACY_CROWN_CAD_REPOSITORY = "CrownCAD";
+  private static final String LEGACY_DGM_REPOSITORY = "DGM";
+  private static final String LEGACY_CROWN_CAD_FALLBACK_BASE_URL = "http://172.22.10.233";
+  private static final String LEGACY_CROWN_CAD_PROJECT_PATH = "cloudcad/crowncad";
+  private static final String LEGACY_DGM_MERGE_REQUEST_BASE_URL =
+      "http://172.22.10.100/KernelGroup/DGM/merge_requests";
   private final JdbcTemplate jdbcTemplate;
   private final String gitlabWebBaseUrl;
   private final Map<ProjectPathCacheKey, Optional<String>> projectPathCache = new ConcurrentHashMap<>();
   private final Map<String, Optional<String>> sourceBaseUrlCache = new ConcurrentHashMap<>();
+  private final Map<LegacyProjectWebUrlCacheKey, Optional<String>> legacyProjectWebUrlCache =
+      new ConcurrentHashMap<>();
 
   public GitlabResourceLinkService(JdbcTemplate jdbcTemplate, GitlabMirrorProperties properties) {
     this.jdbcTemplate = jdbcTemplate;
@@ -37,9 +45,35 @@ public class GitlabResourceLinkService {
     return resourceUrl(sourceInstance, projectId, mergeRequestIid, "merge_requests");
   }
 
+  public String legacyCodeReviewMergeRequestUrl(
+      String sourceInstance, String repositoryName, Integer mergeRequestIid) {
+    if (mergeRequestIid == null || mergeRequestIid <= 0) {
+      return null;
+    }
+    String normalizedSource = TextQuerySupport.trimToNull(sourceInstance);
+    String normalizedRepository = TextQuerySupport.trimToNull(repositoryName);
+    if (equalsIgnoreCase(normalizedSource, "dgm")
+        || equalsIgnoreCase(normalizedRepository, LEGACY_DGM_REPOSITORY)) {
+      return LEGACY_DGM_MERGE_REQUEST_BASE_URL + "/" + mergeRequestIid;
+    }
+    if (normalizedRepository != null
+        && !equalsIgnoreCase(normalizedRepository, LEGACY_CROWN_CAD_REPOSITORY)) {
+      Optional<String> projectWebUrl = legacyProjectWebUrl(normalizedSource, normalizedRepository);
+      if (projectWebUrl.isPresent()) {
+        return projectWebUrl.get() + "/merge_requests/" + mergeRequestIid;
+      }
+    }
+    String baseUrl = baseUrl(normalizedSource);
+    if (!StringUtils.hasText(baseUrl)) {
+      baseUrl = LEGACY_CROWN_CAD_FALLBACK_BASE_URL;
+    }
+    return baseUrl + "/" + LEGACY_CROWN_CAD_PROJECT_PATH + "/merge_requests/" + mergeRequestIid;
+  }
+
   public void clearCache() {
     sourceBaseUrlCache.clear();
     projectPathCache.clear();
+    legacyProjectWebUrlCache.clear();
   }
 
   private String resourceUrl(String sourceInstance, Long projectId, Integer iid, String resourcePath) {
@@ -95,6 +129,37 @@ public class GitlabResourceLinkService {
               String.class,
               projectId);
       return Optional.ofNullable(TextQuerySupport.trimToNull(path));
+    } catch (DataAccessException ignored) {
+      return Optional.empty();
+    }
+  }
+
+  private Optional<String> legacyProjectWebUrl(String sourceInstance, String repositoryName) {
+    return legacyProjectWebUrlCache.computeIfAbsent(
+        new LegacyProjectWebUrlCacheKey(
+            sourceInstance == null ? "" : sourceInstance.toLowerCase(), repositoryName.toLowerCase()),
+        key -> loadLegacyProjectWebUrl(sourceInstance, repositoryName));
+  }
+
+  private Optional<String> loadLegacyProjectWebUrl(String sourceInstance, String repositoryName) {
+    try {
+      String preferredTable =
+          StringUtils.hasText(sourceInstance) ? sourceInstance.trim().toLowerCase() + ".git_project" : "";
+      String webUrl =
+          jdbcTemplate.queryForObject(
+              """
+              select nullif(btrim(raw_payload ->> 'web_url'), '')
+                from legacy_mysql_imported_rows
+               where regexp_replace(lower(table_name), '^[^.]+\\.', '') = 'git_project'
+                 and lower(coalesce(raw_payload ->> 'name', '')) = lower(?)
+                 and nullif(btrim(raw_payload ->> 'web_url'), '') is not null
+               order by case when lower(table_name) = ? then 0 else 1 end, table_name
+               limit 1
+              """,
+              String.class,
+              repositoryName,
+              preferredTable);
+      return Optional.ofNullable(normalizeBaseUrl(webUrl));
     } catch (DataAccessException ignored) {
       return Optional.empty();
     }
@@ -172,5 +237,11 @@ public class GitlabResourceLinkService {
     return normalized;
   }
 
+  private boolean equalsIgnoreCase(String left, String right) {
+    return left != null && right != null && left.equalsIgnoreCase(right);
+  }
+
   private record ProjectPathCacheKey(String sourceInstance, Long projectId) {}
+
+  private record LegacyProjectWebUrlCacheKey(String sourceInstance, String repositoryName) {}
 }
