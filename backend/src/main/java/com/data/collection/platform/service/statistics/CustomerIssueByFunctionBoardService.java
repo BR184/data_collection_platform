@@ -106,8 +106,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
               new StatisticDetailColumn("functionName", "功能", 180, 180, true, "tag"),
               StatisticIssueDetailColumns.severity("severityLevel", "严重程度", 140),
               new StatisticDetailColumn("priorityLevel", "优先级", 120, 120, true, "tag"),
-              StatisticIssueDetailColumns.state("状态"),
-              new StatisticDetailColumn("reasonCategory", "缺陷原因", 160, 160, true, "tag")),
+              StatisticIssueDetailColumns.state("状态")),
           List.of(),
           List.of(StatisticIssueDetailColumns.project("所属项目")));
 
@@ -560,7 +559,6 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
           case "severityLevel" -> SortSupport.nullableString(IssueSource::displaySeverityLevel);
           case "priorityLevel" -> SortSupport.nullableString(IssueSource::priorityLevel);
           case "state" -> SortSupport.nullableComparable(issue -> issue.isClosed() ? 1 : 0);
-          case "reasonCategory" -> SortSupport.nullableString(IssueSource::reasonCategory);
           default -> SortSupport.nullableComparable(IssueSource::updatedAt);
         };
     comparator = comparator.thenComparing(IssueSource::iid);
@@ -579,7 +577,6 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     record.put("priorityLevel", issue.priorityLevel());
     record.put("bugStatus", issue.bugStatus());
     record.put("state", issue.isClosed() ? "已关闭" : "未关闭");
-    record.put("reasonCategory", StringUtils.hasText(issue.reasonCategory()) ? issue.reasonCategory() : "未归因");
     record.put("createdAt", issue.createdAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.createdAt()));
     record.put("updatedAt", issue.updatedAt() == null ? "" : DATE_TIME_FORMATTER.format(issue.updatedAt()));
     record.put("authorName", issue.authorName());

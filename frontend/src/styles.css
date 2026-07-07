@@ -237,7 +237,7 @@ button {
   border-bottom: 1px solid var(--nav-border);
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 2450;
 }
 
 .brand-wrap {

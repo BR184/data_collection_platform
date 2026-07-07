@@ -51,6 +51,8 @@ const percentage = computed(() => Math.round(currentTask.value?.percentage ?? 0)
 
 <style scoped>
 .global-progress-indicator {
+  position: relative;
+  z-index: 1;
   width: 184px;
   min-width: 156px;
   padding: 5px 8px 6px;
