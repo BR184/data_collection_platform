@@ -561,10 +561,6 @@ public class SystemTestHorizontalComparisonExportService {
     return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).toPlainString();
   }
 
-  private static String floorDecimal(double value) {
-    return BigDecimal.valueOf(value).setScale(2, RoundingMode.DOWN).toPlainString();
-  }
-
   private static String codeReviewDensity(long defectCount, long lineCount) {
     if (lineCount <= 0) {
       return "0.00";
@@ -790,7 +786,7 @@ public class SystemTestHorizontalComparisonExportService {
       if (reviewPages <= 0) {
         return "0.00";
       }
-      return floorDecimal(defectCount * 1D / reviewPages);
+      return decimal(defectCount * 1D / reviewPages);
     }
 
     String categoryRate(long value) {

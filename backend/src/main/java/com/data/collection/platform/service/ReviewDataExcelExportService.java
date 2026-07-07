@@ -215,11 +215,11 @@ public class ReviewDataExcelExportService {
     double defectEfficiency =
         sumCount == 0 || value1 == 0
             ? 0D
-            : ReviewDataNumberSupport.floorToTwoDecimals((double) sumCount / value1);
+            : ReviewDataNumberSupport.roundToTwoDecimals((double) sumCount / value1);
     double reviewRate =
         workload == 0D
             ? 0D
-            : ReviewDataNumberSupport.floorToTwoDecimals((double) value1 / workload);
+            : ReviewDataNumberSupport.roundToTwoDecimals((double) value1 / workload);
 
     writeText(row, 0, record.reviewType(), style);
     writeText(row, 1, record.reviewProduct(), style);

@@ -132,7 +132,7 @@ public class ReviewDataLegacyExcelParser {
     }
     if (density != null && problemCount != null && reviewScalePages != null && reviewScalePages > 0) {
       double expectedDensity =
-          ReviewDataNumberSupport.floorToTwoDecimals(
+          ReviewDataNumberSupport.roundToTwoDecimals(
               problemCount.doubleValue() / reviewScalePages.doubleValue());
       if (Math.abs(expectedDensity - density) > 0.02) {
         issues.add(issue(rowNumber, "reviewDefectDensity", ReviewDataLegacyExcelIssueLevel.WARNING, "评审缺陷密度与问题总计/页数不一致"));

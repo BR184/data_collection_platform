@@ -441,7 +441,7 @@ public class ReviewDataRecordReadRepository {
     if (problemCount == null || reviewScalePages == null || reviewScalePages <= 0) {
       return 0D;
     }
-    return ReviewDataNumberSupport.floorToTwoDecimals(
+    return ReviewDataNumberSupport.roundToTwoDecimals(
         problemCount.doubleValue() / reviewScalePages.doubleValue());
   }
 

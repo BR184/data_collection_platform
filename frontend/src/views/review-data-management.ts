@@ -277,14 +277,14 @@ export function buildReviewDataTableRows(rows: ReviewDataRecordRowResponse[]) {
     projectName: row.projectName || '-',
     problemCount: row.problemCount ?? 0,
     reviewScalePages: row.reviewScalePages ?? 0,
-    problemDensity: formatFlooredNullableNumber(row.problemDensity, 2),
+    problemDensity: formatNullableNumber(row.problemDensity, 2),
     reviewCategorySummary: row.reviewCategorySummary || '-',
     docSpecificationCount: row.docSpecificationCount ?? 0,
     integrityCount: row.integrityCount ?? 0,
     functionalityCount: row.functionalityCount ?? 0,
     feasibilityCount: row.feasibilityCount ?? 0,
-    reviewEfficiency: formatFlooredNullableNumber(row.reviewEfficiency, 2),
-    reviewRate: formatFlooredNullableNumber(row.reviewRate, 2),
+    reviewEfficiency: formatNullableNumber(row.reviewEfficiency, 2),
+    reviewRate: formatNullableNumber(row.reviewRate, 2),
     reviewType: row.reviewType || '-',
     moduleName: row.moduleName || '-',
     reviewOwner: row.reviewOwner || '-',
@@ -317,9 +317,9 @@ export function buildReviewDataExportCsv(rows: ReviewDataRecordRowResponse[]) {
     { label: '作者', value: (row) => row.authorName },
     { label: '评审版本', value: (row) => row.reviewVersion },
     { label: '问题合计(个)', value: (row) => row.problemCount },
-    { label: '缺陷密度(个/页)', value: (row) => formatFlooredNullableNumber(row.problemDensity, 2) },
-    { label: '评审效率(个/小时)', value: (row) => formatFlooredNullableNumber(row.reviewEfficiency, 2) },
-    { label: '评审速率(页/小时)', value: (row) => formatFlooredNullableNumber(row.reviewRate, 2) },
+    { label: '缺陷密度(个/页)', value: (row) => formatNullableNumber(row.problemDensity, 2) },
+    { label: '评审效率(个/小时)', value: (row) => formatNullableNumber(row.reviewEfficiency, 2) },
+    { label: '评审速率(页/小时)', value: (row) => formatNullableNumber(row.reviewRate, 2) },
     { label: '独立评审工作量合计(小时)', value: (row) => formatNullableNumber(row.independentReviewWorkload, 2) },
     { label: '有效独立评审问题数合计(个)', value: (row) => row.independentReviewProblemCount },
     { label: '会议评审工作量合计(小时)', value: (row) => formatNullableNumber(row.meetingReviewWorkload, 2) },
@@ -604,23 +604,8 @@ function formatNullableNumber(value: number | null | undefined, fractionDigits =
   return formatFixed(value, fractionDigits);
 }
 
-function formatFlooredNullableNumber(value: number | null | undefined, fractionDigits = 0) {
-  if (value == null) {
-    return '-';
-  }
-  return formatFlooredFixed(value, fractionDigits);
-}
-
 function formatFixed(value: number, fractionDigits: number) {
   return Number.isFinite(value) ? value.toFixed(fractionDigits) : '0';
-}
-
-function formatFlooredFixed(value: number, fractionDigits: number) {
-  if (!Number.isFinite(value)) {
-    return '0';
-  }
-  const factor = 10 ** fractionDigits;
-  return (Math.floor(value * factor + Number.EPSILON) / factor).toFixed(fractionDigits);
 }
 
 function formatDateTime(value?: string | null) {
