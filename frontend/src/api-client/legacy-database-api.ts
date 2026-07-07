@@ -5,6 +5,10 @@ import type {
   CodeReviewMatchModeDbSettingsSaveRequest,
   CodeReviewMatchModeSyncResponse,
   CodeReviewMatchModeTableOptionResponse,
+  CodeReviewDgmGitlabProjectOptionResponse,
+  CodeReviewDgmGitlabProjectSourceResponse,
+  CodeReviewDgmGitlabProjectSourceSaveRequest,
+  CodeReviewDgmGitlabProjectSyncResponse,
   LegacyPlatformFormalImportRequest,
   LegacyPlatformFormalImportResponse,
 } from '../types/api';
@@ -70,5 +74,30 @@ export const legacyDatabaseApi = {
       body: JSON.stringify(payload),
       timeoutMs: 900_000,
     });
+  },
+  getCodeReviewDgmGitlabProjectSource() {
+    return request<CodeReviewDgmGitlabProjectSourceResponse>(`${basePath}/dgm-gitlab-project-source`);
+  },
+  saveCodeReviewDgmGitlabProjectSource(payload: CodeReviewDgmGitlabProjectSourceSaveRequest) {
+    return request<CodeReviewDgmGitlabProjectSourceResponse>(`${basePath}/dgm-gitlab-project-source`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  },
+  testCodeReviewDgmGitlabProjectSource(payload: CodeReviewDgmGitlabProjectSourceSaveRequest) {
+    return request<CodeReviewMatchModeConnectionTestResponse>(`${basePath}/dgm-gitlab-project-source/test-connection`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: 60_000,
+    });
+  },
+  syncCodeReviewDgmGitlabProjectOptions() {
+    return request<CodeReviewDgmGitlabProjectSyncResponse>(`${basePath}/dgm-gitlab-project-options/sync-now`, {
+      method: 'POST',
+      timeoutMs: 300_000,
+    });
+  },
+  getCodeReviewDgmGitlabProjectOptions() {
+    return request<CodeReviewDgmGitlabProjectOptionResponse[]>(`${basePath}/dgm-gitlab-project-options`);
   },
 };

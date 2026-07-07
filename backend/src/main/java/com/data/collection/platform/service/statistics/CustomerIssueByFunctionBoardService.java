@@ -51,6 +51,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
   private static final String ROW_KEY_SEPARATOR = "||";
+  private static final String DETAIL_MODULE_PARAM = "detailModuleName";
+  private static final String DETAIL_FUNCTION_PARAM = "detailFunctionName";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final String FACT_SQL =
@@ -92,8 +94,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
              count(*) as issue_count
         from issue_fact
         cross join lateral regexp_split_to_table(
-             coalesce(nullif(module_names, ''), '未设定模块'),
-             ',') as modules(module_name)
+             coalesce(module_names, ''),
+             '\\s*[,&]\\s*') as modules(module_name)
        where deleted = false
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
@@ -188,12 +190,8 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     long startedAt = System.currentTimeMillis();
     Map<String, List<AggregateBucket>> bucketsByModule = loadFunctionBuckets(filters, effectiveFilterGroup);
     List<String> orderedModules =
-        bucketsByModule.entrySet().stream()
-            .sorted(
-                Comparator.<Map.Entry<String, List<AggregateBucket>>>comparingInt(entry -> entry.getValue().size())
-                    .reversed()
-                    .thenComparing(Map.Entry::getKey, String.CASE_INSENSITIVE_ORDER))
-            .map(Map.Entry::getKey)
+        bucketsByModule.keySet().stream()
+            .sorted(String.CASE_INSENSITIVE_ORDER)
             .toList();
     Map<String, List<AggregateBucket>> orderedBuckets = new LinkedHashMap<>();
     orderedModules.forEach(moduleName -> orderedBuckets.put(moduleName, bucketsByModule.get(moduleName)));
@@ -238,9 +236,13 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   protected StatisticDetailResponse doLoadDetail(
       StatisticDetailRequest request, StatisticFilterGroup filterGroup) {
     StatisticFilterGroup effectiveFilterGroup = applyDefaultMilestone(filterGroup);
+    CellAddress address = parseCellAddress(request.rowKey(), request.columnKey(), request.filters());
+    List<IssueSource> loaded = address == null
+        ? loadSources(request.filters(), effectiveFilterGroup)
+        : loadDetailSources(request.filters(), effectiveFilterGroup, address);
     List<IssueSource> scoped =
-        buildRuleFlowSnapshot(loadSources(request.filters(), effectiveFilterGroup), effectiveFilterGroup).finalSources().stream()
-            .filter(issue -> matchesDetailRequest(issue, request))
+        buildRuleFlowSnapshot(loaded, effectiveFilterGroup).finalSources().stream()
+            .filter(issue -> matchesDetailRequest(issue, request, address))
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
             .toList();
@@ -270,7 +272,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         "客户问题按功能展示缺陷数量规则说明",
         RULE_VERSION,
         "当前统计先限定客户问题范围，再保留标题中能识别出功能名的议题。",
-        "功能名来自 issue 标题开头的全角书名号片段，例如【草图约束】；同一条议题如属于多个模块，会分别计入对应模块/功能行，总计行按议题本身统计。",
+        "功能名来自 issue 标题开头的全角书名号片段，例如【草图约束】；同一条议题如属于多个有效模块，会分别计入对应模块/功能行。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
@@ -396,7 +398,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "module-function-expand",
                 "按模块/功能展开",
-                "将客户问题议题按模块和功能组合展开；未设定模块的议题归入“未设定模块”。",
+                "将客户问题议题按模块和功能组合展开；模块为空或未设定的议题不进入本统计。",
                 withFunction.size(),
                 withFunction.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
                 withFunction,
@@ -455,6 +457,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
               """
               group by btrim(modules.module_name), coalesce(function_name, '')
               having btrim(modules.module_name) <> ''
+                 and btrim(modules.module_name) not like '未设定%'
               order by lower(btrim(modules.module_name)), lower(coalesce(function_name, ''))
               """,
               this::mapFunctionBucket);
@@ -469,8 +472,10 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
       bucketsByModule.replaceAll((moduleName, moduleBuckets) ->
           moduleBuckets.stream()
               .sorted(
-                  Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER)
-                      .thenComparing(AggregateBucket::count, Comparator.reverseOrder()))
+                  Comparator.comparing(AggregateBucket::count, Comparator.reverseOrder())
+                      .thenComparing(
+                          bucket -> functionNameFromRowKey(bucket.rowKey()),
+                          String.CASE_INSENSITIVE_ORDER))
               .toList());
       return bucketsByModule;
     } catch (DataAccessException error) {
@@ -508,7 +513,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         StatisticSourceValueSupport.text(rs.getString("milestone_title")),
         StatisticSourceValueSupport.text(rs.getString("author_name")),
         StatisticSourceValueSupport.text(rs.getString("assignee_name")),
-        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        splitModuleNames(rs.getString("module_names")),
         StatisticSourceValueSupport.text(rs.getString("function_name")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("is_excluded"),
@@ -529,8 +534,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
         .anyMatch(requestedRowKey::equals);
   }
 
-  private boolean matchesDetailRequest(IssueSource issue, StatisticDetailRequest request) {
-    CellAddress address = parseCellAddress(request.rowKey(), request.columnKey(), request.filters());
+  private boolean matchesDetailRequest(IssueSource issue, StatisticDetailRequest request, CellAddress address) {
     if (address != null) {
       return issue.displayModuleNames().contains(address.moduleName())
           && address.functionName().equals(issue.functionName());
@@ -587,6 +591,12 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     return moduleName + ROW_KEY_SEPARATOR + functionName;
   }
 
+  private List<String> splitModuleNames(String raw) {
+    return StatisticSourceValueSupport.split(raw, "\\s*[,&]\\s*").stream()
+        .filter(moduleName -> !moduleName.startsWith("未设定"))
+        .toList();
+  }
+
   private List<StatisticRowData> toLegacyPivotRows(Map<String, List<AggregateBucket>> bucketsByModule) {
     int maxRows = bucketsByModule.values().stream().mapToInt(List::size).max().orElse(0);
     List<StatisticRowData> rows = new ArrayList<>();
@@ -611,7 +621,9 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             countValue == 0 ? "-" : count(countValue),
             countValue > 0,
             countValue > 0 ? "issue-list" : null,
-            countValue > 0 ? Map.of("rowKey", rowKey) : Map.of()));
+            countValue > 0 ? Map.of(
+                DETAIL_MODULE_PARAM, moduleName,
+                DETAIL_FUNCTION_PARAM, functionName) : Map.of()));
       }
       rows.add(new StatisticRowData(String.valueOf(rowIndex + 1), String.valueOf(rowIndex + 1), cells));
     }
@@ -619,6 +631,11 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
   }
 
   private CellAddress parseCellAddress(String rowKey, String columnKey, Map<String, String> filters) {
+    String detailModuleName = filters == null ? null : filters.get(DETAIL_MODULE_PARAM);
+    String detailFunctionName = filters == null ? null : filters.get(DETAIL_FUNCTION_PARAM);
+    if (StringUtils.hasText(detailModuleName) && StringUtils.hasText(detailFunctionName)) {
+      return new CellAddress(detailModuleName.trim(), detailFunctionName.trim());
+    }
     String moduleName = moduleNameFromCountColumnKey(columnKey);
     Integer rowIndex = parseOneBasedIndex(rowKey);
     if (!StringUtils.hasText(moduleName) || rowIndex == null) {
@@ -650,6 +667,35 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             Comparator.comparing(AggregateBucket::rowLabel, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(bucket -> bucket.issues().size(), Comparator.reverseOrder()))
         .toList();
+  }
+
+  private List<IssueSource> loadDetailSources(
+      Map<String, String> filters,
+      StatisticFilterGroup filterGroup,
+      CellAddress address) {
+    CustomerIssueSqlScopeSupport.SqlScope scope =
+        CustomerIssueSqlScopeSupport.withExtraPredicate(
+            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            """
+            coalesce(function_name, '') = ?
+            and exists (
+              select 1
+                from regexp_split_to_table(coalesce(module_names, ''), '\\s*[,&]\\s*') as detail_modules(module_name)
+               where btrim(detail_modules.module_name) = ?
+            )
+            """,
+            List.of(address.functionName(), address.moduleName()));
+    try {
+      return issueFactQueryService.query(
+          FACT_SQL,
+          scope.filters(),
+          scope.predicate(),
+          scope.args(),
+          this::mapIssueFact);
+    } catch (DataAccessException error) {
+      log.warn("Failed to load customer issue by function detail facts", error);
+      return List.of();
+    }
   }
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {

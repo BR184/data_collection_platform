@@ -118,6 +118,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService;
   private final LegacyPlatformFormalImportService legacyPlatformFormalImportService;
+  private final CodeReviewDgmGitlabProjectOptionService dgmProjectOptionService;
   private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
   private final PageRecordSnapshotService pageRecordSnapshotService;
@@ -131,6 +132,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       CodeReviewMatchModeSwitchService matchModeSwitchService,
       CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService,
       LegacyPlatformFormalImportService legacyPlatformFormalImportService,
+      CodeReviewDgmGitlabProjectOptionService dgmProjectOptionService,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties,
@@ -143,6 +145,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeLegacyRefreshService = matchModeLegacyRefreshService;
     this.legacyPlatformFormalImportService = legacyPlatformFormalImportService;
+    this.dgmProjectOptionService = dgmProjectOptionService;
     this.issueLinkService = issueLinkService;
     this.objectMapper = objectMapper;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
@@ -594,7 +597,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         toLegacyOptions(options.owners()),
         toLegacyOptions(options.mergedBys()),
         toLegacyOptions(options.moduleNames()),
-        toCodeReviewProjectNameOptions(matchMode, options.projectNames()));
+        toCodeReviewProjectNameOptions(matchMode, source, options.projectNames()));
   }
 
   @Override
@@ -648,7 +651,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
           WORKSPACE_KEY,
           false,
           "IDLE",
-          "兼容模式开启时，代码走查非法数据来自老平台兼容表，请等待每小时自动同步。",
+          "兼容模式开启时，代码走查非法数据来自老平台兼容表，请等待每 10 分钟自动同步；同步过程中页面继续展示上一次已完成同步的数据。",
           false,
           null,
           null,
@@ -1220,9 +1223,17 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     return OptionItemResponseFactory.fromLegacyBusinessValues(values);
   }
 
-  private List<OptionItemResponse> toCodeReviewProjectNameOptions(boolean matchMode, List<String> values) {
+  private List<OptionItemResponse> toCodeReviewProjectNameOptions(
+      boolean matchMode,
+      String source,
+      List<String> values) {
     List<String> visibleValues = new ArrayList<>(
         values.stream().filter(projectName -> !isHiddenCodeReviewProjectName(projectName)).toList());
+    if ("dgm".equalsIgnoreCase(TextQuerySupport.trimToNull(source))) {
+      //兼容模式-MatchMode：DGM 项目名称候选不依赖当前兼容表/正式事实表的数据量，
+      //而是额外合并系统设置中维护的 GitLab API 本地缓存，确保交接期和非兼容模式候选一致。
+      visibleValues.addAll(dgmProjectOptionService.listProjectNames());
+    }
     if (matchMode) {
       visibleValues.addAll(LEGACY_EXTRA_PROJECT_NAME_OPTIONS);
     }

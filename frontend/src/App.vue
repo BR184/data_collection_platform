@@ -21,6 +21,7 @@ import { shellDataScopeState } from './composables/shell-data-scope';
 import { authState, loadCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
 import { routerState } from './router-state';
 import { AUTH_REQUIRED_EVENT } from './api-client/request';
+import ExportProgressIndicator from './components/ExportProgressIndicator.vue';
 
 const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/DataScopeBar.vue'));
 
@@ -348,6 +349,7 @@ watch(
       </nav>
 
       <div class="header-actions">
+        <ExportProgressIndicator />
         <el-tag v-if="routerState.routeLoading" size="small" type="warning" round>页面切换中</el-tag>
         <el-tag v-else-if="routerState.routeError" size="small" type="danger" round>连接异常</el-tag>
         <el-tag :type="authModeTagType" size="small" round>{{ authModeLabel }}</el-tag>

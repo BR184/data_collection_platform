@@ -150,3 +150,51 @@ export interface LegacyPlatformFormalImportResponse {
   codeReviewInsertedCount: number;
   codeReviewUpdatedCount: number;
 }
+
+export interface CodeReviewDgmGitlabProjectSourceResponse {
+  enabled: boolean;
+  gitlabBaseUrl: string;
+  accessTokenConfigured: boolean;
+  groupPath: string;
+  includeSubgroups: boolean;
+  includeArchived: boolean;
+  syncIntervalMinutes: number;
+  lastSyncStatus: string;
+  lastSyncMessage?: string | null;
+  lastSyncRecordCount: number;
+  lastSyncStartedAt?: string | null;
+  lastSyncFinishedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface CodeReviewDgmGitlabProjectSourceSaveRequest {
+  enabled: boolean;
+  gitlabBaseUrl: string;
+  accessToken?: string | null;
+  groupPath: string;
+  includeSubgroups: boolean;
+  includeArchived: boolean;
+  syncIntervalMinutes: number;
+}
+
+export interface CodeReviewDgmGitlabProjectOptionResponse {
+  gitlabProjectId: number;
+  name: string;
+  path?: string | null;
+  pathWithNamespace?: string | null;
+  webUrl?: string | null;
+  namespaceName?: string | null;
+  namespaceFullPath?: string | null;
+  archived: boolean;
+  visibility?: string | null;
+  active: boolean;
+}
+
+export interface CodeReviewDgmGitlabProjectSyncResponse {
+  success: boolean;
+  status: string;
+  message: string;
+  recordCount: number;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}

@@ -32,11 +32,15 @@ final class StatisticSourceValueSupport {
   }
 
   static List<String> split(String raw) {
+    return split(raw, ",");
+  }
+
+  static List<String> split(String raw, String separatorRegex) {
     if (!StringUtils.hasText(raw)) {
       return List.of();
     }
     Set<String> values = new LinkedHashSet<>();
-    for (String value : raw.split(",")) {
+    for (String value : raw.split(separatorRegex)) {
       String trimmed = value == null ? "" : value.trim();
       if (!trimmed.isEmpty()) {
         values.add(trimmed);

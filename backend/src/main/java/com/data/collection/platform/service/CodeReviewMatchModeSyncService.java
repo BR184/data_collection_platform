@@ -20,6 +20,7 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -40,6 +41,7 @@ public class CodeReviewMatchModeSyncService {
   private final CodeReviewMatchModeSwitchService switchService;
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
+  private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
   public CodeReviewMatchModeSyncService(
       CodeReviewMatchModeConfigService configService,
@@ -53,7 +55,7 @@ public class CodeReviewMatchModeSyncService {
   }
 
   //兼容模式-MatchMode
-  @Scheduled(fixedDelayString = "${platform.code-review.match-mode.sync-delay-ms:3600000}", initialDelayString = "${platform.code-review.match-mode.initial-delay-ms:15000}")
+  @Scheduled(fixedDelayString = "${platform.code-review.match-mode.sync-delay-ms:600000}", initialDelayString = "${platform.code-review.match-mode.initial-delay-ms:15000}")
   public void syncScheduled() {
     if (!switchService.isEnabled()) {
       return;
@@ -74,6 +76,9 @@ public class CodeReviewMatchModeSyncService {
       markFailed("兼容模式老平台 MySQL 配置缺失");
       return currentState(false, "兼容模式老平台 MySQL 配置缺失");
     }
+    if (!syncRunning.compareAndSet(false, true)) {
+      return currentState(false, "兼容模式老平台 MySQL 数据正在同步，请稍后再试");
+    }
     markRunning();
     try {
       ImportSummary summary = loadAndReplace(config);
@@ -83,6 +88,8 @@ public class CodeReviewMatchModeSyncService {
       log.warn("Code review match mode sync failed", error);
       markFailed(error.getMessage());
       return currentState(false, error.getMessage());
+    } finally {
+      syncRunning.set(false);
     }
   }
 
@@ -93,6 +100,9 @@ public class CodeReviewMatchModeSyncService {
       markFailed("老平台 MySQL 配置缺失，无法转正式导入");
       return currentState(false, "老平台 MySQL 配置缺失，无法转正式导入");
     }
+    if (!syncRunning.compareAndSet(false, true)) {
+      return currentState(false, "兼容模式老平台 MySQL 数据正在同步，请稍后再试");
+    }
     markRunning();
     try {
       ImportSummary summary = loadAndReplace(config);
@@ -102,6 +112,8 @@ public class CodeReviewMatchModeSyncService {
       log.warn("Code review formal import source sync failed", error);
       markFailed(error.getMessage());
       return currentState(false, error.getMessage());
+    } finally {
+      syncRunning.set(false);
     }
   }
 

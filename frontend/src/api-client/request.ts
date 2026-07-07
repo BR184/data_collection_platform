@@ -1,6 +1,14 @@
+import {
+  beginExportProgress,
+  failExportProgress,
+  finishExportProgress,
+  type ExportProgressOptions,
+} from './export-progress-events';
+
 const CSRF_COOKIE_NAME = 'XSRF-TOKEN';
 const CSRF_HEADER_NAME = 'X-XSRF-TOKEN';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
+
 export const AUTH_REQUIRED_EVENT = 'platform-auth-required';
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const EXPORT_REQUEST_TIMEOUT_MS = 180_000;
@@ -8,6 +16,7 @@ export const EXPORT_REQUEST_TIMEOUT_MS = 180_000;
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
   errorPrefix?: string;
+  exportProgress?: ExportProgressOptions | false;
 }
 
 export class RequestTimeoutError extends Error {
@@ -22,7 +31,13 @@ export function isRequestTimeoutError(error: unknown): error is RequestTimeoutEr
 }
 
 export async function request<T>(url: string, init?: RequestOptions): Promise<T> {
-  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, errorPrefix: _errorPrefix, signal, ...fetchInit } = init ?? {};
+  const {
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    errorPrefix: _errorPrefix,
+    exportProgress: _exportProgress,
+    signal,
+    ...fetchInit
+  } = init ?? {};
   const timeoutController = timeoutMs > 0 ? new AbortController() : null;
   let didTimeout = false;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -93,8 +108,10 @@ export async function requestText(url: string, init?: RequestOptions): Promise<s
 }
 
 export async function requestBlob(url: string, init?: RequestOptions): Promise<Blob> {
-  const response = await requestRaw(url, init);
-  return response.blob();
+  return withExportProgress(url, init, async () => {
+    const response = await requestRaw(url, init);
+    return response.blob();
+  });
 }
 
 export interface BlobResponse {
@@ -103,15 +120,23 @@ export interface BlobResponse {
 }
 
 export async function requestBlobResponse(url: string, init?: RequestOptions): Promise<BlobResponse> {
-  const response = await requestRaw(url, init);
-  return {
-    blob: await response.blob(),
-    filename: parseContentDispositionFilename(response.headers?.get('Content-Disposition')),
-  };
+  return withExportProgress(url, init, async () => {
+    const response = await requestRaw(url, init);
+    return {
+      blob: await response.blob(),
+      filename: parseContentDispositionFilename(response.headers?.get('Content-Disposition')),
+    };
+  });
 }
 
 async function requestRaw(url: string, init?: RequestOptions): Promise<Response> {
-  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, errorPrefix, signal, ...fetchInit } = init ?? {};
+  const {
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    errorPrefix,
+    exportProgress: _exportProgress,
+    signal,
+    ...fetchInit
+  } = init ?? {};
   const timeoutController = timeoutMs > 0 ? new AbortController() : null;
   let didTimeout = false;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -157,6 +182,67 @@ async function requestRaw(url: string, init?: RequestOptions): Promise<Response>
     throw new Error(message);
   }
   return response;
+}
+
+async function withExportProgress<T>(url: string, init: RequestOptions | undefined, action: () => Promise<T>) {
+  const exportProgress = resolveExportProgressOptions(url, init?.exportProgress);
+  const progressId = beginExportProgress(url, exportProgress);
+  try {
+    const result = await action();
+    finishExportProgress(progressId, url, exportProgress);
+    return result;
+  } catch (error) {
+    failExportProgress(progressId, url, exportProgress, error);
+    throw error;
+  }
+}
+
+function resolveExportProgressOptions(
+  url: string,
+  configured?: ExportProgressOptions | false,
+): ExportProgressOptions | false {
+  if (configured === false) {
+    return false;
+  }
+  const inferred = inferExportProgressOptions(url);
+  return {
+    ...inferred,
+    ...(configured ?? {}),
+  };
+}
+
+function inferExportProgressOptions(url: string): ExportProgressOptions {
+  if (url.includes('/horizontal-comparison/export')) {
+    return { label: '正在导出横向对比', profile: 'heavyStatistic', endpointKey: 'system-test-horizontal-comparison' };
+  }
+  if (url.includes('/statistic-boards/') && url.includes('/issues/export')) {
+    return { label: '正在导出议题数据', profile: 'illegal', endpointKey: 'statistic-board-issues' };
+  }
+  if (url.includes('/statistic-boards/') && url.includes('/export')) {
+    return { label: '正在导出统计表', profile: 'statistic', endpointKey: 'statistic-board' };
+  }
+  if (url.includes('/code-review/illegal-records/export')) {
+    return { label: '正在导出代码走查数据', profile: 'codeReview', endpointKey: 'code-review-illegal-records' };
+  }
+  if (url.includes('/review-data/problem-items/export')) {
+    return { label: '正在导出评审问题', profile: 'review', endpointKey: 'review-data-problems' };
+  }
+  if (url.includes('/review-data/records/') && url.includes('/problem-items/export')) {
+    return { label: '正在导出问题详情', profile: 'review', endpointKey: 'review-data-problem-detail' };
+  }
+  if (url.includes('/review-data/records/export')) {
+    return { label: '正在导出评审列表', profile: 'review', endpointKey: 'review-data-records' };
+  }
+  if (url.includes('/review-data/template')) {
+    return { label: '正在下载评审模板', profile: 'template', endpointKey: 'review-data-template' };
+  }
+  if (url.includes('/illegal-records/export')) {
+    return { label: '正在导出非法数据', profile: 'illegal', endpointKey: 'illegal-records' };
+  }
+  if (url.includes('/records/export') || url.includes('/issues/export') || url.includes('/export')) {
+    return { label: '正在生成导出文件', profile: 'record', endpointKey: 'record-export' };
+  }
+  return { label: '正在生成文件', profile: 'record', endpointKey: 'blob-download' };
 }
 
 function notifyAuthRequired(status: number, message?: string) {

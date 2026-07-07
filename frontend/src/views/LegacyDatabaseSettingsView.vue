@@ -10,6 +10,9 @@ import type {
   CodeReviewMatchModeDbSettingsResponse,
   CodeReviewMatchModeDbSettingsSaveRequest,
   CodeReviewMatchModeTableOptionResponse,
+  CodeReviewDgmGitlabProjectOptionResponse,
+  CodeReviewDgmGitlabProjectSourceResponse,
+  CodeReviewDgmGitlabProjectSourceSaveRequest,
 } from '../types/api';
 import type { RecordTableFilterOption } from '../types/record-table';
 import { formatBeijingDateTime } from '../utils/beijing-time';
@@ -26,6 +29,11 @@ const mongoTesting = ref(false);
 const syncing = ref(false);
 const mongoSyncing = ref(false);
 const formalImporting = ref(false);
+const dgmProjectSourceLoading = ref(false);
+const dgmProjectSourceSaving = ref(false);
+const dgmProjectSourceTesting = ref(false);
+const dgmProjectOptionsSyncing = ref(false);
+const dgmProjectOptionsLoading = ref(false);
 const tableOptionsLoading = ref(false);
 const tableOptionsLoaded = ref(false);
 const tableOptions = ref<CodeReviewMatchModeTableOptionResponse[]>([]);
@@ -33,6 +41,8 @@ const mongoCollectionOptionsLoading = ref(false);
 const mongoCollectionOptionsLoaded = ref(false);
 const mongoCollectionOptions = ref<CodeReviewMatchModeCollectionOptionResponse[]>([]);
 const settings = ref<CodeReviewMatchModeDbSettingsResponse | null>(null);
+const dgmProjectSourceSettings = ref<CodeReviewDgmGitlabProjectSourceResponse | null>(null);
+const dgmProjectOptions = ref<CodeReviewDgmGitlabProjectOptionResponse[]>([]);
 const formalImportConfirmationText = '我确认要将数据源导入新采集平台中';
 const formalImportConfirmation = ref('');
 const formalImportSelection = ref<Array<'review' | 'codeReview'>>(['review', 'codeReview']);
@@ -58,6 +68,16 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   reviewProblemCollectionName: 'problemDetail',
   reviewDataReadMode: 'compatibility',
   codeReviewReadMode: 'compatibility',
+});
+
+const dgmProjectSourceForm = reactive<CodeReviewDgmGitlabProjectSourceSaveRequest>({
+  enabled: false,
+  gitlabBaseUrl: '',
+  accessToken: '',
+  groupPath: '',
+  includeSubgroups: true,
+  includeArchived: false,
+  syncIntervalMinutes: 60,
 });
 
 const statusTagType = computed(() => {
@@ -91,6 +111,37 @@ const lastSyncTime = computed(() => formatDateTime(settings.value?.syncFinishedA
 const updatedTime = computed(() => formatDateTime(settings.value?.updatedAt));
 const reviewDataReadModeText = computed(() => readModeText(form.reviewDataReadMode));
 const codeReviewReadModeText = computed(() => readModeText(form.codeReviewReadMode));
+const dgmProjectSourceStatusTagType = computed(() => {
+  const status = dgmProjectSourceSettings.value?.lastSyncStatus;
+  if (status === 'SUCCESS') {
+    return 'success';
+  }
+  if (status === 'RUNNING') {
+    return 'warning';
+  }
+  if (status === 'FAILED') {
+    return 'danger';
+  }
+  return 'info';
+});
+const dgmProjectSourceStatusText = computed(() => {
+  switch (dgmProjectSourceSettings.value?.lastSyncStatus) {
+    case 'SUCCESS':
+      return '同步成功';
+    case 'RUNNING':
+      return '同步中';
+    case 'FAILED':
+      return '同步失败';
+    default:
+      return '未同步';
+  }
+});
+const dgmProjectSourceLastSyncText = computed(() =>
+  formatDateTime(
+    dgmProjectSourceSettings.value?.lastSyncFinishedAt ||
+      dgmProjectSourceSettings.value?.lastSyncStartedAt,
+  ),
+);
 const formalImportDisabled = computed(
   () =>
     formalImportSelection.value.length === 0 ||
@@ -141,6 +192,8 @@ const mongoCollectionSelectOptions = computed<RecordTableFilterOption[]>(() => {
 
 onMounted(async () => {
   await loadSettings();
+  await loadDgmProjectSourceSettings();
+  await loadDgmProjectOptions();
 });
 
 async function loadSettings() {
@@ -245,6 +298,72 @@ async function importLegacyPlatformToFormal() {
   }
 }
 
+async function loadDgmProjectSourceSettings() {
+  dgmProjectSourceLoading.value = true;
+  try {
+    applyDgmProjectSourceSettings(await api.getCodeReviewDgmGitlabProjectSource());
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载 DGM GitLab 项目下拉数据源失败');
+  } finally {
+    dgmProjectSourceLoading.value = false;
+  }
+}
+
+async function saveDgmProjectSourceSettings() {
+  dgmProjectSourceSaving.value = true;
+  try {
+    applyDgmProjectSourceSettings(
+      await api.saveCodeReviewDgmGitlabProjectSource(buildDgmProjectSourcePayload()),
+    );
+    ElMessage.success('DGM GitLab 项目下拉数据源已保存');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存 DGM GitLab 项目下拉数据源失败');
+  } finally {
+    dgmProjectSourceSaving.value = false;
+  }
+}
+
+async function testDgmProjectSourceConnection() {
+  dgmProjectSourceTesting.value = true;
+  try {
+    const result = await api.testCodeReviewDgmGitlabProjectSource(buildDgmProjectSourcePayload());
+    if (result.success) {
+      ElMessage.success(result.message);
+    } else {
+      ElMessage.warning(result.message || 'DGM GitLab 项目接口连接失败');
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '测试 DGM GitLab 项目接口失败');
+  } finally {
+    dgmProjectSourceTesting.value = false;
+  }
+}
+
+async function syncDgmProjectOptions() {
+  dgmProjectOptionsSyncing.value = true;
+  try {
+    const result = await api.syncCodeReviewDgmGitlabProjectOptions();
+    ElMessage.success(result.message || `DGM GitLab 项目候选同步完成：${result.recordCount} 个项目`);
+    await loadDgmProjectSourceSettings();
+    await loadDgmProjectOptions();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '同步 DGM GitLab 项目候选失败');
+  } finally {
+    dgmProjectOptionsSyncing.value = false;
+  }
+}
+
+async function loadDgmProjectOptions() {
+  dgmProjectOptionsLoading.value = true;
+  try {
+    dgmProjectOptions.value = await api.getCodeReviewDgmGitlabProjectOptions();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '加载 DGM GitLab 项目候选失败');
+  } finally {
+    dgmProjectOptionsLoading.value = false;
+  }
+}
+
 async function ensureTableOptions(force = false) {
   if (tableOptionsLoading.value) {
     return;
@@ -319,6 +438,17 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   form.codeReviewReadMode = nextSettings.codeReviewReadMode || 'compatibility';
 }
 
+function applyDgmProjectSourceSettings(nextSettings: CodeReviewDgmGitlabProjectSourceResponse) {
+  dgmProjectSourceSettings.value = nextSettings;
+  dgmProjectSourceForm.enabled = nextSettings.enabled;
+  dgmProjectSourceForm.gitlabBaseUrl = nextSettings.gitlabBaseUrl || '';
+  dgmProjectSourceForm.accessToken = '';
+  dgmProjectSourceForm.groupPath = nextSettings.groupPath || '';
+  dgmProjectSourceForm.includeSubgroups = nextSettings.includeSubgroups;
+  dgmProjectSourceForm.includeArchived = nextSettings.includeArchived;
+  dgmProjectSourceForm.syncIntervalMinutes = nextSettings.syncIntervalMinutes || 60;
+}
+
 function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
   return {
     enabled: form.enabled,
@@ -341,6 +471,18 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     reviewProblemCollectionName: form.reviewProblemCollectionName.trim() || 'problemDetail',
     reviewDataReadMode: form.reviewDataReadMode,
     codeReviewReadMode: form.codeReviewReadMode,
+  };
+}
+
+function buildDgmProjectSourcePayload(): CodeReviewDgmGitlabProjectSourceSaveRequest {
+  return {
+    enabled: dgmProjectSourceForm.enabled,
+    gitlabBaseUrl: dgmProjectSourceForm.gitlabBaseUrl.trim(),
+    accessToken: dgmProjectSourceForm.accessToken?.trim() || null,
+    groupPath: dgmProjectSourceForm.groupPath.trim(),
+    includeSubgroups: dgmProjectSourceForm.includeSubgroups,
+    includeArchived: dgmProjectSourceForm.includeArchived,
+    syncIntervalMinutes: Number(dgmProjectSourceForm.syncIntervalMinutes || 60),
   };
 }
 
@@ -439,8 +581,9 @@ function readModeText(mode?: 'compatibility' | 'formal') {
           <el-form-item label="兼容模式">
             <el-switch v-model="form.enabled" />
           </el-form-item>
-          <el-form-item label="每小时自动同步">
+          <el-form-item label="每 10 分钟自动同步">
             <el-switch v-model="form.syncEnabled" :disabled="!form.enabled" />
+            <div class="form-help-text">上次同步结束后再等待 10 分钟触发下一次；同步过程中页面继续展示上一次已完成同步的数据。</div>
           </el-form-item>
           <el-form-item label="评审数据读源">
             <el-radio-group v-model="form.reviewDataReadMode">
@@ -637,6 +780,131 @@ function readModeText(mode?: 'compatibility' | 'formal') {
           </div>
         </el-form>
       </el-card>
+
+      <el-card shadow="never" class="panel-card">
+        <template #header>
+          <div class="legacy-db-card-header">
+            <div class="legacy-db-card-title">DGM GitLab 项目下拉数据源</div>
+            <div class="legacy-db-card-header-actions">
+              <el-tag :type="dgmProjectSourceStatusTagType" effect="plain" round>
+                {{ dgmProjectSourceStatusText }}
+              </el-tag>
+              <el-button :icon="Refresh" :loading="dgmProjectSourceLoading" @click="loadDgmProjectSourceSettings">
+                刷新
+              </el-button>
+            </div>
+          </div>
+        </template>
+
+        <el-form v-loading="dgmProjectSourceLoading" label-width="148px" class="legacy-db-form">
+          <div class="legacy-db-status-grid dgm-project-status-grid">
+            <div class="legacy-db-status-item">
+              <span>数据源状态</span>
+              <strong>{{ dgmProjectSourceForm.enabled ? '开启' : '关闭' }}</strong>
+            </div>
+            <div class="legacy-db-status-item">
+              <span>缓存项目数</span>
+              <strong>{{ dgmProjectOptions.length }}</strong>
+            </div>
+            <div class="legacy-db-status-item">
+              <span>最近同步</span>
+              <strong>{{ dgmProjectSourceLastSyncText }}</strong>
+            </div>
+            <div class="legacy-db-status-item">
+              <span>同步记录数</span>
+              <strong>{{ dgmProjectSourceSettings?.lastSyncRecordCount ?? 0 }}</strong>
+            </div>
+          </div>
+
+          <el-alert
+            class="legacy-db-message"
+            type="info"
+            :closable="false"
+            show-icon
+            title="该配置只用于 DGM 项目名称下拉候选缓存，不参与 GitLab 镜像同步，也不改变兼容模式和正式事实表的数据读取。"
+          />
+
+          <div class="legacy-db-form-grid dgm-project-form-grid">
+            <el-form-item label="启用数据源">
+              <el-switch v-model="dgmProjectSourceForm.enabled" />
+            </el-form-item>
+            <el-form-item label="同步间隔(分钟)">
+              <el-input-number
+                v-model="dgmProjectSourceForm.syncIntervalMinutes"
+                :min="1"
+                :max="10080"
+                controls-position="right"
+              />
+            </el-form-item>
+            <el-form-item label="GitLab 地址">
+              <el-input v-model="dgmProjectSourceForm.gitlabBaseUrl" placeholder="http://172.22.10.100" />
+            </el-form-item>
+            <el-form-item label="Group ID/路径">
+              <el-input v-model="dgmProjectSourceForm.groupPath" placeholder="KernelGroup 或 KernelGroup/DGM" />
+            </el-form-item>
+            <el-form-item label="访问 Token">
+              <el-input
+                v-model="dgmProjectSourceForm.accessToken"
+                type="password"
+                show-password
+                :placeholder="dgmProjectSourceSettings?.accessTokenConfigured ? '已配置，留空不修改' : 'read_api Token'"
+              />
+            </el-form-item>
+            <el-form-item label="同步范围">
+              <div class="legacy-db-inline-options">
+                <el-checkbox v-model="dgmProjectSourceForm.includeSubgroups">包含子组</el-checkbox>
+                <el-checkbox v-model="dgmProjectSourceForm.includeArchived">包含归档项目</el-checkbox>
+              </div>
+            </el-form-item>
+          </div>
+
+          <el-form-item label="本地缓存项目">
+            <div class="dgm-project-option-preview" v-loading="dgmProjectOptionsLoading">
+              <el-tag
+                v-for="project in dgmProjectOptions.slice(0, 24)"
+                :key="project.gitlabProjectId"
+                effect="plain"
+              >
+                {{ project.name }}
+              </el-tag>
+              <span v-if="dgmProjectOptions.length === 0" class="form-help-text">暂无项目候选，请先同步。</span>
+              <span v-else-if="dgmProjectOptions.length > 24" class="form-help-text">
+                另有 {{ dgmProjectOptions.length - 24 }} 个项目未展开显示
+              </span>
+            </div>
+          </el-form-item>
+
+          <div class="legacy-db-actions">
+            <el-button
+              type="primary"
+              :icon="Check"
+              :loading="dgmProjectSourceSaving"
+              @click="saveDgmProjectSourceSettings"
+            >
+              保存 DGM 项目源
+            </el-button>
+            <el-button
+              :icon="Connection"
+              :loading="dgmProjectSourceTesting"
+              @click="testDgmProjectSourceConnection"
+            >
+              测试连接
+            </el-button>
+            <el-button
+              type="warning"
+              :icon="Refresh"
+              :loading="dgmProjectOptionsSyncing"
+              :disabled="!dgmProjectSourceForm.enabled"
+              @click="syncDgmProjectOptions"
+            >
+              同步项目候选
+            </el-button>
+            <el-button :icon="Refresh" :loading="dgmProjectOptionsLoading" @click="loadDgmProjectOptions">
+              刷新缓存列表
+            </el-button>
+          </div>
+        </el-form>
+      </el-card>
     </div>
   </PageStateShell>
 </template>
@@ -658,6 +926,13 @@ function readModeText(mode?: 'compatibility' | 'formal') {
 .legacy-db-card-title {
   font-weight: 600;
   color: var(--el-text-color-primary);
+}
+
+.legacy-db-card-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .legacy-db-status-grid {
@@ -703,6 +978,30 @@ function readModeText(mode?: 'compatibility' | 'formal') {
 
 .legacy-db-form-grid :deep(.el-input-number) {
   width: 100%;
+}
+
+.dgm-project-status-grid {
+  margin-bottom: 12px;
+}
+
+.dgm-project-form-grid {
+  margin-top: 16px;
+}
+
+.legacy-db-inline-options {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.dgm-project-option-preview {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .legacy-db-table-select {

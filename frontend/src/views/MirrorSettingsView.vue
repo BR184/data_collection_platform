@@ -830,59 +830,78 @@ onBeforeRouteLeave(async () => {
           :closable="false"
           show-icon
         />
-        <el-space wrap>
-          <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
-          <el-button
-            :icon="Tools"
-            :loading="testing"
-            :disabled="saving || testing || savedConfigActionDisabled"
-            @click="testConnection"
-          >
-            测试连接
-          </el-button>
-          <el-button
-            :loading="registeringSystemHook"
-            :disabled="systemHookAutoRegistrationDisabled"
-            @click="registerSystemHook"
-          >
-            注册 System Hook
-          </el-button>
-          <el-button
-            type="success"
-            :loading="syncing"
-            :disabled="!syncEnabled || savedConfigActionDisabled"
-            @click="startFullSync"
-          >
-            首次全量同步
-          </el-button>
-          <el-button
-            :loading="syncing"
-            :disabled="!syncEnabled || savedConfigActionDisabled"
-            @click="startIncrementalSync"
-          >
-            刷新最新数据
-          </el-button>
-          <el-button
-            :loading="syncing"
-            :disabled="!syncEnabled || savedConfigActionDisabled"
-            title="按源库对镜像库做全量对账，纠正差异并清理源库不存在的镜像行"
-            @click="startFullCompensationSync"
-          >
-            全量补偿对账
-          </el-button>
-          <el-button
-            type="danger"
-            plain
-            :loading="cancelling"
-            :disabled="!canCancel || savedConfigActionDisabled"
-            @click="cancelSyncTask"
-          >
-            中止导入
-          </el-button>
-          <el-button type="danger" plain :disabled="savedConfigActionDisabled" @click="openPurgeDialog">
-            删除镜像数据
-          </el-button>
-        </el-space>
+        <div class="mirror-action-panel">
+          <div class="mirror-action-groups">
+            <div class="mirror-action-group">
+              <div class="mirror-action-group__label">配置校验</div>
+              <el-button-group class="mirror-button-group">
+                <el-button type="primary" :loading="saving" @click="saveConfig()">保存配置</el-button>
+                <el-button
+                  :icon="Tools"
+                  :loading="testing"
+                  :disabled="saving || testing || savedConfigActionDisabled"
+                  @click="testConnection"
+                >
+                  测试连接
+                </el-button>
+                <el-button
+                  :loading="registeringSystemHook"
+                  :disabled="systemHookAutoRegistrationDisabled"
+                  @click="registerSystemHook"
+                >
+                  注册 System Hook
+                </el-button>
+              </el-button-group>
+            </div>
+
+            <div class="mirror-action-group mirror-action-group--sync">
+              <div class="mirror-action-group__label">数据同步</div>
+              <el-button-group class="mirror-button-group">
+                <el-button
+                  type="success"
+                  :loading="syncing"
+                  :disabled="!syncEnabled || savedConfigActionDisabled"
+                  @click="startFullSync"
+                >
+                  首次全量同步
+                </el-button>
+                <el-button
+                  :loading="syncing"
+                  :disabled="!syncEnabled || savedConfigActionDisabled"
+                  @click="startIncrementalSync"
+                >
+                  刷新最新数据
+                </el-button>
+                <el-button
+                  :loading="syncing"
+                  :disabled="!syncEnabled || savedConfigActionDisabled"
+                  title="按源库对镜像库做全量对账，纠正差异并清理源库不存在的镜像行"
+                  @click="startFullCompensationSync"
+                >
+                  全量补偿对账
+                </el-button>
+              </el-button-group>
+            </div>
+
+            <div class="mirror-action-group mirror-action-group--danger">
+              <div class="mirror-action-group__label">危险操作</div>
+              <el-space wrap :size="8">
+                <el-button
+                  type="danger"
+                  plain
+                  :loading="cancelling"
+                  :disabled="!canCancel || savedConfigActionDisabled"
+                  @click="cancelSyncTask"
+                >
+                  中止导入
+                </el-button>
+                <el-button type="danger" plain :disabled="savedConfigActionDisabled" @click="openPurgeDialog">
+                  删除镜像数据
+                </el-button>
+              </el-space>
+            </div>
+          </div>
+        </div>
       </el-form>
     </el-card>
 
@@ -1101,6 +1120,52 @@ onBeforeRouteLeave(async () => {
 </template>
 
 <style scoped>
+.mirror-action-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.mirror-action-groups {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mirror-action-group {
+  display: grid;
+  gap: 8px;
+  min-width: max-content;
+}
+
+.mirror-action-group--sync {
+  flex: 1 1 360px;
+}
+
+.mirror-action-group--danger {
+  margin-left: auto;
+}
+
+.mirror-action-group__label {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.mirror-button-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.mirror-button-group :deep(.el-button) {
+  margin-left: 0;
+}
+
 .mirror-window-row {
   display: flex;
   align-items: center;
@@ -1111,5 +1176,14 @@ onBeforeRouteLeave(async () => {
 .mirror-window-separator {
   color: rgba(0, 0, 0, 0.45);
   font-size: 13px;
+}
+
+@media (max-width: 1280px) {
+  .mirror-action-group,
+  .mirror-action-group--sync,
+  .mirror-action-group--danger {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
 }
 </style>

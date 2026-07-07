@@ -157,19 +157,15 @@ const sourceScopeProvider = computed(() => ({
   defaultStrategy: 'empty' as const,
 }));
 const effectiveSourceValue = computed(() =>
-  sourceScope.value.value || sourceOptions.value[0]?.value || (matchModeEnabled.value ? 'cc' : ''),
+  sourceScope.value.value || (matchModeEnabled.value ? 'cc' : sourceOptions.value[0]?.value || ''),
 );
-const activeSourceIsDgm = computed(
-  () => matchModeEnabled.value && effectiveSourceValue.value === 'dgm',
-);
+const activeSourceIsDgm = computed(() => effectiveSourceValue.value === 'dgm');
 const columns = computed(() =>
   buildCodeReviewIllegalRecordColumns(matchModeEnabled.value, activeSourceIsDgm.value),
 );
-const projectScopeUsesRepository = computed(
-  () => matchModeEnabled.value && !activeSourceIsDgm.value,
-);
+const projectScopeUsesRepository = computed(() => !activeSourceIsDgm.value);
 const effectiveRepositoryName = computed(() =>
-  String(route.query.repositoryName ?? '') || (matchModeEnabled.value ? defaultRepositoryNameForSource(effectiveSourceValue.value) : ''),
+  String(route.query.repositoryName ?? '') || (projectScopeUsesRepository.value ? defaultRepositoryNameForSource(effectiveSourceValue.value) : ''),
 );
 const projectScopeValue = computed(() =>
   projectScopeUsesRepository.value
@@ -182,10 +178,10 @@ const projectScopeOptions = computed(() =>
     : filterOptions.value.projectNames ?? [],
 );
 const projectScopeLabel = computed(() =>
-  projectScopeUsesRepository.value ? '所属项目' : (matchModeEnabled.value ? '项目名称' : '项目'),
+  projectScopeUsesRepository.value ? '所属项目' : '项目名称',
 );
 const projectScopePlaceholder = computed(() =>
-  projectScopeUsesRepository.value ? '全部所属项目' : (matchModeEnabled.value ? '全部项目名称' : '全部项目'),
+  projectScopeUsesRepository.value ? '全部所属项目' : '全部项目名称',
 );
 const sourceScope = useDataScope({
   provider: sourceScopeProvider,
@@ -276,6 +272,14 @@ async function syncCodeReviewRouteDefaults() {
   const patch: Record<string, string | number | null> = {};
   if (!String(route.query.source ?? '').trim() && effectiveSourceValue.value) {
     patch.source = effectiveSourceValue.value;
+  }
+  if (
+    !activeSourceIsDgm.value &&
+    !String(route.query.repositoryName ?? '').trim()
+  ) {
+    //兼容模式-MatchMode：对齐老平台代码走查非法数据页，进入 CC 库默认选择 CrownCAD 所属项目；
+    //非兼容读源也复用这一默认范围，避免交接前后同一页面候选口径漂移。
+    patch.repositoryName = 'CrownCAD';
   }
   if (activeSourceIsDgm.value && String(route.query.repositoryName ?? '').trim()) {
     patch.repositoryName = null;
@@ -581,7 +585,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       <template #primary-actions>
         <div class="code-review-illegal-toolbar-actions">
           <div
-            v-if="matchModeEnabled && sourceSwitchOptions.length > 1"
+            v-if="sourceSwitchOptions.length > 1"
             class="code-review-source-switch"
           >
             <span class="code-review-illegal-toolbar-label">数据源</span>

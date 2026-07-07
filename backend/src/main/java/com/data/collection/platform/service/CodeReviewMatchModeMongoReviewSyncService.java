@@ -70,7 +70,7 @@ public class CodeReviewMatchModeMongoReviewSyncService {
   }
 
   //兼容模式-MatchMode
-  @Scheduled(fixedDelayString = "${platform.code-review.match-mode.mongo-sync-delay-ms:3600000}", initialDelayString = "${platform.code-review.match-mode.mongo-initial-delay-ms:45000}")
+  @Scheduled(fixedDelayString = "${platform.code-review.match-mode.mongo-sync-delay-ms:600000}", initialDelayString = "${platform.code-review.match-mode.mongo-initial-delay-ms:45000}")
   public void syncScheduled() {
     if (!configService.isMatchModeEnabled()) {
       return;

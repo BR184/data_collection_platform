@@ -26,6 +26,7 @@ interface StatisticBoardDetailParams {
   size: number;
   sortField?: string;
   sortOrder?: string;
+  filters?: Record<string, string>;
   filterGroup?: StatisticFilterGroup | null;
 }
 
@@ -134,6 +135,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         size: detailPagination.size,
         sortField: detailPagination.sortField || undefined,
         sortOrder: detailPagination.sortOrder || undefined,
+        filters: activeCell.value.detailParams,
         filterGroup: deps.getFilterGroup(),
       });
     } catch (error) {
