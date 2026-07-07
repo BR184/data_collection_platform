@@ -174,12 +174,23 @@ function detailColumnClassName(column: StatisticDetailColumn) {
 }
 
 function isDetailLeftAlignedTextColumn(column: StatisticDetailColumn) {
-  if (column.type === 'number' || column.type === 'tag' || column.type === 'tags') {
+  if (isDetailCenteredShortColumn(column)) {
     return false;
   }
   return /标题|合并请求内容|内容|描述|说明|方案|备注|详情|消息/.test(column.label)
     || /(title|content|description|solution|remark|note|message|summary|detail)$/i.test(column.key)
     || /mergeRequestContent/i.test(column.key);
+}
+
+function isDetailCenteredShortColumn(column: StatisticDetailColumn) {
+  if (column.type === 'number' || column.type === 'link' || column.type === 'tag' || column.type === 'tags') {
+    return true;
+  }
+  const normalizedKey = column.key.replace(/[-_]/g, '').toLowerCase();
+  return /编号|状态|严重程度|优先级|时间|日期|模块|功能/.test(column.label)
+    || ['id', 'iid', 'issueid', 'issueiid', 'issuenumber', 'mrid', 'mriid'].includes(normalizedKey)
+    || /(status|state|level|priority|severity|phase|time|date)$/.test(normalizedKey)
+    || /At$/.test(column.key);
 }
 
 function readableDetailSortFieldLabel(fieldKey: string) {
@@ -467,8 +478,9 @@ function readableDetailSortDirection(direction: string) {
   align-items: center;
   justify-content: center;
   min-height: 24px;
-  width: 100%;
+  width: 100% !important;
   min-width: 0;
+  box-sizing: border-box;
   text-align: center;
   line-height: 1.35 !important;
   overflow: visible;

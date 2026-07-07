@@ -190,6 +190,7 @@ function rgbToHex(red: number, green: number, blue: number) {
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  text-align: center;
 }
 
 .detail-display-cell--tag-list {
@@ -226,6 +227,11 @@ function rgbToHex(red: number, green: number, blue: number) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-display-cell--center .detail-cell-link {
+  width: 100%;
+  text-align: center;
 }
 
 .detail-display-cell--left .detail-cell-link {
