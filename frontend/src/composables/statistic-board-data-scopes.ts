@@ -134,12 +134,14 @@ export function useStatisticBoardDataScope(boardKey: Ref<string>) {
       customerLoading.value = true;
       try {
         const options = await api.getCustomerIssueRecordFilterOptions('cc-product', LEGACY_CC_PRODUCT_PROJECT_ID);
-        customerMilestoneOptions.value = (options.milestoneTitles ?? [])
-          .map((item) => ({
-            label: item.label ?? item.value,
-            value: item.value,
-          }))
-          .filter((item) => normalizeText(item.value));
+        customerMilestoneOptions.value = sortLatestCcMilestoneOptions(
+          (options.milestoneTitles ?? [])
+            .map((item) => ({
+              label: item.label ?? item.value,
+              value: item.value,
+            }))
+            .filter((item) => normalizeText(item.value)),
+        );
       } finally {
         customerLoaded.value = true;
         customerLoading.value = false;
@@ -186,4 +188,47 @@ function buildTreeOptions(groups: TestingPhaseGroupResponse[]): DataScopeOption[
 
 function normalizeText(value: string | null | undefined) {
   return String(value ?? '').trim();
+}
+
+const CC_RELEASE_PATTERN = /\bCC\s*(\d{4})\s*R\s*(\d+)\b/i;
+const SPACED_CC_RELEASE_PATTERN = /\bCC\s*\d{4}\s+R\s*\d+\b/i;
+
+function sortLatestCcMilestoneOptions(options: DataScopeOption[]) {
+  return [...options].sort((left, right) => compareLatestCcMilestone(left.value, right.value));
+}
+
+function compareLatestCcMilestone(left: string, right: string) {
+  const leftVersion = parseCcRelease(left);
+  const rightVersion = parseCcRelease(right);
+  if (leftVersion.matched && rightVersion.matched) {
+    const byYear = rightVersion.year - leftVersion.year;
+    if (byYear !== 0) {
+      return byYear;
+    }
+    const byRelease = rightVersion.release - leftVersion.release;
+    if (byRelease !== 0) {
+      return byRelease;
+    }
+    const bySpacedFormat = Number(rightVersion.spacedFormat) - Number(leftVersion.spacedFormat);
+    if (bySpacedFormat !== 0) {
+      return bySpacedFormat;
+    }
+  } else if (leftVersion.matched !== rightVersion.matched) {
+    return leftVersion.matched ? -1 : 1;
+  }
+  return right.localeCompare(left, 'zh-Hans-CN');
+}
+
+function parseCcRelease(value: string) {
+  const normalized = normalizeText(value);
+  const match = CC_RELEASE_PATTERN.exec(normalized);
+  if (!match) {
+    return { matched: false, year: 0, release: 0, spacedFormat: false };
+  }
+  return {
+    matched: true,
+    year: Number.parseInt(match[1] ?? '0', 10),
+    release: Number.parseInt(match[2] ?? '0', 10),
+    spacedFormat: SPACED_CC_RELEASE_PATTERN.test(normalized),
+  };
 }

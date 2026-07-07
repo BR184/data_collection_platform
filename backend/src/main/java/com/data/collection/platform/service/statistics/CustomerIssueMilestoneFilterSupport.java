@@ -27,10 +27,7 @@ final class CustomerIssueMilestoneFilterSupport {
       return normalized;
     }
     String defaultMilestone =
-        safeMilestones(milestoneOptions).stream()
-            .filter(StringUtils::hasText)
-            .findFirst()
-            .orElse("");
+        CustomerIssueMilestoneOrdering.latest(safeMilestones(milestoneOptions));
     if (!StringUtils.hasText(defaultMilestone)) {
       return normalized == null ? new StatisticFilterGroup("AND", List.of()) : normalized;
     }

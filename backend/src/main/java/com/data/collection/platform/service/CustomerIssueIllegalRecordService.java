@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordFilterOptionsResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordListResponse;
 import com.data.collection.platform.entity.CustomerIssueIllegalRecordRowResponse;
+import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.labelgroup.LabelGroupExpansionResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
@@ -11,6 +12,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSampl
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.labelgroup.LabelGroupExpansionService;
 import com.data.collection.platform.service.statistics.CustomerIssueMilestoneCatalogService;
+import com.data.collection.platform.service.statistics.CustomerIssueMilestoneOrdering;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -277,15 +279,15 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
   public CustomerIssueIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     Map<String, Object> requestPayload = Map.of("projectId", LEGACY_CC_PRODUCT_PROJECT_ID);
     if (pageRecordSnapshotService == null) {
-      return loadFilterOptions();
+      return withSortedMilestoneOptions(loadFilterOptions());
     }
-    return pageRecordSnapshotService.readOrRefresh(
+    return withSortedMilestoneOptions(pageRecordSnapshotService.readOrRefresh(
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_FILTER_OPTIONS,
             "project:" + LEGACY_CC_PRODUCT_PROJECT_ID,
             requestPayload),
         CustomerIssueIllegalRecordFilterOptionsResponse.class,
-        this::loadFilterOptions);
+        this::loadFilterOptions));
   }
 
   private CustomerIssueIllegalRecordFilterOptionsResponse loadFilterOptions() {
@@ -312,7 +314,42 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         toOptions(values.categories()),
         toOptions(values.authorNames()),
         toOptions(values.assigneeNames()),
-        toOptions(customerIssueMilestones(values.milestoneTitles())));
+        toOptionsPreservingOrder(customerIssueMilestones(values.milestoneTitles())));
+  }
+
+  private CustomerIssueIllegalRecordFilterOptionsResponse withSortedMilestoneOptions(
+      CustomerIssueIllegalRecordFilterOptionsResponse response) {
+    return new CustomerIssueIllegalRecordFilterOptionsResponse(
+        response.projectNames(),
+        response.moduleNames(),
+        response.functionNames(),
+        response.illegalReasons(),
+        response.severityLevels(),
+        response.priorityLevels(),
+        response.issueStates(),
+        response.bugStatuses(),
+        response.categories(),
+        response.authorNames(),
+        response.assigneeNames(),
+        sortedMilestoneOptions(response.milestoneTitles()));
+  }
+
+  private List<OptionItemResponse> sortedMilestoneOptions(List<OptionItemResponse> options) {
+    if (options == null || options.isEmpty()) {
+      return List.of();
+    }
+    Map<String, OptionItemResponse> byValue = new LinkedHashMap<>();
+    for (OptionItemResponse option : options) {
+      String value = TextQuerySupport.trimToNull(option == null ? null : option.value());
+      if (value == null) {
+        continue;
+      }
+      String label = TextQuerySupport.trimToNull(option.label());
+      byValue.putIfAbsent(value, new OptionItemResponse(label == null ? value : label, value));
+    }
+    return CustomerIssueMilestoneOrdering.sortLatestFirst(byValue.keySet()).stream()
+        .map(byValue::get)
+        .toList();
   }
 
   @Override
@@ -411,7 +448,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         .map(TextQuerySupport::trimToNull)
         .filter(value -> value != null)
         .forEach(milestones::add);
-    return List.copyOf(milestones);
+    return CustomerIssueMilestoneOrdering.sortLatestFirst(milestones);
   }
 
   private IssueFactRecordListRequest withLegacyDefaultProject(IssueFactRecordListRequest request) {

@@ -24,7 +24,7 @@ public class CustomerIssueMilestoneCatalogService {
   public List<String> listMilestones() {
     Set<String> milestones = new LinkedHashSet<>(listMirrorMilestones());
     milestones.addAll(listFactMilestones());
-    return milestones.stream().filter(StringUtils::hasText).toList();
+    return CustomerIssueMilestoneOrdering.sortLatestFirst(milestones);
   }
 
   private List<String> listMirrorMilestones() {
