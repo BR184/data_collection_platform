@@ -140,7 +140,7 @@ final class IssueClassificationRules {
   private static List<String> systemTestIllegalReasons(
       List<String> labels, List<String> modules, String notesText, boolean fixed) {
     List<String> reasons = new java.util.ArrayList<>();
-    if (IssueLabelRules.normalizeSeverityLevel(labels) == null) {
+    if (IssueLabelRules.normalizeDefectSeverityLevel(labels) == null) {
       reasons.add(MISSING_SEVERITY);
     }
     if (modules == null || modules.isEmpty()) {
@@ -174,7 +174,7 @@ final class IssueClassificationRules {
   static List<String> customerIssueIllegalReasons(
       List<String> labels, List<String> modules, String notesText, boolean fixed) {
     List<String> reasons = new java.util.ArrayList<>(systemTestIllegalReasons(labels, modules, notesText, fixed));
-    if (hasInvalidCustomerResearchTemplate(notesText, IssueLabelRules.normalizeSeverityLevel(labels))) {
+    if (hasInvalidCustomerResearchTemplate(notesText, IssueLabelRules.normalizeDefectSeverityLevel(labels))) {
       reasons.add(INVALID_RESEARCH_TEMPLATE);
     }
     return List.copyOf(reasons);
@@ -328,7 +328,7 @@ final class IssueClassificationRules {
   }
 
   private static boolean isLevel1(List<String> labels) {
-    return LEVEL1.equals(IssueLabelRules.normalizeSeverityLevel(labels));
+    return LEVEL1.equals(IssueLabelRules.normalizeDefectSeverityLevel(labels));
   }
 
   private static IssueTemplateSnapshot fixTemplateSnapshot(String notesText) {

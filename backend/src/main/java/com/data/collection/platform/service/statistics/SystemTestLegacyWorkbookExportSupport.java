@@ -3,13 +3,13 @@ package com.data.collection.platform.service.statistics;
 import com.data.collection.platform.entity.statistics.StatisticBoardResponse;
 import com.data.collection.platform.entity.statistics.StatisticCellData;
 import com.data.collection.platform.entity.statistics.StatisticRowData;
+import com.data.collection.platform.service.ExcelExportStyles;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
@@ -278,31 +278,19 @@ final class SystemTestLegacyWorkbookExportSupport {
     private final CellStyle summary;
 
     private ExportStyles(Workbook workbook) {
-      header = workbook.createCellStyle();
-      header.setAlignment(HorizontalAlignment.CENTER);
-      header.setVerticalAlignment(VerticalAlignment.CENTER);
-      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      setBorders(header);
+      header = ExcelExportStyles.createHeaderStyle(workbook);
 
       body = workbook.createCellStyle();
       body.setAlignment(HorizontalAlignment.CENTER);
       body.setVerticalAlignment(VerticalAlignment.CENTER);
-      setBorders(body);
+      ExcelExportStyles.applyThinBorder(body);
 
       summary = workbook.createCellStyle();
       summary.setAlignment(HorizontalAlignment.CENTER);
       summary.setVerticalAlignment(VerticalAlignment.CENTER);
       summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
       summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      setBorders(summary);
-    }
-
-    private static void setBorders(CellStyle style) {
-      style.setBorderTop(BorderStyle.THIN);
-      style.setBorderBottom(BorderStyle.THIN);
-      style.setBorderLeft(BorderStyle.THIN);
-      style.setBorderRight(BorderStyle.THIN);
+      ExcelExportStyles.applyThinBorder(summary);
     }
   }
 }

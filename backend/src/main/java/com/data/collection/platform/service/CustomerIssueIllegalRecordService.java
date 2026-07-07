@@ -30,7 +30,7 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
     implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "customer-issue-illegal-records";
   private static final String PAGE_KEY = "customer-issues-illegal-records";
-  private static final String RULE_VERSION = "customer-issue-illegal-records@2026-04-22-v1";
+  private static final String RULE_VERSION = "customer-issue-illegal-records@2026-07-07-v2";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final int MAX_LABEL_GROUP_FILTER_VALUES = 200;

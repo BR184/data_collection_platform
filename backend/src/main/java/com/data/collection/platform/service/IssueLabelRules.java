@@ -77,6 +77,13 @@ final class IssueLabelRules {
     return null;
   }
 
+  static String normalizeDefectSeverityLevel(List<String> labels) {
+    String severityLevel = normalizeSeverityLevel(labels);
+    return "LEVEL1".equals(severityLevel) || "LEVEL2".equals(severityLevel) || "LEVEL3".equals(severityLevel)
+        ? severityLevel
+        : null;
+  }
+
   static String normalizeSeverityAlias(List<String> labels) {
     for (List<String> aliases : SEVERITY_TOKENS.values()) {
       for (String alias : aliases) {

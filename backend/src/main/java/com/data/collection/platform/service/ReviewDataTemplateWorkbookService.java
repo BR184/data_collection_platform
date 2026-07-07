@@ -155,11 +155,7 @@ public class ReviewDataTemplateWorkbookService {
       title.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
       title.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
-      header = bordered(workbook);
-      header.setAlignment(HorizontalAlignment.CENTER);
-      header.setVerticalAlignment(VerticalAlignment.CENTER);
-      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+      header = ExcelExportStyles.createHeaderStyle(workbook);
 
       input = bordered(workbook);
       input.setVerticalAlignment(VerticalAlignment.CENTER);

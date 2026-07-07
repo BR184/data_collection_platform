@@ -6,12 +6,9 @@ import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
@@ -253,24 +250,12 @@ public final class SystemTestIssueRecordWorkbookExportSupport {
     private final CellStyle body;
 
     private ExportStyles(Workbook workbook) {
-      this.header = workbook.createCellStyle();
-      header.setAlignment(HorizontalAlignment.CENTER);
-      header.setVerticalAlignment(VerticalAlignment.CENTER);
-      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      applyBorder(header);
+      this.header = ExcelExportStyles.createHeaderStyle(workbook);
 
       this.body = workbook.createCellStyle();
       body.setAlignment(HorizontalAlignment.CENTER);
       body.setVerticalAlignment(VerticalAlignment.CENTER);
-      applyBorder(body);
-    }
-
-    private static void applyBorder(CellStyle style) {
-      style.setBorderTop(BorderStyle.THIN);
-      style.setBorderBottom(BorderStyle.THIN);
-      style.setBorderLeft(BorderStyle.THIN);
-      style.setBorderRight(BorderStyle.THIN);
+      ExcelExportStyles.applyThinBorder(body);
     }
   }
 }

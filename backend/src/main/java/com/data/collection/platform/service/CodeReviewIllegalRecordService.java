@@ -25,11 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -1223,22 +1219,11 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     private final CellStyle body;
 
     private ExportStyles(Workbook workbook) {
-      header = workbook.createCellStyle();
-      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      header.setAlignment(HorizontalAlignment.CENTER);
-      header.setVerticalAlignment(VerticalAlignment.CENTER);
-      header.setBorderBottom(BorderStyle.THIN);
-      header.setBorderLeft(BorderStyle.THIN);
-      header.setBorderRight(BorderStyle.THIN);
-      header.setBorderTop(BorderStyle.THIN);
+      header = ExcelExportStyles.createHeaderStyle(workbook);
 
       body = workbook.createCellStyle();
       body.setVerticalAlignment(VerticalAlignment.CENTER);
-      body.setBorderBottom(BorderStyle.THIN);
-      body.setBorderLeft(BorderStyle.THIN);
-      body.setBorderRight(BorderStyle.THIN);
-      body.setBorderTop(BorderStyle.THIN);
+      ExcelExportStyles.applyThinBorder(body);
       body.setWrapText(true);
     }
   }

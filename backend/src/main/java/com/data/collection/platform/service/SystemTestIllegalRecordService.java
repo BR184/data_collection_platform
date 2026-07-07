@@ -20,7 +20,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListService
     implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "system-test-illegal-records";
-  private static final String RULE_VERSION = "system-test-illegal-records@2026-04-27-v1";
+  private static final String RULE_VERSION = "system-test-illegal-records@2026-07-07-v2";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;

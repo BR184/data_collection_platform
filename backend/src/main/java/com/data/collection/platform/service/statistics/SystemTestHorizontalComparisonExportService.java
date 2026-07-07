@@ -3,6 +3,7 @@ package com.data.collection.platform.service.statistics;
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.ByteArrayOutputStream;
@@ -21,6 +22,7 @@ import java.util.StringJoiner;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -60,7 +62,8 @@ public class SystemTestHorizontalComparisonExportService {
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
       Sheet sheet = workbook.createSheet(EXPORT_SHEET_NAME);
-      writeWorkbookRows(sheet, rows);
+      CellStyle headerStyle = ExcelExportStyles.createHeaderStyle(workbook);
+      writeWorkbookRows(sheet, rows, headerStyle);
       sheet.createFreezePane(1, HEADER_DEPTH);
       sheet.setColumnWidth(0, 24 * 256);
       for (int columnIndex = 1; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
@@ -105,8 +108,8 @@ public class SystemTestHorizontalComparisonExportService {
     return exportRows;
   }
 
-  private void writeWorkbookRows(Sheet sheet, List<HorizontalRow> rows) {
-    writeHeaderRows(sheet);
+  private void writeWorkbookRows(Sheet sheet, List<HorizontalRow> rows, CellStyle headerStyle) {
+    writeHeaderRows(sheet, headerStyle);
     int rowIndex = HEADER_DEPTH;
     for (HorizontalRow sourceRow : rows) {
       Row row = sheet.createRow(rowIndex++);
@@ -116,7 +119,7 @@ public class SystemTestHorizontalComparisonExportService {
     }
   }
 
-  private void writeHeaderRows(Sheet sheet) {
+  private void writeHeaderRows(Sheet sheet, CellStyle headerStyle) {
     for (int headerRowIndex = 0; headerRowIndex < HEADER_DEPTH; headerRowIndex++) {
       sheet.createRow(headerRowIndex);
     }
@@ -124,7 +127,7 @@ public class SystemTestHorizontalComparisonExportService {
       ExportColumn column = EXPORT_COLUMNS.get(columnIndex);
       List<String> labels = column.normalizedHeader();
       for (int headerRowIndex = 0; headerRowIndex < HEADER_DEPTH; headerRowIndex++) {
-        createCell(sheet.getRow(headerRowIndex), columnIndex, labels.get(headerRowIndex));
+        createCell(sheet.getRow(headerRowIndex), columnIndex, labels.get(headerRowIndex), headerStyle);
       }
     }
     mergeHeaderCells(sheet);
@@ -181,6 +184,12 @@ public class SystemTestHorizontalComparisonExportService {
   private void createCell(Row row, int columnIndex, String value) {
     Cell cell = row.createCell(columnIndex);
     cell.setCellValue(value == null ? "" : value);
+  }
+
+  private void createCell(Row row, int columnIndex, String value, CellStyle style) {
+    Cell cell = row.createCell(columnIndex);
+    cell.setCellValue(value == null ? "" : value);
+    cell.setCellStyle(style);
   }
 
   private StatisticFilterGroup parseFilterGroup(Map<String, String> filters) {

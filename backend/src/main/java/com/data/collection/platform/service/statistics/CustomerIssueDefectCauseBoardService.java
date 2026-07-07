@@ -20,6 +20,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
+import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.PageSlice;
@@ -43,7 +44,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
@@ -889,31 +889,19 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     private final CellStyle summary;
 
     private ExportStyles(Workbook workbook) {
-      header = workbook.createCellStyle();
-      header.setAlignment(HorizontalAlignment.CENTER);
-      header.setVerticalAlignment(VerticalAlignment.CENTER);
-      header.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-      header.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      setBorders(header);
+      header = ExcelExportStyles.createHeaderStyle(workbook);
 
       body = workbook.createCellStyle();
       body.setAlignment(HorizontalAlignment.CENTER);
       body.setVerticalAlignment(VerticalAlignment.CENTER);
-      setBorders(body);
+      ExcelExportStyles.applyThinBorder(body);
 
       summary = workbook.createCellStyle();
       summary.setAlignment(HorizontalAlignment.CENTER);
       summary.setVerticalAlignment(VerticalAlignment.CENTER);
       summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
       summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      setBorders(summary);
-    }
-
-    private void setBorders(CellStyle style) {
-      style.setBorderTop(BorderStyle.THIN);
-      style.setBorderBottom(BorderStyle.THIN);
-      style.setBorderLeft(BorderStyle.THIN);
-      style.setBorderRight(BorderStyle.THIN);
+      ExcelExportStyles.applyThinBorder(summary);
     }
   }
 }
