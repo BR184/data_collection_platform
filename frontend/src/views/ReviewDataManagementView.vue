@@ -480,6 +480,7 @@ const {
           </el-button>
           <el-dropdown
             trigger="click"
+            popper-class="app-export-dropdown-menu"
             :disabled="exportDropdownLoading"
             @command="handleExportCommand"
             @visible-change="handleExportDropdownVisibleChange"

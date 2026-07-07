@@ -2287,6 +2287,17 @@ a:hover {
   --app-action-active-bg: var(--el-color-success-dark-2);
 }
 
+.app-export-dropdown-menu .el-dropdown-menu__item:not(.is-disabled):hover,
+.app-export-dropdown-menu .el-dropdown-menu__item:not(.is-disabled):focus {
+  color: var(--el-color-success-dark-2);
+  background-color: var(--el-color-success-light-9);
+}
+
+.app-export-dropdown-menu .el-dropdown-menu__item:not(.is-disabled):active {
+  color: var(--el-color-success-dark-2);
+  background-color: var(--el-color-success-light-8);
+}
+
 .app-action-button--import {
   --app-action-color: var(--el-color-white);
   --app-action-bg: var(--el-color-warning);

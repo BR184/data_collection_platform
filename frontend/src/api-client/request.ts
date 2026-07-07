@@ -12,6 +12,16 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 export const AUTH_REQUIRED_EVENT = 'platform-auth-required';
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const EXPORT_REQUEST_TIMEOUT_MS = 180_000;
+const PROGRESS_FIRST_PAINT_PROFILES = new Set([
+  'route',
+  'table',
+  'statistic',
+  'filter',
+  'refresh',
+  'export',
+  'heavyExport',
+  'template',
+]);
 
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
@@ -51,6 +61,7 @@ export async function request<T>(url: string, init?: RequestOptions): Promise<T>
   let abortListener: (() => void) | undefined;
 
   try {
+    await waitForProgressFirstPaint(platformProgress, signal);
     if (timeoutController) {
       timeoutId = setTimeout(() => {
         didTimeout = true;
@@ -204,6 +215,7 @@ async function withPlatformProgress<T>(url: string, init: RequestOptions | undef
   const platformProgress = resolveExportProgressOptions(url, init?.exportProgress ?? init?.platformProgress);
   const progressId = beginPlatformProgress(url, platformProgress);
   try {
+    await waitForProgressFirstPaint(platformProgress, init?.signal ?? null);
     const result = await action();
     finishPlatformProgress(progressId, url, platformProgress);
     return result;
@@ -211,6 +223,25 @@ async function withPlatformProgress<T>(url: string, init: RequestOptions | undef
     failPlatformProgress(progressId, url, platformProgress, error);
     throw error;
   }
+}
+
+async function waitForProgressFirstPaint(
+  options: PlatformProgressOptions | false | undefined,
+  signal?: AbortSignal | null,
+) {
+  if (
+    options === false
+    || typeof window === 'undefined'
+    || signal?.aborted
+    || !PROGRESS_FIRST_PAINT_PROFILES.has(options?.profile ?? 'background')
+  ) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(resolve, 0);
+    });
+  });
 }
 
 function resolveExportProgressOptions(

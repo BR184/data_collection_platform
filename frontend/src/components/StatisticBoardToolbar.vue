@@ -328,6 +328,7 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
         <el-dropdown
           v-if="useExportDropdown"
           trigger="click"
+          popper-class="app-export-dropdown-menu"
           @command="handleExportDropdownCommand"
         >
           <el-button
