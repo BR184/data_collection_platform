@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/code-review/match-mode-db-settings")
 @RequireRole(AuthRole.ADMIN)
+//兼容模式-MatchMode：系统设置/数据库兼容模式临时设置后端入口；老平台交接完成后可整体删除本 Controller 及相关 Service/表。
 public class CodeReviewMatchModeDbSettingsController {
   private final CodeReviewMatchModeConfigService configService;
   private final CodeReviewMatchModeSyncService syncService;
@@ -61,7 +62,7 @@ public class CodeReviewMatchModeDbSettingsController {
   @PutMapping
   public ApiResponse<CodeReviewMatchModeDbSettingsResponse> saveSettings(
       @RequestBody CodeReviewMatchModeDbSettingsSaveRequest request) {
-    return ApiResponse.success("兼容模式数据库设置已保存", configService.save(request));
+    return ApiResponse.success("数据库兼容模式临时设置已保存", configService.save(request));
   }
 
   //兼容模式-MatchMode

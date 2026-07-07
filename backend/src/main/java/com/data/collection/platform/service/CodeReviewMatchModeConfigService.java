@@ -358,7 +358,7 @@ public class CodeReviewMatchModeConfigService {
               rs.getTimestamp("sync_finished_at") == null ? null : rs.getTimestamp("sync_finished_at").toLocalDateTime(),
               rs.getTimestamp("updated_at") == null ? null : rs.getTimestamp("updated_at").toLocalDateTime()));
     } catch (EmptyResultDataAccessException error) {
-      throw new BizException("兼容模式数据库设置不存在，请先执行数据库迁移");
+      throw new BizException("数据库兼容模式临时设置不存在，请先执行数据库迁移");
     }
   }
 

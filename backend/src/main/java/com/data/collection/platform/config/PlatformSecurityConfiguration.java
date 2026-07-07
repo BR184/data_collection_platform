@@ -24,6 +24,7 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 public class PlatformSecurityConfiguration {
   private static final String SYSTEM_HOOK_PATH = "/api/gitlab-sync/system-hook";
   private static final String[] SYSTEM_SETTINGS_API_PATHS = {
+      // 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置 API，删除兼容模式时同步移除白名单。
       "/api/code-review/match-mode-db-settings/**",
       "/api/database-browser/**",
       "/api/gitlab-sync/**"

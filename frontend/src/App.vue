@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Expand, Fold, Lock, Loading, User } from '@element-plus/icons-vue';
+import { Expand, Fold, Lock, User } from '@element-plus/icons-vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 // 应用壳只负责全局导航和路由出口，业务页面状态继续留在各自模块内维护。
 // 这里的登录态控制保持轻量，避免把领域页面的加载和筛选逻辑耦合进根组件。
@@ -21,7 +21,7 @@ import { shellDataScopeState } from './composables/shell-data-scope';
 import { authState, loadCurrentUser, login, logout, setGuestUser } from './composables/auth-state';
 import { routerState } from './router-state';
 import { AUTH_REQUIRED_EVENT } from './api-client/request';
-import ExportProgressIndicator from './components/ExportProgressIndicator.vue';
+import GlobalProgressIndicator from './components/GlobalProgressIndicator.vue';
 
 const DataScopeBar = defineAsyncComponent(() => import('./components/data-scope/DataScopeBar.vue'));
 
@@ -349,9 +349,8 @@ watch(
       </nav>
 
       <div class="header-actions">
-        <ExportProgressIndicator />
-        <el-tag v-if="routerState.routeLoading" size="small" type="warning" round>页面切换中</el-tag>
-        <el-tag v-else-if="routerState.routeError" size="small" type="danger" round>连接异常</el-tag>
+        <GlobalProgressIndicator />
+        <el-tag v-if="routerState.routeError" size="small" type="danger" round>连接异常</el-tag>
         <el-tag :type="authModeTagType" size="small" round>{{ authModeLabel }}</el-tag>
         <el-button
           v-if="currentUser.authenticated"
@@ -428,11 +427,6 @@ watch(
         <RouterView v-slot="{ Component }">
           <component :is="Component" />
         </RouterView>
-
-        <div v-if="routerState.routeLoading" class="route-loading-mask">
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>页面切换中，请稍候</span>
-        </div>
       </main>
     </div>
 

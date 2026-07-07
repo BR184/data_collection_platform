@@ -213,10 +213,11 @@ export const modules: ShellModule[] = [
         requiresLogin: true,
         hiddenForApproval: true,
       },
+      // 兼容模式-MatchMode：临时页面入口，老平台数据库交接完成后可整体删除该 pageKey/path 及对应路由、API、后端 Controller。
       {
         key: 'database-settings',
-        label: '数据库设置',
-        description: '配置短期兼容使用的老平台数据库连接与同步开关。',
+        label: '数据库兼容模式临时设置',
+        description: '临时配置老平台兼容模式数据库连接、同步开关和转正式导入。',
         path: '/system-settings/database-settings',
         requiresLogin: true,
         hiddenForApproval: true,

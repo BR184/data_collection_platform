@@ -617,6 +617,20 @@ onBeforeRouteLeave(async () => {
         <el-form-item label="GitLab Web 地址">
           <el-input v-model="form.webBaseUrl" placeholder="例如 http://gitlab.company.local" />
         </el-form-item>
+        <el-form-item label="Project Access Token">
+          <el-input
+            v-model="form.apiToken"
+            type="password"
+            show-password
+            autocomplete="off"
+            placeholder="用于读取校验和延期标签写回"
+          />
+          <div class="form-help-text">建议使用 CC_Product 项目的 Project Access Token，scope 使用 api。</div>
+        </el-form-item>
+        <el-form-item label="延期标签写回">
+          <el-switch v-model="form.delayLabelWritebackEnabled" />
+          <div class="form-help-text">关闭时仍会监控延期事实，不会调用 GitLab API 写标签。</div>
+        </el-form-item>
         <el-form-item label="启用数据源">
           <el-switch v-model="form.sourceEnabled" />
         </el-form-item>

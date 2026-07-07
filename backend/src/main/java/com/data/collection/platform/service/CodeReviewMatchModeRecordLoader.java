@@ -159,6 +159,20 @@ public class CodeReviewMatchModeRecordLoader {
         parts.args().toArray());
   }
 
+  //兼容模式-MatchMode
+  public List<CodeReviewIllegalRecordSource> loadDefaultIllegalExportSources(
+      CodeReviewIllegalRecordQueryRequest request,
+      StatisticFilterGroup filterGroup) {
+    if (!matchesRequestType(request.requestType())) {
+      return List.of();
+    }
+    QueryParts parts = buildPageQuery(request, filterGroup, true);
+    return jdbcTemplate.query(
+        SELECT_SQL + parts.tailWhere() + orderByClause(request.sortField(), request.sortOrder()),
+        this::mapSource,
+        parts.args().toArray());
+  }
+
   private QueryParts buildSourceQuery(Map<String, String> filters) {
     StringBuilder where = new StringBuilder(BASE_WHERE);
     List<Object> args = new ArrayList<>();
@@ -484,6 +498,20 @@ public class CodeReviewMatchModeRecordLoader {
 
   private String sortColumn(String sortField) {
     return SORT_COLUMNS.getOrDefault(sortField, "merged_at_source");
+  }
+
+  private String orderByClause(String sortField, String sortOrder) {
+    String order = sortOrder(sortOrder);
+    return " order by "
+        + sortColumn(sortField)
+        + " "
+        + order
+        + nullsClause(order)
+        + ", merged_at_source "
+        + order
+        + nullsClause(order)
+        + ", merge_request_iid "
+        + order;
   }
 
   private String sortOrder(String sortOrder) {

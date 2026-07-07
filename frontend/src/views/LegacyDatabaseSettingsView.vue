@@ -17,7 +17,8 @@ import type {
 import type { RecordTableFilterOption } from '../types/record-table';
 import { formatBeijingDateTime } from '../utils/beijing-time';
 
-// 兼容模式-MatchMode：该页面只维护短期老平台数据库连接，不属于 GitLab 镜像设置。
+// 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置。
+// 这是老平台 MySQL/Mongo/DGM 项目候选交接期临时页面，不属于 GitLab 镜像设置；彻底下线兼容模式时可整体删除本页面及 legacy-database-api。
 const defaultSelectedTableNames = ['spider_crowncad_data'];
 const defaultSelectedMongoCollectionNames = ['reviewReport', 'problemDetail'];
 
@@ -201,7 +202,7 @@ async function loadSettings() {
   try {
     applySettings(await api.getCodeReviewMatchModeDbSettings());
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '加载数据库设置失败');
+    ElMessage.error(error instanceof Error ? error.message : '加载数据库兼容模式临时设置失败');
   } finally {
     initialized.value = true;
     loading.value = false;
@@ -212,9 +213,9 @@ async function saveSettings() {
   saving.value = true;
   try {
     applySettings(await api.saveCodeReviewMatchModeDbSettings(buildPayload()));
-    ElMessage.success('数据库设置已保存');
+    ElMessage.success('数据库兼容模式临时设置已保存');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '保存数据库设置失败');
+    ElMessage.error(error instanceof Error ? error.message : '保存数据库兼容模式临时设置失败');
   } finally {
     saving.value = false;
   }
@@ -519,7 +520,7 @@ function readModeText(mode?: 'compatibility' | 'formal') {
       <el-card shadow="never" class="panel-card legacy-db-status-card">
         <template #header>
           <div class="legacy-db-card-header">
-            <div class="legacy-db-card-title">数据库设置</div>
+            <div class="legacy-db-card-title">数据库兼容模式临时设置</div>
             <el-tag :type="statusTagType" effect="plain" round>{{ statusText }}</el-tag>
           </div>
         </template>

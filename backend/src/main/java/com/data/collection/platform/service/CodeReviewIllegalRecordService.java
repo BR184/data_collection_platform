@@ -342,6 +342,18 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   private List<CodeReviewIllegalRecordRowResponse> loadAllRows(CodeReviewIllegalRecordQueryRequest request) {
+    CodeReviewIllegalRecordQueryRequest allQuery = pageRequest(request, 1, request.illegalType());
+    if (canUseDefaultSqlPage(allQuery)) {
+      StatisticFilterGroup filterGroup =
+          CodeReviewIllegalRecordFilterGroupSupport.parse(objectMapper, allQuery.filterGroupJson());
+      List<CodeReviewIllegalRecordRowResponse> rows =
+          activeLoader().loadDefaultIllegalExportSources(allQuery, filterGroup).stream()
+              .map(this::toView)
+              .map(this::toResponse)
+              .toList();
+      CsvExportSupport.ensureWithinRowLimit(rows.size());
+      return rows;
+    }
     List<CodeReviewIllegalRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
@@ -913,6 +925,10 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
     PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(CodeReviewIllegalRecordSourcePageQuery query);
 
+    List<CodeReviewIllegalRecordSource> loadDefaultIllegalExportSources(
+        CodeReviewIllegalRecordQueryRequest request,
+        StatisticFilterGroup filterGroup);
+
     List<CodeReviewIllegalRecordSource> loadLegacyAllExportSources(
         CodeReviewIllegalRecordQueryRequest request,
         StatisticFilterGroup filterGroup);
@@ -933,6 +949,13 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
           CodeReviewIllegalRecordSourcePageQuery query) {
         return loader.loadDefaultIllegalPage(query);
+      }
+
+      @Override
+      public List<CodeReviewIllegalRecordSource> loadDefaultIllegalExportSources(
+          CodeReviewIllegalRecordQueryRequest request,
+          StatisticFilterGroup filterGroup) {
+        return loader.loadDefaultIllegalExportSources(request, filterGroup);
       }
 
       @Override
@@ -959,6 +982,13 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       public PageSlice<CodeReviewIllegalRecordSource> loadDefaultIllegalPage(
           CodeReviewIllegalRecordSourcePageQuery query) {
         return loader.loadDefaultIllegalPage(query);
+      }
+
+      @Override
+      public List<CodeReviewIllegalRecordSource> loadDefaultIllegalExportSources(
+          CodeReviewIllegalRecordQueryRequest request,
+          StatisticFilterGroup filterGroup) {
+        return loader.loadDefaultIllegalExportSources(request, filterGroup);
       }
 
       @Override

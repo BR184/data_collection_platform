@@ -15,6 +15,7 @@ import { beginRouteLoading, clearRouteError, endRouteLoading, setRouteError } fr
 const StatisticBoardPage = () => import('./views/StatisticBoardPage.vue');
 const LabelGroupSettingsView = () => import('./views/LabelGroupSettingsView.vue');
 const MirrorSettingsView = () => import('./views/MirrorSettingsView.vue');
+// 兼容模式-MatchMode：数据库兼容模式临时设置页，老平台交接完成后可连同路由入口和 API 一起删除。
 const LegacyDatabaseSettingsView = () => import('./views/LegacyDatabaseSettingsView.vue');
 const DatabaseBrowserView = () => import('./components/DatabaseBrowserView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
@@ -145,6 +146,7 @@ const routes: RouteRecordRaw[] = [
     ...buildShellRoute('mirror-settings', MirrorSettingsView),
   },
   {
+    // 兼容模式-MatchMode：保留旧 path 避免破坏已有访问链接；删除兼容模式时同步删除该 route。
     ...buildShellRoute('database-settings', LegacyDatabaseSettingsView),
   },
   {

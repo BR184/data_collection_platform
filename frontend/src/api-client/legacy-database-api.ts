@@ -14,7 +14,8 @@ import type {
 } from '../types/api';
 import { request } from './request';
 
-// 兼容模式-MatchMode：评审前短期连接老平台数据库，后续外部工具正式接入后整体删除。
+// 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置专用 API；
+// 老平台数据交接完成后可连同 LegacyDatabaseSettingsView 和后端 CodeReviewMatchModeDbSettingsController 整体删除。
 const basePath = '/api/code-review/match-mode-db-settings';
 
 export const legacyDatabaseApi = {

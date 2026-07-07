@@ -49,7 +49,6 @@ public class FactBuildService {
   private final GitlabConfigService configService;
   private final GitlabFactSourceSqlProvider factSourceSqlProvider;
   private final GitlabFactSourceQueryExecutor factSourceQueryExecutor;
-  private final CustomerIssueDelayLabelWritebackService delayLabelWritebackService;
 
   public FactBuildService(
       JdbcTemplate jdbcTemplate,
@@ -59,8 +58,7 @@ public class FactBuildService {
       FactBuildTaskService factBuildTaskService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       SqlQueryMonitor sqlQueryMonitor,
-      GitlabConfigService configService,
-      CustomerIssueDelayLabelWritebackService delayLabelWritebackService) {
+      GitlabConfigService configService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
@@ -71,7 +69,6 @@ public class FactBuildService {
     this.configService = configService;
     this.factSourceSqlProvider = new GitlabFactSourceSqlProvider();
     this.factSourceQueryExecutor = new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor);
-    this.delayLabelWritebackService = delayLabelWritebackService;
   }
 
   public FactBuildResponse rebuildAllFacts(boolean full) {
@@ -131,7 +128,6 @@ public class FactBuildService {
     List<IssueFact> facts =
         loadSingleIssueFacts(normalizedSource, projectId, issueIid, calendar, moduleDictionary);
     batchUpsertIssueFacts(facts);
-    syncCustomerIssueDelayLabels(normalizedSource, facts);
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -152,7 +148,6 @@ public class FactBuildService {
     ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
     List<IssueFact> facts = loadIssueFactsByTargets(normalizedSource, safeTargets, calendar, moduleDictionary);
     batchUpsertIssueFacts(facts);
-    syncCustomerIssueDelayLabels(normalizedSource, facts);
     return new FactBuildResponse(
         factScope("issue", normalizedSource),
         false,
@@ -168,7 +163,6 @@ public class FactBuildService {
       ModuleDictionary moduleDictionary = moduleDictionaryService.loadDictionary();
       List<IssueFact> facts = loadIssueFacts(sourceInstance, changedSince, calendar, moduleDictionary);
       batchUpsertIssueFacts(facts);
-      syncCustomerIssueDelayLabels(sourceInstance, facts);
       return new FactBuildResponse(
           factScope("issue", sourceInstance),
           full,
@@ -211,7 +205,6 @@ public class FactBuildService {
       changedFacts.add(fact);
     }
     batchUpsertIssueFacts(changedFacts);
-    syncCustomerIssueDelayLabels(sourceInstance, facts);
     return new FactBuildResponse(
         factScope("customer-issue-delay", sourceInstance),
         false,
@@ -1031,27 +1024,6 @@ public class FactBuildService {
       issueFactMapper.batchUpsert(batch);
       refreshIssueFactSearchIndexes(batch);
     }
-  }
-
-  private void syncCustomerIssueDelayLabels(String sourceInstance, List<IssueFact> facts) {
-    if (facts == null || facts.isEmpty()) {
-      return;
-    }
-    GitlabSyncConfig config = configForSourceInstance(sourceInstance);
-    for (IssueFact fact : facts) {
-      if (fact == null || !CustomerIssueScopeRules.isCustomerProject(fact.getProjectId(), fact.getProjectName())) {
-        continue;
-      }
-      delayLabelWritebackService.syncLabels(config, fact);
-    }
-  }
-
-  private GitlabSyncConfig configForSourceInstance(String sourceInstance) {
-    String normalized = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);
-    return configService.listConfigs().stream()
-        .filter(config -> normalized.equals(GitlabSourceInstanceSupport.sourceInstanceOf(config)))
-        .findFirst()
-        .orElseGet(configService::getConfig);
   }
 
   private List<String> labelsOf(IssueFact fact) {

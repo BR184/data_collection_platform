@@ -15,17 +15,20 @@ public class CustomerIssueDelayClosureScheduler {
   private final FactBuildService factBuildService;
   private final CustomerIssueDelayLabelWritebackService delayLabelWritebackService;
   private final CustomerIssueDelayPreWritebackSyncService preWritebackSyncService;
+  private final CustomerIssueDelayLabelWritebackQueueService queueService;
   private final AtomicBoolean running = new AtomicBoolean(false);
 
   public CustomerIssueDelayClosureScheduler(
       GitlabConfigService configService,
       FactBuildService factBuildService,
       CustomerIssueDelayLabelWritebackService delayLabelWritebackService,
-      CustomerIssueDelayPreWritebackSyncService preWritebackSyncService) {
+      CustomerIssueDelayPreWritebackSyncService preWritebackSyncService,
+      CustomerIssueDelayLabelWritebackQueueService queueService) {
     this.configService = configService;
     this.factBuildService = factBuildService;
     this.delayLabelWritebackService = delayLabelWritebackService;
     this.preWritebackSyncService = preWritebackSyncService;
+    this.queueService = queueService;
   }
 
   @Async
@@ -49,7 +52,8 @@ public class CustomerIssueDelayClosureScheduler {
         .toList();
     for (GitlabSyncConfig config : configs) {
       try {
-        if (delayLabelWritebackService.isEnabled(config)) {
+        boolean writebackEnabled = delayLabelWritebackService.isEnabled(config);
+        if (writebackEnabled) {
           CustomerIssueDelayPreWritebackSyncService.PreWritebackSyncResult preSyncResult =
               preWritebackSyncService.refreshBeforeWriteback(config);
           if (!preSyncResult.success()) {
@@ -60,6 +64,13 @@ public class CustomerIssueDelayClosureScheduler {
           }
         }
         factBuildService.refreshCustomerIssueDelayFactsForConfig(config);
+        if (writebackEnabled) {
+          int enqueued = queueService.enqueueCandidates(config);
+          log.info(
+              "Customer issue delay label writeback jobs enqueued, sourceInstance={}, count={}",
+              GitlabSourceInstanceSupport.sourceInstanceOf(config),
+              enqueued);
+        }
       } catch (RuntimeException error) {
         log.warn(
             "Customer issue delay closure refresh failed, sourceInstance={}",

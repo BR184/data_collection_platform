@@ -206,6 +206,22 @@ public class CodeReviewIllegalRecordSourceLoader {
         this::mapFactSource);
   }
 
+  public List<CodeReviewIllegalRecordSource> loadDefaultIllegalExportSources(
+      CodeReviewIllegalRecordQueryRequest request,
+      com.data.collection.platform.entity.statistics.StatisticFilterGroup filterGroup) {
+    if (!matchesRequestType(request.requestType())) {
+      return List.of();
+    }
+    QueryParts parts =
+        buildPageQuery(
+            new CodeReviewIllegalRecordSourcePageQuery(
+                request, filterGroup, 1, 1, request.sortField(), request.sortOrder()));
+    return mergeRequestFactQueryService.query(
+        FACT_SQL + parts.tailWhere() + orderByClause(request.sortField(), request.sortOrder()),
+        parts.args(),
+        this::mapFactSource);
+  }
+
   private List<CodeReviewIllegalRecordSource> ensureFactsReady(Map<String, String> filters) {
     List<CodeReviewIllegalRecordSource> facts = mergeRequestFactQueryService.query(FACT_SQL, filters, this::mapFactSource);
     if (!facts.isEmpty()) {
@@ -490,6 +506,20 @@ public class CodeReviewIllegalRecordSourceLoader {
 
   private String sortColumn(String sortField) {
     return SORT_COLUMNS.getOrDefault(sortField, "merged_at_source");
+  }
+
+  private String orderByClause(String sortField, String sortOrder) {
+    String order = sortOrder(sortOrder);
+    return " order by "
+        + sortColumn(sortField)
+        + " "
+        + order
+        + nullsClause(order)
+        + ", merged_at_source "
+        + order
+        + nullsClause(order)
+        + ", merge_request_iid "
+        + order;
   }
 
   private String sortOrder(String sortOrder) {

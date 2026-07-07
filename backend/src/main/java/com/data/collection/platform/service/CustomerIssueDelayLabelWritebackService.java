@@ -1,7 +1,6 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.GitlabSyncConfig;
-import com.data.collection.platform.entity.IssueFact;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -10,7 +9,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -38,41 +36,6 @@ public class CustomerIssueDelayLabelWritebackService {
   CustomerIssueDelayLabelWritebackService(HttpClient httpClient, boolean apiWritebackEnabled) {
     this.httpClient = httpClient;
     this.apiWritebackEnabled = apiWritebackEnabled;
-  }
-
-  public void syncLabels(GitlabSyncConfig config, IssueFact fact) {
-    if (!isEnabled(config) || fact == null || fact.getProjectId() == null || fact.getIssueIid() == null) {
-      return;
-    }
-    List<String> currentLabels = parseLabels(fact.getLabelNames());
-    LabelChange change =
-        delayLabelChange(currentLabels, Boolean.TRUE.equals(fact.getResponseDelayed()), Boolean.TRUE.equals(fact.getResolveDelayed()));
-    if (change.isEmpty()) {
-      return;
-    }
-    try {
-      sendLabelUpdate(config, fact.getProjectId(), fact.getIssueIid(), change);
-      log.info(
-          "Customer issue delay labels written back, sourceInstance={}, projectId={}, issueIid={}, addLabels={}, removeLabels={}",
-          fact.getSourceInstance(),
-          fact.getProjectId(),
-          fact.getIssueIid(),
-          change.addLabels(),
-          change.removeLabels());
-    } catch (IOException error) {
-      log.warn(
-          "Customer issue delay label writeback failed, projectId={}, issueIid={}",
-          fact.getProjectId(),
-          fact.getIssueIid(),
-          error);
-    } catch (InterruptedException error) {
-      Thread.currentThread().interrupt();
-      log.warn(
-          "Customer issue delay label writeback interrupted, projectId={}, issueIid={}",
-          fact.getProjectId(),
-          fact.getIssueIid(),
-          error);
-    }
   }
 
   LabelChange delayLabelChange(List<String> currentLabels, boolean responseDelayed, boolean resolveDelayed) {
@@ -108,21 +71,8 @@ public class CustomerIssueDelayLabelWritebackService {
         && StringUtils.hasText(config.getApiToken());
   }
 
-  private List<String> parseLabels(String labelNames) {
-    if (!StringUtils.hasText(labelNames)) {
-      return List.of();
-    }
-    List<String> labels = new ArrayList<>();
-    for (String part : labelNames.split(",")) {
-      if (StringUtils.hasText(part)) {
-        labels.add(part.trim());
-      }
-    }
-    return labels;
-  }
-
-  private void sendLabelUpdate(GitlabSyncConfig config, Long projectId, Long issueIid, LabelChange change)
-      throws IOException, InterruptedException {
+  int sendLabelUpdate(GitlabSyncConfig config, Long projectId, Long issueIid, LabelChange change)
+      throws IOException, InterruptedException, GitlabLabelWritebackException {
     String baseUrl = stripTrailingSlash(config.getWebBaseUrl());
     URI uri = URI.create(baseUrl + "/api/v4/projects/" + projectId + "/issues/" + issueIid);
     HttpRequest request =
@@ -134,8 +84,9 @@ public class CustomerIssueDelayLabelWritebackService {
             .build();
     HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new IOException("GitLab label update failed: HTTP " + response.statusCode() + " " + response.body());
+      throw new GitlabLabelWritebackException(response.statusCode(), response.body());
     }
+    return response.statusCode();
   }
 
   String formBody(LabelChange change) {
@@ -188,6 +139,19 @@ public class CustomerIssueDelayLabelWritebackService {
 
     boolean isEmpty() {
       return addLabels.isEmpty() && removeLabels.isEmpty();
+    }
+  }
+
+  static class GitlabLabelWritebackException extends Exception {
+    private final int httpStatus;
+
+    GitlabLabelWritebackException(int httpStatus, String body) {
+      super("GitLab label update failed: HTTP " + httpStatus + " " + (body == null ? "" : body));
+      this.httpStatus = httpStatus;
+    }
+
+    int httpStatus() {
+      return httpStatus;
     }
   }
 }

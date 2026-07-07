@@ -91,6 +91,9 @@ platform:
     customer-issue-delay-pre-writeback-sync-enabled: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_ENABLED:true}
     customer-issue-delay-pre-writeback-sync-timeout-seconds: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_TIMEOUT_SECONDS:180}
     customer-issue-delay-pre-writeback-sync-tables: ${CUSTOMER_ISSUE_DELAY_PRE_WRITEBACK_SYNC_TABLES:issues,notes,label_links,labels}
+    customer-issue-delay-writeback-worker-enabled: ${CUSTOMER_ISSUE_DELAY_WRITEBACK_WORKER_ENABLED:true}
+    customer-issue-delay-writeback-worker-delay-ms: ${CUSTOMER_ISSUE_DELAY_WRITEBACK_WORKER_DELAY_MS:5000}
+    customer-issue-delay-writeback-lease-seconds: ${CUSTOMER_ISSUE_DELAY_WRITEBACK_LEASE_SECONDS:120}
     delay-label-writeback-api-enabled: ${CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED:false}
   review-data:
     search-index-backfill-enabled: ${REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:false}
