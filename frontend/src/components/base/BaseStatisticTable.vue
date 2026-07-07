@@ -90,15 +90,16 @@ const statMatrixStyle = computed(() => ({
 }));
 const {
   floatingScrollbarRef,
+  floatingTrackRef,
   scrollbarAwake,
   hasHorizontalOverflow,
   isFloatingScrollbarVisible,
-  horizontalSpacerWidth,
   floatingScrollbarStyle,
+  floatingThumbStyle,
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
-  handleFloatingHorizontalScroll,
-  handleFloatingScrollbarPointerDown,
+  handleFloatingTrackPointerDown,
+  handleFloatingThumbPointerDown,
   handleFloatingScrollbarPointerUp,
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
@@ -218,11 +219,19 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
       :style="floatingScrollbarStyle"
       aria-hidden="true"
       @mouseenter="wakeHorizontalScrollbar"
-      @pointerdown="handleFloatingScrollbarPointerDown"
       @pointerup="handleFloatingScrollbarPointerUp"
-      @scroll="handleFloatingHorizontalScroll"
     >
-      <div class="stat-matrix-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+      <div
+        ref="floatingTrackRef"
+        class="platform-floating-horizontal-track"
+        @pointerdown="handleFloatingTrackPointerDown"
+      >
+        <div
+          class="platform-floating-horizontal-thumb"
+          :style="floatingThumbStyle"
+          @pointerdown="handleFloatingThumbPointerDown"
+        />
+      </div>
     </div>
   </div>
 
@@ -366,37 +375,13 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
 
 .stat-matrix-floating-horizontal {
   position: fixed;
-  z-index: 1200;
+  z-index: 1900;
   height: 16px;
-  padding: 3px 0 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  padding: 5px 0;
+  overflow: visible;
   pointer-events: auto;
   opacity: 1;
-  scrollbar-width: auto;
-  border-radius: 8px;
   background: transparent;
   box-shadow: none;
-}
-
-.stat-matrix-floating-horizontal::-webkit-scrollbar {
-  height: 9px;
-}
-
-.stat-matrix-floating-horizontal::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.stat-matrix-floating-horizontal::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(96, 98, 102, 0.55);
-}
-
-.stat-matrix-floating-horizontal:hover::-webkit-scrollbar-thumb {
-  background: rgba(96, 98, 102, 0.72);
-}
-
-.stat-matrix-floating-horizontal-spacer {
-  height: 1px;
 }
 </style>

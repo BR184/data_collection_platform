@@ -117,6 +117,8 @@ function buildCustomerIssueIllegalRecordQuery(params: {
   moduleName?: string;
   testingPhase?: string;
   illegalReason?: string;
+  authorName?: string;
+  assigneeName?: string;
   severityLevel?: string;
   priorityLevel?: string;
   issueState?: string;
@@ -143,6 +145,8 @@ function buildCustomerIssueIllegalRecordQuery(params: {
     ...(params.moduleName ? { moduleName: params.moduleName } : {}),
     ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
     ...(params.illegalReason ? { illegalReason: params.illegalReason } : {}),
+    ...(params.authorName ? { authorName: params.authorName } : {}),
+    ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
     ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
     ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
     ...(params.issueState ? { issueState: params.issueState } : {}),
@@ -314,6 +318,8 @@ export const issueRecordsApi = {
     moduleName?: string;
     testingPhase?: string;
     illegalReason?: string;
+    authorName?: string;
+    assigneeName?: string;
     severityLevel?: string;
     priorityLevel?: string;
     issueState?: string;
@@ -341,6 +347,8 @@ export const issueRecordsApi = {
       ...(params.moduleName ? { moduleName: params.moduleName } : {}),
       ...(params.testingPhase ? { testingPhase: params.testingPhase } : {}),
       ...(params.illegalReason ? { illegalReason: params.illegalReason } : {}),
+      ...(params.authorName ? { authorName: params.authorName } : {}),
+      ...(params.assigneeName ? { assigneeName: params.assigneeName } : {}),
       ...(params.severityLevel ? { severityLevel: params.severityLevel } : {}),
       ...(params.priorityLevel ? { priorityLevel: params.priorityLevel } : {}),
       ...(params.issueState ? { issueState: params.issueState } : {}),

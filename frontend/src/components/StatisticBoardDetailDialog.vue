@@ -91,15 +91,16 @@ const dialogStyle = computed(() => ({
 
 const {
   floatingScrollbarRef,
+  floatingTrackRef,
   scrollbarAwake,
   hasHorizontalOverflow,
   isFloatingScrollbarVisible,
-  horizontalSpacerWidth,
   floatingScrollbarStyle,
+  floatingThumbStyle,
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
-  handleFloatingHorizontalScroll,
-  handleFloatingScrollbarPointerDown,
+  handleFloatingTrackPointerDown,
+  handleFloatingThumbPointerDown,
   handleFloatingScrollbarPointerUp,
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
@@ -301,14 +302,22 @@ function readableDetailSortDirection(direction: string) {
           v-show="isFloatingScrollbarVisible"
           ref="floatingScrollbarRef"
           class="stat-detail-floating-horizontal"
-            :style="floatingScrollbarStyle"
-            aria-hidden="true"
-            @mouseenter="wakeHorizontalScrollbar"
-            @pointerdown="handleFloatingScrollbarPointerDown"
-            @pointerup="handleFloatingScrollbarPointerUp"
-            @scroll="handleFloatingHorizontalScroll"
+          :style="floatingScrollbarStyle"
+          aria-hidden="true"
+          @mouseenter="wakeHorizontalScrollbar"
+          @pointerup="handleFloatingScrollbarPointerUp"
+        >
+          <div
+            ref="floatingTrackRef"
+            class="platform-floating-horizontal-track"
+            @pointerdown="handleFloatingTrackPointerDown"
           >
-          <div class="stat-detail-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+            <div
+              class="platform-floating-horizontal-thumb"
+              :style="floatingThumbStyle"
+              @pointerdown="handleFloatingThumbPointerDown"
+            />
+          </div>
         </div>
       </div>
 
@@ -443,38 +452,14 @@ function readableDetailSortDirection(direction: string) {
 
 .stat-detail-floating-horizontal {
   position: fixed;
-  z-index: 2200;
+  z-index: 2600;
   height: 16px;
-  padding: 3px 0 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  padding: 5px 0;
+  overflow: visible;
   pointer-events: auto;
   opacity: 1;
-  scrollbar-width: auto;
-  border-radius: 8px;
   background: transparent;
   box-shadow: none;
-}
-
-.stat-detail-floating-horizontal::-webkit-scrollbar {
-  height: 8px;
-}
-
-.stat-detail-floating-horizontal::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.stat-detail-floating-horizontal::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(96, 98, 102, 0.55);
-}
-
-.stat-detail-floating-horizontal:hover::-webkit-scrollbar-thumb {
-  background: rgba(96, 98, 102, 0.72);
-}
-
-.stat-detail-floating-horizontal-spacer {
-  height: 1px;
 }
 
 .stat-detail-table :deep(td .cell) {

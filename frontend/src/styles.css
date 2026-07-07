@@ -16,6 +16,9 @@
   --text-subtle: rgba(0, 0, 0, 0.45);
   --line: rgba(203, 213, 225, 0.72);
   --success: var(--el-color-success);
+  --shell-sidebar-width: 200px;
+  --shell-sidebar-collapsed-width: 48px;
+  --shell-sidebar-collapsed-inner: 36px;
 }
 
 html {
@@ -443,13 +446,13 @@ button {
 .shell-body {
   min-height: calc(100vh - 58px);
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: var(--shell-sidebar-width) minmax(0, 1fr);
   min-width: 0;
   transition: grid-template-columns 0.18s ease;
 }
 
 .shell-body.sidebar-collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: var(--shell-sidebar-collapsed-width) minmax(0, 1fr);
 }
 
 .shell-sidebar {
@@ -467,7 +470,7 @@ button {
 }
 
 .shell-sidebar.collapsed {
-  padding: 16px 8px;
+  padding: 16px 6px;
   align-items: center;
 }
 
@@ -485,7 +488,7 @@ button {
 }
 
 .shell-sidebar.collapsed .sidebar-title {
-  width: 48px;
+  width: var(--shell-sidebar-collapsed-inner);
   padding: 0;
   justify-content: center;
   flex-direction: column;
@@ -2566,15 +2569,12 @@ a:hover {
 
 .platform-table-floating-horizontal {
   position: fixed;
-  z-index: 1200;
+  z-index: 1900;
   display: none;
   height: 16px;
-  padding: 3px 0 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  padding: 5px 0;
+  overflow: visible;
   pointer-events: auto;
-  scrollbar-width: auto;
-  border-radius: 8px;
   background: transparent;
   box-shadow: none;
 }
@@ -2583,97 +2583,58 @@ a:hover {
   display: block;
 }
 
-.platform-table-floating-horizontal::-webkit-scrollbar {
-  height: 9px;
-}
-
-.platform-table-floating-horizontal::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.platform-table-floating-horizontal::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(96, 98, 102, 0.55);
-}
-
-.platform-table-floating-horizontal:hover::-webkit-scrollbar-thumb {
-  background: rgba(96, 98, 102, 0.72);
-}
-
-.platform-table-floating-horizontal-spacer {
-  height: 1px;
-}
-
 .platform-table-floating-horizontal,
 .record-table-floating-horizontal,
 .stat-matrix-floating-horizontal,
-.stat-detail-floating-horizontal,
 .sync-log-floating-horizontal {
-  height: 22px !important;
-  padding: 5px 0 4px !important;
+  z-index: 1900 !important;
+  height: 16px !important;
+  padding: 5px 0 !important;
+  overflow: visible !important;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: pan-x;
+  touch-action: none;
   overscroll-behavior-x: contain;
-  cursor: grab;
-  scrollbar-color: rgba(71, 85, 105, 0.68) transparent;
 }
 
-.platform-table-floating-horizontal:active,
-.record-table-floating-horizontal:active,
-.stat-matrix-floating-horizontal:active,
-.stat-detail-floating-horizontal:active,
-.sync-log-floating-horizontal:active,
-.platform-floating-scrollbar-dragging .platform-table-floating-horizontal,
-.platform-floating-scrollbar-dragging .record-table-floating-horizontal,
-.platform-floating-scrollbar-dragging .stat-matrix-floating-horizontal,
-.platform-floating-scrollbar-dragging .stat-detail-floating-horizontal,
-.platform-floating-scrollbar-dragging .sync-log-floating-horizontal {
-  cursor: grabbing;
-}
-
-.platform-table-floating-horizontal::-webkit-scrollbar,
-.record-table-floating-horizontal::-webkit-scrollbar,
-.stat-matrix-floating-horizontal::-webkit-scrollbar,
-.stat-detail-floating-horizontal::-webkit-scrollbar,
-.sync-log-floating-horizontal::-webkit-scrollbar {
-  height: 12px !important;
-}
-
-.platform-table-floating-horizontal::-webkit-scrollbar-thumb,
-.record-table-floating-horizontal::-webkit-scrollbar-thumb,
-.stat-matrix-floating-horizontal::-webkit-scrollbar-thumb,
-.stat-detail-floating-horizontal::-webkit-scrollbar-thumb,
-.sync-log-floating-horizontal::-webkit-scrollbar-thumb {
-  min-width: 44px;
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: rgba(71, 85, 105, 0.68);
-  background-clip: content-box;
-}
-
-.platform-table-floating-horizontal:hover::-webkit-scrollbar-thumb,
-.record-table-floating-horizontal:hover::-webkit-scrollbar-thumb,
-.stat-matrix-floating-horizontal:hover::-webkit-scrollbar-thumb,
-.stat-detail-floating-horizontal:hover::-webkit-scrollbar-thumb,
-.sync-log-floating-horizontal:hover::-webkit-scrollbar-thumb,
-.platform-floating-scrollbar-dragging .platform-table-floating-horizontal::-webkit-scrollbar-thumb,
-.platform-floating-scrollbar-dragging .record-table-floating-horizontal::-webkit-scrollbar-thumb,
-.platform-floating-scrollbar-dragging .stat-matrix-floating-horizontal::-webkit-scrollbar-thumb,
-.platform-floating-scrollbar-dragging .stat-detail-floating-horizontal::-webkit-scrollbar-thumb,
-.platform-floating-scrollbar-dragging .sync-log-floating-horizontal::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.86);
-  background-clip: content-box;
-}
-
-.platform-table-floating-horizontal-spacer,
-.record-table-floating-horizontal-spacer,
-.stat-matrix-floating-horizontal-spacer,
-.stat-detail-floating-horizontal-spacer,
-.sync-log-floating-horizontal-spacer {
-  height: 1px;
+.stat-detail-floating-horizontal {
+  z-index: 2600 !important;
+  height: 16px !important;
+  padding: 5px 0 !important;
+  overflow: visible !important;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
+  overscroll-behavior-x: contain;
+}
+
+.platform-floating-horizontal-track {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.platform-floating-horizontal-thumb {
+  height: 100%;
+  min-width: 48px;
+  border-radius: 999px;
+  background: var(--el-scrollbar-bg-color, var(--el-text-color-secondary));
+  opacity: 0.45;
+  cursor: grab;
+  transition: opacity 0.16s ease;
+  will-change: transform, width;
+}
+
+.platform-floating-horizontal-track:hover .platform-floating-horizontal-thumb,
+.platform-floating-scrollbar-dragging .platform-floating-horizontal-thumb {
+  opacity: 0.72;
+}
+
+.platform-floating-scrollbar-dragging .platform-floating-horizontal-thumb {
+  cursor: grabbing;
 }
 
 body.platform-floating-scrollbar-dragging,

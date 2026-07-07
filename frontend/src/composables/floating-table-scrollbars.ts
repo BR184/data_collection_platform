@@ -1,17 +1,22 @@
 const managedTableClass = 'platform-floating-scrollbar-managed';
 const externalScrollbarClass = 'platform-table-floating-horizontal';
-const spacerClass = 'platform-table-floating-horizontal-spacer';
+const trackClass = 'platform-floating-horizontal-track';
+const thumbClass = 'platform-floating-horizontal-thumb';
+const minimumThumbWidth = 48;
+const floatingScrollbarSideInset = 20;
 
 let floatingScrollbar: HTMLElement | undefined;
-let floatingSpacer: HTMLElement | undefined;
+let floatingTrack: HTMLElement | undefined;
+let floatingThumb: HTMLElement | undefined;
 let activeScrollWrap: HTMLElement | undefined;
 let activeTable: HTMLElement | undefined;
 let mutationObserver: MutationObserver | undefined;
 let resizeObserver: ResizeObserver | undefined;
 let updateFrame: number | undefined;
-let syncingFromTable = false;
 let syncingFromFloating = false;
 let draggingScrollbar = false;
+let dragStartClientX = 0;
+let dragStartScrollLeft = 0;
 
 export function installFloatingTableScrollbars() {
   if (typeof window === 'undefined') {
@@ -23,6 +28,7 @@ export function installFloatingTableScrollbars() {
   mutationObserver.observe(document.body, { childList: true, subtree: true });
   window.addEventListener('resize', requestUpdate, { passive: true });
   window.addEventListener('scroll', requestUpdate, { passive: true, capture: true });
+  window.addEventListener('pointermove', handleFloatingPointerMove, { passive: true });
 }
 
 function ensureFloatingScrollbar() {
@@ -32,11 +38,16 @@ function ensureFloatingScrollbar() {
   floatingScrollbar = document.createElement('div');
   floatingScrollbar.className = externalScrollbarClass;
   floatingScrollbar.setAttribute('aria-hidden', 'true');
-  floatingSpacer = document.createElement('div');
-  floatingSpacer.className = spacerClass;
-  floatingScrollbar.appendChild(floatingSpacer);
-  floatingScrollbar.addEventListener('scroll', handleFloatingScroll, { passive: true });
-  floatingScrollbar.addEventListener('pointerdown', handleFloatingPointerDown, { passive: true });
+
+  floatingTrack = document.createElement('div');
+  floatingTrack.className = trackClass;
+  floatingThumb = document.createElement('div');
+  floatingThumb.className = thumbClass;
+  floatingTrack.appendChild(floatingThumb);
+  floatingScrollbar.appendChild(floatingTrack);
+
+  floatingTrack.addEventListener('pointerdown', handleFloatingTrackPointerDown);
+  floatingThumb.addEventListener('pointerdown', handleFloatingThumbPointerDown);
   floatingScrollbar.addEventListener('pointerup', handleFloatingPointerUp, { passive: true });
   window.addEventListener('pointerup', handleFloatingPointerUp, { passive: true });
   window.addEventListener('blur', handleFloatingPointerUp);
@@ -94,7 +105,7 @@ function hasHorizontalOverflow(element: HTMLElement) {
 }
 
 function updateFloatingScrollbar() {
-  if (!floatingScrollbar || !floatingSpacer || !activeTable || !activeScrollWrap || !hasHorizontalOverflow(activeScrollWrap)) {
+  if (!floatingScrollbar || !activeTable || !activeScrollWrap || !hasHorizontalOverflow(activeScrollWrap)) {
     hideFloatingScrollbar();
     return;
   }
@@ -107,14 +118,13 @@ function updateFloatingScrollbar() {
     hideFloatingScrollbar();
     return;
   }
-  const left = Math.max(rect.left, gutter);
-  const right = Math.min(rect.right, viewportWidth - gutter);
+  const left = Math.max(rect.left + floatingScrollbarSideInset, gutter);
+  const right = Math.min(rect.right - floatingScrollbarSideInset, viewportWidth - gutter);
   const width = right - left;
   if (width < 80) {
     hideFloatingScrollbar();
     return;
   }
-  floatingSpacer.style.width = `${activeScrollWrap.scrollWidth}px`;
   floatingScrollbar.style.left = `${left}px`;
   floatingScrollbar.style.width = `${width}px`;
   floatingScrollbar.style.bottom = `${bottomOffset}px`;
@@ -137,29 +147,89 @@ function hideFloatingScrollbar() {
 }
 
 function syncFloatingFromTable() {
-  if (syncingFromFloating || !floatingScrollbar || !activeScrollWrap) {
+  if (syncingFromFloating || !floatingTrack || !floatingThumb || !activeScrollWrap) {
     return;
   }
-  syncingFromTable = true;
-  floatingScrollbar.scrollLeft = activeScrollWrap.scrollLeft;
-  window.requestAnimationFrame(() => {
-    syncingFromTable = false;
-  });
+  updateFloatingThumb(activeScrollWrap, floatingTrack, floatingThumb);
 }
 
-function handleFloatingScroll() {
-  if (syncingFromTable || !floatingScrollbar || !activeScrollWrap) {
+function updateFloatingThumb(scrollWrap: HTMLElement, track: HTMLElement, thumb: HTMLElement) {
+  const trackWidth = track.clientWidth;
+  const scrollableWidth = scrollWrap.scrollWidth - scrollWrap.clientWidth;
+  if (trackWidth <= 0 || scrollableWidth <= 0) {
+    thumb.style.width = `${Math.max(0, trackWidth)}px`;
+    thumb.style.transform = 'translateX(0px)';
     return;
   }
+
+  const proportionalWidth = (scrollWrap.clientWidth / scrollWrap.scrollWidth) * trackWidth;
+  const thumbWidth = Math.min(trackWidth, Math.max(minimumThumbWidth, proportionalWidth));
+  const movableWidth = Math.max(0, trackWidth - thumbWidth);
+  const scrollRatio = scrollWrap.scrollLeft / scrollableWidth;
+  thumb.style.width = `${thumbWidth}px`;
+  thumb.style.transform = `translateX(${movableWidth * scrollRatio}px)`;
+}
+
+function scrollTableToThumbPosition(clientX: number) {
+  if (!floatingTrack || !activeScrollWrap) {
+    return;
+  }
+  const trackRect = floatingTrack.getBoundingClientRect();
+  const trackWidth = floatingTrack.clientWidth;
+  const scrollableWidth = activeScrollWrap.scrollWidth - activeScrollWrap.clientWidth;
+  if (trackWidth <= 0 || scrollableWidth <= 0) {
+    return;
+  }
+
+  const proportionalWidth = (activeScrollWrap.clientWidth / activeScrollWrap.scrollWidth) * trackWidth;
+  const thumbWidth = Math.min(trackWidth, Math.max(minimumThumbWidth, proportionalWidth));
+  const movableWidth = Math.max(1, trackWidth - thumbWidth);
+  const thumbLeft = Math.min(Math.max(clientX - trackRect.left - thumbWidth / 2, 0), movableWidth);
   syncingFromFloating = true;
-  activeScrollWrap.scrollLeft = floatingScrollbar.scrollLeft;
+  activeScrollWrap.scrollLeft = (thumbLeft / movableWidth) * scrollableWidth;
   window.requestAnimationFrame(() => {
     syncingFromFloating = false;
+    syncFloatingFromTable();
   });
 }
 
-function handleFloatingPointerDown() {
+function handleFloatingTrackPointerDown(event: PointerEvent) {
+  event.preventDefault();
+  scrollTableToThumbPosition(event.clientX);
+  dragStartClientX = event.clientX;
+  dragStartScrollLeft = activeScrollWrap?.scrollLeft ?? 0;
   setDraggingScrollbar(true);
+}
+
+function handleFloatingThumbPointerDown(event: PointerEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  dragStartClientX = event.clientX;
+  dragStartScrollLeft = activeScrollWrap?.scrollLeft ?? 0;
+  setDraggingScrollbar(true);
+}
+
+function handleFloatingPointerMove(event: PointerEvent) {
+  if (!draggingScrollbar || !floatingTrack || !activeScrollWrap) {
+    return;
+  }
+
+  const trackWidth = floatingTrack.clientWidth;
+  const scrollableWidth = activeScrollWrap.scrollWidth - activeScrollWrap.clientWidth;
+  const proportionalWidth = (activeScrollWrap.clientWidth / activeScrollWrap.scrollWidth) * trackWidth;
+  const thumbWidth = Math.min(trackWidth, Math.max(minimumThumbWidth, proportionalWidth));
+  const movableWidth = trackWidth - thumbWidth;
+  if (trackWidth <= 0 || scrollableWidth <= 0 || movableWidth <= 0) {
+    return;
+  }
+
+  const deltaX = event.clientX - dragStartClientX;
+  syncingFromFloating = true;
+  activeScrollWrap.scrollLeft = dragStartScrollLeft + (deltaX / movableWidth) * scrollableWidth;
+  window.requestAnimationFrame(() => {
+    syncingFromFloating = false;
+    syncFloatingFromTable();
+  });
 }
 
 function handleFloatingPointerUp() {

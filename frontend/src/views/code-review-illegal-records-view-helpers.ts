@@ -110,8 +110,8 @@ export function buildCodeReviewPrimaryFilters(
   legacyMode = false,
 ): RecordTableFilterField[] {
   const filters: RecordTableFilterField[] = [
+    { key: 'keyword', label: '任意关键字', type: 'input', placeholder: '输入任意关键字搜索', width: 260 },
     { key: 'mergeRequestIid', label: '合并请求编号', type: 'input', placeholder: '输入合并请求ID' },
-    { key: 'keyword', label: '合并请求内容', type: 'input', placeholder: '输入内容关键字', width: 220 },
     legacyMode
       ? {
           key: 'owner',

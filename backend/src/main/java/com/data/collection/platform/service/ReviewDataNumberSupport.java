@@ -28,4 +28,11 @@ final class ReviewDataNumberSupport {
     }
     return BigDecimal.valueOf(value).setScale(2, RoundingMode.FLOOR).doubleValue();
   }
+
+  static double roundToTwoDecimals(double value) {
+    if (!Double.isFinite(value)) {
+      return 0D;
+    }
+    return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+  }
 }

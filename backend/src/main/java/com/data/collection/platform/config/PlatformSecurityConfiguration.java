@@ -18,6 +18,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
 public class PlatformSecurityConfiguration {
@@ -60,7 +61,7 @@ public class PlatformSecurityConfiguration {
             .requestMatchers(HttpMethod.GET, SYSTEM_SETTINGS_API_PATHS).authenticated()
             .requestMatchers(HttpMethod.HEAD, SYSTEM_SETTINGS_API_PATHS).authenticated()
             .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
-            .requestMatchers(HttpMethod.POST, "/api/**/delete").authenticated()
+            .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.POST, "/api/**/delete")).authenticated()
             .requestMatchers(HttpMethod.POST, "/api/review-data/records").permitAll()
             .requestMatchers(HttpMethod.PUT, "/api/review-data/records/*").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/review-data/records/*/problem-items").permitAll()

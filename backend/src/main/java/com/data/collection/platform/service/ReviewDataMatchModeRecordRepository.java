@@ -302,17 +302,17 @@ public class ReviewDataMatchModeRecordRepository {
         problems.stream().map(ProblemRow::workload).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
     int reviewScalePages = reviewScalePages(report, problems, descriptions);
     double problemDensity =
-        reviewScalePages <= 0
-            ? 0D
-            : ReviewDataNumberSupport.floorToTwoDecimals(effectiveProblemCount * 1D / reviewScalePages);
+        legacyMetric(
+            report.reviewDefectDensity(),
+            reviewScalePages <= 0 ? 0D : effectiveProblemCount * 1D / reviewScalePages);
     double reviewEfficiency =
-        totalWorkload <= 0
-            ? decimalToDouble(report.reviewEfficiency())
-            : ReviewDataNumberSupport.floorToTwoDecimals(effectiveProblemCount / totalWorkload);
+        legacyMetric(
+            report.reviewEfficiency(),
+            totalWorkload <= 0 ? 0D : effectiveProblemCount / totalWorkload);
     double reviewRate =
-        totalWorkload <= 0
-            ? decimalToDouble(report.reviewRate())
-            : ReviewDataNumberSupport.floorToTwoDecimals(reviewScalePages / totalWorkload);
+        legacyMetric(
+            report.reviewRate(),
+            totalWorkload <= 0 ? 0D : reviewScalePages / totalWorkload);
     return new RecordMetrics(
         reviewScalePages,
         effectiveProblemCount,
@@ -328,6 +328,13 @@ public class ReviewDataMatchModeRecordRepository {
         problemCountByReviewType(problems, "独立评审"),
         workloadByReviewType(problems, "会议评审"),
         problemCountByReviewType(problems, "会议评审"));
+  }
+
+  private double legacyMetric(BigDecimal legacyValue, double calculatedRawValue) {
+    if (legacyValue != null) {
+      return legacyValue.doubleValue();
+    }
+    return ReviewDataNumberSupport.roundToTwoDecimals(calculatedRawValue);
   }
 
   private int reviewScalePages(ReportRow report, List<ProblemRow> problems, List<DescriptionRow> descriptions) {

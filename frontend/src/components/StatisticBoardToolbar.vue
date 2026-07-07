@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { ArrowDown, Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
+import { computed, ref } from 'vue';
+import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
+import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
+import type { RecordTableFilterField } from '../types/record-table';
 import type { StatisticFilterDraftGroup } from './statistic-board-filters';
 import type { StatisticBoardToolbarAction, StatisticBoardUiHooks } from './statistic-board-ui';
 import { toUserMessage } from '../utils/user-message';
@@ -20,6 +22,9 @@ const props = withDefaults(
     autoRefreshOnEnter?: boolean;
     showExport?: boolean;
     exportLabel?: string;
+    quickFilterFields?: RecordTableFilterField[];
+    quickFilterValues?: Record<string, unknown>;
+    quickFilterInputDrafts?: Record<string, string>;
     extraActions?: StatisticBoardToolbarAction[];
     uiHooks?: StatisticBoardUiHooks;
   }>(),
@@ -30,6 +35,9 @@ const props = withDefaults(
     autoRefreshOnEnter: true,
     showExport: true,
     exportLabel: '导出',
+    quickFilterFields: () => [],
+    quickFilterValues: () => ({}),
+    quickFilterInputDrafts: () => ({}),
     extraActions: () => [],
     uiHooks: () => ({}),
   },
@@ -44,10 +52,13 @@ const emit = defineEmits<{
   (event: 'extraAction', actionKey: string): void;
   (event: 'settingsCommand', command: string): void;
   (event: 'toggleAutoRefresh', enabled: boolean): void;
+  (event: 'quickFilterChange', payload: { key: string; value: string | string[] | null }): void;
+  (event: 'quickFilterInputUpdate', payload: { key: string; value: string }): void;
 }>();
 
 const PRIMARY_EXPORT_COMMAND = '__primary_export__';
 
+const quickFiltersExpanded = ref(false);
 const exportExtraActions = computed(() => props.extraActions.filter(isExportAction));
 const nonExportExtraActions = computed(() => props.extraActions.filter((action) => !isExportAction(action)));
 const exportMenuItems = computed(() => [
@@ -61,6 +72,11 @@ const exportMenuItems = computed(() => [
 const useExportDropdown = computed(() => exportMenuItems.value.length >= 2);
 const inlineExtraActions = computed(() => (useExportDropdown.value ? nonExportExtraActions.value : props.extraActions));
 const exportDropdownLoading = computed(() => exportExtraActions.value.some((action) => Boolean(action.loading)));
+const hasQuickFilters = computed(() => props.quickFilterFields.length > 0);
+const quickFilterToggleText = computed(() =>
+  quickFiltersExpanded.value ? '收起快速筛选' : `快速筛选（${props.quickFilterFields.length}）`,
+);
+const quickFilterToggleIcon = computed(() => (quickFiltersExpanded.value ? ArrowUp : ArrowDown));
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
 const failureStatuses = new Set(['FAILED', 'TIMEOUT', 'CANCELLED']);
@@ -205,6 +221,18 @@ function handleExportDropdownCommand(command: string | number | object) {
   }
   emit('extraAction', actionKey);
 }
+
+function updateQuickFilterInput(key: string, value: string) {
+  emit('quickFilterInputUpdate', { key, value });
+}
+
+function commitQuickFilterInput(key: string, value: string) {
+  emit('quickFilterChange', { key, value });
+}
+
+function commitQuickFilterValue(key: string, value: string | string[] | null) {
+  emit('quickFilterChange', { key, value });
+}
 </script>
 
 <template>
@@ -217,7 +245,39 @@ function handleExportDropdownCommand(command: string | number | object) {
           show-apply-actions
           @apply="emit('applyFilters')"
           @reset="emit('resetFilters')"
-        />
+        >
+          <template #summary-actions-extra>
+            <el-button
+              v-if="hasQuickFilters"
+              class="app-action-button app-action-button--filter"
+              plain
+              :icon="quickFilterToggleIcon"
+              @click="quickFiltersExpanded = !quickFiltersExpanded"
+            >
+              {{ quickFilterToggleText }}
+            </el-button>
+          </template>
+        </StatisticFilterBuilder>
+      </div>
+    </div>
+
+    <div v-if="hasQuickFilters" v-show="quickFiltersExpanded" class="stat-board-toolbar-quick-row">
+      <RecordTableFilterFields
+        :filters="quickFilterFields"
+        :filter-values="quickFilterValues"
+        :input-drafts="quickFilterInputDrafts"
+        :keyword-field-visible="quickFilterFields.some((field) => field.key === 'keyword')"
+        @input-update="updateQuickFilterInput"
+        @input-change="commitQuickFilterInput"
+        @input-search="(key) => commitQuickFilterInput(key, String(quickFilterInputDrafts[key] ?? quickFilterValues[key] ?? ''))"
+        @input-clear="(key) => commitQuickFilterInput(key, '')"
+        @filter-change="commitQuickFilterValue"
+      />
+      <div class="stat-board-toolbar-quick-actions">
+        <el-button type="primary" class="app-action-button app-action-button--query" @click="emit('applyFilters')">
+          查询
+        </el-button>
+        <el-button class="app-action-button app-action-button--reset" @click="emit('resetFilters')">重置</el-button>
       </div>
     </div>
 
@@ -353,6 +413,26 @@ function handleExportDropdownCommand(command: string | number | object) {
   min-width: 0;
 }
 
+.stat-board-toolbar-quick-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.stat-board-toolbar-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
 .stat-board-toolbar-main {
   display: grid;
   min-width: 0;
@@ -410,6 +490,10 @@ function handleExportDropdownCommand(command: string | number | object) {
   .stat-board-toolbar-actions {
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .stat-board-toolbar-quick-actions {
+    margin-left: 0;
   }
 }
 </style>

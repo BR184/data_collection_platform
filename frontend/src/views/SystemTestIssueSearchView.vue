@@ -92,6 +92,7 @@ const filterValues = computed<Record<string, unknown>>(() => {
   const updatedAtStart = String(route.query.updatedAtStart ?? '');
   const updatedAtEnd = String(route.query.updatedAtEnd ?? '');
   return {
+    keyword: String(route.query.keyword ?? ''),
     testingPhase: parseMultiQueryValue(route.query.testingPhase),
     moduleName: String(route.query.moduleName ?? ''),
     functionName: String(route.query.functionName ?? ''),
@@ -204,6 +205,7 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   const values = filterValues.value;
   const tags: RecordTableActiveFilterTag[] = [];
+  if (values.keyword) tags.push({ key: 'keyword', label: '任意关键字', value: String(values.keyword) });
   if (Array.isArray(values.updatedAtRange) && values.updatedAtRange.length === 2) {
     tags.push({
       key: 'updatedAtRange',
@@ -326,6 +328,7 @@ function buildCurrentQueryParams(includePagination: boolean) {
   return {
     projectId: undefined,
     sourceInstance: String(route.query.sourceInstance ?? ''),
+    keyword: String(route.query.keyword ?? ''),
     issueIid: String(route.query.issueIid ?? ''),
     title: String(route.query.title ?? ''),
     projectName: String(route.query.projectName ?? ''),
@@ -406,6 +409,7 @@ async function handleReset() {
     sortBy: 'updatedAt',
     sortOrder: 'desc',
     ...buildResetQueryPatch(route.query),
+    keyword: null,
     testingPhase: null,
     moduleName: null,
     functionName: null,
@@ -428,6 +432,10 @@ async function handleReset() {
 
 async function handleQuery() {
   await patchQuery({ page: 1, ...buildApplyQueryPatch(route.query) });
+}
+
+async function handleKeywordSearch(nextKeyword: string) {
+  await patchQuery({ page: 1, keyword: nextKeyword.trim() || null });
 }
 
 async function handleConditionFilterApply() {
@@ -494,10 +502,14 @@ async function handleRefresh() {
       :page-size="pageSize"
       :total="total"
       row-key="identityKey"
+      expand-column-fixed-left
       :primary-filters="primaryFilters"
       :filter-values="filterValues"
       :active-filter-tags="activeFilterTags"
-      :show-search="false"
+      :keyword="String(route.query.keyword ?? '')"
+      :keyword-auto-search="true"
+      search-placeholder="输入任意关键字搜索"
+      :show-search="true"
       :sort-by="sortBy"
       :sort-order="sortOrder"
       default-sort-by="updatedAt"
@@ -506,6 +518,7 @@ async function handleRefresh() {
       quick-filter-toggle-placement="filter-builder"
       empty-description="当前筛选条件下没有查到系统测试议题。"
       @filter-change="handleFilterChange"
+      @search="handleKeywordSearch"
       @reset="handleReset"
       @query="handleQuery"
       @clear-filter="handleClearFilter"

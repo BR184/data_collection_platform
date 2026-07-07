@@ -5,21 +5,29 @@ interface FloatingHorizontalScrollbarOptions {
   watchedSources?: WatchSource<unknown>[];
 }
 
+const minimumThumbWidth = 48;
+const floatingScrollbarSideInset = 20;
+
 export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScrollbarOptions) {
   const floatingScrollbarRef = ref<HTMLElement>();
+  const floatingTrackRef = ref<HTMLElement>();
   const scrollbarAwake = ref(false);
   const hasHorizontalOverflow = ref(false);
-  const horizontalSpacerWidth = ref(0);
   const isFloatingScrollbarVisible = ref(false);
   const floatingScrollbarStyle = ref<Record<string, string>>({});
+  const floatingThumbStyle = ref<Record<string, string>>({
+    width: `${minimumThumbWidth}px`,
+    transform: 'translateX(0px)',
+  });
 
   let scrollbarAwakeTimer: number | undefined;
   let observedTableScrollWrap: HTMLElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
   let updateFrame: number | undefined;
-  let syncingFromTable = false;
   let syncingFromFloating = false;
   let draggingScrollbar = false;
+  let dragStartClientX = 0;
+  let dragStartScrollLeft = 0;
 
   function setScrollbarDragging(active: boolean) {
     draggingScrollbar = active;
@@ -70,12 +78,10 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     if (!tableBody) {
       hasHorizontalOverflow.value = false;
       isFloatingScrollbarVisible.value = false;
-      horizontalSpacerWidth.value = 0;
       return;
     }
 
     attachTableScrollListener(tableBody);
-    horizontalSpacerWidth.value = tableBody.scrollWidth;
     const pixelTolerance = 0.25;
     hasHorizontalOverflow.value = tableBody.scrollWidth - tableBody.clientWidth > pixelTolerance;
     updateFloatingScrollbarPosition(tableBody);
@@ -100,8 +106,8 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
       return;
     }
 
-    const left = Math.max(rect.left, gutter);
-    const right = Math.min(rect.right, viewportWidth - gutter);
+    const left = Math.max(rect.left + floatingScrollbarSideInset, gutter);
+    const right = Math.min(rect.right - floatingScrollbarSideInset, viewportWidth - gutter);
     const width = Math.max(0, right - left);
     if (width < 80) {
       isFloatingScrollbarVisible.value = false;
@@ -135,41 +141,117 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     observedTableScrollWrap.addEventListener('scroll', syncFloatingScrollbarFromTable, { passive: true });
   }
 
+  // 内网浏览器/兼容模式可能丢失 WebKit 滚动条伪类样式，导致原生滚动条高度和圆角不可控。
+  // 这里把表格横向滚动当作逻辑状态同步，自绘 track/thumb 负责视觉，确保内外网和浏览器缩放下表现一致。
   function syncFloatingScrollbarFromTable() {
     if (syncingFromFloating) {
       return;
     }
     const tableBody = getTableScrollWrap();
-    const horizontalScrollbar = floatingScrollbarRef.value;
-    if (!tableBody || !horizontalScrollbar) {
+    const track = floatingTrackRef.value ?? floatingScrollbarRef.value;
+    if (!tableBody || !track) {
       return;
     }
-    syncingFromTable = true;
-    horizontalScrollbar.scrollLeft = tableBody.scrollLeft;
+    updateFloatingThumb(tableBody, track);
+  }
+
+  function updateFloatingThumb(tableBody: HTMLElement, track: HTMLElement) {
+    const trackWidth = track.clientWidth;
+    const scrollableWidth = tableBody.scrollWidth - tableBody.clientWidth;
+    if (trackWidth <= 0 || scrollableWidth <= 0) {
+      floatingThumbStyle.value = {
+        width: `${Math.max(0, trackWidth)}px`,
+        transform: 'translateX(0px)',
+      };
+      return;
+    }
+
+    const proportionalWidth = (tableBody.clientWidth / tableBody.scrollWidth) * trackWidth;
+    const thumbWidth = Math.min(trackWidth, Math.max(minimumThumbWidth, proportionalWidth));
+    const movableWidth = Math.max(0, trackWidth - thumbWidth);
+    const scrollRatio = tableBody.scrollLeft / scrollableWidth;
+    const thumbLeft = movableWidth * scrollRatio;
+    floatingThumbStyle.value = {
+      width: `${thumbWidth}px`,
+      transform: `translateX(${thumbLeft}px)`,
+    };
+  }
+
+  function scrollTableToThumbPosition(clientX: number) {
+    const tableBody = getTableScrollWrap();
+    const track = floatingTrackRef.value ?? floatingScrollbarRef.value;
+    if (!tableBody || !track) {
+      return;
+    }
+
+    const trackRect = track.getBoundingClientRect();
+    const trackWidth = track.clientWidth;
+    const scrollableWidth = tableBody.scrollWidth - tableBody.clientWidth;
+    if (trackWidth <= 0 || scrollableWidth <= 0) {
+      return;
+    }
+
+    const proportionalWidth = (tableBody.clientWidth / tableBody.scrollWidth) * trackWidth;
+    const thumbWidth = Math.min(trackWidth, Math.max(minimumThumbWidth, proportionalWidth));
+    const movableWidth = Math.max(1, trackWidth - thumbWidth);
+    const thumbLeft = Math.min(Math.max(clientX - trackRect.left - thumbWidth / 2, 0), movableWidth);
+    syncingFromFloating = true;
+    tableBody.scrollLeft = (thumbLeft / movableWidth) * scrollableWidth;
     window.requestAnimationFrame(() => {
-      syncingFromTable = false;
+      syncingFromFloating = false;
+      syncFloatingScrollbarFromTable();
     });
   }
 
-  function handleFloatingHorizontalScroll() {
-    if (syncingFromTable) {
+  function handleFloatingTrackPointerDown(event: PointerEvent) {
+    if (!(event.currentTarget instanceof HTMLElement)) {
       return;
     }
+    event.preventDefault();
+    scrollTableToThumbPosition(event.clientX);
     const tableBody = getTableScrollWrap();
-    const horizontalScrollbar = floatingScrollbarRef.value;
-    if (!tableBody || !horizontalScrollbar) {
-      return;
-    }
-    syncingFromFloating = true;
-    tableBody.scrollLeft = horizontalScrollbar.scrollLeft;
-    window.requestAnimationFrame(() => {
-      syncingFromFloating = false;
-    });
+    dragStartClientX = event.clientX;
+    dragStartScrollLeft = tableBody?.scrollLeft ?? 0;
+    setScrollbarDragging(true);
     wakeHorizontalScrollbar();
   }
 
-  function handleFloatingScrollbarPointerDown() {
+  function handleFloatingThumbPointerDown(event: PointerEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const tableBody = getTableScrollWrap();
+    dragStartClientX = event.clientX;
+    dragStartScrollLeft = tableBody?.scrollLeft ?? 0;
     setScrollbarDragging(true);
+    wakeHorizontalScrollbar();
+  }
+
+  function handleFloatingPointerMove(event: PointerEvent) {
+    if (!draggingScrollbar) {
+      return;
+    }
+    const tableBody = getTableScrollWrap();
+    const track = floatingTrackRef.value ?? floatingScrollbarRef.value;
+    if (!tableBody || !track) {
+      return;
+    }
+
+    const trackWidth = track.clientWidth;
+    const scrollableWidth = tableBody.scrollWidth - tableBody.clientWidth;
+    const proportionalWidth = (tableBody.clientWidth / tableBody.scrollWidth) * trackWidth;
+    const thumbWidth = Math.min(trackWidth, Math.max(minimumThumbWidth, proportionalWidth));
+    const movableWidth = trackWidth - thumbWidth;
+    if (trackWidth <= 0 || scrollableWidth <= 0 || movableWidth <= 0) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragStartClientX;
+    syncingFromFloating = true;
+    tableBody.scrollLeft = dragStartScrollLeft + (deltaX / movableWidth) * scrollableWidth;
+    window.requestAnimationFrame(() => {
+      syncingFromFloating = false;
+      syncFloatingScrollbarFromTable();
+    });
     wakeHorizontalScrollbar();
   }
 
@@ -206,6 +288,7 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     observeTableShell();
     window.addEventListener('resize', requestHorizontalScrollbarUpdate, { passive: true });
     window.addEventListener('scroll', requestHorizontalScrollbarUpdate, { passive: true, capture: true });
+    window.addEventListener('pointermove', handleFloatingPointerMove, { passive: true });
     window.addEventListener('pointerup', handleFloatingScrollbarPointerUp, { passive: true });
     window.addEventListener('blur', handleFloatingScrollbarPointerUp);
   });
@@ -227,6 +310,7 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
     }
     window.removeEventListener('resize', requestHorizontalScrollbarUpdate);
     window.removeEventListener('scroll', requestHorizontalScrollbarUpdate, { capture: true });
+    window.removeEventListener('pointermove', handleFloatingPointerMove);
     window.removeEventListener('pointerup', handleFloatingScrollbarPointerUp);
     window.removeEventListener('blur', handleFloatingScrollbarPointerUp);
     observedTableScrollWrap?.removeEventListener('scroll', syncFloatingScrollbarFromTable);
@@ -238,15 +322,16 @@ export function useFloatingHorizontalScrollbar(options: FloatingHorizontalScroll
 
   return {
     floatingScrollbarRef,
+    floatingTrackRef,
     scrollbarAwake,
     hasHorizontalOverflow,
     isFloatingScrollbarVisible,
-    horizontalSpacerWidth,
     floatingScrollbarStyle,
+    floatingThumbStyle,
     wakeHorizontalScrollbar,
     handleHorizontalWheel,
-    handleFloatingHorizontalScroll,
-    handleFloatingScrollbarPointerDown,
+    handleFloatingTrackPointerDown,
+    handleFloatingThumbPointerDown,
     handleFloatingScrollbarPointerUp,
     scheduleHorizontalScrollbarUpdate,
     updateHorizontalScrollbar,

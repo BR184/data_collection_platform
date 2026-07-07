@@ -142,6 +142,7 @@ const {
 const {
   handleReset,
   handleQuery,
+  handleKeywordSearch,
   handleRefresh,
   handleSizeChange,
   handleCurrentChange,
@@ -683,13 +684,20 @@ async function handleConditionFilterReset() {
         :active-filter-tags="allActiveFilterTags"
         :primary-filters="primaryFilters"
         :filter-values="filterValues"
-        :show-search="false"
+        :keyword="String(route.query.keyword ?? '')"
+        :keyword-auto-search="true"
+        search-placeholder="输入任意关键字搜索"
+        :show-search="true"
         :show-refresh="false"
         :sort-by="sortBy"
         :sort-order="sortOrder"
         default-sort-by="updatedAt"
         default-sort-order="desc"
         :empty-description="emptyDescription"
+        quick-filter-mode
+        quick-filter-toggle-placement="filter-builder"
+        query-button-text="查询"
+        @search="handleKeywordSearch"
         @filter-change="handleFilterChange"
         @reset="handleReset"
         @query="handleQuery"
@@ -698,7 +706,14 @@ async function handleConditionFilterReset() {
         @current-change="handleCurrentChange"
         @sort-change="handleSortChange"
       >
-        <template #filter-builder>
+        <template
+          #filter-builder="{
+            quickFilterToggleVisible,
+            quickFilterToggleText,
+            quickFilterToggleIcon,
+            toggleQuickFilter,
+          }"
+        >
           <div class="customer-record-filter-stack">
             <StatisticFilterBuilder
               :model-value="filterDraft"
@@ -707,11 +722,23 @@ async function handleConditionFilterReset() {
               show-apply-actions
               @apply="handleConditionFilterApply"
               @reset="handleConditionFilterReset"
-            />
+            >
+              <template #summary-actions-extra>
+                <el-button
+                  v-if="quickFilterToggleVisible"
+                  class="app-action-button app-action-button--filter"
+                  plain
+                  :icon="quickFilterToggleIcon"
+                  @click="toggleQuickFilter()"
+                >
+                  {{ quickFilterToggleText }}
+                </el-button>
+              </template>
+            </StatisticFilterBuilder>
           </div>
         </template>
 
-        <template #toolbar-actions>
+        <template #primary-actions>
           <div class="customer-record-toolbar-actions">
             <SyncMetaBadge :value="lastSyncedText" />
             <el-tag effect="plain" :type="isDelayTopic ? 'warning' : 'primary'">当前 {{ total }} 条</el-tag>

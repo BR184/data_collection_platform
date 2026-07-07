@@ -212,6 +212,8 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
       'projectName',
       'moduleName',
       'illegalReason',
+      'authorName',
+      'assigneeName',
       'severityLevel',
       'priorityLevel',
       'issueState',

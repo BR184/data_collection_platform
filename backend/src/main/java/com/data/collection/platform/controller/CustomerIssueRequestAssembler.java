@@ -31,6 +31,8 @@ public class CustomerIssueRequestAssembler {
         withLegacyTestingPhaseAsMilestone(listRequest, request.getTestingPhase()),
         request.getIllegalReason(),
         null,
+        request.getAuthorName(),
+        request.getAssigneeName(),
         request.getFilterGroup());
   }
 

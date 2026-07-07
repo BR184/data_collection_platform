@@ -29,6 +29,7 @@ const props = withDefaults(
     rowKey?: string;
     expandedRowKeys?: Array<string | number>;
     expandColumnVisible?: boolean;
+    expandColumnFixedLeft?: boolean;
     rowActionsWidth?: number;
     loadingDelay?: number;
     pageSizeOptions?: number[];
@@ -60,6 +61,7 @@ const props = withDefaults(
     rowKey: 'id',
     expandedRowKeys: () => [],
     expandColumnVisible: true,
+    expandColumnFixedLeft: false,
     rowActionsWidth: 120,
     searchPlaceholder: '输入任意关键字搜索',
     emptyDescription: '当前暂无可展示记录',
@@ -108,15 +110,16 @@ const { displayedLoading } = useDelayedLoading(toRef(props, 'loading'), computed
 const keywordAutoSearchTask = useDebouncedTask(toRef(props, 'keywordAutoSearchDelay'));
 const {
   floatingScrollbarRef,
+  floatingTrackRef,
   scrollbarAwake,
   hasHorizontalOverflow,
   isFloatingScrollbarVisible,
-  horizontalSpacerWidth,
   floatingScrollbarStyle,
+  floatingThumbStyle,
   wakeHorizontalScrollbar,
   handleHorizontalWheel,
-  handleFloatingHorizontalScroll,
-  handleFloatingScrollbarPointerDown,
+  handleFloatingTrackPointerDown,
+  handleFloatingThumbPointerDown,
   handleFloatingScrollbarPointerUp,
   scheduleHorizontalScrollbarUpdate,
 } = useFloatingHorizontalScrollbar({
@@ -887,6 +890,7 @@ function readableSortDirection(direction: string) {
           v-if="hasExpand"
           type="expand"
           :width="expandColumnVisible ? 42 : 1"
+          :fixed="expandColumnFixedLeft ? 'left' : false"
           :class-name="expandColumnVisible ? undefined : 'record-table-expand-column-hidden'"
           :label-class-name="expandColumnVisible ? undefined : 'record-table-expand-column-hidden'"
         >
@@ -957,11 +961,19 @@ function readableSortDirection(direction: string) {
         :style="floatingScrollbarStyle"
         aria-hidden="true"
         @mouseenter="wakeHorizontalScrollbar"
-        @pointerdown="handleFloatingScrollbarPointerDown"
         @pointerup="handleFloatingScrollbarPointerUp"
-        @scroll="handleFloatingHorizontalScroll"
       >
-        <div class="record-table-floating-horizontal-spacer" :style="{ width: `${horizontalSpacerWidth}px` }" />
+        <div
+          ref="floatingTrackRef"
+          class="platform-floating-horizontal-track"
+          @pointerdown="handleFloatingTrackPointerDown"
+        >
+          <div
+            class="platform-floating-horizontal-thumb"
+            :style="floatingThumbStyle"
+            @pointerdown="handleFloatingThumbPointerDown"
+          />
+        </div>
       </div>
     </div>
 
@@ -1284,38 +1296,14 @@ function readableSortDirection(direction: string) {
 
 .record-table-floating-horizontal {
   position: fixed;
-  z-index: 1200;
+  z-index: 1900;
   height: 16px;
-  padding: 3px 0 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  padding: 5px 0;
+  overflow: visible;
   pointer-events: auto;
   opacity: 1;
-  scrollbar-width: auto;
-  border-radius: 8px;
   background: transparent;
   box-shadow: none;
-}
-
-.record-table-floating-horizontal::-webkit-scrollbar {
-  height: 9px;
-}
-
-.record-table-floating-horizontal::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.record-table-floating-horizontal::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(96, 98, 102, 0.55);
-}
-
-.record-table-floating-horizontal:hover::-webkit-scrollbar-thumb {
-  background: rgba(96, 98, 102, 0.72);
-}
-
-.record-table-floating-horizontal-spacer {
-  height: 1px;
 }
 
 .record-table-pagination {

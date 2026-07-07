@@ -132,8 +132,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   request.illegalReason(),
                   null,
                   List.of(),
-                  null,
-                  null,
+                  request.authorName(),
+                  request.assigneeName(),
                   false,
                   true,
                   true,
@@ -161,6 +161,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             .filter(IssueFactRecord::illegal)
             .filter(this::hasSupportedCustomerIllegalReason)
             .filter(view -> matchesIllegalReason(view, request.illegalReason()))
+            .filter(view -> matchesEquals(view.authorName(), request.authorName()))
+            .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
             .filter(view -> IssueFactRecordFilterGroupSupport.matches(view, expandedFilterGroup))
             .sorted(applySortDirection(SORT_COMPARATORS.get(safeSortField), safeSortOrder))
             .toList();
@@ -258,6 +260,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
                   listRequest.sortOrder()),
               request.illegalReason(),
               request.testingPhase(),
+              request.authorName(),
+              request.assigneeName(),
               request.filterGroupJson());
       CustomerIssueIllegalRecordListResponse response = listRecords(pageRequest);
       CsvExportSupport.ensureWithinRowLimit(response.total());
@@ -306,6 +310,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         toOptions(values.issueStates()),
         toOptions(values.bugStatuses()),
         toOptions(values.categories()),
+        toOptions(values.authorNames()),
+        toOptions(values.assigneeNames()),
         toOptions(customerIssueMilestones(values.milestoneTitles())));
   }
 
@@ -441,6 +447,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
         withLegacyDefaultProject(request.listRequest()),
         request.illegalReason(),
         request.testingPhase(),
+        request.authorName(),
+        request.assigneeName(),
         request.filterGroupJson());
   }
 
@@ -470,6 +478,8 @@ public class CustomerIssueIllegalRecordService extends AbstractIssueFactRecordLi
             20,
             DEFAULT_SORT_FIELD,
             "descending"),
+        null,
+        null,
         null,
         null,
         null);

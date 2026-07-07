@@ -14,6 +14,8 @@ import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import {
   type StatisticBoardResponse,
+  type StatisticFilterField,
+  type StatisticFilterOperator,
 } from '../types/api';
 import type { StatisticBoardToolbarAction, StatisticBoardUiHooks } from './statistic-board-ui';
 import { useStatisticBoardDetail } from '../composables/useStatisticBoardDetail';
@@ -42,6 +44,7 @@ import {
 } from './statistic-board-sorting';
 import {
   createEmptyFilterGroup,
+  createFilterConditionDraft,
   replaceFilterDraftGroup,
   resetFilterDraftGroup,
   normalizeFilterDraftGroup,
@@ -55,6 +58,7 @@ import type { LocationQuery } from 'vue-router';
 import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
+import type { RecordTableFilterField } from '../types/record-table';
 
 const props = withDefaults(
   defineProps<{
@@ -252,6 +256,40 @@ const {
   tablePageSize,
   boardKey: () => props.boardKey,
 });
+const quickFilterFieldOrder = [
+  'keyword',
+  'moduleName',
+  'reasonCategory',
+  'illegalReason',
+  'severityLevel',
+  'priorityLevel',
+  'bugStatus',
+  'category',
+  'issueState',
+  'authorName',
+  'assigneeName',
+  'title',
+  'issueIid',
+];
+const quickFilterFields = computed<RecordTableFilterField[]>(() => {
+  const scopeQueryKey = currentDataScopeProvider.value?.queryKey ?? '';
+  return activeFilterFields.value
+    .filter((field) => field.key !== scopeQueryKey)
+    .filter((field) => quickFilterFieldOrder.includes(field.key))
+    .filter((field) => field.type === 'text' || field.type === 'select')
+    .sort((left, right) => quickFilterFieldOrder.indexOf(left.key) - quickFilterFieldOrder.indexOf(right.key))
+    .map(toRecordQuickFilterField);
+});
+const quickFilterValues = computed<Record<string, unknown>>(() =>
+  Object.fromEntries(quickFilterFields.value.map((field) => [field.key, quickFilterValue(field.key)])),
+);
+const quickFilterInputDrafts = computed<Record<string, string>>(() =>
+  Object.fromEntries(
+    quickFilterFields.value
+      .filter((field) => field.type === 'input')
+      .map((field) => [field.key, String(quickFilterValues.value[field.key] ?? '')]),
+  ),
+);
 const {
   settingsVisible,
   draftVisibleColumnKeys,
@@ -494,6 +532,81 @@ async function applyStatisticBoardViewPrefs(viewPrefs: unknown) {
   syncDraftFromVisible();
 }
 
+function toRecordQuickFilterField(field: StatisticFilterField): RecordTableFilterField {
+  if (field.type === 'select') {
+    return {
+      key: field.key,
+      label: field.label,
+      type: 'select',
+      placeholder: `全部${field.label}`,
+      width: field.width ?? quickFilterWidth(field.key, field.label),
+      options: field.options ?? [],
+    };
+  }
+  return {
+    key: field.key,
+    label: field.label,
+    type: 'input',
+    placeholder: field.key === 'keyword' ? '输入任意关键字搜索' : `输入${field.label}`,
+    width: field.key === 'keyword' ? 260 : field.width ?? quickFilterWidth(field.key, field.label),
+  };
+}
+
+function quickFilterWidth(key: string, label: string) {
+  if (key === 'keyword') {
+    return 260;
+  }
+  if (key === 'title') {
+    return 220;
+  }
+  if (key === 'bugStatus' || key === 'reasonCategory' || key === 'illegalReason') {
+    return 220;
+  }
+  return Math.max(144, Math.min(200, label.length * 24 + 64));
+}
+
+function quickFilterValue(fieldKey: string) {
+  const condition = filterDraft.conditions.find((item) => item.fieldKey === fieldKey && item.valueType !== 'LABEL_GROUP');
+  return condition?.value ?? '';
+}
+
+function quickFilterOperator(field: StatisticFilterField): StatisticFilterOperator {
+  if (field.type === 'select' && field.operators.includes('eq')) {
+    return 'eq';
+  }
+  if (field.operators.includes('contains')) {
+    return 'contains';
+  }
+  return field.operators[0] ?? 'eq';
+}
+
+function updateQuickFilterCondition(payload: { key: string; value: string | string[] | null }) {
+  const field = activeFilterFields.value.find((item) => item.key === payload.key);
+  if (!field) {
+    return;
+  }
+  const normalizedValue = Array.isArray(payload.value)
+    ? payload.value.filter(Boolean).join(',')
+    : String(payload.value ?? '').trim();
+  filterDraft.conditions.splice(
+    0,
+    filterDraft.conditions.length,
+    ...filterDraft.conditions.filter((condition) => condition.fieldKey !== payload.key),
+  );
+  if (!normalizedValue) {
+    return;
+  }
+  const draft = createFilterConditionDraft(field);
+  draft.operator = quickFilterOperator(field);
+  draft.value = normalizedValue;
+  draft.secondaryValue = '';
+  filterDraft.conditions.push(draft);
+}
+
+function updateQuickFilterInput(payload: { key: string; value: string }) {
+  updateQuickFilterCondition(payload);
+}
+
 async function applyFiltersToRoute() {
   await applyFilterDraftToRoute(filterDraft);
 }
@@ -679,10 +792,15 @@ function autoRefreshMarkerKey() {
           :auto-refresh-on-enter="autoRefreshOnEnter"
           :export-label="primaryExportLabel"
           :show-export="showPrimaryExport"
+          :quick-filter-fields="quickFilterFields"
+          :quick-filter-values="quickFilterValues"
+          :quick-filter-input-drafts="quickFilterInputDrafts"
           :extra-actions="extraToolbarActions"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"
           @reset-filters="resetFilters"
+          @quick-filter-change="updateQuickFilterCondition"
+          @quick-filter-input-update="updateQuickFilterInput"
           @refresh-board="refreshBoard"
           @open-rule-explanation="openRuleExplanation"
           @export-board="exportBoard"
