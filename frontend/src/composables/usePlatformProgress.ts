@@ -25,6 +25,7 @@ interface PlatformProgressTask {
   errorMessage?: string;
   timer?: ReturnType<typeof window.setInterval>;
   showTimer?: ReturnType<typeof window.setTimeout>;
+  settleTimer?: ReturnType<typeof window.setTimeout>;
   hideTimer?: ReturnType<typeof window.setTimeout>;
 }
 
@@ -55,6 +56,9 @@ const PROFILE_ROW_COST_MS: Record<PlatformProgressProfile, number> = {
 const MIN_ESTIMATED_MS = 900;
 const MAX_ESTIMATED_MS = 20_000;
 const DEFAULT_SHOW_DELAY_MS = 260;
+const IDLE_SUCCESS_DELAY_MS = 700;
+const SUCCESS_HIDE_DELAY_MS = 650;
+const FAILURE_HIDE_DELAY_MS = 2_600;
 const PLATFORM_PROGRESS_LEARNED_KEY = 'platform-progress-duration-v1';
 
 const state = reactive({
@@ -115,6 +119,7 @@ function unregisterPlatformProgressListeners() {
 function handleBegin(event: CustomEvent<PlatformProgressEventDetail>) {
   const detail = event.detail;
   const options = detail.options ?? {};
+  const joinedTask = findJoinableVisibleTask(options.profile ?? 'background');
   const task: PlatformProgressTask = {
     id: detail.id,
     label: options.label || defaultLabel(options.profile),
@@ -123,22 +128,27 @@ function handleBegin(event: CustomEvent<PlatformProgressEventDetail>) {
     profile: options.profile ?? 'background',
     startedAt: Date.now(),
     estimatedMs: estimateDurationMs(options),
-    percentage: 8,
-    visible: false,
+    percentage: joinedTask ? inheritPercentage(joinedTask) : 8,
+    visible: Boolean(joinedTask),
     status: 'running',
     learnDuration: Boolean(options.learnDuration),
   };
   clearTaskTimers(task);
   removeTask(detail.id);
+  if (joinedTask) {
+    removeTask(joinedTask.id);
+  }
   state.tasks.push(task);
   const reactiveTask = findTask(detail.id);
   if (!reactiveTask) {
     return;
   }
-  reactiveTask.showTimer = window.setTimeout(() => {
-    reactiveTask.visible = true;
-    reactiveTask.showTimer = undefined;
-  }, options.showDelayMs ?? DEFAULT_SHOW_DELAY_MS);
+  if (!reactiveTask.visible) {
+    reactiveTask.showTimer = window.setTimeout(() => {
+      reactiveTask.visible = true;
+      reactiveTask.showTimer = undefined;
+    }, options.showDelayMs ?? DEFAULT_SHOW_DELAY_MS);
+  }
   reactiveTask.timer = window.setInterval(() => updateRunningTask(reactiveTask), 120);
   updateRunningTask(reactiveTask);
 }
@@ -196,13 +206,38 @@ function resolveRunningPercentage(ratio: number, elapsed: number, estimatedMs: n
 }
 
 function finishTask(task: PlatformProgressTask, status: Exclude<PlatformTaskStatus, 'running'>) {
-  clearTaskTimers(task);
-  task.status = status;
+  if (task.timer !== undefined) {
+    window.clearInterval(task.timer);
+    task.timer = undefined;
+  }
+  if (task.showTimer !== undefined) {
+    window.clearTimeout(task.showTimer);
+    task.showTimer = undefined;
+  }
+  if (status === 'success') {
+    task.visible = true;
+    task.percentage = Math.max(task.percentage, 92);
+    task.settleTimer = window.setTimeout(() => {
+      task.settleTimer = undefined;
+      task.status = 'success';
+      task.percentage = 100;
+      task.hideTimer = window.setTimeout(() => {
+        removeTask(task.id);
+      }, SUCCESS_HIDE_DELAY_MS);
+    }, IDLE_SUCCESS_DELAY_MS);
+    return;
+  }
+
+  if (task.settleTimer !== undefined) {
+    window.clearTimeout(task.settleTimer);
+    task.settleTimer = undefined;
+  }
+  task.status = 'exception';
   task.visible = true;
-  task.percentage = status === 'success' ? 100 : Math.max(task.percentage, 92);
+  task.percentage = Math.max(task.percentage, 92);
   task.hideTimer = window.setTimeout(() => {
     removeTask(task.id);
-  }, status === 'success' ? 700 : 2_600);
+  }, FAILURE_HIDE_DELAY_MS);
 }
 
 function estimateDurationMs(options: PlatformProgressOptions) {
@@ -265,6 +300,32 @@ function removeTask(id: string) {
   state.tasks.splice(index, 1);
 }
 
+function findJoinableVisibleTask(nextProfile: PlatformProgressProfile) {
+  const visibleTask = currentTask.value;
+  if (!visibleTask || !canJoinProgressSession(visibleTask.profile, nextProfile)) {
+    return null;
+  }
+  if (visibleTask.status === 'exception') {
+    return null;
+  }
+  return visibleTask.settleTimer !== undefined || visibleTask.status === 'success' ? visibleTask : null;
+}
+
+function canJoinProgressSession(previousProfile: PlatformProgressProfile, nextProfile: PlatformProgressProfile) {
+  if (isExportProfile(previousProfile) !== isExportProfile(nextProfile)) {
+    return false;
+  }
+  return true;
+}
+
+function isExportProfile(profile: PlatformProgressProfile) {
+  return profile === 'export' || profile === 'heavyExport' || profile === 'template';
+}
+
+function inheritPercentage(task: PlatformProgressTask) {
+  return clamp(task.percentage, 18, 96);
+}
+
 function clearTaskTimers(task: PlatformProgressTask) {
   if (task.timer !== undefined) {
     window.clearInterval(task.timer);
@@ -273,6 +334,10 @@ function clearTaskTimers(task: PlatformProgressTask) {
   if (task.showTimer !== undefined) {
     window.clearTimeout(task.showTimer);
     task.showTimer = undefined;
+  }
+  if (task.settleTimer !== undefined) {
+    window.clearTimeout(task.settleTimer);
+    task.settleTimer = undefined;
   }
   if (task.hideTimer !== undefined) {
     window.clearTimeout(task.hideTimer);
