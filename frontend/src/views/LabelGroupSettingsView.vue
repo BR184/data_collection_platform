@@ -364,25 +364,21 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
             @keyup.enter="loadGroups"
             @clear="loadGroups"
           />
-          <el-tooltip content="刷新" placement="top">
-            <el-button
-              class="label-group-icon-button"
-              :icon="Refresh"
-              :loading="loading"
-              aria-label="刷新"
-              @click="loadGroups"
-            />
-          </el-tooltip>
-        </div>
-        <el-tooltip content="新建标签组" placement="top">
           <el-button
             class="label-group-icon-button"
-            type="primary"
-            :icon="Plus"
-            aria-label="新建标签组"
-            @click="openCreateDialog"
+            :icon="Refresh"
+            :loading="loading"
+            aria-label="刷新"
+            @click="loadGroups"
           />
-        </el-tooltip>
+        </div>
+        <el-button
+          class="label-group-icon-button"
+          type="primary"
+          :icon="Plus"
+          aria-label="新建标签组"
+          @click="openCreateDialog"
+        />
       </div>
     </el-card>
 
@@ -444,33 +440,24 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
         <el-table-column label="操作" width="104" fixed="right">
           <template #default="{ row }">
             <div class="label-group-row-actions">
-              <el-tooltip content="编辑" placement="top">
-                <el-button
-                  class="label-group-icon-button"
-                  link
-                  type="primary"
-                  :icon="Edit"
-                  aria-label="编辑"
-                  @click="openEditDialog(row)"
-                />
-              </el-tooltip>
-              <el-tooltip
-                :content="row.systemDefault ? '系统默认标签组不能删除，可编辑成员、备注或停用' : '删除'"
-                placement="top"
-              >
-                <span>
-                  <el-button
-                    class="label-group-icon-button"
-                    link
-                    type="danger"
-                    :icon="Delete"
-                    :disabled="row.systemDefault"
-                    :loading="deletingId === row.id"
-                    aria-label="删除"
-                    @click="deleteGroup(row)"
-                  />
-                </span>
-              </el-tooltip>
+              <el-button
+                class="label-group-icon-button"
+                link
+                type="primary"
+                :icon="Edit"
+                aria-label="编辑"
+                @click="openEditDialog(row)"
+              />
+              <el-button
+                class="label-group-icon-button"
+                link
+                type="danger"
+                :icon="Delete"
+                :disabled="row.systemDefault"
+                :loading="deletingId === row.id"
+                :aria-label="row.systemDefault ? '系统默认标签组不能删除' : '删除'"
+                @click="deleteGroup(row)"
+              />
             </div>
           </template>
         </el-table-column>

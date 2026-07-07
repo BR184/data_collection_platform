@@ -10,7 +10,6 @@ import SmartSelect from '../components/base/SmartSelect.vue';
 import StatisticFilterBuilder from '../components/StatisticFilterBuilder.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
-import { authState } from '../composables/auth-state';
 import type {
   CodeReviewIllegalRecordFilterOptionsResponse,
   CodeReviewIllegalRecordRowResponse,
@@ -75,8 +74,7 @@ const realtimeRefreshLoading = ref(false);
 const rowRefreshLoadingKey = ref('');
 const matchModeEnabled = ref(true);
 const sourceOptions = ref<OptionItemResponse[]>([]);
-const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
-const showRefreshLatestData = computed(() => canRefreshLatestData.value && !matchModeEnabled.value);
+const showRefreshLatestData = computed(() => !matchModeEnabled.value);
 
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
@@ -529,7 +527,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :page-size="pageSize"
       :page-size-options="[40, 60, 100]"
       :total="total"
-      :row-actions-width="112"
+      :row-actions-width="132"
       :primary-filters="primaryFilters"
       :filter-values="filterValues"
       :active-filter-tags="activeFilterTags"
@@ -653,29 +651,25 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
       <template #row-actions="{ row }">
         <div class="code-review-row-actions">
-          <el-tooltip content="更新本条数据并刷新页面" placement="top">
-            <el-button
-              class="code-review-row-action-button"
-              :icon="RefreshRight"
-              size="small"
-              plain
-              :loading="rowRefreshLoadingKey === rowActionKey(row)"
-              @click="handleRefreshMatchModeRow(row)"
-            >
-              刷新
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="查看代码走查详情" placement="top">
-            <el-button
-              class="code-review-row-action-button"
-              :icon="View"
-              size="small"
-              plain
-              @click="openDetailDrawer(row)"
-            >
-              查看详细
-            </el-button>
-          </el-tooltip>
+          <el-button
+            class="code-review-row-action-button"
+            :icon="RefreshRight"
+            size="small"
+            plain
+            :loading="rowRefreshLoadingKey === rowActionKey(row)"
+            @click="handleRefreshMatchModeRow(row)"
+          >
+            刷新
+          </el-button>
+          <el-button
+            class="code-review-row-action-button"
+            :icon="View"
+            size="small"
+            plain
+            @click="openDetailDrawer(row)"
+          >
+            详情
+          </el-button>
         </div>
       </template>
     </BaseRecordTable>
@@ -867,15 +861,20 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   width: 100%;
   min-width: 0;
 }
 
+.code-review-row-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .code-review-row-action-button {
   flex: 0 0 auto;
-  min-width: 76px;
+  min-width: 54px;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 6px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;

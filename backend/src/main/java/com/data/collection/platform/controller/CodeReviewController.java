@@ -123,13 +123,11 @@ public class CodeReviewController {
   }
 
   @PostMapping("/illegal-records/refresh")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<RealtimeWorkspaceStatusResponse> refreshIllegalRecords() {
     return ApiResponse.success("已开始刷新最新数据", codeReviewIllegalRecordService.requestRealtimeRefresh());
   }
 
   @PostMapping("/illegal-records/refresh-one")
-  @RequireRole(AuthRole.ADMIN)
   public ApiResponse<CodeReviewIllegalRecordRowResponse> refreshOneIllegalRecord(
       @RequestBody CodeReviewSingleRecordRefreshWebRequest request) {
     return ApiResponse.success(

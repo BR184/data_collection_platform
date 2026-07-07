@@ -599,16 +599,14 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             placeholder="结束值"
             clearable
           />
-          <el-tooltip content="删除条件" placement="top">
-            <el-button
-              :icon="Delete"
-              text
-              type="danger"
-              class="stat-filter-remove"
-              aria-label="删除条件"
-              @click="confirmRemoveFilterCondition(condition.id)"
-            />
-          </el-tooltip>
+          <el-button
+            :icon="Delete"
+            text
+            type="danger"
+            class="stat-filter-remove"
+            aria-label="删除条件"
+            @click="confirmRemoveFilterCondition(condition.id)"
+          />
         </div>
       </div>
       <el-empty v-else description="暂无筛选条件" :image-size="56" class="stat-filter-empty" />

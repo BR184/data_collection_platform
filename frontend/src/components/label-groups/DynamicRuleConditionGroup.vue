@@ -406,9 +406,14 @@ function matchesCandidate(option: RecordTableFilterOption, keyword: string) {
           />
           <el-input v-else v-model="condition.secondValue" class="condition-value" clearable placeholder="结束值" />
         </template>
-        <el-tooltip content="删除条件" placement="top">
-          <el-button :icon="Delete" text type="danger" class="condition-remove" @click="removeCondition(index)" />
-        </el-tooltip>
+        <el-button
+          :icon="Delete"
+          text
+          type="danger"
+          class="condition-remove"
+          aria-label="删除条件"
+          @click="removeCondition(index)"
+        />
       </div>
 
       <div v-for="(child, index) in allowChildGroups ? group.groups : []" :key="child.id" class="dynamic-condition-child">

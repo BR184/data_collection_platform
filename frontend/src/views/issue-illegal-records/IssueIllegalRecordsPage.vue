@@ -567,17 +567,15 @@ async function handleConditionFilterReset() {
 
         <template #row-actions="{ row }">
           <div class="issue-illegal-row-actions customer-illegal-row-actions">
-            <el-tooltip content="查看议题详情" placement="top">
-              <el-button
-                class="issue-illegal-row-action-button customer-illegal-row-action-button"
-                :icon="View"
-                size="small"
-                plain
-                @click="openDetailDrawer(row)"
-              >
-                查看详情
-              </el-button>
-            </el-tooltip>
+            <el-button
+              class="issue-illegal-row-action-button customer-illegal-row-action-button"
+              :icon="View"
+              size="small"
+              plain
+              @click="openDetailDrawer(row)"
+            >
+              查看详情
+            </el-button>
           </div>
         </template>
       </BaseRecordTable>

@@ -212,8 +212,8 @@ async function loadMatchModeMenuState() {
   try {
     const status = await api.getCodeReviewMatchModeStatus();
     if (requestId === matchModeStatusRequestId) {
-      //兼容模式-MatchMode：只在代码走查页仍读取兼容表时隐藏代码走查多元看板。
-      matchModeEnabled.value = status.codeReviewCompatibilityRead;
+      //兼容模式-MatchMode：兼容数据源开启时隐藏代码走查多元看板，避免和老平台临时表口径混用。
+      matchModeEnabled.value = status.enabled;
     }
   } catch {
     if (requestId === matchModeStatusRequestId) {
@@ -376,17 +376,15 @@ watch(
         <div class="sidebar-title">
           <component :is="activeModule.icon" class="sidebar-title-icon" />
           <span v-if="!sidebarCollapsed" class="sidebar-title-text">{{ activeModule.title }}</span>
-          <el-tooltip :content="sidebarCollapsed ? '展开副模块栏' : '收起副模块栏'" placement="right">
-            <button
-              type="button"
-              class="sidebar-toggle"
-              :aria-label="sidebarCollapsed ? '展开副模块栏' : '收起副模块栏'"
-              :aria-expanded="!sidebarCollapsed"
-              @click="toggleSidebarCollapsed"
-            >
-              <component :is="sidebarCollapsed ? Expand : Fold" class="sidebar-toggle-icon" />
-            </button>
-          </el-tooltip>
+          <button
+            type="button"
+            class="sidebar-toggle"
+            :aria-label="sidebarCollapsed ? '展开副模块栏' : '收起副模块栏'"
+            :aria-expanded="!sidebarCollapsed"
+            @click="toggleSidebarCollapsed"
+          >
+            <component :is="sidebarCollapsed ? Expand : Fold" class="sidebar-toggle-icon" />
+          </button>
         </div>
 
         <div v-if="!sidebarCollapsed" class="sidebar-menu">
