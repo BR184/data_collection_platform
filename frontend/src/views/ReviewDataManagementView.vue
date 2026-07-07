@@ -471,7 +471,7 @@ const {
             规则说明
           </el-button>
           <el-button
-            class="app-action-button app-action-button--template btn-gray"
+            class="app-action-button app-action-button--template"
             :icon="Document"
             :loading="templateDownloadLoading"
             @click="handleDownloadTemplate"

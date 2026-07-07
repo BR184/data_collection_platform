@@ -2296,7 +2296,8 @@ a:hover {
   --app-action-active-bg: var(--el-color-primary-light-8);
 }
 
-.app-action-button--export {
+.app-action-button--export,
+.app-action-button--template {
   --app-action-color: var(--el-color-white);
   --app-action-bg: var(--el-color-success);
   --app-action-hover-bg: var(--el-color-success-light-3);
@@ -2312,7 +2313,6 @@ a:hover {
 
 .app-action-button--refresh,
 .app-action-button--rule,
-.app-action-button--template,
 .app-action-button--settings {
   --app-action-color: var(--el-text-color-regular);
   --app-action-border: var(--el-border-color);
