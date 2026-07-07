@@ -38,6 +38,15 @@ public class CodeReviewMatchModeLegacyRefreshService {
     if (!switchService.isEnabled()) {
       throw new BizException("兼容模式未开启，不能调用老平台单条刷新");
     }
+    return refreshOneInternal(source, mergeRequestIid, false);
+  }
+
+  //兼容模式-MatchMode：老平台数据转正式后，正式事实行仍可复用老平台单条刷新。
+  public int refreshOneForFormalImport(String source, Long mergeRequestIid) {
+    return refreshOneInternal(source, mergeRequestIid, true);
+  }
+
+  private int refreshOneInternal(String source, Long mergeRequestIid, boolean formalImportRefresh) {
     if (mergeRequestIid == null || mergeRequestIid <= 0) {
       throw new BizException("合并请求编号不能为空");
     }
@@ -59,7 +68,9 @@ public class CodeReviewMatchModeLegacyRefreshService {
       Thread.currentThread().interrupt();
       throw new BizException("老平台单条刷新请求被中断");
     }
-    return syncService.syncSingleMergeRequest(normalizedSource, mergeRequestIid);
+    return formalImportRefresh
+        ? syncService.syncSingleMergeRequestForFormalImport(normalizedSource, mergeRequestIid)
+        : syncService.syncSingleMergeRequest(normalizedSource, mergeRequestIid);
   }
 
   private URI legacyRefreshUri(

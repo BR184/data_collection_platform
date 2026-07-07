@@ -80,16 +80,17 @@ public class ReviewDataFilterOptionService {
     List<String> historicalReviewExperts = historicalOptionRepository.loadReviewExperts();
     List<String> historicalAuthors = historicalOptionRepository.loadAuthors();
     //兼容模式-MatchMode
-    List<String> matchProjectNames = matchModeSwitchService.isEnabled()
+    boolean reviewDataCompatibilityRead = matchModeSwitchService.isReviewDataCompatibilityReadEnabled();
+    List<String> matchProjectNames = reviewDataCompatibilityRead
         ? matchModeRecordRepository.loadProjectNames()
         : List.of();
-    List<String> matchModuleNames = matchModeSwitchService.isEnabled()
+    List<String> matchModuleNames = reviewDataCompatibilityRead
         ? matchModeRecordRepository.loadModuleNames()
         : List.of();
-    List<String> matchReviewOwners = matchModeSwitchService.isEnabled()
+    List<String> matchReviewOwners = reviewDataCompatibilityRead
         ? matchModeRecordRepository.loadReviewOwners()
         : List.of();
-    List<String> matchReviewExperts = matchModeSwitchService.isEnabled()
+    List<String> matchReviewExperts = reviewDataCompatibilityRead
         ? matchModeRecordRepository.loadReviewExperts()
         : List.of();
 

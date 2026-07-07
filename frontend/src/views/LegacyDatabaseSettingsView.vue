@@ -25,6 +25,7 @@ const testing = ref(false);
 const mongoTesting = ref(false);
 const syncing = ref(false);
 const mongoSyncing = ref(false);
+const formalImporting = ref(false);
 const tableOptionsLoading = ref(false);
 const tableOptionsLoaded = ref(false);
 const tableOptions = ref<CodeReviewMatchModeTableOptionResponse[]>([]);
@@ -32,6 +33,9 @@ const mongoCollectionOptionsLoading = ref(false);
 const mongoCollectionOptionsLoaded = ref(false);
 const mongoCollectionOptions = ref<CodeReviewMatchModeCollectionOptionResponse[]>([]);
 const settings = ref<CodeReviewMatchModeDbSettingsResponse | null>(null);
+const formalImportConfirmationText = '我确认要将数据源导入新采集平台中';
+const formalImportConfirmation = ref('');
+const formalImportSelection = ref<Array<'review' | 'codeReview'>>(['review', 'codeReview']);
 
 const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   enabled: true,
@@ -52,6 +56,8 @@ const form = reactive<CodeReviewMatchModeDbSettingsSaveRequest>({
   selectedMongoCollectionNames: [...defaultSelectedMongoCollectionNames],
   reviewReportCollectionName: 'reviewReport',
   reviewProblemCollectionName: 'problemDetail',
+  reviewDataReadMode: 'compatibility',
+  codeReviewReadMode: 'compatibility',
 });
 
 const statusTagType = computed(() => {
@@ -83,6 +89,13 @@ const statusText = computed(() => {
 
 const lastSyncTime = computed(() => formatDateTime(settings.value?.syncFinishedAt || settings.value?.syncStartedAt));
 const updatedTime = computed(() => formatDateTime(settings.value?.updatedAt));
+const reviewDataReadModeText = computed(() => readModeText(form.reviewDataReadMode));
+const codeReviewReadModeText = computed(() => readModeText(form.codeReviewReadMode));
+const formalImportDisabled = computed(
+  () =>
+    formalImportSelection.value.length === 0 ||
+    formalImportConfirmation.value.trim() !== formalImportConfirmationText,
+);
 const selectedImportScopeText = computed(() => {
   const scopes: string[] = [];
   if (form.selectedTableNames.length > 0) {
@@ -212,6 +225,26 @@ async function syncMongoReviewNow() {
   }
 }
 
+async function importLegacyPlatformToFormal() {
+  formalImporting.value = true;
+  try {
+    const result = await api.importLegacyPlatformToFormal({
+      importReviewData: formalImportSelection.value.includes('review'),
+      importCodeReviewData: formalImportSelection.value.includes('codeReview'),
+      confirmationText: formalImportConfirmation.value.trim(),
+    });
+    ElMessage.success(
+      `${result.message}；评审新增 ${result.reviewInsertedCount}、更新 ${result.reviewUpdatedCount}；代码走查新增 ${result.codeReviewInsertedCount}、更新 ${result.codeReviewUpdatedCount}`,
+    );
+    formalImportConfirmation.value = '';
+    applySettings(await api.getCodeReviewMatchModeDbSettings());
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '老平台数据转正式失败');
+  } finally {
+    formalImporting.value = false;
+  }
+}
+
 async function ensureTableOptions(force = false) {
   if (tableOptionsLoading.value) {
     return;
@@ -282,6 +315,8 @@ function applySettings(nextSettings: CodeReviewMatchModeDbSettingsResponse) {
   );
   form.reviewReportCollectionName = nextSettings.reviewReportCollectionName || 'reviewReport';
   form.reviewProblemCollectionName = nextSettings.reviewProblemCollectionName || 'problemDetail';
+  form.reviewDataReadMode = nextSettings.reviewDataReadMode || 'compatibility';
+  form.codeReviewReadMode = nextSettings.codeReviewReadMode || 'compatibility';
 }
 
 function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
@@ -304,6 +339,8 @@ function buildPayload(): CodeReviewMatchModeDbSettingsSaveRequest {
     selectedMongoCollectionNames: normalizeSelectedMongoCollectionNames(form.selectedMongoCollectionNames),
     reviewReportCollectionName: form.reviewReportCollectionName.trim() || 'reviewReport',
     reviewProblemCollectionName: form.reviewProblemCollectionName.trim() || 'problemDetail',
+    reviewDataReadMode: form.reviewDataReadMode,
+    codeReviewReadMode: form.codeReviewReadMode,
   };
 }
 
@@ -327,6 +364,10 @@ function formatDateTime(value?: string | null) {
 
 function legacyApiDefaultBaseUrl() {
   return `http://${form.mysqlHost || '172.22.10.72'}:8091`;
+}
+
+function readModeText(mode?: 'compatibility' | 'formal') {
+  return mode === 'formal' ? '正式数据' : '老平台兼容数据';
 }
 </script>
 
@@ -357,6 +398,14 @@ function legacyApiDefaultBaseUrl() {
           <div class="legacy-db-status-item">
             <span>导入范围</span>
             <strong>{{ selectedImportScopeText }}</strong>
+          </div>
+          <div class="legacy-db-status-item">
+            <span>评审数据读源</span>
+            <strong>{{ reviewDataReadModeText }}</strong>
+          </div>
+          <div class="legacy-db-status-item">
+            <span>代码走查读源</span>
+            <strong>{{ codeReviewReadModeText }}</strong>
           </div>
           <div class="legacy-db-status-item">
             <span>最近同步</span>
@@ -392,6 +441,20 @@ function legacyApiDefaultBaseUrl() {
           </el-form-item>
           <el-form-item label="每小时自动同步">
             <el-switch v-model="form.syncEnabled" :disabled="!form.enabled" />
+          </el-form-item>
+          <el-form-item label="评审数据读源">
+            <el-radio-group v-model="form.reviewDataReadMode">
+              <el-radio-button label="compatibility">老平台兼容数据</el-radio-button>
+              <el-radio-button label="formal">新平台正式数据</el-radio-button>
+            </el-radio-group>
+            <div class="form-help-text">转正式成功后会自动切到新平台正式数据；交接期也可单独切回查看。</div>
+          </el-form-item>
+          <el-form-item label="代码走查读源">
+            <el-radio-group v-model="form.codeReviewReadMode">
+              <el-radio-button label="compatibility">老平台兼容数据</el-radio-button>
+              <el-radio-button label="formal">新平台正式数据</el-radio-button>
+            </el-radio-group>
+            <div class="form-help-text">读取正式数据时，代码走查非法数据页不再直接读取兼容表。</div>
           </el-form-item>
 
           <el-divider>MySQL</el-divider>
@@ -513,6 +576,42 @@ function legacyApiDefaultBaseUrl() {
             </el-form-item>
           </div>
 
+          <el-divider>老平台数据转正式数据</el-divider>
+
+          <div class="legacy-db-formal-import">
+            <el-alert
+              type="warning"
+              :closable="false"
+              show-icon
+              title="该操作会先从已配置的老平台数据源拉取一次最新数据，再写入新平台正式业务表；重复数据会更新，不会追加双份。"
+            />
+            <el-form-item label="导入内容">
+              <el-checkbox-group v-model="formalImportSelection">
+                <el-checkbox label="review">评审数据</el-checkbox>
+                <el-checkbox label="codeReview">代码走查数据</el-checkbox>
+              </el-checkbox-group>
+            </el-form-item>
+            <el-form-item label="确认文本">
+              <el-input
+                v-model="formalImportConfirmation"
+                :placeholder="formalImportConfirmationText"
+                clearable
+              />
+              <div class="form-help-text">请输入完整确认文本：{{ formalImportConfirmationText }}</div>
+            </el-form-item>
+            <div class="legacy-db-formal-actions">
+              <el-button
+                type="warning"
+                :icon="Refresh"
+                :loading="formalImporting"
+                :disabled="formalImportDisabled"
+                @click="importLegacyPlatformToFormal"
+              >
+                老平台数据转正式数据
+              </el-button>
+            </div>
+          </div>
+
           <div class="legacy-db-actions">
             <el-button type="primary" :icon="Check" :loading="saving" @click="saveSettings">保存设置</el-button>
             <el-button :icon="Connection" :loading="testing" @click="testConnection">测试 MySQL 连接</el-button>
@@ -621,6 +720,18 @@ function legacyApiDefaultBaseUrl() {
   padding-left: 148px;
 }
 
+.legacy-db-formal-import {
+  display: grid;
+  gap: 12px;
+}
+
+.legacy-db-formal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 148px;
+}
+
 @media (max-width: 1180px) {
   .legacy-db-status-grid {
     grid-template-columns: repeat(2, minmax(160px, 1fr));
@@ -638,6 +749,10 @@ function legacyApiDefaultBaseUrl() {
   }
 
   .legacy-db-actions {
+    padding-left: 0;
+  }
+
+  .legacy-db-formal-actions {
     padding-left: 0;
   }
 }

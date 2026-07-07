@@ -8,10 +8,13 @@ import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsResponse
 import com.data.collection.platform.entity.CodeReviewMatchModeDbSettingsSaveRequest;
 import com.data.collection.platform.entity.CodeReviewMatchModeSyncResponse;
 import com.data.collection.platform.entity.CodeReviewMatchModeTableOptionResponse;
+import com.data.collection.platform.entity.LegacyPlatformFormalImportRequest;
+import com.data.collection.platform.entity.LegacyPlatformFormalImportResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.CodeReviewMatchModeConfigService;
 import com.data.collection.platform.service.CodeReviewMatchModeMongoReviewSyncService;
 import com.data.collection.platform.service.CodeReviewMatchModeSyncService;
+import com.data.collection.platform.service.LegacyPlatformFormalImportService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,14 +30,17 @@ public class CodeReviewMatchModeDbSettingsController {
   private final CodeReviewMatchModeConfigService configService;
   private final CodeReviewMatchModeSyncService syncService;
   private final CodeReviewMatchModeMongoReviewSyncService mongoReviewSyncService;
+  private final LegacyPlatformFormalImportService formalImportService;
 
   public CodeReviewMatchModeDbSettingsController(
       CodeReviewMatchModeConfigService configService,
       CodeReviewMatchModeSyncService syncService,
-      CodeReviewMatchModeMongoReviewSyncService mongoReviewSyncService) {
+      CodeReviewMatchModeMongoReviewSyncService mongoReviewSyncService,
+      LegacyPlatformFormalImportService formalImportService) {
     this.configService = configService;
     this.syncService = syncService;
     this.mongoReviewSyncService = mongoReviewSyncService;
+    this.formalImportService = formalImportService;
   }
 
   //兼容模式-MatchMode
@@ -92,6 +98,14 @@ public class CodeReviewMatchModeDbSettingsController {
   @PostMapping("/sync-now")
   public ApiResponse<CodeReviewMatchModeSyncResponse> syncNow() {
     CodeReviewMatchModeSyncResponse result = syncService.syncNow();
+    return ApiResponse.success(result.message(), result);
+  }
+
+  //兼容模式-MatchMode
+  @PostMapping("/formal-import")
+  public ApiResponse<LegacyPlatformFormalImportResponse> importToFormal(
+      @RequestBody LegacyPlatformFormalImportRequest request) {
+    LegacyPlatformFormalImportResponse result = formalImportService.importToFormal(request);
     return ApiResponse.success(result.message(), result);
   }
 }

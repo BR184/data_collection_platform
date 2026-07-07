@@ -5,6 +5,8 @@ import type {
   CodeReviewMatchModeDbSettingsSaveRequest,
   CodeReviewMatchModeSyncResponse,
   CodeReviewMatchModeTableOptionResponse,
+  LegacyPlatformFormalImportRequest,
+  LegacyPlatformFormalImportResponse,
 } from '../types/api';
 import { request } from './request';
 
@@ -60,6 +62,13 @@ export const legacyDatabaseApi = {
       method: 'POST',
       body: JSON.stringify(payload),
       timeoutMs: 600_000,
+    });
+  },
+  importLegacyPlatformToFormal(payload: LegacyPlatformFormalImportRequest) {
+    return request<LegacyPlatformFormalImportResponse>(`${basePath}/formal-import`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: 900_000,
     });
   },
 };

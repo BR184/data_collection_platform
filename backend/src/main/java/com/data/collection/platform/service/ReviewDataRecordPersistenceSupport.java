@@ -299,4 +299,8 @@ public class ReviewDataRecordPersistenceSupport {
   public void softDeleteProblemItem(Long recordId, Long itemId) {
     problemItemRepository.softDeleteProblemItem(recordId, itemId);
   }
+
+  public void softDeleteProblemItems(Long recordId) {
+    problemItemRepository.softDeleteProblemItems(recordId);
+  }
 }

@@ -27,7 +27,6 @@ import java.util.function.Function;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -118,6 +117,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private final CodeReviewMatchModeRecordLoader matchModeRecordLoader;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
   private final CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService;
+  private final LegacyPlatformFormalImportService legacyPlatformFormalImportService;
   private final GitlabResourceLinkService issueLinkService;
   private final ObjectMapper objectMapper;
   private final PageRecordSnapshotService pageRecordSnapshotService;
@@ -130,6 +130,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       CodeReviewMatchModeRecordLoader matchModeRecordLoader,
       CodeReviewMatchModeSwitchService matchModeSwitchService,
       CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService,
+      LegacyPlatformFormalImportService legacyPlatformFormalImportService,
       GitlabResourceLinkService issueLinkService,
       ObjectMapper objectMapper,
       GitlabMirrorProperties gitlabMirrorProperties,
@@ -141,6 +142,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     this.matchModeRecordLoader = matchModeRecordLoader;
     this.matchModeSwitchService = matchModeSwitchService;
     this.matchModeLegacyRefreshService = matchModeLegacyRefreshService;
+    this.legacyPlatformFormalImportService = legacyPlatformFormalImportService;
     this.issueLinkService = issueLinkService;
     this.objectMapper = objectMapper;
     this.pageRecordSnapshotService = pageRecordSnapshotService;
@@ -443,7 +445,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   private boolean shouldExportAllCodeReviewSheet(CodeReviewIllegalRecordQueryRequest request) {
-    if (!matchModeSwitchService.isEnabled()) {
+    if (!codeReviewCompatibilityReadEnabled()) {
       return false;
     }
     String repositoryName = TextQuerySupport.trimToNull(withLegacyDefaultScope(request).repositoryName());
@@ -466,6 +468,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         18, 18, 16, 14, 14, 36, 16, 22, 22, 20, 16, 18, 20, 20, 18, 18, 18, 18,
         18, 14, 20, 20, 24, 20, 18, 20, 12, 18, 20, 14, 22, 12, 22, 18, 28);
     sheet.createFreezePane(0, 1);
+    ExcelExportStyles.applyHeaderRows(sheet, 1);
   }
 
   private void writeHeader(Row row, CellStyle style, String[] headers) {
@@ -528,9 +531,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   private void setColumnWidths(org.apache.poi.ss.usermodel.Sheet sheet, int... widths) {
-    for (int index = 0; index < widths.length; index++) {
-      sheet.setColumnWidth(index, widths[index] * 256);
-    }
+    ExcelExportStyles.setReadableColumnWidths(sheet, widths);
   }
 
   private String formatDateTime(java.time.LocalDateTime value) {
@@ -575,7 +576,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     Long projectId = request == null ? null : request.projectId();
     String repositoryName = request == null ? null : request.repositoryName();
     String projectName = request == null ? null : request.projectName();
-    boolean matchMode = matchModeSwitchService.isEnabled();
+    boolean matchMode = codeReviewCompatibilityReadEnabled();
     String scopedRepositoryName =
         matchMode ? defaultLegacyRepositoryName(repositoryName, source) : repositoryName;
     CodeReviewIllegalRecordFilterOptionValues options =
@@ -642,7 +643,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
   public RealtimeWorkspaceStatusResponse requestRealtimeRefresh() {
     //兼容模式-MatchMode
-    if (matchModeSwitchService.isEnabled()) {
+    if (codeReviewCompatibilityReadEnabled()) {
       return new RealtimeWorkspaceStatusResponse(
           WORKSPACE_KEY,
           false,
@@ -659,9 +660,32 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   public CodeReviewIllegalRecordRowResponse refreshSingleRecord(
       String source, Long projectId, Long mergeRequestIid) {
     //兼容模式-MatchMode：对齐老平台行级刷新，先调用老平台后端接口，再同步这一条 MR 的全部拆分行。
-    if (matchModeSwitchService.isEnabled()) {
+    if (codeReviewCompatibilityReadEnabled()) {
       matchModeLegacyRefreshService.refreshOne(source, mergeRequestIid);
       pageRecordSnapshotService.invalidatePage(WORKSPACE_KEY);
+      List<CodeReviewIllegalRecordView> rows =
+          loadScopedViews(
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              String.valueOf(mergeRequestIid),
+              null,
+              source);
+      return rows.stream()
+          .map(this::toResponse)
+          .findFirst()
+          .orElse(null);
+    }
+    //兼容模式-MatchMode：若代码走查数据已从老平台转入正式事实表，行级刷新仍按老平台源刷新后再提升到正式事实。
+    if (legacyPlatformFormalImportService.hasPromotedCodeReviewData(source)) {
+      legacyPlatformFormalImportService.refreshAndPromoteCodeReviewRecord(source, mergeRequestIid);
       List<CodeReviewIllegalRecordView> rows =
           loadScopedViews(
               null,
@@ -711,7 +735,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         true,
         "代码走查非法记录规则说明",
         RULE_VERSION,
-        matchModeSwitchService.isEnabled()
+        codeReviewCompatibilityReadEnabled()
             ? "当前统计范围来自老平台兼容数据；页面查询条件会在这个范围上继续筛选。"
             : "当前统计范围来自已同步到平台的代码合并请求数据；页面查询条件会在这个范围上继续筛选。",
         "规则说明只展示判定口径，不在打开说明时扫描全量记录；实际数量以当前列表、筛选和导出结果为准。",
@@ -799,7 +823,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     String source = TextQuerySupport.trimToNull(request.source());
     String normalizedSource = source == null ? LEGACY_DEFAULT_SOURCE : GitlabSourceInstanceSupport.normalizeSourceInstance(source);
     String repositoryName =
-        matchModeSwitchService.isEnabled()
+        codeReviewCompatibilityReadEnabled()
             ? defaultLegacyRepositoryName(request.repositoryName(), normalizedSource)
             : request.repositoryName();
     return new CodeReviewIllegalRecordQueryRequest(
@@ -868,9 +892,14 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
   //兼容模式-MatchMode
   private CodeReviewIllegalRecordSourceAccess activeLoader() {
-    return matchModeSwitchService.isEnabled()
+    return codeReviewCompatibilityReadEnabled()
         ? new CodeReviewIllegalRecordSourceAccess.MatchMode(matchModeRecordLoader)
         : new CodeReviewIllegalRecordSourceAccess.Fact(sourceLoader);
+  }
+
+  //兼容模式-MatchMode
+  private boolean codeReviewCompatibilityReadEnabled() {
+    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled();
   }
 
   private sealed interface CodeReviewIllegalRecordSourceAccess {
@@ -940,7 +969,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
   private CodeReviewIllegalRecordView toView(CodeReviewIllegalRecordSource source) {
     List<String> illegalTypes =
-        matchModeSwitchService.isEnabled()
+        codeReviewCompatibilityReadEnabled()
             ? CodeReviewIllegalRuleRegistry.evaluateLegacyMatchModeIllegalTypes(source)
             : CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source);
     String mergeRequestLink = mergeRequestLink(source);
@@ -993,7 +1022,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private String mergeRequestLink(CodeReviewIllegalRecordSource source) {
     String link =
         issueLinkService.mergeRequestUrl(source.sourceInstance(), source.projectId(), source.mergeRequestIid());
-    if (link != null || !matchModeSwitchService.isEnabled()) {
+    if (link != null || !codeReviewCompatibilityReadEnabled()) {
       return link;
     }
     //兼容模式-MatchMode：老平台代码走查表来自 MySQL 兼容表，project_id 可能为 0，
@@ -1003,7 +1032,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   private Integer displayCommitRate(CodeReviewIllegalRecordSource source) {
-    if (!matchModeSwitchService.isEnabled()) {
+    if (!codeReviewCompatibilityReadEnabled()) {
       return source.commitRate();
     }
     return legacyCommitRate(source.addedLines(), source.commitCount());
@@ -1220,11 +1249,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
     private ExportStyles(Workbook workbook) {
       header = ExcelExportStyles.createHeaderStyle(workbook);
-
-      body = workbook.createCellStyle();
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(body);
-      body.setWrapText(true);
+      body = ExcelExportStyles.createBodyStyle(workbook);
     }
   }
 }

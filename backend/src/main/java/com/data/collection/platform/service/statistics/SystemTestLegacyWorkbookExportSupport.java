@@ -12,12 +12,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -105,11 +101,8 @@ final class SystemTestLegacyWorkbookExportSupport {
       writeHeaders(sheet, columns, headerDepth, styles.header);
       writeDataRows(sheet, response.rows(), columns, headerDepth, styles);
       sheet.createFreezePane(1, headerDepth);
-      for (int index = 0; index < columns.size(); index++) {
-        sheet.autoSizeColumn(index);
-        int width = sheet.getColumnWidth(index);
-        sheet.setColumnWidth(index, Math.min(Math.max(width + 512, 2800), 12000));
-      }
+      ExcelExportStyles.applyHeaderRows(sheet, headerDepth);
+      ExcelExportStyles.autoSizeColumns(sheet, columns.size());
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException error) {
@@ -279,18 +272,8 @@ final class SystemTestLegacyWorkbookExportSupport {
 
     private ExportStyles(Workbook workbook) {
       header = ExcelExportStyles.createHeaderStyle(workbook);
-
-      body = workbook.createCellStyle();
-      body.setAlignment(HorizontalAlignment.CENTER);
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(body);
-
-      summary = workbook.createCellStyle();
-      summary.setAlignment(HorizontalAlignment.CENTER);
-      summary.setVerticalAlignment(VerticalAlignment.CENTER);
-      summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
-      summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      ExcelExportStyles.applyThinBorder(summary);
+      body = ExcelExportStyles.createBodyStyle(workbook);
+      summary = ExcelExportStyles.createSummaryStyle(workbook);
     }
   }
 }

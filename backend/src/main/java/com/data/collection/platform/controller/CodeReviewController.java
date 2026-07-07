@@ -56,8 +56,13 @@ public class CodeReviewController {
 
   @GetMapping("/match-mode/status")
   public ApiResponse<CodeReviewMatchModeStatusResponse> getMatchModeStatus() {
+    var settings = codeReviewMatchModeConfigService.getResponse();
     return ApiResponse.success(new CodeReviewMatchModeStatusResponse(
-        codeReviewMatchModeConfigService.isMatchModeEnabled()));
+        settings.enabled(),
+        settings.reviewDataReadMode(),
+        settings.codeReviewReadMode(),
+        settings.enabled() && "compatibility".equals(settings.reviewDataReadMode()),
+        settings.enabled() && "compatibility".equals(settings.codeReviewReadMode())));
   }
 
   @GetMapping("/illegal-records")

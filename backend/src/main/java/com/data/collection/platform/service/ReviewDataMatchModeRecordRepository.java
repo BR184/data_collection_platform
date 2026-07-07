@@ -38,6 +38,11 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   //兼容模式-MatchMode
+  public List<Long> loadAllPublicRecordIds() {
+    return loadReportRows().stream().map(row -> publicRecordId(row.id())).toList();
+  }
+
+  //兼容模式-MatchMode
   public Long findMaterializedRecordId(Long matchModeRecordId) {
     Long recordId = jdbcTemplate.query(
         """

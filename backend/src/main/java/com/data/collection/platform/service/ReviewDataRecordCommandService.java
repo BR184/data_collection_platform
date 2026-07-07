@@ -386,7 +386,8 @@ public class ReviewDataRecordCommandService {
   }
 
   private Long materializeRecordIfNeeded(Long recordId) {
-    if (!matchModeSwitchService.isEnabled() || !isMatchModeId(recordId)) {
+    //兼容模式-MatchMode：即使页面已切到正式读源，历史路由传入的兼容负 ID 仍可安全物化。
+    if (!isMatchModeId(recordId)) {
       return recordId;
     }
     return matchModeMaterializeService.materializeRecord(recordId);

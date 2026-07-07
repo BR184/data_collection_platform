@@ -269,12 +269,9 @@ async function loadSourceOptions() {
 }
 
 async function loadMatchModeStatus() {
-  if (!canRefreshLatestData.value) {
-    matchModeEnabled.value = true;
-    return;
-  }
-  const settings = await api.getCodeReviewMatchModeDbSettings();
-  matchModeEnabled.value = settings.enabled;
+  //兼容模式-MatchMode：代码走查页是否读取兼容表由 codeReviewCompatibilityRead 决定，不能只看全局开关。
+  const status = await api.getCodeReviewMatchModeStatus();
+  matchModeEnabled.value = status.codeReviewCompatibilityRead;
 }
 
 async function syncCodeReviewRouteDefaults() {
@@ -656,7 +653,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
 
       <template #row-actions="{ row }">
         <div class="code-review-row-actions">
-          <el-tooltip v-if="matchModeEnabled" content="更新本条数据并刷新页面" placement="top">
+          <el-tooltip content="更新本条数据并刷新页面" placement="top">
             <el-button
               class="code-review-row-action-button"
               :icon="RefreshRight"

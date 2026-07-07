@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -87,6 +86,7 @@ public class ReviewDataExcelExportService {
       }
       setColumnWidths(sheet, 50, 20, 30, 18, 14, 12, 12, 12, 12, 18, 18, 18, 18, 12, 16, 22, 18, 22, 30);
       sheet.createFreezePane(0, 1);
+      ExcelExportStyles.applyHeaderRows(sheet, 1);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -120,6 +120,7 @@ public class ReviewDataExcelExportService {
       }
       setColumnWidths(sheet, 18, 30, 24, 18, 16, 12, 14, 22, 24, 24, 24, 18, 22, 18, 14, 14);
       sheet.createFreezePane(0, 1);
+      ExcelExportStyles.applyHeaderRows(sheet, 1);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -265,7 +266,8 @@ public class ReviewDataExcelExportService {
     for (String snapshot : snapshots) {
       writeText(sheet.createRow(rowIndex++), 0, snapshot, styles.body);
     }
-    sheet.setColumnWidth(0, 80 * 256);
+    ExcelExportStyles.applyHeaderRows(sheet, 1);
+    ExcelExportStyles.setReadableColumnWidths(sheet, 80);
   }
 
   private void writeText(Row row, int column, String value, CellStyle style) {
@@ -283,9 +285,7 @@ public class ReviewDataExcelExportService {
   }
 
   private void setColumnWidths(org.apache.poi.ss.usermodel.Sheet sheet, int... widths) {
-    for (int index = 0; index < widths.length; index++) {
-      sheet.setColumnWidth(index, widths[index] * 256);
-    }
+    ExcelExportStyles.setReadableColumnWidths(sheet, widths);
   }
 
   private String formatDate(LocalDate value) {
@@ -302,11 +302,7 @@ public class ReviewDataExcelExportService {
 
     private ExportStyles(Workbook workbook) {
       header = ExcelExportStyles.createHeaderStyle(workbook);
-
-      body = workbook.createCellStyle();
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(body);
-      body.setWrapText(true);
+      body = ExcelExportStyles.createBodyStyle(workbook);
     }
   }
 }

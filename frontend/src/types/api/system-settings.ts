@@ -76,6 +76,8 @@ export interface CodeReviewMatchModeDbSettingsResponse {
   selectedMongoCollectionNames: string[];
   reviewReportCollectionName: string;
   reviewProblemCollectionName: string;
+  reviewDataReadMode: 'compatibility' | 'formal';
+  codeReviewReadMode: 'compatibility' | 'formal';
   syncStatus: string;
   syncMessage?: string | null;
   syncRecordCount: number;
@@ -103,6 +105,8 @@ export interface CodeReviewMatchModeDbSettingsSaveRequest {
   selectedMongoCollectionNames: string[];
   reviewReportCollectionName: string;
   reviewProblemCollectionName: string;
+  reviewDataReadMode?: 'compatibility' | 'formal';
+  codeReviewReadMode?: 'compatibility' | 'formal';
 }
 
 export interface CodeReviewMatchModeTableOptionResponse {
@@ -130,4 +134,19 @@ export interface CodeReviewMatchModeSyncResponse {
   recordCount: number;
   startedAt?: string | null;
   finishedAt?: string | null;
+}
+
+export interface LegacyPlatformFormalImportRequest {
+  importReviewData: boolean;
+  importCodeReviewData: boolean;
+  confirmationText: string;
+}
+
+export interface LegacyPlatformFormalImportResponse {
+  accepted: boolean;
+  message: string;
+  reviewInsertedCount: number;
+  reviewUpdatedCount: number;
+  codeReviewInsertedCount: number;
+  codeReviewUpdatedCount: number;
 }

@@ -63,12 +63,11 @@ public class SystemTestHorizontalComparisonExportService {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
       Sheet sheet = workbook.createSheet(EXPORT_SHEET_NAME);
       CellStyle headerStyle = ExcelExportStyles.createHeaderStyle(workbook);
-      writeWorkbookRows(sheet, rows, headerStyle);
+      CellStyle bodyStyle = ExcelExportStyles.createBodyStyle(workbook);
+      writeWorkbookRows(sheet, rows, headerStyle, bodyStyle);
       sheet.createFreezePane(1, HEADER_DEPTH);
-      sheet.setColumnWidth(0, 24 * 256);
-      for (int columnIndex = 1; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
-        sheet.setColumnWidth(columnIndex, 18 * 256);
-      }
+      ExcelExportStyles.applyHeaderRows(sheet, HEADER_DEPTH);
+      ExcelExportStyles.autoSizeColumns(sheet, EXPORT_COLUMNS.size());
       workbook.write(outputStream);
       return outputStream.toByteArray();
     } catch (IOException error) {
@@ -108,13 +107,14 @@ public class SystemTestHorizontalComparisonExportService {
     return exportRows;
   }
 
-  private void writeWorkbookRows(Sheet sheet, List<HorizontalRow> rows, CellStyle headerStyle) {
+  private void writeWorkbookRows(
+      Sheet sheet, List<HorizontalRow> rows, CellStyle headerStyle, CellStyle bodyStyle) {
     writeHeaderRows(sheet, headerStyle);
     int rowIndex = HEADER_DEPTH;
     for (HorizontalRow sourceRow : rows) {
       Row row = sheet.createRow(rowIndex++);
       for (int columnIndex = 0; columnIndex < EXPORT_COLUMNS.size(); columnIndex++) {
-        createCell(row, columnIndex, EXPORT_COLUMNS.get(columnIndex).value(sourceRow));
+        createCell(row, columnIndex, EXPORT_COLUMNS.get(columnIndex).value(sourceRow), bodyStyle);
       }
     }
   }
@@ -179,11 +179,6 @@ public class SystemTestHorizontalComparisonExportService {
   private String cellValue(Sheet sheet, int rowIndex, int columnIndex) {
     Cell cell = sheet.getRow(rowIndex).getCell(columnIndex);
     return cell == null ? "" : cell.getStringCellValue();
-  }
-
-  private void createCell(Row row, int columnIndex, String value) {
-    Cell cell = row.createCell(columnIndex);
-    cell.setCellValue(value == null ? "" : value);
   }
 
   private void createCell(Row row, int columnIndex, String value, CellStyle style) {

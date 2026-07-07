@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ReviewDataMatchModeMaterializeService {
@@ -17,11 +18,15 @@ public class ReviewDataMatchModeMaterializeService {
   }
 
   //兼容模式-MatchMode
+  @Transactional
   public Long materializeRecord(Long matchModeRecordId) {
+    return materializeRecordWithResult(matchModeRecordId).recordId();
+  }
+
+  //兼容模式-MatchMode
+  @Transactional
+  public MaterializeResult materializeRecordWithResult(Long matchModeRecordId) {
     Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
-    if (existingRecordId != null) {
-      return existingRecordId;
-    }
     ReviewDataMatchModeRecordRepository.MatchModeRecordSource source =
         matchModeRecordRepository.getRecordSourceOrThrow(matchModeRecordId);
     ReviewDataMatchModeRecordRepository.ReportRow report = source.record();
@@ -33,23 +38,44 @@ public class ReviewDataMatchModeMaterializeService {
         valueOrDefault(primaryDescription == null ? null : primaryDescription.version(), "V1");
     String authorName =
         valueOrDefault(primaryDescription == null ? null : primaryDescription.author(), "未填写");
-    Long recordId =
-        persistenceSupport.insertRecord(
-            valueOrDefault(report.projectName(), "未标注项目名"),
-            valueOrDefault(report.title(), "老平台评审记录"),
-            valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
-            valueOrDefault(firstText(report.reviewTypeStr(), report.docType(), report.sourceType()), "其他"),
-            report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
-            valueOrDefault(report.reviewCharger(), "未填写"),
-            reviewScalePages,
-            reviewProduct,
-            authorName,
-            reviewVersion,
-            report.notReachStandCause(),
-            "match-mode-mongo",
-            report.weightedDefectDensity() == null ? null : report.weightedDefectDensity().doubleValue());
+    boolean inserted = existingRecordId == null;
+    Long recordId = existingRecordId;
     if (recordId == null) {
-      throw new IllegalStateException("兼容模式评审记录转正式记录失败");
+      recordId =
+          persistenceSupport.insertRecord(
+              valueOrDefault(report.projectName(), "未标注项目名"),
+              valueOrDefault(report.title(), "老平台评审记录"),
+              valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
+              valueOrDefault(firstText(report.reviewTypeStr(), report.docType(), report.sourceType()), "其他"),
+              report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
+              valueOrDefault(report.reviewCharger(), "未填写"),
+              reviewScalePages,
+              reviewProduct,
+              authorName,
+              reviewVersion,
+              report.notReachStandCause(),
+              "match-mode-mongo",
+              report.weightedDefectDensity() == null ? null : report.weightedDefectDensity().doubleValue());
+      if (recordId == null) {
+        throw new IllegalStateException("兼容模式评审记录转正式记录失败");
+      }
+    } else {
+      persistenceSupport.updateRecord(
+          recordId,
+          valueOrDefault(report.projectName(), "未标注项目名"),
+          valueOrDefault(report.title(), "老平台评审记录"),
+          valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
+          valueOrDefault(firstText(report.reviewTypeStr(), report.docType(), report.sourceType()), "其他"),
+          report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
+          valueOrDefault(report.reviewCharger(), "未填写"),
+          reviewScalePages,
+          reviewProduct,
+          authorName,
+          reviewVersion,
+          report.notReachStandCause(),
+          "match-mode-mongo",
+          report.weightedDefectDensity() == null ? null : report.weightedDefectDensity().doubleValue());
+      persistenceSupport.softDeleteProblemItems(recordId);
     }
     persistenceSupport.replaceExperts(recordId, report.reviewExperts());
     persistenceSupport.ensurePrimaryDescription(
@@ -82,7 +108,7 @@ public class ReviewDataMatchModeMaterializeService {
     }
     persistenceSupport.refreshSearchIndex(recordId);
     matchModeRecordRepository.linkMaterializedRecord(matchModeRecordId, report.legacyId(), recordId);
-    return recordId;
+    return new MaterializeResult(recordId, inserted);
   }
 
   //兼容模式-MatchMode
@@ -111,4 +137,7 @@ public class ReviewDataMatchModeMaterializeService {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized == null ? fallback : normalized;
   }
+
+  //兼容模式-MatchMode
+  public record MaterializeResult(Long recordId, boolean inserted) {}
 }

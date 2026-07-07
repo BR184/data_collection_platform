@@ -86,6 +86,25 @@ public class CodeReviewMatchModeSyncService {
     }
   }
 
+  //兼容模式-MatchMode：转正式导入允许在兼容展示关闭时拉取一次老平台 MySQL 数据。
+  public CodeReviewMatchModeSyncResponse syncNowForFormalImport() {
+    CodeReviewMatchModeConfig config = configService.loadConfig();
+    if (!StringUtils.hasText(config.mysqlJdbcUrl()) || !StringUtils.hasText(config.mysqlUsername())) {
+      markFailed("老平台 MySQL 配置缺失，无法转正式导入");
+      return currentState(false, "老平台 MySQL 配置缺失，无法转正式导入");
+    }
+    markRunning();
+    try {
+      ImportSummary summary = loadAndReplace(config);
+      markSuccess(summary);
+      return currentState(true, "已拉取老平台 MySQL 数据，准备转正式导入");
+    } catch (Exception error) {
+      log.warn("Code review formal import source sync failed", error);
+      markFailed(error.getMessage());
+      return currentState(false, error.getMessage());
+    }
+  }
+
   private ImportSummary loadAndReplace(CodeReviewMatchModeConfig config) throws SQLException {
     List<String> selectedTableNames = config.selectedTableNames();
     boolean refreshCodeReviewRecords = selectedTableNames.contains(config.mysqlTableName());
@@ -149,6 +168,15 @@ public class CodeReviewMatchModeSyncService {
     if (!switchService.isEnabled()) {
       throw new IllegalStateException("兼容模式未开启");
     }
+    return syncSingleMergeRequestInternal(source, mergeRequestIid);
+  }
+
+  //兼容模式-MatchMode：转正式后的老平台事实行仍可按老平台源刷新，不要求页面继续读取兼容表。
+  public int syncSingleMergeRequestForFormalImport(String source, Long mergeRequestIid) {
+    return syncSingleMergeRequestInternal(source, mergeRequestIid);
+  }
+
+  private int syncSingleMergeRequestInternal(String source, Long mergeRequestIid) {
     if (mergeRequestIid == null || mergeRequestIid <= 0) {
       throw new IllegalArgumentException("合并请求编号不能为空");
     }

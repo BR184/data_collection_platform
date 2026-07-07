@@ -94,6 +94,11 @@ public class CodeReviewMatchModeMongoReviewSyncService {
     return syncNow(configService.loadConfig(request));
   }
 
+  //兼容模式-MatchMode：转正式导入允许在兼容展示关闭时拉取一次老平台 MongoDB 评审数据。
+  public CodeReviewMatchModeSyncResponse syncNowForFormalImport() {
+    return syncNow(configService.loadConfig());
+  }
+
   private CodeReviewMatchModeSyncResponse syncNow(CodeReviewMatchModeConfig config) {
     if (!syncRunning.compareAndSet(false, true)) {
       return currentState(false, "兼容模式老平台 MongoDB 评审数据正在导入，请稍后再试");

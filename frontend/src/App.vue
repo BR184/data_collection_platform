@@ -212,7 +212,8 @@ async function loadMatchModeMenuState() {
   try {
     const status = await api.getCodeReviewMatchModeStatus();
     if (requestId === matchModeStatusRequestId) {
-      matchModeEnabled.value = status.enabled;
+      //兼容模式-MatchMode：只在代码走查页仍读取兼容表时隐藏代码走查多元看板。
+      matchModeEnabled.value = status.codeReviewCompatibilityRead;
     }
   } catch {
     if (requestId === matchModeStatusRequestId) {

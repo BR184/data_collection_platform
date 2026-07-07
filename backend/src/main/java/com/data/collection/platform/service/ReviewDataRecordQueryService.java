@@ -69,7 +69,7 @@ public class ReviewDataRecordQueryService {
     boolean titleSearchFilter =
         hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(expandedFilterGroup);
     //兼容模式-MatchMode
-    if (matchModeSwitchService.isEnabled()) {
+    if (reviewDataCompatibilityReadEnabled()) {
       return listMatchModeRecords(
           request,
           hasFilterGroup ? expandedFilterGroup : null,
@@ -210,7 +210,7 @@ public class ReviewDataRecordQueryService {
 
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {
     //兼容模式-MatchMode
-    if (matchModeSwitchService.isEnabled()) {
+    if (reviewDataCompatibilityReadEnabled()) {
       Long materializedRecordId = materializedRecordId(recordId);
       if (materializedRecordId != null) {
         return formalRecordDetail(materializedRecordId);
@@ -229,7 +229,7 @@ public class ReviewDataRecordQueryService {
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
     //兼容模式-MatchMode
-    if (matchModeSwitchService.isEnabled()) {
+    if (reviewDataCompatibilityReadEnabled()) {
       Long materializedRecordId = materializedRecordId(recordId);
       if (materializedRecordId != null) {
         return persistenceSupport.listProblemItems(materializedRecordId);
@@ -262,7 +262,7 @@ public class ReviewDataRecordQueryService {
 
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
     //兼容模式-MatchMode
-    if (matchModeSwitchService.isEnabled()) {
+    if (reviewDataCompatibilityReadEnabled()) {
       Long materializedRecordId = materializedRecordId(recordId);
       if (materializedRecordId != null) {
         Long materializedItemId = itemId != null && itemId < 0
@@ -393,6 +393,11 @@ public class ReviewDataRecordQueryService {
       return recordId;
     }
     return matchModeRecordRepository.findMaterializedRecordId(recordId);
+  }
+
+  //兼容模式-MatchMode
+  private boolean reviewDataCompatibilityReadEnabled() {
+    return matchModeSwitchService.isReviewDataCompatibilityReadEnabled();
   }
 
   private ReviewDataRecordDetailResponse formalRecordDetail(Long recordId) {

@@ -45,11 +45,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.FillPatternType;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
-import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -391,10 +387,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       writeWorkbookHeader(sheet, styles);
       writeWorkbookRows(sheet, response.rows(), styles);
       sheet.createFreezePane(1, 2);
-      sheet.setColumnWidth(0, 22 * 256);
-      for (int index = 1; index <= CAUSE_METRICS.size(); index++) {
-        sheet.setColumnWidth(index, 18 * 256);
-      }
+      ExcelExportStyles.applyHeaderRows(sheet, 2);
+      ExcelExportStyles.autoSizeColumns(sheet, CAUSE_METRICS.size() + 1);
       workbook.write(outputStream);
       return outputStream.toByteArray();
     } catch (IOException e) {
@@ -890,18 +884,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
     private ExportStyles(Workbook workbook) {
       header = ExcelExportStyles.createHeaderStyle(workbook);
-
-      body = workbook.createCellStyle();
-      body.setAlignment(HorizontalAlignment.CENTER);
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(body);
-
-      summary = workbook.createCellStyle();
-      summary.setAlignment(HorizontalAlignment.CENTER);
-      summary.setVerticalAlignment(VerticalAlignment.CENTER);
-      summary.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
-      summary.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-      ExcelExportStyles.applyThinBorder(summary);
+      body = ExcelExportStyles.createBodyStyle(workbook);
+      summary = ExcelExportStyles.createSummaryStyle(workbook);
     }
   }
 }

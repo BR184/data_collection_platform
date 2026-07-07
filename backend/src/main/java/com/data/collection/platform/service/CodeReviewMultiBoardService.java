@@ -26,7 +26,7 @@ public class CodeReviewMultiBoardService {
 
   public List<OptionItemResponse> listSourceOptions() {
     //兼容模式-MatchMode：老平台页面固定有 CC/DGM 两个代码库页签，不能依赖当前兼容表是否已经导入出 DGM 记录。
-    if (matchModeSwitchService.isEnabled()) {
+    if (matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()) {
       return PREFERRED_SOURCE_ORDER.stream()
           .map(value -> new OptionItemResponse(sourceLabel(value), value))
           .toList();

@@ -241,6 +241,16 @@ public class ReviewDataProblemItemRepository {
         recordId);
   }
 
+  public void softDeleteProblemItems(Long recordId) {
+    jdbcTemplate.update(
+        """
+        update review_problem_items
+        set deleted = true, updated_at = current_timestamp
+        where review_record_id = ? and deleted = false
+        """,
+        recordId);
+  }
+
   private ReviewDataProblemItemResponse mapProblemItem(ResultSet rs, int rowNum) throws SQLException {
     return new ReviewDataProblemItemResponse(
         rs.getLong("id"),

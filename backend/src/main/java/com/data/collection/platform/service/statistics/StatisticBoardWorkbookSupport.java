@@ -12,9 +12,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -136,11 +134,8 @@ final class StatisticBoardWorkbookSupport {
 
   private static void freezeAndSize(org.apache.poi.ss.usermodel.Sheet sheet, int columnCount, int headerDepth) {
     sheet.createFreezePane(1, headerDepth);
-    for (int index = 0; index < Math.min(columnCount, MAX_AUTO_SIZE_COLUMNS); index++) {
-      sheet.autoSizeColumn(index);
-      int currentWidth = sheet.getColumnWidth(index);
-      sheet.setColumnWidth(index, Math.min(Math.max(currentWidth + 512, 2800), 12000));
-    }
+    ExcelExportStyles.applyHeaderRows(sheet, headerDepth);
+    ExcelExportStyles.autoSizeColumns(sheet, columnCount, MAX_AUTO_SIZE_COLUMNS);
   }
 
   private static Cell cell(Row row, int columnIndex, String value, CellStyle style) {
@@ -185,16 +180,8 @@ final class StatisticBoardWorkbookSupport {
 
     ExportStyles(Workbook workbook) {
       this.header = ExcelExportStyles.createHeaderStyle(workbook);
-
-      this.rowHeader = workbook.createCellStyle();
-      rowHeader.setAlignment(HorizontalAlignment.LEFT);
-      rowHeader.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(rowHeader);
-
-      this.body = workbook.createCellStyle();
-      body.setAlignment(HorizontalAlignment.CENTER);
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(body);
+      this.rowHeader = ExcelExportStyles.createBodyStyle(workbook);
+      this.body = ExcelExportStyles.createBodyStyle(workbook);
     }
   }
 }

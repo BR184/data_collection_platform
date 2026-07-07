@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 @Service
 @Slf4j
 public class CodeReviewIllegalRecordSourceLoader {
+  //兼容模式-MatchMode：老平台代码走查数据转入正式事实表后，代码走查页以迁入事实为准，避免和 GitLab 事实双份展示。
   private static final String LEGACY_ILLEGAL_BASE_WHERE = """
        where deleted = false
         and upper(coalesce(merge_request_state, '')) = 'MERGED'
@@ -23,6 +24,15 @@ public class CodeReviewIllegalRecordSourceLoader {
         and coalesce(module_name, '') <> '无需标注'
         and coalesce(project_name, '') <> '无需标注'
         and coalesce(label_names, '') not like '%无需走查扫描%'
+        and (
+          source_system = 'LEGACY_PLATFORM'
+          or not exists (
+            select 1
+              from merge_request_fact promoted
+             where promoted.deleted = false
+               and promoted.source_system = 'LEGACY_PLATFORM'
+          )
+        )
         and (
           lower(coalesce(repository_name, '')) not in ('crowncad', 'dgm')
           or lower(coalesce(target_branch, '')) = 'dev'

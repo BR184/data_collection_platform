@@ -8,10 +8,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -208,11 +206,8 @@ final class CustomerIssueRecordWorkbookExportSupport {
 
   private static void freezeAndSize(Sheet sheet, int columnCount) {
     sheet.createFreezePane(0, 1);
-    for (int index = 0; index < columnCount; index++) {
-      sheet.autoSizeColumn(index);
-      int currentWidth = sheet.getColumnWidth(index);
-      sheet.setColumnWidth(index, Math.min(Math.max(currentWidth + 512, 2800), 12000));
-    }
+    ExcelExportStyles.applyHeaderRows(sheet, 1);
+    ExcelExportStyles.autoSizeColumns(sheet, columnCount);
   }
 
   private static final class ExportStyles {
@@ -221,11 +216,7 @@ final class CustomerIssueRecordWorkbookExportSupport {
 
     private ExportStyles(Workbook workbook) {
       this.header = ExcelExportStyles.createHeaderStyle(workbook);
-
-      this.body = workbook.createCellStyle();
-      body.setAlignment(HorizontalAlignment.CENTER);
-      body.setVerticalAlignment(VerticalAlignment.CENTER);
-      ExcelExportStyles.applyThinBorder(body);
+      this.body = ExcelExportStyles.createBodyStyle(workbook);
     }
   }
 }
