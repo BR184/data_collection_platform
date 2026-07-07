@@ -13,16 +13,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class RealtimeWorkspaceServiceTest {
-  private GitlabConfigService configService;
+  private RealtimeWorkspaceSyncMetadataService syncMetadataService;
   private RealtimeWorkspaceService workspaceService;
 
   @BeforeEach
   void setUp() {
-    configService = mock(GitlabConfigService.class);
-    GitlabSyncConfig config = new GitlabSyncConfig();
-    config.setLastIncrementalSyncAt(LocalDateTime.of(2026, 5, 18, 10, 0));
-    when(configService.getConfig()).thenReturn(config);
-    workspaceService = new RealtimeWorkspaceService(configService, null);
+    syncMetadataService = mock(RealtimeWorkspaceSyncMetadataService.class);
+    when(syncMetadataService.resolve(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyMap()))
+        .thenReturn(new RealtimeWorkspaceSyncMetadata(
+            LocalDateTime.of(2026, 5, 18, 10, 0),
+            null,
+            null));
+    workspaceService = new RealtimeWorkspaceService(syncMetadataService, null);
   }
 
   @Test

@@ -67,6 +67,8 @@ class CustomerIssueIllegalRecordServiceTest {
                     "desc"),
                 null,
                 null,
+                null,
+                null,
                 null));
 
     assertThat(response.total()).isEqualTo(1);
@@ -124,6 +126,8 @@ class CustomerIssueIllegalRecordServiceTest {
                     "updatedAt",
                     "desc"),
                 "missing module",
+                null,
+                null,
                 null,
                 null));
 
@@ -188,6 +192,8 @@ class CustomerIssueIllegalRecordServiceTest {
                     "desc"),
                 null,
                 null,
+                null,
+                null,
                 """
                 {"logic":"AND","conditions":[{"fieldKey":"moduleName","operator":"eq","valueType":"LABEL_GROUP","labelGroupId":9,"labelGroupName":"模块组"}]}
                 """));
@@ -236,6 +242,8 @@ class CustomerIssueIllegalRecordServiceTest {
                     "desc"),
                 null,
                 "R1",
+                null,
+                null,
                 null));
 
     assertThat(response.records()).hasSize(1);
@@ -284,6 +292,8 @@ class CustomerIssueIllegalRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
+                null,
+                null,
                 null,
                 null,
                 """

@@ -27,6 +27,7 @@ class SystemTestIllegalRecordServiceTest {
   @Mock private FactBuildService factBuildService;
   @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
   @Mock private SystemTestPhaseCatalogService phaseCatalogService;
+  @Mock private PageRecordSnapshotService pageRecordSnapshotService;
 
   @Test
   void shouldUseSqlPageForPlainIllegalListRequests() {
@@ -284,6 +285,10 @@ class SystemTestIllegalRecordServiceTest {
     lenient()
         .when(issueLinkService.issueUrl("default", 1001L, 301))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
+    lenient().when(pageRecordSnapshotService.issueFactSourceVersion()).thenReturn("test-issue-version");
+    lenient()
+        .when(pageRecordSnapshotService.readOrRefresh(any(), any(), any()))
+        .thenAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(2)).get());
     return new SystemTestIllegalRecordService(
         issueFactRecordRepository,
         systemTestScopeProfile,
@@ -291,7 +296,8 @@ class SystemTestIllegalRecordServiceTest {
         issueLinkService,
         factBuildService,
         phaseScopeResolver,
-        phaseCatalogService);
+        phaseCatalogService,
+        pageRecordSnapshotService);
   }
 
   private IssueFactRecord record(

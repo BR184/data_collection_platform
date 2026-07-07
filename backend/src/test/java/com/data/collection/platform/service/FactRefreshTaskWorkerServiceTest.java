@@ -21,6 +21,7 @@ class FactRefreshTaskWorkerServiceTest {
   private FactBuildService factBuildService;
   private FactRefreshImpactScopeService impactScopeService;
   private StatisticBoardSnapshotRefreshService snapshotRefreshService;
+  private PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
   private GitlabMirrorProperties properties;
   private FactRefreshTaskWorkerService workerService;
 
@@ -31,6 +32,7 @@ class FactRefreshTaskWorkerServiceTest {
     factBuildService = mock(FactBuildService.class);
     impactScopeService = mock(FactRefreshImpactScopeService.class);
     snapshotRefreshService = mock(StatisticBoardSnapshotRefreshService.class);
+    pageRecordSnapshotRefreshService = mock(PageRecordSnapshotRefreshService.class);
     properties = new GitlabMirrorProperties();
     properties.setHeartbeatTimeoutSeconds(9);
     workerService = new FactRefreshTaskWorkerService(
@@ -39,7 +41,8 @@ class FactRefreshTaskWorkerServiceTest {
         factBuildService,
         impactScopeService,
         properties,
-        snapshotRefreshService);
+        snapshotRefreshService,
+        pageRecordSnapshotRefreshService);
   }
 
   @Test

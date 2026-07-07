@@ -283,6 +283,8 @@ class CustomerIssueControllerTest {
                     "desc"),
                 "Module mismatch",
                 null,
+                null,
+                null,
                 null)))
         .thenReturn(
             new CustomerIssueIllegalRecordListResponse(
@@ -377,6 +379,8 @@ class CustomerIssueControllerTest {
                     "desc"),
                 "Module mismatch",
                 null,
+                null,
+                null,
                 "{\"logic\":\"AND\",\"conditions\":[]}")))
         .thenReturn(new byte[] {4, 5, 6});
 
@@ -411,6 +415,8 @@ class CustomerIssueControllerTest {
                 List.of(new OptionItemResponse("opened", "opened")),
                 List.of(new OptionItemResponse("Open", "Open")),
                 List.of(new OptionItemResponse("Bug", "Bug")),
+                List.of(new OptionItemResponse("Alice", "Alice")),
+                List.of(new OptionItemResponse("Bob", "Bob")),
                 List.of(new OptionItemResponse("R1", "R1"))));
     when(customerIssueIllegalRecordService.getRuleExplanation(325L))
         .thenReturn(

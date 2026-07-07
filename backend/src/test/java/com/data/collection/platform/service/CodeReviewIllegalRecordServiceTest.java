@@ -35,7 +35,11 @@ class CodeReviewIllegalRecordServiceTest {
   @Mock private CodeReviewIllegalRecordSourceLoader sourceLoader;
   @Mock private CodeReviewMatchModeRecordLoader matchModeRecordLoader;
   @Mock private CodeReviewMatchModeSwitchService matchModeSwitchService;
+  @Mock private CodeReviewMatchModeLegacyRefreshService matchModeLegacyRefreshService;
+  @Mock private LegacyPlatformFormalImportService legacyPlatformFormalImportService;
+  @Mock private CodeReviewDgmGitlabProjectOptionService dgmProjectOptionService;
   @Mock private GitlabResourceLinkService gitlabResourceLinkService;
+  @Mock private PageRecordSnapshotService pageRecordSnapshotService;
 
   private CodeReviewIllegalRecordService service;
 
@@ -43,6 +47,12 @@ class CodeReviewIllegalRecordServiceTest {
   void setUp() {
     GitlabMirrorProperties gitlabMirrorProperties = new GitlabMirrorProperties();
     gitlabMirrorProperties.setWebBaseUrl("http://gitlab.example.com");
+    org.mockito.Mockito.lenient()
+        .when(pageRecordSnapshotService.codeReviewSourceVersion())
+        .thenReturn("test-code-review-version");
+    org.mockito.Mockito.lenient()
+        .when(pageRecordSnapshotService.readOrRefresh(any(), any(), any()))
+        .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(2)).get());
     service =
         new CodeReviewIllegalRecordService(
             realtimeWorkspaceService,
@@ -51,9 +61,13 @@ class CodeReviewIllegalRecordServiceTest {
             sourceLoader,
             matchModeRecordLoader,
             matchModeSwitchService,
+            matchModeLegacyRefreshService,
+            legacyPlatformFormalImportService,
+            dgmProjectOptionService,
             gitlabResourceLinkService,
             new ObjectMapper(),
-            gitlabMirrorProperties);
+            gitlabMirrorProperties,
+            pageRecordSnapshotService);
   }
 
   @Test

@@ -26,6 +26,7 @@ class SystemTestIssueSearchServiceTest {
   @Mock private LabelGroupExpansionService labelGroupExpansionService;
   @Mock private SystemTestPhaseScopeResolver phaseScopeResolver;
   @Mock private SystemTestPhaseCatalogService phaseCatalogService;
+  @Mock private PageRecordSnapshotService pageRecordSnapshotService;
 
   @Test
   void shouldUseSqlPageForPlainSearchRequests() {
@@ -344,13 +345,20 @@ class SystemTestIssueSearchServiceTest {
   }
 
   private SystemTestIssueSearchService service() {
+    org.mockito.Mockito.lenient()
+        .when(pageRecordSnapshotService.issueFactSourceVersion())
+        .thenReturn("test-issue-version");
+    org.mockito.Mockito.lenient()
+        .when(pageRecordSnapshotService.readOrRefresh(any(), any(), any()))
+        .thenAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(2)).get());
     return new SystemTestIssueSearchService(
         issueFactRecordRepository,
         issueLinkService,
         new ObjectMapper(),
         labelGroupExpansionService,
         phaseScopeResolver,
-        phaseCatalogService);
+        phaseCatalogService,
+        pageRecordSnapshotService);
   }
 
   private IssueFactRecord record(

@@ -18,6 +18,7 @@ import com.data.collection.platform.service.FactBuildOperationGuard;
 import com.data.collection.platform.service.FactBuildTaskService;
 import com.data.collection.platform.service.IssueFactDiagnosticsService;
 import com.data.collection.platform.service.IssueSourceReadinessService;
+import com.data.collection.platform.service.PageRecordSnapshotRefreshService;
 import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +38,7 @@ class FactBuildControllerTest {
   @Mock private IssueFactDiagnosticsService issueFactDiagnosticsService;
   @Mock private IssueSourceReadinessService issueSourceReadinessService;
   @Mock private StatisticBoardSnapshotRefreshService snapshotRefreshService;
+  @Mock private PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
 
   private MockMvc mockMvc;
 
@@ -50,7 +52,8 @@ class FactBuildControllerTest {
                     factBuildTaskService,
                     issueFactDiagnosticsService,
                     issueSourceReadinessService,
-                    snapshotRefreshService))
+                    snapshotRefreshService,
+                    pageRecordSnapshotRefreshService))
             .build();
   }
 

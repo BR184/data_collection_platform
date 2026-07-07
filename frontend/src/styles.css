@@ -2472,7 +2472,7 @@ a:hover {
 
 .el-table__header-wrapper th.is-sortable .cell:has(.smart-table-header) .smart-table-header,
 .el-table th.is-sortable.el-table__cell .cell:has(.smart-table-header) .smart-table-header {
-  padding: 0 16px;
+  padding: 0 10px;
 }
 
 .el-table__header-wrapper .cell:has(.smart-table-header) .caret-wrapper,
