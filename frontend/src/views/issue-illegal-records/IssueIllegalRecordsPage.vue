@@ -151,6 +151,7 @@ const {
   buildConditionApplyQueryPatch,
   buildConditionResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
+const conditionFiltersExpanded = ref(false);
 
 const {
   handleReset,
@@ -452,6 +453,7 @@ async function handleConditionFilterReset() {
         :empty-description="emptyDescription"
         quick-filter-mode
         quick-filter-toggle-placement="filter-builder"
+        :filter-builder-expanded="conditionFiltersExpanded"
         query-button-text="查询"
         @reset="handleReset"
         @search="handleKeywordSearch"
@@ -475,6 +477,7 @@ async function handleConditionFilterReset() {
               :model-value="filterDraft"
               :fields="conditionFilterFields"
               add-button-text="添加条件"
+              v-model:expanded="conditionFiltersExpanded"
               show-apply-actions
               @apply="handleConditionFilterApply"
               @reset="handleConditionFilterReset"

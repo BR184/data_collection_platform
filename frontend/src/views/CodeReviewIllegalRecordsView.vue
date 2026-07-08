@@ -107,6 +107,7 @@ const {
   buildConditionApplyQueryPatch,
   buildConditionResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
+const conditionFiltersExpanded = ref(false);
 
 const {
   handleReset,
@@ -547,6 +548,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :show-refresh="false"
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
+      :filter-builder-expanded="conditionFiltersExpanded"
       :empty-description="tableEmptyDescription"
       :sort-by="sortBy"
       :sort-order="sortOrder"
@@ -572,6 +574,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           :model-value="filterDraft"
           :fields="conditionFilterFields"
           add-button-text="添加条件"
+          v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"

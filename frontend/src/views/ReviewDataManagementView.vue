@@ -191,6 +191,7 @@ const {
   buildApplyQueryPatch,
   buildResetQueryPatch,
 } = useConditionFilterGroupState(reviewFilterFields);
+const conditionFiltersExpanded = ref(false);
 
 const filterValues = computed<Record<string, unknown>>(() => ({
   title: String(route.query.title ?? ''),
@@ -417,6 +418,7 @@ const {
       default-sort-order="desc"
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
+      :filter-builder-expanded="conditionFiltersExpanded"
       query-button-text="查询"
       empty-description="当前筛选条件下没有可展示的评审记录。"
       @reset="handleReset"
@@ -440,6 +442,7 @@ const {
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="reviewFilterFields"
+          v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"

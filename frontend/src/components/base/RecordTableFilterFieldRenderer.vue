@@ -32,7 +32,8 @@ const emit = defineEmits<{
 }>();
 
 function widthStyle(defaultWidth: number) {
-  return { width: `${props.filter.width ?? defaultWidth}px` };
+  const width = `${props.filter.width ?? defaultWidth}px`;
+  return { width, flex: `0 0 ${width}` };
 }
 
 function stringValue(value: unknown) {

@@ -28,16 +28,19 @@ const props = withDefaults(
     fields: StatisticFilterField[];
     addButtonText?: string;
     showApplyActions?: boolean;
+    expanded?: boolean;
   }>(),
   {
     addButtonText: '添加条件',
     showApplyActions: false,
+    expanded: undefined,
   },
 );
 
 const emit = defineEmits<{
   (event: 'apply'): void;
   (event: 'reset'): void;
+  (event: 'update:expanded', value: boolean): void;
 }>();
 
 const conditionsExpanded = ref(false);
@@ -56,6 +59,22 @@ const labelGroupOperators: StatisticFilterOperator[] = [
   'notContainsAll',
   'partialContainsAny',
 ];
+
+watch(
+  () => props.expanded,
+  (value) => {
+    if (typeof value === 'boolean' && value !== conditionsExpanded.value) {
+      conditionsExpanded.value = value;
+    }
+  },
+  { immediate: true },
+);
+
+watch(conditionsExpanded, (value) => {
+  if (value !== props.expanded) {
+    emit('update:expanded', value);
+  }
+});
 
 const conditionSummaries = computed(() =>
   props.modelValue.conditions.map((condition) => ({

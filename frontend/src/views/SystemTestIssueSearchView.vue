@@ -76,6 +76,7 @@ const {
   buildConditionApplyQueryPatch,
   buildConditionResetQueryPatch,
 } = useConditionFilterGroupState(conditionFilterFields);
+const conditionFiltersExpanded = ref(false);
 
 const {
   syncStatus,
@@ -516,6 +517,7 @@ async function handleRefresh() {
       default-sort-order="desc"
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
+      :filter-builder-expanded="conditionFiltersExpanded"
       empty-description="当前筛选条件下没有查到系统测试议题。"
       @filter-change="handleFilterChange"
       @search="handleKeywordSearch"
@@ -539,6 +541,7 @@ async function handleRefresh() {
           :model-value="filterDraft"
           :fields="conditionFilterFields"
           add-button-text="添加条件"
+          v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"

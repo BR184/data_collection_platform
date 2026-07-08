@@ -62,6 +62,21 @@ class PlatformSecurityConfigurationTest {
   }
 
   @Test
+  void shouldAllowCodeReviewIllegalRecordRefreshWithoutSessionOrCsrfToken() throws Exception {
+    mockMvc.perform(post("/api/code-review/illegal-records/refresh"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accepted").value(true));
+
+    mockMvc.perform(post("/api/code-review/illegal-records/refresh-one")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"source\":\"cc\",\"projectId\":9,\"mergeRequestIid\":24515}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accepted").value(true));
+  }
+
+  @Test
   void shouldAcceptRawCookieCsrfTokenForAuthenticatedMutatingRequests() throws Exception {
     MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf-probe"))
         .andExpect(status().isOk())
@@ -113,6 +128,17 @@ class PlatformSecurityConfigurationTest {
     ApiResponse<Map<String, Object>> systemHook(
         @RequestBody(required = false) Map<String, Object> payload) {
       return ApiResponse.success("GitLab System Hook 已接收", Map.of("accepted", true));
+    }
+
+    @PostMapping("/api/code-review/illegal-records/refresh")
+    ApiResponse<Map<String, Object>> codeReviewRefresh() {
+      return ApiResponse.success("已开始刷新最新数据", Map.of("accepted", true));
+    }
+
+    @PostMapping("/api/code-review/illegal-records/refresh-one")
+    ApiResponse<Map<String, Object>> codeReviewRefreshOne(
+        @RequestBody(required = false) Map<String, Object> payload) {
+      return ApiResponse.success("已刷新本条合并请求数据", Map.of("accepted", true));
     }
 
     @PostMapping("/api/protected-post")

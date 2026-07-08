@@ -23,6 +23,8 @@ import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 @Configuration
 public class PlatformSecurityConfiguration {
   private static final String SYSTEM_HOOK_PATH = "/api/gitlab-sync/system-hook";
+  private static final String CODE_REVIEW_ILLEGAL_REFRESH_PATH = "/api/code-review/illegal-records/refresh";
+  private static final String CODE_REVIEW_ILLEGAL_REFRESH_ONE_PATH = "/api/code-review/illegal-records/refresh-one";
   private static final String[] SYSTEM_SETTINGS_API_PATHS = {
       // 兼容模式-MatchMode：系统设置/数据库兼容模式临时设置 API，删除兼容模式时同步移除白名单。
       "/api/code-review/match-mode-db-settings/**",
@@ -40,7 +42,10 @@ public class PlatformSecurityConfiguration {
       http.csrf(csrf -> csrf
           .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
           .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-          .ignoringRequestMatchers(SYSTEM_HOOK_PATH));
+          .ignoringRequestMatchers(
+              SYSTEM_HOOK_PATH,
+              CODE_REVIEW_ILLEGAL_REFRESH_PATH,
+              CODE_REVIEW_ILLEGAL_REFRESH_ONE_PATH));
     } else {
       http.csrf(AbstractHttpConfigurer::disable);
     }
@@ -63,6 +68,8 @@ public class PlatformSecurityConfiguration {
             .requestMatchers(HttpMethod.HEAD, SYSTEM_SETTINGS_API_PATHS).authenticated()
             .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
             .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.POST, "/api/**/delete")).authenticated()
+            .requestMatchers(HttpMethod.POST, CODE_REVIEW_ILLEGAL_REFRESH_PATH).permitAll()
+            .requestMatchers(HttpMethod.POST, CODE_REVIEW_ILLEGAL_REFRESH_ONE_PATH).permitAll()
             .requestMatchers(HttpMethod.POST, "/api/review-data/records").permitAll()
             .requestMatchers(HttpMethod.PUT, "/api/review-data/records/*").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/review-data/records/*/problem-items").permitAll()

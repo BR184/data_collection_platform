@@ -48,6 +48,7 @@ const props = withDefaults(
     keywordAutoSearchDelay?: number;
     quickFilterMode?: boolean;
     quickFilterTogglePlacement?: 'primary-actions' | 'filter-builder';
+    filterBuilderExpanded?: boolean;
     sortBy?: string;
     sortOrder?: string;
     defaultSortBy?: string;
@@ -78,6 +79,7 @@ const props = withDefaults(
     keywordAutoSearchDelay: 600,
     quickFilterMode: false,
     quickFilterTogglePlacement: 'primary-actions',
+    filterBuilderExpanded: false,
     sortBy: '',
     sortOrder: '',
     defaultSortBy: '',
@@ -187,7 +189,15 @@ const hiddenPrimaryFilterCount = computed(() =>
 const shouldShowPrimaryFilterToggle = computed(() =>
   props.quickFilterMode ? hasPrimaryFilters.value : props.primaryFilters.length > collapsedPrimaryFilterLimit,
 );
-const shouldShowPrimaryQueryButtons = computed(() => !props.quickFilterMode || primaryFiltersExpanded.value);
+const shouldSuppressPrimaryQueryButtons = computed(() =>
+  props.quickFilterMode
+    && props.filterBuilderExpanded
+    && hasFilterBuilder.value
+    && props.quickFilterTogglePlacement === 'filter-builder',
+);
+const shouldShowPrimaryQueryButtons = computed(() =>
+  (!props.quickFilterMode || primaryFiltersExpanded.value) && !shouldSuppressPrimaryQueryButtons.value,
+);
 const shouldShowPrimaryFilterToggleInFilterBuilder = computed(() =>
   shouldShowPrimaryFilterToggle.value && props.quickFilterTogglePlacement === 'filter-builder' && hasFilterBuilder.value,
 );
