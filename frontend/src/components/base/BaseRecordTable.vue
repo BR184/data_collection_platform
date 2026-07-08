@@ -356,7 +356,6 @@ function handleReset() {
 
 function handleFilterChange(key: string, value: string | string[] | null) {
   emit('filter-change', { key, value });
-  handleQuickFilterQuery();
 }
 
 function handleExpandChange(row: Record<string, unknown>, expandedRows: Record<string, unknown>[]) {
@@ -411,18 +410,10 @@ function handleQueryClick() {
   emit('query', resolveQueryKeyword(committedInputFilters));
 }
 
-function handleQuickFilterQuery() {
-  if (!props.quickFilterMode) {
-    return;
-  }
-  handleQueryClick();
-}
-
 function handleInputFilterSearch(key: string) {
   keywordAutoSearchTask.clear();
   commitInputFilterValue(key);
   if (props.quickFilterMode) {
-    handleQuickFilterQuery();
     return;
   }
   if (!props.keywordAutoSearch || key !== 'keyword') {
@@ -432,7 +423,6 @@ function handleInputFilterSearch(key: string) {
 
 function handleQuickInputFilterChange(key: string, value = getInputFilterDraft(key)) {
   commitInputFilterValue(key, value);
-  handleQuickFilterQuery();
 }
 
 function handleInputFilterUpdate(key: string, value: string) {
@@ -447,7 +437,6 @@ function handleInputFilterUpdate(key: string, value: string) {
 function handleInputFilterClear(key: string) {
   keywordAutoSearchTask.clear();
   commitInputFilterValue(key, '');
-  handleQuickFilterQuery();
 }
 
 function emitStandaloneKeywordSearch(value = keywordDraft.value) {
@@ -716,7 +705,7 @@ function handleStandaloneKeywordUpdate(value: string) {
 function handleStandaloneKeywordSearch() {
   keywordAutoSearchTask.clear();
   if (props.quickFilterMode) {
-    handleSearch();
+    emitStandaloneKeywordSearch();
     return;
   }
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
@@ -736,7 +725,7 @@ function handleStandaloneKeywordClear() {
   keywordAutoSearchTask.clear();
   keywordDraft.value = '';
   if (props.quickFilterMode) {
-    handleSearch();
+    emitStandaloneKeywordSearch('');
     return;
   }
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
@@ -1251,11 +1240,24 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 }
 
 .record-filter-control--priority-warning {
-  animation: record-filter-priority-pulse 1s ease-in-out 0s 3;
+  animation: record-filter-priority-pulse 0.96s ease-in-out infinite;
 }
 
 .record-filter-control--priority-warning :deep(.el-input__wrapper) {
-  box-shadow: 0 0 0 1px var(--el-color-warning) inset !important;
+  background: #fff1f2 !important;
+  box-shadow:
+    0 0 0 2px #f43f5e inset,
+    0 0 0 3px rgba(244, 63, 94, 0.16) !important;
+}
+
+.record-filter-control--priority-warning :deep(.el-input__inner),
+.record-filter-control--priority-warning :deep(.el-input__inner::placeholder) {
+  color: #be123c !important;
+}
+
+.record-filter-control--priority-warning :deep(.el-input__prefix),
+.record-filter-control--priority-warning :deep(.el-input__suffix) {
+  color: #e11d48 !important;
 }
 
 @keyframes record-filter-priority-pulse {
@@ -1266,6 +1268,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 
   50% {
     transform: translateY(-1px);
+    filter: saturate(1.2);
   }
 }
 

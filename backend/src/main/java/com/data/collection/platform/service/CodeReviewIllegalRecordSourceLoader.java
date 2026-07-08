@@ -34,8 +34,8 @@ public class CodeReviewIllegalRecordSourceLoader {
           )
         )
         and (
-          lower(coalesce(repository_name, '')) not in ('crowncad', 'dgm')
-          or lower(coalesce(target_branch, '')) = 'dev'
+          lower(btrim(coalesce(repository_name, ''))) not in ('crowncad', 'dgm')
+          or lower(btrim(coalesce(target_branch, ''))) = 'dev'
         )
       """;
   private static final String FACT_SQL = """

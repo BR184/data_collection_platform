@@ -214,6 +214,7 @@ const {
   disabledFilterKeys,
   highlightedFilterKeys,
   buildPriorityApplyPatch,
+  notifyDetectedConflicts,
   resetPriorityState,
 } = useRecordTableFilterPriority({
   quickFilters: priorityQuickFilters,
@@ -573,6 +574,7 @@ async function handleRefresh() {
           add-button-text="添加条件"
           v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
+          @draft-change="notifyDetectedConflicts(true)"
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
         >

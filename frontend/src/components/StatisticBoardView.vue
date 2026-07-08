@@ -849,6 +849,7 @@ function autoRefreshMarkerKey() {
           :highlighted-quick-filter-keys="highlightedQuickFilterKeys"
           :extra-actions="extraToolbarActions"
           :ui-hooks="props.uiHooks"
+          @draft-change="quickFilterConflict.notifyDetectedConflicts(true)"
           @apply-filters="applyFiltersToRoute"
           @reset-filters="resetFilters"
           @quick-filter-change="updateQuickFilterCondition"

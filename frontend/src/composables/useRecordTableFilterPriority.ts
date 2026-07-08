@@ -55,6 +55,7 @@ export function useRecordTableFilterPriority(options: UseRecordTableFilterPriori
     hiddenFilterKeys,
     disabledFilterKeys,
     highlightedFilterKeys,
+    notifyDetectedConflicts: quickFilterConflict.notifyDetectedConflicts,
     buildPriorityApplyPatch,
     resetPriorityState,
   };

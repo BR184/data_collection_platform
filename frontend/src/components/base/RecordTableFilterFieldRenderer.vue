@@ -157,25 +157,43 @@ function controlClass(baseClass: string) {
 }
 
 .record-filter-control--priority-warning {
-  animation: record-filter-priority-pulse 1s ease-in-out 0s 3;
+  animation: record-filter-priority-pulse 0.96s ease-in-out infinite;
 }
 
 .record-filter-control--priority-warning :deep(.el-input__wrapper),
 .record-filter-control--priority-warning :deep(.el-select__wrapper) {
-  box-shadow: 0 0 0 1px var(--el-color-warning) inset !important;
+  border-color: transparent !important;
+  background: #fff1f2 !important;
+  box-shadow:
+    0 0 0 2px #f43f5e inset,
+    0 0 0 3px rgba(244, 63, 94, 0.16) !important;
+}
+
+.record-filter-control--priority-warning :deep(.el-input__inner),
+.record-filter-control--priority-warning :deep(.el-select__placeholder),
+.record-filter-control--priority-warning :deep(.el-select__selected-item) {
+  color: #be123c !important;
+}
+
+.record-filter-control--priority-warning :deep(.el-input__suffix),
+.record-filter-control--priority-warning :deep(.el-input__prefix),
+.record-filter-control--priority-warning :deep(.el-select__caret) {
+  color: #e11d48 !important;
 }
 
 .record-filter-control--priority-disabled {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 @keyframes record-filter-priority-pulse {
   0%,
   100% {
+    transform: translateY(0);
     filter: none;
   }
   50% {
-    filter: brightness(1.05);
+    transform: translateY(-1px);
+    filter: saturate(1.2);
   }
 }
 

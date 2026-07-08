@@ -22,8 +22,8 @@ public class CodeReviewMatchModeRecordLoader {
         and coalesce(legacy_merged_time_source, merged_at_source) > timestamp '2024-04-01 00:00:00'
         and coalesce(module_name, '') <> '无需标注'
         and (
-          lower(coalesce(repository_name, '')) not in ('crowncad', 'dgm')
-          or lower(coalesce(target_branch, '')) = 'dev'
+          lower(btrim(coalesce(repository_name, ''))) not in ('crowncad', 'dgm')
+          or lower(btrim(coalesce(target_branch, ''))) = 'dev'
         )
       """;
   private static final String SELECT_SQL = """

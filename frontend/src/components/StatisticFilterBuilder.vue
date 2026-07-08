@@ -43,6 +43,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'apply'): void;
   (event: 'reset'): void;
+  (event: 'draft-change'): void;
   (event: 'update:expanded', value: boolean): void;
 }>();
 
@@ -129,6 +130,24 @@ watch(
     void ensureLabelGroupsForVisibleFields();
   },
   { immediate: true },
+);
+
+watch(
+  () => props.modelValue.conditions
+    .map((condition) => [
+      condition.source ?? '',
+      condition.fieldKey,
+      condition.operator,
+      condition.valueType ?? '',
+      condition.value ?? '',
+      condition.secondaryValue ?? '',
+      condition.labelGroupId ?? '',
+    ].join(':'))
+    .join('|'),
+  () => {
+    emit('draft-change');
+  },
+  { flush: 'post' },
 );
 
 function addFilterCondition() {

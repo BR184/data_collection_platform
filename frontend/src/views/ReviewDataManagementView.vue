@@ -254,6 +254,7 @@ const {
   disabledFilterKeys,
   highlightedFilterKeys,
   buildPriorityApplyPatch,
+  notifyDetectedConflicts,
   resetPriorityState,
 } = useRecordTableFilterPriority({
   quickFilters: priorityQuickFilters,
@@ -480,6 +481,7 @@ const {
           :extra-summary-chips="quickFilterSummaryChips"
           v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
+          @draft-change="notifyDetectedConflicts(true)"
           @apply="handleConditionFilterApply"
           @reset="handleConditionFilterReset"
         >

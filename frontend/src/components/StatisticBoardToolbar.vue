@@ -51,6 +51,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: 'applyFilters'): void;
   (event: 'resetFilters'): void;
+  (event: 'draftChange'): void;
   (event: 'refreshBoard'): void;
   (event: 'openRuleExplanation'): void;
   (event: 'exportBoard'): void;
@@ -246,6 +247,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
           :extra-summary-chips="quickFilterSummaryChips"
           :expanded="conditionFiltersExpanded"
           show-apply-actions
+          @draft-change="emit('draftChange')"
           @apply="emit('applyFilters')"
           @reset="emit('resetFilters')"
           @update:expanded="conditionFiltersExpanded = $event"

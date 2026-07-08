@@ -7,7 +7,7 @@ import {
   type StatisticFilterConditionDraft,
   type StatisticFilterDraftGroup,
 } from './statistic-board-filters';
-import { ElNotification } from '../element-plus-services';
+import { ElNotification } from 'element-plus';
 
 export type FilterPriorityLevel = 'standalone' | 'condition' | 'quick';
 
@@ -165,9 +165,17 @@ export function conditionDuplicateFields(
   quickValues: Record<string, unknown>,
   filterDraft: StatisticFilterDraftGroup,
 ) {
+  return conditionCoveredQuickFields(quickFilters, filterDraft)
+    .filter((field) => hasFilterValue(quickValues[field.key]));
+}
+
+export function conditionCoveredQuickFields(
+  quickFilters: RecordTableFilterField[],
+  filterDraft: StatisticFilterDraftGroup,
+) {
   const conditionDimensions = completedConditionDimensions(filterDraft);
   return quickFilters
-    .filter((field) => conditionDimensions.has(filterDimensionKey(field.key)) && hasFilterValue(quickValues[field.key]))
+    .filter((field) => conditionDimensions.has(filterDimensionKey(field.key)))
     .map(toConflictField);
 }
 
@@ -225,7 +233,7 @@ export function notifyFilterConflict(fields: FilterConflictField[], phase: 'dete
   ElNotification.warning({
     title: phase === 'detected' ? '筛选条件存在重复' : '已按筛选优先级处理',
     message: phase === 'detected'
-      ? `检测到「${names}」已经在条件筛选中设置，快速筛选中的对应项将被禁用。`
+      ? `检测到「${names}」已经在条件筛选中设置，快速筛选中的对应项将被禁用并高亮提示。`
       : `「${names}」已由条件筛选接管，快速筛选中的对应项已隐藏并不再参与查询。`,
   });
 }
@@ -259,9 +267,13 @@ export function useQuickFilterConflictState(options: {
 }) {
   const hiddenDimensions = ref<Set<string>>(new Set());
   const lastDetectedSignature = ref('');
+  const lastDetectedNotification = ref({ signature: '', timestamp: 0 });
   const conflictFields = computed(() =>
     conditionDuplicateFields(options.quickFilters.value, options.quickValues.value, options.filterDraft)
       .filter((field) => !hiddenDimensions.value.has(field.dimension)),
+  );
+  const quickValueConflictFields = computed(() =>
+    conflictFields.value.filter((field) => hasFilterValue(options.quickValues.value[field.key])),
   );
   const disabledQuickFilterKeys = computed(() => conflictFields.value.map((field) => field.key));
   const highlightedQuickFilterKeys = computed(() => conflictFields.value.map((field) => field.key));
@@ -277,14 +289,27 @@ export function useQuickFilterConflictState(options: {
   watch(
     () => conflictFields.value.map((field) => `${field.key}:${field.dimension}`).sort().join('|'),
     () => notifyDetectedConflicts(),
+    { flush: 'post', immediate: true },
   );
 
-  function notifyDetectedConflicts() {
+  watch(
+    () => Array.from(completedConditionDimensions(options.filterDraft)).sort().join('|'),
+    () => pruneStaleHiddenDimensions(),
+    { flush: 'post' },
+  );
+
+  function notifyDetectedConflicts(force = false) {
     const signature = conflictFields.value.map((field) => field.dimension).sort().join('|');
-    if (!signature || signature === lastDetectedSignature.value) {
+    if (!signature) {
+      lastDetectedSignature.value = '';
       return;
     }
+    if (!force && signature === lastDetectedSignature.value) {
+      return;
+    }
+    const now = Date.now();
     lastDetectedSignature.value = signature;
+    lastDetectedNotification.value = { signature, timestamp: now };
     notifyFilterConflict(conflictFields.value, 'detected');
   }
 
@@ -301,13 +326,27 @@ export function useQuickFilterConflictState(options: {
     notifyFilterConflict(fields, 'applied');
     return {
       fields,
-      clearQuickKeys: fields.map((field) => field.key),
+      clearQuickKeys: quickValueConflictFields.value.map((field) => field.key),
     };
   }
 
   function resetConflictResolution() {
     hiddenDimensions.value = new Set();
     lastDetectedSignature.value = '';
+    lastDetectedNotification.value = { signature: '', timestamp: 0 };
+  }
+
+  function pruneStaleHiddenDimensions() {
+    if (!hiddenDimensions.value.size) {
+      return;
+    }
+    const conditionDimensions = completedConditionDimensions(options.filterDraft);
+    const nextHidden = new Set(
+      Array.from(hiddenDimensions.value).filter((dimension) => conditionDimensions.has(dimension)),
+    );
+    if (nextHidden.size !== hiddenDimensions.value.size) {
+      hiddenDimensions.value = nextHidden;
+    }
   }
 
   return {
