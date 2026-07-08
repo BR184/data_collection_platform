@@ -48,7 +48,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-response-efficiency";
-  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-06-18-v2";
+  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-08-v3";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
@@ -170,12 +170,17 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             StatisticFilterFieldFactory.select("assigneeName", "议题处理人", 160, personOptions.assigneeNames())),
         List.of(
             new StatisticColumnGroup(
-                "legacy-fields",
-                "缺陷响应效率",
-                List.of(
-                    leaf("milestone_title", "产品版本", false, "text"),
-                    leaf("response_cycle_hours", "响应周期（小时）", true, "duration"),
-                    leaf("resolution_cycle_days", "解决周期（天）", true, "duration")))),
+                "milestone-title",
+                "产品版本",
+                List.of(leaf("milestone_title", "产品版本", false, "text"))),
+            new StatisticColumnGroup(
+                "response-cycle-hours",
+                "响应周期（小时）",
+                List.of(leaf("response_cycle_hours", "响应周期（小时）", true, "duration"))),
+            new StatisticColumnGroup(
+                "resolution-cycle-days",
+                "解决周期（天）",
+                List.of(leaf("resolution_cycle_days", "解决周期（天）", true, "duration")))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的客户问题响应效率数据。");
@@ -372,7 +377,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "按客户问题公共排除规则剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
+                "客户问题统计不排除建议类问题；仅剔除关闭后属于申请否决、需求如此或设计如此的数据。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample),

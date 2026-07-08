@@ -446,7 +446,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             StatisticRuleFlowSupport.step(
                 "exclude-invalid-issues",
                 "排除无效数据",
-                "剔除已按公共规则排除的无效议题，避免异常样本干扰汇总结果。",
+                "客户问题统计不排除建议类问题；仅剔除关闭后属于申请否决、需求如此或设计如此的数据。",
                 scoped.size(),
                 valid,
                 this::toRuleFlowSample

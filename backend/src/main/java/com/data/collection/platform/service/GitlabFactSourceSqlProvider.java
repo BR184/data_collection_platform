@@ -34,8 +34,22 @@ class GitlabFactSourceSqlProvider {
       issue_notes as (
         select n.noteable_id as issue_id,
                string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text,
-               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time
+               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
+               (
+                 array_remove(
+                   array_agg(
+                     nullif(btrim(author.name), '')
+                     order by coalesce(n.updated_at, n.created_at), n.id
+                   ) filter (
+                     where regexp_replace(split_part(coalesce(n.note, ''), E'\\n', 1), E'\\r$', '') = '### 1、修复状态'
+                   ),
+                   null
+                 )
+               )[1] as fix_user
           from ods_gitlab_notes n
+          left join ods_gitlab_users author
+            on author.id = n.author_id
+           and coalesce(author.mirror_deleted, false) = false
          where coalesce(n.mirror_deleted, false) = false
            and n.noteable_type = 'Issue'
          group by n.noteable_id
@@ -68,6 +82,7 @@ class GitlabFactSourceSqlProvider {
         i.state_id,
         labels.label_titles,
         coalesce(notes.notes_text, '') as notes_text,
+        coalesce(notes.fix_user, '') as fix_user,
         notes.research_template_time,
         fix_events.fixed_label_time
       from ods_gitlab_issues i
@@ -124,8 +139,22 @@ class GitlabFactSourceSqlProvider {
       issue_notes as (
         select n.noteable_id as issue_id,
                string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text,
-               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time
+               min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
+               (
+                 array_remove(
+                   array_agg(
+                     nullif(btrim(author.name), '')
+                     order by coalesce(n.updated_at, n.created_at), n.id
+                   ) filter (
+                     where regexp_replace(split_part(coalesce(n.note, ''), E'\\n', 1), E'\\r$', '') = '### 1、修复状态'
+                   ),
+                   null
+                 )
+               )[1] as fix_user
           from ods_gitlab_notes n
+          left join ods_gitlab_users author
+            on author.id = n.author_id
+           and coalesce(author.mirror_deleted, false) = false
          where coalesce(n.mirror_deleted, false) = false
            and n.noteable_type = 'Issue'
          group by n.noteable_id
@@ -158,6 +187,7 @@ class GitlabFactSourceSqlProvider {
         i.state_id,
         labels.label_titles,
         coalesce(notes.notes_text, '') as notes_text,
+        coalesce(notes.fix_user, '') as fix_user,
         notes.research_template_time,
         fix_events.fixed_label_time
       from ods_gitlab_issues i

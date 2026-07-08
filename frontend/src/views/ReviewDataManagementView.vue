@@ -35,6 +35,7 @@ import { useConditionFilterGroupState } from '../composables/useConditionFilterG
 import { REVIEW_DATA_RECORD_QUERY_KEYS } from '../composables/record-route-query-keys';
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
+import { useRecordTableFilterPriority } from '../composables/useRecordTableFilterPriority';
 import {
   buildReviewDataFilterTags,
   buildReviewDataFilterFields,
@@ -243,6 +244,23 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
   },
 ]);
 
+const priorityQuickFilters = computed<RecordTableFilterField[]>(() => [
+  { key: 'keyword', label: '任意关键字', type: 'input', placeholder: '输入任意关键字搜索', width: 260 },
+  ...primaryFilters.value,
+]);
+
+const {
+  hiddenFilterKeys,
+  disabledFilterKeys,
+  highlightedFilterKeys,
+  buildPriorityApplyPatch,
+  resetPriorityState,
+} = useRecordTableFilterPriority({
+  quickFilters: priorityQuickFilters,
+  quickValues: computed(() => ({ ...filterValues.value, keyword: keyword.value })),
+  filterDraft,
+});
+
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
   ...conditionFilterGroupTags.value,
   ...buildReviewDataFilterTags(filterValues.value),
@@ -251,8 +269,8 @@ const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => [
 const {
   buildRecordQueryParams: buildReviewDataRecordQueryParams,
   syncFilterDraftFromRoute,
-  handleReset,
-  handleQuery,
+  handleReset: baseHandleReset,
+  handleQuery: baseHandleQuery,
   handleKeywordSearch,
   handleSortChange,
   handlePageChange,
@@ -293,6 +311,7 @@ async function loadRows() {
 
 async function handleClearFilter(key: string) {
   if (key === 'filterGroup') {
+    resetPriorityState();
     resetDraft();
     await patchQuery({ page: 1, ...buildResetQueryPatch(route.query) });
     return;
@@ -312,8 +331,20 @@ async function handleConditionFilterApply() {
 }
 
 async function handleConditionFilterReset() {
+  resetPriorityState();
   resetDraft();
   await handleQuery(keyword.value);
+}
+
+async function handleReset() {
+  resetPriorityState();
+  await baseHandleReset();
+}
+
+async function handleQuery(nextKeyword = keyword.value) {
+  const priorityPatch = buildPriorityApplyPatch();
+  await patchQuery(priorityPatch);
+  await baseHandleQuery(priorityPatch.keyword === null ? '' : nextKeyword);
 }
 
 async function refreshReviewRecords() {
@@ -407,6 +438,9 @@ const {
       :total="total"
       :primary-filters="primaryFilters"
       :filter-values="filterValues"
+      :hidden-filter-keys="hiddenFilterKeys"
+      :disabled-filter-keys="disabledFilterKeys"
+      :highlighted-filter-keys="highlightedFilterKeys"
       :active-filter-tags="activeFilterTags"
       :expanded-row-keys="expandedRowKeys"
       :expand-column-visible="false"

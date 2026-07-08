@@ -26,6 +26,8 @@ const props = withDefaults(
     quickFilterFields?: RecordTableFilterField[];
     quickFilterValues?: Record<string, unknown>;
     quickFilterInputDrafts?: Record<string, string>;
+    disabledQuickFilterKeys?: string[];
+    highlightedQuickFilterKeys?: string[];
     extraActions?: StatisticBoardToolbarAction[];
     uiHooks?: StatisticBoardUiHooks;
   }>(),
@@ -39,6 +41,8 @@ const props = withDefaults(
     quickFilterFields: () => [],
     quickFilterValues: () => ({}),
     quickFilterInputDrafts: () => ({}),
+    disabledQuickFilterKeys: () => [],
+    highlightedQuickFilterKeys: () => [],
     extraActions: () => [],
     uiHooks: () => ({}),
   },
@@ -137,15 +141,6 @@ const showStageStatusDetails = computed(() => {
     || partialStatuses.has(status.mirrorStatus || '')
     || partialStatuses.has(status.factStatus || '');
 });
-const taskStartedText = computed(() => formatDateTime(props.realtimeStatus?.lastRefreshStartedAt));
-const taskDurationText = computed(() =>
-  formatDuration(
-    props.realtimeStatus?.lastRefreshStartedAt,
-    props.realtimeStatus?.lastRefreshFinishedAt,
-    props.realtimeStatus?.refreshing,
-  ),
-);
-
 function formatStageStatus(label: string, status?: string | null) {
   if (!status) {
     return `${label}待刷新`;
@@ -174,42 +169,6 @@ function formatWorkspaceMessage(status: RealtimeWorkspaceStatusResponse) {
     return status.status;
   }
   return '状态待确认';
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return '';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  const pad = (part: number) => String(part).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function formatDuration(startedAt?: string | null, finishedAt?: string | null, refreshing?: boolean | null) {
-  if (!startedAt) {
-    return '';
-  }
-  if (refreshing && !finishedAt) {
-    return '进行中';
-  }
-  if (!finishedAt) {
-    return '';
-  }
-  const start = new Date(startedAt).getTime();
-  const finish = new Date(finishedAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(finish) || finish < start) {
-    return '';
-  }
-  const totalSeconds = Math.round((finish - start) / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes <= 0) {
-    return `${seconds} 秒`;
-  }
-  return `${minutes} 分 ${seconds} 秒`;
 }
 
 function isExportAction(action: StatisticBoardToolbarAction) {
@@ -312,6 +271,8 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         :filter-values="quickFilterValues"
         :input-drafts="quickFilterInputDrafts"
         :keyword-field-visible="quickFilterFields.some((field) => field.key === 'keyword')"
+        :disabled-keys="disabledQuickFilterKeys"
+        :highlighted-keys="highlightedQuickFilterKeys"
         @input-update="updateQuickFilterInput"
         @input-change="commitQuickFilterInput"
         @input-search="(key) => commitQuickFilterInput(key, String(quickFilterInputDrafts[key] ?? quickFilterValues[key] ?? ''))"
@@ -331,8 +292,6 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
         <span v-if="showStageStatusDetails">{{ mirrorStatusText }}</span>
         <span v-if="showStageStatusDetails">{{ factStatusText }}</span>
-        <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
-        <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
       </div>
     </template>
 

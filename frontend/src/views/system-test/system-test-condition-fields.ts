@@ -49,7 +49,6 @@ export function buildSystemTestIllegalConditionFields(
   options: SystemTestIllegalRecordFilterOptionsResponse,
 ): StatisticFilterField[] {
   return [
-    textConditionField('keyword', '关键字', 240),
     textConditionField('issueIid', '议题编号', 180),
     textConditionField('title', '标题', 240),
     selectConditionField('moduleName', '模块', options.moduleNames, 180, true),
@@ -73,7 +72,6 @@ export function buildSystemTestIssueSearchConditionFields(
   options: SystemTestIssueSearchFilterOptionsResponse,
 ): StatisticFilterField[] {
   return [
-    textConditionField('keyword', '关键字', 240),
     textConditionField('issueIid', '议题编号', 180),
     textConditionField('title', '标题', 240),
     selectConditionField('moduleName', '模块', options.moduleNames, 180, true),

@@ -142,7 +142,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         "",
         "",
         "模块",
-        List.of(StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions)),
+        List.of(StatisticFilterFieldFactory.select("testingPhase", "项目", 220, phaseOptions)),
         List.of(
             StatisticColumnGroup.withChildren(
                 "requirement-problem",

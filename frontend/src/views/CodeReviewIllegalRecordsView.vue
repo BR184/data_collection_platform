@@ -22,7 +22,9 @@ import { CODE_REVIEW_RECORD_QUERY_KEYS } from '../composables/record-route-query
 import { useRouteTableState } from '../composables/useRouteTableState';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { useRecordPageController } from '../composables/useRecordPageController';
+import { useRecordTableFilterPriority } from '../composables/useRecordTableFilterPriority';
 import type { RecordTableActiveFilterTag } from '../types/record-table';
+import { filterFieldsByBlockedDimensions } from '../components/filter-priority';
 import {
   CODE_REVIEW_QUERY_CLEAR_KEYS,
   CODE_REVIEW_RANGE_KEYS,
@@ -41,7 +43,6 @@ import {
 import { downloadBlob } from '../utils/csv-download';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
-import { formatBeijingDateTime } from '../utils/beijing-time';
 
 const PAGE_SCOPE_KEY = 'record-page:code-review-illegal-records';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
@@ -79,9 +80,12 @@ const showRefreshLatestData = computed(() => !matchModeEnabled.value);
 const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
 );
+const standaloneFilterKeys = computed(() => ['source', conditionScopeFieldKey.value]);
 const conditionFilterFields = computed(() =>
-  createCodeReviewConditionFields(filterOptions.value, matchModeEnabled.value)
-    .filter((field) => field.key !== conditionScopeFieldKey.value),
+  filterFieldsByBlockedDimensions(
+    createCodeReviewConditionFields(filterOptions.value, matchModeEnabled.value),
+    standaloneFilterKeys.value,
+  ),
 );
 const primaryFilters = computed(() =>
   buildCodeReviewPrimaryFilters(filterOptions.value, matchModeEnabled.value),
@@ -111,8 +115,7 @@ const {
 const conditionFiltersExpanded = ref(false);
 
 const {
-  handleReset,
-  handleQuery,
+  handleReset: baseHandleReset,
   handleSizeChange,
   handleCurrentChange,
   handleSortChange,
@@ -144,6 +147,20 @@ const filterValues = computed<Record<string, unknown>>(() => {
     repositoryName: String(route.query.repositoryName ?? ''),
     mergedAtRange: mergedAtStart && mergedAtEnd ? [mergedAtStart, mergedAtEnd] : [],
   };
+});
+
+const {
+  hiddenFilterKeys,
+  disabledFilterKeys,
+  highlightedFilterKeys,
+  buildPriorityApplyPatch,
+  resetPriorityState,
+} = useRecordTableFilterPriority({
+  quickFilters: primaryFilters,
+  quickValues: filterValues,
+  filterDraft,
+  standaloneFilterKeys,
+  rangeKeys: CODE_REVIEW_RANGE_KEYS,
 });
 
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
@@ -426,6 +443,9 @@ bindLoader(async () => {
 });
 
 async function handleClearFilter(key: string) {
+  if (key === 'filterGroup') {
+    resetPriorityState();
+  }
   if (key === 'mergedAtRange') {
     await patchQuery({ page: 1, mergedAtStart: null, mergedAtEnd: null });
     return;
@@ -458,11 +478,24 @@ async function handleOpenRuleExplanation() {
 }
 
 async function handleConditionFilterApply() {
-  await patchQuery(buildConditionApplyQueryPatch(route.query));
+  await patchQuery(buildPriorityApplyPatch(buildConditionApplyQueryPatch(route.query)));
 }
 
 async function handleConditionFilterReset() {
+  resetPriorityState();
   await patchQuery(buildConditionResetQueryPatch(route.query));
+}
+
+async function handleReset() {
+  resetPriorityState();
+  await baseHandleReset();
+}
+
+async function handleQuery() {
+  await patchQuery(buildPriorityApplyPatch({
+    ...buildApplyQueryPatch(route.query),
+    page: 1,
+  }));
 }
 
 async function handleProjectScopeChange(value: string | string[]) {
@@ -498,40 +531,6 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
   await sourceScope.setValue(nextSource);
 }
 
-const taskStartedText = computed(() =>
-  syncStatus.value?.lastRefreshStartedAt
-    ? formatBeijingDateTime(syncStatus.value.lastRefreshStartedAt, '')
-    : '',
-);
-const taskDurationText = computed(() =>
-  formatTaskDuration(
-    syncStatus.value?.lastRefreshStartedAt,
-    syncStatus.value?.lastRefreshFinishedAt,
-    syncStatus.value?.refreshing,
-  ),
-);
-
-function formatTaskDuration(startedAt?: string | null, finishedAt?: string | null, refreshing?: boolean | null) {
-  if (!startedAt) {
-    return '';
-  }
-  if (refreshing && !finishedAt) {
-    return '进行中';
-  }
-  if (!finishedAt) {
-    return '';
-  }
-  const start = new Date(startedAt).getTime();
-  const finish = new Date(finishedAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(finish) || finish < start) {
-    return '';
-  }
-  const totalSeconds = Math.round((finish - start) / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes <= 0 ? `${seconds} 秒` : `${minutes} 分 ${seconds} 秒`;
-}
-
 </script>
 
 <template>
@@ -547,6 +546,9 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :row-actions-width="132"
       :primary-filters="primaryFilters"
       :filter-values="filterValues"
+      :hidden-filter-keys="hiddenFilterKeys"
+      :disabled-filter-keys="disabledFilterKeys"
+      :highlighted-filter-keys="highlightedFilterKeys"
       :active-filter-tags="activeFilterTags"
       :show-search="false"
       :show-refresh="false"
@@ -632,12 +634,6 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
             />
           </div>
           <SyncMetaBadge :value="lastSyncedText" />
-          <span v-if="taskStartedText" class="code-review-illegal-batch-meta">
-            任务执行时间：{{ taskStartedText }}
-          </span>
-          <span v-if="taskDurationText" class="code-review-illegal-batch-meta">
-            执行时长：{{ taskDurationText }}
-          </span>
         </div>
       </template>
 

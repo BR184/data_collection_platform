@@ -11,8 +11,9 @@ import type {
   SystemTestIllegalRecordListResponse,
   SystemTestIssueSearchFilterOptionsResponse,
   SystemTestIssueSearchListResponse,
+  SystemTestIssueMultiBoardResponse,
 } from '../types/api';
-import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
+import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob, requestBlobResponse } from './request';
 import { stringifyStatisticFilterGroup } from '../utils/statistic-filter-group';
 
 type SystemTestIssueSearchQueryParams = {
@@ -47,6 +48,11 @@ type SystemTestIssueSearchQueryParams = {
 type SystemTestIllegalRecordQueryParams = SystemTestIssueSearchQueryParams & {
   illegalReason?: string;
   priorityLevel?: string;
+};
+
+type SystemTestIssueMultiBoardQueryParams = {
+  projectId?: string | number | null;
+  testingPhase?: string | null;
 };
 
 function buildSystemTestIssueSearchQuery(params: SystemTestIssueSearchQueryParams, includePagination = true) {
@@ -227,7 +233,34 @@ async function requestWorkbook(url: string) {
   });
 }
 
+function buildSystemTestIssueMultiBoardQuery(params?: SystemTestIssueMultiBoardQueryParams) {
+  return new URLSearchParams({
+    ...(params?.projectId != null && params.projectId !== '' ? { projectId: String(params.projectId) } : {}),
+    ...(params?.testingPhase ? { testingPhase: params.testingPhase } : {}),
+  });
+}
+
 export const issueRecordsApi = {
+  getSystemTestIssueMultiBoard(params?: SystemTestIssueMultiBoardQueryParams) {
+    const query = buildSystemTestIssueMultiBoardQuery(params);
+    return request<SystemTestIssueMultiBoardResponse>(
+      `/api/question-metrics/multi-board${query.toString() ? `?${query.toString()}` : ''}`,
+    );
+  },
+  exportSystemTestIssueMultiBoardChart(params: SystemTestIssueMultiBoardQueryParams & { chartKey: string }) {
+    const query = buildSystemTestIssueMultiBoardQuery(params);
+    query.set('chartKey', params.chartKey);
+    return requestBlobResponse(`/api/question-metrics/multi-board/export?${query.toString()}`, {
+      errorPrefix: '议题多元看板导出失败',
+      timeoutMs: EXPORT_REQUEST_TIMEOUT_MS,
+      exportProgress: {
+        label: '正在导出图表数据',
+        profile: 'export',
+        endpointKey: `system-test-multi-board-${params.chartKey}`,
+        learnDuration: true,
+      },
+    });
+  },
   getSystemTestIssueSearchRecords(params: SystemTestIssueSearchQueryParams) {
     const query = buildSystemTestIssueSearchQuery(params);
     return request<SystemTestIssueSearchListResponse>(`/api/question-metrics/issues?${query.toString()}`);

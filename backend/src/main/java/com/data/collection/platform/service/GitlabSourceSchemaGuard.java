@@ -38,7 +38,16 @@ public class GitlabSourceSchemaGuard {
               "created_at",
               "updated_at"),
           requirement("ods_gitlab_labels", "id", "title", "color", "mirror_deleted"),
-          requirement("ods_gitlab_notes", "id", "noteable_id", "noteable_type", "note", "created_at", "updated_at", "mirror_deleted"));
+          requirement(
+              "ods_gitlab_notes",
+              "id",
+              "noteable_id",
+              "noteable_type",
+              "author_id",
+              "note",
+              "created_at",
+              "updated_at",
+              "mirror_deleted"));
 
   private static final List<SourceTableRequirement> MERGE_REQUEST_FACT_SOURCE =
       List.of(

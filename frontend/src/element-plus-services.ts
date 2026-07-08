@@ -1,4 +1,5 @@
 import { ElMessage as ElementMessage } from 'element-plus/es/components/message/index';
+import { ElNotification as ElementNotification } from 'element-plus/es/components/notification/index';
 import { toUserMessage } from './utils/user-message';
 
 export { ElMessageBox } from 'element-plus/es/components/message-box/index';
@@ -45,5 +46,41 @@ export const ElMessage = {
   },
   closeAll(type?: Parameters<typeof ElementMessage.closeAll>[0]) {
     return ElementMessage.closeAll(type);
+  },
+};
+
+type NotificationInput = string | {
+  title?: string;
+  message?: unknown;
+  duration?: number;
+  showClose?: boolean;
+  [key: string]: unknown;
+};
+
+function buildNotificationOptions(input: NotificationInput, level: MessageLevel) {
+  const base = typeof input === 'string' ? { message: input } : input;
+  return {
+    ...base,
+    message: toUserMessage(base.message),
+    showClose: base.showClose ?? true,
+    duration: base.duration ?? (level === 'warning' || level === 'error' ? 4500 : 2600),
+  };
+}
+
+export const ElNotification = {
+  success(input: NotificationInput) {
+    return ElementNotification.success(buildNotificationOptions(input, 'success') as never);
+  },
+  warning(input: NotificationInput) {
+    return ElementNotification.warning(buildNotificationOptions(input, 'warning') as never);
+  },
+  info(input: NotificationInput) {
+    return ElementNotification.info(buildNotificationOptions(input, 'info') as never);
+  },
+  error(input: NotificationInput) {
+    return ElementNotification.error(buildNotificationOptions(input, 'error') as never);
+  },
+  closeAll() {
+    return ElementNotification.closeAll();
   },
 };

@@ -6,44 +6,72 @@ import { useRouter } from 'vue-router';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import { api } from '../api';
-import type { CodeReviewMultiBoardOverviewResponse, StatisticBoardResponse } from '../types/api';
+import type { OptionItemResponse, QualityBoardOtherOverviewResponse } from '../types/api';
 import {
-  buildCodeReviewOwnerChartOption,
-  buildCustomerFunctionChartOption,
-  buildCustomerResponseChartOption,
+  buildFixUserSeverityChartOption,
+  buildQualityBoardCards,
+  buildQualityBoardValueRowsChartOption,
 } from './quality-board';
-import { buildDelayCauseChartOption } from './system-test-multi-board';
 
 const router = useRouter();
 
 const initialized = ref(false);
 const loading = ref(false);
-const codeReviewOverview = ref<CodeReviewMultiBoardOverviewResponse | null>(null);
-const responseBoard = ref<StatisticBoardResponse | null>(null);
-const functionBoard = ref<StatisticBoardResponse | null>(null);
-const delayBoard = ref<StatisticBoardResponse | null>(null);
+const selectedProjectName = ref('');
+const projectOptions = ref<OptionItemResponse[]>([]);
+const overview = ref<QualityBoardOtherOverviewResponse | null>(null);
 
 const pageReady = computed(() => initialized.value);
-const codeReviewOwnerChartOption = computed(() => buildCodeReviewOwnerChartOption(codeReviewOverview.value));
-const customerResponseChartOption = computed(() => buildCustomerResponseChartOption(responseBoard.value));
-const customerFunctionChartOption = computed(() => buildCustomerFunctionChartOption(functionBoard.value));
-const delayCauseChartOption = computed(() => buildDelayCauseChartOption(delayBoard.value));
+const cards = computed(() => buildQualityBoardCards({ overview: overview.value?.summary ?? null }));
+const assigneeDefectDensityChartOption = computed(() =>
+  buildQualityBoardValueRowsChartOption({
+    title: '按走查人统计代码走查缺陷密度',
+    subtitle: '单位：K/LOC',
+    rows: overview.value?.assigneeDefectDensityRows,
+    color: '#409eff',
+  }),
+);
+const authorDefectDensityChartOption = computed(() =>
+  buildQualityBoardValueRowsChartOption({
+    title: '按被走查人统计代码走查缺陷密度',
+    subtitle: '单位：K/LOC',
+    rows: overview.value?.authorDefectDensityRows,
+    color: '#67c23a',
+  }),
+);
+const fixUserSeverityChartOption = computed(() => buildFixUserSeverityChartOption(overview.value?.fixUserSeverityRows));
+const frequencyCodeSubmissionChartOption = computed(() =>
+  buildQualityBoardValueRowsChartOption({
+    title: '代码提交频次',
+    subtitle: '按提交人统计合并请求数量',
+    rows: overview.value?.frequencyCodeSubmissionRows,
+    color: '#e6a23c',
+  }),
+);
+const defectRepairUserChartOption = computed(() =>
+  buildQualityBoardValueRowsChartOption({
+    title: '指派人剩余缺陷数量',
+    subtitle: '按当前打开缺陷统计',
+    rows: overview.value?.defectRepairUserRows,
+    color: '#f56c6c',
+  }),
+);
+
+async function loadProjectOptions() {
+  const options = await api.getQualityBoardRdProjectOptions();
+  projectOptions.value = options.options;
+  selectedProjectName.value = selectedProjectName.value || options.defaultProjectName;
+}
+
+async function loadOverview() {
+  overview.value = await api.getQualityBoardOtherOverview(selectedProjectName.value);
+}
 
 async function loadPage() {
   loading.value = true;
   try {
-    const sources = await api.getCodeReviewMultiBoardSourceOptions();
-    const preferredSource = sources.find((item) => item.value === 'cc')?.value ?? sources[0]?.value;
-    const [codeReview, response, byFunction, delay] = await Promise.all([
-      preferredSource ? api.getCodeReviewMultiBoardOverview(preferredSource) : Promise.resolve(null),
-      api.getStatisticBoard('customer-issue-response-efficiency'),
-      api.getStatisticBoard('customer-issue-by-function'),
-      api.getStatisticBoard('system-test-delay-analysis'),
-    ]);
-    codeReviewOverview.value = codeReview;
-    responseBoard.value = response;
-    functionBoard.value = byFunction;
-    delayBoard.value = delay;
+    await loadProjectOptions();
+    await loadOverview();
   } finally {
     loading.value = false;
     initialized.value = true;
@@ -56,6 +84,17 @@ async function handleRefresh() {
     ElMessage.success('其他看板已刷新');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '其他看板刷新失败');
+  }
+}
+
+async function handleProjectChange() {
+  loading.value = true;
+  try {
+    await loadOverview();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '其他看板加载失败');
+  } finally {
+    loading.value = false;
   }
 }
 
@@ -73,72 +112,90 @@ void loadPage().catch((error) => {
 <template>
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="quality-board-other">
-      <section class="quality-board-other__hero">
-        <div>
+      <section class="quality-board-other__toolbar">
+        <div class="quality-board-other__title">
           <div class="quality-board-other__eyebrow">质量看板 / 其他看板</div>
           <h2>其他看板</h2>
         </div>
-        <el-button
-          class="app-action-button app-action-button--refresh"
-          :icon="Refresh"
-          :loading="loading"
-          @click="handleRefresh"
+        <div class="quality-board-other__actions">
+          <el-select
+            v-model="selectedProjectName"
+            class="quality-board-other__project-select"
+            filterable
+            placeholder="项目名称"
+            :disabled="loading"
+            @change="handleProjectChange"
+          >
+            <el-option
+              v-for="option in projectOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+          <el-button
+            class="app-action-button app-action-button--refresh"
+            :icon="Refresh"
+            :loading="loading"
+            @click="handleRefresh"
+          >
+            刷新
+          </el-button>
+        </div>
+      </section>
+
+      <section class="quality-board-other__summary">
+        <article
+          v-for="card in cards"
+          :key="card.key"
+          class="quality-board-other__metric"
+          :data-tone="card.tone ?? 'default'"
         >
-          刷新
-        </el-button>
+          <span>{{ card.label }}</span>
+          <strong>{{ card.value }}</strong>
+          <small v-if="card.hint">{{ card.hint }}</small>
+        </article>
       </section>
 
       <section class="quality-board-other__grid">
         <article class="quality-board-other__panel">
           <div class="quality-board-other__panel-head">
-            <div>
-              <h3>客户问题响应率</h3>
-              <p>按模块展示客户问题响应率。</p>
-            </div>
-            <el-link underline="never" type="primary" @click="goTo('/customer-issues/response-efficiency')">
-              查看详情
-            </el-link>
+            <h3>按走查人统计代码走查缺陷密度</h3>
+            <el-link underline="never" type="primary" @click="goTo('/code-review/illegal-records')">查看详情</el-link>
           </div>
-          <EChartPanel :option="customerResponseChartOption" :loading="loading" :height="320" />
+          <EChartPanel :option="assigneeDefectDensityChartOption" :loading="loading" :height="340" />
         </article>
 
         <article class="quality-board-other__panel">
           <div class="quality-board-other__panel-head">
-            <div>
-              <h3>客户问题功能热点</h3>
-              <p>按功能展示客户问题缺陷数量。</p>
-            </div>
-            <el-link underline="never" type="primary" @click="goTo('/customer-issues/issue-by-function')">
-              查看详情
-            </el-link>
+            <h3>按被走查人统计代码走查缺陷密度</h3>
+            <el-link underline="never" type="primary" @click="goTo('/code-review/illegal-records')">查看详情</el-link>
           </div>
-          <EChartPanel :option="customerFunctionChartOption" :loading="loading" :height="320" />
+          <EChartPanel :option="authorDefectDensityChartOption" :loading="loading" :height="340" />
         </article>
 
         <article class="quality-board-other__panel">
           <div class="quality-board-other__panel-head">
-            <div>
-              <h3>代码走查责任人密度</h3>
-              <p>按责任人展示代码走查缺陷密度。</p>
-            </div>
-            <el-link underline="never" type="primary" @click="goTo('/code-review/multi-board')">
-              查看详情
-            </el-link>
+            <h3>按修复人统计缺陷数</h3>
+            <el-link underline="never" type="primary" @click="goTo('/question-metrics/issue-search')">查看详情</el-link>
           </div>
-          <EChartPanel :option="codeReviewOwnerChartOption" :loading="loading" :height="320" />
+          <EChartPanel :option="fixUserSeverityChartOption" :loading="loading" :height="360" />
         </article>
 
         <article class="quality-board-other__panel">
           <div class="quality-board-other__panel-head">
-            <div>
-              <h3>系统测试延期原因</h3>
-              <p>按延期原因展示系统测试缺陷数量。</p>
-            </div>
-            <el-link underline="never" type="primary" @click="goTo('/question-metrics/delay-analysis')">
-              查看详情
-            </el-link>
+            <h3>代码提交频次</h3>
+            <el-link underline="never" type="primary" @click="goTo('/code-review/illegal-records')">查看详情</el-link>
           </div>
-          <EChartPanel :option="delayCauseChartOption" :loading="loading" :height="320" />
+          <EChartPanel :option="frequencyCodeSubmissionChartOption" :loading="loading" :height="360" />
+        </article>
+
+        <article class="quality-board-other__panel quality-board-other__panel--wide">
+          <div class="quality-board-other__panel-head">
+            <h3>指派人剩余缺陷数量</h3>
+            <el-link underline="never" type="primary" @click="goTo('/question-metrics/issue-search')">查看详情</el-link>
+          </div>
+          <EChartPanel :option="defectRepairUserChartOption" :loading="loading" :height="360" />
         </article>
       </section>
     </section>
@@ -148,42 +205,87 @@ void loadPage().catch((error) => {
 <style scoped>
 .quality-board-other {
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
-.quality-board-other__hero {
+.quality-board-other__toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
-  padding: 20px 24px;
-  border: 1px solid #e4e7ec;
+  padding: 16px 20px;
+  border: 1px solid #e4e7ed;
   border-radius: 8px;
   background: #fff;
 }
 
-.quality-board-other__hero > *,
-.quality-board-other__panel {
+.quality-board-other__title {
   min-width: 0;
 }
 
 .quality-board-other__eyebrow {
-  color: #4b5563;
+  color: #606266;
   font-size: 12px;
   font-weight: 700;
 }
 
-.quality-board-other__hero h2 {
-  margin: 8px 0 10px;
+.quality-board-other__toolbar h2 {
+  margin: 6px 0 0;
   font-size: 24px;
-  color: #111827;
+  color: #303133;
 }
 
-.quality-board-other__hero p {
-  margin: 0;
-  max-width: 760px;
-  color: #667085;
-  line-height: 1.7;
+.quality-board-other__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quality-board-other__project-select {
+  width: 220px;
+}
+
+.quality-board-other__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quality-board-other__metric {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quality-board-other__metric span {
+  color: #606266;
+  font-size: 13px;
+}
+
+.quality-board-other__metric strong {
+  color: #303133;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.quality-board-other__metric small {
+  color: #909399;
+}
+
+.quality-board-other__metric[data-tone='success'] strong {
+  color: var(--el-color-success);
+}
+
+.quality-board-other__metric[data-tone='warning'] strong {
+  color: var(--el-color-warning);
+}
+
+.quality-board-other__metric[data-tone='danger'] strong {
+  color: var(--el-color-danger);
 }
 
 .quality-board-other__grid {
@@ -193,40 +295,54 @@ void loadPage().catch((error) => {
 }
 
 .quality-board-other__panel {
-  padding: 18px 20px;
-  border: 1px solid #e4e7ec;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid #e4e7ed;
   border-radius: 8px;
   background: #fff;
+}
+
+.quality-board-other__panel--wide {
+  grid-column: 1 / -1;
 }
 
 .quality-board-other__panel-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 8px;
 }
 
 .quality-board-other__panel-head h3 {
   margin: 0;
+  color: #303133;
   font-size: 16px;
-  color: #111827;
 }
 
-.quality-board-other__panel-head p {
-  margin: 6px 0 0;
-  color: #667085;
-  font-size: 13px;
-  line-height: 1.6;
-}
+@media (max-width: 1280px) {
+  .quality-board-other__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 
-@media (max-width: 1180px) {
   .quality-board-other__grid {
     grid-template-columns: 1fr;
   }
+}
 
-  .quality-board-other__hero {
+@media (max-width: 760px) {
+  .quality-board-other__toolbar,
+  .quality-board-other__actions {
+    align-items: stretch;
     flex-direction: column;
+  }
+
+  .quality-board-other__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-board-other__project-select {
+    width: 100%;
   }
 }
 </style>

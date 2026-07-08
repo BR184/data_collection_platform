@@ -772,6 +772,7 @@ public class FactBuildService {
     fact.setMilestoneTitle(defaultText(rs.getString("milestone_title")));
     fact.setAuthorName(defaultText(rs.getString("author_name")));
     fact.setAssigneeName(defaultText(rs.getString("assignee_names")));
+    fact.setFixUser(defaultText(rs.getString("fix_user")));
     fact.setCreatedAtSource(createdAt);
     fact.setUpdatedAtSource(toLocalDateTime(rs.getTimestamp("updated_at")));
     fact.setOdsUpdatedAt(toLocalDateTime(rs.getTimestamp("ods_updated_at")));

@@ -59,6 +59,9 @@ public class IssueFact {
   @TableField("assignee_name")
   private String assigneeName;
 
+  @TableField("fix_user")
+  private String fixUser;
+
   @TableField("created_at_source")
   private LocalDateTime createdAtSource;
 

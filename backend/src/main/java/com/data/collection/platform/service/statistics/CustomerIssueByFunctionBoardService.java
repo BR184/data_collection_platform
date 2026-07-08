@@ -371,7 +371,7 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "按客户问题公共排除规则剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
+                "客户问题统计不排除建议类问题；仅剔除关闭后属于申请否决、需求如此或设计如此的数据。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample

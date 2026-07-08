@@ -1,27 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage } from '../element-plus-services';
-import { Refresh, RefreshRight } from '@element-plus/icons-vue';
+import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
-import type { StatisticBoardResponse, SystemTestIssueSearchFilterOptionsResponse } from '../types/api';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
-import {
-  buildCauseChartOption,
-  buildDelayCauseChartOption,
-  buildDetailLinkMap,
-  buildModuleChartOption,
-  buildPhaseChartOption,
-  buildProjectFilter,
-  buildRepairRateChartOption,
-  buildSeverityChartOption,
-  buildSystemTestSummaryCards,
-} from './system-test-multi-board';
+import { ElMessage } from '../element-plus-services';
+import type { SystemTestIssueMultiBoardChartResponse, SystemTestIssueMultiBoardResponse } from '../types/api';
+import { downloadBlob } from '../utils/csv-download';
+import { buildMultiBoardChartOption } from './system-test-multi-board';
 
 const route = useRoute();
 const router = useRouter();
@@ -29,37 +20,14 @@ const router = useRouter();
 const initialized = ref(false);
 const loading = ref(false);
 const realtimeRefreshLoading = ref(false);
-const filterOptions = ref<SystemTestIssueSearchFilterOptionsResponse>({
-  projectNames: [],
-  moduleNames: [],
-  functionNames: [],
-  testingPhases: [],
-  authorNames: [],
-  assigneeNames: [],
-  issueStates: [],
-  severityLevels: [],
-  bugStatuses: [],
-  categories: [],
-  milestoneTitles: [],
-});
-const summaryBoard = ref<StatisticBoardResponse | null>(null);
-const phaseBoard = ref<StatisticBoardResponse | null>(null);
-const causeBoard = ref<StatisticBoardResponse | null>(null);
-const delayBoard = ref<StatisticBoardResponse | null>(null);
+const exportLoadingKey = ref('');
+const board = ref<SystemTestIssueMultiBoardResponse | null>(null);
 
-const detailLinks = buildDetailLinkMap();
-
-const selectedProjectName = computed(() => String(route.query.projectName ?? ''));
+const selectedProjectId = computed(() => String(route.query.projectId ?? '9'));
+const selectedTestingPhase = computed(() => String(route.query.testingPhase ?? ''));
 const pageReady = computed(() => initialized.value);
-const projectOptions = computed(() => filterOptions.value.projectNames ?? []);
-const summaryCards = computed(() => buildSystemTestSummaryCards(summaryBoard.value));
-const severityChartOption = computed(() => buildSeverityChartOption(summaryBoard.value));
-const phaseChartOption = computed(() => buildPhaseChartOption(phaseBoard.value));
-const moduleChartOption = computed(() => buildModuleChartOption(summaryBoard.value));
-const repairRateChartOption = computed(() => buildRepairRateChartOption(summaryBoard.value));
-const causeChartOption = computed(() => buildCauseChartOption(causeBoard.value));
-const delayCauseChartOption = computed(() => buildDelayCauseChartOption(delayBoard.value));
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const scopeLabel = computed(() => board.value?.scope.scopeLabel ?? 'CrownCAD / 全部阶段');
 
 const {
   syncStatus,
@@ -81,38 +49,46 @@ async function replaceQuery(patch: Record<string, string | undefined>) {
   await router.replace({ path: route.path, query: nextQuery, hash: route.hash });
 }
 
-async function loadBoards() {
+async function loadBoard() {
   loading.value = true;
   try {
-    filterOptions.value = await api.getSystemTestIssueSearchFilterOptions();
-    const filters = buildProjectFilter(selectedProjectName.value);
-    const [summary, phase, cause, delay] = await Promise.all([
-      api.getStatisticBoard('system-test-defect-summary', { filters }),
-      api.getStatisticBoard('system-test-phase-statistics', { filters }),
-      api.getStatisticBoard('system-test-defect-cause', { filters }),
-      api.getStatisticBoard('system-test-delay-analysis', { filters }),
-    ]);
-    summaryBoard.value = summary;
-    phaseBoard.value = phase;
-    causeBoard.value = cause;
-    delayBoard.value = delay;
+    const nextBoard = await api.getSystemTestIssueMultiBoard({
+      projectId: selectedProjectId.value,
+      testingPhase: selectedTestingPhase.value,
+    });
+    board.value = nextBoard;
+    if (
+      (!route.query.projectId || !route.query.testingPhase)
+      && nextBoard.scope.projectId
+      && nextBoard.scope.testingPhase
+    ) {
+      await replaceQuery({
+        projectId: String(nextBoard.scope.projectId),
+        testingPhase: nextBoard.scope.testingPhase,
+      });
+    }
   } finally {
     loading.value = false;
     initialized.value = true;
   }
 }
 
-async function handleProjectChange(value: string) {
-  await replaceQuery({ projectName: value || undefined });
-  await loadBoards();
+async function handleProjectChange(value: string | string[]) {
+  await replaceQuery({ projectId: String(value || '9'), testingPhase: undefined });
+  await loadBoard();
+}
+
+async function handleTestingPhaseChange(value: string | string[]) {
+  await replaceQuery({ testingPhase: String(value || '') || undefined });
+  await loadBoard();
 }
 
 async function handleRefresh() {
   try {
-    await loadBoards();
-    ElMessage.success('系统测试多元看板已刷新');
+    await loadBoard();
+    ElMessage.success('议题多元看板已刷新');
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '系统测试多元看板刷新失败');
+    ElMessage.error(error instanceof Error ? error.message : '议题多元看板刷新失败');
   }
 }
 
@@ -125,7 +101,7 @@ async function handleRefreshLatestData() {
       await sleep(1000);
       status = (await loadSyncStatus()) ?? status;
     }
-    await loadBoards();
+    await loadBoard();
     await loadSyncStatus();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
@@ -134,48 +110,69 @@ async function handleRefreshLatestData() {
   }
 }
 
+async function handleExport(chart: SystemTestIssueMultiBoardChartResponse) {
+  exportLoadingKey.value = chart.key;
+  try {
+    const file = await api.exportSystemTestIssueMultiBoardChart({
+      chartKey: chart.key,
+      projectId: selectedProjectId.value,
+      testingPhase: selectedTestingPhase.value,
+    });
+    downloadBlob(file.blob, file.filename || `${chart.exportName}.xlsx`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '图表数据导出失败');
+  } finally {
+    exportLoadingKey.value = '';
+  }
+}
+
+function chartOption(chart: SystemTestIssueMultiBoardChartResponse) {
+  return buildMultiBoardChartOption(chart);
+}
+
+function chartHasData(chart: SystemTestIssueMultiBoardChartResponse) {
+  return chart.points.length > 0 || chart.categories.length > 0;
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function buildFilterLink(path: string) {
-  if (!selectedProjectName.value) {
-    return { path };
-  }
-  return {
-    path,
-    query: {
-      filterGroup: JSON.stringify({
-        logic: 'AND',
-        conditions: [
-          {
-            fieldKey: 'projectName',
-            operator: 'eq',
-            value: selectedProjectName.value,
-          },
-        ],
-      }),
-    },
-  };
-}
-
-void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
+void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
   initialized.value = true;
   loading.value = false;
-  ElMessage.error(error instanceof Error ? error.message : '系统测试多元看板加载失败');
+  ElMessage.error(error instanceof Error ? error.message : '议题多元看板加载失败');
 });
 </script>
 
 <template>
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="system-test-multi-board">
-      <section class="system-test-multi-board__hero">
-        <div>
-          <div class="system-test-multi-board__eyebrow">系统测试 / 多元看板</div>
-          <h2>系统测试质量概览</h2>
+      <section class="system-test-multi-board__toolbar">
+        <div class="system-test-multi-board__title">
+          <span>系统测试 / 多元看板</span>
+          <h2>议题多元看板</h2>
+          <p>{{ scopeLabel }}</p>
         </div>
-        <div class="system-test-multi-board__hero-actions">
+        <div class="system-test-multi-board__actions">
           <SyncMetaBadge :value="lastSyncedText" />
+          <SmartSelect
+            :model-value="selectedProjectId"
+            placeholder="选择项目"
+            class="system-test-multi-board__project-select"
+            :clearable="false"
+            :options="board?.projectOptions ?? []"
+            dropdown-mode="adaptive-tags"
+            @change="handleProjectChange"
+          />
+          <SmartSelect
+            :model-value="selectedTestingPhase"
+            placeholder="全部阶段"
+            class="system-test-multi-board__phase-select"
+            :options="board?.testingPhaseOptions ?? []"
+            dropdown-mode="adaptive-tags"
+            @change="handleTestingPhaseChange"
+          />
           <el-button
             v-if="canRefreshLatestData"
             class="app-action-button app-action-button--refresh"
@@ -185,15 +182,6 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           >
             刷新最新数据
           </el-button>
-          <SmartSelect
-            :model-value="selectedProjectName"
-            placeholder="全部项目"
-            clearable
-            class="system-test-multi-board__project-select"
-            :options="projectOptions"
-            dropdown-mode="adaptive-tags"
-            @change="handleProjectChange"
-          />
           <el-button
             class="app-action-button app-action-button--refresh"
             :icon="Refresh"
@@ -207,7 +195,7 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
 
       <section class="system-test-multi-board__summary">
         <article
-          v-for="card in summaryCards"
+          v-for="card in board?.summaryCards ?? []"
           :key="card.key"
           class="system-test-multi-board__summary-card"
           :data-tone="card.tone ?? 'default'"
@@ -218,82 +206,35 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
       </section>
 
       <section class="system-test-multi-board__grid">
-        <article class="system-test-multi-board__panel">
+        <article v-for="chart in board?.charts ?? []" :key="chart.key" class="system-test-multi-board__panel">
           <div class="system-test-multi-board__panel-head">
             <div>
-              <h3>严重程度分布</h3>
-              <p>当前范围内缺陷严重程度分布。</p>
+              <h3>{{ chart.title }}</h3>
+              <p>{{ chart.description }}</p>
+              <span>{{ chart.metadata.scope }}</span>
             </div>
-            <el-link underline="never" type="primary" :href="router.resolve(buildFilterLink(detailLinks.summaryPath)).href">
-              查看详情
-            </el-link>
-          </div>
-          <EChartPanel :option="severityChartOption" :loading="loading" :height="340" />
-        </article>
-
-        <article class="system-test-multi-board__panel">
-          <div class="system-test-multi-board__panel-head">
-            <div>
-              <h3>阶段分布</h3>
-              <p>按测试轮次展示缺陷数量。</p>
+            <div class="system-test-multi-board__panel-actions">
+              <el-link
+                v-if="chart.detailPath"
+                underline="never"
+                type="primary"
+                :href="router.resolve({ path: chart.detailPath }).href"
+              >
+                查看详情
+              </el-link>
+              <el-tooltip content="下载图表数据" placement="top">
+                <el-button
+                  class="system-test-multi-board__icon-button"
+                  :icon="Download"
+                  :loading="exportLoadingKey === chart.key"
+                  :disabled="!chartHasData(chart)"
+                  circle
+                  @click="handleExport(chart)"
+                />
+              </el-tooltip>
             </div>
-            <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.phasePath }).href">
-              查看详情
-            </el-link>
           </div>
-          <EChartPanel :option="phaseChartOption" :loading="loading" :height="340" />
-        </article>
-
-        <article class="system-test-multi-board__panel">
-          <div class="system-test-multi-board__panel-head">
-            <div>
-              <h3>模块缺陷 Top 8</h3>
-              <p>按模块展示缺陷数量。</p>
-            </div>
-            <el-link underline="never" type="primary" :href="router.resolve(buildFilterLink(detailLinks.summaryPath)).href">
-              查看详情
-            </el-link>
-          </div>
-          <EChartPanel :option="moduleChartOption" :loading="loading" :height="340" />
-        </article>
-
-        <article class="system-test-multi-board__panel">
-          <div class="system-test-multi-board__panel-head">
-            <div>
-              <h3>模块修复率</h3>
-              <p>按模块展示缺陷修复率。</p>
-            </div>
-            <el-link underline="never" type="primary" :href="router.resolve(buildFilterLink(detailLinks.summaryPath)).href">
-              查看详情
-            </el-link>
-          </div>
-          <EChartPanel :option="repairRateChartOption" :loading="loading" :height="340" />
-        </article>
-
-        <article class="system-test-multi-board__panel">
-          <div class="system-test-multi-board__panel-head">
-            <div>
-              <h3>缺陷原因分析</h3>
-              <p>按缺陷原因拆分一级、二级、三级和建议数量。</p>
-            </div>
-            <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.causePath }).href">
-              查看详情
-            </el-link>
-          </div>
-          <EChartPanel :option="causeChartOption" :loading="loading" :height="340" />
-        </article>
-
-        <article class="system-test-multi-board__panel">
-          <div class="system-test-multi-board__panel-head">
-            <div>
-              <h3>延期原因分布</h3>
-              <p>按延期原因展示系统测试缺陷数量。</p>
-            </div>
-            <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.delayPath }).href">
-              查看详情
-            </el-link>
-          </div>
-          <EChartPanel :option="delayCauseChartOption" :loading="loading" :height="340" />
+          <EChartPanel :option="chartOption(chart)" :loading="loading" :height="340" />
         </article>
       </section>
     </section>
@@ -303,54 +244,62 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
 <style scoped>
 .system-test-multi-board {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
-.system-test-multi-board__hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 20px 24px;
-  border: 1px solid #e4e7ec;
+.system-test-multi-board__toolbar,
+.system-test-multi-board__panel,
+.system-test-multi-board__summary-card {
+  min-width: 0;
+  border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 8px;
   background: #fff;
 }
 
-.system-test-multi-board__hero > * ,
-.system-test-multi-board__panel,
-.system-test-multi-board__summary-card {
-  min-width: 0;
+.system-test-multi-board__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
 }
 
-.system-test-multi-board__eyebrow {
-  color: #4b5563;
+.system-test-multi-board__title {
+  min-width: 220px;
+}
+
+.system-test-multi-board__title span {
+  color: #64748b;
   font-size: 12px;
   font-weight: 700;
 }
 
-.system-test-multi-board__hero h2 {
-  margin: 8px 0 10px;
-  font-size: 24px;
+.system-test-multi-board__title h2 {
+  margin: 6px 0 4px;
   color: #111827;
+  font-size: 22px;
+  line-height: 1.25;
 }
 
-.system-test-multi-board__hero p {
+.system-test-multi-board__title p {
   margin: 0;
-  max-width: 760px;
-  color: #667085;
-  line-height: 1.7;
+  color: #475467;
+  font-size: 13px;
 }
 
-.system-test-multi-board__hero-actions {
+.system-test-multi-board__actions {
   display: flex;
-  gap: 12px;
-  align-items: center;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .system-test-multi-board__project-select {
+  width: 180px;
+}
+
+.system-test-multi-board__phase-select {
   width: 220px;
 }
 
@@ -361,85 +310,103 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
 }
 
 .system-test-multi-board__summary-card {
-  padding: 18px 20px;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  background: #fff;
   display: grid;
   gap: 8px;
+  padding: 16px 18px;
 }
 
 .system-test-multi-board__summary-card span {
-  font-size: 13px;
   color: #667085;
+  font-size: 13px;
 }
 
 .system-test-multi-board__summary-card strong {
-  font-size: clamp(20px, 2vw, 24px);
-  line-height: 1.2;
   color: #111827;
-  overflow-wrap: anywhere;
+  font-size: 24px;
+  line-height: 1.15;
 }
 
 .system-test-multi-board__summary-card[data-tone='success'] strong {
-  color: #039855;
+  color: #059669;
 }
 
 .system-test-multi-board__summary-card[data-tone='warning'] strong {
-  color: #dc6803;
+  color: #d97706;
 }
 
 .system-test-multi-board__summary-card[data-tone='danger'] strong {
-  color: #d92d20;
+  color: #dc2626;
 }
 
 .system-test-multi-board__grid {
   display: grid;
-  gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .system-test-multi-board__panel {
-  padding: 18px 20px;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  background: #fff;
+  padding: 16px 18px 14px;
 }
 
 .system-test-multi-board__panel-head {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 14px;
   margin-bottom: 8px;
 }
 
 .system-test-multi-board__panel-head h3 {
   margin: 0;
-  font-size: 16px;
   color: #111827;
+  font-size: 16px;
 }
 
 .system-test-multi-board__panel-head p {
-  margin: 6px 0 0;
+  margin: 6px 0 4px;
   color: #667085;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
+}
+
+.system-test-multi-board__panel-head span {
+  color: #475467;
+  font-size: 12px;
+}
+
+.system-test-multi-board__panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.system-test-multi-board__icon-button {
+  color: #059669;
+  border-color: rgba(5, 150, 105, 0.28);
+  background: #fff;
+}
+
+.system-test-multi-board__icon-button:hover,
+.system-test-multi-board__icon-button:focus {
+  color: #047857;
+  border-color: rgba(5, 150, 105, 0.44);
+  background: rgba(236, 253, 245, 0.9);
 }
 
 @media (max-width: 1180px) {
-  .system-test-multi-board__summary,
   .system-test-multi-board__grid {
     grid-template-columns: 1fr;
   }
 
-  .system-test-multi-board__hero {
+  .system-test-multi-board__toolbar {
+    align-items: flex-start;
     flex-direction: column;
   }
 
-  .system-test-multi-board__hero-actions {
+  .system-test-multi-board__actions {
+    justify-content: flex-start;
     width: 100%;
-    flex-wrap: wrap;
   }
 }
 </style>

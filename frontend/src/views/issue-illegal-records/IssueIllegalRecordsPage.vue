@@ -19,9 +19,11 @@ import { useRouteTableState } from '../../composables/useRouteTableState';
 import { useRuleExplanationPanel } from '../../composables/useRuleExplanationPanel';
 import { useRealtimeWorkspaceStatus } from '../../composables/useRealtimeWorkspaceStatus';
 import { usePageAutoRefreshPreference } from '../../composables/usePageAutoRefreshPreference';
+import { useRecordTableFilterPriority } from '../../composables/useRecordTableFilterPriority';
 import type { StatisticBoardRuleExplanationResponse, StatisticFilterField } from '../../types/api';
 import type { IssueIllegalRecordRow, IssueIllegalRecordsPageConfig } from './issue-illegal-records-types';
 import { downloadBlob } from '../../utils/csv-download';
+import { filterFieldsByBlockedDimensions } from '../../components/filter-priority';
 
 const props = defineProps<IssueIllegalRecordsPageConfig>();
 const pageScopeKey = computed(() => `record-page:${props.workspaceKey}`);
@@ -62,8 +64,11 @@ const canRefreshLatestData = computed(
   () => authState.currentUser.role === 'ADMIN' && Boolean(props.requestRealtimeRefresh),
 );
 const primaryFilters = computed(() => props.buildPrimaryFilters?.(filterOptions.value) ?? []);
-const primaryFilterKeys = computed(() => new Set(primaryFilters.value.map((field) => field.key)));
 const nativePrimarySelectKeys = computed(() => new Set(props.nativePrimarySelectKeys ?? []));
+const standaloneFilterKeys = computed(() => [
+  ...nativePrimarySelectKeys.value,
+  ...(props.scopeProvider ? [props.scopeProvider.queryKey] : []),
+]);
 const nativePrimaryFilters = computed(() =>
   primaryFilters.value.filter((field) => field.type === 'select' && nativePrimarySelectKeys.value.has(field.key)),
 );
@@ -112,11 +117,7 @@ const {
 });
 
 const conditionFilterFields = computed<StatisticFilterField[]>(() => {
-  const hiddenKeys = new Set<string>(primaryFilterKeys.value);
-  if (props.scopeProvider) {
-    hiddenKeys.add(props.scopeProvider.queryKey);
-  }
-  return props.buildConditionFields(filterOptions.value).filter((field) => !hiddenKeys.has(field.key));
+  return filterFieldsByBlockedDimensions(props.buildConditionFields(filterOptions.value), standaloneFilterKeys.value);
 });
 
 const scopeOptions = computed(() => props.buildScopeOptions?.(filterOptions.value) ?? []);
@@ -153,9 +154,30 @@ const {
 } = useConditionFilterGroupState(conditionFilterFields);
 const conditionFiltersExpanded = ref(false);
 
+const priorityQuickFilters = computed(() => [
+  { key: 'keyword', label: '任意关键字', type: 'input' as const, placeholder: '输入任意关键字搜索', width: 260 },
+  ...tablePrimaryFilters.value,
+]);
+
 const {
-  handleReset,
-  handleQuery,
+  hiddenFilterKeys,
+  disabledFilterKeys,
+  highlightedFilterKeys,
+  buildPriorityApplyPatch,
+  resetPriorityState,
+} = useRecordTableFilterPriority({
+  quickFilters: priorityQuickFilters,
+  quickValues: computed(() => ({ ...primaryFilterValues.value, keyword: String(route.query.keyword ?? '') })),
+  filterDraft,
+  standaloneFilterKeys,
+  rangeKeys: {
+    updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
+    createdAtRange: { startKey: 'createdAtStart', endKey: 'createdAtEnd' },
+  },
+});
+
+const {
+  handleReset: baseHandleReset,
   handleKeywordSearch,
   handleRefresh,
   handleSizeChange,
@@ -394,6 +416,9 @@ function openDetailDrawer(row: Record<string, unknown>) {
 }
 
 async function handleClearFilter(key: string) {
+  if (key === 'filterGroup') {
+    resetPriorityState();
+  }
   await handleBaseClearFilter(key);
 }
 
@@ -403,11 +428,24 @@ async function handlePrimaryFilterChange(payload: { key: string; value: string |
 }
 
 async function handleConditionFilterApply() {
-  await patchQuery(buildConditionApplyQueryPatch(route.query));
+  await patchQuery(buildPriorityApplyPatch(buildConditionApplyQueryPatch(route.query)));
 }
 
 async function handleConditionFilterReset() {
+  resetPriorityState();
   await patchQuery(buildConditionResetQueryPatch(route.query));
+}
+
+async function handleReset() {
+  resetPriorityState();
+  await baseHandleReset();
+}
+
+async function handleQuery() {
+  await patchQuery(buildPriorityApplyPatch({
+    ...buildApplyQueryPatch(route.query),
+    page: 1,
+  }));
 }
 </script>
 
@@ -441,6 +479,9 @@ async function handleConditionFilterReset() {
         :total="total"
         :primary-filters="tablePrimaryFilters"
         :filter-values="primaryFilterValues"
+        :hidden-filter-keys="hiddenFilterKeys"
+        :disabled-filter-keys="disabledFilterKeys"
+        :highlighted-filter-keys="highlightedFilterKeys"
         :active-filter-tags="activeFilterTags"
         :keyword="String(route.query.keyword ?? '')"
         search-placeholder="输入任意关键字搜索"

@@ -1,4 +1,8 @@
-import type { QualityBoardProjectOptionsResponse, QualityBoardRdOverviewResponse } from '../types/api';
+import type {
+  QualityBoardOtherOverviewResponse,
+  QualityBoardProjectOptionsResponse,
+  QualityBoardRdOverviewResponse,
+} from '../types/api';
 import { request } from './request';
 
 export const qualityBoardApi = {
@@ -18,6 +22,24 @@ export const qualityBoardApi = {
           label: '正在加载质量看板',
           profile: 'statistic',
           endpointKey: 'quality-board-rd-overview',
+          learnDuration: true,
+        },
+      },
+    );
+  },
+  getQualityBoardOtherOverview(projectName: string) {
+    const query = new URLSearchParams();
+    if (projectName) {
+      query.set('projectName', projectName);
+    }
+    const queryString = query.toString();
+    return request<QualityBoardOtherOverviewResponse>(
+      `/api/quality-board/other/overview${queryString ? `?${queryString}` : ''}`,
+      {
+        platformProgress: {
+          label: '正在加载其他看板',
+          profile: 'statistic',
+          endpointKey: 'quality-board-other-overview',
           learnDuration: true,
         },
       },

@@ -29,6 +29,7 @@ import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceS
 import { useConditionFilterGroupState } from '../composables/useConditionFilterGroupState';
 import { useRecordPageController } from '../composables/useRecordPageController';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
+import { useRecordTableFilterPriority } from '../composables/useRecordTableFilterPriority';
 import type { RecordTableActiveFilterTag, RecordTableColumn, RecordTableFilterField } from '../types/record-table';
 import { downloadBlob } from '../utils/csv-download';
 import { useRoute } from 'vue-router';
@@ -141,8 +142,7 @@ const {
 const conditionFiltersExpanded = ref(false);
 
 const {
-  handleReset,
-  handleQuery,
+  handleReset: baseHandleReset,
   handleKeywordSearch,
   handleRefresh,
   handleSizeChange,
@@ -332,6 +332,27 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     endPlaceholder: '结束日期',
   },
 ]);
+
+const priorityQuickFilters = computed<RecordTableFilterField[]>(() => [
+  { key: 'keyword', label: '任意关键字', type: 'input', placeholder: '输入任意关键字搜索', width: 260 },
+  ...primaryFilters.value,
+]);
+
+const {
+  hiddenFilterKeys,
+  disabledFilterKeys,
+  highlightedFilterKeys,
+  buildPriorityApplyPatch,
+  resetPriorityState,
+} = useRecordTableFilterPriority({
+  quickFilters: priorityQuickFilters,
+  quickValues: filterValues,
+  filterDraft,
+  rangeKeys: {
+    updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
+    createdAtRange: { startKey: 'createdAtStart', endKey: 'createdAtEnd' },
+  },
+});
 
 const primaryActiveFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   const tags: RecordTableActiveFilterTag[] = [];
@@ -625,6 +646,9 @@ function openDetailDrawer(row: Record<string, unknown>) {
 }
 
 async function handleClearFilter(key: string) {
+  if (key === 'filterGroup') {
+    resetPriorityState();
+  }
   await handleBaseClearFilter(key);
 }
 
@@ -646,11 +670,24 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleConditionFilterApply() {
-  await patchQuery(buildConditionApplyQueryPatch(route.query));
+  await patchQuery(buildPriorityApplyPatch(buildConditionApplyQueryPatch(route.query)));
 }
 
 async function handleConditionFilterReset() {
+  resetPriorityState();
   await patchQuery(buildConditionResetQueryPatch(route.query));
+}
+
+async function handleReset() {
+  resetPriorityState();
+  await baseHandleReset();
+}
+
+async function handleQuery() {
+  await patchQuery(buildPriorityApplyPatch({
+    ...buildApplyQueryPatch(route.query),
+    page: 1,
+  }));
 }
 
 </script>
@@ -685,6 +722,9 @@ async function handleConditionFilterReset() {
         :active-filter-tags="allActiveFilterTags"
         :primary-filters="primaryFilters"
         :filter-values="filterValues"
+        :hidden-filter-keys="hiddenFilterKeys"
+        :disabled-filter-keys="disabledFilterKeys"
+        :highlighted-filter-keys="highlightedFilterKeys"
         :keyword="String(route.query.keyword ?? '')"
         :keyword-auto-search="true"
         search-placeholder="输入任意关键字搜索"

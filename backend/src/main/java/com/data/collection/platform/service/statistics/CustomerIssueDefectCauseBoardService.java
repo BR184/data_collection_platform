@@ -520,7 +520,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "复刻老平台客户问题默认排除口径：剔除申请否决且关闭、需求如此且关闭的数据。",
+                "客户问题统计不排除建议类问题；仅剔除关闭后属于申请否决、需求如此或设计如此的数据。",
                 scoped.size(),
                 valid,
                 this::toRuleFlowSample

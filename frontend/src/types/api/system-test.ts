@@ -49,6 +49,52 @@ export interface SystemTestIssueSearchFilterOptionsResponse {
   milestoneTitles: OptionItemResponse[];
 }
 
+export interface SystemTestIssueMultiBoardScopeResponse {
+  projectId: number;
+  projectName: string;
+  testingPhase?: string | null;
+  expandedTestingPhases: string[];
+  scopeLabel: string;
+}
+
+export interface SystemTestIssueMultiBoardSummaryCardResponse {
+  key: string;
+  label: string;
+  value: string;
+  tone?: 'default' | 'success' | 'warning' | 'danger' | string;
+}
+
+export interface SystemTestIssueMultiBoardSeriesResponse {
+  name: string;
+  data: number[];
+}
+
+export interface SystemTestIssueMultiBoardPointResponse {
+  name: string;
+  value: number;
+}
+
+export interface SystemTestIssueMultiBoardChartResponse {
+  key: string;
+  title: string;
+  description: string;
+  chartType: 'pie' | 'bar' | 'stackedBar' | string;
+  detailPath?: string | null;
+  exportName: string;
+  categories: string[];
+  series: SystemTestIssueMultiBoardSeriesResponse[];
+  points: SystemTestIssueMultiBoardPointResponse[];
+  metadata: Record<string, string>;
+}
+
+export interface SystemTestIssueMultiBoardResponse {
+  scope: SystemTestIssueMultiBoardScopeResponse;
+  projectOptions: OptionItemResponse[];
+  testingPhaseOptions: OptionItemResponse[];
+  summaryCards: SystemTestIssueMultiBoardSummaryCardResponse[];
+  charts: SystemTestIssueMultiBoardChartResponse[];
+}
+
 export interface SystemTestIllegalRecordRowResponse {
   issueId: number;
   issueIid: number;

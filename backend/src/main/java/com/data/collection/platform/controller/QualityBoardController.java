@@ -1,6 +1,7 @@
 package com.data.collection.platform.controller;
 
 import com.data.collection.platform.common.response.ApiResponse;
+import com.data.collection.platform.entity.QualityBoardOtherOverviewResponse;
 import com.data.collection.platform.entity.QualityBoardProjectOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.service.QualityBoardRdService;
@@ -27,5 +28,11 @@ public class QualityBoardController {
   public ApiResponse<QualityBoardRdOverviewResponse> getRdOverview(
       @RequestParam(required = false) String projectName) {
     return ApiResponse.success(qualityBoardRdService.getOverview(projectName));
+  }
+
+  @GetMapping("/other/overview")
+  public ApiResponse<QualityBoardOtherOverviewResponse> getOtherOverview(
+      @RequestParam(required = false) String projectName) {
+    return ApiResponse.success(qualityBoardRdService.getOtherOverview(projectName));
   }
 }

@@ -10,11 +10,13 @@ import com.data.collection.platform.entity.SystemTestIllegalRecordRowResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchFilterOptionsResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchListResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse;
 import com.data.collection.platform.security.RequireRole;
 import com.data.collection.platform.service.IssueFactRealtimeRefreshService;
 import com.data.collection.platform.service.IssueFactRecordListRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
+import com.data.collection.platform.service.statistics.SystemTestIssueMultiBoardService;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -39,18 +41,41 @@ public class QuestionMetricsController {
 
   private final SystemTestIssueSearchService systemTestIssueSearchService;
   private final SystemTestIllegalRecordService systemTestIllegalRecordService;
+  private final SystemTestIssueMultiBoardService systemTestIssueMultiBoardService;
   private final QuestionMetricsRequestAssembler questionMetricsRequestAssembler;
   private final IssueFactRealtimeRefreshService realtimeRefreshService;
 
   public QuestionMetricsController(
       SystemTestIssueSearchService systemTestIssueSearchService,
       SystemTestIllegalRecordService systemTestIllegalRecordService,
+      SystemTestIssueMultiBoardService systemTestIssueMultiBoardService,
       QuestionMetricsRequestAssembler questionMetricsRequestAssembler,
       IssueFactRealtimeRefreshService realtimeRefreshService) {
     this.systemTestIssueSearchService = systemTestIssueSearchService;
     this.systemTestIllegalRecordService = systemTestIllegalRecordService;
+    this.systemTestIssueMultiBoardService = systemTestIssueMultiBoardService;
     this.questionMetricsRequestAssembler = questionMetricsRequestAssembler;
     this.realtimeRefreshService = realtimeRefreshService;
+  }
+
+  @GetMapping("/multi-board")
+  public ApiResponse<SystemTestIssueMultiBoardResponse> getMultiBoard(
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String testingPhase) {
+    return ApiResponse.success(systemTestIssueMultiBoardService.getBoard(projectId, testingPhase));
+  }
+
+  @GetMapping("/multi-board/export")
+  public ResponseEntity<byte[]> exportMultiBoardChart(
+      @RequestParam String chartKey,
+      @RequestParam(required = false) Long projectId,
+      @RequestParam(required = false) String testingPhase) {
+    byte[] workbook = systemTestIssueMultiBoardService.exportChart(projectId, testingPhase, chartKey);
+    String filename = systemTestIssueMultiBoardService.exportFilename(projectId, testingPhase, chartKey);
+    return ResponseEntity.ok()
+        .contentType(EXCEL_MEDIA_TYPE)
+        .header(HttpHeaders.CONTENT_DISPOSITION, DownloadResponseHeaders.attachment(filename))
+        .body(workbook);
   }
 
   @GetMapping("/issues")

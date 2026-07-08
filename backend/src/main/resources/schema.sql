@@ -654,6 +654,7 @@ create table if not exists issue_fact (
     milestone_title varchar(255),
     author_name varchar(128),
     assignee_name text,
+    fix_user varchar(128),
     created_at_source timestamp,
     updated_at_source timestamp,
     ods_updated_at timestamp,
@@ -1023,6 +1024,7 @@ alter table fact_build_tasks add column if not exists created_at timestamp not n
 alter table fact_build_tasks add column if not exists updated_at timestamp not null default current_timestamp;
 alter table sys_table_registry add column if not exists preview_enabled boolean not null default true;
 alter table issue_fact add column if not exists ods_updated_at timestamp;
+alter table issue_fact add column if not exists fix_user varchar(128);
 alter table issue_fact add column if not exists primary_module_name varchar(255);
 alter table issue_fact add column if not exists module_names text;
 alter table issue_fact add column if not exists function_name varchar(255);
@@ -1301,3 +1303,53 @@ create index if not exists idx_fact_build_tasks_scope_status on fact_build_tasks
 create index if not exists idx_fact_build_tasks_created_at on fact_build_tasks(created_at desc);
 create index if not exists idx_fact_build_tasks_dispatch on fact_build_tasks(status, trigger_type, run_after, created_at);
 create index if not exists idx_fact_build_tasks_source_fact on fact_build_tasks(config_id, source_instance, fact_type, status, created_at desc);
+
+-- Align CC_Product customer issue scope with the legacy platform:
+-- customer issue statistics do not exclude suggestion issues. Only closed
+-- 申请否决 / 需求如此 / 设计如此 issues are excluded.
+update issue_fact
+   set is_excluded = case
+         when (lower(coalesce(issue_state, '')) = 'closed' or closed_at_source is not null)
+              and (
+                coalesce(label_names, '') like '%申请否决%'
+                or coalesce(bug_status, '') like '%申请否决%'
+              )
+           then true
+         when (lower(coalesce(issue_state, '')) = 'closed' or closed_at_source is not null)
+              and (
+                coalesce(label_names, '') like '%需求如此%'
+                or coalesce(bug_status, '') like '%需求如此%'
+              )
+           then true
+         when (lower(coalesce(issue_state, '')) = 'closed' or closed_at_source is not null)
+              and (
+                coalesce(label_names, '') like '%设计如此%'
+                or coalesce(bug_status, '') like '%设计如此%'
+              )
+           then true
+         else false
+       end,
+       exclusion_reason = case
+         when (lower(coalesce(issue_state, '')) = 'closed' or closed_at_source is not null)
+              and (
+                coalesce(label_names, '') like '%申请否决%'
+                or coalesce(bug_status, '') like '%申请否决%'
+              )
+           then '申请否决+Closed'
+         when (lower(coalesce(issue_state, '')) = 'closed' or closed_at_source is not null)
+              and (
+                coalesce(label_names, '') like '%需求如此%'
+                or coalesce(bug_status, '') like '%需求如此%'
+              )
+           then '需求如此+Closed'
+         when (lower(coalesce(issue_state, '')) = 'closed' or closed_at_source is not null)
+              and (
+                coalesce(label_names, '') like '%设计如此%'
+                or coalesce(bug_status, '') like '%设计如此%'
+              )
+           then '设计如此+Closed'
+         else null
+       end,
+       updated_at = current_timestamp
+ where project_id = 325
+   and deleted = false;

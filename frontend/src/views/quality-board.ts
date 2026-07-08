@@ -1,10 +1,13 @@
 import type {
   CodeReviewMultiBoardOverviewResponse,
+  QualityBoardChartRowResponse,
+  QualityBoardFixUserSeverityRowResponse,
   QualityBoardRdOverviewResponse,
   ReviewDataSummaryResponse,
   StatisticBoardResponse,
   StatisticRowData,
 } from '../types/api';
+import type { EChartsOption } from 'echarts';
 import { buildColumnBarOption, buildHorizontalBarOption, type NamedValue } from '../components/charts/chart-options';
 
 export interface QualityBoardCard {
@@ -256,6 +259,101 @@ export function buildCodeReviewOwnerChartOption(overview: CodeReviewMultiBoardOv
   });
 }
 
+export function buildQualityBoardValueRowsChartOption(input: {
+  title: string;
+  subtitle?: string;
+  rows: QualityBoardChartRowResponse[] | null | undefined;
+  color?: string;
+  suffix?: string;
+}) {
+  const items = (input.rows ?? [])
+    .map((row) => ({
+      name: row.name,
+      value: Number((row.value ?? 0).toFixed(2)),
+    }))
+    .filter((item) => item.value > 0)
+    .slice(0, 12);
+  const option = buildHorizontalBarOption({
+    title: input.title,
+    subtitle: input.subtitle,
+    items,
+    color: input.color,
+    valueFormatter: (value) => `${value.toFixed(2)}${input.suffix ?? ''}`,
+  });
+  return stripEmbeddedChartTitle(option, 12);
+}
+
+export function buildFixUserSeverityChartOption(
+  rows: QualityBoardFixUserSeverityRowResponse[] | null | undefined,
+): EChartsOption | null {
+  const visibleRows = (rows ?? []).filter((row) => row.total > 0).slice(0, 12);
+  if (!visibleRows.length) {
+    return null;
+  }
+  const categories = visibleRows.map((row) => row.name);
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      valueFormatter: (value) => `${Number(value ?? 0).toFixed(2)}`,
+    },
+    legend: {
+      top: 0,
+      left: 0,
+    },
+    grid: {
+      top: 44,
+      left: 12,
+      right: 20,
+      bottom: 20,
+      containLabel: true,
+    },
+    xAxis: { type: 'value' },
+    yAxis: {
+      type: 'category',
+      data: categories,
+      axisLabel: {
+        width: 120,
+        overflow: 'truncate',
+        color: '#4b5563',
+        margin: 12,
+      },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    series: [
+      {
+        name: '一级缺陷',
+        type: 'bar',
+        stack: 'severity',
+        data: visibleRows.map((row) => row.level1),
+        itemStyle: { color: '#f56c6c' },
+      },
+      {
+        name: '二级缺陷',
+        type: 'bar',
+        stack: 'severity',
+        data: visibleRows.map((row) => row.level2),
+        itemStyle: { color: '#e6a23c' },
+      },
+      {
+        name: '三级缺陷',
+        type: 'bar',
+        stack: 'severity',
+        data: visibleRows.map((row) => row.level3),
+        itemStyle: { color: '#409eff' },
+      },
+      {
+        name: '建议类',
+        type: 'bar',
+        stack: 'severity',
+        data: visibleRows.map((row) => row.suggestion),
+        itemStyle: { color: '#909399' },
+      },
+    ],
+  };
+}
+
 function resolveBandTone(value: number | null, min: number, max: number) {
   if (value == null) {
     return 'default';
@@ -282,4 +380,21 @@ function roundChartValue(value: number | null | undefined) {
     return 0;
   }
   return Number(value.toFixed(2));
+}
+
+function stripEmbeddedChartTitle(option: EChartsOption | null, gridTop: number): EChartsOption | null {
+  if (!option) {
+    return null;
+  }
+  const grid = Array.isArray(option.grid) ? option.grid : { ...(option.grid as Record<string, unknown> | undefined) };
+  return {
+    ...option,
+    title: undefined,
+    grid: Array.isArray(option.grid)
+      ? option.grid.map((item) => ({ ...(item as Record<string, unknown>), top: gridTop }))
+      : {
+          ...grid,
+          top: gridTop,
+        },
+  };
 }

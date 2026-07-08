@@ -59,6 +59,11 @@ import { useStatisticBoardColumnDrag } from './useStatisticBoardColumnDrag';
 import { createFallbackRuleExplanation } from './statistic-board-rule-explanation';
 import type { StatisticBoardViewPrefs } from './statistic-board-view-prefs';
 import type { RecordTableFilterField } from '../types/record-table';
+import {
+  filterFieldsByBlockedDimensions,
+  stripLowerPriorityQuickConditions,
+  useQuickFilterConflictState,
+} from './filter-priority';
 
 const props = withDefaults(
   defineProps<{
@@ -127,7 +132,7 @@ const filterDraft = reactive<StatisticFilterDraftGroup>(createEmptyFilterGroup()
 const {
   replaceRouteQuery,
   applyFiltersToRoute: applyFilterDraftToRoute,
-  resetFilters,
+  resetFilters: resetRouteFilters,
 } = useStatisticBoardRouteController({
   getRouteQuery: () => route.query,
   getRoutePath: () => route.path,
@@ -271,7 +276,13 @@ const quickFilterFieldOrder = [
   'title',
   'issueIid',
 ];
-const quickFilterFields = computed<RecordTableFilterField[]>(() => {
+const standaloneFilterKeys = computed(() =>
+  currentDataScopeProvider.value ? [currentDataScopeProvider.value.queryKey] : [],
+);
+const conditionFilterFields = computed(() =>
+  filterFieldsByBlockedDimensions(activeFilterFields.value, standaloneFilterKeys.value),
+);
+const baseQuickFilterFields = computed<RecordTableFilterField[]>(() => {
   const scopeQueryKey = currentDataScopeProvider.value?.queryKey ?? '';
   return activeFilterFields.value
     .filter((field) => field.key !== scopeQueryKey)
@@ -281,15 +292,23 @@ const quickFilterFields = computed<RecordTableFilterField[]>(() => {
     .map(toRecordQuickFilterField);
 });
 const quickFilterValues = computed<Record<string, unknown>>(() =>
-  Object.fromEntries(quickFilterFields.value.map((field) => [field.key, quickFilterValue(field.key)])),
+  Object.fromEntries(baseQuickFilterFields.value.map((field) => [field.key, quickFilterValue(field.key)])),
 );
 const quickFilterInputDrafts = computed<Record<string, string>>(() =>
   Object.fromEntries(
-    quickFilterFields.value
+    baseQuickFilterFields.value
       .filter((field) => field.type === 'input')
       .map((field) => [field.key, String(quickFilterValues.value[field.key] ?? '')]),
   ),
 );
+const quickFilterConflict = useQuickFilterConflictState({
+  quickFilters: baseQuickFilterFields,
+  quickValues: quickFilterValues,
+  filterDraft,
+});
+const quickFilterFields = computed(() => quickFilterConflict.visibleQuickFilters.value);
+const disabledQuickFilterKeys = computed(() => quickFilterConflict.disabledQuickFilterKeys.value);
+const highlightedQuickFilterKeys = computed(() => quickFilterConflict.highlightedQuickFilterKeys.value);
 const {
   settingsVisible,
   draftVisibleColumnKeys,
@@ -587,7 +606,9 @@ function quickFilterWidth(key: string, label: string) {
 }
 
 function quickFilterValue(fieldKey: string) {
-  const condition = filterDraft.conditions.find((item) => item.fieldKey === fieldKey && item.valueType !== 'LABEL_GROUP');
+  const condition = filterDraft.conditions.find((item) =>
+    item.source === 'QUICK' && item.fieldKey === fieldKey && item.valueType !== 'LABEL_GROUP',
+  );
   return condition?.value ?? '';
 }
 
@@ -612,7 +633,7 @@ function updateQuickFilterCondition(payload: { key: string; value: string | stri
   filterDraft.conditions.splice(
     0,
     filterDraft.conditions.length,
-    ...filterDraft.conditions.filter((condition) => condition.fieldKey !== payload.key),
+    ...filterDraft.conditions.filter((condition) => condition.source !== 'QUICK' || condition.fieldKey !== payload.key),
   );
   if (!normalizedValue) {
     return;
@@ -621,6 +642,7 @@ function updateQuickFilterCondition(payload: { key: string; value: string | stri
   draft.operator = quickFilterOperator(field);
   draft.value = normalizedValue;
   draft.secondaryValue = '';
+  draft.source = 'QUICK';
   filterDraft.conditions.push(draft);
 }
 
@@ -629,7 +651,14 @@ function updateQuickFilterInput(payload: { key: string; value: string }) {
 }
 
 async function applyFiltersToRoute() {
+  quickFilterConflict.applyConflictResolution();
+  stripLowerPriorityQuickConditions(filterDraft);
   await applyFilterDraftToRoute(filterDraft);
+}
+
+async function resetFilters() {
+  quickFilterConflict.resetConflictResolution();
+  await resetRouteFilters();
 }
 
 async function handleExtraAction(actionKey: string) {
@@ -804,7 +833,7 @@ function autoRefreshMarkerKey() {
       <div class="stat-board-query-shell">
         <StatisticBoardToolbar
           :filter-draft="filterDraft"
-          :active-filter-fields="activeFilterFields"
+          :active-filter-fields="conditionFilterFields"
           :board-title="toolbarBoardTitle"
           :last-synced-text="lastSyncedText"
           :rule-explanation-loading="ruleExplanationLoading"
@@ -816,6 +845,8 @@ function autoRefreshMarkerKey() {
           :quick-filter-fields="quickFilterFields"
           :quick-filter-values="quickFilterValues"
           :quick-filter-input-drafts="quickFilterInputDrafts"
+          :disabled-quick-filter-keys="disabledQuickFilterKeys"
+          :highlighted-quick-filter-keys="highlightedQuickFilterKeys"
           :extra-actions="extraToolbarActions"
           :ui-hooks="props.uiHooks"
           @apply-filters="applyFiltersToRoute"

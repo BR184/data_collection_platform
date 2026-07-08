@@ -1,7 +1,10 @@
 package com.data.collection.platform.service;
 
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.QualityBoardChartRowResponse;
+import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowResponse;
 import com.data.collection.platform.entity.QualityBoardMetricResponse;
+import com.data.collection.platform.entity.QualityBoardOtherOverviewResponse;
 import com.data.collection.platform.entity.QualityBoardProjectOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
@@ -62,10 +65,7 @@ public class QualityBoardRdService {
   }
 
   public QualityBoardRdOverviewResponse getOverview(String requestedProjectName) {
-    String projectName =
-        TextQuerySupport.trimToNull(requestedProjectName) == null
-            ? DEFAULT_PROJECT_NAME
-            : TextQuerySupport.normalizeDisplay(requestedProjectName);
+    String projectName = normalizeProjectName(requestedProjectName);
     double demandReviewDensity = reviewDensity(projectName, DEMAND_REVIEW_TYPE);
     double designReviewDensity = reviewDensity(projectName, DESIGN_REVIEW_TYPE);
     double codeReviewCcDensity = codeReviewDensity("cc", projectName);
@@ -95,6 +95,18 @@ public class QualityBoardRdService {
         defectEliminationRate,
         newIssueFixRate,
         metrics);
+  }
+
+  public QualityBoardOtherOverviewResponse getOtherOverview(String requestedProjectName) {
+    String projectName = normalizeProjectName(requestedProjectName);
+    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    return new QualityBoardOtherOverviewResponse(
+        getOverview(projectName),
+        codeReviewPersonDefectDensityRows("assignee_names", false, "cc", projectName),
+        codeReviewPersonDefectDensityRows("author_name", true, "cc", projectName),
+        fixUserSeverityRows(phases),
+        frequencyCodeSubmissionRows("cc", projectName),
+        defectRepairUserRows(phases));
   }
 
   private double reviewDensity(String projectName, String reviewType) {
@@ -168,6 +180,153 @@ public class QualityBoardRdService {
         },
         sourceInstance.toLowerCase(Locale.ROOT),
         projectName);
+  }
+
+  private List<QualityBoardChartRowResponse> codeReviewPersonDefectDensityRows(
+      String personField,
+      boolean excludeIllegalAssigneeRows,
+      String sourceInstance,
+      String projectName) {
+    String safePersonField = switch (personField) {
+      case "assignee_names" -> "assignee_names";
+      case "author_name" -> "author_name";
+      default -> throw new IllegalArgumentException("Unsupported person field: " + personField);
+    };
+    String tableName = codeReviewTableName();
+    String deletedPredicate = codeReviewDeletedPredicate();
+    String illegalAssigneePredicate = excludeIllegalAssigneeRows ? illegalAssigneePredicate() : "";
+    String sql =
+        """
+        select
+          person_name,
+          round((sum(case when coalesce(review_defect_density_per_kloc, 0) > 0 then review_defect_density_per_kloc else 0 end) / count(*))::numeric, 2) as value
+        from (
+          select
+            nullif(btrim(%s), '') as person_name,
+            review_defect_density_per_kloc
+          from %s
+          where lower(coalesce(source_instance, '')) = ?
+            and coalesce(project_name, '') = ?
+            %s
+            %s
+        ) scoped
+        where person_name is not null
+          and person_name <> '无需标注'
+          and person_name <> '--'
+          and person_name not like '%%#%%'
+          and person_name not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')
+        group by person_name
+        order by value desc, person_name
+        limit 12
+        """
+            .formatted(safePersonField, tableName, deletedPredicate, illegalAssigneePredicate);
+    return jdbcTemplate.query(
+        sql,
+        (rs, rowNum) -> new QualityBoardChartRowResponse(
+            rs.getString("person_name"),
+            doubleValue(rs.getObject("value"))),
+        sourceInstance.toLowerCase(Locale.ROOT),
+        projectName);
+  }
+
+  private List<QualityBoardChartRowResponse> frequencyCodeSubmissionRows(
+      String sourceInstance,
+      String projectName) {
+    String tableName = codeReviewTableName();
+    String deletedPredicate = codeReviewDeletedPredicate();
+    String sql =
+        """
+        select
+          coalesce(nullif(btrim(author_name), ''), '未标注提交人') as person_name,
+          count(*)::numeric as value
+        from %s
+        where lower(coalesce(source_instance, '')) = ?
+          and coalesce(project_name, '') = ?
+          %s
+        group by person_name
+        order by value desc, person_name
+        limit 12
+        """
+            .formatted(tableName, deletedPredicate);
+    return jdbcTemplate.query(
+        sql,
+        (rs, rowNum) -> new QualityBoardChartRowResponse(
+            rs.getString("person_name"),
+            doubleValue(rs.getObject("value"))),
+        sourceInstance.toLowerCase(Locale.ROOT),
+        projectName);
+  }
+
+  private List<QualityBoardFixUserSeverityRowResponse> fixUserSeverityRows(List<String> phases) {
+    if (phases.isEmpty()) {
+      return List.of();
+    }
+    String placeholders = String.join(",", phases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phases);
+    String sql =
+        """
+        select
+          coalesce(nullif(btrim(assignee_name), ''), '未标注修复人') as person_name,
+          sum(case when severity_level = 'LEVEL1' then 1 else 0 end) as level1,
+          sum(case when severity_level = 'LEVEL2' then 1 else 0 end) as level2,
+          sum(case when severity_level = 'LEVEL3' then 1 else 0 end) as level3,
+          sum(case when severity_level = 'SUGGESTION' or coalesce(category, '') like '%%建议%%' then 1 else 0 end) as suggestion,
+          count(*) as total
+        from issue_fact
+        where deleted = false
+          and project_id = ?
+          and testing_phase in (%s)
+          and coalesce(category, '') not like '%%功能屏蔽%%'
+          and coalesce(bug_status, '') not like '%%已拒绝%%'
+        group by person_name
+        having count(*) > 0
+        order by total desc, person_name
+        limit 12
+        """
+            .formatted(placeholders);
+    return jdbcTemplate.query(
+        sql,
+        (rs, rowNum) -> new QualityBoardFixUserSeverityRowResponse(
+            rs.getString("person_name"),
+            rs.getInt("level1"),
+            rs.getInt("level2"),
+            rs.getInt("level3"),
+            rs.getInt("suggestion"),
+            rs.getInt("total")),
+        args.toArray());
+  }
+
+  private List<QualityBoardChartRowResponse> defectRepairUserRows(List<String> phases) {
+    if (phases.isEmpty()) {
+      return List.of();
+    }
+    String placeholders = String.join(",", phases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phases);
+    String sql =
+        """
+        select
+          coalesce(nullif(btrim(assignee_name), ''), '未标注指派人') as person_name,
+          count(*)::numeric as value
+        from issue_fact
+        where deleted = false
+          and project_id = ?
+          and testing_phase in (%s)
+          and upper(coalesce(issue_state, '')) = 'OPEN'
+        group by person_name
+        order by value desc, person_name
+        limit 12
+        """
+            .formatted(placeholders);
+    return jdbcTemplate.query(
+        sql,
+        (rs, rowNum) -> new QualityBoardChartRowResponse(
+            rs.getString("person_name"),
+            doubleValue(rs.getObject("value"))),
+        args.toArray());
   }
 
   private double integrationPassRate(String projectName) {
@@ -302,6 +461,37 @@ public class QualityBoardRdService {
     } catch (DataAccessException error) {
       return false;
     }
+  }
+
+  private String normalizeProjectName(String requestedProjectName) {
+    return TextQuerySupport.trimToNull(requestedProjectName) == null
+        ? DEFAULT_PROJECT_NAME
+        : TextQuerySupport.normalizeDisplay(requestedProjectName);
+  }
+
+  private String codeReviewTableName() {
+    // 兼容模式-MatchMode：老平台 MySQL 代码走查兼容读开启时，其他看板代码走查图表和非法数据页共用兼容快照表。
+    // 删除 match mode 时，可以移除该分支并固定返回 merge_request_fact。
+    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()
+        ? "code_review_match_mode_records"
+        : "merge_request_fact";
+  }
+
+  private String codeReviewDeletedPredicate() {
+    // 兼容模式-MatchMode：兼容快照表没有 deleted 字段，正式事实表必须继续过滤 deleted=false。
+    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled() ? "" : " and deleted = false";
+  }
+
+  private String illegalAssigneePredicate() {
+    return """
+       and coalesce(assignee_names, '') not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')
+      """;
+  }
+
+  private Double doubleValue(Object value) {
+    return value instanceof Number number
+        ? ReviewDataNumberSupport.roundToTwoDecimals(number.doubleValue())
+        : 0D;
   }
 
   private boolean matchesReviewType(String actual, String expected) {

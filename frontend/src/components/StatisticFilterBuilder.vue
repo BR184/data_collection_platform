@@ -58,8 +58,9 @@ let summaryResizeObserver: ResizeObserver | null = null;
 let observedSummaryChipRail: HTMLElement | null = null;
 
 const selectedConditionCount = computed(() => selectedConditionIds.value.length);
+const visibleConditions = computed(() => props.modelValue.conditions.filter((condition) => condition.source !== 'QUICK'));
 const allConditionsSelected = computed(
-  () => props.modelValue.conditions.length > 0 && selectedConditionIds.value.length === props.modelValue.conditions.length,
+  () => visibleConditions.value.length > 0 && selectedConditionIds.value.length === visibleConditions.value.length,
 );
 const labelGroupOperators: StatisticFilterOperator[] = [
   'intersects',
@@ -86,7 +87,7 @@ watch(conditionsExpanded, (value) => {
 });
 
 const advancedConditionSummaries = computed(() =>
-  props.modelValue.conditions.map((condition) => ({
+  visibleConditions.value.map((condition) => ({
     id: `condition:${condition.id}`,
     label: summarizeCondition(condition),
   })),
@@ -111,12 +112,12 @@ watch(
 );
 watch(
   () => props.modelValue.conditions.length,
-  (length) => {
-    if (!length) {
+  () => {
+    if (!visibleConditions.value.length) {
       conditionsExpanded.value = false;
     }
-    selectedConditionIds.value = selectedConditionIds.value.filter((id) => props.modelValue.conditions.some((condition) => condition.id === id));
-    if (!length) {
+    selectedConditionIds.value = selectedConditionIds.value.filter((id) => visibleConditions.value.some((condition) => condition.id === id));
+    if (!visibleConditions.value.length) {
       batchDeleteMode.value = false;
     }
   },
@@ -178,7 +179,7 @@ function toggleSelectAllConditions() {
     selectedConditionIds.value = [];
     return;
   }
-  selectedConditionIds.value = props.modelValue.conditions.map((condition) => condition.id);
+  selectedConditionIds.value = visibleConditions.value.map((condition) => condition.id);
 }
 
 function removeConditionsByIds(conditionIds: string[]) {
@@ -211,17 +212,21 @@ async function confirmRemoveSelectedConditions() {
 }
 
 async function confirmClearFilterConditions() {
-  if (!props.modelValue.conditions.length) {
+  if (!visibleConditions.value.length) {
     return;
   }
   try {
-    await ElMessageBox.confirm(`确认清空全部 ${props.modelValue.conditions.length} 条筛选条件吗？`, '清空条件', {
+    await ElMessageBox.confirm(`确认清空全部 ${visibleConditions.value.length} 条筛选条件吗？`, '清空条件', {
       type: 'warning',
       confirmButtonText: '清空全部',
       cancelButtonText: '取消',
       confirmButtonClass: 'stat-filter-confirm-danger',
     });
-    props.modelValue.conditions.splice(0, props.modelValue.conditions.length);
+    props.modelValue.conditions.splice(
+      0,
+      props.modelValue.conditions.length,
+      ...props.modelValue.conditions.filter((condition) => condition.source === 'QUICK'),
+    );
     closeBatchDeleteMode();
     applyAfterConditionMutation();
   } catch {
@@ -620,7 +625,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           <el-tag size="small" effect="plain" round>
             {{ modelValue.logic === 'OR' ? '满足任意' : '满足全部' }}
           </el-tag>
-          <span class="stat-filter-count">已设置 {{ modelValue.conditions.length }} 个条件</span>
+          <span class="stat-filter-count">已设置 {{ visibleConditions.length }} 个条件</span>
         </div>
         <div v-if="conditionSummaries.length" ref="summaryChipRailRef" class="stat-filter-chips">
           <el-tag
@@ -698,9 +703,9 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
         </el-button>
       </div>
 
-      <div v-if="conditionsExpanded && modelValue.conditions.length" class="stat-filter-list">
+      <div v-if="conditionsExpanded && visibleConditions.length" class="stat-filter-list">
         <div
-          v-for="condition in modelValue.conditions"
+          v-for="condition in visibleConditions"
           :key="condition.id"
           class="stat-filter-row"
           :class="conditionRowClass(condition)"
@@ -799,7 +804,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
       </div>
       <div v-else class="stat-filter-empty" role="status">暂无筛选条件</div>
 
-      <div v-if="modelValue.conditions.length || showApplyActions" class="stat-filter-actions">
+      <div v-if="visibleConditions.length || showApplyActions" class="stat-filter-actions">
         <div class="stat-filter-maintenance-actions">
           <template v-if="batchDeleteMode">
             <span class="stat-filter-selected">已选 {{ selectedConditionCount }}</span>
@@ -807,8 +812,8 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             <el-button text type="danger" :disabled="!selectedConditionCount" @click="confirmRemoveSelectedConditions">删除选中</el-button>
             <el-button text @click="closeBatchDeleteMode">取消</el-button>
           </template>
-          <template v-else-if="modelValue.conditions.length">
-            <el-button v-if="modelValue.conditions.length > 1" text @click="openBatchDeleteMode">批量删除</el-button>
+          <template v-else-if="visibleConditions.length">
+            <el-button v-if="visibleConditions.length > 1" text @click="openBatchDeleteMode">批量删除</el-button>
             <el-button text type="danger" @click="confirmClearFilterConditions">清空全部</el-button>
           </template>
         </div>

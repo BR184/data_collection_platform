@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import RecordTableFilterFieldRenderer from './RecordTableFilterFieldRenderer.vue';
 import type { RecordTableFilterField } from '../../types/record-table';
+import { filterDimensionKey } from '../filter-priority';
 
 const props = withDefaults(
   defineProps<{
@@ -11,12 +12,16 @@ const props = withDefaults(
     defaultInputWidth?: number;
     defaultSelectWidth?: number;
     defaultDateRangeWidth?: number;
+    disabledKeys?: string[];
+    highlightedKeys?: string[];
   }>(),
   {
     keywordFieldVisible: false,
     defaultInputWidth: 168,
     defaultSelectWidth: 168,
     defaultDateRangeWidth: 280,
+    disabledKeys: () => [],
+    highlightedKeys: () => [],
   },
 );
 
@@ -47,6 +52,16 @@ function inputWidth(filter: RecordTableFilterField) {
     ? 260
     : props.defaultInputWidth;
 }
+
+function isDisabled(filter: RecordTableFilterField) {
+  const dimension = filterDimensionKey(filter.key);
+  return props.disabledKeys.some((key) => filterDimensionKey(key) === dimension);
+}
+
+function isHighlighted(filter: RecordTableFilterField) {
+  const dimension = filterDimensionKey(filter.key);
+  return props.highlightedKeys.some((key) => filterDimensionKey(key) === dimension);
+}
 </script>
 
 <template>
@@ -60,6 +75,8 @@ function inputWidth(filter: RecordTableFilterField) {
     :default-input-width="inputWidth(filter)"
     :default-select-width="defaultSelectWidth"
     :default-date-range-width="defaultDateRangeWidth"
+    :disabled="isDisabled(filter)"
+    :highlighted="isHighlighted(filter)"
     @input-update="(key, value) => $emit('input-update', key, value)"
     @input-change="(key, value) => $emit('input-change', key, value)"
     @input-search="(key) => $emit('input-search', key)"

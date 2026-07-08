@@ -25,3 +25,26 @@ export interface QualityBoardRdOverviewResponse {
   newIssueFixRate: number;
   metrics: QualityBoardMetricResponse[];
 }
+
+export interface QualityBoardChartRowResponse {
+  name: string;
+  value: number;
+}
+
+export interface QualityBoardFixUserSeverityRowResponse {
+  name: string;
+  level1: number;
+  level2: number;
+  level3: number;
+  suggestion: number;
+  total: number;
+}
+
+export interface QualityBoardOtherOverviewResponse {
+  summary: QualityBoardRdOverviewResponse;
+  assigneeDefectDensityRows: QualityBoardChartRowResponse[];
+  authorDefectDensityRows: QualityBoardChartRowResponse[];
+  fixUserSeverityRows: QualityBoardFixUserSeverityRowResponse[];
+  frequencyCodeSubmissionRows: QualityBoardChartRowResponse[];
+  defectRepairUserRows: QualityBoardChartRowResponse[];
+}

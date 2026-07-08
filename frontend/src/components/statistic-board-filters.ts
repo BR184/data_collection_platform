@@ -25,6 +25,7 @@ export interface StatisticFilterConditionDraft {
   valueType?: 'LITERAL' | 'LABEL_GROUP';
   labelGroupId?: number | null;
   labelGroupName?: string | null;
+  source?: 'CONDITION' | 'QUICK';
 }
 
 export interface StatisticFilterDraftGroup {
@@ -66,6 +67,7 @@ export function createFilterConditionDraft(field?: StatisticFilterField): Statis
     valueType: 'LITERAL',
     labelGroupId: null,
     labelGroupName: null,
+    source: 'CONDITION',
   };
 }
 
@@ -91,6 +93,7 @@ export function normalizeFilterDraftGroup(
       valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
       labelGroupId: condition.labelGroupId ?? null,
       labelGroupName: condition.labelGroupName ?? null,
+      source: 'CONDITION',
     }));
   return {
     logic: source.logic === 'OR' ? 'OR' : 'AND',

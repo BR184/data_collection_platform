@@ -12,6 +12,8 @@ const props = withDefaults(
     defaultInputWidth?: number;
     defaultSelectWidth?: number;
     defaultDateRangeWidth?: number;
+    disabled?: boolean;
+    highlighted?: boolean;
   }>(),
   {
     modelValue: '',
@@ -20,6 +22,8 @@ const props = withDefaults(
     defaultInputWidth: 168,
     defaultSelectWidth: 168,
     defaultDateRangeWidth: 280,
+    disabled: false,
+    highlighted: false,
   },
 );
 
@@ -58,16 +62,26 @@ function dateRangeValue(value: unknown) {
 function emitDateRangeChange(value: unknown) {
   emit('filter-change', props.filter.key, dateRangeValue(value));
 }
+
+function controlClass(baseClass: string) {
+  return [
+    'record-filter-control',
+    baseClass,
+    props.highlighted ? 'record-filter-control--priority-warning' : '',
+    props.disabled ? 'record-filter-control--priority-disabled' : '',
+  ];
+}
 </script>
 
 <template>
   <BaseSearchInput
     v-if="filter.type === 'input'"
     :model-value="inputValue"
-    :class="['record-filter-control', 'record-filter-input', inputClass]"
+    :class="[controlClass('record-filter-input'), inputClass]"
     :style="widthStyle(defaultInputWidth)"
     :placeholder="filter.placeholder || filter.label"
     :clearable="filter.clearable ?? true"
+    :disabled="disabled"
     @update:model-value="emit('input-update', filter.key, stringValue($event))"
     @change="emit('input-change', filter.key, stringValue($event))"
     @search="emit('input-search', filter.key)"
@@ -77,12 +91,13 @@ function emitDateRangeChange(value: unknown) {
   <SmartSelect
     v-else-if="filter.type === 'select'"
     :model-value="selectValue(modelValue)"
-    class="record-filter-control record-filter-select"
+    :class="controlClass('record-filter-select')"
     :style="widthStyle(defaultSelectWidth)"
     :placeholder="filter.placeholder || filter.label"
     :options="filter.options ?? []"
     :multiple="filter.multiple"
     :compact="filter.selectMode === 'compact'"
+    :disabled="disabled"
     dropdown-mode="adaptive-tags"
     @change="emit('filter-change', filter.key, filter.multiple ? (Array.isArray($event) ? $event : []) : stringValue($event))"
   />
@@ -90,13 +105,14 @@ function emitDateRangeChange(value: unknown) {
   <el-date-picker
     v-else-if="filter.type === 'daterange'"
     :model-value="dateRangeValue(modelValue)"
-    class="record-filter-control record-filter-main-date"
+    :class="controlClass('record-filter-main-date')"
     :style="widthStyle(defaultDateRangeWidth)"
     type="daterange"
     range-separator="至"
     :start-placeholder="filter.startPlaceholder || '开始日期'"
     :end-placeholder="filter.endPlaceholder || '结束日期'"
     value-format="YYYY-MM-DD"
+    :disabled="disabled"
     @update:model-value="emitDateRangeChange"
   />
 </template>
@@ -138,6 +154,29 @@ function emitDateRangeChange(value: unknown) {
 
 .record-filter-main-date {
   min-width: 260px;
+}
+
+.record-filter-control--priority-warning {
+  animation: record-filter-priority-pulse 1s ease-in-out 0s 3;
+}
+
+.record-filter-control--priority-warning :deep(.el-input__wrapper),
+.record-filter-control--priority-warning :deep(.el-select__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-warning) inset !important;
+}
+
+.record-filter-control--priority-disabled {
+  opacity: 0.72;
+}
+
+@keyframes record-filter-priority-pulse {
+  0%,
+  100% {
+    filter: none;
+  }
+  50% {
+    filter: brightness(1.05);
+  }
 }
 
 @media (max-width: 720px) {

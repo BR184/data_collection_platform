@@ -1271,8 +1271,10 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   }
 
   private List<OptionItemResponse> toCodeReviewRepositoryNameOptions(List<String> values) {
-    return OptionItemResponseFactory.fromLegacyBusinessValues(
+    List<String> visibleValues = new ArrayList<>(
         values.stream().filter(repositoryName -> !isHiddenCodeReviewProjectName(repositoryName)).toList());
+    visibleValues.add(LEGACY_DEFAULT_REPOSITORY_NAME);
+    return OptionItemResponseFactory.fromLegacyBusinessValues(visibleValues);
   }
 
   private boolean isHiddenCodeReviewProjectName(String projectName) {

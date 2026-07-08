@@ -146,7 +146,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         "",
         "",
         "轮次",
-        List.of(StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions)),
+        List.of(StatisticFilterFieldFactory.select("testingPhase", "项目", 220, phaseOptions)),
         List.of(
             new StatisticColumnGroup(
                 "phase-summary",

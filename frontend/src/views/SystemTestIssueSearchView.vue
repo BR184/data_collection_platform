@@ -29,6 +29,7 @@ import type {
 } from '../types/record-table';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { buildSystemTestIssueSearchConditionFields } from './system-test/system-test-condition-fields';
+import { useRecordTableFilterPriority } from '../composables/useRecordTableFilterPriority';
 
 const PAGE_SCOPE_KEY = 'record-page:system-test-issue-search';
 const { readAutoRefreshOnEnter } = usePageAutoRefreshPreference(PAGE_SCOPE_KEY);
@@ -202,6 +203,27 @@ const primaryFilters = computed<RecordTableFilterField[]>(() => [
     options: [{ label: '全部功能', value: '' }, ...filterOptions.value.functionNames],
   },
 ]);
+
+const priorityQuickFilters = computed<RecordTableFilterField[]>(() => [
+  { key: 'keyword', label: '任意关键字', type: 'input', placeholder: '输入任意关键字搜索', width: 260 },
+  ...primaryFilters.value,
+]);
+
+const {
+  hiddenFilterKeys,
+  disabledFilterKeys,
+  highlightedFilterKeys,
+  buildPriorityApplyPatch,
+  resetPriorityState,
+} = useRecordTableFilterPriority({
+  quickFilters: priorityQuickFilters,
+  quickValues: filterValues,
+  filterDraft,
+  rangeKeys: {
+    updatedAtRange: { startKey: 'updatedAtStart', endKey: 'updatedAtEnd' },
+    createdAtRange: { startKey: 'createdAtStart', endKey: 'createdAtEnd' },
+  },
+});
 
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   const values = filterValues.value;
@@ -404,6 +426,7 @@ async function handleFilterChange(payload: { key: string; value: string | string
 }
 
 async function handleReset() {
+  resetPriorityState();
   resetDraft();
   await patchQuery({
     page: 1,
@@ -432,7 +455,7 @@ async function handleReset() {
 }
 
 async function handleQuery() {
-  await patchQuery({ page: 1, ...buildApplyQueryPatch(route.query) });
+  await patchQuery(buildPriorityApplyPatch({ page: 1, ...buildApplyQueryPatch(route.query) }));
 }
 
 async function handleKeywordSearch(nextKeyword: string) {
@@ -440,10 +463,11 @@ async function handleKeywordSearch(nextKeyword: string) {
 }
 
 async function handleConditionFilterApply() {
-  await patchQuery(buildConditionApplyQueryPatch(route.query));
+  await patchQuery(buildPriorityApplyPatch(buildConditionApplyQueryPatch(route.query)));
 }
 
 async function handleConditionFilterReset() {
+  resetPriorityState();
   await patchQuery(buildConditionResetQueryPatch(route.query));
 }
 
@@ -465,6 +489,7 @@ async function handleSortChange(payload: { prop: string; order: 'ascending' | 'd
 
 async function handleClearFilter(key: string) {
   if (key === 'filterGroup') {
+    resetPriorityState();
     resetDraft();
     await patchQuery({ page: 1, ...buildResetQueryPatch(route.query) });
     return;
@@ -506,6 +531,9 @@ async function handleRefresh() {
       expand-column-fixed-left
       :primary-filters="primaryFilters"
       :filter-values="filterValues"
+      :hidden-filter-keys="hiddenFilterKeys"
+      :disabled-filter-keys="disabledFilterKeys"
+      :highlighted-filter-keys="highlightedFilterKeys"
       :active-filter-tags="activeFilterTags"
       :keyword="String(route.query.keyword ?? '')"
       :keyword-auto-search="true"

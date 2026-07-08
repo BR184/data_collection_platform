@@ -60,7 +60,6 @@ function commonIssueConditionFields(options: {
   milestoneTitles: Option[];
 }) {
   return [
-    textConditionField('keyword', '关键字', 240),
     textConditionField('issueIid', '议题编号', 180),
     textConditionField('title', '议题标题', 240),
     selectConditionField('moduleName', '模块名', options.moduleNames, 180, true),

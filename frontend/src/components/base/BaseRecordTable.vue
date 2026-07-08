@@ -12,6 +12,7 @@ import TableFunctionBar from './TableFunctionBar.vue';
 import { tableHeaderMinimumWidth } from './table-header-layout';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
+import { filterDimensionKey, filterFieldsByBlockedDimensions } from '../filter-priority';
 import type {
   RecordTableActiveFilterTag,
   RecordTableColumn,
@@ -40,6 +41,9 @@ const props = withDefaults(
     showRefresh?: boolean;
     primaryFilters?: RecordTableFilterField[];
     advancedFilters?: RecordTableFilterField[];
+    hiddenFilterKeys?: string[];
+    disabledFilterKeys?: string[];
+    highlightedFilterKeys?: string[];
     filterValues?: Record<string, unknown>;
     activeFilterTags?: RecordTableActiveFilterTag[];
     advancedVisible?: boolean;
@@ -71,6 +75,9 @@ const props = withDefaults(
     showRefresh: true,
     primaryFilters: () => [],
     advancedFilters: () => [],
+    hiddenFilterKeys: () => [],
+    disabledFilterKeys: () => [],
+    highlightedFilterKeys: () => [],
     filterValues: () => ({}),
     activeFilterTags: () => [],
     advancedVisible: false,
@@ -108,7 +115,12 @@ const primaryFiltersExpanded = ref(false);
 const tableShellRef = ref<HTMLElement>();
 const tableViewportWidth = ref(0);
 let tableFrameResizeObserver: ResizeObserver | undefined;
-const allFilters = computed(() => [...props.primaryFilters, ...props.advancedFilters]);
+const visiblePrimaryFilters = computed(() => filterFieldsByBlockedDimensions(props.primaryFilters, props.hiddenFilterKeys));
+const visibleAdvancedFilters = computed(() => filterFieldsByBlockedDimensions(props.advancedFilters, props.hiddenFilterKeys));
+const allFilters = computed(() => [...visiblePrimaryFilters.value, ...visibleAdvancedFilters.value]);
+const hiddenFilterDimensions = computed(() => new Set(props.hiddenFilterKeys.map(filterDimensionKey).filter(Boolean)));
+const disabledFilterDimensions = computed(() => new Set(props.disabledFilterKeys.map(filterDimensionKey).filter(Boolean)));
+const highlightedFilterDimensions = computed(() => new Set(props.highlightedFilterKeys.map(filterDimensionKey).filter(Boolean)));
 const { displayedLoading } = useDelayedLoading(toRef(props, 'loading'), computed(() => props.loadingDelay ?? 0));
 const keywordAutoSearchTask = useDebouncedTask(toRef(props, 'keywordAutoSearchDelay'));
 const {
@@ -164,29 +176,33 @@ const hasPrimaryActions = computed(() => Boolean(slots['primary-actions']));
 const hasToolbarPrefix = computed(() => Boolean(slots['toolbar-prefix']));
 const hasContextPrefix = computed(() => Boolean(slots['context-prefix']));
 const hasToolbarActions = computed(() => Boolean(slots['toolbar-actions']));
-const hasPrimaryFilters = computed(() => props.primaryFilters.length > 0);
-const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
-const hasStandaloneSearch = computed(() => props.showSearch && !props.primaryFilters.some((item) => item.key === 'keyword'));
+const hasPrimaryFilters = computed(() => visiblePrimaryFilters.value.length > 0);
+const hasAdvancedFilters = computed(() => visibleAdvancedFilters.value.length > 0);
+const hasStandaloneSearch = computed(() =>
+  props.showSearch
+    && !hiddenFilterDimensions.value.has(filterDimensionKey('keyword'))
+    && !visiblePrimaryFilters.value.some((item) => item.key === 'keyword'),
+);
 const hasRecordFieldFilters = computed(() => hasPrimaryFilters.value || hasAdvancedFilters.value);
 const shouldShowPrimaryQueryActions = computed(() => hasRecordFieldFilters.value || !hasFilterBuilder.value);
 const collapsedPrimaryFilterLimit = 5;
 const quickFilterContentVisible = computed(() => !props.quickFilterMode || primaryFiltersExpanded.value);
 const compactPrimaryFilters = computed(() =>
   props.quickFilterMode
-    ? (primaryFiltersExpanded.value ? props.primaryFilters : [])
-    : props.primaryFilters.slice(0, collapsedPrimaryFilterLimit),
+    ? (primaryFiltersExpanded.value ? visiblePrimaryFilters.value : [])
+    : visiblePrimaryFilters.value.slice(0, collapsedPrimaryFilterLimit),
 );
 const extraPrimaryFilters = computed(() =>
-  props.quickFilterMode ? [] : props.primaryFilters.slice(collapsedPrimaryFilterLimit),
+  props.quickFilterMode ? [] : visiblePrimaryFilters.value.slice(collapsedPrimaryFilterLimit),
 );
 const orderedCompactPrimaryFilters = computed(() => prioritizeKeywordFilter(compactPrimaryFilters.value));
 const orderedExtraPrimaryFilters = computed(() => prioritizeKeywordFilter(extraPrimaryFilters.value));
-const quickFilterControlCount = computed(() => props.primaryFilters.length + (hasStandaloneSearch.value ? 1 : 0));
+const quickFilterControlCount = computed(() => visiblePrimaryFilters.value.length + (hasStandaloneSearch.value ? 1 : 0));
 const hiddenPrimaryFilterCount = computed(() =>
   primaryFiltersExpanded.value ? 0 : (props.quickFilterMode ? quickFilterControlCount.value : extraPrimaryFilters.value.length),
 );
 const shouldShowPrimaryFilterToggle = computed(() =>
-  props.quickFilterMode ? hasPrimaryFilters.value : props.primaryFilters.length > collapsedPrimaryFilterLimit,
+  props.quickFilterMode ? hasPrimaryFilters.value : visiblePrimaryFilters.value.length > collapsedPrimaryFilterLimit,
 );
 const shouldSuppressPrimaryQueryButtons = computed(() =>
   props.quickFilterMode
@@ -289,6 +305,14 @@ const primaryFilterToggleText = computed(() => {
 
 function togglePrimaryFilters() {
   primaryFiltersExpanded.value = !primaryFiltersExpanded.value;
+}
+
+function isFilterKeyDisabled(key: string) {
+  return disabledFilterDimensions.value.has(filterDimensionKey(key));
+}
+
+function isFilterKeyHighlighted(key: string) {
+  return highlightedFilterDimensions.value.has(filterDimensionKey(key));
 }
 
 function prioritizeKeywordFilter(filters: RecordTableFilterField[]) {
@@ -769,7 +793,7 @@ function buildQuickFilterSummaryChips() {
       label: `${props.searchPlaceholder || '关键字'} ${String(props.keyword).trim()}`,
     });
   }
-  for (const filter of props.primaryFilters) {
+  for (const filter of visiblePrimaryFilters.value) {
     const value = props.filterValues[filter.key];
     const label = formatQuickFilterSummaryValue(filter, value);
     if (!label) {
@@ -842,8 +866,10 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
                 :class="[
                   'record-table-search',
                   { 'record-table-search--quick-keyword': quickFilterMode },
+                  { 'record-filter-control--priority-warning': isFilterKeyHighlighted('keyword') },
                 ]"
                 :placeholder="searchPlaceholder"
+                :disabled="isFilterKeyDisabled('keyword')"
                 @update:model-value="handleStandaloneKeywordUpdate"
                 @change="handleStandaloneKeywordChange"
                 @search="handleStandaloneKeywordSearch"
@@ -858,6 +884,8 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
                 :default-input-width="156"
                 :default-select-width="168"
                 :default-date-range-width="272"
+                :disabled-keys="disabledFilterKeys"
+                :highlighted-keys="highlightedFilterKeys"
                 @input-update="handleInputFilterUpdate"
                 @input-change="handleQuickInputFilterChange"
                 @input-search="handleInputFilterSearch"
@@ -878,6 +906,8 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
                   :default-input-width="156"
                   :default-select-width="168"
                   :default-date-range-width="272"
+                  :disabled-keys="disabledFilterKeys"
+                  :highlighted-keys="highlightedFilterKeys"
                   @input-update="handleInputFilterUpdate"
                   @input-change="handleQuickInputFilterChange"
                   @input-search="handleInputFilterSearch"
@@ -943,12 +973,14 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
     <el-collapse-transition>
       <div v-show="advancedVisible && hasAdvancedFilters" class="record-filter-advanced">
         <RecordTableFilterFields
-          :filters="advancedFilters"
+          :filters="visibleAdvancedFilters"
           :filter-values="filterValues"
           :input-drafts="inputFilterDrafts"
           :default-input-width="168"
           :default-select-width="168"
           :default-date-range-width="280"
+          :disabled-keys="disabledFilterKeys"
+          :highlighted-keys="highlightedFilterKeys"
           @input-update="handleInputFilterUpdate"
           @input-change="commitInputFilterValue"
           @input-search="handleInputFilterSearch"
@@ -1216,6 +1248,25 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 .record-table-search--quick-keyword :deep(.el-input__prefix),
 .record-table-search--quick-keyword :deep(.el-input__inner::placeholder) {
   color: var(--el-color-warning-light-5);
+}
+
+.record-filter-control--priority-warning {
+  animation: record-filter-priority-pulse 1s ease-in-out 0s 3;
+}
+
+.record-filter-control--priority-warning :deep(.el-input__wrapper) {
+  box-shadow: 0 0 0 1px var(--el-color-warning) inset !important;
+}
+
+@keyframes record-filter-priority-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-1px);
+  }
 }
 
 .record-table-sort-label {
