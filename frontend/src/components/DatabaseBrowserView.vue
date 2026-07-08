@@ -10,6 +10,7 @@ import SmartSelect from './base/SmartSelect.vue';
 import SmartTableHeader from './base/SmartTableHeader.vue';
 import BaseSearchInput from './base/BaseSearchInput.vue';
 import PageStateShell from './base/PageStateShell.vue';
+import TableFunctionBar from './base/TableFunctionBar.vue';
 import { useRouteTableState } from '../composables/useRouteTableState';
 
 const tablesLoading = ref(false);
@@ -411,44 +412,48 @@ onBeforeUnmount(() => {
     </template>
 
     <div class="db-browser-card">
-      <div class="db-toolbar">
-        <div class="db-toolbar-filters">
-          <SmartSelect
-            :model-value="selectedTable"
-            class="db-table-select"
-            placeholder="请选择要查看的本地表"
-            :loading="tablesLoading"
-            :options="smartTableOptions"
-            @change="handleTableSelectChange"
-          />
+      <TableFunctionBar>
+        <template #status>
+          <div class="db-toolbar-filters">
+            <SmartSelect
+              :model-value="selectedTable"
+              class="db-table-select"
+              placeholder="请选择要查看的本地表"
+              :loading="tablesLoading"
+              :options="smartTableOptions"
+              @change="handleTableSelectChange"
+            />
 
-          <BaseSearchInput
-            :model-value="keywordDraft"
-            class="db-search-input"
-            placeholder="输入关键字搜索当前表"
-            @update:model-value="keywordDraft = $event"
-            @search="handleSearch"
-            @clear="handleReset"
-          />
-        </div>
+            <BaseSearchInput
+              :model-value="keywordDraft"
+              class="db-search-input"
+              placeholder="输入关键字搜索当前表"
+              @update:model-value="keywordDraft = $event"
+              @search="handleSearch"
+              @clear="handleReset"
+            />
+          </div>
+        </template>
 
-        <div class="db-toolbar-actions">
-          <el-button type="primary" class="app-action-button app-action-button--query" @click="handleSearch">搜索</el-button>
-          <el-button class="app-action-button app-action-button--reset" @click="handleReset">重置</el-button>
-          <el-button
-            class="app-action-button app-action-button--refresh"
-            :icon="Refresh"
-            :loading="refreshingTable"
-            :disabled="!currentTableRefreshable"
-            @click="handleRefresh"
-          >
-            重新加载表数据
-          </el-button>
-          <span class="db-refresh-note">
-            {{ currentTableRefreshable ? '刷新会触发当前镜像表重新抓取源端数据' : '来源表为管理员只读预览，本地表无需刷新' }}
-          </span>
-        </div>
-      </div>
+        <template #actions>
+          <div class="db-toolbar-actions">
+            <el-button type="primary" class="app-action-button app-action-button--query" @click="handleSearch">搜索</el-button>
+            <el-button class="app-action-button app-action-button--reset" @click="handleReset">重置</el-button>
+            <el-button
+              class="app-action-button app-action-button--refresh"
+              :icon="Refresh"
+              :loading="refreshingTable"
+              :disabled="!currentTableRefreshable"
+              @click="handleRefresh"
+            >
+              重新加载表数据
+            </el-button>
+            <span class="db-refresh-note">
+              {{ currentTableRefreshable ? '刷新会触发当前镜像表重新抓取源端数据' : '来源表为管理员只读预览，本地表无需刷新' }}
+            </span>
+          </div>
+        </template>
+      </TableFunctionBar>
 
       <el-card shadow="never" class="db-table-card">
         <template #header>

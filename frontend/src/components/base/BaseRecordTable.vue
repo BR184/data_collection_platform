@@ -8,6 +8,7 @@ import BaseRecordTableCell from './BaseRecordTableCell.vue';
 import { resolveRecordTableCellDisplay } from './base-record-table-cell';
 import RecordTableFilterFields from './RecordTableFilterFields.vue';
 import SmartTableHeader from './SmartTableHeader.vue';
+import TableFunctionBar from './TableFunctionBar.vue';
 import { tableHeaderMinimumWidth } from './table-header-layout';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
@@ -713,23 +714,29 @@ function readableSortDirection(direction: string) {
       <slot name="context-prefix" />
     </section>
 
-    <section v-if="hasFilterBuilder || hasPrimaryFilters || hasAdvancedFilters || showSearch" class="record-filter-panel">
-      <div v-if="hasFilterBuilder" class="record-condition-panel">
-        <slot
-          name="filter-builder"
-          :quick-filter-toggle-visible="shouldShowPrimaryFilterToggleInFilterBuilder"
-          :quick-filter-toggle-text="primaryFilterToggleText"
-          :quick-filter-toggle-icon="primaryFilterToggleIcon"
-          :toggle-quick-filter="togglePrimaryFilters"
-        />
-      </div>
+    <TableFunctionBar
+      v-if="hasFilterBuilder || hasPrimaryFilters || hasAdvancedFilters || showSearch || hasToolbarPrefix || hasPrimaryActions || hasToolbarActions || showRefresh || shouldShowCurrentSort"
+      class="record-table-function-bar"
+      :quick-visible="shouldShowPrimaryFilterRow && (!quickFilterMode || primaryFiltersExpanded)"
+    >
+      <template v-if="hasFilterBuilder" #filter>
+        <div class="record-condition-panel">
+          <slot
+            name="filter-builder"
+            :quick-filter-toggle-visible="shouldShowPrimaryFilterToggleInFilterBuilder"
+            :quick-filter-toggle-text="primaryFilterToggleText"
+            :quick-filter-toggle-icon="primaryFilterToggleIcon"
+            :toggle-quick-filter="togglePrimaryFilters"
+          />
+        </div>
+      </template>
 
-      <div v-if="shouldShowPrimaryFilterRow" class="record-filter-primary">
+      <template v-if="shouldShowPrimaryFilterRow" #quick>
         <div class="record-filter-query-strip">
           <div class="record-filter-fields-stack">
             <div class="record-filter-fields-cluster">
               <BaseSearchInput
-                v-if="hasStandaloneSearch && quickFilterContentVisible"
+                v-if="hasStandaloneSearch"
                 :model-value="keywordDraft"
                 :class="[
                   'record-table-search',
@@ -803,33 +810,13 @@ function readableSortDirection(direction: string) {
             </template>
           </div>
         </div>
-      </div>
+      </template>
 
-      <el-collapse-transition>
-        <div v-show="advancedVisible && hasAdvancedFilters" class="record-filter-advanced">
-          <RecordTableFilterFields
-            :filters="advancedFilters"
-            :filter-values="filterValues"
-            :input-drafts="inputFilterDrafts"
-            :default-input-width="168"
-            :default-select-width="168"
-            :default-date-range-width="280"
-            @input-update="handleInputFilterUpdate"
-            @input-change="commitInputFilterValue"
-            @input-search="handleInputFilterSearch"
-            @input-clear="handleInputFilterClear"
-            @filter-change="handleFilterChange"
-          />
-        </div>
-      </el-collapse-transition>
-    </section>
-
-    <div v-if="hasToolbarPrefix || hasPrimaryActions || hasToolbarActions || showRefresh || shouldShowCurrentSort" class="record-table-toolbar">
-      <div class="record-table-toolbar-main">
+      <template v-if="hasToolbarPrefix" #status>
         <slot name="toolbar-prefix" />
-      </div>
+      </template>
 
-      <div class="record-table-toolbar-actions">
+      <template v-if="hasPrimaryActions || hasToolbarActions || showRefresh || shouldShowCurrentSort" #actions>
         <slot name="primary-actions" />
         <template v-if="shouldShowCurrentSort">
           <span class="record-table-sort-label">当前排序</span>
@@ -846,8 +833,26 @@ function readableSortDirection(direction: string) {
         >
           刷新
         </el-button>
+      </template>
+    </TableFunctionBar>
+
+    <el-collapse-transition>
+      <div v-show="advancedVisible && hasAdvancedFilters" class="record-filter-advanced">
+        <RecordTableFilterFields
+          :filters="advancedFilters"
+          :filter-values="filterValues"
+          :input-drafts="inputFilterDrafts"
+          :default-input-width="168"
+          :default-select-width="168"
+          :default-date-range-width="280"
+          @input-update="handleInputFilterUpdate"
+          @input-change="commitInputFilterValue"
+          @input-search="handleInputFilterSearch"
+          @input-clear="handleInputFilterClear"
+          @filter-change="handleFilterChange"
+        />
       </div>
-    </div>
+    </el-collapse-transition>
 
     <section v-if="hasActiveFilterTags" class="record-filter-tags">
       <span class="record-filter-tags-label">已选条件</span>
@@ -1006,26 +1011,9 @@ function readableSortDirection(direction: string) {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
 }
 
-.record-filter-panel {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-  padding: 0;
-  border-bottom: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
 .record-context-panel {
   padding: 0 2px 4px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.record-filter-primary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
 }
 
 .record-condition-panel {
@@ -1080,10 +1068,6 @@ function readableSortDirection(direction: string) {
 }
 
 @media (max-width: 1180px) {
-  .record-filter-primary {
-    grid-template-columns: 1fr;
-  }
-
   .record-filter-query-strip {
     grid-template-columns: 1fr;
   }
@@ -1162,32 +1146,6 @@ function readableSortDirection(direction: string) {
   border-radius: 999px;
 }
 
-.record-table-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 40px;
-  padding: 2px 2px 0;
-}
-
-.record-table-toolbar-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1 1 560px;
-  flex-wrap: wrap;
-}
-
-.record-table-toolbar-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-  max-width: 100%;
-}
-
 .record-table-sort-label {
   color: #5f7388;
   font-size: 13px;
@@ -1198,20 +1156,6 @@ function readableSortDirection(direction: string) {
 .record-page-sort-tag {
   max-width: 220px;
   justify-content: center;
-}
-
-.record-table-toolbar-actions :deep(.review-data-toolbar-actions),
-.record-table-toolbar-actions :deep(.code-review-illegal-toolbar-actions),
-.record-table-toolbar-actions :deep(.issue-illegal-toolbar-actions),
-.record-table-toolbar-actions :deep(.customer-record-toolbar-actions) {
-  justify-content: flex-end;
-}
-
-.record-table-toolbar-actions :deep(.el-button + .el-button),
-.record-table-toolbar-actions :deep(.el-dropdown + .el-button),
-.record-table-toolbar-actions :deep(.el-button + .el-dropdown),
-.record-table-toolbar-actions :deep(.el-dropdown + .el-dropdown) {
-  margin-left: 0;
 }
 
 .record-table-frame {
@@ -1359,17 +1303,4 @@ function readableSortDirection(direction: string) {
   display: none;
 }
 
-@media (max-width: 960px) {
-  .record-filter-primary {
-    grid-template-columns: 1fr;
-  }
-
-  .record-table-toolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .record-table-toolbar-actions {
-    justify-content: flex-start;
-  }
-}
 </style>

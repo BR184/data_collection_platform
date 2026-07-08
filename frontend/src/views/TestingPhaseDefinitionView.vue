@@ -4,6 +4,7 @@ import { ArrowDown, ArrowRight, ArrowUp, Delete, Edit, Plus, Refresh, Search } f
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
 import SmartTableHeader from '../components/base/SmartTableHeader.vue';
+import TableFunctionBar from '../components/base/TableFunctionBar.vue';
 import type {
   TestingPhaseDefinitionResponse,
   TestingPhaseDefinitionSaveRequest,
@@ -412,53 +413,57 @@ function nextChildSortOrder() {
 <template>
   <div class="testing-phase-definition-page">
     <el-card class="panel-card testing-phase-toolbar-card">
-      <div class="testing-phase-toolbar">
-        <div class="testing-phase-toolbar-main">
-          <el-select
-            v-model="projectId"
-            filterable
-            fit-input-width
-            placeholder="选择项目"
-            popper-class="platform-select-dropdown"
-            class="testing-phase-toolbar__project"
-          >
-            <el-option
-              v-for="option in projectSelectOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
+      <TableFunctionBar>
+        <template #status>
+          <div class="testing-phase-toolbar-main">
+            <el-select
+              v-model="projectId"
+              filterable
+              fit-input-width
+              placeholder="选择项目"
+              popper-class="platform-select-dropdown"
+              class="testing-phase-toolbar__project"
+            >
+              <el-option
+                v-for="option in projectSelectOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <el-select
+              v-model="enabledFilter"
+              clearable
+              fit-input-width
+              placeholder="全部状态"
+              popper-class="platform-select-dropdown"
+              class="testing-phase-toolbar__status"
+              @change="loadGroups"
+              @clear="loadGroups"
+            >
+              <el-option
+                v-for="option in enabledOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
+            <el-input
+              v-model="keyword"
+              clearable
+              placeholder="搜索阶段或测试阶段名称"
+              class="testing-phase-toolbar__keyword"
+              :prefix-icon="Search"
+              @keyup.enter="loadGroups"
+              @clear="loadGroups"
             />
-          </el-select>
-          <el-select
-            v-model="enabledFilter"
-            clearable
-            fit-input-width
-            placeholder="全部状态"
-            popper-class="platform-select-dropdown"
-            class="testing-phase-toolbar__status"
-            @change="loadGroups"
-            @clear="loadGroups"
-          >
-            <el-option
-              v-for="option in enabledOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-          <el-input
-            v-model="keyword"
-            clearable
-            placeholder="搜索阶段或测试阶段名称"
-            class="testing-phase-toolbar__keyword"
-            :prefix-icon="Search"
-            @keyup.enter="loadGroups"
-            @clear="loadGroups"
-          />
-          <el-button :icon="Refresh" :loading="loading" @click="loadGroups">刷新</el-button>
-        </div>
-        <el-button type="primary" :icon="Plus" @click="openCreateGroupDialog">新增阶段名称</el-button>
-      </div>
+            <el-button :icon="Refresh" :loading="loading" @click="loadGroups">刷新</el-button>
+          </div>
+        </template>
+        <template #actions>
+          <el-button type="primary" :icon="Plus" @click="openCreateGroupDialog">新增阶段名称</el-button>
+        </template>
+      </TableFunctionBar>
     </el-card>
 
     <div class="testing-phase-layout">
@@ -644,13 +649,6 @@ function nextChildSortOrder() {
   gap: 16px;
 }
 
-.testing-phase-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .testing-phase-toolbar-main {
   display: flex;
   align-items: center;
@@ -809,12 +807,6 @@ function nextChildSortOrder() {
 }
 
 @media (max-width: 760px) {
-  .testing-phase-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .testing-phase-toolbar-main,
   .testing-phase-form-grid {
     grid-template-columns: 1fr;
   }

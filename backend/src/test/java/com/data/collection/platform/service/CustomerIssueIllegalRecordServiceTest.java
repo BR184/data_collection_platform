@@ -39,7 +39,11 @@ class CustomerIssueIllegalRecordServiceTest {
             labelGroupExpansionService,
             factBuildService);
     when(issueFactRecordRepository.findPage(any()))
-        .thenReturn(new PageSlice<>(List.of(record(200, "illegal", "draft", true, "missing module")), 1, 1, 20));
+        .thenReturn(new PageSlice<>(
+            List.of(record(200, "illegal", "draft", true, CustomerIssueIllegalReasonSupport.MISSING_MODULE)),
+            1,
+            1,
+            20));
 
     CustomerIssueIllegalRecordListResponse response =
         service.listRecords(
@@ -93,13 +97,10 @@ class CustomerIssueIllegalRecordServiceTest {
             factBuildService);
     when(issueLinkService.issueUrl("default", 325L, 201))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/201");
-    when(issueFactRecordRepository.findPage(any()))
-        .thenReturn(
-            new PageSlice<>(
-                List.of(record(201, "draft illegal", "draft", true, "missing module")),
-                1,
-                1,
-                20));
+    when(customerIssueScopeProfile.matches(any())).thenReturn(true);
+    when(issueFactRecordRepository.findByProjectId(325L))
+        .thenReturn(List.of(record(
+            201, "draft illegal", "draft", true, CustomerIssueIllegalReasonSupport.MISSING_MODULE)));
 
     CustomerIssueIllegalRecordListResponse response =
         service.listRecords(
@@ -125,7 +126,7 @@ class CustomerIssueIllegalRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
-                "missing module",
+                CustomerIssueIllegalReasonSupport.MISSING_MODULE,
                 null,
                 null,
                 null,
@@ -136,13 +137,7 @@ class CustomerIssueIllegalRecordServiceTest {
     assertThat(response.records().getFirst().issueLink())
         .isEqualTo("http://gitlab.example.com/group/project/-/issues/201");
     verify(issueFactRecordRepository)
-        .findPage(
-            argThat(
-                query ->
-                    query.scope() == IssueFactRecordPageQuery.Scope.CUSTOMER
-                        && query.illegalOnly()
-                        && "missing module".equals(query.illegalReason())
-                        && "illegal".equals(query.listRequest().keyword())));
+        .findByProjectId(325L);
   }
 
   @Test
@@ -159,8 +154,8 @@ class CustomerIssueIllegalRecordServiceTest {
     when(issueFactRecordRepository.findByProjectId(325L))
         .thenReturn(
             List.of(
-                record(201, "illegal a", "draft", true, "missing module"),
-                record(202, "illegal b", "sketch", true, "missing response")));
+                record(201, "illegal a", "draft", true, CustomerIssueIllegalReasonSupport.MISSING_MODULE),
+                record(202, "illegal b", "sketch", true, CustomerIssueIllegalReasonSupport.TEMPLATE_NOT_FOLLOWED)));
     when(labelGroupExpansionService.expand(
             9L, "STRING", "moduleName", "customer-issues-illegal-records", "default"))
         .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
@@ -168,28 +163,7 @@ class CustomerIssueIllegalRecordServiceTest {
     CustomerIssueIllegalRecordListResponse response =
         service.listRecords(
             new CustomerIssueIllegalRecordQueryRequest(
-                new IssueFactRecordListRequest(
-                    325L,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    "default",
-                    1,
-                    20,
-                    "updatedAt",
-                    "desc"),
+                requestWithSource("default"),
                 null,
                 null,
                 null,
@@ -214,7 +188,8 @@ class CustomerIssueIllegalRecordServiceTest {
             factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
-        .thenReturn(List.of(record(204, "illegal milestone", "draft", true, "missing module")));
+        .thenReturn(List.of(record(
+            204, "illegal milestone", "draft", true, CustomerIssueIllegalReasonSupport.MISSING_MODULE)));
 
     CustomerIssueIllegalRecordListResponse response =
         service.listRecords(
@@ -240,7 +215,7 @@ class CustomerIssueIllegalRecordServiceTest {
                     20,
                     "updatedAt",
                     "desc"),
-                null,
+                CustomerIssueIllegalReasonSupport.MISSING_MODULE,
                 "R1",
                 null,
                 null,
@@ -262,7 +237,8 @@ class CustomerIssueIllegalRecordServiceTest {
             factBuildService);
     when(customerIssueScopeProfile.matches(any())).thenReturn(true);
     when(issueFactRecordRepository.findByProjectId(325L))
-        .thenReturn(List.of(record(203, "illegal a", "draft", true, "missing module")));
+        .thenReturn(List.of(record(
+            203, "illegal a", "draft", true, CustomerIssueIllegalReasonSupport.MISSING_MODULE)));
     when(labelGroupExpansionService.expand(
             9L, "STRING", "moduleName", "customer-issues-illegal-records", "default"))
         .thenReturn(new LabelGroupExpansionResponse(9L, "模块组", "STRING", List.of("draft"), List.of()));
@@ -270,28 +246,7 @@ class CustomerIssueIllegalRecordServiceTest {
     byte[] workbook =
         service.exportRecordsWorkbook(
             new CustomerIssueIllegalRecordQueryRequest(
-                new IssueFactRecordListRequest(
-                    325L,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    "default",
-                    1,
-                    20,
-                    "updatedAt",
-                    "desc"),
+                requestWithSource("default"),
                 null,
                 null,
                 null,
@@ -344,5 +299,32 @@ class CustomerIssueIllegalRecordServiceTest {
         now.minusDays(3),
         now.minusDays(1),
         null);
+  }
+
+  private IssueFactRecordListRequest requestWithSource(String sourceInstance) {
+    return new IssueFactRecordListRequest(
+        325L,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        sourceInstance,
+        1,
+        20,
+        "updatedAt",
+        "desc");
   }
 }

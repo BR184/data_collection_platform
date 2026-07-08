@@ -62,6 +62,9 @@ class FactRefreshTaskWorkerServiceTest {
 
     when(taskService.claimNextQueuedTask(anyString(), eq(9))).thenReturn(task);
     when(configService.getConfigById(1L)).thenReturn(config);
+    when(taskService.hasSuccessfulFullBuild("corp-main", "ISSUE")).thenReturn(true);
+    when(impactScopeService.resolve(1L, "corp-main", "ISSUE"))
+        .thenReturn(FactRefreshImpactScopeService.ImpactScope.fallback());
     when(factBuildService.rebuildIssueFactsForQueuedTask(config, false))
         .thenReturn(new FactBuildResponse("corp-main:issue", false, 4, "issues built"));
 

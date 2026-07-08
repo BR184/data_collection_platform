@@ -3,7 +3,6 @@ package com.data.collection.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -182,11 +181,16 @@ class CodeReviewIllegalRecordServiceTest {
 
   @Test
   void shouldBuildFilterOptionsFromLoadedSources() {
-    when(sourceLoader.loadSources(anyMap()))
+    when(sourceLoader.loadFilterOptions(any()))
         .thenReturn(
-            List.of(
-                source(101L, 12, "repo-b", "Alice", "Owner A", "module-b", LocalDateTime.of(2026, 4, 8, 10, 0)),
-                source(102L, 5, "repo-a", "Bob", "Owner B", "module-a", LocalDateTime.of(2026, 4, 9, 10, 0))));
+            new CodeReviewIllegalRecordFilterOptionValues(
+                List.of(),
+                List.of("repo-b", "repo-a"),
+                List.of(),
+                List.of("Author A"),
+                List.of("Alice", "Bob"),
+                List.of("module-b", "module-a"),
+                List.of()));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
@@ -200,31 +204,16 @@ class CodeReviewIllegalRecordServiceTest {
 
   @Test
   void shouldBuildFilterOptionsByLegacyDropdownRules() {
-    when(sourceLoader.loadSources(anyMap()))
+    when(sourceLoader.loadFilterOptions(any()))
         .thenReturn(
-            List.of(
-                source(
-                    101L,
-                    12,
-                    "repo-a",
-                    "GitLab接口报错",
-                    "Owner A",
-                    "草图 & 工程图",
-                    LocalDateTime.of(2026, 4, 8, 10, 0),
-                    "Refactor MR",
-                    "未标注项目名",
-                    "dev"),
-                source(
-                    102L,
-                    13,
-                    "repo-b",
-                    "李四",
-                    "Owner B",
-                    "未标注模块名",
-                    LocalDateTime.of(2026, 4, 9, 10, 0),
-                    "Refactor MR",
-                    "CrownCAD",
-                    "release")));
+            new CodeReviewIllegalRecordFilterOptionValues(
+                List.of(),
+                List.of("repo-a", "repo-b"),
+                List.of("dev", "release"),
+                List.of("Author A"),
+                List.of("李四"),
+                List.of("草图", "工程图"),
+                List.of("CrownCAD")));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));

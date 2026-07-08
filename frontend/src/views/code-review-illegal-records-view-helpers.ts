@@ -180,6 +180,7 @@ export function buildCodeReviewPrimaryFilters(
 export function buildCodeReviewQuickFilterTags(
   values: Record<string, unknown>,
   legacyMode = false,
+  options: { defaultRepositoryName?: string } = {},
 ): RecordTableActiveFilterTag[] {
   const tags: RecordTableActiveFilterTag[] = [];
   pushTag(tags, 'mergeRequestIid', '合并请求编号', values.mergeRequestIid);
@@ -190,7 +191,13 @@ export function buildCodeReviewQuickFilterTags(
   pushTag(tags, 'targetBranch', '合并目标分支', values.targetBranch);
   pushTag(tags, 'illegalType', '非法类型', values.illegalType);
   pushTag(tags, 'projectName', '项目名称', values.projectName);
-  pushTag(tags, 'repositoryName', legacyMode ? '所属项目' : '代码库', values.repositoryName);
+  pushTag(
+    tags,
+    'repositoryName',
+    legacyMode ? '所属项目' : '代码库',
+    values.repositoryName,
+    options.defaultRepositoryName,
+  );
   if (Array.isArray(values.mergedAtRange) && values.mergedAtRange.length === 2) {
     tags.push({
       key: 'mergedAtRange',
@@ -333,9 +340,15 @@ function selectField(
   };
 }
 
-function pushTag(tags: RecordTableActiveFilterTag[], key: string, label: string, value: unknown) {
+function pushTag(
+  tags: RecordTableActiveFilterTag[],
+  key: string,
+  label: string,
+  value: unknown,
+  defaultValue = '',
+) {
   const text = String(value ?? '').trim();
-  if (text) {
+  if (text && text !== defaultValue.trim()) {
     tags.push({ key, label, value: text });
   }
 }

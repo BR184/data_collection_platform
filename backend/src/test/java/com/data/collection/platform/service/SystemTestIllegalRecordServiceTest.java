@@ -2,6 +2,8 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -152,7 +154,7 @@ class SystemTestIllegalRecordServiceTest {
                         && query.illegalOnly()
                         && query.excludeExcluded()
                         && query.supportedSystemIllegalReasonsOnly()
-                        && "phase1".equals(query.testingPhase())
+                        && query.testingPhases().contains("phase1")
                         && SystemTestIllegalReasonSupport.MISSING_MODULE.equals(query.illegalReason())
                         && "alice".equals(query.authorName())
                         && "bob".equals(query.assigneeName())));
@@ -161,24 +163,25 @@ class SystemTestIllegalRecordServiceTest {
   @Test
   void shouldExposeMissingModuleAsFilterOptionForEmptyModuleRows() {
     SystemTestIllegalRecordService service = service();
-    when(issueFactRecordRepository.findByProjectId(null))
+    when(issueFactRecordRepository.findSystemTestIllegalFilterValues(9L))
         .thenReturn(
-            List.of(
-                record(
-                    401,
-                    "missing module",
-                    "",
-                    "CC2026R1 system test",
-                    true,
-                    SystemTestIllegalReasonSupport.MISSING_MODULE,
-                    false)));
-    when(systemTestScopeProfile.matches(any())).thenReturn(true);
+            new IssueFactRecordRepository.SystemTestIllegalFilterValues(
+                List.of("Rocksdb"),
+                List.of(SystemTestIllegalReasonSupport.MISSING_MODULE),
+                List.of("CC2026R1 system test"),
+                List.of(SystemTestIllegalReasonSupport.MISSING_MODULE),
+                List.of("alice"),
+                List.of("bob"),
+                List.of("opened"),
+                List.of("LEVEL2"),
+                List.of("processing"),
+                List.of("bug"),
+                List.of("CC2026R1")));
 
     SystemTestIllegalRecordFilterOptionsResponse response = service.getFilterOptions(null);
 
     assertThat(response.moduleNames())
-        .extracting("value")
-        .contains(SystemTestIllegalReasonSupport.MISSING_MODULE);
+        .isEmpty();
     assertThat(response.illegalReasons())
         .extracting("value")
         .contains(SystemTestIllegalReasonSupport.MISSING_MODULE);
@@ -187,7 +190,7 @@ class SystemTestIllegalRecordServiceTest {
   @Test
   void shouldExplainSystemTestIllegalRules() {
     SystemTestIllegalRecordService service = service();
-    when(issueFactRecordRepository.findByProjectId(null))
+    when(issueFactRecordRepository.findByProjectId(9L))
         .thenReturn(
             List.of(
                 record(
@@ -218,7 +221,7 @@ class SystemTestIllegalRecordServiceTest {
             SystemTestIllegalReasonSupport.MISSING_MODULE,
             SystemTestIllegalReasonSupport.TEMPLATE_NOT_FOLLOWED,
             SystemTestIllegalReasonSupport.NON_UNIQUE_REASON);
-    assertThat(response.flowSteps()).extracting("key").contains("reason-normalize");
+    assertThat(response.flowSteps()).extracting("key").contains("illegal-filter");
   }
 
   @Test
@@ -282,6 +285,19 @@ class SystemTestIllegalRecordServiceTest {
   }
 
   private SystemTestIllegalRecordService service() {
+    lenient().when(phaseCatalogService.listParentNames(9L)).thenReturn(List.of("CC2026R1"));
+    lenient()
+        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyString()))
+        .thenAnswer(invocation -> List.of(invocation.getArgument(0, String.class)));
+    lenient()
+        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyList()))
+        .thenAnswer(invocation -> invocation.getArgument(0, List.class));
+    lenient()
+        .when(phaseScopeResolver.matchesLegacyCrownCadPhase(anyString(), anyString()))
+        .thenReturn(true);
+    lenient()
+        .when(phaseScopeResolver.matchesLegacyCrownCadPhases(anyString(), anyList()))
+        .thenReturn(true);
     lenient()
         .when(issueLinkService.issueUrl("default", 1001L, 301))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");

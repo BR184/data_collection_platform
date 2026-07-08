@@ -147,7 +147,15 @@ const filterValues = computed<Record<string, unknown>>(() => {
 const activeFilterTags = computed<RecordTableActiveFilterTag[]>(() => {
   return [
     ...conditionFilterGroupTags.value,
-    ...buildCodeReviewQuickFilterTags(filterValues.value, matchModeEnabled.value),
+    ...buildCodeReviewQuickFilterTags(
+      filterValues.value,
+      matchModeEnabled.value,
+      {
+        defaultRepositoryName: projectScopeUsesRepository.value
+          ? defaultRepositoryNameForSource(effectiveSourceValue.value)
+          : '',
+      },
+    ),
   ];
 });
 
@@ -582,8 +590,8 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
         </StatisticFilterBuilder>
       </template>
 
-      <template #primary-actions>
-        <div class="code-review-illegal-toolbar-actions">
+      <template #toolbar-prefix>
+        <div class="code-review-illegal-toolbar-status">
           <div
             v-if="sourceSwitchOptions.length > 1"
             class="code-review-source-switch"
@@ -621,6 +629,11 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           <span v-if="taskDurationText" class="code-review-illegal-batch-meta">
             执行时长：{{ taskDurationText }}
           </span>
+        </div>
+      </template>
+
+      <template #primary-actions>
+        <div class="code-review-illegal-toolbar-actions">
           <el-button
             v-if="showRefreshLatestData"
             class="app-action-button app-action-button--refresh"
@@ -795,11 +808,15 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
   gap: 12px;
 }
 
+.code-review-illegal-toolbar-status,
 .code-review-illegal-toolbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.code-review-illegal-toolbar-actions {
   justify-content: flex-end;
 }
 

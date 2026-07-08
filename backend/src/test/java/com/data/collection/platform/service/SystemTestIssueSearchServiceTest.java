@@ -2,6 +2,8 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
@@ -31,13 +33,9 @@ class SystemTestIssueSearchServiceTest {
   @Test
   void shouldUseSqlPageForPlainSearchRequests() {
     SystemTestIssueSearchService service = service();
-    when(issueFactRecordRepository.findPage(any()))
+    when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(
-            new PageSlice<>(
-                List.of(record(300, "draft", "draft", "phase1 system test", "alice", "bob")),
-                1,
-                1,
-                20));
+            List.of(record(300, "draft", "draft", "phase1 system test", "alice", "bob")));
 
     SystemTestIssueSearchListResponse response =
         service.listRecords(
@@ -69,12 +67,7 @@ class SystemTestIssueSearchServiceTest {
                 null));
 
     assertThat(response.total()).isEqualTo(1);
-    verify(issueFactRecordRepository)
-        .findPage(
-            argThat(
-                query ->
-                    "ALL".equals(query.scope().name())
-                        && !query.illegalOnly()));
+    verify(issueFactRecordRepository).findByProjectId(1001L);
   }
 
   @Test
@@ -82,13 +75,9 @@ class SystemTestIssueSearchServiceTest {
     SystemTestIssueSearchService service = service();
     when(issueLinkService.issueUrl("default", 1001L, 301))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
-    when(issueFactRecordRepository.findPage(any()))
+    when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(
-            new PageSlice<>(
-                List.of(record(301, "draft crash", "draft", "phase1 system test", "alice", "bob")),
-                1,
-                1,
-                20));
+            List.of(record(301, "draft crash", "draft", "phase1 system test", "alice", "bob")));
 
     SystemTestIssueSearchListResponse response =
         service.listRecords(
@@ -123,15 +112,7 @@ class SystemTestIssueSearchServiceTest {
     assertThat(response.records().getFirst().issueIid()).isEqualTo(301);
     assertThat(response.records().getFirst().issueLink())
         .isEqualTo("http://gitlab.example.com/group/project/-/issues/301");
-    verify(issueFactRecordRepository)
-        .findPage(
-            argThat(
-                query ->
-                    "ALL".equals(query.scope().name())
-                        && "phase1".equals(query.testingPhase())
-                        && "alice".equals(query.authorName())
-                        && "bob".equals(query.assigneeName())
-                        && "draft".equals(query.listRequest().keyword())));
+    verify(issueFactRecordRepository).findByProjectId(1001L);
   }
 
   @Test
@@ -331,6 +312,8 @@ class SystemTestIssueSearchServiceTest {
                     null,
                     null,
                     null,
+                    null,
+                    null,
                     "cc",
                     1,
                     20,
@@ -345,6 +328,19 @@ class SystemTestIssueSearchServiceTest {
   }
 
   private SystemTestIssueSearchService service() {
+    org.mockito.Mockito.lenient().when(phaseCatalogService.listParentNames(9L)).thenReturn(List.of("CC2026R1"));
+    org.mockito.Mockito.lenient()
+        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyString()))
+        .thenAnswer(invocation -> List.of(invocation.getArgument(0, String.class)));
+    org.mockito.Mockito.lenient()
+        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyList()))
+        .thenAnswer(invocation -> invocation.getArgument(0, List.class));
+    org.mockito.Mockito.lenient()
+        .when(phaseScopeResolver.matchesLegacyCrownCadPhase(anyString(), anyString()))
+        .thenReturn(true);
+    org.mockito.Mockito.lenient()
+        .when(phaseScopeResolver.matchesLegacyCrownCadPhases(anyString(), anyList()))
+        .thenReturn(true);
     org.mockito.Mockito.lenient()
         .when(pageRecordSnapshotService.issueFactSourceVersion())
         .thenReturn("test-issue-version");

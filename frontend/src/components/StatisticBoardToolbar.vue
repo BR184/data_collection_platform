@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
+import TableFunctionBar from './base/TableFunctionBar.vue';
 import SyncMetaBadge from './realtime/SyncMetaBadge.vue';
 import type { RealtimeWorkspaceStatusResponse, StatisticFilterField } from '../types/api';
 import type { RecordTableFilterField } from '../types/record-table';
@@ -236,8 +237,12 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
 </script>
 
 <template>
-  <div class="stat-board-toolbar" :class="props.uiHooks.toolbarClass">
-    <div class="stat-board-toolbar-filter-row">
+  <TableFunctionBar
+    class="stat-board-toolbar"
+    :class="props.uiHooks.toolbarClass"
+    :quick-visible="quickFiltersExpanded && hasQuickFilters"
+  >
+    <template #filter>
       <div class="stat-board-toolbar-main" :class="props.uiHooks.toolbarMainClass">
         <StatisticFilterBuilder
           :model-value="filterDraft"
@@ -259,9 +264,9 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
           </template>
         </StatisticFilterBuilder>
       </div>
-    </div>
+    </template>
 
-    <div v-if="hasQuickFilters" v-show="quickFiltersExpanded" class="stat-board-toolbar-quick-row">
+    <template v-if="hasQuickFilters" #quick>
       <RecordTableFilterFields
         :filters="quickFilterFields"
         :filter-values="quickFilterValues"
@@ -279,22 +284,22 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
         </el-button>
         <el-button class="app-action-button app-action-button--reset" @click="emit('resetFilters')">重置</el-button>
       </div>
-    </div>
+    </template>
 
-    <div class="stat-board-toolbar-status-row">
-      <div class="stat-board-toolbar-status">
-        <slot name="scope" />
-        <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
-        <SyncMetaBadge :value="lastSyncedText" />
-        <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
-          <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
-          <span v-if="showStageStatusDetails">{{ mirrorStatusText }}</span>
-          <span v-if="showStageStatusDetails">{{ factStatusText }}</span>
-          <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
-          <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
-        </div>
+    <template #status>
+      <slot name="scope" />
+      <span v-if="boardTitle" class="stat-board-meta-text">{{ boardTitle }}</span>
+      <SyncMetaBadge :value="lastSyncedText" />
+      <div v-if="realtimeStatus" class="stat-board-refresh-status" data-testid="realtime-refresh-status">
+        <el-tag size="small" :type="workspaceStatusTagType">{{ workspaceStatusText }}</el-tag>
+        <span v-if="showStageStatusDetails">{{ mirrorStatusText }}</span>
+        <span v-if="showStageStatusDetails">{{ factStatusText }}</span>
+        <span v-if="taskStartedText">任务执行时间：{{ taskStartedText }}</span>
+        <span v-if="taskDurationText">执行时长：{{ taskDurationText }}</span>
       </div>
+    </template>
 
+    <template #actions>
       <div class="stat-board-toolbar-actions" :class="props.uiHooks.toolbarActionsClass">
         <el-button
           v-if="canRefreshRealtime"
@@ -390,8 +395,8 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
           </template>
         </el-dropdown>
       </div>
-    </div>
-  </div>
+    </template>
+  </TableFunctionBar>
 </template>
 
 <style scoped>
@@ -400,30 +405,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
   gap: 10px;
   width: 100%;
   min-width: 0;
-}
-
-.stat-board-toolbar-status-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.stat-board-toolbar-filter-row {
-  min-width: 0;
-}
-
-.stat-board-toolbar-quick-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-radius: 8px;
-  background: rgba(248, 250, 252, 0.72);
 }
 
 .stat-board-toolbar-quick-actions {
@@ -439,7 +420,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
   min-width: 0;
 }
 
-.stat-board-toolbar-status,
 .stat-board-toolbar-actions {
   display: flex;
   align-items: center;
@@ -447,10 +427,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
   flex-wrap: wrap;
   max-width: 100%;
   min-width: 0;
-}
-
-.stat-board-toolbar-status {
-  justify-content: flex-start;
 }
 
 .stat-board-toolbar-actions {
@@ -484,10 +460,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
 }
 
 @media (max-width: 1180px) {
-  .stat-board-toolbar-status-row {
-    grid-template-columns: 1fr;
-  }
-
   .stat-board-toolbar-actions {
     justify-content: flex-start;
     width: 100%;

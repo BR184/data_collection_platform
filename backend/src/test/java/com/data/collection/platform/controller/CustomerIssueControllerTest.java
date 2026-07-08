@@ -79,7 +79,7 @@ class CustomerIssueControllerTest {
                     "2026-04-21",
                     "2026-04-10",
                     "2026-04-22",
-                    "default",
+                    null,
                     2,
                     10,
                     "updatedAt",
@@ -208,7 +208,7 @@ class CustomerIssueControllerTest {
         .andExpect(status().isOk())
         .andExpect(header().string(
             HttpHeaders.CONTENT_DISPOSITION,
-            "attachment; filename=\"延期问题明细.xlsx\"; filename*=UTF-8''%E5%BB%B6%E6%9C%9F%E9%97%AE%E9%A2%98%E6%98%8E%E7%BB%86.xlsx"))
+            "attachment; filename=\"download.xlsx\"; filename*=UTF-8''%E5%BB%B6%E6%9C%9F%E9%97%AE%E9%A2%98%E6%98%8E%E7%BB%86.xlsx"))
         .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .andExpect(content().bytes(new byte[] {1, 2, 3}));
   }
@@ -396,7 +396,7 @@ class CustomerIssueControllerTest {
         .andExpect(status().isOk())
         .andExpect(header().string(
             HttpHeaders.CONTENT_DISPOSITION,
-            "attachment; filename=\"客户问题非法数据.xlsx\"; filename*=UTF-8''%E5%AE%A2%E6%88%B7%E9%97%AE%E9%A2%98%E9%9D%9E%E6%B3%95%E6%95%B0%E6%8D%AE.xlsx"))
+            "attachment; filename=\"download.xlsx\"; filename*=UTF-8''%E5%A4%9A%E5%85%83%E8%AE%AE%E9%A2%98%E6%9F%A5%E8%AF%A2%E7%BB%93%E6%9E%9C.xlsx"))
         .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .andExpect(content().bytes(new byte[] {4, 5, 6}));
   }
@@ -447,7 +447,7 @@ class CustomerIssueControllerTest {
     RealtimeWorkspaceStatusResponse status =
         new RealtimeWorkspaceStatusResponse(
             "customer-issue-delay-records", true, "READY", "refresh done", false, null, null, null);
-    when(realtimeRefreshService.getStatus("customer-issue-delay-records")).thenReturn(status);
+    when(realtimeRefreshService.getStatus("customer-issue-delay-records", java.util.Map.of("topic", "delay"))).thenReturn(status);
     when(realtimeRefreshService.requestRefresh("customer-issue-delay-records")).thenReturn(status);
 
     mockMvc.perform(get("/api/customer-issues/records/status").param("topic", "delay"))
@@ -464,7 +464,7 @@ class CustomerIssueControllerTest {
     RealtimeWorkspaceStatusResponse status =
         new RealtimeWorkspaceStatusResponse(
             "customer-issue-illegal-records", true, "READY", "refresh done", false, null, null, null);
-    when(realtimeRefreshService.getStatus("customer-issue-illegal-records")).thenReturn(status);
+    when(realtimeRefreshService.getStatus("customer-issue-illegal-records", java.util.Map.of())).thenReturn(status);
     when(realtimeRefreshService.requestRefresh("customer-issue-illegal-records")).thenReturn(status);
 
     mockMvc.perform(get("/api/customer-issues/illegal-records/status"))

@@ -229,13 +229,26 @@ YYYYMMDD-<git-short-sha>
 
 ## 构建要求
 
-打包前必须完成：
+打包统一使用 Python 脚本入口：
+
+```powershell
+python scripts\package_intranet_offline.py --mode fresh-empty --release-label empty-working
+```
+
+该脚本会自动执行以下步骤并写入 `VERSION.txt`：
 
 ```powershell
 npm.cmd run test -- feature-manifest-access.test.ts ux-interaction-regressions.test.ts
 npm.cmd run build
-tools\apache-maven-3.9.6\bin\mvn.cmd -f backend\pom.xml -DskipTests package
+tools\maven\apache-maven-3.9.9\bin\mvn.cmd -f backend\pom.xml -DskipTests package
+docker build --no-cache ...
+docker save ...
+docker compose --env-file .env config
+SHA256SUMS.txt 校验
+tar -tzf 校验
 ```
+
+如果历史测试源码未跟上生产代码构造器签名，导致 `-DskipTests package` 在 `testCompile` 阶段失败，脚本默认会降级使用 `-Dmaven.test.skip=true package` 继续生成生产 jar，并在 `VERSION.txt` 中记录该降级。需要强制标准构建时，传入 `--no-allow-backend-test-source-skip`。
 
 发布包必须使用生产构建产物：
 

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { api } from '../api';
+import TableFunctionBar from '../components/base/TableFunctionBar.vue';
 import DynamicLabelGroupRuleBuilder from '../components/label-groups/DynamicLabelGroupRuleBuilder.vue';
 import LabelGroupMemberPicker from '../components/label-groups/LabelGroupMemberPicker.vue';
 import { sameLabelGroupFieldKey } from '../utils/label-group-field-key';
@@ -336,50 +337,54 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
 <template>
   <div class="label-group-settings-page">
     <el-card class="panel-card label-group-toolbar-card">
-      <div class="label-group-toolbar">
-        <div class="label-group-toolbar-main">
-          <el-select
-            v-model="valueTypeFilter"
-            clearable
-            fit-input-width
-            placeholder="全部值类型"
-            popper-class="platform-select-dropdown"
-            style="width: 150px"
-            @change="loadGroups"
-            @clear="loadGroups"
-          >
-            <el-option
-              v-for="item in valueTypeOptions"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
+      <TableFunctionBar>
+        <template #status>
+          <div class="label-group-toolbar-main">
+            <el-select
+              v-model="valueTypeFilter"
+              clearable
+              fit-input-width
+              placeholder="全部值类型"
+              popper-class="platform-select-dropdown"
+              style="width: 150px"
+              @change="loadGroups"
+              @clear="loadGroups"
+            >
+              <el-option
+                v-for="item in valueTypeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+            <el-input
+              v-model="keyword"
+              clearable
+              placeholder="搜索标签组名称"
+              style="width: 260px"
+              :prefix-icon="Search"
+              @keyup.enter="loadGroups"
+              @clear="loadGroups"
             />
-          </el-select>
-          <el-input
-            v-model="keyword"
-            clearable
-            placeholder="搜索标签组名称"
-            style="width: 260px"
-            :prefix-icon="Search"
-            @keyup.enter="loadGroups"
-            @clear="loadGroups"
-          />
+            <el-button
+              class="label-group-icon-button"
+              :icon="Refresh"
+              :loading="loading"
+              aria-label="刷新"
+              @click="loadGroups"
+            />
+          </div>
+        </template>
+        <template #actions>
           <el-button
             class="label-group-icon-button"
-            :icon="Refresh"
-            :loading="loading"
-            aria-label="刷新"
-            @click="loadGroups"
+            type="primary"
+            :icon="Plus"
+            aria-label="新建标签组"
+            @click="openCreateDialog"
           />
-        </div>
-        <el-button
-          class="label-group-icon-button"
-          type="primary"
-          :icon="Plus"
-          aria-label="新建标签组"
-          @click="openCreateDialog"
-        />
-      </div>
+        </template>
+      </TableFunctionBar>
     </el-card>
 
     <el-card class="panel-card">
@@ -635,13 +640,6 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
   padding: 12px 14px !important;
 }
 
-.label-group-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .label-group-toolbar-main {
   display: flex;
   align-items: center;
@@ -741,11 +739,6 @@ async function setGroupEnabled(group: LabelGroup, enabled: boolean) {
 }
 
 @media (max-width: 760px) {
-  .label-group-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .label-group-form {
     grid-template-columns: 1fr;
   }
