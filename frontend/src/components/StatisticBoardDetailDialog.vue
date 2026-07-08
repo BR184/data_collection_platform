@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ArrowDown, ArrowUp } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Close } from '@element-plus/icons-vue';
 import StatisticBoardDetailCell from './StatisticBoardDetailCell.vue';
 import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
 import SmartTableHeader from './base/SmartTableHeader.vue';
@@ -35,7 +35,6 @@ const props = defineProps<{
   onSizeChange: (size: number) => void;
   onQuickFilterInputUpdate: (key: string, value: string) => void;
   onQuickFilterChange: (key: string, value: string | string[] | null) => void;
-  onApplyQuickFilters: () => void;
   onResetQuickFilters: () => void;
 }>();
 
@@ -414,30 +413,44 @@ function readableDetailSortDirection(direction: string) {
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="detail?.title || '明细数据'"
     class="stat-detail-dialog"
     :style="dialogStyle"
-    top="8vh"
+    top="4vh"
     align-center
+    :show-close="false"
     destroy-on-close
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <div class="stat-detail-shell" v-loading="loading">
-      <div v-if="detail" class="stat-detail-controlbar">
-        <el-button
-          class="app-action-button app-action-button--filter"
-          plain
-          :icon="quickFilterToggleIcon"
-          @click="quickFiltersExpanded = !quickFiltersExpanded"
-        >
-          {{ quickFilterToggleText }}
-        </el-button>
-        <div v-if="currentSortSummary" class="stat-detail-sortbar">
-          <span class="stat-detail-sortbar-label">当前排序</span>
-          <el-tag effect="plain" type="info" size="small">{{ currentSortSummary }}</el-tag>
+    <template #header="{ close, titleId, titleClass }">
+      <div class="stat-detail-header">
+        <h2 :id="titleId" :class="['stat-detail-title', titleClass]">
+          {{ detail?.title || '明细数据' }}
+        </h2>
+        <div v-if="detail" class="stat-detail-header-actions">
+          <el-button
+            class="app-action-button app-action-button--filter stat-detail-filter-toggle"
+            plain
+            :icon="quickFilterToggleIcon"
+            @click="quickFiltersExpanded = !quickFiltersExpanded"
+          >
+            {{ quickFilterToggleText }}
+          </el-button>
+          <div v-if="currentSortSummary" class="stat-detail-sortbar">
+            <span class="stat-detail-sortbar-label">当前排序</span>
+            <el-tag effect="plain" type="info" size="small">{{ currentSortSummary }}</el-tag>
+          </div>
         </div>
+        <el-button
+          class="stat-detail-close"
+          text
+          :icon="Close"
+          aria-label="关闭明细弹窗"
+          @click="close"
+        />
       </div>
+    </template>
+    <div class="stat-detail-shell" :class="{ 'is-loading-empty': loading && !detail }" v-loading="loading">
       <el-collapse-transition>
         <div v-show="detail && quickFiltersExpanded" class="stat-detail-filterbar">
           <div class="stat-detail-quick-fields">
@@ -456,9 +469,6 @@ function readableDetailSortDirection(direction: string) {
             />
           </div>
           <div class="stat-detail-filter-actions">
-            <el-button type="primary" class="app-action-button app-action-button--query" @click="onApplyQuickFilters">
-              查询
-            </el-button>
             <el-button class="app-action-button app-action-button--reset" @click="onResetQuickFilters">
               重置
             </el-button>
@@ -580,22 +590,61 @@ function readableDetailSortDirection(direction: string) {
 :global(.stat-detail-dialog) {
   display: flex;
   flex-direction: column;
-  width: min(1680px, calc(100vw - 40px));
-  max-width: calc(100vw - 40px);
-  max-height: calc(100vh - 48px);
-  border-radius: 8px;
+  width: min(1728px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 18px);
+  overflow: hidden;
+  border-radius: 24px;
+  box-shadow: var(--el-box-shadow-dark);
 }
 
 :global(.stat-detail-dialog .el-dialog__header) {
-  padding: 16px 20px 12px;
+  padding: 4px 18px 6px;
   margin-right: 0;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 0;
 }
 
-:global(.stat-detail-dialog .el-dialog__title) {
-  color: #1f2329;
-  font-size: 15px;
+.stat-detail-header {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stat-detail-title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--el-text-color-primary);
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 34px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-detail-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stat-detail-filter-toggle {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 14px;
   font-weight: 600;
+}
+
+.stat-detail-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--el-text-color-secondary);
 }
 
 :global(.stat-detail-dialog .el-dialog__body) {
@@ -603,39 +652,39 @@ function readableDetailSortDirection(direction: string) {
   min-height: 0;
   width: 100%;
   overflow: hidden;
-  padding: 12px 16px 14px;
+  padding: 3px 6px 6px;
   box-sizing: border-box;
 }
 
 .stat-detail-shell {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   min-height: 0;
-  max-height: calc(100vh - 132px);
+  max-height: calc(100vh - 70px);
 }
 
-.stat-detail-controlbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 32px;
-  min-width: 0;
+.stat-detail-shell.is-loading-empty {
+  min-height: 112px;
 }
 
-.stat-detail-controlbar :deep(.el-button + .el-button) {
-  margin-left: 0;
+.stat-detail-shell :deep(.el-loading-mask) {
+  border-radius: 18px;
+  overflow: visible;
+}
+
+.stat-detail-shell :deep(.el-loading-spinner) {
+  margin-top: 0;
+  transform: translateY(-50%);
 }
 
 .stat-detail-sortbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
-  margin-left: auto;
 }
 
 .stat-detail-filterbar {
@@ -644,10 +693,10 @@ function readableDetailSortDirection(direction: string) {
   gap: 8px;
   width: 100%;
   min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid #e5eaf3;
+  padding: 6px 8px;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
-  background: #fafcff;
+  background: var(--el-fill-color-extra-light);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -688,8 +737,8 @@ function readableDetailSortDirection(direction: string) {
 }
 
 .stat-detail-sortbar-label {
-  color: #5f7388;
-  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -707,8 +756,8 @@ function readableDetailSortDirection(direction: string) {
 .stat-detail-expand-panel {
   width: 100%;
   box-sizing: border-box;
-  padding: 10px 12px 12px 42px;
-  background: #fafcff;
+  padding: 8px 10px 10px 42px;
+  background: var(--el-fill-color-extra-light);
 }
 
 .stat-detail-expand-descriptions {
@@ -718,16 +767,16 @@ function readableDetailSortDirection(direction: string) {
 
 .stat-detail-expand-descriptions :deep(.el-descriptions__label.stat-detail-expand-label) {
   width: 128px;
-  color: #536274;
+  color: var(--el-text-color-secondary);
   font-weight: 600;
-  background: #f4f7fb;
+  background: var(--el-fill-color-light);
   text-align: center;
   vertical-align: middle;
 }
 
 .stat-detail-expand-descriptions :deep(.el-descriptions__content.stat-detail-expand-content) {
   min-width: 180px;
-  color: #1f2329;
+  color: var(--el-text-color-primary);
   text-align: center;
   vertical-align: middle;
 }
@@ -738,15 +787,28 @@ function readableDetailSortDirection(direction: string) {
   min-width: 0;
   max-width: 100%;
   flex: 1 1 auto;
-  max-height: min(70vh, calc(100vh - 206px));
+  max-height: min(78vh, calc(100vh - 122px));
   overflow: auto;
   outline: none;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--platform-table-header-bg, #f8fafc);
+  box-shadow: inset 0 0 0 1px var(--el-border-color-light);
   scrollbar-gutter: stable;
 }
 
 .stat-detail-table {
   min-width: 100%;
   width: max(100%, var(--stat-detail-table-content-width, 960px));
+  border: 0 !important;
+  border-radius: 15px;
+  overflow: hidden;
+  background: var(--platform-table-header-bg, #f8fafc);
+}
+
+.stat-detail-table::before,
+.stat-detail-table::after {
+  display: none !important;
 }
 
 .stat-detail-table :deep(.el-table__inner-wrapper),
@@ -777,7 +839,7 @@ function readableDetailSortDirection(direction: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
+  min-height: 26px;
   width: 100% !important;
   min-width: 0;
   box-sizing: border-box;
@@ -821,12 +883,17 @@ function readableDetailSortDirection(direction: string) {
 }
 
 .stat-detail-table :deep(td.el-table__cell) {
-  padding: 6px 0 !important;
+  padding: 5px 0 !important;
   vertical-align: middle;
 }
 
 .stat-detail-table :deep(.el-table__row) {
-  min-height: 36px;
+  min-height: 34px;
+}
+
+.stat-detail-table :deep(th.el-table__cell) {
+  padding: 7px 0 !important;
+  background: var(--el-fill-color-lighter) !important;
 }
 
 .stat-detail-table :deep(.el-table__expanded-cell .cell) {
@@ -844,21 +911,48 @@ function readableDetailSortDirection(direction: string) {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
-  padding-top: 2px;
+  padding: 1px 0 0;
+}
+
+.detail-pagination :deep(.el-pagination) {
+  --el-pagination-button-height: 26px;
+  --el-pagination-button-width: 26px;
+  --el-pagination-font-size: 13px;
+  min-height: 26px;
+}
+
+.detail-pagination :deep(.el-select .el-select__wrapper) {
+  min-height: 26px;
 }
 
 @media (max-width: 960px) {
   :global(.stat-detail-dialog) {
-    width: calc(100vw - 16px);
-    max-width: calc(100vw - 16px);
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    border-radius: 18px;
   }
 
   :global(.stat-detail-dialog .el-dialog__header) {
-    padding: 14px 14px 10px;
+    padding: 4px 10px 5px;
   }
 
   :global(.stat-detail-dialog .el-dialog__body) {
-    padding: 10px 10px 12px;
+    padding: 4px 5px 6px;
+  }
+
+  .stat-detail-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .stat-detail-title {
+    font-size: 20px;
+    line-height: 32px;
+  }
+
+  .stat-detail-header-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 

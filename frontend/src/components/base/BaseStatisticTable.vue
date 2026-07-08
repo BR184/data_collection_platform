@@ -352,15 +352,24 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
   overflow-x: auto;
   overflow-y: hidden;
   outline: none;
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.92);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--platform-table-header-bg, #f8fafc);
+  box-shadow: inset 0 0 0 1px #d7dee9;
 }
 
 .stat-matrix-table {
   width: 100%;
   min-width: 100%;
   border: 0 !important;
-  border-radius: 0;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--platform-table-header-bg, #f8fafc);
+}
+
+.stat-matrix-table::before,
+.stat-matrix-table::after {
+  display: none !important;
 }
 
 .stat-matrix-table :deep(.el-table__inner-wrapper),

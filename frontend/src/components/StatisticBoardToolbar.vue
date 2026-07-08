@@ -60,6 +60,7 @@ const emit = defineEmits<{
 const PRIMARY_EXPORT_COMMAND = '__primary_export__';
 
 const quickFiltersExpanded = ref(false);
+const conditionFiltersExpanded = ref(false);
 const exportExtraActions = computed(() => props.extraActions.filter(isExportAction));
 const nonExportExtraActions = computed(() => props.extraActions.filter((action) => !isExportAction(action)));
 const exportMenuItems = computed(() => [
@@ -230,10 +231,12 @@ function updateQuickFilterInput(key: string, value: string) {
 
 function commitQuickFilterInput(key: string, value: string) {
   emit('quickFilterChange', { key, value });
+  emit('applyFilters');
 }
 
 function commitQuickFilterValue(key: string, value: string | string[] | null) {
   emit('quickFilterChange', { key, value });
+  emit('applyFilters');
 }
 
 function buildQuickFilterSummaryChips() {
@@ -282,9 +285,11 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
           :model-value="filterDraft"
           :fields="activeFilterFields"
           :extra-summary-chips="quickFilterSummaryChips"
+          :expanded="conditionFiltersExpanded"
           show-apply-actions
           @apply="emit('applyFilters')"
           @reset="emit('resetFilters')"
+          @update:expanded="conditionFiltersExpanded = $event"
         >
           <template #summary-actions-extra>
             <el-button
@@ -313,6 +318,9 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         @input-clear="(key) => commitQuickFilterInput(key, '')"
         @filter-change="commitQuickFilterValue"
       />
+      <div v-if="!conditionFiltersExpanded" class="stat-board-toolbar-quick-actions">
+        <el-button class="app-action-button app-action-button--reset" @click="emit('resetFilters')">重置</el-button>
+      </div>
     </template>
 
     <template #status>
@@ -441,6 +449,14 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   min-width: 0;
 }
 
+.stat-board-toolbar-quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
 .stat-board-toolbar-actions {
   display: flex;
   align-items: center;
@@ -484,6 +500,10 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   .stat-board-toolbar-actions {
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .stat-board-toolbar-quick-actions {
+    margin-left: 0;
   }
 }
 </style>

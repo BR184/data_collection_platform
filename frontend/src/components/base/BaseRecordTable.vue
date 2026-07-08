@@ -197,6 +197,12 @@ const shouldSuppressPrimaryQueryButtons = computed(() =>
 const shouldShowPrimaryQueryButtons = computed(() =>
   (!props.quickFilterMode || primaryFiltersExpanded.value) && !shouldSuppressPrimaryQueryButtons.value,
 );
+const shouldShowPrimaryQueryButton = computed(() => !props.quickFilterMode && shouldShowPrimaryQueryButtons.value);
+const shouldShowPrimaryResetButton = computed(() =>
+  props.quickFilterMode
+    ? primaryFiltersExpanded.value && !shouldSuppressPrimaryQueryButtons.value
+    : shouldShowPrimaryQueryButtons.value,
+);
 const shouldShowPrimaryFilterToggleInFilterBuilder = computed(() =>
   shouldShowPrimaryFilterToggle.value && props.quickFilterTogglePlacement === 'filter-builder' && hasFilterBuilder.value,
 );
@@ -204,7 +210,10 @@ const shouldShowPrimaryFilterToggleInPrimaryActions = computed(() =>
   shouldShowPrimaryFilterToggle.value && !shouldShowPrimaryFilterToggleInFilterBuilder.value,
 );
 const hasPrimaryQueryActionButtons = computed(() =>
-  shouldShowPrimaryFilterToggleInPrimaryActions.value || hasAdvancedFilters.value || shouldShowPrimaryQueryButtons.value,
+  shouldShowPrimaryFilterToggleInPrimaryActions.value
+    || hasAdvancedFilters.value
+    || shouldShowPrimaryQueryButton.value
+    || shouldShowPrimaryResetButton.value,
 );
 const hasVisiblePrimaryFilterControls = computed(() =>
   compactPrimaryFilters.value.length > 0
@@ -323,6 +332,7 @@ function handleReset() {
 
 function handleFilterChange(key: string, value: string | string[] | null) {
   emit('filter-change', { key, value });
+  handleQuickFilterQuery();
 }
 
 function handleExpandChange(row: Record<string, unknown>, expandedRows: Record<string, unknown>[]) {
@@ -377,12 +387,28 @@ function handleQueryClick() {
   emit('query', resolveQueryKeyword(committedInputFilters));
 }
 
+function handleQuickFilterQuery() {
+  if (!props.quickFilterMode) {
+    return;
+  }
+  handleQueryClick();
+}
+
 function handleInputFilterSearch(key: string) {
   keywordAutoSearchTask.clear();
   commitInputFilterValue(key);
+  if (props.quickFilterMode) {
+    handleQuickFilterQuery();
+    return;
+  }
   if (!props.keywordAutoSearch || key !== 'keyword') {
     handleQueryClick();
   }
+}
+
+function handleQuickInputFilterChange(key: string, value = getInputFilterDraft(key)) {
+  commitInputFilterValue(key, value);
+  handleQuickFilterQuery();
 }
 
 function handleInputFilterUpdate(key: string, value: string) {
@@ -397,6 +423,7 @@ function handleInputFilterUpdate(key: string, value: string) {
 function handleInputFilterClear(key: string) {
   keywordAutoSearchTask.clear();
   commitInputFilterValue(key, '');
+  handleQuickFilterQuery();
 }
 
 function emitStandaloneKeywordSearch(value = keywordDraft.value) {
@@ -655,6 +682,10 @@ function handleStandaloneKeywordUpdate(value: string) {
 
 function handleStandaloneKeywordSearch() {
   keywordAutoSearchTask.clear();
+  if (props.quickFilterMode) {
+    handleSearch();
+    return;
+  }
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
     emitStandaloneKeywordSearch();
     return;
@@ -662,9 +693,19 @@ function handleStandaloneKeywordSearch() {
   handleSearch();
 }
 
+function handleStandaloneKeywordChange() {
+  if (props.quickFilterMode) {
+    handleStandaloneKeywordSearch();
+  }
+}
+
 function handleStandaloneKeywordClear() {
   keywordAutoSearchTask.clear();
   keywordDraft.value = '';
+  if (props.quickFilterMode) {
+    handleSearch();
+    return;
+  }
   if (props.keywordAutoSearch && hasStandaloneSearch.value) {
     emitStandaloneKeywordSearch('');
     return;
@@ -795,6 +836,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
                 ]"
                 :placeholder="searchPlaceholder"
                 @update:model-value="handleStandaloneKeywordUpdate"
+                @change="handleStandaloneKeywordChange"
                 @search="handleStandaloneKeywordSearch"
                 @clear="handleStandaloneKeywordClear"
               />
@@ -808,7 +850,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
                 :default-select-width="168"
                 :default-date-range-width="272"
                 @input-update="handleInputFilterUpdate"
-                @input-change="commitInputFilterValue"
+                @input-change="handleQuickInputFilterChange"
                 @input-search="handleInputFilterSearch"
                 @input-clear="handleInputFilterClear"
                 @filter-change="handleFilterChange"
@@ -828,7 +870,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
                   :default-select-width="168"
                   :default-date-range-width="272"
                   @input-update="handleInputFilterUpdate"
-                  @input-change="commitInputFilterValue"
+                  @input-change="handleQuickInputFilterChange"
                   @input-search="handleInputFilterSearch"
                   @input-clear="handleInputFilterClear"
                   @filter-change="handleFilterChange"
@@ -853,10 +895,12 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
             >
               {{ advancedVisible ? '收起高级筛选' : '高级筛选' }}
             </el-button>
-            <template v-if="shouldShowPrimaryQueryButtons">
+            <template v-if="shouldShowPrimaryQueryButton">
               <el-button class="app-action-button app-action-button--query" @click="handleQueryClick">
                 {{ queryButtonText }}
               </el-button>
+            </template>
+            <template v-if="shouldShowPrimaryResetButton">
               <el-button class="app-action-button app-action-button--reset" @click="handleReset">重置</el-button>
             </template>
           </div>
@@ -1182,18 +1226,25 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border-radius: 6px;
-  border: 0;
-  background: #fff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--platform-table-header-bg, #f8fafc);
   outline: none;
-  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.92);
+  box-shadow: inset 0 0 0 1px #d7dee9;
 }
 
 .record-table {
   width: 100%;
   min-width: 100%;
   border: 0 !important;
-  border-radius: 0;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--platform-table-header-bg, #f8fafc);
+}
+
+.record-table::before,
+.record-table::after {
+  display: none !important;
 }
 
 .record-table :deep(.el-table__inner-wrapper),

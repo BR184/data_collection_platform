@@ -425,7 +425,6 @@ const {
   handleDetailSizeChange,
   handleDetailQuickFilterInputUpdate,
   handleDetailQuickFilterChange,
-  applyDetailQuickFilters,
   resetDetailQuickFilters,
   handleDetailVisibleChange,
   syncFromRoute: syncDetailFromRoute,
@@ -937,7 +936,6 @@ function autoRefreshMarkerKey() {
       :on-size-change="handleDetailSizeChange"
       :on-quick-filter-input-update="handleDetailQuickFilterInputUpdate"
       :on-quick-filter-change="handleDetailQuickFilterChange"
-      :on-apply-quick-filters="applyDetailQuickFilters"
       :on-reset-quick-filters="resetDetailQuickFilters"
       @update:model-value="handleDetailVisibleChange"
     />

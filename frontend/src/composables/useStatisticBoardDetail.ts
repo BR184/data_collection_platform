@@ -205,13 +205,6 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     reloadDetailFromFirstPage();
   }
 
-  function applyDetailQuickFilters() {
-    for (const [key, value] of Object.entries(detailQuickFilterInputDrafts)) {
-      setDetailQuickFilterValue(key, value);
-    }
-    reloadDetailFromFirstPage();
-  }
-
   function resetDetailQuickFilters() {
     resetDetailQuickFilterState();
     reloadDetailFromFirstPage();
@@ -298,7 +291,6 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     handleDetailSizeChange,
     handleDetailQuickFilterInputUpdate,
     handleDetailQuickFilterChange,
-    applyDetailQuickFilters,
     resetDetailQuickFilters,
     handleDetailVisibleChange,
     syncFromRoute,

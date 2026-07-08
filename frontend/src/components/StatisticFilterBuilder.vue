@@ -787,7 +787,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           />
         </div>
       </div>
-      <el-empty v-else description="暂无筛选条件" :image-size="0" class="stat-filter-empty" />
+      <div v-else class="stat-filter-empty" role="status">暂无筛选条件</div>
 
       <div v-if="modelValue.conditions.length || showApplyActions" class="stat-filter-actions">
         <div class="stat-filter-maintenance-actions">
@@ -1087,22 +1087,14 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-empty {
-  min-height: 40px;
-  padding: 2px 0;
-  color: rgba(15, 23, 42, 0.42);
-}
-
-.stat-filter-empty :deep(.el-empty__image) {
-  display: none;
-}
-
-.stat-filter-empty :deep(.el-empty__description) {
-  margin-top: 0;
-}
-
-.stat-filter-empty :deep(.el-empty__description p) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0;
   color: rgba(15, 23, 42, 0.42);
   font-size: 13px;
+  line-height: 32px;
 }
 
 :deep(.el-input-number),

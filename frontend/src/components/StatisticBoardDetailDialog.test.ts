@@ -44,7 +44,6 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
       onSizeChange: vi.fn(),
       onQuickFilterInputUpdate: vi.fn(),
       onQuickFilterChange: vi.fn(),
-      onApplyQuickFilters: vi.fn(),
       onResetQuickFilters: vi.fn(),
       ...overrides,
     },

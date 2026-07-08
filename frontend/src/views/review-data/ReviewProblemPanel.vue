@@ -244,14 +244,17 @@ watch(
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+  border: 1px solid transparent;
   border-radius: 6px;
-  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.92);
+  background: var(--platform-table-header-bg, #f8fafc);
+  box-shadow: inset 0 0 0 1px #d7dee9;
 }
 
 .problem-subtable {
   border: 0 !important;
-  border-radius: 0;
+  border-radius: 5px;
   overflow: hidden;
+  background: var(--platform-table-header-bg, #f8fafc);
 }
 
 .problem-subtable :deep(.el-table__inner-wrapper),
