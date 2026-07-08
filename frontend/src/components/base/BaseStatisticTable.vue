@@ -212,27 +212,29 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
         :clear-drag-state="clearDragState"
       />
     </el-table>
-    <div
-      v-show="isFloatingScrollbarVisible"
-      ref="floatingScrollbarRef"
-      class="stat-matrix-floating-horizontal"
-      :style="floatingScrollbarStyle"
-      aria-hidden="true"
-      @mouseenter="wakeHorizontalScrollbar"
-      @pointerup="handleFloatingScrollbarPointerUp"
-    >
+    <Teleport to="body">
       <div
-        ref="floatingTrackRef"
-        class="platform-floating-horizontal-track"
-        @pointerdown="handleFloatingTrackPointerDown"
+        v-show="isFloatingScrollbarVisible"
+        ref="floatingScrollbarRef"
+        class="stat-matrix-floating-horizontal"
+        :style="floatingScrollbarStyle"
+        aria-hidden="true"
+        @mouseenter="wakeHorizontalScrollbar"
+        @pointerup="handleFloatingScrollbarPointerUp"
       >
         <div
-          class="platform-floating-horizontal-thumb"
-          :style="floatingThumbStyle"
-          @pointerdown="handleFloatingThumbPointerDown"
-        />
+          ref="floatingTrackRef"
+          class="platform-floating-horizontal-track"
+          @pointerdown="handleFloatingTrackPointerDown"
+        >
+          <div
+            class="platform-floating-horizontal-thumb"
+            :style="floatingThumbStyle"
+            @pointerdown="handleFloatingThumbPointerDown"
+          />
+        </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 
   <div v-if="board && sortedRowsLength" class="stat-board-pagination">

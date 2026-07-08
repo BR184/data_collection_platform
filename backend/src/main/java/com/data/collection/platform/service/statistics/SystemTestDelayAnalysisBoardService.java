@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-delay-analysis";
-  private static final String RULE_VERSION = "system-test-delay-analysis@2026-04-22-v1";
+  private static final String RULE_VERSION = "system-test-delay-analysis@2026-07-08-v2";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -84,15 +84,19 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
        where deleted = false
       """;
   private static final String BOARD_AGGREGATE_SQL = """
-      select delay_cause as row_key,
-             sum(case when severity_level = 'LEVEL1' then 1 else 0 end) as level1,
-             sum(case when severity_level = 'LEVEL2' then 1 else 0 end) as level2,
-             sum(case when severity_level = 'LEVEL3' then 1 else 0 end) as level3,
-             sum(case when severity_level = 'SUGGESTION' or category like '%建议%' then 1 else 0 end) as suggestion
+      select cause.row_key,
+             sum(case when issue_fact.severity_level = 'LEVEL1' then 1 else 0 end) as level1,
+             sum(case when issue_fact.severity_level = 'LEVEL2' then 1 else 0 end) as level2,
+             sum(case when issue_fact.severity_level = 'LEVEL3' then 1 else 0 end) as level3,
+             sum(case when issue_fact.severity_level = 'SUGGESTION' or issue_fact.category like '%建议%' then 1 else 0 end) as suggestion
         from issue_fact
+        join (
+          values ('技术卡点'), ('方案卡点'), ('资源卡点'), ('数据异常'), ('算法问题'), ('机制问题'), ('计算效率')
+        ) as cause(row_key)
+          on coalesce(issue_fact.delay_cause, '') like '%' || cause.row_key || '%'
+          or coalesce(issue_fact.label_names, '') like '%' || cause.row_key || '%'
        where deleted = false
          and coalesce(is_excluded,false) = false
-         and delay_cause in ('技术卡点','方案卡点','资源卡点','数据异常','算法问题','机制问题','计算效率')
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
@@ -315,7 +319,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     long causeCount =
         LEGACY_DELAY_CAUSES.stream()
-            .filter(cause -> snapshot.finalSources().stream().anyMatch(issue -> cause.equals(issue.delayCause())))
+            .filter(cause -> snapshot.finalSources().stream().anyMatch(issue -> issue.matchesDelayCause(cause)))
             .count();
     return new StatisticBoardRuleExplanationResponse(
         BOARD_KEY,
@@ -323,7 +327,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         "申请延期缺陷分析规则说明",
         RULE_VERSION,
         "当前统计先限定系统测试和回归测试范围，再按老平台固定延期原因分类统计。",
-        "同一条议题只会归入一个老平台固定延期原因；没有命中数据的延期原因仍显示为 0。",
+        "延期原因按老平台 like 口径匹配；同一条议题包含多个延期原因时，会分别计入对应延期原因行。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
@@ -332,7 +336,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "group-by-delay-cause",
                 "按延期原因聚合",
-                "将延期议题按老平台固定延期原因聚合，再统计一级、二级、三级和建议类缺陷数量。",
+                "将延期议题按老平台固定延期原因 like 匹配聚合，再统计一级、二级、三级和建议类缺陷数量。",
                 snapshot.finalSources().size(),
                 causeCount,
                 snapshot.finalSources(),
@@ -466,7 +470,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
   }
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
-        || rowKey.equals(issue.delayCause());
+        || issue.matchesDelayCause(rowKey);
   }
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
@@ -577,7 +581,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
               queryFilters,
               phasePredicate.sql(),
               phasePredicate.args(),
-              "group by delay_cause",
+              "group by cause.row_key",
               (rs, rowNum) ->
                   Map.entry(
                       StatisticSourceValueSupport.text(rs.getString("row_key"), ""),
@@ -756,7 +760,12 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     }
 
     boolean hasLegacyDelayCause() {
-      return LEGACY_DELAY_CAUSES.contains(delayCause);
+      return LEGACY_DELAY_CAUSES.stream().anyMatch(this::matchesDelayCause);
+    }
+
+    boolean matchesDelayCause(String cause) {
+      return StringUtils.hasText(cause)
+          && (contains(delayCause, cause) || labels.stream().anyMatch(label -> contains(label, cause)));
     }
 
     boolean isClosed() {

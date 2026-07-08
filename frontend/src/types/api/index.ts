@@ -10,3 +10,4 @@ export * from './realtime';
 export * from './system-test';
 export * from './customer-issues';
 export * from './label-groups';
+export * from './quality-board';

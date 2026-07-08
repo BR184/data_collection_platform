@@ -546,27 +546,29 @@ function readableDetailSortDirection(direction: string) {
             </template>
           </el-table-column>
         </el-table>
-        <div
-          v-show="isFloatingScrollbarVisible"
-          ref="floatingScrollbarRef"
-          class="stat-detail-floating-horizontal"
-          :style="floatingScrollbarStyle"
-          aria-hidden="true"
-          @mouseenter="wakeHorizontalScrollbar"
-          @pointerup="handleFloatingScrollbarPointerUp"
-        >
+        <Teleport to="body">
           <div
-            ref="floatingTrackRef"
-            class="platform-floating-horizontal-track"
-            @pointerdown="handleFloatingTrackPointerDown"
+            v-show="isFloatingScrollbarVisible"
+            ref="floatingScrollbarRef"
+            class="stat-detail-floating-horizontal"
+            :style="floatingScrollbarStyle"
+            aria-hidden="true"
+            @mouseenter="wakeHorizontalScrollbar"
+            @pointerup="handleFloatingScrollbarPointerUp"
           >
             <div
-              class="platform-floating-horizontal-thumb"
-              :style="floatingThumbStyle"
-              @pointerdown="handleFloatingThumbPointerDown"
-            />
+              ref="floatingTrackRef"
+              class="platform-floating-horizontal-track"
+              @pointerdown="handleFloatingTrackPointerDown"
+            >
+              <div
+                class="platform-floating-horizontal-thumb"
+                :style="floatingThumbStyle"
+                @pointerdown="handleFloatingThumbPointerDown"
+              />
+            </div>
           </div>
-        </div>
+        </Teleport>
       </div>
 
       <div class="detail-pagination">
@@ -596,7 +598,7 @@ function readableDetailSortDirection(direction: string) {
   padding: 10px;
   overflow: hidden;
   border: 1px solid var(--el-border-color-light);
-  border-radius: 72px !important;
+  border-radius: 8px !important;
   box-shadow: var(--el-box-shadow-dark) !important;
   box-sizing: border-box;
 }
@@ -670,7 +672,7 @@ function readableDetailSortDirection(direction: string) {
 .stat-detail-shell {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   width: 100%;
   min-height: 0;
   max-height: calc(100vh - 70px);
@@ -925,7 +927,7 @@ function readableDetailSortDirection(direction: string) {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
-  margin-top: 10px !important;
+  margin-top: 0 !important;
   padding: 0;
 }
 
@@ -945,7 +947,7 @@ function readableDetailSortDirection(direction: string) {
     width: calc(100vw - 12px);
     max-width: calc(100vw - 12px);
     padding: 8px;
-    border-radius: 40px !important;
+    border-radius: 8px !important;
   }
 
   :global(.stat-detail-dialog .el-dialog__header) {

@@ -40,9 +40,9 @@ export function ruleStepRetainedRate(step: RuleFlowStepLike) {
 export function ruleStepSummary(step: RuleFlowStepLike, index: number) {
   const removed = ruleStepRemovedCount(step);
   if (removed <= 0) {
-    return `第 ${index + 1} 步处理后，数据没有减少，仍保留 ${step.outputCount} 条。`;
+    return `第 ${index + 1} 步输出 ${step.outputCount} 条，未排除数据。`;
   }
-  return `第 ${index + 1} 步处理后，剩余 ${step.outputCount} 条，较上一步减少 ${removed} 条，保留比例 ${ruleStepRetainedRate(step)}。`;
+  return `第 ${index + 1} 步输出 ${step.outputCount} 条，排除 ${removed} 条，保留比例 ${ruleStepRetainedRate(step)}。`;
 }
 
 export function metricFormulaSummary(metric: { label: string; definition: string }) {
@@ -74,7 +74,7 @@ export function buildRuleExplanationOverview(
       firstInputCount,
       finalOutputCount,
       finalRetainedRate,
-      summary: explanation.summary || '当前页面已经启用规则说明，但暂时没有可展示的统计过程。',
+      summary: explanation.summary || '当前规则说明暂无处理流程数据。',
     };
   }
 
@@ -82,6 +82,6 @@ export function buildRuleExplanationOverview(
     firstInputCount,
     finalOutputCount,
     finalRetainedRate,
-    summary: `当前结果一共基于 ${firstInputCount} 条原始数据逐步筛选，最后保留 ${finalOutputCount} 条，最终保留比例为 ${finalRetainedRate}。`,
+    summary: `原始数据 ${firstInputCount} 条，最终保留 ${finalOutputCount} 条，保留比例 ${finalRetainedRate}。`,
   };
 }

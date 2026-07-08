@@ -73,8 +73,8 @@ const props = withDefaults(
     exclusionTitle: '判定规则',
     processTitle: '处理流程',
     metricsTitle: '指标定义',
-    guidanceTitle: '填写指南',
-    questionsTitle: '常见问题',
+    guidanceTitle: '字段说明',
+    questionsTitle: '口径说明',
   },
 );
 
@@ -132,7 +132,7 @@ const readableQuestions = computed(() =>
 
       <template v-else>
         <section v-if="readableSummaryMain || readableSummary || overviewCards.length" class="rule-explanation-section">
-          <div class="rule-explanation-section-title">先看结论</div>
+          <div class="rule-explanation-section-title">规则摘要</div>
           <div v-if="readableSummaryMain || readableSummary" class="rule-explanation-summary-card">
             <div v-if="readableSummaryMain" class="rule-explanation-summary-main">{{ readableSummaryMain }}</div>
             <div v-if="readableSummary" class="rule-explanation-summary-sub">{{ readableSummary }}</div>
@@ -161,7 +161,7 @@ const readableQuestions = computed(() =>
               </div>
               <div v-if="card.description" class="rule-card-description">{{ card.description }}</div>
               <div v-if="card.guidance" class="rule-card-guidance">
-                <span class="rule-card-guidance-label">建议</span>
+                <span class="rule-card-guidance-label">填写要求</span>
                 <span>{{ card.guidance }}</span>
               </div>
               <div v-if="card.note" class="rule-card-note">{{ card.note }}</div>

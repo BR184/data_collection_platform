@@ -53,7 +53,7 @@ describe('useStatisticBoardRuleExplanationState', () => {
     expect(state.ruleFinalOutputCount.value).toBe(4);
     expect(state.ruleFinalRetainedRate.value).toBe('40.0%');
     expect(state.qaFriendlyRuleSummary.value).toBe(
-      '当前结果一共基于 10 条原始数据逐步筛选，最后保留 4 条，最终保留比例为 40.0%。',
+      '原始数据 10 条，最终保留 4 条，保留比例 40.0%。',
     );
   });
 

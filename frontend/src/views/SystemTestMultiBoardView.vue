@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-// 系统测试多元看板聚合多个统计卡片和图表配置，页面职责是绑定看板 key 与刷新动作。
-// 统计计算不在前端重复推导，所有口径都通过统一统计板接口获取。
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from '../element-plus-services';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
@@ -224,10 +222,10 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           <div class="system-test-multi-board__panel-head">
             <div>
               <h3>严重程度分布</h3>
-              <p>先看结构，再决定往哪个正式页下钻。</p>
+              <p>当前范围内缺陷严重程度分布。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve(buildFilterLink(detailLinks.summaryPath)).href">
-              正式统计页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="severityChartOption" :loading="loading" :height="340" />
@@ -237,10 +235,10 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           <div class="system-test-multi-board__panel-head">
             <div>
               <h3>阶段分布</h3>
-              <p>看不同测试轮次的缺陷落点。</p>
+              <p>按测试轮次展示缺陷数量。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.phasePath }).href">
-              阶段统计页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="phaseChartOption" :loading="loading" :height="340" />
@@ -250,10 +248,10 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           <div class="system-test-multi-board__panel-head">
             <div>
               <h3>模块缺陷 Top 8</h3>
-              <p>优先暴露当前缺陷压力最高的模块。</p>
+              <p>按模块展示缺陷数量。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve(buildFilterLink(detailLinks.summaryPath)).href">
-              缺陷汇总页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="moduleChartOption" :loading="loading" :height="340" />
@@ -263,10 +261,10 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           <div class="system-test-multi-board__panel-head">
             <div>
               <h3>模块修复率</h3>
-              <p>只保留高缺陷模块，避免长尾噪音。</p>
+              <p>按模块展示缺陷修复率。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve(buildFilterLink(detailLinks.summaryPath)).href">
-              缺陷汇总页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="repairRateChartOption" :loading="loading" :height="340" />
@@ -279,7 +277,7 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
               <p>按缺陷原因拆分一级、二级、三级和建议数量。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.causePath }).href">
-              原因分析页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="causeChartOption" :loading="loading" :height="340" />
@@ -289,10 +287,10 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
           <div class="system-test-multi-board__panel-head">
             <div>
               <h3>延期原因分布</h3>
-              <p>帮助判断延期主要集中在哪些阻塞类型。</p>
+              <p>按延期原因展示系统测试缺陷数量。</p>
             </div>
             <el-link underline="never" type="primary" :href="router.resolve({ path: detailLinks.delayPath }).href">
-              延期分析页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="delayCauseChartOption" :loading="loading" :height="340" />

@@ -49,7 +49,7 @@ export function buildModuleDensityChartOption(overview: CodeReviewMultiBoardOver
   const rows = topRows(overview?.moduleRows ?? [], (row) => row.defectDensityPerKloc ?? 0);
   return buildHorizontalBarOption({
     title: '模块缺陷密度 Top 8',
-    subtitle: '更适合快速判断当前代码走查最值得优先追踪的模块',
+    subtitle: '按模块展示代码走查缺陷密度',
     items: rows.map((item) => ({ name: item.row.rowLabel, value: item.value })),
     color: '#1677ff',
     valueFormatter: (value) => `${value.toFixed(2)}`,
@@ -60,7 +60,7 @@ export function buildModuleVolumeChartOption(overview: CodeReviewMultiBoardOverv
   const rows = topRows(overview?.moduleRows ?? [], (row) => row.mergeRequestCount);
   return buildColumnBarOption({
     title: '模块走查体量',
-    subtitle: '按合并请求数量看本次数据源里的主要代码走查负载',
+    subtitle: '按模块展示合并请求数量',
     categories: rows.map((item) => item.row.rowLabel),
     series: [
       {
@@ -77,7 +77,7 @@ export function buildOwnerDensityChartOption(overview: CodeReviewMultiBoardOverv
   const rows = topRows(overview?.ownerRows ?? [], (row) => row.defectDensityPerKloc ?? 0);
   return buildHorizontalBarOption({
     title: '责任人缺陷密度 Top 8',
-    subtitle: '方便识别责任人维度上的质量集中风险',
+    subtitle: '按责任人展示代码走查缺陷密度',
     items: rows.map((item) => ({ name: item.row.rowLabel, value: item.value })),
     color: '#ff9f29',
     valueFormatter: (value) => `${value.toFixed(2)}`,
@@ -88,7 +88,7 @@ export function buildOwnerCompletionChartOption(overview: CodeReviewMultiBoardOv
   const rows = topRows(overview?.ownerRows ?? [], (row) => row.mergeRequestCount);
   return buildColumnBarOption({
     title: '责任人完成率',
-    subtitle: '兼顾处理量与完成率，避免只看数量不看进度',
+    subtitle: '按责任人展示代码走查完成率',
     categories: rows.map((item) => item.row.rowLabel),
     series: [
       {

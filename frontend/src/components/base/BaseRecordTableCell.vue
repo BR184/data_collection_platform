@@ -25,6 +25,7 @@ const cellAlign = computed(() => props.align ?? props.column.align ?? 'center');
       size="small"
       :type="tag.type ?? 'info'"
       effect="plain"
+      :title="tag.label"
     >
       {{ tag.label }}
     </el-tag>
@@ -33,9 +34,11 @@ const cellAlign = computed(() => props.align ?? props.column.align ?? 'center');
 
   <el-tag
     v-else-if="column.type === 'tag' && cell.primaryTag"
+    class="record-table-tag"
     size="small"
     :type="cell.primaryTag.type ?? 'info'"
     effect="plain"
+    :title="cell.primaryTag.label"
   >
     {{ cell.primaryTag.label }}
   </el-tag>
@@ -133,16 +136,24 @@ const cellAlign = computed(() => props.align ?? props.column.align ?? 'center');
   text-align: right;
 }
 
+.record-table-tag,
 .record-table-tags :deep(.el-tag) {
   flex: 0 1 auto;
   max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 22px;
   margin: 0;
+  white-space: normal;
+  vertical-align: middle;
 }
 
+.record-table-tag :deep(.el-tag__content),
 .record-table-tags :deep(.el-tag__content) {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 </style>

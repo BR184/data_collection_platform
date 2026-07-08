@@ -19,7 +19,10 @@ final class IssueLabelRules {
       Map.entry("P2", List.of("P2")),
       Map.entry("P3", List.of("P3")));
   private static final List<String> EXCLUDED_LABELS = List.of("功能屏蔽", "已拒绝", "建议");
-  private static final List<String> CLOSED_EXCLUSION_LABELS = List.of("申请否决", "需求如此", "设计如此");
+  // 对齐老平台 QueryUtil.setQueryFilter：系统测试/普通议题统计只排除关闭的申请否决和需求如此。
+  private static final List<String> LEGACY_CLOSED_EXCLUSION_LABELS = List.of("申请否决", "需求如此");
+  // 客户问题闭环状态中“设计如此”与“需求如此”等价，客户问题事实层继续按原口径排除。
+  private static final List<String> CUSTOMER_CLOSED_EXCLUSION_LABELS = List.of("申请否决", "需求如此", "设计如此");
 
   // 客户问题项目ID（CC_PRODUCT，老平台项目ID=325）
   // 该项目不排除"功能屏蔽"、"已拒绝"、"建议"，与老平台保持一致
@@ -95,6 +98,14 @@ final class IssueLabelRules {
     return null;
   }
 
+  static String normalizeCategory(List<String> labels) {
+    List<String> categories = parseLegacyLabelMap(labels).getOrDefault("类别", List.of());
+    if (categories.isEmpty()) {
+      return "未设定类别";
+    }
+    return String.join(" & ", categories);
+  }
+
   static String normalizePriorityLevel(List<String> labels) {
     for (Map.Entry<String, List<String>> entry : PRIORITY_TOKENS.entrySet()) {
       if (IssueRuleSupport.containsAnyLabel(labels, entry.getValue())) {
@@ -115,7 +126,7 @@ final class IssueLabelRules {
   static String exclusionReason(List<String> labels, boolean closed, Long projectId) {
     if (CustomerIssueScopeRules.isCustomerProject(projectId, null)) {
       if (closed) {
-        for (String excluded : CLOSED_EXCLUSION_LABELS) {
+        for (String excluded : CUSTOMER_CLOSED_EXCLUSION_LABELS) {
           if (IssueRuleSupport.hasLabel(labels, excluded)) {
             return excluded + "+Closed";
           }
@@ -130,7 +141,7 @@ final class IssueLabelRules {
       }
     }
     if (closed) {
-      for (String excluded : CLOSED_EXCLUSION_LABELS) {
+      for (String excluded : LEGACY_CLOSED_EXCLUSION_LABELS) {
         if (IssueRuleSupport.hasLabel(labels, excluded)) {
           return excluded + "+Closed";
         }

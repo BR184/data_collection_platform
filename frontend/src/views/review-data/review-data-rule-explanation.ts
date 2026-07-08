@@ -27,9 +27,9 @@ export interface ReviewDataRuleExplanationContent {
 }
 
 export const reviewDataRuleExplanationContent: ReviewDataRuleExplanationContent = {
-  title: '评审数据管理帮助指南',
+  title: '评审数据管理规则说明',
   version: 'v1.1',
-  summary: '这份指南主要回答三个问题：关键字段怎么填、页面上的数字怎么算、遇到常见显示结果时该怎么理解。',
+  summary: '说明评审数据管理页的关键字段、统计指标和筛选口径。',
   scopeDescription:
     '当前列表、顶部汇总卡片和详情页，统计的都是当前筛选结果中的有效评审记录，以及这些记录下的有效问题项。',
   fieldDefinitions: [
@@ -37,20 +37,20 @@ export const reviewDataRuleExplanationContent: ReviewDataRuleExplanationContent 
       key: 'reviewScalePages',
       label: '评审规模(页)',
       description: '填写本次实际纳入评审范围的页数，它会直接影响评审缺陷密度。',
-      guidance: '建议填本次真正评审到的页数，不要直接照搬整份文档总页数。',
+      guidance: '填写本次实际完成评审的页数。',
       note: '当评审规模为空、为 0 或小于等于 0 时，评审缺陷密度按 0 处理。',
     },
     {
       key: 'reviewType',
       label: '评审类型',
-      description: '用于区分这条记录属于哪类评审场景，方便后续筛选和横向比较。',
-      guidance: '优先选择系统已有类型，保持同类评审使用同一名称。',
+      description: '用于区分评审记录所属的评审场景。',
+      guidance: '同类评审应使用统一评审类型名称。',
     },
     {
       key: 'reviewExperts',
       label: '评审专家',
       description: '填写实际参与本次评审并承担评审工作的人员，可多选。',
-      guidance: '只填写实际参与评审的人，不建议把抄送或知会人员一起写入。',
+      guidance: '仅填写实际参与评审并承担评审工作的人员。',
     },
     {
       key: 'problemStatus',
@@ -121,26 +121,26 @@ export const reviewDataRuleExplanationContent: ReviewDataRuleExplanationContent 
       label: '顶部卡片：平均问题数',
       definition: '当前筛选条件下 problemCount 的平均值。',
       formula: '平均问题数 = 当前筛选结果中的问题总数 / 评审记录总条数',
-      note: '它反映的是每条评审平均有多少问题，不是平均缺陷密度。',
+      note: '平均问题数按评审记录数作为分母，不等同于评审缺陷密度。',
     },
   ],
   commonQuestions: [
     {
       key: 'density-zero',
-      title: '为什么我的缺陷密度显示为 0？',
-      description: '请先检查“评审规模(页)”是否为空、为 0，或没有填写本次实际评审页数。系统不会对无效分母继续计算。',
+      title: '缺陷密度为 0 的处理口径',
+      description: '当“评审规模(页)”为空、为 0 或小于 0 时，评审缺陷密度按 0 展示。',
     },
     {
       key: 'status-filter',
-      title: '按问题状态筛选后，顶部“评审问题”是不是只统计该状态的问题？',
-      description: '不是。当前口径是先筛出“包含该状态问题的评审记录”，再统计这些记录本身的问题总数。',
+      title: '问题状态筛选后的统计口径',
+      description: '按问题状态筛选时，先筛出包含该状态问题的评审记录，再统计这些记录的问题总数。',
     },
     {
       key: 'average-density',
-      title: '平均问题数能直接理解成评审缺陷密度吗？',
-      description: '不能。平均问题数的分母是评审记录数，评审缺陷密度的分母是页数，两者含义不同。',
+      title: '平均问题数与评审缺陷密度',
+      description: '平均问题数按评审记录数作为分母；评审缺陷密度按评审规模页数作为分母。',
     },
   ],
-  recordDialogTip: '请重点确认评审类型、评审专家和评审规模(页)，其中评审规模会直接影响评审缺陷密度。',
-  problemDialogTip: '请重点确认文档中的位置、问题类别和问题状态；问题状态按单条问题项维护，不代表整条评审记录状态。',
+  recordDialogTip: '评审类型、评审专家和评审规模(页)会影响列表筛选与评审缺陷密度计算。',
+  problemDialogTip: '文档中的位置、问题类别和问题状态按单条问题项维护。',
 };

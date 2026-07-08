@@ -24,11 +24,18 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void shouldNormalizeCategoryFromLegacyIssueCategoryLabels() {
+    assertThat(IssueFactNormalizationRules.normalizeCategory(List.of("类别：建议"))).isEqualTo("建议");
+    assertThat(IssueFactNormalizationRules.normalizeCategory(List.of("类别：需求", "类别：建议"))).isEqualTo("需求 & 建议");
+    assertThat(IssueFactNormalizationRules.normalizeCategory(List.of("一级缺陷"))).isEqualTo("未设定类别");
+  }
+
+  @Test
   void shouldNormalizeExclusionAndFixedRules() {
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("功能屏蔽"), false, 9L)).isEqualTo("功能屏蔽");
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("申请否决"), true, 9L)).isEqualTo("申请否决+Closed");
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("需求如此"), true, 9L)).isEqualTo("需求如此+Closed");
-    assertThat(IssueFactNormalizationRules.exclusionReason(List.of("设计如此"), true, 9L)).isEqualTo("设计如此+Closed");
+    assertThat(IssueFactNormalizationRules.exclusionReason(List.of("设计如此"), true, 9L)).isNull();
     assertThat(IssueFactNormalizationRules.exclusionReason(List.of("数据异常"), true, 9L)).isNull();
     assertThat(IssueFactNormalizationRules.isFixed(List.of("待合并"), false)).isTrue();
     assertThat(IssueFactNormalizationRules.isFixed(List.of("未复现"), true)).isTrue();

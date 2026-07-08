@@ -429,8 +429,8 @@ const ruleRetainedRate = computed(() =>
 );
 const ruleOverviewCards = computed(() => [
   { label: '原始数据', value: ruleFirstCount.value },
-  { label: '最终筛出', value: ruleFinalCount.value },
-  { label: '筛出比例', value: ruleRetainedRate.value },
+  { label: '命中记录', value: ruleFinalCount.value },
+  { label: '命中比例', value: ruleRetainedRate.value },
 ]);
 
 function buildDelayFlags(row: CustomerIssueRecordRowResponse) {
@@ -846,7 +846,7 @@ async function handleConditionFilterReset() {
       :title="ruleExplanation?.title || `${pageTitle}规则说明`"
       :supported="Boolean(ruleExplanation?.supported)"
       :unsupported-reason="ruleExplanation?.unsupportedReason || '当前暂不支持规则说明。'"
-      :summary-main="`当前筛出 ${ruleFinalCount} 条记录。`"
+      :summary-main="`命中记录 ${ruleFinalCount} 条。`"
       :summary="ruleExplanation?.summary"
       :overview-cards="ruleOverviewCards"
       :info-items="[
@@ -857,7 +857,7 @@ async function handleConditionFilterReset() {
       :process-steps="ruleSteps"
       :metrics="ruleExplanation?.metricDefinitions ?? []"
       exclusion-title="处理步骤"
-      process-title="数据是怎么一步步变化的"
+      process-title="处理流程"
       metrics-title="指标定义"
     />
     </section>

@@ -245,7 +245,7 @@ export function buildCodeReviewRuleExplanationOverview(
       firstInputCount,
       finalOutputCount,
       finalRetainedRate,
-      summary: explanation.summary || '当前页面已经启用规则说明，但暂时没有可展示的统计过程。',
+      summary: explanation.summary || '当前规则说明暂无处理流程数据。',
     };
   }
 
@@ -253,7 +253,7 @@ export function buildCodeReviewRuleExplanationOverview(
     firstInputCount,
     finalOutputCount,
     finalRetainedRate,
-    summary: `当前结果一共基于 ${firstInputCount} 条合并请求逐步检查，最终筛出 ${finalOutputCount} 条需要关注的记录，占原始数据的 ${finalRetainedRate}。`,
+    summary: `原始合并请求 ${firstInputCount} 条，命中非法记录 ${finalOutputCount} 条，命中比例 ${finalRetainedRate}。`,
   };
 }
 

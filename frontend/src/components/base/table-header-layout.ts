@@ -30,6 +30,14 @@ const MANUAL_HEADER_LINES: Record<string, TableHeaderLines> = {
   '合并请求编号': ['合并请求', '编号'],
   '合并请求内容': ['合并请求', '内容'],
   '合并目标分支': ['合并目标', '分支'],
+  '议题编号': ['议题', '编号'],
+  '议题标题': ['议题', '标题'],
+  '议题状态': ['议题', '状态'],
+  '议题类别': ['议题', '类别'],
+  '议题提交人': ['议题', '提交人'],
+  '议题处理人': ['议题', '处理人'],
+  '缺陷优先级': ['缺陷', '优先级'],
+  '测试状态': ['测试', '状态'],
   '新增走查代码行数(LOC)': ['新增走查', '代码行数(LOC)'],
   '新增走查代码行数（LOC）': ['新增走查', '代码行数(LOC)'],
   '新增代码行数(行)': ['新增代码', '行数(行)'],
@@ -235,6 +243,11 @@ export function normalizeTableHeaderLines(label: string, explicitLines?: readonl
     return suffixLines;
   }
   return [normalizedLabel];
+}
+
+export function hasConfiguredTableHeaderLines(label: string, explicitLines?: readonly string[] | null) {
+  const normalizedLabel = normalizeLabel(label);
+  return Boolean(normalizeExplicitLines(explicitLines) || MANUAL_HEADER_LINES[normalizedLabel]);
 }
 
 export function compactTableHeaderLines(label: string, explicitLines?: readonly string[] | null): TableHeaderLines {

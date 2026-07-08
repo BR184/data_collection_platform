@@ -1,141 +1,55 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-// 研发质量看板是质量域的首页信号，负责展示强指标和关键趋势。
-// 页面只绑定看板配置，统计口径继续通过统一统计板运行时提供。
+import { computed, ref } from 'vue';
 import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
 import { api } from '../api';
-import { authState } from '../composables/auth-state';
-import type {
-  CodeReviewMultiBoardOverviewResponse,
-  ReviewDataSummaryResponse,
-  ReviewDataFilterOptionsResponse,
-  StatisticBoardResponse,
-} from '../types/api';
+import type { OptionItemResponse, QualityBoardRdOverviewResponse } from '../types/api';
 import {
   buildCodeReviewDensityChartOption,
   buildQualityBoardCards,
+  buildQualityRateChartOption,
   buildReviewDensityChartOption,
-  buildSystemTestRepairChartOption,
-  computeReviewDensity,
-  computeSystemTestOpenRate,
 } from './quality-board';
 
 const router = useRouter();
 
 const initialized = ref(false);
 const loading = ref(false);
-const reviewFilters = ref<ReviewDataFilterOptionsResponse | null>(null);
-const demandReviewSummary = ref<ReviewDataSummaryResponse | null>(null);
-const designReviewSummary = ref<ReviewDataSummaryResponse | null>(null);
-const codeReviewCcOverview = ref<CodeReviewMultiBoardOverviewResponse | null>(null);
-const codeReviewDgmOverview = ref<CodeReviewMultiBoardOverviewResponse | null>(null);
-const systemTestSummaryBoard = ref<StatisticBoardResponse | null>(null);
+const projectOptions = ref<OptionItemResponse[]>([]);
+const selectedProjectName = ref('');
+const overview = ref<QualityBoardRdOverviewResponse | null>(null);
 
-const demandDensity = computed(() => computeReviewDensity(demandReviewSummary.value));
-const designDensity = computed(() => computeReviewDensity(designReviewSummary.value));
-const systemTestOpenRate = computed(() => computeSystemTestOpenRate(systemTestSummaryBoard.value));
-const cards = computed(() =>
-  buildQualityBoardCards({
-    demandDensity: demandDensity.value,
-    designDensity: designDensity.value,
-    codeReviewCcDensity: codeReviewCcOverview.value?.defectDensityPerKloc ?? null,
-    codeReviewDgmDensity: codeReviewDgmOverview.value?.defectDensityPerKloc ?? null,
-    systemTestOpenRate: systemTestOpenRate.value,
-  }),
-);
+const cards = computed(() => buildQualityBoardCards({ overview: overview.value }));
 const reviewDensityChartOption = computed(() =>
   buildReviewDensityChartOption({
-    demandDensity: demandDensity.value,
-    designDensity: designDensity.value,
+    demandDensity: overview.value?.demandReviewReportDensity ?? null,
+    designDensity: overview.value?.designReviewReportDensity ?? null,
   }),
 );
 const codeReviewDensityChartOption = computed(() =>
   buildCodeReviewDensityChartOption({
-    ccDensity: codeReviewCcOverview.value?.defectDensityPerKloc ?? null,
-    dgmDensity: codeReviewDgmOverview.value?.defectDensityPerKloc ?? null,
+    ccDensity: overview.value?.codeWalkThroughDefectDensityCc ?? null,
+    dgmDensity: overview.value?.codeWalkThroughDefectDensityDgm ?? null,
   }),
 );
-const systemTestRepairChartOption = computed(() => buildSystemTestRepairChartOption(systemTestSummaryBoard.value));
+const qualityRateChartOption = computed(() => buildQualityRateChartOption(overview.value));
 
 const pageReady = computed(() => initialized.value);
-
-function clearReviewSummaries() {
-  reviewFilters.value = null;
-  demandReviewSummary.value = null;
-  designReviewSummary.value = null;
-}
-
-function clearCodeReviewSummaries() {
-  codeReviewCcOverview.value = null;
-  codeReviewDgmOverview.value = null;
-}
-
-function clearSystemTestSummary() {
-  systemTestSummaryBoard.value = null;
-}
-
-async function loadSection(sectionName: string, loader: () => Promise<void>) {
-  try {
-    await loader();
-    return true;
-  } catch (error) {
-    console.warn(`${sectionName} 加载失败`, error);
-    return false;
-  }
-}
-
-function pickReviewType(types: ReviewDataFilterOptionsResponse['reviewTypes'] | undefined, keyword: string) {
-  return types?.find((item) => item.label.includes(keyword) || item.value.includes(keyword))?.value ?? '';
-}
-
-async function loadReviewSummaries() {
-  clearReviewSummaries();
-  reviewFilters.value = await api.getReviewDataFilterOptions();
-  const demandType = pickReviewType(reviewFilters.value.reviewTypes, '需求');
-  const designType = pickReviewType(reviewFilters.value.reviewTypes, '设计');
-  const [demand, design] = await Promise.all([
-    demandType
-      ? api.getReviewDataRecords({ reviewType: demandType, page: 1, size: 1 })
-      : Promise.resolve({ summary: null } as { summary: ReviewDataSummaryResponse | null }),
-    designType
-      ? api.getReviewDataRecords({ reviewType: designType, page: 1, size: 1 })
-      : Promise.resolve({ summary: null } as { summary: ReviewDataSummaryResponse | null }),
-  ]);
-  demandReviewSummary.value = demand.summary;
-  designReviewSummary.value = design.summary;
-}
-
-async function loadCodeReviewSummaries() {
-  clearCodeReviewSummaries();
-  const sourceOptions = await api.getCodeReviewMultiBoardSourceOptions();
-  const hasCc = sourceOptions.some((item) => item.value === 'cc');
-  const hasDgm = sourceOptions.some((item) => item.value === 'dgm');
-  const [cc, dgm] = await Promise.all([
-    hasCc ? api.getCodeReviewMultiBoardOverview('cc') : Promise.resolve(null),
-    hasDgm ? api.getCodeReviewMultiBoardOverview('dgm') : Promise.resolve(null),
-  ]);
-  codeReviewCcOverview.value = cc;
-  codeReviewDgmOverview.value = dgm;
-}
-
-async function loadSystemTestSummary() {
-  clearSystemTestSummary();
-  systemTestSummaryBoard.value = await api.getStatisticBoard('system-test-defect-summary');
-}
 
 async function loadPage() {
   loading.value = true;
   try {
-    const results = await Promise.all([
-      loadSection('评审摘要', loadReviewSummaries),
-      loadSection('代码走查摘要', loadCodeReviewSummaries),
-      loadSection('系统测试摘要', loadSystemTestSummary),
-    ]);
-    return results.every(Boolean);
+    const options = await api.getQualityBoardRdProjectOptions();
+    projectOptions.value = options.options;
+    selectedProjectName.value = selectedProjectName.value || options.defaultProjectName || options.options[0]?.value || 'CC2026R3';
+    overview.value = await api.getQualityBoardRdOverview(selectedProjectName.value);
+    return true;
+  } catch (error) {
+    console.warn('研发质量看板加载失败', error);
+    return false;
   } finally {
     loading.value = false;
     initialized.value = true;
@@ -151,6 +65,18 @@ async function handleRefresh() {
   ElMessage.warning('部分看板加载失败，已展示可用数据');
 }
 
+async function handleProjectChange() {
+  loading.value = true;
+  try {
+    overview.value = await api.getQualityBoardRdOverview(selectedProjectName.value);
+  } catch (error) {
+    console.warn('研发质量看板项目切换失败', error);
+    ElMessage.error('研发质量看板加载失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
 function goTo(path: string) {
   void router.push(path);
 }
@@ -160,19 +86,6 @@ void loadPage().then((success) => {
     ElMessage.warning('部分看板加载失败，已展示可用数据');
   }
 });
-
-watch(
-  () => authState.currentUser.authenticated,
-  (authenticated, previousAuthenticated) => {
-    if (authenticated && !previousAuthenticated) {
-      void loadPage().then((success) => {
-        if (!success) {
-          ElMessage.warning('部分看板加载失败，已展示可用数据');
-        }
-      });
-    }
-  },
-);
 </script>
 
 <template>
@@ -182,16 +95,27 @@ watch(
         <div>
           <div class="quality-board-rd__eyebrow">质量看板 / 研发质量</div>
           <h2>研发质量一屏概览</h2>
-          <p>把评审、代码走查和系统测试里最有判断力的信号拉到同一页，不再要求用户自己在多张表之间来回拼。</p>
         </div>
-        <el-button
-          class="app-action-button app-action-button--refresh"
-          :icon="Refresh"
-          :loading="loading"
-          @click="handleRefresh"
-        >
-          刷新
-        </el-button>
+        <div class="quality-board-rd__actions">
+          <el-select
+            v-model="selectedProjectName"
+            class="quality-board-rd__project-select"
+            filterable
+            placeholder="项目名称"
+            :disabled="loading"
+            @change="handleProjectChange"
+          >
+            <el-option v-for="item in projectOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+          <el-button
+            class="app-action-button app-action-button--refresh"
+            :icon="Refresh"
+            :loading="loading"
+            @click="handleRefresh"
+          >
+            刷新
+          </el-button>
+        </div>
       </section>
 
       <section class="quality-board-rd__summary">
@@ -206,7 +130,7 @@ watch(
           <div class="quality-board-rd__panel-head">
             <div>
               <h3>评审密度对比</h3>
-              <p>先看需求评审和设计评审的密度区间是否失衡。</p>
+              <p>需求评审与设计评审缺陷密度对比。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/review-data/home')">评审数据管理</el-link>
           </div>
@@ -217,7 +141,7 @@ watch(
           <div class="quality-board-rd__panel-head">
             <div>
               <h3>代码走查密度</h3>
-              <p>用统一量纲比较 CC 与 DGM 两类代码源的整体风险密度。</p>
+              <p>CC 与 DGM 代码走查缺陷密度对比。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/code-review/multi-board')">代码走查看板</el-link>
           </div>
@@ -227,12 +151,12 @@ watch(
         <article class="quality-board-rd__panel">
           <div class="quality-board-rd__panel-head">
             <div>
-              <h3>系统测试模块修复率</h3>
-              <p>只保留高缺陷模块，让修复进度比较更直接。</p>
+              <h3>测试与缺陷闭环</h3>
+              <p>展示集成测试通过率、发布遗留率、开发遗留率和新发修复率。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/question-metrics/home')">系统测试汇总</el-link>
           </div>
-          <EChartPanel :option="systemTestRepairChartOption" :loading="loading" :height="320" />
+          <EChartPanel :option="qualityRateChartOption" :loading="loading" :height="320" />
         </article>
       </section>
     </section>
@@ -248,7 +172,7 @@ watch(
 .quality-board-rd__hero {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
   padding: 20px 24px;
   border: 1px solid #e4e7ec;
@@ -274,11 +198,16 @@ watch(
   color: #111827;
 }
 
-.quality-board-rd__hero p {
-  margin: 0;
-  max-width: 760px;
-  color: #667085;
-  line-height: 1.7;
+.quality-board-rd__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quality-board-rd__project-select {
+  width: 220px;
 }
 
 .quality-board-rd__summary {
@@ -361,7 +290,13 @@ watch(
   }
 
   .quality-board-rd__hero {
+    align-items: flex-start;
     flex-direction: column;
+  }
+
+  .quality-board-rd__actions,
+  .quality-board-rd__project-select {
+    width: 100%;
   }
 }
 </style>

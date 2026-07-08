@@ -307,9 +307,10 @@ function rgbToHex(red: number, green: number, blue: number) {
   flex: 0 0 auto;
   min-height: 18px;
   padding: 1px 6px;
-  border: 1px solid var(--gitlab-label-border);
+  border: 0;
   border-radius: 4px;
   background: var(--gitlab-label-bg);
+  box-shadow: none;
   color: var(--gitlab-label-color);
   font-size: 11px;
   font-weight: 600;

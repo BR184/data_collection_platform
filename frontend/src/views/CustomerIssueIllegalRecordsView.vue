@@ -197,7 +197,7 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     detail-kicker="客户问题非法数据"
     rule-title="客户问题缺陷非法数据规则说明"
     empty-description="当前筛选条件下没有客户问题非法数据。"
-    :total-tag-text="(total) => `当前 ${total} 条`"
+    :total-tag-text="(total) => `共 ${total} 条`"
     :load-records="loadRecords"
     :export-records="api.exportCustomerIssueIllegalRecords"
     export-filename-prefix="多元议题查询结果"

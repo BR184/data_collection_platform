@@ -41,7 +41,7 @@ export const modules: ShellModule[] = [
         key: 'quality-board-other-board',
         label: '其他看板',
         icon: PieChart,
-        description: '承接跨域的辅助分析图表，避免与首页 KPI 混排。',
+        description: '展示客户问题、代码走查和系统测试相关专题指标。',
         path: '/quality-board/other-board',
         requiresLogin: true,
       },

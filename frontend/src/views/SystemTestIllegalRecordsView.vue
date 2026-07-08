@@ -179,7 +179,7 @@ function buildPrimaryFilters(options: IssueIllegalRecordFilterOptions): RecordTa
     detail-kicker="系统测试非法数据"
     rule-title="系统测试非法数据规则说明"
     empty-description="当前筛选条件下没有系统测试非法数据。"
-    :total-tag-text="(total) => `当前 ${total} 条`"
+    :total-tag-text="(total) => `共 ${total} 条`"
     :load-records="loadRecords"
     :export-records="api.exportSystemTestIllegalRecords"
     export-filename-prefix="多元议题查询结果"

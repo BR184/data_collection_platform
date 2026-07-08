@@ -104,6 +104,6 @@ describe('code review illegal records view helpers', () => {
     expect(overview.finalOutputCount).toBe(12);
     expect(overview.finalRetainedRate).toBe('12.0%');
     expect(overview.summary).toContain('100 条合并请求');
-    expect(overview.summary).toContain('12 条需要关注的记录');
+    expect(overview.summary).toContain('命中非法记录 12 条');
   });
 });

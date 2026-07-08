@@ -60,11 +60,15 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-06-30-v3";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-08-v4";
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
+  private static final String NOTE_SEPARATOR = "\\R---\\R";
+  private static final String FIX_TEMPLATE_HEADER = "### 1、修复状态";
+  private static final String FIX_TEMPLATE_DETAIL_FOOTER = "### 3、请描述具体原因：";
+  private static final String FIX_TEMPLATE_DETAIL_FOOTER_LEGACY = "（2）具体原因，请描述：";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
@@ -628,15 +632,17 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
   private List<IssueSource> loadSourcesFromFact(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.boardScope(filters, filterGroup);
+    String predicate = scope.predicate() + " and created_at_source is not null";
     return issueFactQueryService.query(
         FACT_SQL,
         scope.filters(),
-        scope.predicate(),
+        predicate,
         scope.args(),
         this::mapIssueFact);
   }
 
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
+    String reasonText = StatisticSourceValueSupport.text(rs.getString("reason_text"), "");
     return new IssueSource(
         rs.getLong("id"),
         rs.getInt("iid"),
@@ -654,11 +660,85 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
-        StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
-        StatisticSourceValueSupport.text(rs.getString("reason_text"), ""),
+        legacyReasonCategory(reasonText, rs.getString("reason_category")),
+        reasonText,
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("is_excluded"));
+  }
+
+  private String legacyReasonCategory(String reasonText, String persistedReasonCategory) {
+    if (StringUtils.hasText(reasonText)) {
+      String parsed = legacyReasonText(reasonText);
+      return StringUtils.hasText(parsed) ? parsed : "";
+    }
+    return StatisticSourceValueSupport.text(persistedReasonCategory, "");
+  }
+
+  private String legacyReasonText(String notesText) {
+    if (!StringUtils.hasText(notesText)) {
+      return "";
+    }
+    String[] notes = notesText.split(NOTE_SEPARATOR);
+    for (String note : notes) {
+      String cause = legacyCauseInNote(note);
+      if (StringUtils.hasText(cause)) {
+        return processLegacyCause(cause);
+      }
+    }
+    return "";
+  }
+
+  private String legacyCauseInNote(String note) {
+    if (!StringUtils.hasText(note)) {
+      return "";
+    }
+    String[] lines = note.replace("\r\n", "\n").replace('\r', '\n').split("\n");
+    if (lines.length == 0 || !lines[0].contains(FIX_TEMPLATE_HEADER)) {
+      return "";
+    }
+    StringBuilder cause = new StringBuilder();
+    int index = 0;
+    while (index < lines.length
+        && !lines[index].contains(FIX_TEMPLATE_DETAIL_FOOTER)
+        && !lines[index].contains(FIX_TEMPLATE_DETAIL_FOOTER_LEGACY)) {
+      String line = lines[index];
+      if (line.contains("[x]") || line.contains("[X]")) {
+        cause.append(line.replace("*", "").replace("[x]", "").replace("[X]", "").replace(" ", ""))
+            .append(' ');
+      }
+      index++;
+    }
+    if (index >= lines.length) {
+      return "";
+    }
+    cause.append("具体原因, 请描述：");
+    while (++index < lines.length) {
+      String line = lines[index];
+      if (line.contains("[ ]") || line.isBlank() || "```".equals(line)) {
+        continue;
+      }
+      cause.append(line.replace("#", "").replace(" ", "").replace("[x]", "").replace("[X]", ""));
+    }
+    return cause.toString();
+  }
+
+  private String processLegacyCause(String cause) {
+    if (!StringUtils.hasText(cause)) {
+      return "";
+    }
+    String otherCause = "修改其他问题引起的";
+    if (!cause.contains(otherCause)) {
+      return cause;
+    }
+    for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
+      for (String token : metric.tokens()) {
+        if (cause.contains(token)) {
+          return cause.replace(otherCause, "");
+        }
+      }
+    }
+    return cause;
   }
 
   private List<StatisticFilterOption> loadMilestoneOptions() {

@@ -1,5 +1,6 @@
 import type {
   CodeReviewMultiBoardOverviewResponse,
+  QualityBoardRdOverviewResponse,
   ReviewDataSummaryResponse,
   StatisticBoardResponse,
   StatisticRowData,
@@ -66,42 +67,57 @@ export function computeSystemTestOpenRate(board: StatisticBoardResponse | null) 
 }
 
 export function buildQualityBoardCards(input: {
-  demandDensity: number | null;
-  designDensity: number | null;
-  codeReviewCcDensity: number | null;
-  codeReviewDgmDensity: number | null;
-  systemTestOpenRate: number | null;
+  overview: QualityBoardRdOverviewResponse | null;
 }): QualityBoardCard[] {
+  const overview = input.overview;
   return [
     {
       key: 'demand-density',
       label: '需求评审缺陷密度',
-      value: formatFixed(input.demandDensity),
-      tone: resolveBandTone(input.demandDensity, 0.2, 0.6),
+      value: formatFixed(overview?.demandReviewReportDensity),
+      tone: resolveBandTone(overview?.demandReviewReportDensity ?? null, 0.2, 0.6),
     },
     {
       key: 'design-density',
       label: '设计评审缺陷密度',
-      value: formatFixed(input.designDensity),
-      tone: resolveBandTone(input.designDensity, 0.2, 0.6),
+      value: formatFixed(overview?.designReviewReportDensity),
+      tone: resolveBandTone(overview?.designReviewReportDensity ?? null, 0.2, 0.6),
     },
     {
       key: 'code-review-cc',
-      label: '代码走查缺陷密度(CC)',
-      value: formatFixed(input.codeReviewCcDensity),
-      tone: resolveBandTone(input.codeReviewCcDensity, 2, 10),
+      label: 'CC代码走查缺陷密度',
+      value: `${formatFixed(overview?.codeWalkThroughDefectDensityCc)} KLOC`,
+      tone: resolveBandTone(overview?.codeWalkThroughDefectDensityCc ?? null, 2, 10),
     },
     {
       key: 'code-review-dgm',
-      label: '代码走查缺陷密度(DGM)',
-      value: formatFixed(input.codeReviewDgmDensity),
-      tone: resolveBandTone(input.codeReviewDgmDensity, 2, 10),
+      label: 'DGM代码走查缺陷密度',
+      value: `${formatFixed(overview?.codeWalkThroughDefectDensityDgm)} KLOC`,
+      tone: resolveBandTone(overview?.codeWalkThroughDefectDensityDgm ?? null, 2, 10),
     },
     {
-      key: 'system-open-rate',
-      label: '系统测试未关闭占比',
-      value: formatFixed(input.systemTestOpenRate, 2, '%'),
-      tone: resolveMaxTone(input.systemTestOpenRate, 15),
+      key: 'integration-pass-rate',
+      label: '集成测试通过率',
+      value: formatFixed(overview?.integrationPassRate, 2, '%'),
+      tone: resolveMinTone(overview?.integrationPassRate ?? null, 90),
+    },
+    {
+      key: 'defect-leakage-rate',
+      label: '发布缺陷遗留率',
+      value: formatFixed(overview?.defectLeakageRate, 2, '%'),
+      tone: resolveMaxTone(overview?.defectLeakageRate ?? null, 15),
+    },
+    {
+      key: 'defect-elimination-rate',
+      label: '开发缺陷遗留率',
+      value: formatFixed(overview?.defectEliminationRate, 2, '%'),
+      tone: resolveMinTone(overview?.defectEliminationRate ?? null, 90),
+    },
+    {
+      key: 'new-issue-fix-rate',
+      label: '新发缺陷修复率',
+      value: formatFixed(overview?.newIssueFixRate, 2, '%'),
+      tone: resolveMinTone(overview?.newIssueFixRate ?? null, 90),
     },
   ];
 }
@@ -112,15 +128,16 @@ export function buildReviewDensityChartOption(input: {
 }) {
   return buildColumnBarOption({
     title: '评审密度对比',
-    subtitle: '用统一量纲对比需求评审与设计评审的问题密度',
+    subtitle: '需求评审与设计评审缺陷密度',
     categories: ['需求评审', '设计评审'],
     series: [
       {
         name: '缺陷密度',
-        data: [input.demandDensity ?? 0, input.designDensity ?? 0],
+        data: [roundChartValue(input.demandDensity), roundChartValue(input.designDensity)],
         color: '#1677ff',
       },
     ],
+    valueFormatter: (value) => value.toFixed(2),
   });
 }
 
@@ -130,15 +147,38 @@ export function buildCodeReviewDensityChartOption(input: {
 }) {
   return buildColumnBarOption({
     title: '代码走查密度对比',
-    subtitle: '对比 CC 与 DGM 两类代码源的总体缺陷密度',
+    subtitle: 'CC 与 DGM 代码走查缺陷密度',
     categories: ['CC', 'DGM'],
     series: [
       {
         name: '缺陷密度',
-        data: [input.ccDensity ?? 0, input.dgmDensity ?? 0],
+        data: [roundChartValue(input.ccDensity), roundChartValue(input.dgmDensity)],
         color: '#36cfc9',
       },
     ],
+    valueFormatter: (value) => value.toFixed(2),
+  });
+}
+
+export function buildQualityRateChartOption(overview: QualityBoardRdOverviewResponse | null) {
+  return buildColumnBarOption({
+    title: '测试与缺陷闭环指标',
+    subtitle: '系统测试与集成测试指标',
+    categories: ['集成测试通过率', '发布缺陷遗留率', '开发缺陷遗留率', '新发缺陷修复率'],
+    series: [
+      {
+        name: '比例',
+        data: [
+          roundChartValue(overview?.integrationPassRate),
+          roundChartValue(overview?.defectLeakageRate),
+          roundChartValue(overview?.defectEliminationRate),
+          roundChartValue(overview?.newIssueFixRate),
+        ],
+        color: '#ff9f29',
+      },
+    ],
+    rotateLabels: 18,
+    valueFormatter: (value) => `${value.toFixed(2)}%`,
   });
 }
 
@@ -156,7 +196,7 @@ export function buildSystemTestRepairChartOption(board: StatisticBoardResponse |
     .map((item) => ({ name: item.name, value: item.value }));
   return buildHorizontalBarOption({
     title: '系统测试模块修复率',
-    subtitle: '只看缺陷量较高的模块，减少长尾噪音',
+    subtitle: '按模块展示系统测试修复率',
     items,
     color: '#ff9f29',
     valueFormatter: (value) => `${value.toFixed(2)}%`,
@@ -175,7 +215,7 @@ export function buildCustomerResponseChartOption(board: StatisticBoardResponse |
     .slice(0, 8);
   return buildHorizontalBarOption({
     title: '客户问题响应率',
-    subtitle: '按模块看响应效率，优先发现长期拖慢的区域',
+    subtitle: '按模块展示客户问题响应率',
     items,
     color: '#7a5af8',
     valueFormatter: (value) => `${value.toFixed(2)}%`,
@@ -194,7 +234,7 @@ export function buildCustomerFunctionChartOption(board: StatisticBoardResponse |
     .slice(0, 8);
   return buildHorizontalBarOption({
     title: '客户问题功能缺陷 Top 8',
-    subtitle: '把问题最多的功能组合直接拉到前台',
+    subtitle: '按功能展示客户问题缺陷数量',
     items,
     color: '#1677ff',
   });
@@ -203,7 +243,7 @@ export function buildCustomerFunctionChartOption(board: StatisticBoardResponse |
 export function buildCodeReviewOwnerChartOption(overview: CodeReviewMultiBoardOverviewResponse | null) {
   return buildHorizontalBarOption({
     title: '代码走查责任人密度',
-    subtitle: '观察责任人维度下的缺陷密度分布',
+    subtitle: '按责任人展示代码走查缺陷密度',
     items: (overview?.ownerRows ?? [])
       .map((row) => ({
         name: row.rowLabel,
@@ -235,4 +275,11 @@ function resolveMaxTone(value: number | null, max: number) {
     return 'default';
   }
   return value <= max ? 'success' : 'danger';
+}
+
+function roundChartValue(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) {
+    return 0;
+  }
+  return Number(value.toFixed(2));
 }

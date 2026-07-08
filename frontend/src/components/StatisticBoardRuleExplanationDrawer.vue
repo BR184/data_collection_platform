@@ -40,14 +40,14 @@ const emit = defineEmits<{
     ]"
     :info-items="[
       { label: '当前使用规则版本', value: explanation?.version },
-      { label: '这次统计包含哪些数据', value: explanation?.scopeDescription },
+      { label: '统计范围', value: explanation?.scopeDescription },
     ]"
     :exclusion-steps="exclusionSteps"
     :process-steps="steps"
     :metrics="metrics"
-    exclusion-title="哪些会被排除"
-    process-title="数据是怎么一步步变少的"
-    metrics-title="最后这些数字怎么算"
+    exclusion-title="排除规则"
+    process-title="处理流程"
+    metrics-title="指标定义"
     @update:model-value="emit('update:modelValue', $event)"
   />
 </template>

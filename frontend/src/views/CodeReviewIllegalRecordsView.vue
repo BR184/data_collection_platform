@@ -793,8 +793,8 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :summary="ruleExplanation?.summary"
       :overview-cards="[
         { label: '原始数据', value: ruleFirstInputCount },
-        { label: '最终筛出', value: ruleFinalOutputCount },
-        { label: '筛出比例', value: ruleFinalRetainedRate },
+        { label: '命中记录', value: ruleFinalOutputCount },
+        { label: '命中比例', value: ruleFinalRetainedRate },
       ]"
       :info-items="[
         { label: '当前使用规则版本', value: ruleExplanation?.version },
@@ -804,9 +804,9 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
       :exclusion-steps="ruleExclusionSteps"
       :process-steps="ruleExplanationSteps"
       :metrics="ruleExplanationMetrics"
-      exclusion-title="当前默认口径下，哪些情况会被筛出来"
-      process-title="数据是怎么一步步变化的"
-      metrics-title="最后这些数字怎么算"
+      exclusion-title="非法判定规则"
+      process-title="处理流程"
+      metrics-title="指标定义"
     />
   </section>
 </template>

@@ -134,7 +134,7 @@ export function buildPhaseChartOption(phaseBoard: StatisticBoardResponse | null)
 
   return buildColumnBarOption({
     title: '缺陷阶段分布',
-    subtitle: '按测试轮次观察一二三级缺陷数量变化',
+    subtitle: '按测试轮次展示一二三级缺陷数量',
     categories: rows.map((row) => row.rowLabel),
     series: [
       { name: '一级缺陷', data: rows.map((row) => cellNumber(row, 'level1')), stack: 'severity', color: '#1677ff' },
@@ -150,7 +150,7 @@ export function buildModuleChartOption(summaryBoard: StatisticBoardResponse | nu
   const rows = topRows(summaryBoard, 'module_total', 8);
   return buildHorizontalBarOption({
     title: '模块缺陷 Top 8',
-    subtitle: '按模块快速定位当前缺陷压力最高的区域',
+    subtitle: '按模块展示缺陷数量',
     items: rows.map((item) => ({ name: item.row.rowLabel, value: item.value })),
     color: '#1677ff',
   });
@@ -160,7 +160,7 @@ export function buildRepairRateChartOption(summaryBoard: StatisticBoardResponse 
   const rows = topRows(summaryBoard, 'module_total', 8);
   return buildHorizontalBarOption({
     title: '模块修复率 Top 8',
-    subtitle: '仅展示当前缺陷量最高的模块，便于对比修复进度',
+    subtitle: '按模块展示缺陷修复率',
     items: rows.map((item) => ({
       name: item.row.rowLabel,
       value: Number(cellPercentNumber(item.row, 'fix_rate').toFixed(2)),
@@ -215,7 +215,7 @@ export function buildDelayCauseChartOption(delayBoard: StatisticBoardResponse | 
   const rows = topRows(delayBoard, 'total', 8);
   return buildHorizontalBarOption({
     title: '延期原因分布',
-    subtitle: '帮助判断当前系统测试延期的主要阻塞因素',
+    subtitle: '按延期原因展示系统测试缺陷数量',
     items: rows.map((item) => ({ name: item.row.rowLabel, value: item.value })),
     color: '#ff9f29',
   });

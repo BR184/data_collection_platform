@@ -35,9 +35,9 @@ const guidanceCards = computed(() =>
     :guidance-cards="guidanceCards"
     :metrics="content.metricDefinitions"
     :questions="content.commonQuestions"
-    guidance-title="填写指南"
-    metrics-title="数据是怎么计算的"
-    questions-title="常见问题"
+    guidance-title="字段说明"
+    metrics-title="指标定义"
+    questions-title="口径说明"
     @update:model-value="emit('update:visible', $event)"
   />
 </template>

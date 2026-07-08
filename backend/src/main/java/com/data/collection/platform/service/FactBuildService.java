@@ -786,11 +786,7 @@ public class FactBuildService {
     fact.setPriorityLevel(priorityLevel);
     fact.setUrgency(priorityLevel);
     fact.setBugStatus(IssueFactNormalizationRules.normalizeBugStatus(labels, closed));
-    fact.setCategory(
-        IssueFactNormalizationRules.isRegression(labels, title) ? "回退"
-            : IssueFactNormalizationRules.isCrash(labels, title) ? "挂机"
-            : IssueFactNormalizationRules.isLevel1Other(labels, title) ? "其他一级"
-            : null);
+    fact.setCategory(IssueFactNormalizationRules.normalizeCategory(labels));
     fact.setReasonCategory(IssueFactNormalizationRules.normalizeReasonCategory(labels, notesText));
     fact.setSystemTestLabel(IssueFactNormalizationRules.normalizeSystemTestLabel(labels));
     fact.setLabelNames(String.join(", ", labels));

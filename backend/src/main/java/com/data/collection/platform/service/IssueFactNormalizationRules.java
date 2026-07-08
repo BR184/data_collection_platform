@@ -16,6 +16,10 @@ public final class IssueFactNormalizationRules {
     return IssueLabelRules.normalizeSeverityAlias(labels);
   }
 
+  public static String normalizeCategory(List<String> labels) {
+    return IssueLabelRules.normalizeCategory(labels);
+  }
+
   public static String normalizePriorityLevel(List<String> labels) {
     return IssueLabelRules.normalizePriorityLevel(labels);
   }

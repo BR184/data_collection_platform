@@ -230,27 +230,29 @@ async function handleExpandChange() {
           <template #default="{ row }">{{ syncLogMessage(row) }}</template>
         </el-table-column>
       </el-table>
-      <div
-        v-show="isFloatingScrollbarVisible"
-        ref="floatingScrollbarRef"
-        class="sync-log-floating-horizontal"
-        :style="floatingScrollbarStyle"
-        aria-hidden="true"
-        @mouseenter="wakeHorizontalScrollbar"
-        @pointerup="handleFloatingScrollbarPointerUp"
-      >
+      <Teleport to="body">
         <div
-          ref="floatingTrackRef"
-          class="platform-floating-horizontal-track"
-          @pointerdown="handleFloatingTrackPointerDown"
+          v-show="isFloatingScrollbarVisible"
+          ref="floatingScrollbarRef"
+          class="sync-log-floating-horizontal"
+          :style="floatingScrollbarStyle"
+          aria-hidden="true"
+          @mouseenter="wakeHorizontalScrollbar"
+          @pointerup="handleFloatingScrollbarPointerUp"
         >
           <div
-            class="platform-floating-horizontal-thumb"
-            :style="floatingThumbStyle"
-            @pointerdown="handleFloatingThumbPointerDown"
-          />
+            ref="floatingTrackRef"
+            class="platform-floating-horizontal-track"
+            @pointerdown="handleFloatingTrackPointerDown"
+          >
+            <div
+              class="platform-floating-horizontal-thumb"
+              :style="floatingThumbStyle"
+              @pointerdown="handleFloatingThumbPointerDown"
+            />
+          </div>
         </div>
-      </div>
+      </Teleport>
     </div>
   </el-card>
 </template>

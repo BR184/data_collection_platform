@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-// 代码走查多元看板是代码域的统计板入口，负责选择数据源并展示统一图表结果。
-// 看板配置和字段口径放在独立模块中，页面保持为薄编排层。
 import { ElMessage } from '../element-plus-services';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
@@ -194,7 +192,7 @@ void initializePage();
           <div class="code-review-multi-board__panel-head">
             <div>
               <h3>模块缺陷密度</h3>
-              <p>优先判断当前数据源下最容易出现高密度缺陷的模块。</p>
+              <p>按模块展示当前数据源的缺陷密度。</p>
             </div>
           </div>
           <EChartPanel :option="moduleDensityChartOption" :loading="loading" :height="320" />
@@ -204,7 +202,7 @@ void initializePage();
           <div class="code-review-multi-board__panel-head">
             <div>
               <h3>模块走查体量</h3>
-              <p>用体量视角补足单纯看密度可能带来的误判。</p>
+              <p>按模块展示合并请求数量。</p>
             </div>
           </div>
           <EChartPanel :option="moduleVolumeChartOption" :loading="loading" :height="320" />
@@ -214,7 +212,7 @@ void initializePage();
           <div class="code-review-multi-board__panel-head">
             <div>
               <h3>责任人缺陷密度</h3>
-              <p>更适合快速识别责任人维度上的质量风险。</p>
+              <p>按责任人展示代码走查缺陷密度。</p>
             </div>
           </div>
           <EChartPanel :option="ownerDensityChartOption" :loading="loading" :height="320" />
@@ -224,7 +222,7 @@ void initializePage();
           <div class="code-review-multi-board__panel-head">
             <div>
               <h3>责任人完成率</h3>
-              <p>避免只看处理量，不看进度和完成度。</p>
+              <p>按责任人展示代码走查完成率。</p>
             </div>
           </div>
           <EChartPanel :option="ownerCompletionChartOption" :loading="loading" :height="320" />
@@ -236,7 +234,7 @@ void initializePage();
           <div class="code-review-multi-board__panel-head">
             <div>
               <h3>模块明细</h3>
-              <p>保留表格是为了让图表能继续下沉到可验证的业务数据。</p>
+              <p>模块维度代码走查统计明细。</p>
             </div>
           </div>
           <div class="code-review-multi-board__table-scroll">
@@ -279,7 +277,7 @@ void initializePage();
           <div class="code-review-multi-board__panel-head">
             <div>
               <h3>责任人明细</h3>
-              <p>结合完成率、密度和体量看人，不再只给一个数量榜单。</p>
+              <p>责任人维度代码走查统计明细。</p>
             </div>
           </div>
           <div class="code-review-multi-board__table-scroll">

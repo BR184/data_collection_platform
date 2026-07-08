@@ -51,7 +51,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-cause";
-  private static final String RULE_VERSION = "system-test-defect-cause@2026-06-30-v3";
+  private static final String RULE_VERSION = "system-test-defect-cause@2026-07-08-v4";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -490,7 +490,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     queryFilters.remove("testingPhase");
     Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+        defectCausePhasePredicate(filterGroup);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -572,7 +572,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+        defectCausePhasePredicate(filterGroup);
     String sql = buildBoardAggregateSql();
     try {
       return issueFactQueryService.query(
@@ -602,7 +602,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+        defectCausePhasePredicate(filterGroup);
     try {
       List<AggregateCounts> results =
           issueFactQueryService.query(
@@ -647,6 +647,11 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
         """)
         .append("   and ").append(CAUSE_TEXT_SQL).append(" <> ''\n");
     return sql.toString();
+  }
+
+  private SystemTestPhaseSqlPredicateSupport.SqlPredicate defectCausePhasePredicate(
+      StatisticFilterGroup filterGroup) {
+    return SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
   }
 
   private String buildBoardTotalAggregateSql() {
@@ -1007,9 +1012,8 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
 
     private Set<String> matchedMetricKeys() {
       Set<String> matched = new LinkedHashSet<>();
-      String text = StringUtils.hasText(reasonCategory) ? reasonCategory : reasonText;
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
-        if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
+        if (DefectCauseMetricCatalog.containsAny(reasonCategory, metric.tokens())) {
           matched.add(metric.key());
         }
       }

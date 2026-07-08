@@ -5,6 +5,7 @@ import { issueRecordsApi } from './api-client/issue-records-api';
 import { labelGroupsApi } from './api-client/label-groups-api';
 import { legacyDatabaseApi } from './api-client/legacy-database-api';
 import { mirrorApi } from './api-client/mirror-api';
+import { qualityBoardApi } from './api-client/quality-board-api';
 import { reviewDataApi } from './api-client/review-data-api';
 import { statisticBoardsApi } from './api-client/statistic-boards-api';
 import { testingPhasesApi } from './api-client/testing-phases-api';
@@ -22,4 +23,5 @@ export const api = {
   ...issueRecordsApi,
   ...labelGroupsApi,
   ...legacyDatabaseApi,
+  ...qualityBoardApi,
 };

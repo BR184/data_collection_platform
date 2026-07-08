@@ -432,7 +432,7 @@ function emitStandaloneKeywordSearch(value = keywordDraft.value) {
 
 function effectiveColumnWidth(column: RecordTableColumn) {
   if (isPersonNameColumn(column)) {
-    return personNameColumnWidth(column);
+    return effectivePersonNameColumnWidth(column);
   }
   const lowerBound = effectiveColumnLowerBound(column);
   const contentWidth = estimateColumnContentWidth(column);
@@ -443,16 +443,16 @@ function effectiveColumnWidth(column: RecordTableColumn) {
 
 function effectiveColumnMinWidth(column: RecordTableColumn) {
   if (isPersonNameColumn(column)) {
-    return personNameColumnWidth(column);
+    return effectivePersonNameColumnWidth(column);
   }
   return effectiveColumnLowerBound(column);
 }
 
 function effectiveColumnLowerBound(column: RecordTableColumn) {
   if (isPersonNameColumn(column)) {
-    return personNameColumnWidth(column);
+    return effectivePersonNameColumnWidth(column);
   }
-  const reservePx = (column.sortable ? 18 : 8) + (column.headerTooltip ? 16 : 0);
+  const reservePx = (column.sortable ? 24 : 8) + (column.headerTooltip ? 16 : 0);
   return Math.max(adjustedConfiguredMinWidth(column), tableHeaderMinimumWidth(column.label, reservePx, column.headerLines), columnTypeFloor(column));
 }
 
@@ -493,7 +493,7 @@ function columnTypeFloor(column: RecordTableColumn) {
 
 function defaultColumnUpperBound(column: RecordTableColumn) {
   if (isPersonNameColumn(column)) {
-    return personNameColumnWidth(column);
+    return effectivePersonNameColumnWidth(column);
   }
   if (isProjectLikeColumn(column)) {
     return 156;
@@ -537,7 +537,7 @@ function columnFlexWeight(column: RecordTableColumn) {
 
 function estimateColumnContentWidth(column: RecordTableColumn) {
   if (isPersonNameColumn(column)) {
-    return personNameColumnWidth(column);
+    return effectivePersonNameColumnWidth(column);
   }
   const values = props.rows.slice(0, 80).map((row) => row[column.key]);
   if (!values.length) {
@@ -572,7 +572,7 @@ function cellVisualWidthPx(value: unknown, column: RecordTableColumn) {
     return Math.max(longestLabelWidth + 24, Math.min(combinedWidth, 220));
   }
   if (column.type === 'tag') {
-    return estimateTextWidthPx(display.primaryTag?.label ?? '-');
+    return Math.min(estimateTextWidthPx(display.primaryTag?.label ?? '-') + 20, 260);
   }
   if (column.type === 'link') {
     return estimateTextWidthPx(display.link?.label ?? '-');
@@ -610,9 +610,18 @@ function isPersonNameColumn(column: RecordTableColumn) {
 }
 
 function personNameColumnWidth(column: RecordTableColumn) {
-  const sortReserve = column.sortable ? 18 : 8;
+  const sortReserve = column.sortable ? 24 : 8;
   const tooltipReserve = column.headerTooltip ? 14 : 0;
   return 60 + sortReserve + tooltipReserve;
+}
+
+function effectivePersonNameColumnWidth(column: RecordTableColumn) {
+  const sortReserve = column.sortable ? 24 : 8;
+  const tooltipReserve = column.headerTooltip ? 14 : 0;
+  return Math.max(
+    personNameColumnWidth(column),
+    tableHeaderMinimumWidth(column.label, sortReserve + tooltipReserve, column.headerLines),
+  );
 }
 
 function estimateTextWidthPx(value: string) {
@@ -1040,27 +1049,29 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
           <el-empty :description="emptyDescription" />
         </template>
       </el-table>
-      <div
-        v-show="isFloatingScrollbarVisible"
-        ref="floatingScrollbarRef"
-        class="record-table-floating-horizontal"
-        :style="floatingScrollbarStyle"
-        aria-hidden="true"
-        @mouseenter="wakeHorizontalScrollbar"
-        @pointerup="handleFloatingScrollbarPointerUp"
-      >
+      <Teleport to="body">
         <div
-          ref="floatingTrackRef"
-          class="platform-floating-horizontal-track"
-          @pointerdown="handleFloatingTrackPointerDown"
+          v-show="isFloatingScrollbarVisible"
+          ref="floatingScrollbarRef"
+          class="record-table-floating-horizontal"
+          :style="floatingScrollbarStyle"
+          aria-hidden="true"
+          @mouseenter="wakeHorizontalScrollbar"
+          @pointerup="handleFloatingScrollbarPointerUp"
         >
           <div
-            class="platform-floating-horizontal-thumb"
-            :style="floatingThumbStyle"
-            @pointerdown="handleFloatingThumbPointerDown"
-          />
+            ref="floatingTrackRef"
+            class="platform-floating-horizontal-track"
+            @pointerdown="handleFloatingTrackPointerDown"
+          >
+            <div
+              class="platform-floating-horizontal-thumb"
+              :style="floatingThumbStyle"
+              @pointerdown="handleFloatingThumbPointerDown"
+            />
+          </div>
         </div>
-      </div>
+      </Teleport>
     </div>
 
     <div class="record-table-pagination">
@@ -1267,7 +1278,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   min-width: 0;
   padding: 0 8px;
   text-align: center;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .record-table :deep(.el-table__body .cell > .el-tooltip) {
@@ -1280,12 +1291,22 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 }
 
 .record-table :deep(.el-table__body .cell:has(.record-table-tags)) {
-  overflow: visible;
+  overflow: hidden;
   white-space: normal;
 }
 
 .record-table :deep(.el-table__body .cell:has(.record-table-tags) > .el-tooltip) {
-  overflow: visible;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.record-table :deep(.el-table__body .cell:has(.record-table-tag)) {
+  overflow: hidden;
+  white-space: normal;
+}
+
+.record-table :deep(.el-table__body .cell:has(.record-table-tag) > .el-tooltip) {
+  overflow: hidden;
   white-space: normal;
 }
 

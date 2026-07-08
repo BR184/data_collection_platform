@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { QuestionFilled } from '@element-plus/icons-vue';
-import { compactTableHeaderLines, normalizeTableHeaderLines, visualTextUnits } from './table-header-layout';
+import {
+  compactTableHeaderLines,
+  hasConfiguredTableHeaderLines,
+  normalizeTableHeaderLines,
+  visualTextUnits,
+} from './table-header-layout';
 
 const props = defineProps<{
   label: string;
@@ -28,6 +33,7 @@ const stacked = ref(lines.value.length > 1);
 const compacted = ref(false);
 const displayedLines = computed(() => (compacted.value ? compactLines.value : lines.value));
 const hasStackedCandidate = computed(() => lines.value.length > 1);
+const hasConfiguredLines = computed(() => hasConfiguredTableHeaderLines(props.label, props.lines));
 const shortSingleLine = computed(() => {
   const characters = Array.from(String(props.label ?? '').trim()).length;
   return !stacked.value && (characters <= 4 || visualTextUnits(props.label) <= 8);
@@ -38,7 +44,12 @@ const layoutTolerancePx = 8;
 function updateLayout() {
   const root = rootRef.value;
   if (!root || !hasStackedCandidate.value) {
-    stacked.value = false;
+    stacked.value = hasConfiguredLines.value && hasStackedCandidate.value;
+    compacted.value = false;
+    return;
+  }
+  if (hasConfiguredLines.value) {
+    stacked.value = true;
     compacted.value = false;
     return;
   }
@@ -58,6 +69,7 @@ function updateLayout() {
   compacted.value =
     compactLines.value[0] !== lines.value[0]
     && availableWidth > 0
+    && !hasConfiguredLines.value
     && firstLineWidth > availableWidth + layoutTolerancePx
     && compactFirstLineWidth <= availableWidth + layoutTolerancePx;
 }
@@ -153,7 +165,7 @@ watch(
 .smart-table-header__stack {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .smart-table-header__single {
@@ -179,7 +191,7 @@ watch(
   gap: 2px;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   white-space: nowrap;
 }
 
@@ -191,8 +203,11 @@ watch(
   display: block;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .smart-table-header__line--primary .smart-table-header__text {

@@ -686,11 +686,16 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
           rowLabel,
           List.of(
               textCell("milestone_title", milestoneTitle),
-              cycleCell("response_cycle_hours", responseIssues.isEmpty() ? null : responseAverage, responseIssues.isEmpty() ? "" : String.valueOf(responseAverage)),
+              cycleCell(
+                  "response_cycle_hours",
+                  responseIssues.isEmpty() ? 0L : responseAverage,
+                  responseIssues.isEmpty() ? "0" : String.valueOf(responseAverage),
+                  !responseIssues.isEmpty()),
               cycleCell(
                   "resolution_cycle_days",
-                  resolutionIssues.isEmpty() ? null : resolutionAverage.multiply(BigDecimal.TEN).longValue(),
-                  resolutionIssues.isEmpty() ? "" : resolutionAverage.toPlainString())));
+                  resolutionIssues.isEmpty() ? 0L : resolutionAverage.multiply(BigDecimal.TEN).longValue(),
+                  resolutionIssues.isEmpty() ? "0" : resolutionAverage.toPlainString(),
+                  !resolutionIssues.isEmpty())));
     }
 
     private String commonMilestoneTitle() {
@@ -731,13 +736,13 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       return new StatisticCellData(key, 0, value, false, null, Map.of("rowKey", rowKey));
     }
 
-    private StatisticCellData cycleCell(String key, Long numericValue, String displayValue) {
+    private StatisticCellData cycleCell(String key, Long numericValue, String displayValue, boolean drilldown) {
       return new StatisticCellData(
           key,
           numericValue == null ? 0L : numericValue,
           displayValue,
-          StringUtils.hasText(displayValue),
-          "issue-list",
+          drilldown,
+          drilldown ? "issue-list" : null,
           Map.of("rowKey", rowKey));
     }
   }

@@ -121,7 +121,7 @@ describe('QualityBoardOtherView mount smoke', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('专题辅助视图');
+    expect(wrapper.text()).toContain('其他看板');
     expect(wrapper.text()).toContain('客户问题响应率');
     expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(4);
 

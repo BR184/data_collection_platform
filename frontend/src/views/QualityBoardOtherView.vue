@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-// 其他质量看板承接跨域辅助指标，和研发质量首页共享同一套统计板渲染底座。
-// 这里不单独实现图表逻辑，避免同类看板出现两套交互规则。
 import { ElMessage } from '../element-plus-services';
 import { Refresh } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
@@ -78,8 +76,7 @@ void loadPage().catch((error) => {
       <section class="quality-board-other__hero">
         <div>
           <div class="quality-board-other__eyebrow">质量看板 / 其他看板</div>
-          <h2>专题辅助视图</h2>
-          <p>这里放跨域的辅助分析，不再和首页 KPI 混排。目标是让每张图都有清晰问题指向，而不是把能画的都画出来。</p>
+          <h2>其他看板</h2>
         </div>
         <el-button
           class="app-action-button app-action-button--refresh"
@@ -96,10 +93,10 @@ void loadPage().catch((error) => {
           <div class="quality-board-other__panel-head">
             <div>
               <h3>客户问题响应率</h3>
-              <p>按模块快速判断哪里最容易拖慢首响效率。</p>
+              <p>按模块展示客户问题响应率。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/customer-issues/response-efficiency')">
-              正式页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="customerResponseChartOption" :loading="loading" :height="320" />
@@ -109,10 +106,10 @@ void loadPage().catch((error) => {
           <div class="quality-board-other__panel-head">
             <div>
               <h3>客户问题功能热点</h3>
-              <p>把问题最多的功能组合拉到前台，而不是先看长表。</p>
+              <p>按功能展示客户问题缺陷数量。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/customer-issues/issue-by-function')">
-              正式页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="customerFunctionChartOption" :loading="loading" :height="320" />
@@ -122,10 +119,10 @@ void loadPage().catch((error) => {
           <div class="quality-board-other__panel-head">
             <div>
               <h3>代码走查责任人密度</h3>
-              <p>优先判断责任人维度的质量负载是否过于集中。</p>
+              <p>按责任人展示代码走查缺陷密度。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/code-review/multi-board')">
-              正式页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="codeReviewOwnerChartOption" :loading="loading" :height="320" />
@@ -135,10 +132,10 @@ void loadPage().catch((error) => {
           <div class="quality-board-other__panel-head">
             <div>
               <h3>系统测试延期原因</h3>
-              <p>观察延期最常见的阻塞类型，适合周会快速扫一遍。</p>
+              <p>按延期原因展示系统测试缺陷数量。</p>
             </div>
             <el-link underline="never" type="primary" @click="goTo('/question-metrics/delay-analysis')">
-              正式页
+              查看详情
             </el-link>
           </div>
           <EChartPanel :option="delayCauseChartOption" :loading="loading" :height="320" />

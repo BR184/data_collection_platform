@@ -15,6 +15,16 @@ final class SystemTestPhaseSqlPredicateSupport {
 
   static SqlPredicate legacyStatisticPhasePredicate(
       StatisticFilterGroup filterGroup, SystemTestPhaseScopeResolver phaseScopeResolver) {
+    return legacyPhasePredicate(filterGroup, phaseScopeResolver, true);
+  }
+
+  static SqlPredicate legacyExactPhasePredicate(
+      StatisticFilterGroup filterGroup, SystemTestPhaseScopeResolver phaseScopeResolver) {
+    return legacyPhasePredicate(filterGroup, phaseScopeResolver, false);
+  }
+
+  private static SqlPredicate legacyPhasePredicate(
+      StatisticFilterGroup filterGroup, SystemTestPhaseScopeResolver phaseScopeResolver, boolean fuzzyMatch) {
     String selectedPhase = selectedExactTestingPhase(filterGroup);
     if (!StringUtils.hasText(selectedPhase) || phaseScopeResolver == null) {
       return EMPTY;
@@ -31,8 +41,13 @@ final class SystemTestPhaseSqlPredicateSupport {
     List<String> clauses = new ArrayList<>();
     List<Object> args = new ArrayList<>();
     for (String phase : phases) {
-      clauses.add("testing_phase like ?");
-      args.add("%" + phase + "%");
+      if (fuzzyMatch) {
+        clauses.add("testing_phase like ?");
+        args.add("%" + phase + "%");
+      } else {
+        clauses.add("testing_phase = ?");
+        args.add(phase);
+      }
     }
     return new SqlPredicate(String.join(" or ", clauses), args);
   }
