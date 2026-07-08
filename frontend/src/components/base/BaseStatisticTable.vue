@@ -352,12 +352,15 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
   overflow-x: auto;
   overflow-y: hidden;
   outline: none;
-  scrollbar-gutter: stable;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.92);
 }
 
 .stat-matrix-table {
   width: 100%;
   min-width: 100%;
+  border: 0 !important;
+  border-radius: 0;
 }
 
 .stat-matrix-table :deep(.el-table__inner-wrapper),

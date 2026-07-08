@@ -44,6 +44,8 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
   const activeRow = ref<StatisticRowData | null>(null);
   const activeCell = ref<StatisticCellData | null>(null);
   const detail = ref<StatisticDetailResponse | null>(null);
+  const detailQuickFilterValues = reactive<Record<string, string>>({});
+  const detailQuickFilterInputDrafts = reactive<Record<string, string>>({});
   const detailPagination = reactive({
     page: 1,
     size: 10,
@@ -62,6 +64,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     detail.value = null;
     activeRow.value = null;
     activeCell.value = null;
+    resetDetailQuickFilterState();
   }
 
   function canOpenDetailCell(cell: StatisticCellData | null | undefined) {
@@ -128,6 +131,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     }
     detailLoading.value = true;
     try {
+      const detailFilters = buildDetailFilters();
       detail.value = await deps.loadDetails(deps.boardKey(), {
         rowKey: activeRow.value.rowKey,
         columnKey: activeCell.value.columnKey,
@@ -135,7 +139,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
         size: detailPagination.size,
         sortField: detailPagination.sortField || undefined,
         sortOrder: detailPagination.sortOrder || undefined,
-        filters: activeCell.value.detailParams,
+        ...(Object.keys(detailFilters).length ? { filters: detailFilters } : {}),
         filterGroup: deps.getFilterGroup(),
       });
     } catch (error) {
@@ -149,6 +153,7 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     if (!canOpenDetailCell(cell)) {
       return;
     }
+    resetDetailQuickFilterState();
     activeRow.value = row;
     activeCell.value = cell;
     await deps.replaceRouteQuery({
@@ -190,6 +195,28 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     });
   }
 
+  function handleDetailQuickFilterInputUpdate(key: string, value: string) {
+    detailQuickFilterInputDrafts[key] = value;
+  }
+
+  function handleDetailQuickFilterChange(key: string, value: string | string[] | null) {
+    const nextValue = Array.isArray(value) ? value.join(',') : String(value ?? '');
+    setDetailQuickFilterValue(key, nextValue);
+    reloadDetailFromFirstPage();
+  }
+
+  function applyDetailQuickFilters() {
+    for (const [key, value] of Object.entries(detailQuickFilterInputDrafts)) {
+      setDetailQuickFilterValue(key, value);
+    }
+    reloadDetailFromFirstPage();
+  }
+
+  function resetDetailQuickFilters() {
+    resetDetailQuickFilterState();
+    reloadDetailFromFirstPage();
+  }
+
   function handleDetailVisibleChange(visible: boolean) {
     if (visible) {
       return;
@@ -218,6 +245,42 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     await clearDetailRouteQuery();
   }
 
+  function buildDetailFilters() {
+    const filters: Record<string, string> = { ...(activeCell.value?.detailParams ?? {}) };
+    for (const [key, value] of Object.entries(detailQuickFilterValues)) {
+      const trimmed = value.trim();
+      if (trimmed) {
+        filters[key] = trimmed;
+      }
+    }
+    return filters;
+  }
+
+  function setDetailQuickFilterValue(key: string, value: string) {
+    const trimmed = value.trim();
+    detailQuickFilterInputDrafts[key] = value;
+    if (trimmed) {
+      detailQuickFilterValues[key] = trimmed;
+      return;
+    }
+    delete detailQuickFilterValues[key];
+  }
+
+  function resetDetailQuickFilterState() {
+    for (const key of Object.keys(detailQuickFilterValues)) {
+      delete detailQuickFilterValues[key];
+    }
+    for (const key of Object.keys(detailQuickFilterInputDrafts)) {
+      delete detailQuickFilterInputDrafts[key];
+    }
+  }
+
+  function reloadDetailFromFirstPage() {
+    detailPagination.page = 1;
+    void deps.replaceRouteQuery({ detailPage: 1 });
+    void loadDetail();
+  }
+
   return {
     detailLoading,
     detailVisible,
@@ -225,12 +288,18 @@ export function useStatisticBoardDetail(deps: StatisticBoardDetailDependencies) 
     activeCell,
     detail,
     detailPagination,
+    detailQuickFilterValues,
+    detailQuickFilterInputDrafts,
     detailCellValue,
     loadDetail,
     openDetail,
     handleDetailSortChange,
     handleDetailCurrentChange,
     handleDetailSizeChange,
+    handleDetailQuickFilterInputUpdate,
+    handleDetailQuickFilterChange,
+    applyDetailQuickFilters,
+    resetDetailQuickFilters,
     handleDetailVisibleChange,
     syncFromRoute,
     syncPaginationFromRoute,

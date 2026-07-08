@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ArrowDown, ArrowUp, Delete, Plus } from '@element-plus/icons-vue';
 import SmartSelect from './base/SmartSelect.vue';
-import { ElMessageBox } from '../element-plus-services';
+import { ElMessage, ElMessageBox } from '../element-plus-services';
 import { labelGroupsApi } from '../api-client/label-groups-api';
 // 高级筛选构建器把字段、操作符和值拆成可组合条件，供记录页和统计板复用。
 // 组件只维护前端草稿结构，最终查询表达式由调用方序列化后交给接口。
@@ -20,7 +20,8 @@ import {
   type StatisticFilterDraftGroup,
 } from './statistic-board-filters';
 
-const visibleConditionLimit = 2;
+const summaryChipGap = 6;
+const numericFilterLimit = Number.MAX_SAFE_INTEGER;
 
 const props = withDefaults(
   defineProps<{
@@ -29,11 +30,13 @@ const props = withDefaults(
     addButtonText?: string;
     showApplyActions?: boolean;
     expanded?: boolean;
+    extraSummaryChips?: Array<{ id: string; label: string }>;
   }>(),
   {
     addButtonText: '添加条件',
     showApplyActions: false,
     expanded: undefined,
+    extraSummaryChips: () => [],
   },
 );
 
@@ -47,6 +50,12 @@ const conditionsExpanded = ref(false);
 const batchDeleteMode = ref(false);
 const selectedConditionIds = ref<string[]>([]);
 const labelGroupsByValueType = ref<Record<string, LabelGroup[]>>({});
+const summaryChipRailRef = ref<HTMLElement | null>(null);
+const summaryMeasureRailRef = ref<HTMLElement | null>(null);
+const summaryChipCapacity = ref(Number.MAX_SAFE_INTEGER);
+const numericOverflowWarningKeys = new Set<string>();
+let summaryResizeObserver: ResizeObserver | null = null;
+let observedSummaryChipRail: HTMLElement | null = null;
 
 const selectedConditionCount = computed(() => selectedConditionIds.value.length);
 const allConditionsSelected = computed(
@@ -76,19 +85,30 @@ watch(conditionsExpanded, (value) => {
   }
 });
 
-const conditionSummaries = computed(() =>
+const advancedConditionSummaries = computed(() =>
   props.modelValue.conditions.map((condition) => ({
-    id: condition.id,
+    id: `condition:${condition.id}`,
     label: summarizeCondition(condition),
   })),
 );
 
-const visibleSummaryChips = computed(() => conditionSummaries.value.slice(0, visibleConditionLimit));
+const conditionSummaries = computed(() => [
+  ...advancedConditionSummaries.value,
+  ...props.extraSummaryChips.map((chip) => ({
+    id: `extra:${chip.id}`,
+    label: chip.label,
+  })),
+]);
+const visibleSummaryChips = computed(() => conditionSummaries.value.slice(0, summaryChipCapacity.value));
 const hiddenSummaryCount = computed(() => Math.max(0, conditionSummaries.value.length - visibleSummaryChips.value.length));
-const fieldSelectCharacterWidth = computed(() =>
-  props.fields.reduce((max, field) => Math.max(max, field.label.trim().length), 0),
-);
 
+watch(
+  conditionSummaries,
+  () => {
+    void nextTick(refreshSummaryChipCapacity);
+  },
+  { flush: 'post' },
+);
 watch(
   () => props.modelValue.conditions.length,
   (length) => {
@@ -331,33 +351,147 @@ function handleValueSelectChange(condition: StatisticFilterConditionDraft, value
 function conditionRowClass(condition: StatisticFilterConditionDraft) {
   return {
     'has-secondary-value': usesSecondaryValue(condition.operator),
+    'without-value': !needsValue(condition),
     'is-selecting': batchDeleteMode.value,
   };
 }
 
 function conditionRowStyle(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
-  const fieldWidth = field?.width ?? 176;
-  const fieldLabelDrivenWidth = fieldSelectCharacterWidth.value * 14 + 44;
-  const normalizedFieldWidth = Math.max(128, Math.min(Math.max(fieldWidth, fieldLabelDrivenWidth), 216));
-  const operatorWidth = usesSecondaryValue(condition.operator) ? 104 : 112;
-  const valueWidth = usesSecondaryValue(condition.operator)
-    ? usesDatePicker(condition)
-      ? 176
-      : isNumericField(condition)
-        ? 148
-        : 164
-    : usesDatePicker(condition)
-      ? 188
-      : isNumericField(condition)
-        ? 132
-        : 172;
+  const normalizedFieldWidth = controlWidthForText(field?.label || '字段', 92, 220, 52);
+  const operatorWidth = controlWidthForText(condition.operator ? operatorLabel(condition.operator) : '关系', 82, 150, 46);
+  const valueWidth = conditionValueWidth(condition);
   return {
     '--condition-field-width': `${normalizedFieldWidth}px`,
     '--condition-operator-width': `${operatorWidth}px`,
     '--condition-value-width': `${valueWidth}px`,
   };
 }
+
+function conditionValueWidth(condition: StatisticFilterConditionDraft) {
+  if (!needsValue(condition)) {
+    return 0;
+  }
+  if (usesDatePicker(condition)) {
+    return (
+      {
+        year: 96,
+        month: 118,
+        day: 136,
+        at: 166,
+        before: 166,
+        after: 166,
+        between: 166,
+      } as Record<string, number>
+    )[condition.operator] ?? 166;
+  }
+  if (isNumericField(condition)) {
+    return controlWidthForText(summarizeLiteralValue(condition.value, '值'), 104, 156, 52);
+  }
+  return controlWidthForText(summarizeConditionValue(condition), 96, usesValueSelect(condition) ? 220 : 240, 52);
+}
+
+function visualTextWidth(text: string) {
+  return Array.from(String(text ?? '')).reduce((total, character) => total + (/[\u0000-\u00ff]/.test(character) ? 7 : 13), 0);
+}
+
+function controlWidthForText(text: string, minWidth: number, maxWidth: number, horizontalPadding: number) {
+  return Math.max(minWidth, Math.min(visualTextWidth(text) + horizontalPadding, maxWidth));
+}
+
+function handleNumberInput(
+  condition: StatisticFilterConditionDraft,
+  valueKey: 'value' | 'secondaryValue',
+  rawValue: string | number | null | undefined,
+) {
+  const nextValue = normalizeNumberInput(rawValue);
+  if (nextValue == null) {
+    return;
+  }
+  const warningKey = `${condition.id}:${valueKey}`;
+  if (Math.abs(nextValue) > numericFilterLimit) {
+    condition[valueKey] = nextValue > 0 ? numericFilterLimit : -numericFilterLimit;
+    if (!numericOverflowWarningKeys.has(warningKey)) {
+      numericOverflowWarningKeys.add(warningKey);
+      ElMessage.warning(`数值不能超过 ${numericFilterLimit}，已按上限处理`);
+    }
+    return;
+  }
+  numericOverflowWarningKeys.delete(warningKey);
+  condition[valueKey] = nextValue;
+}
+
+function normalizeNumberInput(rawValue: string | number | null | undefined) {
+  if (rawValue == null || rawValue === '') {
+    return null;
+  }
+  const numericValue = typeof rawValue === 'number' ? rawValue : Number(String(rawValue).replace(/,/g, ''));
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function summaryChipWidth(label: string, index: number) {
+  const measuredChip = summaryMeasureRailRef.value?.querySelectorAll<HTMLElement>('.stat-filter-measure-chip')[index];
+  const measuredWidth = measuredChip?.offsetWidth ?? 0;
+  if (measuredWidth > 0) {
+    return measuredWidth;
+  }
+  return Math.max(44, Math.min(visualTextWidth(label) + 22, 260));
+}
+
+function refreshSummaryChipCapacity() {
+  observeSummaryChipRail();
+  const rail = summaryChipRailRef.value;
+  const summaries = conditionSummaries.value;
+  if (!rail || !summaries.length) {
+    summaryChipCapacity.value = summaries.length;
+    return;
+  }
+  const availableWidth = rail.clientWidth;
+  if (availableWidth <= 0) {
+    summaryChipCapacity.value = summaries.length;
+    return;
+  }
+
+  let usedWidth = 0;
+  let visibleCount = 0;
+  for (const [index, summary] of summaries.entries()) {
+    const remainingAfterThis = summaries.length - index - 1;
+    const chipWidth = summaryChipWidth(summary.label, index);
+    const widthWithGap = chipWidth + (visibleCount > 0 ? summaryChipGap : 0);
+    const moreChipWidth = remainingAfterThis > 0 ? summaryChipGap + 34 : 0;
+    if (usedWidth + widthWithGap + moreChipWidth > availableWidth) {
+      break;
+    }
+    usedWidth += widthWithGap;
+    visibleCount += 1;
+  }
+  summaryChipCapacity.value = Math.min(visibleCount, summaries.length);
+}
+
+function observeSummaryChipRail() {
+  const rail = summaryChipRailRef.value;
+  if (typeof ResizeObserver === 'undefined' || !rail || rail === observedSummaryChipRail) {
+    return;
+  }
+  if (!summaryResizeObserver) {
+    summaryResizeObserver = new ResizeObserver(() => refreshSummaryChipCapacity());
+  }
+  if (observedSummaryChipRail) {
+    summaryResizeObserver.unobserve(observedSummaryChipRail);
+  }
+  summaryResizeObserver.observe(rail);
+  observedSummaryChipRail = rail;
+}
+
+onMounted(() => {
+  void nextTick(refreshSummaryChipCapacity);
+});
+
+onBeforeUnmount(() => {
+  summaryResizeObserver?.disconnect();
+  summaryResizeObserver = null;
+  observedSummaryChipRail = null;
+});
 
 function supportsLabelGroupValue(condition: StatisticFilterConditionDraft) {
   const field = fieldForCondition(condition.fieldKey);
@@ -471,12 +605,14 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   <div class="stat-filter-builder" :class="{ 'is-expanded': conditionsExpanded }">
     <div class="stat-filter-summary">
       <div class="stat-filter-summary-main">
-        <span class="stat-filter-title">筛选条件</span>
-        <el-tag size="small" effect="plain" round>
-          {{ modelValue.logic === 'OR' ? '满足任意' : '满足全部' }}
-        </el-tag>
-        <span class="stat-filter-count">已设置 {{ modelValue.conditions.length }} 个条件</span>
-        <div v-if="conditionSummaries.length" class="stat-filter-chips">
+        <div class="stat-filter-summary-prefix">
+          <span class="stat-filter-title">筛选条件</span>
+          <el-tag size="small" effect="plain" round>
+            {{ modelValue.logic === 'OR' ? '满足任意' : '满足全部' }}
+          </el-tag>
+          <span class="stat-filter-count">已设置 {{ modelValue.conditions.length }} 个条件</span>
+        </div>
+        <div v-if="conditionSummaries.length" ref="summaryChipRailRef" class="stat-filter-chips">
           <el-tag
             v-for="summary in visibleSummaryChips"
             :key="summary.id"
@@ -499,6 +635,18 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             @keydown.space.prevent="conditionsExpanded = true"
           >
             +{{ hiddenSummaryCount }}
+          </el-tag>
+        </div>
+        <div v-else ref="summaryChipRailRef" class="stat-filter-chips" aria-hidden="true" />
+        <div ref="summaryMeasureRailRef" class="stat-filter-measure-rail" aria-hidden="true">
+          <el-tag
+            v-for="summary in conditionSummaries"
+            :key="summary.id"
+            size="small"
+            effect="plain"
+            class="stat-filter-chip stat-filter-measure-chip"
+          >
+            {{ summary.label }}
           </el-tag>
         </div>
       </div>
@@ -560,6 +708,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             class="stat-filter-field"
             placeholder="字段"
             :options="fieldSelectOptions()"
+            dropdown-mode="adaptive-tags"
             @change="handleFieldSelectChange(condition, $event)"
           />
           <SmartSelect
@@ -567,6 +716,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             class="stat-filter-operator"
             placeholder="关系"
             :options="operatorSelectOptions(condition)"
+            dropdown-mode="adaptive-tags"
             @change="handleOperatorSelectChange(condition, $event)"
           />
           <template v-if="needsValue(condition)">
@@ -577,14 +727,19 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
               placeholder="值"
               :options="valueOptionsForCondition(condition)"
               :allow-create="allowsCreateValue(condition)"
+              dropdown-mode="adaptive-tags"
               @change="handleValueSelectChange(condition, $event)"
             />
             <el-input-number
               v-else-if="isNumericField(condition)"
-              v-model="condition.value"
+              :model-value="condition.value"
               class="stat-filter-value"
               controls-position="right"
+              :max="numericFilterLimit"
+              :min="-numericFilterLimit"
               placeholder="值"
+              @input="handleNumberInput(condition, 'value', $event)"
+              @change="handleNumberInput(condition, 'value', $event)"
             />
             <el-date-picker
               v-else-if="usesDatePicker(condition)"
@@ -598,10 +753,14 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           </template>
           <el-input-number
             v-if="usesSecondaryValue(condition.operator) && isNumericField(condition)"
-            v-model="condition.secondaryValue"
+            :model-value="condition.secondaryValue"
             class="stat-filter-value secondary"
             controls-position="right"
+            :max="numericFilterLimit"
+            :min="-numericFilterLimit"
             placeholder="结束值"
+            @input="handleNumberInput(condition, 'secondaryValue', $event)"
+            @change="handleNumberInput(condition, 'secondaryValue', $event)"
           />
           <el-date-picker
             v-else-if="usesSecondaryValue(condition.operator) && usesDatePicker(condition)"
@@ -628,7 +787,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
           />
         </div>
       </div>
-      <el-empty v-else description="暂无筛选条件" :image-size="56" class="stat-filter-empty" />
+      <el-empty v-else description="暂无筛选条件" :image-size="0" class="stat-filter-empty" />
 
       <div v-if="modelValue.conditions.length || showApplyActions" class="stat-filter-actions">
         <div class="stat-filter-maintenance-actions">
@@ -672,7 +831,15 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.stat-filter-summary-prefix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -692,11 +859,14 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex: 1 1 180px;
+  flex-wrap: nowrap;
+  overflow: hidden;
   min-width: 0;
 }
 
 .stat-filter-chip {
+  flex: 0 0 auto;
   max-width: 260px;
 }
 
@@ -705,6 +875,20 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.stat-filter-measure-rail {
+  position: absolute;
+  left: -10000px;
+  top: -10000px;
+  display: flex;
+  gap: 6px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stat-filter-measure-chip {
+  flex: 0 0 auto;
 }
 
 .stat-filter-summary-actions,
@@ -727,12 +911,12 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 
 .stat-filter-editor {
   display: grid;
-  gap: 7px;
+  gap: 6px;
   min-width: 0;
-  padding: 7px;
+  padding: 7px 8px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
-  background: rgba(248, 250, 252, 0.72);
+  border-radius: 6px;
+  background: #f8fafc;
 }
 
 .stat-filter-editor-header {
@@ -790,57 +974,72 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-builder.is-expanded .stat-filter-list {
-  max-height: 220px;
+  max-height: 168px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 2px;
   align-content: flex-start;
 }
 
 .stat-filter-row {
   display: grid;
   grid-template-columns:
-    minmax(0, var(--condition-field-width, 160px))
-    minmax(0, var(--condition-operator-width, 112px))
-    minmax(0, var(--condition-value-width, 172px))
+    minmax(0, var(--condition-field-width, 104px))
+    minmax(0, var(--condition-operator-width, 82px))
+    minmax(0, var(--condition-value-width, 96px))
     28px;
   align-items: center;
   gap: 4px;
   flex: 0 1 auto;
   width: fit-content;
-  max-width: min(100%, 1000px);
+  max-width: min(100%, 720px);
   min-width: 0;
   min-height: 32px;
-  padding: 2px 4px 2px 8px;
-  border: 1px solid rgba(29, 78, 216, 0.12);
+  padding: 2px 4px 2px 6px;
+  border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 6px;
-  background: rgba(248, 250, 252, 0.94);
+  background: #fff;
 }
 
 .stat-filter-row.has-secondary-value {
   grid-template-columns:
-    minmax(0, var(--condition-field-width, 160px))
-    minmax(0, var(--condition-operator-width, 104px))
-    minmax(0, var(--condition-value-width, 164px))
-    minmax(0, var(--condition-value-width, 164px))
+    minmax(0, var(--condition-field-width, 104px))
+    minmax(0, var(--condition-operator-width, 82px))
+    minmax(0, var(--condition-value-width, 126px))
+    minmax(0, var(--condition-value-width, 126px))
+    28px;
+}
+
+.stat-filter-row.without-value {
+  grid-template-columns:
+    minmax(0, var(--condition-field-width, 104px))
+    minmax(0, var(--condition-operator-width, 82px))
     28px;
 }
 
 .stat-filter-row.is-selecting {
   grid-template-columns:
     24px
-    minmax(0, var(--condition-field-width, 160px))
-    minmax(0, var(--condition-operator-width, 112px))
-    minmax(0, var(--condition-value-width, 172px))
+    minmax(0, var(--condition-field-width, 104px))
+    minmax(0, var(--condition-operator-width, 82px))
+    minmax(0, var(--condition-value-width, 96px))
     28px;
 }
 
 .stat-filter-row.is-selecting.has-secondary-value {
   grid-template-columns:
     24px
-    minmax(0, var(--condition-field-width, 160px))
-    minmax(0, var(--condition-operator-width, 104px))
-    minmax(0, var(--condition-value-width, 164px))
-    minmax(0, var(--condition-value-width, 164px))
+    minmax(0, var(--condition-field-width, 104px))
+    minmax(0, var(--condition-operator-width, 82px))
+    minmax(0, var(--condition-value-width, 126px))
+    minmax(0, var(--condition-value-width, 126px))
+    28px;
+}
+
+.stat-filter-row.is-selecting.without-value {
+  grid-template-columns:
+    24px
+    minmax(0, var(--condition-field-width, 104px))
+    minmax(0, var(--condition-operator-width, 82px))
     28px;
 }
 
@@ -853,6 +1052,13 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 .stat-filter-value {
   width: 100%;
   min-width: 0;
+}
+
+.stat-filter-field :deep(.el-select__selected-item span),
+.stat-filter-operator :deep(.el-select__selected-item span),
+.stat-filter-value :deep(.el-select__selected-item span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stat-filter-value.secondary {
@@ -881,7 +1087,22 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 .stat-filter-empty {
-  padding: 4px 0 8px;
+  min-height: 40px;
+  padding: 2px 0;
+  color: rgba(15, 23, 42, 0.42);
+}
+
+.stat-filter-empty :deep(.el-empty__image) {
+  display: none;
+}
+
+.stat-filter-empty :deep(.el-empty__description) {
+  margin-top: 0;
+}
+
+.stat-filter-empty :deep(.el-empty__description p) {
+  color: rgba(15, 23, 42, 0.42);
+  font-size: 13px;
 }
 
 :deep(.el-input-number),
@@ -921,11 +1142,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
     justify-content: flex-start;
   }
 
-  .stat-filter-row,
-  .stat-filter-row.has-secondary-value,
-  .stat-filter-row.is-selecting,
-  .stat-filter-row.is-selecting.has-secondary-value {
-    width: 100%;
+  .stat-filter-row {
     max-width: 100%;
   }
 
@@ -939,9 +1156,18 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 }
 
 @media (max-width: 760px) {
+  .stat-filter-summary-main,
+  .stat-filter-summary-prefix {
+    flex-wrap: wrap;
+  }
+
+  .stat-filter-chips {
+    flex-basis: 100%;
+  }
+
   .stat-filter-row {
-    grid-template-columns: 1fr;
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
   }
 
   .stat-filter-value.secondary,
@@ -950,7 +1176,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   }
 
   .stat-filter-remove {
-    justify-self: start;
+    justify-self: end;
   }
 }
 </style>

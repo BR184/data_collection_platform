@@ -1,8 +1,13 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.SystemTestIssueSearchRowResponse;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
+import com.data.collection.platform.service.IssueFactRecord;
+import com.data.collection.platform.service.IssueFactRecordListRequest;
+import com.data.collection.platform.service.IssueFactRecordRepository;
+import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -21,8 +26,6 @@ import com.data.collection.platform.entity.statistics.StatisticRowData;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
-import com.data.collection.platform.service.PageSlice;
-import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestIssueRecordWorkbookExportSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
@@ -66,6 +69,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   private final LabelGroupExpansionService labelGroupExpansionService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
+  private final IssueFactRecordRepository issueFactRecordRepository;
 
   public SystemTestDefectSummaryBoardService(
       JsonUtils jsonUtils,
@@ -76,7 +80,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       LabelGroupDefaultFilterService labelGroupDefaultFilterService,
       LabelGroupExpansionService labelGroupExpansionService,
       StatisticBoardSnapshotService snapshotService,
-      StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
+      StatisticBoardSnapshotRequestFactory snapshotRequestFactory,
+      IssueFactRecordRepository issueFactRecordRepository) {
     super(jsonUtils);
     this.runtimeSupport = runtimeSupport;
     this.issueLinkSupport = issueLinkSupport;
@@ -86,6 +91,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     this.labelGroupExpansionService = labelGroupExpansionService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
+    this.issueFactRecordRepository = issueFactRecordRepository;
   }
 
   @Override
@@ -95,16 +101,18 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
-    return buildDefinition(loadPhaseOptions());
+    return buildDefinition(loadPhaseOptions(), loadQuickFilterOptions());
   }
 
-  private StatisticBoardDefinition buildDefinition(List<StatisticFilterOption> phaseOptions) {
+  private StatisticBoardDefinition buildDefinition(
+      List<StatisticFilterOption> phaseOptions,
+      SystemTestSummaryQuickFilterOptions quickOptions) {
     return new StatisticBoardDefinition(
         BOARD_KEY, "系统测试缺陷汇总", "按模块汇总系统测试范围内的缺陷数量、修复情况、关闭情况和延期情况。", "", "", "模块名",
         List.of(
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
             StatisticFilterFieldFactory.select("testingPhase", "测试阶段", 220, phaseOptions),
-            StatisticFilterFieldFactory.textLabelGroup(MODULE_FIELD, "模块名称", 180),
+            StatisticFilterFieldFactory.selectLabelGroup(MODULE_FIELD, "模块名称", 180, quickOptions.moduleNames()),
             StatisticFilterFieldFactory.textLabelGroup("title", "标题", 220),
             StatisticFilterFieldFactory.select(
                 "severityLevel",
@@ -119,10 +127,10 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                     new StatisticFilterOption("P1", "P1"),
                     new StatisticFilterOption("P2", "P2"),
                     new StatisticFilterOption("P3", "P3"))),
-            StatisticFilterFieldFactory.textLabelGroup("bugStatus", "测试状态", 180),
-            StatisticFilterFieldFactory.textLabelGroup("delayCause", "延期原因", 180),
-            StatisticFilterFieldFactory.textLabelGroup("authorName", "创建人", 160),
-            StatisticFilterFieldFactory.textLabelGroup("assigneeName", "处理人", 160),
+            StatisticFilterFieldFactory.selectLabelGroup("bugStatus", "测试状态", 180, quickOptions.bugStatuses()),
+            StatisticFilterFieldFactory.selectLabelGroup("delayCause", "延期原因", 180, quickOptions.delayCauses()),
+            StatisticFilterFieldFactory.selectLabelGroup("authorName", "创建人", 160, quickOptions.authorNames()),
+            StatisticFilterFieldFactory.selectLabelGroup("assigneeName", "处理人", 160, quickOptions.assigneeNames()),
             StatisticFilterFieldFactory.select(
                 "state",
                 "状态",
@@ -200,7 +208,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   public byte[] exportIssueRecordsWorkbook(Map<String, String> filters) {
-    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
     List<SystemTestIssueSearchRowResponse> rows =
         loadBoardScopedSources(filters, effectiveFilterGroup).stream()
@@ -211,7 +219,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   public String exportIssueRecordsFilename(Map<String, String> filters) {
-    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition(loadPhaseOptions())));
+    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition()));
     if (StringUtils.hasText(phase)) {
       return phase + "-全量议题数据.xlsx";
     }
@@ -225,7 +233,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   public String exportFilename(Map<String, String> filters) {
-    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition(loadPhaseOptions())));
+    String phase = selectedTestingPhase(parseFilterGroup(filters, buildDefinition()));
     if (StringUtils.hasText(phase)) {
       return phase + "-系统测试缺陷汇总统计.xlsx";
     }
@@ -235,7 +243,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   @Override
   protected StatisticBoardResponse doLoadBoard(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
-    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    StatisticBoardDefinition definition = buildDefinition();
     return snapshotService.readOrRefresh(
         snapshotRequest(filters, effectiveFilterGroup, definition),
         () -> buildBoardResponse(filters, effectiveFilterGroup, definition));
@@ -269,7 +277,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     if (!context.affectsIssues()) {
       return;
     }
-    StatisticBoardDefinition definition = buildDefinition(loadPhaseOptions());
+    StatisticBoardDefinition definition = buildDefinition();
     for (StatisticFilterOption option : loadPhaseOptions()) {
       StatisticFilterGroup filterGroup =
           new StatisticFilterGroup(
@@ -289,12 +297,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     List<IssueSource> scoped = loadBoardScopedSources(request.filters(), effectiveFilterGroup).stream()
         .filter(issue -> matchesRow(issue, request.rowKey())).filter(matchesMetric(request.columnKey()))
         .sorted(buildDetailComparator(request.sortField(), request.sortOrder())).toList();
-    PageSlice<IssueSource> pageSlice =
-        PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
-    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的议题明细。", buildDefinition(loadPhaseOptions()).detailColumns(),
-        pageSlice.records().stream().map(this::toDetailRecord).toList(), pageSlice.total(), pageSlice.page(), pageSlice.size(),
+    DetailRecordPage pageSlice = sliceDetailRecords(request, scoped, this::toDetailRecord);
+    return new StatisticDetailResponse("系统测试缺陷明细", "展示当前模块与指标命中的议题明细。", buildDefinition().detailColumns(),
+        pageSlice.records(), pageSlice.total(), pageSlice.page(), pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
-        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
+        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
+        pageSlice.quickFilterOptions());
   }
 
   @Override
@@ -314,7 +322,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   @Override
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Map<String, String> filters) {
-    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition(loadPhaseOptions()));
+    StatisticFilterGroup filterGroup = parseFilterGroup(filters, buildDefinition());
     EffectiveFilterGroup effectiveFilterGroup = buildEffectiveFilterGroup(filterGroup);
     RuleFlowSnapshot s = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     return new StatisticBoardRuleExplanationResponse(
@@ -630,6 +638,57 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       log.debug("Failed to load phase options for {}", BOARD_KEY, e);
       return List.of();
     }
+  }
+
+  private SystemTestSummaryQuickFilterOptions loadQuickFilterOptions() {
+    try {
+      List<IssueFactRecord> records =
+          issueFactRecordRepository.findForFilterOptions(
+              new IssueFactRecordListRequest(
+                  SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  null,
+                  1,
+                  20,
+                  "updatedAt",
+                  "desc"));
+      return new SystemTestSummaryQuickFilterOptions(
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+              records.stream().flatMap(record -> record.moduleNames().stream()).toList())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+              records.stream().map(IssueFactRecord::bugStatus).toList())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+              records.stream().map(IssueFactRecord::delayCause).toList())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+              records.stream().map(IssueFactRecord::authorName).toList())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(
+              records.stream().map(IssueFactRecord::assigneeName).toList())));
+    } catch (Exception error) {
+      log.debug("Failed to load quick filter options for {}", BOARD_KEY, error);
+      return SystemTestSummaryQuickFilterOptions.empty();
+    }
+  }
+
+  private List<StatisticFilterOption> toStatisticOptions(List<OptionItemResponse> options) {
+    return options.stream()
+        .map(option -> new StatisticFilterOption(option.label(), option.value()))
+        .toList();
   }
 
   private boolean matchesFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
@@ -1178,4 +1237,15 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       StatisticFilterGroup appliedGroup) {}
 
   private record RuleFlowSnapshot(List<IssueSource> scopedSources, List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
+
+  private record SystemTestSummaryQuickFilterOptions(
+      List<StatisticFilterOption> moduleNames,
+      List<StatisticFilterOption> bugStatuses,
+      List<StatisticFilterOption> delayCauses,
+      List<StatisticFilterOption> authorNames,
+      List<StatisticFilterOption> assigneeNames) {
+    static SystemTestSummaryQuickFilterOptions empty() {
+      return new SystemTestSummaryQuickFilterOptions(List.of(), List.of(), List.of(), List.of(), List.of());
+    }
+  }
 }

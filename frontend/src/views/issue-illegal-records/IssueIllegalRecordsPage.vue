@@ -469,6 +469,7 @@ async function handleConditionFilterReset() {
             quickFilterToggleVisible,
             quickFilterToggleText,
             quickFilterToggleIcon,
+            quickFilterSummaryChips,
             toggleQuickFilter,
           }"
         >
@@ -476,6 +477,7 @@ async function handleConditionFilterReset() {
             <StatisticFilterBuilder
               :model-value="filterDraft"
               :fields="conditionFilterFields"
+              :extra-summary-chips="quickFilterSummaryChips"
               add-button-text="添加条件"
               v-model:expanded="conditionFiltersExpanded"
               show-apply-actions

@@ -166,7 +166,6 @@ const hasContextPrefix = computed(() => Boolean(slots['context-prefix']));
 const hasToolbarActions = computed(() => Boolean(slots['toolbar-actions']));
 const hasPrimaryFilters = computed(() => props.primaryFilters.length > 0);
 const hasAdvancedFilters = computed(() => props.advancedFilters.length > 0);
-const hasActiveFilterTags = computed(() => props.activeFilterTags.length > 0);
 const hasStandaloneSearch = computed(() => props.showSearch && !props.primaryFilters.some((item) => item.key === 'keyword'));
 const hasRecordFieldFilters = computed(() => hasPrimaryFilters.value || hasAdvancedFilters.value);
 const shouldShowPrimaryQueryActions = computed(() => hasRecordFieldFilters.value || !hasFilterBuilder.value);
@@ -227,6 +226,7 @@ const currentSortSummary = computed(() => {
 const shouldShowCurrentSort = computed(() =>
   props.showCurrentSort && Boolean(currentSortSummary.value) && props.columns.some((column) => column.sortable),
 );
+const quickFilterSummaryChips = computed(() => buildQuickFilterSummaryChips());
 const primaryFilterToggleIcon = computed(() => (primaryFiltersExpanded.value ? ArrowUp : ArrowDown));
 const baseColumnRenderWidths = computed<Record<string, number>>(() =>
   Object.fromEntries(props.columns.map((column) => [column.key, effectiveColumnWidth(column)])),
@@ -710,6 +710,46 @@ function readableSortDirection(direction: string) {
   }
   return '默认顺序';
 }
+
+function buildQuickFilterSummaryChips() {
+  const chips: Array<{ id: string; label: string }> = [];
+  if (hasStandaloneSearch.value && String(props.keyword ?? '').trim()) {
+    chips.push({
+      id: 'quick:keyword',
+      label: `${props.searchPlaceholder || '关键字'} ${String(props.keyword).trim()}`,
+    });
+  }
+  for (const filter of props.primaryFilters) {
+    const value = props.filterValues[filter.key];
+    const label = formatQuickFilterSummaryValue(filter, value);
+    if (!label) {
+      continue;
+    }
+    chips.push({
+      id: `quick:${filter.key}`,
+      label: `${filter.label} ${label}`,
+    });
+  }
+  return chips;
+}
+
+function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: unknown) {
+  if (filter.type === 'daterange') {
+    if (!Array.isArray(value) || value.length !== 2 || !value[0] || !value[1]) {
+      return '';
+    }
+    return `${value[0]} ~ ${value[1]}`;
+  }
+  if (filter.type === 'select') {
+    const values = Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [String(value ?? '').trim()].filter(Boolean);
+    if (!values.length) {
+      return '';
+    }
+    return values.map((item) => filter.options?.find((option) => option.value === item)?.label || item).join('、');
+  }
+  const text = String(value ?? '').trim();
+  return text;
+}
 </script>
 
 <template>
@@ -736,6 +776,7 @@ function readableSortDirection(direction: string) {
             :quick-filter-toggle-visible="shouldShowPrimaryFilterToggleInFilterBuilder"
             :quick-filter-toggle-text="primaryFilterToggleText"
             :quick-filter-toggle-icon="primaryFilterToggleIcon"
+            :quick-filter-summary-chips="quickFilterSummaryChips"
             :toggle-quick-filter="togglePrimaryFilters"
           />
         </div>
@@ -863,20 +904,6 @@ function readableSortDirection(direction: string) {
         />
       </div>
     </el-collapse-transition>
-
-    <section v-if="hasActiveFilterTags" class="record-filter-tags">
-      <span class="record-filter-tags-label">已选条件</span>
-      <el-tag
-        v-for="tag in activeFilterTags"
-        :key="tag.key"
-        closable
-        effect="plain"
-        class="record-filter-tag"
-        @close="emit('clear-filter', tag.key)"
-      >
-        {{ tag.label }}：{{ tag.value }}
-      </el-tag>
-    </section>
 
     <div
       ref="tableShellRef"
@@ -1013,12 +1040,11 @@ function readableSortDirection(direction: string) {
   gap: 10px;
   width: 100%;
   min-width: 0;
-  padding: 14px;
-  border: 1px solid rgba(203, 213, 225, 0.76);
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+  padding: 12px;
+  border: 1px solid rgba(220, 226, 235, 0.92);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: none;
 }
 
 .record-context-panel {
@@ -1095,8 +1121,8 @@ function readableSortDirection(direction: string) {
   margin-top: 12px;
   padding: 12px;
   border-top: 1px dashed rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
-  background: rgba(248, 250, 252, 0.88);
+  border-radius: 4px;
+  background: #f8fafc;
 }
 
 .record-filter-main-date {
@@ -1137,25 +1163,6 @@ function readableSortDirection(direction: string) {
   color: var(--el-color-warning-light-5);
 }
 
-.record-filter-tags {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  min-height: 28px;
-  padding: 0 2px 4px;
-}
-
-.record-filter-tags-label {
-  font-size: 12px;
-  color: rgba(15, 23, 42, 0.5);
-  font-weight: 600;
-}
-
-.record-filter-tag {
-  border-radius: 999px;
-}
-
 .record-table-sort-label {
   color: #5f7388;
   font-size: 13px;
@@ -1175,16 +1182,18 @@ function readableSortDirection(direction: string) {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border-radius: 8px;
-  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 6px;
+  border: 0;
   background: #fff;
   outline: none;
-  scrollbar-gutter: stable;
+  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.92);
 }
 
 .record-table {
   width: 100%;
   min-width: 100%;
+  border: 0 !important;
+  border-radius: 0;
 }
 
 .record-table :deep(.el-table__inner-wrapper),
@@ -1281,7 +1290,7 @@ function readableSortDirection(direction: string) {
 }
 
 :deep(.el-table th.el-table__cell) {
-  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  background: #f6f8fb;
 }
 
 .record-table-header-help {

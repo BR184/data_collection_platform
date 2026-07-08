@@ -661,10 +661,10 @@ button {
 }
 
 .stat-board-card {
-  border-radius: 8px !important;
-  border: 1px solid rgba(203, 213, 225, 0.76) !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(220, 226, 235, 0.92) !important;
   background: var(--panel-bg) !important;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05) !important;
+  box-shadow: none !important;
   width: 100%;
   min-width: 0;
 }
@@ -2393,33 +2393,51 @@ a:hover {
 }
 
 .el-table {
-  border: 1px solid rgba(203, 213, 225, 0.78) !important;
+  border: 1px solid rgba(226, 232, 240, 0.92) !important;
+  border-radius: 6px;
+  overflow: hidden;
   box-shadow: none !important;
-  --el-table-border-color: rgba(226, 232, 240, 0.96);
-  --el-table-header-bg-color: #f8fafc;
-  --el-table-row-hover-bg-color: var(--el-color-primary-light-9);
+  --el-table-border-color: rgba(235, 240, 247, 0.88);
+  --el-table-header-bg-color: #f7f9fc;
+  --el-table-row-hover-bg-color: #f6faff;
+  --el-table-tr-bg-color: #fff;
+  --el-table-striped-bg-color: #fcfdff;
 }
 
 .el-table::before,
 .el-table--border::before,
 .el-table--group::after,
 .el-table--border::after {
-  background-color: #f0f0f0 !important;
+  background-color: rgba(235, 240, 247, 0.88) !important;
 }
 
 .el-table th.el-table__cell {
-  background: #f8fafc !important;
-  color: rgba(0, 0, 0, 0.85) !important;
-  font-weight: 500 !important;
-  border-bottom: 1px solid rgba(203, 213, 225, 0.76) !important;
+  background: #f7f9fc !important;
+  color: rgba(15, 23, 42, 0.78) !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid rgba(218, 226, 236, 0.9) !important;
   box-sizing: border-box !important;
 }
 
 .el-table td.el-table__cell,
 .el-table th.el-table__cell.is-leaf,
 .el-table--border .el-table__cell {
-  border-color: rgba(226, 232, 240, 0.96) !important;
+  border-color: rgba(235, 240, 247, 0.88) !important;
   box-sizing: border-box !important;
+}
+
+.el-table .el-table__body tr:hover > td.el-table__cell {
+  background: #f6faff !important;
+}
+
+.el-table .el-table-fixed-column--right,
+.el-table .el-table-fixed-column--left {
+  box-shadow: none !important;
+}
+
+.el-table .el-table-fixed-column--right.is-first-column,
+.el-table .el-table-fixed-column--right.el-table__cell {
+  border-left: 1px solid rgba(218, 226, 236, 0.9) !important;
 }
 
 .el-table__header-wrapper th,

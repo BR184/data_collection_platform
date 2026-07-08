@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { ArrowDown, ArrowUp } from '@element-plus/icons-vue';
 import StatisticBoardDetailCell from './StatisticBoardDetailCell.vue';
+import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
 import SmartTableHeader from './base/SmartTableHeader.vue';
 import { tableHeaderMinimumWidth } from './base/table-header-layout';
 import { useFloatingHorizontalScrollbar } from '../composables/useFloatingHorizontalScrollbar';
@@ -10,8 +12,9 @@ import type {
   StatisticDetailLinkValue,
   StatisticDetailResponse,
 } from '../types/api';
-// 统计板明细弹窗承接图表点击后的记录列表，保持和主看板一致的排序与分页语义。
-// 弹窗只负责展示和导出，明细数据的筛选口径由父级传入的查询上下文决定。
+import type { RecordTableFilterField } from '../types/record-table';
+// 统计板明细弹窗承接图表点击后的记录列表，保持和主看板一致的排序、分页和下钻快速筛选语义。
+// 业务筛选口径由父级查询上下文决定，弹窗内快速筛选只进一步缩小当前下钻结果集。
 
 const props = defineProps<{
   modelValue: boolean;
@@ -23,11 +26,17 @@ const props = defineProps<{
     sortField?: string;
     sortOrder?: string;
   };
+  quickFilterValues: Record<string, string>;
+  quickFilterInputDrafts: Record<string, string>;
   detailTableClass?: string;
   detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => StatisticDetailCellValue;
   onSortChange: (event: { column: unknown; prop: string; order: 'ascending' | 'descending' | null }) => void;
   onCurrentChange: (page: number) => void;
   onSizeChange: (size: number) => void;
+  onQuickFilterInputUpdate: (key: string, value: string) => void;
+  onQuickFilterChange: (key: string, value: string | string[] | null) => void;
+  onApplyQuickFilters: () => void;
+  onResetQuickFilters: () => void;
 }>();
 
 const emit = defineEmits<{
@@ -35,6 +44,7 @@ const emit = defineEmits<{
 }>();
 
 const tableShellRef = ref<HTMLElement>();
+const quickFiltersExpanded = ref(false);
 
 interface DetailDisplayCell {
   label: string;
@@ -62,6 +72,58 @@ const mainTableColumns = computed(() => (props.detail?.columns ?? []).filter((co
 const expandColumns = computed(() => (props.detail?.columns ?? []).filter((column) => column.expandOnly));
 
 const hasExpandColumns = computed(() => expandColumns.value.length > 0);
+const detailQuickFilterFields = computed<RecordTableFilterField[]>(() => {
+  const fields: RecordTableFilterField[] = [
+    {
+      key: 'detailKeyword',
+      label: '任意关键字',
+      type: 'input',
+      placeholder: '输入任意关键字搜索',
+      width: 280,
+      clearable: true,
+    },
+  ];
+  const seen = new Set<string>();
+  for (const column of props.detail?.columns ?? []) {
+    if (seen.has(column.key)) {
+      continue;
+    }
+    seen.add(column.key);
+    if (isDetailSelectFilterColumn(column)) {
+      const options = detailColumnFilterOptions(column);
+      if (!options.length) {
+        continue;
+      }
+      fields.push({
+        key: `detailFilter.${column.key}`,
+        label: column.label,
+        type: 'select',
+        placeholder: column.label,
+        width: detailFilterFieldWidth(column, options),
+        clearable: true,
+        options,
+        selectMode: 'compact',
+      });
+      continue;
+    }
+    if (isDetailInputFilterColumn(column)) {
+      fields.push({
+        key: `detailFilter.${column.key}`,
+        label: column.label,
+        type: 'input',
+        placeholder: detailInputPlaceholder(column),
+        width: detailInputFilterFieldWidth(column),
+        clearable: true,
+      });
+    }
+  }
+  return fields;
+});
+const quickFilterCount = computed(() => detailQuickFilterFields.value.length);
+const quickFilterToggleText = computed(() =>
+  quickFiltersExpanded.value ? '收起快速筛选' : `快速筛选（${quickFilterCount.value}）`,
+);
+const quickFilterToggleIcon = computed(() => (quickFiltersExpanded.value ? ArrowUp : ArrowDown));
 const currentSortSummary = computed(() => {
   const fieldKey = String(props.pagination.sortField ?? '').trim();
   const direction = String(props.pagination.sortOrder ?? '').trim();
@@ -115,6 +177,134 @@ const {
 
 function isStructuredCellValue(value: StatisticDetailCellValue): value is StatisticDetailLinkValue {
   return value != null && typeof value === 'object' && 'label' in value;
+}
+
+watch(
+  () => props.modelValue,
+  (visible) => {
+    if (visible) {
+      quickFiltersExpanded.value = false;
+    }
+  },
+);
+
+function detailColumnFilterOptions(column: StatisticDetailColumn) {
+  const values = new Set<string>();
+  for (const value of props.detail?.quickFilterOptions?.[column.key] ?? []) {
+    addDetailFilterOptionValues(values, value);
+  }
+  for (const row of detailRows.value) {
+    addDetailFilterOptionValues(values, row.cells[column.key]?.label);
+  }
+  return Array.from(values)
+    .sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'))
+    .slice(0, 200)
+    .map((value) => ({ label: value, value }));
+}
+
+function addDetailFilterOptionValues(target: Set<string>, value: unknown) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '-') {
+    return;
+  }
+  for (const part of splitTags(raw)) {
+    if (part && part !== '-') {
+      target.add(part);
+    }
+  }
+}
+
+function isDetailInputFilterColumn(column: StatisticDetailColumn) {
+  const normalizedKey = column.key.replace(/[-_]/g, '').toLowerCase();
+  return normalizedKey === 'iid'
+    || normalizedKey === 'issueiid'
+    || normalizedKey === 'mriid'
+    || normalizedKey === 'mergerequestiid'
+    || /编号|标题/.test(column.label)
+    || /title$/i.test(column.key);
+}
+
+function detailInputPlaceholder(column: StatisticDetailColumn) {
+  if (/编号/.test(column.label)) {
+    return `输入${column.label}`;
+  }
+  if (/标题/.test(column.label) || /(title|name)$/i.test(column.key)) {
+    return `输入${column.label}`;
+  }
+  return column.label;
+}
+
+function detailInputFilterFieldWidth(column: StatisticDetailColumn) {
+  if (/标题/.test(column.label) || /(title|name)$/i.test(column.key)) {
+    return 240;
+  }
+  return 150;
+}
+
+function isDetailSelectFilterColumn(column: StatisticDetailColumn) {
+  if (isPersonDetailFilterColumn(column)) {
+    return true;
+  }
+  if (column.type === 'tag' || column.type === 'tags') {
+    return true;
+  }
+  const normalizedKey = column.key.replace(/[-_]/g, '').toLowerCase();
+  if ([
+    'modulenames',
+    'projectname',
+    'severitylevel',
+    'prioritylevel',
+    'bugstatus',
+    'category',
+    'delaycause',
+    'reasoncategory',
+    'illegalreason',
+    'state',
+    'issuestate',
+    'testingphase',
+    'milestonetitle',
+    'functionname',
+    'authorname',
+    'assigneename',
+    'ownername',
+    'mergedby',
+    'targetbranch',
+  ].includes(normalizedKey)) {
+    return true;
+  }
+  return /模块|项目|状态|严重程度|优先级|测试阶段|里程碑|功能|原因|类型|创建人|提交人|处理人|负责人|合并人|目标分支/.test(column.label);
+}
+
+function isPersonDetailFilterColumn(column: StatisticDetailColumn) {
+  const normalizedKey = column.key.replace(/[-_]/g, '').toLowerCase();
+  return [
+    'authorname',
+    'assigneename',
+    'ownername',
+    'reviewowner',
+    'reviewername',
+    'mergedby',
+    'createdby',
+    'updatedby',
+    'charger',
+  ].includes(normalizedKey)
+    || /创建人|提交人|处理人|负责人|责任人|合并人|走查人|被走查人|评审人|评审专家|作者|审核人|指派人|用户/.test(column.label);
+}
+
+function detailFilterFieldWidth(column: StatisticDetailColumn, options: Array<{ label: string; value: string }> = []) {
+  const longest = options.reduce((max, option) => Math.max(max, visualTextLength(option.label)), column.label.length);
+  const estimated = Math.round(longest * 12 + 54);
+  if (/标题|内容|描述|说明|方案|备注|标签/.test(column.label)) {
+    return Math.max(180, Math.min(260, estimated));
+  }
+  if (/时间|日期/.test(column.label)) {
+    return Math.max(170, Math.min(220, estimated));
+  }
+  return Math.max(132, Math.min(220, estimated));
+}
+
+function visualTextLength(value: string) {
+  return Array.from(value).reduce((total, char) => total + (char.charCodeAt(0) > 255 ? 1 : 0.56), 0);
 }
 
 function createDetailCell(record: Record<string, unknown>, column: StatisticDetailColumn): DetailDisplayCell {
@@ -234,10 +424,47 @@ function readableDetailSortDirection(direction: string) {
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="stat-detail-shell" v-loading="loading">
-      <div v-if="currentSortSummary" class="stat-detail-sortbar">
-        <span class="stat-detail-sortbar-label">当前排序</span>
-        <el-tag effect="plain" type="info" size="small">{{ currentSortSummary }}</el-tag>
+      <div v-if="detail" class="stat-detail-controlbar">
+        <el-button
+          class="app-action-button app-action-button--filter"
+          plain
+          :icon="quickFilterToggleIcon"
+          @click="quickFiltersExpanded = !quickFiltersExpanded"
+        >
+          {{ quickFilterToggleText }}
+        </el-button>
+        <div v-if="currentSortSummary" class="stat-detail-sortbar">
+          <span class="stat-detail-sortbar-label">当前排序</span>
+          <el-tag effect="plain" type="info" size="small">{{ currentSortSummary }}</el-tag>
+        </div>
       </div>
+      <el-collapse-transition>
+        <div v-show="detail && quickFiltersExpanded" class="stat-detail-filterbar">
+          <div class="stat-detail-quick-fields">
+            <RecordTableFilterFields
+              :filters="detailQuickFilterFields"
+              :filter-values="quickFilterValues"
+              :input-drafts="quickFilterInputDrafts"
+              keyword-field-visible
+              :default-input-width="150"
+              :default-select-width="150"
+              @input-update="onQuickFilterInputUpdate"
+              @input-change="onQuickFilterChange"
+              @input-search="(key) => onQuickFilterChange(key, quickFilterInputDrafts[key] ?? quickFilterValues[key] ?? '')"
+              @input-clear="(key) => onQuickFilterChange(key, '')"
+              @filter-change="onQuickFilterChange"
+            />
+          </div>
+          <div class="stat-detail-filter-actions">
+            <el-button type="primary" class="app-action-button app-action-button--query" @click="onApplyQuickFilters">
+              查询
+            </el-button>
+            <el-button class="app-action-button app-action-button--reset" @click="onResetQuickFilters">
+              重置
+            </el-button>
+          </div>
+        </div>
+      </el-collapse-transition>
       <div
         v-if="detail"
         ref="tableShellRef"
@@ -389,12 +616,75 @@ function readableDetailSortDirection(direction: string) {
   max-height: calc(100vh - 132px);
 }
 
+.stat-detail-controlbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  min-width: 0;
+}
+
+.stat-detail-controlbar :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .stat-detail-sortbar {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  min-height: 24px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.stat-detail-filterbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #e5eaf3;
+  border-radius: 6px;
+  background: #fafcff;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.stat-detail-quick-fields {
+  display: flex;
+  align-items: center;
+  align-content: flex-start;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stat-detail-quick-fields :deep(.record-filter-control) {
+  max-width: min(100%, 280px);
+}
+
+.stat-detail-quick-fields :deep(.record-filter-main-keyword) {
+  max-width: min(100%, 320px);
+}
+
+.stat-detail-quick-fields :deep(.record-filter-select) {
+  min-width: 128px;
+}
+
+.stat-detail-filter-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.stat-detail-filter-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .stat-detail-sortbar-label {
@@ -402,6 +692,16 @@ function readableDetailSortDirection(direction: string) {
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .stat-detail-filterbar {
+    flex-direction: column;
+  }
+
+  .stat-detail-filter-actions {
+    width: 100%;
+  }
 }
 
 .stat-detail-expand-panel {

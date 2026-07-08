@@ -92,9 +92,7 @@ export function createCodeReviewConditionFields(
     textField('keyword', '合并请求内容', 240),
     selectField('requestType', '请求类型', filterOptions.requestTypes),
     numberField('mergeRequestIid', '合并请求编号'),
-    legacyMode
-      ? selectField('owner', '被走查人', filterOptions.owners)
-      : textField('owner', '被走查人'),
+    selectField('owner', '被走查人', filterOptions.owners),
     selectField('targetBranch', '目标分支', filterOptions.targetBranches),
     selectField('mergedBy', '合并人', filterOptions.mergedBys),
     selectField('moduleName', '模块名称', filterOptions.moduleNames),
@@ -119,7 +117,7 @@ export function buildCodeReviewPrimaryFilters(
           type: 'select',
           options: [{ label: '全部被走查人', value: '' }, ...filterOptions.owners],
         }
-      : { key: 'owner', label: '被走查人', type: 'input', placeholder: '输入被走查人' },
+      : { key: 'owner', label: '被走查人', type: 'select', placeholder: '全部被走查人', options: [] },
     {
       key: 'mergedBy',
       label: '合并人',

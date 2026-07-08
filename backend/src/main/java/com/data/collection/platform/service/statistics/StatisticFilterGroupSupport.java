@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 final class StatisticFilterGroupSupport {
   static final String FILTER_GROUP_PARAM = "filterGroup";
+  static final String DETAIL_KEYWORD_PARAM = "detailKeyword";
+  static final String DETAIL_FILTER_PARAM_PREFIX = "detailFilter.";
 
   private StatisticFilterGroupSupport() {
   }
@@ -38,8 +40,14 @@ final class StatisticFilterGroupSupport {
       return Map.of();
     }
     return filters.entrySet().stream()
-        .filter(entry -> !FILTER_GROUP_PARAM.equals(entry.getKey()))
+        .filter(entry -> !isReservedFilterKey(entry.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+  }
+
+  private static boolean isReservedFilterKey(String key) {
+    return FILTER_GROUP_PARAM.equals(key)
+        || DETAIL_KEYWORD_PARAM.equals(key)
+        || (key != null && key.startsWith(DETAIL_FILTER_PARAM_PREFIX));
   }
 
   static StatisticFilterGroup emptyFilterGroup() {

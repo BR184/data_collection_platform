@@ -84,17 +84,17 @@ export function reviewDataColumns(): RecordTableColumn[] {
 
 export function reviewProblemItemColumns(): RecordTableColumn[] {
   return [
-    { key: 'reviewerName', label: '评审专家', minWidth: 96 },
-    { key: 'workloadHours', label: '评审工作量', width: 84, align: 'right' },
-    { key: 'reviewCategory', label: '评审类别', minWidth: 94 },
-    { key: 'documentPosition', label: '在文档中的位置', minWidth: 136 },
-    { key: 'problemCategory', label: '问题类别', minWidth: 94 },
-    { key: 'problemDescription', label: '问题描述', minWidth: 176 },
-    { key: 'suggestedSolution', label: '建议解决方案', minWidth: 176 },
-    { key: 'ownerName', label: '责任人', minWidth: 84 },
-    { key: 'rejectionReason', label: '不接受理由', minWidth: 112 },
-    { key: 'problemStatus', label: '问题状态', type: 'tag', width: 94, align: 'center' },
-    { key: 'updatedAt', label: '更新日期', minWidth: 130 },
+    { key: 'reviewerName', label: '评审专家', width: 88 },
+    { key: 'workloadHours', label: '评审工作量', width: 82, align: 'right' },
+    { key: 'reviewCategory', label: '评审类别', width: 88 },
+    { key: 'documentPosition', label: '在文档中的位置', width: 120, align: 'left' },
+    { key: 'problemCategory', label: '问题类别', width: 88 },
+    { key: 'problemDescription', label: '问题描述', width: 150, align: 'left' },
+    { key: 'suggestedSolution', label: '建议解决方案', width: 150, align: 'left' },
+    { key: 'ownerName', label: '责任人', width: 76 },
+    { key: 'rejectionReason', label: '不接受理由', width: 110, align: 'left' },
+    { key: 'problemStatus', label: '问题状态', type: 'tag', width: 86, align: 'center' },
+    { key: 'updatedAt', label: '更新日期', width: 116 },
   ];
 }
 

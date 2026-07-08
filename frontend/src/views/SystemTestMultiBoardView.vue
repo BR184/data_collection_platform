@@ -193,6 +193,7 @@ void Promise.all([loadBoards(), loadSyncStatus()]).catch((error) => {
             clearable
             class="system-test-multi-board__project-select"
             :options="projectOptions"
+            dropdown-mode="adaptive-tags"
             @change="handleProjectChange"
           />
           <el-button

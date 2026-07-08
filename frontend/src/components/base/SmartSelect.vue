@@ -16,7 +16,9 @@ const props = withDefaults(
     loading?: boolean;
     allowCreate?: boolean;
     dropdownLayout?: 'grid' | 'list';
+    dropdownMode?: 'default' | 'adaptive-tags';
     popperClassExtra?: string;
+    fitInputWidth?: boolean;
   }>(),
   {
     placeholder: '',
@@ -28,7 +30,9 @@ const props = withDefaults(
     loading: false,
     allowCreate: false,
     dropdownLayout: 'grid',
+    dropdownMode: 'default',
     popperClassExtra: '',
+    fitInputWidth: true,
   },
 );
 
@@ -65,6 +69,9 @@ const popperClass = computed(() => {
     if (props.compact && props.multiple) {
       classNames.push('smart-select-dropdown--compact-multiple');
     }
+    if (props.dropdownMode === 'adaptive-tags') {
+      classNames.push('smart-select-dropdown--adaptive-tags');
+    }
   }
   if (props.popperClassExtra) {
     classNames.push(props.popperClassExtra);
@@ -85,6 +92,8 @@ const selectClass = computed(() => {
   }
   return classNames;
 });
+
+const effectiveFitInputWidth = computed(() => (props.dropdownMode === 'adaptive-tags' ? false : props.fitInputWidth));
 
 function handleFilter(keyword: string) {
   query.value = keyword;
@@ -135,7 +144,7 @@ function optionVariant(option: RecordTableFilterOption) {
     :loading="loading"
     :allow-create="allowCreate"
     :default-first-option="allowCreate"
-    :fit-input-width="true"
+    :fit-input-width="effectiveFitInputWidth"
     :popper-class="popperClass"
     @change="handleChange"
     @visible-change="handleVisibleChange"
@@ -398,6 +407,38 @@ function optionVariant(option: RecordTableFilterOption) {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+
+.smart-select-dropdown--adaptive-tags {
+  width: min(360px, calc(100vw - 32px)) !important;
+  min-width: min(160px, calc(100vw - 32px));
+  max-width: min(360px, calc(100vw - 32px));
+  box-sizing: border-box;
+}
+
+.smart-select-dropdown--adaptive-tags .el-select-dropdown__list {
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+}
+
+.smart-select-dropdown--adaptive-tags .el-select-dropdown__item {
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: min(240px, calc(100vw - 72px));
+  overflow: visible;
+}
+
+.smart-select-dropdown--adaptive-tags .smart-select-option {
+  max-width: min(216px, calc(100vw - 72px));
+}
+
+.smart-select-dropdown--adaptive-tags .smart-select-option-label {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 </style>

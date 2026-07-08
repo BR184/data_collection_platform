@@ -567,12 +567,14 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
           quickFilterToggleVisible,
           quickFilterToggleText,
           quickFilterToggleIcon,
+          quickFilterSummaryChips,
           toggleQuickFilter,
         }"
       >
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="conditionFilterFields"
+          :extra-summary-chips="quickFilterSummaryChips"
           add-button-text="添加条件"
           v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
@@ -621,7 +623,7 @@ function formatTaskDuration(startedAt?: string | null, finishedAt?: string | nul
               :options="projectScopeOptions"
               :placeholder="projectScopePlaceholder"
               class="code-review-project-select"
-              popper-class-extra="code-review-project-select-dropdown"
+              dropdown-mode="adaptive-tags"
               @change="handleProjectScopeChange"
             />
           </div>

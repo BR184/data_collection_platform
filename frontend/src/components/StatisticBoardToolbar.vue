@@ -78,6 +78,7 @@ const quickFilterToggleText = computed(() =>
   quickFiltersExpanded.value ? '收起快速筛选' : `快速筛选（${props.quickFilterFields.length}）`,
 );
 const quickFilterToggleIcon = computed(() => (quickFiltersExpanded.value ? ArrowUp : ArrowDown));
+const quickFilterSummaryChips = computed(() => buildQuickFilterSummaryChips());
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
 const failureStatuses = new Set(['FAILED', 'TIMEOUT', 'CANCELLED']);
@@ -234,6 +235,39 @@ function commitQuickFilterInput(key: string, value: string) {
 function commitQuickFilterValue(key: string, value: string | string[] | null) {
   emit('quickFilterChange', { key, value });
 }
+
+function buildQuickFilterSummaryChips() {
+  const chips: Array<{ id: string; label: string }> = [];
+  for (const filter of props.quickFilterFields) {
+    const value = props.quickFilterValues[filter.key];
+    const label = formatQuickFilterSummaryValue(filter, value);
+    if (!label) {
+      continue;
+    }
+    chips.push({
+      id: `quick:${filter.key}`,
+      label: `${filter.label} ${label}`,
+    });
+  }
+  return chips;
+}
+
+function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: unknown) {
+  if (filter.type === 'daterange') {
+    if (!Array.isArray(value) || value.length !== 2 || !value[0] || !value[1]) {
+      return '';
+    }
+    return `${value[0]} ~ ${value[1]}`;
+  }
+  if (filter.type === 'select') {
+    const values = Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [String(value ?? '').trim()].filter(Boolean);
+    if (!values.length) {
+      return '';
+    }
+    return values.map((item) => filter.options?.find((option) => option.value === item)?.label || item).join('、');
+  }
+  return String(value ?? '').trim();
+}
 </script>
 
 <template>
@@ -247,6 +281,7 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="activeFilterFields"
+          :extra-summary-chips="quickFilterSummaryChips"
           show-apply-actions
           @apply="emit('applyFilters')"
           @reset="emit('resetFilters')"
@@ -278,12 +313,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
         @input-clear="(key) => commitQuickFilterInput(key, '')"
         @filter-change="commitQuickFilterValue"
       />
-      <div class="stat-board-toolbar-quick-actions">
-        <el-button type="primary" class="app-action-button app-action-button--query" @click="emit('applyFilters')">
-          查询
-        </el-button>
-        <el-button class="app-action-button app-action-button--reset" @click="emit('resetFilters')">重置</el-button>
-      </div>
     </template>
 
     <template #status>
@@ -407,14 +436,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
   min-width: 0;
 }
 
-.stat-board-toolbar-quick-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-left: auto;
-}
-
 .stat-board-toolbar-main {
   display: grid;
   min-width: 0;
@@ -463,10 +484,6 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
   .stat-board-toolbar-actions {
     justify-content: flex-start;
     width: 100%;
-  }
-
-  .stat-board-toolbar-quick-actions {
-    margin-left: 0;
   }
 }
 </style>

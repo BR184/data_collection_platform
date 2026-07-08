@@ -189,4 +189,5 @@ export interface StatisticDetailResponse {
   size: number;
   sortField?: string | null;
   sortOrder?: string | null;
+  quickFilterOptions?: Record<string, string[]> | null;
 }

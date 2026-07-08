@@ -21,8 +21,6 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.IssueFactQueryService;
-import com.data.collection.platform.service.PageSlice;
-import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
@@ -262,18 +260,18 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
             .toList();
-    PageSlice<IssueSource> pageSlice =
-        PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
+    DetailRecordPage pageSlice = sliceDetailRecords(request, scoped, this::toDetailRecord);
     return new StatisticDetailResponse(
         "申请延期缺陷明细",
         "展示当前延期原因与指标命中的议题明细，明细内容按老平台通用议题详情口径展示。",
         DETAIL_COLUMNS,
-        pageSlice.records().stream().map(this::toDetailRecord).toList(),
+        pageSlice.records(),
         pageSlice.total(),
         pageSlice.page(),
         pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
-        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
+        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
+        pageSlice.quickFilterOptions());
   }
 
   @Override

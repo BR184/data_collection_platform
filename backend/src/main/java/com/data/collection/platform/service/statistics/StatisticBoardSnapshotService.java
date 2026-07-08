@@ -66,13 +66,14 @@ public class StatisticBoardSnapshotService {
   public StatisticBoardResponse readOrRefresh(
       SnapshotRequest request,
       Supplier<StatisticBoardResponse> responseSupplier) {
+    Map<String, ?> cachePayload = request.cacheFilterPayload();
     Optional<Snapshot> snapshot =
         findReady(
             request.boardKey(),
             request.scopeKey(),
             request.ruleVersion(),
             request.sourceVersion(),
-            request.filterPayload());
+            cachePayload);
     if (snapshot.isPresent()) {
       return request.toResponse(snapshot.get());
     }
@@ -115,8 +116,8 @@ public class StatisticBoardSnapshotService {
         request.scopeKey(),
         request.ruleVersion(),
         request.sourceVersion(),
-        filterHash(request.filterPayload()),
-        jsonUtils.toJson(request.filterPayload()),
+        filterHash(request.cacheFilterPayload()),
+        jsonUtils.toJson(request.cacheFilterPayload()),
         jsonUtils.toJson(response.appliedFilters()),
         jsonUtils.toJson(response.definition()),
         jsonUtils.toJson(response.rows()),
@@ -222,11 +223,19 @@ public class StatisticBoardSnapshotService {
       Map<String, ?> filterPayload,
       StatisticBoardDefinition definition,
       com.data.collection.platform.entity.statistics.StatisticFilterGroup appliedFilterGroup) {
+    Map<String, ?> cacheFilterPayload() {
+      Map<String, Object> payload = new java.util.LinkedHashMap<>(filterPayload == null ? Map.of() : filterPayload);
+      // 主表快照缓存必须区分高级筛选/快速筛选展开后的真实条件，否则同一阶段会复用默认快照，
+      // 导致主表数字和下钻明细在筛选后显示不一致。
+      payload.put("appliedFilterGroup", appliedFilterGroup);
+      return payload;
+    }
+
     StatisticBoardResponse toResponse(Snapshot snapshot) {
       @SuppressWarnings("unchecked")
       Map<String, String> appliedFilters = (Map<String, String>) (Map<?, ?>) snapshot.appliedFilterPayload();
       return new StatisticBoardResponse(
-          snapshot.definition() == null ? definition : snapshot.definition(),
+          definition,
           appliedFilters,
           appliedFilterGroup,
           snapshot.rows(),

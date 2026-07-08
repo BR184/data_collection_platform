@@ -436,12 +436,14 @@ const {
           quickFilterToggleVisible,
           quickFilterToggleText,
           quickFilterToggleIcon,
+          quickFilterSummaryChips,
           toggleQuickFilter,
         }"
       >
         <StatisticFilterBuilder
           :model-value="filterDraft"
           :fields="reviewFilterFields"
+          :extra-summary-chips="quickFilterSummaryChips"
           v-model:expanded="conditionFiltersExpanded"
           show-apply-actions
           @apply="handleConditionFilterApply"

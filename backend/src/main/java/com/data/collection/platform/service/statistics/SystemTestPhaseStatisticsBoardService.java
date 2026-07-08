@@ -21,8 +21,6 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSampl
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
-import com.data.collection.platform.service.PageSlice;
-import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
 import com.data.collection.platform.service.SortSupport;
@@ -264,18 +262,18 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
             .toList();
-    PageSlice<IssueSource> pageSlice =
-        PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
+    DetailRecordPage pageSlice = sliceDetailRecords(request, scoped, this::toDetailRecord);
     return new StatisticDetailResponse(
         "议题阶段统计明细",
         "展示当前轮次与指标命中的议题明细。",
         DETAIL_COLUMNS,
-        pageSlice.records().stream().map(this::toDetailRecord).toList(),
+        pageSlice.records(),
         pageSlice.total(),
         pageSlice.page(),
         pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
-        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
+        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
+        pageSlice.quickFilterOptions());
   }
 
   @Override

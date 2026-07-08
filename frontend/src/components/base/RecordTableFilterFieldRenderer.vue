@@ -83,6 +83,7 @@ function emitDateRangeChange(value: unknown) {
     :options="filter.options ?? []"
     :multiple="filter.multiple"
     :compact="filter.selectMode === 'compact'"
+    dropdown-mode="adaptive-tags"
     @change="emit('filter-change', filter.key, filter.multiple ? (Array.isArray($event) ? $event : []) : stringValue($event))"
   />
 

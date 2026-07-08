@@ -22,8 +22,6 @@ import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueFactQueryService;
 import com.data.collection.platform.service.IssueScopeContext;
-import com.data.collection.platform.service.PageSlice;
-import com.data.collection.platform.service.PageSliceSupport;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.math.BigDecimal;
@@ -140,6 +138,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
+    PersonFilterOptions personOptions = loadPersonOptions();
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷响应效率",
@@ -167,8 +166,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
                     new StatisticFilterOption("P3", "P3"))),
             StatisticFilterFieldFactory.text("issueState", "议题状态", 160),
             StatisticFilterFieldFactory.text("bugStatus", "测试状态", 160),
-            StatisticFilterFieldFactory.text("authorName", "议题提交人", 160),
-            StatisticFilterFieldFactory.text("assigneeName", "议题处理人", 160)),
+            StatisticFilterFieldFactory.select("authorName", "议题提交人", 160, personOptions.authorNames()),
+            StatisticFilterFieldFactory.select("assigneeName", "议题处理人", 160, personOptions.assigneeNames())),
         List.of(
             new StatisticColumnGroup(
                 "legacy-fields",
@@ -291,18 +290,18 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             .filter(matchesMetric(request.columnKey()))
             .sorted(buildDetailComparator(request.sortField(), request.sortOrder()))
             .toList();
-    PageSlice<IssueSource> pageSlice =
-        PageSliceSupport.slice(scoped, request.page(), request.size() <= 0 ? 10 : request.size());
+    DetailRecordPage pageSlice = sliceDetailRecords(request, scoped, this::toDetailRecord);
     return new StatisticDetailResponse(
         "客户问题响应效率明细",
         "展示当前模块与响应/解决周期指标命中的 CC_Product 议题明细。",
         DETAIL_COLUMNS,
-        pageSlice.records().stream().map(this::toDetailRecord).toList(),
+        pageSlice.records(),
         pageSlice.total(),
         pageSlice.page(),
         pageSlice.size(),
         StringUtils.hasText(request.sortField()) ? request.sortField() : "updatedAt",
-        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending");
+        "ascending".equalsIgnoreCase(request.sortOrder()) ? "ascending" : "descending",
+        pageSlice.quickFilterOptions());
   }
 
   @Override
@@ -432,6 +431,48 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   private List<StatisticFilterOption> loadMilestoneOptions() {
     return milestoneCatalogService.listMilestones().stream()
+        .map(value -> new StatisticFilterOption(value, value))
+        .toList();
+  }
+
+  private PersonFilterOptions loadPersonOptions() {
+    try {
+      List<PersonFilterOptions> rows =
+          issueFactQueryService.query(
+              """
+              select
+                (select string_agg(value, E'\n') from (
+                   select distinct nullif(btrim(author_name), '') as value
+                     from issue_fact
+                    where deleted = false and project_id = ?
+                 ) t where value is not null) as author_names,
+                (select string_agg(value, E'\n') from (
+                   select distinct nullif(btrim(assignee_name), '') as value
+                     from issue_fact
+                    where deleted = false and project_id = ?
+                 ) t where value is not null) as assignee_names
+              """,
+              java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID, LEGACY_CC_PRODUCT_PROJECT_ID),
+              (rs, rowNum) ->
+                  new PersonFilterOptions(
+                      personOptions(rs.getString("author_names")),
+                      personOptions(rs.getString("assignee_names"))));
+      return rows.isEmpty() ? PersonFilterOptions.empty() : rows.get(0);
+    } catch (DataAccessException error) {
+      log.debug("Failed to load customer issue person filter options for {}", BOARD_KEY, error);
+      return PersonFilterOptions.empty();
+    }
+  }
+
+  private List<StatisticFilterOption> personOptions(String rawValue) {
+    if (!StringUtils.hasText(rawValue)) {
+      return List.of();
+    }
+    return java.util.Arrays.stream(rawValue.split("\\R"))
+        .map(String::trim)
+        .filter(StringUtils::hasText)
+        .distinct()
+        .sorted(String.CASE_INSENSITIVE_ORDER)
         .map(value -> new StatisticFilterOption(value, value))
         .toList();
   }
@@ -781,4 +822,12 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       List<IssueSource> rowSources,
       List<IssueSource> finalSources,
       List<StatisticRuleFlowStep> flowSteps) {}
+
+  private record PersonFilterOptions(
+      List<StatisticFilterOption> authorNames,
+      List<StatisticFilterOption> assigneeNames) {
+    static PersonFilterOptions empty() {
+      return new PersonFilterOptions(List.of(), List.of());
+    }
+  }
 }

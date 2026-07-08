@@ -32,6 +32,8 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
         page: 1,
         size: 10,
       },
+      quickFilterValues: {},
+      quickFilterInputDrafts: {},
       detailTableClass: 'custom-detail-table',
       detailCellValue: (record: Record<string, unknown>, column: StatisticDetailColumn) => {
         const value = record[column.key];
@@ -40,6 +42,10 @@ function mountDialog(overrides: Partial<InstanceType<typeof StatisticBoardDetail
       onSortChange: vi.fn(),
       onCurrentChange: vi.fn(),
       onSizeChange: vi.fn(),
+      onQuickFilterInputUpdate: vi.fn(),
+      onQuickFilterChange: vi.fn(),
+      onApplyQuickFilters: vi.fn(),
+      onResetQuickFilters: vi.fn(),
       ...overrides,
     },
     global: {

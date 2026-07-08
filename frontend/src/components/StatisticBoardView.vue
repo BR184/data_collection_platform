@@ -415,12 +415,18 @@ const {
   detailVisible,
   detail,
   detailPagination,
+  detailQuickFilterValues,
+  detailQuickFilterInputDrafts,
   detailCellValue,
   loadDetail,
   openDetail: openStatisticDetail,
   handleDetailSortChange,
   handleDetailCurrentChange,
   handleDetailSizeChange,
+  handleDetailQuickFilterInputUpdate,
+  handleDetailQuickFilterChange,
+  applyDetailQuickFilters,
+  resetDetailQuickFilters,
   handleDetailVisibleChange,
   syncFromRoute: syncDetailFromRoute,
   syncPaginationFromRoute: syncDetailPaginationFromRoute,
@@ -533,7 +539,7 @@ async function applyStatisticBoardViewPrefs(viewPrefs: unknown) {
 }
 
 function toRecordQuickFilterField(field: StatisticFilterField): RecordTableFilterField {
-  if (field.type === 'select') {
+  if (field.type === 'select' || isPersonQuickFilterField(field)) {
     return {
       key: field.key,
       label: field.label,
@@ -550,6 +556,22 @@ function toRecordQuickFilterField(field: StatisticFilterField): RecordTableFilte
     placeholder: field.key === 'keyword' ? '输入任意关键字搜索' : `输入${field.label}`,
     width: field.key === 'keyword' ? 260 : field.width ?? quickFilterWidth(field.key, field.label),
   };
+}
+
+function isPersonQuickFilterField(field: StatisticFilterField) {
+  const normalizedKey = field.key.replace(/[-_]/g, '').toLowerCase();
+  return [
+    'authorname',
+    'assigneename',
+    'ownername',
+    'reviewowner',
+    'reviewername',
+    'mergedby',
+    'createdby',
+    'updatedby',
+    'charger',
+  ].includes(normalizedKey)
+    || /创建人|提交人|处理人|负责人|责任人|合并人|走查人|被走查人|评审人|评审专家|作者|审核人|指派人|用户/.test(field.label);
 }
 
 function quickFilterWidth(key: string, label: string) {
@@ -906,11 +928,17 @@ function autoRefreshMarkerKey() {
       :loading="detailLoading"
       :detail="detail"
       :pagination="detailPagination"
+      :quick-filter-values="detailQuickFilterValues"
+      :quick-filter-input-drafts="detailQuickFilterInputDrafts"
       :detail-table-class="props.uiHooks.detailTableClass"
       :detail-cell-value="detailCellValue"
       :on-sort-change="handleDetailSortChange"
       :on-current-change="handleDetailCurrentChange"
       :on-size-change="handleDetailSizeChange"
+      :on-quick-filter-input-update="handleDetailQuickFilterInputUpdate"
+      :on-quick-filter-change="handleDetailQuickFilterChange"
+      :on-apply-quick-filters="applyDetailQuickFilters"
+      :on-reset-quick-filters="resetDetailQuickFilters"
       @update:model-value="handleDetailVisibleChange"
     />
 
