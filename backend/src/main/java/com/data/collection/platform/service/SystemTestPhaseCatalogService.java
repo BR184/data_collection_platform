@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.dao.DataAccessException;
@@ -23,19 +24,25 @@ public class SystemTestPhaseCatalogService {
   private static final Pattern TURN_LABEL_PATTERN =
       Pattern.compile("(第[一二三四五六七八九十0-9]+轮系统测试|回归测试|系统测试)");
   private static final List<String> SYSTEM_TEST_TOKENS = List.of("系统测试", "回归测试");
+  private static final long CACHE_TTL_MILLIS = 60_000L;
 
   private final JdbcTemplate jdbcTemplate;
+  private final Map<CacheKey, CachedValue<?>> cache = new ConcurrentHashMap<>();
 
   public SystemTestPhaseCatalogService(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
   }
 
   public List<PhaseGroup> listGroups(Long projectId) {
-    return groupEntries(loadConfiguredEntries(projectId));
+    return cached(
+        new CacheKey("groups", projectId),
+        () -> groupEntries(loadConfiguredEntries(projectId)));
   }
 
   public List<String> listParentNames(Long projectId) {
-    return loadEnabledGroupNames(projectId);
+    return cached(
+        new CacheKey("parents", projectId),
+        () -> loadEnabledGroupNames(projectId));
   }
 
   public List<String> listTestingPhases(Long projectId) {
@@ -75,6 +82,22 @@ public class SystemTestPhaseCatalogService {
 
   public boolean isSystemTestPhase(String value) {
     return StringUtils.hasText(value) && IssueRuleSupport.containsToken(value, SYSTEM_TEST_TOKENS);
+  }
+
+  public void clearCache() {
+    cache.clear();
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> T cached(CacheKey key, CacheLoader<T> loader) {
+    long now = System.currentTimeMillis();
+    CachedValue<?> current = cache.get(key);
+    if (current != null && now - current.loadedAtMillis() <= CACHE_TTL_MILLIS) {
+      return (T) current.value();
+    }
+    T loaded = loader.load();
+    cache.put(key, new CachedValue<>(loaded, now));
+    return loaded;
   }
 
   private List<PhaseEntry> loadConfiguredEntries(Long projectId) {
@@ -170,6 +193,15 @@ public class SystemTestPhaseCatalogService {
 
   private record PhaseEntry(
       Long projectId, String name, String testingPhase, LocalDateTime startAt, Integer sortOrder, long issueCount) {}
+
+  private record CacheKey(String type, Long projectId) {}
+
+  private record CachedValue<T>(T value, long loadedAtMillis) {}
+
+  @FunctionalInterface
+  private interface CacheLoader<T> {
+    T load();
+  }
 
   private static final class MutablePhaseGroup {
     private final Long projectId;

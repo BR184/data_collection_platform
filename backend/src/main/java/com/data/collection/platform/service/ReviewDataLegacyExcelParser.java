@@ -202,7 +202,7 @@ public class ReviewDataLegacyExcelParser {
     if (containsAny(header, "模块")) {
       return "moduleName";
     }
-    if (containsAny(header, "文档类型", "sourceType", "评审类型")) {
+    if (containsAny(header, "文档类别", "docType", "文档类型", "sourceType", "评审类型")) {
       return "reviewType";
     }
     if (containsAny(header, "评审类别")) {

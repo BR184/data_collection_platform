@@ -4,12 +4,21 @@ import { usePlatformProgress } from '../composables/usePlatformProgress';
 
 const { currentTask, runningCount, hasVisibleTask } = usePlatformProgress();
 
+const percentage = computed(() => Math.round(currentTask.value?.percentage ?? 0));
+
+const isProgressComplete = computed(() => currentTask.value?.status === 'success' || percentage.value >= 100);
+
+const progressBarStyle = computed(() => ({
+  width: `${percentage.value}%`,
+  backgroundColor: isProgressComplete.value ? 'var(--el-color-success)' : 'var(--el-color-primary)',
+}));
+
 const progressStatus = computed(() => {
-  if (currentTask.value?.status === 'success') {
-    return 'success';
-  }
   if (currentTask.value?.status === 'exception') {
     return 'exception';
+  }
+  if (isProgressComplete.value) {
+    return 'success';
   }
   return undefined;
 });
@@ -28,7 +37,6 @@ const progressText = computed(() => {
   return task.label;
 });
 
-const percentage = computed(() => Math.round(currentTask.value?.percentage ?? 0));
 </script>
 
 <template>
@@ -38,13 +46,16 @@ const percentage = computed(() => Math.round(currentTask.value?.percentage ?? 0)
         <span class="global-progress-title">{{ progressText }}</span>
         <span v-if="runningCount > 1" class="global-progress-count">+{{ runningCount - 1 }}</span>
       </div>
-      <el-progress
+      <div
         class="global-progress-bar"
-        :percentage="percentage"
-        :status="progressStatus"
-        :stroke-width="6"
-        :show-text="false"
-      />
+        :class="{ 'is-complete': isProgressComplete, 'is-exception': progressStatus === 'exception' }"
+        role="progressbar"
+        :aria-valuenow="percentage"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <div class="global-progress-bar-fill" :style="progressBarStyle" />
+      </div>
     </div>
   </Transition>
 </template>
@@ -88,8 +99,24 @@ const percentage = computed(() => Math.round(currentTask.value?.percentage ?? 0)
   line-height: 16px;
 }
 
-.global-progress-bar :deep(.el-progress-bar__outer) {
+.global-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
   background-color: #edf2f7;
+  overflow: hidden;
+}
+
+.global-progress-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition:
+    width 0.6s ease,
+    background-color 180ms ease;
+}
+
+.global-progress-bar.is-exception .global-progress-bar-fill {
+  background-color: var(--el-color-danger) !important;
 }
 
 .global-progress-fade-enter-active,

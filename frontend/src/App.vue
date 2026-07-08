@@ -396,7 +396,8 @@ watch(
             :class="{ active: activePageKey === page.key }"
             @click="openPage(page.path)"
           >
-            {{ page.label }}
+            <component :is="page.icon" class="sidebar-menu-item-icon" />
+            <span class="sidebar-menu-item-label">{{ page.label }}</span>
           </button>
         </div>
       </aside>

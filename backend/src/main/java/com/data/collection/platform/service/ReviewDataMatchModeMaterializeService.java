@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+// 兼容模式 match mode：把老平台 Mongo 评审数据物化为新平台正式表。
+// 后续老平台交接完成并删除兼容模式时，本 Service 可整体删除；正式新增/编辑评审不依赖本类。
 public class ReviewDataMatchModeMaterializeService {
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
   private final ReviewDataRecordPersistenceSupport persistenceSupport;
@@ -17,13 +19,13 @@ public class ReviewDataMatchModeMaterializeService {
     this.persistenceSupport = persistenceSupport;
   }
 
-  //兼容模式-MatchMode
+  // 兼容模式 match mode
   @Transactional
   public Long materializeRecord(Long matchModeRecordId) {
     return materializeRecordWithResult(matchModeRecordId).recordId();
   }
 
-  //兼容模式-MatchMode
+  // 兼容模式 match mode：转正式时优先把老平台 docType 映射到正式表 review_type，保证关闭兼容模式后导出口径仍可用。
   @Transactional
   public MaterializeResult materializeRecordWithResult(Long matchModeRecordId) {
     Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
@@ -46,7 +48,7 @@ public class ReviewDataMatchModeMaterializeService {
               valueOrDefault(report.projectName(), "未标注项目名"),
               valueOrDefault(report.title(), "老平台评审记录"),
               valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
-              valueOrDefault(firstText(report.reviewTypeStr(), report.docType(), report.sourceType()), "其他"),
+              valueOrDefault(firstText(report.docType(), report.sourceType(), report.reviewTypeStr()), "其他"),
               report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
               valueOrDefault(report.reviewCharger(), "未填写"),
               reviewScalePages,
@@ -65,7 +67,7 @@ public class ReviewDataMatchModeMaterializeService {
           valueOrDefault(report.projectName(), "未标注项目名"),
           valueOrDefault(report.title(), "老平台评审记录"),
           valueOrDefault(ReviewDataModuleNameSupport.normalize(report.moduleName()), "未标注模块名"),
-          valueOrDefault(firstText(report.reviewTypeStr(), report.docType(), report.sourceType()), "其他"),
+          valueOrDefault(firstText(report.docType(), report.sourceType(), report.reviewTypeStr()), "其他"),
           report.reviewTime() == null ? LocalDate.now() : report.reviewTime().toLocalDate(),
           valueOrDefault(report.reviewCharger(), "未填写"),
           reviewScalePages,
@@ -111,7 +113,7 @@ public class ReviewDataMatchModeMaterializeService {
     return new MaterializeResult(recordId, inserted);
   }
 
-  //兼容模式-MatchMode
+  // 兼容模式 match mode
   public Long materializedProblemItemIdOrThrow(Long matchModeProblemItemId) {
     Long problemItemId = matchModeRecordRepository.findMaterializedProblemItemId(matchModeProblemItemId);
     if (problemItemId == null) {

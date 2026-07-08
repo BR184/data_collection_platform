@@ -352,10 +352,10 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
   overflow-x: auto;
   overflow-y: hidden;
   outline: none;
-  border: 1px solid transparent;
+  border: 1px solid #d7dee9;
   border-radius: 8px;
   background: var(--platform-table-header-bg, #f8fafc);
-  box-shadow: inset 0 0 0 1px #d7dee9;
+  box-shadow: none;
 }
 
 .stat-matrix-table {

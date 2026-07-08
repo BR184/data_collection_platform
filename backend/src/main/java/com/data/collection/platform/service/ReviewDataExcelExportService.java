@@ -45,22 +45,22 @@ public class ReviewDataExcelExportService {
     "所属项目"
   };
   private static final String[] PROBLEM_HEADERS = {
-    "sourceType",
-    "reviewProduct",
-    "reviewType",
-    "docType",
-    "defectCountSum",
-    "value1",
-    "workload",
+    "文档类型",
+    "评审的工作产品",
+    "评审类别",
+    "文档类别",
+    "评审缺陷个数",
+    "评审规模/缺陷个数",
+    "评审工作量（小时）",
     "问题类别数量统计-文档",
     "问题类别数量统计-完整性",
     "问题类别数量统计-功能性",
     "问题类别数量统计-可行性",
     "评审缺陷密度",
-    "weightedDefectDensity",
-    "defectEfficiency",
+    "加权重的评审缺陷密度",
+    "缺陷效率(个/小时)",
     "评审速率",
-    "sumCount"
+    "评审规模总和"
   };
 
   private final ReviewDataRecordQueryService queryService;
@@ -173,8 +173,8 @@ public class ReviewDataExcelExportService {
   private void writeRecordCells(Row row, ReviewDataRecordRowResponse record, CellStyle style) {
     writeText(row, 0, record.title(), style);
     writeText(row, 1, record.reviewCategorySummary(), style);
-    writeText(row, 2, "", style);
-    writeText(row, 3, record.reviewType(), style);
+    writeText(row, 2, legacyDocumentCategory(record), style);
+    writeText(row, 3, legacyDocumentType(record), style);
     writeNumber(row, 4, record.problemCount(), style);
     writeNumber(row, 5, record.docSpecificationCount(), style);
     writeNumber(row, 6, record.integrityCount(), style);
@@ -218,10 +218,10 @@ public class ReviewDataExcelExportService {
             ? 0D
             : ReviewDataNumberSupport.roundToTwoDecimals((double) value1 / workload);
 
-    writeText(row, 0, record.reviewType(), style);
+    writeText(row, 0, legacyDocumentType(record), style);
     writeText(row, 1, record.reviewProduct(), style);
     writeText(row, 2, legacyReviewCategoryListText(items), style);
-    writeText(row, 3, "", style);
+    writeText(row, 3, legacyDocumentCategory(record), style);
     writeNumber(row, 4, defectCount, style);
     writeNumber(row, 5, value1, style);
     writeNumber(row, 6, workload, style);
@@ -249,6 +249,25 @@ public class ReviewDataExcelExportService {
         .distinct()
         .toList()
         .toString();
+  }
+
+  private String legacyDocumentCategory(ReviewDataRecordRowResponse record) {
+    // 老平台导出口径，兼容模式 match mode 和正式模式共用；删除兼容模式时不要删除本映射。
+    return record.reviewType();
+  }
+
+  private String legacyDocumentType(ReviewDataRecordRowResponse record) {
+    String category = legacyDocumentCategory(record);
+    if (category == null || category.isBlank()) {
+      return "";
+    }
+    if (category.contains("需求")) {
+      return "需求评审";
+    }
+    if (category.contains("设计")) {
+      return "设计评审";
+    }
+    return category;
   }
 
   private void writeFilterSnapshotSheet(

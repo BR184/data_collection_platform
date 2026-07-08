@@ -1,10 +1,23 @@
 import {
+  AlarmClock,
   Bell,
+  Calendar,
+  CollectionTag,
+  Connection,
   DataAnalysis,
+  DataBoard,
+  DataLine,
   Document,
-  Histogram,
+  DocumentChecked,
+  Memo,
+  Monitor,
   Operation,
+  PieChart,
+  Search,
   Setting,
+  Tickets,
+  Timer,
+  Tools,
 } from '@element-plus/icons-vue';
 
 import type { ShellModule } from './types';
@@ -13,19 +26,21 @@ export const modules: ShellModule[] = [
   {
     key: 'quality-board',
     label: '质量看板',
-    icon: Histogram,
+    icon: DataAnalysis,
     title: '质量看板',
     description: '对齐老平台质量看板模块，统一承载研发质量看板及其他看板入口。',
     pages: [
       {
         key: 'quality-board-rd-quality-board',
         label: '研发质量看板',
+        icon: DataBoard,
         description: '聚合评审、代码走查与系统测试关键信号的研发质量概览。',
         path: '/quality-board/rd-quality-board',
       },
       {
         key: 'quality-board-other-board',
         label: '其他看板',
+        icon: PieChart,
         description: '承接跨域的辅助分析图表，避免与首页 KPI 混排。',
         path: '/quality-board/other-board',
         requiresLogin: true,
@@ -42,6 +57,7 @@ export const modules: ShellModule[] = [
       {
         key: 'review-data-home',
         label: '评审数据管理',
+        icon: DocumentChecked,
         description: '展示评审主记录、评审专家以及问题清单明细。',
         path: '/review-data/home',
         requiresLogin: true,
@@ -59,6 +75,7 @@ export const modules: ShellModule[] = [
       {
         key: 'code-review-illegal-records',
         label: '代码走查非法数据',
+        icon: CollectionTag,
         description: '展示代码走查场景下的非法记录明细列表。',
         path: '/code-review/illegal-records',
         hiddenForApproval: true,
@@ -66,6 +83,7 @@ export const modules: ShellModule[] = [
       {
         key: 'code-review-multi-board',
         label: '代码走查多元看板',
+        icon: DataLine,
         description: '围绕数据源切换、模块分布与责任人分布的代码走查图表看板。',
         path: '/code-review/multi-board',
         requiresLogin: true,
@@ -83,6 +101,7 @@ export const modules: ShellModule[] = [
       {
         key: 'question-metrics-home',
         label: '系统测试缺陷汇总',
+        icon: DataAnalysis,
         description: '展示系统测试缺陷的多级统计表头与模块维度汇总。',
         path: '/question-metrics/home',
         hiddenForApproval: true,
@@ -90,6 +109,7 @@ export const modules: ShellModule[] = [
       {
         key: 'question-metrics-multi-board',
         label: '议题多元看板',
+        icon: DataBoard,
         description: '聚合系统测试核心统计板结果的图表化看板入口。',
         path: '/question-metrics/multi-board',
         requiresLogin: true,
@@ -98,6 +118,7 @@ export const modules: ShellModule[] = [
       {
         key: 'question-metrics-delay-analysis',
         label: '申请延期缺陷分析',
+        icon: Timer,
         description: '展示系统测试延期原因维度下的一二三级、建议类与总计缺陷统计，并支持下钻明细。',
         path: '/question-metrics/delay-analysis',
         requiresLogin: true,
@@ -106,24 +127,28 @@ export const modules: ShellModule[] = [
       {
         key: 'question-metrics-illegal-records',
         label: '系统测试非法数据',
+        icon: CollectionTag,
         description: '展示系统测试范围内命中非法规则的议题明细，并支持规则说明和筛选。',
         path: '/question-metrics/illegal-records',
       },
       {
         key: 'question-metrics-defect-cause',
         label: '缺陷原因分析',
+        icon: PieChart,
         description: '展示系统测试缺陷在模块维度下的原因归类统计，并支持按原因下钻明细。',
         path: '/question-metrics/defect-cause',
       },
       {
         key: 'question-metrics-phase-statistics',
         label: '议题阶段统计',
+        icon: DataLine,
         description: '展示系统测试轮次维度的一级、二级、三级、建议类及总量统计。',
         path: '/question-metrics/phase-statistics',
       },
       {
         key: 'question-metrics-issue-search',
         label: '议题查询',
+        icon: Search,
         description: '对齐老平台议题查询入口，当前先补齐查询类副模块骨架。',
         path: '/question-metrics/issue-search',
       },
@@ -139,6 +164,7 @@ export const modules: ShellModule[] = [
       {
         key: 'customer-issues-home',
         label: '缺陷汇总',
+        icon: DataAnalysis,
         description: '展示客户问题范围下的多级统计表头与模块维度缺陷汇总。',
         path: '/customer-issues/home',
         hiddenForApproval: true,
@@ -146,18 +172,21 @@ export const modules: ShellModule[] = [
       {
         key: 'customer-issues-illegal-records',
         label: '缺陷非法数据',
+        icon: CollectionTag,
         description: '对齐老平台客户问题统计下的缺陷非法数据入口。',
         path: '/customer-issues/illegal-records',
       },
       {
         key: 'customer-issues-defect-cause',
         label: '缺陷原因分析',
+        icon: PieChart,
         description: '展示客户问题在模块维度下的缺陷原因归类统计，并支持按原因下钻明细。',
         path: '/customer-issues/defect-cause',
       },
       {
         key: 'customer-issues-cc-product-issues',
         label: 'CC_PRODUCT议题',
+        icon: Tickets,
         description: '对齐老平台客户问题统计下的 CC_PRODUCT 议题入口。',
         path: '/customer-issues/cc-product-issues',
         hiddenForApproval: true,
@@ -165,18 +194,21 @@ export const modules: ShellModule[] = [
       {
         key: 'customer-issues-delay-issues',
         label: '延期问题',
+        icon: AlarmClock,
         description: '对齐老平台客户问题统计下的延期问题入口。',
         path: '/customer-issues/delay-issues',
       },
       {
         key: 'customer-issues-response-efficiency',
         label: '缺陷响应效率',
+        icon: Timer,
         description: '对齐老平台客户问题统计下的缺陷响应效率入口。',
         path: '/customer-issues/response-efficiency',
       },
       {
         key: 'customer-issues-issue-by-function',
         label: '按功能展示缺陷数量',
+        icon: Memo,
         description: '对齐老平台客户问题统计下的按功能展示缺陷数量入口。',
         path: '/customer-issues/issue-by-function',
       },
@@ -192,6 +224,7 @@ export const modules: ShellModule[] = [
       {
         key: 'label-group-settings',
         label: '标签组管理',
+        icon: CollectionTag,
         description: '维护同维度标签值集合，供业务页面作为整体筛选条件使用。',
         path: '/system-settings/label-group-settings',
         requiresLogin: true,
@@ -200,6 +233,7 @@ export const modules: ShellModule[] = [
       {
         key: 'testing-phase-definition',
         label: '议题测试阶段定义',
+        icon: Calendar,
         description: '维护系统测试和客户问题统计使用的阶段名称与测试轮次。',
         path: '/system-settings/testing-phase-definition',
         requiresLogin: true,
@@ -208,6 +242,7 @@ export const modules: ShellModule[] = [
       {
         key: 'mirror-settings',
         label: '数据镜像设置',
+        icon: Connection,
         description: '管理 GitLab 数据镜像的连接、同步和日志。',
         path: '/system-settings/mirror-settings',
         requiresLogin: true,
@@ -217,6 +252,7 @@ export const modules: ShellModule[] = [
       {
         key: 'database-settings',
         label: '数据库兼容模式临时设置',
+        icon: Tools,
         description: '临时配置老平台兼容模式数据库连接、同步开关和转正式导入。',
         path: '/system-settings/database-settings',
         requiresLogin: true,
@@ -225,6 +261,7 @@ export const modules: ShellModule[] = [
       {
         key: 'database-browser',
         label: '数据库查看',
+        icon: Monitor,
         description: '快速浏览本地平台数据库中的核心业务表数据。',
         path: '/system-settings/database-browser',
         requiresLogin: true,

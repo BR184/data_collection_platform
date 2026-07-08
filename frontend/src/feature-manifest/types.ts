@@ -36,6 +36,7 @@ export type PageKey =
 export interface ShellPage {
   key: PageKey;
   label: string;
+  icon: unknown;
   description: string;
   path: string;
   requiresLogin?: boolean;

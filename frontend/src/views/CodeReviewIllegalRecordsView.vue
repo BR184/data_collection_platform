@@ -80,7 +80,8 @@ const filterOptions = ref<CodeReviewIllegalRecordFilterOptionsResponse>(
   createDefaultCodeReviewFilterOptions(),
 );
 const conditionFilterFields = computed(() =>
-  createCodeReviewConditionFields(filterOptions.value, matchModeEnabled.value),
+  createCodeReviewConditionFields(filterOptions.value, matchModeEnabled.value)
+    .filter((field) => field.key !== conditionScopeFieldKey.value),
 );
 const primaryFilters = computed(() =>
   buildCodeReviewPrimaryFilters(filterOptions.value, matchModeEnabled.value),
@@ -215,6 +216,9 @@ const selectedScopeName = computed(() =>
     : selectedRow.value?.projectName || '-',
 );
 const showSelectedScope = computed(() => !activeSourceIsDgm.value);
+const conditionScopeFieldKey = computed(() =>
+  String(route.query.source ?? '').trim() === 'dgm' ? 'projectName' : 'repositoryName',
+);
 
 const ruleExplanationSteps = computed(() => ruleExplanation.value?.flowSteps || []);
 const ruleExplanationMetrics = computed(() => ruleExplanation.value?.metricDefinitions || []);

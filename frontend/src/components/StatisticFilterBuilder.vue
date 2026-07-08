@@ -143,14 +143,20 @@ function removeFilterCondition(conditionId: string) {
   }
 }
 
+function applyAfterConditionMutation() {
+  void nextTick(() => emit('apply'));
+}
+
 async function confirmRemoveFilterCondition(conditionId: string) {
   try {
     await ElMessageBox.confirm('确认删除这条筛选条件吗？', '删除条件', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消',
+      confirmButtonClass: 'stat-filter-confirm-danger',
     });
     removeFilterCondition(conditionId);
+    applyAfterConditionMutation();
   } catch {
     // 用户取消删除。
   }
@@ -194,9 +200,11 @@ async function confirmRemoveSelectedConditions() {
       type: 'warning',
       confirmButtonText: '删除选中',
       cancelButtonText: '取消',
+      confirmButtonClass: 'stat-filter-confirm-danger',
     });
     removeConditionsByIds(selectedConditionIds.value);
     closeBatchDeleteMode();
+    applyAfterConditionMutation();
   } catch {
     // 用户取消删除。
   }
@@ -211,9 +219,11 @@ async function confirmClearFilterConditions() {
       type: 'warning',
       confirmButtonText: '清空全部',
       cancelButtonText: '取消',
+      confirmButtonClass: 'stat-filter-confirm-danger',
     });
     props.modelValue.conditions.splice(0, props.modelValue.conditions.length);
     closeBatchDeleteMode();
+    applyAfterConditionMutation();
   } catch {
     // 用户取消清空。
   }
@@ -1074,6 +1084,21 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
   height: 28px;
   min-width: 28px;
   justify-self: end;
+  color: var(--el-color-danger) !important;
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+.stat-filter-remove:hover,
+.stat-filter-remove:focus {
+  color: var(--el-color-danger-dark-2) !important;
+  border-color: transparent !important;
+  background: var(--el-color-danger-light-9) !important;
+}
+
+.stat-filter-remove:active {
+  color: var(--el-color-danger-dark-2) !important;
+  background: var(--el-color-danger-light-8) !important;
 }
 
 .stat-filter-more {

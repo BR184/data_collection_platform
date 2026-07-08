@@ -68,7 +68,8 @@ public class ReviewDataRecordQueryService {
     boolean keywordSearch = TextQuerySupport.trimToNull(request.keyword()) != null;
     boolean titleSearchFilter =
         hasFilterGroup && ReviewDataFilterGroupSqlSupport.needsTitleSearchIndex(expandedFilterGroup);
-    //兼容模式-MatchMode
+    // 兼容模式 match mode：开启后评审数据列表读“正式表 + 老平台 Mongo 兼容表”的合并结果；
+    // 关闭后直接落到下面的正式 SQL/Java 查询路径。删除兼容模式时只移除这个分支和 listMatchModeRecords。
     if (reviewDataCompatibilityReadEnabled()) {
       return listMatchModeRecords(
           request,
@@ -119,7 +120,7 @@ public class ReviewDataRecordQueryService {
         safeSortOrder);
   }
 
-  //兼容模式-MatchMode
+  // 兼容模式 match mode：仅服务老平台 Mongo 兼容读源，正式模式不调用。
   private ReviewDataRecordListResponse listMatchModeRecords(
       ReviewDataRecordQueryRequest request,
       StatisticFilterGroup filterGroup,
@@ -209,7 +210,7 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataRecordDetailResponse getRecordDetail(Long recordId) {
-    //兼容模式-MatchMode
+    // 兼容模式 match mode：详情页在开启兼容读源时支持负 ID 读取老平台行；正式读源继续走 formalRecordDetail。
     if (reviewDataCompatibilityReadEnabled()) {
       Long materializedRecordId = materializedRecordId(recordId);
       if (materializedRecordId != null) {
@@ -228,7 +229,7 @@ public class ReviewDataRecordQueryService {
   }
 
   public List<ReviewDataProblemItemResponse> listProblemItems(Long recordId) {
-    //兼容模式-MatchMode
+    // 兼容模式 match mode：问题清单跟随详情读源；关闭兼容模式后只查正式 review_problem_items。
     if (reviewDataCompatibilityReadEnabled()) {
       Long materializedRecordId = materializedRecordId(recordId);
       if (materializedRecordId != null) {
@@ -261,7 +262,7 @@ public class ReviewDataRecordQueryService {
   }
 
   public ReviewDataProblemItemResponse getProblemItem(Long recordId, Long itemId) {
-    //兼容模式-MatchMode
+    // 兼容模式 match mode：兼容负 ID 的问题项读取；正式 ID 保持正式表路径。
     if (reviewDataCompatibilityReadEnabled()) {
       Long materializedRecordId = materializedRecordId(recordId);
       if (materializedRecordId != null) {
@@ -372,6 +373,8 @@ public class ReviewDataRecordQueryService {
   }
 
   private List<ReviewDataRecordRowResponse> combinedMatchModeRows() {
+    // 兼容模式 match mode：交接期允许手动新增的正式评审数据与老平台兼容数据共存展示；
+    // 删除兼容模式时删除 matchRows 合并逻辑，保留正式表 persistenceSupport.loadRecords。
     List<ReviewDataRecordRowResponse> formalRows =
         persistenceSupport.loadRecords(null, null, null, null, null, null, null, null);
     List<ReviewDataRecordRowResponse> matchRows = matchModeRecordRepository.loadRecords();
@@ -380,6 +383,7 @@ public class ReviewDataRecordQueryService {
 
   private Map<Long, List<String>> loadCombinedProblemStatusesByRecordIds(
       List<ReviewDataRecordRowResponse> rows) {
+    // 兼容模式 match mode：按 ID 正负拆分正式问题项和老平台问题项，避免关闭兼容模式后误查兼容表。
     List<ReviewDataRecordRowResponse> formalRows = rows.stream().filter(row -> row.id() != null && row.id() >= 0).toList();
     List<ReviewDataRecordRowResponse> matchRows = rows.stream().filter(row -> row.id() != null && row.id() < 0).toList();
     java.util.Map<Long, List<String>> result = new java.util.HashMap<>();
@@ -395,7 +399,7 @@ public class ReviewDataRecordQueryService {
     return matchModeRecordRepository.findMaterializedRecordId(recordId);
   }
 
-  //兼容模式-MatchMode
+  // 兼容模式 match mode：读源开关封装点，关闭后评审查询不访问 ReviewDataMatchModeRecordRepository。
   private boolean reviewDataCompatibilityReadEnabled() {
     return matchModeSwitchService.isReviewDataCompatibilityReadEnabled();
   }

@@ -21,6 +21,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
+// 兼容模式 match mode：老平台 Mongo 评审兼容表读取仓库。
+// 后续彻底删除兼容模式时，本仓库和 review_data_match_mode_* 表可整体移除；正式评审表读写不依赖本类。
 public class ReviewDataMatchModeRecordRepository {
   private static final Pattern OBJECT_ID_PATTERN = Pattern.compile("ObjectId\\(['\"]?([^'\")]+)['\"]?\\)");
   private static final Pattern QUOTED_VALUE_PATTERN = Pattern.compile("[\"']([^\"']+)[\"']");
@@ -223,6 +225,8 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private MatchModeRows buildRows(Set<String> excludedLegacyIds) {
+    // 兼容模式 match mode：从老平台 report/problem/description 三张兼容表还原页面行。
+    // report.docType 是老平台“文档类别”，需要优先映射到新平台行的 reviewType，供导出共用口径读取。
     List<ProblemRow> problems = loadProblemRows();
     Map<String, ProblemRow> problemByLegacyId = new LinkedHashMap<>();
     for (ProblemRow problem : problems) {
@@ -259,7 +263,7 @@ public class ReviewDataMatchModeRecordRepository {
               TextQuerySupport.normalizeDisplay(report.projectName()),
               TextQuerySupport.normalizeDisplay(report.title()),
               ReviewDataModuleNameSupport.normalize(report.moduleName()),
-              firstText(report.reviewTypeStr(), report.docType(), report.sourceType()),
+              firstText(report.docType(), report.sourceType(), report.reviewTypeStr()),
               report.reviewTime() == null ? null : report.reviewTime().toLocalDate(),
               TextQuerySupport.normalizeDisplay(report.reviewCharger()),
               expertsSummary,

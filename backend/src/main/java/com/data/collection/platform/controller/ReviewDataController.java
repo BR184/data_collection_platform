@@ -95,7 +95,7 @@ public class ReviewDataController {
   public ResponseEntity<byte[]> exportProblemDetails(@ModelAttribute ReviewDataRecordListRequest request) {
     return excelResponse(
         excelExportService.exportProblemDetailsWorkbook(reviewDataRequestAssembler.toQueryRequest(request)),
-        "评审问题详情.xls");
+        "评审问题详情.xlsx");
   }
 
   @GetMapping("/records/{recordId}/problem-items/export")

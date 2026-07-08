@@ -587,21 +587,25 @@ function readableDetailSortDirection(direction: string) {
 </template>
 
 <style scoped>
-:global(.stat-detail-dialog) {
+:global(.stat-detail-dialog.el-dialog) {
   display: flex;
   flex-direction: column;
   width: min(1728px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 18px);
+  padding: 10px;
   overflow: hidden;
-  border-radius: 24px;
-  box-shadow: var(--el-box-shadow-dark);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 72px !important;
+  box-shadow: var(--el-box-shadow-dark) !important;
+  box-sizing: border-box;
 }
 
 :global(.stat-detail-dialog .el-dialog__header) {
-  padding: 4px 18px 6px;
+  padding: 0 10px 8px !important;
   margin-right: 0;
-  border-bottom: 0;
+  border-bottom: 0 !important;
+  background: transparent !important;
 }
 
 .stat-detail-header {
@@ -617,11 +621,18 @@ function readableDetailSortDirection(direction: string) {
   margin: 0;
   overflow: hidden;
   color: var(--el-text-color-primary);
-  font-size: 22px;
+  font-size: 36px;
   font-weight: 800;
-  line-height: 34px;
+  line-height: 48px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+:global(.stat-detail-title.el-dialog__title) {
+  color: var(--el-text-color-primary) !important;
+  font-size: 36px !important;
+  font-weight: 800 !important;
+  line-height: 48px !important;
 }
 
 .stat-detail-header-actions {
@@ -652,7 +663,7 @@ function readableDetailSortDirection(direction: string) {
   min-height: 0;
   width: 100%;
   overflow: hidden;
-  padding: 3px 6px 6px;
+  padding: 0 !important;
   box-sizing: border-box;
 }
 
@@ -790,10 +801,13 @@ function readableDetailSortDirection(direction: string) {
   max-height: min(78vh, calc(100vh - 122px));
   overflow: auto;
   outline: none;
-  border: 1px solid transparent;
-  border-radius: 16px;
+  --platform-contained-table-radius: 2px;
+  --platform-contained-table-inner-radius: 1px;
+  border: 1px solid var(--el-border-color-light) !important;
+  border-radius: 2px !important;
   background: var(--platform-table-header-bg, #f8fafc);
-  box-shadow: inset 0 0 0 1px var(--el-border-color-light);
+  box-shadow: none !important;
+  clip-path: none !important;
   scrollbar-gutter: stable;
 }
 
@@ -801,7 +815,7 @@ function readableDetailSortDirection(direction: string) {
   min-width: 100%;
   width: max(100%, var(--stat-detail-table-content-width, 960px));
   border: 0 !important;
-  border-radius: 15px;
+  border-radius: 1px !important;
   overflow: hidden;
   background: var(--platform-table-header-bg, #f8fafc);
 }
@@ -911,7 +925,8 @@ function readableDetailSortDirection(direction: string) {
   flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
-  padding: 1px 0 0;
+  margin-top: 10px !important;
+  padding: 0;
 }
 
 .detail-pagination :deep(.el-pagination) {
@@ -926,14 +941,15 @@ function readableDetailSortDirection(direction: string) {
 }
 
 @media (max-width: 960px) {
-  :global(.stat-detail-dialog) {
+  :global(.stat-detail-dialog.el-dialog) {
     width: calc(100vw - 12px);
     max-width: calc(100vw - 12px);
-    border-radius: 18px;
+    padding: 8px;
+    border-radius: 40px !important;
   }
 
   :global(.stat-detail-dialog .el-dialog__header) {
-    padding: 4px 10px 5px;
+    padding: 0 8px 6px !important;
   }
 
   :global(.stat-detail-dialog .el-dialog__body) {
@@ -945,8 +961,13 @@ function readableDetailSortDirection(direction: string) {
   }
 
   .stat-detail-title {
-    font-size: 20px;
-    line-height: 32px;
+    font-size: 28px;
+    line-height: 38px;
+  }
+
+  :global(.stat-detail-title.el-dialog__title) {
+    font-size: 28px !important;
+    line-height: 38px !important;
   }
 
   .stat-detail-header-actions {

@@ -32,7 +32,7 @@ export function useReviewDataExport(deps: ReviewDataExportDependencies) {
     problemExportLoading.value = true;
     try {
       const blob = await deps.exportProblemDetails();
-      deps.downloadWorkbook(blob, '评审问题详情.xls');
+      deps.downloadWorkbook(blob, '评审问题详情.xlsx');
       deps.notifySuccess('已导出问题列表');
     } catch (error) {
       deps.notifyError(error instanceof Error ? error.message : '评审问题详情导出失败');

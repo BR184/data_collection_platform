@@ -33,7 +33,7 @@ describe('useReviewDataExport', () => {
     await exporter.exportProblemDetails();
 
     expect(deps.exportProblemDetails).toHaveBeenCalledOnce();
-    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审问题详情.xls');
+    expect(deps.downloadWorkbook).toHaveBeenCalledWith(expect.any(Blob), '评审问题详情.xlsx');
     expect(deps.notifySuccess).toHaveBeenCalledWith('已导出问题列表');
     expect(exporter.problemExportLoading.value).toBe(false);
   });

@@ -1226,11 +1226,11 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid transparent;
+  border: 1px solid #d7dee9;
   border-radius: 8px;
   background: var(--platform-table-header-bg, #f8fafc);
   outline: none;
-  box-shadow: inset 0 0 0 1px #d7dee9;
+  box-shadow: none;
 }
 
 .record-table {

@@ -23,9 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class TestingPhaseDefinitionService {
 
   private final JdbcTemplate jdbcTemplate;
+  private final SystemTestPhaseCatalogService phaseCatalogService;
 
-  public TestingPhaseDefinitionService(JdbcTemplate jdbcTemplate) {
+  public TestingPhaseDefinitionService(
+      JdbcTemplate jdbcTemplate,
+      SystemTestPhaseCatalogService phaseCatalogService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.phaseCatalogService = phaseCatalogService;
   }
 
   public List<TestingPhaseDefinitionResponse> list(Long projectId, String keyword, Boolean enabled) {
@@ -225,6 +229,7 @@ public class TestingPhaseDefinitionService {
         toTimestamp(normalized.phaseEndAt()),
         normalized.enabled(),
         normalized.remark());
+    invalidatePhaseCatalogCache();
     return findByProjectAndPhase(normalized.projectId(), normalized.testingPhase());
   }
 
@@ -260,6 +265,7 @@ public class TestingPhaseDefinitionService {
         normalized.enabled(),
         normalized.remark(),
         id);
+    invalidatePhaseCatalogCache();
     return findById(id);
   }
 
@@ -269,12 +275,14 @@ public class TestingPhaseDefinitionService {
         "update testing_phase_calendar set enabled = ?, updated_at = current_timestamp where id = ?",
         enabled,
         id);
+    invalidatePhaseCatalogCache();
     return findById(id);
   }
 
   public void delete(Long id) {
     ensureExists(id);
     jdbcTemplate.update("delete from testing_phase_calendar where id = ?", id);
+    invalidatePhaseCatalogCache();
   }
 
   @Transactional
@@ -295,6 +303,7 @@ public class TestingPhaseDefinitionService {
         normalized.sortOrder(),
         normalized.enabled(),
         normalized.remark());
+    invalidatePhaseCatalogCache();
     return findGroupByProjectAndName(normalized.projectId(), normalized.name());
   }
 
@@ -338,6 +347,7 @@ public class TestingPhaseDefinitionService {
         id,
         oldGroup.projectId(),
         oldGroup.name());
+    invalidatePhaseCatalogCache();
     return findGroupById(id);
   }
 
@@ -348,6 +358,7 @@ public class TestingPhaseDefinitionService {
         "update testing_phase_groups set enabled = ?, updated_at = current_timestamp where id = ?",
         enabled,
         id);
+    invalidatePhaseCatalogCache();
     return findGroupById(id);
   }
 
@@ -356,6 +367,11 @@ public class TestingPhaseDefinitionService {
     ensureGroupExists(id);
     jdbcTemplate.update("delete from testing_phase_calendar where phase_group_id = ?", id);
     jdbcTemplate.update("delete from testing_phase_groups where id = ?", id);
+    invalidatePhaseCatalogCache();
+  }
+
+  private void invalidatePhaseCatalogCache() {
+    phaseCatalogService.clearCache();
   }
 
   private TestingPhaseDefinitionResponse findByProjectAndPhase(Long projectId, String testingPhase) {

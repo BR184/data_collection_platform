@@ -244,10 +244,10 @@ watch(
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid transparent;
+  border: 1px solid #d7dee9;
   border-radius: 6px;
   background: var(--platform-table-header-bg, #f8fafc);
-  box-shadow: inset 0 0 0 1px #d7dee9;
+  box-shadow: none;
 }
 
 .problem-subtable {
