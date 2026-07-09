@@ -813,7 +813,6 @@ button {
   display: block;
   overflow-x: hidden;
   overflow-y: hidden;
-  padding-bottom: 4px;
   background: var(--platform-table-header-bg, #f8fafc);
 }
 
@@ -1111,7 +1110,7 @@ button {
 }
 
 .customer-issue-function-board .stat-matrix-wrapper {
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid #e7edf5;
   border-top: 0;
 }

@@ -51,7 +51,7 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-cause";
-  private static final String RULE_VERSION = "system-test-defect-cause@2026-07-08-v4";
+  private static final String RULE_VERSION = "system-test-defect-cause@2026-07-09-v5";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
@@ -537,13 +537,12 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
     Long projectId = effectiveProjectId(queryFilters);
     queryFilters.put("projectId", String.valueOf(projectId));
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+        legacyModuleRowPhasePredicate(filterGroup);
     String sql = """
         select btrim(modules.module_name) as module_name
           from issue_fact
           cross join lateral regexp_split_to_table(coalesce(module_names,''), ',') as modules(module_name)
          where deleted = false
-           and coalesce(is_excluded,false) = false
            and coalesce(module_names,'') <> ''
         """;
     try {
@@ -552,7 +551,11 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
               queryFilters,
               phasePredicate.sql(),
               phasePredicate.args(),
-              "group by btrim(modules.module_name) having btrim(modules.module_name) <> ''",
+              """
+              group by btrim(modules.module_name)
+              having btrim(modules.module_name) <> ''
+                 and btrim(modules.module_name) not like '未设定%'
+              """,
               (rs, rowNum) -> StatisticSourceValueSupport.text(rs.getString("module_name"), ""))
           .stream()
           .filter(StringUtils::hasText)
@@ -652,6 +655,15 @@ public class SystemTestDefectCauseBoardService extends AbstractStatisticBoardSer
   private SystemTestPhaseSqlPredicateSupport.SqlPredicate defectCausePhasePredicate(
       StatisticFilterGroup filterGroup) {
     return SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
+  }
+
+  private SystemTestPhaseSqlPredicateSupport.SqlPredicate legacyModuleRowPhasePredicate(
+      StatisticFilterGroup filterGroup) {
+    String selectedPhase = SystemTestPhaseFilterSupport.selectedTestingPhase(filterGroup);
+    if (!StringUtils.hasText(selectedPhase)) {
+      return new SystemTestPhaseSqlPredicateSupport.SqlPredicate("", List.of());
+    }
+    return new SystemTestPhaseSqlPredicateSupport.SqlPredicate("testing_phase like ?", List.of("%" + selectedPhase + "%"));
   }
 
   private String buildBoardTotalAggregateSql() {

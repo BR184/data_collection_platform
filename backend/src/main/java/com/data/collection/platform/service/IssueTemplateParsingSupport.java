@@ -24,6 +24,39 @@ final class IssueTemplateParsingSupport {
   private static final String FIX_TEMPLATE_HEADER = "### 1、修复状态";
   private static final String FIX_TEMPLATE_DETAIL_FOOTER = "### 3、请描述具体原因：";
   private static final String FIX_TEMPLATE_DETAIL_FOOTER_LEGACY = "（2）具体原因，请描述：";
+  private static final String LEGACY_OTHER_CAUSE_TOKEN = "其他，请具体说明";
+  private static final java.util.List<String> LEGACY_MINOR_CAUSE_TOKENS =
+      java.util.List.of(
+          "新增需求问题",
+          "新增需求",
+          "需求理解有误",
+          "新增理解偏差",
+          "需求遗漏",
+          "需求变更未同步",
+          "场景考虑不全",
+          "功能设计遗漏",
+          "术语、提示信息不合适",
+          "设计方案不合理",
+          "编码规范错误",
+          "功能编码遗漏",
+          "编码逻辑错误",
+          "编码逻辑：计算与算法错误",
+          "编码逻辑：流程控制错误",
+          "编码逻辑：数据与状态处理错误",
+          "编码逻辑：业务逻辑错误",
+          "编码逻辑：集成与接口错误",
+          "编译打包问题",
+          "环境配置问题",
+          "编译/打包/部署问题",
+          "第三方库问题",
+          "算法/机制不支持",
+          "算法不支持",
+          "机制不支持",
+          "前置数据异常（如缺少模板文件、前置输入文件本身错误等）",
+          "由修改其他问题引起的",
+          "未识别的前后置任务",
+          "精度导致约束求解异常",
+          "精度导致算法执行异常");
 
   private IssueTemplateParsingSupport() {}
 
@@ -210,41 +243,12 @@ final class IssueTemplateParsingSupport {
     if (!StringUtils.hasText(cause)) {
       return null;
     }
-    String otherCause = "修改其他问题引起的";
-    if (!cause.contains(otherCause)) {
+    if (!cause.contains(LEGACY_OTHER_CAUSE_TOKEN)) {
       return cause;
     }
-    for (String token : java.util.List.of(
-        "新增理解偏差",
-        "需求理解有误",
-        "需求遗漏",
-        "新增需求",
-        "需求变更未同步",
-        "功能设计遗漏",
-        "设计方案不合理",
-        "场景考虑不全",
-        "术语、提示信息不合适",
-        "编码规范错误",
-        "功能编码遗漏",
-        "编码逻辑：计算与算法错误",
-        "编码逻辑：流程控制错误",
-        "编码逻辑：数据与状态处理错误",
-        "编码逻辑：业务逻辑错误",
-        "编码逻辑错误",
-        "编码逻辑：集成与接口错误",
-        "编译打包问题",
-        "编译/打包/部署问题",
-        "环境配置问题",
-        "第三方库问题",
-        "算法不支持",
-        "机制不支持",
-        "算法/机制不支持",
-        "前置数据异常",
-        "未识别的前后置任务",
-        "精度导致约束求解异常",
-        "精度导致算法执行异常")) {
+    for (String token : LEGACY_MINOR_CAUSE_TOKENS) {
       if (cause.contains(token)) {
-        return cause.replace(otherCause, "");
+        return cause.replace(LEGACY_OTHER_CAUSE_TOKEN, "");
       }
     }
     return cause;

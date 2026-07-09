@@ -148,6 +148,7 @@ const {
   restoreDefaultViewPrefs,
   clearCurrentSort,
   updateWidthStrategy,
+  updateStickyHeaderEnabled,
 } = useStatisticBoardViewPrefs({
   boardKey: () => props.boardKey,
   routeQuery: () => route.query,
@@ -905,6 +906,7 @@ function autoRefreshMarkerKey() {
         :table-page-size="tablePageSize"
         :settings-visible="settingsVisible"
         :width-strategy="boardViewPrefs.widthStrategy"
+        :sticky-header-enabled="boardViewPrefs.stickyHeaderEnabled !== false"
         :current-visible-column-count="currentVisibleColumnCount"
         :all-columns-selected="allColumnsSelected"
         :partially-selected-columns="partiallySelectedColumns"
@@ -933,6 +935,7 @@ function autoRefreshMarkerKey() {
         :handle-table-size-change="handleTableSizeChange"
         :on-settings-visible-change="(visible) => (visible ? openSettings() : closeSettings())"
         :on-width-strategy-change="updateWidthStrategy"
+        :on-sticky-header-enabled-change="updateStickyHeaderEnabled"
         :on-save-view-prefs="saveViewPrefs"
         :on-restore-default-view="restoreDefaultView"
         :toggle-all-columns="toggleAllColumns"

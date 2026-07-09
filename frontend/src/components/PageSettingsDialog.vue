@@ -8,12 +8,15 @@ const props = defineProps<{
   modelValue: boolean;
   title: string;
   autoRefreshEnabled?: boolean;
+  stickyHeaderEnabled?: boolean;
+  showStickyHeaderOption?: boolean;
   savedViews: SavedTableView[];
 }>();
 
 const emit = defineEmits<{
   (event: 'update:modelValue', value: boolean): void;
   (event: 'toggle-auto-refresh', value: boolean): void;
+  (event: 'toggle-sticky-header', value: boolean): void;
   (event: 'save-view', name: string): void;
   (event: 'apply-view', id: string): void;
   (event: 'delete-view', id: string): void;
@@ -39,6 +42,20 @@ const visible = computed({
           active-text="开"
           inactive-text="关"
           @change="emit('toggle-auto-refresh', Boolean($event))"
+        />
+      </div>
+
+      <div v-if="showStickyHeaderOption" class="page-settings-row">
+        <div>
+          <div class="page-settings-label">固定表头</div>
+          <div class="page-settings-desc">表格内容较长时保持表头可见</div>
+        </div>
+        <el-switch
+          :model-value="stickyHeaderEnabled"
+          inline-prompt
+          active-text="开"
+          inactive-text="关"
+          @change="emit('toggle-sticky-header', Boolean($event))"
         />
       </div>
 

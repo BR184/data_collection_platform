@@ -4,6 +4,7 @@ import { Setting } from '@element-plus/icons-vue';
 import PageSettingsDialog from './PageSettingsDialog.vue';
 import { usePageAutoRefreshPreference } from '../composables/usePageAutoRefreshPreference';
 import { usePageSavedViews } from '../composables/usePageSavedViews';
+import { useTableStickyHeaderPreference } from '../composables/useTableStickyHeader';
 
 const props = withDefaults(
   defineProps<{
@@ -17,6 +18,7 @@ const props = withDefaults(
 
 const settingsVisible = ref(false);
 const { autoRefreshOnEnter, setAutoRefreshOnEnter } = usePageAutoRefreshPreference(() => props.scopeKey);
+const { stickyHeaderEnabled, setStickyHeaderEnabled } = useTableStickyHeaderPreference(() => props.scopeKey);
 const {
   savedViews,
   loadSavedViews,
@@ -48,8 +50,11 @@ function openSettings() {
     v-model="settingsVisible"
     :title="title"
     :auto-refresh-enabled="autoRefreshOnEnter"
+    :sticky-header-enabled="stickyHeaderEnabled"
+    show-sticky-header-option
     :saved-views="savedViews"
     @toggle-auto-refresh="setAutoRefreshOnEnter"
+    @toggle-sticky-header="setStickyHeaderEnabled"
     @save-view="saveCurrentView"
     @apply-view="applySavedView"
     @delete-view="deleteSavedView"

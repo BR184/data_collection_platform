@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import type { Component } from 'vue';
 // 基础统计表负责把统计行按列组展示成稳定表格，供多个看板的明细摘要复用。
 // 这里不做字段推导，列组和格式化规则都由上层统计配置决定。
@@ -7,6 +7,7 @@ import { ArrowRight } from '@element-plus/icons-vue';
 import StatisticTableColumnGroup from './StatisticTableColumnGroup.vue';
 import SmartTableHeader from './SmartTableHeader.vue';
 import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
+import { useStickyTableMaxHeight } from '../../composables/useTableStickyHeader';
 import type {
   StatisticBoardResponse,
   StatisticCellData,
@@ -36,6 +37,7 @@ const props = withDefaults(
     tablePageSize: number;
     settingsVisible: boolean;
     widthStrategy: 'compact' | 'header' | 'content';
+    stickyHeaderEnabled: boolean;
     currentVisibleColumnCount: number;
     allColumnsSelected: boolean;
     partiallySelectedColumns: boolean;
@@ -64,6 +66,7 @@ const props = withDefaults(
     handleTableSizeChange: (nextSize: number) => void;
     onSettingsVisibleChange: (visible: boolean) => void;
     onWidthStrategyChange: (value: 'compact' | 'header' | 'content') => void;
+    onStickyHeaderEnabledChange: (enabled: boolean) => void;
     onSaveViewPrefs: () => void;
     onRestoreDefaultView: () => void;
     toggleAllColumns: (checked: boolean | string | number) => void;
@@ -78,6 +81,11 @@ const props = withDefaults(
 );
 
 const tableShellRef = ref<HTMLElement>();
+const stickyHeaderEnabledRef = computed(() => props.stickyHeaderEnabled);
+const {
+  tableMaxHeightValue,
+  scheduleTableMaxHeightUpdate,
+} = useStickyTableMaxHeight(tableShellRef, stickyHeaderEnabledRef);
 const tableContentWidth = computed(() => {
   const dataColumnsWidth = props.orderedColumnGroups.reduce((total, group) => {
     return total + flattenStatisticColumnLeavesFromGroup(group).reduce((sum, column) => sum + props.columnMinWidth(column), 0);
@@ -114,9 +122,29 @@ const {
 
 async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) {
   await props.openDetail(row, cell);
+  scheduleTableMaxHeightUpdate();
   await scheduleHorizontalScrollbarUpdate();
   wakeHorizontalScrollbar();
 }
+
+function handleStickyHeaderChange(value: boolean | string | number) {
+  props.onStickyHeaderEnabledChange(Boolean(value));
+  scheduleTableMaxHeightUpdate();
+  void scheduleHorizontalScrollbarUpdate();
+}
+
+watch(
+  [
+    () => props.tableRenderKey,
+    () => props.paginatedRows.length,
+    () => props.orderedColumnGroups.length,
+    () => props.widthStrategy,
+    () => props.settingsVisible,
+  ],
+  () => {
+    void nextTick(scheduleTableMaxHeightUpdate);
+  },
+);
 </script>
 
 <template>
@@ -145,6 +173,7 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
       class="base-stat-table stat-matrix-table"
       :class="props.uiHooks.tableClass"
       :style="statMatrixStyle"
+      :max-height="tableMaxHeightValue"
     >
       <el-table-column
         prop="rowLabel"
@@ -284,6 +313,20 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
         <div class="view-settings-strategy-tip">首列继续单独压缩处理，纯数字统计列保持紧凑，宽度策略可在紧凑、表头优先和内容优先之间切换。</div>
       </div>
 
+      <div class="view-settings-switch-row">
+        <div>
+          <div class="view-settings-group-title">固定表头</div>
+          <div class="view-settings-switch-tip">表格内容较长时保持表头可见，适合长页面统计表浏览。</div>
+        </div>
+        <el-switch
+          :model-value="stickyHeaderEnabled"
+          inline-prompt
+          active-text="开"
+          inactive-text="关"
+          @update:model-value="handleStickyHeaderChange"
+        />
+      </div>
+
       <div class="view-settings-scroll">
         <div class="view-settings-global-toggle">
           <el-checkbox
@@ -351,7 +394,7 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
 <style scoped>
 .stat-matrix-wrapper {
   position: relative;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   outline: none;
   border: 1px solid #d7dee9;
@@ -397,5 +440,28 @@ async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) 
   opacity: 1;
   background: transparent;
   box-shadow: none;
+}
+
+.view-settings-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.96);
+}
+
+.view-settings-switch-row :deep(.el-switch) {
+  flex: 0 0 auto;
+}
+
+.view-settings-switch-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(15, 23, 42, 0.52);
 }
 </style>

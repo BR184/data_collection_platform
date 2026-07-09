@@ -270,10 +270,10 @@ async function handleExpandChange() {
 
 .sync-log-table-shell {
   position: relative;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   outline: none;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 
 .sync-log-table {

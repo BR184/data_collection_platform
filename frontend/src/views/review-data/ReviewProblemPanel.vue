@@ -242,7 +242,7 @@ watch(
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   border: 1px solid #d7dee9;
   border-radius: 6px;

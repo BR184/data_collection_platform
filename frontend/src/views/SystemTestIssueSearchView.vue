@@ -542,6 +542,7 @@ async function handleRefresh() {
       :keyword-auto-search="true"
       search-placeholder="输入任意关键字搜索"
       :show-search="true"
+      :settings-scope-key="PAGE_SCOPE_KEY"
       :sort-by="sortBy"
       :sort-order="sortOrder"
       default-sort-by="updatedAt"

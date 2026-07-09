@@ -555,6 +555,7 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
       :active-filter-tags="activeFilterTags"
       :show-search="false"
       :show-refresh="false"
+      :settings-scope-key="PAGE_SCOPE_KEY"
       quick-filter-mode
       quick-filter-toggle-placement="filter-builder"
       :filter-builder-expanded="conditionFiltersExpanded"

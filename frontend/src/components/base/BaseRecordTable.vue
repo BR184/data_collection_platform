@@ -12,6 +12,7 @@ import TableFunctionBar from './TableFunctionBar.vue';
 import { tableHeaderMinimumWidth } from './table-header-layout';
 import { useDebouncedTask, useDelayedLoading } from './use-record-table-timers';
 import { useFloatingHorizontalScrollbar } from '../../composables/useFloatingHorizontalScrollbar';
+import { useStickyTableMaxHeight, useTableStickyHeaderPreference } from '../../composables/useTableStickyHeader';
 import { filterDimensionKey, filterFieldsByBlockedDimensions } from '../filter-priority';
 import type {
   RecordTableActiveFilterTag,
@@ -53,6 +54,7 @@ const props = withDefaults(
     quickFilterMode?: boolean;
     quickFilterTogglePlacement?: 'primary-actions' | 'filter-builder';
     filterBuilderExpanded?: boolean;
+    settingsScopeKey?: string;
     sortBy?: string;
     sortOrder?: string;
     defaultSortBy?: string;
@@ -88,6 +90,7 @@ const props = withDefaults(
     quickFilterMode: false,
     quickFilterTogglePlacement: 'primary-actions',
     filterBuilderExpanded: false,
+    settingsScopeKey: '',
     sortBy: '',
     sortOrder: '',
     defaultSortBy: '',
@@ -118,6 +121,11 @@ const primaryFiltersExpanded = ref(false);
 const tableShellRef = ref<HTMLElement>();
 const tableViewportWidth = ref(0);
 let tableFrameResizeObserver: ResizeObserver | undefined;
+const { stickyHeaderEnabled } = useTableStickyHeaderPreference(() => props.settingsScopeKey);
+const {
+  tableMaxHeightValue,
+  scheduleTableMaxHeightUpdate,
+} = useStickyTableMaxHeight(tableShellRef, stickyHeaderEnabled);
 const visiblePrimaryFilters = computed(() => filterFieldsByBlockedDimensions(props.primaryFilters, props.hiddenFilterKeys));
 const visibleAdvancedFilters = computed(() => filterFieldsByBlockedDimensions(props.advancedFilters, props.hiddenFilterKeys));
 const allFilters = computed(() => [...visiblePrimaryFilters.value, ...visibleAdvancedFilters.value]);
@@ -177,6 +185,18 @@ watch(
     inputFilterDrafts.value = nextDrafts;
   },
   { immediate: true, deep: true },
+);
+
+watch(
+  [
+    () => props.advancedVisible,
+    () => props.filterBuilderExpanded,
+    () => props.rows.length,
+    () => props.columns.length,
+  ],
+  () => {
+    void nextTick(scheduleTableMaxHeightUpdate);
+  },
 );
 
 const slots = useSlots();
@@ -316,6 +336,7 @@ const primaryFilterToggleText = computed(() => {
 
 function togglePrimaryFilters() {
   primaryFiltersExpanded.value = !primaryFiltersExpanded.value;
+  void nextTick(scheduleTableMaxHeightUpdate);
 }
 
 function isFilterKeyDisabled(key: string) {
@@ -334,6 +355,7 @@ function prioritizeKeywordFilter(filters: RecordTableFilterField[]) {
 
 function updateTableViewportWidth() {
   tableViewportWidth.value = tableShellRef.value?.clientWidth ?? 0;
+  scheduleTableMaxHeightUpdate();
 }
 
 onMounted(() => {
@@ -1039,6 +1061,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         border
         stripe
         :fit="false"
+        :max-height="tableMaxHeightValue"
         class="record-table"
         :style="recordTableStyle"
         @sort-change="emit('sort-change', $event)"
@@ -1331,7 +1354,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   border: 1px solid #d7dee9;
   border-radius: 8px;

@@ -490,6 +490,7 @@ async function handleQuery() {
         search-placeholder="输入任意关键字搜索"
         :show-search="true"
         :show-refresh="false"
+        :settings-scope-key="pageScopeKey"
         :sort-by="sortBy"
         :sort-order="sortOrder"
         :default-sort-by="props.defaultSortBy ?? 'updatedAt'"

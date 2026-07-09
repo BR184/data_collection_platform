@@ -449,6 +449,7 @@ const {
       :expand-column-visible="false"
       :row-actions-width="188"
       :show-refresh="false"
+      :settings-scope-key="PAGE_SCOPE_KEY"
       :sort-by="sortBy"
       :sort-order="sortOrder"
       default-sort-by="updatedAt"

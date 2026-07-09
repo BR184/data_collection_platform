@@ -30,6 +30,7 @@ function createEmptyViewPrefs(): StatisticBoardViewPrefs {
     sortColumnKey: '',
     sortDirection: 'default',
     widthStrategy: 'compact',
+    stickyHeaderEnabled: true,
   };
 }
 
@@ -96,6 +97,13 @@ export function useStatisticBoardViewPrefs(options: UseStatisticBoardViewPrefsOp
     };
   }
 
+  function updateStickyHeaderEnabled(value: boolean) {
+    boardViewPrefs.value = {
+      ...boardViewPrefs.value,
+      stickyHeaderEnabled: value,
+    };
+  }
+
   return {
     boardViewPrefs,
     applyStoredViewPrefs,
@@ -104,5 +112,6 @@ export function useStatisticBoardViewPrefs(options: UseStatisticBoardViewPrefsOp
     restoreDefaultViewPrefs,
     clearCurrentSort,
     updateWidthStrategy,
+    updateStickyHeaderEnabled,
   };
 }

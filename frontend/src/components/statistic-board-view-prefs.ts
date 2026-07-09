@@ -10,6 +10,7 @@ interface StoredStatisticBoardViewPrefs {
   sortColumnKey: string;
   sortDirection: 'default' | 'asc' | 'desc';
   widthStrategy: 'compact' | 'header' | 'content';
+  stickyHeaderEnabled?: boolean;
 }
 
 export interface StatisticBoardViewPrefs {
@@ -20,6 +21,7 @@ export interface StatisticBoardViewPrefs {
   sortColumnKey: string;
   sortDirection: 'default' | 'asc' | 'desc';
   widthStrategy: 'compact' | 'header' | 'content';
+  stickyHeaderEnabled?: boolean;
 }
 
 function storageKey(boardKey: string) {
@@ -72,6 +74,7 @@ export function createDefaultStatisticBoardViewPrefs(definition: StatisticBoardD
     sortColumnKey: '',
     sortDirection: 'default',
     widthStrategy: 'compact',
+    stickyHeaderEnabled: true,
   };
 }
 
@@ -125,6 +128,7 @@ export function loadStatisticBoardViewPrefs(
         parsed.sortDirection === 'asc' || parsed.sortDirection === 'desc' ? parsed.sortDirection : 'default',
       widthStrategy:
         parsed.widthStrategy === 'header' || parsed.widthStrategy === 'content' ? parsed.widthStrategy : 'compact',
+      stickyHeaderEnabled: parsed.stickyHeaderEnabled !== false,
     };
   } catch {
     return fallbackPrefs;

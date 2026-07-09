@@ -801,7 +801,8 @@ function readableDetailSortDirection(direction: string) {
   max-width: 100%;
   flex: 1 1 auto;
   max-height: min(78vh, calc(100vh - 122px));
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   outline: none;
   --platform-contained-table-radius: 2px;
   --platform-contained-table-inner-radius: 1px;
@@ -810,7 +811,7 @@ function readableDetailSortDirection(direction: string) {
   background: var(--platform-table-header-bg, #f8fafc);
   box-shadow: none !important;
   clip-path: none !important;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 }
 
 .stat-detail-table {
