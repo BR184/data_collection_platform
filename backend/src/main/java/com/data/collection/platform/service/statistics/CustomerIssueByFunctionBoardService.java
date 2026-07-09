@@ -43,7 +43,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-by-function";
-  private static final String RULE_VERSION = "customer-issue-by-function@2026-06-26-v2";
+  private static final String RULE_VERSION = "customer-issue-by-function@2026-07-09-v3";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
@@ -187,8 +187,12 @@ public class CustomerIssueByFunctionBoardService extends AbstractStatisticBoardS
     long startedAt = System.currentTimeMillis();
     Map<String, List<AggregateBucket>> bucketsByModule = loadFunctionBuckets(filters, effectiveFilterGroup);
     List<String> orderedModules =
-        bucketsByModule.keySet().stream()
-            .sorted(String.CASE_INSENSITIVE_ORDER)
+        bucketsByModule.entrySet().stream()
+            .sorted(
+                Comparator.<Map.Entry<String, List<AggregateBucket>>>comparingInt(entry -> entry.getValue().size())
+                    .reversed()
+                    .thenComparing(Map.Entry::getKey, String.CASE_INSENSITIVE_ORDER))
+            .map(Map.Entry::getKey)
             .toList();
     Map<String, List<AggregateBucket>> orderedBuckets = new LinkedHashMap<>();
     orderedModules.forEach(moduleName -> orderedBuckets.put(moduleName, bucketsByModule.get(moduleName)));

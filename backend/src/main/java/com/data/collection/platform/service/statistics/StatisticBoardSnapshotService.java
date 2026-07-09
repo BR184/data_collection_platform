@@ -234,8 +234,10 @@ public class StatisticBoardSnapshotService {
     StatisticBoardResponse toResponse(Snapshot snapshot) {
       @SuppressWarnings("unchecked")
       Map<String, String> appliedFilters = (Map<String, String>) (Map<?, ?>) snapshot.appliedFilterPayload();
+      StatisticBoardDefinition responseDefinition =
+          snapshot.definition() == null ? definition : snapshot.definition();
       return new StatisticBoardResponse(
-          definition,
+          responseDefinition,
           appliedFilters,
           appliedFilterGroup,
           snapshot.rows(),

@@ -58,6 +58,7 @@ const props = withDefaults(
     defaultSortBy?: string;
     defaultSortOrder?: string;
     showCurrentSort?: boolean;
+    quickFilterChangeGuard?: (key: string, value: string | string[] | null) => boolean;
   }>(),
   {
     loading: false,
@@ -92,6 +93,7 @@ const props = withDefaults(
     defaultSortBy: '',
     defaultSortOrder: 'desc',
     showCurrentSort: true,
+    quickFilterChangeGuard: () => true,
   },
 );
 
@@ -355,6 +357,9 @@ function handleReset() {
 }
 
 function handleFilterChange(key: string, value: string | string[] | null) {
+  if (isQuickFilterControlKey(key) && !props.quickFilterChangeGuard(key, value)) {
+    return;
+  }
   emit('filter-change', { key, value });
 }
 
@@ -381,6 +386,10 @@ function updateInputFilterDraft(key: string, value: string) {
 
 function commitInputFilterValue(key: string, value = getInputFilterDraft(key)) {
   const normalizedValue = String(value ?? '').trim();
+  if (isQuickFilterControlKey(key) && !props.quickFilterChangeGuard(key, normalizedValue)) {
+    updateInputFilterDraft(key, String(props.filterValues[key] ?? ''));
+    return String(props.filterValues[key] ?? '');
+  }
   updateInputFilterDraft(key, normalizedValue);
   emit('filter-change', { key, value: normalizedValue });
   return normalizedValue;
@@ -440,7 +449,22 @@ function handleInputFilterClear(key: string) {
 }
 
 function emitStandaloneKeywordSearch(value = keywordDraft.value) {
-  emit('search', String(value ?? '').trim());
+  const normalizedValue = String(value ?? '').trim();
+  if (isQuickFilterControlKey('keyword') && !props.quickFilterChangeGuard('keyword', normalizedValue)) {
+    keywordDraft.value = String(props.keyword ?? '');
+    return;
+  }
+  emit('search', normalizedValue);
+}
+
+function isQuickFilterControlKey(key: string) {
+  if (!props.quickFilterMode) {
+    return false;
+  }
+  if (key === 'keyword' && hasStandaloneSearch.value) {
+    return true;
+  }
+  return visiblePrimaryFilters.value.some((filter) => filterDimensionKey(filter.key) === filterDimensionKey(key));
 }
 
 function effectiveColumnWidth(column: RecordTableColumn) {

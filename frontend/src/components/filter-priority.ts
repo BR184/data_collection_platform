@@ -225,16 +225,20 @@ export function filterGroupWithoutBlockedDimensions(
   return conditions.length ? { ...sanitized, conditions } : null;
 }
 
-export function notifyFilterConflict(fields: FilterConflictField[], phase: 'detected' | 'applied') {
+export function notifyFilterConflict(fields: FilterConflictField[], phase: 'detected' | 'applied' | 'blocked') {
   if (!fields.length) {
     return;
   }
   const names = uniqueConflictLabels(fields).join('、');
   ElNotification.warning({
-    title: phase === 'detected' ? '筛选条件存在重复' : '已按筛选优先级处理',
+    title: phase === 'applied' ? '已按筛选优先级处理' : '筛选条件存在重复',
     message: phase === 'detected'
-      ? `检测到「${names}」已经在条件筛选中设置，快速筛选中的对应项将被禁用并高亮提示。`
-      : `「${names}」已由条件筛选接管，快速筛选中的对应项已隐藏并不再参与查询。`,
+      ? `检测到「${names}」已经在条件筛选中设置，快速筛选中的对应项将被临时禁用并高亮提示。`
+      : phase === 'blocked'
+        ? `「${names}」已在条件筛选中设置，本次快速筛选不会生效。请调整条件筛选或清空该条件后再使用快速筛选。`
+        : `「${names}」已由条件筛选接管，快速筛选中的对应项已隐藏并不再参与查询。`,
+    duration: 5200,
+    showClose: true,
   });
 }
 
@@ -266,8 +270,10 @@ export function useQuickFilterConflictState(options: {
   filterDraft: StatisticFilterDraftGroup;
 }) {
   const hiddenDimensions = ref<Set<string>>(new Set());
+  const interceptedQuickFilterKeys = ref<Set<string>>(new Set());
   const lastDetectedSignature = ref('');
   const lastDetectedNotification = ref({ signature: '', timestamp: 0 });
+  const interceptedHighlightTimers = new Map<string, ReturnType<typeof window.setTimeout>>();
   const conflictFields = computed(() =>
     conditionDuplicateFields(options.quickFilters.value, options.quickValues.value, options.filterDraft)
       .filter((field) => !hiddenDimensions.value.has(field.dimension)),
@@ -276,7 +282,10 @@ export function useQuickFilterConflictState(options: {
     conflictFields.value.filter((field) => hasFilterValue(options.quickValues.value[field.key])),
   );
   const disabledQuickFilterKeys = computed(() => conflictFields.value.map((field) => field.key));
-  const highlightedQuickFilterKeys = computed(() => conflictFields.value.map((field) => field.key));
+  const highlightedQuickFilterKeys = computed(() => [
+    ...conflictFields.value.map((field) => field.key),
+    ...interceptedQuickFilterKeys.value,
+  ]);
   const hiddenQuickFilterKeys = computed(() =>
     options.quickFilters.value
       .filter((field) => hiddenDimensions.value.has(filterDimensionKey(field.key)))
@@ -313,6 +322,48 @@ export function useQuickFilterConflictState(options: {
     notifyFilterConflict(conflictFields.value, 'detected');
   }
 
+  function guardQuickFilterChange(key: string, value: unknown) {
+    if (!hasFilterValue(value)) {
+      return true;
+    }
+    const field = quickFilterConflictField(key);
+    if (!field) {
+      return true;
+    }
+    notifyFilterConflict([field], 'blocked');
+    flashQuickFilter(field.key);
+    return false;
+  }
+
+  function quickFilterConflictField(key: string) {
+    const dimension = filterDimensionKey(key);
+    if (!dimension || hiddenDimensions.value.has(dimension)) {
+      return null;
+    }
+    if (!completedConditionDimensions(options.filterDraft).has(dimension)) {
+      return null;
+    }
+    return options.quickFilters.value
+      .filter((field) => filterDimensionKey(field.key) === dimension)
+      .map(toConflictField)[0] ?? null;
+  }
+
+  function flashQuickFilter(key: string) {
+    const nextKeys = new Set(interceptedQuickFilterKeys.value);
+    nextKeys.add(key);
+    interceptedQuickFilterKeys.value = nextKeys;
+    const existingTimer = interceptedHighlightTimers.get(key);
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+    }
+    interceptedHighlightTimers.set(key, window.setTimeout(() => {
+      const remainingKeys = new Set(interceptedQuickFilterKeys.value);
+      remainingKeys.delete(key);
+      interceptedQuickFilterKeys.value = remainingKeys;
+      interceptedHighlightTimers.delete(key);
+    }, 1800));
+  }
+
   function applyConflictResolution(): FilterPriorityResolution {
     const fields = conflictFields.value;
     if (!fields.length) {
@@ -332,6 +383,11 @@ export function useQuickFilterConflictState(options: {
 
   function resetConflictResolution() {
     hiddenDimensions.value = new Set();
+    interceptedQuickFilterKeys.value = new Set();
+    for (const timer of interceptedHighlightTimers.values()) {
+      window.clearTimeout(timer);
+    }
+    interceptedHighlightTimers.clear();
     lastDetectedSignature.value = '';
     lastDetectedNotification.value = { signature: '', timestamp: 0 };
   }
@@ -356,6 +412,7 @@ export function useQuickFilterConflictState(options: {
     hiddenQuickFilterKeys,
     visibleQuickFilters,
     notifyDetectedConflicts,
+    guardQuickFilterChange,
     applyConflictResolution,
     resetConflictResolution,
   };

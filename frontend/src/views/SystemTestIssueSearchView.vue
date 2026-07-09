@@ -215,6 +215,7 @@ const {
   highlightedFilterKeys,
   buildPriorityApplyPatch,
   notifyDetectedConflicts,
+  guardQuickFilterChange,
   resetPriorityState,
 } = useRecordTableFilterPriority({
   quickFilters: priorityQuickFilters,
@@ -535,6 +536,7 @@ async function handleRefresh() {
       :hidden-filter-keys="hiddenFilterKeys"
       :disabled-filter-keys="disabledFilterKeys"
       :highlighted-filter-keys="highlightedFilterKeys"
+      :quick-filter-change-guard="guardQuickFilterChange"
       :active-filter-tags="activeFilterTags"
       :keyword="String(route.query.keyword ?? '')"
       :keyword-auto-search="true"

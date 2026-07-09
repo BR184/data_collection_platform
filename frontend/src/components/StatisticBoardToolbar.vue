@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
@@ -28,6 +28,7 @@ const props = withDefaults(
     quickFilterInputDrafts?: Record<string, string>;
     disabledQuickFilterKeys?: string[];
     highlightedQuickFilterKeys?: string[];
+    quickFilterChangeGuard?: (key: string, value: string | string[] | null) => boolean;
     extraActions?: StatisticBoardToolbarAction[];
     uiHooks?: StatisticBoardUiHooks;
   }>(),
@@ -43,6 +44,7 @@ const props = withDefaults(
     quickFilterInputDrafts: () => ({}),
     disabledQuickFilterKeys: () => [],
     highlightedQuickFilterKeys: () => [],
+    quickFilterChangeGuard: () => true,
     extraActions: () => [],
     uiHooks: () => ({}),
   },
@@ -66,6 +68,7 @@ const PRIMARY_EXPORT_COMMAND = '__primary_export__';
 
 const quickFiltersExpanded = ref(false);
 const conditionFiltersExpanded = ref(false);
+const localQuickFilterInputDrafts = ref<Record<string, string>>({});
 const exportExtraActions = computed(() => props.extraActions.filter(isExportAction));
 const nonExportExtraActions = computed(() => props.extraActions.filter((action) => !isExportAction(action)));
 const exportMenuItems = computed(() => [
@@ -85,6 +88,14 @@ const quickFilterToggleText = computed(() =>
 );
 const quickFilterToggleIcon = computed(() => (quickFiltersExpanded.value ? ArrowUp : ArrowDown));
 const quickFilterSummaryChips = computed(() => buildQuickFilterSummaryChips());
+
+watch(
+  () => props.quickFilterInputDrafts,
+  (value) => {
+    localQuickFilterInputDrafts.value = { ...value };
+  },
+  { immediate: true, deep: true },
+);
 
 const activeStatuses = new Set(['PENDING', 'QUEUED', 'RUNNING', 'RETRYING', 'CANCELLING', 'REFRESHING']);
 const failureStatuses = new Set(['FAILED', 'TIMEOUT', 'CANCELLED']);
@@ -186,15 +197,26 @@ function handleExportDropdownCommand(command: string | number | object) {
 }
 
 function updateQuickFilterInput(key: string, value: string) {
-  emit('quickFilterInputUpdate', { key, value });
+  localQuickFilterInputDrafts.value = {
+    ...localQuickFilterInputDrafts.value,
+    [key]: value,
+  };
 }
 
 function commitQuickFilterInput(key: string, value: string) {
+  if (!props.quickFilterChangeGuard(key, value)) {
+    updateQuickFilterInput(key, String(props.quickFilterValues[key] ?? ''));
+    return;
+  }
+  emit('quickFilterInputUpdate', { key, value });
   emit('quickFilterChange', { key, value });
   emit('applyFilters');
 }
 
 function commitQuickFilterValue(key: string, value: string | string[] | null) {
+  if (!props.quickFilterChangeGuard(key, value)) {
+    return;
+  }
   emit('quickFilterChange', { key, value });
   emit('applyFilters');
 }
@@ -271,13 +293,13 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
       <RecordTableFilterFields
         :filters="quickFilterFields"
         :filter-values="quickFilterValues"
-        :input-drafts="quickFilterInputDrafts"
+        :input-drafts="localQuickFilterInputDrafts"
         :keyword-field-visible="quickFilterFields.some((field) => field.key === 'keyword')"
         :disabled-keys="disabledQuickFilterKeys"
         :highlighted-keys="highlightedQuickFilterKeys"
         @input-update="updateQuickFilterInput"
         @input-change="commitQuickFilterInput"
-        @input-search="(key) => commitQuickFilterInput(key, String(quickFilterInputDrafts[key] ?? quickFilterValues[key] ?? ''))"
+        @input-search="(key) => commitQuickFilterInput(key, String(localQuickFilterInputDrafts[key] ?? quickFilterValues[key] ?? ''))"
         @input-clear="(key) => commitQuickFilterInput(key, '')"
         @filter-change="commitQuickFilterValue"
       />

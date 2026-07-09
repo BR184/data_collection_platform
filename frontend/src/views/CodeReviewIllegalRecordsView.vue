@@ -155,6 +155,7 @@ const {
   highlightedFilterKeys,
   buildPriorityApplyPatch,
   notifyDetectedConflicts,
+  guardQuickFilterChange,
   resetPriorityState,
 } = useRecordTableFilterPriority({
   quickFilters: primaryFilters,
@@ -550,6 +551,7 @@ async function handleSourceScopeChange(value: string | number | boolean | undefi
       :hidden-filter-keys="hiddenFilterKeys"
       :disabled-filter-keys="disabledFilterKeys"
       :highlighted-filter-keys="highlightedFilterKeys"
+      :quick-filter-change-guard="guardQuickFilterChange"
       :active-filter-tags="activeFilterTags"
       :show-search="false"
       :show-refresh="false"

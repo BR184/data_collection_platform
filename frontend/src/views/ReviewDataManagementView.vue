@@ -255,6 +255,7 @@ const {
   highlightedFilterKeys,
   buildPriorityApplyPatch,
   notifyDetectedConflicts,
+  guardQuickFilterChange,
   resetPriorityState,
 } = useRecordTableFilterPriority({
   quickFilters: priorityQuickFilters,
@@ -442,6 +443,7 @@ const {
       :hidden-filter-keys="hiddenFilterKeys"
       :disabled-filter-keys="disabledFilterKeys"
       :highlighted-filter-keys="highlightedFilterKeys"
+      :quick-filter-change-guard="guardQuickFilterChange"
       :active-filter-tags="activeFilterTags"
       :expanded-row-keys="expandedRowKeys"
       :expand-column-visible="false"

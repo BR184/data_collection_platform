@@ -316,7 +316,7 @@ watch(
 </script>
 
 <template>
-  <el-config-provider :locale="zhCn">
+  <el-config-provider :locale="zhCn" :z-index="3000">
     <div v-if="isStandalonePage" class="standalone-app-shell">
     <main class="standalone-app-main">
       <RouterView v-slot="{ Component }">
