@@ -125,7 +125,7 @@ final class IssueClassificationRules {
   }
 
   static boolean isIllegal(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
-    return !systemTestIllegalReasons(labels, modules, notesText, fixed).isEmpty();
+    return !systemTestIllegalReasons(labels, notesText).isEmpty();
   }
 
   static String illegalReason(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
@@ -134,24 +134,30 @@ final class IssueClassificationRules {
   }
 
   static List<String> illegalReasons(List<String> labels, boolean closed, List<String> modules, String notesText, boolean fixed) {
-    return systemTestIllegalReasons(labels, modules, notesText, fixed);
+    return systemTestIllegalReasons(labels, notesText);
   }
 
-  private static List<String> systemTestIllegalReasons(
-      List<String> labels, List<String> modules, String notesText, boolean fixed) {
+  private static List<String> systemTestIllegalReasons(List<String> labels, String notesText) {
     List<String> reasons = new java.util.ArrayList<>();
-    if (IssueLabelRules.normalizeDefectSeverityLevel(labels) == null) {
+    Map<String, List<String>> oldPlatformLabels = IssueLabelRules.parseOldPlatformChineseColonLabelMap(labels);
+    String oldPlatformModuleName = IssueLabelRules.oldPlatformCombinedIssueModuleName(labels);
+    String oldPlatformSeverity =
+        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "严重程度", MISSING_SEVERITY);
+    String oldPlatformBugStatus =
+        IssueLabelRules.oldPlatformLabelValue(oldPlatformLabels, "状态", "未设定议题状态");
+
+    if (!List.of("一级缺陷", "二级缺陷", "三级缺陷").contains(oldPlatformSeverity)) {
       reasons.add(MISSING_SEVERITY);
     }
-    if (modules == null || modules.isEmpty()) {
+    if (MISSING_MODULE.equals(oldPlatformModuleName)) {
       reasons.add(MISSING_MODULE);
     }
-    if (fixed) {
+    if (oldPlatformBugStatus.contains("已修复")) {
       IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
-      if (!snapshot.hasTemplateReply()) {
+      if (!org.springframework.util.StringUtils.hasText(snapshot.legacyReasonText())) {
         reasons.add(TEMPLATE_NOT_FOLLOWED);
       } else {
-        int reasonCount = legacyMajorReasonCount(snapshot);
+        int reasonCount = oldPlatformMajorByCauseSplitCount(snapshot.legacyReasonText());
         if (reasonCount != 1) {
           reasons.add(NON_UNIQUE_REASON);
         }
@@ -173,9 +179,32 @@ final class IssueClassificationRules {
 
   static List<String> customerIssueIllegalReasons(
       List<String> labels, List<String> modules, String notesText, boolean fixed) {
-    List<String> reasons = new java.util.ArrayList<>(systemTestIllegalReasons(labels, modules, notesText, fixed));
+    List<String> reasons = new java.util.ArrayList<>(customerIssueBaseIllegalReasons(labels, modules, notesText, fixed));
     if (hasInvalidCustomerResearchTemplate(notesText, IssueLabelRules.normalizeDefectSeverityLevel(labels))) {
       reasons.add(INVALID_RESEARCH_TEMPLATE);
+    }
+    return List.copyOf(reasons);
+  }
+
+  private static List<String> customerIssueBaseIllegalReasons(
+      List<String> labels, List<String> modules, String notesText, boolean fixed) {
+    List<String> reasons = new java.util.ArrayList<>();
+    if (IssueLabelRules.normalizeDefectSeverityLevel(labels) == null) {
+      reasons.add(MISSING_SEVERITY);
+    }
+    if (modules == null || modules.isEmpty()) {
+      reasons.add(MISSING_MODULE);
+    }
+    if (fixed) {
+      IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
+      if (!snapshot.hasTemplateReply()) {
+        reasons.add(TEMPLATE_NOT_FOLLOWED);
+      } else {
+        int reasonCount = legacyMajorReasonCount(snapshot);
+        if (reasonCount != 1) {
+          reasons.add(NON_UNIQUE_REASON);
+        }
+      }
     }
     return List.copyOf(reasons);
   }
@@ -358,6 +387,41 @@ final class IssueClassificationRules {
         "第三方库问题", "算法/机制不支持", "未识别的前后置任务", "算法不支持", "机制不支持", "前置数据异常");
     addIfContains(categories, cause, "精度问题", "精度导致约束求解异常", "精度导致算法执行异常");
     return categories.size();
+  }
+
+  private static int oldPlatformMajorByCauseSplitCount(String cause) {
+    if (!org.springframework.util.StringUtils.hasText(cause)) {
+      return 0;
+    }
+    String majorByCause = oldPlatformMajorByCause(cause);
+    return majorByCause.split("&").length;
+  }
+
+  private static String oldPlatformMajorByCause(String cause) {
+    StringBuilder result = new StringBuilder();
+    appendOldPlatformMajorIfContains(result, cause, "精度问题", "精度导致约束求解异常", "精度导致算法执行异常");
+    appendOldPlatformMajorIfContains(result, cause, "打包问题", "环境配置问题", "编译/打包/部署问题");
+    appendOldPlatformMajorIfContains(result, cause, "需求阶段",
+        "新增需求问题", "需求理解有误", "新增理解偏差", "需求遗漏", "新增需求", "需求变更未同步");
+    appendOldPlatformMajorIfContains(result, cause, "设计问题",
+        "功能设计遗漏", "设计方案不合理", "场景考虑不全", "术语、提示不正确", "术语、提示信息不合适");
+    appendOldPlatformMajorIfContains(result, cause, "编码问题",
+        "编码规范错误", "功能编码遗漏", "编码逻辑：计算与算法错误", "编码逻辑：流程控制错误",
+        "编码逻辑：数据与状态处理错误", "编码逻辑：业务逻辑错误", "编码逻辑：集成与接口错误",
+        "编码逻辑错误", "编译打包问题");
+    appendOldPlatformMajorIfContains(result, cause, "依赖问题",
+        "第三方库问题", "算法/机制不支持", "未识别的前后置任务", "算法不支持", "机制不支持",
+        "前置数据异常（如缺少模板文件、前置输入文件本身错误等）");
+    return result.toString();
+  }
+
+  private static void appendOldPlatformMajorIfContains(
+      StringBuilder result, String cause, String category, String... tokens) {
+    for (String token : tokens) {
+      if (cause.contains(token)) {
+        result.append(category).append(' ');
+      }
+    }
   }
 
   private static void addIfContains(java.util.Set<String> categories, String text, String category, String... tokens) {

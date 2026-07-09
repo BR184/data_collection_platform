@@ -242,6 +242,70 @@ final class IssueLabelRules {
             LinkedHashMap::new));
   }
 
+  static Map<String, List<String>> parseOldPlatformChineseColonLabelMap(List<String> labels) {
+    Map<String, List<String>> result = new LinkedHashMap<>();
+    for (String label : labels) {
+      String normalizedLabel = IssueRuleSupport.normalizeText(label);
+      if (normalizedLabel == null) {
+        continue;
+      }
+      String trimmed = label.trim();
+      String[] parts = trimmed.split("：");
+      if (parts.length > 1) {
+        appendLegacyLabelValue(result, parts[0], parts[1]);
+        continue;
+      }
+      if (IssueRuleSupport.containsToken(trimmed, LEGACY_PHASE_KEYWORD_TOKENS)) {
+        appendLegacyLabelValue(result, "测试阶段", trimmed);
+        continue;
+      }
+      if (LEGACY_URGENCY_LABELS.contains(trimmed)) {
+        List<String> values = result.getOrDefault("紧急程度", List.of());
+        appendLegacyLabelValue(result, "紧急程度", values.isEmpty() ? trimmed : "未设定紧急程度");
+        continue;
+      }
+      if (LEGACY_DELAY_CAUSE_LABELS.contains(trimmed)) {
+        appendLegacyLabelValue(result, "延期原因", trimmed);
+      }
+    }
+    return result.entrySet().stream()
+        .collect(java.util.stream.Collectors.toMap(
+            Map.Entry::getKey,
+            entry -> List.copyOf(entry.getValue()),
+            (left, right) -> left,
+            LinkedHashMap::new));
+  }
+
+  static String oldPlatformLabelValue(List<String> labels, String groupName, String defaultValue) {
+    return oldPlatformLabelValue(parseOldPlatformChineseColonLabelMap(labels), groupName, defaultValue);
+  }
+
+  static String oldPlatformLabelValue(Map<String, List<String>> labelMap, String groupName, String defaultValue) {
+    List<String> values = labelMap.getOrDefault(groupName, List.of());
+    if (values.isEmpty()) {
+      return defaultValue;
+    }
+    return String.join(" & ", values);
+  }
+
+  static String oldPlatformCombinedIssueModuleName(List<String> labels) {
+    Map<String, List<String>> labelMap = parseOldPlatformChineseColonLabelMap(labels);
+    String moduleValue = oldPlatformLabelValue(labelMap, "模块", "未设定模块");
+    String toolboxValue = oldPlatformLabelValue(labelMap, "工具箱", "未设定模块");
+    if (!"未设定模块".equals(moduleValue)
+        && !"未设定模块".equals(toolboxValue)
+        && !moduleValue.equals(toolboxValue)) {
+      return moduleValue + "&" + toolboxValue;
+    }
+    if (!"未设定模块".equals(moduleValue)) {
+      return moduleValue;
+    }
+    if (!"未设定模块".equals(toolboxValue)) {
+      return toolboxValue;
+    }
+    return moduleValue;
+  }
+
   private static LegacyPrefixedLabel parseLegacyPrefixedLabel(String label) {
     int separatorIndex = firstLegacyPrefixSeparatorIndex(label);
     if (separatorIndex <= 0) {

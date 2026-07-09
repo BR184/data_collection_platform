@@ -20,7 +20,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListService
     implements PageRecordSnapshotRefresher {
   private static final String WORKSPACE_KEY = "system-test-illegal-records";
-  private static final String RULE_VERSION = "system-test-illegal-records@2026-07-07-v2";
+  private static final String RULE_VERSION = "system-test-illegal-records@2026-07-09-v3";
   private static final String DEFAULT_SORT_FIELD = "updatedAt";
   private static final long LEGACY_CROWN_CAD_PROJECT_ID = 9L;
   private static final int EXPORT_PAGE_SIZE = 100;
@@ -183,6 +183,12 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
     return SystemTestIssueRecordWorkbookExportSupport.exportIllegalRecords(rows);
   }
 
+  @Override
+  protected boolean canUseSqlPage(
+      IssueFactRecordListRequest request, String filterGroupJson, String safeSortField) {
+    return false;
+  }
+
   public SystemTestIllegalRecordFilterOptionsResponse getFilterOptions(Long projectId) {
     Long safeProjectId = defaultProjectId(projectId);
     Map<String, Object> requestPayload = Map.of("projectId", safeProjectId);
@@ -196,23 +202,23 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private SystemTestIllegalRecordFilterOptionsResponse loadFilterOptions(Long projectId) {
-    IssueFactRecordRepository.SystemTestIllegalFilterValues values =
-        issueFactRecordRepository.findSystemTestIllegalFilterValues(projectId);
+    List<IssueFactRecord> values = loadScopedIllegalViews(projectId);
     return new SystemTestIllegalRecordFilterOptionsResponse(
-        toLegacyOptions(values.projectNames()),
-        toLegacyOptions(values.moduleNames()),
+        toLegacyOptions(values, IssueFactRecord::projectName),
+        toLegacyOptions(values.stream().flatMap(row -> displayModuleNames(row).stream()).toList()),
         toOptionsPreservingOrder(phaseScopeOptions()),
-        toOptionsPreservingOrder(normalizedExistingIllegalReasons(values.illegalReasons())),
-        toLegacyOptions(values.authorNames()),
-        toLegacyOptions(values.assigneeNames()),
-        toOptions(values.issueStates()),
+        toOptionsPreservingOrder(normalizedExistingIllegalReasons(
+            values.stream().flatMap(row -> displayIllegalReasons(row).stream()).toList())),
+        toLegacyOptions(values, IssueFactRecord::authorName),
+        toLegacyOptions(values, IssueFactRecord::assigneeName),
+        toOptions(values.stream().map(IssueFactRecord::issueState).toList()),
         OptionItemResponseFactory.fromValues(
-            values.severityLevels(),
+            values.stream().map(IssueFactRecord::severityLevel).toList(),
             TextQuerySupport::trimToNull,
             IssueDisplayValueSupport::displaySeverityLevel),
-        toOptions(values.bugStatuses()),
-        toOptions(values.categories()),
-        toLegacyOptions(values.milestoneTitles()));
+        toOptions(values.stream().map(IssueFactRecord::bugStatus).toList()),
+        toOptions(values.stream().map(IssueFactRecord::category).toList()),
+        toLegacyOptions(values, IssueFactRecord::milestoneTitle));
   }
 
   @Override
@@ -271,7 +277,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   public StatisticBoardRuleExplanationResponse getRuleExplanation(Long projectId) {
     List<IssueFactRecord> loaded = loadFacts(defaultProjectId(projectId));
     List<IssueFactRecord> scoped = scopeSystemTests(loaded);
-    List<IssueFactRecord> valid = scoped.stream().filter(view -> !view.excluded()).toList();
+    List<IssueFactRecord> valid = scoped.stream().filter(this::matchesOldPlatformSystemTestExclusion).toList();
     List<IssueFactRecord> illegal = valid.stream().filter(IssueFactRecord::illegal).toList();
     return new StatisticBoardRuleExplanationResponse(
         WORKSPACE_KEY,
@@ -315,7 +321,7 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
 
   private List<IssueFactRecord> loadScopedIllegalViews(Long projectId) {
     return scopeSystemTests(loadFacts(projectId)).stream()
-        .filter(view -> !view.excluded())
+        .filter(this::matchesOldPlatformSystemTestExclusion)
         .filter(IssueFactRecord::illegal)
         .toList();
   }
@@ -419,7 +425,27 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private List<String> displayModuleNames(IssueFactRecord view) {
+    if (displayIllegalReasons(view).contains(SystemTestIllegalReasonSupport.MISSING_MODULE)) {
+      return List.of(SystemTestIllegalReasonSupport.MISSING_MODULE);
+    }
     return view.moduleNames().isEmpty() ? List.of(SystemTestIllegalReasonSupport.MISSING_MODULE) : view.moduleNames();
+  }
+
+  private boolean matchesOldPlatformSystemTestExclusion(IssueFactRecord view) {
+    if (containsText(view.category(), "功能屏蔽")
+        || containsText(view.bugStatus(), "已拒绝")
+        || containsText(view.category(), "建议")) {
+      return false;
+    }
+    boolean closed = containsText(view.issueState(), "closed") || containsText(view.issueState(), "CLOSED");
+    if (closed && containsText(view.bugStatus(), "申请否决")) {
+      return false;
+    }
+    return !closed || !containsText(view.bugStatus(), "需求如此");
+  }
+
+  private static boolean containsText(String source, String token) {
+    return source != null && token != null && source.contains(token);
   }
 
   private static List<String> displayIllegalReasons(IssueFactRecord view) {
