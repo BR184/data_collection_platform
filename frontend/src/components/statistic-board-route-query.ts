@@ -21,6 +21,14 @@ function nextConditionId() {
 
 const FILTER_GROUP_QUERY_KEY = 'filterGroup';
 
+type RouteFilterSource = StatisticFilterConditionDraft['source'];
+type RouteStatisticFilterCondition = StatisticFilterGroup['conditions'][number] & {
+  source?: RouteFilterSource;
+};
+type RouteStatisticFilterGroup = Omit<StatisticFilterGroup, 'conditions'> & {
+  conditions: RouteStatisticFilterCondition[];
+};
+
 export function parsePositiveInteger(rawValue: unknown, fallback: number) {
   const parsed = Number.parseInt(String(rawValue ?? ''), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -106,10 +114,7 @@ export function buildFilterGroupFromRouteQuery(query: LocationQuery) {
 }
 
 export function buildFilterQueryPatch(query: LocationQuery, filterDraft: Pick<StatisticFilterDraftGroup, 'logic' | 'conditions'>) {
-  const sanitizedFilterGroup = sanitizeFilterDraftGroup({
-    logic: filterDraft.logic,
-    conditions: [...filterDraft.conditions],
-  });
+  const sanitizedFilterGroup = sanitizeRouteFilterDraftGroup(filterDraft);
   const patch: Record<string, string | number | null> = {
     filterLogic: null,
     [FILTER_GROUP_QUERY_KEY]: sanitizedFilterGroup ? stringifyRouteFilterGroup(sanitizedFilterGroup) : null,
@@ -138,9 +143,9 @@ export function mergeRouteQuery(query: LocationQuery, patch: Record<string, stri
   return nextQuery;
 }
 
-function parseRouteFilterGroup(value: string): StatisticFilterGroup | null {
+function parseRouteFilterGroup(value: string): RouteStatisticFilterGroup | null {
   try {
-    const parsed = JSON.parse(value) as Partial<StatisticFilterGroup> | null;
+    const parsed = JSON.parse(value) as Partial<RouteStatisticFilterGroup> | null;
     if (!parsed || !Array.isArray(parsed.conditions)) {
       return null;
     }
@@ -157,6 +162,7 @@ function parseRouteFilterGroup(value: string): StatisticFilterGroup | null {
         valueType: condition?.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
         labelGroupId: condition?.labelGroupId ?? null,
         labelGroupName: condition?.labelGroupName ?? null,
+        source: condition?.source === 'QUICK' ? 'QUICK' : 'CONDITION',
       })),
     };
   } catch {
@@ -165,7 +171,7 @@ function parseRouteFilterGroup(value: string): StatisticFilterGroup | null {
 }
 
 function stringifyRouteFilterGroup(
-  filterDraft: Pick<StatisticFilterDraftGroup, 'logic' | 'conditions'> | StatisticFilterGroup,
+  filterDraft: Pick<StatisticFilterDraftGroup, 'logic' | 'conditions'> | RouteStatisticFilterGroup,
 ) {
   return stringifyStatisticFilterGroup({
     logic: filterDraft.logic === 'OR' ? 'OR' : 'AND',
@@ -181,11 +187,12 @@ function stringifyRouteFilterGroup(
             labelGroupName: condition.labelGroupName ?? '',
           }
         : {}),
+      ...(condition.source === 'QUICK' ? { source: 'QUICK' as const } : {}),
     })),
-  });
+  } as StatisticFilterGroup);
 }
 
-function toDraftFilterGroup(source: StatisticFilterGroup): StatisticFilterDraftGroup {
+function toDraftFilterGroup(source: RouteStatisticFilterGroup): StatisticFilterDraftGroup {
   const draftGroup = createEmptyFilterGroup();
   draftGroup.logic = source.logic === 'OR' ? 'OR' : 'AND';
   const conditions: StatisticFilterConditionDraft[] =
@@ -200,6 +207,7 @@ function toDraftFilterGroup(source: StatisticFilterGroup): StatisticFilterDraftG
       valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
       labelGroupId: condition.labelGroupId ?? null,
       labelGroupName: condition.labelGroupName ?? null,
+      source: condition.source === 'QUICK' ? 'QUICK' : 'CONDITION',
     }));
   draftGroup.conditions.push(
     ...conditions,
@@ -232,6 +240,65 @@ function normalizeRouteScalar(value: string | number | null | undefined) {
     return '';
   }
   return typeof value === 'number' ? String(value) : value;
+}
+
+function sanitizeRouteFilterDraftGroup(
+  filterDraft: Pick<StatisticFilterDraftGroup, 'logic' | 'conditions'>,
+): RouteStatisticFilterGroup | null {
+  const sanitizedFilterGroup = sanitizeFilterDraftGroup({
+    logic: filterDraft.logic,
+    conditions: [...filterDraft.conditions],
+  });
+  if (!sanitizedFilterGroup) {
+    return null;
+  }
+
+  const matchedDraftIndexes = new Set<number>();
+  const conditions = sanitizedFilterGroup.conditions.map((condition) => {
+    const source = sourceForSanitizedCondition(condition, filterDraft.conditions, matchedDraftIndexes);
+    return source === 'QUICK' ? { ...condition, source } : condition;
+  });
+  return {
+    logic: sanitizedFilterGroup.logic,
+    conditions,
+  };
+}
+
+function sourceForSanitizedCondition(
+  condition: StatisticFilterGroup['conditions'][number],
+  drafts: StatisticFilterDraftGroup['conditions'],
+  matchedDraftIndexes: Set<number>,
+): RouteFilterSource {
+  const matchedIndex = drafts.findIndex((draft, index) =>
+    !matchedDraftIndexes.has(index) && routeConditionMatchesDraft(condition, draft),
+  );
+  if (matchedIndex < 0) {
+    return 'CONDITION';
+  }
+  matchedDraftIndexes.add(matchedIndex);
+  return drafts[matchedIndex].source === 'QUICK' ? 'QUICK' : 'CONDITION';
+}
+
+function routeConditionMatchesDraft(
+  condition: StatisticFilterGroup['conditions'][number],
+  draft: StatisticFilterConditionDraft,
+) {
+  if (condition.fieldKey !== draft.fieldKey) {
+    return false;
+  }
+  if (condition.operator !== normalizeRoutePersistedOperator(draft.operator, draft.valueType)) {
+    return false;
+  }
+  const conditionValueType = condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL';
+  const draftValueType = draft.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL';
+  if (conditionValueType !== draftValueType) {
+    return false;
+  }
+  if (conditionValueType === 'LABEL_GROUP') {
+    return Number(condition.labelGroupId ?? 0) === Number(draft.labelGroupId ?? 0);
+  }
+  return normalizeRouteScalar(condition.value ?? '') === normalizeRouteScalar(draft.value ?? '')
+    && normalizeRouteScalar(condition.secondaryValue ?? '') === normalizeRouteScalar(draft.secondaryValue ?? '');
 }
 
 function firstQueryValue(rawValue: LocationQuery[string]) {

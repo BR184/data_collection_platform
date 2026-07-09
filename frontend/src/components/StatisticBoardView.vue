@@ -343,8 +343,9 @@ const {
 
 function handleBoardLoaded(response: StatisticBoardResponse) {
   const routeFilterGroup = buildFilterGroupFromRouteQuery(route.query);
+  const appliedFilterGroup = stripRouteScopeFilter(response.appliedFilterGroup ?? null);
   const nextDraft = normalizeFilterDraftGroup(
-    stripRouteScopeFilter(response.appliedFilterGroup ?? routeFilterGroup),
+    routeFilterGroup.conditions.length ? routeFilterGroup : appliedFilterGroup,
     response.definition.filters,
   );
   replaceFilterDraftGroup(filterDraft, nextDraft);

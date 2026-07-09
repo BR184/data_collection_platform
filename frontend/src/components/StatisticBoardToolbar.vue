@@ -69,6 +69,7 @@ const PRIMARY_EXPORT_COMMAND = '__primary_export__';
 const quickFiltersExpanded = ref(false);
 const conditionFiltersExpanded = ref(false);
 const localQuickFilterInputDrafts = ref<Record<string, string>>({});
+const localQuickFilterValues = ref<Record<string, unknown>>({});
 const exportExtraActions = computed(() => props.extraActions.filter(isExportAction));
 const nonExportExtraActions = computed(() => props.extraActions.filter((action) => !isExportAction(action)));
 const exportMenuItems = computed(() => [
@@ -93,6 +94,14 @@ watch(
   () => props.quickFilterInputDrafts,
   (value) => {
     localQuickFilterInputDrafts.value = { ...value };
+  },
+  { immediate: true, deep: true },
+);
+
+watch(
+  () => props.quickFilterValues,
+  (value) => {
+    localQuickFilterValues.value = { ...value };
   },
   { immediate: true, deep: true },
 );
@@ -205,7 +214,7 @@ function updateQuickFilterInput(key: string, value: string) {
 
 function commitQuickFilterInput(key: string, value: string) {
   if (!props.quickFilterChangeGuard(key, value)) {
-    updateQuickFilterInput(key, String(props.quickFilterValues[key] ?? ''));
+    updateQuickFilterInput(key, String(localQuickFilterValues.value[key] ?? ''));
     return;
   }
   emit('quickFilterInputUpdate', { key, value });
@@ -215,8 +224,13 @@ function commitQuickFilterInput(key: string, value: string) {
 
 function commitQuickFilterValue(key: string, value: string | string[] | null) {
   if (!props.quickFilterChangeGuard(key, value)) {
+    localQuickFilterValues.value = { ...props.quickFilterValues };
     return;
   }
+  localQuickFilterValues.value = {
+    ...localQuickFilterValues.value,
+    [key]: value,
+  };
   emit('quickFilterChange', { key, value });
   emit('applyFilters');
 }
@@ -224,7 +238,7 @@ function commitQuickFilterValue(key: string, value: string | string[] | null) {
 function buildQuickFilterSummaryChips() {
   const chips: Array<{ id: string; label: string }> = [];
   for (const filter of props.quickFilterFields) {
-    const value = props.quickFilterValues[filter.key];
+    const value = localQuickFilterValues.value[filter.key];
     const label = formatQuickFilterSummaryValue(filter, value);
     if (!label) {
       continue;
@@ -292,14 +306,14 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
     <template v-if="hasQuickFilters" #quick>
       <RecordTableFilterFields
         :filters="quickFilterFields"
-        :filter-values="quickFilterValues"
+        :filter-values="localQuickFilterValues"
         :input-drafts="localQuickFilterInputDrafts"
         :keyword-field-visible="quickFilterFields.some((field) => field.key === 'keyword')"
         :disabled-keys="disabledQuickFilterKeys"
         :highlighted-keys="highlightedQuickFilterKeys"
         @input-update="updateQuickFilterInput"
         @input-change="commitQuickFilterInput"
-        @input-search="(key) => commitQuickFilterInput(key, String(localQuickFilterInputDrafts[key] ?? quickFilterValues[key] ?? ''))"
+        @input-search="(key) => commitQuickFilterInput(key, String(localQuickFilterInputDrafts[key] ?? localQuickFilterValues[key] ?? ''))"
         @input-clear="(key) => commitQuickFilterInput(key, '')"
         @filter-change="commitQuickFilterValue"
       />

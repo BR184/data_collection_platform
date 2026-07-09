@@ -113,6 +113,7 @@ const emit = defineEmits<{
 
 const keywordDraft = ref(props.keyword);
 const inputFilterDrafts = ref<Record<string, string>>({});
+const localFilterValues = ref<Record<string, unknown>>({});
 const primaryFiltersExpanded = ref(false);
 const tableShellRef = ref<HTMLElement>();
 const tableViewportWidth = ref(0);
@@ -153,6 +154,14 @@ watch(
   (value) => {
     keywordDraft.value = value;
   },
+);
+
+watch(
+  () => props.filterValues,
+  (value) => {
+    localFilterValues.value = { ...value };
+  },
+  { immediate: true, deep: true },
 );
 
 watch(
@@ -358,8 +367,13 @@ function handleReset() {
 
 function handleFilterChange(key: string, value: string | string[] | null) {
   if (isQuickFilterControlKey(key) && !props.quickFilterChangeGuard(key, value)) {
+    localFilterValues.value = { ...props.filterValues };
     return;
   }
+  localFilterValues.value = {
+    ...localFilterValues.value,
+    [key]: value,
+  };
   emit('filter-change', { key, value });
 }
 
@@ -374,7 +388,7 @@ function toggleAdvancedVisible() {
 }
 
 function getInputFilterDraft(key: string) {
-  return inputFilterDrafts.value[key] ?? String(props.filterValues[key] ?? '');
+  return inputFilterDrafts.value[key] ?? String(localFilterValues.value[key] ?? '');
 }
 
 function updateInputFilterDraft(key: string, value: string) {
@@ -387,10 +401,14 @@ function updateInputFilterDraft(key: string, value: string) {
 function commitInputFilterValue(key: string, value = getInputFilterDraft(key)) {
   const normalizedValue = String(value ?? '').trim();
   if (isQuickFilterControlKey(key) && !props.quickFilterChangeGuard(key, normalizedValue)) {
-    updateInputFilterDraft(key, String(props.filterValues[key] ?? ''));
-    return String(props.filterValues[key] ?? '');
+    updateInputFilterDraft(key, String(localFilterValues.value[key] ?? ''));
+    return String(localFilterValues.value[key] ?? '');
   }
   updateInputFilterDraft(key, normalizedValue);
+  localFilterValues.value = {
+    ...localFilterValues.value,
+    [key]: normalizedValue,
+  };
   emit('filter-change', { key, value: normalizedValue });
   return normalizedValue;
 }
@@ -807,7 +825,7 @@ function buildQuickFilterSummaryChips() {
     });
   }
   for (const filter of visiblePrimaryFilters.value) {
-    const value = props.filterValues[filter.key];
+    const value = localFilterValues.value[filter.key];
     const label = formatQuickFilterSummaryValue(filter, value);
     if (!label) {
       continue;
@@ -891,7 +909,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 
               <RecordTableFilterFields
                 :filters="orderedCompactPrimaryFilters"
-                :filter-values="filterValues"
+                :filter-values="localFilterValues"
                 :input-drafts="inputFilterDrafts"
                 keyword-field-visible
                 :default-input-width="156"
@@ -914,7 +932,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
               >
                 <RecordTableFilterFields
                   :filters="orderedExtraPrimaryFilters"
-                  :filter-values="filterValues"
+                  :filter-values="localFilterValues"
                   :input-drafts="inputFilterDrafts"
                   :default-input-width="156"
                   :default-select-width="168"
@@ -987,7 +1005,7 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
       <div v-show="advancedVisible && hasAdvancedFilters" class="record-filter-advanced">
         <RecordTableFilterFields
           :filters="visibleAdvancedFilters"
-          :filter-values="filterValues"
+          :filter-values="localFilterValues"
           :input-drafts="inputFilterDrafts"
           :default-input-width="168"
           :default-select-width="168"

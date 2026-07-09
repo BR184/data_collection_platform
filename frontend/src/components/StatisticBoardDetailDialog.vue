@@ -623,18 +623,18 @@ function readableDetailSortDirection(direction: string) {
   margin: 0;
   overflow: hidden;
   color: var(--el-text-color-primary);
-  font-size: 36px;
+  font-size: 30px;
   font-weight: 800;
-  line-height: 48px;
+  line-height: 40px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 :global(.stat-detail-title.el-dialog__title) {
   color: var(--el-text-color-primary) !important;
-  font-size: 36px !important;
+  font-size: 30px !important;
   font-weight: 800 !important;
-  line-height: 48px !important;
+  line-height: 40px !important;
 }
 
 .stat-detail-header-actions {
@@ -963,13 +963,13 @@ function readableDetailSortDirection(direction: string) {
   }
 
   .stat-detail-title {
-    font-size: 28px;
-    line-height: 38px;
+    font-size: 24px;
+    line-height: 32px;
   }
 
   :global(.stat-detail-title.el-dialog__title) {
-    font-size: 28px !important;
-    line-height: 38px !important;
+    font-size: 24px !important;
+    line-height: 32px !important;
   }
 
   .stat-detail-header-actions {

@@ -7,7 +7,7 @@ import {
   type StatisticFilterConditionDraft,
   type StatisticFilterDraftGroup,
 } from './statistic-board-filters';
-import { ElNotification } from 'element-plus';
+import { ElNotification } from '../element-plus-services';
 
 export type FilterPriorityLevel = 'standalone' | 'condition' | 'quick';
 

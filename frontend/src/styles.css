@@ -39,6 +39,51 @@ body {
     linear-gradient(180deg, #f7fafc 0%, var(--shell-bg) 100%);
 }
 
+.platform-notification.el-notification {
+  --el-notification-width: min(392px, calc(100vw - 48px));
+  --el-notification-padding: 16px 38px 16px 16px;
+  --el-notification-radius: 8px;
+  border-color: rgba(203, 213, 225, 0.88);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.platform-notification.el-notification.right {
+  right: 24px;
+}
+
+.platform-notification.el-notification.left {
+  left: 24px;
+}
+
+.platform-notification .el-notification__title {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.platform-notification .el-notification__content {
+  margin-top: 4px;
+  line-height: 22px;
+}
+
+.platform-notification .el-notification__closeBtn {
+  top: 17px;
+  right: 16px;
+}
+
+.platform-notification.el-notification-fade-enter-from.right,
+.platform-notification.el-notification-fade-leave-to.right {
+  right: 0;
+  opacity: 0;
+  transform: translateX(calc(100% + 24px));
+}
+
+.platform-notification.el-notification-fade-enter-from.left,
+.platform-notification.el-notification-fade-leave-to.left {
+  left: 0;
+  opacity: 0;
+  transform: translateX(calc(-100% - 24px));
+}
+
 button {
   font: inherit;
 }

@@ -33,7 +33,9 @@ export interface StatisticFilterDraftGroup {
   conditions: StatisticFilterConditionDraft[];
 }
 
-type NormalizableFilterCondition = StatisticFilterCondition | StatisticFilterConditionDraft;
+type NormalizableFilterCondition = (StatisticFilterCondition | StatisticFilterConditionDraft) & {
+  source?: StatisticFilterConditionDraft['source'];
+};
 
 let filterConditionSeed = 0;
 
@@ -93,7 +95,7 @@ export function normalizeFilterDraftGroup(
       valueType: condition.valueType === 'LABEL_GROUP' ? 'LABEL_GROUP' : 'LITERAL',
       labelGroupId: condition.labelGroupId ?? null,
       labelGroupName: condition.labelGroupName ?? null,
-      source: 'CONDITION',
+      source: condition.source === 'QUICK' ? 'QUICK' : 'CONDITION',
     }));
   return {
     logic: source.logic === 'OR' ? 'OR' : 'AND',

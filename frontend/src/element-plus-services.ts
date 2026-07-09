@@ -54,16 +54,28 @@ type NotificationInput = string | {
   message?: unknown;
   duration?: number;
   showClose?: boolean;
+  customClass?: string;
+  offset?: number;
+  position?: string;
   [key: string]: unknown;
 };
 
+const platformNotificationOffset = 56;
+
 function buildNotificationOptions(input: NotificationInput, level: MessageLevel) {
   const base = typeof input === 'string' ? { message: input } : input;
+  const customClass = [
+    'platform-notification',
+    typeof base.customClass === 'string' ? base.customClass : '',
+  ].filter(Boolean).join(' ');
   return {
     ...base,
     message: toUserMessage(base.message),
     showClose: base.showClose ?? true,
     duration: base.duration ?? (level === 'warning' || level === 'error' ? 4500 : 2600),
+    position: base.position ?? 'top-right',
+    offset: typeof base.offset === 'number' ? base.offset : platformNotificationOffset,
+    customClass,
   };
 }
 
