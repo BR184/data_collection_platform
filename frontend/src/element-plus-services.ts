@@ -57,10 +57,15 @@ type NotificationInput = string | {
   customClass?: string;
   offset?: number;
   position?: string;
+  onClose?: (...args: unknown[]) => void;
   [key: string]: unknown;
 };
 
 const platformNotificationOffset = 56;
+type NotificationHandle = ReturnType<typeof ElementNotification.warning>;
+type PlatformNotificationOptions = ReturnType<typeof buildNotificationOptions>;
+const activeNotifications = new Map<string, NotificationHandle>();
+let notificationOffsetRefreshScheduled = false;
 
 function buildNotificationOptions(input: NotificationInput, level: MessageLevel) {
   const base = typeof input === 'string' ? { message: input } : input;
@@ -79,20 +84,77 @@ function buildNotificationOptions(input: NotificationInput, level: MessageLevel)
   };
 }
 
+function showPlatformNotification(level: MessageLevel, input: NotificationInput) {
+  const options = buildNotificationOptions(input, level);
+  const signature = notificationSignature(level, options);
+  const activeNotification = activeNotifications.get(signature);
+  if (activeNotification) {
+    scheduleNotificationOffsetRefresh();
+    return activeNotification;
+  }
+
+  const userOnClose = options.onClose;
+  const finalOptions = {
+    ...options,
+    onClose: (...args: unknown[]) => {
+      activeNotifications.delete(signature);
+      scheduleNotificationOffsetRefresh();
+      userOnClose?.(...args);
+    },
+  };
+  const notification = ElementNotification[level](finalOptions as never);
+  activeNotifications.set(signature, notification);
+  scheduleNotificationOffsetRefresh();
+  return notification;
+}
+
+function notificationSignature(level: MessageLevel, options: PlatformNotificationOptions) {
+  return [
+    level,
+    options.position,
+    normalizeNotificationText(options.title),
+    normalizeNotificationText(options.message),
+  ].join('\u0000');
+}
+
+function normalizeNotificationText(value: unknown) {
+  return typeof value === 'string' ? value : JSON.stringify(value ?? '');
+}
+
+function scheduleNotificationOffsetRefresh() {
+  if (notificationOffsetRefreshScheduled || typeof window === 'undefined') {
+    return;
+  }
+  notificationOffsetRefreshScheduled = true;
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      notificationOffsetRefreshScheduled = false;
+      const notificationApi = ElementNotification as unknown as {
+        updateOffsets?: (position?: string) => void;
+      };
+      notificationApi.updateOffsets?.('top-right');
+      notificationApi.updateOffsets?.('top-left');
+      notificationApi.updateOffsets?.('bottom-right');
+      notificationApi.updateOffsets?.('bottom-left');
+    });
+  });
+}
+
 export const ElNotification = {
   success(input: NotificationInput) {
-    return ElementNotification.success(buildNotificationOptions(input, 'success') as never);
+    return showPlatformNotification('success', input);
   },
   warning(input: NotificationInput) {
-    return ElementNotification.warning(buildNotificationOptions(input, 'warning') as never);
+    return showPlatformNotification('warning', input);
   },
   info(input: NotificationInput) {
-    return ElementNotification.info(buildNotificationOptions(input, 'info') as never);
+    return showPlatformNotification('info', input);
   },
   error(input: NotificationInput) {
-    return ElementNotification.error(buildNotificationOptions(input, 'error') as never);
+    return showPlatformNotification('error', input);
   },
   closeAll() {
+    activeNotifications.clear();
     return ElementNotification.closeAll();
   },
 };

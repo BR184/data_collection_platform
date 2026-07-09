@@ -761,6 +761,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
               v-else-if="isNumericField(condition)"
               :model-value="condition.value"
               class="stat-filter-value"
+              :controls="false"
               controls-position="right"
               :max="numericFilterLimit"
               :min="-numericFilterLimit"
@@ -782,6 +783,7 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
             v-if="usesSecondaryValue(condition.operator) && isNumericField(condition)"
             :model-value="condition.secondaryValue"
             class="stat-filter-value secondary"
+            :controls="false"
             controls-position="right"
             :max="numericFilterLimit"
             :min="-numericFilterLimit"
@@ -1156,6 +1158,36 @@ function clearLabelGroupValue(condition: StatisticFilterConditionDraft) {
 :deep(.el-input__inner) {
   height: 28px;
   font-size: 13px;
+}
+
+:deep(.stat-filter-value.el-date-editor.el-input) {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  line-height: 28px;
+}
+
+:deep(.stat-filter-value.el-date-editor .el-input__wrapper) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  height: 28px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 28px;
+}
+
+:deep(.stat-filter-value.el-date-editor .el-input__prefix),
+:deep(.stat-filter-value.el-date-editor .el-input__suffix) {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  line-height: 28px;
+}
+
+:deep(.stat-filter-value.el-date-editor .el-input__inner) {
+  height: 28px;
+  line-height: 28px;
 }
 
 @media (max-width: 1180px) {
