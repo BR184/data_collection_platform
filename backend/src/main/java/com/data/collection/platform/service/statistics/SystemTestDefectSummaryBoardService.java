@@ -54,7 +54,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-06-26-v7";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-09-v8";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -167,10 +167,12 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
                 leaf("p1_close_rate", "P1缺陷关闭率(%)", false, "ratio"))),
             new StatisticColumnGroup("p2", "P2", List.of(
                 leaf("p2_count", "P2级别缺陷", true, "count"),
-                leaf("p2_fix_rate", "P2缺陷修复率(%)", false, "ratio"))),
+                leaf("p2_fix_rate", "P2缺陷修复率(%)", false, "ratio"),
+                leaf("p2_close_rate", "P2缺陷关闭率(%)", false, "ratio"))),
             new StatisticColumnGroup("p3", "P3", List.of(
                 leaf("p3_count", "P3级别缺陷", true, "count"),
-                leaf("p3_fix_rate", "P3缺陷修复率(%)", false, "ratio"))),
+                leaf("p3_fix_rate", "P3缺陷修复率(%)", false, "ratio"),
+                leaf("p3_close_rate", "P3缺陷关闭率(%)", false, "ratio"))),
             new StatisticColumnGroup("module_total_group", "模块总缺陷数(个)", List.of(
                 leaf("module_total", "模块总缺陷数(个)", true, "count"))),
             new StatisticColumnGroup("defect_ratio_group", "缺陷占比(%)", List.of(
@@ -1079,8 +1081,10 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         cell("p1_close_rate", rateSort(counts.p1Closed(), counts.p1()), rate(counts.p1Closed(), counts.p1()), false, rowKey),
         cell("p2_count", counts.p2(), count(counts.p2()), true, rowKey),
         cell("p2_fix_rate", rateSort(counts.p2Fixed(), counts.p2()), rate(counts.p2Fixed(), counts.p2()), false, rowKey),
+        cell("p2_close_rate", rateSort(counts.p2Closed(), counts.p2()), rate(counts.p2Closed(), counts.p2()), false, rowKey),
         cell("p3_count", counts.p3(), count(counts.p3()), true, rowKey),
         cell("p3_fix_rate", rateSort(counts.p3Fixed(), counts.p3()), rate(counts.p3Fixed(), counts.p3()), false, rowKey),
+        cell("p3_close_rate", rateSort(counts.p3Closed(), counts.p3()), rate(counts.p3Closed(), counts.p3()), false, rowKey),
         cell("module_total", counts.total(), count(counts.total()), true, rowKey),
         cell("defect_ratio", percentSort(counts.defectRatio()), percent(counts.defectRatio()), false, rowKey),
         cell("delay_defect_ratio", percentSort(counts.delayRatio()), percent(counts.delayRatio()), false, rowKey),
@@ -1132,6 +1136,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       long p2Closed,
       long p3,
       long p3Fixed,
+      long p3Closed,
       long newTotal,
       long newFixed,
       long newClosed,
@@ -1176,6 +1181,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
           count(issues, issue -> issue.isPriority("P2") && issue.isPriorityClosedWithResolvedStatus()),
           count(issues, issue -> issue.isPriority("P3")),
           count(issues, issue -> issue.isPriority("P3") && issue.isPriorityFixed()),
+          count(issues, issue -> issue.isPriority("P3") && issue.isPriorityClosedWithResolvedStatus()),
           newTotal,
           count(issues, issue -> issue.isNewIssue() && issue.isLegacyFixed()),
           count(issues, issue -> issue.isNewIssue() && issue.isNewClosed()),

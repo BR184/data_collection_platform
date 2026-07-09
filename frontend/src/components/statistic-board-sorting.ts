@@ -4,6 +4,9 @@ export type SortDirection = 'default' | 'asc' | 'desc';
 
 export const ROW_LABEL_SORT_KEY = '__row_label__';
 
+const SUMMARY_ROW_KEYS = new Set(['__total__', '__ratio__']);
+const SUMMARY_ROW_LABELS = new Set(['总计', '共计', '总数', '合计', '汇总', '比例']);
+
 export interface StatisticBoardSortState {
   sortColumnKey: string;
   sortDirection: SortDirection;
@@ -11,6 +14,10 @@ export interface StatisticBoardSortState {
 
 function cellForColumn(row: StatisticRowData, columnKey: string) {
   return row.cells.find((item) => item.columnKey === columnKey);
+}
+
+export function isStatisticSummaryRow(row: StatisticRowData) {
+  return SUMMARY_ROW_KEYS.has(row.rowKey) || SUMMARY_ROW_LABELS.has(row.rowLabel.trim());
 }
 
 function compareColumnValues(
@@ -43,6 +50,26 @@ function compareRowLabelValues(
 ) {
   const multiplier = direction === 'asc' ? 1 : -1;
   return left.rowLabel.localeCompare(right.rowLabel) * multiplier;
+}
+
+function sortNonSummaryRows(
+  rows: StatisticRowData[],
+  compare: (left: { row: StatisticRowData; index: number }, right: { row: StatisticRowData; index: number }) => number,
+) {
+  const indexedRows = rows.map((row, index) => ({ row, index }));
+  const sortedNormalRows = indexedRows
+    .filter((item) => !isStatisticSummaryRow(item.row))
+    .sort(compare);
+
+  let normalIndex = 0;
+  return indexedRows.map((item) => {
+    if (isStatisticSummaryRow(item.row)) {
+      return item.row;
+    }
+    const sortedItem = sortedNormalRows[normalIndex];
+    normalIndex += 1;
+    return sortedItem.row;
+  });
 }
 
 export function sortDirectionForColumn(sortState: StatisticBoardSortState, columnKey: string): SortDirection {
@@ -85,10 +112,10 @@ export function sortRowsFromSource(
 
   const effectiveDirection = sortState.sortDirection as Exclude<SortDirection, 'default'>;
   if (sortState.sortColumnKey === ROW_LABEL_SORT_KEY) {
-    return rows
-      .map((row, index) => ({ row, index }))
-      .sort((left, right) => compareRowLabelValues(left.row, right.row, effectiveDirection) || left.index - right.index)
-      .map((item) => item.row);
+    return sortNonSummaryRows(
+      rows,
+      (left, right) => compareRowLabelValues(left.row, right.row, effectiveDirection) || left.index - right.index,
+    );
   }
 
   const column = columns.find((item) => item.key === sortState.sortColumnKey);
@@ -96,8 +123,8 @@ export function sortRowsFromSource(
     return rows;
   }
 
-  return rows
-    .map((row, index) => ({ row, index }))
-    .sort((left, right) => compareColumnValues(left.row, right.row, column, effectiveDirection) || left.index - right.index)
-    .map((item) => item.row);
+  return sortNonSummaryRows(
+    rows,
+    (left, right) => compareColumnValues(left.row, right.row, column, effectiveDirection) || left.index - right.index,
+  );
 }

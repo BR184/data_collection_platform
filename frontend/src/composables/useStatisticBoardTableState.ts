@@ -1,7 +1,7 @@
 import { computed, type Ref } from 'vue';
 import { flattenStatisticColumnLeaves, type StatisticBoardResponse } from '../types/api';
 import type { StatisticBoardViewPrefs } from '../components/statistic-board-view-prefs';
-import { sortRowsFromSource } from '../components/statistic-board-sorting';
+import { isStatisticSummaryRow, sortRowsFromSource } from '../components/statistic-board-sorting';
 import {
   computeFirstColumnMinWidth,
   computeFirstColumnWidth,
@@ -34,11 +34,17 @@ export function useStatisticBoardTableState(options: StatisticBoardTableStateOpt
     return sortRowsFromSource(rows, columns, options.boardViewPrefs.value);
   });
 
-  const totalTableRows = computed(() => sortedRows.value.length);
+  const normalRows = computed(() => sortedRows.value.filter((row) => !isStatisticSummaryRow(row)));
+  const summaryRows = computed(() => sortedRows.value.filter(isStatisticSummaryRow));
+
+  const totalTableRows = computed(() => normalRows.value.length);
 
   const paginatedRows = computed(() => {
     const start = (options.tableCurrentPage.value - 1) * options.tablePageSize.value;
-    return sortedRows.value.slice(start, start + options.tablePageSize.value);
+    return [
+      ...normalRows.value.slice(start, start + options.tablePageSize.value),
+      ...summaryRows.value,
+    ];
   });
 
   const tableRenderKey = computed(() =>
