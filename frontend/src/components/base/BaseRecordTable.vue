@@ -1356,9 +1356,9 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
-  border: 1px solid #d7dee9;
+  border: 0;
   border-radius: 8px;
-  background: var(--platform-table-header-bg, #f8fafc);
+  background: transparent;
   outline: none;
   box-shadow: none;
 }
@@ -1366,8 +1366,8 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 .record-table {
   width: 100%;
   min-width: 100%;
-  border: 0 !important;
-  border-radius: 7px;
+  border: 1px solid #d7dee9 !important;
+  border-radius: 8px;
   overflow: hidden;
   background: var(--platform-table-header-bg, #f8fafc);
 }

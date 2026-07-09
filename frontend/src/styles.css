@@ -1166,7 +1166,6 @@ button {
   display: flex;
   justify-content: flex-end;
   padding: 12px 0;
-  border-top: 1px solid #f0f0f0;
   background: #ffffff;
 }
 
@@ -2513,10 +2512,10 @@ a:hover {
   --platform-contained-table-radius: 8px;
   --platform-contained-table-inner-radius: 7px;
   --platform-contained-table-border: #d7dee9;
-  border-color: var(--platform-contained-table-border) !important;
-  background: var(--platform-table-header-bg, #f8fafc);
+  border: 0 !important;
+  background: transparent;
   box-shadow: none !important;
-  clip-path: inset(0 round var(--platform-contained-table-radius));
+  clip-path: none !important;
 }
 
 .problem-subtable-frame {
@@ -2530,8 +2529,8 @@ a:hover {
 }
 
 :where(.record-table-frame, .stat-matrix-wrapper, .stat-detail-table-shell, .problem-subtable-frame) > .el-table {
-  border: 0 !important;
-  border-radius: var(--platform-contained-table-inner-radius) !important;
+  border: 1px solid var(--platform-contained-table-border) !important;
+  border-radius: var(--platform-contained-table-radius) !important;
   overflow: hidden !important;
   background: var(--platform-table-header-bg, #f8fafc) !important;
 }

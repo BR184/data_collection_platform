@@ -88,14 +88,7 @@ final class IssueLabelRules {
   }
 
   static String normalizeSeverityAlias(List<String> labels) {
-    for (List<String> aliases : SEVERITY_TOKENS.values()) {
-      for (String alias : aliases) {
-        if (IssueRuleSupport.hasLabel(labels, alias)) {
-          return alias;
-        }
-      }
-    }
-    return null;
+    return oldPlatformLabelValue(labels, "严重程度", null);
   }
 
   static String normalizeCategory(List<String> labels) {
@@ -179,7 +172,7 @@ final class IssueLabelRules {
   }
 
   static String normalizeTestingPhase(List<String> labels) {
-    return IssueRuleSupport.firstMatchingLabel(labels, TESTING_PHASE_TOKENS);
+    return oldPlatformLabelValue(labels, "测试阶段", null);
   }
 
   static String normalizeSystemTestLabel(List<String> labels) {

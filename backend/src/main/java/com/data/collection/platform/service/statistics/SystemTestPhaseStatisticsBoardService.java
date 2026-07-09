@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-phase-statistics";
-  private static final String RULE_VERSION = "system-test-phase-statistics@2026-06-17-v2";
+  private static final String RULE_VERSION = "system-test-phase-statistics@2026-07-09-v3";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   private static final List<String> REALTIME_REFRESH_TABLES =
@@ -63,6 +63,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(issue_state,'opened') as issue_state, coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label, coalesce(severity_level,'') as severity_level,
+             coalesce(severity_alias,'') as severity_alias,
              coalesce(priority_level,'') as priority_level, coalesce(bug_status,'') as bug_status,
              coalesce(category,'') as category, coalesce(delay_cause,'') as delay_cause,
              coalesce(is_excluded,false) as is_excluded,
@@ -77,15 +78,17 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       """;
   private static final String BOARD_AGGREGATE_SQL = """
       select testing_phase as row_key,
-             sum(case when severity_level = 'LEVEL1' then 1 else 0 end) as level1,
-             sum(case when severity_level = 'LEVEL2' then 1 else 0 end) as level2,
-             sum(case when severity_level = 'LEVEL3' then 1 else 0 end) as level3,
-             sum(case when severity_level = 'SUGGESTION' or category like '%建议%' then 1 else 0 end) as suggestion
+             sum(case when coalesce(severity_alias,'') like '%一级缺陷%' then 1 else 0 end) as level1,
+             sum(case when coalesce(severity_alias,'') like '%二级缺陷%' then 1 else 0 end) as level2,
+             sum(case when coalesce(severity_alias,'') like '%三级缺陷%' then 1 else 0 end) as level3,
+             0 as suggestion
         from issue_fact
        where deleted = false
          and coalesce(is_excluded,false) = false
          and coalesce(testing_phase,'') <> ''
-         and (severity_level in ('LEVEL1','LEVEL2','LEVEL3','SUGGESTION') or category like '%建议%')
+         and (coalesce(severity_alias,'') like '%一级缺陷%'
+              or coalesce(severity_alias,'') like '%二级缺陷%'
+              or coalesce(severity_alias,'') like '%三级缺陷%')
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
@@ -312,7 +315,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         "议题阶段统计规则说明",
         RULE_VERSION,
         "当前统计按系统测试阶段定义中的轮次聚合，展示每个轮次下不同严重程度的缺陷数量。",
-        "默认项目为老平台 CrownCAD 项目 9；未选择测试阶段时按阶段定义选项第一项作为默认阶段。总计只统计一级、二级、三级缺陷。",
+        "默认项目为老平台 CrownCAD 项目 9；本页对齐老平台 getDefectAndPhaseTable，按子轮次精确匹配 testing_phase，并按严重程度字面值统计一级、二级、三级缺陷。",
         List.of(
             snapshot.flowSteps().get(0),
             snapshot.flowSteps().get(1),
@@ -364,7 +367,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             StatisticRuleFlowSupport.step(
                 "source-load",
                 "加载议题数据",
-                "加载已同步到平台的议题数据，并使用整理后的测试阶段和严重程度。",
+                "加载已同步到平台的议题数据，并使用对齐老平台的测试阶段和严重程度字面值。",
                 initial.size(),
                 initial,
                 this::toRuleFlowSample
@@ -388,7 +391,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
             StatisticRuleFlowSupport.step(
                 "phase-filter",
                 "应用测试阶段筛选",
-                "根据页面上的“测试阶段”筛选条件进一步保留匹配轮次；未填写时按阶段定义第一项作为默认测试阶段。",
+                "根据页面上的“测试阶段”筛选条件进一步保留精确匹配的子轮次；未填写时按阶段定义第一项作为默认测试阶段。",
                 valid.size(),
                 configured,
                 this::toRuleFlowSample
@@ -509,7 +512,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       case "level1" -> IssueSource::isLevel1;
       case "level2" -> IssueSource::isLevel2;
       case "level3" -> IssueSource::isLevel3;
-      case "suggestion" -> IssueSource::isSuggestion;
+      case "suggestion" -> issue -> false;
       case "total" -> IssueSource::isCountableByRule;
       default -> issue -> true;
     };
@@ -557,7 +560,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     queryFilters.remove(TESTING_PHASE_FIELD);
     Long projectId = effectiveProjectId(queryFilters);
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       List<IssueSource> facts = ensureFactsReady(projectId, queryFilters, phasePredicate);
       return facts.isEmpty() ? List.of() : facts;
@@ -600,7 +603,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       queryFilters.put("projectId", String.valueOf(projectId));
     }
     SystemTestPhaseSqlPredicateSupport.SqlPredicate phasePredicate =
-        SystemTestPhaseSqlPredicateSupport.legacyStatisticPhasePredicate(filterGroup, phaseScopeResolver);
+        SystemTestPhaseSqlPredicateSupport.legacyExactPhasePredicate(filterGroup, phaseScopeResolver);
     try {
       return issueFactQueryService.query(
               BOARD_AGGREGATE_SQL,
@@ -647,6 +650,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
         StatisticSourceValueSupport.text(rs.getString("severity_level"), ""),
+        StatisticSourceValueSupport.text(rs.getString("severity_alias"), ""),
         StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
         StatisticSourceValueSupport.text(rs.getString("category"), ""),
         StatisticSourceValueSupport.text(rs.getString("delay_cause"), ""),
@@ -739,7 +743,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       long level2 = counts.stream().mapToLong(AggregateCounts::level2).sum();
       long level3 = counts.stream().mapToLong(AggregateCounts::level3).sum();
       long suggestion = counts.stream().mapToLong(AggregateCounts::suggestion).sum();
-      long total = level1 + level2 + level3;
+      long total = level1 + level2 + level3 + suggestion;
       return new StatisticRowData(
           rowKey,
           rowLabel,
@@ -788,6 +792,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
       String testingPhase,
       String systemTestLabel,
       String severityLevel,
+      String severityAlias,
       String bugStatus,
       String category,
       String delayCause,
@@ -806,23 +811,23 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     }
 
     boolean isSeverity(String severity) {
-      return severity.equalsIgnoreCase(severityLevel);
+      return contains(severityAlias, severity);
     }
 
     boolean isLevel1() {
-      return isSeverity("LEVEL1");
+      return isSeverity("一级缺陷");
     }
 
     boolean isLevel2() {
-      return isSeverity("LEVEL2");
+      return isSeverity("二级缺陷");
     }
 
     boolean isLevel3() {
-      return isSeverity("LEVEL3");
+      return isSeverity("三级缺陷");
     }
 
     boolean isSuggestion() {
-      return isSeverity("SUGGESTION") || contains(category, "建议");
+      return contains(category, "建议");
     }
 
     boolean isCountableByRule() {
@@ -859,6 +864,7 @@ public class SystemTestPhaseStatisticsBoardService extends AbstractStatisticBoar
     String severityDisplay() {
       if (isLevel1()) return level1Kind();
       if (isSuggestion()) return IssueDisplayValueSupport.displaySeverityLevel("SUGGESTION");
+      if (StringUtils.hasText(severityAlias)) return severityAlias;
       return IssueDisplayValueSupport.displaySeverityLevelOrFallback(severityLevel, "-");
     }
 

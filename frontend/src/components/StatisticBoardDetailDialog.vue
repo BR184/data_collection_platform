@@ -806,9 +806,9 @@ function readableDetailSortDirection(direction: string) {
   outline: none;
   --platform-contained-table-radius: 2px;
   --platform-contained-table-inner-radius: 1px;
-  border: 1px solid var(--el-border-color-light) !important;
+  border: 0 !important;
   border-radius: 2px !important;
-  background: var(--platform-table-header-bg, #f8fafc);
+  background: transparent;
   box-shadow: none !important;
   clip-path: none !important;
   scrollbar-gutter: auto;
@@ -817,8 +817,8 @@ function readableDetailSortDirection(direction: string) {
 .stat-detail-table {
   min-width: 100%;
   width: max(100%, var(--stat-detail-table-content-width, 960px));
-  border: 0 !important;
-  border-radius: 1px !important;
+  border: 1px solid var(--el-border-color-light) !important;
+  border-radius: 2px !important;
   overflow: hidden;
   background: var(--platform-table-header-bg, #f8fafc);
 }

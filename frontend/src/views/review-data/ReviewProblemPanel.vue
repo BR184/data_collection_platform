@@ -244,15 +244,15 @@ watch(
   max-width: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
-  border: 1px solid #d7dee9;
+  border: 0;
   border-radius: 6px;
-  background: var(--platform-table-header-bg, #f8fafc);
+  background: transparent;
   box-shadow: none;
 }
 
 .problem-subtable {
-  border: 0 !important;
-  border-radius: 5px;
+  border: 1px solid #d7dee9 !important;
+  border-radius: 6px;
   overflow: hidden;
   background: var(--platform-table-header-bg, #f8fafc);
 }
