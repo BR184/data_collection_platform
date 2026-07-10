@@ -81,7 +81,7 @@ const redundantLeafColumn = computed(() => redundantSingleLeafColumn(props.group
           </span>
         </span>
         <span class="stat-column-header-label">
-          <SmartTableHeader :label="redundantLeafColumn.label" prefer-stacked />
+          <SmartTableHeader :label="redundantLeafColumn.label" :tooltip="redundantLeafColumn.headerTooltip ?? undefined" prefer-stacked />
         </span>
         <span class="stat-header-zone stat-header-zone-right">
           <button
@@ -204,7 +204,7 @@ const redundantLeafColumn = computed(() => redundantSingleLeafColumn(props.group
             </span>
           </span>
           <span class="stat-column-header-label">
-            <SmartTableHeader :label="column.label" prefer-stacked />
+            <SmartTableHeader :label="column.label" :tooltip="column.headerTooltip ?? undefined" prefer-stacked />
           </span>
           <span class="stat-header-zone stat-header-zone-right">
             <button

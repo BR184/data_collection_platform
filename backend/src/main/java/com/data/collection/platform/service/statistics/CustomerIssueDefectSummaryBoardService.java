@@ -32,10 +32,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -47,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
-  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-04-22-v1";
+  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-09-v2";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -88,6 +90,14 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
              coalesce(label_names, '') as label_names
         from issue_fact
        where deleted = false
+      """;
+  private static final String MODULE_CATALOG_SQL =
+      """
+      select coalesce(module_names, '') as module_names
+        from issue_fact
+       where deleted = false
+         and project_id = ?
+         and nullif(btrim(coalesce(module_names, '')), '') is not null
       """;
   private final CustomerIssueScopeProfile customerIssueScopeProfile;
   private final IssueFactBoardRuntimeSupport runtimeSupport;
@@ -274,13 +284,16 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       StatisticFilterGroup effectiveFilterGroup) {
     long startedAt = System.currentTimeMillis();
     List<IssueSource> sources = loadBoardScopedSources(filters, effectiveFilterGroup);
+    List<String> moduleCatalog = loadLegacyModuleCatalog(effectiveFilterGroup);
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
+    for (String moduleName : moduleCatalog) {
+      buckets.put(moduleName, new AggregateBucket(moduleName));
+    }
     for (IssueSource issue : sources) {
-      for (String moduleName : issue.moduleNames()) {
-        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
-          continue;
+      for (String moduleName : moduleCatalog) {
+        if (issue.moduleNames().contains(moduleName)) {
+          buckets.get(moduleName).accept(issue);
         }
-        buckets.computeIfAbsent(moduleName, AggregateBucket::new).accept(issue);
       }
     }
     List<StatisticRowData> rows =
@@ -628,6 +641,24 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     }
   }
 
+  private List<String> loadLegacyModuleCatalog(StatisticFilterGroup filterGroup) {
+    try {
+      Set<String> modules = new LinkedHashSet<>();
+      issueFactQueryService
+          .query(
+              MODULE_CATALOG_SQL,
+              List.of(LEGACY_CC_PRODUCT_PROJECT_ID),
+              (rs, rowNum) -> splitLegacyModuleNames(rs.getString("module_names")))
+          .forEach(values -> values.stream()
+              .filter(moduleName -> StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup))
+              .forEach(modules::add));
+      return List.copyOf(modules);
+    } catch (DataAccessException e) {
+      log.warn("Failed to load customer issue module catalog", e);
+      return List.of();
+    }
+  }
+
   private IssueSource mapIssueFact(ResultSet rs, int rowNum) throws SQLException {
     return new IssueSource(
         rs.getLong("id"),
@@ -660,8 +691,23 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         false,
         "",
         rs.getBoolean("is_legacy"),
-        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        splitLegacyModuleNames(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")));
+  }
+
+  private static List<String> splitLegacyModuleNames(String raw) {
+    return StatisticSourceValueSupport.split(raw, "\\s*(?:,|，|、|&)\\s*").stream()
+        .filter(moduleName -> !moduleName.startsWith("未设定"))
+        .toList();
+  }
+
+  private static List<String> splitLegacyModuleNames(List<String> rawValues) {
+    if (rawValues == null || rawValues.isEmpty()) {
+      return List.of();
+    }
+    Set<String> modules = new LinkedHashSet<>();
+    rawValues.forEach(value -> splitLegacyModuleNames(value).forEach(modules::add));
+    return List.copyOf(modules);
   }
 
   private IssueSource toIssueSource(StatisticIssueFactSource source) {
@@ -696,7 +742,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
         false,
         "",
         source.legacy(),
-        source.moduleNames(),
+        splitLegacyModuleNames(source.moduleNames()),
         source.labels());
   }
 

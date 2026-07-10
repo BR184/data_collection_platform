@@ -54,7 +54,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-09-v8";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-09-v10";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -206,6 +206,14 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
+    if ("suggestion_total".equals(key)) {
+      return new StatisticColumnLeaf(
+          key,
+          label,
+          drilldown,
+          metricType,
+          SystemTestSuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
+    }
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
 
@@ -345,7 +353,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       List<IssueSource> loaded, EffectiveFilterGroup effectiveFilterGroup, Map<String, List<String>> phaseValueCache) {
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped = initial;
-    List<IssueSource> validBeforeFilter = scoped.stream().filter(i -> !i.excluded()).toList();
+    List<IssueSource> validBeforeFilter =
+        scoped.stream().filter(IssueSource::isVisibleForRegularOrSuggestionColumn).toList();
     List<IssueSource> valid =
         hasTestingPhaseCondition(effectiveFilterGroup.userGroup())
             ? validBeforeFilter.stream().filter(issue -> matchesEffectiveFilterGroup(issue, effectiveFilterGroup, phaseValueCache)).toList()
@@ -370,7 +379,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         StatisticRuleFlowSupport.step(
             "exclude-invalid-issues",
             "排除无效数据",
-            "剔除功能屏蔽、已拒绝、建议，以及关闭后属于申请否决/需求如此的议题。",
+            "剔除功能屏蔽、已拒绝以及关闭后属于申请否决/需求如此的议题；仅因建议类被排除的数据只允许回到建议类列。",
             scoped.size(),
             validBeforeFilter,
             this::toRuleFlowSample
@@ -945,7 +954,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         source.delayCause(),
         source.milestoneTitle(),
         source.excluded(),
-        "",
+        source.exclusionReason(),
         source.fixed(),
         source.delayIssue(),
         source.regression(),
@@ -1005,27 +1014,27 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private Predicate<IssueSource> matchesMetric(String key) {
     return switch (key) {
-      case "level1_back" -> IssueSource::isLevel1Back;
-      case "level1_hang" -> IssueSource::isLevel1Hang;
-      case "level1_other" -> IssueSource::isLevel1Other;
-      case "level1_fixed" -> i -> i.isLevel1() && i.isLegacyFixed();
-      case "level1_total" -> IssueSource::isLevel1;
-      case "level2_fixed" -> i -> i.isLevel2() && i.isLegacyFixed();
-      case "level2_total" -> IssueSource::isLevel2;
-      case "level3_fixed" -> i -> i.isLevel3() && i.isLegacyFixed();
-      case "level3_total" -> IssueSource::isLevel3;
+      case "level1_back" -> IssueSource::isRegularLevel1Back;
+      case "level1_hang" -> IssueSource::isRegularLevel1Hang;
+      case "level1_other" -> IssueSource::isRegularLevel1Other;
+      case "level1_fixed" -> i -> i.isRegularLevel1() && i.isLegacyFixed();
+      case "level1_total" -> IssueSource::isRegularLevel1;
+      case "level2_fixed" -> i -> i.isRegularLevel2() && i.isLegacyFixed();
+      case "level2_total" -> IssueSource::isRegularLevel2;
+      case "level3_fixed" -> i -> i.isRegularLevel3() && i.isLegacyFixed();
+      case "level3_total" -> IssueSource::isRegularLevel3;
       case "suggestion_total" -> IssueSource::isSuggestion;
-      case "p1_count" -> i -> i.isPriority("P1");
-      case "p2_count" -> i -> i.isPriority("P2");
-      case "p3_count" -> i -> i.isPriority("P3");
-      case "solved_count" -> IssueSource::isLegacyFixed;
-      case "open_count" -> i -> !i.isClosed();
-      case "extension_count" -> IssueSource::hasExtensionLabel;
-      case "retest_failed_count" -> IssueSource::isRetestFailed;
-      case "new_issue_fixed" -> i -> i.isNewIssue() && i.isLegacyFixed();
-      case "new_issue_total" -> IssueSource::isNewIssue;
-      case "level2_legacy_count" -> i -> i.isLevel2() && i.isLegacyOpenForLevel23();
-      case "level3_legacy_count" -> i -> i.isLevel3() && i.isLegacyOpenForLevel23();
+      case "p1_count" -> i -> i.isRegularMetricIssue() && i.isPriority("P1");
+      case "p2_count" -> i -> i.isRegularMetricIssue() && i.isPriority("P2");
+      case "p3_count" -> i -> i.isRegularMetricIssue() && i.isPriority("P3");
+      case "solved_count" -> i -> i.isRegularMetricIssue() && i.isLegacyFixed();
+      case "open_count" -> i -> i.isRegularMetricIssue() && !i.isClosed();
+      case "extension_count" -> i -> i.isRegularMetricIssue() && i.hasExtensionLabel();
+      case "retest_failed_count" -> i -> i.isRegularMetricIssue() && i.isRetestFailed();
+      case "new_issue_fixed" -> i -> i.isRegularMetricIssue() && i.isNewIssue() && i.isLegacyFixed();
+      case "new_issue_total" -> i -> i.isRegularMetricIssue() && i.isNewIssue();
+      case "level2_legacy_count" -> i -> i.isRegularLevel2() && i.isLegacyOpenForLevel23();
+      case "level3_legacy_count" -> i -> i.isRegularLevel3() && i.isLegacyOpenForLevel23();
       default -> i -> true;
     };
   }
@@ -1061,7 +1070,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
 
   private StatisticRowData toSummaryRowData(String rowKey, String rowLabel, List<IssueSource> sourceIssues) {
     List<IssueSource> rowIssues = sourceIssues.stream().filter(issue -> matchesRow(issue, rowKey)).toList();
-    SummaryCounts counts = SummaryCounts.from(rowIssues, sourceIssues.size());
+    long regularOverall = sourceIssues.stream().filter(IssueSource::isRegularMetricIssue).count();
+    SummaryCounts counts = SummaryCounts.from(rowIssues, regularOverall);
     return new StatisticRowData(rowKey, rowLabel, List.of(
         cell("level1_back", counts.level1Back(), count(counts.level1Back()), true, rowKey),
         cell("level1_hang", counts.level1Hang(), count(counts.level1Hang()), true, rowKey),
@@ -1144,48 +1154,49 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
       double defectRatio,
       double delayRatio) {
     static SummaryCounts from(List<IssueSource> issues, long overall) {
-      long total = issues.size();
-      long solved = count(issues, IssueSource::isLegacyFixed);
-      long closed = count(issues, IssueSource::isClosed);
-      long delayed = count(issues, IssueSource::delayIssue);
-      long level1 = count(issues, IssueSource::isLevel1);
-      long level1Fixed = count(issues, issue -> issue.isLevel1() && issue.isLegacyFixed());
-      long level2 = count(issues, IssueSource::isLevel2);
-      long level3 = count(issues, IssueSource::isLevel3);
-      long newTotal = count(issues, IssueSource::isNewIssue);
+      List<IssueSource> regularIssues = issues.stream().filter(IssueSource::isRegularMetricIssue).toList();
+      long total = regularIssues.size();
+      long solved = count(regularIssues, IssueSource::isLegacyFixed);
+      long closed = count(regularIssues, IssueSource::isClosed);
+      long delayed = count(regularIssues, IssueSource::delayIssue);
+      long level1 = count(regularIssues, IssueSource::isLevel1);
+      long level1Fixed = count(regularIssues, issue -> issue.isLevel1() && issue.isLegacyFixed());
+      long level2 = count(regularIssues, IssueSource::isLevel2);
+      long level3 = count(regularIssues, IssueSource::isLevel3);
+      long newTotal = count(regularIssues, IssueSource::isNewIssue);
       return new SummaryCounts(
           total,
           solved,
           closed,
           total - closed,
           delayed,
-          count(issues, IssueSource::hasExtensionLabel),
-          count(issues, IssueSource::isRetestFailed),
-          count(issues, IssueSource::isLevel1Back),
-          count(issues, IssueSource::isLevel1Hang),
-          count(issues, IssueSource::isLevel1Other),
+          count(regularIssues, IssueSource::hasExtensionLabel),
+          count(regularIssues, IssueSource::isRetestFailed),
+          count(regularIssues, IssueSource::isLevel1Back),
+          count(regularIssues, IssueSource::isLevel1Hang),
+          count(regularIssues, IssueSource::isLevel1Other),
           level1,
           level1Fixed,
           level2,
-          count(issues, issue -> issue.isLevel2() && issue.isLegacyFixed()),
-          count(issues, issue -> issue.isLevel2() && issue.isLegacyOpenForLevel23()),
+          count(regularIssues, issue -> issue.isLevel2() && issue.isLegacyFixed()),
+          count(regularIssues, issue -> issue.isLevel2() && issue.isLegacyOpenForLevel23()),
           level3,
-          count(issues, issue -> issue.isLevel3() && issue.isLegacyFixed()),
-          count(issues, issue -> issue.isLevel3() && issue.isLegacyOpenForLevel23()),
+          count(regularIssues, issue -> issue.isLevel3() && issue.isLegacyFixed()),
+          count(regularIssues, issue -> issue.isLevel3() && issue.isLegacyOpenForLevel23()),
           count(issues, IssueSource::isSuggestion),
-          count(issues, issue -> issue.isPriority("P1")),
-          count(issues, issue -> issue.isPriority("P1") && issue.isPriorityFixed()),
-          count(issues, issue -> issue.isPriority("P1") && issue.isP1Closed()),
-          count(issues, issue -> issue.isPriority("P2")),
-          count(issues, issue -> issue.isPriority("P2") && issue.isPriorityFixed()),
-          count(issues, issue -> issue.isPriority("P2") && issue.isPriorityClosedWithResolvedStatus()),
-          count(issues, issue -> issue.isPriority("P3")),
-          count(issues, issue -> issue.isPriority("P3") && issue.isPriorityFixed()),
-          count(issues, issue -> issue.isPriority("P3") && issue.isPriorityClosedWithResolvedStatus()),
+          count(regularIssues, issue -> issue.isPriority("P1")),
+          count(regularIssues, issue -> issue.isPriority("P1") && issue.isPriorityFixed()),
+          count(regularIssues, issue -> issue.isPriority("P1") && issue.isP1Closed()),
+          count(regularIssues, issue -> issue.isPriority("P2")),
+          count(regularIssues, issue -> issue.isPriority("P2") && issue.isPriorityFixed()),
+          count(regularIssues, issue -> issue.isPriority("P2") && issue.isPriorityClosedWithResolvedStatus()),
+          count(regularIssues, issue -> issue.isPriority("P3")),
+          count(regularIssues, issue -> issue.isPriority("P3") && issue.isPriorityFixed()),
+          count(regularIssues, issue -> issue.isPriority("P3") && issue.isPriorityClosedWithResolvedStatus()),
           newTotal,
-          count(issues, issue -> issue.isNewIssue() && issue.isLegacyFixed()),
-          count(issues, issue -> issue.isNewIssue() && issue.isNewClosed()),
-          count(issues, issue -> (issue.isLevel2() || issue.isLevel3()) && issue.isLegacyFixed()),
+          count(regularIssues, issue -> issue.isNewIssue() && issue.isLegacyFixed()),
+          count(regularIssues, issue -> issue.isNewIssue() && issue.isNewClosed()),
+          count(regularIssues, issue -> (issue.isLevel2() || issue.isLevel3()) && issue.isLegacyFixed()),
           StatisticMetricCalculator.percentageOf(total, overall),
           StatisticMetricCalculator.percentageOf(delayed, total));
     }
@@ -1209,7 +1220,26 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     boolean isLevel1Other() { return isLevel1() && level1Other; }
     boolean isLevel2() { return isSeverity("LEVEL2"); }
     boolean isLevel3() { return isSeverity("LEVEL3"); }
-    boolean isSuggestion() { return isSeverity("SUGGESTION") || contains(category, "建议"); }
+    /*
+     * 建议类列是领导确认后的新平台独立列：它恢复 category=建议 的议题，但不让这些议题
+     * 进入其它任何缺陷数量或率类指标。不要因为老平台这里经常显示 0 就改回 0；老平台是
+     * 为了避免建议类污染二级/三级等指标才整体排除了建议类。
+     */
+    boolean isSuggestion() {
+      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+    }
+    boolean isRegularMetricIssue() {
+      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+    }
+    boolean isVisibleForRegularOrSuggestionColumn() {
+      return isRegularMetricIssue() || isSuggestion();
+    }
+    boolean isRegularLevel1() { return isRegularMetricIssue() && isLevel1(); }
+    boolean isRegularLevel1Back() { return isRegularMetricIssue() && isLevel1Back(); }
+    boolean isRegularLevel1Hang() { return isRegularMetricIssue() && isLevel1Hang(); }
+    boolean isRegularLevel1Other() { return isRegularMetricIssue() && isLevel1Other(); }
+    boolean isRegularLevel2() { return isRegularMetricIssue() && isLevel2(); }
+    boolean isRegularLevel3() { return isRegularMetricIssue() && isLevel3(); }
     boolean isNewIssue() { return !contains(bugStatus, "历史遗留"); }
     boolean isLegacyFixed() { return containsAny(bugStatus, LEGACY_FIXED_STATUS_TOKENS); }
     boolean isPriorityFixed() { return containsAny(bugStatus, LEGACY_RESOLVED_STATUS_TOKENS) || isClosed(); }

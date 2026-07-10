@@ -49,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-delay-analysis";
-  private static final String RULE_VERSION = "system-test-delay-analysis@2026-07-08-v2";
+  private static final String RULE_VERSION = "system-test-delay-analysis@2026-07-09-v4";
   private static final String TESTING_PHASE_FIELD = "testingPhase";
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -78,6 +78,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
              coalesce(category,'') as category,
              coalesce(delay_cause,'') as delay_cause,
              coalesce(is_excluded,false) as is_excluded,
+             coalesce(exclusion_reason,'') as exclusion_reason,
              coalesce(module_names,'') as module_names,
              coalesce(label_names,'') as label_names
         from issue_fact
@@ -85,19 +86,25 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       """;
   private static final String BOARD_AGGREGATE_SQL = """
       select cause.row_key,
-             sum(case when issue_fact.severity_level = 'LEVEL1' then 1 else 0 end) as level1,
-             sum(case when issue_fact.severity_level = 'LEVEL2' then 1 else 0 end) as level2,
-             sum(case when issue_fact.severity_level = 'LEVEL3' then 1 else 0 end) as level3,
-             sum(case when issue_fact.severity_level = 'SUGGESTION' or issue_fact.category like '%建议%' then 1 else 0 end) as suggestion
+             sum(case when %s and issue_fact.severity_level = 'LEVEL1' then 1 else 0 end) as level1,
+             sum(case when %s and issue_fact.severity_level = 'LEVEL2' then 1 else 0 end) as level2,
+             sum(case when %s and issue_fact.severity_level = 'LEVEL3' then 1 else 0 end) as level3,
+             sum(case when %s then 1 else 0 end) as suggestion
         from issue_fact
         join (
           values ('技术卡点'), ('方案卡点'), ('资源卡点'), ('数据异常'), ('算法问题'), ('机制问题'), ('计算效率')
         ) as cause(row_key)
-          on coalesce(issue_fact.delay_cause, '') like '%' || cause.row_key || '%'
-          or coalesce(issue_fact.label_names, '') like '%' || cause.row_key || '%'
+          on coalesce(issue_fact.delay_cause, '') like '%%' || cause.row_key || '%%'
+          or coalesce(issue_fact.label_names, '') like '%%' || cause.row_key || '%%'
        where deleted = false
-         and coalesce(is_excluded,false) = false
-      """;
+         and ((%s) or (%s))
+      """.formatted(
+          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SystemTestSuggestionMetricSupport.suggestionMetricSql("issue_fact"),
+          SystemTestSuggestionMetricSupport.regularMetricSql("issue_fact"),
+          SystemTestSuggestionMetricSupport.suggestionMetricSql("issue_fact"));
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.systemTest(
           "议题标题",
@@ -167,7 +174,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
                     leaf("level2", "二级缺陷(个)", true, "count"),
                     leaf("level3", "三级缺陷(个)", true, "count"),
                     leaf("suggestion", "建议类缺陷(个)", true, "count"),
-                    leaf("total", "总计(个)", true, "count")))),
+                    leaf("total", "总计(排除建议类)(个)", true, "count")))),
         DETAIL_COLUMNS,
         10,
         "当前没有可展示的申请延期缺陷分析结果。");
@@ -346,12 +353,20 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             new StatisticRuleMetricDefinition("level1", "一级缺陷", "统计当前延期原因下严重程度为一级缺陷的议题。", "一级缺陷数 = 当前延期原因下一级缺陷议题数", null),
             new StatisticRuleMetricDefinition("level2", "二级缺陷", "统计当前延期原因下严重程度为二级缺陷的议题。", "二级缺陷数 = 当前延期原因下二级缺陷议题数", null),
             new StatisticRuleMetricDefinition("level3", "三级缺陷", "统计当前延期原因下严重程度为三级缺陷的议题。", "三级缺陷数 = 当前延期原因下三级缺陷议题数", null),
-            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "按老平台建议类口径统计，兼容历史建议类标签。", "建议类缺陷数 = 当前延期原因下建议类议题数", null),
-            new StatisticRuleMetricDefinition("total", "总计", "统计当前延期原因下一级、二级、三级和建议类缺陷。", "总计 = 一级缺陷 + 二级缺陷 + 三级缺陷 + 建议类缺陷", null)),
+            new StatisticRuleMetricDefinition("suggestion", "建议类缺陷", "建议类缺陷只在本列单独统计，不进入一级、二级、三级和总计。", "建议类缺陷数 = 当前延期原因下 category 包含“建议”的议题数", null),
+            new StatisticRuleMetricDefinition("total", "总计(排除建议类)", "统计当前延期原因下一级、二级、三级缺陷，排除建议类。", "总计 = 一级缺陷 + 二级缺陷 + 三级缺陷", null)),
         null);
   }
 
   private StatisticColumnLeaf leaf(String key, String label, boolean drilldown, String metricType) {
+    if ("suggestion".equals(key)) {
+      return new StatisticColumnLeaf(
+          key,
+          label,
+          drilldown,
+          metricType,
+          SystemTestSuggestionMetricSupport.SUGGESTION_HEADER_TOOLTIP);
+    }
     return new StatisticColumnLeaf(key, label, drilldown, metricType);
   }
 
@@ -361,7 +376,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     List<IssueSource> scoped = initial.stream().filter(IssueSource::inSystemTestScope).toList();
     List<IssueSource> delayed =
         scoped.stream()
-            .filter(issue -> !issue.excluded())
+            .filter(IssueSource::isVisibleForRegularOrSuggestionColumn)
             .filter(IssueSource::hasLegacyDelayCause)
             .toList();
     List<IssueSource> filtered =
@@ -388,7 +403,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
             StatisticRuleFlowSupport.step(
                 "delay-cause-filter",
                 "保留延期议题",
-                "只保留命中老平台固定延期原因且未被排除的延期议题。",
+                "只保留命中老平台固定延期原因的议题；常规指标排除建议类，建议类列单独读取因建议被公共规则排除的数据。",
                 scoped.size(),
                 delayed,
                 this::toRuleFlowSample
@@ -625,6 +640,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
         StatisticSourceValueSupport.text(rs.getString("category"), ""),
         StatisticSourceValueSupport.text(rs.getString("delay_cause"), ""),
         rs.getBoolean("is_excluded"),
+        StatisticSourceValueSupport.text(rs.getString("exclusion_reason"), ""),
         StatisticSourceValueSupport.split(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")));
   }
@@ -700,7 +716,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       long level2 = counts.stream().mapToLong(AggregateCounts::level2).sum();
       long level3 = counts.stream().mapToLong(AggregateCounts::level3).sum();
       long suggestion = counts.stream().mapToLong(AggregateCounts::suggestion).sum();
-      long total = level1 + level2 + level3 + suggestion;
+      long total = level1 + level2 + level3;
       return new StatisticRowData(
           rowKey,
           rowLabel,
@@ -753,6 +769,7 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
       String category,
       String delayCause,
       boolean excluded,
+      String exclusionReason,
       List<String> moduleNames,
       List<String> labels) implements SystemTestPhaseFilterSource {
     boolean inSystemTestScope() {
@@ -773,23 +790,37 @@ public class SystemTestDelayAnalysisBoardService extends AbstractStatisticBoardS
     }
 
     boolean isLevel1() {
-      return "LEVEL1".equalsIgnoreCase(severityLevel);
+      return isRegularMetricIssue() && "LEVEL1".equalsIgnoreCase(severityLevel);
     }
 
     boolean isLevel2() {
-      return "LEVEL2".equalsIgnoreCase(severityLevel);
+      return isRegularMetricIssue() && "LEVEL2".equalsIgnoreCase(severityLevel);
     }
 
     boolean isLevel3() {
-      return "LEVEL3".equalsIgnoreCase(severityLevel);
+      return isRegularMetricIssue() && "LEVEL3".equalsIgnoreCase(severityLevel);
     }
 
+    /*
+     * 建议类是领导确认的新平台独立列：老平台为了防止“建议 + 二级缺陷”污染二级缺陷，
+     * 常把建议类整体排掉，导致建议列为 0。这里故意只把建议类恢复到“建议类缺陷”列，
+     * 不进入一级/二级/三级/总计。后续不要仅以“老平台为 0”为理由改回去，需先确认
+     * 这段业务决策。
+     */
     boolean isSuggestion() {
-      return "SUGGESTION".equalsIgnoreCase(severityLevel) || contains(category, "建议");
+      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+    }
+
+    boolean isRegularMetricIssue() {
+      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
+    }
+
+    boolean isVisibleForRegularOrSuggestionColumn() {
+      return isRegularMetricIssue() || isSuggestion();
     }
 
     boolean isCountableByLegacyTotal() {
-      return isLevel1() || isLevel2() || isLevel3() || isSuggestion();
+      return isLevel1() || isLevel2() || isLevel3();
     }
 
     String displaySeverityLevel() {

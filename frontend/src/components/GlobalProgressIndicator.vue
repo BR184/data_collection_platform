@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { usePlatformProgress } from '../composables/usePlatformProgress';
 
 const { currentTask, runningCount, hasVisibleTask } = usePlatformProgress();
+const anchorRef = ref<HTMLElement>();
+const floatingStyle = ref<Record<string, string>>({});
 
 const percentage = computed(() => Math.round(currentTask.value?.percentage ?? 0));
 
@@ -37,33 +39,86 @@ const progressText = computed(() => {
   return task.label;
 });
 
+function syncFloatingPosition() {
+  const anchor = anchorRef.value;
+  if (!anchor) {
+    return;
+  }
+  const rect = anchor.getBoundingClientRect();
+  floatingStyle.value = {
+    top: `${Math.max(8, rect.top)}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+  };
+}
+
+async function scheduleFloatingPositionSync() {
+  await nextTick();
+  syncFloatingPosition();
+}
+
+watch(
+  [hasVisibleTask, currentTask],
+  () => {
+    void scheduleFloatingPositionSync();
+  },
+  { immediate: true },
+);
+
+onMounted(() => {
+  void scheduleFloatingPositionSync();
+  window.addEventListener('resize', syncFloatingPosition, { passive: true });
+  window.addEventListener('scroll', syncFloatingPosition, { passive: true, capture: true });
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncFloatingPosition);
+  window.removeEventListener('scroll', syncFloatingPosition, { capture: true });
+});
 </script>
 
 <template>
-  <Transition name="global-progress-fade">
-    <div v-if="hasVisibleTask && currentTask" class="global-progress-indicator" role="status" aria-live="polite">
-      <div class="global-progress-copy">
-        <span class="global-progress-title">{{ progressText }}</span>
-        <span v-if="runningCount > 1" class="global-progress-count">+{{ runningCount - 1 }}</span>
-      </div>
+  <div ref="anchorRef" class="global-progress-anchor" aria-hidden="true" />
+  <Teleport to="body">
+    <Transition name="global-progress-fade">
       <div
-        class="global-progress-bar"
-        :class="{ 'is-complete': isProgressComplete, 'is-exception': progressStatus === 'exception' }"
-        role="progressbar"
-        :aria-valuenow="percentage"
-        aria-valuemin="0"
-        aria-valuemax="100"
+        v-if="hasVisibleTask && currentTask"
+        class="global-progress-indicator"
+        :style="floatingStyle"
+        role="status"
+        aria-live="polite"
       >
-        <div class="global-progress-bar-fill" :style="progressBarStyle" />
+        <div class="global-progress-copy">
+          <span class="global-progress-title">{{ progressText }}</span>
+          <span v-if="runningCount > 1" class="global-progress-count">+{{ runningCount - 1 }}</span>
+        </div>
+        <div
+          class="global-progress-bar"
+          :class="{ 'is-complete': isProgressComplete, 'is-exception': progressStatus === 'exception' }"
+          role="progressbar"
+          :aria-valuenow="percentage"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <div class="global-progress-bar-fill" :style="progressBarStyle" />
+        </div>
       </div>
-    </div>
-  </Transition>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
+.global-progress-anchor {
+  flex: 0 0 auto;
+  width: 184px;
+  min-width: 156px;
+  height: 39px;
+  pointer-events: none;
+}
+
 .global-progress-indicator {
-  position: relative;
-  z-index: 1;
+  position: fixed;
+  z-index: 10000;
   width: 184px;
   min-width: 156px;
   padding: 5px 8px 6px;
@@ -71,6 +126,7 @@ const progressText = computed(() => {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 6px 18px rgba(31, 45, 61, 0.08);
+  pointer-events: none;
 }
 
 .global-progress-copy {
@@ -133,12 +189,14 @@ const progressText = computed(() => {
 }
 
 @media (max-width: 960px) {
+  .global-progress-anchor,
   .global-progress-indicator {
     width: 144px;
   }
 }
 
 @media (max-width: 720px) {
+  .global-progress-anchor,
   .global-progress-indicator {
     display: none;
   }

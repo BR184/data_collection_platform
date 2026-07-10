@@ -36,13 +36,9 @@
 
 ## 内网既有实例更新规则
 
-当前内网已部署基线包为：
+内网已部署基线不是永久固定到某个历史包。后续普通修复、页面调整、统计口径修正和前后端代码更新，默认必须以当前线上实际运行的部署目录、容器和 PostgreSQL volume 为更新目标，采用同环境增量更新方式。除非业务方明确批准重建环境、清空环境、回退到某个历史基线或灾难恢复，不得重新制作一个全新的空平台全量包去替换现有实例。
 
-```text
-D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-runnable-empty-working-ubuntu2404-offline.tar.gz
-```
-
-后续普通修复、页面调整、统计口径修正和前后端代码更新，默认必须以该基线包在内网已经运行的实例、容器和 PostgreSQL volume 为更新目标，采用同环境增量更新方式。除非业务方明确批准重建环境，不得重新制作一个全新的空平台全量包去替换现有实例。
+本地打包时如果未显式传入 `--baseline-deploy-dir`，打包脚本会从 `D:\projects\data_collection_platform_deploy` 下选择最新可用的 `runnable` 部署目录，并读取该目录的 `docker-compose.yml` 复用当前后端/前端镜像 tag。若服务器实际运行目录与本机最新目录不一致，必须显式传入 `--baseline-deploy-dir` 或在部署说明中改成服务器实际目录；不能把某个历史日期包当成永久基线。
 
 同容器增量更新的目的：
 
@@ -101,7 +97,7 @@ D:\projects\data_collection_platform_deploy\qa-flex-platform-intranet-20260618-r
 增量镜像包部署命令模板：
 
 ```bash
-cd qa-flex-platform-intranet-20260618-runnable-empty-working
+cd <当前线上实际运行的部署目录>
 
 sudo docker load -i ../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/docker-images/qa-flex-platform-backend_<image-tag>.tar
 sudo docker load -i ../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/docker-images/qa-flex-platform-frontend_<image-tag>.tar
@@ -110,7 +106,19 @@ sudo docker compose --env-file .env up -d --no-deps --force-recreate backend fro
 sudo docker compose --env-file .env ps
 ```
 
-如果增量包目录不在原部署目录的上一级，必须把 `../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/...` 改成现场实际路径。
+如果增量包目录不在当前部署目录的上一级，必须把 `../qa-flex-platform-intranet-YYYYMMDD-incremental-images-<release-label>/...` 改成现场实际路径。
+
+如果 `up -d --no-deps --force-recreate backend frontend` 报错为 `container name ... is already in use`，通常表示当前目录不是原先创建该容器的 compose 项目，或现场遗留了同名应用容器。此时只能按精确容器名删除前端/后端应用容器后重建，禁止删除 PostgreSQL 容器或 volume：
+
+```bash
+sudo docker ps -a --filter "name=^/qaflex-backend$" --filter "name=^/qaflex-frontend$"
+sudo docker rm -f qaflex-backend qaflex-frontend
+sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
+sudo docker compose --env-file .env ps
+curl -fsS http://127.0.0.1:18080/actuator/health
+```
+
+不要用 `docker compose down -v` 或 `docker rm -f qaflex-postgres` 处理应用容器名冲突；这类冲突不需要清库，也不需要重新部署空平台。
 
 ## 包结构
 

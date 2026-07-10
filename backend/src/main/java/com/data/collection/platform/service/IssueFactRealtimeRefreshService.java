@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class IssueFactRealtimeRefreshService {
   private static final List<String> REALTIME_REFRESH_TABLES =
-      List.of("issues", "projects", "users", "label_links", "labels", "notes");
+      List.of("issues", "projects", "users", "label_links", "resource_label_events", "labels", "notes");
 
   private final RealtimeWorkspaceService realtimeWorkspaceService;
   private final RealtimeIncrementalRefreshService realtimeIncrementalRefreshService;

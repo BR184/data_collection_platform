@@ -30,9 +30,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -44,7 +46,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-delay-issues";
-  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-06-17-v1";
+  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-07-09-v2";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
@@ -85,6 +87,14 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
              closed_at_source
         from issue_fact
        where deleted = false
+      """;
+  private static final String MODULE_CATALOG_SQL =
+      """
+      select coalesce(module_names, '') as module_names
+        from issue_fact
+       where deleted = false
+         and project_id = ?
+         and nullif(btrim(coalesce(module_names, '')), '') is not null
       """;
   private static final List<StatisticDetailColumn> DETAIL_COLUMNS =
       StatisticIssueDetailColumns.customerIssue(
@@ -198,14 +208,10 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     long startedAt = System.currentTimeMillis();
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition();
+    List<String> moduleCatalog = loadLegacyModuleCatalog(effectiveFilterGroup);
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
-    for (IssueSource issue : snapshot.rowSources()) {
-      for (String moduleName : issue.displayModuleNames()) {
-        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
-          continue;
-        }
-        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
-      }
+    for (String moduleName : moduleCatalog) {
+      buckets.computeIfAbsent(moduleName, AggregateBucket::new);
     }
     if (StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(EMPTY_MODULE_LABEL, effectiveFilterGroup)) {
       buckets.computeIfAbsent(EMPTY_MODULE_LABEL, AggregateBucket::new);
@@ -467,6 +473,24 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         .toList();
   }
 
+  private List<String> loadLegacyModuleCatalog(StatisticFilterGroup filterGroup) {
+    try {
+      Set<String> modules = new LinkedHashSet<>();
+      issueFactQueryService
+          .query(
+              MODULE_CATALOG_SQL,
+              List.of(LEGACY_CC_PRODUCT_PROJECT_ID),
+              (rs, rowNum) -> splitLegacyModuleNames(rs.getString("module_names")))
+          .forEach(values -> values.stream()
+              .filter(moduleName -> StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, filterGroup))
+              .forEach(modules::add));
+      return List.copyOf(modules);
+    } catch (DataAccessException error) {
+      log.warn("Failed to load customer issue delay module catalog", error);
+      return List.of();
+    }
+  }
+
   private PersonFilterOptions loadPersonOptions() {
     try {
       List<PersonFilterOptions> rows =
@@ -526,7 +550,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.text(rs.getString("milestone_title")),
         StatisticSourceValueSupport.text(rs.getString("author_name")),
         StatisticSourceValueSupport.text(rs.getString("assignee_name")),
-        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        splitLegacyModuleNames(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("is_excluded"),
         rs.getBoolean("delay_issue"),
@@ -537,6 +561,12 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.time(rs.getTimestamp("created_at_source")),
         StatisticSourceValueSupport.time(rs.getTimestamp("updated_at_source")),
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at_source")));
+  }
+
+  private static List<String> splitLegacyModuleNames(String raw) {
+    return StatisticSourceValueSupport.split(raw, "\\s*(?:,|，|、|&)\\s*").stream()
+        .filter(moduleName -> !moduleName.startsWith("未设定"))
+        .toList();
   }
 
   private boolean matchesRow(IssueSource issue, String rowKey) {

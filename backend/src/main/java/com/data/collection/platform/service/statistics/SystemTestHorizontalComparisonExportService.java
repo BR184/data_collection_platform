@@ -384,7 +384,8 @@ public class SystemTestHorizontalComparisonExportService {
     List<Object> args = new ArrayList<>();
     predicates.add("deleted = false");
     predicates.add(resolvedPhasePredicate(resolvedPhases, args));
-    predicates.add("is_excluded = false");
+    predicates.add("((" + SystemTestSuggestionMetricSupport.regularMetricSql(null) + ") or ("
+        + SystemTestSuggestionMetricSupport.suggestionMetricSql(null) + "))");
     if (StringUtils.hasText(scope.projectName())) {
       predicates.add("lower(coalesce(project_name, '')) like ?");
       args.add(like(scope.projectName()));
@@ -405,6 +406,8 @@ public class SystemTestHorizontalComparisonExportService {
           priority_level,
           bug_status,
           category,
+          is_excluded,
+          exclusion_reason,
           reason_category,
           raw_payload,
           delay_issue,
@@ -454,6 +457,8 @@ public class SystemTestHorizontalComparisonExportService {
         text(rs.getString("priority_level")),
         text(rs.getString("bug_status")),
         text(rs.getString("category")),
+        rs.getBoolean("is_excluded"),
+        text(rs.getString("exclusion_reason")),
         text(rs.getString("reason_category")),
         text(rs.getString("raw_payload")),
         rs.getBoolean("delay_issue"),
@@ -494,7 +499,7 @@ public class SystemTestHorizontalComparisonExportService {
 
   private void mergeIssues(
       Map<String, HorizontalRow> rows, List<IssueExportSource> issues, ExportScope scope) {
-    long overall = issues.size();
+    long overall = issues.stream().filter(IssueExportSource::isRegularMetricIssue).count();
     for (IssueExportSource issue : issues) {
       for (String moduleName : issue.moduleNames()) {
         if (StringUtils.hasText(scope.moduleName()) && !moduleName.equalsIgnoreCase(scope.moduleName())) {
@@ -877,6 +882,8 @@ public class SystemTestHorizontalComparisonExportService {
       String priorityLevel,
       String bugStatus,
       String category,
+      boolean excluded,
+      String exclusionReason,
       String reasonCategory,
       String rawPayload,
       boolean delayIssue,
@@ -889,19 +896,28 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     boolean isLevel1() {
-      return "LEVEL1".equalsIgnoreCase(severityLevel);
+      return isRegularMetricIssue() && "LEVEL1".equalsIgnoreCase(severityLevel);
     }
 
     boolean isLevel2() {
-      return "LEVEL2".equalsIgnoreCase(severityLevel);
+      return isRegularMetricIssue() && "LEVEL2".equalsIgnoreCase(severityLevel);
     }
 
     boolean isLevel3() {
-      return "LEVEL3".equalsIgnoreCase(severityLevel);
+      return isRegularMetricIssue() && "LEVEL3".equalsIgnoreCase(severityLevel);
     }
 
+    /*
+     * 横向对比跟随系统测试缺陷汇总的新领导口径：建议类要在“建议类缺陷”列单独展示，
+     * 但不能流入严重程度、P1/P2/P3、总数、率和原因列。老平台建议列常为 0 是为了
+     * 避免污染其它指标的折中，不是新平台应回退的目标；若未来要改，请先确认业务决策。
+     */
     boolean isSuggestion() {
-      return "SUGGESTION".equalsIgnoreCase(severityLevel) || bugStatus.contains("建议") || category.contains("建议");
+      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+    }
+
+    boolean isRegularMetricIssue() {
+      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
 
     boolean isPriority(String priority) {
@@ -996,7 +1012,10 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     long reasonCount(DefectCauseMetricCatalog.Metric metric) {
-      return issues.stream().filter(issue -> issue.matchesReason(metric)).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(issue -> issue.matchesReason(metric))
+          .count();
     }
 
     long reasonGroupTotal(String groupLabel) {
@@ -1007,11 +1026,14 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     long total() {
-      return issues.size();
+      return issues.stream().filter(IssueExportSource::isRegularMetricIssue).count();
     }
 
     long closed() {
-      return issues.stream().filter(IssueExportSource::isClosed).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::isClosed)
+          .count();
     }
 
     long open() {
@@ -1019,7 +1041,10 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     long fixed() {
-      return issues.stream().filter(IssueExportSource::isLegacyFixed).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::isLegacyFixed)
+          .count();
     }
 
     long level1() {
@@ -1075,39 +1100,66 @@ public class SystemTestHorizontalComparisonExportService {
     }
 
     long priorityCount(String priority) {
-      return issues.stream().filter(issue -> issue.isPriority(priority)).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(issue -> issue.isPriority(priority))
+          .count();
     }
 
     long priorityFixed(String priority) {
-      return issues.stream().filter(issue -> issue.isPriority(priority) && issue.isPriorityFixed()).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(issue -> issue.isPriority(priority) && issue.isPriorityFixed())
+          .count();
     }
 
     long priorityClosed(String priority) {
-      return issues.stream().filter(issue -> issue.isPriority(priority) && issue.isClosed()).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(issue -> issue.isPriority(priority) && issue.isClosed())
+          .count();
     }
 
     long delayIssueCount() {
-      return issues.stream().filter(IssueExportSource::delayIssue).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::delayIssue)
+          .count();
     }
 
     long extension() {
-      return issues.stream().filter(IssueExportSource::hasExtensionLabel).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::hasExtensionLabel)
+          .count();
     }
 
     long retestFailed() {
-      return issues.stream().filter(IssueExportSource::isRetestFailed).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::isRetestFailed)
+          .count();
     }
 
     long newIssues() {
-      return issues.stream().filter(IssueExportSource::isNewIssue).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::isNewIssue)
+          .count();
     }
 
     long newFixed() {
-      return issues.stream().filter(issue -> issue.isNewIssue() && issue.isLegacyFixed()).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(issue -> issue.isNewIssue() && issue.isLegacyFixed())
+          .count();
     }
 
     long newClosed() {
-      return issues.stream().filter(IssueExportSource::isNewClosed).count();
+      return issues.stream()
+          .filter(IssueExportSource::isRegularMetricIssue)
+          .filter(IssueExportSource::isNewClosed)
+          .count();
     }
 
     String systemTestDefectDensity() {

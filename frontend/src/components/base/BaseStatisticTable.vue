@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Component } from 'vue';
 // 基础统计表负责把统计行按列组展示成稳定表格，供多个看板的明细摘要复用。
 // 这里不做字段推导，列组和格式化规则都由上层统计配置决定。
@@ -81,20 +81,29 @@ const props = withDefaults(
 );
 
 const tableShellRef = ref<HTMLElement>();
+const tableViewportWidth = ref(0);
+let tableResizeObserver: ResizeObserver | undefined;
 const stickyHeaderEnabledRef = computed(() => props.stickyHeaderEnabled);
 const {
   tableMaxHeightValue,
   scheduleTableMaxHeightUpdate,
 } = useStickyTableMaxHeight(tableShellRef, stickyHeaderEnabledRef);
+const leafColumns = computed(() => props.orderedColumnGroups.flatMap((group) => flattenStatisticColumnLeavesFromGroup(group)));
+const effectiveFirstColumnWidth = computed(() => Math.max(props.firstColumnWidth, props.firstColumnMinWidth));
+const baseDataColumnsWidth = computed(() =>
+  leafColumns.value.reduce((total, column) => total + props.columnMinWidth(column), 0),
+);
+const baseTableContentWidth = computed(() => effectiveFirstColumnWidth.value + baseDataColumnsWidth.value + 2);
+const extraDataColumnWidth = computed(() => Math.max(0, Math.floor(tableViewportWidth.value - baseTableContentWidth.value)));
+const dataColumnExtraUnit = computed(() => {
+  const count = leafColumns.value.length;
+  return count > 0 ? extraDataColumnWidth.value / count : 0;
+});
 const tableContentWidth = computed(() => {
-  const dataColumnsWidth = props.orderedColumnGroups.reduce((total, group) => {
-    return total + flattenStatisticColumnLeavesFromGroup(group).reduce((sum, column) => sum + props.columnMinWidth(column), 0);
-  }, 0);
-  return props.firstColumnWidth + dataColumnsWidth + 2;
+  return baseTableContentWidth.value + extraDataColumnWidth.value;
 });
 const statMatrixStyle = computed(() => ({
   width: `${tableContentWidth.value}px`,
-  minWidth: '100%',
 }));
 const {
   floatingScrollbarRef,
@@ -120,6 +129,27 @@ const {
   ],
 });
 
+function updateTableViewportWidth() {
+  tableViewportWidth.value = tableShellRef.value?.clientWidth ?? 0;
+}
+
+function observeTableShell() {
+  tableResizeObserver?.disconnect();
+  tableResizeObserver = undefined;
+  updateTableViewportWidth();
+  if (typeof ResizeObserver !== 'undefined' && tableShellRef.value) {
+    tableResizeObserver = new ResizeObserver(() => {
+      updateTableViewportWidth();
+      void scheduleHorizontalScrollbarUpdate();
+    });
+    tableResizeObserver.observe(tableShellRef.value);
+  }
+}
+
+function effectiveColumnMinWidth(column: StatisticColumnLeaf) {
+  return Math.max(1, Math.round(props.columnMinWidth(column) + dataColumnExtraUnit.value));
+}
+
 async function handleDetailOpen(row: StatisticRowData, cell: StatisticCellData) {
   await props.openDetail(row, cell);
   scheduleTableMaxHeightUpdate();
@@ -142,9 +172,24 @@ watch(
     () => props.settingsVisible,
   ],
   () => {
+    updateTableViewportWidth();
     void nextTick(scheduleTableMaxHeightUpdate);
   },
 );
+
+watch(
+  () => tableShellRef.value,
+  () => {
+    observeTableShell();
+  },
+  { flush: 'post' },
+);
+
+onMounted(observeTableShell);
+
+onBeforeUnmount(() => {
+  tableResizeObserver?.disconnect();
+});
 </script>
 
 <template>
@@ -169,7 +214,7 @@ watch(
       :data="paginatedRows"
       border
       stripe
-      fit
+      :fit="false"
       class="base-stat-table stat-matrix-table"
       :class="props.uiHooks.tableClass"
       :style="statMatrixStyle"
@@ -179,8 +224,8 @@ watch(
         prop="rowLabel"
         :label="rowHeaderLabel"
         fixed="left"
-        :width="firstColumnWidth"
-        :min-width="firstColumnMinWidth"
+        :width="effectiveFirstColumnWidth"
+        :min-width="effectiveFirstColumnWidth"
         :resizable="true"
         align="center"
         header-align="center"
@@ -233,7 +278,7 @@ watch(
         :toggle-column-sort="toggleColumnSort"
         :cell-for-column="cellForColumn"
         :open-detail="handleDetailOpen"
-        :column-min-width="columnMinWidth"
+        :column-min-width="effectiveColumnMinWidth"
         :column-resizable="columnResizable"
         :is-column-dragging="isColumnDragging"
         :on-column-drag-start="onColumnDragStart"

@@ -63,6 +63,7 @@ export interface StatisticColumnLeaf {
   label: string;
   drilldown: boolean;
   metricType: string;
+  headerTooltip?: string | null;
 }
 
 export interface StatisticColumnGroup {

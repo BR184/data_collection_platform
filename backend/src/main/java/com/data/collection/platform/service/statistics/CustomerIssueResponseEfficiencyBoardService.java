@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -48,7 +49,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-response-efficiency";
-  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-08-v3";
+  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-09-v1";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
@@ -203,19 +204,11 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     RuleFlowSnapshot snapshot = buildRuleFlowSnapshot(loadSources(filters, effectiveFilterGroup), effectiveFilterGroup);
     StatisticBoardDefinition definition = buildDefinition();
     Map<String, AggregateBucket> buckets = new LinkedHashMap<>();
-    for (IssueSource issue : snapshot.rowSources()) {
-      for (String moduleName : issue.displayModuleNames()) {
-        if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
-          continue;
-        }
-        buckets.computeIfAbsent(moduleName, AggregateBucket::new);
-      }
-    }
-    if (StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(EMPTY_MODULE_LABEL, effectiveFilterGroup)) {
-      buckets.computeIfAbsent(EMPTY_MODULE_LABEL, AggregateBucket::new);
+    for (String moduleName : loadModuleCatalog(effectiveFilterGroup)) {
+      buckets.computeIfAbsent(moduleName, AggregateBucket::new);
     }
     for (IssueSource issue : snapshot.finalSources()) {
-      for (String moduleName : issue.displayModuleNames()) {
+      for (String moduleName : issue.metricModuleNames()) {
         if (!StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
           continue;
         }
@@ -319,8 +312,8 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         true,
         "客户问题缺陷响应效率规则说明",
         RULE_VERSION,
-        "统计范围为 CC_Product 自 2026-01-01 以来创建且携带里程碑的客户问题议题，open 和 closed 都统计。",
-        "同一条议题如果关联多个模块，会分别计入模块行；响应周期只统计已回复调研模板的议题，解决周期只统计已标注“已修复/完成”的议题。",
+        "统计范围为 CC_Product 自 2026-01-01 以来创建且携带当前产品版本的客户问题议题，open 和 closed 都统计。",
+        "模块行来自 CC_Product 全量模块目录，当前版本没有可计算样本时显示 0；响应周期只统计已回复调研模板的议题，解决周期只统计已标注“已修复/完成”的议题。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
@@ -353,7 +346,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     List<IssueSource> initial = loaded == null ? List.of() : List.copyOf(loaded);
     List<IssueSource> scoped =
         initial.stream().filter(issue -> customerIssueScopeProfile.matches(issue.scopeContext())).toList();
-    List<IssueSource> visible = scoped.stream().filter(issue -> !issue.excluded()).toList();
+    List<IssueSource> visible = scoped.stream().filter(CustomerIssueResponseEfficiencyBoardService::matchesLegacyQueryFilter).toList();
     List<IssueSource> rowSources =
         visible.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
@@ -377,7 +370,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             StatisticRuleFlowSupport.step(
                 "exclude-filter",
                 "剔除排除数据",
-                "客户问题统计不排除建议类问题；仅剔除关闭后属于申请否决、需求如此或设计如此的数据。",
+                "对齐老平台 QueryUtil：客户问题响应效率不排除建议类问题；仅剔除关闭后属于申请否决或需求如此的数据。",
                 scoped.size(),
                 visible,
                 this::toRuleFlowSample),
@@ -391,9 +384,9 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
             StatisticRuleFlowSupport.step(
                 "module-expand",
                 "按模块展开",
-                "同一条议题可归属多个模块；未设定模块的议题归入“未设定模块”。",
+                "同一条议题可归属多个模块；主表模块行来自 CC_Product 全量模块目录，未设定模块不进入主表。",
                 rowSources.size(),
-                rowSources.stream().mapToLong(issue -> issue.displayModuleNames().size()).sum(),
+                rowSources.stream().mapToLong(issue -> issue.metricModuleNames().size()).sum(),
                 rowSources,
                 this::toRuleFlowSample)));
   }
@@ -418,7 +411,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private List<IssueSource> loadSources(Map<String, String> filters, StatisticFilterGroup filterGroup) {
     CustomerIssueSqlScopeSupport.SqlScope scope =
         CustomerIssueSqlScopeSupport.withExtraPredicate(
-            CustomerIssueSqlScopeSupport.boardScope(withoutReservedFilters(filters), filterGroup),
+            responseEfficiencyScope(withoutReservedFilters(filters), filterGroup),
             "(research_template_time is not null or (fixed_label_time is not null and coalesce(bug_status, '') like ?))",
             List.of("%" + FIXED_STATUS + "%"));
     try {
@@ -432,6 +425,73 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
       log.warn("Failed to load customer issue response efficiency facts", error);
       return List.of();
     }
+  }
+
+  private CustomerIssueSqlScopeSupport.SqlScope responseEfficiencyScope(
+      Map<String, String> filters,
+      StatisticFilterGroup filterGroup) {
+    LinkedHashMap<String, String> queryFilters =
+        new LinkedHashMap<>(filters == null ? Map.of() : filters);
+    queryFilters.remove(CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD);
+    queryFilters.remove(CustomerIssueMilestoneFilterSupport.LEGACY_TESTING_PHASE_FIELD);
+    queryFilters.put("projectId", String.valueOf(LEGACY_CC_PRODUCT_PROJECT_ID));
+
+    List<Object> args = new ArrayList<>();
+    StringBuilder predicate = new StringBuilder();
+    predicate.append("(created_at_source is null or created_at_source >= ?)");
+    args.add(CustomerIssueSqlScopeSupport.CUSTOMER_ISSUE_START_DATE.atStartOfDay());
+    predicate.append(
+        """
+         and not (
+           (closed_at_source is not null or lower(coalesce(issue_state, '')) = 'closed')
+           and (
+             lower(coalesce(label_names, '')) like '%申请否决%'
+             or lower(coalesce(bug_status, '')) like '%申请否决%'
+             or lower(coalesce(label_names, '')) like '%需求如此%'
+             or lower(coalesce(bug_status, '')) like '%需求如此%'
+           )
+         )
+        """);
+
+    String milestone = CustomerIssueMilestoneFilterSupport.selectedMilestone(filterGroup);
+    if (StringUtils.hasText(milestone)) {
+      predicate.append(" and lower(coalesce(milestone_title, '')) = ?");
+      args.add(milestone.toLowerCase(Locale.ROOT));
+    } else {
+      predicate.append(" and coalesce(milestone_title, '') <> ''");
+    }
+    return new CustomerIssueSqlScopeSupport.SqlScope(queryFilters, predicate.toString(), args);
+  }
+
+  private List<String> loadModuleCatalog(StatisticFilterGroup effectiveFilterGroup) {
+    LinkedHashSet<String> modules = new LinkedHashSet<>();
+    try {
+      List<String> rows =
+          issueFactQueryService.query(
+              """
+              select coalesce(module_names, '') as module_names
+                from issue_fact
+               where deleted = false
+                 and project_id = ?
+                 and coalesce(module_names, '') <> ''
+               order by coalesce(created_at_source, updated_at_source) asc nulls last,
+                        issue_iid asc nulls last,
+                        issue_id asc
+              """,
+              java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID),
+              (rs, rowNum) -> rs.getString("module_names"));
+      for (String row : rows) {
+        for (String moduleName : StatisticSourceValueSupport.split(row)) {
+          if (isCatalogModule(moduleName)
+              && StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
+            modules.add(moduleName);
+          }
+        }
+      }
+    } catch (DataAccessException error) {
+      log.warn("Failed to load customer issue response efficiency module catalog", error);
+    }
+    return List.copyOf(modules);
   }
 
   private List<StatisticFilterOption> loadMilestoneOptions() {
@@ -514,7 +574,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
   private boolean matchesRow(IssueSource issue, String rowKey) {
     return !StringUtils.hasText(rowKey)
         || TOTAL_ROW_KEY.equals(rowKey)
-        || issue.displayModuleNames().contains(rowKey);
+        || issue.metricModuleNames().contains(rowKey);
   }
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
@@ -658,6 +718,31 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
     return normalize(left).equals(normalize(right));
   }
 
+  private static boolean matchesLegacyQueryFilter(IssueSource issue) {
+    if (issue == null || !issue.isClosed()) {
+      return true;
+    }
+    return !containsBusinessText(issue.labels(), "申请否决")
+        && !containsBusinessText(issue.bugStatus(), "申请否决")
+        && !containsBusinessText(issue.labels(), "需求如此")
+        && !containsBusinessText(issue.bugStatus(), "需求如此");
+  }
+
+  private static boolean isCatalogModule(String moduleName) {
+    return StringUtils.hasText(moduleName) && !moduleName.trim().startsWith("未设定");
+  }
+
+  private static boolean containsBusinessText(List<String> values, String keyword) {
+    if (values == null || values.isEmpty()) {
+      return false;
+    }
+    return values.stream().anyMatch(value -> containsBusinessText(value, keyword));
+  }
+
+  private static boolean containsBusinessText(String value, String keyword) {
+    return StringUtils.hasText(value) && value.contains(keyword);
+  }
+
   private static String trim(String value) {
     return StringUtils.hasText(value) ? value.trim() : null;
   }
@@ -785,6 +870,10 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
     List<String> displayModuleNames() {
       return moduleNames.isEmpty() ? List.of(EMPTY_MODULE_LABEL) : moduleNames;
+    }
+
+    List<String> metricModuleNames() {
+      return moduleNames.stream().filter(CustomerIssueResponseEfficiencyBoardService::isCatalogModule).toList();
     }
 
     boolean isClosed() {

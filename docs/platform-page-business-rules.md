@@ -138,7 +138,7 @@
 | 客户问题缺陷汇总 | `/moduleTableCCProduct`，`webapp/src/views/PageHome/ContentComponents/QuestionnaireInfo/ModuleTableCCProduct.vue` | 前端 `projectId='325'`；先调 `/milestone/getAllMileStoneName`，默认取 `mileStoneList[0]`，再调 `getModuleTable({ projectId, milestone })`。 | `DataAnalysisController.getModuleTable(phase='', projectId=325, milestone)` -> `SpiderIssueDataService.getModuleTable`。 | 客户问题统计范围不来自系统测试阶段；明细下钻继续复用 `ModuleTableDetail`，部分入口走 `IssueStaticDataController.findByModuleAndTitle` 的 CC_PRODUCT 分支，加入 `submission_date >= 2026-01-01` 和 `setFilterRejected(true)`。 |
 | 客户问题缺陷非法数据 | `/illegalIssueSearchCCProduct` | 前端按 `projectId=325`、里程碑、模块、非法类型分页查询。 | `IssueStaticDataController.getIllegalIssue(..., milestone, projectId=325)`。 | 阶段参数只作为旧入口兼容；真实范围应看 `milestone` 和 `projectId=325`；非法查询最终在 `SpiderIssueDataDAO.findIllegalIssue`，公共客户问题排除需对齐 `QueryUtil.setQueryFilter` 与 CC_PRODUCT 分支。 |
 | 客户问题缺陷原因分析 | `/getModuleAndCauseTableCCProduct`，`webapp/src/views/PageStandard/ModuleAndCauseCCProduct.vue` | 前端 `projectId=325`；先取 `/milestone/getAllMileStoneName` 第一项，再调 `getModuleAndCauseTable({ projectId, milestone })`。 | `DataAnalysisController.getModuleAndCauseTable(phase='', projectId=325, milestone)` -> `IssueService.getModuleAndCauseTable`。 | 原因映射同 `SpiderIssueDataQueryBuilder`；客户问题里程碑和 2026 起始日期要在服务/DAO 侧确认，不能从系统测试 `phase` 推导。 |
-| `CC_PRODUCT议题` | `/ccProductIssueTable`，`webapp/src/views/PageStandard/CCProductIssueTable.vue` | 调用 `findCCProductIssueInfo`；默认不是第一里程碑，而是全里程碑记录查询。 | `IssueStaticDataController.getCCProductIssueInfo(...)`。 | 使用 `ProjectIssueInfoQueryBuilder` 和 `project_issue_info` 体系；默认 `.setFilterRejected(true)` 只排除 `bug_status 已拒绝` 相关记录；不走 `SpiderIssueData` 客户问题统计公共范围，也不默认 `submission_date >= 2026-01-01`。 |
+| `CC_PRODUCT议题` | `/ccProductIssueTable`，`webapp/src/views/PageStandard/CCProductIssueTable.vue` | 调用 `findCCProductIssueInfo`；默认不是第一里程碑，而是全里程碑记录查询；页面默认 `submissionDate='2026-01-01'`。 | `IssueStaticDataController.getCCProductIssueInfo(...)`。 | 使用 `ProjectIssueInfoQueryBuilder` 和 `project_issue_info` 体系；默认 `.setSubmissionDate('2026-01-01')` 和 `.setFilterRejected(true)`，即只展示 2026-01-01 以来提交且 `bug_status` 不包含 `已拒绝` 的记录；不走 `SpiderIssueData` 客户问题统计公共排除。 |
 | 客户问题历史议题查询备用入口 | `/issueSearchCCProduct`，`webapp/src/views/PageStandard/IssueSearchCCProduct.vue` | 老平台菜单中该入口被注释；页面自身默认 `projectId='325'`，调用议题查询请求封装 `findByModuleNameAndPhaseName(...)`，`queryFilter=false`。 | `IssueStaticDataController.filter(..., projectId=325)`。 | 这是历史/备用记录入口，不等同于当前 `CC_PRODUCT议题`；它走 `SpiderIssueDataQueryBuilder` 的 CC_PRODUCT 分支，会加 `submission_date >= 2026-01-01`，并与 `ProjectIssueInfoQueryBuilder` 链路不同。 |
 | 客户问题延期问题 | `/getDelayIssueCCProduct`，`webapp/src/views/PageStandard/DelayIssueTable.vue` | 前端 `projectId='325'`；先调 `/milestone/getAllMileStoneName`，默认第一里程碑；再调 `/dataAnalysis/getDelayIssue`；下钻传 `moduleName/urgency/delayIssue/milestone/projectId`。 | `DataAnalysisController.getDelayIssue(projectId=325, milestone)` -> `SpiderIssueDataService.getDelayIssue`；下钻走 `IssueStaticDataController.findDelayIssue` -> `SpiderIssueDataDAO.getDelayIssue`。 | DAO 下钻规则：`project_id`、`module_name like`、`milestone`、`submission_date >= 2026-01-01`、可选 `urgency`、`delay_issue like`、排除 `illegal_list` 包含 `GitLab 接口报错`，再 `setQueryFilter`。 |
 | 客户问题缺陷响应效率 | `/getIssueRespEfficiency`，`webapp/src/views/PageStandard/IssueRespEfficiency.vue` | 前端 `projectId='325'`；先取第一里程碑；再调 `/dataAnalysis/getIssueRespEfficiency`；下钻传 `moduleName/RespIssue/milestone/projectId`。 | `DataAnalysisController.getIssueRespEfficiency(projectId=325, milestone)` -> `SpiderIssueDataService.getIssueRespEfficiency`；下钻走 `IssueStaticDataController.findRespIssue` -> `SpiderIssueDataDAO.getHasRespOrFixedIssue`。 | DAO 下钻规则：响应看 `research_template_time is not null`；解决看 `bug_status like 已修复`；里程碑命中时加 `submission_date >= 2026-01-01`；再 `setQueryFilter`。 |
@@ -192,20 +192,21 @@
 2. 总计表示指定缺陷类型下的议题数量。同一议题即使命中多个模块，总计也只计 1 次。
 3. 模块列按老平台 `getModuleTable` 展示习惯生成，但新平台实现必须把“模块行目录”和“单元格统计范围”分开：选择测试阶段后，模块行目录来自 CrownCAD 系统测试所有启用父级阶段展开后的议题模块，并叠加默认模块范围标签组或用户显式模块条件；当前所选测试阶段、严重程度、优先级等筛选只参与单元格计数，不得把目录中的模块行提前隐藏。没有选择测试阶段时，CrownCAD 系统测试缺陷汇总不返回模块表。
 4. 父表格单元格数字必须与点击后的下钻明细 `total` 保持一致：同一个模块行和指标列必须复用同一套事实层匹配口径。多模块议题可以同时归入多个模块行，但单个模块行内必须按事实层模块成员精确匹配，不得用模块名子串包含扩大父表格计数。
-5. 下载议题数据必须使用定时任务后存储到本地数据库的数据，继续遵守本页统计范围和过滤规则，导出字段顺序对齐老平台 `IssueExcelBo`。
-6. 下钻明细字段以老平台 `ModuleTableDetail.vue` 为准。主表列为：议题编号、模块名、议题标题、议题状态、严重程度、测试状态；展开区为：议题更新时间、议题提交时间、模块名、议题编号、议题标题、议题提交人、议题处理人、议题状态、测试状态、议题严重程度。议题编号按老平台 `#28159` 这类形式展示并支持跳转 GitLab，但视觉上保持普通表格文本风格，不使用蓝色加粗下划线一类强链接样式。新平台可以用彩色标签、紧凑行高、浮动横向滚动条和展开区样式提升体验，但不能删减或改写这些字段含义。
-7. 一级缺陷分类按老平台标题规则拆分：回退命中标题包含 `回退`、`倒退` 或 `（退`；挂机命中标题包含 `挂机`；其他一级必须是一级缺陷且标题不包含 `退`、`回退`、`倒退`、`挂机`。因此标题中出现“退出”等含 `退` 文案时，不计入其他一级。
-8. 横向对比中的合并请求只统计目标分支为 `dev` 且状态为 `MERGED` 的数据。
-9. 代码走查缺陷个数公式：规范性问题 + 性能问题 + 设计问题 + 逻辑问题 + 其他。
-10. 当项目名称为 `CC2025R1` 时，评审数据项目名称按 `CC2025R1&R2` 查询；其他项目按系统测试项目名称查询。
+5. 建议类缺陷按领导确认后的新平台口径单独恢复：`category` 包含“建议”的议题只进入“建议类缺陷(个)”列，不进入一级、二级、三级、P1/P2/P3、模块总缺陷数、占比、延期占比、修复率、关闭率或其它常规指标。老平台建议类列通常为 0，是因为老平台为了避免“建议类 + 二级缺陷”污染二级缺陷数量而在公共过滤中整体排除了建议类；新平台这里是明确的业务例外，不得仅以“老平台为 0”为理由回退。
+6. 下载议题数据必须使用定时任务后存储到本地数据库的数据，继续遵守本页统计范围和过滤规则，导出字段顺序对齐老平台 `IssueExcelBo`。
+7. 下钻明细字段以老平台 `ModuleTableDetail.vue` 为准。主表列为：议题编号、模块名、议题标题、议题状态、严重程度、测试状态；展开区为：议题更新时间、议题提交时间、模块名、议题编号、议题标题、议题提交人、议题处理人、议题状态、测试状态、议题严重程度。议题编号按老平台 `#28159` 这类形式展示并支持跳转 GitLab，但视觉上保持普通表格文本风格，不使用蓝色加粗下划线一类强链接样式。新平台可以用彩色标签、紧凑行高、浮动横向滚动条和展开区样式提升体验，但不能删减或改写这些字段含义。
+8. 一级缺陷分类按老平台标题规则拆分：回退命中标题包含 `回退`、`倒退` 或 `（退`；挂机命中标题包含 `挂机`；其他一级必须是一级缺陷且标题不包含 `退`、`回退`、`倒退`、`挂机`。因此标题中出现“退出”等含 `退` 文案时，不计入其他一级。
+9. 横向对比中的合并请求只统计目标分支为 `dev` 且状态为 `MERGED` 的数据。
+10. 代码走查缺陷个数公式：规范性问题 + 性能问题 + 设计问题 + 逻辑问题 + 其他。
+11. 当项目名称为 `CC2025R1` 时，评审数据项目名称按 `CC2025R1&R2` 查询；其他项目按系统测试项目名称查询。
 
 ### 4.4 申请延期缺陷原因分析
 
 1. 统计范围使用系统测试公共范围，表头按老平台保留一级缺陷、二级缺陷、三级缺陷、建议类缺陷和总计。
 2. 延期原因类型固定为：技术卡点、方案卡点、资源卡点、数据异常、算法问题、机制问题、计算效率。
 3. 延期原因来自标签内容。延期原因类型变化时，必须同步修改规则层代码、测试和本文件。
-4. 老平台独立表格保留“建议类缺陷(个)”列，查询遍历 `DefectLevelEnum.values()`，总计为一级缺陷 + 二级缺陷 + 三级缺陷 + 建议类缺陷。
-5. 同时该页继续套用系统测试公共过滤规则；公共过滤会排除 `category like 建议` 的数据，因此建议类列在默认口径下通常为 0。不得为了让建议类列“看起来合理”而绕开公共过滤。
+4. 建议类缺陷按领导确认后的新平台口径单独恢复：`category` 包含“建议”的议题只进入“建议类缺陷(个)”列，不进入一级、二级、三级、总计、占比或率类指标。老平台该列通常为 0，是因为老平台为了避免“建议类 + 二级缺陷”污染二级缺陷数量而在公共过滤中整体排除了建议类；新平台这里是明确的业务例外，不得仅以“老平台为 0”为理由回退。
+5. 该页“总计”列展示为“总计(排除建议类)(个)”，计算公式为一级缺陷 + 二级缺陷 + 三级缺陷，不包含建议类。
 6. 导出文件对齐老平台 `DefectAndPhaseTableRow`，第一列表头保留老平台原文 `伦次`，不按新平台页面展示文案改写。
 
 ### 4.5 系统测试非法数据
@@ -243,10 +244,10 @@
 1. 统计范围使用系统测试公共范围，表头按老平台保留一级缺陷、二级缺陷、三级缺陷、建议类缺陷和总计。
 2. 项目筛选来自“系统设置 - 议题测试阶段定义”。
 3. “轮次”来自项目对应测试阶段。
-4. 老平台表格保留“建议类缺陷(个)”列，指定轮次总计 = 指定轮次下一级缺陷数量 + 二级缺陷数量 + 三级缺陷数量 + 建议类缺陷数量。
+4. 建议类缺陷按领导确认后的新平台口径单独恢复：`category` 包含“建议”的议题只进入“建议类缺陷(个)”列，不进入一级、二级、三级、总计、占比或率类指标。老平台该列通常为 0，是因为老平台为了避免“建议类 + 二级缺陷”污染二级缺陷数量而在公共过滤中整体排除了建议类；新平台这里是明确的业务例外，不得仅以“老平台为 0”为理由回退。
 5. 计数字段对齐老平台 `DefectLevelEnum`：一级、二级、三级缺陷按老平台解析出的严重程度字面值分别匹配 `一级缺陷`、`二级缺陷`、`三级缺陷`；不得把 `一级严重`、`二级严重`、`三级严重` 等新平台归一化别名扩展进本页统计。
 6. 阶段匹配对齐老平台 `getNumByDefectAndPhase`：父级阶段先展开子轮次，每个子轮次按 `testing_phase = 子轮次` 精确统计。一个议题若被老平台解析成多个阶段拼接值，例如 `阶段A & 阶段B`，本页不得把它拆开计入某个子轮次。
-7. 同时该页继续套用系统测试公共过滤规则；公共过滤会排除 `category like 建议` 的数据，因此建议类列在默认口径下通常为 0。
+7. 该页“总计”列展示为“总计(排除建议类)(个)”，计算公式为一级缺陷 + 二级缺陷 + 三级缺陷，不包含建议类。
 8. 老平台该页面没有导出按钮，新平台也不得展示导出按钮；不能用平台通用统计导出替代老平台不存在的功能。
 
 ### 4.8 议题多元看板
@@ -259,6 +260,7 @@
 6. 每张图表卡片都必须提供数据下载，下载数据和图表展示来自同一套聚合结果，不能另写一套查询口径。文件名统一为 `{项目名称}-{测试阶段}-{图表名称}.xlsx`。
 7. “修复人-缺陷数量统计”对齐老平台 `fix_user` 口径：修复人来自第一条合法 `### 1、修复状态` 评论的作者。新平台将该值持久化到 `issue_fact.fix_user`；部署本变更后需要重建议题事实层，历史事实未重建前该图可能为空，但不得用议题处理人或负责人冒充修复人。
 8. 本页只读取系统测试议题事实层 `issue_fact`，不参与代码走查 MR 兼容模式开关。代码走查/质量看板涉及兼容模式时应在对应服务中处理，不得把兼容模式分支塞入议题多元看板。
+9. 本页只在明确包含“建议类缺陷”系列的图表中恢复建议类，包括缺陷严重程度分析、缺陷阶段分析、缺陷模块分析、修复人-缺陷数量统计、申请延期缺陷原因分析；其它图表的总数、占比、修复率、未关闭、回退和缺陷原因统计继续排除建议类，避免建议类污染常规缺陷指标。
 
 ### 4.9 系统测试横向对比
 
@@ -266,6 +268,7 @@
 2. 代码走查过滤：合并请求状态为 `MERGED`，合并目标分支为 `dev`。
 3. 缺陷原因分析过滤同“缺陷原因分析”。
 4. 系统测试缺陷汇总过滤同“系统测试缺陷汇总”。
+4.1 横向对比导出中的“建议类缺陷(个)”跟随系统测试缺陷汇总的新口径单独统计建议类；其它系统测试列、原因列、P1/P2/P3、总数、占比和率类指标继续排除建议类。
 5. 需求评审缺陷密度 = 需求评审缺陷数 / 需求文档页数，四舍五入保留两位小数。
 6. 代码走查缺陷密度 = 代码走查缺陷合计 / 代码走查行数，四舍五入取整两位小数。
 7. 模块数据来源包括 GitLab 中 CrownCAD 和 DGM 议题标签里以 `模块：`、`模块:` 或 `模块-` 开头的标签，以及评审中涉及的模块。
@@ -308,7 +311,7 @@
 6. 客户问题模块下除 `CC_PRODUCT议题` 外，客户问题缺陷汇总、客户问题缺陷非法数据、客户问题缺陷原因分析、延期问题、缺陷响应效率、按功能展示缺陷数量都必须提供顶部“里程碑/版本”切换。候选值来自 CC_Product 项目 `325` 的真实里程碑事实或镜像里程碑数据，不能从 CrownCAD 项目 `9` 的系统测试阶段定义中取值。前端 URL、接口筛选、导出、下钻和统计快照统一使用 `milestoneTitle -> issue_fact.milestone_title`；历史入口传入的 `testingPhase` 只能作为兼容输入归一化到里程碑语义，不得作为新链路主字段。
 7. 客户问题上述顶部切换必须对齐老平台默认里程碑：进入页面默认选中 CC_Product 里程碑列表中的第一可用项，不能默认“全部测试阶段”或 CrownCAD 阶段定义中的第一父级阶段。默认里程碑必须同时体现在顶部控件、URL 查询参数、接口筛选条件、导出/下钻条件和后端补默认结果中。只有业务规则明确要求全里程碑的页面才能展示全部范围。
 8. 客户问题记录类页面必须区分页面画像，不能把所有记录页套同一条公共排除：
-   - `CC_PRODUCT议题` 对齐老平台 `IssueStaticDataController.findCCProductIssueInfo -> ProjectIssueInfoQueryBuilder`：默认 `projectId=325`，默认全里程碑，里程碑只是可选筛选；默认排除 `bug_status` 包含 `已拒绝` 的记录，不套用客户问题统计页公共排除，也不套用 2026-01-01 运营统计起始日期。
+   - `CC_PRODUCT议题` 对齐老平台 `IssueStaticDataController.findCCProductIssueInfo -> ProjectIssueInfoQueryBuilder`：默认 `projectId=325`，默认全里程碑，里程碑只是可选筛选；默认限定提交时间不早于 `2026-01-01`，并排除 `bug_status` 包含 `已拒绝` 的记录；不套用客户问题统计页公共排除。
    - 客户问题延期记录、客户问题缺陷非法数据等统计/非法类记录入口对齐老平台 `SpiderIssueDataDAO` + `QueryUtil.setQueryFilter`：默认 `projectId=325`，顶部范围使用 `milestone_title` 而不是系统测试 `testing_phase`，并复用客户问题公共排除规则。旧 URL 或旧接口里残留的 `testingPhase` 只能在入口处归一化为 `milestoneTitle`，不能作为服务层第二套阶段筛选继续存在。导出、筛选候选、分页总数和页面列表必须复用同一套规则。
 9. 客户问题记录类导出必须保持老平台 Excel 字段顺序。`CC_PRODUCT议题` / 延期记录导出字段对齐老平台 `ProjectIssueInfoExcelBo`；客户问题缺陷非法数据导出字段对齐老平台 `SpiderIssueData` / `IssueExcelBo` 的议题基础字段并包含“非法类型”。导出文件格式为 `.xlsx`，不得把 CSV 当作正式兼容格式。
 
@@ -316,12 +319,13 @@
 
 1. 页面左侧下拉框使用里程碑属性切换版本或范围。
 1.1 客户问题里程碑下拉默认选择最新 CC 版本：优先解析 `CC + 年份 + R数字`，按年份最大、R 数字最大排序，例如同时存在 `CC2024 R3` 和 `CC2026 R3` 时默认选择 `CC2026 R3`。
-2. 表格模块列来自 `CC_Product` 议题中出现过的模块名。
+2. 表格模块列对齐老平台 `DropDownService.getModuleNameFromSpiderIssueData(projectId=325)`：来自 `CC_Product` 项目全量议题中出现过的模块名，不随当前里程碑提前收窄；模块值需要兼容老平台 `模块A & 模块B` 和新平台事实层分隔符拆分，过滤 `未设定...` 占位模块并去重。当前里程碑或用户筛选只参与单元格计数，没有命中数据的模块行仍展示为 `0`。
 3. 客户问题缺陷汇总复用系统测试缺陷汇总的严重程度、模块、非法判定等基础规则，但统计范围改为客户问题范围。
 
 ### 5.3 延期问题
 
 1. 延期问题页只统计 `CC_Product` 项目自 2026-01-01 之后创建且仍处于 open 状态的议题。
+1.1 表格模块行目录对齐老平台 `DropDownService.getModuleNameFromSpiderIssueData(projectId=325, phase=null)`：来自 `CC_Product` 项目全量议题中出现过的模块名，不随当前里程碑、open 状态、延期命中结果或 `GitLab 接口报错` 过滤提前收窄；模块值需要兼容老平台 `模块A & 模块B` 和新平台事实层分隔符拆分，过滤 `未设定...` 占位模块并去重，再额外保留 `未设定模块` 行。当前里程碑、open 状态、延期命中和页面筛选只参与单元格计数及下钻，没有延期数据的模块行仍展示为 `0`。
 2. 紧急程度必须使用 `P1`、`P2`、`P3`。未打紧急程度标签的议题按 `P3` 响应期限处理。
 3. 响应期限：
    - `P1`：24 小时
@@ -371,10 +375,12 @@
 2. 响应周期只统计已按 `缺陷调研模板` 回复的议题。
 3. 响应周期 = 议题创建时间到第一条调研模板回复时间，单位为小时，取整数。
 4. 解决周期只统计已打 `已修复/完成` 的议题。
-5. 解决周期 = 议题创建时间到标注 `已修复/完成` 的时间，单位为天，保留 1 位小数，例如 `3.5天`。
+5. 解决周期 = 议题创建时间到标注 `已修复/完成` 的时间，单位为天，保留 1 位小数，例如 `3.5天`。标注时间对齐老平台 `resource_label_events` 中最新一条 `状态：已修复/完成` 标签 `add` 事件时间；事件表尚未同步时只能临时降级为当前标签关联时间，内网正式对齐必须同步事件表并重建事实层。
 6. 支持按版本查看。
 7. 如果一个议题被打了多个模块标签，例如 `工程图 & 平台`，应分别在工程图和平台中计算效率。
-8. 对齐老平台展示：某模块在当前版本下没有可计算响应周期或解决周期样本时，对应周期显示为 `0`，但该单元格不提供下钻入口。
+8. 主表模块行来源对齐老平台 `getModuleNameFromSpiderIssueData(projectId, null)`：取 `CC_Product` 全量模块目录，拆分多模块，过滤空值和以 `未设定` 开头的模块；当前版本只影响周期指标计算，不影响模块行是否展示。
+9. 该页排除规则对齐老平台 `QueryUtil.setQueryFilter` 在 `CC_Product` 下的行为：不排除建议类问题，不排除已关闭的 `设计如此`；仅排除关闭状态下携带 `申请否决` 或 `需求如此` 的议题。
+10. 对齐老平台展示：某模块在当前版本下没有可计算响应周期或解决周期样本时，对应周期显示为 `0`，但该单元格不提供下钻入口。
 
 ### 5.7 客户问题闭环和质量要求
 

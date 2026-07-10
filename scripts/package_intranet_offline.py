@@ -735,6 +735,16 @@ sudo docker compose --env-file .env ps
 curl -fsS http://127.0.0.1:18080/actuator/health
 ```
 
+如果这里报 `container name ... is already in use`，先确认当前目录是既有部署目录 `{ctx.baseline_name}`。若目录正确但仍有遗留同名应用容器，只删除前端/后端应用容器后重建，禁止删除 postgres 或任何 volume：
+
+```bash
+sudo docker ps -a --filter "name=^/qaflex-backend$" --filter "name=^/qaflex-frontend$"
+sudo docker rm -f qaflex-backend qaflex-frontend
+sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
+sudo docker compose --env-file .env ps
+curl -fsS http://127.0.0.1:18080/actuator/health
+```
+
 {fact_section}
 
 ## 5. 冒烟检查

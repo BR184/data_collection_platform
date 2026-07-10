@@ -3,7 +3,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue';
 import {
   compactTableHeaderLines,
-  hasConfiguredTableHeaderLines,
   normalizeTableHeaderLines,
   visualTextUnits,
 } from './table-header-layout';
@@ -33,7 +32,6 @@ const stacked = ref(lines.value.length > 1);
 const compacted = ref(false);
 const displayedLines = computed(() => (compacted.value ? compactLines.value : lines.value));
 const hasStackedCandidate = computed(() => lines.value.length > 1);
-const hasConfiguredLines = computed(() => hasConfiguredTableHeaderLines(props.label, props.lines));
 const shortSingleLine = computed(() => {
   const characters = Array.from(String(props.label ?? '').trim()).length;
   return !stacked.value && (characters <= 4 || visualTextUnits(props.label) <= 8);
@@ -44,12 +42,7 @@ const layoutTolerancePx = 8;
 function updateLayout() {
   const root = rootRef.value;
   if (!root || !hasStackedCandidate.value) {
-    stacked.value = hasConfiguredLines.value && hasStackedCandidate.value;
-    compacted.value = false;
-    return;
-  }
-  if (hasConfiguredLines.value) {
-    stacked.value = true;
+    stacked.value = false;
     compacted.value = false;
     return;
   }
@@ -69,7 +62,6 @@ function updateLayout() {
   compacted.value =
     compactLines.value[0] !== lines.value[0]
     && availableWidth > 0
-    && !hasConfiguredLines.value
     && firstLineWidth > availableWidth + layoutTolerancePx
     && compactFirstLineWidth <= availableWidth + layoutTolerancePx;
 }
@@ -108,9 +100,18 @@ watch(
     <span v-if="!stacked" class="smart-table-header__single">
       <span class="smart-table-header__text">{{ label }}</span>
       <el-tooltip v-if="tooltip" :content="tooltip" placement="top">
-        <el-icon class="smart-table-header__help">
-          <QuestionFilled />
-        </el-icon>
+        <span
+          class="smart-table-header__help-trigger"
+          draggable="false"
+          @pointerdown.stop
+          @mousedown.stop
+          @click.stop
+          @dragstart.stop.prevent
+        >
+          <el-icon class="smart-table-header__help">
+            <QuestionFilled />
+          </el-icon>
+        </span>
       </el-tooltip>
     </span>
     <span v-else class="smart-table-header__stack">
@@ -122,9 +123,18 @@ watch(
       >
         <span class="smart-table-header__text">{{ line }}</span>
         <el-tooltip v-if="tooltip && index === displayedLines.length - 1" :content="tooltip" placement="top">
-          <el-icon class="smart-table-header__help">
-            <QuestionFilled />
-          </el-icon>
+          <span
+            class="smart-table-header__help-trigger"
+            draggable="false"
+            @pointerdown.stop
+            @mousedown.stop
+            @click.stop
+            @dragstart.stop.prevent
+          >
+            <el-icon class="smart-table-header__help">
+              <QuestionFilled />
+            </el-icon>
+          </span>
         </el-tooltip>
       </span>
     </span>
@@ -243,5 +253,18 @@ watch(
   font-size: 13px;
   line-height: 1;
   transform: translateY(0.5px);
+}
+
+.smart-table-header__help-trigger {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  pointer-events: auto;
+}
+
+.smart-table-header__help-trigger:hover .smart-table-header__help {
+  color: #475569;
 }
 </style>

@@ -913,9 +913,9 @@ button {
 }
 
 .stat-column-header.sorting {
-  color: #1658c2;
-  background: linear-gradient(180deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0.03));
-  border-radius: 12px;
+  color: #27415d;
+  background: transparent;
+  border-radius: 0;
 }
 
 .stat-group-header-label,
@@ -941,6 +941,10 @@ button {
 .stat-column-header:not(.first-column) .stat-column-header-label {
   text-align: center;
   pointer-events: none;
+}
+
+.stat-column-header:not(.first-column) .stat-column-header-label:has(.smart-table-header__help-trigger) {
+  pointer-events: auto;
 }
 
 .stat-column-header.first-column .stat-column-header-label {
@@ -972,7 +976,7 @@ button {
 }
 
 .stat-column-header.sorting .stat-column-header-label {
-  color: #114894;
+  color: #27415d;
 }
 
 .drag-handle {
@@ -1067,13 +1071,14 @@ button {
 
 .sort-trigger.is-asc,
 .sort-trigger.is-desc {
-  color: #1658c2;
+  color: #047857;
   opacity: 0.95;
 }
 
 .sort-trigger.is-asc:hover,
 .sort-trigger.is-desc:hover {
   opacity: 1;
+  background: rgba(5, 150, 105, 0.1);
 }
 
 .stat-cell {

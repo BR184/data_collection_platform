@@ -40,6 +40,7 @@ public class SystemTestIssueMultiBoardService {
           new Severity("level2", "二级缺陷"),
           new Severity("level3", "三级缺陷"),
           new Severity("suggestion", "建议类缺陷"));
+  private static final List<Severity> REGULAR_SEVERITIES = SEVERITIES.subList(0, 3);
   private static final List<String> MAJOR_CAUSES =
       List.of("需求阶段", "设计阶段", "编码问题", "打包问题", "依赖问题", "精度问题");
   private static final List<String> DELAY_CAUSES =
@@ -106,10 +107,11 @@ public class SystemTestIssueMultiBoardService {
   }
 
   private List<SystemTestIssueMultiBoardResponse.SummaryCard> buildSummaryCards(List<IssueRow> rows) {
-    long total = rows.size();
-    long open = rows.stream().filter(IssueRow::open).count();
-    long fixed = rows.stream().filter(IssueRow::fixed).count();
-    long delay = rows.stream().filter(IssueRow::delay).count();
+    List<IssueRow> regularRows = rows.stream().filter(IssueRow::isRegularMetricIssue).toList();
+    long total = regularRows.size();
+    long open = regularRows.stream().filter(IssueRow::open).count();
+    long fixed = regularRows.stream().filter(IssueRow::fixed).count();
+    long delay = regularRows.stream().filter(IssueRow::delay).count();
     return List.of(
         new SystemTestIssueMultiBoardResponse.SummaryCard("total", "系统测试缺陷", String.valueOf(total), "default"),
         new SystemTestIssueMultiBoardResponse.SummaryCard("open", "未关闭缺陷", String.valueOf(open), "warning"),
@@ -118,18 +120,19 @@ public class SystemTestIssueMultiBoardService {
   }
 
   private List<SystemTestIssueMultiBoardResponse.Chart> buildCharts(List<IssueRow> rows, ScopeContext scope) {
+    List<IssueRow> regularRows = rows.stream().filter(IssueRow::isRegularMetricIssue).toList();
     return List.of(
         severityPie(rows, scope),
         phaseSeverity(rows, scope),
         moduleSeverity(rows, scope),
-        majorCausePie(rows, scope),
-        causeDetail(rows, scope),
-        moduleRepairRate(rows, scope),
-        openSeverityPie(rows, scope),
+        majorCausePie(regularRows, scope),
+        causeDetail(regularRows, scope),
+        moduleRepairRate(regularRows, scope),
+        openSeverityPie(regularRows, scope),
         fixUserSeverity(rows, scope),
-        extensionModulePie(rows, scope),
+        extensionModulePie(regularRows, scope),
         delayCause(rows, scope),
-        rollbackModulePie(rows, scope));
+        rollbackModulePie(regularRows, scope));
   }
 
   private SystemTestIssueMultiBoardResponse.Chart severityPie(List<IssueRow> rows, ScopeContext scope) {
@@ -141,7 +144,7 @@ public class SystemTestIssueMultiBoardService {
 
   private SystemTestIssueMultiBoardResponse.Chart openSeverityPie(List<IssueRow> rows, ScopeContext scope) {
     List<IssueRow> openRows = rows.stream().filter(IssueRow::open).toList();
-    List<SystemTestIssueMultiBoardResponse.Point> points = SEVERITIES.stream()
+    List<SystemTestIssueMultiBoardResponse.Point> points = REGULAR_SEVERITIES.stream()
         .map(severity -> point(severity.label(), count(openRows, row -> severity.matches(row))))
         .toList();
     return pointChart("open-issue", "未关闭缺陷占比", "按严重程度统计当前范围内未关闭缺陷。", "pie", points, scope);
@@ -228,7 +231,7 @@ public class SystemTestIssueMultiBoardService {
 
   private SystemTestIssueMultiBoardResponse.Chart causeDetail(List<IssueRow> rows, ScopeContext scope) {
     List<String> categories = DefectCauseMetricCatalog.METRICS.stream().map(DefectCauseMetricCatalog.Metric::label).toList();
-    List<SystemTestIssueMultiBoardResponse.Series> series = SEVERITIES.stream()
+    List<SystemTestIssueMultiBoardResponse.Series> series = REGULAR_SEVERITIES.stream()
         .map(severity -> new SystemTestIssueMultiBoardResponse.Series(
             severity.label(),
             DefectCauseMetricCatalog.METRICS.stream()
@@ -387,14 +390,18 @@ public class SystemTestIssueMultiBoardService {
                coalesce(module_names, '') as module_names,
                coalesce(fix_user, '') as fix_user,
                coalesce(label_names, '') as label_names,
+               coalesce(is_excluded, false) as is_excluded,
+               coalesce(exclusion_reason, '') as exclusion_reason,
                coalesce(is_fixed, false) as is_fixed,
                coalesce(delay_issue, false) as delay_issue,
                coalesce(is_regression, false) as is_regression
           from issue_fact
          where deleted = false
            and project_id = ?
-           and coalesce(is_excluded, false) = false
-        """);
+           and ((%s) or (%s))
+        """.formatted(
+            SystemTestSuggestionMetricSupport.regularMetricSql(null),
+            SystemTestSuggestionMetricSupport.suggestionMetricSql(null)));
     args.add(scope.projectId());
     if (!scope.expandedTestingPhases().isEmpty()) {
       sql.append(" and testing_phase in (");
@@ -424,6 +431,8 @@ public class SystemTestIssueMultiBoardService {
         rs.getString("module_names"),
         rs.getString("fix_user"),
         rs.getString("label_names"),
+        rs.getBoolean("is_excluded"),
+        rs.getString("exclusion_reason"),
         rs.getBoolean("is_fixed"),
         rs.getBoolean("delay_issue"),
         rs.getBoolean("is_regression"));
@@ -675,10 +684,13 @@ public class SystemTestIssueMultiBoardService {
     boolean matches(IssueRow row) {
       String value = row.severityLevel();
       return switch (key) {
-        case "level1" -> value.contains("一级") || value.equalsIgnoreCase("LEVEL1") || value.equalsIgnoreCase("LEVEL 1");
-        case "level2" -> value.contains("二级") || value.equalsIgnoreCase("LEVEL2") || value.equalsIgnoreCase("LEVEL 2");
-        case "level3" -> value.contains("三级") || value.equalsIgnoreCase("LEVEL3") || value.equalsIgnoreCase("LEVEL 3");
-        case "suggestion" -> value.contains("建议") || row.category().contains("建议");
+        case "level1" -> row.isRegularMetricIssue()
+            && (value.contains("一级") || value.equalsIgnoreCase("LEVEL1") || value.equalsIgnoreCase("LEVEL 1"));
+        case "level2" -> row.isRegularMetricIssue()
+            && (value.contains("二级") || value.equalsIgnoreCase("LEVEL2") || value.equalsIgnoreCase("LEVEL 2"));
+        case "level3" -> row.isRegularMetricIssue()
+            && (value.contains("三级") || value.equalsIgnoreCase("LEVEL3") || value.equalsIgnoreCase("LEVEL 3"));
+        case "suggestion" -> row.isSuggestion();
         default -> false;
       };
     }
@@ -701,6 +713,8 @@ public class SystemTestIssueMultiBoardService {
       String moduleNames,
       String fixUser,
       String labelNames,
+      boolean excluded,
+      String exclusionReason,
       boolean fixed,
       boolean delay,
       boolean regression) {
@@ -710,6 +724,20 @@ public class SystemTestIssueMultiBoardService {
 
     boolean rollback() {
       return regression || title.contains("回退") || labelNames.contains("回退");
+    }
+
+    /*
+     * 多元看板只在明确包含“建议类缺陷”系列的图表中恢复建议类；修复率、未关闭占比、
+     * 回退、缺陷原因等常规图表仍排除建议类。老平台建议类为 0 是为了避免污染严重程度
+     * 和汇总指标的折中，新平台按领导要求保留建议类独立展示。后续不要直接按“对齐老平台”
+     * 把这里改回 0，应先确认这段业务决策。
+     */
+    boolean isSuggestion() {
+      return SystemTestSuggestionMetricSupport.isSuggestionColumnIssue(excluded, exclusionReason, severityLevel, category);
+    }
+
+    boolean isRegularMetricIssue() {
+      return SystemTestSuggestionMetricSupport.isRegularMetricIssue(excluded, exclusionReason, severityLevel, category);
     }
   }
 

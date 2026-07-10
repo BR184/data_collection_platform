@@ -38,6 +38,8 @@ public class FactBuildService {
   private static final String MIRROR_INGEST_CHANNEL = "MIRROR";
   private static final int FACT_BATCH_SIZE = 200;
   private static final int SEARCH_INDEX_REPAIR_LIMIT = 1000;
+  private static final List<String> RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS =
+      List.of("resource_type", "resource_id", "label_id", "action", "created_at", "mirror_deleted");
 
   private final JdbcTemplate jdbcTemplate;
   private final IssueFactMapper issueFactMapper;
@@ -217,8 +219,14 @@ public class FactBuildService {
       LocalDateTime changedSince,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) {
+    boolean useResourceLabelEvents = hasResourceLabelEventSource();
     try {
-      return queryIssueFacts(sourceInstance, factSourceSqlProvider.issueSourceSql(), changedSince, calendar, moduleDictionary);
+      return queryIssueFacts(
+          sourceInstance,
+          factSourceSqlProvider.issueSourceSql(useResourceLabelEvents),
+          changedSince,
+          calendar,
+          moduleDictionary);
     } catch (DataAccessException error) {
       if (!isMilestoneQueryFallbackAllowed(error)) {
         throw error;
@@ -226,7 +234,7 @@ public class FactBuildService {
       log.warn("Issue fact build fallback activated because milestone join is unavailable", error);
       return queryIssueFacts(
           sourceInstance,
-          factSourceSqlProvider.issueSourceSqlFallback(),
+          factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents),
           changedSince,
           calendar,
           moduleDictionary);
@@ -239,10 +247,11 @@ public class FactBuildService {
       Long issueIid,
       Map<PhaseCalendarKey, PhaseCalendarEntry> calendar,
       ModuleDictionary moduleDictionary) {
+    boolean useResourceLabelEvents = hasResourceLabelEventSource();
     try {
       return queryIssueFacts(
           sourceInstance,
-          factSourceSqlProvider.issueSourceSql() + " and i.project_id = ? and i.iid = ?",
+          factSourceSqlProvider.issueSourceSql(useResourceLabelEvents) + " and i.project_id = ? and i.iid = ?",
           null,
           List.of(projectId, issueIid),
           calendar,
@@ -254,7 +263,7 @@ public class FactBuildService {
       log.warn("Single issue fact build fallback activated because milestone join is unavailable", error);
       return queryIssueFacts(
           sourceInstance,
-          factSourceSqlProvider.issueSourceSqlFallback() + " and i.project_id = ? and i.iid = ?",
+          factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents) + " and i.project_id = ? and i.iid = ?",
           null,
           List.of(projectId, issueIid),
           calendar,
@@ -269,10 +278,11 @@ public class FactBuildService {
       ModuleDictionary moduleDictionary) {
     String predicate = buildIssueTargetPredicate(targets);
     List<Object> args = targetArgs(targets);
+    boolean useResourceLabelEvents = hasResourceLabelEventSource();
     try {
       return queryIssueFacts(
           sourceInstance,
-          factSourceSqlProvider.issueSourceSql() + predicate,
+          factSourceSqlProvider.issueSourceSql(useResourceLabelEvents) + predicate,
           null,
           args,
           calendar,
@@ -284,7 +294,7 @@ public class FactBuildService {
       log.warn("Targeted issue fact build fallback activated because milestone join is unavailable", error);
       return queryIssueFacts(
           sourceInstance,
-          factSourceSqlProvider.issueSourceSqlFallback() + predicate,
+          factSourceSqlProvider.issueSourceSqlFallback(useResourceLabelEvents) + predicate,
           null,
           args,
           calendar,
@@ -330,6 +340,26 @@ public class FactBuildService {
     return normalized.contains("ods_gitlab_milestones")
         || normalized.contains("milestone_id")
         || normalized.contains("milestone");
+  }
+
+  private boolean hasResourceLabelEventSource() {
+    try {
+      Integer matchedColumns =
+          jdbcTemplate.queryForObject(
+              """
+              select count(*)
+                from information_schema.columns
+               where table_schema = current_schema()
+                 and table_name = 'ods_gitlab_resource_label_events'
+                 and column_name in (?, ?, ?, ?, ?, ?)
+              """,
+              Integer.class,
+              RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS.toArray());
+      return matchedColumns != null && matchedColumns == RESOURCE_LABEL_EVENT_REQUIRED_COLUMNS.size();
+    } catch (DataAccessException error) {
+      log.debug("GitLab resource_label_events mirror table is unavailable; falling back to label_links fixed time", error);
+      return false;
+    }
   }
 
   public FactBuildResponse rebuildMergeRequestFacts(boolean full) {

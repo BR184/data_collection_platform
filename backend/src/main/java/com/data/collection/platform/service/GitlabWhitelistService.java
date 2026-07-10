@@ -34,6 +34,7 @@ public class GitlabWhitelistService {
       "notes",
       "labels",
       "label_links",
+      "resource_label_events",
       "merge_requests",
       "merge_request_assignees",
       "merge_request_reviewers",
@@ -58,6 +59,7 @@ public class GitlabWhitelistService {
     FRIENDLY_LABELS.put("notes", "评论 / Notes");
     FRIENDLY_LABELS.put("labels", "标签");
     FRIENDLY_LABELS.put("label_links", "标签关联");
+    FRIENDLY_LABELS.put("resource_label_events", "标签变更事件");
     FRIENDLY_LABELS.put("merge_requests", "合并请求");
     FRIENDLY_LABELS.put("merge_request_assignees", "MR 指派");
     FRIENDLY_LABELS.put("merge_request_reviewers", "MR Reviewer");

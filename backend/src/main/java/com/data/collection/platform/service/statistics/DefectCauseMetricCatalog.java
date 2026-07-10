@@ -5,7 +5,6 @@ import java.util.List;
 import org.springframework.util.StringUtils;
 
 final class DefectCauseMetricCatalog {
-  static final String NOTE_SEPARATOR = "\\R---\\R";
   static final List<Metric> METRICS =
       List.of(
           new Metric("demand_misunderstand", "新增理解偏差", "需求问题", List.of("新增理解偏差", "新增理解偏差数量", "需求理解有误", "需求理解有误数量")),
@@ -52,20 +51,6 @@ final class DefectCauseMetricCatalog {
       }
     }
     return false;
-  }
-
-  static String latestReasonText(String text) {
-    if (!StringUtils.hasText(text)) {
-      return "";
-    }
-    String[] notes = text.split(NOTE_SEPARATOR);
-    for (int index = notes.length - 1; index >= 0; index--) {
-      String candidate = notes[index];
-      if (METRICS.stream().anyMatch(metric -> containsAny(candidate, metric.tokens()))) {
-        return candidate;
-      }
-    }
-    return text;
   }
 
   record Metric(String key, String label, String groupLabel, List<String> tokens) {}

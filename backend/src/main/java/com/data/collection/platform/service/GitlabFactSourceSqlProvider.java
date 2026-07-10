@@ -1,6 +1,35 @@
 package com.data.collection.platform.service;
 
 class GitlabFactSourceSqlProvider {
+  private static final String FIX_LABEL_EVENTS_FROM_LABEL_LINKS = """
+      fix_label_events as (
+        select ll.target_id as issue_id,
+               max(coalesce(ll.created_at, ll.updated_at)) as fixed_label_time
+          from ods_gitlab_label_links ll
+          join ods_gitlab_labels l
+            on l.id = ll.label_id
+           and coalesce(l.mirror_deleted, false) = false
+         where coalesce(ll.mirror_deleted, false) = false
+           and ll.target_type = 'Issue'
+           and l.title = '状态：已修复/完成'
+         group by ll.target_id
+      )
+""";
+  private static final String FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS = """
+      fix_label_events as (
+        select rle.resource_id as issue_id,
+               max(rle.created_at) as fixed_label_time
+          from ods_gitlab_resource_label_events rle
+          join ods_gitlab_labels l
+            on l.id = rle.label_id
+           and coalesce(l.mirror_deleted, false) = false
+         where coalesce(rle.mirror_deleted, false) = false
+           and rle.resource_type = 'Issue'
+           and rle.action = 'add'
+           and l.title = '状态：已修复/完成'
+         group by rle.resource_id
+      )
+""";
   private static final String ISSUE_SOURCE_SQL = """
       with distinct_issue_labels as (
         select distinct
@@ -33,13 +62,13 @@ class GitlabFactSourceSqlProvider {
       ),
       issue_notes as (
         select n.noteable_id as issue_id,
-               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text,
+               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by n.created_at desc nulls last, n.id desc) as notes_text,
                min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
                (
                  array_remove(
                    array_agg(
                      nullif(btrim(author.name), '')
-                     order by coalesce(n.updated_at, n.created_at), n.id
+                     order by n.created_at desc nulls last, n.id desc
                    ) filter (
                      where regexp_replace(split_part(coalesce(n.note, ''), E'\\n', 1), E'\\r$', '') = '### 1、修复状态'
                    ),
@@ -105,6 +134,8 @@ class GitlabFactSourceSqlProvider {
         on fix_events.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
       """;
+  private static final String ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS =
+      replaceFixLabelEvents(ISSUE_SOURCE_SQL);
 
   private static final String ISSUE_SOURCE_SQL_FALLBACK = """
       with distinct_issue_labels as (
@@ -138,13 +169,13 @@ class GitlabFactSourceSqlProvider {
       ),
       issue_notes as (
         select n.noteable_id as issue_id,
-               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by coalesce(n.updated_at, n.created_at), n.id) as notes_text,
+               string_agg(coalesce(n.note, ''), E'\\n---\\n' order by n.created_at desc nulls last, n.id desc) as notes_text,
                min(n.created_at) filter (where coalesce(n.note, '') like '%# 问题调研情况说明%') as research_template_time,
                (
                  array_remove(
                    array_agg(
                      nullif(btrim(author.name), '')
-                     order by coalesce(n.updated_at, n.created_at), n.id
+                     order by n.created_at desc nulls last, n.id desc
                    ) filter (
                      where regexp_replace(split_part(coalesce(n.note, ''), E'\\n', 1), E'\\r$', '') = '### 1、修复状态'
                    ),
@@ -207,6 +238,8 @@ class GitlabFactSourceSqlProvider {
         on fix_events.issue_id = i.id
       where coalesce(i.mirror_deleted, false) = false
       """;
+  private static final String ISSUE_SOURCE_SQL_FALLBACK_RESOURCE_LABEL_EVENTS =
+      replaceFixLabelEvents(ISSUE_SOURCE_SQL_FALLBACK);
 
   private static final String MERGE_REQUEST_SOURCE_SQL = """
       with reviewer_names as (
@@ -471,11 +504,28 @@ class GitlabFactSourceSqlProvider {
     return ISSUE_SOURCE_SQL;
   }
 
+  String issueSourceSql(boolean useResourceLabelEvents) {
+    return useResourceLabelEvents ? ISSUE_SOURCE_SQL_RESOURCE_LABEL_EVENTS : ISSUE_SOURCE_SQL;
+  }
+
   String issueSourceSqlFallback() {
     return ISSUE_SOURCE_SQL_FALLBACK;
   }
 
+  String issueSourceSqlFallback(boolean useResourceLabelEvents) {
+    return useResourceLabelEvents ? ISSUE_SOURCE_SQL_FALLBACK_RESOURCE_LABEL_EVENTS : ISSUE_SOURCE_SQL_FALLBACK;
+  }
+
   String mergeRequestSourceSql() {
     return MERGE_REQUEST_SOURCE_SQL;
+  }
+
+  private static String replaceFixLabelEvents(String sql) {
+    int start = sql.indexOf("      fix_label_events as (");
+    int end = sql.indexOf("      select", start);
+    if (start < 0 || end < 0 || end <= start) {
+      return sql;
+    }
+    return sql.substring(0, start) + FIX_LABEL_EVENTS_FROM_RESOURCE_LABEL_EVENTS + sql.substring(end);
   }
 }

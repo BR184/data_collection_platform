@@ -96,6 +96,10 @@ public record StatisticIssueFactSource(IssueFactRecord record) {
     return record.excluded();
   }
 
+  public String exclusionReason() {
+    return record.exclusionReason();
+  }
+
   public boolean fixed() {
     return record.fixed();
   }
