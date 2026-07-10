@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.statistics.StatisticBoardRuleExplanationResponse;
+import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.labelgroup.LabelGroupDefaultFilterService;
@@ -42,12 +43,13 @@ class SystemTestDefectSummaryRuleExplanationTest {
         labelGroupDefaultFilterService,
         labelGroupExpansionService,
         mock(StatisticBoardSnapshotService.class),
-        mock(StatisticBoardSnapshotRequestFactory.class));
+        mock(StatisticBoardSnapshotRequestFactory.class),
+        mock(IssueFactRecordRepository.class));
 
     StatisticBoardRuleExplanationResponse response = service.getRuleExplanation(Map.of());
 
     assertThat(response.supported()).isTrue();
-    assertThat(response.version()).isEqualTo("system-test-defect-summary@2026-06-26-v7");
+    assertThat(response.version()).isEqualTo("system-test-defect-summary@2026-07-09-v10");
     assertThat(response.flowSteps()).extracting("key")
         .containsExactly("source-load", "scope-filter", "exclude-invalid-issues", "apply-filter-group", "module-expand");
     assertThat(response.flowSteps()).allSatisfy(step -> {

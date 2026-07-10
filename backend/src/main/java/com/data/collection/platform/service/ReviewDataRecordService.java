@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReviewDataRecordService {
   private static final String PAGE_KEY = "review-data-records";
-  private static final String RULE_VERSION = "review-data-records@2026-07-07-v3";
+  private static final String RULE_VERSION = "review-data-records@2026-07-10-v4";
 
   private final ReviewDataRecordQueryService queryService;
   private final ReviewDataRecordCommandService commandService;

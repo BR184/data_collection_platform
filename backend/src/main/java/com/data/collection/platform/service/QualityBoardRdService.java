@@ -6,11 +6,12 @@ import com.data.collection.platform.entity.QualityBoardFixUserSeverityRowRespons
 import com.data.collection.platform.entity.QualityBoardMetricResponse;
 import com.data.collection.platform.entity.QualityBoardOtherOverviewResponse;
 import com.data.collection.platform.entity.QualityBoardProjectOptionsResponse;
+import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.springframework.dao.DataAccessException;
@@ -30,18 +31,21 @@ public class QualityBoardRdService {
   private final ReviewDataRecordReadRepository reviewDataRecordReadRepository;
   private final ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
   public QualityBoardRdService(
       JdbcTemplate jdbcTemplate,
       SystemTestPhaseScopeResolver phaseScopeResolver,
       ReviewDataRecordReadRepository reviewDataRecordReadRepository,
       ReviewDataMatchModeRecordRepository reviewDataMatchModeRecordRepository,
-      CodeReviewMatchModeSwitchService matchModeSwitchService) {
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
     this.jdbcTemplate = jdbcTemplate;
     this.phaseScopeResolver = phaseScopeResolver;
     this.reviewDataRecordReadRepository = reviewDataRecordReadRepository;
     this.reviewDataMatchModeRecordRepository = reviewDataMatchModeRecordRepository;
     this.matchModeSwitchService = matchModeSwitchService;
+    this.codeReviewReadSupport = codeReviewReadSupport;
   }
 
   public QualityBoardProjectOptionsResponse listProjectOptions() {
@@ -68,8 +72,8 @@ public class QualityBoardRdService {
     String projectName = normalizeProjectName(requestedProjectName);
     double demandReviewDensity = reviewDensity(projectName, DEMAND_REVIEW_TYPE);
     double designReviewDensity = reviewDensity(projectName, DESIGN_REVIEW_TYPE);
-    double codeReviewCcDensity = codeReviewDensity("cc", projectName);
-    double codeReviewDgmDensity = codeReviewDensity("dgm", toDgmProjectName(projectName));
+    double codeReviewCcDensity = codeReviewReadSupport.defectDensity("cc", projectName);
+    double codeReviewDgmDensity = codeReviewReadSupport.defectDensity("dgm", projectName);
     double integrationPassRate = integrationPassRate(projectName);
     double defectLeakageRate = defectLeakageRate(projectName);
     double defectEliminationRate = defectEliminationRate(projectName);
@@ -97,16 +101,169 @@ public class QualityBoardRdService {
         metrics);
   }
 
+  public QualityBoardRdDashboardResponse getRdDashboard(
+      String requestedProjectName,
+      String requestedCodeReviewSource) {
+    String projectName = normalizeProjectName(requestedProjectName);
+    String codeReviewSource = resolveCodeReviewSource(requestedCodeReviewSource);
+    List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
+    return new QualityBoardRdDashboardResponse(
+        getOverview(projectName),
+        codeReviewSource,
+        codeReviewReadSupport.listAvailableSources(),
+        codeReviewReadSupport.personDefectDensityRows(
+            "assignee_names", false, codeReviewSource, projectName),
+        codeReviewReadSupport.personDefectDensityRows(
+            "author_name", true, codeReviewSource, projectName),
+        fixUserSeverityRows(phases),
+        codeReviewReadSupport.frequencyRows(codeReviewSource, projectName),
+        defectRepairUserRows(phases));
+  }
+
   public QualityBoardOtherOverviewResponse getOtherOverview(String requestedProjectName) {
     String projectName = normalizeProjectName(requestedProjectName);
     List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
     return new QualityBoardOtherOverviewResponse(
-        getOverview(projectName),
-        codeReviewPersonDefectDensityRows("assignee_names", false, "cc", projectName),
-        codeReviewPersonDefectDensityRows("author_name", true, "cc", projectName),
-        fixUserSeverityRows(phases),
-        frequencyCodeSubmissionRows("cc", projectName),
-        defectRepairUserRows(phases));
+        projectName,
+        functionDefectCountRows(phases),
+        functionDefectDensityRows(projectName, phases),
+        qualityRankingRows(projectName, phases),
+        memberUnresolvedRateRows(phases),
+        releaseLeakageRateRows(),
+        developmentLeakageRateRows());
+  }
+
+  private List<QualityBoardChartRowResponse> functionDefectCountRows(List<String> phases) {
+    return issueGroupedCountRows(phases, "function_name", "未标注功能");
+  }
+
+  private List<QualityBoardChartRowResponse> functionDefectDensityRows(
+      String projectName,
+      List<String> phases) {
+    Map<String, Long> addedLinesByFunction = codeReviewReadSupport.addedLinesByFunction(projectName);
+    Map<String, Long> issueCounts = issueGroupedCounts(phases, "function_name", "未标注功能");
+    return addedLinesByFunction.entrySet().stream()
+        .filter(entry -> entry.getValue() > 0)
+        .map(entry -> new QualityBoardChartRowResponse(
+            entry.getKey(),
+            divide(issueCounts.getOrDefault(entry.getKey(), 0L) * 100D, entry.getValue(), 1D)))
+        .sorted((left, right) -> Double.compare(right.value(), left.value()))
+        .limit(20)
+        .toList();
+  }
+
+  private List<QualityBoardChartRowResponse> qualityRankingRows(
+      String projectName,
+      List<String> phases) {
+    Map<String, Long> addedLinesByAuthor = codeReviewReadSupport.addedLinesByAuthor(projectName);
+    Map<String, Long> issueCounts = issueGroupedCounts(phases, "fix_user", "未标注修复人");
+    return addedLinesByAuthor.entrySet().stream()
+        .filter(entry -> entry.getValue() > 0)
+        .map(entry -> new QualityBoardChartRowResponse(
+            entry.getKey(),
+            divide(issueCounts.getOrDefault(entry.getKey(), 0L) * 1000D, entry.getValue(), 1D)))
+        .sorted((left, right) -> Double.compare(left.value(), right.value()))
+        .limit(20)
+        .toList();
+  }
+
+  private List<QualityBoardChartRowResponse> memberUnresolvedRateRows(List<String> phases) {
+    if (phases.isEmpty()) {
+      return List.of();
+    }
+    String placeholders = String.join(",", phases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phases);
+    String sql =
+        """
+        select
+          btrim(fix_user) as person_name,
+          round((count(*) filter (where coalesce(bug_status, '') like '%%未修复%%') * 100.0 / count(*))::numeric, 2) as value
+        from issue_fact
+        where deleted = false
+          and project_id = ?
+          and testing_phase in (%s)
+          and coalesce(fix_user, '') <> '无合法评论'
+        group by person_name
+        having count(*) > 0
+        order by value desc, person_name
+        limit 20
+        """
+            .formatted(placeholders);
+    return jdbcTemplate.query(
+        sql,
+        (rs, rowNum) -> new QualityBoardChartRowResponse(
+            rs.getString("person_name"),
+            doubleValue(rs.getObject("value"))),
+        args.toArray());
+  }
+
+  private List<QualityBoardChartRowResponse> releaseLeakageRateRows() {
+    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+        .map(name -> new QualityBoardChartRowResponse(name, defectLeakageRate(name)))
+        .toList();
+  }
+
+  private List<QualityBoardChartRowResponse> developmentLeakageRateRows() {
+    return phaseScopeResolver.listEnabledLegacyCrownCadParentNames().stream()
+        .map(name -> new QualityBoardChartRowResponse(name, defectEliminationRate(name)))
+        .toList();
+  }
+
+  private List<QualityBoardChartRowResponse> issueGroupedCountRows(
+      List<String> phases,
+      String fieldName,
+      String emptyLabel) {
+    return issueGroupedCounts(phases, fieldName, emptyLabel).entrySet().stream()
+        .map(entry -> new QualityBoardChartRowResponse(entry.getKey(), entry.getValue().doubleValue()))
+        .sorted((left, right) -> Double.compare(right.value(), left.value()))
+        .limit(20)
+        .toList();
+  }
+
+  private Map<String, Long> issueGroupedCounts(
+      List<String> phases,
+      String fieldName,
+      String emptyLabel) {
+    if (phases.isEmpty()) {
+      return Map.of();
+    }
+    String safeFieldName = switch (fieldName) {
+      case "function_name" -> "function_name";
+      case "fix_user" -> "fix_user";
+      default -> throw new IllegalArgumentException("Unsupported issue group field: " + fieldName);
+    };
+    String placeholders = String.join(",", phases.stream().map(ignored -> "?").toList());
+    List<Object> args = new ArrayList<>();
+    args.add(CROWN_CAD_PROJECT_ID);
+    args.addAll(phases);
+    String sql =
+        """
+        select coalesce(nullif(btrim(%s), ''), ?) as group_name,
+               count(*) as value
+          from issue_fact
+         where deleted = false
+           and project_id = ?
+           and testing_phase in (%s)
+         group by group_name
+         order by group_name
+        """
+            .formatted(safeFieldName, placeholders);
+    List<Object> queryArgs = new ArrayList<>();
+    queryArgs.add(emptyLabel);
+    queryArgs.addAll(args);
+    Map<String, Long> result = new java.util.LinkedHashMap<>();
+    jdbcTemplate.query(
+        sql,
+        rs -> {
+          while (rs.next()) {
+            result.put(rs.getString("group_name"), rs.getLong("value"));
+          }
+          return null;
+        },
+        queryArgs.toArray());
+    return result;
   }
 
   private double reviewDensity(String projectName, String reviewType) {
@@ -115,8 +272,8 @@ public class QualityBoardRdService {
             .filter(row -> matchesReviewType(row.reviewType(), reviewType))
             .toList();
     Stream<ReviewDataRecordRowResponse> rows = formalRows.stream();
-    // 兼容模式 match mode：评审兼容读开启时，质量看板与评审数据管理一致，合并正式表和未转正式的老平台 Mongo 兼容表。
-    // 后续删除兼容模式时，只移除下面 matchRows 合并分支，正式表统计仍可独立工作。
+    //兼容模式-MatchMode：评审兼容读开启时，质量看板与评审数据管理一致，合并正式表和未转正式的老平台 Mongo 兼容表。
+    //兼容模式-MatchMode：后续删除兼容模式时，只移除下面 matchRows 合并分支，正式表统计仍可独立工作。
     if (matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
       List<ReviewDataRecordRowResponse> matchRows =
           reviewDataMatchModeRecordRepository.loadRecords().stream()
@@ -133,130 +290,6 @@ public class QualityBoardRdService {
     return divide(accumulator.problemCount(), accumulator.reviewScalePages(), 1D);
   }
 
-  private double codeReviewDensity(String sourceInstance, String projectName) {
-    boolean matchMode = matchModeSwitchService.isCodeReviewCompatibilityReadEnabled();
-    // 兼容模式 match mode：代码走查非法数据页开启兼容读时只读老平台 MySQL 兼容表，质量看板跟随同一读源，避免和转正式数据双算。
-    String tableName = matchMode ? "code_review_match_mode_records" : "merge_request_fact";
-    String deletedPredicate = matchMode ? "" : " and deleted = false";
-    String sql =
-        """
-        with scoped as (
-          select
-            project_id,
-            merge_request_id,
-            id,
-            coalesce(defect_count, 0) as defect_count,
-            coalesce(added_lines, 0) as added_lines,
-            row_number() over(partition by project_id, merge_request_id order by id asc) as row_number_in_mr
-          from %s
-          where lower(coalesce(source_instance, '')) = ?
-            and coalesce(project_name, '') = ?
-            and lower(coalesce(target_branch, '')) = 'dev'
-            and upper(coalesce(merge_request_state, '')) = 'MERGED'
-            %s
-        ),
-        merged_records as (
-          select
-            project_id,
-            merge_request_id,
-            sum(case when defect_count = -1 then 0 else defect_count end) as defect_count,
-            sum(case when row_number_in_mr = 1 then added_lines else 0 end) as added_lines
-          from scoped
-          group by project_id, merge_request_id
-        )
-        select
-          coalesce(sum(defect_count), 0) as defect_count,
-          coalesce(sum(added_lines), 0) as added_lines
-        from merged_records
-        """
-            .formatted(tableName, deletedPredicate);
-    return jdbcTemplate.query(
-        sql,
-        rs -> {
-          if (!rs.next()) {
-            return 0D;
-          }
-          return divide(rs.getLong("defect_count") * 1000D, rs.getLong("added_lines"), 1D);
-        },
-        sourceInstance.toLowerCase(Locale.ROOT),
-        projectName);
-  }
-
-  private List<QualityBoardChartRowResponse> codeReviewPersonDefectDensityRows(
-      String personField,
-      boolean excludeIllegalAssigneeRows,
-      String sourceInstance,
-      String projectName) {
-    String safePersonField = switch (personField) {
-      case "assignee_names" -> "assignee_names";
-      case "author_name" -> "author_name";
-      default -> throw new IllegalArgumentException("Unsupported person field: " + personField);
-    };
-    String tableName = codeReviewTableName();
-    String deletedPredicate = codeReviewDeletedPredicate();
-    String illegalAssigneePredicate = excludeIllegalAssigneeRows ? illegalAssigneePredicate() : "";
-    String sql =
-        """
-        select
-          person_name,
-          round((sum(case when coalesce(review_defect_density_per_kloc, 0) > 0 then review_defect_density_per_kloc else 0 end) / count(*))::numeric, 2) as value
-        from (
-          select
-            nullif(btrim(%s), '') as person_name,
-            review_defect_density_per_kloc
-          from %s
-          where lower(coalesce(source_instance, '')) = ?
-            and coalesce(project_name, '') = ?
-            %s
-            %s
-        ) scoped
-        where person_name is not null
-          and person_name <> '无需标注'
-          and person_name <> '--'
-          and person_name not like '%%#%%'
-          and person_name not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')
-        group by person_name
-        order by value desc, person_name
-        limit 12
-        """
-            .formatted(safePersonField, tableName, deletedPredicate, illegalAssigneePredicate);
-    return jdbcTemplate.query(
-        sql,
-        (rs, rowNum) -> new QualityBoardChartRowResponse(
-            rs.getString("person_name"),
-            doubleValue(rs.getObject("value"))),
-        sourceInstance.toLowerCase(Locale.ROOT),
-        projectName);
-  }
-
-  private List<QualityBoardChartRowResponse> frequencyCodeSubmissionRows(
-      String sourceInstance,
-      String projectName) {
-    String tableName = codeReviewTableName();
-    String deletedPredicate = codeReviewDeletedPredicate();
-    String sql =
-        """
-        select
-          coalesce(nullif(btrim(author_name), ''), '未标注提交人') as person_name,
-          count(*)::numeric as value
-        from %s
-        where lower(coalesce(source_instance, '')) = ?
-          and coalesce(project_name, '') = ?
-          %s
-        group by person_name
-        order by value desc, person_name
-        limit 12
-        """
-            .formatted(tableName, deletedPredicate);
-    return jdbcTemplate.query(
-        sql,
-        (rs, rowNum) -> new QualityBoardChartRowResponse(
-            rs.getString("person_name"),
-            doubleValue(rs.getObject("value"))),
-        sourceInstance.toLowerCase(Locale.ROOT),
-        projectName);
-  }
-
   private List<QualityBoardFixUserSeverityRowResponse> fixUserSeverityRows(List<String> phases) {
     if (phases.isEmpty()) {
       return List.of();
@@ -268,7 +301,7 @@ public class QualityBoardRdService {
     String sql =
         """
         select
-          coalesce(nullif(btrim(assignee_name), ''), '未标注修复人') as person_name,
+          btrim(fix_user) as person_name,
           sum(case when severity_level = 'LEVEL1' then 1 else 0 end) as level1,
           sum(case when severity_level = 'LEVEL2' then 1 else 0 end) as level2,
           sum(case when severity_level = 'LEVEL3' then 1 else 0 end) as level3,
@@ -280,6 +313,9 @@ public class QualityBoardRdService {
           and testing_phase in (%s)
           and coalesce(category, '') not like '%%功能屏蔽%%'
           and coalesce(bug_status, '') not like '%%已拒绝%%'
+          and nullif(btrim(fix_user), '') is not null
+          and btrim(fix_user) <> '无合法评论'
+          and btrim(fix_user) not like '未设定%%'
         group by person_name
         having count(*) > 0
         order by total desc, person_name
@@ -315,12 +351,12 @@ public class QualityBoardRdService {
         where deleted = false
           and project_id = ?
           and testing_phase in (%s)
-          and upper(coalesce(issue_state, '')) = 'OPEN'
+          and %s
         group by person_name
         order by value desc, person_name
         limit 12
         """
-            .formatted(placeholders);
+            .formatted(placeholders, openIssueStatePredicate());
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) -> new QualityBoardChartRowResponse(
@@ -362,7 +398,7 @@ public class QualityBoardRdService {
     if (phases.isEmpty()) {
       return 0D;
     }
-    long openCount = issueCount(phases, " and upper(coalesce(issue_state, '')) = 'OPEN'");
+    long openCount = issueCount(phases, " and " + openIssueStatePredicate());
     long totalCount = issueCount(phases, "");
     return divide(openCount * 100D, totalCount, 1D);
   }
@@ -450,6 +486,10 @@ public class QualityBoardRdService {
       """;
   }
 
+  private String openIssueStatePredicate() {
+    return "lower(coalesce(issue_state, '')) in ('open', 'opened')";
+  }
+
   private boolean tableExists(String tableName) {
     try {
       Boolean exists =
@@ -469,23 +509,14 @@ public class QualityBoardRdService {
         : TextQuerySupport.normalizeDisplay(requestedProjectName);
   }
 
-  private String codeReviewTableName() {
-    // 兼容模式-MatchMode：老平台 MySQL 代码走查兼容读开启时，其他看板代码走查图表和非法数据页共用兼容快照表。
-    // 删除 match mode 时，可以移除该分支并固定返回 merge_request_fact。
-    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()
-        ? "code_review_match_mode_records"
-        : "merge_request_fact";
-  }
-
-  private String codeReviewDeletedPredicate() {
-    // 兼容模式-MatchMode：兼容快照表没有 deleted 字段，正式事实表必须继续过滤 deleted=false。
-    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled() ? "" : " and deleted = false";
-  }
-
-  private String illegalAssigneePredicate() {
-    return """
-       and coalesce(assignee_names, '') not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')
-      """;
+  private String resolveCodeReviewSource(String requestedSource) {
+    List<OptionItemResponse> options = codeReviewReadSupport.listAvailableSources();
+    String normalized = TextQuerySupport.trimToNull(requestedSource);
+    if (normalized != null
+        && options.stream().anyMatch(option -> option.value().equalsIgnoreCase(normalized))) {
+      return normalized.toLowerCase(java.util.Locale.ROOT);
+    }
+    return options.stream().map(OptionItemResponse::value).findFirst().orElse("cc");
   }
 
   private Double doubleValue(Object value) {
@@ -506,11 +537,6 @@ public class QualityBoardRdService {
 
   private boolean equalsText(String actual, String expected) {
     return Objects.equals(TextQuerySupport.normalizeDisplay(actual), TextQuerySupport.normalizeDisplay(expected));
-  }
-
-  private String toDgmProjectName(String projectName) {
-    String normalized = TextQuerySupport.normalizeDisplay(projectName);
-    return normalized.replaceFirst("^CC(\\d{4})(R\\d)$", "CrownCAD $1 $2");
   }
 
   private double divide(double numerator, double denominator, double multiplier) {

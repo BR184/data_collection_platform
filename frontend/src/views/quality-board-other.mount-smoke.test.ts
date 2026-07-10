@@ -1,9 +1,16 @@
 import { defineComponent } from 'vue';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { createRouter, createWebHashHistory } from 'vue-router';
-import ElementPlus from 'element-plus';
+import { authState } from '../composables/auth-state';
 import QualityBoardOtherView from './QualityBoardOtherView.vue';
+
+vi.mock('../components/base/PageStateShell.vue', () => ({
+  default: defineComponent({
+    name: 'PageStateShell',
+    template: '<div><slot /></div>',
+  }),
+}));
 
 vi.mock('../components/charts/EChartPanel.vue', () => ({
   default: defineComponent({
@@ -12,6 +19,10 @@ vi.mock('../components/charts/EChartPanel.vue', () => ({
   }),
 }));
 
+const passthroughStub = defineComponent({
+  template: '<div><slot /></div>',
+});
+
 function jsonResponse(data: unknown) {
   return Promise.resolve({
     ok: true,
@@ -19,88 +30,39 @@ function jsonResponse(data: unknown) {
   } as Response);
 }
 
-function createBoard(rows: Array<{ rowKey: string; rowLabel: string; cells: Array<{ columnKey: string; numericValue: number; displayValue: string; drilldown: boolean; detailParams: Record<string, string>; }> }>) {
-  return {
-    definition: {
-      boardKey: 'test-board',
-      title: 'test',
-      description: '',
-      queryTitle: '',
-      queryDescription: '',
-      rowHeaderLabel: '统计对象',
-      filters: [],
-      columnGroups: [],
-      detailColumns: [],
-      defaultPageSize: 10,
-      emptyText: '',
-    },
-    appliedFilters: {},
-    appliedFilterGroup: null,
-    rows,
-    meta: {
-      generatedAt: '2026-04-27T10:00:00',
-      queryDurationMs: 12,
-      rowCount: rows.length,
-      columnCount: 0,
-      drilldownColumnCount: 0,
-    },
-  };
-}
-
-function cell(columnKey: string, numericValue: number) {
-  return {
-    columnKey,
-    numericValue,
-    displayValue: String(numericValue),
-    drilldown: false,
-    detailParams: {},
-  };
-}
-
 describe('QualityBoardOtherView mount smoke', () => {
-  it('loads auxiliary charts and renders the secondary dashboard', async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.innerHTML = '';
+  });
+
+  it('renders the six legacy Other Board data categories without DGM switching', async () => {
+    authState.currentUser = {
+      username: 'admin',
+      displayName: '管理员',
+      role: 'ADMIN',
+      authenticated: true,
+    };
+    authState.initialized = true;
+    authState.loading = false;
+    authState.error = '';
     const fetchSpy = vi.fn((url: string) => {
-      if (url.includes('/api/code-review/multi-board/source-options')) {
-        return jsonResponse([{ label: 'CC', value: 'cc' }]);
-      }
-      if (url.includes('/api/code-review/multi-board/overview')) {
+      if (url.includes('/api/quality-board/rd/project-options')) {
         return jsonResponse({
-          source: 'cc',
-          sourceLabel: 'CC',
-          mergeRequestCount: 8,
-          completedCount: 6,
-          pendingCount: 2,
-          averageCommentRate: 18,
-          totalDefectCount: 7,
-          totalAddedLines: 320,
-          defectDensityPerKloc: 21.88,
-          averageReviewDurationMinutes: 16,
-          averageAddedLines: 40,
-          moduleRows: [],
-          ownerRows: [
-            {
-              rowKey: '张三',
-              rowLabel: '张三',
-              mergeRequestCount: 3,
-              completedCount: 2,
-              averageCommentRate: 16,
-              totalDefectCount: 4,
-              totalAddedLines: 156,
-              defectDensityPerKloc: 25.64,
-              averageReviewDurationMinutes: 15,
-              averageAddedLines: 52,
-            },
-          ],
+          defaultProjectName: 'CC2026R4',
+          options: [{ label: 'CC2026R4', value: 'CC2026R4' }],
         });
       }
-      if (url.includes('/api/statistic-boards/customer-issue-response-efficiency')) {
-        return jsonResponse(createBoard([{ rowKey: 'module-a', rowLabel: '支付中心', cells: [cell('response_rate', 92)] }]));
-      }
-      if (url.includes('/api/statistic-boards/customer-issue-by-function')) {
-        return jsonResponse(createBoard([{ rowKey: 'module-a||func-a', rowLabel: '支付中心 / 登录', cells: [cell('total', 6)] }]));
-      }
-      if (url.includes('/api/statistic-boards/system-test-delay-analysis')) {
-        return jsonResponse(createBoard([{ rowKey: 'delay-a', rowLabel: '方案卡点', cells: [cell('total', 3)] }]));
+      if (url.includes('/api/quality-board/other/overview')) {
+        return jsonResponse({
+          projectName: 'CC2026R4',
+          functionDefectCountRows: [{ name: '建模', value: 12 }],
+          functionDefectDensityRows: [{ name: '建模', value: 0.8 }],
+          qualityRankingRows: [{ name: '成员A', value: 1.2 }],
+          memberUnresolvedRateRows: [{ name: '成员A', value: 8.5 }],
+          releaseLeakageRateRows: [{ name: 'CC2026R4', value: 10 }],
+          developmentLeakageRateRows: [{ name: 'CC2026R4', value: 88 }],
+        });
       }
       return jsonResponse({});
     });
@@ -108,24 +70,33 @@ describe('QualityBoardOtherView mount smoke', () => {
 
     const router = createRouter({
       history: createWebHashHistory(),
-      routes: [{ path: '/quality-board/other-board', component: QualityBoardOtherView, meta: { pageKey: 'quality-board-other-board' } }],
+      routes: [{ path: '/quality-board/other-board', component: QualityBoardOtherView }],
     });
-
     await router.push('/quality-board/other-board');
     await router.isReady();
 
     const wrapper = mount(QualityBoardOtherView, {
       attachTo: document.body,
-      global: { plugins: [router, ElementPlus] },
+      global: {
+        plugins: [router],
+        stubs: {
+          'el-button': passthroughStub,
+          'el-option': passthroughStub,
+          'el-select': passthroughStub,
+        },
+      },
     });
-
     await flushPromises();
 
-    expect(wrapper.text()).toContain('其他看板');
-    expect(wrapper.text()).toContain('客户问题响应率');
-    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(4);
+    expect(wrapper.text()).toContain('功能缺陷数量');
+    expect(wrapper.text()).toContain('功能缺陷密度');
+    expect(wrapper.text()).toContain('质量达人榜');
+    expect(wrapper.text()).toContain('成员未修复缺陷率');
+    expect(wrapper.text()).toContain('发布缺陷遗留率');
+    expect(wrapper.text()).toContain('开发缺陷遗留率');
+    expect(wrapper.text()).not.toContain('DGM');
+    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(6);
 
     wrapper.unmount();
-    vi.unstubAllGlobals();
   });
 });

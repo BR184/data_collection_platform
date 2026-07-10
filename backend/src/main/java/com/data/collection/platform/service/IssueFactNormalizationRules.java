@@ -44,6 +44,10 @@ public final class IssueFactNormalizationRules {
     return IssueClassificationRules.normalizeFixReasonCategory(labels, notesText);
   }
 
+  public static String normalizeCustomerIssueReasonCategory(List<String> labels, String notesText) {
+    return IssueClassificationRules.normalizeLegacyFixReasonCategory(notesText);
+  }
+
   public static boolean hasDelayFlag(List<String> labels, String notesText) {
     return IssueClassificationRules.hasDelayFlag(labels, notesText);
   }

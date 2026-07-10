@@ -22,6 +22,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinit
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.IssueFactQueryService;
+import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeContext;
 import com.data.collection.platform.service.RealtimeIncrementalRefreshService;
 import com.data.collection.platform.service.RealtimeWorkspaceService;
@@ -38,7 +39,9 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
@@ -60,7 +63,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticBoardWorkbookExportSupport,
         StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-cause";
-  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-09-v5";
+  private static final String RULE_VERSION = "customer-issue-defect-cause@2026-07-10-v7";
   private static final String MILESTONE_FIELD = CustomerIssueMilestoneFilterSupport.MILESTONE_FIELD;
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "共计";
@@ -71,6 +74,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       List.of("issues", "projects", "users", "label_links", "labels", "notes");
   private static final List<DefectCauseMetricCatalog.Metric> CAUSE_METRICS =
       DefectCauseMetricCatalog.METRICS;
+  private static final Map<String, List<String>> LEGACY_CAUSE_TOKEN_OVERRIDES =
+      Map.of(
+          "prompt_message", List.of("术语、提示信息不合适"),
+          "logic_integration_interface_error", List.of("编码逻辑：集成与接口错误"),
+          "precondition_data_exception", List.of("前置数据异常（如缺少模板文件、前置输入文件本身错误等）"));
   private static final String FACT_SQL = """
       select issue_id as id, issue_iid as iid, source_instance, title, project_id, project_name,
              coalesce(author_name,'') as author_name, created_at_source as created_at,
@@ -78,6 +86,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
              updated_at_source as updated_at, closed_at_source as closed_at,
              coalesce(milestone_title,'') as milestone_title, coalesce(issue_state,'opened') as issue_state,
              coalesce(bug_status,'') as bug_status,
+             coalesce(severity_level,'') as severity_level,
+             coalesce(category,'') as category,
              coalesce(testing_phase,'') as testing_phase,
              coalesce(system_test_label,'') as system_test_label,
              coalesce(reason_category,'') as reason_category,
@@ -149,8 +159,27 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         "",
         "模块",
         List.of(
-            StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
-            StatisticFilterFieldFactory.select(MILESTONE_FIELD, "里程碑", 220, milestoneOptions)),
+            StatisticFilterFieldFactory.select(MILESTONE_FIELD, "里程碑", 220, milestoneOptions),
+            StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
+            StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
+            StatisticFilterFieldFactory.text("issueIid", "议题编号", 160),
+            StatisticFilterFieldFactory.text("title", "议题标题", 220),
+            StatisticFilterFieldFactory.select(
+                "severityLevel",
+                "严重程度",
+                180,
+                IssueDisplayValueSupport.severityFilterOptions(true)),
+            StatisticFilterFieldFactory.text("bugStatus", "测试状态", 200),
+            StatisticFilterFieldFactory.text("category", "议题类别", 180),
+            StatisticFilterFieldFactory.select(
+                "issueState",
+                "议题状态",
+                160,
+                List.of(
+                    new StatisticFilterOption("未关闭", "open"),
+                    new StatisticFilterOption("已关闭", "closed"))),
+            StatisticFilterFieldFactory.text("authorName", "议题提交人", 180),
+            StatisticFilterFieldFactory.text("assigneeName", "议题处理人", 180)),
         List.of(
             StatisticColumnGroup.withChildren(
                 "requirement-problem",
@@ -238,8 +267,9 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .map(AggregateBucket::toRowData)
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     if (!buckets.isEmpty()) {
-      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY).acceptAll(snapshot.reasonSources());
-      rows.add(totalBucket.toRowData());
+      AggregateBucket totalBucket = new AggregateBucket(TOTAL_ROW_LABEL, TOTAL_ROW_KEY);
+      buckets.values().forEach(bucket -> totalBucket.acceptAll(bucket.issues()));
+      rows.add(totalBucket.toRowData(false));
       rows.add(AggregateBucket.ratioRow(totalBucket));
     }
 
@@ -367,7 +397,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
             .map(metric -> new StatisticRuleMetricDefinition(
                 metric.key(),
                 metric.label(),
-                "按老平台缺陷原因说明识别：" + String.join(" / ", metric.tokens()),
+                "按老平台缺陷原因说明识别：" + String.join(" / ", causeTokens(metric)),
                 metric.label() + "数量 = 当前模块内命中该原因分类的缺陷数量",
                 null))
             .toList(),
@@ -489,11 +519,11 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     List<IssueSource> valid = scoped.stream().filter(issue -> !issue.excluded()).toList();
     List<IssueSource> milestoneFiltered =
         valid.stream().filter(issue -> matchesMilestone(issue, filterGroup)).toList();
-    List<IssueSource> phaseFiltered =
-        milestoneFiltered.stream().filter(issue -> matchesTestingPhase(issue, filterGroup)).toList();
-    List<IssueSource> withReason = phaseFiltered.stream().filter(IssueSource::hasDefectCause).toList();
+    List<IssueSource> conditionFiltered =
+        milestoneFiltered.stream().filter(issue -> matchesConditionFilterGroup(issue, filterGroup)).toList();
+    List<IssueSource> withReason = conditionFiltered.stream().filter(IssueSource::hasDefectCause).toList();
     return new RuleFlowSnapshot(
-        phaseFiltered,
+        conditionFiltered,
         withReason,
         List.of(
             StatisticRuleFlowSupport.step(
@@ -529,18 +559,18 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
-                "milestone-filter",
-                "应用里程碑切换",
-                "根据页面顶部选择的 CC_Product 里程碑收口客户问题；未选择时按老平台默认使用里程碑列表第一项。",
+                "condition-filter",
+                "应用条件筛选",
+                "根据页面条件筛选中的项目、模块、议题、严重程度、状态和人员字段进一步收敛范围。",
                 milestoneFiltered.size(),
-                phaseFiltered,
+                conditionFiltered,
                 this::toRuleFlowSample
             ),
             StatisticRuleFlowSupport.step(
                 "reason-category-filter",
                 "保留已识别原因",
                 "只保留评论文本中命中老平台缺陷原因字段的议题，原因个数按字段命中数计算。",
-                phaseFiltered.size(),
+                conditionFiltered.size(),
                 withReason,
                 this::toRuleFlowSample
             )));
@@ -652,6 +682,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
         StatisticSourceValueSupport.time(rs.getTimestamp("closed_at")),
         StatisticSourceValueSupport.text(rs.getString("issue_state"), "opened"),
         StatisticSourceValueSupport.text(rs.getString("bug_status"), ""),
+        StatisticSourceValueSupport.text(rs.getString("severity_level"), ""),
+        StatisticSourceValueSupport.text(rs.getString("category"), ""),
         StatisticSourceValueSupport.text(rs.getString("testing_phase"), ""),
         StatisticSourceValueSupport.text(rs.getString("system_test_label"), ""),
         StatisticSourceValueSupport.text(rs.getString("reason_category"), ""),
@@ -714,8 +746,118 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     };
   }
 
-  private boolean matchesTestingPhase(IssueSource issue, StatisticFilterGroup filterGroup) {
-    return CustomerIssueMilestoneFilterSupport.matches(issue.milestoneTitle(), issue.testingPhase(), filterGroup);
+  private boolean matchesConditionFilterGroup(IssueSource issue, StatisticFilterGroup filterGroup) {
+    if (filterGroup == null || filterGroup.conditions() == null || filterGroup.conditions().isEmpty()) {
+      return true;
+    }
+    List<StatisticFilterCondition> conditions =
+        filterGroup.conditions().stream()
+            .filter(Objects::nonNull)
+            .filter(condition -> !MILESTONE_FIELD.equals(condition.fieldKey()))
+            .filter(condition -> !CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD.equals(condition.fieldKey()))
+            .toList();
+    if (conditions.isEmpty()) {
+      return true;
+    }
+    boolean useOr = "OR".equalsIgnoreCase(filterGroup.logic());
+    for (StatisticFilterCondition condition : conditions) {
+      boolean matched = matchesCondition(issue, condition);
+      if (useOr && matched) {
+        return true;
+      }
+      if (!useOr && !matched) {
+        return false;
+      }
+    }
+    return !useOr;
+  }
+
+  private boolean matchesCondition(IssueSource issue, StatisticFilterCondition condition) {
+    List<String> actualValues = valuesForFilterField(issue, condition.fieldKey());
+    if (condition.usesLabelGroup()) {
+      return matchesSetOperator(actualValues, condition.values(), condition.operator());
+    }
+    return switch (Objects.toString(condition.operator(), "")) {
+      case "isEmpty" -> actualValues.stream().allMatch(value -> trimToNull(value) == null);
+      case "isNotEmpty" -> actualValues.stream().anyMatch(value -> trimToNull(value) != null);
+      case "ne" -> actualValues.stream().noneMatch(value -> equalsIgnoreCase(value, condition.value()));
+      case "contains" -> actualValues.stream().anyMatch(value -> containsIgnoreCase(value, condition.value()));
+      case "notContains" -> actualValues.stream().noneMatch(value -> containsIgnoreCase(value, condition.value()));
+      default -> actualValues.stream().anyMatch(value -> equalsIgnoreCase(value, condition.value()));
+    };
+  }
+
+  private List<String> valuesForFilterField(IssueSource issue, String fieldKey) {
+    return switch (fieldKey) {
+      case "projectName" -> List.of(issue.projectName());
+      case "moduleName" -> issue.moduleNames();
+      case "issueIid" -> List.of(String.valueOf(issue.iid()));
+      case "title" -> List.of(issue.title());
+      case "severityLevel" -> List.of(issue.severityLevel());
+      case "bugStatus" -> List.of(issue.bugStatus());
+      case "category" -> List.of(issue.category());
+      case "issueState" -> List.of(issue.isClosed() ? "closed" : "open");
+      case "authorName" -> List.of(issue.authorName());
+      case "assigneeName" -> List.of(issue.assigneeName());
+      default -> List.of();
+    };
+  }
+
+  private boolean matchesSetOperator(List<String> actualValues, List<String> expectedValues, String operator) {
+    List<String> safeActual = actualValues == null ? List.of() : actualValues;
+    List<String> safeExpected = expectedValues == null ? List.of() : expectedValues;
+    if (safeExpected.stream().noneMatch(value -> trimToNull(value) != null)) {
+      return false;
+    }
+    if ("partialContainsAny".equals(operator)) {
+      return safeActual.stream()
+          .filter(value -> trimToNull(value) != null)
+          .anyMatch(
+              actual ->
+                  safeExpected.stream()
+                      .filter(value -> trimToNull(value) != null)
+                      .anyMatch(expected -> containsIgnoreCase(actual, expected)));
+    }
+    boolean intersects =
+        safeActual.stream()
+            .filter(value -> trimToNull(value) != null)
+            .anyMatch(
+                actual -> safeExpected.stream().anyMatch(expected -> equalsIgnoreCase(actual, expected)));
+    boolean containsAll =
+        safeExpected.stream()
+            .filter(value -> trimToNull(value) != null)
+            .allMatch(
+                expected -> safeActual.stream().anyMatch(actual -> equalsIgnoreCase(actual, expected)));
+    return switch (normalizeSetOperator(operator)) {
+      case "notIntersects" -> !intersects;
+      case "containsAll" -> containsAll;
+      case "notContainsAll" -> !containsAll;
+      default -> intersects;
+    };
+  }
+
+  private String normalizeSetOperator(String operator) {
+    if ("ne".equals(operator)) {
+      return "notIntersects";
+    }
+    if ("eq".equals(operator)) {
+      return "intersects";
+    }
+    return Objects.toString(operator, "intersects");
+  }
+
+  private boolean equalsIgnoreCase(String left, String right) {
+    String safeLeft = trimToNull(left);
+    String safeRight = trimToNull(right);
+    return safeLeft != null && safeRight != null && safeLeft.equalsIgnoreCase(safeRight);
+  }
+
+  private boolean containsIgnoreCase(String left, String right) {
+    String safeLeft = trimToNull(left);
+    String safeRight = trimToNull(right);
+    return safeLeft != null
+        && safeRight != null
+        && safeLeft.toLowerCase(Locale.ROOT).contains(safeRight.toLowerCase(Locale.ROOT));
   }
 
   private Map<String, String> appliedFilters(
@@ -736,6 +878,10 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
 
   private DefectCauseMetricCatalog.Metric metric(String key) {
     return DefectCauseMetricCatalog.get(key);
+  }
+
+  private static List<String> causeTokens(DefectCauseMetricCatalog.Metric metric) {
+    return LEGACY_CAUSE_TOKEN_OVERRIDES.getOrDefault(metric.key(), metric.tokens());
   }
 
   private static String count(long value) {
@@ -761,9 +907,13 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
     }
 
     StatisticRowData toRowData() {
+      return toRowData(true);
+    }
+
+    StatisticRowData toRowData(boolean drilldown) {
       List<StatisticCellData> cells = new ArrayList<>();
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
-        cells.add(cell(metric.key(), countByMetric(metric.key()), true));
+        cells.add(cell(metric.key(), countByMetric(metric.key()), drilldown));
       }
       return new StatisticRowData(rowKey, rowLabel, cells);
     }
@@ -819,6 +969,8 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       LocalDateTime closedAt,
       String issueState,
       String bugStatus,
+      String severityLevel,
+      String category,
       String testingPhase,
       String systemTestLabel,
       String reasonCategory,
@@ -856,7 +1008,7 @@ public class CustomerIssueDefectCauseBoardService extends AbstractStatisticBoard
       Set<String> matched = new LinkedHashSet<>();
       String text = reasonCategory;
       for (DefectCauseMetricCatalog.Metric metric : CAUSE_METRICS) {
-        if (DefectCauseMetricCatalog.containsAny(text, metric.tokens())) {
+        if (DefectCauseMetricCatalog.containsAny(text, causeTokens(metric))) {
           matched.add(metric.key());
         }
       }

@@ -8,7 +8,12 @@ import type {
   StatisticRowData,
 } from '../types/api';
 import type { EChartsOption } from 'echarts';
-import { buildColumnBarOption, buildHorizontalBarOption, type NamedValue } from '../components/charts/chart-options';
+import {
+  buildColumnBarOption,
+  buildHorizontalBarOption,
+  buildLineOption,
+  type NamedValue,
+} from '../components/charts/chart-options';
 
 export interface QualityBoardCard {
   key: string;
@@ -265,19 +270,45 @@ export function buildQualityBoardValueRowsChartOption(input: {
   rows: QualityBoardChartRowResponse[] | null | undefined;
   color?: string;
   suffix?: string;
+  includeZero?: boolean;
 }) {
   const items = (input.rows ?? [])
     .map((row) => ({
       name: row.name,
       value: Number((row.value ?? 0).toFixed(2)),
     }))
-    .filter((item) => item.value > 0)
+    .filter((item) => input.includeZero ? item.value >= 0 : item.value > 0)
     .slice(0, 12);
   const option = buildHorizontalBarOption({
     title: input.title,
     subtitle: input.subtitle,
     items,
     color: input.color,
+    valueFormatter: (value) => `${value.toFixed(2)}${input.suffix ?? ''}`,
+  });
+  return stripEmbeddedChartTitle(option, 12);
+}
+
+export function buildQualityBoardTrendRowsChartOption(input: {
+  title: string;
+  subtitle?: string;
+  rows: QualityBoardChartRowResponse[] | null | undefined;
+  color: string;
+  suffix?: string;
+}) {
+  const rows = input.rows ?? [];
+  const option = buildLineOption({
+    title: input.title,
+    subtitle: input.subtitle,
+    categories: rows.map((row) => row.name),
+    series: [
+      {
+        name: input.title,
+        data: rows.map((row) => Number((row.value ?? 0).toFixed(2))),
+        color: input.color,
+        area: true,
+      },
+    ],
     valueFormatter: (value) => `${value.toFixed(2)}${input.suffix ?? ''}`,
   });
   return stripEmbeddedChartTitle(option, 12);

@@ -49,11 +49,12 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-response-efficiency";
-  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-09-v1";
+  private static final String RULE_VERSION = "customer-issue-response-efficiency@2026-07-10-v2";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final String EMPTY_MODULE_LABEL = IssueDisplayValueSupport.EMPTY_MODULE_LABEL;
   private static final String FIXED_STATUS = "已修复/完成";
+  private static final String LEGACY_MODULE_SEPARATOR_REGEX = "\\s*(?:,|，|、|&)\\s*";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
       DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -313,7 +314,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         "客户问题缺陷响应效率规则说明",
         RULE_VERSION,
         "统计范围为 CC_Product 自 2026-01-01 以来创建且携带当前产品版本的客户问题议题，open 和 closed 都统计。",
-        "模块行来自 CC_Product 全量模块目录，当前版本没有可计算样本时显示 0；响应周期只统计已回复调研模板的议题，解决周期只统计已标注“已修复/完成”的议题。",
+        "模块行来自 CC_Product 全量模块目录，多模块标签按“,”、“，”、“、”和“&”展开；当前版本没有可计算样本时显示 0；响应周期只统计已回复调研模板的议题，解决周期只统计已标注“已修复/完成”的议题。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
@@ -481,7 +482,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
               java.util.List.<Object>of(LEGACY_CC_PRODUCT_PROJECT_ID),
               (rs, rowNum) -> rs.getString("module_names"));
       for (String row : rows) {
-        for (String moduleName : StatisticSourceValueSupport.split(row)) {
+        for (String moduleName : splitLegacyModuleNames(row)) {
           if (isCatalogModule(moduleName)
               && StatisticExplicitModuleFilterSupport.matchesExplicitModuleFilter(moduleName, effectiveFilterGroup)) {
             modules.add(moduleName);
@@ -561,7 +562,7 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
         StatisticSourceValueSupport.text(rs.getString("milestone_title")),
         StatisticSourceValueSupport.text(rs.getString("author_name")),
         StatisticSourceValueSupport.text(rs.getString("assignee_name")),
-        StatisticSourceValueSupport.split(rs.getString("module_names")),
+        splitLegacyModuleNames(rs.getString("module_names")),
         StatisticSourceValueSupport.split(rs.getString("label_names")),
         rs.getBoolean("is_excluded"),
         StatisticSourceValueSupport.time(rs.getTimestamp("research_template_time")),
@@ -730,6 +731,12 @@ public class CustomerIssueResponseEfficiencyBoardService extends AbstractStatist
 
   private static boolean isCatalogModule(String moduleName) {
     return StringUtils.hasText(moduleName) && !moduleName.trim().startsWith("未设定");
+  }
+
+  private static List<String> splitLegacyModuleNames(String raw) {
+    return StatisticSourceValueSupport.split(raw, LEGACY_MODULE_SEPARATOR_REGEX).stream()
+        .filter(CustomerIssueResponseEfficiencyBoardService::isCatalogModule)
+        .toList();
   }
 
   private static boolean containsBusinessText(List<String> values, String keyword) {

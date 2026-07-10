@@ -1,6 +1,7 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.OptionItemResponse;
 import com.data.collection.platform.entity.RealtimeWorkspaceStatusResponse;
 import com.data.collection.platform.entity.statistics.StatisticBoardDefinition;
 import com.data.collection.platform.entity.statistics.StatisticBoardMeta;
@@ -21,8 +22,10 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSampl
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.CustomerIssueScopeProfile;
 import com.data.collection.platform.service.IssueFactQueryService;
+import com.data.collection.platform.service.IssueFactRecordRepository;
 import com.data.collection.platform.service.IssueDisplayValueSupport;
 import com.data.collection.platform.service.IssueScopeContext;
+import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SortSupport;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import java.sql.ResultSet;
@@ -49,7 +52,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoardService
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-defect-summary";
-  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-09-v2";
+  private static final String RULE_VERSION = "customer-issue-defect-summary@2026-07-10-v3";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final long LEGACY_CC_PRODUCT_PROJECT_ID = 325L;
@@ -107,6 +110,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   private final CustomerIssueMilestoneCatalogService milestoneCatalogService;
   private final StatisticBoardSnapshotService snapshotService;
   private final StatisticBoardSnapshotRequestFactory snapshotRequestFactory;
+  private final IssueFactRecordRepository issueFactRecordRepository;
 
   public CustomerIssueDefectSummaryBoardService(
       JsonUtils jsonUtils,
@@ -117,7 +121,8 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       SystemTestPhaseScopeResolver phaseScopeResolver,
       CustomerIssueMilestoneCatalogService milestoneCatalogService,
       StatisticBoardSnapshotService snapshotService,
-      StatisticBoardSnapshotRequestFactory snapshotRequestFactory) {
+      StatisticBoardSnapshotRequestFactory snapshotRequestFactory,
+      IssueFactRecordRepository issueFactRecordRepository) {
     super(jsonUtils);
     this.customerIssueScopeProfile = customerIssueScopeProfile;
     this.runtimeSupport = runtimeSupport;
@@ -127,6 +132,7 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
     this.milestoneCatalogService = milestoneCatalogService;
     this.snapshotService = snapshotService;
     this.snapshotRequestFactory = snapshotRequestFactory;
+    this.issueFactRecordRepository = issueFactRecordRepository;
   }
 
   @Override
@@ -136,6 +142,10 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
 
   @Override
   protected StatisticBoardDefinition buildDefinition() {
+    return buildDefinition(loadQuickFilterOptions());
+  }
+
+  private StatisticBoardDefinition buildDefinition(CustomerIssueSummaryQuickFilterOptions quickOptions) {
     return new StatisticBoardDefinition(
         BOARD_KEY,
         "客户问题缺陷汇总",
@@ -147,7 +157,9 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
             StatisticFilterFieldFactory.text("projectName", "项目名称", 200),
             StatisticFilterFieldFactory.text(CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD, "测试阶段", 200),
             StatisticFilterFieldFactory.text("milestoneTitle", "里程碑", 180),
-            StatisticFilterFieldFactory.text("moduleName", "模块名", 180),
+            StatisticFilterFieldFactory.selectLabelGroup("moduleName", "模块名", 180, quickOptions.moduleNames()),
+            StatisticFilterFieldFactory.text("issueIid", "议题编号", 160),
+            StatisticFilterFieldFactory.textLabelGroup("title", "议题标题", 220),
             StatisticFilterFieldFactory.select(
                 "severityLevel",
                 "严重程度",
@@ -160,7 +172,18 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
                 List.of(
                     new StatisticFilterOption("P1", "P1"),
                     new StatisticFilterOption("P2", "P2"),
-                    new StatisticFilterOption("P3", "P3")))),
+                    new StatisticFilterOption("P3", "P3"))),
+            StatisticFilterFieldFactory.selectLabelGroup("bugStatus", "测试状态", 200, quickOptions.bugStatuses()),
+            StatisticFilterFieldFactory.selectLabelGroup("category", "议题类别", 180, quickOptions.categories()),
+            StatisticFilterFieldFactory.select(
+                "issueState",
+                "议题状态",
+                160,
+                List.of(
+                    new StatisticFilterOption("未关闭", "open"),
+                    new StatisticFilterOption("已关闭", "closed"))),
+            StatisticFilterFieldFactory.selectLabelGroup("authorName", "议题提交人", 180, quickOptions.authorNames()),
+            StatisticFilterFieldFactory.selectLabelGroup("assigneeName", "议题处理人", 180, quickOptions.assigneeNames())),
         List.of(
             StatisticColumnGroup.withChildren(
                 "level1",
@@ -531,10 +554,44 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
       case CustomerIssueTestingPhaseFilterSupport.TESTING_PHASE_FIELD -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "milestoneTitle" -> List.of(Objects.toString(issue.milestoneTitle(), ""));
       case "moduleName" -> issue.moduleNames();
+      case "issueIid" -> List.of(String.valueOf(issue.iid()));
+      case "title" -> List.of(Objects.toString(issue.title(), ""));
       case "severityLevel" -> List.of(Objects.toString(issue.severityLevel(), ""));
       case "priorityLevel" -> List.of(Objects.toString(issue.priorityLevel(), ""));
+      case "bugStatus" -> List.of(Objects.toString(issue.bugStatus(), ""));
+      case "category" -> List.of(Objects.toString(issue.category(), ""));
+      case "issueState" -> List.of(issue.isClosed() ? "closed" : "open");
+      case "authorName" -> List.of(Objects.toString(issue.authorName(), ""));
+      case "assigneeName" -> List.of(Objects.toString(issue.assigneeName(), ""));
       default -> List.of();
     };
+  }
+
+  private CustomerIssueSummaryQuickFilterOptions loadQuickFilterOptions() {
+    try {
+      IssueFactRecordRepository.CustomerIssueFilterValues values =
+          issueFactRecordRepository.findCustomerIssueRecordFilterValues(
+              true,
+              false,
+              true,
+              false,
+              null);
+      return new CustomerIssueSummaryQuickFilterOptions(
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.moduleNames())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.bugStatuses())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.categories())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.authorNames())),
+          toStatisticOptions(OptionItemResponseFactory.fromLegacyBusinessValues(values.assigneeNames())));
+    } catch (Exception error) {
+      log.debug("Failed to load quick filter options for {}", BOARD_KEY, error);
+      return CustomerIssueSummaryQuickFilterOptions.empty();
+    }
+  }
+
+  private List<StatisticFilterOption> toStatisticOptions(List<OptionItemResponse> options) {
+    return options.stream()
+        .map(option -> new StatisticFilterOption(option.label(), option.value()))
+        .toList();
   }
 
   private StatisticFilterGroup applyDefaultMilestone(StatisticFilterGroup filterGroup) {
@@ -1079,4 +1136,16 @@ public class CustomerIssueDefectSummaryBoardService extends AbstractStatisticBoa
   }
 
   private record RuleFlowSnapshot(List<IssueSource> finalSources, List<StatisticRuleFlowStep> flowSteps) {}
+
+  private record CustomerIssueSummaryQuickFilterOptions(
+      List<StatisticFilterOption> moduleNames,
+      List<StatisticFilterOption> bugStatuses,
+      List<StatisticFilterOption> categories,
+      List<StatisticFilterOption> authorNames,
+      List<StatisticFilterOption> assigneeNames) {
+    static CustomerIssueSummaryQuickFilterOptions empty() {
+      return new CustomerIssueSummaryQuickFilterOptions(
+          List.of(), List.of(), List.of(), List.of(), List.of());
+    }
+  }
 }

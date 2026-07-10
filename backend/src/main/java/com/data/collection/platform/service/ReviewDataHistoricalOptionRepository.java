@@ -28,14 +28,14 @@ public class ReviewDataHistoricalOptionRepository {
     return queryDistinct(
         """
         select review_version
-          from review_data
-         where coalesce(deleted, false) = false
-           and nullif(trim(review_version), '') is not null
+          from review_records
+         where deleted = false
+           and nullif(btrim(review_version), '') is not null
          group by review_version
          order by max(created_at) desc nulls last
          limit 200
         """,
-        "review_data.review_version");
+        "review_records.review_version");
   }
 
   /**
@@ -47,14 +47,14 @@ public class ReviewDataHistoricalOptionRepository {
     return queryDistinct(
         """
         select module_name
-          from review_data
-         where coalesce(deleted, false) = false
-           and nullif(trim(module_name), '') is not null
+          from review_records
+         where deleted = false
+           and nullif(btrim(module_name), '') is not null
          group by module_name
          order by max(created_at) desc nulls last
          limit 200
         """,
-        "review_data.module_name");
+        "review_records.module_name");
   }
 
   /**
@@ -66,14 +66,14 @@ public class ReviewDataHistoricalOptionRepository {
     return queryDistinct(
         """
         select project_name
-          from review_data
-         where coalesce(deleted, false) = false
-           and nullif(trim(project_name), '') is not null
+          from review_records
+         where deleted = false
+           and nullif(btrim(project_name), '') is not null
          group by project_name
          order by max(created_at) desc nulls last
          limit 200
         """,
-        "review_data.project_name");
+        "review_records.project_name");
   }
 
   /**
@@ -84,14 +84,14 @@ public class ReviewDataHistoricalOptionRepository {
     return queryDistinct(
         """
         select review_owner
-          from review_data
-         where coalesce(deleted, false) = false
-           and nullif(trim(review_owner), '') is not null
+          from review_records
+         where deleted = false
+           and nullif(btrim(review_owner), '') is not null
          group by review_owner
          order by max(created_at) desc nulls last
          limit 200
         """,
-        "review_data.review_owner");
+        "review_records.review_owner");
   }
 
   /**
@@ -102,17 +102,15 @@ public class ReviewDataHistoricalOptionRepository {
   public List<String> loadReviewExperts() {
     return queryDistinct(
         """
-        select unnest(review_experts) as expert_name
-          from review_data
-         where coalesce(deleted, false) = false
-           and review_experts is not null
-           and array_length(review_experts, 1) > 0
+        select expert_name
+          from review_record_experts
+         where deleted = false
+           and nullif(btrim(expert_name), '') is not null
          group by expert_name
-        having nullif(trim(expert_name), '') is not null
          order by count(*) desc
          limit 200
         """,
-        "review_data.review_experts");
+        "review_record_experts.expert_name");
   }
 
   /**
@@ -122,15 +120,23 @@ public class ReviewDataHistoricalOptionRepository {
   public List<String> loadAuthors() {
     return queryDistinct(
         """
-        select author_name
-          from review_data_description
-         where coalesce(deleted, false) = false
-           and nullif(trim(author_name), '') is not null
-         group by author_name
+        select user_name
+          from (
+            select author_name as user_name, created_at
+              from review_records
+             where deleted = false
+               and nullif(btrim(author_name), '') is not null
+            union all
+            select owner_name as user_name, created_at
+              from review_problem_items
+             where deleted = false
+               and nullif(btrim(owner_name), '') is not null
+          ) users
+         group by user_name
          order by max(created_at) desc nulls last
          limit 200
         """,
-        "review_data_description.author_name");
+        "review_records.author_name/review_problem_items.owner_name");
   }
 
   private List<String> queryDistinct(String sql, String sourceName) {

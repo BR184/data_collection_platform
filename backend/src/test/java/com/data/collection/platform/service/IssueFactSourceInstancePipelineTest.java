@@ -123,6 +123,75 @@ class IssueFactSourceInstancePipelineTest {
         String.class)).isEqualTo("草图");
   }
 
+  @Test
+  void shouldUseStrictFixTemplateReasonOnlyForCustomerIssues() {
+    LocalDateTime now = LocalDateTime.of(2026, 7, 6, 9, 0);
+    jdbcTemplate.update(
+        "insert into ods_gitlab_projects(id, name, mirror_deleted) values (?, ?, false), (?, ?, false)",
+        325L,
+        "CC_Product",
+        9L,
+        "CrownCAD");
+    jdbcTemplate.update(
+        "insert into ods_gitlab_users(id, name, mirror_deleted) values (?, ?, false)",
+        503L,
+        "reviewer-c");
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_issues(
+          id, iid, project_id, title, author_id, created_at, updated_at, closed_at, state_id, milestone_id, mirror_deleted
+        ) values
+          (?, ?, ?, ?, ?, ?, ?, null, ?, null, false),
+          (?, ?, ?, ?, ?, ?, ?, null, ?, null, false)
+        """,
+        9003L,
+        90L,
+        325L,
+        "customer research-only reason",
+        503L,
+        now.minusHours(2),
+        now,
+        1,
+        9004L,
+        91L,
+        9L,
+        "system test fallback reason",
+        503L,
+        now.minusHours(1),
+        now,
+        1);
+    String researchTemplate =
+        "# 问题调研情况说明\n## 问题类型：\n* [x] 需求\n## 问题原因：新增需求";
+    jdbcTemplate.update(
+        """
+        insert into ods_gitlab_notes(
+          id, noteable_id, noteable_type, note, created_at, updated_at, mirror_deleted
+        ) values
+          (?, ?, 'Issue', ?, ?, ?, false),
+          (?, ?, 'Issue', ?, ?, ?, false)
+        """,
+        7001L,
+        9003L,
+        researchTemplate,
+        now,
+        now,
+        7002L,
+        9004L,
+        researchTemplate,
+        now,
+        now);
+
+    FactBuildResponse response = factBuildService.rebuildIssueFacts(true);
+
+    assertThat(response.affectedRows()).isEqualTo(2);
+    assertThat(jdbcTemplate.queryForObject(
+        "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9003",
+        String.class)).isNull();
+    assertThat(jdbcTemplate.queryForObject(
+        "select reason_category from issue_fact where source_instance = 'default' and issue_id = 9004",
+        String.class)).isEqualTo("新增需求");
+  }
+
   private void createMinimalOdsTables() {
     jdbcTemplate.execute(
         """

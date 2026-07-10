@@ -46,7 +46,7 @@ import org.springframework.util.StringUtils;
 public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoardService
     implements RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "customer-issue-delay-issues";
-  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-07-09-v2";
+  private static final String RULE_VERSION = "customer-issue-delay-issues@2026-07-10-v3";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总数";
   private static final String EMPTY_MODULE_LABEL = "未设定模块";
@@ -322,7 +322,7 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         "客户问题延期问题规则说明",
         RULE_VERSION,
         "当前统计先限定客户问题范围，再保留仍未关闭且已经命中延期规则的议题，按模块、紧急程度和延期类型统计。",
-        "未设定紧急程度按 P3 响应期限处理，并计入 P3 和总计；总数行按议题本身统计，不因多个模块重复计数。",
+        "对齐老平台延期问题统计表口径：表格数量只统计紧急程度命中 P1、P2 或 P3 的议题；未设定紧急程度可参与延期事实判定，但不计入 P3 和总计。",
         snapshot.flowSteps(),
         List.of(
             new StatisticRuleMetricDefinition(
@@ -340,8 +340,8 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
             new StatisticRuleMetricDefinition(
                 "priority",
                 "紧急程度归桶",
-                "P1/P2/P3 按紧急程度标签统计；未设定紧急程度按规则总表归入 P3。",
-                "P3 = 标注为 P3，或未标注紧急程度",
+                "P1/P2/P3 按紧急程度标签统计；未设定紧急程度不进入老平台延期问题统计表数量。",
+                "P1/P2/P3 = 紧急程度字段包含对应标签；其他值不计入表格数量",
                 null)),
         null);
   }
@@ -368,10 +368,12 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
         gitlabReadable.stream().filter(IssueSource::open).toList();
     List<IssueSource> delayed =
         openIssues.stream().filter(issue -> issue.responseDelayed() || issue.resolveDelayed()).toList();
+    List<IssueSource> legacyPriorityIssues =
+        delayed.stream().filter(IssueSource::hasLegacyPriorityBucket).toList();
     List<IssueSource> rowSources =
         scoped.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     List<IssueSource> filtered =
-        delayed.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
+        legacyPriorityIssues.stream().filter(issue -> matchesFilterGroup(issue, filterGroup)).toList();
     return new RuleFlowSnapshot(
         rowSources,
         filtered,
@@ -419,10 +421,17 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
                 delayed,
                 this::toRuleFlowSample),
             StatisticRuleFlowSupport.step(
+                "legacy-priority-filter",
+                "限定统计紧急程度",
+                "对齐老平台延期问题统计表：只统计紧急程度命中 P1、P2 或 P3 的议题，未设定紧急程度不进入表格数量。",
+                delayed.size(),
+                legacyPriorityIssues,
+                this::toRuleFlowSample),
+            StatisticRuleFlowSupport.step(
                 "condition-filter",
                 "应用页面筛选",
                 "应用当前页面条件筛选和顶部查询参数。",
-                delayed.size(),
+                legacyPriorityIssues.size(),
                 filtered,
                 this::toRuleFlowSample)));
   }
@@ -577,14 +586,14 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
 
   private Predicate<IssueSource> matchesMetric(String columnKey) {
     return switch (columnKey) {
-      case "resp_delay_p1" -> issue -> issue.responseDelayed() && issue.priorityBucket().equals(P1);
-      case "resp_delay_p2" -> issue -> issue.responseDelayed() && issue.priorityBucket().equals(P2);
-      case "resp_delay_p3" -> issue -> issue.responseDelayed() && issue.priorityBucket().equals(P3);
-      case "resp_delay_sum" -> IssueSource::responseDelayed;
-      case "fix_delay_p1" -> issue -> issue.resolveDelayed() && issue.priorityBucket().equals(P1);
-      case "fix_delay_p2" -> issue -> issue.resolveDelayed() && issue.priorityBucket().equals(P2);
-      case "fix_delay_p3" -> issue -> issue.resolveDelayed() && issue.priorityBucket().equals(P3);
-      case "fix_delay_sum" -> IssueSource::resolveDelayed;
+      case "resp_delay_p1" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P1);
+      case "resp_delay_p2" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P2);
+      case "resp_delay_p3" -> issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P3);
+      case "resp_delay_sum" -> issue -> issue.responseDelayed() && issue.hasLegacyPriorityBucket();
+      case "fix_delay_p1" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P1);
+      case "fix_delay_p2" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P2);
+      case "fix_delay_p3" -> issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P3);
+      case "fix_delay_sum" -> issue -> issue.resolveDelayed() && issue.hasLegacyPriorityBucket();
       default -> issue -> true;
     };
   }
@@ -741,14 +750,14 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
     }
 
     StatisticRowData toRowData() {
-      long respP1 = count(issue -> issue.responseDelayed() && P1.equals(issue.priorityBucket()));
-      long respP2 = count(issue -> issue.responseDelayed() && P2.equals(issue.priorityBucket()));
-      long respP3 = count(issue -> issue.responseDelayed() && P3.equals(issue.priorityBucket()));
-      long respSum = count(IssueSource::responseDelayed);
-      long fixP1 = count(issue -> issue.resolveDelayed() && P1.equals(issue.priorityBucket()));
-      long fixP2 = count(issue -> issue.resolveDelayed() && P2.equals(issue.priorityBucket()));
-      long fixP3 = count(issue -> issue.resolveDelayed() && P3.equals(issue.priorityBucket()));
-      long fixSum = count(IssueSource::resolveDelayed);
+      long respP1 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P1));
+      long respP2 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P2));
+      long respP3 = count(issue -> issue.responseDelayed() && issue.matchesLegacyPriority(P3));
+      long respSum = count(issue -> issue.responseDelayed() && issue.hasLegacyPriorityBucket());
+      long fixP1 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P1));
+      long fixP2 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P2));
+      long fixP3 = count(issue -> issue.resolveDelayed() && issue.matchesLegacyPriority(P3));
+      long fixSum = count(issue -> issue.resolveDelayed() && issue.hasLegacyPriorityBucket());
       return new StatisticRowData(
           rowKey,
           rowLabel,
@@ -841,7 +850,18 @@ public class CustomerIssueDelayIssuesBoardService extends AbstractStatisticBoard
       if (normalized.contains("p2")) {
         return P2;
       }
-      return P3;
+      if (normalized.contains("p3")) {
+        return P3;
+      }
+      return "";
+    }
+
+    boolean hasLegacyPriorityBucket() {
+      return matchesLegacyPriority(P1) || matchesLegacyPriority(P2) || matchesLegacyPriority(P3);
+    }
+
+    boolean matchesLegacyPriority(String expectedPriority) {
+      return normalize(priorityLevel).contains(normalize(expectedPriority));
     }
 
     String delayType() {

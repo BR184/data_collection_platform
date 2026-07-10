@@ -278,7 +278,20 @@ class StatisticBoardControllerTest {
     assertThat(response.definition().boardKey()).isEqualTo("customer-issue-defect-summary");
     assertThat(response.definition().rowHeaderLabel()).isEqualTo("模块名");
     assertThat(response.definition().filters()).extracting("key")
-        .containsExactly("projectName", "testingPhase", "milestoneTitle", "moduleName", "severityLevel", "priorityLevel");
+        .containsExactly(
+            "projectName",
+            "testingPhase",
+            "milestoneTitle",
+            "moduleName",
+            "issueIid",
+            "title",
+            "severityLevel",
+            "priorityLevel",
+            "bugStatus",
+            "category",
+            "issueState",
+            "authorName",
+            "assigneeName");
     assertThat(response.definition().columnGroups()).extracting("key")
         .containsExactly("level1", "level2", "level3", "suggestion", "priority-summary", "new-issue", "legacy");
     assertThat(response.meta().columnCount()).isEqualTo(38);

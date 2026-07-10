@@ -166,7 +166,9 @@ class CodeReviewControllerTest {
             .param("sortOrder", "desc"))
         .andExpect(status().isOk())
         .andExpect(header().string("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
-        .andExpect(header().string("Content-Disposition", "attachment; filename=\"CodeWalkThrough.xlsx\""))
+        .andExpect(header().string(
+            "Content-Disposition",
+            "attachment; filename=\"download.xlsx\"; filename*=UTF-8''%E4%BB%A3%E7%A0%81%E8%B5%B0%E6%9F%A5%E9%9D%9E%E6%B3%95%E6%95%B0%E6%8D%AE.xlsx"))
         .andExpect(content().bytes(new byte[] {1, 2, 3}));
   }
 
@@ -287,7 +289,7 @@ class CodeReviewControllerTest {
             LocalDateTime.of(2026, 4, 24, 9, 0),
             null,
             null);
-    when(codeReviewIllegalRecordService.getRealtimeStatus()).thenReturn(status);
+    when(codeReviewIllegalRecordService.getRealtimeStatus(null)).thenReturn(status);
     when(codeReviewIllegalRecordService.requestRealtimeRefresh()).thenReturn(status);
 
     mockMvc.perform(get("/api/code-review/illegal-records/status"))

@@ -40,11 +40,23 @@ export interface QualityBoardFixUserSeverityRowResponse {
   total: number;
 }
 
-export interface QualityBoardOtherOverviewResponse {
+export interface QualityBoardRdDashboardResponse {
   summary: QualityBoardRdOverviewResponse;
+  codeReviewSource: string;
+  codeReviewSourceOptions: OptionItemResponse[];
   assigneeDefectDensityRows: QualityBoardChartRowResponse[];
   authorDefectDensityRows: QualityBoardChartRowResponse[];
   fixUserSeverityRows: QualityBoardFixUserSeverityRowResponse[];
   frequencyCodeSubmissionRows: QualityBoardChartRowResponse[];
   defectRepairUserRows: QualityBoardChartRowResponse[];
+}
+
+export interface QualityBoardOtherOverviewResponse {
+  projectName: string;
+  functionDefectCountRows: QualityBoardChartRowResponse[];
+  functionDefectDensityRows: QualityBoardChartRowResponse[];
+  qualityRankingRows: QualityBoardChartRowResponse[];
+  memberUnresolvedRateRows: QualityBoardChartRowResponse[];
+  releaseLeakageRateRows: QualityBoardChartRowResponse[];
+  developmentLeakageRateRows: QualityBoardChartRowResponse[];
 }

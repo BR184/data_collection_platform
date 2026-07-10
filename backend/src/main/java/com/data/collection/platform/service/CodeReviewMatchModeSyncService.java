@@ -397,6 +397,7 @@ public class CodeReviewMatchModeSyncService {
     LocalDateTime walkthroughDate = localDateTime(rs.getObject("code_walkthrough_date"));
     Double annotationRate = doubleValue(rs.getObject("annotation_rate"));
     Integer bugCount = intValue(rs.getObject("bug_count"));
+    Integer defectCount = intValue(rs.getObject("defect_count"));
     TextQuerySupport.SearchIndex searchIndex =
         TextQuerySupport.buildSearchIndex(String.join(" ", safe(title), safe(author), safe(projectName), safe(repositoryName), safe(moduleName), safe(targetBranch), safe(mergedBy)));
     Integer addedLine = intValue(rs.getObject("added_line"));
@@ -433,9 +434,9 @@ public class CodeReviewMatchModeSyncService {
         text(rs, "annotation_rate_result"),
         text(rs, "bug_count_result"),
         annotationRate,
-        //兼容模式-MatchMode：老平台非法数据页“缺陷数量”展示的是 MR 级 SonarQube bug_count，
-        //同一 MR 被多条代码走查评论拆成多行时，数量字段必须保持一致。
-        bugCount,
+        //兼容模式-MatchMode：代码走查质量统计必须对齐老平台 defect_count；
+        //SonarQube 未关闭问题数量继续独立保存在 scan_bug_count，不能混入走查缺陷数。
+        defectCount,
         addedLine,
         intValue(rs.getObject("deleted_line")),
         intValue(rs.getObject("code_specification_count")),

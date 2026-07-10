@@ -30,7 +30,7 @@ class CodeReviewIllegalRuleRegistryTest {
             List.of(),
             null,
             null,
-            null,
+            "没有合法评论",
             LocalDateTime.of(2026, 4, 10, 8, 30),
             "未进行代码扫描",
             2,
@@ -56,6 +56,7 @@ class CodeReviewIllegalRuleRegistryTest {
 
     assertThat(CodeReviewIllegalRuleRegistry.evaluateIllegalTypes(source))
         .containsExactly(
+            CodeReviewIllegalRuleRegistry.MISSING_PROJECT_LABEL,
             CodeReviewIllegalRuleRegistry.MISSING_MODULE_LABEL,
             CodeReviewIllegalRuleRegistry.MISSING_REVIEW_LABEL,
             CodeReviewIllegalRuleRegistry.NOT_SCANNED_LABEL,

@@ -603,7 +603,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     return new CodeReviewIllegalRecordFilterOptionsResponse(
         REQUEST_TYPE_OPTIONS,
         toProjectOptions(options.projects()),
-        toCodeReviewRepositoryNameOptions(options.repositoryNames()),
+        toCodeReviewRepositoryNameOptions(matchMode, options.repositoryNames()),
         LEGACY_ILLEGAL_TYPE_OPTIONS,
         toLegacyOptions(options.targetBranches()),
         toLegacyOptions(options.owners()),
@@ -1270,10 +1270,14 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     return OptionItemResponseFactory.fromLegacyBusinessValues(visibleValues);
   }
 
-  private List<OptionItemResponse> toCodeReviewRepositoryNameOptions(List<String> values) {
+  private List<OptionItemResponse> toCodeReviewRepositoryNameOptions(boolean matchMode, List<String> values) {
     List<String> visibleValues = new ArrayList<>(
         values.stream().filter(repositoryName -> !isHiddenCodeReviewProjectName(repositoryName)).toList());
-    visibleValues.add(LEGACY_DEFAULT_REPOSITORY_NAME);
+    if (matchMode) {
+      //兼容模式-MatchMode：仅老平台兼容读路径补充 CrownCAD 默认仓库；
+      //非兼容模式必须只展示正式事实表中的仓库，避免兼容默认值污染新平台数据源。
+      visibleValues.add(LEGACY_DEFAULT_REPOSITORY_NAME);
+    }
     return OptionItemResponseFactory.fromLegacyBusinessValues(visibleValues);
   }
 

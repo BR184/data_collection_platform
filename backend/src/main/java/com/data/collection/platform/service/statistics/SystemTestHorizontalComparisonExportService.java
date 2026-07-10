@@ -1,9 +1,13 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
+import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
+import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.ExcelExportStyles;
+import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.ByteArrayOutputStream;
@@ -43,14 +47,20 @@ public class SystemTestHorizontalComparisonExportService {
   private final JdbcTemplate jdbcTemplate;
   private final JsonUtils jsonUtils;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final ReviewDataMatchModeRecordRepository matchModeReviewRepository;
 
   public SystemTestHorizontalComparisonExportService(
       JdbcTemplate jdbcTemplate,
       JsonUtils jsonUtils,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      CodeReviewMatchModeSwitchService matchModeSwitchService,
+      ReviewDataMatchModeRecordRepository matchModeReviewRepository) {
     this.jdbcTemplate = jdbcTemplate;
     this.jsonUtils = jsonUtils;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.matchModeSwitchService = matchModeSwitchService;
+    this.matchModeReviewRepository = matchModeReviewRepository;
   }
 
   public String exportCsv(Map<String, String> filters) {
@@ -92,8 +102,8 @@ public class SystemTestHorizontalComparisonExportService {
     addModuleRows(rows, loadModules(scope));
     mergeReview(rows, loadReviewMetrics(scope.reviewProjectName(), "需求说明书评审"), true);
     mergeReview(rows, loadReviewMetrics(scope.reviewProjectName(), "设计说明书评审"), false);
-    mergeCodeReview(rows, loadCodeReviewMetrics(scope.projectName(), true), true);
-    mergeCodeReview(rows, loadCodeReviewMetrics(scope.projectName(), false), false);
+    mergeCodeReview(rows, loadCodeReviewMetrics(scope.codeReviewProjectName(), true), true);
+    mergeCodeReview(rows, loadCodeReviewMetrics(scope.codeReviewProjectName(), false), false);
     mergeIssues(rows, loadIssueSources(scope), scope);
     if (StringUtils.hasText(scope.moduleName())) {
       rows.keySet().removeIf(moduleName -> !moduleName.equalsIgnoreCase(scope.moduleName()));
@@ -231,9 +241,9 @@ public class SystemTestHorizontalComparisonExportService {
                and lower(coalesce(target_branch, '')) = 'dev'
                and upper(coalesce(merge_request_state, '')) = 'MERGED'
             """);
-    if (StringUtils.hasText(scope.projectName())) {
+    if (StringUtils.hasText(scope.codeReviewProjectName())) {
       codeReviewSql.append("\n   and lower(project_name) like ?");
-      codeReviewArgs.add(like(scope.projectName()));
+      codeReviewArgs.add(like(scope.codeReviewProjectName()));
     }
     modules.addAll(
         jdbcTemplate.queryForList(
@@ -307,7 +317,7 @@ public class SystemTestHorizontalComparisonExportService {
       args.add(like(reviewProjectName));
     }
     sql.append("\n    group by r.module_name");
-    return jdbcTemplate.query(
+    List<ReviewMetric> metrics = new ArrayList<>(jdbcTemplate.query(
         sql.toString(),
         (rs, rowNum) ->
             new ReviewMetric(
@@ -319,20 +329,26 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getInt("functionality_count"),
                 rs.getInt("feasibility_count"),
                 rs.getBigDecimal("workload_hours") == null ? 0D : rs.getBigDecimal("workload_hours").doubleValue()),
-        args.toArray());
+        args.toArray()));
+    metrics.addAll(loadMatchModeReviewMetrics(reviewProjectName, reviewType));
+    return aggregateReviewMetrics(metrics);
   }
 
   private List<CodeReviewMetric> loadCodeReviewMetrics(String projectName, boolean crownCad) {
-      String sourcePredicate =
-          crownCad
-              ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
-              : "lower(coalesce(source_instance, '')) = 'dgm'";
+    if (matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()) {
+      return loadMatchModeCodeReviewMetrics(projectName, crownCad);
+    }
+    String sourcePredicate =
+        crownCad
+            ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
+            : "lower(coalesce(source_instance, '')) = 'dgm'";
     List<Object> args = new ArrayList<>();
     StringBuilder sql =
         new StringBuilder(
             """
             select
               module_name,
+              coalesce(sum(case when coalesce(defect_count, 0) = -1 then 0 else coalesce(defect_count, 0) end), 0)::integer as defect_count,
               coalesce(sum(added_lines), 0)::integer as added_lines,
               coalesce(sum(code_specification_count), 0)::integer as code_specification_count,
               coalesce(sum(code_logic_specification_count), 0)::integer as code_logic_specification_count,
@@ -342,23 +358,181 @@ public class SystemTestHorizontalComparisonExportService {
               coalesce(sum(review_duration_minutes), 0)::integer as review_duration_minutes,
               coalesce(avg(review_efficiency_per_hour), 0)::numeric as review_efficiency_per_hour,
               coalesce(avg(review_speed_loc_per_hour), 0)::numeric as review_speed_loc_per_hour
-            from merge_request_fact
-            where deleted = false
-              and %s
-              and lower(coalesce(target_branch, '')) = 'dev'
-              and upper(coalesce(merge_request_state, '')) = 'MERGED'
+            from (
+              select
+                module_name,
+                defect_count,
+                case
+                  when row_number() over(partition by project_id, merge_request_id order by id asc) = 1
+                  then added_lines
+                  else 0
+                end as added_lines,
+                code_specification_count,
+                code_logic_specification_count,
+                design_specification_count,
+                performance_specification_count,
+                other_specification_count,
+                review_duration_minutes,
+                review_efficiency_per_hour,
+                review_speed_loc_per_hour
+              from merge_request_fact
+              where deleted = false
+                and %s
+                and lower(coalesce(target_branch, '')) = 'dev'
+                and upper(coalesce(merge_request_state, '')) = 'MERGED'
             """
                 .formatted(sourcePredicate));
-    if (StringUtils.hasText(projectName)) {
-      sql.append("\n      and lower(project_name) like ?");
-      args.add(like(projectName));
+    List<String> projectNames = codeReviewProjectNames(projectName, crownCad);
+    if (!projectNames.isEmpty()) {
+      sql.append("\n      and (")
+          .append(String.join(" or ", projectNames.stream().map(ignored -> "lower(project_name) like ?").toList()))
+          .append(")");
+      projectNames.forEach(value -> args.add(like(value)));
     }
-    sql.append("\n    group by module_name");
+    sql.append("\n    ) scoped group by module_name");
     return jdbcTemplate.query(
         sql.toString(),
         (rs, rowNum) ->
             new CodeReviewMetric(
                 text(rs.getString("module_name")),
+                rs.getInt("defect_count"),
+                rs.getInt("added_lines"),
+                rs.getInt("code_specification_count"),
+                rs.getInt("code_logic_specification_count"),
+                rs.getInt("design_specification_count"),
+                rs.getInt("performance_specification_count"),
+                rs.getInt("other_specification_count"),
+                rs.getInt("review_duration_minutes"),
+                rs.getBigDecimal("review_efficiency_per_hour") == null
+                    ? 0D
+                    : rs.getBigDecimal("review_efficiency_per_hour").doubleValue(),
+                rs.getBigDecimal("review_speed_loc_per_hour") == null
+                    ? 0D
+                    : rs.getBigDecimal("review_speed_loc_per_hour").doubleValue()),
+        args.toArray());
+  }
+
+  private List<ReviewMetric> loadMatchModeReviewMetrics(String reviewProjectName, String reviewType) {
+    if (!matchModeSwitchService.isReviewDataCompatibilityReadEnabled()) {
+      return List.of();
+    }
+    List<ReviewDataRecordRowResponse> records = matchModeReviewRepository.loadRecords().stream()
+        .filter(record -> matchesText(record.projectName(), reviewProjectName))
+        .filter(record -> matchesText(record.reviewType(), reviewType))
+        .toList();
+    if (records.isEmpty()) {
+      return List.of();
+    }
+    List<ReviewMetric> metrics = new ArrayList<>();
+    for (ReviewDataRecordRowResponse record : records) {
+      List<ReviewDataProblemItemResponse> problems = matchModeReviewRepository.listProblemItems(record.id());
+      metrics.add(
+          new ReviewMetric(
+              text(record.moduleName()),
+              positive(record.reviewScalePages()),
+              positive(record.problemCount()),
+              reviewProblemCategoryCount(record, problems, "文档规范"),
+              reviewProblemCategoryCount(record, problems, "完整性"),
+              reviewProblemCategoryCount(record, problems, "功能性"),
+              reviewProblemCategoryCount(record, problems, "可行性"),
+              0D));
+    }
+    return metrics;
+  }
+
+  private List<ReviewMetric> aggregateReviewMetrics(List<ReviewMetric> metrics) {
+    Map<String, ReviewMetricAccumulator> grouped = new LinkedHashMap<>();
+    for (ReviewMetric metric : metrics) {
+      if (!StringUtils.hasText(metric.moduleName())) {
+        continue;
+      }
+      grouped.computeIfAbsent(metric.moduleName(), ReviewMetricAccumulator::new).add(metric);
+    }
+    return grouped.values().stream().map(ReviewMetricAccumulator::toMetric).toList();
+  }
+
+  private int reviewProblemCategoryCount(
+      ReviewDataRecordRowResponse record,
+      List<ReviewDataProblemItemResponse> problems,
+      String category) {
+    if (problems == null || problems.isEmpty()) {
+      return switch (category) {
+        case "文档规范" -> positive(record.docSpecificationCount());
+        case "完整性" -> positive(record.integrityCount());
+        case "功能性" -> positive(record.functionalityCount());
+        case "可行性" -> positive(record.feasibilityCount());
+        default -> 0;
+      };
+    }
+    return (int) problems.stream()
+        .filter(problem -> category.equals(text(problem.problemCategory())))
+        .count();
+  }
+
+  private List<CodeReviewMetric> loadMatchModeCodeReviewMetrics(String projectName, boolean crownCad) {
+    String sourcePredicate =
+        crownCad
+            ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
+            : "lower(coalesce(source_instance, '')) = 'dgm'";
+    List<Object> args = new ArrayList<>();
+    StringBuilder sql =
+        new StringBuilder(
+            """
+            select
+              module_name,
+              coalesce(sum(case when coalesce(defect_count, 0) = -1 then 0 else coalesce(defect_count, 0) end), 0)::integer as defect_count,
+              coalesce(sum(added_lines), 0)::integer as added_lines,
+              coalesce(sum(code_specification_count), 0)::integer as code_specification_count,
+              coalesce(sum(code_logic_specification_count), 0)::integer as code_logic_specification_count,
+              coalesce(sum(design_specification_count), 0)::integer as design_specification_count,
+              coalesce(sum(performance_specification_count), 0)::integer as performance_specification_count,
+              coalesce(sum(other_specification_count), 0)::integer as other_specification_count,
+              coalesce(sum(review_duration_minutes), 0)::integer as review_duration_minutes,
+              coalesce(avg(review_efficiency_per_hour), 0)::numeric as review_efficiency_per_hour,
+              coalesce(avg(review_speed_loc_per_hour), 0)::numeric as review_speed_loc_per_hour
+            from (
+              select
+                module_name,
+                defect_count,
+                case
+                  when row_number() over(partition by merge_request_iid order by id asc) = 1
+                  then added_lines
+                  else 0
+                end as added_lines,
+                code_specification_count,
+                code_logic_specification_count,
+                design_specification_count,
+                performance_specification_count,
+                other_specification_count,
+                review_duration_minutes,
+                review_efficiency_per_hour,
+                review_speed_loc_per_hour
+              from code_review_match_mode_records
+              where %s
+                and lower(coalesce(target_branch, '')) = 'dev'
+                and upper(coalesce(merge_request_state, '')) = 'MERGED'
+            """
+                .formatted(sourcePredicate));
+    List<String> projectNames = codeReviewProjectNames(projectName, crownCad);
+    if (!projectNames.isEmpty()) {
+      sql.append("\n      and (")
+          .append(String.join(" or ", projectNames.stream().map(ignored -> "lower(project_name) like ?").toList()))
+          .append(")");
+      projectNames.forEach(value -> args.add(like(value)));
+    }
+    sql.append(
+        """
+            ) scoped
+            where nullif(btrim(coalesce(module_name, '')), '') is not null
+              and module_name not in ('无需标注', '未标注模块名')
+            group by module_name
+            """);
+    return jdbcTemplate.query(
+        sql.toString(),
+        (rs, rowNum) ->
+            new CodeReviewMetric(
+                text(rs.getString("module_name")),
+                rs.getInt("defect_count"),
                 rs.getInt("added_lines"),
                 rs.getInt("code_specification_count"),
                 rs.getInt("code_logic_specification_count"),
@@ -547,6 +721,30 @@ public class SystemTestHorizontalComparisonExportService {
     return value == null ? "" : value.trim();
   }
 
+  private static boolean matchesText(String value, String expected) {
+    return !StringUtils.hasText(expected)
+        || text(value).toLowerCase(Locale.ROOT).contains(text(expected).toLowerCase(Locale.ROOT));
+  }
+
+  private static int positive(Integer value) {
+    return value == null ? 0 : Math.max(0, value);
+  }
+
+  private static List<String> codeReviewProjectNames(String projectName, boolean crownCad) {
+    String normalized = text(projectName);
+    if (!StringUtils.hasText(normalized)) {
+      return List.of();
+    }
+    if (crownCad) {
+      return List.of(normalized);
+    }
+    String legacyDgmName = normalized.replaceFirst("^CC(\\d{4})(R\\d)$", "CrownCAD $1 $2");
+    if (legacyDgmName.equals(normalized)) {
+      return List.of(normalized);
+    }
+    return List.of(normalized, legacyDgmName);
+  }
+
   private static List<String> splitValues(String value) {
     String normalized = text(value);
     if (!StringUtils.hasText(normalized)) {
@@ -600,7 +798,7 @@ public class SystemTestHorizontalComparisonExportService {
   }
 
   private static CodeReviewMetric emptyCodeReview() {
-    return new CodeReviewMetric("", 0, 0, 0, 0, 0, 0, 0, 0D, 0D);
+    return new CodeReviewMetric("", 0, 0, 0, 0, 0, 0, 0, 0, 0D, 0D);
   }
 
   private static List<ExportColumn> buildExportColumns() {
@@ -735,7 +933,12 @@ public class SystemTestHorizontalComparisonExportService {
     }
   }
 
-  private record ExportScope(String projectName, String reviewProjectName, String testingPhase, String moduleName) {
+  private record ExportScope(
+      String projectName,
+      String reviewProjectName,
+      String codeReviewProjectName,
+      String testingPhase,
+      String moduleName) {
     static ExportScope from(Map<String, String> filters, StatisticFilterGroup filterGroup) {
       String project = firstConditionValue(filterGroup, "projectName");
       String phase = firstConditionValue(filterGroup, "testingPhase");
@@ -749,15 +952,18 @@ public class SystemTestHorizontalComparisonExportService {
       if (!StringUtils.hasText(module) && filters != null) {
         module = text(filters.get("moduleName"));
       }
+      String reviewProject = StringUtils.hasText(project) ? project : phase;
+      String codeReviewProject = StringUtils.hasText(project) ? project : phase;
       return new ExportScope(
           blankToNull(project),
-          reviewProjectName(project),
+          reviewProjectName(reviewProject),
+          blankToNull(codeReviewProject),
           blankToNull(phase),
           blankToNull(module));
     }
 
     ExportScope withoutModuleFilter() {
-      return new ExportScope(projectName, reviewProjectName, testingPhase, null);
+      return new ExportScope(projectName, reviewProjectName, codeReviewProjectName, testingPhase, null);
     }
 
     private static String firstConditionValue(StatisticFilterGroup filterGroup, String fieldKey) {
@@ -817,8 +1023,46 @@ public class SystemTestHorizontalComparisonExportService {
     }
   }
 
+  private static final class ReviewMetricAccumulator {
+    private final String moduleName;
+    private int reviewPages;
+    private int defectCount;
+    private int docSpecification;
+    private int integrity;
+    private int functionality;
+    private int feasibility;
+    private double workloadHours;
+
+    private ReviewMetricAccumulator(String moduleName) {
+      this.moduleName = moduleName;
+    }
+
+    private void add(ReviewMetric metric) {
+      reviewPages += metric.reviewPages();
+      defectCount += metric.defectCount();
+      docSpecification += metric.docSpecification();
+      integrity += metric.integrity();
+      functionality += metric.functionality();
+      feasibility += metric.feasibility();
+      workloadHours += metric.workloadHours();
+    }
+
+    private ReviewMetric toMetric() {
+      return new ReviewMetric(
+          moduleName,
+          reviewPages,
+          defectCount,
+          docSpecification,
+          integrity,
+          functionality,
+          feasibility,
+          workloadHours);
+    }
+  }
+
   private record CodeReviewMetric(
       String moduleName,
+      int defectCount,
       int addedLines,
       int codeSpecification,
       int codeLogicSpecification,
@@ -829,11 +1073,7 @@ public class SystemTestHorizontalComparisonExportService {
       double reviewEfficiencyPerHour,
       double reviewSpeedLocPerHour) {
     int defectSum() {
-      return codeSpecification
-          + codeLogicSpecification
-          + designSpecification
-          + performanceSpecification
-          + otherSpecification;
+      return defectCount;
     }
 
     String density() {

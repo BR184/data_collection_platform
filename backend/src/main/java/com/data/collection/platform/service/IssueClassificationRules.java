@@ -2,7 +2,6 @@ package com.data.collection.platform.service;
 
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class IssueClassificationRules {
@@ -63,7 +62,7 @@ final class IssueClassificationRules {
   private static final Pattern PROBLEM_TYPE_DEFECT_PATTERN = Pattern.compile("\\[[xX]\\]\\s+缺陷");
   private static final Pattern PROBLEM_TYPE_REQUIREMENT_PATTERN = Pattern.compile("\\[[xX]\\]\\s+需求");
   private static final Pattern PLAN_DATE_PATTERN =
-      Pattern.compile("\\d{4}\\s*(?:年|[.,，、/·`])\\s*\\d{1,2}\\s*(?:月|[.,，、/·`])\\s*\\d{1,2}\\s*(?:日)?");
+      Pattern.compile("\\d{4}[年.,，]\\d{1,2}[月.,，]\\d{1,2}[日]?");
 
   private IssueClassificationRules() {
   }
@@ -74,6 +73,10 @@ final class IssueClassificationRules {
       return snapshot.legacyReasonText();
     }
     return normalizeReasonCategoryFromLabelsOrText(labels, notesText);
+  }
+
+  static String normalizeLegacyFixReasonCategory(String notesText) {
+    return fixTemplateSnapshot(notesText).legacyReasonText();
   }
 
   private static String normalizeReasonCategoryFromLabelsOrText(List<String> labels, String notesText) {
@@ -197,10 +200,11 @@ final class IssueClassificationRules {
     }
     if (fixed) {
       IssueTemplateSnapshot snapshot = fixTemplateSnapshot(notesText);
-      if (!snapshot.hasTemplateReply()) {
+      String legacyReasonText = snapshot.legacyReasonText();
+      if (!org.springframework.util.StringUtils.hasText(legacyReasonText)) {
         reasons.add(TEMPLATE_NOT_FOLLOWED);
       } else {
-        int reasonCount = legacyMajorReasonCount(snapshot);
+        int reasonCount = oldPlatformMajorByCauseSplitCount(legacyReasonText);
         if (reasonCount != 1) {
           reasons.add(NON_UNIQUE_REASON);
         }
@@ -316,15 +320,7 @@ final class IssueClassificationRules {
     if (content == null) {
       return false;
     }
-    Matcher matcher = PLAN_DATE_PATTERN.matcher(content);
-    int count = 0;
-    while (matcher.find()) {
-      count++;
-      if (count > 1) {
-        return false;
-      }
-    }
-    return count == 1;
+    return PLAN_DATE_PATTERN.matcher(content).matches();
   }
 
   private static String sectionContent(String[] lines, String sectionName) {

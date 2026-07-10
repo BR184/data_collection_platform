@@ -204,7 +204,8 @@ class CodeReviewIllegalRecordServiceTest {
 
   @Test
   void shouldBuildFilterOptionsByLegacyDropdownRules() {
-    when(sourceLoader.loadFilterOptions(any()))
+    when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(true);
+    when(matchModeRecordLoader.loadFilterOptions(any()))
         .thenReturn(
             new CodeReviewIllegalRecordFilterOptionValues(
                 List.of(),
@@ -219,9 +220,12 @@ class CodeReviewIllegalRecordServiceTest {
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
 
     assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("工程图", "草图");
+    assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("CrownCAD", "repo-a", "repo-b");
     assertThat(response.owners()).extracting(item -> item.value()).containsExactly("Author A");
     assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("李四");
-    assertThat(response.projectNames()).extracting(item -> item.value()).containsExactly("CrownCAD");
+    assertThat(response.projectNames())
+        .extracting(item -> item.value())
+        .containsExactly("CC 2025 R4&2026 R1", "CC2025R4", "CC2026R1", "CrownCAD", "广数CAM");
     assertThat(response.targetBranches()).extracting(item -> item.value()).containsExactly("dev", "release");
   }
 

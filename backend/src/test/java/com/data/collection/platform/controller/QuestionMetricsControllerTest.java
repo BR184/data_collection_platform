@@ -25,8 +25,10 @@ import com.data.collection.platform.service.SystemTestIllegalRecordQueryRequest;
 import com.data.collection.platform.service.SystemTestIllegalRecordService;
 import com.data.collection.platform.service.SystemTestIssueSearchService;
 import com.data.collection.platform.service.SystemTestIssueSearchQueryRequest;
+import com.data.collection.platform.service.statistics.SystemTestIssueMultiBoardService;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +43,7 @@ class QuestionMetricsControllerTest {
 
   @Mock private SystemTestIssueSearchService systemTestIssueSearchService;
   @Mock private SystemTestIllegalRecordService systemTestIllegalRecordService;
+  @Mock private SystemTestIssueMultiBoardService systemTestIssueMultiBoardService;
   @Mock private IssueFactRealtimeRefreshService realtimeRefreshService;
 
   private MockMvc mockMvc;
@@ -52,6 +55,7 @@ class QuestionMetricsControllerTest {
                 new QuestionMetricsController(
                     systemTestIssueSearchService,
                     systemTestIllegalRecordService,
+                    systemTestIssueMultiBoardService,
                     new QuestionMetricsRequestAssembler(new IssueFactRecordListRequestAssembler()),
                     realtimeRefreshService))
             .build();
@@ -64,10 +68,12 @@ class QuestionMetricsControllerTest {
                 new IssueFactRecordListRequest(
                     1001L,
                     "草图",
+                    null,
                     "809",
                     "崩溃",
                     "Rocksdb",
                     "草图",
+                    null,
                     "LEVEL2",
                     null,
                     "opened",
@@ -78,7 +84,7 @@ class QuestionMetricsControllerTest {
                     "2026-04-21",
                     "2026-04-10",
                     "2026-04-22",
-                    "default",
+                    null,
                     2,
                     10,
                     "updatedAt",
@@ -201,7 +207,6 @@ class QuestionMetricsControllerTest {
                     null,
                     null,
                     null,
-                    "default",
                     1,
                     20,
                     "updatedAt",
@@ -223,7 +228,7 @@ class QuestionMetricsControllerTest {
         .andExpect(status().isOk())
         .andExpect(header().string(
             HttpHeaders.CONTENT_DISPOSITION,
-            "attachment; filename=\"系统测试问题记录.xlsx\"; filename*=UTF-8''%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E9%97%AE%E9%A2%98%E8%AE%B0%E5%BD%95.xlsx"))
+            "attachment; filename=\"download.xlsx\"; filename*=UTF-8''%E5%A4%9A%E5%85%83%E8%AE%AE%E9%A2%98%E6%9F%A5%E8%AF%A2%E7%BB%93%E6%9E%9C.xlsx"))
         .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .andExpect(content().bytes(new byte[] {1, 2, 3}));
   }
@@ -235,10 +240,12 @@ class QuestionMetricsControllerTest {
                 new IssueFactRecordListRequest(
                     1001L,
                     "草图",
+                    null,
                     "809",
                     "崩溃",
                     "Rocksdb",
                     "草图",
+                    null,
                     "LEVEL2",
                     null,
                     "opened",
@@ -249,7 +256,7 @@ class QuestionMetricsControllerTest {
                     "2026-04-21",
                     "2026-04-10",
                     "2026-04-22",
-                    "default",
+                    null,
                     2,
                     10,
                     "updatedAt",
@@ -368,7 +375,6 @@ class QuestionMetricsControllerTest {
                     null,
                     null,
                     null,
-                    "default",
                     1,
                     20,
                     "updatedAt",
@@ -393,7 +399,7 @@ class QuestionMetricsControllerTest {
         .andExpect(status().isOk())
         .andExpect(header().string(
             HttpHeaders.CONTENT_DISPOSITION,
-            "attachment; filename=\"系统测试非法数据.xlsx\"; filename*=UTF-8''%E7%B3%BB%E7%BB%9F%E6%B5%8B%E8%AF%95%E9%9D%9E%E6%B3%95%E6%95%B0%E6%8D%AE.xlsx"))
+            "attachment; filename=\"download.xlsx\"; filename*=UTF-8''%E5%A4%9A%E5%85%83%E8%AE%AE%E9%A2%98%E6%9F%A5%E8%AF%A2%E7%BB%93%E6%9E%9C.xlsx"))
         .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         .andExpect(content().bytes(new byte[] {4, 5, 6}));
   }
@@ -427,7 +433,7 @@ class QuestionMetricsControllerTest {
     RealtimeWorkspaceStatusResponse status =
         new RealtimeWorkspaceStatusResponse(
             "system-test-issues", true, "READY", "刷新完成", false, null, null, null);
-    when(realtimeRefreshService.getStatus("system-test-issues")).thenReturn(status);
+    when(realtimeRefreshService.getStatus("system-test-issues", Map.of())).thenReturn(status);
     when(realtimeRefreshService.requestRefresh("system-test-issues")).thenReturn(status);
 
     mockMvc.perform(get("/api/question-metrics/issues/status"))
@@ -445,7 +451,7 @@ class QuestionMetricsControllerTest {
     RealtimeWorkspaceStatusResponse status =
         new RealtimeWorkspaceStatusResponse(
             "system-test-illegal-records", true, "READY", "刷新完成", false, null, null, null);
-    when(realtimeRefreshService.getStatus("system-test-illegal-records")).thenReturn(status);
+    when(realtimeRefreshService.getStatus("system-test-illegal-records", Map.of())).thenReturn(status);
     when(realtimeRefreshService.requestRefresh("system-test-illegal-records")).thenReturn(status);
 
     mockMvc.perform(get("/api/question-metrics/illegal-records/status"))
