@@ -21,6 +21,16 @@ class OptionItemResponseFactoryTest {
             "张三",
             "CC 2025 R4&2026 R1")))
         .extracting(item -> item.value())
-        .containsExactly("CC 2025 R4&2026 R1", "工程图", "张三", "草图");
+        .containsExactly("草图", "工程图", "张三", "CC 2025 R4&2026 R1");
+  }
+
+  @Test
+  void shouldKeepGenericOptionsSortedByLabelUntilPageSpecificPolicyIsProvided() {
+    assertThat(OptionItemResponseFactory.fromValues(
+            List.of("草图", "工程图", "二次开发"),
+            TextQuerySupport::trimToNull,
+            java.util.function.Function.identity()))
+        .extracting(item -> item.value())
+        .containsExactly("二次开发", "工程图", "草图");
   }
 }

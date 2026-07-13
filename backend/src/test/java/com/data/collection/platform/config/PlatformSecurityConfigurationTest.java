@@ -2,6 +2,7 @@ package com.data.collection.platform.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -28,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -100,6 +102,22 @@ class PlatformSecurityConfigurationTest {
         .andExpect(jsonPath("$.data.saved").value(true));
   }
 
+  @Test
+  void shouldAllowReviewProblemItemDeleteWithoutSessionWhenCsrfTokenIsValid() throws Exception {
+    MvcResult csrfResult = mockMvc.perform(get("/api/auth/csrf-probe"))
+        .andExpect(status().isOk())
+        .andReturn();
+    Cookie csrfCookie = csrfResult.getResponse().getCookie("XSRF-TOKEN");
+    assertThat(csrfCookie).isNotNull();
+
+    mockMvc.perform(delete("/api/review-data/records/7/problem-items/13")
+            .cookie(csrfCookie)
+            .header("X-XSRF-TOKEN", csrfCookie.getValue()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.deleted").value(true));
+  }
+
   @Configuration
   @EnableWebMvc
   @EnableWebSecurity
@@ -122,6 +140,11 @@ class PlatformSecurityConfigurationTest {
     @GetMapping("/api/auth/csrf-probe")
     ApiResponse<Map<String, Object>> csrfProbe() {
       return ApiResponse.success(Map.of("ready", true));
+    }
+
+    @DeleteMapping("/api/review-data/records/{recordId}/problem-items/{itemId}")
+    ApiResponse<Map<String, Object>> deleteReviewProblemItem() {
+      return ApiResponse.success("删除评审问题成功", Map.of("deleted", true));
     }
 
     @PostMapping("/api/gitlab-sync/system-hook")

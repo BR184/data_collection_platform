@@ -101,10 +101,16 @@ public class CodeReviewMatchModeRecordLoader {
             safeRequest.repositoryName(),
             null,
             safeRequest.source());
+    //兼容模式-MatchMode：老平台项目下拉直接按 spider_crowncad_data.name 查询全量 project_name，
+    //不能复用非法记录的合并时间、模块、合并状态和 dev 分支范围，否则合法历史项目会从候选中消失。
+    QueryParts projectNameParts =
+        buildProjectNameOptionQuery(safeRequest.repositoryName(), safeRequest.source());
     Map<String, List<String>> projectValues =
         queryOptionValues(projectParts, Map.of("repositoryNames", "repository_name"));
     Map<String, List<String>> scopedValues =
         queryOptionValues(scopedParts, scopedOptionColumns());
+    Map<String, List<String>> projectNameValues =
+        queryOptionValues(projectNameParts, Map.of("projectNames", "project_name"));
     return new CodeReviewIllegalRecordFilterOptionValues(
         queryProjectOptions(projectParts),
         projectValues.getOrDefault("repositoryNames", List.of()),
@@ -112,7 +118,7 @@ public class CodeReviewMatchModeRecordLoader {
         scopedValues.getOrDefault("owners", List.of()),
         scopedValues.getOrDefault("mergedBys", List.of()),
         scopedValues.getOrDefault("moduleNames", List.of()),
-        scopedValues.getOrDefault("projectNames", List.of()));
+        projectNameValues.getOrDefault("projectNames", List.of()));
   }
 
   //兼容模式-MatchMode
@@ -229,6 +235,15 @@ public class CodeReviewMatchModeRecordLoader {
     return new QueryParts(where.toString(), args);
   }
 
+  //兼容模式-MatchMode：这是老平台项目候选的独立查询边界；删除兼容模式时可随 Match mode loader 整体移除。
+  private QueryParts buildProjectNameOptionQuery(String repositoryName, String source) {
+    StringBuilder where = new StringBuilder(" where 1 = 1");
+    List<Object> args = new ArrayList<>();
+    appendEqIgnoreCase(where, args, "repository_name", repositoryName);
+    appendSourceInstance(where, args, source);
+    return new QueryParts(where.toString(), args);
+  }
+
   private List<CodeReviewIllegalRecordFilterProjectOption> queryProjectOptions(QueryParts parts) {
     return jdbcTemplate.query(
         "select project_id, project_name from code_review_match_mode_records "
@@ -285,7 +300,6 @@ public class CodeReviewMatchModeRecordLoader {
     columns.put("owners", "author_name");
     columns.put("mergedBys", "merge_user_name");
     columns.put("moduleNames", "module_name");
-    columns.put("projectNames", "project_name");
     return columns;
   }
 

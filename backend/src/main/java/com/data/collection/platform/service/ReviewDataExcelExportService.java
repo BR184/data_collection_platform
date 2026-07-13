@@ -45,12 +45,12 @@ public class ReviewDataExcelExportService {
     "所属项目"
   };
   private static final String[] PROBLEM_HEADERS = {
-    "文档类型",
+    "评审文档类型",
     "评审的工作产品",
     "评审类别",
     "文档类别",
     "评审缺陷个数",
-    "评审规模/缺陷个数",
+    "需求页数/个数",
     "评审工作量（小时）",
     "问题类别数量统计-文档",
     "问题类别数量统计-完整性",
@@ -64,13 +64,9 @@ public class ReviewDataExcelExportService {
   };
 
   private final ReviewDataRecordQueryService queryService;
-  private final ReviewDataRecordPersistenceSupport persistenceSupport;
 
-  public ReviewDataExcelExportService(
-      ReviewDataRecordQueryService queryService,
-      ReviewDataRecordPersistenceSupport persistenceSupport) {
+  public ReviewDataExcelExportService(ReviewDataRecordQueryService queryService) {
     this.queryService = queryService;
-    this.persistenceSupport = persistenceSupport;
   }
 
   public byte[] exportReviewRecordsWorkbook(ReviewDataRecordQueryRequest request) {
@@ -78,7 +74,7 @@ public class ReviewDataExcelExportService {
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       ExportStyles styles = new ExportStyles(workbook);
-      var sheet = workbook.createSheet("Data");
+      var sheet = workbook.createSheet("评审列表");
       writeHeader(sheet.createRow(0), styles.header, RECORD_HEADERS);
       int rowIndex = 1;
       for (ReviewDataRecordRowResponse record : records) {
@@ -87,6 +83,7 @@ public class ReviewDataExcelExportService {
       setColumnWidths(sheet, 50, 20, 30, 18, 14, 12, 12, 12, 12, 18, 18, 18, 18, 12, 16, 22, 18, 22, 30);
       sheet.createFreezePane(0, 1);
       ExcelExportStyles.applyHeaderRows(sheet, 1);
+      writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -104,9 +101,6 @@ public class ReviewDataExcelExportService {
 
   private byte[] exportProblemDetailsWorkbook(
       List<ReviewDataRecordRowResponse> records, ReviewDataRecordQueryRequest request) {
-    Map<Long, List<ReviewDataProblemItemResponse>> problemItemsByRecordId =
-        persistenceSupport.listProblemItemsByRecordIds(
-            records.stream().map(ReviewDataRecordRowResponse::id).filter(id -> id != null).toList());
     try (Workbook workbook = new XSSFWorkbook();
         ByteArrayOutputStream output = new ByteArrayOutputStream()) {
       ExportStyles styles = new ExportStyles(workbook);
@@ -114,13 +108,18 @@ public class ReviewDataExcelExportService {
       writeHeader(sheet.createRow(0), styles.header, PROBLEM_HEADERS);
       int rowIndex = 1;
       for (ReviewDataRecordRowResponse record : records) {
-        List<ReviewDataProblemItemResponse> items =
-            problemItemsByRecordId.getOrDefault(record.id(), List.of());
+        //兼容模式-MatchMode：问题清单导出必须跟前端详情/展开行使用同一读源。
+        //开启兼容读时负 ID 从老平台 Mongo 兼容表取问题项，关闭后只读正式 review_problem_items。
+        List<ReviewDataProblemItemResponse> items = queryService.listProblemItems(record.id());
+        if (items.isEmpty()) {
+          continue;
+        }
         writeProblemSummaryCells(sheet.createRow(rowIndex++), record, items, styles.body);
       }
       setColumnWidths(sheet, 18, 30, 24, 18, 16, 12, 14, 22, 24, 24, 24, 18, 22, 18, 14, 14);
       sheet.createFreezePane(0, 1);
       ExcelExportStyles.applyHeaderRows(sheet, 1);
+      writeFilterSnapshotSheet(workbook, styles, request);
       workbook.write(output);
       return output.toByteArray();
     } catch (IOException e) {
@@ -194,52 +193,25 @@ public class ReviewDataExcelExportService {
 
   private void writeProblemSummaryCells(
       Row row, ReviewDataRecordRowResponse record, List<ReviewDataProblemItemResponse> items, CellStyle style) {
-    int defectCount = items.size();
-    int sumCount = record.reviewScalePages() == null ? 0 : record.reviewScalePages();
-    int value1 = defectCount == 0 ? 0 : sumCount / defectCount;
-    double workload = items.stream()
-        .map(ReviewDataProblemItemResponse::workloadHours)
-        .filter(java.util.Objects::nonNull)
-        .mapToDouble(Double::doubleValue)
-        .sum();
-    int docSpecification = countProblemCategory(items, "文档规范");
-    int integrity = countProblemCategory(items, "完整性");
-    int functionality = countProblemCategory(items, "功能性");
-    int feasibility = countProblemCategory(items, "可行性");
-    double weightedDefectDensity = value1 == 0
-        ? 0D
-        : (docSpecification + integrity * 1.5D + functionality * 2D + feasibility * 2D) / value1;
-    double defectEfficiency =
-        sumCount == 0 || value1 == 0
-            ? 0D
-            : ReviewDataNumberSupport.roundToTwoDecimals((double) sumCount / value1);
-    double reviewRate =
-        workload == 0D
-            ? 0D
-            : ReviewDataNumberSupport.roundToTwoDecimals((double) value1 / workload);
+    ReviewDataMetricCalculator.ReviewProblemSummary summary =
+        ReviewDataMetricCalculator.problemSummary(record::reviewScalePages, items);
 
-    writeText(row, 0, legacyDocumentType(record), style);
+    writeText(row, 0, record.reviewType(), style);
     writeText(row, 1, record.reviewProduct(), style);
     writeText(row, 2, legacyReviewCategoryListText(items), style);
     writeText(row, 3, legacyDocumentCategory(record), style);
-    writeNumber(row, 4, defectCount, style);
-    writeNumber(row, 5, value1, style);
-    writeNumber(row, 6, workload, style);
-    writeNumber(row, 7, docSpecification, style);
-    writeNumber(row, 8, integrity, style);
-    writeNumber(row, 9, functionality, style);
-    writeNumber(row, 10, feasibility, style);
+    writeNumber(row, 4, summary.defectCount(), style);
+    writeNumber(row, 5, summary.value1(), style);
+    writeNumber(row, 6, summary.workload(), style);
+    writeNumber(row, 7, summary.docSpecification(), style);
+    writeNumber(row, 8, summary.integrity(), style);
+    writeNumber(row, 9, summary.functionality(), style);
+    writeNumber(row, 10, summary.feasibility(), style);
     writeNumber(row, 11, record.problemDensity(), style);
-    writeNumber(row, 12, weightedDefectDensity, style);
-    writeNumber(row, 13, defectEfficiency, style);
-    writeNumber(row, 14, reviewRate, style);
-    writeNumber(row, 15, sumCount, style);
-  }
-
-  private int countProblemCategory(List<ReviewDataProblemItemResponse> items, String category) {
-    return (int) items.stream()
-        .filter(item -> category.equals(item.problemCategory()))
-        .count();
+    writeNumber(row, 12, summary.weightedDefectDensity(), style);
+    writeNumber(row, 13, summary.defectEfficiency(), style);
+    writeNumber(row, 14, summary.reviewRate(), style);
+    writeNumber(row, 15, summary.sumCount(), style);
   }
 
   private String legacyReviewCategoryListText(List<ReviewDataProblemItemResponse> items) {

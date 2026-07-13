@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.util.StringUtils;
 
 final class IssueLabelRules {
@@ -50,6 +52,10 @@ final class IssueLabelRules {
   private static final List<String> TESTING_PHASE_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<String> LEGACY_PHASE_KEYWORD_TOKENS = List.of("系统测试", "回归测试", "集成测试");
   private static final List<Character> LEGACY_PREFIX_SEPARATORS = List.of('：', ':', '-');
+  private static final Pattern OLD_PLATFORM_MR_MODULE_PATTERN =
+      Pattern.compile("模块[：|-]\\s*([\\w\\s\\u4e00-\\u9fa5]+)");
+  private static final Pattern OLD_PLATFORM_MR_TOOLBOX_PATTERN =
+      Pattern.compile("工具箱[：|-]\\s*([\\w\\s\\u4e00-\\u9fa5]+)");
   private static final List<String> LEGACY_PREFIXES = List.of(
       "模块",
       "工具箱",
@@ -181,9 +187,11 @@ final class IssueLabelRules {
 
   static List<String> normalizeModuleNames(List<String> labels) {
     Set<String> modules = new LinkedHashSet<>();
-    List<String> legacyModules = parseLegacyLabelMap(labels).getOrDefault("模块", List.of());
-    for (String label : legacyModules) {
-      String moduleName = normalizeModuleValue(label);
+    for (String label : labels) {
+      String moduleName = oldPlatformChineseColonValue(label, "模块");
+      if (moduleName == null) {
+        moduleName = oldPlatformChineseColonValue(label, "工具箱");
+      }
       if (moduleName != null) {
         modules.add(moduleName);
       }
@@ -343,12 +351,31 @@ final class IssueLabelRules {
   }
 
   private static String extractMergeRequestModuleName(String label) {
-    String trimmed = label.trim();
-    LegacyPrefixedLabel prefixedLabel = parseLegacyPrefixedLabel(trimmed);
-    if (prefixedLabel != null && "模块".equals(prefixedLabel.groupName())) {
-      return normalizeModuleValue(prefixedLabel.value());
+    String normalizedLabel = IssueRuleSupport.normalizeText(label);
+    if (normalizedLabel == null) {
+      return null;
+    }
+    Matcher moduleMatcher = OLD_PLATFORM_MR_MODULE_PATTERN.matcher(label);
+    if (moduleMatcher.find()) {
+      return normalizeModuleValue(moduleMatcher.group(1));
+    }
+    Matcher toolboxMatcher = OLD_PLATFORM_MR_TOOLBOX_PATTERN.matcher(label);
+    if (toolboxMatcher.find()) {
+      return normalizeModuleValue(toolboxMatcher.group(1));
     }
     return null;
+  }
+
+  private static String oldPlatformChineseColonValue(String label, String prefix) {
+    String normalizedLabel = IssueRuleSupport.normalizeText(label);
+    if (normalizedLabel == null) {
+      return null;
+    }
+    String[] parts = label.split("：");
+    if (parts.length <= 1 || !prefix.equals(parts[0])) {
+      return null;
+    }
+    return normalizeModuleValue(parts[1]);
   }
 
   private static String normalizeModuleValue(String value) {

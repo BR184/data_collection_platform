@@ -12,30 +12,19 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Slf4j
 public class ReviewDataMirrorOptionRepository {
+  private static final long LEGACY_CC_REVIEW_PROJECT_ID = 9L;
+  private static final long LEGACY_DGM_REVIEW_PROJECT_ID = 79L;
+
   private final JdbcTemplate jdbcTemplate;
 
   public ReviewDataMirrorOptionRepository(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
   }
 
-  public List<String> loadProjectNames() {
-    return queryDistinctMirrorTable(
-        "projects",
-        tableName ->
-            """
-            select name
-              from %s
-             where coalesce(mirror_deleted, false) = false
-               and nullif(trim(name), '') is not null
-             order by coalesce(last_activity_at, created_at, updated_at) desc nulls last
-            """
-                .formatted(tableName));
-  }
-
   public List<String> loadLabelProjectNames() {
     // 评审录入里的“项目名称”来自 GitLab 标签，而不是 GitLab 项目表。
     // 标签格式为“项目：xxx”或“项目:xxx”，下拉只展示并提交 xxx。
-    return loadLegacyLabelValues("项目");
+    return loadProjectLabelValues();
   }
 
   public List<String> loadUserNames() {
@@ -53,7 +42,22 @@ public class ReviewDataMirrorOptionRepository {
   }
 
   public List<String> loadModuleNames() {
-    return loadLegacyLabelValues("模块");
+    // 对齐老平台 GitLabApiTool.getAllModules：只读取 CC(9) 与 DGM(79) 的全角“模块：”标签。
+    // 录入候选与列表筛选候选相互独立；这里不解析工具箱、ASCII 冒号或连字符。
+    return queryDistinctMirrorTable(
+        "labels",
+        tableName ->
+            """
+            select btrim(substring(title from 4)) as module_name
+              from %s
+             where coalesce(mirror_deleted, false) = false
+               and project_id in (%d, %d)
+               and title like '模块：%%'
+               and nullif(btrim(substring(title from 4)), '') is not null
+             group by btrim(substring(title from 4))
+             order by lower(btrim(substring(title from 4)))
+            """
+                .formatted(tableName, LEGACY_CC_REVIEW_PROJECT_ID, LEGACY_DGM_REVIEW_PROJECT_ID));
   }
 
   public List<String> loadMilestoneTitles() {
@@ -99,7 +103,7 @@ public class ReviewDataMirrorOptionRepository {
     }
   }
 
-  private List<String> loadLegacyLabelValues(String groupName) {
+  private List<String> loadProjectLabelValues() {
     List<String> labelTitles =
         queryDistinctMirrorTable(
             "labels",
@@ -114,18 +118,11 @@ public class ReviewDataMirrorOptionRepository {
                     .formatted(tableName));
     Set<String> values = new LinkedHashSet<>();
     for (String title : labelTitles) {
-      for (String value : IssueFactNormalizationRules.parseLegacyLabelMap(List.of(title)).getOrDefault(groupName, List.of())) {
-        values.add(normalizeLabelValue(groupName, value));
+      for (String value : IssueFactNormalizationRules.parseLegacyLabelMap(List.of(title)).getOrDefault("项目", List.of())) {
+        values.add(TextQuerySupport.normalizeDisplay(value));
       }
     }
     return List.copyOf(values);
-  }
-
-  private String normalizeLabelValue(String groupName, String value) {
-    if ("模块".equals(groupName)) {
-      return ReviewDataModuleNameSupport.normalize(value);
-    }
-    return TextQuerySupport.normalizeDisplay(value);
   }
 
   private String quoteIdentifier(String identifier) {

@@ -42,7 +42,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
   private static final String LEGACY_DGM_REPOSITORY_NAME = "DGM";
   private static final List<String> LEGACY_EXTRA_PROJECT_NAME_OPTIONS =
       List.of("广数CAM", "CC2025R4", "CC2026R1", "CC 2025 R4&2026 R1");
-  private static final String RULE_VERSION = "code-review-illegal-records@2026-07-06-v7";
+  private static final String RULE_VERSION = "code-review-illegal-records@2026-07-10-v8";
   private static final int EXPORT_PAGE_SIZE = 100;
   private static final DateTimeFormatter CSV_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
   private static final DateTimeFormatter CSV_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -434,10 +434,13 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
 
   private PageRecordSnapshotService.SnapshotRequest snapshotRequest(
       String snapshotType, String scopeKey, Object requestPayload) {
+    //兼容模式-MatchMode：正式事实表与兼容表必须使用不同快照命名空间。
+    //后续删除兼容模式时只需移除此维度，不需要清理散落在设置保存流程中的手工失效逻辑。
+    String readModeScope = codeReviewCompatibilityReadEnabled() ? "match-mode" : "formal";
     return new PageRecordSnapshotService.SnapshotRequest(
         WORKSPACE_KEY,
         snapshotType,
-        scopeKey,
+        scopeKey + "|readMode:" + readModeScope,
         RULE_VERSION,
         pageRecordSnapshotService.codeReviewSourceVersion(),
         requestPayload);
@@ -1257,17 +1260,43 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
       boolean matchMode,
       String source,
       List<String> values) {
-    List<String> visibleValues = new ArrayList<>(
-        values.stream().filter(projectName -> !isHiddenCodeReviewProjectName(projectName)).toList());
+    List<String> rawValues = new ArrayList<>(values == null ? List.of() : values);
     if ("dgm".equalsIgnoreCase(TextQuerySupport.trimToNull(source))) {
       //兼容模式-MatchMode：DGM 项目名称候选不依赖当前兼容表/正式事实表的数据量，
       //而是额外合并系统设置中维护的 GitLab API 本地缓存，确保交接期和非兼容模式候选一致。
-      visibleValues.addAll(dgmProjectOptionService.listProjectNames());
+      rawValues.addAll(dgmProjectOptionService.listProjectNames());
     }
-    if (matchMode) {
-      visibleValues.addAll(LEGACY_EXTRA_PROJECT_NAME_OPTIONS);
+    if (matchMode && isMatchModeCcSource(source)) {
+      //兼容模式-MatchMode：老平台只在 CC/CrownCAD 项目下拉补充这四项；
+      //DGM 与非兼容事实表不得继承此兜底，便于后续删除 Match mode 时整体移除。
+      rawValues.addAll(LEGACY_EXTRA_PROJECT_NAME_OPTIONS);
     }
-    return OptionItemResponseFactory.fromLegacyBusinessValues(visibleValues);
+    if (!matchMode) {
+      // 非兼容模式继续使用正式事实表的统一候选清洗规则，不继承老平台“无需标注”等特殊口径。
+      return OptionItemResponseFactory.fromLegacyBusinessValues(rawValues);
+    }
+    List<String> visibleValues = new ArrayList<>();
+    for (String rawValue : rawValues) {
+      String value = TextQuerySupport.trimToNull(rawValue);
+      if (value == null || "未标注项目名".equals(value)) {
+        continue;
+      }
+      for (String part : value.split("\\s+&\\s+")) {
+        String candidate = TextQuerySupport.trimToNull(part);
+        if (candidate != null && !candidate.startsWith("未设定")) {
+          // 老平台明确保留“无需标注”；这里只排除其项目下拉实际排除的占位值。
+          visibleValues.add(candidate);
+        }
+      }
+    }
+    return OptionItemResponseFactory.from(visibleValues, TextQuerySupport::trimToNull);
+  }
+
+  //兼容模式-MatchMode
+  private boolean isMatchModeCcSource(String source) {
+    String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(
+        TextQuerySupport.trimToNull(source) == null ? LEGACY_DEFAULT_SOURCE : source);
+    return LEGACY_DEFAULT_SOURCE.equals(normalizedSource);
   }
 
   private List<OptionItemResponse> toCodeReviewRepositoryNameOptions(boolean matchMode, List<String> values) {

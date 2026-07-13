@@ -27,6 +27,7 @@ import com.data.collection.platform.entity.statistics.StatisticRuleFlowStep;
 import com.data.collection.platform.entity.statistics.StatisticRuleFlowStepSample;
 import com.data.collection.platform.entity.statistics.StatisticRuleMetricDefinition;
 import com.data.collection.platform.service.SortSupport;
+import com.data.collection.platform.service.SystemTestLegacyCauseExportFields;
 import com.data.collection.platform.service.SystemTestIssueRecordWorkbookExportSupport;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
@@ -54,7 +55,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     implements RealtimeStatisticBoardSupport, RuleExplainableStatisticBoardSupport, StatisticBoardSnapshotRefresher {
   private static final String BOARD_KEY = "system-test-defect-summary";
   private static final String MODULE_FIELD = "moduleName";
-  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-09-v10";
+  private static final String RULE_VERSION = "system-test-defect-summary@2026-07-10-v11";
   private static final String TOTAL_ROW_KEY = "__total__";
   private static final String TOTAL_ROW_LABEL = "总计";
   private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -271,7 +272,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     boolean hasRequiredPhase = hasTestingPhaseCondition(effectiveFilterGroup.userGroup());
     List<StatisticRowData> rows = new ArrayList<>(moduleRows(moduleRowSources(snapshot.scopedSources(), effectiveFilterGroup, phaseValueCache)).stream()
         .map(moduleName -> toSummaryRowData(moduleName, moduleName, sources))
-        .sorted(Comparator.comparing(StatisticRowData::rowLabel, String.CASE_INSENSITIVE_ORDER))
+        .sorted(legacySummaryRowComparator())
         .toList());
     if (hasRequiredPhase) {
       rows.add(toSummaryRowData(TOTAL_ROW_KEY, TOTAL_ROW_LABEL, sources));
@@ -496,7 +497,21 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     for (IssueSource issue : scopedSources) {
       moduleNames.addAll(issue.moduleNames());
     }
-    return moduleNames.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+    return moduleNames.stream().toList();
+  }
+
+  private Comparator<StatisticRowData> legacySummaryRowComparator() {
+    return Comparator.comparingLong((StatisticRowData row) -> metricNumericValue(row, "defect_ratio"))
+        .reversed()
+        .thenComparing(StatisticRowData::rowLabel, String.CASE_INSENSITIVE_ORDER);
+  }
+
+  private long metricNumericValue(StatisticRowData row, String columnKey) {
+    return row.cells().stream()
+        .filter(cell -> columnKey.equals(cell.columnKey()))
+        .mapToLong(StatisticCellData::numericValue)
+        .findFirst()
+        .orElse(0L);
   }
 
   private List<IssueSource> moduleRowSources(
@@ -964,6 +979,9 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         "",
         source.legacy(),
         source.assigneeName(),
+        source.fixUser(),
+        source.functionName(),
+        source.reasonCategory(),
         source.moduleNames(),
         source.labels());
   }
@@ -986,6 +1004,8 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
   }
 
   private SystemTestIssueSearchRowResponse toIssueExportRecord(IssueSource i) {
+    SystemTestLegacyCauseExportFields causeFields =
+        SystemTestLegacyCauseExportFields.fromReasonText(i.reasonCategory());
     return new SystemTestIssueSearchRowResponse(
         i.id(),
         i.iid(),
@@ -1005,7 +1025,18 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
         i.authorName(),
         i.assigneeName(),
         String.join(" & ", i.moduleNames()),
-        "",
+        i.functionName(),
+        i.fixUser(),
+        causeFields.fixStatus(),
+        causeFields.majorCause(),
+        causeFields.secondCause(),
+        causeFields.specificReason(),
+        causeFields.modification(),
+        causeFields.causedByOther(),
+        causeFields.effectFunction(),
+        causeFields.hasTested(),
+        causeFields.potentialImpact(),
+        causeFields.relationTableUpdated(),
         i.createdAt(),
         i.updatedAt(),
         i.closedAt(),
@@ -1210,7 +1241,7 @@ public class SystemTestDefectSummaryBoardService extends AbstractStatisticBoardS
     }
   }
 
-  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, String milestoneTitle, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, List<String> moduleNames, List<String> labels) {
+  private record IssueSource(Long id, Integer iid, String sourceInstance, String title, Long projectId, String projectName, String authorName, LocalDateTime createdAt, LocalDateTime updatedAt, LocalDateTime closedAt, String issueState, String testingPhase, String systemTestLabel, String severityLevel, String priorityLevel, String bugStatus, String category, String delayCause, String milestoneTitle, boolean excluded, String exclusionReason, boolean fixed, boolean delayIssue, boolean regression, boolean crash, boolean level1Other, boolean illegal, String illegalReason, boolean legacy, String assigneeName, String fixUser, String functionName, String reasonCategory, List<String> moduleNames, List<String> labels) {
     boolean isClosed() { return closedAt != null || "closed".equalsIgnoreCase(issueState); }
     boolean isPriority(String priority) { return priority.equalsIgnoreCase(priorityLevel); }
     boolean isSeverity(String severity) { return severity.equalsIgnoreCase(severityLevel); }

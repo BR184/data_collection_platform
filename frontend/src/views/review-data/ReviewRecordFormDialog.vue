@@ -188,7 +188,13 @@ function handleClose() {
           <el-input v-model="form.title" placeholder="请输入标题" />
         </el-form-item>
         <el-form-item label="模块" prop="moduleName">
-          <SmartSelect v-model="form.moduleName" :options="moduleOptions" compact placeholder="请选择模块" />
+          <SmartSelect
+            v-model="form.moduleName"
+            :options="moduleOptions"
+            compact
+            allow-create
+            placeholder="请选择或输入模块"
+          />
         </el-form-item>
         <el-form-item label="评审类型" prop="reviewType">
           <SmartSelect v-model="form.reviewType" :options="reviewTypeOptions" compact placeholder="请选择评审类型" />

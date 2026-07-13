@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CODE_REVIEW_ILLEGAL_RECORD_COLUMNS,
+  buildCodeReviewPrimaryFilters,
   buildCodeReviewRuleExplanationOverview,
   createCodeReviewConditionFields,
   createCodeReviewRuleExplanationFallback,
@@ -12,12 +13,22 @@ import {
 
 describe('code review illegal records view helpers', () => {
   it('builds condition fields from filter options', () => {
-    const fields = createCodeReviewConditionFields(createDefaultCodeReviewFilterOptions());
+    const filterOptions = createDefaultCodeReviewFilterOptions();
+    filterOptions.projectNames = [{ label: 'BYD', value: 'BYD' }];
+    const fields = createCodeReviewConditionFields(filterOptions);
+    const formalQuickFilters = buildCodeReviewPrimaryFilters(filterOptions, false);
+    const matchModeQuickFilters = buildCodeReviewPrimaryFilters(filterOptions, true);
 
     expect(fields).toHaveLength(14);
     expect(fields[0]).toMatchObject({ key: 'repositoryName', type: 'select' });
     expect(fields[3]).toMatchObject({ key: 'keyword', type: 'text', width: 240 });
     expect(fields.at(-1)).toMatchObject({ key: 'addedLines', type: 'number' });
+    expect(formalQuickFilters.find((field) => field.key === 'projectName')).toMatchObject({
+      label: '项目名称',
+      options: [{ label: '全部项目名称', value: '' }, { label: 'BYD', value: 'BYD' }],
+    });
+    expect(formalQuickFilters.some((field) => field.key === 'repositoryName')).toBe(false);
+    expect(matchModeQuickFilters.find((field) => field.key === 'projectName')).toBeDefined();
   });
 
   it('formats rows for BaseRecordTable consumption', () => {

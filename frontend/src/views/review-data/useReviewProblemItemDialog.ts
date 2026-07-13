@@ -35,7 +35,10 @@ export function useReviewProblemItemDialog(deps: ReviewProblemItemDialogDependen
       currentProblemItemId.value = null;
       currentProblemExpertOptions.value = detail.reviewExperts;
       problemDialogEditMode.value = false;
-      problemForm.value = createEmptyProblemItemForm();
+      problemForm.value = {
+        ...createEmptyProblemItemForm(),
+        ownerName: detail.record.reviewOwner || '',
+      };
       problemDialogVisible.value = true;
     } catch (error) {
       deps.notifyError(error instanceof Error ? error.message : '评审问题初始化失败');

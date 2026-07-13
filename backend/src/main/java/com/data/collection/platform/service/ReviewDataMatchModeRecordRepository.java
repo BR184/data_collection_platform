@@ -21,12 +21,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-// 兼容模式 match mode：老平台 Mongo 评审兼容表读取仓库。
+//兼容模式-MatchMode：老平台 Mongo 评审兼容表读取仓库。
 // 后续彻底删除兼容模式时，本仓库和 review_data_match_mode_* 表可整体移除；正式评审表读写不依赖本类。
 public class ReviewDataMatchModeRecordRepository {
   private static final Pattern OBJECT_ID_PATTERN = Pattern.compile("ObjectId\\(['\"]?([^'\")]+)['\"]?\\)");
   private static final Pattern QUOTED_VALUE_PATTERN = Pattern.compile("[\"']([^\"']+)[\"']");
-  private static final Set<String> NON_EFFECTIVE_STATUSES = Set.of("已拒绝", "未评审", "无问题");
 
   private final JdbcTemplate jdbcTemplate;
 
@@ -225,8 +224,9 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private MatchModeRows buildRows(Set<String> excludedLegacyIds) {
-    // 兼容模式 match mode：从老平台 report/problem/description 三张兼容表还原页面行。
+    //兼容模式-MatchMode：从老平台 report/problem/description 三张兼容表还原页面行。
     // report.docType 是老平台“文档类别”，需要优先映射到新平台行的 reviewType，供导出共用口径读取。
+    // 指标字段不信任 Mongo 中保存的派生值；老平台 refreshAttribute 也是查询时基于问题明细重算。
     List<ProblemRow> problems = loadProblemRows();
     Map<String, ProblemRow> problemByLegacyId = new LinkedHashMap<>();
     for (ProblemRow problem : problems) {
@@ -287,7 +287,7 @@ public class ReviewDataMatchModeRecordRepository {
               TextQuerySupport.normalizeDisplay(report.notReachStandCause()),
               reachStandard(metrics.problemDensity()),
               null,
-              decimalToDouble(report.weightedDefectDensity()),
+              metrics.weightedDefectDensity(),
               report.createTime(),
               report.createTime(),
               false,
@@ -310,40 +310,35 @@ public class ReviewDataMatchModeRecordRepository {
     double totalWorkload =
         problems.stream().map(ProblemRow::workload).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
     int reviewScalePages = reviewScalePages(report, problems, descriptions);
-    double problemDensity =
-        legacyMetric(
-            report.reviewDefectDensity(),
-            reviewScalePages <= 0 ? 0D : effectiveProblemCount * 1D / reviewScalePages);
-    double reviewEfficiency =
-        legacyMetric(
-            report.reviewEfficiency(),
-            totalWorkload <= 0 ? 0D : effectiveProblemCount / totalWorkload);
-    double reviewRate =
-        legacyMetric(
-            report.reviewRate(),
-            totalWorkload <= 0 ? 0D : reviewScalePages / totalWorkload);
+    int docSpecificationCount = categoryCount(problems, "文档规范", report.docSpecification());
+    int integrityCount = categoryCount(problems, "完整性", report.integrity());
+    int functionalityCount = categoryCount(problems, "功能性", report.functionality());
+    int feasibilityCount = categoryCount(problems, "可行性", report.feasibility());
+    ReviewDataMetricCalculator.ReviewRecordMetrics calculated =
+        ReviewDataMetricCalculator.recordMetrics(
+            reviewScalePages,
+            effectiveProblemCount,
+            totalWorkload,
+            docSpecificationCount,
+            integrityCount,
+            functionalityCount,
+            feasibilityCount);
     return new RecordMetrics(
         reviewScalePages,
         effectiveProblemCount,
-        problemDensity,
-        reviewEfficiency,
-        reviewRate,
+        calculated.problemDensity(),
+        calculated.reviewEfficiency(),
+        calculated.reviewRate(),
         reviewCategorySummary(report, problems),
-        categoryCount(problems, "文档规范", report.docSpecification()),
-        categoryCount(problems, "完整性", report.integrity()),
-        categoryCount(problems, "功能性", report.functionality()),
-        categoryCount(problems, "可行性", report.feasibility()),
+        docSpecificationCount,
+        integrityCount,
+        functionalityCount,
+        feasibilityCount,
         workloadByReviewType(problems, "独立评审"),
         problemCountByReviewType(problems, "独立评审"),
         workloadByReviewType(problems, "会议评审"),
-        problemCountByReviewType(problems, "会议评审"));
-  }
-
-  private double legacyMetric(BigDecimal legacyValue, double calculatedRawValue) {
-    if (legacyValue != null) {
-      return legacyValue.doubleValue();
-    }
-    return ReviewDataNumberSupport.roundToTwoDecimals(calculatedRawValue);
+        problemCountByReviewType(problems, "会议评审"),
+        calculated.weightedDefectDensity());
   }
 
   private int reviewScalePages(ReportRow report, List<ProblemRow> problems, List<DescriptionRow> descriptions) {
@@ -356,6 +351,8 @@ public class ReviewDataMatchModeRecordRepository {
     if (descriptionPages > 0) {
       return descriptionPages;
     }
+    //兼容模式-MatchMode：少数老 Mongo 记录若缺少 description 明细，只能用工作量和旧 reviewRate 反推评审规模；
+    //该分支只作为源数据残缺兜底，正式模式和正常 Match mode 明细重算路径都不依赖它。
     double totalWorkload =
         problems.stream().map(ProblemRow::workload).filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum();
     if (totalWorkload > 0D && report.reviewRate() != null && report.reviewRate().doubleValue() > 0D) {
@@ -376,9 +373,7 @@ public class ReviewDataMatchModeRecordRepository {
   }
 
   private boolean isEffectiveProblem(ProblemRow problem) {
-    String status = TextQuerySupport.normalizeDisplay(problem.problemStatus());
-    String category = TextQuerySupport.normalizeDisplay(problem.problemType());
-    return !NON_EFFECTIVE_STATUSES.contains(status) && !"无问题".equals(category);
+    return ReviewDataMetricCalculator.isEffectiveProblem(problem.problemStatus(), problem.problemType());
   }
 
   private String reviewCategorySummary(ReportRow report, List<ProblemRow> problems) {
@@ -581,10 +576,6 @@ public class ReviewDataMatchModeRecordRepository {
     return "";
   }
 
-  private Double decimalToDouble(BigDecimal value) {
-    return value == null ? 0D : value.doubleValue();
-  }
-
   private Boolean reachStandard(Double density) {
     double value = density == null ? 0D : density;
     return value >= 0.2D && value <= 0.6D;
@@ -721,5 +712,6 @@ public class ReviewDataMatchModeRecordRepository {
       Double independentReviewWorkload,
       Integer independentReviewProblemCount,
       Double meetingReviewWorkload,
-      Integer meetingReviewProblemCount) {}
+      Integer meetingReviewProblemCount,
+      Double weightedDefectDensity) {}
 }

@@ -205,6 +205,7 @@ class CodeReviewIllegalRecordServiceTest {
   @Test
   void shouldBuildFilterOptionsByLegacyDropdownRules() {
     when(matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()).thenReturn(true);
+    when(dgmProjectOptionService.listProjectNames()).thenReturn(List.of("DGM Project"));
     when(matchModeRecordLoader.loadFilterOptions(any()))
         .thenReturn(
             new CodeReviewIllegalRecordFilterOptionValues(
@@ -214,7 +215,7 @@ class CodeReviewIllegalRecordServiceTest {
                 List.of("Author A"),
                 List.of("李四"),
                 List.of("草图", "工程图"),
-                List.of("CrownCAD")));
+                List.of("CC2024R1", "无需标注", "未标注项目名", "CC2026R3")));
 
     CodeReviewIllegalRecordFilterOptionsResponse response =
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
@@ -225,8 +226,21 @@ class CodeReviewIllegalRecordServiceTest {
     assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("李四");
     assertThat(response.projectNames())
         .extracting(item -> item.value())
-        .containsExactly("CC 2025 R4&2026 R1", "CC2025R4", "CC2026R1", "CrownCAD", "广数CAM");
+        .containsExactly(
+            "CC 2025 R4&2026 R1",
+            "CC2024R1",
+            "CC2025R4",
+            "CC2026R1",
+            "CC2026R3",
+            "广数CAM",
+            "无需标注");
     assertThat(response.targetBranches()).extracting(item -> item.value()).containsExactly("dev", "release");
+
+    CodeReviewIllegalRecordFilterOptionsResponse dgmResponse =
+        service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "dgm"));
+    assertThat(dgmResponse.projectNames())
+        .extracting(item -> item.value())
+        .containsExactly("CC2024R1", "CC2026R3", "DGM Project", "无需标注");
   }
 
   @Test

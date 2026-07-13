@@ -10,7 +10,7 @@ class IssueLabelRulesTest {
 
   @Test
   void parseLegacyLabelMapAlignsWithOldPlatformPrefixedLabels() {
-    // 老平台兼容模块/工具箱标签中的中文冒号、ASCII 冒号和连字符分隔符。
+    // 通用前缀映射继续兼容历史输入；议题/MR 模块事实不直接消费本方法，分别走领域专属解析器。
     Map<String, List<String>> result = IssueLabelRules.parseLegacyLabelMap(List.of(
         "模块：草图",
         "工具箱:工具",

@@ -61,13 +61,11 @@ public class ReviewDataFilterOptionService {
   }
 
   public ReviewDataFilterOptionsResponse getFilterOptions() {
-    // 按老平台实际行为：所有候选值都来自历史评审数据 (ReviewController.getAllModuleName/getAllProjectName/getReviewChargers)
-    // 按文档 6.8 规则：优先来自 GitLab 镜像库全量数据，历史评审导入数据作为补充兜底
-    // 最终方案：镜像库 + 历史数据合并，确保历史数据不丢失
+    // 列表快速筛选候选来自当前可查询的评审记录；新增/编辑表单候选优先来自 GitLab 镜像。
+    // 两类候选不能混用，否则 GitLab 仓库项目会成为无法命中任何评审记录的筛选项。
 
     // GitLab 镜像库数据
     List<String> mirrorUserNames = mirrorOptionRepository.loadUserNames();
-    List<String> mirrorProjectNames = mirrorOptionRepository.loadProjectNames();
     List<String> mirrorLabelProjectNames = mirrorOptionRepository.loadLabelProjectNames();
     List<String> mirrorModuleNames = mirrorOptionRepository.loadModuleNames();
     List<String> mirrorReviewVersions = mirrorOptionRepository.loadMilestoneTitles();
@@ -94,9 +92,11 @@ public class ReviewDataFilterOptionService {
         ? matchModeRecordRepository.loadReviewExperts()
         : List.of();
 
-    // 合并：镜像库优先，历史数据补充
-    List<String> allProjectNames = mergeValues(mirrorProjectNames, historicalProjectNames, matchProjectNames);
-    List<String> allModuleNames = mergeValues(mirrorModuleNames, historicalModuleNames, matchModuleNames);
+    // 快速筛选只展示当前记录查询能够命中的项目，不能混入没有评审记录的 GitLab 仓库项目。
+    // 兼容模式-MatchMode：开启评审兼容读时才合并老平台评审项目；关闭后只保留正式 review_records 项目。
+    List<String> filterProjectNames = mergeValues(historicalProjectNames, matchProjectNames);
+    // 兼容模式-MatchMode：列表模块候选严格跟随当前可见评审记录；镜像标签只服务新增/编辑表单。
+    List<String> filterModuleNames = mergeValues(historicalModuleNames, matchModuleNames);
     List<String> allUserNames =
         mergeValues(
             mirrorUserNames,
@@ -108,8 +108,8 @@ public class ReviewDataFilterOptionService {
     List<String> allReviewVersions = mergeValues(mirrorReviewVersions, historicalReviewVersions);
 
     return new ReviewDataFilterOptionsResponse(
-        toOptions(allProjectNames),              // 项目：镜像库 + 历史补充
-        toOptions(allModuleNames),               // 模块：镜像标签归一化 + 历史补充
+        toOptions(filterProjectNames),           // 快速筛选项目：当前读模式下实际存在的评审项目
+        toOptions(filterModuleNames),            // 快速筛选模块：当前读模式下实际存在的评审模块
         toOptions(allUserNames),                 // 评审负责人：镜像库 + 历史补充
         REVIEW_TYPE_OPTIONS,
         toOptions(allUserNames),                 // 评审专家/作者/责任人：镜像库 + 历史补充
@@ -117,8 +117,8 @@ public class ReviewDataFilterOptionService {
         PROBLEM_STATUS_OPTIONS,
         REVIEW_CATEGORY_OPTIONS,
         PROBLEM_CATEGORY_OPTIONS,
-        toOptions(mirrorLabelProjectNames),       // 新增/编辑评审项目：GitLab 项目标签，格式 项目:xxx/项目：xxx
-        toOptions(mirrorModuleNames));            // 新增/编辑评审模块：GitLab 模块标签，格式 模块:xxx/模块：xxx
+        toOptions(mirrorLabelProjectNames),       // 新增/编辑评审项目：GitLab 项目标签，不影响快速筛选范围
+        toOptions(mirrorModuleNames));            // 新增/编辑评审模块：项目 9、79 的全角“模块：”标签
   }
 
   @SafeVarargs

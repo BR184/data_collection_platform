@@ -1,15 +1,10 @@
 package com.data.collection.platform.service;
 
 final class ReviewDataModuleNameSupport {
-  private static final String MODULE_SUFFIX = "模块";
-
   private ReviewDataModuleNameSupport() {}
 
   static String normalize(String moduleName) {
-    String normalized = TextQuerySupport.normalizeDisplay(moduleName);
-    if (normalized.endsWith(MODULE_SUFFIX) && normalized.length() > MODULE_SUFFIX.length()) {
-      normalized = normalized.substring(0, normalized.length() - MODULE_SUFFIX.length()).trim();
-    }
-    return normalized;
+    // 评审模块是用户录入/历史导入的业务原值；只清理空白，不删除“模块”等合法后缀。
+    return TextQuerySupport.normalizeDisplay(moduleName);
   }
 }

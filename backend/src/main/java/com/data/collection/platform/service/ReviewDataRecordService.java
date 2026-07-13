@@ -13,7 +13,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class ReviewDataRecordService {
   private static final String PAGE_KEY = "review-data-records";
-  private static final String RULE_VERSION = "review-data-records@2026-07-10-v4";
+  // 候选来源或查询口径变化时必须升级版本，使持久化页面快照自然失效，禁止靠人工清缓存生效。
+  private static final String RULE_VERSION = "review-data-records@2026-07-10-v5";
 
   private final ReviewDataRecordQueryService queryService;
   private final ReviewDataRecordCommandService commandService;

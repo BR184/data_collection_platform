@@ -101,10 +101,10 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
-  void shouldNormalizeIssueModuleAndToolboxLabelsByLegacySeparators() {
+  void shouldNormalizeIssueModuleAndToolboxLabelsByOldPlatformChineseColonOnly() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of(
         "模块：草图",
-        "工具箱：草图",
+        "工具箱：曲线",
         "模块:工程图",
         "工具箱:装配",
         "模块-曲面",
@@ -113,7 +113,7 @@ class IssueFactNormalizationRulesTest {
         "9007",
         "分支：发布",
         "CC2023R3客户")))
-        .containsExactly("草图", "工程图", "装配", "曲面", "钣金");
+        .containsExactly("草图", "曲线");
   }
 
   @Test
@@ -203,11 +203,13 @@ class IssueFactNormalizationRulesTest {
         "模块-工程图",
         "工具箱：Curve Edit",
         "工具箱-曲线",
+        "模块|装配",
+        "工具箱|评估",
         "模块:代码走查",
         "工具箱:装配",
         "图纸解析模块",
         "渲染同步模块")))
-        .containsExactly("草图", "工程图", "Curve Edit", "曲线", "代码走查", "装配");
+        .containsExactly("草图", "工程图", "Curve Edit", "曲线", "装配", "评估");
   }
 
   @Test

@@ -12,7 +12,6 @@ import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ReviewDataExcelExportServiceTest {
   @Mock private ReviewDataRecordQueryService queryService;
-  @Mock private ReviewDataRecordPersistenceSupport persistenceSupport;
 
   @Test
   void shouldBuildReviewRecordWorkbookWithLegacyMetricFields() throws Exception {
@@ -39,7 +37,7 @@ class ReviewDataExcelExportServiceTest {
             new ReviewDataSummaryResponse(1, 5, 24, 5)));
     when(queryService.describeExpandedLabelGroupFilters(request)).thenReturn(List.of());
 
-    byte[] workbook = new ReviewDataExcelExportService(queryService, persistenceSupport)
+    byte[] workbook = new ReviewDataExcelExportService(queryService)
         .exportReviewRecordsWorkbook(request);
 
     try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
@@ -85,17 +83,16 @@ class ReviewDataExcelExportServiceTest {
             "desc",
             new ReviewDataSummaryResponse(1, 5, 24, 5)));
     when(queryService.describeExpandedLabelGroupFilters(request)).thenReturn(List.of());
-    when(persistenceSupport.listProblemItemsByRecordIds(List.of(1L)))
-        .thenReturn(Map.of(1L, List.of(item)));
+    when(queryService.listProblemItems(1L)).thenReturn(List.of(item));
 
-    byte[] workbook = new ReviewDataExcelExportService(queryService, persistenceSupport)
+    byte[] workbook = new ReviewDataExcelExportService(queryService)
         .exportProblemDetailsWorkbook(request);
 
     try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
       var sheet = xlsx.getSheet("问题详情");
-      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("sourceType");
+      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("评审文档类型");
       assertThat(sheet.getRow(0).getCell(7).getStringCellValue()).isEqualTo("问题类别数量统计-文档");
-      assertThat(sheet.getRow(0).getCell(15).getStringCellValue()).isEqualTo("sumCount");
+      assertThat(sheet.getRow(0).getCell(15).getStringCellValue()).isEqualTo("评审规模总和");
       assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("需求说明书评审");
       assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("需求文档");
       assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("[独立评审]");
@@ -145,7 +142,7 @@ class ReviewDataExcelExportServiceTest {
             new ReviewDataRecordListResponse(
                 List.of(), 0, 1, 100, "updatedAt", "desc", new ReviewDataSummaryResponse(0, 0, 0, 0)));
 
-    new ReviewDataExcelExportService(queryService, persistenceSupport).exportReviewRecordsWorkbook(request);
+    new ReviewDataExcelExportService(queryService).exportReviewRecordsWorkbook(request);
 
     verify(queryService).listRecords(expectedPageRequest);
   }
@@ -195,7 +192,7 @@ class ReviewDataExcelExportServiceTest {
         .thenReturn(List.of("moduleName eq 核心模块（标签组：草图、工程图）"));
 
     byte[] workbook =
-        new ReviewDataExcelExportService(queryService, persistenceSupport).exportReviewRecordsWorkbook(request);
+        new ReviewDataExcelExportService(queryService).exportReviewRecordsWorkbook(request);
 
     try (XSSFWorkbook xlsx = new XSSFWorkbook(new ByteArrayInputStream(workbook))) {
       var sheet = xlsx.getSheet("筛选说明");

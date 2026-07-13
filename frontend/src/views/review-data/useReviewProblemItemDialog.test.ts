@@ -98,6 +98,7 @@ describe('useReviewProblemItemDialog', () => {
     expect(dialog.currentProblemRecordId.value).toBe(3);
     expect(dialog.currentProblemItemId.value).toBeNull();
     expect(dialog.currentProblemExpertOptions.value).toEqual(['Ada', 'Grace']);
+    expect(dialog.problemForm.value.ownerName).toBe('owner');
     expect(dialog.problemForm.value.problemDescription).toBe('');
   });
 

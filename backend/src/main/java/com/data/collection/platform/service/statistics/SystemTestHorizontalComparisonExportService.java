@@ -1,7 +1,6 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.common.JsonUtils;
-import com.data.collection.platform.entity.ReviewDataProblemItemResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
@@ -112,7 +111,6 @@ public class SystemTestHorizontalComparisonExportService {
         rows.values().stream()
             .filter(row -> StringUtils.hasText(row.moduleName()))
             .filter(row -> !row.isEmpty())
-            .sorted((a, b) -> a.moduleName().compareToIgnoreCase(b.moduleName()))
             .toList();
     return exportRows;
   }
@@ -215,7 +213,7 @@ public class SystemTestHorizontalComparisonExportService {
     StringBuilder reviewSql =
         new StringBuilder(
             """
-            select distinct module_name
+            select module_name
               from review_records
              where deleted = false
                and nullif(btrim(module_name), '') is not null
@@ -226,15 +224,19 @@ public class SystemTestHorizontalComparisonExportService {
     }
     modules.addAll(
         jdbcTemplate.queryForList(
-            reviewSql.toString(),
+            reviewSql.append("\n group by module_name order by min(id)").toString(),
             String.class,
             reviewArgs.toArray()));
+
+    for (IssueExportSource issue : loadIssueSources(scope.withoutModuleFilter())) {
+      modules.addAll(issue.moduleNames());
+    }
 
     List<Object> codeReviewArgs = new ArrayList<>();
     StringBuilder codeReviewSql =
         new StringBuilder(
             """
-            select distinct module_name
+            select module_name
               from merge_request_fact
              where deleted = false
                and nullif(btrim(module_name), '') is not null
@@ -247,12 +249,9 @@ public class SystemTestHorizontalComparisonExportService {
     }
     modules.addAll(
         jdbcTemplate.queryForList(
-            codeReviewSql.toString(),
+            codeReviewSql.append("\n group by module_name order by min(id)").toString(),
             String.class,
             codeReviewArgs.toArray()));
-    for (IssueExportSource issue : loadIssueSources(scope.withoutModuleFilter())) {
-      modules.addAll(issue.moduleNames());
-    }
     if (StringUtils.hasText(scope.moduleName())) {
       modules.removeIf(module -> !module.equalsIgnoreCase(scope.moduleName()));
     }
@@ -425,16 +424,17 @@ public class SystemTestHorizontalComparisonExportService {
     }
     List<ReviewMetric> metrics = new ArrayList<>();
     for (ReviewDataRecordRowResponse record : records) {
-      List<ReviewDataProblemItemResponse> problems = matchModeReviewRepository.listProblemItems(record.id());
+      //兼容模式-MatchMode：ReviewDataMatchModeRecordRepository 已按老平台 refreshAttribute 口径重算有效问题数；
+      //横向对比直接使用记录级有效分类数，避免重新按全部 problem 明细统计而与正式 SQL 分叉。
       metrics.add(
           new ReviewMetric(
               text(record.moduleName()),
               positive(record.reviewScalePages()),
               positive(record.problemCount()),
-              reviewProblemCategoryCount(record, problems, "文档规范"),
-              reviewProblemCategoryCount(record, problems, "完整性"),
-              reviewProblemCategoryCount(record, problems, "功能性"),
-              reviewProblemCategoryCount(record, problems, "可行性"),
+              positive(record.docSpecificationCount()),
+              positive(record.integrityCount()),
+              positive(record.functionalityCount()),
+              positive(record.feasibilityCount()),
               0D));
     }
     return metrics;
@@ -449,24 +449,6 @@ public class SystemTestHorizontalComparisonExportService {
       grouped.computeIfAbsent(metric.moduleName(), ReviewMetricAccumulator::new).add(metric);
     }
     return grouped.values().stream().map(ReviewMetricAccumulator::toMetric).toList();
-  }
-
-  private int reviewProblemCategoryCount(
-      ReviewDataRecordRowResponse record,
-      List<ReviewDataProblemItemResponse> problems,
-      String category) {
-    if (problems == null || problems.isEmpty()) {
-      return switch (category) {
-        case "文档规范" -> positive(record.docSpecificationCount());
-        case "完整性" -> positive(record.integrityCount());
-        case "功能性" -> positive(record.functionalityCount());
-        case "可行性" -> positive(record.feasibilityCount());
-        default -> 0;
-      };
-    }
-    return (int) problems.stream()
-        .filter(problem -> category.equals(text(problem.problemCategory())))
-        .count();
   }
 
   private List<CodeReviewMetric> loadMatchModeCodeReviewMetrics(String projectName, boolean crownCad) {
@@ -592,7 +574,8 @@ public class SystemTestHorizontalComparisonExportService {
         from issue_fact
         where
         """
-            + String.join(" and ", predicates),
+            + String.join(" and ", predicates)
+            + "\norder by id",
         this::mapIssueSource,
         args.toArray());
   }

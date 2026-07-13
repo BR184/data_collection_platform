@@ -18,9 +18,8 @@ class ReviewDataFilterOptionServiceTest {
   @Mock private ReviewDataMatchModeRecordRepository matchModeRecordRepository;
 
   @Test
-  void shouldBuildReviewDataFilterOptionsFromHistoricalRecords() {
+  void shouldBuildQuickFilterProjectsAndModulesFromVisibleFormalAndMatchModeRecords() {
     ReviewDataFilterOptionService service = service();
-    when(mirrorOptionRepository.loadProjectNames()).thenReturn(List.of());
     when(mirrorOptionRepository.loadLabelProjectNames()).thenReturn(List.of());
     when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of());
     when(mirrorOptionRepository.loadUserNames()).thenReturn(List.of());
@@ -31,19 +30,21 @@ class ReviewDataFilterOptionServiceTest {
     when(historicalOptionRepository.loadReviewOwners()).thenReturn(List.of("Alice", "Bob"));
     when(historicalOptionRepository.loadReviewExperts()).thenReturn(List.of());
     when(historicalOptionRepository.loadAuthors()).thenReturn(List.of());
+    when(matchModeSwitchService.isReviewDataCompatibilityReadEnabled()).thenReturn(true);
+    when(matchModeRecordRepository.loadProjectNames()).thenReturn(List.of("LegacyProject"));
+    when(matchModeRecordRepository.loadModuleNames()).thenReturn(List.of("LegacyModule"));
 
-    List<String> ownerOptions =
-        service.getFilterOptions().reviewOwners().stream()
-            .map(option -> option.value())
-            .toList();
+    var options = service.getFilterOptions();
+    List<String> projectOptions = options.projectNames().stream().map(option -> option.value()).toList();
+    List<String> moduleOptions = options.moduleNames().stream().map(option -> option.value()).toList();
 
-    assertThat(ownerOptions).containsExactly("Alice", "Bob");
+    assertThat(projectOptions).containsExactly("CrownCAD", "LegacyProject");
+    assertThat(moduleOptions).containsExactly("Sketch", "LegacyModule");
   }
 
   @Test
   void shouldIncludeMirrorOptionsForCreatingReviewsEvenWhenRecordsDoNotReferenceThem() {
     ReviewDataFilterOptionService service = service();
-    when(mirrorOptionRepository.loadProjectNames()).thenReturn(List.of("MirrorProject"));
     when(mirrorOptionRepository.loadLabelProjectNames()).thenReturn(List.of("LabelProject"));
     when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of("MirrorModule"));
     when(mirrorOptionRepository.loadUserNames()).thenReturn(List.of("MirrorUser"));
@@ -58,9 +59,9 @@ class ReviewDataFilterOptionServiceTest {
     var options = service.getFilterOptions();
 
     assertThat(options.projectNames().stream().map(option -> option.value()).toList())
-        .containsExactly("MirrorProject", "ImportedProject");
+        .containsExactly("ImportedProject");
     assertThat(options.moduleNames().stream().map(option -> option.value()).toList())
-        .containsExactly("MirrorModule", "ImportedModule");
+        .containsExactly("ImportedModule");
     assertThat(options.reviewOwners().stream().map(option -> option.value()).toList())
         .containsExactly("MirrorUser", "ImportedOwner");
     assertThat(options.reviewExperts().stream().map(option -> option.value()).toList())
@@ -71,6 +72,26 @@ class ReviewDataFilterOptionServiceTest {
         .containsExactly("LabelProject");
     assertThat(options.formModuleNames().stream().map(option -> option.value()).toList())
         .containsExactly("MirrorModule");
+  }
+
+  @Test
+  void shouldExposeReviewTypeOptionsInLegacyFrontendOrder() {
+    ReviewDataFilterOptionService service = service();
+    when(mirrorOptionRepository.loadLabelProjectNames()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadModuleNames()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadUserNames()).thenReturn(List.of());
+    when(mirrorOptionRepository.loadMilestoneTitles()).thenReturn(List.of());
+    when(historicalOptionRepository.loadProjectNames()).thenReturn(List.of());
+    when(historicalOptionRepository.loadModuleNames()).thenReturn(List.of());
+    when(historicalOptionRepository.loadReviewVersions()).thenReturn(List.of());
+    when(historicalOptionRepository.loadReviewOwners()).thenReturn(List.of());
+    when(historicalOptionRepository.loadReviewExperts()).thenReturn(List.of());
+    when(historicalOptionRepository.loadAuthors()).thenReturn(List.of());
+
+    var options = service.getFilterOptions();
+
+    assertThat(options.reviewTypes().stream().map(option -> option.value()).toList())
+        .containsExactly("需求说明书评审", "设计说明书评审", "产品用户手册", "项目计划评审", "其他");
   }
 
   private ReviewDataFilterOptionService service() {

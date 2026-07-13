@@ -145,23 +145,13 @@ export function buildCodeReviewPrimaryFilters(
       options: [{ label: '全部非法类型', value: '' }, ...filterOptions.illegalTypes],
     },
   ];
-  if (legacyMode) {
-    filters.push({
-      key: 'projectName',
-      label: '项目名称',
-      type: 'select',
-      width: 180,
-      options: [{ label: '全部项目名称', value: '' }, ...filterOptions.projectNames],
-    });
-  } else {
-    filters.push({
-      key: 'repositoryName',
-      label: '代码库',
-      type: 'select',
-      width: 180,
-      options: [{ label: '全部代码库', value: '' }, ...filterOptions.repositoryNames],
-    });
-  }
+  filters.push({
+    key: 'projectName',
+    label: '项目名称',
+    type: 'select',
+    width: 180,
+    options: [{ label: '全部项目名称', value: '' }, ...filterOptions.projectNames],
+  });
   filters.push(
     {
       key: 'mergedAtRange',

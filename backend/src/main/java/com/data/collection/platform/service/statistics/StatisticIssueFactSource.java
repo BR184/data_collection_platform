@@ -92,6 +92,14 @@ public record StatisticIssueFactSource(IssueFactRecord record) {
     return record.assigneeName();
   }
 
+  public String fixUser() {
+    return record.fixUser();
+  }
+
+  public String functionName() {
+    return record.functionName();
+  }
+
   public boolean excluded() {
     return record.excluded();
   }

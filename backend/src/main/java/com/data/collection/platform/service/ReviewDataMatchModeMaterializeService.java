@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-// 兼容模式 match mode：把老平台 Mongo 评审数据物化为新平台正式表。
+//兼容模式-MatchMode：把老平台 Mongo 评审数据物化为新平台正式表。
 // 后续老平台交接完成并删除兼容模式时，本 Service 可整体删除；正式新增/编辑评审不依赖本类。
 public class ReviewDataMatchModeMaterializeService {
   private final ReviewDataMatchModeRecordRepository matchModeRecordRepository;
@@ -19,13 +19,13 @@ public class ReviewDataMatchModeMaterializeService {
     this.persistenceSupport = persistenceSupport;
   }
 
-  // 兼容模式 match mode
+  //兼容模式-MatchMode
   @Transactional
   public Long materializeRecord(Long matchModeRecordId) {
     return materializeRecordWithResult(matchModeRecordId).recordId();
   }
 
-  // 兼容模式 match mode：转正式时优先把老平台 docType 映射到正式表 review_type，保证关闭兼容模式后导出口径仍可用。
+  //兼容模式-MatchMode：转正式时优先把老平台 docType 映射到正式表 review_type，保证关闭兼容模式后导出口径仍可用。
   @Transactional
   public MaterializeResult materializeRecordWithResult(Long matchModeRecordId) {
     Long existingRecordId = matchModeRecordRepository.findMaterializedRecordId(matchModeRecordId);
@@ -57,7 +57,7 @@ public class ReviewDataMatchModeMaterializeService {
               reviewVersion,
               report.notReachStandCause(),
               "match-mode-mongo",
-              report.weightedDefectDensity() == null ? null : report.weightedDefectDensity().doubleValue());
+              materializedWeightedDefectDensity());
       if (recordId == null) {
         throw new IllegalStateException("兼容模式评审记录转正式记录失败");
       }
@@ -76,7 +76,7 @@ public class ReviewDataMatchModeMaterializeService {
           reviewVersion,
           report.notReachStandCause(),
           "match-mode-mongo",
-          report.weightedDefectDensity() == null ? null : report.weightedDefectDensity().doubleValue());
+          materializedWeightedDefectDensity());
       persistenceSupport.softDeleteProblemItems(recordId);
     }
     persistenceSupport.replaceExperts(recordId, report.reviewExperts());
@@ -113,7 +113,7 @@ public class ReviewDataMatchModeMaterializeService {
     return new MaterializeResult(recordId, inserted);
   }
 
-  // 兼容模式 match mode
+  //兼容模式-MatchMode
   public Long materializedProblemItemIdOrThrow(Long matchModeProblemItemId) {
     Long problemItemId = matchModeRecordRepository.findMaterializedProblemItemId(matchModeProblemItemId);
     if (problemItemId == null) {
@@ -138,6 +138,12 @@ public class ReviewDataMatchModeMaterializeService {
   private String valueOrDefault(String value, String fallback) {
     String normalized = TextQuerySupport.trimToNull(value);
     return normalized == null ? fallback : normalized;
+  }
+
+  private Double materializedWeightedDefectDensity() {
+    //兼容模式-MatchMode：正式表列表和导出统一从 review_problem_items 重算加权密度；
+    //转正式时不搬运老 Mongo 中可能陈旧或为 0 的派生 weightedDefectDensity，避免兼容数据污染正式口径。
+    return null;
   }
 
   //兼容模式-MatchMode

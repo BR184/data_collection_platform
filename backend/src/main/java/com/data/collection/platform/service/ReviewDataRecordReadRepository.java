@@ -33,7 +33,10 @@ public class ReviewDataRecordReadRepository {
         r.review_version,
         r.not_reach_standard_reason,
         r.source_file_name,
-        r.weighted_defect_density,
+        """
+          + ReviewDataMetricSqlExpressions.WEIGHTED_DEFECT_DENSITY
+          + " as weighted_defect_density,\n        "
+          + """
         r.gitlab_project_id,
         r.gitlab_resource_iid,
         r.gitlab_resource_type,
@@ -180,7 +183,10 @@ public class ReviewDataRecordReadRepository {
             r.review_version,
             r.not_reach_standard_reason,
             r.source_file_name,
-            r.weighted_defect_density,
+            """
+            + ReviewDataMetricSqlExpressions.WEIGHTED_DEFECT_DENSITY
+            + " as weighted_defect_density,\n            "
+            + """
             r.gitlab_project_id,
             r.gitlab_resource_iid,
             r.gitlab_resource_type,
@@ -536,6 +542,7 @@ public class ReviewDataRecordReadRepository {
           case "problemDensity" -> "fr.problem_density";
           case "reviewEfficiency" -> "fr.review_efficiency";
           case "reviewRate" -> "fr.review_rate";
+          case "weightedDefectDensity" -> "fr.weighted_defect_density";
           case "reviewCategorySummary" -> "fr.review_category_summary";
           case "docSpecificationCount" -> "fr.doc_specification_count";
           case "integrityCount" -> "fr.integrity_count";

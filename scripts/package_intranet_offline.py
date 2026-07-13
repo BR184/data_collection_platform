@@ -66,6 +66,8 @@ class BuildContext:
     template_dir: Path | None
     require_fact_rebuild: bool
     fact_rebuild_scope: str
+    frontend_port: int
+    backend_port: int
 
 
 def log(message: str) -> None:
@@ -276,6 +278,8 @@ def resolve_context(args: argparse.Namespace) -> BuildContext:
         template_dir=template_dir,
         require_fact_rebuild=args.require_fact_rebuild,
         fact_rebuild_scope=args.fact_rebuild_scope,
+        frontend_port=args.frontend_port,
+        backend_port=args.backend_port,
     )
 
 
@@ -404,10 +408,10 @@ logs/
 """
 
 
-def env_content() -> str:
-    return """\
+def env_content(ctx: BuildContext) -> str:
+    return f"""\
 # Platform URL reachable by users and GitLab system hook.
-PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:18181
+PLATFORM_PUBLIC_BASE_URL=http://172.22.10.115:{ctx.frontend_port}
 
 # GitLab web URL for links shown in the platform.
 # GitLab PostgreSQL source connection is configured later in the UI.
@@ -421,9 +425,9 @@ POSTGRES_PORT=15432
 POSTGRES_BIND=127.0.0.1
 
 # Platform ports.
-FRONTEND_PORT=18181
+FRONTEND_PORT={ctx.frontend_port}
 FRONTEND_BIND=0.0.0.0
-BACKEND_PORT=18080
+BACKEND_PORT={ctx.backend_port}
 BACKEND_BIND=127.0.0.1
 
 # Platform login accounts initialized into the empty built-in database.
@@ -442,7 +446,7 @@ CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED=false
 """
 
 
-def compose_content(backend_tag: str, frontend_tag: str) -> str:
+def compose_content(ctx: BuildContext) -> str:
     return f"""\
 services:
   postgres:
@@ -465,7 +469,7 @@ services:
       retries: 12
 
   backend:
-    image: {BACKEND_IMAGE}:{backend_tag}
+    image: {BACKEND_IMAGE}:{ctx.backend_tag}
     container_name: qaflex-backend
     restart: unless-stopped
     depends_on:
@@ -493,7 +497,7 @@ services:
       REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED: ${{REVIEW_DATA_SEARCH_INDEX_BACKFILL_ENABLED:-false}}
       CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED: ${{CUSTOMER_ISSUE_DELAY_LABEL_WRITEBACK_API_ENABLED:-false}}
     ports:
-      - "${{BACKEND_BIND:-127.0.0.1}}:${{BACKEND_PORT:-18080}}:18080"
+      - "${{BACKEND_BIND:-127.0.0.1}}:${{BACKEND_PORT:-{ctx.backend_port}}}:18080"
     volumes:
       - qaflex_backend_logs:/app/logs
     healthcheck:
@@ -504,14 +508,14 @@ services:
       start_period: 60s
 
   frontend:
-    image: {FRONTEND_IMAGE}:{frontend_tag}
+    image: {FRONTEND_IMAGE}:{ctx.frontend_tag}
     container_name: qaflex-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "${{FRONTEND_BIND:-0.0.0.0}}:${{FRONTEND_PORT:-18181}}:80"
+      - "${{FRONTEND_BIND:-0.0.0.0}}:${{FRONTEND_PORT:-{ctx.frontend_port}}}:80"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
       interval: 20s
@@ -562,7 +566,7 @@ def fresh_readme(ctx: BuildContext) -> str:
 
 ## 固定地址
 
-- 平台访问地址：http://172.22.10.115:18181
+- 平台访问地址：http://172.22.10.115:{ctx.frontend_port}
 - GitLab Web 地址：http://172.22.10.233
 
 包内 PostgreSQL 只作为平台内置库。GitLab PostgreSQL、老平台 MySQL、老平台 MongoDB 均在平台 UI 中配置，不要写入 DATASOURCE_URL。
@@ -624,13 +628,13 @@ sudo docker compose --env-file .env ps
 ## 6. 健康检查
 
 ```bash
-curl -fsS http://127.0.0.1:18080/actuator/health
-curl -fsS http://127.0.0.1:18181/
+curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
+curl -fsS http://127.0.0.1:{ctx.frontend_port}/
 sudo docker compose --env-file .env logs --tail=120 backend
 sudo docker compose --env-file .env logs --tail=120 frontend
 ```
 
-浏览器访问：http://172.22.10.115:18181
+浏览器访问：http://172.22.10.115:{ctx.frontend_port}
 
 默认登录账号：
 
@@ -666,14 +670,14 @@ def incremental_readme(ctx: BuildContext) -> str:
 curl -c /tmp/qaflex-cookie.txt \\
   -H 'Content-Type: application/json' \\
   -d '{{"username":"admin","password":"admin123"}}' \\
-  http://127.0.0.1:18181/api/auth/login
+  http://127.0.0.1:{ctx.frontend_port}/api/auth/login
 ```
 
 触发事实层重建：
 
 ```bash
 curl -b /tmp/qaflex-cookie.txt -X POST \\
-  'http://127.0.0.1:18181/api/facts/rebuild?scope={ctx.fact_rebuild_scope}&full=true'
+  'http://127.0.0.1:{ctx.frontend_port}/api/facts/rebuild?scope={ctx.fact_rebuild_scope}&full=true'
 ```
 """
     else:
@@ -732,7 +736,7 @@ sudo docker load -i ../{ctx.package_name}/docker-images/{FRONTEND_IMAGE}_{ctx.fr
 ```bash
 sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
 sudo docker compose --env-file .env ps
-curl -fsS http://127.0.0.1:18080/actuator/health
+curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
 ```
 
 如果这里报 `container name ... is already in use`，先确认当前目录是既有部署目录 `{ctx.baseline_name}`。若目录正确但仍有遗留同名应用容器，只删除前端/后端应用容器后重建，禁止删除 postgres 或任何 volume：
@@ -742,7 +746,7 @@ sudo docker ps -a --filter "name=^/qaflex-backend$" --filter "name=^/qaflex-fron
 sudo docker rm -f qaflex-backend qaflex-frontend
 sudo docker compose --env-file .env up -d --no-deps --force-recreate backend frontend
 sudo docker compose --env-file .env ps
-curl -fsS http://127.0.0.1:18080/actuator/health
+curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
 ```
 
 {fact_section}
@@ -750,8 +754,8 @@ curl -fsS http://127.0.0.1:18080/actuator/health
 ## 5. 冒烟检查
 
 ```bash
-curl -fsS http://127.0.0.1:18080/actuator/health
-curl -fsS http://127.0.0.1:18181/
+curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
+curl -fsS http://127.0.0.1:{ctx.frontend_port}/
 sudo docker compose --env-file .env logs --tail=120 backend
 sudo docker compose --env-file .env logs --tail=120 frontend
 ```
@@ -768,8 +772,8 @@ def deploy_helper(ctx: BuildContext) -> str:
     if ctx.require_fact_rebuild:
         fact_block = f"""\
 echo "[deploy] fact rebuild is required. Login and trigger it manually after health check:"
-echo "curl -c /tmp/qaflex-cookie.txt -H 'Content-Type: application/json' -d '{{\"username\":\"admin\",\"password\":\"admin123\"}}' http://127.0.0.1:18181/api/auth/login"
-echo "curl -b /tmp/qaflex-cookie.txt -X POST 'http://127.0.0.1:18181/api/facts/rebuild?scope={ctx.fact_rebuild_scope}&full=true'"
+echo "curl -c /tmp/qaflex-cookie.txt -H 'Content-Type: application/json' -d '{{\"username\":\"admin\",\"password\":\"admin123\"}}' http://127.0.0.1:{ctx.frontend_port}/api/auth/login"
+echo "curl -b /tmp/qaflex-cookie.txt -X POST 'http://127.0.0.1:{ctx.frontend_port}/api/facts/rebuild?scope={ctx.fact_rebuild_scope}&full=true'"
 """
     else:
         fact_block = 'echo "[deploy] fact rebuild is not required for this package."\n'
@@ -789,15 +793,15 @@ sudo docker compose --env-file .env up -d --no-deps --force-recreate backend fro
 sudo docker compose --env-file .env ps
 
 echo "[deploy] backend health"
-curl -fsS http://127.0.0.1:18080/actuator/health
+curl -fsS http://127.0.0.1:{ctx.backend_port}/actuator/health
 
 {fact_block}"""
 
 
 def write_metadata(ctx: BuildContext, backend_fallback_used: bool, backend_build_note: str) -> None:
-    write_text(ctx.package_dir / ".env.example", env_content())
-    write_text(ctx.package_dir / ".env", env_content())
-    write_text(ctx.package_dir / "docker-compose.yml", compose_content(ctx.backend_tag, ctx.frontend_tag))
+    write_text(ctx.package_dir / ".env.example", env_content(ctx))
+    write_text(ctx.package_dir / ".env", env_content(ctx))
+    write_text(ctx.package_dir / "docker-compose.yml", compose_content(ctx))
 
     if ctx.mode == "fresh-empty":
         write_text(ctx.package_dir / "README-INTRANET-DEPLOY.md", fresh_readme(ctx))
@@ -824,7 +828,7 @@ Image tags:
 - {FRONTEND_IMAGE}:{ctx.frontend_tag}
 Target OS: Ubuntu 24.04 amd64, offline intranet
 Topology: postgres:16-alpine + qa-flex-platform-backend + qa-flex-platform-frontend
-Public URL: http://172.22.10.115:18181
+Public URL: http://172.22.10.115:{ctx.frontend_port}
 GitLab Web URL: http://172.22.10.233
 Facts rebuild: {"required, scope=" + ctx.fact_rebuild_scope if ctx.require_fact_rebuild else "not required"}
 Baseline: {ctx.baseline_name or "n/a"}
@@ -998,6 +1002,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--template-package-dir", type=Path)
     parser.add_argument("--require-fact-rebuild", action="store_true")
     parser.add_argument("--fact-rebuild-scope", choices=("issue", "merge-request", "all"), default="all")
+    parser.add_argument("--frontend-port", type=int, default=18181)
+    parser.add_argument("--backend-port", type=int, default=18080)
     parser.add_argument("--working", action="store_true", help="force -working suffix even if git status is clean")
     parser.add_argument("--skip-frontend-release-tests", action="store_true")
     parser.add_argument("--skip-build", action="store_true")

@@ -139,6 +139,7 @@ class ReviewDataLegacyExcelParserTest {
     assertEquals(1, preview.importableRows());
     assertEquals(1, preview.estimatedRecordCount());
     assertEquals(2, preview.estimatedProblemItemCount());
+    assertEquals("草图模块", preview.rows().getFirst().record().moduleName());
     assertEquals("负责人", preview.rows().getFirst().record().reviewOwner());
     assertEquals("R4", preview.rows().getFirst().record().reviewVersion());
   }
