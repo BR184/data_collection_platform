@@ -11,6 +11,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public final class OptionItemResponseFactory {
+  enum SortPolicy {
+    LABEL_ASCENDING,
+    SOURCE_ORDER
+  }
+
   private OptionItemResponseFactory() {
   }
 
@@ -28,10 +33,7 @@ public final class OptionItemResponseFactory {
         .map(normalizer)
         .filter(Objects::nonNull)
         .collect(Collectors.toCollection(LinkedHashSet::new));
-    return normalized.stream()
-        .map(value -> new OptionItemResponse(labeler.apply(value), value))
-        .sorted(Comparator.comparing(OptionItemResponse::label, String::compareToIgnoreCase))
-        .toList();
+    return buildOptions(normalized, labeler, SortPolicy.LABEL_ASCENDING);
   }
 
   public static List<OptionItemResponse> fromValuesPreservingOrder(
@@ -41,9 +43,7 @@ public final class OptionItemResponseFactory {
             .map(normalizer)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
-    return normalized.stream()
-        .map(value -> new OptionItemResponse(value, value))
-        .toList();
+    return buildOptions(normalized, Function.identity(), SortPolicy.SOURCE_ORDER);
   }
 
   public static List<OptionItemResponse> fromLegacyBusinessValues(Collection<String> values) {
@@ -60,10 +60,28 @@ public final class OptionItemResponseFactory {
         }
       }
     }
-    return normalized.stream()
-        .map(value -> new OptionItemResponse(value, value))
-        .sorted(Comparator.comparing(OptionItemResponse::label, String::compareToIgnoreCase))
+    // 未来标签组排序扩展点：
+    // 老平台动态下拉以“数据源首次出现顺序”为准；一周后接入“基于标签组手动指定候选内容/顺序”时，
+    // 应在 buildOptions/applySortPolicy 这一层叠加“标签组成员序号优先”的 SortPolicy，
+    // 不要在各页面、各 service 中散落手写 sort 或兼容分支。
+    return buildOptions(normalized, Function.identity(), SortPolicy.SOURCE_ORDER);
+  }
+
+  private static List<OptionItemResponse> buildOptions(
+      Collection<String> values, Function<String, String> labeler, SortPolicy sortPolicy) {
+    return applySortPolicy(
+            values.stream()
+                .map(value -> new OptionItemResponse(labeler.apply(value), value)),
+            sortPolicy)
         .toList();
+  }
+
+  private static java.util.stream.Stream<OptionItemResponse> applySortPolicy(
+      java.util.stream.Stream<OptionItemResponse> options, SortPolicy sortPolicy) {
+    if (sortPolicy == SortPolicy.SOURCE_ORDER) {
+      return options;
+    }
+    return options.sorted(Comparator.comparing(OptionItemResponse::label, String::compareToIgnoreCase));
   }
 
   private static boolean isLegacyPlaceholder(String value) {

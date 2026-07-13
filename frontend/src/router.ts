@@ -31,6 +31,7 @@ const QualityBoardRdView = () => import('./views/QualityBoardRdView.vue');
 const QualityBoardOtherView = () => import('./views/QualityBoardOtherView.vue');
 const SystemTestMultiBoardView = () => import('./views/SystemTestMultiBoardView.vue');
 const TestingPhaseDefinitionView = () => import('./views/TestingPhaseDefinitionView.vue');
+const AnalyticsDashboardDetailPage = () => import('./views/AnalyticsDashboardDetailPage.vue');
 
 type RouteComponent = NonNullable<RouteRecordRaw['component']>;
 type QueryNormalizableRoute = Pick<RouteLocationNormalized, 'hash' | 'matched' | 'meta' | 'path' | 'query'>;
@@ -151,6 +152,12 @@ const routes: RouteRecordRaw[] = [
   },
   {
     ...buildShellRoute('database-browser', DatabaseBrowserView),
+  },
+  {
+    name: 'analytics-dashboard-detail',
+    path: '/analytics-dashboards/:dashboardKey/details/:detailViewKey',
+    component: AnalyticsDashboardDetailPage,
+    meta: buildSpecialRouteMeta('analytics-dashboard-detail'),
   },
   {
     path: '/:pathMatch(.*)*',

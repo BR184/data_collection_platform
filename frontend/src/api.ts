@@ -1,4 +1,5 @@
 import { codeReviewApi } from './api-client/code-review-api';
+import { analyticsDashboardApi } from './api-client/analytics-dashboard-api';
 import { collectFormsApi } from './api-client/collect-forms-api';
 import { databaseBrowserApi } from './api-client/database-browser-api';
 import { issueRecordsApi } from './api-client/issue-records-api';
@@ -13,6 +14,7 @@ import { testingPhasesApi } from './api-client/testing-phases-api';
 export * from './types/api';
 
 export const api = {
+  ...analyticsDashboardApi,
   ...mirrorApi,
   ...statisticBoardsApi,
   ...databaseBrowserApi,

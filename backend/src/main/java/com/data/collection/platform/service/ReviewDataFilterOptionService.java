@@ -16,9 +16,6 @@ public class ReviewDataFilterOptionService {
           new OptionItemResponse("设计说明书评审", "设计说明书评审"),
           new OptionItemResponse("产品用户手册", "产品用户手册"),
           new OptionItemResponse("项目计划评审", "项目计划评审"),
-          new OptionItemResponse("单元测试用例评审", "单元测试用例评审"),
-          new OptionItemResponse("集成测试用例评审", "集成测试用例评审"),
-          new OptionItemResponse("系统测试用例评审", "系统测试用例评审"),
           new OptionItemResponse("其他", "其他"));
 
   private static final List<OptionItemResponse> REVIEW_CATEGORY_OPTIONS =
@@ -97,6 +94,11 @@ public class ReviewDataFilterOptionService {
     List<String> filterProjectNames = mergeValues(historicalProjectNames, matchProjectNames);
     // 兼容模式-MatchMode：列表模块候选严格跟随当前可见评审记录；镜像标签只服务新增/编辑表单。
     List<String> filterModuleNames = mergeValues(historicalModuleNames, matchModuleNames);
+    List<String> reviewOwnerNames =
+        mergeValues(
+            mirrorUserNames,
+            historicalReviewOwners,
+            matchReviewOwners);
     List<String> allUserNames =
         mergeValues(
             mirrorUserNames,
@@ -110,7 +112,7 @@ public class ReviewDataFilterOptionService {
     return new ReviewDataFilterOptionsResponse(
         toOptions(filterProjectNames),           // 快速筛选项目：当前读模式下实际存在的评审项目
         toOptions(filterModuleNames),            // 快速筛选模块：当前读模式下实际存在的评审模块
-        toOptions(allUserNames),                 // 评审负责人：镜像库 + 历史补充
+        toOptions(reviewOwnerNames),             // 评审负责人：镜像库 + 历史负责人补充；不把专家/作者混入负责人筛选项。
         REVIEW_TYPE_OPTIONS,
         toOptions(allUserNames),                 // 评审专家/作者/责任人：镜像库 + 历史补充
         toOptions(allReviewVersions),            // 评审版本：镜像里程碑 + 历史补充

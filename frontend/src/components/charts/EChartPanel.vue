@@ -3,8 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 // 图表面板封装 ECharts 生命周期，父级只需要传入 option 和点击事件。
 // 主题注册、resize 和销毁集中在这里处理，避免各看板重复写图表样板代码。
 import type { EChartsOption } from 'echarts';
+import type { ECElementEvent } from 'echarts/core';
 import { init, type EChartsType } from './echarts-runtime';
 import { registerChartTheme } from './chart-theme';
+import { normalizeEChartPointClick, type EChartPointClickEvent } from './echart-panel-events';
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +22,10 @@ const props = withDefaults(
     emptyText: '暂无图表数据',
   },
 );
+
+const emit = defineEmits<{
+  (event: 'point-click', value: EChartPointClickEvent): void;
+}>();
 
 const rootRef = ref<HTMLDivElement | null>(null);
 let chart: EChartsType | null = null;
@@ -38,6 +44,27 @@ function ensureChart() {
   chart = init(rootRef.value, registerChartTheme(), {
     renderer: 'svg',
   });
+  chart.on('click', handlePointClick);
+}
+
+function handlePointClick(event: ECElementEvent) {
+  emit('point-click', normalizeEChartPointClick(event));
+}
+
+function syncLoading() {
+  if (!chart) {
+    return;
+  }
+  if (props.loading) {
+    chart.showLoading('default', {
+      text: '加载中',
+      color: '#1677ff',
+      textColor: '#6b7280',
+      maskColor: 'rgba(255,255,255,0.75)',
+    });
+    return;
+  }
+  chart.hideLoading();
 }
 
 function renderChart() {
@@ -50,6 +77,7 @@ function renderChart() {
     return;
   }
   chart.setOption(props.option, true);
+  syncLoading();
 }
 
 watch(
@@ -62,21 +90,7 @@ watch(
 
 watch(
   () => props.loading,
-  (loading) => {
-    if (!chart) {
-      return;
-    }
-    if (loading) {
-      chart.showLoading('default', {
-        text: '加载中',
-        color: '#1677ff',
-        textColor: '#6b7280',
-        maskColor: 'rgba(255,255,255,0.75)',
-      });
-      return;
-    }
-    chart.hideLoading();
-  },
+  () => syncLoading(),
 );
 
 onMounted(() => {
@@ -90,6 +104,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   resizeObserver = null;
+  chart?.off('click', handlePointClick);
   chart?.dispose();
   chart = null;
 });
@@ -100,7 +115,7 @@ onBeforeUnmount(() => {
     <div v-if="!hasOption" class="chart-panel__empty">
       <span>{{ emptyText }}</span>
     </div>
-    <div v-else ref="rootRef" class="chart-panel__canvas" :style="{ height: `${height}px` }" />
+    <div v-show="hasOption" ref="rootRef" class="chart-panel__canvas" :style="{ height: `${height}px` }" />
   </div>
 </template>
 

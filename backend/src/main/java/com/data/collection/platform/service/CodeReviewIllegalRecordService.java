@@ -1289,7 +1289,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
         }
       }
     }
-    return OptionItemResponseFactory.from(visibleValues, TextQuerySupport::trimToNull);
+    return OptionItemResponseFactory.fromValuesPreservingOrder(visibleValues, TextQuerySupport::trimToNull);
   }
 
   //兼容模式-MatchMode
@@ -1305,7 +1305,7 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
     if (matchMode) {
       //兼容模式-MatchMode：仅老平台兼容读路径补充 CrownCAD 默认仓库；
       //非兼容模式必须只展示正式事实表中的仓库，避免兼容默认值污染新平台数据源。
-      visibleValues.add(LEGACY_DEFAULT_REPOSITORY_NAME);
+      visibleValues.add(0, LEGACY_DEFAULT_REPOSITORY_NAME);
     }
     return OptionItemResponseFactory.fromLegacyBusinessValues(visibleValues);
   }

@@ -8,12 +8,15 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AnalyticsDashboardDetailCell: typeof import('./components/dashboard/AnalyticsDashboardDetailCell.vue')['default']
     BaseRecordTable: typeof import('./components/base/BaseRecordTable.vue')['default']
     BaseRecordTableCell: typeof import('./components/base/BaseRecordTableCell.vue')['default']
     BaseSearchInput: typeof import('./components/base/BaseSearchInput.vue')['default']
     BaseStatisticTable: typeof import('./components/base/BaseStatisticTable.vue')['default']
     CodeReviewRuleConfigEditor: typeof import('./components/rule-config/CodeReviewRuleConfigEditor.vue')['default']
     CodeReviewRuleConfigPreview: typeof import('./components/rule-config/CodeReviewRuleConfigPreview.vue')['default']
+    DashboardChartCard: typeof import('./components/dashboard/DashboardChartCard.vue')['default']
+    DashboardMetricCard: typeof import('./components/dashboard/DashboardMetricCard.vue')['default']
     DatabaseBrowserView: typeof import('./components/DatabaseBrowserView.vue')['default']
     DataScopeBar: typeof import('./components/data-scope/DataScopeBar.vue')['default']
     DataScopeCompareDialog: typeof import('./components/data-scope/DataScopeCompareDialog.vue')['default']
@@ -79,6 +82,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     RuleExplanationDrawer: typeof import('./components/RuleExplanationDrawer.vue')['default']
+    RuleHintIcon: typeof import('./components/dashboard/RuleHintIcon.vue')['default']
     SavedTableViewsEntry: typeof import('./components/SavedTableViewsEntry.vue')['default']
     SavedTableViewsManager: typeof import('./components/SavedTableViewsManager.vue')['default']
     SavedTableViewsPanel: typeof import('./components/SavedTableViewsPanel.vue')['default']

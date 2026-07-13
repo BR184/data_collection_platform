@@ -196,10 +196,10 @@ class CodeReviewIllegalRecordServiceTest {
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
 
     assertThat(response.requestTypes()).hasSize(1);
-    assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("repo-a", "repo-b");
+    assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("repo-b", "repo-a");
     assertThat(response.owners()).extracting(item -> item.value()).containsExactly("Author A");
     assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("Alice", "Bob");
-    assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("module-a", "module-b");
+    assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("module-b", "module-a");
   }
 
   @Test
@@ -220,27 +220,27 @@ class CodeReviewIllegalRecordServiceTest {
     CodeReviewIllegalRecordFilterOptionsResponse response =
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "cc"));
 
-    assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("工程图", "草图");
+    assertThat(response.moduleNames()).extracting(item -> item.value()).containsExactly("草图", "工程图");
     assertThat(response.repositoryNames()).extracting(item -> item.value()).containsExactly("CrownCAD", "repo-a", "repo-b");
     assertThat(response.owners()).extracting(item -> item.value()).containsExactly("Author A");
     assertThat(response.mergedBys()).extracting(item -> item.value()).containsExactly("李四");
     assertThat(response.projectNames())
         .extracting(item -> item.value())
         .containsExactly(
-            "CC 2025 R4&2026 R1",
             "CC2024R1",
-            "CC2025R4",
-            "CC2026R1",
+            "无需标注",
             "CC2026R3",
             "广数CAM",
-            "无需标注");
+            "CC2025R4",
+            "CC2026R1",
+            "CC 2025 R4&2026 R1");
     assertThat(response.targetBranches()).extracting(item -> item.value()).containsExactly("dev", "release");
 
     CodeReviewIllegalRecordFilterOptionsResponse dgmResponse =
         service.getFilterOptions(new CodeReviewIllegalRecordFilterOptionsRequest(null, null, null, "dgm"));
     assertThat(dgmResponse.projectNames())
         .extracting(item -> item.value())
-        .containsExactly("CC2024R1", "CC2026R3", "DGM Project", "无需标注");
+        .containsExactly("CC2024R1", "无需标注", "CC2026R3", "DGM Project");
   }
 
   @Test

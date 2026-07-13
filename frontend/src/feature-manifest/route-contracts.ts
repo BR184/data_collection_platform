@@ -55,6 +55,27 @@ const customerIssueRecordQueryKeys = [
   'filterLogic',
 ];
 
+export const analyticsDashboardDetailQueryKeys = [
+  'projectId',
+  'projectName',
+  'testingPhase',
+  'milestoneTitle',
+  'codeReviewSource',
+  'source',
+  'personName',
+  'authorName',
+  'assigneeName',
+  'fixUser',
+  'moduleName',
+  'severityLevel',
+  'priorityLevel',
+  'pointKey',
+  'page',
+  'size',
+  'sortField',
+  'sortOrder',
+];
+
 const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   'review-data-home': {
     allowedQueryKeys: [
@@ -136,6 +157,7 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
   },
   'question-metrics-issue-search': {
     allowedQueryKeys: [
+      'projectId',
       'page',
       'pageSize',
       'sortBy',
@@ -295,6 +317,16 @@ const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> =
     overrides: {
       title: '代码走查规则配置',
       description: '配置当前用户自己的代码走查判定规则，并即时查看结果预览。',
+    },
+  },
+  'analytics-dashboard-detail': {
+    basePageKey: 'quality-board-rd-quality-board',
+    overrides: {
+      title: '看板数据详情',
+      description: '展示当前看板统计范围内的详情数据及可用导出。',
+      allowedQueryKeys: analyticsDashboardDetailQueryKeys,
+      allowedQueryPrefixes: [],
+      persistedQueryKeys: [],
     },
   },
   'not-found': {
