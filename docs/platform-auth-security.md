@@ -13,9 +13,14 @@ PLATFORM_ADMIN_USERNAME=admin
 PLATFORM_ADMIN_PASSWORD={bcrypt}<bcrypt-hash>
 PLATFORM_APPROVAL_USERNAME=approval
 PLATFORM_APPROVAL_PASSWORD={bcrypt}<bcrypt-hash>
-DATASOURCE_PASSWORD=<database-password>
+DATASOURCE_URL=jdbc:postgresql://127.0.0.1:15432/qaflex
+DATASOURCE_USERNAME=qaflex
+DATASOURCE_PASSWORD=change_this_password
 GITLAB_WEB_BASE_URL=https://gitlab.example.com
 ```
+
+当前 Windows 本地开发使用 Docker 容器 `qaflex-dev-postgres-15432`。`qaflex-postgres`
+位于 `127.0.0.1:25432`，使用独立的 `qaflex/qaflex` 凭据，不能作为本地后端默认库；以上本地凭据也不能用于生产或内网部署。
 
 `PLATFORM_ADMIN_PASSWORD` 和 `PLATFORM_APPROVAL_PASSWORD` 不允许继续使用明文值。若仍配置明文，应用会在启动阶段失败并提示对应变量必须使用 password hash。
 

@@ -5,6 +5,68 @@ export interface NamedValue {
   value: number;
 }
 
+const INITIAL_VISIBLE_ITEMS = 11;
+const VERTICAL_GRID_RIGHT = 64;
+const HORIZONTAL_GRID_BOTTOM = 68;
+// Keep the shared controls at the Apache ECharts 30px default instead of compressing them.
+const VERTICAL_SLIDER_WIDTH = 30;
+const HORIZONTAL_SLIDER_HEIGHT = 30;
+const SLIDER_EDGE_GAP = 10;
+
+const dataZoomVisualStyle = {
+  show: true,
+  showDetail: false,
+  borderColor: '#cbd5e1',
+  borderRadius: 6,
+  backgroundColor: '#f8fafc',
+  fillerColor: 'rgba(37, 99, 235, 0.18)',
+  dataBackground: {
+    lineStyle: { color: '#cbd5e1', width: 1 },
+    areaStyle: { color: '#e2e8f0', opacity: 0.58 },
+  },
+  selectedDataBackground: {
+    lineStyle: { color: '#60a5fa', width: 1 },
+    areaStyle: { color: '#bfdbfe', opacity: 0.72 },
+  },
+  handleSize: '110%',
+  handleStyle: {
+    color: '#ffffff',
+    borderColor: '#2563eb',
+    borderWidth: 1.5,
+    shadowBlur: 3,
+    shadowColor: 'rgba(37, 99, 235, 0.18)',
+  },
+  moveHandleSize: 12,
+  moveHandleStyle: { color: 'rgba(37, 99, 235, 0.34)' },
+  emphasis: {
+    handleStyle: {
+      color: '#ffffff',
+      borderColor: '#1d4ed8',
+      borderWidth: 1.5,
+      shadowBlur: 3,
+      shadowColor: 'rgba(37, 99, 235, 0.24)',
+    },
+  },
+} as const;
+
+function axisDataZoom(axis: 'x' | 'y', count: number): NonNullable<EChartsOption['dataZoom']> {
+  const endValue = Math.min(INITIAL_VISIBLE_ITEMS - 1, Math.max(0, count - 1));
+  const axisIndex = axis === 'x' ? { xAxisIndex: 0 } : { yAxisIndex: 0 };
+  return [
+    { type: 'inside', ...axisIndex, startValue: 0, endValue },
+    {
+      type: 'slider',
+      ...axisIndex,
+      startValue: 0,
+      endValue,
+      ...dataZoomVisualStyle,
+      ...(axis === 'x'
+        ? { height: HORIZONTAL_SLIDER_HEIGHT, bottom: SLIDER_EDGE_GAP }
+        : { width: VERTICAL_SLIDER_WIDTH, right: SLIDER_EDGE_GAP }),
+    },
+  ] as NonNullable<EChartsOption['dataZoom']>;
+}
+
 function tooltipValueFormatter(formatter?: (value: number) => string) {
   if (!formatter) {
     return undefined;
@@ -44,7 +106,7 @@ export function buildHorizontalBarOption(input: {
     grid: {
       top: 64,
       left: 12,
-      right: 20,
+      right: VERTICAL_GRID_RIGHT,
       bottom: 8,
       containLabel: true,
     },
@@ -67,6 +129,7 @@ export function buildHorizontalBarOption(input: {
         show: false,
       },
     },
+    dataZoom: axisDataZoom('y', input.items.length),
     series: [
       {
         type: 'bar',
@@ -138,7 +201,7 @@ export function buildColumnBarOption(input: {
       top: showLegend ? 92 : 72,
       left: 12,
       right: 20,
-      bottom: 20,
+      bottom: HORIZONTAL_GRID_BOTTOM,
       containLabel: true,
     },
     xAxis: {
@@ -151,6 +214,7 @@ export function buildColumnBarOption(input: {
     yAxis: {
       type: 'value',
     },
+    dataZoom: axisDataZoom('x', input.categories.length),
     series: input.series.map(
       (series): SeriesOption => ({
         name: series.name,
@@ -224,7 +288,7 @@ export function buildLineOption(input: {
       top: showLegend ? 96 : 72,
       left: 12,
       right: 20,
-      bottom: 20,
+      bottom: HORIZONTAL_GRID_BOTTOM,
       containLabel: true,
     },
     xAxis: {
@@ -234,6 +298,7 @@ export function buildLineOption(input: {
     yAxis: {
       type: 'value',
     },
+    dataZoom: axisDataZoom('x', input.categories.length),
     series: input.series.map(
       (series): SeriesOption => ({
         name: series.name,
@@ -286,6 +351,7 @@ export function buildDonutOption(input: {
       valueFormatter: tooltipValueFormatter(input.valueFormatter),
     },
     legend: {
+      type: 'scroll',
       orient: 'vertical',
       right: 0,
       top: 'middle',

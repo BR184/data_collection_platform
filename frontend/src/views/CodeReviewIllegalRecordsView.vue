@@ -40,7 +40,7 @@ import {
   formatCodeReviewMetric,
   mapCodeReviewIllegalTableRows,
 } from './code-review-illegal-records-view-helpers';
-import { downloadBlob } from '../utils/csv-download';
+import { downloadBlob, formatExportFileDate } from '../utils/csv-download';
 import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
 import { useDataScope } from '../composables/useDataScope';
 
@@ -393,7 +393,7 @@ function codeReviewIllegalExportFilename() {
   ].map((value) => value.trim()).filter(Boolean);
   const prefix = params.length > 0 ? params.join('_') : '';
   if (isDgm) {
-    return `${prefix}${new Date().toLocaleString()}_内核代码走查非法数据.xlsx`;
+    return `${prefix}${formatExportFileDate(new Date())}_内核代码走查非法数据.xlsx`;
   }
   return `${prefix}代码走查非法数据.xlsx`;
 }

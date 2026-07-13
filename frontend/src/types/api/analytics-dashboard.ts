@@ -19,6 +19,7 @@ export interface AnalyticsDashboardMetric {
   ruleKey?: string | null;
   detail?: AnalyticsDashboardDetailAction | null;
   export?: AnalyticsDashboardExportAction | null;
+  status?: 'success' | 'danger' | 'neutral' | null;
 }
 
 export interface AnalyticsDashboardChart {

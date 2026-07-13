@@ -7,7 +7,8 @@ spring:
   jackson:
     time-zone: ${PLATFORM_TIME_ZONE:Asia/Shanghai}
   datasource:
-    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:15432/qaflex}
+    # Local default: qaflex-dev-postgres-15432. Production/intranet always overrides DATASOURCE_URL.
+    url: ${DATASOURCE_URL:jdbc:postgresql://127.0.0.1:15432/qaflex}
     username: ${DATASOURCE_USERNAME:qaflex}
     password: ${DATASOURCE_PASSWORD:}
     driver-class-name: org.postgresql.Driver

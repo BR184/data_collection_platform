@@ -266,16 +266,20 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
   private Map<String, Object> verticalBarOption(
       QualityBoardOtherTopic topic, List<QualityBoardOtherQueryService.Row> rows) {
     Map<String, Object> option = baseOption(topic);
-    option.put("grid", Map.of("left", 20, "right", 24, "top", 28, "bottom", 72, "containLabel", true));
+    option.put(
+        "grid",
+        Map.of(
+            "left", 20,
+            "right", 24,
+            "top", 28,
+            "bottom", AnalyticsDataZoomOptions.HORIZONTAL_GRID_BOTTOM,
+            "containLabel", true));
     option.put("xAxis", Map.of(
         "type", "category",
         "data", rows.stream().map(QualityBoardOtherQueryService.Row::name).toList(),
         "axisLabel", Map.of("rotate", 28, "interval", 0)));
     option.put("yAxis", Map.of("type", "value", "name", axisName(topic)));
-    option.put("dataZoom", List.of(
-        Map.of("type", "inside", "startValue", 0, "endValue", Math.min(11, Math.max(0, rows.size() - 1))),
-        Map.of("type", "slider", "height", 16, "bottom", 12, "startValue", 0,
-            "endValue", Math.min(11, Math.max(0, rows.size() - 1)))));
+    option.put("dataZoom", AnalyticsDataZoomOptions.horizontal(rows.size(), 11));
     option.put("series", List.of(Map.of(
         "name", topic.title(),
         "type", "bar",
@@ -290,17 +294,20 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
       QualityBoardOtherTopic topic, List<QualityBoardOtherQueryService.Row> rows) {
     List<QualityBoardOtherQueryService.Row> displayRows = rows.reversed();
     Map<String, Object> option = baseOption(topic);
-    option.put("grid", Map.of("left", 24, "right", 42, "top", 28, "bottom", 34, "containLabel", true));
+    option.put(
+        "grid",
+        Map.of(
+            "left", 24,
+            "right", AnalyticsDataZoomOptions.VERTICAL_GRID_RIGHT,
+            "top", 28,
+            "bottom", 34,
+            "containLabel", true));
     option.put("xAxis", Map.of("type", "value", "name", axisName(topic)));
     option.put("yAxis", Map.of(
         "type", "category",
         "data", displayRows.stream().map(QualityBoardOtherQueryService.Row::name).toList(),
         "axisLabel", Map.of("width", 130, "overflow", "truncate")));
-    option.put("dataZoom", List.of(
-        Map.of("type", "inside", "yAxisIndex", 0, "startValue", 0,
-            "endValue", Math.min(14, Math.max(0, displayRows.size() - 1))),
-        Map.of("type", "slider", "yAxisIndex", 0, "width", 14, "right", 4, "startValue", 0,
-            "endValue", Math.min(14, Math.max(0, displayRows.size() - 1)))));
+    option.put("dataZoom", AnalyticsDataZoomOptions.vertical(displayRows.size(), 14));
     option.put("series", List.of(Map.of(
         "name", topic.title(),
         "type", "bar",
@@ -314,17 +321,21 @@ public class QualityBoardOtherAnalyticsProvider implements AnalyticsDashboardPro
   private Map<String, Object> trendOption(
       QualityBoardOtherTopic topic, List<QualityBoardOtherQueryService.Row> rows) {
     Map<String, Object> option = baseOption(topic);
-    option.put("grid", Map.of("left", 20, "right", 24, "top", 28, "bottom", 70, "containLabel", true));
+    option.put(
+        "grid",
+        Map.of(
+            "left", 20,
+            "right", 24,
+            "top", 28,
+            "bottom", AnalyticsDataZoomOptions.HORIZONTAL_GRID_BOTTOM,
+            "containLabel", true));
     option.put("xAxis", Map.of(
         "type", "category",
         "boundaryGap", false,
         "data", rows.stream().map(QualityBoardOtherQueryService.Row::name).toList(),
         "axisLabel", Map.of("rotate", 28, "interval", 0)));
     option.put("yAxis", Map.of("type", "value", "name", "%"));
-    option.put("dataZoom", List.of(
-        Map.of("type", "inside", "startValue", 0, "endValue", Math.min(11, Math.max(0, rows.size() - 1))),
-        Map.of("type", "slider", "height", 16, "bottom", 10, "startValue", 0,
-            "endValue", Math.min(11, Math.max(0, rows.size() - 1)))));
+    option.put("dataZoom", AnalyticsDataZoomOptions.horizontal(rows.size(), 11));
     option.put("series", List.of(Map.of(
         "name", topic.title(),
         "type", "line",

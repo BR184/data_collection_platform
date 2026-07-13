@@ -67,6 +67,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     assertThat(demandMetric.detail().params())
         .containsEntry("projectName", "CC2026R4")
         .containsEntry("reviewType", "需求说明书评审");
+    assertThat(demandMetric.status()).isEqualTo("success");
 
     var dgmMetric = dashboard.metrics().stream()
         .filter(metric -> metric.key().equals("code-review-density-dgm"))
@@ -74,6 +75,7 @@ class QualityRdAnalyticsDashboardProviderTest {
         .orElseThrow();
     assertThat(dgmMetric.detail()).isNull();
     assertThat(dgmMetric.export().exportKey()).isEqualTo("code-review-records-dgm");
+    assertThat(dgmMetric.status()).isEqualTo("success");
 
     var newIssueMetric = dashboard.metrics().stream()
         .filter(metric -> metric.key().equals("new-issue-fix-rate"))
@@ -97,6 +99,7 @@ class QualityRdAnalyticsDashboardProviderTest {
     assertThat(detailParams)
         .containsEntry("authorName", "被走查人A")
         .containsEntry("topic", "author-density");
+    assertThat(authorChart.option()).containsKey("dataZoom");
 
     assertThat(rules.rules()).anySatisfy(rule -> {
       assertThat(rule.key()).isEqualTo("quality-rd.release-leakage-rate");

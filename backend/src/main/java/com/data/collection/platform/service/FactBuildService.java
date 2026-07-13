@@ -839,7 +839,9 @@ public class FactBuildService {
     fact.setFixed(IssueFactNormalizationRules.isFixed(labels, closed));
     fact.setDelayIssue(IssueFactNormalizationRules.hasDelayFlag(labels, notesText));
     fact.setDelayReason(IssueFactNormalizationRules.normalizeDelayReason(labels, notesText));
-    fact.setDelayCause(IssueFactNormalizationRules.inferDelayCause(labels, notesText));
+    fact.setDelayCause(customerIssue
+        ? IssueFactNormalizationRules.inferCustomerIssueDelayCause(labels, notesText)
+        : IssueFactNormalizationRules.inferDelayCause(labels, notesText));
     fact.setRegression(IssueFactNormalizationRules.isRegression(labels, title));
     fact.setCrash(IssueFactNormalizationRules.isCrash(labels, title));
     fact.setLevel1Other(IssueFactNormalizationRules.isLevel1Other(labels, title));

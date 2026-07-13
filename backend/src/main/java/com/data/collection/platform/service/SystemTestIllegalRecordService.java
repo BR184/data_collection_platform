@@ -173,7 +173,6 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
               request.assigneeName(),
               request.filterGroupJson());
       SystemTestIllegalRecordListResponse response = listRecords(pageRequest);
-      CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;
@@ -360,6 +359,8 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
   }
 
   private SystemTestIllegalRecordRowResponse toResponse(IssueFactRecord view) {
+    SystemTestLegacyCauseExportFields causeFields =
+        SystemTestLegacyCauseExportFields.fromReasonText(view.reasonCategory());
     return new SystemTestIllegalRecordRowResponse(
         view.issueId(),
         view.issueIid(),
@@ -375,10 +376,23 @@ public class SystemTestIllegalRecordService extends AbstractIssueFactRecordListS
         view.bugStatus(),
         view.category(),
         view.milestoneTitle(),
+        view.priorityLevel(),
+        view.delayCause(),
         view.authorName(),
         view.assigneeName(),
         String.join("&", displayModuleNames(view)),
         view.functionName(),
+        view.fixUser(),
+        causeFields.fixStatus(),
+        causeFields.majorCause(),
+        causeFields.secondCause(),
+        causeFields.specificReason(),
+        causeFields.modification(),
+        causeFields.causedByOther(),
+        causeFields.effectFunction(),
+        causeFields.hasTested(),
+        causeFields.potentialImpact(),
+        causeFields.relationTableUpdated(),
         view.createdAt(),
         view.updatedAt(),
         view.closedAt(),

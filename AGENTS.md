@@ -129,8 +129,9 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 | npm | **v11.9.0**，bash 里**必须**用 `npm.cmd`（直接 `npm` 在 MSYS 下不是可执行 PE）。 |
 | Python | **3.14.2**，`C:\Users\admin\AppData\Local\Microsoft\WindowsApps\python.exe`，`python` / `python3` 都可用。 |
 | Postgres CLI | `D:\projects\data_collection_platform\tools\postgresql-17.9\pgsql\bin`（`psql.exe` 等）。 |
-| 本地 DB | `jdbc:postgresql://localhost:15432/qaflex`，需要环境变量 `DATASOURCE_PASSWORD`。 |
-| 本地 DB 密码 | `DATASOURCE_PASSWORD=change_this_password`。 |
+| 本地开发平台 DB | `jdbc:postgresql://127.0.0.1:15432/qaflex`，Docker 容器为 `qaflex-dev-postgres-15432`。 |
+| 本地开发平台 DB 凭据 | `DATASOURCE_USERNAME=qaflex`，`DATASOURCE_PASSWORD=change_this_password`。 |
+| 另一 PostgreSQL 容器 | `qaflex-postgres` 位于 `127.0.0.1:25432`，数据库、用户名和密码均为 `qaflex`；它不是本地后端默认目标。 |
 | GitLab 大数据源库 | `gitlabhq_production`。这是之前导入了大量项目、议题和 MR 数据的 GitLab PostgreSQL 源数据库；后续涉及 GitLab 直连镜像、表白名单、议题/MR 事实构建和大数据量联调时默认使用这个库名。不要与平台库 `qaflex` 或老平台 MySQL 库 `gitlab_spider` 混淆。 |
 | 后端端口 | `18080` |
 | 前端端口 | `18181`（vite proxy → `http://localhost:18080`） |
@@ -149,7 +150,7 @@ PowerShell 写中文文件时必须使用 UTF-8 无 BOM，优先用项目脚本�
 | 认证提供方 | `PLATFORM_AUTH_PROVIDER` | `local` | 本地开发默认认证方式，不依赖外部 SSO。 |
 | 平台管理员 | `admin` | `admin123` | 本地开发、页面联调和真实链路冒烟默认账号。 |
 | 审批用户 | `approval` | `approval` | 本地审批链路验证账号。 |
-| 平台数据库 | `DATASOURCE_PASSWORD` | `change_this_password` | 默认连接 `jdbc:postgresql://localhost:15432/qaflex`。 |
+| 平台数据库（本地开发） | `DATASOURCE_URL`、`DATASOURCE_USERNAME`、`DATASOURCE_PASSWORD` | `jdbc:postgresql://127.0.0.1:15432/qaflex`、`qaflex`、`change_this_password` | 对应 `qaflex-dev-postgres-15432`；不要误连 `qaflex-postgres:25432`。 |
 
 - 后端本地启动时，常需要显式设置 `PLATFORM_SECURE_CONFIG_REQUIRED=false`
 - 涉及登录、提交、搜索、刷新后再提交等有状态接口时，通常需要同时携带 `XSRF-TOKEN` Cookie 和 `X-XSRF-TOKEN` 请求头
@@ -294,13 +295,17 @@ mvn -v
 后端：
 
 ```bash
-export DATASOURCE_PASSWORD='your-local-password'
+export DATASOURCE_URL='jdbc:postgresql://127.0.0.1:15432/qaflex'
+export DATASOURCE_USERNAME='qaflex'
+export DATASOURCE_PASSWORD='change_this_password'
 powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1
 ```
 
 PowerShell 排查后端启动时，推荐先用前台命令，确认 18080 监听后再做页面联调：
 
 ```powershell
+$env:DATASOURCE_URL = "jdbc:postgresql://127.0.0.1:15432/qaflex"
+$env:DATASOURCE_USERNAME = "qaflex"
 $env:DATASOURCE_PASSWORD = "change_this_password"
 $env:PLATFORM_SECURE_CONFIG_REQUIRED = "false"
 powershell -NoProfile -ExecutionPolicy Bypass -File backend/run-backend.ps1
@@ -310,6 +315,8 @@ Get-NetTCPConnection -LocalPort 18080 -ErrorAction SilentlyContinue
 如果必须后台启动，不要把 `$env:PATH` 拼进 `-Command` 字符串；优先调用启动脚本并重定向日志：
 
 ```powershell
+$env:DATASOURCE_URL = "jdbc:postgresql://127.0.0.1:15432/qaflex"
+$env:DATASOURCE_USERNAME = "qaflex"
 $env:DATASOURCE_PASSWORD = "change_this_password"
 $env:PLATFORM_SECURE_CONFIG_REQUIRED = "false"
 Start-Process -FilePath powershell `
@@ -336,7 +343,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File frontend/run-frontend.ps1
 | `./scripts/foo.ps1: cannot execute binary file` | bash 不会解释 .ps1 | 改用 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/foo.ps1` |
 | 中文输出乱码 | Console 编码非 UTF-8 | 按 §0.2 固定 UTF-8 |
 | `git diff --check` 报警 / CRLF 警告 | 编辑器写了 CRLF | 强制 LF；遵守 `.gitattributes` |
-| 后端启动报 `DATASOURCE_PASSWORD must not be null` | 没设密码环境变量 | `export DATASOURCE_PASSWORD='...'` |
+| 后端启动报 `DATASOURCE_PASSWORD must not be null` | 未设置本地开发数据库环境变量 | 设置 `DATASOURCE_URL=jdbc:postgresql://127.0.0.1:15432/qaflex`、`DATASOURCE_USERNAME=qaflex`、`DATASOURCE_PASSWORD=change_this_password`；不要改用 `qaflex-postgres:25432`。 |
 | 路径含反斜杠导致 `command not found` | export 用了 `D:\\...` | 改 `/d/...` 或 `D:/...` |
 | 后台启动后 18080 没监听且没日志 | `Start-Process` 没重定向，或 `-Command` 里的 PATH/变量被 PowerShell 解析坏 | 前台跑 `backend/run-backend.ps1`，或按 §5.3 后台模板重定向日志 |
 | `spring-boot:run` 在 `testCompile` 阶段失败 | 直接跑 Maven 启动时编译了测试源码，测试里可能有已删除服务/旧接口引用 | 用 `backend/run-backend.ps1`，该脚本带 `-Dmaven.test.skip=true`；代码验证另跑 `mvn -DskipTests compile` |

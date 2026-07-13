@@ -25,7 +25,21 @@ public record AnalyticsDashboardResponse(
       String unit,
       String ruleKey,
       DetailAction detail,
-      ExportAction export) {}
+      ExportAction export,
+      String status) {
+    /** Keeps provider fixtures/source compatibility while status remains optional for non-KPI metrics. */
+    public Metric(
+        String key,
+        String title,
+        BigDecimal value,
+        String displayValue,
+        String unit,
+        String ruleKey,
+        DetailAction detail,
+        ExportAction export) {
+      this(key, title, value, displayValue, unit, ruleKey, detail, export, null);
+    }
+  }
 
   public record Chart(
       String key,

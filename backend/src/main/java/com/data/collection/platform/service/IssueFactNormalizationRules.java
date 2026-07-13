@@ -60,6 +60,11 @@ public final class IssueFactNormalizationRules {
     return IssueClassificationRules.inferDelayCause(labels, notesText);
   }
 
+  public static String inferCustomerIssueDelayCause(List<String> labels, String notesText) {
+    String delayCause = inferDelayCause(labels, notesText);
+    return delayCause == null ? "未设定类别" : delayCause;
+  }
+
   public static String normalizeTestingPhase(List<String> labels) {
     return IssueLabelRules.normalizeTestingPhase(labels);
   }

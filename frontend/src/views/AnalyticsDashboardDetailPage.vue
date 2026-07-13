@@ -20,6 +20,7 @@ const loading = ref(false);
 const exportingKey = ref('');
 const errorMessage = ref('');
 let loadSequence = 0;
+const DEFAULT_DETAIL_PAGE_SIZE = 10;
 
 const dashboardKey = computed(() => String(route.meta.analyticsDashboardKey ?? '').trim());
 const detailViewKey = computed(() => String(route.params.detailViewKey ?? '').trim());
@@ -31,12 +32,19 @@ const testingPhaseFilter = computed(() => {
 });
 
 function routeQuery(): AnalyticsDashboardQuery {
-  return Object.fromEntries(
+  const query = Object.fromEntries(
     Object.entries(route.query).flatMap(([key, value]) => {
       const normalized = Array.isArray(value) ? value[0] : value;
       return normalized == null ? [] : [[key, String(normalized)]];
     }),
   );
+  if (!query.page) {
+    query.page = '1';
+  }
+  if (!query.size) {
+    query.size = String(DEFAULT_DETAIL_PAGE_SIZE);
+  }
+  return query;
 }
 
 async function loadDetail() {
@@ -72,6 +80,12 @@ async function loadDetail() {
 function changePage(page: number) {
   void router.replace({
     query: { ...route.query, page: String(page) },
+  });
+}
+
+function changePageSize(size: number) {
+  void router.replace({
+    query: { ...route.query, page: '1', size: String(size) },
   });
 }
 
@@ -167,14 +181,20 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
         />
       </section>
       <el-empty v-if="!detail.records.length" description="当前页暂无详情数据" />
-      <el-table v-else :data="detail.records" border stripe table-layout="fixed">
+      <el-table
+        v-else
+        class="analytics-detail-page__table"
+        :data="detail.records"
+        border
+        stripe
+        table-layout="fixed"
+      >
         <el-table-column
           v-for="column in detail.columns"
           :key="column.key"
           :prop="column.key"
           :label="column.label"
-          :width="column.width || undefined"
-          min-width="120"
+          :min-width="column.width || 120"
           show-overflow-tooltip
         >
           <template #default="scope">
@@ -186,11 +206,13 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
         v-if="shouldShowAnalyticsDetailPagination(detail)"
         class="analytics-detail-page__pagination"
         background
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
         :current-page="detail.page"
         :page-size="detail.size"
+        :page-sizes="[10, 20, 50, 100]"
         :total="detail.total"
         @current-change="changePage"
+        @size-change="changePageSize"
       />
     </template>
   </section>
@@ -275,6 +297,10 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
 
 .analytics-detail-page__pagination {
   justify-self: end;
+}
+
+.analytics-detail-page__table {
+  width: 100%;
 }
 
 @media (max-width: 760px) {

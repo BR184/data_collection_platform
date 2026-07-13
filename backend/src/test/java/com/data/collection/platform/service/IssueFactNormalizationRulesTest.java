@@ -93,6 +93,8 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.inferDelayCause(
         List.of("申请延期", "算法问题"), "当前属于算法问题"))
         .isEqualTo("算法问题");
+    assertThat(IssueFactNormalizationRules.inferCustomerIssueDelayCause(List.of(), ""))
+        .isEqualTo("未设定类别");
   }
 
   @Test
@@ -125,6 +127,12 @@ class IssueFactNormalizationRulesTest {
   void normalizeModuleNamesContractShouldStayStable() {
     assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：草图")))
         .containsExactly("草图");
+  }
+
+  @Test
+  void shouldSplitLegacyCombinedIssueModules() {
+    assertThat(IssueFactNormalizationRules.normalizeModuleNames(List.of("模块：BOM & DWG")))
+        .containsExactly("BOM", "DWG");
   }
 
   @Test

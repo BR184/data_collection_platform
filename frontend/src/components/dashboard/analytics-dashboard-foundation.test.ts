@@ -99,7 +99,7 @@ describe('analytics dashboard shared foundation', () => {
       },
     });
 
-    await wrapper.get('.dashboard-chart-card__title').trigger('click');
+    await wrapper.get('.dashboard-chart-card__detail-action').trigger('click');
     expect(wrapper.emitted('title-click')).toHaveLength(1);
     expect(wrapper.emitted('point-click')).toBeUndefined();
     expect(wrapper.emitted('export')).toBeUndefined();

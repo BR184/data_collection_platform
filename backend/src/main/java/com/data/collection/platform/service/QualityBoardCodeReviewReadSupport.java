@@ -129,7 +129,7 @@ public class QualityBoardCodeReviewReadSupport {
 
   public List<QualityBoardChartRowResponse> personDefectDensityRows(
       String personField,
-      boolean excludeIllegalReviewerRows,
+      boolean excludeIllegalAssigneeRows,
       String source,
       String projectName,
       CodeReviewDataReadMode readMode) {
@@ -144,18 +144,25 @@ public class QualityBoardCodeReviewReadSupport {
       default -> throw new IllegalArgumentException("Unsupported person field: " + personField);
     };
     QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
-    String illegalReviewerPredicate = excludeIllegalReviewerRows
-        ? " and coalesce(reviewer_names, '') not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')"
+    // 老平台 getAuthorDefectDensity 只排除 assignee 中的非法走查记录；
+    // 走查人图表本身按 assignee 聚合，不把 reviewer_names 当成非法记录过滤条件。
+    String illegalRecordPredicate = excludeIllegalAssigneeRows
+        ? " and coalesce(assignee_names, '') not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')"
         : "";
     String sql =
         """
         select
           person_name,
-          round((sum(case when coalesce(review_defect_density_per_kloc, 0) > 0 then review_defect_density_per_kloc else 0 end) / count(*))::numeric, 2) as value
+          round((sum(case when row_density > 0 then row_density else 0 end) / count(*))::numeric, 2) as value
         from (
           select
             nullif(btrim(%s), '') as person_name,
-            review_defect_density_per_kloc
+            case
+              when review_defect_density_per_kloc is not null then review_defect_density_per_kloc
+              when coalesce(defect_count, 0) > 0 and coalesce(added_lines, 0) > 0
+                then defect_count * 1000.0 / added_lines
+              else 0
+            end as row_density
           from %s
           where %s
             %s
@@ -164,6 +171,9 @@ public class QualityBoardCodeReviewReadSupport {
         where person_name is not null
           and person_name <> '无需标注'
           and person_name <> '--'
+          and person_name <> '无需走查'
+          and person_name <> '无需走查扫描'
+          and person_name <> '未标注人员'
           and person_name not like '%%#%%'
           and person_name not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')
         group by person_name
@@ -172,9 +182,9 @@ public class QualityBoardCodeReviewReadSupport {
             .formatted(
                 safePersonField,
                 scope.tableName(),
-                queryScope.predicate(),
-                scope.deletedPredicate(),
-                illegalReviewerPredicate);
+            queryScope.predicate(),
+            scope.deletedPredicate(),
+                illegalRecordPredicate);
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) ->

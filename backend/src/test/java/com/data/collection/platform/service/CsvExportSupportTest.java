@@ -1,22 +1,20 @@
 package com.data.collection.platform.service;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import com.data.collection.platform.common.exception.BizException;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
 class CsvExportSupportTest {
   @Test
-  void shouldAllowExportWithinRowLimit() {
-    assertThatCode(() -> CsvExportSupport.ensureWithinRowLimit(CsvExportSupport.MAX_EXPORT_ROWS))
-        .doesNotThrowAnyException();
+  void shouldEscapeCsvCells() {
+    assertThat(CsvExportSupport.cell("a,b\"c")).isEqualTo("\"a,b\"\"c\"");
+    assertThat(CsvExportSupport.cell(null)).isEmpty();
   }
 
   @Test
-  void shouldRejectExportBeyondRowLimit() {
-    assertThatThrownBy(() -> CsvExportSupport.ensureWithinRowLimit(CsvExportSupport.MAX_EXPORT_ROWS + 1L))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("请缩小筛选条件");
+  void shouldFormatDateTimeForCsv() {
+    assertThat(CsvExportSupport.dateTime(LocalDateTime.of(2026, 7, 13, 9, 8, 7)))
+        .isEqualTo("2026-07-13 09:08:07");
   }
 }

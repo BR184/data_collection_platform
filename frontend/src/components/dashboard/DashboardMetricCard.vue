@@ -24,14 +24,14 @@ function handleTitleClick(metric: AnalyticsDashboardMetric) {
 <template>
   <article class="dashboard-metric-card">
     <header class="dashboard-metric-card__header">
+      <span class="dashboard-metric-card__title">{{ metric.title }}</span>
       <button
+        v-if="metric.detail"
         type="button"
-        class="dashboard-metric-card__title"
-        :class="{ 'is-clickable': metric.detail }"
-        :disabled="!metric.detail"
-        @click="handleTitleClick(metric)"
+        class="dashboard-metric-card__detail-action"
+        @click.stop="handleTitleClick(metric)"
       >
-        {{ metric.title }}
+        查看详情
       </button>
       <RuleHintIcon v-if="metric.ruleKey" :rule="rule" @click="emit('rule-click', $event)" />
       <el-button
@@ -45,8 +45,8 @@ function handleTitleClick(metric: AnalyticsDashboardMetric) {
         <el-icon><Download /></el-icon>
       </el-button>
     </header>
-    <div class="dashboard-metric-card__value">
-      <span>{{ metric.displayValue }}</span>
+    <div class="dashboard-metric-card__value" :data-status="metric.status || 'neutral'">
+      <span class="dashboard-metric-card__value-number">{{ metric.displayValue }}</span>
       <small v-if="metric.unit">{{ metric.unit }}</small>
     </div>
   </article>
@@ -82,9 +82,22 @@ function handleTitleClick(metric: AnalyticsDashboardMetric) {
   border: 0;
 }
 
-.dashboard-metric-card__title.is-clickable {
-  color: #1d4ed8;
+.dashboard-metric-card__detail-action {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
   cursor: pointer;
+}
+
+.dashboard-metric-card__detail-action:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-3);
+  background: var(--el-color-primary-light-9);
 }
 
 .dashboard-metric-card__header :deep(.el-button) {
@@ -99,6 +112,22 @@ function handleTitleClick(metric: AnalyticsDashboardMetric) {
   font-size: 30px;
   font-weight: 650;
   gap: 5px;
+}
+
+.dashboard-metric-card__value-number {
+  color: inherit;
+}
+
+.dashboard-metric-card__value[data-status='success'] {
+  color: #16a34a;
+}
+
+.dashboard-metric-card__value[data-status='danger'] {
+  color: #dc2626;
+}
+
+.dashboard-metric-card__value[data-status='neutral'] {
+  color: #0f172a;
 }
 
 .dashboard-metric-card__value small {

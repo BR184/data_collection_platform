@@ -141,7 +141,8 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
             dgmAvailable
                 ? new AnalyticsDashboardResponse.ExportAction(
                     "code-review-records-dgm", "下载 DGM 代码走查数据")
-                : null),
+                : null,
+            dgmAvailable),
         metric(
             "integration-pass-rate",
             "集成测试通过率",
@@ -529,6 +530,18 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
       String ruleKey,
       AnalyticsDashboardResponse.DetailAction detail,
       AnalyticsDashboardResponse.ExportAction export) {
+    return metric(key, title, value, unit, ruleKey, detail, export, true);
+  }
+
+  private AnalyticsDashboardResponse.Metric metric(
+      String key,
+      String title,
+      Double value,
+      String unit,
+      String ruleKey,
+      AnalyticsDashboardResponse.DetailAction detail,
+      AnalyticsDashboardResponse.ExportAction export,
+      boolean available) {
     double safeValue = value == null ? 0D : value;
     return new AnalyticsDashboardResponse.Metric(
         key,
@@ -538,7 +551,31 @@ public class QualityRdAnalyticsDashboardProvider implements AnalyticsDashboardPr
         unit,
         ruleKey,
         detail,
-        export);
+        export,
+        metricStatus(key, safeValue, available));
+  }
+
+  /**
+   * The thresholds intentionally mirror the executable conditions in the legacy
+   * NinePersonalQuality.vue, rather than the looser tooltip text in that page.
+   */
+  private String metricStatus(String key, double value, boolean available) {
+    if (!available) {
+      return "neutral";
+    }
+    return switch (key) {
+      case "demand-review-density", "design-review-density" -> inRange(value, 0.2D, 0.6D);
+      case "code-review-density-cc", "code-review-density-dgm" -> inRange(value, 2D, 10D);
+      case "integration-pass-rate", "development-leakage-rate" -> value >= 90D ? "success" : "danger";
+      case "release-leakage-rate" -> value <= 15D ? "success" : "danger";
+      // 老平台新发缺陷修复率使用恒为 success 的标签，不做额外阈值判断。
+      case "new-issue-fix-rate" -> "success";
+      default -> "neutral";
+    };
+  }
+
+  private String inRange(double value, double minimum, double maximum) {
+    return value >= minimum && value <= maximum ? "success" : "danger";
   }
 
   private AnalyticsDashboardRulesResponse.Rule rule(

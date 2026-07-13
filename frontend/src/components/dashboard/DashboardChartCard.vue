@@ -31,14 +31,14 @@ const emit = defineEmits<{
     <header class="dashboard-chart-card__header">
       <div class="dashboard-chart-card__heading">
         <div class="dashboard-chart-card__title-line">
+          <span class="dashboard-chart-card__title">{{ chart.title }}</span>
           <button
+            v-if="chart.detail"
             type="button"
-            class="dashboard-chart-card__title"
-            :class="{ 'is-clickable': chart.detail }"
-            :disabled="!chart.detail"
-            @click="emit('title-click', chart)"
+            class="dashboard-chart-card__detail-action"
+            @click.stop="emit('title-click', chart)"
           >
-            {{ chart.title }}
+            查看详情
           </button>
           <RuleHintIcon v-if="chart.ruleKey" :rule="rule" @click="emit('rule-click', $event)" />
         </div>
@@ -94,19 +94,34 @@ const emit = defineEmits<{
 }
 
 .dashboard-chart-card__title {
+  min-width: 0;
+  overflow: hidden;
   padding: 0;
   color: #172033;
   font: inherit;
   font-size: 16px;
   font-weight: 650;
   text-align: left;
-  background: transparent;
-  border: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dashboard-chart-card__title.is-clickable {
-  color: #1d4ed8;
+.dashboard-chart-card__detail-action {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
   cursor: pointer;
+}
+
+.dashboard-chart-card__detail-action:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-3);
+  background: var(--el-color-primary-light-9);
 }
 
 .dashboard-chart-card__heading p {

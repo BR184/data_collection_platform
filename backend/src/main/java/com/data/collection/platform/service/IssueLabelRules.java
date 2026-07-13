@@ -194,7 +194,7 @@ final class IssueLabelRules {
         moduleName = oldPlatformChineseColonValue(label, "工具箱");
       }
       if (moduleName != null) {
-        modules.add(moduleName);
+        addIssueModuleValues(modules, moduleName);
       }
     }
     return List.copyOf(modules);
@@ -438,6 +438,19 @@ final class IssueLabelRules {
     String cleaned = value.trim();
     String normalized = IssueRuleSupport.normalizeText(cleaned);
     return normalized == null ? null : cleaned;
+  }
+
+  private static void addIssueModuleValues(Set<String> modules, String rawValue) {
+    String normalized = normalizeModuleValue(rawValue);
+    if (normalized == null) {
+      return;
+    }
+    for (String part : normalized.split("\\s*&\\s*")) {
+      String moduleName = normalizeModuleValue(part);
+      if (moduleName != null) {
+        modules.add(moduleName);
+      }
+    }
   }
 
   private record LegacyPrefixedLabel(String groupName, String value) {

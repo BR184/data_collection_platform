@@ -259,7 +259,6 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
               request.sortOrder(),
               request.ruleConfigJson());
       CodeReviewIllegalRecordListResponse response = listRecords(pageRequest);
-      CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;
@@ -351,14 +350,12 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
               .map(this::toView)
               .map(this::toResponse)
               .toList();
-      CsvExportSupport.ensureWithinRowLimit(rows.size());
       return rows;
     }
     List<CodeReviewIllegalRecordRowResponse> rows = new ArrayList<>();
     int page = 1;
     while (true) {
       CodeReviewIllegalRecordListResponse response = listRecords(pageRequest(request, page, request.illegalType()));
-      CsvExportSupport.ensureWithinRowLimit(response.total());
       rows.addAll(response.records());
       if (response.records().size() < EXPORT_PAGE_SIZE || rows.size() >= response.total()) {
         break;
@@ -378,7 +375,6 @@ public class CodeReviewIllegalRecordService implements PageRecordSnapshotRefresh
             .map(this::toView)
             .map(this::toResponse)
             .toList();
-    CsvExportSupport.ensureWithinRowLimit(rows.size());
     return rows;
   }
 

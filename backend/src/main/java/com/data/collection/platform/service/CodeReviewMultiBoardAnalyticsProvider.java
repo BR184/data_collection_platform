@@ -4,6 +4,7 @@ import com.data.collection.platform.entity.analytics.AnalyticsDashboardDetailRes
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardExport;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardResponse;
 import com.data.collection.platform.entity.analytics.AnalyticsDashboardRulesResponse;
+import com.data.collection.platform.service.analytics.AnalyticsDataZoomOptions;
 import com.data.collection.platform.service.analytics.AnalyticsDashboardProvider;
 import com.data.collection.platform.service.analytics.AnalyticsDashboardQueryContext;
 import com.data.collection.platform.service.analytics.CodeReviewAnalyticsReadMode;
@@ -182,7 +183,14 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
       CodeReviewMultiBoardProjectScope projectScope) {
     Map<String, Object> option = new LinkedHashMap<>();
     option.put("animationDuration", 450);
-    option.put("grid", Map.of("left", 24, "right", 36, "top", 24, "bottom", 52, "containLabel", true));
+    option.put(
+        "grid",
+        Map.of(
+            "left", 24,
+            "right", AnalyticsDataZoomOptions.VERTICAL_GRID_RIGHT,
+            "top", 24,
+            "bottom", 52,
+            "containLabel", true));
     option.put("tooltip", Map.of("trigger", "axis", "axisPointer", Map.of("type", "shadow")));
     option.put(
         "xAxis",
@@ -199,12 +207,15 @@ public class CodeReviewMultiBoardAnalyticsProvider implements AnalyticsDashboard
             "inverse", true,
             "data", rows.stream().map(CodeReviewMultiBoardAnalyticsRow::label).toList(),
             "axisLabel", Map.of("width", 150, "overflow", "truncate")));
-    if (rows.size() > 12) {
-      option.put(
-          "dataZoom",
-          List.of(
-              Map.of("type", "inside", "yAxisIndex", 0, "startValue", 0, "endValue", 11),
-              Map.of("type", "slider", "yAxisIndex", 0, "right", 4, "width", 12)));
+    // 老平台轴类图统一提供首屏范围控制，即使当前行数不足一屏也保留 slider，
+    // 让所有专题的交互一致；超过首屏的数据通过 inside/slider 浏览。
+    if (!rows.isEmpty()) {
+      // 老平台 CodeDefectDensity.vue 明确使用 0..30，其余代码走查图使用 0..10。
+      int legacyViewportEnd = topic == CodeReviewMultiBoardTopic.CODE_SUBMISSION_DEFECT_DENSITY
+          ? 30
+          : 10;
+      int endValue = Math.min(legacyViewportEnd, rows.size() - 1);
+      option.put("dataZoom", AnalyticsDataZoomOptions.vertical(rows.size(), endValue));
     }
     option.put(
         "series",

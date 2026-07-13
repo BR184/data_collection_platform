@@ -78,26 +78,21 @@ final class QualityRdDashboardChartOptions {
   }
 
   private static Map<String, Object> grid(int top) {
-    return Map.of("top", top, "left", 16, "right", 24, "bottom", 28, "containLabel", true);
+    return Map.of(
+        "top", top,
+        "left", 16,
+        "right", AnalyticsDataZoomOptions.VERTICAL_GRID_RIGHT,
+        "bottom", 28,
+        "containLabel", true);
   }
 
   private static void addDataZoom(Map<String, Object> option, int rowCount) {
-    if (rowCount <= 8) {
+    if (rowCount <= 0) {
       return;
     }
-    int end = Math.max(1, (int) Math.floor(800D / rowCount));
-    option.put(
-        "dataZoom",
-        List.of(
-            Map.of("type", "inside", "yAxisIndex", 0, "start", 0, "end", end),
-            Map.of(
-                "type", "slider",
-                "yAxisIndex", 0,
-                "right", 2,
-                "width", 8,
-                "start", 0,
-                "end", end,
-                "showDetail", false)));
+    // 对齐老平台 AssigneeDefectDensityChart/AuthorDefectDensityChart：初始只展示前 11 项，
+    // 其余数据通过 inside/slider dataZoom 浏览，不把完整聚合结果一次性铺满页面。
+    option.put("dataZoom", AnalyticsDataZoomOptions.vertical(rowCount, 10));
   }
 
   private static Map<String, Object> severitySeries(
