@@ -149,6 +149,12 @@ public class CodeReviewController {
             codeReviewRequestAssembler.toMultiBoardOverviewRequest(request)));
   }
 
+  @GetMapping("/multi-board/project-options")
+  public ApiResponse<java.util.List<OptionItemResponse>> getMultiBoardProjectOptions(
+      @RequestParam(required = false) String source) {
+    return ApiResponse.success(codeReviewMultiBoardService.listProjectOptions(source));
+  }
+
   @GetMapping("/multi-board/status")
   public ApiResponse<RealtimeWorkspaceStatusResponse> getMultiBoardRealtimeStatus() {
     return ApiResponse.success(multiBoardRealtimeRefreshService.getStatus(MULTI_BOARD_WORKSPACE_KEY));

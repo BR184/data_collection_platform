@@ -12,6 +12,7 @@ import com.data.collection.platform.entity.GitlabSyncConfig;
 import com.data.collection.platform.entity.QueuedFactBuildTask;
 import com.data.collection.platform.service.statistics.StatisticBoardSnapshotRefreshService;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -19,6 +20,7 @@ class FactRefreshTaskWorkerServiceTest {
   private FactBuildTaskService taskService;
   private GitlabConfigService configService;
   private FactBuildService factBuildService;
+  private IntegrationTestFactBuildService integrationTestFactBuildService;
   private FactRefreshImpactScopeService impactScopeService;
   private StatisticBoardSnapshotRefreshService snapshotRefreshService;
   private PageRecordSnapshotRefreshService pageRecordSnapshotRefreshService;
@@ -30,6 +32,7 @@ class FactRefreshTaskWorkerServiceTest {
     taskService = mock(FactBuildTaskService.class);
     configService = mock(GitlabConfigService.class);
     factBuildService = mock(FactBuildService.class);
+    integrationTestFactBuildService = mock(IntegrationTestFactBuildService.class);
     impactScopeService = mock(FactRefreshImpactScopeService.class);
     snapshotRefreshService = mock(StatisticBoardSnapshotRefreshService.class);
     pageRecordSnapshotRefreshService = mock(PageRecordSnapshotRefreshService.class);
@@ -39,6 +42,7 @@ class FactRefreshTaskWorkerServiceTest {
         taskService,
         configService,
         factBuildService,
+        integrationTestFactBuildService,
         impactScopeService,
         properties,
         snapshotRefreshService,
@@ -94,6 +98,38 @@ class FactRefreshTaskWorkerServiceTest {
     workerService.runOnce();
 
     verify(taskService).finishQueuedTask(eq(11L), eq("FAILED"), eq(0), eq("事实数据刷新失败"), anyString());
+  }
+
+  @Test
+  void shouldRefreshIntegrationFactsOnlyForAffectedIssues() {
+    GitlabSyncConfig config = config();
+    QueuedFactBuildTask task =
+        new QueuedFactBuildTask(
+            12L,
+            2L,
+            1L,
+            "default",
+            "INTEGRATION_TEST",
+            "integration-test",
+            false,
+            0,
+            3,
+            LocalDateTime.now().plusSeconds(9));
+    List<FactRefreshImpactScopeService.Target> targets =
+        List.of(new FactRefreshImpactScopeService.Target(9L, 101L));
+
+    when(taskService.claimNextQueuedTask(anyString(), eq(9))).thenReturn(task);
+    when(configService.getConfigById(1L)).thenReturn(config);
+    when(taskService.hasSuccessfulFullBuild("default", "INTEGRATION_TEST")).thenReturn(true);
+    when(impactScopeService.resolve(2L, "default", "INTEGRATION_TEST"))
+        .thenReturn(new FactRefreshImpactScopeService.ImpactScope(false, targets));
+    when(integrationTestFactBuildService.rebuildFactsByTargets("default", targets))
+        .thenReturn(new FactBuildResponse("integration-test", false, 1, "integration built"));
+
+    workerService.runOnce();
+
+    verify(integrationTestFactBuildService).rebuildFactsByTargets("default", targets);
+    verify(taskService).finishQueuedTask(12L, "SUCCESS", 1, "integration built", null);
   }
 
   private GitlabSyncConfig config() {

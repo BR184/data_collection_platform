@@ -398,6 +398,7 @@ const {
   ruleExplanation,
   ruleExplanationLoading,
   ruleExplanationVisible,
+  loadRuleExplanation,
   openRuleExplanation,
   handleRuleExplanationVisibleChange,
   resetRuleExplanation,
@@ -419,6 +420,12 @@ const {
   ruleFinalRetainedRate,
   qaFriendlyRuleSummary,
 } = useStatisticBoardRuleExplanationState(ruleExplanation);
+
+function ensureRuleExplanationLoaded() {
+  if (!ruleExplanation.value && !ruleExplanationLoading.value) {
+    void loadRuleExplanation();
+  }
+}
 
 const {
   syncStatus,
@@ -839,6 +846,7 @@ function autoRefreshMarkerKey() {
           :board-title="toolbarBoardTitle"
           :last-synced-text="lastSyncedText"
           :rule-explanation-loading="ruleExplanationLoading"
+          :rule-explanation-summary="qaFriendlyRuleSummary"
           :realtime-status="syncStatus"
           :can-refresh-realtime="canRefreshRealtime"
           :auto-refresh-on-enter="autoRefreshOnEnter"
@@ -858,6 +866,7 @@ function autoRefreshMarkerKey() {
           @quick-filter-change="updateQuickFilterCondition"
           @quick-filter-input-update="updateQuickFilterInput"
           @refresh-board="refreshBoard"
+          @load-rule-explanation="ensureRuleExplanationLoaded"
           @open-rule-explanation="openRuleExplanation"
           @export-board="exportBoard"
           @extra-action="handleExtraAction"

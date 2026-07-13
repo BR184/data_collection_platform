@@ -52,12 +52,14 @@ describe('analytics dashboard shared foundation', () => {
       data: {
         value: 4,
         pointKey: 'assignee:zhangsan',
+        detailViewKey: 'assignee-remaining-defects',
         detailParams: { assigneeName: '张三', projectId: 9 },
       },
     } as unknown as ECElementEvent;
 
     expect(normalizeEChartPointClick(event)).toMatchObject({
       pointKey: 'assignee:zhangsan',
+      detailViewKey: 'assignee-remaining-defects',
       detailParams: { assigneeName: '张三', projectId: '9' },
       name: '张三',
       value: 4,
@@ -151,6 +153,7 @@ describe('analytics dashboard shared foundation', () => {
       page: 3,
       size: 20,
       exports: [],
+      filters: [],
     })).toBe(true);
   });
 

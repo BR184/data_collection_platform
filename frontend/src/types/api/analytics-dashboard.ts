@@ -60,6 +60,26 @@ export interface AnalyticsDashboardDetailColumn {
   width?: number | null;
 }
 
+export interface AnalyticsDashboardDetailFilterOption {
+  label: string;
+  value: string;
+}
+
+export interface AnalyticsDashboardDetailFilter {
+  key: string;
+  label: string;
+  value?: string | null;
+  options: AnalyticsDashboardDetailFilterOption[];
+}
+
+export interface AnalyticsDashboardDetailChart {
+  key: string;
+  title: string;
+  subtitle?: string | null;
+  option: EChartsOption;
+  height?: number | null;
+}
+
 export interface AnalyticsDashboardDetailResponse {
   dashboardKey: string;
   viewKey: string;
@@ -71,6 +91,8 @@ export interface AnalyticsDashboardDetailResponse {
   page: number;
   size: number;
   exports: AnalyticsDashboardExportAction[];
+  filters: AnalyticsDashboardDetailFilter[];
+  chart?: AnalyticsDashboardDetailChart | null;
 }
 
 export type AnalyticsDashboardQueryValue = string | number | boolean | null | undefined;
@@ -81,6 +103,7 @@ export interface AnalyticsDashboardQuery {
   milestoneTitle?: AnalyticsDashboardQueryValue;
   codeReviewSource?: AnalyticsDashboardQueryValue;
   source?: AnalyticsDashboardQueryValue;
+  reviewerName?: AnalyticsDashboardQueryValue;
   personName?: AnalyticsDashboardQueryValue;
   authorName?: AnalyticsDashboardQueryValue;
   assigneeName?: AnalyticsDashboardQueryValue;
@@ -92,6 +115,11 @@ export interface AnalyticsDashboardQuery {
   bugStatus?: AnalyticsDashboardQueryValue;
   category?: AnalyticsDashboardQueryValue;
   pointKey?: AnalyticsDashboardQueryValue;
+  topic?: AnalyticsDashboardQueryValue;
+  functionCountProjectName?: AnalyticsDashboardQueryValue;
+  functionDensityProjectName?: AnalyticsDashboardQueryValue;
+  qualityRankingProjectName?: AnalyticsDashboardQueryValue;
+  memberUnresolvedProjectName?: AnalyticsDashboardQueryValue;
   page?: AnalyticsDashboardQueryValue;
   size?: AnalyticsDashboardQueryValue;
   sortField?: AnalyticsDashboardQueryValue;

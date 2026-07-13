@@ -28,12 +28,15 @@ class GitlabFactSourceSqlProviderTest {
         .contains("from ods_gitlab_merge_requests mr")
         .contains("from code_review_external_metrics m")
         .contains("from collect_form_records f")
-        .contains("from ods_gitlab_notes n")
+        .contains("join ods_gitlab_notes n")
         .contains("n.noteable_type = 'MergeRequest'")
         .contains("## 代码走查数据")
         .contains("mr.state_id")
         .contains("metrics.merged_at as merged_at")
         .doesNotContain("coalesce(metrics.merged_at, mr.updated_at) as merged_at")
+        .contains("as project_label_titles")
+        .contains("order by coalesce(ll.source_updated_at, ll.updated_at, ll.created_at) asc nulls last, ll.id asc")
+        .doesNotContain("p.name as project_name")
         .contains("code_walkthrough_date")
         .contains("ll.target_type = 'MergeRequest'");
   }

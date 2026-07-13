@@ -80,7 +80,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
     return pageRecordSnapshotService.readOrRefresh(
         snapshotRequest(
             PageRecordSnapshotService.SNAPSHOT_TYPE_LIST,
-            "project:" + LEGACY_CROWN_CAD_PROJECT_ID,
+            "project:" + safeRequest.listRequest().projectId(),
             safeRequest),
         SystemTestIssueSearchListResponse.class,
         () -> loadRecords(safeRequest));
@@ -99,10 +99,12 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
             request.filterGroupJson(),
             IssueFactRecordFilterGroupSupport.SYSTEM_TEST_FILTER_OPERATORS);
     StatisticFilterGroup filterGroup =
-        SystemTestPhaseFilterGroupExpander.expand(parsedFilterGroup, phaseScopeResolver);
+        SystemTestPhaseFilterGroupExpander.expand(
+            parsedFilterGroup, listRequest.projectId(), phaseScopeResolver);
     StatisticFilterGroup expandedFilterGroup = expandLabelGroupConditions(filterGroup, listRequest.sourceInstance());
     List<String> requestedTestingPhases = effectiveTestingPhases(request.testingPhases());
-    List<String> resolvedTestingPhases = phaseScopeResolver.resolveLegacyCrownCadPhases(requestedTestingPhases);
+    List<String> resolvedTestingPhases =
+        phaseScopeResolver.resolvePhases(listRequest.projectId(), requestedTestingPhases);
     if (!requestedTestingPhases.isEmpty() && resolvedTestingPhases.isEmpty()) {
       return new SystemTestIssueSearchListResponse(
           List.of(), 0, safePage, safeSize, safeSortField, safeSortOrder);
@@ -115,7 +117,7 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
                 view -> matchesKeyword(view, listRequest.keyword()))
             .stream()
             .filter(this::matchesLegacyIssueSearchVisibility)
-            .filter(view -> matchesTestingPhase(view, requestedTestingPhases))
+            .filter(view -> matchesTestingPhase(view, resolvedTestingPhases))
             .filter(view -> matchesEquals(view.authorName(), request.authorName()))
             .filter(view -> matchesEquals(view.assigneeName(), request.assigneeName()))
             .filter(view -> matchesFunctionName(view, listRequest.functionName()))
@@ -475,12 +477,15 @@ public class SystemTestIssueSearchService extends AbstractIssueFactRecordListSer
         && !TextQuerySupport.containsAbstractSearch(view.category(), "功能屏蔽");
   }
 
-  private boolean matchesTestingPhase(IssueFactRecord view, String testingPhase) {
-    return phaseScopeResolver.matchesLegacyCrownCadPhase(view.primaryPhaseLabel(), testingPhase);
-  }
-
-  private boolean matchesTestingPhase(IssueFactRecord view, List<String> testingPhases) {
-    return phaseScopeResolver.matchesLegacyCrownCadPhases(view.primaryPhaseLabel(), testingPhases);
+  private boolean matchesTestingPhase(IssueFactRecord view, List<String> resolvedTestingPhases) {
+    if (resolvedTestingPhases == null || resolvedTestingPhases.isEmpty()) {
+      return true;
+    }
+    String actualTestingPhase = TextQuerySupport.trimToNull(view.primaryPhaseLabel());
+    return actualTestingPhase != null
+        && resolvedTestingPhases.stream()
+            .filter(StringUtils::hasText)
+            .anyMatch(phase -> actualTestingPhase.equalsIgnoreCase(phase));
   }
 
   private List<String> effectiveTestingPhases(List<String> requestedTestingPhases) {

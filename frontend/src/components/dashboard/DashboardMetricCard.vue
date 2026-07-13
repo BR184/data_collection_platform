@@ -13,6 +13,12 @@ const emit = defineEmits<{
   (event: 'rule-click', rule: AnalyticsDashboardRule | null): void;
   (event: 'export', metric: AnalyticsDashboardMetric): void;
 }>();
+
+function handleTitleClick(metric: AnalyticsDashboardMetric) {
+  if (metric.detail) {
+    emit('title-click', metric);
+  }
+}
 </script>
 
 <template>
@@ -23,7 +29,7 @@ const emit = defineEmits<{
         class="dashboard-metric-card__title"
         :class="{ 'is-clickable': metric.detail }"
         :disabled="!metric.detail"
-        @click="emit('title-click', metric)"
+        @click="handleTitleClick(metric)"
       >
         {{ metric.title }}
       </button>

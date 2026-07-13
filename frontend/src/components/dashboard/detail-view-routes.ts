@@ -4,23 +4,44 @@ import type { AnalyticsDashboardDetailAction } from '../../types/api';
 
 interface AnalyticsDetailViewRouteDefinition {
   pageKey?: PageKey;
+  internalOwnerPageKey?: PageKey;
+  internalDashboardKey?: string;
   allowedQueryKeys: readonly string[];
 }
+
+const statisticBoardDetailQueryKeys = [
+  'projectId',
+  'projectName',
+  'testingPhase',
+  'detailVisible',
+  'detailRowKey',
+  'detailColumnKey',
+  'detailPage',
+  'detailPageSize',
+  'detailSortBy',
+  'detailSortOrder',
+  'filterGroup',
+  'filterLogic',
+] as const;
 
 const detailViewRouteByKey: Readonly<Record<string, AnalyticsDetailViewRouteDefinition>> = {
   'review-data-records': {
     pageKey: 'review-data-home',
     allowedQueryKeys: ['projectName', 'moduleName', 'reviewOwner', 'reviewType', 'problemStatus', 'reviewExpert'],
   },
-  'code-review-records': {
-    pageKey: 'code-review-illegal-records',
+  'quality-code-review-records': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
     allowedQueryKeys: [
-      'repositoryName',
       'projectName',
-      'moduleName',
-      'mergeRequestIid',
-      'owner',
       'source',
+      'topic',
+      'reviewerName',
+      'authorName',
+      'page',
+      'size',
+      'sortField',
+      'sortOrder',
     ],
   },
   'system-test-issue-records': {
@@ -36,7 +57,25 @@ const detailViewRouteByKey: Readonly<Record<string, AnalyticsDetailViewRouteDefi
       'issueState',
       'bugStatus',
       'category',
+      'filterGroup',
+      'filterLogic',
     ],
+  },
+  'system-test-defect-summary': {
+    pageKey: 'question-metrics-home',
+    allowedQueryKeys: statisticBoardDetailQueryKeys,
+  },
+  'system-test-phase-statistics': {
+    pageKey: 'question-metrics-phase-statistics',
+    allowedQueryKeys: statisticBoardDetailQueryKeys,
+  },
+  'system-test-defect-cause': {
+    pageKey: 'question-metrics-defect-cause',
+    allowedQueryKeys: statisticBoardDetailQueryKeys,
+  },
+  'system-test-delay-analysis': {
+    pageKey: 'question-metrics-delay-analysis',
+    allowedQueryKeys: statisticBoardDetailQueryKeys,
   },
   'customer-issue-records': {
     pageKey: 'customer-issues-cc-product-issues',
@@ -55,10 +94,11 @@ const detailViewRouteByKey: Readonly<Record<string, AnalyticsDetailViewRouteDefi
     ],
   },
   'assignee-remaining-defects': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
     allowedQueryKeys: [
       'projectId',
       'projectName',
-      'testingPhase',
       'assigneeName',
       'page',
       'size',
@@ -66,6 +106,75 @@ const detailViewRouteByKey: Readonly<Record<string, AnalyticsDetailViewRouteDefi
       'sortOrder',
     ],
   },
+  'integration-test-results': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
+    allowedQueryKeys: ['projectName', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'release-leakage-defects': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
+    allowedQueryKeys: ['projectName', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'development-leakage-defects': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
+    allowedQueryKeys: ['projectName', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'fix-user-defects': {
+    internalOwnerPageKey: 'quality-board-rd-quality-board',
+    internalDashboardKey: 'quality-rd',
+    allowedQueryKeys: [
+      'projectName',
+      'fixUser',
+      'severityLevel',
+      'page',
+      'size',
+      'sortField',
+      'sortOrder',
+    ],
+  },
+  'other-function-defect-count': {
+    internalOwnerPageKey: 'quality-board-other-board',
+    internalDashboardKey: 'quality-board-other',
+    allowedQueryKeys: ['functionCountProjectName', 'pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'other-function-defect-density': {
+    internalOwnerPageKey: 'quality-board-other-board',
+    internalDashboardKey: 'quality-board-other',
+    allowedQueryKeys: ['functionDensityProjectName', 'pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'other-quality-ranking': {
+    internalOwnerPageKey: 'quality-board-other-board',
+    internalDashboardKey: 'quality-board-other',
+    allowedQueryKeys: ['qualityRankingProjectName', 'pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'other-member-unresolved-rate': {
+    internalOwnerPageKey: 'quality-board-other-board',
+    internalDashboardKey: 'quality-board-other',
+    allowedQueryKeys: ['memberUnresolvedProjectName', 'pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'other-release-leakage-rate': {
+    internalOwnerPageKey: 'quality-board-other-board',
+    internalDashboardKey: 'quality-board-other',
+    allowedQueryKeys: ['pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'other-development-leakage-rate': {
+    internalOwnerPageKey: 'quality-board-other-board',
+    internalDashboardKey: 'quality-board-other',
+    allowedQueryKeys: ['pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+  'code-review-statistics': {
+    internalOwnerPageKey: 'code-review-multi-board',
+    internalDashboardKey: 'code-review-multi',
+    allowedQueryKeys: ['source', 'projectName', 'topic', 'pointKey', 'page', 'size', 'sortField', 'sortOrder'],
+  },
+};
+
+const internalDetailRouteNameByPageKey: Partial<Record<PageKey, string>> = {
+  'quality-board-rd-quality-board': 'quality-rd-analytics-detail',
+  'quality-board-other-board': 'quality-other-analytics-detail',
+  'code-review-multi-board': 'code-review-analytics-detail',
 };
 
 function sanitizeQuery(
@@ -99,9 +208,19 @@ export function buildAnalyticsDetailRoute(
     return { path, query: sanitizeQuery(values, allowedKeys) };
   }
 
+  if (!definition.internalOwnerPageKey || !definition.internalDashboardKey) {
+    throw new Error(`详情视图缺少页面归属: ${action.viewKey}`);
+  }
+  if (definition.internalDashboardKey !== dashboardKey) {
+    throw new Error(`详情视图不属于当前看板: ${action.viewKey}`);
+  }
+  const routeName = internalDetailRouteNameByPageKey[definition.internalOwnerPageKey];
+  if (!routeName) {
+    throw new Error(`详情页面归属未注册: ${definition.internalOwnerPageKey}`);
+  }
   return {
-    name: 'analytics-dashboard-detail',
-    params: { dashboardKey, detailViewKey: action.viewKey },
+    name: routeName,
+    params: { detailViewKey: action.viewKey },
     query: sanitizeQuery(values, definition.allowedQueryKeys),
   };
 }

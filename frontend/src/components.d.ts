@@ -17,6 +17,7 @@ declare module 'vue' {
     CodeReviewRuleConfigPreview: typeof import('./components/rule-config/CodeReviewRuleConfigPreview.vue')['default']
     DashboardChartCard: typeof import('./components/dashboard/DashboardChartCard.vue')['default']
     DashboardMetricCard: typeof import('./components/dashboard/DashboardMetricCard.vue')['default']
+    DashboardRuleDrawer: typeof import('./components/dashboard/DashboardRuleDrawer.vue')['default']
     DatabaseBrowserView: typeof import('./components/DatabaseBrowserView.vue')['default']
     DataScopeBar: typeof import('./components/data-scope/DataScopeBar.vue')['default']
     DataScopeCompareDialog: typeof import('./components/data-scope/DataScopeCompareDialog.vue')['default']

@@ -1,4 +1,5 @@
 import type { OptionItemResponse } from './common';
+import type { AnalyticsDashboardRule } from './analytics-dashboard';
 
 export interface SystemTestIssueSearchRowResponse {
   issueId: number;
@@ -59,6 +60,7 @@ export interface SystemTestIssueMultiBoardScopeResponse {
 
 export interface SystemTestIssueMultiBoardSummaryCardResponse {
   key: string;
+  ruleKey: string;
   label: string;
   value: string;
   tone?: 'default' | 'success' | 'warning' | 'danger' | string;
@@ -66,20 +68,25 @@ export interface SystemTestIssueMultiBoardSummaryCardResponse {
 
 export interface SystemTestIssueMultiBoardSeriesResponse {
   name: string;
-  data: number[];
+  data: SystemTestIssueMultiBoardPointResponse[];
 }
 
 export interface SystemTestIssueMultiBoardPointResponse {
   name: string;
   value: number;
+  pointKey: string;
+  detailViewKey: string;
+  detailParams: Record<string, string>;
 }
 
 export interface SystemTestIssueMultiBoardChartResponse {
   key: string;
+  ruleKey: string;
   title: string;
   description: string;
   chartType: 'pie' | 'bar' | 'stackedBar' | string;
-  detailPath?: string | null;
+  detailViewKey: string;
+  detailParams: Record<string, string>;
   exportName: string;
   categories: string[];
   series: SystemTestIssueMultiBoardSeriesResponse[];
@@ -93,6 +100,7 @@ export interface SystemTestIssueMultiBoardResponse {
   testingPhaseOptions: OptionItemResponse[];
   summaryCards: SystemTestIssueMultiBoardSummaryCardResponse[];
   charts: SystemTestIssueMultiBoardChartResponse[];
+  rules: AnalyticsDashboardRule[];
 }
 
 export interface SystemTestIllegalRecordRowResponse {

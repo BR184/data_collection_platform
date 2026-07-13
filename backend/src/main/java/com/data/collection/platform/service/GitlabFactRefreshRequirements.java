@@ -9,6 +9,7 @@ import java.util.Set;
 public final class GitlabFactRefreshRequirements {
   public static final String FACT_TYPE_ISSUE = "ISSUE";
   public static final String FACT_TYPE_MERGE_REQUEST = "MERGE_REQUEST";
+  public static final String FACT_TYPE_INTEGRATION_TEST = "INTEGRATION_TEST";
 
   private static final List<String> ISSUE_FACT_REQUIRED_TABLES =
       List.of("issues", "projects", "users", "labels", "label_links", "notes", "issue_assignees");
@@ -24,13 +25,15 @@ public final class GitlabFactRefreshRequirements {
           "notes",
           "label_links",
           "labels");
+  private static final List<String> INTEGRATION_TEST_FACT_REQUIRED_TABLES =
+      List.of("issues", "projects", "users", "labels", "label_links", "notes");
 
   private GitlabFactRefreshRequirements() {
   }
 
   public static List<String> supportedFactTypes(GitlabSyncConfig config) {
     if (config == null || config.getWhitelistMode() != WhitelistMode.CUSTOM) {
-      return List.of(FACT_TYPE_ISSUE, FACT_TYPE_MERGE_REQUEST);
+      return List.of(FACT_TYPE_ISSUE, FACT_TYPE_MERGE_REQUEST, FACT_TYPE_INTEGRATION_TEST);
     }
     Set<String> whitelist = normalizedWhitelist(config);
     if (whitelist.isEmpty()) {
@@ -43,6 +46,9 @@ public final class GitlabFactRefreshRequirements {
     if (whitelist.containsAll(MERGE_REQUEST_FACT_REQUIRED_TABLES)) {
       supported.add(FACT_TYPE_MERGE_REQUEST);
     }
+    if (whitelist.containsAll(INTEGRATION_TEST_FACT_REQUIRED_TABLES)) {
+      supported.add(FACT_TYPE_INTEGRATION_TEST);
+    }
     return List.copyOf(supported);
   }
 
@@ -54,6 +60,7 @@ public final class GitlabFactRefreshRequirements {
     LinkedHashSet<String> tables = new LinkedHashSet<>();
     tables.addAll(ISSUE_FACT_REQUIRED_TABLES);
     tables.addAll(MERGE_REQUEST_FACT_REQUIRED_TABLES);
+    tables.addAll(INTEGRATION_TEST_FACT_REQUIRED_TABLES);
     return List.copyOf(tables);
   }
 

@@ -7,6 +7,7 @@ import com.data.collection.platform.entity.QualityBoardMetricResponse;
 import com.data.collection.platform.entity.QualityBoardOtherOverviewResponse;
 import com.data.collection.platform.entity.QualityBoardProjectOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
+import com.data.collection.platform.entity.QualityBoardRdFilterOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import java.util.ArrayList;
@@ -68,12 +69,27 @@ public class QualityBoardRdService {
     return new QualityBoardProjectOptionsResponse(defaultProject, options);
   }
 
+  public QualityBoardRdFilterOptionsResponse listFilterOptions() {
+    QualityBoardProjectOptionsResponse projects = listProjectOptions();
+    return new QualityBoardRdFilterOptionsResponse(
+        projects.defaultProjectName(),
+        projects.options(),
+        codeReviewReadSupport.listAvailableSources());
+  }
+
   public QualityBoardRdOverviewResponse getOverview(String requestedProjectName) {
+    return getOverview(requestedProjectName, codeReviewReadSupport.configuredReadMode());
+  }
+
+  public QualityBoardRdOverviewResponse getOverview(
+      String requestedProjectName, CodeReviewDataReadMode codeReviewReadMode) {
     String projectName = normalizeProjectName(requestedProjectName);
     double demandReviewDensity = reviewDensity(projectName, DEMAND_REVIEW_TYPE);
     double designReviewDensity = reviewDensity(projectName, DESIGN_REVIEW_TYPE);
-    double codeReviewCcDensity = codeReviewReadSupport.defectDensity("cc", projectName);
-    double codeReviewDgmDensity = codeReviewReadSupport.defectDensity("dgm", projectName);
+    double codeReviewCcDensity =
+        codeReviewReadSupport.defectDensity("cc", projectName, codeReviewReadMode);
+    double codeReviewDgmDensity =
+        codeReviewReadSupport.defectDensity("dgm", projectName, codeReviewReadMode);
     double integrationPassRate = integrationPassRate(projectName);
     double defectLeakageRate = defectLeakageRate(projectName);
     double defectEliminationRate = defectEliminationRate(projectName);
@@ -104,19 +120,31 @@ public class QualityBoardRdService {
   public QualityBoardRdDashboardResponse getRdDashboard(
       String requestedProjectName,
       String requestedCodeReviewSource) {
+    return getRdDashboard(
+        requestedProjectName,
+        requestedCodeReviewSource,
+        codeReviewReadSupport.configuredReadMode());
+  }
+
+  public QualityBoardRdDashboardResponse getRdDashboard(
+      String requestedProjectName,
+      String requestedCodeReviewSource,
+      CodeReviewDataReadMode codeReviewReadMode) {
     String projectName = normalizeProjectName(requestedProjectName);
-    String codeReviewSource = resolveCodeReviewSource(requestedCodeReviewSource);
+    String codeReviewSource =
+        resolveCodeReviewSource(requestedCodeReviewSource, codeReviewReadMode);
     List<String> phases = phaseScopeResolver.resolveLegacyCrownCadPhases(projectName);
     return new QualityBoardRdDashboardResponse(
-        getOverview(projectName),
+        getOverview(projectName, codeReviewReadMode),
         codeReviewSource,
-        codeReviewReadSupport.listAvailableSources(),
+        codeReviewReadSupport.listAvailableSources(codeReviewReadMode),
         codeReviewReadSupport.personDefectDensityRows(
-            "assignee_names", false, codeReviewSource, projectName),
+            "reviewer_names", false, codeReviewSource, projectName, codeReviewReadMode),
         codeReviewReadSupport.personDefectDensityRows(
-            "author_name", true, codeReviewSource, projectName),
+            "author_name", true, codeReviewSource, projectName, codeReviewReadMode),
         fixUserSeverityRows(phases),
-        codeReviewReadSupport.frequencyRows(codeReviewSource, projectName),
+        codeReviewReadSupport.frequencyRows(
+            codeReviewSource, projectName, codeReviewReadMode),
         defectRepairUserRows(phases));
   }
 
@@ -319,7 +347,6 @@ public class QualityBoardRdService {
         group by person_name
         having count(*) > 0
         order by total desc, person_name
-        limit 12
         """
             .formatted(placeholders);
     return jdbcTemplate.query(
@@ -345,16 +372,16 @@ public class QualityBoardRdService {
     String sql =
         """
         select
-          coalesce(nullif(btrim(assignee_name), ''), '未标注指派人') as person_name,
+          btrim(assignee_name) as person_name,
           count(*)::numeric as value
         from issue_fact
         where deleted = false
           and project_id = ?
           and testing_phase in (%s)
           and %s
+          and nullif(btrim(assignee_name), '') is not null
         group by person_name
         order by value desc, person_name
-        limit 12
         """
             .formatted(placeholders, openIssueStatePredicate());
     return jdbcTemplate.query(
@@ -375,6 +402,8 @@ public class QualityBoardRdService {
         select pass_case, execute_case
           from integration_test_fact
          where deleted = false
+           and lower(coalesce(source_instance, '')) = ?
+           and project_id = ?
            and testing_phase = ?
         """,
         rs -> {
@@ -390,6 +419,8 @@ public class QualityBoardRdService {
           }
           return rowCount <= 0 ? 0D : ReviewDataNumberSupport.roundToTwoDecimals(totalRate / rowCount);
         },
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
+        CROWN_CAD_PROJECT_ID,
         testingPhase);
   }
 
@@ -398,8 +429,10 @@ public class QualityBoardRdService {
     if (phases.isEmpty()) {
       return 0D;
     }
-    long openCount = issueCount(phases, " and " + openIssueStatePredicate());
-    long totalCount = issueCount(phases, "");
+    String validIssuePredicate = rejectedIssueExclusionPredicate();
+    long openCount = issueCount(
+        phases, validIssuePredicate + " and " + openIssueStatePredicate());
+    long totalCount = issueCount(phases, validIssuePredicate);
     return divide(openCount * 100D, totalCount, 1D);
   }
 
@@ -409,7 +442,7 @@ public class QualityBoardRdService {
       return 0D;
     }
     long integrationNotPassCount = integrationNotPassCount(projectName);
-    long systemTestIssueCount = issueCount(phases, "");
+    long systemTestIssueCount = issueCount(phases, rejectedIssueExclusionPredicate());
     if (integrationNotPassCount <= 0 || systemTestIssueCount <= 0) {
       return 0D;
     }
@@ -445,9 +478,13 @@ public class QualityBoardRdService {
             select coalesce(sum(not_pass_case), 0)
               from integration_test_fact
              where deleted = false
+               and lower(coalesce(source_instance, '')) = ?
+               and project_id = ?
                and testing_phase = ?
             """,
             Long.class,
+            GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
+            CROWN_CAD_PROJECT_ID,
             projectName + "集成测试");
     return count == null ? 0L : count;
   }
@@ -486,6 +523,10 @@ public class QualityBoardRdService {
       """;
   }
 
+  private String rejectedIssueExclusionPredicate() {
+    return " and coalesce(bug_status, '') not like '%已拒绝%'";
+  }
+
   private String openIssueStatePredicate() {
     return "lower(coalesce(issue_state, '')) in ('open', 'opened')";
   }
@@ -510,7 +551,13 @@ public class QualityBoardRdService {
   }
 
   private String resolveCodeReviewSource(String requestedSource) {
-    List<OptionItemResponse> options = codeReviewReadSupport.listAvailableSources();
+    return resolveCodeReviewSource(requestedSource, codeReviewReadSupport.configuredReadMode());
+  }
+
+  private String resolveCodeReviewSource(
+      String requestedSource, CodeReviewDataReadMode codeReviewReadMode) {
+    List<OptionItemResponse> options =
+        codeReviewReadSupport.listAvailableSources(codeReviewReadMode);
     String normalized = TextQuerySupport.trimToNull(requestedSource);
     if (normalized != null
         && options.stream().anyMatch(option -> option.value().equalsIgnoreCase(normalized))) {

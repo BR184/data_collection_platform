@@ -27,6 +27,9 @@ class QualityBoardCodeReviewReadSupportTest {
     assertThat(scope.tableName()).isEqualTo("code_review_match_mode_records");
     assertThat(scope.sourceInstance()).isEqualTo("dgm");
     assertThat(scope.projectNames()).containsExactly("CC2026R4", "CrownCAD 2026 R4");
+    assertThat(scope.additionalPredicate())
+        .isEqualTo("lower(btrim(coalesce(repository_name, ''))) = ?");
+    assertThat(scope.additionalArgs()).containsExactly("dgm");
     assertThat(scope.mergeRequestIdentity()).isEqualTo("merge_request_iid");
     assertThat(scope.deletedPredicate()).isEmpty();
   }
@@ -41,8 +44,32 @@ class QualityBoardCodeReviewReadSupportTest {
     assertThat(scope.tableName()).isEqualTo("merge_request_fact");
     assertThat(scope.sourceInstance()).isEqualTo("default");
     assertThat(scope.projectNames()).containsExactly("CC2026R4");
+    assertThat(scope.additionalPredicate()).isEqualTo("project_id = ?");
+    assertThat(scope.additionalArgs())
+        .containsExactly(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID);
     assertThat(scope.mergeRequestIdentity()).isEqualTo("project_id, merge_request_id");
     assertThat(scope.deletedPredicate()).isEqualTo(" and deleted = false");
+
+    QualityBoardCodeReviewQueryScope queryScope = support.queryScope(scope);
+    assertThat(queryScope.predicate())
+        .isEqualTo(
+            "lower(coalesce(source_instance, '')) = ? and project_id = ? "
+                + "and coalesce(project_name, '') in (?)");
+    assertThat(queryScope.args()).containsExactly("default", 9L, "CC2026R4");
+  }
+
+  @Test
+  void compatibilityCcAllProjectsStayInsideLegacyCrownCadRepository() {
+    QualityBoardCodeReviewReadScope scope =
+        support.resolveAllProjectsScope("cc", CodeReviewDataReadMode.MATCH_MODE);
+
+    assertThat(scope.available()).isTrue();
+    assertThat(scope.tableName()).isEqualTo("code_review_match_mode_records");
+    assertThat(scope.projectNames()).isEmpty();
+    assertThat(scope.additionalPredicate())
+        .isEqualTo("lower(btrim(coalesce(repository_name, ''))) = ?");
+    assertThat(scope.additionalArgs()).containsExactly("crowncad");
+    assertThat(support.queryScope(scope).args()).containsExactly("cc", "crowncad");
   }
 
   @Test

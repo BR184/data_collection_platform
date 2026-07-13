@@ -3,6 +3,7 @@ package com.data.collection.platform.service;
 import com.data.collection.platform.common.exception.BizException;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.statistics.SystemTestIssueMetricDimensionSupport;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -39,6 +40,16 @@ final class IssueFactRecordFilterGroupSupport {
           Map.entry("moduleName", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
           Map.entry("functionName", List.of("contains", "eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("testingPhase", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("metricSeverity", List.of("eq", "ne")),
+          Map.entry("regularMetric", List.of("eq", "ne")),
+          Map.entry("majorCause", List.of("eq", "ne")),
+          Map.entry("causeMetric", List.of("eq", "ne")),
+          Map.entry("reasonCategory", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("fixUser", List.of("eq", "ne", "contains", "notContains", "isEmpty", "isNotEmpty")),
+          Map.entry("delayCause", List.of("eq", "ne")),
+          Map.entry("delayIssue", List.of("eq", "ne")),
+          Map.entry("rollback", List.of("eq", "ne")),
+          Map.entry("openIssue", List.of("eq", "ne")),
           Map.entry("illegalReason", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("severityLevel", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
           Map.entry("issueState", List.of("eq", "ne", "isEmpty", "isNotEmpty")),
@@ -221,7 +232,22 @@ final class IssueFactRecordFilterGroupSupport {
       case "functionName" -> List.of(Objects.toString(row.functionName(), ""));
       case "testingPhase" ->
           List.of(Objects.toString(useFullTestingPhase ? row.primaryPhaseLabel() : row.phaseFilterValue(), ""));
+      case "metricSeverity" -> List.of(SystemTestIssueMetricDimensionSupport.metricSeverity(
+          row.excluded(), row.exclusionReason(), row.severityLevel(), row.category()));
+      case "regularMetric" -> List.of(Boolean.toString(SystemTestIssueMetricDimensionSupport.regularMetric(
+          row.excluded(), row.exclusionReason(), row.severityLevel(), row.category())));
+      case "majorCause" -> List.of(SystemTestIssueMetricDimensionSupport.majorCause(
+          row.reasonCategory(), String.join(" ", row.labels())));
+      case "causeMetric" -> SystemTestIssueMetricDimensionSupport.matchingCauseMetricKeys(
+          row.reasonCategory(), String.join(" ", row.labels()));
       case "reasonCategory" -> List.of(Objects.toString(row.reasonCategory(), ""));
+      case "fixUser" -> List.of(Objects.toString(row.fixUser(), ""));
+      case "delayCause" -> List.of(SystemTestIssueMetricDimensionSupport.delayCause(
+          row.delayCause(), row.delayReason(), String.join(" ", row.labels())));
+      case "delayIssue" -> List.of(Boolean.toString(row.delayIssue()));
+      case "rollback" -> List.of(Boolean.toString(SystemTestIssueMetricDimensionSupport.rollback(
+          row.regression(), row.title(), String.join(" ", row.labels()))));
+      case "openIssue" -> List.of(Boolean.toString(!"closed".equalsIgnoreCase(row.issueState())));
       case "illegalReason" -> illegalReasonValues(row);
       case "severityLevel" -> List.of(Objects.toString(row.severityLevel(), ""));
       case "priorityLevel" -> List.of(Objects.toString(row.priorityLevel(), ""));

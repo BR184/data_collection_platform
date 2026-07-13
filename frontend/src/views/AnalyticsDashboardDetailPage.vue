@@ -11,6 +11,7 @@ import type {
 import { downloadBlob } from '../utils/csv-download';
 import AnalyticsDashboardDetailCell from '../components/dashboard/AnalyticsDashboardDetailCell.vue';
 import { shouldShowAnalyticsDetailPagination } from '../components/dashboard/analytics-dashboard-detail-cell';
+import EChartPanel from '../components/charts/EChartPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -20,8 +21,14 @@ const exportingKey = ref('');
 const errorMessage = ref('');
 let loadSequence = 0;
 
-const dashboardKey = computed(() => String(route.params.dashboardKey ?? '').trim());
+const dashboardKey = computed(() => String(route.meta.analyticsDashboardKey ?? '').trim());
 const detailViewKey = computed(() => String(route.params.detailViewKey ?? '').trim());
+const testingPhaseFilter = computed(() => {
+  if (detailViewKey.value !== 'assignee-remaining-defects') {
+    return null;
+  }
+  return (detail.value?.filters ?? []).find((filter) => filter.key === 'projectName') ?? null;
+});
 
 function routeQuery(): AnalyticsDashboardQuery {
   return Object.fromEntries(
@@ -68,6 +75,17 @@ function changePage(page: number) {
   });
 }
 
+function changeTestingPhase(value: unknown) {
+  const projectName = String(value ?? '').trim();
+  if (!projectName) {
+    return;
+  }
+  const query = { ...route.query, projectName };
+  delete query.page;
+  delete query.assigneeName;
+  void router.replace({ query });
+}
+
 async function exportDetail(action: AnalyticsDashboardExportAction) {
   if (exportingKey.value) {
     return;
@@ -98,16 +116,38 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
         <h2>{{ detail?.title || '看板数据详情' }}</h2>
         <p v-if="detail?.description">{{ detail.description }}</p>
       </div>
-      <div v-if="detail?.exports.length" class="analytics-detail-page__actions">
-        <el-button
-          v-for="action in detail.exports"
-          :key="action.exportKey"
-          :icon="Download"
-          :loading="exportingKey === action.exportKey"
-          @click.stop="exportDetail(action)"
-        >
-          {{ action.label }}
-        </el-button>
+      <div
+        v-if="testingPhaseFilter || detail?.exports.length"
+        class="analytics-detail-page__toolbar"
+      >
+        <label v-if="testingPhaseFilter" class="analytics-detail-page__phase-filter">
+          <span>{{ testingPhaseFilter.label }}</span>
+          <el-select
+            :model-value="testingPhaseFilter.value"
+            filterable
+            :disabled="loading"
+            placeholder="选择测试阶段"
+            @change="changeTestingPhase"
+          >
+            <el-option
+              v-for="option in testingPhaseFilter.options"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </label>
+        <div v-if="detail?.exports.length" class="analytics-detail-page__actions">
+          <el-button
+            v-for="action in detail.exports"
+            :key="action.exportKey"
+            :icon="Download"
+            :loading="exportingKey === action.exportKey"
+            @click.stop="exportDetail(action)"
+          >
+            {{ action.label }}
+          </el-button>
+        </div>
       </div>
     </header>
 
@@ -115,6 +155,17 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
     <el-skeleton v-if="loading && !detail" :rows="8" animated />
     <el-empty v-else-if="!detail" description="当前范围暂无详情数据" />
     <template v-else>
+      <section v-if="detail.chart" class="analytics-detail-page__chart">
+        <header>
+          <h3>{{ detail.chart.title }}</h3>
+          <p v-if="detail.chart.subtitle">{{ detail.chart.subtitle }}</p>
+        </header>
+        <EChartPanel
+          :option="detail.chart.option"
+          :loading="loading"
+          :height="detail.chart.height || 420"
+        />
+      </section>
       <el-empty v-if="!detail.records.length" description="当前页暂无详情数据" />
       <el-table v-else :data="detail.records" border stripe table-layout="fixed">
         <el-table-column
@@ -181,7 +232,66 @@ watch(() => route.fullPath, () => void loadDetail(), { immediate: true });
   gap: 8px;
 }
 
+.analytics-detail-page__chart {
+  min-width: 0;
+  padding: 18px 20px 14px;
+  border: 1px solid #e5eaf1;
+  border-radius: 12px;
+  background: #fbfdff;
+}
+
+.analytics-detail-page__chart header {
+  margin-bottom: 8px;
+}
+
+.analytics-detail-page__chart h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+}
+
+.analytics-detail-page__chart p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.analytics-detail-page__toolbar {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.analytics-detail-page__phase-filter {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 240px);
+  align-items: center;
+  gap: 10px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .analytics-detail-page__pagination {
   justify-self: end;
+}
+
+@media (max-width: 760px) {
+  .analytics-detail-page__header {
+    flex-direction: column;
+  }
+
+  .analytics-detail-page__toolbar,
+  .analytics-detail-page__actions {
+    width: 100%;
+    justify-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .analytics-detail-page__phase-filter {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
 }
 </style>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ArrowDown, ArrowUp, Download, InfoFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
+import { ArrowDown, ArrowUp, Download, QuestionFilled, RefreshRight, Setting } from '@element-plus/icons-vue';
 import StatisticFilterBuilder from './StatisticFilterBuilder.vue';
 import RecordTableFilterFields from './base/RecordTableFilterFields.vue';
 import TableFunctionBar from './base/TableFunctionBar.vue';
@@ -18,6 +18,7 @@ const props = withDefaults(
     boardTitle?: string;
     lastSyncedText: string;
     ruleExplanationLoading: boolean;
+    ruleExplanationSummary?: string;
     realtimeStatus?: RealtimeWorkspaceStatusResponse | null;
     canRefreshRealtime?: boolean;
     autoRefreshOnEnter?: boolean;
@@ -34,6 +35,7 @@ const props = withDefaults(
   }>(),
   {
     boardTitle: '',
+    ruleExplanationSummary: '',
     realtimeStatus: null,
     canRefreshRealtime: true,
     autoRefreshOnEnter: true,
@@ -56,6 +58,7 @@ const emit = defineEmits<{
   (event: 'draftChange'): void;
   (event: 'refreshBoard'): void;
   (event: 'openRuleExplanation'): void;
+  (event: 'loadRuleExplanation'): void;
   (event: 'exportBoard'): void;
   (event: 'extraAction', actionKey: string): void;
   (event: 'settingsCommand', command: string): void;
@@ -343,15 +346,23 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
         >
           刷新最新数据
         </el-button>
-        <el-button
-          class="app-action-button app-action-button--rule"
-          plain
-          :icon="InfoFilled"
-          :loading="ruleExplanationLoading"
-          @click="emit('openRuleExplanation')"
+        <el-tooltip
+          :content="ruleExplanationSummary || (ruleExplanationLoading ? '正在加载统计规则…' : '悬停查看统计规则，点击打开完整说明')"
+          placement="top"
+          :show-after="200"
         >
-          规则说明
-        </el-button>
+          <el-button
+            class="app-action-button app-action-button--rule stat-board-rule-icon"
+            plain
+            circle
+            :icon="QuestionFilled"
+            :loading="ruleExplanationLoading"
+            aria-label="规则说明"
+            @mouseenter="emit('loadRuleExplanation')"
+            @focus="emit('loadRuleExplanation')"
+            @click="emit('openRuleExplanation')"
+          />
+        </el-tooltip>
         <el-button
           v-for="action in inlineExtraActions"
           :key="action.key"
@@ -465,6 +476,12 @@ function formatQuickFilterSummaryValue(filter: RecordTableFilterField, value: un
 
 .stat-board-toolbar-actions {
   justify-content: flex-end;
+}
+
+.stat-board-rule-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
 }
 
 .stat-board-toolbar-actions :deep(.el-button + .el-button),

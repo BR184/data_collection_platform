@@ -4,9 +4,12 @@ import com.data.collection.platform.common.JsonUtils;
 import com.data.collection.platform.entity.ReviewDataRecordRowResponse;
 import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
 import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
+import com.data.collection.platform.service.CodeReviewDataReadMode;
 import com.data.collection.platform.service.CodeReviewMatchModeSwitchService;
 import com.data.collection.platform.service.ExcelExportStyles;
+import com.data.collection.platform.service.GitlabSourceInstanceSupport;
 import com.data.collection.platform.service.ReviewDataMatchModeRecordRepository;
+import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.ByteArrayOutputStream;
@@ -40,6 +43,8 @@ public class SystemTestHorizontalComparisonExportService {
   private static final String FILTER_GROUP_PARAM = "filterGroup";
   private static final String EXPORT_SHEET_NAME = "系统测试数据分析";
   private static final int HEADER_DEPTH = 3;
+  private static final long CROWN_CAD_PROJECT_ID =
+      SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID;
   private static final List<ExportColumn> EXPORT_COLUMNS = buildExportColumns();
   private static final List<String> LEGACY_FIXED_STATUS_TOKENS = List.of("已修复", "待合并", "未更新");
   private static final List<String> LEGACY_RESOLVED_STATUS_TOKENS = List.of("已修复/完成", "未复现");
@@ -97,12 +102,23 @@ public class SystemTestHorizontalComparisonExportService {
 
   private List<HorizontalRow> loadRows(Map<String, String> filters) {
     ExportScope scope = ExportScope.from(filters, parseFilterGroup(filters));
+    //兼容模式-MatchMode：一次导出固定一次代码走查读模式，避免 CC/DGM 两段查询跨模式读取。
+    CodeReviewDataReadMode codeReviewReadMode =
+        matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()
+            ? CodeReviewDataReadMode.MATCH_MODE
+            : CodeReviewDataReadMode.FORMAL;
     Map<String, HorizontalRow> rows = new LinkedHashMap<>();
-    addModuleRows(rows, loadModules(scope));
+    addModuleRows(rows, loadModules(scope, codeReviewReadMode));
     mergeReview(rows, loadReviewMetrics(scope.reviewProjectName(), "需求说明书评审"), true);
     mergeReview(rows, loadReviewMetrics(scope.reviewProjectName(), "设计说明书评审"), false);
-    mergeCodeReview(rows, loadCodeReviewMetrics(scope.codeReviewProjectName(), true), true);
-    mergeCodeReview(rows, loadCodeReviewMetrics(scope.codeReviewProjectName(), false), false);
+    mergeCodeReview(
+        rows,
+        loadCodeReviewMetrics(scope.codeReviewProjectName(), true, codeReviewReadMode),
+        true);
+    mergeCodeReview(
+        rows,
+        loadCodeReviewMetrics(scope.codeReviewProjectName(), false, codeReviewReadMode),
+        false);
     mergeIssues(rows, loadIssueSources(scope), scope);
     if (StringUtils.hasText(scope.moduleName())) {
       rows.keySet().removeIf(moduleName -> !moduleName.equalsIgnoreCase(scope.moduleName()));
@@ -207,7 +223,8 @@ public class SystemTestHorizontalComparisonExportService {
     return parsed;
   }
 
-  private List<String> loadModules(ExportScope scope) {
+  private List<String> loadModules(
+      ExportScope scope, CodeReviewDataReadMode codeReviewReadMode) {
     Set<String> modules = new LinkedHashSet<>();
     List<Object> reviewArgs = new ArrayList<>();
     StringBuilder reviewSql =
@@ -232,30 +249,34 @@ public class SystemTestHorizontalComparisonExportService {
       modules.addAll(issue.moduleNames());
     }
 
-    List<Object> codeReviewArgs = new ArrayList<>();
-    StringBuilder codeReviewSql =
-        new StringBuilder(
-            """
-            select module_name
-              from merge_request_fact
-             where deleted = false
-               and nullif(btrim(module_name), '') is not null
-               and lower(coalesce(target_branch, '')) = 'dev'
-               and upper(coalesce(merge_request_state, '')) = 'MERGED'
-            """);
-    if (StringUtils.hasText(scope.codeReviewProjectName())) {
-      codeReviewSql.append("\n   and lower(project_name) like ?");
-      codeReviewArgs.add(like(scope.codeReviewProjectName()));
-    }
-    modules.addAll(
-        jdbcTemplate.queryForList(
-            codeReviewSql.append("\n group by module_name order by min(id)").toString(),
-            String.class,
-            codeReviewArgs.toArray()));
+    modules.addAll(loadCodeReviewModules(scope.codeReviewProjectName(), codeReviewReadMode));
     if (StringUtils.hasText(scope.moduleName())) {
       modules.removeIf(module -> !module.equalsIgnoreCase(scope.moduleName()));
     }
     return modules.stream().filter(StringUtils::hasText).toList();
+  }
+
+  List<String> loadCodeReviewModules(
+      String projectName, CodeReviewDataReadMode codeReviewReadMode) {
+    Set<String> modules = new LinkedHashSet<>();
+    for (boolean crownCad : List.of(true, false)) {
+      HorizontalCodeReviewQueryScope queryScope =
+          resolveCodeReviewQueryScope(projectName, crownCad, codeReviewReadMode);
+      if (!queryScope.available()) {
+        continue;
+      }
+      String sql =
+          "select module_name from "
+              + queryScope.tableName()
+              + " where "
+              + queryScope.whereClause()
+              + " and nullif(btrim(module_name), '') is not null"
+              + queryScope.moduleExclusionPredicate()
+              + " group by module_name order by min(id)";
+      modules.addAll(
+          jdbcTemplate.queryForList(sql, String.class, queryScope.args().toArray()));
+    }
+    return List.copyOf(modules);
   }
 
   private void addModuleRows(Map<String, HorizontalRow> rows, List<String> modules) {
@@ -333,15 +354,13 @@ public class SystemTestHorizontalComparisonExportService {
     return aggregateReviewMetrics(metrics);
   }
 
-  private List<CodeReviewMetric> loadCodeReviewMetrics(String projectName, boolean crownCad) {
-    if (matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()) {
-      return loadMatchModeCodeReviewMetrics(projectName, crownCad);
+  private List<CodeReviewMetric> loadCodeReviewMetrics(
+      String projectName, boolean crownCad, CodeReviewDataReadMode codeReviewReadMode) {
+    HorizontalCodeReviewQueryScope queryScope =
+        resolveCodeReviewQueryScope(projectName, crownCad, codeReviewReadMode);
+    if (!queryScope.available()) {
+      return List.of();
     }
-    String sourcePredicate =
-        crownCad
-            ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
-            : "lower(coalesce(source_instance, '')) = 'dgm'";
-    List<Object> args = new ArrayList<>();
     StringBuilder sql =
         new StringBuilder(
             """
@@ -362,7 +381,7 @@ public class SystemTestHorizontalComparisonExportService {
                 module_name,
                 defect_count,
                 case
-                  when row_number() over(partition by project_id, merge_request_id order by id asc) = 1
+                  when row_number() over(partition by %s order by id asc) = 1
                   then added_lines
                   else 0
                 end as added_lines,
@@ -374,21 +393,16 @@ public class SystemTestHorizontalComparisonExportService {
                 review_duration_minutes,
                 review_efficiency_per_hour,
                 review_speed_loc_per_hour
-              from merge_request_fact
-              where deleted = false
-                and %s
-                and lower(coalesce(target_branch, '')) = 'dev'
-                and upper(coalesce(merge_request_state, '')) = 'MERGED'
+              from %s
+              where %s
             """
-                .formatted(sourcePredicate));
-    List<String> projectNames = codeReviewProjectNames(projectName, crownCad);
-    if (!projectNames.isEmpty()) {
-      sql.append("\n      and (")
-          .append(String.join(" or ", projectNames.stream().map(ignored -> "lower(project_name) like ?").toList()))
-          .append(")");
-      projectNames.forEach(value -> args.add(like(value)));
-    }
-    sql.append("\n    ) scoped group by module_name");
+                .formatted(
+                    queryScope.mergeRequestIdentity(),
+                    queryScope.tableName(),
+                    queryScope.whereClause()));
+    sql.append("\n    ) scoped")
+        .append(queryScope.scopedModulePredicate())
+        .append("\n    group by module_name");
     return jdbcTemplate.query(
         sql.toString(),
         (rs, rowNum) ->
@@ -408,7 +422,7 @@ public class SystemTestHorizontalComparisonExportService {
                 rs.getBigDecimal("review_speed_loc_per_hour") == null
                     ? 0D
                     : rs.getBigDecimal("review_speed_loc_per_hour").doubleValue()),
-        args.toArray());
+        queryScope.args().toArray());
   }
 
   private List<ReviewMetric> loadMatchModeReviewMetrics(String reviewProjectName, String reviewType) {
@@ -451,84 +465,66 @@ public class SystemTestHorizontalComparisonExportService {
     return grouped.values().stream().map(ReviewMetricAccumulator::toMetric).toList();
   }
 
-  private List<CodeReviewMetric> loadMatchModeCodeReviewMetrics(String projectName, boolean crownCad) {
-    String sourcePredicate =
-        crownCad
-            ? "lower(coalesce(source_instance, 'default')) in ('cc', 'default')"
-            : "lower(coalesce(source_instance, '')) = 'dgm'";
+  private HorizontalCodeReviewQueryScope resolveCodeReviewQueryScope(
+      String projectName, boolean crownCad, CodeReviewDataReadMode codeReviewReadMode) {
+    if (codeReviewReadMode == CodeReviewDataReadMode.FORMAL && !crownCad) {
+      return HorizontalCodeReviewQueryScope.unavailable();
+    }
+
+    String tableName;
+    String mergeRequestIdentity;
+    String moduleExclusionPredicate;
+    String scopedModulePredicate;
+    StringBuilder whereClause = new StringBuilder();
     List<Object> args = new ArrayList<>();
-    StringBuilder sql =
-        new StringBuilder(
-            """
-            select
-              module_name,
-              coalesce(sum(case when coalesce(defect_count, 0) = -1 then 0 else coalesce(defect_count, 0) end), 0)::integer as defect_count,
-              coalesce(sum(added_lines), 0)::integer as added_lines,
-              coalesce(sum(code_specification_count), 0)::integer as code_specification_count,
-              coalesce(sum(code_logic_specification_count), 0)::integer as code_logic_specification_count,
-              coalesce(sum(design_specification_count), 0)::integer as design_specification_count,
-              coalesce(sum(performance_specification_count), 0)::integer as performance_specification_count,
-              coalesce(sum(other_specification_count), 0)::integer as other_specification_count,
-              coalesce(sum(review_duration_minutes), 0)::integer as review_duration_minutes,
-              coalesce(avg(review_efficiency_per_hour), 0)::numeric as review_efficiency_per_hour,
-              coalesce(avg(review_speed_loc_per_hour), 0)::numeric as review_speed_loc_per_hour
-            from (
-              select
-                module_name,
-                defect_count,
-                case
-                  when row_number() over(partition by merge_request_iid order by id asc) = 1
-                  then added_lines
-                  else 0
-                end as added_lines,
-                code_specification_count,
-                code_logic_specification_count,
-                design_specification_count,
-                performance_specification_count,
-                other_specification_count,
-                review_duration_minutes,
-                review_efficiency_per_hour,
-                review_speed_loc_per_hour
-              from code_review_match_mode_records
-              where %s
-                and lower(coalesce(target_branch, '')) = 'dev'
-                and upper(coalesce(merge_request_state, '')) = 'MERGED'
-            """
-                .formatted(sourcePredicate));
+    if (codeReviewReadMode == CodeReviewDataReadMode.MATCH_MODE) {
+      //兼容模式-MatchMode：模块目录和指标聚合共用本读源边界；删除兼容模式时整体删除此分支。
+      //兼容模式-MatchMode：source_instance 仍需叠加 repository_name，避免 CC 旧库中的其他仓库串入 CrownCAD。
+      tableName = "code_review_match_mode_records";
+      mergeRequestIdentity = "merge_request_iid";
+      moduleExclusionPredicate = " and module_name not in ('无需标注', '未标注模块名')";
+      scopedModulePredicate =
+          "\n    where nullif(btrim(coalesce(module_name, '')), '') is not null"
+              + moduleExclusionPredicate;
+      whereClause
+          .append("lower(coalesce(source_instance, '')) = ?")
+          .append(" and lower(btrim(coalesce(repository_name, ''))) = ?");
+      args.add(crownCad ? "cc" : "dgm");
+      args.add(crownCad ? "crowncad" : "dgm");
+    } else {
+      tableName = "merge_request_fact";
+      mergeRequestIdentity = "project_id, merge_request_id";
+      moduleExclusionPredicate = "";
+      scopedModulePredicate = "";
+      whereClause
+          .append("deleted = false")
+          .append(" and lower(coalesce(source_instance, '')) = ?")
+          .append(" and project_id = ?");
+      args.add(GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE);
+      args.add(CROWN_CAD_PROJECT_ID);
+    }
+    whereClause
+        .append(" and lower(coalesce(target_branch, '')) = 'dev'")
+        .append(" and upper(coalesce(merge_request_state, '')) = 'MERGED'");
+
     List<String> projectNames = codeReviewProjectNames(projectName, crownCad);
     if (!projectNames.isEmpty()) {
-      sql.append("\n      and (")
-          .append(String.join(" or ", projectNames.stream().map(ignored -> "lower(project_name) like ?").toList()))
+      whereClause
+          .append(" and (")
+          .append(String.join(
+              " or ",
+              projectNames.stream().map(ignored -> "lower(btrim(project_name)) = ?").toList()))
           .append(")");
-      projectNames.forEach(value -> args.add(like(value)));
+      projectNames.forEach(value -> args.add(value.toLowerCase(Locale.ROOT)));
     }
-    sql.append(
-        """
-            ) scoped
-            where nullif(btrim(coalesce(module_name, '')), '') is not null
-              and module_name not in ('无需标注', '未标注模块名')
-            group by module_name
-            """);
-    return jdbcTemplate.query(
-        sql.toString(),
-        (rs, rowNum) ->
-            new CodeReviewMetric(
-                text(rs.getString("module_name")),
-                rs.getInt("defect_count"),
-                rs.getInt("added_lines"),
-                rs.getInt("code_specification_count"),
-                rs.getInt("code_logic_specification_count"),
-                rs.getInt("design_specification_count"),
-                rs.getInt("performance_specification_count"),
-                rs.getInt("other_specification_count"),
-                rs.getInt("review_duration_minutes"),
-                rs.getBigDecimal("review_efficiency_per_hour") == null
-                    ? 0D
-                    : rs.getBigDecimal("review_efficiency_per_hour").doubleValue(),
-                rs.getBigDecimal("review_speed_loc_per_hour") == null
-                    ? 0D
-                    : rs.getBigDecimal("review_speed_loc_per_hour").doubleValue()),
-        args.toArray());
+    return new HorizontalCodeReviewQueryScope(
+        true,
+        tableName,
+        mergeRequestIdentity,
+        whereClause.toString(),
+        List.copyOf(args),
+        moduleExclusionPredicate,
+        scopedModulePredicate);
   }
 
   private List<IssueExportSource> loadIssueSources(ExportScope scope) {
@@ -913,6 +909,20 @@ public class SystemTestHorizontalComparisonExportService {
 
     String value(HorizontalRow row) {
       return valueGetter.apply(row);
+    }
+  }
+
+  private record HorizontalCodeReviewQueryScope(
+      boolean available,
+      String tableName,
+      String mergeRequestIdentity,
+      String whereClause,
+      List<Object> args,
+      String moduleExclusionPredicate,
+      String scopedModulePredicate) {
+    private static HorizontalCodeReviewQueryScope unavailable() {
+      return new HorizontalCodeReviewQueryScope(
+          false, "", "", "", List.of(), "", "");
     }
   }
 

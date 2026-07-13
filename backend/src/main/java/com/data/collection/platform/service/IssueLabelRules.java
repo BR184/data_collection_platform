@@ -56,6 +56,7 @@ final class IssueLabelRules {
       Pattern.compile("模块[：|-]\\s*([\\w\\s\\u4e00-\\u9fa5]+)");
   private static final Pattern OLD_PLATFORM_MR_TOOLBOX_PATTERN =
       Pattern.compile("工具箱[：|-]\\s*([\\w\\s\\u4e00-\\u9fa5]+)");
+  private static final String MISSING_MERGE_REQUEST_PROJECT = "未标注项目名";
   private static final List<String> LEGACY_PREFIXES = List.of(
       "模块",
       "工具箱",
@@ -208,6 +209,32 @@ final class IssueLabelRules {
       }
     }
     return List.copyOf(modules);
+  }
+
+  static String normalizeMergeRequestProjectName(List<String> labels) {
+    // merge_request_fact.project_name 是“项目：X”业务维度；GitLab 仓库身份单独保存在 repository_name/project_id。
+    if (labels == null || labels.isEmpty()) {
+      return MISSING_MERGE_REQUEST_PROJECT;
+    }
+    for (String label : labels) {
+      String projectName = mergeRequestColonLabelValue(label, "项目");
+      if (projectName != null) {
+        return projectName;
+      }
+    }
+    return MISSING_MERGE_REQUEST_PROJECT;
+  }
+
+  static boolean hasRequiredMergeRequestLabel(List<String> labels, String groupName) {
+    if (labels == null || labels.isEmpty()) {
+      return false;
+    }
+    for (String label : labels) {
+      if (mergeRequestColonLabelValue(label, groupName) != null) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static Map<String, List<String>> parseLegacyLabelMap(List<String> labels) {
@@ -364,6 +391,35 @@ final class IssueLabelRules {
       return normalizeModuleValue(toolboxMatcher.group(1));
     }
     return null;
+  }
+
+  private static String mergeRequestColonLabelValue(String label, String expectedPrefix) {
+    String normalizedLabel = IssueRuleSupport.normalizeText(label);
+    if (normalizedLabel == null) {
+      return null;
+    }
+    int separatorIndex = firstColonIndex(label);
+    if (separatorIndex <= 0 || !expectedPrefix.equals(label.substring(0, separatorIndex).trim())) {
+      return null;
+    }
+    String value = label.substring(separatorIndex + 1).trim();
+    String normalizedValue = IssueRuleSupport.normalizeText(value);
+    if (normalizedValue == null || firstColonIndex(normalizedValue) == 0) {
+      return null;
+    }
+    return value;
+  }
+
+  private static int firstColonIndex(String value) {
+    int ascii = value.indexOf(':');
+    int chinese = value.indexOf('：');
+    if (ascii < 0) {
+      return chinese;
+    }
+    if (chinese < 0) {
+      return ascii;
+    }
+    return Math.min(ascii, chinese);
   }
 
   private static String oldPlatformChineseColonValue(String label, String prefix) {

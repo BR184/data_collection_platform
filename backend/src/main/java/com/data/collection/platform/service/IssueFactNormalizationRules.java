@@ -76,6 +76,10 @@ public final class IssueFactNormalizationRules {
     return IssueLabelRules.normalizeMergeRequestModuleNames(labels);
   }
 
+  public static String normalizeMergeRequestProjectName(List<String> labels) {
+    return IssueLabelRules.normalizeMergeRequestProjectName(labels);
+  }
+
   public static Map<String, List<String>> parseLegacyLabelMap(List<String> labels) {
     return IssueLabelRules.parseLegacyLabelMap(labels);
   }

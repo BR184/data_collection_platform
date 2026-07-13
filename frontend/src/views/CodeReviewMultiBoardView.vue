@@ -1,72 +1,50 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { ElMessage } from '../element-plus-services';
+import { computed, ref } from 'vue';
 import { Refresh, RefreshRight } from '@element-plus/icons-vue';
+import { useRoute, useRouter } from 'vue-router';
 import PageStateShell from '../components/base/PageStateShell.vue';
-import SmartTableHeader from '../components/base/SmartTableHeader.vue';
-import EChartPanel from '../components/charts/EChartPanel.vue';
+import DashboardChartCard from '../components/dashboard/DashboardChartCard.vue';
+import DashboardRuleDrawer from '../components/dashboard/DashboardRuleDrawer.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
+import { analyticsDashboardApi } from '../api-client/analytics-dashboard-api';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
+import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
+import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
+import { ElMessage } from '../element-plus-services';
+import type { EChartPointClickEvent } from '../components/charts/echart-panel-events';
 import type {
-  CodeReviewMultiBoardOverviewResponse,
+  AnalyticsDashboardChart,
+  AnalyticsDashboardQuery,
+  AnalyticsDashboardResponse,
+  AnalyticsDashboardRule,
   OptionItemResponse,
 } from '../types/api';
-import { CODE_REVIEW_SOURCE_SCOPE_PROVIDER, buildScopeOptions } from '../composables/data-scope-providers';
-import { useDataScope } from '../composables/useDataScope';
-import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
-import {
-  buildCodeReviewSummaryCards,
-  buildModuleDensityChartOption,
-  buildModuleVolumeChartOption,
-  buildOwnerCompletionChartOption,
-  buildOwnerDensityChartOption,
-  completionRate,
-  formatLines,
-  formatMinutes,
-  formatPercent,
-} from './code-review-multi-board';
+import { downloadBlob } from '../utils/csv-download';
 
+const DASHBOARD_KEY = 'code-review-multi';
+const route = useRoute();
+const router = useRouter();
 const initialized = ref(false);
 const loading = ref(false);
 const realtimeRefreshLoading = ref(false);
+const exportingKey = ref('');
 const sourceOptions = ref<OptionItemResponse[]>([]);
-const overview = ref<CodeReviewMultiBoardOverviewResponse>({
-  source: '',
-  sourceLabel: '',
-  mergeRequestCount: 0,
-  completedCount: 0,
-  pendingCount: 0,
-  averageCommentRate: null,
-  totalDefectCount: 0,
-  totalAddedLines: 0,
-  defectDensityPerKloc: null,
-  averageReviewDurationMinutes: null,
-  averageAddedLines: null,
-  moduleRows: [],
-  ownerRows: [],
-});
-
-const sourceScope = useDataScope({
-  provider: CODE_REVIEW_SOURCE_SCOPE_PROVIDER,
-  options: computed(() => buildScopeOptions(sourceOptions.value)),
-  mountToShell: true,
-  loading,
-});
-const sourceScopeReady = computed(() => sourceScope.defaultReady.value);
+const projectOptions = ref<OptionItemResponse[]>([]);
+const source = ref('');
+const projectName = ref('');
+const dashboard = ref<AnalyticsDashboardResponse | null>(null);
+const rules = ref<AnalyticsDashboardRule[]>([]);
+const selectedRule = ref<AnalyticsDashboardRule | null>(null);
+const ruleDrawerVisible = ref(false);
 
 const pageReady = computed(() => initialized.value);
-const sourceDescription = computed(() =>
-  overview.value.sourceLabel
-    ? `当前展示 ${overview.value.sourceLabel} 数据源下的代码走查体量、缺陷密度和责任人分布。`
-    : '当前暂无可展示的数据源。',
-);
-const summaryCards = computed(() => buildCodeReviewSummaryCards(overview.value));
-const moduleDensityChartOption = computed(() => buildModuleDensityChartOption(overview.value));
-const moduleVolumeChartOption = computed(() => buildModuleVolumeChartOption(overview.value));
-const ownerDensityChartOption = computed(() => buildOwnerDensityChartOption(overview.value));
-const ownerCompletionChartOption = computed(() => buildOwnerCompletionChartOption(overview.value));
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
+const ruleByKey = computed(() => new Map(rules.value.map((rule) => [rule.key, rule])));
+const scopeParameters = computed<Record<string, string>>(() => ({
+  ...(source.value ? { source: source.value } : {}),
+  ...(projectName.value ? { projectName: projectName.value } : {}),
+}));
 
 const {
   syncStatus,
@@ -77,32 +55,64 @@ const {
   emptyText: '-',
 });
 
-watch(
-  () => sourceScope.value.value,
-  async () => {
-    if (!initialized.value) {
-      return;
-    }
-    await loadOverview();
-  },
-);
+function queryParameters(): AnalyticsDashboardQuery {
+  return scopeParameters.value;
+}
 
 async function loadSourceOptions() {
   sourceOptions.value = await api.getCodeReviewMultiBoardSourceOptions();
+  const requested = String(route.query.source ?? '').trim().toLowerCase();
+  source.value = sourceOptions.value.some((option) => option.value === requested)
+    ? requested
+    : sourceOptions.value[0]?.value ?? '';
 }
 
-async function loadOverview() {
+async function loadProjectOptions(preserveRouteValue = false) {
+  projectOptions.value = await api.getCodeReviewMultiBoardProjectOptions(source.value || undefined);
+  const requested = preserveRouteValue ? String(route.query.projectName ?? '').trim() : '';
+  projectName.value = projectOptions.value.some((option) => option.value === requested)
+    ? requested
+    : projectOptions.value[0]?.value ?? '';
+}
+
+async function loadDashboard() {
+  if (!source.value) {
+    dashboard.value = null;
+    rules.value = [];
+    return;
+  }
   loading.value = true;
   try {
-    overview.value = await api.getCodeReviewMultiBoardOverview(sourceScope.value.value || undefined);
+    const [dashboardResponse, rulesResponse] = await Promise.all([
+      analyticsDashboardApi.getDashboard(DASHBOARD_KEY, queryParameters()),
+      analyticsDashboardApi.getRules(DASHBOARD_KEY, queryParameters()),
+    ]);
+    dashboard.value = dashboardResponse;
+    rules.value = rulesResponse.rules;
+    await router.replace({ query: scopeParameters.value });
   } finally {
     loading.value = false;
   }
 }
 
+async function changeSource() {
+  await loadProjectOptions();
+  await loadDashboard();
+}
+
 async function refreshPage() {
   try {
-    await Promise.all([loadSourceOptions(), loadOverview()]);
+    const selectedSource = source.value;
+    const selectedProject = projectName.value;
+    await loadSourceOptions();
+    if (sourceOptions.value.some((option) => option.value === selectedSource)) {
+      source.value = selectedSource;
+    }
+    await loadProjectOptions();
+    if (projectOptions.value.some((option) => option.value === selectedProject)) {
+      projectName.value = selectedProject;
+    }
+    await Promise.all([loadDashboard(), loadSyncStatus()]);
     ElMessage.success('代码走查多元看板已刷新');
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '代码走查多元看板刷新失败');
@@ -112,14 +122,9 @@ async function refreshPage() {
 async function refreshLatestData() {
   realtimeRefreshLoading.value = true;
   try {
-    let status = await api.refreshCodeReviewMultiBoardRealtime();
+    const status = await api.refreshCodeReviewMultiBoardRealtime();
     ElMessage.success(status.message || '已开始刷新最新数据');
-    for (let attempt = 0; attempt < 8 && status.refreshing; attempt++) {
-      await sleep(1000);
-      status = (await loadSyncStatus()) ?? status;
-    }
-    await Promise.all([loadSourceOptions(), loadOverview()]);
-    await loadSyncStatus();
+    await Promise.all([loadDashboard(), loadSyncStatus()]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '刷新最新数据失败');
   } finally {
@@ -127,18 +132,52 @@ async function refreshLatestData() {
   }
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+function openDetail(chart: AnalyticsDashboardChart, point?: EChartPointClickEvent) {
+  if (!chart.detail) {
+    return;
+  }
+  if (point && !Object.keys(point.detailParams).length) {
+    return;
+  }
+  const action = {
+    ...chart.detail,
+    params: { ...chart.detail.params, ...(point?.detailParams ?? {}) },
+  };
+  void router.push(buildAnalyticsDetailRoute(DASHBOARD_KEY, action, scopeParameters.value));
+}
+
+async function exportChart(chart: AnalyticsDashboardChart) {
+  if (!chart.export || exportingKey.value) {
+    return;
+  }
+  exportingKey.value = chart.export.exportKey;
+  try {
+    const file = await analyticsDashboardApi.export(
+      DASHBOARD_KEY,
+      chart.export.exportKey,
+      queryParameters(),
+    );
+    downloadBlob(file.blob, file.filename || `${chart.title}.xlsx`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'Excel 导出失败');
+  } finally {
+    exportingKey.value = '';
+  }
+}
+
+function openRule(rule: AnalyticsDashboardRule | null) {
+  if (!rule) {
+    return;
+  }
+  selectedRule.value = rule;
+  ruleDrawerVisible.value = true;
 }
 
 async function initializePage() {
   try {
     await loadSourceOptions();
-    await sourceScope.ensureDefaultApplied();
-    if (sourceScopeReady.value) {
-      await loadOverview();
-    }
-    await loadSyncStatus();
+    await loadProjectOptions(true);
+    await Promise.all([loadDashboard(), loadSyncStatus()]);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '代码走查多元看板加载失败');
   } finally {
@@ -152,303 +191,159 @@ void initializePage();
 <template>
   <PageStateShell :ready="pageReady" min-height="calc(100vh - 160px)">
     <section class="code-review-multi-board">
-      <section class="code-review-multi-board__hero">
-        <div class="code-review-multi-board__hero-copy">
+      <header class="code-review-multi-board__hero">
+        <div>
           <div class="code-review-multi-board__eyebrow">代码走查 / 多元看板</div>
-          <h2>代码走查质量概览</h2>
-          <p>{{ sourceDescription }}</p>
+          <h2>{{ dashboard?.title || '代码走查多元看板' }}</h2>
+          <p>{{ dashboard?.subtitle || '按老平台业务口径展示八类代码走查专题。' }}</p>
         </div>
-        <div class="code-review-multi-board__hero-actions">
+        <div class="code-review-multi-board__actions">
           <SyncMetaBadge :value="lastSyncedText" />
           <el-button
             v-if="canRefreshLatestData"
-            class="app-action-button app-action-button--refresh"
             :icon="RefreshRight"
             :loading="realtimeRefreshLoading || Boolean(syncStatus?.refreshing)"
             @click="refreshLatestData"
           >
             刷新最新数据
           </el-button>
-          <el-button
-            class="app-action-button app-action-button--refresh"
-            :icon="Refresh"
-            :loading="loading"
-            @click="refreshPage"
-          >
-            刷新
-          </el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="refreshPage">刷新</el-button>
         </div>
+      </header>
+
+      <section class="code-review-multi-board__filters">
+        <label>
+          <span>代码库</span>
+          <el-select v-model="source" filterable :disabled="loading" @change="changeSource">
+            <el-option
+              v-for="option in sourceOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </label>
+        <label>
+          <span>项目</span>
+          <el-select
+            v-model="projectName"
+            filterable
+            :disabled="loading || !projectOptions.length"
+            placeholder="当前代码库暂无项目"
+            @change="loadDashboard"
+          >
+            <el-option
+              v-for="option in projectOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </label>
       </section>
 
-      <section class="code-review-multi-board__summary">
-        <article v-for="card in summaryCards" :key="card.key" class="code-review-multi-board__summary-card">
-          <span>{{ card.label }}</span>
-          <strong>{{ card.value }}</strong>
-        </article>
-      </section>
-
-      <section class="code-review-multi-board__grid">
-        <article class="code-review-multi-board__panel">
-          <div class="code-review-multi-board__panel-head">
-            <div>
-              <h3>模块缺陷密度</h3>
-              <p>按模块展示当前数据源的缺陷密度。</p>
-            </div>
-          </div>
-          <EChartPanel :option="moduleDensityChartOption" :loading="loading" :height="320" />
-        </article>
-
-        <article class="code-review-multi-board__panel">
-          <div class="code-review-multi-board__panel-head">
-            <div>
-              <h3>模块走查体量</h3>
-              <p>按模块展示合并请求数量。</p>
-            </div>
-          </div>
-          <EChartPanel :option="moduleVolumeChartOption" :loading="loading" :height="320" />
-        </article>
-
-        <article class="code-review-multi-board__panel">
-          <div class="code-review-multi-board__panel-head">
-            <div>
-              <h3>责任人缺陷密度</h3>
-              <p>按责任人展示代码走查缺陷密度。</p>
-            </div>
-          </div>
-          <EChartPanel :option="ownerDensityChartOption" :loading="loading" :height="320" />
-        </article>
-
-        <article class="code-review-multi-board__panel">
-          <div class="code-review-multi-board__panel-head">
-            <div>
-              <h3>责任人完成率</h3>
-              <p>按责任人展示代码走查完成率。</p>
-            </div>
-          </div>
-          <EChartPanel :option="ownerCompletionChartOption" :loading="loading" :height="320" />
-        </article>
-      </section>
-
-      <section class="code-review-multi-board__table-grid">
-        <article class="code-review-multi-board__table-panel">
-          <div class="code-review-multi-board__panel-head">
-            <div>
-              <h3>模块明细</h3>
-              <p>模块维度代码走查统计明细。</p>
-            </div>
-          </div>
-          <div class="code-review-multi-board__table-scroll">
-            <el-table
-              :data="overview.moduleRows"
-              v-loading="loading"
-              stripe
-              border
-              empty-text="当前暂无模块统计"
-              style="width: 100%; min-width: 990px"
-            >
-              <el-table-column prop="rowLabel" label="模块" min-width="180" />
-              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right">
-                <template #header>
-                  <SmartTableHeader label="合并请求数" align="right" />
-                </template>
-              </el-table-column>
-              <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
-              <el-table-column label="完成率" width="110" align="right">
-                <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
-              </el-table-column>
-              <el-table-column label="注释率" width="120" align="right">
-                <template #default="{ row }">{{ formatPercent(row.averageCommentRate) }}</template>
-              </el-table-column>
-              <el-table-column label="缺陷密度" width="120" align="right">
-                <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
-              </el-table-column>
-              <el-table-column prop="totalDefectCount" label="缺陷数" width="100" align="right" />
-              <el-table-column label="总新增代码" width="120" align="right">
-                <template #header>
-                  <SmartTableHeader label="总新增代码" align="right" />
-                </template>
-                <template #default="{ row }">{{ row.totalAddedLines }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </article>
-
-        <article class="code-review-multi-board__table-panel">
-          <div class="code-review-multi-board__panel-head">
-            <div>
-              <h3>责任人明细</h3>
-              <p>责任人维度代码走查统计明细。</p>
-            </div>
-          </div>
-          <div class="code-review-multi-board__table-scroll">
-            <el-table
-              :data="overview.ownerRows"
-              v-loading="loading"
-              stripe
-              border
-              empty-text="当前暂无责任人统计"
-              style="width: 100%; min-width: 880px"
-            >
-              <el-table-column prop="rowLabel" label="责任人" min-width="160" />
-              <el-table-column prop="mergeRequestCount" label="合并请求数" width="120" align="right">
-                <template #header>
-                  <SmartTableHeader label="合并请求数" align="right" />
-                </template>
-              </el-table-column>
-              <el-table-column prop="completedCount" label="已完成" width="100" align="right" />
-              <el-table-column label="完成率" width="110" align="right">
-                <template #default="{ row }">{{ formatPercent(completionRate(row.mergeRequestCount, row.completedCount)) }}</template>
-              </el-table-column>
-              <el-table-column label="缺陷密度" width="120" align="right">
-                <template #default="{ row }">{{ row.defectDensityPerKloc?.toFixed(2) ?? '-' }}</template>
-              </el-table-column>
-              <el-table-column label="平均走查时长" width="140" align="right">
-                <template #header>
-                  <SmartTableHeader label="平均走查时长" align="right" />
-                </template>
-                <template #default="{ row }">{{ formatMinutes(row.averageReviewDurationMinutes) }}</template>
-              </el-table-column>
-              <el-table-column label="平均新增代码" width="130" align="right">
-                <template #header>
-                  <SmartTableHeader label="平均新增代码" align="right" />
-                </template>
-                <template #default="{ row }">{{ formatLines(row.averageAddedLines) }}</template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </article>
+      <el-empty
+        v-if="!loading && !dashboard?.charts.length"
+        description="当前数据源和项目暂无代码走查统计"
+      />
+      <section v-else class="code-review-multi-board__grid">
+        <DashboardChartCard
+          v-for="chart in dashboard?.charts ?? []"
+          :key="chart.key"
+          :chart="chart"
+          :rule="chart.ruleKey ? ruleByKey.get(chart.ruleKey) : null"
+          :loading="loading"
+          :height="360"
+          @title-click="openDetail"
+          @point-click="(point, selectedChart) => openDetail(selectedChart, point)"
+          @rule-click="openRule"
+          @export="exportChart"
+        />
       </section>
     </section>
+    <DashboardRuleDrawer v-model="ruleDrawerVisible" :rule="selectedRule" />
   </PageStateShell>
 </template>
 
 <style scoped>
 .code-review-multi-board {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
-.code-review-multi-board__hero {
+.code-review-multi-board__hero,
+.code-review-multi-board__filters {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 18px;
   padding: 20px 24px;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
   background: #fff;
-}
-
-.code-review-multi-board__hero-copy,
-.code-review-multi-board__panel,
-.code-review-multi-board__table-panel,
-.code-review-multi-board__summary-card {
-  min-width: 0;
+  border: 1px solid #e5eaf1;
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 5%);
 }
 
 .code-review-multi-board__eyebrow {
-  color: #4b5563;
+  color: #2563eb;
   font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
 .code-review-multi-board__hero h2 {
-  margin: 8px 0 10px;
+  margin: 7px 0 8px;
+  color: #0f172a;
   font-size: 24px;
-  color: #111827;
 }
 
 .code-review-multi-board__hero p {
   margin: 0;
-  max-width: 720px;
-  color: #667085;
-  line-height: 1.7;
-}
-
-.code-review-multi-board__hero-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.code-review-multi-board__summary {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.code-review-multi-board__summary-card {
-  padding: 18px 20px;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  background: #fff;
-  display: grid;
-  gap: 8px;
-}
-
-.code-review-multi-board__summary-card span {
-  font-size: 13px;
-  color: #667085;
-}
-
-.code-review-multi-board__summary-card strong {
-  font-size: clamp(20px, 2vw, 24px);
-  line-height: 1.2;
-  color: #111827;
-  overflow-wrap: anywhere;
-}
-
-.code-review-multi-board__grid,
-.code-review-multi-board__table-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.code-review-multi-board__panel,
-.code-review-multi-board__table-panel {
-  padding: 18px 20px;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.code-review-multi-board__table-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.code-review-multi-board__panel-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 8px;
-}
-
-.code-review-multi-board__panel-head h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #111827;
-}
-
-.code-review-multi-board__panel-head p {
-  margin: 6px 0 0;
-  color: #667085;
-  font-size: 13px;
+  color: #64748b;
   line-height: 1.6;
 }
 
-@media (max-width: 1180px) {
-  .code-review-multi-board__grid,
-  .code-review-multi-board__table-grid {
+.code-review-multi-board__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.code-review-multi-board__filters {
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 20px;
+}
+
+.code-review-multi-board__filters label {
+  display: grid;
+  min-width: 240px;
+  gap: 7px;
+}
+
+.code-review-multi-board__filters label > span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.code-review-multi-board__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 1080px) {
+  .code-review-multi-board__grid {
     grid-template-columns: 1fr;
   }
 
-  .code-review-multi-board__hero {
+  .code-review-multi-board__hero,
+  .code-review-multi-board__filters {
     flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

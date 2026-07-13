@@ -9,6 +9,7 @@ public record SystemTestIssueMultiBoardResponse(
     Scope scope,
     List<OptionItemResponse> projectOptions,
     List<OptionItemResponse> testingPhaseOptions,
+    List<Rule> rules,
     List<SummaryCard> summaryCards,
     List<Chart> charts) {
 
@@ -23,14 +24,25 @@ public record SystemTestIssueMultiBoardResponse(
       String key,
       String label,
       String value,
-      String tone) {}
+      String tone,
+      String ruleKey) {}
+
+  public record Rule(
+      String key,
+      String title,
+      String formula,
+      String scope,
+      String target,
+      String description) {}
 
   public record Chart(
       String key,
       String title,
       String description,
       String chartType,
-      String detailPath,
+      String ruleKey,
+      String detailViewKey,
+      Map<String, String> detailParams,
       String exportName,
       List<String> categories,
       List<Series> series,
@@ -39,9 +51,12 @@ public record SystemTestIssueMultiBoardResponse(
 
   public record Series(
       String name,
-      List<BigDecimal> data) {}
+      List<Point> data) {}
 
   public record Point(
       String name,
-      BigDecimal value) {}
+      BigDecimal value,
+      String pointKey,
+      String detailViewKey,
+      Map<String, String> detailParams) {}
 }

@@ -53,15 +53,35 @@ describe('QualityBoardOtherView mount smoke', () => {
           options: [{ label: 'CC2026R4', value: 'CC2026R4' }],
         });
       }
-      if (url.includes('/api/quality-board/other/overview')) {
+      if (url.includes('/api/analytics-dashboards/quality-board-other/rules')) {
         return jsonResponse({
-          projectName: 'CC2026R4',
-          functionDefectCountRows: [{ name: '建模', value: 12 }],
-          functionDefectDensityRows: [{ name: '建模', value: 0.8 }],
-          qualityRankingRows: [{ name: '成员A', value: 1.2 }],
-          memberUnresolvedRateRows: [{ name: '成员A', value: 8.5 }],
-          releaseLeakageRateRows: [{ name: 'CC2026R4', value: 10 }],
-          developmentLeakageRateRows: [{ name: 'CC2026R4', value: 88 }],
+          dashboardKey: 'quality-board-other',
+          rules: [],
+        });
+      }
+      if (url.includes('/api/analytics-dashboards/quality-board-other')) {
+        const chart = (key: string, title: string) => ({
+          key,
+          title,
+          subtitle: '',
+          option: { series: [{ type: 'bar', data: [1] }] },
+          ruleKey: key,
+          detail: { viewKey: `other-${key}`, params: {} },
+          export: { exportKey: `${key}-excel`, label: '导出 Excel' },
+        });
+        return jsonResponse({
+          dashboardKey: 'quality-board-other',
+          title: '质量专题分析',
+          subtitle: '六类专题',
+          metrics: [],
+          charts: [
+            chart('function-defect-count', '功能缺陷数量'),
+            chart('function-defect-density', '功能缺陷密度'),
+            chart('quality-ranking', '质量达人榜'),
+            chart('member-unresolved-rate', '成员未修复缺陷率'),
+            chart('release-leakage-rate', '发布缺陷遗留率'),
+            chart('development-leakage-rate', '开发缺陷遗留率'),
+          ],
         });
       }
       return jsonResponse({});
@@ -96,6 +116,14 @@ describe('QualityBoardOtherView mount smoke', () => {
     expect(wrapper.text()).toContain('开发缺陷遗留率');
     expect(wrapper.text()).not.toContain('DGM');
     expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(6);
+    const dashboardRequest = fetchSpy.mock.calls
+      .map(([url]) => String(url))
+      .find((url) => url.includes('/api/analytics-dashboards/quality-board-other?'));
+    expect(dashboardRequest).toContain('functionCountProjectName=CC2026R4');
+    expect(dashboardRequest).toContain('functionDensityProjectName=CC2026R4');
+    expect(dashboardRequest).toContain('qualityRankingProjectName=CC2026R4');
+    expect(dashboardRequest).toContain('memberUnresolvedProjectName=CC2026R4');
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/quality-board/other/overview'))).toBe(false);
 
     wrapper.unmount();
   });

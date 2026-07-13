@@ -5,7 +5,6 @@ import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -13,60 +12,41 @@ import org.springframework.util.StringUtils;
 
 @Service
 public class CodeReviewMultiBoardService {
-  private static final List<String> PREFERRED_SOURCE_ORDER = List.of("cc", "dgm");
   private final JdbcTemplate jdbcTemplate;
-  private final CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final QualityBoardCodeReviewReadSupport codeReviewReadSupport;
 
   public CodeReviewMultiBoardService(
       JdbcTemplate jdbcTemplate,
-      CodeReviewMatchModeSwitchService matchModeSwitchService) {
+      QualityBoardCodeReviewReadSupport codeReviewReadSupport) {
     this.jdbcTemplate = jdbcTemplate;
-    this.matchModeSwitchService = matchModeSwitchService;
+    this.codeReviewReadSupport = codeReviewReadSupport;
   }
 
   public List<OptionItemResponse> listSourceOptions() {
-    //兼容模式-MatchMode：老平台页面固定有 CC/DGM 两个代码库页签，不能依赖当前兼容表是否已经导入出 DGM 记录。
-    if (matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()) {
-      return PREFERRED_SOURCE_ORDER.stream()
-          .map(value -> new OptionItemResponse(sourceLabel(value), value))
-          .toList();
-    }
-    List<String> sourceInstances =
-        jdbcTemplate.queryForList(
-            """
-            select distinct source_instance
-              from (
-                    select source_instance
-                      from merge_request_fact
-                     where deleted = false
-                    union all
-                    select source_instance
-                      from code_review_match_mode_records
-                   ) sources
-             where source_instance is not null
-               and btrim(source_instance) <> ''
-            order by source_instance
-            """,
-            String.class);
-    List<String> normalized =
-        sourceInstances.stream()
-            .map(this::normalizeSourceValue)
-            .filter(StringUtils::hasText)
-            .distinct()
-            .toList();
-    List<String> preferred =
-        PREFERRED_SOURCE_ORDER.stream().filter(normalized::contains).toList();
-    List<String> values = preferred.isEmpty() ? normalized : preferred;
-    return values.stream().map(value -> new OptionItemResponse(sourceLabel(value), value)).toList();
+    return codeReviewReadSupport.listAvailableSources();
+  }
+
+  public List<OptionItemResponse> listProjectOptions(String source) {
+    return codeReviewReadSupport.listProjectOptions(source);
   }
 
   public CodeReviewMultiBoardOverviewResponse getOverview(CodeReviewMultiBoardOverviewRequest request) {
-    List<OptionItemResponse> options = listSourceOptions();
+    CodeReviewDataReadMode readMode = codeReviewReadSupport.configuredReadMode();
+    List<OptionItemResponse> options = codeReviewReadSupport.listAvailableSources(readMode);
     String source = resolveSource(request.source(), options);
     if (!StringUtils.hasText(source)) {
       return new CodeReviewMultiBoardOverviewResponse(
           "", "", 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of());
     }
+    //兼容模式-MatchMode：旧 overview 没有项目参数，继续保持当前读源全量语义；
+    // 正式表与兼容表的选择只由统一读源支持层决定。
+    QualityBoardCodeReviewReadScope readScope =
+        codeReviewReadSupport.resolveAllProjectsScope(source, readMode);
+    if (!readScope.available()) {
+      return new CodeReviewMultiBoardOverviewResponse(
+          source, sourceLabel(source), 0, 0, 0, null, 0, 0, null, null, null, List.of(), List.of());
+    }
+    LegacyScopeSql scopeSql = legacyScopeSql(readScope);
 
     Map<String, Object> summary =
         jdbcTemplate.queryForMap(
@@ -80,16 +60,15 @@ public class CodeReviewMultiBoardService {
               coalesce(sum(added_lines), 0) as total_added_lines,
               round(avg(review_duration_minutes)::numeric, 2) as average_review_duration_minutes,
               round(avg(added_lines)::numeric, 2) as average_added_lines
-            from merge_request_fact
-            where deleted = false
-              and lower(source_instance) = ?
-            """,
-            source);
+            from %s
+            %s
+            """.formatted(readScope.tableName(), scopeSql.whereClause()),
+            scopeSql.args().toArray());
 
     List<CodeReviewMultiBoardBreakdownRowResponse> moduleRows =
-        queryBreakdown("module_name", "未标注模块", source);
+        queryBreakdown("module_name", "未标注模块", readScope, scopeSql);
     List<CodeReviewMultiBoardBreakdownRowResponse> ownerRows =
-        queryBreakdown("owner_name", "未标注责任人", source);
+        queryBreakdown("reviewer_names", "未标注走查人", readScope, scopeSql);
 
     return new CodeReviewMultiBoardOverviewResponse(
         source,
@@ -108,7 +87,13 @@ public class CodeReviewMultiBoardService {
   }
 
   private List<CodeReviewMultiBoardBreakdownRowResponse> queryBreakdown(
-      String fieldName, String emptyLabel, String source) {
+      String fieldName,
+      String emptyLabel,
+      QualityBoardCodeReviewReadScope readScope,
+      LegacyScopeSql scopeSql) {
+    List<Object> queryArgs = new ArrayList<>();
+    queryArgs.add(emptyLabel);
+    queryArgs.addAll(scopeSql.args());
     List<Map<String, Object>> rows =
         jdbcTemplate.queryForList(
             """
@@ -120,9 +105,8 @@ public class CodeReviewMultiBoardService {
                 defect_count,
                 review_duration_minutes,
                 added_lines
-              from merge_request_fact
-              where deleted = false
-                and lower(source_instance) = ?
+              from %s
+              %s
             )
             select
               row_label,
@@ -136,11 +120,9 @@ public class CodeReviewMultiBoardService {
             from scoped
             group by row_label
             order by merge_request_count desc, row_label
-            limit 12
             """
-                .formatted(fieldName),
-            emptyLabel,
-            source);
+                .formatted(fieldName, readScope.tableName(), scopeSql.whereClause()),
+            queryArgs.toArray());
     List<CodeReviewMultiBoardBreakdownRowResponse> result = new ArrayList<>();
     for (Map<String, Object> row : rows) {
       String label = String.valueOf(row.get("row_label"));
@@ -168,8 +150,17 @@ public class CodeReviewMultiBoardService {
     return options.stream().map(OptionItemResponse::value).findFirst().orElse("");
   }
 
+  private LegacyScopeSql legacyScopeSql(QualityBoardCodeReviewReadScope scope) {
+    QualityBoardCodeReviewQueryScope queryScope = codeReviewReadSupport.queryScope(scope);
+    List<Object> args = new ArrayList<>(queryScope.args());
+    StringBuilder where = new StringBuilder("where ").append(queryScope.predicate()).append(" ");
+    where.append("and upper(coalesce(merge_request_state, '')) = 'MERGED'")
+        .append(scope.deletedPredicate());
+    return new LegacyScopeSql(where.toString(), List.copyOf(args));
+  }
+
   private String normalizeSourceValue(String value) {
-    return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    return StringUtils.hasText(value) ? value.trim().toLowerCase(java.util.Locale.ROOT) : "";
   }
 
   private String sourceLabel(String value) {
@@ -177,7 +168,7 @@ public class CodeReviewMultiBoardService {
       case "cc" -> "CC";
       case "dgm" -> "DGM";
       case "default" -> "默认";
-      default -> value == null ? "" : value.toUpperCase(Locale.ROOT);
+      default -> value == null ? "" : value.toUpperCase(java.util.Locale.ROOT);
     };
   }
 
@@ -197,4 +188,6 @@ public class CodeReviewMultiBoardService {
     }
     return Math.round((defectCount * 1000D / addedLines) * 100D) / 100D;
   }
+
+  private record LegacyScopeSql(String whereClause, List<Object> args) {}
 }

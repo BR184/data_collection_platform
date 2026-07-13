@@ -2,6 +2,7 @@ package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -73,11 +74,13 @@ class SystemTestIssueSearchServiceTest {
   @Test
   void shouldApplySystemTestSpecificFiltersThroughRequestObject() {
     SystemTestIssueSearchService service = service();
+    when(phaseScopeResolver.resolvePhases(1001L, List.of("phase1")))
+        .thenReturn(List.of("phase1系统测试"));
     when(issueLinkService.issueUrl("default", 1001L, 301))
         .thenReturn("http://gitlab.example.com/group/project/-/issues/301");
     when(issueFactRecordRepository.findByProjectId(1001L))
         .thenReturn(
-            List.of(record(301, "draft crash", "draft", "phase1 system test", "alice", "bob")));
+            List.of(record(301, "draft crash", "draft", "phase1系统测试", "alice", "bob")));
 
     SystemTestIssueSearchListResponse response =
         service.listRecords(
@@ -116,6 +119,68 @@ class SystemTestIssueSearchServiceTest {
   }
 
   @Test
+  void shouldExpandBoardDrillDownPhasesWithinTheSelectedProject() {
+    SystemTestIssueSearchService service = service();
+    when(phaseScopeResolver.resolvePhases(1001L, List.of("Rocksdb R2")))
+        .thenReturn(List.of("Rocksdb R2 第一轮系统测试"));
+    when(phaseScopeResolver.resolvePhases(1001L, "Rocksdb R2"))
+        .thenReturn(List.of("Rocksdb R2 第一轮系统测试"));
+    when(issueFactRecordRepository.findByProjectId(1001L))
+        .thenReturn(
+            List.of(
+                record(
+                    311,
+                    "selected project phase",
+                    "草图",
+                    "Rocksdb R2 第一轮系统测试",
+                    "alice",
+                    "bob"),
+                record(
+                    312,
+                    "different project phase",
+                    "草图",
+                    "CC2026R3 第一轮系统测试",
+                    "alice",
+                    "bob")));
+    String filterGroupJson =
+        "{\"logic\":\"AND\",\"conditions\":[{\"fieldKey\":\"testingPhase\",\"operator\":\"eq\","
+            + "\"value\":\"Rocksdb R2\"}]}";
+
+    SystemTestIssueSearchListResponse response =
+        service.listRecords(
+            new SystemTestIssueSearchQueryRequest(
+                new IssueFactRecordListRequest(
+                    1001L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1,
+                    20,
+                    "updatedAt",
+                    "desc"),
+                "Rocksdb R2",
+                null,
+                null,
+                filterGroupJson));
+
+    assertThat(response.records()).extracting(record -> record.issueIid()).containsExactly(311);
+    verify(phaseScopeResolver, never()).resolveLegacyCrownCadPhases(anyString());
+    verify(phaseScopeResolver, never()).resolveLegacyCrownCadPhases(anyList());
+  }
+
+  @Test
   void shouldFilterDirtyHistoricalModuleValuesFromFilterOptions() {
     SystemTestIssueSearchService service = service();
     when(issueFactRecordRepository.findForFilterOptions(any()))
@@ -139,7 +204,7 @@ class SystemTestIssueSearchServiceTest {
     List<String> moduleOptions =
         service.getFilterOptions(null).moduleNames().stream().map(option -> option.value()).toList();
 
-    assertThat(moduleOptions).containsExactly("曲线", "草图");
+    assertThat(moduleOptions).containsExactly("草图", "曲线");
   }
 
   @Test
@@ -330,17 +395,8 @@ class SystemTestIssueSearchServiceTest {
   private SystemTestIssueSearchService service() {
     org.mockito.Mockito.lenient().when(phaseCatalogService.listParentNames(9L)).thenReturn(List.of("CC2026R1"));
     org.mockito.Mockito.lenient()
-        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyString()))
-        .thenAnswer(invocation -> List.of(invocation.getArgument(0, String.class)));
-    org.mockito.Mockito.lenient()
-        .when(phaseScopeResolver.resolveLegacyCrownCadPhases(anyList()))
-        .thenAnswer(invocation -> invocation.getArgument(0, List.class));
-    org.mockito.Mockito.lenient()
-        .when(phaseScopeResolver.matchesLegacyCrownCadPhase(anyString(), anyString()))
-        .thenReturn(true);
-    org.mockito.Mockito.lenient()
-        .when(phaseScopeResolver.matchesLegacyCrownCadPhases(anyString(), anyList()))
-        .thenReturn(true);
+        .when(phaseScopeResolver.resolvePhases(anyLong(), anyList()))
+        .thenAnswer(invocation -> invocation.getArgument(1, List.class));
     org.mockito.Mockito.lenient()
         .when(pageRecordSnapshotService.issueFactSourceVersion())
         .thenReturn("test-issue-version");

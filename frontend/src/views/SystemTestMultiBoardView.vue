@@ -5,29 +5,44 @@ import { Download, Refresh, RefreshRight } from '@element-plus/icons-vue';
 import PageStateShell from '../components/base/PageStateShell.vue';
 import SmartSelect from '../components/base/SmartSelect.vue';
 import EChartPanel from '../components/charts/EChartPanel.vue';
+import type { EChartPointClickEvent } from '../components/charts/echart-panel-events';
+import { buildAnalyticsDetailRoute } from '../components/dashboard/detail-view-routes';
+import DashboardRuleDrawer from '../components/dashboard/DashboardRuleDrawer.vue';
+import RuleHintIcon from '../components/dashboard/RuleHintIcon.vue';
 import SyncMetaBadge from '../components/realtime/SyncMetaBadge.vue';
 import { api } from '../api';
 import { authState } from '../composables/auth-state';
 import { useRealtimeWorkspaceStatus } from '../composables/useRealtimeWorkspaceStatus';
 import { ElMessage } from '../element-plus-services';
-import type { SystemTestIssueMultiBoardChartResponse, SystemTestIssueMultiBoardResponse } from '../types/api';
+import type {
+  AnalyticsDashboardRule,
+  SystemTestIssueMultiBoardChartResponse,
+  SystemTestIssueMultiBoardResponse,
+  SystemTestIssueMultiBoardSummaryCardResponse,
+} from '../types/api';
 import { downloadBlob } from '../utils/csv-download';
 import { buildMultiBoardChartOption } from './system-test-multi-board';
 
 const route = useRoute();
 const router = useRouter();
+const DASHBOARD_KEY = 'system-test-multi';
 
 const initialized = ref(false);
 const loading = ref(false);
 const realtimeRefreshLoading = ref(false);
 const exportLoadingKey = ref('');
 const board = ref<SystemTestIssueMultiBoardResponse | null>(null);
+const selectedRule = ref<AnalyticsDashboardRule | null>(null);
+const ruleDrawerVisible = ref(false);
 
 const selectedProjectId = computed(() => String(route.query.projectId ?? '9'));
 const selectedTestingPhase = computed(() => String(route.query.testingPhase ?? ''));
 const pageReady = computed(() => initialized.value);
 const canRefreshLatestData = computed(() => authState.currentUser.role === 'ADMIN');
 const scopeLabel = computed(() => board.value?.scope.scopeLabel ?? 'CrownCAD / 全部阶段');
+const ruleByKey = computed(() => new Map(
+  (board.value?.rules ?? []).map((rule) => [rule.key, rule]),
+));
 
 const {
   syncStatus,
@@ -134,6 +149,71 @@ function chartHasData(chart: SystemTestIssueMultiBoardChartResponse) {
   return chart.points.length > 0 || chart.categories.length > 0;
 }
 
+function chartRule(chart: SystemTestIssueMultiBoardChartResponse) {
+  return ruleByKey.value.get(chart.ruleKey) ?? null;
+}
+
+function summaryRule(card: SystemTestIssueMultiBoardSummaryCardResponse) {
+  return ruleByKey.value.get(card.ruleKey) ?? null;
+}
+
+function inheritedDetailParameters() {
+  return {
+    projectId: String(board.value?.scope.projectId ?? selectedProjectId.value),
+    projectName: board.value?.scope.projectName || '',
+    testingPhase: board.value?.scope.testingPhase || selectedTestingPhase.value || '',
+  };
+}
+
+function chartDetailLocation(
+  chart: SystemTestIssueMultiBoardChartResponse,
+  point?: EChartPointClickEvent,
+) {
+  const viewKey = point?.detailViewKey || chart.detailViewKey;
+  if (!viewKey) {
+    return null;
+  }
+  return buildAnalyticsDetailRoute(
+    DASHBOARD_KEY,
+    {
+      viewKey,
+      params: {
+        ...chart.detailParams,
+        ...(point?.detailParams ?? {}),
+      },
+    },
+    inheritedDetailParameters(),
+  );
+}
+
+async function handleChartTitleClick(chart: SystemTestIssueMultiBoardChartResponse) {
+  const location = chartDetailLocation(chart);
+  if (location) {
+    await router.push(location);
+  }
+}
+
+async function handleChartPointClick(
+  point: EChartPointClickEvent,
+  chart: SystemTestIssueMultiBoardChartResponse,
+) {
+  if (!point.detailViewKey || !Object.keys(point.detailParams).length) {
+    return;
+  }
+  const location = chartDetailLocation(chart, point);
+  if (location) {
+    await router.push(location);
+  }
+}
+
+function openRule(rule: AnalyticsDashboardRule | null) {
+  if (!rule) {
+    return;
+  }
+  selectedRule.value = rule;
+  ruleDrawerVisible.value = true;
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -200,7 +280,10 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
           class="system-test-multi-board__summary-card"
           :data-tone="card.tone ?? 'default'"
         >
-          <span>{{ card.label }}</span>
+          <div class="system-test-multi-board__summary-title">
+            <span>{{ card.label }}</span>
+            <RuleHintIcon :rule="summaryRule(card)" @click="openRule" />
+          </div>
           <strong>{{ card.value }}</strong>
         </article>
       </section>
@@ -209,19 +292,22 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
         <article v-for="chart in board?.charts ?? []" :key="chart.key" class="system-test-multi-board__panel">
           <div class="system-test-multi-board__panel-head">
             <div>
-              <h3>{{ chart.title }}</h3>
+              <div class="system-test-multi-board__panel-title-line">
+                <button
+                  type="button"
+                  class="system-test-multi-board__panel-title"
+                  :class="{ 'is-clickable': Boolean(chart.detailViewKey) }"
+                  :disabled="!chart.detailViewKey"
+                  @click="handleChartTitleClick(chart)"
+                >
+                  {{ chart.title }}
+                </button>
+                <RuleHintIcon :rule="chartRule(chart)" @click="openRule" />
+              </div>
               <p>{{ chart.description }}</p>
               <span>{{ chart.metadata.scope }}</span>
             </div>
             <div class="system-test-multi-board__panel-actions">
-              <el-link
-                v-if="chart.detailPath"
-                underline="never"
-                type="primary"
-                :href="router.resolve({ path: chart.detailPath }).href"
-              >
-                查看详情
-              </el-link>
               <el-tooltip content="下载图表数据" placement="top">
                 <el-button
                   class="system-test-multi-board__icon-button"
@@ -229,15 +315,21 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
                   :loading="exportLoadingKey === chart.key"
                   :disabled="!chartHasData(chart)"
                   circle
-                  @click="handleExport(chart)"
+                  @click.stop="handleExport(chart)"
                 />
               </el-tooltip>
             </div>
           </div>
-          <EChartPanel :option="chartOption(chart)" :loading="loading" :height="340" />
+          <EChartPanel
+            :option="chartOption(chart)"
+            :loading="loading"
+            :height="340"
+            @point-click="(point) => handleChartPointClick(point, chart)"
+          />
         </article>
       </section>
     </section>
+    <DashboardRuleDrawer v-model="ruleDrawerVisible" :rule="selectedRule" />
   </PageStateShell>
 </template>
 
@@ -315,6 +407,12 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
   padding: 16px 18px;
 }
 
+.system-test-multi-board__summary-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .system-test-multi-board__summary-card span {
   color: #667085;
   font-size: 13px;
@@ -356,10 +454,27 @@ void Promise.all([loadBoard(), loadSyncStatus()]).catch((error) => {
   margin-bottom: 8px;
 }
 
-.system-test-multi-board__panel-head h3 {
+.system-test-multi-board__panel-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.system-test-multi-board__panel-title {
+  padding: 0;
   margin: 0;
   color: #111827;
+  font: inherit;
   font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.system-test-multi-board__panel-title.is-clickable {
+  color: #1d4ed8;
+  cursor: pointer;
 }
 
 .system-test-multi-board__panel-head p {

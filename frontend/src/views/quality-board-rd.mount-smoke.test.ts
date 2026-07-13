@@ -20,8 +20,10 @@ vi.mock('../components/charts/EChartPanel.vue', () => ({
 }));
 
 const apiMock = vi.hoisted(() => ({
-  getQualityBoardRdProjectOptions: vi.fn(),
-  getQualityBoardRdDashboard: vi.fn(),
+  getQualityBoardRdFilterOptions: vi.fn(),
+  getDashboard: vi.fn(),
+  getRules: vi.fn(),
+  export: vi.fn(),
 }));
 
 vi.mock('../api', () => ({
@@ -48,34 +50,54 @@ describe('QualityBoardRdView mount smoke', () => {
     authState.initialized = true;
     authState.loading = false;
     authState.error = '';
-    apiMock.getQualityBoardRdProjectOptions.mockResolvedValue({
+    apiMock.getQualityBoardRdFilterOptions.mockResolvedValue({
           defaultProjectName: 'CC2026R4',
-          options: [{ label: 'CC2026R4', value: 'CC2026R4' }],
-    });
-    apiMock.getQualityBoardRdDashboard.mockResolvedValue({
-          summary: {
-            projectName: 'CC2026R4',
-            demandReviewReportDensity: 0.3,
-            designReviewReportDensity: 0.4,
-            codeWalkThroughDefectDensityCc: 3.2,
-            codeWalkThroughDefectDensityDgm: 4.1,
-            integrationPassRate: 92,
-            defectLeakageRate: 10,
-            defectEliminationRate: 91,
-            newIssueFixRate: 88,
-            metrics: [],
-          },
-          codeReviewSource: 'cc',
+          projectOptions: [{ label: 'CC2026R4', value: 'CC2026R4' }],
           codeReviewSourceOptions: [
             { label: 'CC', value: 'cc' },
             { label: 'DGM', value: 'dgm' },
           ],
-          assigneeDefectDensityRows: [{ name: '走查人A', value: 3.1 }],
-          authorDefectDensityRows: [{ name: '作者A', value: 2.8 }],
-          fixUserSeverityRows: [{ name: '修复人A', level1: 1, level2: 2, level3: 3, suggestion: 1, total: 7 }],
-          frequencyCodeSubmissionRows: [{ name: '提交人A', value: 12 }],
-          defectRepairUserRows: [{ name: '指派人A', value: 5 }],
     });
+    apiMock.getDashboard.mockResolvedValue({
+      dashboardKey: 'quality-rd',
+      title: '研发质量看板',
+      subtitle: '汇总评审、代码走查、集成测试与系统测试质量指标。',
+      metrics: [
+        ['demand-review-density', '需求评审缺陷密度'],
+        ['design-review-density', '设计评审缺陷密度'],
+        ['code-review-density-cc', 'CC代码走查缺陷密度'],
+        ['code-review-density-dgm', 'DGM代码走查缺陷密度'],
+        ['integration-pass-rate', '集成测试通过率'],
+        ['release-leakage-rate', '发布缺陷遗留率'],
+        ['development-leakage-rate', '开发缺陷遗留率'],
+        ['new-issue-fix-rate', '新发缺陷修复率'],
+      ].map(([key, title]) => ({
+        key,
+        title,
+        value: 1,
+        displayValue: '1.00',
+        unit: '',
+        ruleKey: `quality-rd.${key}`,
+        detail: null,
+        export: null,
+      })),
+      charts: [
+        '按走查人统计代码走查缺陷密度',
+        '按被走查人统计代码走查缺陷密度',
+        '按修复人统计缺陷数',
+        '代码提交频次',
+        '指派人剩余缺陷数量',
+      ].map((title, index) => ({
+        key: `chart-${index}`,
+        title,
+        subtitle: '',
+        option: { series: [{ type: 'bar', data: [1] }] },
+        ruleKey: `quality-rd.chart-${index}`,
+        detail: null,
+        export: { exportKey: `chart-${index}`, label: '导出' },
+      })),
+    });
+    apiMock.getRules.mockResolvedValue({ dashboardKey: 'quality-rd', rules: [] });
 
     const router = createRouter({
       history: createWebHashHistory(),
@@ -100,13 +122,18 @@ describe('QualityBoardRdView mount smoke', () => {
     });
     await flushPromises();
 
-    expect(wrapper.findAll('.quality-board-rd__summary-card')).toHaveLength(8);
+    expect(apiMock.getDashboard).toHaveBeenCalledWith('quality-rd', {
+      projectName: 'CC2026R4',
+      codeReviewSource: 'cc',
+    });
+    expect(wrapper.findAll('.dashboard-metric-card')).toHaveLength(8);
     expect(wrapper.text()).toContain('DGM代码走查缺陷密度');
     expect(wrapper.text()).toContain('按走查人统计代码走查缺陷密度');
     expect(wrapper.text()).toContain('按被走查人统计代码走查缺陷密度');
     expect(wrapper.text()).toContain('按修复人统计缺陷数');
     expect(wrapper.text()).toContain('代码提交频次');
     expect(wrapper.text()).toContain('指派人剩余缺陷数量');
+    expect(wrapper.findAll('.dashboard-chart-card')).toHaveLength(5);
     expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(5);
 
     wrapper.unmount();

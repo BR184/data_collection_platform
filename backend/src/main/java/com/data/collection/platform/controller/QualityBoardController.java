@@ -5,6 +5,7 @@ import com.data.collection.platform.common.response.ApiResponse;
 import com.data.collection.platform.entity.QualityBoardOtherOverviewResponse;
 import com.data.collection.platform.entity.QualityBoardProjectOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdDashboardResponse;
+import com.data.collection.platform.entity.QualityBoardRdFilterOptionsResponse;
 import com.data.collection.platform.entity.QualityBoardRdOverviewResponse;
 import com.data.collection.platform.service.QualityBoardWorkbookExportService;
 import com.data.collection.platform.service.QualityBoardRdService;
@@ -35,6 +36,11 @@ public class QualityBoardController {
     return ApiResponse.success(qualityBoardRdService.listProjectOptions());
   }
 
+  @GetMapping("/rd/filter-options")
+  public ApiResponse<QualityBoardRdFilterOptionsResponse> listRdFilterOptions() {
+    return ApiResponse.success(qualityBoardRdService.listFilterOptions());
+  }
+
   @GetMapping("/rd/overview")
   public ApiResponse<QualityBoardRdOverviewResponse> getRdOverview(
       @RequestParam(required = false) String projectName) {
@@ -56,7 +62,7 @@ public class QualityBoardController {
       @RequestParam(required = false) String codeReviewSource) {
     byte[] workbook =
         workbookExportService.exportRdChartWorkbook(projectName, codeReviewSource, chartKey);
-    return excelResponse(workbook, workbookExportService.rdChartFilename(chartKey));
+    return excelResponse(workbook, workbookExportService.rdChartFilename(projectName, chartKey));
   }
 
   @GetMapping("/rd/code-review-records/export")
@@ -65,7 +71,8 @@ public class QualityBoardController {
       @RequestParam(required = false) String codeReviewSource) {
     byte[] workbook =
         workbookExportService.exportCodeReviewRecordsWorkbook(projectName, codeReviewSource);
-    return excelResponse(workbook, workbookExportService.codeReviewRecordsFilename(codeReviewSource));
+    return excelResponse(
+        workbook, workbookExportService.codeReviewRecordsFilename(projectName, codeReviewSource));
   }
 
   @GetMapping("/other/overview")

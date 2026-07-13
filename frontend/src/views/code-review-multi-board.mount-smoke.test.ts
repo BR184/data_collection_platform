@@ -20,7 +20,7 @@ function jsonResponse(data: unknown) {
 }
 
 describe('CodeReviewMultiBoardView mount smoke', () => {
-  it('loads source options and renders chart-first overview', async () => {
+  it('loads isolated source/project scopes and renders all eight legacy topics', async () => {
     const fetchSpy = vi.fn((url: string) => {
       if (url.includes('/api/code-review/multi-board/source-options')) {
         return jsonResponse([
@@ -28,47 +28,33 @@ describe('CodeReviewMultiBoardView mount smoke', () => {
           { label: 'DGM', value: 'dgm' },
         ]);
       }
-      if (url.includes('/api/code-review/multi-board/overview')) {
+      if (url.includes('/api/code-review/multi-board/project-options')) {
+        return jsonResponse([{ label: 'CC2026R3', value: 'CC2026R3' }]);
+      }
+      if (url.includes('/api/analytics-dashboards/code-review-multi/rules')) {
         return jsonResponse({
-          source: 'cc',
-          sourceLabel: 'CC',
-          mergeRequestCount: 6,
-          completedCount: 4,
-          pendingCount: 2,
-          averageCommentRate: 18.25,
-          totalDefectCount: 7,
-          totalAddedLines: 280,
-          defectDensityPerKloc: 25,
-          averageReviewDurationMinutes: 16.5,
-          averageAddedLines: 58,
-          moduleRows: [
-            {
-              rowKey: '支付中心',
-              rowLabel: '支付中心',
-              mergeRequestCount: 3,
-              completedCount: 2,
-              averageCommentRate: 16.4,
-              totalDefectCount: 4,
-              totalAddedLines: 156,
-              defectDensityPerKloc: 25.64,
-              averageReviewDurationMinutes: 15.3,
-              averageAddedLines: 52,
-            },
-          ],
-          ownerRows: [
-            {
-              rowKey: '张三',
-              rowLabel: '张三',
-              mergeRequestCount: 2,
-              completedCount: 2,
-              averageCommentRate: 21.2,
-              totalDefectCount: 1,
-              totalAddedLines: 96,
-              defectDensityPerKloc: 10.42,
-              averageReviewDurationMinutes: 14.5,
-              averageAddedLines: 49,
-            },
-          ],
+          dashboardKey: 'code-review-multi',
+          rules: Array.from({ length: 8 }, (_, index) => ({
+            key: `rule-${index}`,
+            title: `规则 ${index}`,
+            formula: '测试公式',
+          })),
+        });
+      }
+      if (url.includes('/api/analytics-dashboards/code-review-multi')) {
+        return jsonResponse({
+          dashboardKey: 'code-review-multi',
+          title: '代码走查多元看板',
+          subtitle: 'CC / CC2026R3',
+          metrics: [],
+          charts: Array.from({ length: 8 }, (_, index) => ({
+            key: `topic-${index}`,
+            title: index === 0 ? '模块千行缺陷率' : `专题 ${index}`,
+            option: {},
+            ruleKey: `rule-${index}`,
+            detail: { viewKey: 'code-review-statistics', params: { topic: `topic-${index}` } },
+            export: { exportKey: `topic-${index}`, label: '导出 Excel' },
+          })),
         });
       }
       return jsonResponse({});
@@ -96,11 +82,11 @@ describe('CodeReviewMultiBoardView mount smoke', () => {
 
     await flushPromises();
 
-    expect(wrapper.text()).toContain('代码走查质量概览');
-    expect(wrapper.text()).toContain('模块缺陷密度');
-    expect(wrapper.text()).toContain('支付中心');
-    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(4);
+    expect(wrapper.text()).toContain('代码走查多元看板');
+    expect(wrapper.text()).toContain('模块千行缺陷率');
+    expect(wrapper.findAll('[data-testid="echart-panel"]')).toHaveLength(8);
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('source=cc'))).toBe(true);
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('projectName=CC2026R3'))).toBe(true);
 
     wrapper.unmount();
     vi.unstubAllGlobals();

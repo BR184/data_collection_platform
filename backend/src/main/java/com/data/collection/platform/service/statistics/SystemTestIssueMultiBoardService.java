@@ -1,12 +1,16 @@
 package com.data.collection.platform.service.statistics;
 
 import com.data.collection.platform.entity.OptionItemResponse;
+import com.data.collection.platform.entity.statistics.StatisticFilterCondition;
+import com.data.collection.platform.entity.statistics.StatisticFilterGroup;
 import com.data.collection.platform.entity.statistics.SystemTestIssueMultiBoardResponse;
 import com.data.collection.platform.service.ExcelExportStyles;
 import com.data.collection.platform.service.OptionItemResponseFactory;
 import com.data.collection.platform.service.SystemTestPhaseCatalogService;
 import com.data.collection.platform.service.SystemTestPhaseScopeResolver;
 import com.data.collection.platform.service.TextQuerySupport;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -41,22 +45,23 @@ public class SystemTestIssueMultiBoardService {
           new Severity("level3", "三级缺陷"),
           new Severity("suggestion", "建议类缺陷"));
   private static final List<Severity> REGULAR_SEVERITIES = SEVERITIES.subList(0, 3);
-  private static final List<String> MAJOR_CAUSES =
-      List.of("需求阶段", "设计阶段", "编码问题", "打包问题", "依赖问题", "精度问题");
-  private static final List<String> DELAY_CAUSES =
-      List.of("技术卡点", "方案卡点", "资源卡点", "数据异常", "算法问题", "机制问题", "计算效率");
+  private static final List<String> MAJOR_CAUSES = SystemTestIssueMetricDimensionSupport.MAJOR_CAUSES;
+  private static final List<String> DELAY_CAUSES = SystemTestIssueMetricDimensionSupport.DELAY_CAUSES;
 
   private final JdbcTemplate jdbcTemplate;
   private final SystemTestPhaseCatalogService phaseCatalogService;
   private final SystemTestPhaseScopeResolver phaseScopeResolver;
+  private final ObjectMapper objectMapper;
 
   public SystemTestIssueMultiBoardService(
       JdbcTemplate jdbcTemplate,
       SystemTestPhaseCatalogService phaseCatalogService,
-      SystemTestPhaseScopeResolver phaseScopeResolver) {
+      SystemTestPhaseScopeResolver phaseScopeResolver,
+      ObjectMapper objectMapper) {
     this.jdbcTemplate = jdbcTemplate;
     this.phaseCatalogService = phaseCatalogService;
     this.phaseScopeResolver = phaseScopeResolver;
+    this.objectMapper = objectMapper;
   }
 
   public SystemTestIssueMultiBoardResponse getBoard(Long projectId, String testingPhase) {
@@ -72,6 +77,7 @@ public class SystemTestIssueMultiBoardService {
             scope.label()),
         loadProjectOptions(),
         loadTestingPhaseOptions(scope.projectId()),
+        buildRules(scope),
         buildSummaryCards(rows),
         charts);
   }
@@ -113,10 +119,50 @@ public class SystemTestIssueMultiBoardService {
     long fixed = regularRows.stream().filter(IssueRow::fixed).count();
     long delay = regularRows.stream().filter(IssueRow::delay).count();
     return List.of(
-        new SystemTestIssueMultiBoardResponse.SummaryCard("total", "系统测试缺陷", String.valueOf(total), "default"),
-        new SystemTestIssueMultiBoardResponse.SummaryCard("open", "未关闭缺陷", String.valueOf(open), "warning"),
-        new SystemTestIssueMultiBoardResponse.SummaryCard("fixed", "已修复/未更新", String.valueOf(fixed), "success"),
-        new SystemTestIssueMultiBoardResponse.SummaryCard("delay", "申请延期", String.valueOf(delay), "danger"));
+        new SystemTestIssueMultiBoardResponse.SummaryCard(
+            "total", "系统测试缺陷", String.valueOf(total), "default", "summary-total"),
+        new SystemTestIssueMultiBoardResponse.SummaryCard(
+            "open", "未关闭缺陷", String.valueOf(open), "warning", "summary-open"),
+        new SystemTestIssueMultiBoardResponse.SummaryCard(
+            "fixed", "已修复/未更新", String.valueOf(fixed), "success", "summary-fixed"),
+        new SystemTestIssueMultiBoardResponse.SummaryCard(
+            "delay", "申请延期", String.valueOf(delay), "danger", "summary-delay"));
+  }
+
+  private List<SystemTestIssueMultiBoardResponse.Rule> buildRules(ScopeContext scope) {
+    List<SystemTestIssueMultiBoardResponse.Rule> rules = new ArrayList<>();
+    rules.add(rule("summary-total", "系统测试缺陷", "COUNT(常规系统测试缺陷)", scope,
+        "排除建议类后，统计当前项目与阶段范围内的常规系统测试缺陷。"));
+    rules.add(rule("summary-open", "未关闭缺陷", "COUNT(issue_state != closed)", scope,
+        "在常规系统测试缺陷中统计议题状态未关闭的记录。"));
+    rules.add(rule("summary-fixed", "已修复/未更新", "COUNT(is_fixed = true)", scope,
+        "按事实层统一修复状态规则统计已修复、待合并或未更新记录。"));
+    rules.add(rule("summary-delay", "申请延期", "COUNT(delay_issue = true)", scope,
+        "按老平台延期标识与延期原因规则统计申请延期记录。"));
+    for (ChartDefinition definition : CHART_DEFINITIONS) {
+      rules.add(rule(
+          definition.key(),
+          definition.title(),
+          definition.formula(),
+          scope,
+          definition.description()));
+    }
+    return List.copyOf(rules);
+  }
+
+  private SystemTestIssueMultiBoardResponse.Rule rule(
+      String key,
+      String title,
+      String formula,
+      ScopeContext scope,
+      String description) {
+    return new SystemTestIssueMultiBoardResponse.Rule(
+        key,
+        title,
+        formula,
+        scope.label(),
+        null,
+        description);
   }
 
   private List<SystemTestIssueMultiBoardResponse.Chart> buildCharts(List<IssueRow> rows, ScopeContext scope) {
@@ -137,7 +183,12 @@ public class SystemTestIssueMultiBoardService {
 
   private SystemTestIssueMultiBoardResponse.Chart severityPie(List<IssueRow> rows, ScopeContext scope) {
     List<SystemTestIssueMultiBoardResponse.Point> points = SEVERITIES.stream()
-        .map(severity -> point(severity.label(), count(rows, row -> severity.matches(row))))
+        .map(severity -> point(
+            "severity-level",
+            severity.label(),
+            count(rows, row -> severity.matches(row)),
+            scope,
+            List.of(condition("metricSeverity", severity.filterValue()))))
         .toList();
     return pointChart("severity-level", "缺陷严重程度分析", "按议题严重程度统计当前范围缺陷数量。", "pie", points, scope);
   }
@@ -145,14 +196,28 @@ public class SystemTestIssueMultiBoardService {
   private SystemTestIssueMultiBoardResponse.Chart openSeverityPie(List<IssueRow> rows, ScopeContext scope) {
     List<IssueRow> openRows = rows.stream().filter(IssueRow::open).toList();
     List<SystemTestIssueMultiBoardResponse.Point> points = REGULAR_SEVERITIES.stream()
-        .map(severity -> point(severity.label(), count(openRows, row -> severity.matches(row))))
+        .map(severity -> point(
+            "open-issue",
+            severity.label(),
+            count(openRows, row -> severity.matches(row)),
+            scope,
+            List.of(
+                condition("metricSeverity", severity.filterValue()),
+                condition("openIssue", "true"))))
         .toList();
     return pointChart("open-issue", "未关闭缺陷占比", "按严重程度统计当前范围内未关闭缺陷。", "pie", points, scope);
   }
 
   private SystemTestIssueMultiBoardResponse.Chart majorCausePie(List<IssueRow> rows, ScopeContext scope) {
     List<SystemTestIssueMultiBoardResponse.Point> points = MAJOR_CAUSES.stream()
-        .map(cause -> point(cause, count(rows, row -> majorCause(row).equals(cause))))
+        .map(cause -> point(
+            "major-cause",
+            cause,
+            count(rows, row -> majorCause(row).equals(cause)),
+            scope,
+            List.of(
+                condition("regularMetric", "true"),
+                condition("majorCause", cause))))
         .toList();
     return pointChart("major-cause", "缺陷原因占比分析", "按老平台六类缺陷原因统计占比。", "pie", points, scope);
   }
@@ -165,7 +230,15 @@ public class SystemTestIssueMultiBoardService {
         "申请延期模块分析",
         "按模块统计申请延期缺陷数量。",
         "pie",
-        topPoints(totals, 12),
+        topPoints(
+            "extension-module",
+            totals,
+            12,
+            scope,
+            "moduleName",
+            List.of(
+                condition("regularMetric", "true"),
+                condition("delayIssue", "true"))),
         scope);
   }
 
@@ -177,7 +250,15 @@ public class SystemTestIssueMultiBoardService {
         "回退模块缺陷占比",
         "按模块统计回退类缺陷数量。",
         "pie",
-        topPoints(totals, 12),
+        topPoints(
+            "rollback-module",
+            totals,
+            12,
+            scope,
+            "moduleName",
+            List.of(
+                condition("regularMetric", "true"),
+                condition("rollback", "true"))),
         scope);
   }
 
@@ -189,8 +270,8 @@ public class SystemTestIssueMultiBoardService {
         "按测试阶段统计各严重程度缺陷数量。",
         "stackedBar",
         phases,
-        severitySeries(phases, rows, IssueRow::testingPhase),
-        "/question-metrics/phase-statistics",
+        severitySeries(
+            "phase-severity", phases, rows, IssueRow::testingPhase, "testingPhase", scope, List.of()),
         scope);
   }
 
@@ -202,8 +283,7 @@ public class SystemTestIssueMultiBoardService {
         "按模块统计各严重程度缺陷数量。",
         "stackedBar",
         modules,
-        severitySeriesByModules(modules, rows),
-        "/question-metrics/home",
+        severitySeriesByModules("module-severity", modules, rows, scope),
         scope);
   }
 
@@ -224,8 +304,14 @@ public class SystemTestIssueMultiBoardService {
         "按合法修复状态评论作者统计缺陷数量。",
         "stackedBar",
         users,
-        severitySeries(users, rows.stream().filter(row -> StringUtils.hasText(row.fixUser())).toList(), IssueRow::fixUser),
-        "/question-metrics/issues",
+        severitySeries(
+            "fix-user-severity",
+            users,
+            rows.stream().filter(row -> StringUtils.hasText(row.fixUser())).toList(),
+            IssueRow::fixUser,
+            "fixUser",
+            scope,
+            List.of()),
         scope);
   }
 
@@ -235,7 +321,15 @@ public class SystemTestIssueMultiBoardService {
         .map(severity -> new SystemTestIssueMultiBoardResponse.Series(
             severity.label(),
             DefectCauseMetricCatalog.METRICS.stream()
-                .map(metric -> decimal(count(rows, row -> severity.matches(row) && matchesCauseMetric(row, metric))))
+                .map(metric -> point(
+                    "cause-detail",
+                    metric.label(),
+                    count(rows, row -> severity.matches(row) && matchesCauseMetric(row, metric)),
+                    scope,
+                    List.of(
+                        condition("regularMetric", "true"),
+                        condition("metricSeverity", severity.filterValue()),
+                        condition("causeMetric", metric.key()))))
                 .toList()))
         .toList();
     return seriesChart(
@@ -245,7 +339,6 @@ public class SystemTestIssueMultiBoardService {
         "stackedBar",
         categories,
         series,
-        "/question-metrics/defect-cause",
         scope);
   }
 
@@ -255,7 +348,15 @@ public class SystemTestIssueMultiBoardService {
         .map(severity -> new SystemTestIssueMultiBoardResponse.Series(
             severity.label(),
             DELAY_CAUSES.stream()
-                .map(cause -> decimal(count(delayRows, row -> severity.matches(row) && delayCause(row).equals(cause))))
+                .map(cause -> point(
+                    "delay-cause",
+                    cause,
+                    count(delayRows, row -> severity.matches(row) && delayCause(row).equals(cause)),
+                    scope,
+                    List.of(
+                        condition("metricSeverity", severity.filterValue()),
+                        condition("delayIssue", "true"),
+                        condition("delayCause", cause))))
                 .toList()))
         .toList();
     return seriesChart(
@@ -265,7 +366,6 @@ public class SystemTestIssueMultiBoardService {
         "stackedBar",
         DELAY_CAUSES,
         series,
-        "/question-metrics/delay-analysis",
         scope);
   }
 
@@ -278,36 +378,69 @@ public class SystemTestIssueMultiBoardService {
           return rate(fixed, total);
         })
         .toList();
+    List<SystemTestIssueMultiBoardResponse.Point> points = new ArrayList<>();
+    for (int index = 0; index < modules.size(); index++) {
+      points.add(point(
+          "module-repair-rate",
+          modules.get(index),
+          data.get(index),
+          scope,
+          List.of(
+              condition("regularMetric", "true"),
+              condition("moduleName", modules.get(index)))));
+    }
     return seriesChart(
         "module-repair-rate",
         "模块修复率",
         "按模块统计已修复缺陷占比，保留两位小数。",
         "bar",
         modules,
-        List.of(new SystemTestIssueMultiBoardResponse.Series("修复率(%)", data)),
-        "/question-metrics/home",
+        List.of(new SystemTestIssueMultiBoardResponse.Series("修复率(%)", List.copyOf(points))),
         scope);
   }
 
   private List<SystemTestIssueMultiBoardResponse.Series> severitySeries(
+      String chartKey,
       List<String> categories,
       List<IssueRow> rows,
-      Function<IssueRow, String> classifier) {
+      Function<IssueRow, String> classifier,
+      String dimensionField,
+      ScopeContext scope,
+      List<StatisticFilterCondition> commonConditions) {
     return SEVERITIES.stream()
         .map(severity -> new SystemTestIssueMultiBoardResponse.Series(
             severity.label(),
             categories.stream()
-                .map(category -> decimal(count(rows, row -> severity.matches(row) && category.equals(classifier.apply(row)))))
+                .map(category -> point(
+                    chartKey,
+                    category,
+                    count(rows, row -> severity.matches(row) && category.equals(classifier.apply(row))),
+                    scope,
+                    concatConditions(
+                        commonConditions,
+                        condition("metricSeverity", severity.filterValue()),
+                        condition(dimensionField, category))))
                 .toList()))
         .toList();
   }
 
-  private List<SystemTestIssueMultiBoardResponse.Series> severitySeriesByModules(List<String> categories, List<IssueRow> rows) {
+  private List<SystemTestIssueMultiBoardResponse.Series> severitySeriesByModules(
+      String chartKey,
+      List<String> categories,
+      List<IssueRow> rows,
+      ScopeContext scope) {
     return SEVERITIES.stream()
         .map(severity -> new SystemTestIssueMultiBoardResponse.Series(
             severity.label(),
             categories.stream()
-                .map(category -> decimal(count(rows, row -> severity.matches(row) && modules(row).contains(category))))
+                .map(category -> point(
+                    chartKey,
+                    category,
+                    count(rows, row -> severity.matches(row) && modules(row).contains(category)),
+                    scope,
+                    List.of(
+                        condition("metricSeverity", severity.filterValue()),
+                        condition("moduleName", category))))
                 .toList()))
         .toList();
   }
@@ -325,7 +458,9 @@ public class SystemTestIssueMultiBoardService {
         title,
         description,
         chartType,
-        definition.detailPath(),
+        definition.key(),
+        definition.detailViewKey(),
+        scopeParams(scope),
         title,
         List.of(),
         List.of(),
@@ -340,14 +475,16 @@ public class SystemTestIssueMultiBoardService {
       String chartType,
       List<String> categories,
       List<SystemTestIssueMultiBoardResponse.Series> series,
-      String detailPath,
       ScopeContext scope) {
+    ChartDefinition definition = definition(key);
     return new SystemTestIssueMultiBoardResponse.Chart(
         key,
         title,
         description,
         chartType,
-        detailPath,
+        definition.key(),
+        definition.detailViewKey(),
+        scopeParams(scope),
         title,
         categories,
         series,
@@ -510,11 +647,22 @@ public class SystemTestIssueMultiBoardService {
         .toList();
   }
 
-  private List<SystemTestIssueMultiBoardResponse.Point> topPoints(Map<String, Long> totals, int limit) {
+  private List<SystemTestIssueMultiBoardResponse.Point> topPoints(
+      String chartKey,
+      Map<String, Long> totals,
+      int limit,
+      ScopeContext scope,
+      String dimensionField,
+      List<StatisticFilterCondition> commonConditions) {
     return totals.entrySet().stream()
         .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry::getKey))
         .limit(limit)
-        .map(entry -> point(entry.getKey(), entry.getValue()))
+        .map(entry -> point(
+            chartKey,
+            entry.getKey(),
+            entry.getValue(),
+            scope,
+            concatConditions(commonConditions, condition(dimensionField, entry.getKey()))))
         .toList();
   }
 
@@ -531,40 +679,88 @@ public class SystemTestIssueMultiBoardService {
   }
 
   private String majorCause(IssueRow row) {
-    String text = row.reasonCategory() + " " + row.labelNames();
-    for (String cause : MAJOR_CAUSES) {
-      if ("需求阶段".equals(cause) && containsAny(text, "需求阶段", "需求问题")) {
-        return cause;
-      }
-      if ("设计阶段".equals(cause) && containsAny(text, "设计阶段", "设计问题")) {
-        return cause;
-      }
-      if ("编码问题".equals(cause) && containsAny(text, "编码问题", "编码规范", "编码逻辑")) {
-        return cause;
-      }
-      if (text.contains(cause)) {
-        return cause;
-      }
-    }
-    return "";
+    return SystemTestIssueMetricDimensionSupport.majorCause(row.reasonCategory(), row.labelNames());
   }
 
   private String delayCause(IssueRow row) {
-    String text = row.delayCause() + " " + row.delayReason() + " " + row.labelNames();
-    return DELAY_CAUSES.stream().filter(text::contains).findFirst().orElse("");
+    return SystemTestIssueMetricDimensionSupport.delayCause(
+        row.delayCause(), row.delayReason(), row.labelNames());
   }
 
   private boolean matchesCauseMetric(IssueRow row, DefectCauseMetricCatalog.Metric metric) {
-    return DefectCauseMetricCatalog.containsAny(row.reasonCategory(), metric.tokens())
-        || DefectCauseMetricCatalog.containsAny(row.labelNames(), metric.tokens());
+    return SystemTestIssueMetricDimensionSupport.matchesCauseMetric(
+        metric.key(), row.reasonCategory(), row.labelNames());
   }
 
   private long count(List<IssueRow> rows, RowPredicate predicate) {
     return rows.stream().filter(predicate::test).count();
   }
 
-  private SystemTestIssueMultiBoardResponse.Point point(String name, long value) {
-    return new SystemTestIssueMultiBoardResponse.Point(name, decimal(value));
+  private SystemTestIssueMultiBoardResponse.Point point(
+      String chartKey,
+      String name,
+      long value,
+      ScopeContext scope,
+      List<StatisticFilterCondition> conditions) {
+    return point(chartKey, name, decimal(value), scope, conditions);
+  }
+
+  private SystemTestIssueMultiBoardResponse.Point point(
+      String chartKey,
+      String name,
+      BigDecimal value,
+      ScopeContext scope,
+      List<StatisticFilterCondition> conditions) {
+    List<StatisticFilterCondition> safeConditions = conditions == null ? List.of() : List.copyOf(conditions);
+    Map<String, String> detailParams = new LinkedHashMap<>(scopeParams(scope));
+    if (!safeConditions.isEmpty()) {
+      detailParams.put("filterGroup", serializeFilterGroup(safeConditions));
+    }
+    String conditionKey = safeConditions.stream()
+        .map(condition -> condition.fieldKey() + "=" + condition.value())
+        .collect(Collectors.joining("|"));
+    String pointKey = chartKey + ":" + (conditionKey.isEmpty() ? name : conditionKey);
+    return new SystemTestIssueMultiBoardResponse.Point(
+        name,
+        value,
+        pointKey,
+        "system-test-issue-records",
+        Map.copyOf(detailParams));
+  }
+
+  private StatisticFilterCondition condition(String fieldKey, String value) {
+    return new StatisticFilterCondition(fieldKey, "eq", value, null);
+  }
+
+  private List<StatisticFilterCondition> concatConditions(
+      List<StatisticFilterCondition> base,
+      StatisticFilterCondition... additions) {
+    List<StatisticFilterCondition> result = new ArrayList<>();
+    if (base != null) {
+      result.addAll(base);
+    }
+    if (additions != null) {
+      result.addAll(List.of(additions));
+    }
+    return List.copyOf(result);
+  }
+
+  private Map<String, String> scopeParams(ScopeContext scope) {
+    Map<String, String> params = new LinkedHashMap<>();
+    params.put("projectId", String.valueOf(scope.projectId()));
+    params.put("projectName", scope.projectName());
+    if (StringUtils.hasText(scope.testingPhase())) {
+      params.put("testingPhase", scope.testingPhase());
+    }
+    return Map.copyOf(params);
+  }
+
+  private String serializeFilterGroup(List<StatisticFilterCondition> conditions) {
+    try {
+      return objectMapper.writeValueAsString(new StatisticFilterGroup("AND", conditions));
+    } catch (JsonProcessingException error) {
+      throw new IllegalStateException("生成系统测试看板点位筛选条件失败", error);
+    }
   }
 
   private BigDecimal decimal(long value) {
@@ -578,18 +774,6 @@ public class SystemTestIssueMultiBoardService {
     return BigDecimal.valueOf(numerator)
         .multiply(BigDecimal.valueOf(100))
         .divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
-  }
-
-  private boolean containsAny(String text, String... tokens) {
-    if (!StringUtils.hasText(text)) {
-      return false;
-    }
-    for (String token : tokens) {
-      if (text.contains(token)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private void writeChartSheet(
@@ -616,7 +800,7 @@ public class SystemTestIssueMultiBoardService {
       List<Object> values = new ArrayList<>();
       values.add(chart.categories().get(index));
       for (SystemTestIssueMultiBoardResponse.Series series : chart.series()) {
-        values.add(index < series.data().size() ? series.data().get(index) : BigDecimal.ZERO);
+        values.add(index < series.data().size() ? series.data().get(index).value() : BigDecimal.ZERO);
       }
       writeRow(sheet, index + 1, body, values);
     }
@@ -659,17 +843,72 @@ public class SystemTestIssueMultiBoardService {
 
   private static final List<ChartDefinition> CHART_DEFINITIONS =
       List.of(
-          new ChartDefinition("severity-level", "缺陷严重程度分析", "/question-metrics/home"),
-          new ChartDefinition("phase-severity", "缺陷阶段分析", "/question-metrics/phase-statistics"),
-          new ChartDefinition("module-severity", "缺陷模块分析", "/question-metrics/home"),
-          new ChartDefinition("major-cause", "缺陷原因占比分析", "/question-metrics/defect-cause"),
-          new ChartDefinition("cause-detail", "缺陷原因分析", "/question-metrics/defect-cause"),
-          new ChartDefinition("module-repair-rate", "模块修复率", "/question-metrics/home"),
-          new ChartDefinition("open-issue", "未关闭缺陷占比", "/question-metrics/home"),
-          new ChartDefinition("fix-user-severity", "修复人-缺陷数量统计", "/question-metrics/issues"),
-          new ChartDefinition("extension-module", "申请延期模块分析", "/question-metrics/delay-analysis"),
-          new ChartDefinition("delay-cause", "申请延期缺陷原因分析", "/question-metrics/delay-analysis"),
-          new ChartDefinition("rollback-module", "回退模块缺陷占比", "/question-metrics/home"));
+          new ChartDefinition(
+              "severity-level",
+              "缺陷严重程度分析",
+              "system-test-defect-summary",
+              "COUNT(缺陷) GROUP BY 严重程度",
+              "常规缺陷按一级、二级、三级统计，建议类独立成组。"),
+          new ChartDefinition(
+              "phase-severity",
+              "缺陷阶段分析",
+              "system-test-phase-statistics",
+              "COUNT(缺陷) GROUP BY 测试阶段, 严重程度",
+              "父阶段先展开为配置的子轮次，再按阶段与严重程度统计。"),
+          new ChartDefinition(
+              "module-severity",
+              "缺陷模块分析",
+              "system-test-defect-summary",
+              "COUNT(缺陷) GROUP BY 模块, 严重程度",
+              "多模块议题在每个所属模块各计一次，展示缺陷数最高的模块。"),
+          new ChartDefinition(
+              "major-cause",
+              "缺陷原因占比分析",
+              "system-test-defect-cause",
+              "COUNT(常规缺陷) GROUP BY 六类主原因",
+              "按需求、设计、编码、打包、依赖和精度六类老平台口径归类。"),
+          new ChartDefinition(
+              "cause-detail",
+              "缺陷原因分析",
+              "system-test-defect-cause",
+              "COUNT(常规缺陷) GROUP BY 原因明细, 严重程度",
+              "按评论事实归一后的原因明细和严重程度交叉统计。"),
+          new ChartDefinition(
+              "module-repair-rate",
+              "模块修复率",
+              "system-test-defect-summary",
+              "已修复缺陷数 / 模块常规缺陷总数 × 100%",
+              "分子与分母均使用当前项目、阶段和模块的相同常规缺陷范围。"),
+          new ChartDefinition(
+              "open-issue",
+              "未关闭缺陷占比",
+              "system-test-defect-summary",
+              "COUNT(issue_state != closed) GROUP BY 严重程度",
+              "只统计常规缺陷中议题状态未关闭的记录。"),
+          new ChartDefinition(
+              "fix-user-severity",
+              "修复人-缺陷数量统计",
+              "system-test-defect-summary",
+              "COUNT(缺陷) GROUP BY 修复人, 严重程度",
+              "修复人取合法修复状态评论作者，空值不生成伪分组。"),
+          new ChartDefinition(
+              "extension-module",
+              "申请延期模块分析",
+              "system-test-delay-analysis",
+              "COUNT(delay_issue = true) GROUP BY 模块",
+              "仅统计常规缺陷中的申请延期记录，多模块分别计数。"),
+          new ChartDefinition(
+              "delay-cause",
+              "申请延期缺陷原因分析",
+              "system-test-delay-analysis",
+              "COUNT(delay_issue = true) GROUP BY 延期原因, 严重程度",
+              "按老平台七类延期原因与严重程度交叉统计。"),
+          new ChartDefinition(
+              "rollback-module",
+              "回退模块缺陷占比",
+              "system-test-defect-summary",
+              "COUNT(回退类常规缺陷) GROUP BY 模块",
+              "回退按事实标记、标题或标签规则识别，多模块分别计数。"));
 
   private record ScopeContext(
       Long projectId,
@@ -678,21 +917,21 @@ public class SystemTestIssueMultiBoardService {
       List<String> expandedTestingPhases,
       String label) {}
 
-  private record ChartDefinition(String key, String title, String detailPath) {}
+  private record ChartDefinition(
+      String key,
+      String title,
+      String detailViewKey,
+      String formula,
+      String description) {}
 
   private record Severity(String key, String label) {
+    String filterValue() {
+      return key.toUpperCase(java.util.Locale.ROOT);
+    }
+
     boolean matches(IssueRow row) {
-      String value = row.severityLevel();
-      return switch (key) {
-        case "level1" -> row.isRegularMetricIssue()
-            && (value.contains("一级") || value.equalsIgnoreCase("LEVEL1") || value.equalsIgnoreCase("LEVEL 1"));
-        case "level2" -> row.isRegularMetricIssue()
-            && (value.contains("二级") || value.equalsIgnoreCase("LEVEL2") || value.equalsIgnoreCase("LEVEL 2"));
-        case "level3" -> row.isRegularMetricIssue()
-            && (value.contains("三级") || value.equalsIgnoreCase("LEVEL3") || value.equalsIgnoreCase("LEVEL 3"));
-        case "suggestion" -> row.isSuggestion();
-        default -> false;
-      };
+      return filterValue().equals(SystemTestIssueMetricDimensionSupport.metricSeverity(
+          row.excluded(), row.exclusionReason(), row.severityLevel(), row.category()));
     }
   }
 
@@ -723,7 +962,7 @@ public class SystemTestIssueMultiBoardService {
     }
 
     boolean rollback() {
-      return regression || title.contains("回退") || labelNames.contains("回退");
+      return SystemTestIssueMetricDimensionSupport.rollback(regression, title, labelNames);
     }
 
     /*

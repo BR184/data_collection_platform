@@ -15,7 +15,8 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.normalizeSeverityLevel(List.of("二级严重"))).isEqualTo("LEVEL2");
     assertThat(IssueFactNormalizationRules.normalizeSeverityLevel(List.of("三级缺陷"))).isEqualTo("LEVEL3");
     assertThat(IssueFactNormalizationRules.normalizeSeverityLevel(List.of("需求如此"))).isEqualTo("SUGGESTION");
-    assertThat(IssueFactNormalizationRules.normalizeSeverityAlias(List.of("一级严重"))).isEqualTo("一级严重");
+    assertThat(IssueFactNormalizationRules.normalizeSeverityAlias(List.of("严重程度：一级严重")))
+        .isEqualTo("一级严重");
 
     assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("P1"))).isEqualTo("P1");
     assertThat(IssueFactNormalizationRules.normalizePriorityLevel(List.of("P2"))).isEqualTo("P2");
@@ -86,8 +87,12 @@ class IssueFactNormalizationRulesTest {
 
   @Test
   void shouldNormalizeDelayCategories() {
-    assertThat(IssueFactNormalizationRules.normalizeDelayReason(List.of("申请延期"), "当前属于算法问题")).isEqualTo("算法问题");
-    assertThat(IssueFactNormalizationRules.inferDelayCause(List.of("申请延期"), "当前属于算法问题")).isEqualTo("算法问题");
+    assertThat(IssueFactNormalizationRules.normalizeDelayReason(
+        List.of("申请延期", "算法问题"), "当前属于算法问题"))
+        .isEqualTo("算法问题");
+    assertThat(IssueFactNormalizationRules.inferDelayCause(
+        List.of("申请延期", "算法问题"), "当前属于算法问题"))
+        .isEqualTo("算法问题");
   }
 
   @Test
@@ -213,6 +218,23 @@ class IssueFactNormalizationRulesTest {
   }
 
   @Test
+  void shouldNormalizeMergeRequestProjectNameFromColonLabelOnly() {
+    assertThat(IssueFactNormalizationRules.normalizeMergeRequestProjectName(List.of(
+        "项目：CC2026R3",
+        "项目：CC2026R4")))
+        .isEqualTo("CC2026R3");
+    assertThat(IssueFactNormalizationRules.normalizeMergeRequestProjectName(List.of(
+        "项目: CC2026R4")))
+        .isEqualTo("CC2026R4");
+    assertThat(IssueFactNormalizationRules.normalizeMergeRequestProjectName(List.of(
+        "项目-CC2026R3",
+        "项目：：CC2026R4",
+        "项目:",
+        "模块：草图")))
+        .isEqualTo("未标注项目名");
+  }
+
+  @Test
   void shouldRecognizeSpecialLevelOneAndIllegalCases() {
     List<String> level1 = List.of("一级缺陷", "模块A");
     assertThat(IssueFactNormalizationRules.isRegression(level1, "模型回退导致显示错误")).isTrue();
@@ -221,29 +243,41 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.isLevel1Other(level1, "退出草图后等待时间较长")).isFalse();
     assertThat(IssueFactNormalizationRules.isLevel1Other(level1, "一级缺陷但属于渲染错误")).isTrue();
 
-    assertThat(IssueFactNormalizationRules.illegalReason(List.of("模块A"), false, List.of("模块A"), "", false)).isEqualTo("未设定严重程度");
-    assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷"), false, List.of(), "", false)).isEqualTo("未设定模块");
-    assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A"), false, List.of("模块A"), "", false)).isNull();
-    assertThat(IssueFactNormalizationRules.illegalReason(List.of("一级缺陷", "模块A", "待合并"), false, List.of("模块A"), "", false)).isNull();
+    assertThat(IssueFactNormalizationRules.illegalReason(
+        List.of("模块：模块A"), false, List.of("模块A"), "", false))
+        .isEqualTo("未设定严重程度");
+    assertThat(IssueFactNormalizationRules.illegalReason(
+        List.of("严重程度：一级缺陷"), false, List.of(), "", false))
+        .isEqualTo("未设定模块");
+    assertThat(IssueFactNormalizationRules.illegalReason(
+        List.of("严重程度：一级缺陷", "模块：模块A"), false, List.of("模块A"), "", false))
+        .isNull();
+    assertThat(IssueFactNormalizationRules.illegalReason(
+        List.of("严重程度：一级缺陷", "模块：模块A", "状态：待合并"),
+        false,
+        List.of("模块A"),
+        "",
+        false))
+        .isNull();
 
     String validTemplate = "### 1、修复状态\n[x] 编码逻辑：业务逻辑错误\n### 3、请描述具体原因：\n";
     assertThat(IssueFactNormalizationRules.hasFixTemplateReply(validTemplate)).isTrue();
     assertThat(IssueFactNormalizationRules.latestFixReasonCategoryCount(validTemplate)).isEqualTo(1);
     assertThat(IssueFactNormalizationRules.hasResearchTemplateReply(validTemplate)).isFalse();
     assertThat(IssueFactNormalizationRules.illegalReason(
-        List.of("一级缺陷", "模块A", "已修复/完成"),
+        List.of("严重程度：一级缺陷", "模块：模块A", "状态：已修复/完成"),
         true,
         List.of("模块A"),
         "",
         true)).isEqualTo("未按照模板回复");
     assertThat(IssueFactNormalizationRules.illegalReason(
-        List.of("一级缺陷", "模块A", "已修复/完成"),
+        List.of("严重程度：一级缺陷", "模块：模块A", "状态：已修复/完成"),
         true,
         List.of("模块A"),
         "### 1、修复状态\n[x] 编码逻辑：业务逻辑错误\n[x] 新增需求问题\n### 3、请描述具体原因：\n",
-        true)).isEqualTo("缺陷原因不唯一");
+        true)).isNull();
     assertThat(IssueFactNormalizationRules.illegalReason(
-        List.of("一级缺陷", "模块A", "已修复/完成"),
+        List.of("严重程度：一级缺陷", "模块：模块A", "状态：已修复/完成"),
         true,
         List.of("模块A"),
         validTemplate,
@@ -257,7 +291,7 @@ class IssueFactNormalizationRulesTest {
     assertThat(IssueFactNormalizationRules.hasResearchTemplateReply(researchTemplate)).isTrue();
     assertThat(IssueFactNormalizationRules.hasFixTemplateReply(researchTemplate)).isFalse();
     assertThat(IssueFactNormalizationRules.illegalReason(
-        List.of("一级缺陷", "模块A", "已修复/完成"),
+        List.of("严重程度：一级缺陷", "模块：模块A", "状态：已修复/完成"),
         true,
         List.of("模块A"),
         researchTemplate,

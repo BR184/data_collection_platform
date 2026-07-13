@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory, type RouteLocationNormalized, type RouteRecordRaw } from 'vue-router';
 import {
+  analyticsDashboardDetailQueryKeys,
   buildPageRouteMeta,
   buildSpecialRouteMeta,
   canAccessPageKey,
@@ -47,6 +48,7 @@ declare module 'vue-router' {
     allowedQueryKeys?: string[];
     allowedQueryPrefixes?: string[];
     persistedQueryKeys?: string[];
+    analyticsDashboardKey?: string;
   }
 }
 
@@ -59,6 +61,28 @@ function buildShellRoute(pageKey: PageKey, component: RouteComponent): RouteReco
     path,
     component,
     meta: buildPageRouteMeta(pageKey),
+  };
+}
+
+function buildAnalyticsDetailRouteRecord(
+  name: string,
+  dashboardKey: string,
+  ownerPageKey: PageKey,
+): RouteRecordRaw {
+  return {
+    name,
+    path: `/analytics-dashboards/${dashboardKey}/details/:detailViewKey`,
+    component: AnalyticsDashboardDetailPage,
+    meta: {
+      ...buildPageRouteMeta(ownerPageKey, {
+        title: '看板数据详情',
+        description: '展示当前看板统计范围内的详情数据及可用导出。',
+        allowedQueryKeys: analyticsDashboardDetailQueryKeys,
+        allowedQueryPrefixes: [],
+        persistedQueryKeys: [],
+      }),
+      analyticsDashboardKey: dashboardKey,
+    },
   };
 }
 
@@ -153,12 +177,21 @@ const routes: RouteRecordRaw[] = [
   {
     ...buildShellRoute('database-browser', DatabaseBrowserView),
   },
-  {
-    name: 'analytics-dashboard-detail',
-    path: '/analytics-dashboards/:dashboardKey/details/:detailViewKey',
-    component: AnalyticsDashboardDetailPage,
-    meta: buildSpecialRouteMeta('analytics-dashboard-detail'),
-  },
+  buildAnalyticsDetailRouteRecord(
+    'quality-rd-analytics-detail',
+    'quality-rd',
+    'quality-board-rd-quality-board',
+  ),
+  buildAnalyticsDetailRouteRecord(
+    'quality-other-analytics-detail',
+    'quality-board-other',
+    'quality-board-other-board',
+  ),
+  buildAnalyticsDetailRouteRecord(
+    'code-review-analytics-detail',
+    'code-review-multi',
+    'code-review-multi-board',
+  ),
   {
     path: '/:pathMatch(.*)*',
     component: NotFoundView,

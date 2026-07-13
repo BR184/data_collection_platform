@@ -8,7 +8,7 @@ export interface AnalyticsDashboardSafeLink {
   href: string;
 }
 
-function textValue(value: unknown) {
+function textValue(value: unknown): string {
   if (value === null || value === undefined || value === '') {
     return '-';
   }

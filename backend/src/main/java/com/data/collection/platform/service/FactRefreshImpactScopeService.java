@@ -41,6 +41,7 @@ public class FactRefreshImpactScopeService {
       return switch (normalizedFactType) {
         case "ISSUE" -> resolveIssueScope(tasks);
         case "MERGE_REQUEST" -> resolveMergeRequestScope(tasks);
+        case "INTEGRATION_TEST" -> resolveIntegrationTestScope(tasks);
         default -> ImpactScope.fallback();
       };
     } catch (DataAccessException e) {
@@ -94,6 +95,19 @@ public class FactRefreshImpactScopeService {
       }
     }
     return ImpactScope.precise(List.copyOf(targets));
+  }
+
+  private ImpactScope resolveIntegrationTestScope(List<SyncRunTableTask> tasks) {
+    ImpactScope issueScope = resolveIssueScope(tasks);
+    if (issueScope.fallbackRequired() || !issueScope.targets().isEmpty()) {
+      return issueScope;
+    }
+    boolean mayContainDeletedIntegrationSource =
+        tasks.stream()
+            .map(SyncRunTableTask::getSourceTable)
+            .map(this::normalizeTable)
+            .anyMatch(table -> List.of("issues", "notes", "label_links").contains(table));
+    return mayContainDeletedIntegrationSource ? ImpactScope.fallback() : ImpactScope.empty();
   }
 
   private void addIssueTargetsFromIssues(SyncRunTableTask task, Set<Target> targets) {

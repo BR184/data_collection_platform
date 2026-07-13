@@ -20,11 +20,13 @@ const statisticBoardQueryKeys = [
   'detailColumnKey',
   'filterGroup',
   'filterLogic',
+  'projectId',
+  'projectName',
   'testingPhase',
 ];
 
 const customerIssueStatisticBoardQueryKeys = statisticBoardQueryKeys
-  .filter((key) => key !== 'testingPhase')
+  .filter((key) => !['projectId', 'projectName', 'testingPhase'].includes(key))
   .concat('milestoneTitle');
 
 const customerIssueRecordQueryKeys = [
@@ -63,6 +65,7 @@ export const analyticsDashboardDetailQueryKeys = [
   'codeReviewSource',
   'source',
   'personName',
+  'reviewerName',
   'authorName',
   'assigneeName',
   'fixUser',
@@ -70,6 +73,11 @@ export const analyticsDashboardDetailQueryKeys = [
   'severityLevel',
   'priorityLevel',
   'pointKey',
+  'topic',
+  'functionCountProjectName',
+  'functionDensityProjectName',
+  'qualityRankingProjectName',
+  'memberUnresolvedProjectName',
   'page',
   'size',
   'sortField',
@@ -124,11 +132,11 @@ const pageRouteContractByKey: Partial<Record<PageKey, PageRouteContract>> = {
     persistedQueryKeys: [],
   },
   'code-review-multi-board': {
-    allowedQueryKeys: ['source'],
+    allowedQueryKeys: ['source', 'projectName'],
     persistedQueryKeys: [],
   },
   'question-metrics-multi-board': {
-    allowedQueryKeys: ['projectName'],
+    allowedQueryKeys: ['projectId', 'projectName', 'testingPhase'],
     persistedQueryKeys: [],
   },
   'question-metrics-home': {
@@ -317,16 +325,6 @@ const specialRouteContractByKey: Record<SpecialRouteKey, SpecialRouteContract> =
     overrides: {
       title: '代码走查规则配置',
       description: '配置当前用户自己的代码走查判定规则，并即时查看结果预览。',
-    },
-  },
-  'analytics-dashboard-detail': {
-    basePageKey: 'quality-board-rd-quality-board',
-    overrides: {
-      title: '看板数据详情',
-      description: '展示当前看板统计范围内的详情数据及可用导出。',
-      allowedQueryKeys: analyticsDashboardDetailQueryKeys,
-      allowedQueryPrefixes: [],
-      persistedQueryKeys: [],
     },
   },
   'not-found': {

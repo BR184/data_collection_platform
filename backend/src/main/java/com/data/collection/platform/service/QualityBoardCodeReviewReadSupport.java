@@ -12,6 +12,10 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class QualityBoardCodeReviewReadSupport {
+  static final String ALL_PROJECTS_OPTION = "全部";
+  private static final String DEFAULT_CC_PROJECT = "CC2026R3";
+  private static final String DEFAULT_DGM_PROJECT = "CrownCAD 2026 R3";
+
   private final JdbcTemplate jdbcTemplate;
   private final CodeReviewMatchModeSwitchService matchModeSwitchService;
 
@@ -23,7 +27,11 @@ public class QualityBoardCodeReviewReadSupport {
   }
 
   public List<OptionItemResponse> listAvailableSources() {
-    if (matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()) {
+    return listAvailableSources(configuredReadMode());
+  }
+
+  public List<OptionItemResponse> listAvailableSources(CodeReviewDataReadMode readMode) {
+    if (readMode == CodeReviewDataReadMode.MATCH_MODE) {
       //兼容模式-MatchMode：老平台交接期同时开放 CC/DGM；删除兼容模式时删除本分支即可。
       return List.of(
           new OptionItemResponse("CC", "cc"),
@@ -32,12 +40,32 @@ public class QualityBoardCodeReviewReadSupport {
     return List.of(new OptionItemResponse("CC", "cc"));
   }
 
+  public List<OptionItemResponse> listProjectOptions(String requestedSource) {
+    return listProjectOptions(requestedSource, configuredReadMode());
+  }
+
+  public List<OptionItemResponse> listProjectOptions(
+      String requestedSource, CodeReviewDataReadMode readMode) {
+    String source = normalizeSource(requestedSource);
+    QualityBoardCodeReviewReadScope scope = resolveAllProjectsScope(source, readMode);
+    if (!scope.available()) {
+      return List.of();
+    }
+    //兼容模式-MatchMode：候选与统计共用 read scope，CC/DGM 兼容仓库不会与正式事实或其他仓库混合。
+    return orderProjectOptions(source, queryProjectOptions(scope));
+  }
+
   public double defectDensity(String source, String projectName) {
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName);
+    return defectDensity(source, projectName, configuredReadMode());
+  }
+
+  public double defectDensity(
+      String source, String projectName, CodeReviewDataReadMode readMode) {
+    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
     if (!scope.available()) {
       return 0D;
     }
-    QueryScope queryScope = queryScope(scope);
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
     String identity = scope.mergeRequestIdentity();
     String sql =
         """
@@ -92,21 +120,32 @@ public class QualityBoardCodeReviewReadSupport {
 
   public List<QualityBoardChartRowResponse> personDefectDensityRows(
       String personField,
-      boolean excludeIllegalAssigneeRows,
+      boolean excludeIllegalReviewerRows,
       String source,
       String projectName) {
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName);
+    return personDefectDensityRows(
+        personField, excludeIllegalReviewerRows, source, projectName, configuredReadMode());
+  }
+
+  public List<QualityBoardChartRowResponse> personDefectDensityRows(
+      String personField,
+      boolean excludeIllegalReviewerRows,
+      String source,
+      String projectName,
+      CodeReviewDataReadMode readMode) {
+    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
     if (!scope.available()) {
       return List.of();
     }
     String safePersonField = switch (personField) {
+      case "reviewer_names" -> "reviewer_names";
       case "assignee_names" -> "assignee_names";
       case "author_name" -> "author_name";
       default -> throw new IllegalArgumentException("Unsupported person field: " + personField);
     };
-    QueryScope queryScope = queryScope(scope);
-    String illegalAssigneePredicate = excludeIllegalAssigneeRows
-        ? " and coalesce(assignee_names, '') not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')"
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
+    String illegalReviewerPredicate = excludeIllegalReviewerRows
+        ? " and coalesce(reviewer_names, '') not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')"
         : "";
     String sql =
         """
@@ -129,14 +168,13 @@ public class QualityBoardCodeReviewReadSupport {
           and person_name not in ('没有合法评论', '代码走查时间或缺陷数异常', '代码走查标题异常', '代码走查记录行数异常')
         group by person_name
         order by value desc, person_name
-        limit 12
         """
             .formatted(
                 safePersonField,
                 scope.tableName(),
                 queryScope.predicate(),
                 scope.deletedPredicate(),
-                illegalAssigneePredicate);
+                illegalReviewerPredicate);
     return jdbcTemplate.query(
         sql,
         (rs, rowNum) ->
@@ -147,22 +185,27 @@ public class QualityBoardCodeReviewReadSupport {
   }
 
   public List<QualityBoardChartRowResponse> frequencyRows(String source, String projectName) {
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName);
+    return frequencyRows(source, projectName, configuredReadMode());
+  }
+
+  public List<QualityBoardChartRowResponse> frequencyRows(
+      String source, String projectName, CodeReviewDataReadMode readMode) {
+    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
     if (!scope.available()) {
       return List.of();
     }
-    QueryScope queryScope = queryScope(scope);
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
     String sql =
         """
         select
-          coalesce(nullif(btrim(author_name), ''), '未标注提交人') as person_name,
+          btrim(author_name) as person_name,
           count(*)::numeric as value
         from %s
         where %s
           %s
+          and nullif(btrim(author_name), '') is not null
         group by person_name
         order by value desc, person_name
-        limit 12
         """
             .formatted(scope.tableName(), queryScope.predicate(), scope.deletedPredicate());
     return jdbcTemplate.query(
@@ -177,32 +220,62 @@ public class QualityBoardCodeReviewReadSupport {
   public List<QualityBoardCodeReviewRecordExportRow> codeReviewRecordRows(
       String source,
       String projectName) {
+    return codeReviewRecordRows(source, projectName, configuredReadMode());
+  }
+
+  public List<QualityBoardCodeReviewRecordExportRow> codeReviewRecordRows(
+      String source,
+      String projectName,
+      CodeReviewDataReadMode readMode) {
     //兼容模式-MatchMode：质量看板导出必须和统计共用 resolveScope，避免 DGM 兼容表影响正式 CC 读取。
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName);
+    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName, readMode);
     if (!scope.available()) {
       return List.of();
     }
-    QueryScope queryScope = queryScope(scope);
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
     String sql =
         """
         select
           source_instance,
+          code_walkthrough_date,
           project_name,
-          repository_name,
+          module_name,
+          merge_request_state,
           merge_request_iid,
           title,
           author_name,
+          reviewer_names,
           assignee_names,
-          target_branch,
-          merge_request_state,
+          merged_at_source,
+          merge_user_name,
+          review_duration_minutes,
           added_lines,
+          deleted_lines,
+          code_specification_count,
+          code_logic_specification_count,
+          performance_specification_count,
+          design_specification_count,
+          other_specification_count,
           defect_count,
-          review_defect_density_per_kloc
+          review_speed_loc_per_hour,
+          review_speed_kloc_per_hour,
+          review_defect_density_per_kloc,
+          review_efficiency_per_hour,
+          target_branch,
+          scan_status,
+          commit_count,
+          commit_rate,
+          function_name,
+          comment_rate,
+          annotation_rate_result,
+          scan_bug_count,
+          bug_count_result,
+          repository_name,
+          clang_added_line_count
         from %s
         where %s
           %s
         order by merged_at_source desc nulls last, merge_request_iid desc
-        limit 5000
         """
             .formatted(scope.tableName(), queryScope.predicate(), scope.deletedPredicate());
     return jdbcTemplate.query(
@@ -210,17 +283,41 @@ public class QualityBoardCodeReviewReadSupport {
         (rs, rowNum) ->
             new QualityBoardCodeReviewRecordExportRow(
                 rs.getString("source_instance"),
+                localDateTimeValue(rs.getObject("code_walkthrough_date")),
                 rs.getString("project_name"),
-                rs.getString("repository_name"),
+                rs.getString("module_name"),
+                rs.getString("merge_request_state"),
                 longValue(rs.getObject("merge_request_iid")),
                 rs.getString("title"),
                 rs.getString("author_name"),
+                rs.getString("reviewer_names"),
                 rs.getString("assignee_names"),
-                rs.getString("target_branch"),
-                rs.getString("merge_request_state"),
+                localDateTimeValue(rs.getObject("merged_at_source")),
+                rs.getString("merge_user_name"),
+                intValue(rs.getObject("review_duration_minutes")),
                 intValue(rs.getObject("added_lines")),
+                intValue(rs.getObject("deleted_lines")),
+                intValue(rs.getObject("code_specification_count")),
+                intValue(rs.getObject("code_logic_specification_count")),
+                intValue(rs.getObject("performance_specification_count")),
+                intValue(rs.getObject("design_specification_count")),
+                intValue(rs.getObject("other_specification_count")),
                 intValue(rs.getObject("defect_count")),
-                numberValue(rs.getObject("review_defect_density_per_kloc"))),
+                intValue(rs.getObject("review_speed_loc_per_hour")),
+                numberValue(rs.getObject("review_speed_kloc_per_hour")),
+                numberValue(rs.getObject("review_defect_density_per_kloc")),
+                numberValue(rs.getObject("review_efficiency_per_hour")),
+                rs.getString("target_branch"),
+                rs.getString("scan_status"),
+                intValue(rs.getObject("commit_count")),
+                intValue(rs.getObject("commit_rate")),
+                rs.getString("function_name"),
+                numberValue(rs.getObject("comment_rate")),
+                rs.getString("annotation_rate_result"),
+                intValue(rs.getObject("scan_bug_count")),
+                rs.getString("bug_count_result"),
+                rs.getString("repository_name"),
+                intValue(rs.getObject("clang_added_line_count"))),
         queryScope.args().toArray());
   }
 
@@ -233,9 +330,16 @@ public class QualityBoardCodeReviewReadSupport {
   }
 
   QualityBoardCodeReviewReadScope resolveScope(String requestedSource, String requestedProjectName) {
+    return resolveScope(requestedSource, requestedProjectName, configuredReadMode());
+  }
+
+  QualityBoardCodeReviewReadScope resolveScope(
+      String requestedSource,
+      String requestedProjectName,
+      CodeReviewDataReadMode readMode) {
     String source = normalizeSource(requestedSource);
     String projectName = TextQuerySupport.normalizeDisplay(requestedProjectName);
-    if (matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()) {
+    if (readMode == CodeReviewDataReadMode.MATCH_MODE) {
       //兼容模式-MatchMode：兼容快照沿用老平台 source_instance 与 MR IID，项目名同时兼容当前值和历史 DGM 别名。
       List<String> projectNames = "dgm".equals(source)
           ? distinctProjectNames(projectName, legacyDgmProjectName(projectName))
@@ -246,7 +350,9 @@ public class QualityBoardCodeReviewReadSupport {
           source,
           projectNames,
           "merge_request_iid",
-          "");
+          "",
+          "lower(btrim(coalesce(repository_name, ''))) = ?",
+          List.of(legacyRepositoryName(source)));
     }
     if ("dgm".equals(source)) {
       return new QualityBoardCodeReviewReadScope(
@@ -255,7 +361,9 @@ public class QualityBoardCodeReviewReadSupport {
           "dgm",
           List.of(),
           "project_id, merge_request_id",
-          " and deleted = false");
+          " and deleted = false",
+          "",
+          List.of());
     }
     return new QualityBoardCodeReviewReadScope(
         true,
@@ -263,7 +371,46 @@ public class QualityBoardCodeReviewReadSupport {
         GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
         List.of(projectName),
         "project_id, merge_request_id",
-        " and deleted = false");
+        " and deleted = false",
+        "project_id = ?",
+        List.of(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
+  }
+
+  QualityBoardCodeReviewReadScope resolveAllProjectsScope(
+      String requestedSource, CodeReviewDataReadMode readMode) {
+    String source = normalizeSource(requestedSource);
+    if (readMode == CodeReviewDataReadMode.MATCH_MODE) {
+      //兼容模式-MatchMode：明确的“全部”范围仅扫描当前 source 的兼容快照，不拼接正式事实表。
+      return new QualityBoardCodeReviewReadScope(
+          true,
+          "code_review_match_mode_records",
+          source,
+          List.of(),
+          "merge_request_iid",
+          "",
+          "lower(btrim(coalesce(repository_name, ''))) = ?",
+          List.of(legacyRepositoryName(source)));
+    }
+    if ("dgm".equals(source)) {
+      return new QualityBoardCodeReviewReadScope(
+          false,
+          "merge_request_fact",
+          "dgm",
+          List.of(),
+          "project_id, merge_request_id",
+          " and deleted = false",
+          "",
+          List.of());
+    }
+    return new QualityBoardCodeReviewReadScope(
+        true,
+        "merge_request_fact",
+        GitlabSourceInstanceSupport.DEFAULT_SOURCE_INSTANCE,
+        List.of(),
+        "project_id, merge_request_id",
+        " and deleted = false",
+        "project_id = ?",
+        List.of(SystemTestPhaseCatalogService.LEGACY_CROWN_CAD_PROJECT_ID));
   }
 
   private Map<String, Long> groupedAddedLines(
@@ -275,11 +422,13 @@ public class QualityBoardCodeReviewReadSupport {
       case "author_name" -> "author_name";
       default -> throw new IllegalArgumentException("Unsupported code-review group field: " + groupField);
     };
-    QualityBoardCodeReviewReadScope scope = resolveScope(source, projectName);
+    //兼容模式-MatchMode：其他看板的代码规模是正式 CC 业务口径，不能随兼容开关切到临时快照。
+    QualityBoardCodeReviewReadScope scope =
+        resolveScope(source, projectName, CodeReviewDataReadMode.FORMAL);
     if (!scope.available()) {
       return Map.of();
     }
-    QueryScope queryScope = queryScope(scope);
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
     String identity = scope.mergeRequestIdentity();
     String sql =
         """
@@ -318,17 +467,80 @@ public class QualityBoardCodeReviewReadSupport {
     return result;
   }
 
-  private QueryScope queryScope(QualityBoardCodeReviewReadScope scope) {
+  public CodeReviewDataReadMode configuredReadMode() {
+    //兼容模式-MatchMode：旧接口在调用入口只读取一次设置；Analytics Provider 必须显式传入请求上下文中的固定模式。
+    return matchModeSwitchService.isCodeReviewCompatibilityReadEnabled()
+        ? CodeReviewDataReadMode.MATCH_MODE
+        : CodeReviewDataReadMode.FORMAL;
+  }
+
+  QualityBoardCodeReviewQueryScope queryScope(QualityBoardCodeReviewReadScope scope) {
     List<Object> args = new ArrayList<>();
     args.add(scope.sourceInstance());
-    args.addAll(scope.projectNames());
-    String projectPlaceholders =
-        String.join(",", scope.projectNames().stream().map(ignored -> "?").toList());
-    return new QueryScope(
-        "lower(coalesce(source_instance, '')) = ? and coalesce(project_name, '') in ("
-            + projectPlaceholders
-            + ")",
-        args);
+    StringBuilder predicate =
+        new StringBuilder("lower(coalesce(source_instance, '')) = ?");
+    if (scope.additionalPredicate() != null && !scope.additionalPredicate().isBlank()) {
+      predicate.append(" and ").append(scope.additionalPredicate());
+      args.addAll(scope.additionalArgs());
+    }
+    if (!scope.projectNames().isEmpty()) {
+      args.addAll(scope.projectNames());
+      String projectPlaceholders =
+          String.join(",", scope.projectNames().stream().map(ignored -> "?").toList());
+      predicate.append(" and coalesce(project_name, '') in (")
+          .append(projectPlaceholders)
+          .append(")");
+    }
+    return new QualityBoardCodeReviewQueryScope(predicate.toString(), List.copyOf(args));
+  }
+
+  private List<OptionItemResponse> orderProjectOptions(
+      String source, List<OptionItemResponse> discoveredOptions) {
+    String preferredProject = "dgm".equals(source) ? DEFAULT_DGM_PROJECT : DEFAULT_CC_PROJECT;
+    OptionItemResponse defaultOption = discoveredOptions.stream()
+        .filter(option -> option.value().equalsIgnoreCase(preferredProject))
+        .findFirst()
+        .orElseGet(() -> discoveredOptions.stream().findFirst().orElse(null));
+    List<OptionItemResponse> ordered = new ArrayList<>();
+    if (defaultOption != null) {
+      ordered.add(defaultOption);
+    }
+    ordered.add(new OptionItemResponse(ALL_PROJECTS_OPTION, ALL_PROJECTS_OPTION));
+    discoveredOptions.stream()
+        .filter(option -> defaultOption == null
+            || !option.value().equalsIgnoreCase(defaultOption.value()))
+        .filter(option -> !ALL_PROJECTS_OPTION.equals(option.value()))
+        .forEach(ordered::add);
+    return List.copyOf(ordered);
+  }
+
+  private List<OptionItemResponse> queryProjectOptions(QualityBoardCodeReviewReadScope scope) {
+    QualityBoardCodeReviewQueryScope queryScope = queryScope(scope);
+    String sql =
+        "select btrim(project_name) as project_name from "
+            + scope.tableName()
+            + " where "
+            + queryScope.predicate()
+            + scope.deletedPredicate()
+            + " and upper(coalesce(merge_request_state, '')) = 'MERGED'"
+            + " and nullif(btrim(coalesce(project_name, '')), '') is not null "
+            + "and btrim(project_name) <> '未标注项目名' "
+            + "and btrim(project_name) not like '未设定%' "
+            + "group by btrim(project_name) order by lower(btrim(project_name))";
+    List<String> projectNames = jdbcTemplate.query(
+        sql,
+        (rs, rowNum) -> rs.getString("project_name"),
+        queryScope.args().toArray());
+    Map<String, OptionItemResponse> options = new LinkedHashMap<>();
+    for (String projectName : projectNames) {
+      String normalized = TextQuerySupport.trimToNull(projectName);
+      if (normalized != null
+          && !normalized.startsWith("未设定")
+          && !"未标注项目名".equals(normalized)) {
+        options.putIfAbsent(normalized, new OptionItemResponse(normalized, normalized));
+      }
+    }
+    return List.copyOf(options.values());
   }
 
   private String normalizeSource(String requestedSource) {
@@ -339,6 +551,10 @@ public class QualityBoardCodeReviewReadSupport {
 
   private String legacyDgmProjectName(String projectName) {
     return projectName.replaceFirst("^CC(\\d{4})(R\\d)$", "CrownCAD $1 $2");
+  }
+
+  private String legacyRepositoryName(String source) {
+    return "dgm".equals(source) ? "dgm" : "crowncad";
   }
 
   private List<String> distinctProjectNames(String first, String second) {
@@ -362,7 +578,16 @@ public class QualityBoardCodeReviewReadSupport {
     return value instanceof Number number ? number.longValue() : null;
   }
 
-  private record QueryScope(String predicate, List<Object> args) {}
+  private java.time.LocalDateTime localDateTimeValue(Object value) {
+    if (value instanceof java.time.LocalDateTime localDateTime) {
+      return localDateTime;
+    }
+    if (value instanceof java.sql.Timestamp timestamp) {
+      return timestamp.toLocalDateTime();
+    }
+    return null;
+  }
+
 }
 
 record QualityBoardCodeReviewReadScope(
@@ -371,4 +596,17 @@ record QualityBoardCodeReviewReadScope(
     String sourceInstance,
     List<String> projectNames,
     String mergeRequestIdentity,
-    String deletedPredicate) {}
+    String deletedPredicate,
+    String additionalPredicate,
+    List<Object> additionalArgs) {
+  QualityBoardCodeReviewReadScope {
+    projectNames = projectNames == null ? List.of() : List.copyOf(projectNames);
+    additionalArgs = additionalArgs == null ? List.of() : List.copyOf(additionalArgs);
+  }
+}
+
+record QualityBoardCodeReviewQueryScope(String predicate, List<Object> args) {
+  QualityBoardCodeReviewQueryScope {
+    args = args == null ? List.of() : List.copyOf(args);
+  }
+}

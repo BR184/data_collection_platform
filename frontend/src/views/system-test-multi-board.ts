@@ -7,37 +7,37 @@ const TOTAL_ROW_KEY = '__total__';
 
 export function buildMultiBoardChartOption(chart: SystemTestIssueMultiBoardChartResponse): EChartsOption | null {
   if (chart.chartType === 'pie') {
-    return removeInnerTitle(buildDonutOption({
+    return preservePointMetadata(removeInnerTitle(buildDonutOption({
       title: chart.title,
       subtitle: chart.description,
       items: chart.points,
       centerLabel: '总计',
       valueFormatter: valueFormatter(chart),
-    }), chart);
+    }), chart), chart);
   }
   if (chart.chartType === 'bar') {
     const series = chart.series[0];
-    return removeInnerTitle(buildHorizontalBarOption({
+    return preservePointMetadata(removeInnerTitle(buildHorizontalBarOption({
       title: chart.title,
       subtitle: chart.description,
-      items: chart.categories.map((name, index) => ({ name, value: Number(series?.data[index] ?? 0) })),
+      items: series?.data ?? [],
       color: '#14b8a6',
       valueFormatter: valueFormatter(chart),
-    }), chart);
+    }), chart), chart);
   }
-  return removeInnerTitle(buildColumnBarOption({
+  return preservePointMetadata(removeInnerTitle(buildColumnBarOption({
     title: chart.title,
     subtitle: chart.description,
     categories: chart.categories,
     series: chart.series.map((series, index) => ({
       name: series.name,
-      data: series.data.map((value) => Number(value ?? 0)),
+      data: series.data.map((point) => Number(point.value ?? 0)),
       stack: 'severity',
       color: SEVERITY_COLORS[index % SEVERITY_COLORS.length],
     })),
     rotateLabels: chart.categories.length > 6 ? 24 : 0,
     valueFormatter: valueFormatter(chart),
-  }), chart);
+  }), chart), chart);
 }
 
 export function isPercentChart(chart: SystemTestIssueMultiBoardChartResponse) {
@@ -109,4 +109,21 @@ function removeInnerTitle(option: EChartsOption | null, chart: SystemTestIssueMu
     next.grid = { ...(next.grid ?? {}), top: 44 };
   }
   return next;
+}
+
+/** Keep backend-provided point identity intact when shared option builders apply visual defaults. */
+function preservePointMetadata(
+  option: EChartsOption | null,
+  chart: SystemTestIssueMultiBoardChartResponse,
+) {
+  if (!option || chart.chartType === 'pie') {
+    return option;
+  }
+  const next = { ...option } as Record<string, unknown>;
+  const optionSeries = Array.isArray(next.series) ? next.series : [];
+  next.series = optionSeries.map((item, index) => ({
+    ...(item as Record<string, unknown>),
+    data: chart.series[index]?.data ?? [],
+  }));
+  return next as EChartsOption;
 }

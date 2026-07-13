@@ -240,37 +240,7 @@ final class CodeReviewIllegalRuleRegistry {
   }
 
   static boolean hasRequiredLabel(List<String> labels, String groupName) {
-    if (labels == null || labels.isEmpty()) {
-      return false;
-    }
-    for (String label : labels) {
-      String normalized = TextQuerySupport.trimToNull(label);
-      if (normalized == null) {
-        continue;
-      }
-      int separatorIndex = firstColonIndex(normalized);
-      if (separatorIndex <= 0) {
-        continue;
-      }
-      String prefix = normalized.substring(0, separatorIndex).trim();
-      String value = TextQuerySupport.trimToNull(normalized.substring(separatorIndex + 1));
-      if (groupName.equals(prefix) && value != null && firstColonIndex(value) != 0) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static int firstColonIndex(String value) {
-    int ascii = value.indexOf(':');
-    int chinese = value.indexOf('：');
-    if (ascii < 0) {
-      return chinese;
-    }
-    if (chinese < 0) {
-      return ascii;
-    }
-    return Math.min(ascii, chinese);
+    return IssueLabelRules.hasRequiredMergeRequestLabel(labels, groupName);
   }
 
   static double commentRateThreshold(String source) {

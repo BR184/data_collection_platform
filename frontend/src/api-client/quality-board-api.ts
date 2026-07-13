@@ -2,6 +2,7 @@ import type {
   QualityBoardOtherOverviewResponse,
   QualityBoardProjectOptionsResponse,
   QualityBoardRdDashboardResponse,
+  QualityBoardRdFilterOptionsResponse,
   QualityBoardRdOverviewResponse,
 } from '../types/api';
 import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
@@ -9,6 +10,9 @@ import { EXPORT_REQUEST_TIMEOUT_MS, request, requestBlob } from './request';
 export const qualityBoardApi = {
   getQualityBoardRdProjectOptions() {
     return request<QualityBoardProjectOptionsResponse>('/api/quality-board/rd/project-options');
+  },
+  getQualityBoardRdFilterOptions() {
+    return request<QualityBoardRdFilterOptionsResponse>('/api/quality-board/rd/filter-options');
   },
   getQualityBoardRdOverview(projectName: string) {
     const query = new URLSearchParams();

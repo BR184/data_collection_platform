@@ -70,7 +70,6 @@ export interface PageRouteContract {
 export type SpecialRouteKey =
   | 'external-code-review-form'
   | 'code-review-illegal-rule-config'
-  | 'analytics-dashboard-detail'
   | 'not-found';
 
 export interface RouteMetaOverrides extends PageRouteContract {

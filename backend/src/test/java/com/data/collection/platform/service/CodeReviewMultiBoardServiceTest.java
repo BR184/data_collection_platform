@@ -1,13 +1,13 @@
 package com.data.collection.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.data.collection.platform.entity.CodeReviewMultiBoardOverviewResponse;
 import com.data.collection.platform.entity.OptionItemResponse;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,23 +20,22 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @ExtendWith(MockitoExtension.class)
 class CodeReviewMultiBoardServiceTest {
 
-  @Mock
-  private JdbcTemplate jdbcTemplate;
+  @Mock private JdbcTemplate jdbcTemplate;
 
-  @Mock
-  private CodeReviewMatchModeSwitchService matchModeSwitchService;
+  private final QualityBoardCodeReviewReadSupport codeReviewReadSupport =
+      mock(QualityBoardCodeReviewReadSupport.class);
 
   private CodeReviewMultiBoardService service;
 
   @BeforeEach
   void setUp() {
-    service = new CodeReviewMultiBoardService(jdbcTemplate, matchModeSwitchService);
+    service = new CodeReviewMultiBoardService(jdbcTemplate, codeReviewReadSupport);
   }
 
   @Test
-  void shouldPreferCcAndDgmSourceOptions() {
-    when(jdbcTemplate.queryForList(anyString(), eq(String.class)))
-        .thenReturn(List.of("default", "dgm", "cc"));
+  void matchModeSourceOptionsComeOnlyFromIsolatedReadSupport() {
+    org.mockito.Mockito.when(codeReviewReadSupport.listAvailableSources())
+        .thenReturn(List.of(new OptionItemResponse("CC", "cc"), new OptionItemResponse("DGM", "dgm")));
 
     List<OptionItemResponse> options = service.listSourceOptions();
 
@@ -45,9 +44,9 @@ class CodeReviewMultiBoardServiceTest {
   }
 
   @Test
-  void shouldIncludeMatchModeRecordSourcesWhenFactTableIsEmpty() {
-    when(jdbcTemplate.queryForList(contains("code_review_match_mode_records"), eq(String.class)))
-        .thenReturn(List.of("cc"));
+  void formalModeDoesNotUnionCompatibilitySources() {
+    when(codeReviewReadSupport.listAvailableSources())
+        .thenReturn(List.of(new OptionItemResponse("CC", "cc")));
 
     List<OptionItemResponse> options = service.listSourceOptions();
 
@@ -56,64 +55,65 @@ class CodeReviewMultiBoardServiceTest {
   }
 
   @Test
-  void shouldBuildOverviewForRequestedSource() {
-    when(jdbcTemplate.queryForList(anyString(), eq(String.class)))
-        .thenReturn(List.of("cc", "dgm"));
-    when(jdbcTemplate.queryForMap(anyString(), eq("dgm")))
+  void legacyOverviewKeepsTheWholeCurrentSourceInsteadOfSelectingTheFirstProject() {
+    var capturingJdbc = new CapturingJdbcTemplate();
+    service = new CodeReviewMultiBoardService(capturingJdbc, codeReviewReadSupport);
+    var readScope =
+        new QualityBoardCodeReviewReadScope(
+            true,
+            "merge_request_fact",
+            "default",
+            List.of(),
+            "project_id, merge_request_id",
+            " and deleted = false",
+            "project_id = ?",
+            List.of(9L));
+    when(codeReviewReadSupport.configuredReadMode()).thenReturn(CodeReviewDataReadMode.FORMAL);
+    when(codeReviewReadSupport.listAvailableSources(CodeReviewDataReadMode.FORMAL))
+        .thenReturn(List.of(new OptionItemResponse("CC", "cc")));
+    when(codeReviewReadSupport.resolveAllProjectsScope("cc", CodeReviewDataReadMode.FORMAL))
+        .thenReturn(readScope);
+    when(codeReviewReadSupport.queryScope(readScope))
         .thenReturn(
-            Map.of(
-                "merge_request_count", 6,
-                "completed_count", 4,
-                "pending_count", 2,
-                "average_comment_rate", 21.35,
-                "total_defect_count", 9,
-                "total_added_lines", 321,
-                "average_review_duration_minutes", 18.5,
-                "average_added_lines", 64.2));
-    when(
-            jdbcTemplate.queryForList(
-                contains("coalesce(nullif(btrim(module_name)"),
-                anyString(),
-                eq("dgm")))
-        .thenReturn(
-            List.of(
-                Map.of(
-                    "row_label", "payment-center",
-                    "merge_request_count", 3,
-                    "completed_count", 2,
-                    "average_comment_rate", 20.0,
-                    "total_defect_count", 4,
-                    "total_added_lines", 156,
-                    "average_review_duration_minutes", 16.0,
-                    "average_added_lines", 52.0)));
-    when(
-            jdbcTemplate.queryForList(
-                contains("coalesce(nullif(btrim(owner_name)"),
-                anyString(),
-                eq("dgm")))
-        .thenReturn(
-            List.of(
-                Map.of(
-                    "row_label", "zhang-san",
-                    "merge_request_count", 2,
-                    "completed_count", 2,
-                    "average_comment_rate", 22.5,
-                    "total_defect_count", 1,
-                    "total_added_lines", 96,
-                    "average_review_duration_minutes", 14.0,
-                    "average_added_lines", 48.0)));
+            new QualityBoardCodeReviewQueryScope(
+                "lower(coalesce(source_instance, '')) = ? and project_id = ?",
+                List.of("default", 9L)));
 
-    CodeReviewMultiBoardOverviewResponse overview =
-        service.getOverview(new CodeReviewMultiBoardOverviewRequest("dgm"));
+    service.getOverview(new CodeReviewMultiBoardOverviewRequest("cc"));
 
-    assertThat(overview.source()).isEqualTo("dgm");
-    assertThat(overview.sourceLabel()).isEqualTo("DGM");
-    assertThat(overview.mergeRequestCount()).isEqualTo(6);
-    assertThat(overview.totalAddedLines()).isEqualTo(321);
-    assertThat(overview.defectDensityPerKloc()).isEqualTo(28.04);
-    assertThat(overview.moduleRows()).hasSize(1);
-    assertThat(overview.ownerRows()).hasSize(1);
-    assertThat(overview.moduleRows().getFirst().rowLabel()).isEqualTo("payment-center");
-    assertThat(overview.moduleRows().getFirst().defectDensityPerKloc()).isEqualTo(25.64);
+    verify(codeReviewReadSupport, never())
+        .listProjectOptions("cc", CodeReviewDataReadMode.FORMAL);
+    verify(codeReviewReadSupport)
+        .resolveAllProjectsScope("cc", CodeReviewDataReadMode.FORMAL);
+    assertThat(capturingJdbc.sqlStatements).hasSize(3);
+    assertThat(capturingJdbc.sqlStatements)
+        .allSatisfy(
+            sql ->
+                assertThat(sql)
+                    .contains("project_id = ?")
+                    .doesNotContain("project_name in")
+                    .doesNotContain("nullif(btrim(coalesce(project_name"));
   }
+
+  private static final class CapturingJdbcTemplate extends JdbcTemplate {
+    private final List<String> sqlStatements = new ArrayList<>();
+
+    @Override
+    public Map<String, Object> queryForMap(String sql, Object... args) {
+      sqlStatements.add(sql);
+      return Map.of(
+          "merge_request_count", 0,
+          "completed_count", 0,
+          "pending_count", 0,
+          "total_defect_count", 0,
+          "total_added_lines", 0);
+    }
+
+    @Override
+    public List<Map<String, Object>> queryForList(String sql, Object... args) {
+      sqlStatements.add(sql);
+      return List.of();
+    }
+  }
+
 }

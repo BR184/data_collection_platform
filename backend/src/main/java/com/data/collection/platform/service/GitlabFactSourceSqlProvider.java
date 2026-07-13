@@ -269,8 +269,15 @@ class GitlabFactSourceSqlProvider {
                    nullif(btrim(l.title), '')
                    order by coalesce(ll.source_updated_at, ll.updated_at, ll.created_at) desc nulls last, ll.id desc
                  ),
+                  null
+               ) as label_titles,
+               array_remove(
+                 array_agg(
+                   nullif(btrim(l.title), '')
+                   order by coalesce(ll.source_updated_at, ll.updated_at, ll.created_at) asc nulls last, ll.id asc
+                 ) filter (where btrim(l.title) ~ '^项目[[:space:]]*[:：]'),
                  null
-               ) as label_titles
+               ) as project_label_titles
           from ods_gitlab_label_links ll
           join ods_gitlab_labels l
             on l.id = ll.label_id
@@ -395,7 +402,6 @@ class GitlabFactSourceSqlProvider {
         mr.iid as merge_request_iid,
         mr.target_project_id as project_id,
         mr.title,
-        p.name as project_name,
         coalesce(owner_ns.path || '/' || p.path, p.path) as repository_name,
         mr.state_id,
         metrics.merged_at as merged_at,
@@ -432,6 +438,7 @@ class GitlabFactSourceSqlProvider {
         coalesce(mr.source_branch, '') as source_branch,
         coalesce((labels.label_titles)[1], '') as module_name,
         labels.label_titles as label_titles,
+        labels.project_label_titles as project_label_titles,
         metrics.added_lines as added_lines,
         forms.review_duration_minutes,
         case

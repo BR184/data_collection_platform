@@ -8,6 +8,7 @@ export interface EChartPointClickEvent {
   name?: string;
   value: unknown;
   pointKey?: string;
+  detailViewKey?: string;
   detailParams: Record<string, string>;
   data: unknown;
 }
@@ -30,6 +31,7 @@ export function normalizeEChartPointClick(event: ECElementEvent): EChartPointCli
     ? data as Record<string, unknown>
     : {};
   const pointKey = pointData.pointKey ?? pointData.key;
+  const detailViewKey = pointData.detailViewKey;
   return {
     componentType: event.componentType,
     seriesName: event.seriesName,
@@ -38,6 +40,9 @@ export function normalizeEChartPointClick(event: ECElementEvent): EChartPointCli
     name: event.name,
     value: event.value,
     pointKey: pointKey === null || pointKey === undefined ? undefined : String(pointKey),
+    detailViewKey: detailViewKey === null || detailViewKey === undefined
+      ? undefined
+      : String(detailViewKey),
     detailParams: stringRecord(pointData.detailParams),
     data,
   };

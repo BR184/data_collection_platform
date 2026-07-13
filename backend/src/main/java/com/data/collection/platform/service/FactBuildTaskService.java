@@ -88,6 +88,9 @@ public class FactBuildTaskService {
     if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_MERGE_REQUEST)) {
       queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "MERGE_REQUEST", full, syncRunId);
     }
+    if (supportedFactTypes.contains(GitlabFactRefreshRequirements.FACT_TYPE_INTEGRATION_TEST)) {
+      queued += enqueueFactRefreshTask(config.getId(), sourceInstance, "INTEGRATION_TEST", full, syncRunId);
+    }
     return queued;
   }
 
@@ -508,7 +511,7 @@ public class FactBuildTaskService {
   private String normalizeBaseScope(String normalized) {
     return switch (normalized) {
       case "merge_request" -> "merge-request";
-      case "issue", "merge-request", "all" -> normalized;
+      case "issue", "merge-request", "integration-test", "all" -> normalized;
       default -> "all";
     };
   }
@@ -517,6 +520,7 @@ public class FactBuildTaskService {
     String baseScope = switch (factType.toUpperCase(Locale.ROOT)) {
       case "ISSUE" -> "issue";
       case "MERGE_REQUEST" -> "merge-request";
+      case "INTEGRATION_TEST" -> "integration-test";
       default -> "all";
     };
     String normalizedSource = GitlabSourceInstanceSupport.normalizeSourceInstance(sourceInstance);

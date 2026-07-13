@@ -130,6 +130,12 @@ export const codeReviewApi = {
   getCodeReviewMultiBoardSourceOptions() {
     return request<OptionItemResponse[]>('/api/code-review/multi-board/source-options');
   },
+  getCodeReviewMultiBoardProjectOptions(source?: string) {
+    const query = new URLSearchParams(source ? { source } : {});
+    return request<OptionItemResponse[]>(
+      `/api/code-review/multi-board/project-options${query.toString() ? `?${query.toString()}` : ''}`,
+    );
+  },
   getCodeReviewMultiBoardOverview(source?: string) {
     const query = new URLSearchParams(source ? { source } : {});
     return request<CodeReviewMultiBoardOverviewResponse>(

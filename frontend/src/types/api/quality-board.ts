@@ -13,6 +13,12 @@ export interface QualityBoardProjectOptionsResponse {
   options: OptionItemResponse[];
 }
 
+export interface QualityBoardRdFilterOptionsResponse {
+  defaultProjectName: string;
+  projectOptions: OptionItemResponse[];
+  codeReviewSourceOptions: OptionItemResponse[];
+}
+
 export interface QualityBoardRdOverviewResponse {
   projectName: string;
   demandReviewReportDensity: number;

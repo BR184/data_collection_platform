@@ -64,6 +64,10 @@ function mountToolbar() {
           props: ['type', 'size'],
           template: '<span class="el-tag"><slot /></span>',
         },
+        ElTooltip: {
+          props: ['content'],
+          template: '<span :title="content"><slot /></span>',
+        },
         ElDropdown: {
           emits: ['command'],
           template: '<div data-testid="settings-dropdown"><slot /><slot name="dropdown" /></div>',
@@ -109,7 +113,7 @@ describe('StatisticBoardToolbar', () => {
     await buttons.find((button) => button.text() === '查询')?.trigger('click');
     await buttons.find((button) => button.text() === '重置')?.trigger('click');
     await buttons.find((button) => button.text() === '刷新最新数据')?.trigger('click');
-    await buttons.find((button) => button.text() === '规则说明')?.trigger('click');
+    await wrapper.get('[aria-label="规则说明"]').trigger('click');
     await buttons.find((button) => button.text() === '导出')?.trigger('click');
 
     expect(wrapper.emitted('applyFilters')).toHaveLength(1);

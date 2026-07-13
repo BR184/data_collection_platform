@@ -49,6 +49,7 @@ public class FactBuildService {
   private final GitlabSourceSchemaGuard sourceSchemaGuard;
   private final SqlQueryMonitor sqlQueryMonitor;
   private final GitlabConfigService configService;
+  private final IntegrationTestFactBuildService integrationTestFactBuildService;
   private final GitlabFactSourceSqlProvider factSourceSqlProvider;
   private final GitlabFactSourceQueryExecutor factSourceQueryExecutor;
 
@@ -60,7 +61,8 @@ public class FactBuildService {
       FactBuildTaskService factBuildTaskService,
       GitlabSourceSchemaGuard sourceSchemaGuard,
       SqlQueryMonitor sqlQueryMonitor,
-      GitlabConfigService configService) {
+      GitlabConfigService configService,
+      IntegrationTestFactBuildService integrationTestFactBuildService) {
     this.jdbcTemplate = jdbcTemplate;
     this.issueFactMapper = issueFactMapper;
     this.mergeRequestFactMapper = mergeRequestFactMapper;
@@ -69,6 +71,7 @@ public class FactBuildService {
     this.sourceSchemaGuard = sourceSchemaGuard;
     this.sqlQueryMonitor = sqlQueryMonitor;
     this.configService = configService;
+    this.integrationTestFactBuildService = integrationTestFactBuildService;
     this.factSourceSqlProvider = new GitlabFactSourceSqlProvider();
     this.factSourceQueryExecutor = new GitlabFactSourceQueryExecutor(jdbcTemplate, sqlQueryMonitor);
   }
@@ -92,11 +95,19 @@ public class FactBuildService {
   private FactBuildResponse rebuildAllFactsInternal(boolean full, String sourceInstance) {
     FactBuildResponse issue = rebuildIssueFactsInternal(full, sourceInstance);
     FactBuildResponse mergeRequest = rebuildMergeRequestFactsInternal(full, sourceInstance);
+    FactBuildResponse integrationTest =
+        integrationTestFactBuildService.rebuildFactsForSource(sourceInstance, full);
     return new FactBuildResponse(
         factScope("all", sourceInstance),
         full,
-        issue.affectedRows() + mergeRequest.affectedRows(),
-        "事实表构建完成：议题 " + issue.affectedRows() + " 条，合并请求 " + mergeRequest.affectedRows() + " 条");
+        issue.affectedRows() + mergeRequest.affectedRows() + integrationTest.affectedRows(),
+        "事实表构建完成：议题 "
+            + issue.affectedRows()
+            + " 条，合并请求 "
+            + mergeRequest.affectedRows()
+            + " 条，集成测试 "
+            + integrationTest.affectedRows()
+            + " 条");
   }
 
   public FactBuildResponse rebuildIssueFacts(boolean full) {
@@ -926,6 +937,7 @@ public class FactBuildService {
   private MergeRequestFact mapMergeRequestFact(
       ResultSet rs, int rowNum, String sourceInstance, ModuleDictionary moduleDictionary) throws SQLException {
     List<String> labels = readTextArray(rs.getArray("label_titles"));
+    List<String> projectLabels = readTextArray(rs.getArray("project_label_titles"));
     MergeRequestFact fact = new MergeRequestFact();
     fact.setSourceSystem(DEFAULT_SOURCE_SYSTEM);
     fact.setSourceInstance(sourceInstance);
@@ -933,7 +945,7 @@ public class FactBuildService {
     fact.setSourceSummary(defaultText(rs.getString("metric_source_summary"), "GitLab merge request 镜像聚合"));
     fact.setRawPayload(defaultText(rs.getString("metric_raw_payload"), null));
     fact.setProjectId(rs.getLong("project_id"));
-    fact.setProjectName(defaultText(rs.getString("project_name")));
+    fact.setProjectName(IssueFactNormalizationRules.normalizeMergeRequestProjectName(projectLabels));
     fact.setRepositoryName(defaultText(rs.getString("repository_name")));
     fact.setMergeRequestId(rs.getLong("merge_request_id"));
     fact.setMergeRequestIid(rs.getLong("merge_request_iid"));
